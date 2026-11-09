@@ -98,6 +98,6 @@
   border-radius: 999px;
   background: rgba(10, 6, 18, 0.8);
   color: #f1e9ff;
-  font-size: 0.8rem;
+  font-size: var(--text-2xs);
   pointer-events: none;
 }

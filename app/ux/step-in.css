@@ -97,7 +97,7 @@
   resize: vertical;
   min-height: 3.2rem;
   font: inherit;
-  font-size: 1rem;
+  font-size: var(--text-base);
   padding: 0.7rem 0.9rem;
   border-radius: var(--radius-md);
   border: 1px solid rgba(255, 255, 255, 0.24);

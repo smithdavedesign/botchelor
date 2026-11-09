@@ -152,7 +152,7 @@ li.picked {
   border-radius: var(--radius);
   background: transparent;
   color: var(--ink);
-  font-size: 0.82rem;
+  font-size: var(--text-xs);
 }
 .studio-size.on {
   border-color: var(--accent);
@@ -253,7 +253,7 @@ li.picked {
   place-items: center;
   border: 1px dashed var(--line);
   color: var(--muted);
-  font-size: 1.5rem;
+  font-size: var(--icon-md);
 }
 .studio-identity-view.stale img {
   opacity: 0.55;
@@ -337,7 +337,7 @@ li.picked {
   padding: 0 var(--space-1);
   border-radius: var(--radius);
   background: var(--card);
-  font-size: 0.75rem;
+  font-size: var(--text-2xs);
 }
 .ad-compare-tag.before {
   left: var(--space-1);
@@ -515,7 +515,7 @@ li.picked {
   cursor: pointer;
 }
 .ad-camera .ad-camera-label {
-  font-size: 0.72rem;
+  font-size: var(--text-2xs);
   line-height: 1.15;
   text-align: center;
 }
@@ -622,7 +622,7 @@ li.picked {
 .ad-rate-stamp {
   position: absolute;
   top: var(--space-3);
-  font-size: 2.6rem;
+  font-size: var(--icon-xl);
   pointer-events: none;
 }
 .ad-rate-stamp.like {

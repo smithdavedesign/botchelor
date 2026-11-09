@@ -30,7 +30,7 @@
   margin: 0;
 }
 .ad-empty-icon {
-  font-size: 2rem;
+  font-size: var(--icon-lg);
   line-height: 1;
 }
 .ad-empty .button-ghost {
@@ -906,7 +906,7 @@ label.ad-check-row {
   background: rgba(255, 255, 255, 0.12);
 }
 .ad-player .ad-player-main {
-  font-size: 1.15rem;
+  font-size: var(--icon-sm);
 }
 @media (max-width: 760px) {
   .ad-theater-bottom,
@@ -1145,7 +1145,7 @@ img.avatar-photo {
 }
 .ad-scenes-tags button {
   padding: 0.2rem 0.65rem;
-  font-size: 0.8rem;
+  font-size: var(--text-2xs);
   color: #c9b9e6;
 }
 .ad-scenes-cats button.on,
@@ -1161,7 +1161,7 @@ img.avatar-photo {
 .ad-scenes-count {
   margin-left: 0.25rem;
   opacity: 0.65;
-  font-size: 0.75rem;
+  font-size: var(--text-2xs);
 }
 button.ad-scenes-clear {
   border-style: dashed;
@@ -1214,7 +1214,7 @@ button.ad-scenes-clear {
   padding: 0.1rem 0.4rem;
   border-radius: 999px;
   background: rgba(10, 5, 18, 0.6);
-  font-size: 0.85rem;
+  font-size: var(--text-xs);
 }
 .ad-scene-here {
   position: absolute;
@@ -1236,7 +1236,7 @@ button.ad-scenes-clear {
   overflow: hidden;
 }
 .ad-scene-tags {
-  font-size: 0.75rem;
+  font-size: var(--text-2xs);
   color: #9d8dba;
 }
 .ad-scene-actions {
@@ -1362,7 +1362,7 @@ button.ad-reel-cc {
   border-radius: var(--radius-xs);
   background: rgba(0, 0, 0, 0.35);
   color: #fff;
-  font-size: 0.72rem;
+  font-size: var(--text-2xs);
   font-weight: 800;
   letter-spacing: 0.04em;
   box-shadow: none;
@@ -1481,11 +1481,11 @@ button.ad-rp-pick {
   height: auto;
 }
 .ad-rp-icon {
-  font-size: 1.6rem;
+  font-size: var(--icon-md);
   line-height: 1;
 }
 .ad-rp-roles {
-  font-size: 0.8rem;
+  font-size: var(--text-2xs);
   color: #e2c8ff;
 }
 button.ad-rp-swap {
@@ -1603,7 +1603,7 @@ button.ad-roleplay-chip {
     background: rgba(10, 6, 18, 0.66);
     color: #f1e9ff;
     font: inherit;
-    font-size: 0.85rem;
+    font-size: var(--text-xs);
     font-weight: 600;
   }
   .theater-after-dark .ad-media-caption {
@@ -1618,7 +1618,7 @@ button.ad-roleplay-chip {
     border-radius: var(--radius-sm);
     background: rgba(8, 4, 14, 0.62);
     color: #fff;
-    font-size: 0.95rem;
+    font-size: var(--text-base);
     line-height: 1.35;
     text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
     display: -webkit-box;
@@ -1646,7 +1646,7 @@ button.ad-roleplay-chip {
   background: rgba(10, 6, 18, 0.66);
   color: #f1e9ff;
   font: inherit;
-  font-size: 0.85rem;
+  font-size: var(--text-xs);
   font-weight: 600;
 }
 /* On a desktop the top bar lies over the stage: the backdrop's buttons sit under it, not under the names. */
@@ -1694,7 +1694,7 @@ a.ad-scenes-make-link {
 a.ad-scenes-make-link {
   flex: none;
   align-self: center;
-  font-size: 0.8rem;
+  font-size: var(--text-2xs);
   white-space: nowrap;
 }
 
@@ -1882,7 +1882,7 @@ a.ad-scenes-make-link {
   min-height: 2.2rem;
   border-radius: 999px;
   border: 1px solid color-mix(in srgb, var(--ad-ink, #fff) 25%, transparent);
-  font-size: 1.1rem;
+  font-size: var(--icon-xs);
   line-height: 1;
 }
 .ad-tile-more > summary::-webkit-details-marker {
@@ -2103,7 +2103,7 @@ a.ad-scenes-make-link {
   text-align: center;
 }
 .theater-after-dark .ad-scene-cut span {
-  font-size: 0.85rem;
+  font-size: var(--text-xs);
   color: rgba(255, 255, 255, 0.75);
 }
 
@@ -2123,7 +2123,7 @@ a.ad-scenes-make-link {
   border-radius: var(--radius-md);
   background: rgba(10, 6, 18, 0.8);
   color: #f1e9ff;
-  font-size: 0.85rem;
+  font-size: var(--text-xs);
   line-height: 1.35;
 }
 .theater-after-dark .ad-blur-hint[hidden] {
@@ -2236,7 +2236,7 @@ a.ad-scenes-make-link {
   }
   .ad-theater-tab {
     padding: 0.3rem 0.5rem;
-    font-size: 0.8rem;
+    font-size: var(--text-2xs);
   }
   .ad-theater-tab.on {
     display: none;
@@ -2309,5 +2309,5 @@ a.ad-scenes-make-link {
 /* The faces and body references drawn lately, under Recast and Body reference (they used to vanish on a reload). */
 .ad-drawn-head {
   margin: var(--space-3) 0 var(--space-1);
-  font-size: 0.95rem;
+  font-size: var(--text-base);
 }

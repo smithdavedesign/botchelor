@@ -43,7 +43,7 @@
 .title {
   margin: 0;
   font-weight: 700;
-  font-size: 1.05rem;
+  font-size: var(--text-md);
   overflow-wrap: anywhere;
 }
 
@@ -307,7 +307,7 @@
   border: 2px solid var(--line);
   border-radius: var(--radius-sm);
   text-align: center;
-  font-size: 0.8rem;
+  font-size: var(--text-2xs);
 }
 
 .covers input:checked + img,

@@ -91,6 +91,17 @@
   --text-lg: clamp(1.08rem, 1rem + 0.4vw, 1.2rem);
   --text-xl: clamp(1.3rem, 1.1rem + 0.9vw, 1.6rem);
   --text-2xl: clamp(1.5rem, 1.2rem + 1.4vw, 2rem);
+  /* The display size: a page's h1, from a phone's 32px up with the viewport (docs/brand.md, Typography). */
+  --text-display: clamp(2rem, 6vw, 3.1rem);
+  /*
+   * Icon sizes: a glyph or an emoji that stands alone in a button or a tile (×, ‹, ★, ▾, an empty state's emoji). Fixed,
+   * not fluid: an icon is drawn for the size of its target. An <Icon> beside words takes their size (1em) instead.
+   */
+  --icon-xs: 1rem;
+  --icon-sm: 1.25rem;
+  --icon-md: 1.6rem;
+  --icon-lg: 2rem;
+  --icon-xl: 2.6rem;
   /*
    * Chart series (the admin analytics charts), in this fixed order, never cycled. Checked with the dataviz palette
    * validator against the card in both themes: neighbours stay apart for colour-blind readers too. Series 4 is under 3:1
@@ -458,7 +469,7 @@ h3.section,
 
 h1 {
   line-height: 1.08;
-  font-size: clamp(2rem, 6vw, 3.1rem);
+  font-size: var(--text-display);
   font-weight: 800;
   letter-spacing: -0.01em;
   margin: 0.25rem 0 0.5rem;
@@ -589,7 +600,7 @@ h2 {
 }
 .token-pip {
   color: var(--accent-text);
-  font-size: 1rem;
+  font-size: var(--icon-xs);
 }
 .token-count {
   font-variant-numeric: tabular-nums;
@@ -694,7 +705,7 @@ h2 {
   border-radius: 999px;
   background: var(--accent-btn);
   color: var(--accent-ink);
-  font-size: 0.75rem;
+  font-size: var(--text-2xs);
   font-weight: 700;
   line-height: 1.25rem;
   text-align: center;
@@ -754,13 +765,13 @@ h2 {
   }
   .nav-links a {
     padding: 0.7rem 0.9rem;
-    font-size: 1rem;
+    font-size: var(--text-base);
   }
   .nav a.nav-create,
   .nav a.nav-create:hover,
   .nav a.nav-create[aria-current="page"] {
     padding: 0.7rem 0.9rem;
-    font-size: 1rem;
+    font-size: var(--text-base);
     text-align: center;
   }
   .nav-bell-label {
@@ -1370,7 +1381,7 @@ button.chosen {
   background-size: cover;
   color: #fff;
   font-family: "Fraunces", Georgia, serif;
-  font-size: 1rem;
+  font-size: var(--text-base);
   font-weight: 700;
   letter-spacing: 0.01em;
   text-shadow: 0 1px 10px rgb(0 0 0 / 45%);
@@ -2856,7 +2867,7 @@ button.poll-option.chosen {
   text-align: left;
 }
 .meter-label {
-  font-size: 0.85rem;
+  font-size: var(--text-xs);
   color: var(--muted);
 }
 .meter-track {
@@ -2877,7 +2888,7 @@ button.poll-option.chosen {
   background: var(--grad);
 }
 .meter-value {
-  font-size: 0.85rem;
+  font-size: var(--text-xs);
   font-weight: 600;
   color: var(--ink);
 }
@@ -3002,7 +3013,7 @@ button.poll-option.chosen {
   justify-content: space-between;
   height: 2.6rem;
   padding: 0 1.5rem 0 1.9rem;
-  font-size: 0.82rem;
+  font-size: var(--text-xs);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
@@ -3050,7 +3061,7 @@ button.poll-option.chosen {
   justify-self: start;
   min-width: 2rem;
   padding: 0 0.35rem;
-  font-size: 2rem;
+  font-size: var(--icon-lg);
   line-height: 1;
   text-decoration: none;
   color: var(--accent-text);
@@ -3207,7 +3218,7 @@ button.phone-earlier-btn:hover:not(:disabled) {
   margin: 0;
   padding: 0.45rem 0.75rem;
   border-radius: var(--radius);
-  font-size: 0.94rem;
+  font-size: var(--text-base);
   line-height: 1.35;
   overflow-wrap: anywhere;
   /* A text can run long and keep its own line breaks (an agent's, a person's own model). */
@@ -3266,7 +3277,7 @@ button.phone-jump {
   background: var(--card);
   color: var(--accent-text);
   box-shadow: var(--shadow);
-  font-size: 1.05rem;
+  font-size: var(--icon-xs);
   line-height: 1;
 }
 /* Where you'd type: read-only, since only the characters text here. */
@@ -3323,7 +3334,7 @@ button.phone-send {
   margin: 0;
   padding: 0;
   border-radius: 999px;
-  font-size: 1.05rem;
+  font-size: var(--icon-xs);
   line-height: 1;
 }
 .phone-status-line {
@@ -3397,7 +3408,7 @@ html.phone-open body {
   margin: 0;
 }
 .phone-lock {
-  font-size: 2rem;
+  font-size: var(--icon-lg);
   line-height: 1;
 }
 
@@ -3672,7 +3683,7 @@ button.swipe-btn {
   margin: 0;
   padding: 0;
   border-radius: 999px;
-  font-size: 1.6rem;
+  font-size: var(--icon-md);
   line-height: 1;
   box-shadow: var(--shadow);
 }
@@ -4040,7 +4051,7 @@ button.rating-chip:hover {
   border-radius: var(--radius);
   background: rgba(255, 255, 255, 0.95);
   color: #241022;
-  font-size: 1rem;
+  font-size: var(--text-base);
   line-height: 1.4;
   box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.6);
   animation: scene-pop 0.25s ease;
@@ -4129,7 +4140,7 @@ button.rating-chip:hover {
   border: 1px solid rgba(255, 255, 255, 0.25);
   background: rgba(0, 0, 0, 0.35);
   color: #fff;
-  font-size: 1rem;
+  font-size: var(--icon-xs);
   cursor: pointer;
 }
 .theater-icon:hover {
@@ -4144,7 +4155,7 @@ button.rating-chip:hover {
   padding: 0 0.75rem;
 }
 .theater-icon-word {
-  font-size: 0.8rem;
+  font-size: var(--text-2xs);
 }
 /* #1099: why a tool is greyed out, said under it. */
 .ad-tools-why {
@@ -4466,7 +4477,7 @@ button.chat-vote[aria-pressed="true"] .chat-vote-face {
   .scene-venue {
     top: auto;
     bottom: 0.55rem;
-    font-size: 0.95rem;
+    font-size: var(--text-base);
     color: rgba(255, 255, 255, 0.7);
   }
   .theater-stage {
@@ -5565,7 +5576,7 @@ button.dice:hover:not(:disabled) {
   box-shadow: var(--shadow);
 }
 .feedback-fab-icon {
-  font-size: 1rem;
+  font-size: var(--icon-xs);
   line-height: 1;
 }
 /* Room under the footer for the button, so it never sits on the footer's last line (its own link included). */
@@ -5628,7 +5639,7 @@ body:has(.feedback-fab) .site-footer {
   border-radius: 999px;
   background: transparent;
   color: var(--muted);
-  font-size: 1.5rem;
+  font-size: var(--icon-md);
   line-height: 1;
   box-shadow: none;
 }
@@ -5983,7 +5994,7 @@ button.sheet-x {
   background: none;
   box-shadow: none;
   color: var(--muted);
-  font-size: 1.6rem;
+  font-size: var(--icon-md);
   font-weight: 400;
   line-height: 1;
 }
@@ -7207,7 +7218,7 @@ button.table-more {
   min-height: 2.75rem;
   border-radius: 999px;
   color: inherit;
-  font-size: 1.25rem;
+  font-size: var(--icon-sm);
   text-decoration: none;
 }
 .swipe-topbar-btn .nav-count {
@@ -7316,7 +7327,7 @@ button.table-more {
 /* ⓘ on a thread: a header button that happens to be a link. */
 a.phone-head-btn {
   color: inherit;
-  font-size: 1.15rem;
+  font-size: var(--icon-sm);
   text-decoration: none;
 }
 
@@ -7445,7 +7456,7 @@ a.phone-head-btn {
   height: 2.75rem;
   border-radius: 999px;
   color: var(--accent-text);
-  font-size: 1.1rem;
+  font-size: var(--icon-xs);
 }
 .thread-switcher:hover,
 .thread-switcher:focus-within {
@@ -7542,7 +7553,7 @@ a.phone-head-btn {
   height: 2.4rem;
   padding: 0;
   border-radius: 999px;
-  font-size: 1.1rem;
+  font-size: var(--icon-xs);
   line-height: 1;
   background: var(--ad-card, var(--card));
   color: var(--ad-ink, var(--ink));
@@ -7746,7 +7757,7 @@ a.phone-head-btn {
   color: #cbb8e0;
 }
 .ad-start-where {
-  font-size: 1.15rem;
+  font-size: var(--text-lg);
   font-weight: 600;
 }
 .ad-start-actions {
@@ -7761,7 +7772,7 @@ a.phone-head-btn {
   margin: var(--space-2) 0;
   padding: 0;
   text-align: left;
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
 }
 .ad-start-ready li {
   margin: 2px 0;
@@ -7813,7 +7824,7 @@ a.phone-head-btn {
 .ad-pc-field {
   display: grid;
   gap: 2px;
-  font-size: 0.85rem;
+  font-size: var(--text-xs);
 }
 .ad-pc-label {
   color: #cbb8e0;
@@ -7836,7 +7847,7 @@ a.phone-head-btn {
 }
 .ad-pc-prompt summary {
   cursor: pointer;
-  font-size: 0.85rem;
+  font-size: var(--text-xs);
   color: #cbb8e0;
 }
 .ad-pc-prompt p {
@@ -8021,7 +8032,7 @@ a.phone-head-btn {
   background: rgba(10, 6, 18, 0.66);
   color: #f1e9ff;
   font: inherit;
-  font-size: 0.85rem;
+  font-size: var(--text-xs);
   font-weight: 600;
   cursor: pointer;
 }
@@ -8120,7 +8131,7 @@ a.phone-head-btn {
   padding: 0.1rem 0.45rem;
   border: 0;
   border-radius: var(--radius-sm);
-  font-size: 0.72rem;
+  font-size: var(--text-2xs);
   font-weight: 600;
   text-decoration: none;
   background: rgba(8, 4, 14, 0.82);
@@ -8154,7 +8165,7 @@ a.phone-head-btn {
   border-radius: var(--radius-xs);
   background: rgba(10, 5, 18, 0.5);
   color: #f1e9ff;
-  font-size: 0.8rem;
+  font-size: var(--text-2xs);
 }
 .ad-shot-custom::placeholder {
   color: #6a5a7f;
@@ -8390,7 +8401,7 @@ a.phone-head-btn {
   display: grid;
   gap: 2px;
   margin: 0 0 var(--space-3);
-  font-size: 1.15rem;
+  font-size: var(--text-lg);
 }
 .looks-grid {
   display: grid;
@@ -8454,7 +8465,7 @@ a.phone-head-btn {
   background: linear-gradient(transparent, rgba(20, 8, 20, 0.78));
   color: #fff;
   font-weight: 600;
-  font-size: 0.92rem;
+  font-size: var(--text-sm);
   text-align: center;
 }
 .looks-tile.no-img .looks-tile-label {
@@ -8596,7 +8607,7 @@ a.phone-head-btn {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .looks-tile-label {
-    font-size: 0.8rem;
+    font-size: var(--text-2xs);
     padding: 14px 4px 6px;
   }
 }
@@ -8625,7 +8636,7 @@ a.phone-head-btn {
 .review-stars {
   display: inline-flex;
   gap: 0.15rem;
-  font-size: 1.6rem;
+  font-size: var(--icon-md);
   line-height: 1;
 }
 .review-stars label {
@@ -8892,7 +8903,7 @@ a.phone-head-btn {
   background: rgba(10, 6, 18, 0.72);
   color: #fff;
   text-align: center;
-  font-size: 1rem;
+  font-size: var(--text-base);
   line-height: 1.35;
 }
 .ad-reel-controls {
@@ -8960,7 +8971,7 @@ a.phone-head-btn {
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.16);
   color: #fff;
-  font-size: 1.2rem;
+  font-size: var(--icon-sm);
   cursor: pointer;
 }
 /* Under a player, the shot on screen: 👍/👎 and Remove this shot (Reels.tsx SeamlessPlayer). */
@@ -8993,7 +9004,7 @@ a.phone-head-btn {
   border-radius: 999px;
   background: transparent;
   box-shadow: none;
-  font-size: 1rem;
+  font-size: var(--icon-xs);
   line-height: 1;
   cursor: pointer;
 }
@@ -9079,7 +9090,7 @@ a.phone-head-btn {
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.2);
   color: #fff;
-  font-size: 1.2rem;
+  font-size: var(--icon-sm);
 }
 /* Their faces (Faces.tsx, lib/adult/steering.ts): the face each keeps, and three to pick from. */
 .ad-faces-list {
@@ -9271,7 +9282,7 @@ a.phone-head-btn {
   background: transparent;
   color: inherit;
   box-shadow: none;
-  font-size: 1rem;
+  font-size: var(--icon-xs);
   line-height: 1;
 }
 .ad-steer-buttons {
@@ -9563,7 +9574,7 @@ a.phone-head-btn {
   border-radius: var(--radius-sm);
   background: rgba(10, 6, 18, 0.6);
   color: #fff;
-  font-size: 1.05rem;
+  font-size: var(--icon-xs);
   line-height: 1;
   cursor: pointer;
   opacity: 0.85;
@@ -9613,7 +9624,7 @@ a.phone-head-btn {
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.18);
   color: #fff;
-  font-size: 1.2rem;
+  font-size: var(--icon-sm);
   cursor: pointer;
 }
 .ad-studio-setup {
@@ -9870,7 +9881,7 @@ html.ad-studio-locked {
   background: transparent;
   color: inherit;
   box-shadow: none;
-  font-size: 1rem;
+  font-size: var(--icon-xs);
   line-height: 1;
 }
 .ad-x:hover:not(:disabled) {
@@ -10360,7 +10371,7 @@ html.ad-studio-locked {
 a.phone-head-btn {
   justify-self: end;
   color: var(--accent-text);
-  font-size: 1.15rem;
+  font-size: var(--icon-sm);
   text-decoration: none;
 }
 @media (pointer: coarse) {
@@ -10498,7 +10509,7 @@ a.phone-head-btn {
   border-radius: 999px;
   background: var(--soft);
   color: var(--accent-text);
-  font-size: 0.7rem;
+  font-size: var(--text-2xs);
   line-height: 1.2rem;
   text-align: center;
 }
@@ -10513,7 +10524,7 @@ a.phone-head-btn {
   margin-left: auto;
   padding: 0 0.5rem;
   color: var(--muted);
-  font-size: 1.1rem;
+  font-size: var(--icon-xs);
 }
 .room-pane {
   flex: 1 1 auto;
@@ -10757,7 +10768,7 @@ main:has(> .episode-page) {
   color: rgba(255, 255, 255, 0.75);
 }
 .episode-hero-cast .episode-hero-x {
-  font-size: 1.6rem;
+  font-size: var(--icon-md);
 }
 .episode-hero h1 {
   margin: 0;
@@ -10836,7 +10847,7 @@ main:has(> .episode-page) {
   margin: 0;
   max-width: 38rem;
   font-family: "Fraunces", Georgia, serif;
-  font-size: clamp(1.05rem, 2.4vw, 1.3rem);
+  font-size: var(--text-lg);
   line-height: 1.45;
   color: rgba(255, 255, 255, 0.92);
   text-shadow: 0 1px 12px rgba(0, 0, 0, 0.5);
@@ -11040,7 +11051,7 @@ html.constellation-locked body {
   border-radius: var(--radius-sm);
   background: rgba(255, 255, 255, 0.06);
   color: var(--constellation-label);
-  font-size: 1.15rem;
+  font-size: var(--icon-sm);
   box-shadow: none;
 }
 .constellation-hud button.constellation-full-btn:hover:not(:disabled) {
@@ -11440,7 +11451,7 @@ a:hover > .ad-edge,
 .ad-pairs {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
 }
 .ad-pairs th,
 .ad-pairs td {
@@ -11519,7 +11530,7 @@ section:has(> .ad-pairs) {
   border: 0;
   background: none;
   padding: 0 0.1rem;
-  font-size: 1.25rem;
+  font-size: var(--icon-sm);
   line-height: 1;
   cursor: pointer;
   color: var(--muted, #888);
@@ -11787,7 +11798,7 @@ details > summary.small {
     box-shadow: none;
     color: var(--ink);
     font: inherit;
-    font-size: 1rem;
+    font-size: var(--text-base);
     font-weight: 400;
     text-align: left;
   }
@@ -12377,7 +12388,7 @@ button.pg-group-head:hover {
   justify-self: start;
 }
 .create-badge {
-  font-size: 0.7rem;
+  font-size: var(--text-2xs);
 }
 .pg-chips button.pg-mine {
   border-style: dashed;
@@ -12466,7 +12477,7 @@ button.pg-group-head:hover {
   gap: var(--space-2) var(--space-3);
 }
 .invite-row-icon {
-  font-size: 1.5rem;
+  font-size: var(--icon-md);
   line-height: 1;
 }
 .invite-row-text {

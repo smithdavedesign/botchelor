@@ -76,7 +76,7 @@
   text-align: center;
 }
 .empty-state-emoji {
-  font-size: 2rem;
+  font-size: var(--icon-lg);
   line-height: 1;
 }
 .empty-state-title {
