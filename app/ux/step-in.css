@@ -141,7 +141,7 @@
 .stepin-pause {
   padding: var(--space-3) var(--space-4) var(--space-4);
   border-top: 1px solid var(--stepin-line);
-  background: #fff;
+  background: var(--card);
   color: var(--ink);
 }
 .stepin-pause .button-ghost {

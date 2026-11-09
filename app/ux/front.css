@@ -10,7 +10,7 @@
   gap: var(--space-3);
   padding: var(--space-4);
   border-radius: var(--radius);
-  color: #fff;
+  color: var(--on-photo);
   background-size: cover;
   background-position: center;
   box-shadow: var(--shadow);
@@ -55,18 +55,18 @@
 }
 .date-excerpt-bubble {
   padding: 0.5rem 0.75rem;
-  border-radius: 16px 16px 16px 4px;
+  border-radius: var(--radius) var(--radius) var(--radius) var(--radius-xs);
   background: rgba(255, 255, 255, 0.94);
-  color: #241022;
+  color: var(--bubble-ink);
   font-size: var(--text-sm);
   line-height: 1.4;
   animation: excerpt-in 0.3s ease-out both;
   animation-delay: calc(var(--i) * var(--excerpt-step) + 0.75s);
 }
 .date-excerpt-line.is-b .date-excerpt-bubble {
-  border-radius: 16px 16px 4px 16px;
-  background: color-mix(in srgb, var(--accent) 88%, #fff);
-  color: #fff;
+  border-radius: var(--radius) var(--radius) var(--radius-xs) var(--radius);
+  background: color-mix(in srgb, var(--accent) 88%, var(--bubble));
+  color: var(--accent-ink);
 }
 /* "…" while they type: over the bubble's start, gone as the line lands (the layout never moves). */
 .date-excerpt-typing {
@@ -76,7 +76,7 @@
   display: inline-flex;
   gap: 4px;
   padding: 0.6rem 0.75rem;
-  border-radius: 16px 16px 16px 4px;
+  border-radius: var(--radius) var(--radius) var(--radius) var(--radius-xs);
   background: rgba(255, 255, 255, 0.94);
   animation: excerpt-out 0.2s ease-in both;
   animation-delay: calc(var(--i) * var(--excerpt-step) + 0.7s);
@@ -84,8 +84,8 @@
 .date-excerpt-line.is-b .date-excerpt-typing {
   left: auto;
   right: calc(28px + 0.45rem);
-  border-radius: 16px 16px 4px 16px;
-  background: color-mix(in srgb, var(--accent) 88%, #fff);
+  border-radius: var(--radius) var(--radius) var(--radius-xs) var(--radius);
+  background: color-mix(in srgb, var(--accent) 88%, var(--bubble));
 }
 .date-excerpt-typing span {
   width: 6px;
@@ -95,7 +95,7 @@
   animation: excerpt-dot 0.9s ease-in-out infinite;
 }
 .date-excerpt-line.is-b .date-excerpt-typing span {
-  background: #fff;
+  background: var(--accent-ink);
 }
 .date-excerpt-typing span:nth-child(2) {
   animation-delay: 0.15s;

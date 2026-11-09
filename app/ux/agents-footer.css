@@ -636,6 +636,7 @@
 /* A provider's text mark (app/account/keys/ProviderMark.tsx): its letters on its colour. The colours are each provider's
    own (data, not theme), set once here; white letters clear 4.5:1 on every one. */
 .provider-mark {
+  --mark-ink: #fff;
   display: block;
   flex: none;
 }
@@ -645,7 +646,7 @@
   stroke-width: 1;
 }
 .provider-mark-text {
-  fill: var(--mark-ink, #fff);
+  fill: var(--mark-ink);
   font-family: Inter, system-ui, sans-serif;
   font-weight: 800;
   letter-spacing: -0.02em;

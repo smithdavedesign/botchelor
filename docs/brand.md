@@ -38,10 +38,18 @@ never a raw hex, so dark mode and future theming keep working. Pick by job, not 
 | `--bad` / `--bad-text` | `#dc2626` / `#b91c1c` | `#ff6b6b` | Error icon or border / error text |
 | `--grad` | `linear-gradient(120deg, --accent-btn, --accent-2)` | same | Wordmark, hero, primary buttons |
 | `--photo-bg` | `#1d1030` | same | Behind a photo while it loads (a venue's, a reel's) |
-| `--on-photo` | `#fff` | same | Words and rings laid on a photo, under its dark grade |
+| `--on-photo` | `#fff` | same | Words and rings laid on a photo, under its dark grade, or on a surface that's dark in both themes (the stage, the tonight band, a `--card-dark`) |
+| `--media-bg` | `#000` | same | Behind a video, or a picture that letterboxes (the players, the reels, Studio's frames) |
+| `--bubble` / `--bubble-ink` | `#fff` / `#241022` | same | A speech bubble laid on a photo (the theater's scene, the real date on home); the second speaker's mixes `--accent` into `--bubble` |
+| `--card-dark` / `--grad-dark` | `#140a1e` / `linear-gradient(160deg, #241131, --card-dark 70%)` | same | The show's dark cards, like its title cards: the tonight band, an episode's "previously" strip, a finale's cold open |
 
-The two photo tokens are the one exception to "redefine it for dark": a photo looks the same in either theme, so
-what sits on it does too.
+These are the one exception to "redefine it for dark": a photo or a video looks the same in either theme, so what
+sits on it does too, and the show's title-card surfaces are dark on purpose. A component with a colour of its own
+keeps it as a token on its root, not a literal in its rules: the reels' screen (`--reels-bg`, `--reels-pill-ink` on
+`.reels`), a provider mark's letters (`--mark-ink` on `.provider-mark`).
+
+Shading and masks aren't palette colours: a mask's opaque stop and a `color-mix()` toward black say `black`, not
+`#000` (a mask only reads the alpha; "mix 6% black into the card" is a shade of the card, in either theme).
 
 **Contrast is checked, not assumed.** Every text token clears 4.5:1 on every surface it sits on, and every
 control edge and focus ring clears 3:1, in light and dark, and again under `prefers-contrast: more`. When you

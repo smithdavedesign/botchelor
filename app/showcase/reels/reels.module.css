@@ -1,11 +1,15 @@
 /* The showcase's reels (ReelFeed.tsx): one post a screen, full-bleed on a phone, a 9:16 column on a wide screen with
    the same picture blurred either side. Dark, whatever the site's theme: it's a screen for pictures. */
 .reels {
+  /* Its two own colours: the near-black screen, and the dark words on its white pills (the call to action, the side
+     that's on). Everything else on it is the site's --on-photo and --media-bg. */
+  --reels-bg: #07050b;
+  --reels-pill-ink: #1a0f22;
   position: fixed;
   inset: 0;
   z-index: 60;
-  background: #07050b;
-  color: #fff;
+  background: var(--reels-bg);
+  color: var(--on-photo);
 }
 .reels a {
   color: inherit;
@@ -42,7 +46,7 @@
   max-width: calc(100dvh * 9 / 16);
   margin: 0 auto;
   overflow: hidden;
-  background: #000;
+  background: var(--media-bg);
 }
 .frame > img,
 .frame > video {
@@ -166,13 +170,13 @@
 }
 .cta {
   border: 0;
-  background: #fff;
-  color: #1a0f22 !important;
+  background: var(--on-photo);
+  color: var(--reels-pill-ink) !important;
 }
 .ctaGhost {
   border: 1.5px solid rgba(255, 255, 255, 0.7);
   background: rgba(0, 0, 0, 0.25);
-  color: #fff;
+  color: var(--on-photo);
 }
 .lock {
   display: inline-block;
@@ -203,7 +207,7 @@
   border-radius: 999px;
   background: rgba(0, 0, 0, 0.4);
   box-shadow: none;
-  color: #fff;
+  color: var(--on-photo);
   font-size: var(--icon-sm);
   line-height: 1;
   cursor: pointer;
@@ -216,7 +220,7 @@
 .rail :global(.showcase-like) {
   display: grid;
   justify-items: center;
-  color: #fff;
+  color: var(--on-photo);
 }
 .rail :global(.showcase-like .small) {
   font-size: var(--text-2xs);
@@ -246,7 +250,7 @@
   border-radius: 999px;
   background: rgba(0, 0, 0, 0.35);
   box-shadow: none;
-  color: #fff;
+  color: var(--on-photo);
   font-size: var(--text-sm);
   font-weight: 600;
   text-decoration: none;
@@ -284,13 +288,13 @@
   }
 }
 .sides .sideOn {
-  background: #fff;
-  color: #1a0f22;
+  background: var(--on-photo);
+  color: var(--reels-pill-ink);
 }
 .card {
   display: grid;
   place-items: center;
-  background: radial-gradient(120% 80% at 50% 0%, #6b2a6e 0%, #2a0f33 45%, #07050b 100%);
+  background: radial-gradient(120% 80% at 50% 0%, #6b2a6e 0%, #2a0f33 45%, var(--reels-bg) 100%);
 }
 .cardBody {
   display: grid;
@@ -302,7 +306,7 @@
 }
 .cardBody h2 {
   margin: 0;
-  color: #fff;
+  color: var(--on-photo);
   font-size: 1.6rem;
 }
 .cardBody p {
@@ -333,12 +337,12 @@
   overflow-y: auto;
   padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
   border-radius: 18px 18px 0 0;
-  background: var(--paper, #fff);
-  color: var(--ink, #1a0f22);
+  background: var(--paper);
+  color: var(--ink);
   justify-items: stretch;
 }
 .sheet a {
-  color: var(--accent, #b0306a);
+  color: var(--accent);
 }
 .toast {
   position: fixed;
@@ -349,7 +353,7 @@
   padding: 8px 14px;
   border-radius: 999px;
   background: rgba(0, 0, 0, 0.75);
-  color: #fff;
+  color: var(--on-photo);
   transform: translateX(-50%);
   animation: reel-toast 2.4s ease forwards;
 }
