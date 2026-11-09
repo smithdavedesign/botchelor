@@ -134,6 +134,8 @@ export type CompanionMessageView = {
   marker: "scene" | "texting" | null;
   /** The roleplay's title when it was said in one (make-believe, never a fact about the person). */
   roleplay: string | null;
+  /** Said on a voice call (📞): the person spoke it, or the reply was spoken aloud. Absent: typed. */
+  call?: boolean;
 };
 
 export type CompanionCharacterRef = {

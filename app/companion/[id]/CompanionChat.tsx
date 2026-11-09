@@ -30,6 +30,7 @@ import {
 } from "@/lib/companion-shared";
 import type { CharacterRef } from "@/lib/game";
 import { venueName, type VenueId } from "@/lib/venues";
+import CompanionCall, { callSupported, type CallStats, type CallTurn, type CallVoice } from "./CompanionCall";
 
 type Extras = Record<CompanionExtraKind, CompanionExtraState> | null;
 type Reply = { view?: CompanionThreadView; message?: string; allowance?: CompanionAllowance; extras?: Extras; voice?: { message_id: string; url: string } };
@@ -56,6 +57,9 @@ const MARK: Record<NonNullable<CompanionMessageView["marker"]> | "notice", strin
  * their latest line with what they do, and yours; the thread keeps every line. Their lines can be read aloud in the
  * device's own voices (app/stage/useSpeech.ts). Once there's a place, a roleplay can come with it (the show's PG ones,
  * your library's or your own: app/RoleplayPicker.tsx), or it's just the two of you.
+ *
+ * A call (📞, ./CompanionCall.tsx): you talk and they talk back, each turn a message like any other (marked 📞 here).
+ * Offered where the browser can hear you, never in a scene.
  */
 export default function CompanionChat({
   initial,
@@ -92,6 +96,10 @@ export default function CompanionChat({
   const [placed, setPlaced] = useState<VenueId | null>(null);
   const [roleplay, setRoleplay] = useState<RoleplayChoice | null>(null);
   const [opening, setOpening] = useState(false);
+  // A call: on screen, offered (the browser can hear you), and started (so its end is counted).
+  const [calling, setCalling] = useState(false);
+  const [canCall, setCanCall] = useState(false);
+  const callStarted = useRef(false);
   const scroller = useRef<HTMLDivElement>(null);
   const speech = useSpeech();
   const c = view.character;
@@ -120,6 +128,8 @@ export default function CompanionChat({
     if (el) el.scrollTop = el.scrollHeight;
   }, [shown.length, pending, busy]);
 
+  useEffect(() => setCanCall(callSupported()), []);
+
   useEffect(() => {
     if (!note) return;
     const t = setTimeout(() => setNote(null), 8000);
@@ -135,9 +145,16 @@ export default function CompanionChat({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [newest?.id]);
 
-  async function post(body: Record<string, unknown>): Promise<boolean> {
+  /**
+   * One move in the thread; what came back settles the view, the count and the extras. `quiet`: a call says what went
+   * wrong itself, so nothing goes under the box.
+   */
+  async function postData(
+    body: Record<string, unknown>,
+    quiet = false,
+  ): Promise<{ ok: boolean; status: number; data: (Reply & Record<string, unknown>) | null; crisis: boolean }> {
     setBusy(true);
-    setNote(null);
+    if (!quiet) setNote(null);
     try {
       const res = await fetch(`/api/companion/${view.id}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
       const data = (await res.json().catch(() => null)) as (Reply & Record<string, unknown>) | null;
@@ -145,23 +162,56 @@ export default function CompanionChat({
       if (help) {
         setCrisis(help);
         setView((v) => ({ ...v, paused: true }));
-        return false;
+        return { ok: false, status: res.status, data, crisis: true };
       }
       if (data?.view) setView(data.view);
       if (data?.allowance) setAllowance(data.allowance);
       if (data && "extras" in data) setExtras(data.extras ?? null);
-      if (res.status === 402) return false;
-      if (!res.ok) {
-        setNote(data?.message ?? "That didn't work. Try again in a moment.");
-        return false;
-      }
-      return true;
+      if (!res.ok && res.status !== 402 && !quiet) setNote(data?.message ?? "That didn't work. Try again in a moment.");
+      return { ok: res.ok, status: res.status, data, crisis: false };
     } catch {
-      setNote("Network error. Try again.");
-      return false;
+      if (!quiet) setNote("Network error. Try again.");
+      return { ok: false, status: 0, data: null, crisis: false };
     } finally {
       setBusy(false);
     }
+  }
+
+  const post = async (body: Record<string, unknown>): Promise<boolean> => (await postData(body)).ok;
+
+  /** A line said on the call: in like a message (marked 📞), and their reply back for the call to say. */
+  async function callSay(text: string): Promise<CallTurn> {
+    const r = await postData({ action: "send", text, call: true }, true);
+    if (r.crisis) return { ok: false, end: true, again: false, message: null };
+    const message = typeof r.data?.message === "string" ? r.data.message : null;
+    if (r.ok && r.data?.view) {
+      const ms = r.data.view.messages;
+      const reply = ms.slice(ms.findLastIndex((m) => m.role === "user") + 1).filter((m) => m.role === "character");
+      return { ok: true, reply };
+    }
+    // Out of replies (the box below says what's next), paused, signed out, or a limit: the call can't go on.
+    if ([401, 402, 409, 429].includes(r.status)) return { ok: false, end: true, again: false, message };
+    // Said in a way that's refused (the PG line, too long): it says why and listens again.
+    if (r.status === 400 || r.status === 422) return { ok: false, end: false, again: true, message };
+    return { ok: false, end: false, again: false, message: r.status === 0 ? "The connection dropped. Tap to talk to try again." : message };
+  }
+
+  function callStart(voice: CallVoice) {
+    callStarted.current = true;
+    void fetch(`/api/companion/${view.id}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "call", event: "start", voice }) }).catch(() => {});
+  }
+
+  function callEnd(stats: CallStats, message: string | null) {
+    setCalling(false);
+    if (message) setNote(message);
+    if (!callStarted.current) return;
+    callStarted.current = false;
+    void fetch(`/api/companion/${view.id}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action: "call", event: "end", ...stats }),
+      keepalive: true,
+    }).catch(() => {});
   }
 
   async function send(e?: React.FormEvent) {
@@ -231,25 +281,29 @@ export default function CompanionChat({
     if (m.voice) return play(m.id, m.voice);
     setVoicing(m.id);
     setNote(null);
+    const v = await voiceOf(m, extraPrice("voice", extras?.voice) !== "");
+    setVoicing(null);
+    if ("url" in v) play(m.id, v.url);
+    else setNote(v.message);
+  }
+
+  /** A reply's voice note, made now if it hasn't been: where it plays from, or why it can't. */
+  async function voiceOf(m: CompanionMessageView, buy: boolean): Promise<{ url: string } | { message: string }> {
+    if (m.voice) return { url: m.voice };
     try {
       const res = await fetch(`/api/companion/${view.id}`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ action: "voice", message_id: m.id, buy: extraPrice("voice", extras?.voice) !== "" }),
+        body: JSON.stringify({ action: "voice", message_id: m.id, buy }),
       });
       const data = (await res.json().catch(() => null)) as Reply | null;
       if (data?.view) setView(data.view);
       if (data?.allowance) setAllowance(data.allowance);
       if (data && "extras" in data) setExtras(data.extras ?? null);
-      if (!res.ok || !data?.voice) {
-        setNote(data?.message ?? "Couldn't record that one. Try again in a moment.");
-        return;
-      }
-      play(m.id, data.voice.url);
+      if (!res.ok || !data?.voice) return { message: data?.message ?? "Couldn't record that one. Try again in a moment." };
+      return { url: data.voice.url };
     } catch {
-      setNote("Network error. Try again.");
-    } finally {
-      setVoicing(null);
+      return { message: "Network error. Try again." };
     }
   }
 
@@ -287,6 +341,11 @@ export default function CompanionChat({
             🤖 AI character
           </span>
         </div>
+        {!paused && !view.scene && canCall && !outOfReplies && (
+          <button type="button" className="button-ghost small" onClick={() => setCalling(true)} disabled={busy || calling} data-track="companion-call">
+            📞<span className="companion-head-label"> Call</span>
+          </button>
+        )}
         {!paused &&
           (view.scene ? (
             <button type="button" className="button-ghost small" onClick={() => void playScene(null)} disabled={busy} data-track="companion-scene-end">
@@ -440,7 +499,14 @@ export default function CompanionChat({
                     ))}
                   <div className="chat-col">
                     {m.action && <span className="companion-action">{m.action}</span>}
-                    <p className="chat-bubble">{m.text}</p>
+                    <p className="chat-bubble">
+                      {m.call && (
+                        <span className="companion-call-tag" title="Said on a call" aria-label="Said on a call: ">
+                          📞{" "}
+                        </span>
+                      )}
+                      {m.text}
+                    </p>
                     {m.role === "character" && (
                       <div className="companion-foot">
                         {m.voice ? (
@@ -643,6 +709,17 @@ export default function CompanionChat({
         <p className="companion-note" role="status">
           {note}
         </p>
+      )}
+      {calling && (
+        <CompanionCall
+          character={c}
+          left={allowance.unlimited ? null : allowance.left}
+          voicePrice={extras ? voicePrice : null}
+          onSay={callSay}
+          onVoice={voiceOf}
+          onStart={callStart}
+          onEnd={callEnd}
+        />
       )}
     </article>
   );

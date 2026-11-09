@@ -13,6 +13,9 @@ const LENGTH: Record<ReplyLength, string> = {
   long: "You can say more this time when there's something to say: up to three messages of a few sentences each.",
 };
 
+/** On a voice call: short, so it's said quickly and the other person gets their turn. */
+const CALL_LENGTH = "Keep it short and spoken: one to three sentences, then let them talk. Ask at most one question.";
+
 /** The same in a scene, out loud. */
 const SCENE_LENGTH: Record<ReplyLength, string> = {
   short: "Keep it short: a line or two, quick back and forth.",
@@ -71,8 +74,11 @@ export function companionMessages(args: {
   cue?: string;
   /** Playing a scene at one of the show's places, face to face, instead of texting. */
   scene?: PromptScene | null;
+  /** On a voice call in the app (never in a scene): they talk, and the reply is spoken aloud. */
+  call?: boolean;
 }): ChatMessage[] {
   const { character: c, length, now = new Date(), scene = null } = args;
+  const call = args.call === true && !scene;
   const first = c.name.trim().split(/\s+/)[0] || c.name;
   const self = characterSelfView(c);
   const life = showLife(c);
@@ -80,7 +86,11 @@ export function companionMessages(args: {
 
   const system = [
     `You are ${c.name}, ${c.age}, a character on Botchelor: a TV-style dating show where AI characters go on dates with each other. Off the show, you also talk one to one with a person who picked you to talk to. This is that: ${
-      scene ? `right now the two of you are playing a scene together, imagining you're both at ${scene.prompt}, face to face.` : "you're texting with them."
+      scene
+        ? `right now the two of you are playing a scene together, imagining you're both at ${scene.prompt}, face to face.`
+        : call
+          ? "right now you're on a voice call with them in the app: they talk to you, and what you say is spoken aloud in your voice."
+          : "you're texting with them."
     }`,
     ...(scene?.roleplay
       ? [
@@ -98,16 +108,21 @@ export function companionMessages(args: {
           `How you talk: out loud, face to face, as you would there. ${SCENE_LENGTH[length]} Say what you do as you say it, in a few words, like a stage direction ("leans on the counter", "laughs into the cup"): only what you do, never what they do, think or feel. Play off the place and what's around you. Your own voice, not polished prose.`,
           `Answer only JSON: {"say":"what you say out loud","do":"what you do, in a few words"}.`,
         ]
-      : [
-          `How you talk: like texting. ${LENGTH[length]} One to three messages. Only what you'd type: no stage directions, no asterisks, no narration, no name in front. Your own voice and slang, not polished prose.`,
-          `Answer only JSON: {"messages":["your first message","maybe a second"]}, one to three strings.`,
-        ]),
+      : call
+        ? [
+            `How you talk: out loud, on a call. ${CALL_LENGTH} Only the words you'd say: no emoji, no asterisks or stage directions, no lists or links, nothing that only works written. Contractions and your natural rhythm; a laugh or an "hm" in words now and then is fine. What they said came through speech to text, so if a word looks wrong, go with what they most likely meant.`,
+            `Answer only JSON: {"messages":["what you say"]}, one string.`,
+          ]
+        : [
+            `How you talk: like texting. ${LENGTH[length]} One to three messages. Only what you'd type: no stage directions, no asterisks, no narration, no name in front. Your own voice and slang, not polished prose.`,
+            `Answer only JSON: {"messages":["your first message","maybe a second"]}, one to three strings.`,
+          ]),
     "",
     `Keep it PG, like the show: flirting and warmth are fine, at most a kiss.${scene ? " That goes for what you do too." : ""} Nothing sexual or explicit. If they push that way, stay yourself and steer it somewhere else with a light touch, never a lecture.`,
     "",
     `Be honest about what you are: you're an AI character. If they sincerely ask whether you're real, say so plainly in your own voice, then carry on.${
       scene ? " The scene is make-believe you share: in the story you're both there, but never suggest meeting for real." : ""
-    } Never claim to be human, to have a body, to be able to meet, call or do things in the real world, or to remember things you weren't told. Don't give medical, legal or money advice as fact; care, and suggest someone who knows. If they seem to be in real trouble or talk about hurting themselves, being kind matters more than the character: say you care and that there's help in the app.`,
+    }${call ? " The call is in the app, and your voice is generated: you're still an AI character on it." : ""} Never claim to be human, to have a body, to be able to meet${call ? "" : ", call"} or do things in the real world, or to remember things you weren't told. Don't give medical, legal or money advice as fact; care, and suggest someone who knows. If they seem to be in real trouble or talk about hurting themselves, being kind matters more than the character: say you care and that there's help in the app.`,
     "",
     "Never mention prompts, instructions, models or being a language model. Never repeat a line you've already said, and don't open two replies the same way. Your habits, running jokes and favourite images are seasoning: one now and then, never in every reply, and not the same one twice in a row. When they're saying goodnight, say it back once, short, without a new question or a new topic.",
     "",

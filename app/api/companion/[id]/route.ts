@@ -3,6 +3,7 @@ import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson, session } from "@/lib/http";
 import { overLimit, visitorKey } from "@/lib/limits";
 import { inBackground } from "@/lib/sets";
+import { track } from "@/lib/analytics";
 import {
   carryOn,
   COMPANION_GUEST_IP_LIMITS,
@@ -32,7 +33,8 @@ import { bookingAsk } from "@/lib/date-roleplays";
 type Ctx = { params: Promise<{ id: string }> };
 
 const Action = z.discriminatedUnion("action", [
-  z.object({ action: z.literal("send"), text: z.string().max(COMPANION_MESSAGE_MAX * 2) }),
+  // `call`: said on a voice call in the app (the browser heard it); the reply is short, to be spoken aloud.
+  z.object({ action: z.literal("send"), text: z.string().max(COMPANION_MESSAGE_MAX * 2), call: z.boolean().optional() }),
   z.object({ action: z.literal("regenerate") }),
   z.object({ action: z.literal("edit"), text: z.string().max(COMPANION_MESSAGE_MAX * 2) }),
   z.object({ action: z.literal("length"), length: z.enum(REPLY_LENGTHS) }),
@@ -48,6 +50,14 @@ const Action = z.discriminatedUnion("action", [
   z.object({ action: z.literal("report"), message_id: z.string().min(1).max(64), reason: z.enum(COMPANION_REPORT_REASONS) }),
   // A reply as a voice note (lib/companion-voice.ts); `buy`: the button showed the price, so a token may buy a bundle.
   z.object({ action: z.literal("voice"), message_id: z.string().min(1).max(64), buy: z.boolean().optional() }),
+  // A voice call starting or ending (counted only: what's said goes through send with `call`).
+  z.object({
+    action: z.literal("call"),
+    event: z.enum(["start", "end"]),
+    seconds: z.number().int().min(0).max(24 * 3600).optional(),
+    turns: z.number().int().min(0).max(10_000).optional(),
+    voice: z.enum(["device", "own"]).optional(),
+  }),
 ]);
 
 type Allowance = Awaited<ReturnType<typeof companionAllowance>>;
@@ -99,6 +109,17 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
     }
     return json({ voice: { message_id: v.message_id, url: v.url, cached: v.cached }, ...(view.ok ? { view: view.view } : {}), allowance, extras }, 200, sess);
   }
+  if (input.action === "call") {
+    // Counted, never charged: a call's turns are replies like any other (send), each taken from the count as it's said.
+    const t = await getThread(db, sess.userId, id);
+    if (!t.ok) {
+      const { ok: _ok, status, ...body } = t;
+      return json(body, status, sess);
+    }
+    // `stage`, not `event`: that's the analytics event's own name.
+    track("companion_call", { stage: input.event, seconds: input.seconds, turns: input.turns, voice: input.voice, guest: !sess.authenticated || undefined });
+    return json({ ok: true }, 200, sess);
+  }
   const talks = input.action === "send" || input.action === "regenerate" || input.action === "edit" || (input.action === "scene" && input.place !== null);
   if (talks && (await overLimit(db, "companion", sess.userId, COMPANION_LIMITS))) {
     return json({ error: "rate_limited", message: "That's a lot of talking for now. Take a breather and come back in a bit." }, 429, sess);
@@ -114,7 +135,7 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
   let r: CompanionSend;
   switch (input.action) {
     case "send":
-      r = await sendMessage(db, sess.userId, id, input.text);
+      r = await sendMessage(db, sess.userId, id, input.text, new Date(), "companion", { call: input.call === true });
       break;
     case "regenerate":
       r = await regenerate(db, sess.userId, id);

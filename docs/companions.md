@@ -226,6 +226,40 @@ cost, priced like After Dark's extras; guests get none.
 - **Guests** (no account) get none: the button asks them to sign in. **Admins** aren't counted.
 - In the terms at `/terms#companion-extras` and on the plan page.
 
+## Calls (v1, built 2026-11-09)
+
+David, 2026-11-09: "let's tackle 1-3" (the third: live voice calls). v1 takes turns, uses no new provider and spends
+nothing new; P6 below is the always-listening version.
+- **📞 Call** in a companion chat's header opens the call screen (`app/companion/[id]/CompanionCall.tsx`): their face,
+  captions of what's being said, Interrupt, Mute and End call. Offered only where the browser can hear you
+  (`SpeechRecognition`: Chrome, Edge and Safari, not Firefox), and never in a scene, while paused or out of replies.
+- **Hearing you:** the browser's own speech recognition, one phrase at a time. Chrome sends the audio to Google to turn
+  it into words, Safari to Apple (an iPhone needs Dictation on). Botchelor gets only the words. The call's first screen
+  says so ("How calls work", open the first time), and so does the privacy policy.
+- **Their answer:** what you said goes through the same route as a text (`send` with `call: true`). That means one
+  reply each from the free count or the plan, the same crisis and PG checks, and both lines kept in the thread marked
+  📞 (`companion_messages.on_call`).
+  - **The prompt** says it out loud: short spoken words, at most one question, one string. Messages that come back
+    split are joined. `maxTokens` is 250.
+  - **The honesty line** still says never claim to be human. It drops "can't call" (they're on one) and says the voice
+    is generated.
+  - **In a scene**, `call` is ignored.
+- **Their voice:** the device's (`useSpeech().speakAll`, the same voice per character as in scenes; free), or their
+  own Kokoro voice, one voice note per reply.
+  - Their own voice is for accounts only, and its price is next to the choice. `buy` is sent only when the price was
+    shown.
+  - If a voice note is refused or fails, the call carries on in the device's voice and says why.
+- **Taking turns:** it doesn't listen while they talk, so it never hears itself. Interrupt stops them and listens.
+  - It pauses until a tap after three silences in a row, a hidden tab, or Mute.
+  - Five quiet minutes end the call.
+- **It ends** on End call, leaving the page, the crisis resources (the chat then shows them), no replies left (the chat
+  says what's next), a limit, or a paused thread.
+- **Counted:** `companion_call` (stage start or end, seconds, turns, which voice; never the words), and
+  `companion_reply` carries `call: true`.
+- **How fast:** a turn is the end of your phrase (about a second of quiet), plus one model call (1-3 s on the free
+  models), plus their voice starting. That's at once on the device; with their own voice it's after the voice note is
+  made (a few seconds). Fine for a first version; P6 is the fix.
+
 ## Still to build
 
 - **P3, the rest (voice notes are built, above):** PG selfies from `lib/studio/date-photos.ts` with the face reference;
@@ -238,5 +272,10 @@ cost, priced like After Dark's extras; guests get none.
 - **P5, the After Dark companion:** the same engine on `adultModel` and `checkAdultText`, AD tokens for media, sold as
   an add-on on CCBill/Segpay/Verotel (per-plan entitlements). First: answer CCBill's AI Content Onboarding Guidelines
   PDF point by point with companions in scope, and tell all three processors.
-- **P6, live calls:** speech to text, a streaming model and streaming speech, under 800 ms with barge-in, by the
-  minute in tokens.
+- **P6, live calls (v1 above is built; this needs David's go and a spend):** both talking at once, under 800 ms,
+  with barge-in.
+  - **How:** streaming speech to text (Deepgram, about $0.004 a minute), then a streaming model, then streaming
+    speech, over a small always-on WebSocket service on DigitalOcean.
+  - **Price:** by the minute, in tokens.
+  - **The spend to propose:** a Deepgram key capped at $25 at the provider (about 6,000 minutes), and the service's
+    few dollars a month.

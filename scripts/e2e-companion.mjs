@@ -9,7 +9,9 @@
  *   resources (kept out too) until they carry on → the memory page shows what was drawn, takes an edit, an add and a
  *   forget, and the edit reaches the next reply → a scene: they pick a place, the companion opens it on the stage
  *   with what they do, they talk out loud, and go back to texting → the same on a phone (a scene with a roleplay:
- *   picked after the place, on the stage's line and in the prompt), with no sideways scroll → the list shows the thread → deleting it takes it away.
+ *   picked after the place, on the stage's line and in the prompt), with no sideways scroll → a call: the browser (its
+ *   speech faked) hears them, the replies are said aloud and kept marked 📞, on a desktop and a phone → the list shows the
+ *   thread → deleting it takes it away.
  *
  * Exits non-zero if any step fails. Set CHROMIUM_PATH; SKIP_BUILD=1 reuses the last build; SHOTS=1 writes the
  * screenshots to docs/screenshots/ (else .data/e2e-companion/).
@@ -92,6 +94,12 @@ function startCompanionStub() {
             : /best thing up here/i.test(last)
               ? line("The quiet. And the company, obviously.", "grins")
               : line("Go on, I'm listening.", "leans closer");
+        } else if (system.startsWith("You are ") && system.includes("on a voice call with them")) {
+          seen.replyPrompts.push(system);
+          // A call's line; the second comes back as two messages, which the call says as one.
+          content = JSON.stringify({
+            messages: /your week/i.test(last) ? ["Busy week. I fixed three radios and broke one.", "Yours?"] : ["I can hear you! It's good to hear your voice."],
+          });
         } else if (system.startsWith("You are ") && system.includes("Botchelor")) {
           seen.replyPrompts.push(system);
           // In JSON mode like the real model (lib/model.ts asks every call for a JSON object).
@@ -116,6 +124,61 @@ function startCompanionStub() {
     });
   });
   return new Promise((ok) => srv.listen(0, "127.0.0.1", () => ok(srv)));
+}
+
+/**
+ * The browser's speech, faked in the page (an init script): recognition "hears" each of `lines` in turn, a word of it
+ * first, and speaking takes a moment and ends, so a call runs in a headless browser with no microphone or speakers.
+ */
+function fakeSpeech(lines) {
+  const heard = [...lines];
+  class FakeRecognition {
+    constructor() {
+      this.lang = "";
+      this.continuous = false;
+      this.interimResults = false;
+      this.maxAlternatives = 1;
+      this.onresult = null;
+      this.onerror = null;
+      this.onend = null;
+    }
+    start() {
+      const text = heard.shift();
+      const result = (transcript, isFinal) => ({ resultIndex: 0, results: [Object.assign([{ transcript }], { isFinal })] });
+      setTimeout(() => {
+        if (!text) {
+          this.onerror?.({ error: "no-speech" });
+          this.onend?.();
+          return;
+        }
+        this.onresult?.(result(text.split(" ")[0], false));
+        setTimeout(() => {
+          this.onresult?.(result(text, true));
+          this.onend?.();
+        }, 200);
+      }, 400);
+    }
+    abort() {
+      setTimeout(() => this.onend?.(), 0);
+    }
+  }
+  window.SpeechRecognition = FakeRecognition;
+  window.webkitSpeechRecognition = FakeRecognition;
+  window.SpeechSynthesisUtterance = class {
+    constructor(text) {
+      this.text = text;
+      this.onend = null;
+      this.onerror = null;
+    }
+  };
+  const synth = {
+    getVoices: () => [],
+    speak: (u) => setTimeout(() => u.onend?.(), 900),
+    cancel() {},
+    addEventListener() {},
+    removeEventListener() {},
+  };
+  Object.defineProperty(window, "speechSynthesis", { value: synth, configurable: true });
 }
 
 async function main() {
@@ -355,6 +418,29 @@ async function main() {
       assert(seen.replyPrompts.at(-1).includes("you're texting with them"), "texting again should reach the model");
     });
 
+    await step("calls: the browser hears them, the replies are said aloud, and both sides are kept marked 📞", async () => {
+      await admin.addInitScript(fakeSpeech, ["hi, can you hear me on the call", "tell me about your week"]);
+      await page.goto(`${base}${threadPath}`);
+      await page.locator('[data-track="companion-call"]').click();
+      const call = page.getByRole("dialog", { name: `Call with ${first}` });
+      await call.waitFor({ timeout: 10_000 });
+      assert(await call.locator(".companion-call-how").evaluate((d) => d.open), "how calls work should be open the first time");
+      assert(((await call.textContent()) ?? "").includes("only the words come to Botchelor"), "the call should say what's sent where");
+      await shot(page, "companion-call-ready-desktop");
+      await call.getByRole("button", { name: `📞 Call ${first}` }).click();
+      await call.locator(".companion-call-said", { hasText: "good to hear your voice" }).waitFor({ timeout: 20_000 });
+      await page.locator(".companion-call.is-speaking").waitFor();
+      await shot(page, "companion-call-desktop");
+      // The second line: two messages back from the model, said as one.
+      await call.locator(".companion-call-said", { hasText: "Busy week. I fixed three radios and broke one. Yours?" }).waitFor({ timeout: 20_000 });
+      assert(seen.replyPrompts.at(-1).includes("on a voice call with them"), "a line on a call should reach the model as one");
+      await call.getByRole("button", { name: "End call" }).click();
+      await call.waitFor({ state: "detached", timeout: 10_000 });
+      for (const said of ["hi, can you hear me on the call", "good to hear your voice", "tell me about your week", "I fixed three radios"]) {
+        assert((await bubble(said).locator(".companion-call-tag").count()) === 1, `"${said}" should be in the thread marked as said on the call`);
+      }
+    });
+
     await step("on a phone: the same thread, no sideways scroll, and it talks", async () => {
       const phone = await browser.newContext({
         viewport: { width: 390, height: 844 },
@@ -419,6 +505,49 @@ async function main() {
         await p.getByRole("heading", { name: "Your conversations" }).waitFor();
         assert((await p.evaluate(() => document.documentElement.scrollWidth)) <= 391, "the list should fit the phone");
         await shot(p, "companion-list-phone");
+      } finally {
+        await phone.close();
+      }
+    });
+
+    await step("on a phone: the header fits the call button, and the call screen fits and ends", async () => {
+      const phone = await browser.newContext({
+        viewport: { width: 390, height: 844 },
+        isMobile: true,
+        hasTouch: true,
+        deviceScaleFactor: 2,
+        storageState: await admin.storageState(),
+      });
+      try {
+        await phone.addInitScript(fakeSpeech, ["calling from my phone"]);
+        const p = await phone.newPage();
+        await p.goto(`${base}${threadPath}`);
+        const callButton = p.locator('[data-track="companion-call"]');
+        await callButton.waitFor({ timeout: 15_000 });
+        // The name and "AI character" (the disclosure) end before 📞, here and on the narrowest phones (where ← gives way).
+        for (const width of [390, 360]) {
+          await p.setViewportSize({ width, height: 844 });
+          const at = await callButton.boundingBox();
+          for (const part of [".companion-head-name strong", ".companion-ai"]) {
+            const box = await p.locator(part).boundingBox();
+            assert(box && at && box.x + box.width <= at.x, `${part} should end before the header's buttons at ${width}px`);
+          }
+        }
+        await p.setViewportSize({ width: 390, height: 844 });
+        await callButton.tap();
+        const call = p.getByRole("dialog", { name: `Call with ${first}` });
+        await call.waitFor({ timeout: 10_000 });
+        // Read on the desktop call (this browser's storage came with it): it starts closed now.
+        assert(!(await call.locator(".companion-call-how").evaluate((d) => d.open)), "how calls work should start closed once read");
+        await call.getByRole("button", { name: `📞 Call ${first}` }).tap();
+        await call.locator(".companion-call-said").waitFor({ timeout: 20_000 });
+        await p.locator(".companion-call.is-speaking").waitFor();
+        assert((await p.evaluate(() => document.documentElement.scrollWidth)) <= 391, "the call should fit the phone");
+        const end = await call.getByRole("button", { name: "End call" }).boundingBox();
+        assert(end && end.y + end.height <= 844, "End call should be on screen");
+        await shot(p, "companion-call-phone");
+        await call.getByRole("button", { name: "End call" }).tap();
+        await call.waitFor({ state: "detached", timeout: 10_000 });
       } finally {
         await phone.close();
       }

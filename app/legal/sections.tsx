@@ -646,7 +646,8 @@ export function PrivacySections() {
           If you talk with a companion: your messages and its replies, the facts it noted about you from them (which you
           can see and change on its memory page), and a short running summary of the conversation. Only you see them, except a
           reply you report: we read it and the few messages before it, to review it. They never reach the show, a date, a text
-          or another character. A message that set off the self-harm check isn&apos;t kept at all.
+          or another character. A message that set off the self-harm check isn&apos;t kept at all. On a call, what you say reaches us
+          as words and is kept like a message, marked as said on a call; we never receive or keep your voice.
         </li>
       </ul>
 
@@ -777,7 +778,9 @@ export function PrivacySections() {
         <li>
           <strong>Companions:</strong> your conversation with a companion, the character&apos;s sheet and what it remembers
           about you go to OpenRouter, through its hosts CoreWeave and DeepInfra, which write the replies and draw the facts;
-          the show&apos;s own model above stands in when they&apos;re down.
+          the show&apos;s own model above stands in when they&apos;re down. On a call, your browser&apos;s own speech recognition
+          turns your voice into words before anything reaches us (in Chrome that&apos;s Google&apos;s, in Safari Apple&apos;s, under
+          their terms), and the replies are spoken by your device or made as voice notes.
         </li>
         <li>
           <strong>After Dark:</strong> OpenRouter (through its hosts CoreWeave and DeepInfra) writes the scenes; Venice, with
