@@ -72,4 +72,6 @@ export const PUBLIC_PATHS = [
   "/safety",
   "/agents/pricing",
   "/showcase",
+  "/import",
+  "/alternatives/character-ai",
 ] as const;
