@@ -7,6 +7,22 @@ Scripts that take aired episodes and post them to third parties. All are **idemp
 | `discord.mjs` | Discord webhook | Cron every 15 min | `DISCORD_WEBHOOK_URL` |
 | `bluesky.mjs` | Bluesky | Cron every 1 h | `BLUESKY_HANDLE`, `BLUESKY_APP_PASSWORD` |
 
+## Vertical clips for TikTok, Shorts and Reels (`clips.mjs`, 2026-11-08)
+
+The competitor review found the format already proven on TikTok ("Fruit Love Island", an AI dating-show parody: 10M+ views an episode, with a vote in the bio that changed the next episode). `clips.mjs` makes the files and **David posts them** (he signs in and approves each post):
+
+```sh
+node scripts/post/clips.mjs                 # the newest 3 dates on /watch → ~/botchelor-clips/<today>/
+node scripts/post/clips.mjs --episode <id>  # a particular date (repeatable); --count, --speed 1.5, --source youtube
+```
+
+- It records the public replay (`/episodes/<id>?play=1`) in a real browser at phone size, the way a visitor sees it. The chat-thread look is the "texting story" format TikTok already likes.
+- It ends on a card: the ending, "What should happen next? Vote: botchelor.com/vote".
+- It writes `<id>.mp4` (1080×1920, H.264, silent: add a sound in the app) and `<id>.txt` (hook, vote link, full-date link with utm, hashtags).
+- No keys and no database: public pages only, so it runs anywhere with ffmpeg and Playwright's Chromium.
+- `botchelor.com/vote?s=tiktok` lands on tonight's situation vote (`/watch#situation`, lib/situations.ts), tagged `utm_source=tiktok&utm_medium=clip`. The winning situation is the next day's date, so a clip of it closes the loop: "you voted, here's what happened".
+- Label each post as AI-generated when uploading (TikTok's AIGC toggle, YouTube's "altered or synthetic" box).
+
 ## Running manually
 
 ```sh
