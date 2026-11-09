@@ -62,21 +62,36 @@ High Contrast) keeps a real border on buttons and badges, since gradients and sh
 
 Every type size is a fluid token: `clamp(min, preferred, max)` grows from the phone size to the desktop size,
 so small text never drops below 12px on a phone, and a control's label shrinks a little in a narrow card rather
-than wrapping badly. Use a token, never a fixed rem or px, for text.
+than wrapping badly. Use a token, never a fixed rem or px, for text. A size that's off the scale takes the nearest
+step (2026-11-09: 100 literal sizes moved onto the scales, none by more than 1.6px at a phone's or a desktop's width).
 
 ```
---text-2xs  clamp(.75rem … .8rem)     pills, eyebrow labels
---text-xs   clamp(.8rem … .86rem)     meta, captions, chips
---text-sm   clamp(.84rem … .92rem)    secondary text, compact buttons, .small
---text-btn  clamp(.92rem … 1rem)      button labels
---text-md   clamp(1rem … 1.08rem)
---text-lg   clamp(1.08rem … 1.2rem)
---text-xl   clamp(1.3rem … 1.6rem)
---text-2xl  clamp(1.5rem … 2rem)
+--text-2xs      clamp(.75rem … .8rem)     pills, eyebrow labels
+--text-xs       clamp(.8rem … .86rem)     meta, captions, chips
+--text-sm       clamp(.84rem … .92rem)    secondary text, compact buttons, .small
+--text-btn      clamp(.92rem … 1rem)      button labels
+--text-base     1rem                      body text, exactly (a message, a caption that reads as body)
+--text-md       clamp(1rem … 1.08rem)
+--text-lg       clamp(1.08rem … 1.2rem)
+--text-xl       clamp(1.3rem … 1.6rem)
+--text-2xl      clamp(1.5rem … 2rem)
+--text-display  clamp(2rem, 6vw, 3.1rem)  a page's h1
 ```
 
-`h1` is `clamp(2rem, 6vw, 3.1rem)` so the headline scales with the viewport. Inside a card that needs to shrink
-with its own width, use container units (`cqi`) inside a clamp, as `.owner-actions` does.
+`h1` is `--text-display`, so the headline scales with the viewport. Inside a card that needs to shrink with its own
+width, use container units (`cqi`) inside a clamp, as `.owner-actions` does.
+
+**Icons** that stand alone in a button or a tile (a close ×, a back ‹, a ★, a ▾, an empty state's emoji) take the
+icon scale. It's fixed, not fluid: an icon is drawn for the size of its target, so a 44px close button keeps its
+1.6rem × on a phone. An `<Icon>` beside words takes their size (1em) instead.
+
+```
+--icon-xs  1rem     a glyph at body size: a pip, the × in a chip, ↑ in a send button
+--icon-sm  1.25rem  header and toolbar glyphs: ⓘ, ⛶, a ★ rating, a reel's rail
+--icon-md  1.6rem   a close × or a swipe button in a 44px+ target, review stars, a card's emoji
+--icon-lg  2rem     a phone's back ‹, an empty state's emoji
+--icon-xl  2.6rem   a stamp, or a figure standing in for a tile's missing picture
+```
 
 **One heading scale** (2026-11-08 audit): every `h2` is `--text-xl` and every `h3` `--text-lg`, on every page
 (app/ux/catalog.css). Don't resize a section heading for one page; if a heading should read smaller, it's an

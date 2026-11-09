@@ -58,7 +58,7 @@
 }
 .showcase-count {
   color: var(--muted);
-  font-size: 0.7rem;
+  font-size: var(--text-2xs);
 }
 /* The two sides (lib/showcase.ts sideOf): safe for work, the default, and After Dark, by each post's rating. */
 .showcase-sides {
@@ -179,7 +179,7 @@ a.showcase-picked-chip {
   border-radius: 999px;
   background: rgba(10, 6, 18, 0.6);
   color: #fff;
-  font-size: 0.8rem;
+  font-size: var(--text-2xs);
 }
 .showcase-media {
   position: relative;
@@ -359,7 +359,7 @@ a.showcase-picked-chip {
   background: none;
   box-shadow: none;
   color: var(--accent-text);
-  font-size: 1rem;
+  font-size: var(--icon-xs);
   cursor: pointer;
 }
 .showcase-like-btn:hover {

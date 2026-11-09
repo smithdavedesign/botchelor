@@ -23,7 +23,7 @@
   content: "⌄";
   margin-left: auto;
   color: var(--muted);
-  font-size: 1.1rem;
+  font-size: var(--icon-xs);
   line-height: 1;
   transition: transform 0.15s ease;
 }
@@ -91,7 +91,7 @@
   border-radius: 999px;
   background: color-mix(in srgb, var(--accent) 14%, var(--card));
   color: var(--accent-text);
-  font-size: 0.72rem;
+  font-size: var(--text-2xs);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;

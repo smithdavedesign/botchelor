@@ -2,64 +2,15 @@
   "app/after-dark/discreet.css": {
     "hex": {
       "#f1e9ff": 1
-    },
-    "font-size": {
-      "0.8rem": 1
     }
   },
   "app/after-dark/shorts/shorts.module.css": {
     "hex": {
       "#1d1430": 1,
       "#fff": 1
-    },
-    "font-size": {
-      "0.8rem": 1,
-      "1.05rem": 1
     }
   },
   "app/globals.css": {
-    "font-size": {
-      "0.65rem": 2,
-      "0.72rem": 1,
-      "0.75em": 1,
-      "0.75rem": 1,
-      "0.7rem": 3,
-      "0.82rem": 1,
-      "0.85rem": 5,
-      "0.8rem": 3,
-      "0.92em": 1,
-      "0.92rem": 1,
-      "0.94rem": 1,
-      "0.95rem": 1,
-      "0.9em": 1,
-      "0.9rem": 2,
-      "1.05rem": 3,
-      "1.15rem": 5,
-      "1.1rem": 3,
-      "1.25rem": 3,
-      "1.2rem": 3,
-      "1.3rem": 1,
-      "1.4rem": 2,
-      "1.5rem": 2,
-      "1.6rem": 4,
-      "1.7rem": 1,
-      "11px": 1,
-      "1rem": 12,
-      "2.4rem": 1,
-      "2rem": 2,
-      "3px": 1,
-      "clamp(0.84rem, 0.78rem + 1cqi, 0.95rem)": 1,
-      "clamp(1.05rem, 2.4vw, 1.3rem)": 1,
-      "clamp(1.1rem, 2.5vw, 1.6rem)": 1,
-      "clamp(1.2rem, 3vw, 2.1rem)": 1,
-      "clamp(1.2rem, 3vw, 2rem)": 1,
-      "clamp(1.75rem, 8vw, 2.75rem)": 1,
-      "clamp(2rem, 6vw, 2.75rem)": 1,
-      "clamp(2rem, 6vw, 3.1rem)": 1,
-      "clamp(2rem, 6vw, 3.4rem)": 1,
-      "clamp(3rem, 10vw, 4.5rem)": 1,
-      "max(16px, 1em)": 1
-    },
     "radius": {
       "1.25rem": 1,
       "1.6rem": 1,
@@ -71,6 +22,29 @@
       "20px 20px 0 0": 2,
       "2px": 1,
       "3rem": 1
+    },
+    "font-size": {
+      "0.65rem": 2,
+      "0.75em": 1,
+      "0.7rem": 1,
+      "0.92em": 1,
+      "0.9em": 1,
+      "1.25rem": 1,
+      "1.3rem": 1,
+      "1.4rem": 2,
+      "1.7rem": 1,
+      "11px": 1,
+      "2.4rem": 1,
+      "3px": 1,
+      "clamp(0.84rem, 0.78rem + 1cqi, 0.95rem)": 1,
+      "clamp(1.1rem, 2.5vw, 1.6rem)": 1,
+      "clamp(1.2rem, 3vw, 2.1rem)": 1,
+      "clamp(1.2rem, 3vw, 2rem)": 1,
+      "clamp(1.75rem, 8vw, 2.75rem)": 1,
+      "clamp(2rem, 6vw, 2.75rem)": 1,
+      "clamp(2rem, 6vw, 3.4rem)": 1,
+      "clamp(3rem, 10vw, 4.5rem)": 1,
+      "max(16px, 1em)": 1
     },
     "hex": {
       "#000": 15,
@@ -134,12 +108,6 @@
     },
     "font-size": {
       "0.6rem": 1,
-      "0.7rem": 2,
-      "0.85rem": 2,
-      "0.95rem": 2,
-      "0.9rem": 2,
-      "1.15rem": 1,
-      "1.3rem": 1,
       "1.6rem": 1
     },
     "radius": {
@@ -147,18 +115,6 @@
     }
   },
   "app/ux/after-dark.css": {
-    "font-size": {
-      "0.72em": 1,
-      "0.72rem": 1,
-      "0.75rem": 2,
-      "0.85rem": 5,
-      "0.8rem": 4,
-      "0.95rem": 2,
-      "1.15rem": 1,
-      "1.1rem": 1,
-      "1.6rem": 1,
-      "2rem": 1
-    },
     "hex": {
       "#000": 5,
       "#120c1c": 3,
@@ -182,12 +138,13 @@
       "#f1e9ff": 14,
       "#ffb4c8": 1,
       "#fff": 9
+    },
+    "font-size": {
+      "0.72em": 1
     }
   },
   "app/ux/agents-footer.css": {
     "font-size": {
-      "0.72rem": 1,
-      "1.1rem": 1,
       "1.25rem": 1
     },
     "hex": {
@@ -203,16 +160,6 @@
     },
     "hex": {
       "#fff": 2
-    }
-  },
-  "app/ux/create.css": {
-    "font-size": {
-      "2.6rem": 1
-    }
-  },
-  "app/ux/filters.css": {
-    "font-size": {
-      "2rem": 1
     }
   },
   "app/ux/front.css": {
@@ -238,34 +185,25 @@
     }
   },
   "app/ux/showcase.css": {
-    "font-size": {
-      "0.65rem": 1,
-      "0.7rem": 1,
-      "0.8rem": 1,
-      "1rem": 1
-    },
     "hex": {
       "#fff": 4
+    },
+    "font-size": {
+      "0.65rem": 1
     }
   },
   "app/ux/step-in.css": {
-    "font-size": {
-      "1rem": 1,
-      "clamp(1.6rem, 4vw, 2.3rem)": 1
-    },
     "hex": {
       "#ffd1dc": 1,
       "#fff": 1
+    },
+    "font-size": {
+      "clamp(1.6rem, 4vw, 2.3rem)": 1
     }
   },
   "app/ux/studio-media.css": {
     "font-size": {
-      "0.72rem": 1,
-      "0.75rem": 1,
-      "0.82rem": 1,
-      "1.4rem": 1,
-      "1.5rem": 1,
-      "2.6rem": 1
+      "1.4rem": 1
     }
   }
 }
