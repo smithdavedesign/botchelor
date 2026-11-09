@@ -44,6 +44,8 @@ export type AnalyticsEvent =
   | "show_date_free" // a show-model date fell through to the free model (the frontier wasn't configured): the episode, and whether that's unexpected
   | "scene_requested" // a finished date went somewhere the library has no set for (lib/scenes.ts): the place, normalized, and how (plan or move)
   | "date_link_accepted" // someone took a character's "date my OC" link (lib/date-invites.ts): the code, both characters
+  | "double_link_made" // a couple's "bring a friend" double-date link was made (lib/double-links.ts): the code
+  | "double_link_taken" // someone took a double-date link and both tables booked: the code, the night, and whether the taker's first character came after the link (new_creator)
   | "date_moved" // a finished date moved somewhere else by both characters' agreement (lib/moves.ts): how many times, and who performed it
   | "relationship_metrics" // the daily snapshot of the long game (lib/relationship-metrics.ts): counts only
   | "crisis_notice_shown" // a person's own words tripped the self-harm check (lib/crisis.ts): the surface only, never who or what

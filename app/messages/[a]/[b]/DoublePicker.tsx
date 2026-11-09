@@ -3,17 +3,19 @@
 import Link from "next/link";
 import { useState } from "react";
 import Sheet from "@/app/Sheet";
+import ShareDoubleLink from "@/app/ShareDoubleLink";
 
 type Option = { character_id: string; name: string; partner_id: string; partner_name: string; kind?: "yours" | "theirs"; near?: boolean };
 
 /**
  * "Make it a double" on the thread (group dates M1b): this couple plus one of your other characters, who brings a
  * house date (two of your dates, both tables book at once), or another creator's couple from the social graph — the
- * ones near you first — who get the invite (each side spends one date if they accept). Each table is its own episode.
+ * ones near you first — who get the invite (each side spends one date if they accept), or a friend: a share link
+ * whoever takes it brings a character and a house date (lib/double-links.ts). Each table is its own episode.
  * 2026-10-31 UX audit: an item in the thread's ⋯ that opens a modal (it was a second button beside Book date, and the
  * two crowded a phone's header).
  */
-export default function DoublePicker({ mineId, themId }: { mineId: string; themId: string }) {
+export default function DoublePicker({ mineId, themId, mineName, themName }: { mineId: string; themId: string; mineName: string; themName: string }) {
   const [open, setOpen] = useState(false);
   const [options, setOptions] = useState<Option[] | null>(null);
   const [busy, setBusy] = useState(false);
@@ -78,7 +80,8 @@ export default function DoublePicker({ mineId, themId }: { mineId: string; themI
           <p className="muted">Finding couples…</p>
         ) : options.length === 0 ? (
           <p className="muted">
-            No couple to sit with yet. <Link href="/create">Make another character</Link> to bring one of your own, or check back as couples start dating.
+            No couple of yours or theirs to sit with yet. <Link href="/create">Make another character</Link> to bring one of your own, or bring a
+            friend.
           </p>
         ) : (
           <>
@@ -104,6 +107,7 @@ export default function DoublePicker({ mineId, themId }: { mineId: string; themI
             )}
           </>
         )}
+        {!booked && !invited && <ShareDoubleLink characterId={mineId} partnerId={themId} first={mineName} second={themName} />}
         {error && (
           <p className="sheet-error" role="alert">
             {error}

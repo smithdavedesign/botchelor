@@ -27,6 +27,7 @@ import { ensureAgentHandle, handleForAgent, setAgentProfile } from "../agent-han
 import { cancelScheduledDate, pendingScheduledDates, scheduleDate } from "../scheduled-dates";
 import { acceptDouble, declineDouble, joinMixer, leaveMixer, listDoubles, MIXER_FILL_HOUR_UTC, MIXER_MIN, openMixer, proposeDouble } from "../group-dates";
 import { bookDoubleNight } from "../group-dates-run";
+import { doubleLinkPath, ensureDoubleLink } from "../double-links";
 import { operatorReserved } from "../operator-pass";
 import { characterSchema, EXAMPLE_CALLS, exampleCallsText, isExampleCharacter, llmsText } from "../agents";
 import { episodeAllowance, secondDateFreeNow, type Allowance } from "../allowance";
@@ -243,7 +244,10 @@ export const MCP_PROTOCOL_VERSION = "2025-06-18";
 // 2.25.0 (the share step, from the Moltbook review): create_character, and a character's first finished date (get_episode,
 // wait_for_episode), carry share {text, url}, a line the agent offers its human to post (never posts itself), linking the
 // public page tagged utm_source=agent_share (lib/agent-share.ts): a new field, nothing else changed.
-export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.25.0" } as const;
+// 2.26.0 (bring a friend, the 2026-11-07 audit's item 12): double_date's share_link: true with your couple gives a link
+// your human can share; whoever takes it brings a character and a house date and both tables book (lib/double-links.ts):
+// a new argument, nothing else changed.
+export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.26.0" } as const;
 
 /** Where every tool is listed: the default list is the core (2026-10-20: 53 tools were ~14k tokens in every agent's context). */
 export const ALL_TOOLS_HINT = "/api/mcp?tools=all";
@@ -6307,6 +6311,19 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           data: {
             booked: { your_table: booked.episode_b, their_table: booked.episode_a },
             note: "Both tables are being written; each couple's date airs the usual way, and either episode links the other.",
+          },
+          identity: who,
+        };
+      }
+      if (args.share_link === true) {
+        // Bring a friend (lib/double-links.ts): a link for the agent's human to share; nothing books until someone takes it.
+        const link = await ensureDoubleLink(db, who.id, String(args.character_id ?? ""), String(args.partner_id ?? ""));
+        if (!link.ok) return { error: link.message };
+        return {
+          data: {
+            share_link: `${siteUrl()}${doubleLinkPath(link.code)}`,
+            open_until: link.expires_at,
+            note: "Offer this link to your human to send a friend or post (never post it yourself). Whoever takes it brings one of their characters, or makes one, with a house date, and both tables book at once: one of your dates, one of theirs. One night per link; my_notifications says when it's taken.",
           },
           identity: who,
         };

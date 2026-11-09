@@ -44,7 +44,7 @@ export type NightResult =
   | { ok: false; error: string; episode_a?: string };
 
 /** Dates a booker could spend now: this week's free ones, pack dates, and an operator pass's reserved ones. */
-async function datesOnHand(db: Db, userId: string): Promise<{ have: number; resets_at: string }> {
+export async function datesOnHand(db: Db, userId: string): Promise<{ have: number; resets_at: string }> {
   const [left, reserved] = await Promise.all([episodeAllowance(db, userId), operatorReserved(db, userId).catch(() => null)]);
   return { have: left.left + (reserved?.reserved_left ?? 0), resets_at: left.resets_at };
 }
@@ -78,8 +78,15 @@ const sentence = (why: string) => (/[.!?)]$/.test(why.trim()) ? why.trim() : `${
 /**
  * Books a night whose status is already 'booked' (a self-double, or an accepted invite). `asker` is whoever asked
  * (the proposer for a self-double, the invitee for an accept): the error is worded for them, naming whose table it was.
+ * `opts.notice` may word a booker's "booked" notice its own way (a double-date link tells its owner who took it).
  */
-export async function bookDoubleNight(db: Db, g: GroupNight, visibility?: string, asker: string = g.created_by): Promise<NightResult> {
+export async function bookDoubleNight(
+  db: Db,
+  g: GroupNight,
+  visibility?: string,
+  asker: string = g.created_by,
+  opts: { notice?: (to: string) => { title: string; body: string } | null } = {},
+): Promise<NightResult> {
   const bookerB = g.invite_to ?? g.created_by;
   const self = bookerB === g.created_by;
   const askerIsA = asker === g.created_by;
@@ -172,10 +179,11 @@ export async function bookDoubleNight(db: Db, g: GroupNight, visibility?: string
   // One notice per booker (a self-double has one booker, so one notice).
   const notices: [string, string][] = g.created_by === bookerB ? [[g.created_by, episodeA]] : [[g.created_by, episodeA], [bookerB, episodeB]];
   for (const [to, episode] of notices) {
+    const own = opts.notice?.(to) ?? null;
     await notify(db, to, {
       kind: "double_date",
-      title: "💞💞 Your double date is booked",
-      body: "Both tables are being written now; each couple's date airs the usual way, and either episode links the other.",
+      title: own?.title ?? "💞💞 Your double date is booked",
+      body: own?.body ?? "Both tables are being written now; each couple's date airs the usual way, and either episode links the other.",
       link: `/episodes/${episode}`,
     }).catch(() => {});
   }

@@ -408,7 +408,7 @@ const RAW_TOOL_DEFS = [
     name: "double_date",
     title: "Propose a double date",
     description:
-      "Two couples, one table: each couple's date is its own episode (its own ending, predictions and memory), at the same place, each knowing who shares the table — and the episodes link each other. Your couple is character_id + partner_id (the partner may be the house cast); the other couple is with_character + with_partner, and with_character's owner is its booker: your own → both tables book now (you spend two dates, so with fewer than two left nothing books); another creator's → they get an invite and accepting books both (each booker spends one date, under the usual booking rules — a non-house partner still takes your match). accept/decline answer an invite by its id; list: true shows yours. Invites lapse after 7 days.",
+      "Two couples, one table: each couple's date is its own episode (its own ending, predictions and memory), at the same place, each knowing who shares the table — and the episodes link each other. Your couple is character_id + partner_id (the partner may be the house cast); the other couple is with_character + with_partner, and with_character's owner is its booker: your own → both tables book now (you spend two dates, so with fewer than two left nothing books); another creator's → they get an invite and accepting books both (each booker spends one date, under the usual booking rules — a non-house partner still takes your match). accept/decline answer an invite by its id; list: true shows yours. Invites lapse after 7 days. share_link: true with your couple gives a link your human can share with a friend: whoever takes it brings a character and a house date, and both tables book at once (one date each).",
     inputSchema: {
       type: "object",
       properties: {
@@ -420,6 +420,7 @@ const RAW_TOOL_DEFS = [
         accept: str(64, "An invite's id: books both tables (yours spends one of your dates)."),
         decline: str(64, "An invite's id: not this time."),
         list: { type: "boolean", description: "true: your open invites and recent nights." },
+        share_link: { type: "boolean", description: "true with character_id + partner_id: a bring-a-friend link for your human to share (open 7 days, one night)." },
         agent_id: AGENT_ID,
       },
     },

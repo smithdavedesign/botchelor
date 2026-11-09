@@ -369,9 +369,18 @@ export async function doubleOptions(db: Db, userId: string, excluding: string[])
   if (!cast.length || !rows.length) return [];
   const houses = await loadChars(db, cast);
   return rows.map((c) => {
-    const partner = cast[seedFrom(c.id) % cast.length];
+    const partner = dealtHouseDate(c.id, excluding)!;
     return { kind: "yours" as const, character_id: c.id, name: c.name, partner_id: partner, partner_name: houses.get(partner)?.name ?? "a house date" };
   });
+}
+
+/**
+ * The house date a character brings to a double: one of the season's cast, the same one every time for the same
+ * character, never one already at the table (`excluding`). Null when the cast is empty or all at the table.
+ */
+export function dealtHouseDate(characterId: string, excluding: readonly string[]): string | null {
+  const cast = seasonCastIds().filter((id) => !excluding.includes(id));
+  return cast.length ? cast[seedFrom(characterId) % cast.length] : null;
 }
 
 /** The invite as its people see it on /doubles/[id]: both couples by name, and whose answer it waits on. */
