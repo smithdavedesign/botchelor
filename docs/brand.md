@@ -51,6 +51,29 @@ keeps it as a token on its root, not a literal in its rules: the reels' screen (
 Shading and masks aren't palette colours: a mask's opaque stop and a `color-mix()` toward black say `black`, not
 `#000` (a mask only reads the alpha; "mix 6% black into the card" is a shade of the card, in either theme).
 
+### After Dark's night palette
+
+After Dark is always night, in both themes (David, 2026-10-18: never unsure which mode you're in). Its colours are
+`--night-*` tokens on `:root`, the same in light and dark. `.after-dark-mode` is made of them: its `--ad-*` tokens
+point at them, and it remaps the site's own tokens (`--ink`, `--card`, `--accent`…) to them, so a shared component
+inside it is night without knowing. A night piece that can show outside `.after-dark-mode` (the show's teaser, the
+theater's overlays, Studio, the admin pages) uses `--night-*` directly; a rule shared with the show's pages keeps
+`var(--ad-x, var(--site-x))`.
+
+| Token | Value | Use |
+|------|-------|-----|
+| `--night-bg` | `#120c1c` | The night page and stage (`--ad-bg`) |
+| `--night-card` | `#1d1430` | Night cards, the teaser (`--ad-card`) |
+| `--night-ink` | `#f1e9ff` | Words (`--ad-ink`) |
+| `--night-muted` | `#b7a8d3` | Secondary words (`--ad-muted`) |
+| `--night-line` | `#33264d` | Borders and dividers (`--ad-line`) |
+| `--night-accent` | `#c792ff` | Links, focus, a picked item's edge (`--ad-accent`) |
+| `--night-accent-text` | `#e2c8ff` | Accent words: the action line, the marker, a roleplay's roles (`--accent-text` at night) |
+| `--night-ink-on` | `#fff` | Words on what's picked: a chosen chip, tab or step |
+| `--night-faint` | `#6a5a7f` | A field's placeholder, a shot with no picture yet |
+| `--night-control` | `#c9a2ff` | A native control's `accent-color` (checkbox, radio, range) and the line it ticks |
+| `--night-hot` | `#ff9f80` | Studio's coral: the chip, tile or tab that's on, the spicy heat |
+
 **Contrast is checked, not assumed.** Every text token clears 4.5:1 on every surface it sits on, and every
 control edge and focus ring clears 3:1, in light and dark, and again under `prefers-contrast: more`. When you
 add a colour, check it on each surface it will sit on (a WCAG ratio script is enough) before you use it. Text
@@ -222,8 +245,8 @@ meaning; pass `label` when it stands alone, and it becomes `role="img"` with tha
    `tests/css-tokens.test.ts` holds you to it: every literal hex colour, font size and corner in `app/**/*.css`
    is counted in `tests/css-tokens-baseline.json`, and a new one fails with its file and line. When you remove
    literals, lower the baseline (`UPDATE_CSS_BASELINE=1 npx vitest run tests/css-tokens.test.ts`) so they can't
-   come back; never run it to let a new one in. On 2026-11-08: 267 hex, 136 font sizes, 16 radii (the radii left are
-   shaped on purpose: a bubble's tail, a sheet's top corners).
+   come back; never run it to let a new one in. On 2026-11-08: 267 hex, 136 font sizes, 16 radii; on 2026-11-09: 74,
+   36 and 12 (the radii left are shaped on purpose: a bubble's tail, a sheet's top corners, the phone mockup).
 2. New color? Define it on `:root` **and** under both dark-mode selectors.
 3. New component? Give it a class here, make it work at phone width with the `--gutter`, and give it a
    `:focus-visible` state if it's interactive.

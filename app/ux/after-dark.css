@@ -213,7 +213,7 @@ button.ad-cast-chip.on {
 }
 .ad-segmented input {
   margin: 0;
-  accent-color: #c9a2ff;
+  accent-color: var(--night-control);
 }
 /* The steer and Write on one row. */
 .ad-steer-row {
@@ -268,7 +268,7 @@ label.after-dark-autoplay {
   gap: var(--space-1);
   width: max-content;
   padding: var(--space-2);
-  border: 1px solid #33264d;
+  border: 1px solid var(--night-line);
   border-radius: var(--radius-md);
   background: rgba(18, 10, 28, 0.97);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
@@ -326,7 +326,7 @@ button.ad-tools-toggle {
   width: max-content;
   max-width: calc(100vw - 2rem);
   padding: var(--space-2);
-  border: 1px solid #33264d;
+  border: 1px solid var(--night-line);
   border-radius: var(--radius-md);
   background: rgba(18, 10, 28, 0.96);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
@@ -388,7 +388,7 @@ button.ad-tools-toggle {
   gap: var(--space-2);
   min-width: 14rem;
   padding: var(--space-2);
-  border: 1px solid #33264d;
+  border: 1px solid var(--night-line);
   border-radius: var(--radius-sm);
   background: rgba(18, 10, 28, 0.98);
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.6);
@@ -406,7 +406,7 @@ button.ad-capture-item {
   border: 0;
   border-radius: var(--radius-sm);
   background: rgba(255, 255, 255, 0.06);
-  color: #f1e9ff;
+  color: var(--night-ink);
   font: inherit;
   cursor: pointer;
 }
@@ -783,14 +783,14 @@ label.ad-check-row {
   border: 1px solid #4a3a6a;
   border-radius: var(--radius);
   background: rgba(18, 10, 28, 0.7);
-  color: #f1e9ff;
+  color: var(--night-ink);
   font-size: var(--text-sm);
   font-weight: 600;
   box-shadow: none;
 }
 .ad-writer-logo.open button.ad-writer-logo-button,
 .ad-writer-logo button.ad-writer-logo-button:hover:not(:disabled) {
-  border-color: var(--ad-accent, #c792ff);
+  border-color: var(--ad-accent, var(--night-accent));
   transform: none;
 }
 .ad-writer-menu {
@@ -803,7 +803,7 @@ label.ad-check-row {
   width: max-content;
   max-width: min(20rem, calc(100vw - 2rem));
   padding: var(--space-1);
-  border: 1px solid #33264d;
+  border: 1px solid var(--night-line);
   border-radius: var(--radius-md);
   background: rgba(18, 10, 28, 0.97);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
@@ -825,7 +825,7 @@ label.ad-check-row {
   border: 0;
   border-radius: var(--radius-sm);
   background: none;
-  color: #f1e9ff;
+  color: var(--night-ink);
   text-align: left;
   box-shadow: none;
 }
@@ -977,7 +977,7 @@ button.ad-chapter-chip:disabled {
   max-height: 60vh;
   overflow-y: auto;
   padding: var(--space-2);
-  border: 1px solid #33264d;
+  border: 1px solid var(--night-line);
   border-radius: var(--radius-sm);
   background: rgba(18, 10, 28, 0.98);
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.6);
@@ -990,7 +990,7 @@ button.ad-chapter-chip:disabled {
   border: 0;
   border-radius: var(--radius-sm);
   background: transparent;
-  color: #f1e9ff;
+  color: var(--night-ink);
   font: inherit;
   font-size: var(--text-sm);
   text-align: left;
@@ -1008,17 +1008,17 @@ button.ad-chapter-item:hover {
 .ad-chapter-night {
   display: block;
   padding: 0.5rem 0.6rem 0.15rem;
-  color: #b7a8d3;
+  color: var(--night-muted);
   font-size: var(--text-xs, 0.75rem);
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 .ad-chapter-night:not(:first-child) {
   margin-top: 0.35rem;
-  border-top: 1px solid #33264d;
+  border-top: 1px solid var(--night-line);
 }
 .ad-chapter-item .muted {
-  color: #b7a8d3;
+  color: var(--night-muted);
 }
 
 /* Realistic headshots (the face each keeps): cropped to the face, not the middle of a waist-up picture. */
@@ -1059,10 +1059,10 @@ img.avatar-photo {
   width: min(1200px, 100%);
   height: min(92vh, 100%);
   overflow: hidden;
-  border: 1px solid #33264d;
+  border: 1px solid var(--night-line);
   border-radius: var(--radius);
   background: #140c20;
-  color: #f1e9ff;
+  color: var(--night-ink);
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7);
 }
 /* Only the grid scrolls: the head, search and filter rows keep their height (with 70+ cards, a shrinkable row and
@@ -1083,7 +1083,7 @@ img.avatar-photo {
 }
 .ad-scenes-head p {
   margin: 0.2rem 0 0;
-  color: #b7a8d3;
+  color: var(--night-muted);
 }
 .ad-scenes-head .theater-icon {
   margin: 0;
@@ -1111,8 +1111,8 @@ img.avatar-photo {
 .ad-scenes-search input {
   margin: 0;
   background: rgba(36, 26, 58, 0.9);
-  color: #f1e9ff;
-  border: 1px solid #33264d;
+  color: var(--night-ink);
+  border: 1px solid var(--night-line);
 }
 .ad-scenes-search input::placeholder {
   color: #9d8dba;
@@ -1152,7 +1152,7 @@ img.avatar-photo {
 .ad-scenes-tags button.on {
   border-color: var(--accent);
   background: color-mix(in srgb, var(--accent) 34%, rgba(20, 10, 30, 0.6));
-  color: #fff;
+  color: var(--night-ink-on);
 }
 .ad-scenes-cats button:disabled {
   opacity: 0.4;
@@ -1229,7 +1229,7 @@ button.ad-scenes-clear {
   padding: var(--space-2) var(--space-3) var(--space-3);
 }
 .ad-scene-premise {
-  color: #b7a8d3;
+  color: var(--night-muted);
   display: -webkit-box;
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
@@ -1280,7 +1280,7 @@ button.ad-scenes-clear {
   gap: var(--space-2);
   margin: var(--space-2) 0;
   padding: var(--space-3);
-  border: 1px solid #33264d;
+  border: 1px solid var(--night-line);
   border-radius: var(--radius-md);
   background: rgba(18, 10, 28, 0.9);
 }
@@ -1311,7 +1311,7 @@ button.ad-scenes-clear {
 }
 button.ad-trim-toggle.on,
 .ad-shot-bar button.on {
-  border-color: var(--ad-accent, #c792ff);
+  border-color: var(--ad-accent, var(--night-accent));
 }
 
 /* The reel's controls (Reels.tsx): no base-button margin, so nothing sits low or overlaps the shot count. */
@@ -1394,7 +1394,7 @@ button.ad-reel-cc.on {
     width: max-content;
     max-width: calc(100vw - 3rem);
     padding: var(--space-2);
-    border: 1px solid #33264d;
+    border: 1px solid var(--night-line);
     border-radius: var(--radius-md);
     background: rgba(18, 10, 28, 0.95);
   }
@@ -1435,7 +1435,7 @@ button.ad-reel-cc.on {
 }
 .ad-scenes-steps li.on,
 .ad-scenes-steps li.on button {
-  color: #fff;
+  color: var(--night-ink-on);
   font-weight: 600;
 }
 .ad-scenes-steps button.linklike {
@@ -1473,7 +1473,7 @@ button.ad-rp-pick {
   border: 0;
   border-radius: 0;
   background: transparent;
-  color: #f1e9ff;
+  color: var(--night-ink);
   font: inherit;
   text-align: left;
   cursor: pointer;
@@ -1486,7 +1486,7 @@ button.ad-rp-pick {
 }
 .ad-rp-roles {
   font-size: var(--text-2xs);
-  color: #e2c8ff;
+  color: var(--night-accent-text);
 }
 button.ad-rp-swap {
   align-self: flex-start;
@@ -1563,7 +1563,7 @@ button.ad-roleplay-chip {
   .theater-after-dark .theater-hud {
     position: relative;
     order: -1;
-    background: #120c1c;
+    background: var(--night-bg);
   }
   /* With a clip or photo, the stage takes its shape instead of a thin strip, but gives way to the thread: #1029 (the
      2026-10-30 ad visitor at 390x844: "the scene art fills the view and the dialogue is cut off") — a tall photo took
@@ -1601,7 +1601,7 @@ button.ad-roleplay-chip {
     border: 0;
     border-radius: 999px;
     background: rgba(10, 6, 18, 0.66);
-    color: #f1e9ff;
+    color: var(--night-ink);
     font: inherit;
     font-size: var(--text-xs);
     font-weight: 600;
@@ -1644,7 +1644,7 @@ button.ad-roleplay-chip {
   border: 0;
   border-radius: 999px;
   background: rgba(10, 6, 18, 0.66);
-  color: #f1e9ff;
+  color: var(--night-ink);
   font: inherit;
   font-size: var(--text-xs);
   font-weight: 600;
@@ -1670,14 +1670,14 @@ button.ad-roleplay-chip {
 .after-dark-mode .create-tabs button.on {
   border-color: var(--accent);
   background: color-mix(in srgb, var(--accent) 30%, rgba(20, 10, 30, 0.6));
-  color: #fff;
+  color: var(--night-ink-on);
 }
 .after-dark-mode .create-form input,
 .after-dark-mode .create-form textarea,
 .after-dark-mode .create-form select {
   background: rgba(36, 26, 58, 0.9);
-  color: #f1e9ff;
-  border: 1px solid #33264d;
+  color: var(--night-ink);
+  border: 1px solid var(--night-line);
 }
 .after-dark-mode .create-list li {
   background: #1b1129;
@@ -1689,7 +1689,7 @@ button.ad-roleplay-chip {
 }
 .ad-scenes-make a,
 a.ad-scenes-make-link {
-  color: #e2c8ff;
+  color: var(--night-accent-text);
 }
 a.ad-scenes-make-link {
   flex: none;
@@ -1972,7 +1972,7 @@ a.ad-scenes-make-link {
   padding: 0.3rem 0.8rem;
   border-radius: 999px;
   background: rgba(20, 12, 34, 0.72);
-  color: #f1e9ff;
+  color: var(--night-ink);
   font-size: var(--text-sm);
   white-space: nowrap;
 }
@@ -2065,7 +2065,7 @@ a.ad-scenes-make-link {
   font-size: var(--text-sm);
   font-style: normal;
   font-weight: 700;
-  color: #f1e9ff;
+  color: var(--night-ink);
 }
 .chat-divider .chat-note::before,
 .chat-divider .chat-note::after {
@@ -2099,7 +2099,7 @@ a.ad-scenes-make-link {
   padding: 0.6rem 1rem;
   border-radius: var(--radius-md);
   background: rgba(10, 6, 18, 0.72);
-  color: #f1e9ff;
+  color: var(--night-ink);
   text-align: center;
 }
 .theater-after-dark .ad-scene-cut span {
@@ -2122,7 +2122,7 @@ a.ad-scenes-make-link {
   padding: 0.45rem 0.5rem 0.45rem 0.8rem;
   border-radius: var(--radius-md);
   background: rgba(10, 6, 18, 0.8);
-  color: #f1e9ff;
+  color: var(--night-ink);
   font-size: var(--text-xs);
   line-height: 1.35;
 }
@@ -2197,7 +2197,7 @@ a.ad-scenes-make-link {
 .ad-theater-tab.on {
   border-color: rgba(255, 255, 255, 0.25);
   background: rgba(255, 255, 255, 0.14);
-  color: #fff;
+  color: var(--night-ink-on);
 }
 /* A tab picked in the theater opens over it (SceneWriter.tsx), above the theater's 200 and under its own pickers (260+). */
 .ad-page-tabs.ad-tab-sheet {
@@ -2210,7 +2210,7 @@ a.ad-scenes-make-link {
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: var(--space-3) max(var(--space-4), calc((100vw - 64rem) / 2)) var(--space-6);
-  background: #120c1c;
+  background: var(--night-bg);
 }
 .ad-tab-sheet-back {
   position: sticky;
@@ -2218,7 +2218,7 @@ a.ad-scenes-make-link {
   z-index: 2;
   margin: calc(-1 * var(--space-3)) 0 var(--space-3);
   padding: var(--space-3) 0 var(--space-2);
-  background: #120c1c;
+  background: var(--night-bg);
 }
 .ad-tab-sheet-back button {
   margin: 0;

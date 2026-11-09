@@ -77,9 +77,13 @@ the branch measured the same depths side by side. #1386 makes it take the best o
 
 ## What's left, on purpose
 
-- **The remaining literals** (267 hex, 136 font sizes) come down one area at a time, each pass lowering the baseline;
-  the ratchet means they can only go one way. The 16 radii left are shaped on purpose (a speech bubble's tail, a
-  sheet's top corners) or sized to their own height.
+- **The remaining literals** come down one area at a time, each pass lowering the baseline; the ratchet means they
+  can only go one way. 2026-11-09 took them from 267 hex, 136 font sizes and 16 radii to **74, 36 and 12**: font sizes
+  onto the type scale plus an icon scale and `--text-display`, the show's colours onto photo/media/bubble/dark-card
+  tokens, and After Dark onto its `--night-*` palette (docs/brand.md). What's left is mostly After Dark's near-copies
+  of its own palette (folding them in is a small visible change, a design call), one-off accents, display sizes that
+  are each a component's own `clamp()`, and `app/ux/companion.css` / `show.css`. The 12 radii left are shaped on
+  purpose (a speech bubble's tail, a sheet's top corners) or sized to the phone mockup.
 - **Emoji that are the show's voice** stay: award names, a format's or roleplay's own emoji, reactions, After
   Dark's labels.
 - **A wide page's running text** keeps a reading measure (a card, a column or about 40rem), per brand.md Layout;

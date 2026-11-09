@@ -97,7 +97,7 @@
   padding: 0.2rem 0.55rem;
   border-radius: 999px;
   background: rgba(10, 6, 18, 0.8);
-  color: #f1e9ff;
+  color: var(--night-ink);
   font-size: var(--text-2xs);
   pointer-events: none;
 }
