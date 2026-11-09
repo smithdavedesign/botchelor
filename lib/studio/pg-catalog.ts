@@ -312,7 +312,7 @@ export function planPgShoot(choices: PgChoices): PgPlanResult {
 export const planWords = (plan: PgPlan): string => [...plan.parts.map((p) => p.words), plan.ownPlace ?? "", plan.custom ?? ""].join(" ");
 
 /** Who the picture shows, for the prompt: the noun, the age, and PG look words (never a body's). */
-export type PgSubject = { noun: "man" | "woman" | "person"; age: number; look: string };
+export type PgSubject = { noun: "man" | "woman" | "person"; age: number; look: string; anime?: boolean };
 
 /** The fixed words that keep every picture a show picture, whatever was picked. */
 /** A PG picture's tag: a group and one of its options (a shoot's picks), or what made it (`made`: shoot, identity, carousel, twin). */

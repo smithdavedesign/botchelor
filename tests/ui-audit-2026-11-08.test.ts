@@ -264,6 +264,7 @@ const companion = (i: number): CompanionListItem => ({
   source: "community",
   on_show: false,
   created_at: "2026-11-01T00:00:00.000Z",
+  style: "realistic",
 });
 
 describe("the companions browser's pages (app/companion/CompanionBrowser.tsx)", () => {

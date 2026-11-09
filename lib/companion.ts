@@ -334,7 +334,18 @@ export type CompanionListItem = CompanionCharacterRef & {
   /** On this month's show cast (lib/season-cast.ts showCastIds). */
   on_show: boolean;
   created_at: string | null;
+  /** How they're drawn, for the Style filter: anime when their looks say so (lib/looks.ts isAnime), else realistic. */
+  style: CompanionStyle;
 };
+
+export type CompanionStyle = "realistic" | "anime";
+
+/**
+ * How many people the companions page may list besides your own threads: every one of them, with room (the page shows
+ * COMPANIONS_PAGE at a time). It was 200 with 173 listed; the anime cast (2026-11-08) took it to ~197, and past the limit
+ * the alphabetical order quietly dropped whoever came last.
+ */
+export const COMPANIONS_LISTED = 500;
 
 /**
  * The companions page: your threads (most recent first), then who else you could talk with: yours, then the house
@@ -358,6 +369,7 @@ export async function listCompanions(db: Db, userId: string, now: Date = new Dat
     traits: unknown;
     created_via: string | null;
     created_at: Date | string | null;
+    style: string | null;
   };
   const onShow = new Set(showCastIds(now));
   const pronounsOf = (p: string | null): CompanionCharacterRef["pronouns"] => (p === "she/her" || p === "he/him" || p === "they/them" ? p : null);
@@ -378,8 +390,9 @@ export async function listCompanions(db: Db, userId: string, now: Date = new Dat
     source: r.owner_id === userId && userId ? "yours" : r.is_house ? "house" : r.created_via === "mcp" ? "agent" : "community",
     on_show: onShow.has(r.id),
     created_at: r.created_at ? new Date(r.created_at).toISOString() : null,
+    style: r.style === "anime" ? "anime" : "realistic",
   });
-  const cols = `c.id, c.name, c.bio, ${portraitPathSql("c")} as portrait, c.avatar_hue, c.is_house, c.owner_id, c.age, c.pronouns, c.traits, c.created_via, c.created_at`;
+  const cols = `c.id, c.name, c.bio, ${portraitPathSql("c")} as portrait, c.avatar_hue, c.is_house, c.owner_id, c.age, c.pronouns, c.traits, c.created_via, c.created_at, c.extras->'looks'->>'style' as style`;
   const [threads, others] = await Promise.all([
     db.query<Row>(
       `select ${cols}, t.id as thread_id, t.last_at,
@@ -395,7 +408,7 @@ export async function listCompanions(db: Db, userId: string, now: Date = new Dat
           and ((c.is_house and c.premium_sku is null and c.visibility <> 'private') or (c.companion_open and c.visibility <> 'private') or c.owner_id = $1)
           and not exists (select 1 from companion_threads t where t.user_id = $1 and t.character_id = c.id)
         order by (c.owner_id is not distinct from $1) desc, c.is_house desc, c.name asc
-        limit 200`,
+        limit ${COMPANIONS_LISTED}`,
       [userId, DELETED_OWNER],
     ),
   ]);
