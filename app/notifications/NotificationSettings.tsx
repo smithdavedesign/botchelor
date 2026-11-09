@@ -15,13 +15,13 @@ export default function NotificationSettings({ canClear, children }: { canClear:
       <button type="button" className="button-ghost notif-settings" aria-haspopup="dialog" onClick={() => setOpen(true)}>
         <span aria-hidden="true">⚙</span> Settings
       </button>
-      <Sheet open={open} onClose={() => setOpen(false)} title="Notification settings">
-        {children}
+      <Sheet open={open} onClose={() => setOpen(false)} title="Notification settings" fit>
         {canClear && (
           <p className="notif-clear-all">
             <ClearNotifications onDone={() => setOpen(false)} />
           </p>
         )}
+        {children}
       </Sheet>
     </>
   );

@@ -602,8 +602,8 @@ details.recap-toggle[open] .recap-toggle-hide {
   margin-top: var(--space-2);
 }
 .notif-clear-all {
-  padding-top: var(--space-3);
-  border-top: 1px solid var(--line);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--line);
 }
 .notif-clear-all .button-ghost {
   margin: 0;

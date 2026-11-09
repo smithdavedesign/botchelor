@@ -6006,6 +6006,13 @@ button.sheet-x:hover:not(:disabled) {
   color: var(--bad-text);
   font-size: var(--text-sm);
 }
+/* Short content (notification settings): no scroll, the sheet sizes to what's in it. */
+.sheet-dialog.is-fit {
+  max-height: none;
+}
+.sheet-dialog.is-fit .sheet-body {
+  overflow: visible;
+}
 /* A sheet with a picker of pictures in it (the looks builder): wider on a desktop, the whole screen on a phone. */
 .sheet-dialog.is-wide {
   width: min(46rem, calc(100% - 2 * var(--gutter)));
