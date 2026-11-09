@@ -7,6 +7,7 @@ import { portraitPathSql } from "./assets";
 import { loadCharacter, type Character } from "./character";
 import { AVOID_LINES, companionMessages, RECENT_TURNS, repeatsEarlier, replyBubbles, sceneReply, type PromptRoleplay, type PromptScene, type PromptTurn } from "./companion-prompt";
 import { factsForPrompt, updateFacts, updateSummary } from "./companion-memory";
+import { forgetUnusedVoices, voiceUrl } from "./companion-voice";
 import {
   COMPANION_GUEST_THREADS,
   COMPANION_MESSAGE_MAX,
@@ -277,8 +278,8 @@ export async function getThread(db: Db, userId: string, threadId: string): Promi
   const ref = await characterRef(db, t.character_id, userId);
   if (!ref) return NOT_FOUND;
   const [{ rows: msgs }, { rows: facts }] = await Promise.all([
-    db.query<{ id: string; role: "user" | "character" | "system"; text: string; created_at: string; reported: string | null; scene: string | null; action: string | null; marker: CompanionMessageView["marker"]; roleplay: string | null }>(
-      `select id, role, text, created_at, reported, scene, action, marker, roleplay from companion_messages where thread_id = $1 and replaced_by is null order by created_at asc, id asc`,
+    db.query<{ id: string; role: "user" | "character" | "system"; text: string; created_at: string; reported: string | null; scene: string | null; action: string | null; marker: CompanionMessageView["marker"]; roleplay: string | null; voice_key: string | null }>(
+      `select id, role, text, created_at, reported, scene, action, marker, roleplay, voice_key from companion_messages where thread_id = $1 and replaced_by is null order by created_at asc, id asc`,
       [threadId],
     ),
     db.query<{ n: number }>(`select count(*)::int as n from companion_facts where thread_id = $1`, [threadId]),
@@ -298,6 +299,7 @@ export async function getThread(db: Db, userId: string, threadId: string): Promi
         action: m.action,
         marker: m.marker,
         roleplay: m.roleplay,
+        voice: m.voice_key ? voiceUrl(t.id, m.id) : null,
       })),
       reply_length: t.reply_length,
       scene: isScenePlace(t.scene) ? t.scene : null,
@@ -747,7 +749,10 @@ export async function reportMessage(db: Db, userId: string, threadId: string, me
 /** Deletes a thread: every message, fact and the summary go with it. */
 export async function deleteThread(db: Db, userId: string, threadId: string): Promise<{ ok: true } | CompanionFail> {
   const { rows } = await db.query(`delete from companion_threads where id = $1 and user_id = $2 returning id`, [threadId, userId]);
-  return rows.length ? { ok: true } : NOT_FOUND;
+  if (!rows.length) return NOT_FOUND;
+  // Its voice notes go too (unless the same words are another reply's).
+  await forgetUnusedVoices(db);
+  return { ok: true };
 }
 
 /**

@@ -273,7 +273,8 @@ const EXT: Record<string, string> = { "image/png": "png", "image/jpeg": "jpg", "
  * hash makes a key name exactly one file, so a redrawn tile can't be confused with an old copy anywhere. The copy
  * script builds the same key (scripts/media-to-object-store.mjs).
  */
-export type MediaArea = "after-dark" | "looks" | "studio-pg";
+/** companion/: companions' voice notes and selfies (lib/companion-voice.ts), the show's own, in its bucket. */
+export type MediaArea = "after-dark" | "looks" | "studio-pg" | "companion";
 export function mediaKey(area: MediaArea, id: string, bytes: Buffer, mime: string): string {
   return `${area}/${id}-${sha256(bytes).slice(0, 16)}.${EXT[mime] ?? "bin"}`;
 }

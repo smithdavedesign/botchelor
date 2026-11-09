@@ -1,6 +1,6 @@
 /**
  * Voiced nights (David, 2026-10-22, from the competitor analysis): every line of a night can be heard, as it plays, in
- * each character's stock voice: the same Kokoro voice their videos use (lib/adult/reels.ts voiceFor), never a cloned
+ * each character's stock voice: the same Kokoro voice their videos use (lib/voice.ts voiceFor, the shared voice kit), never a cloned
  * one. Kokoro runs where After Dark's media does (`media_provider`): Venice's `tts-kokoro`, or Replicate's Kokoro by its
  * version (af_heart, which it lacks, becomes af_alloy).
  *
@@ -13,49 +13,21 @@
  *  - It's part of the subscription (about $0.0004 a line on Venice: $3.50 per million characters), with a monthly cap per
  *    subscriber (`cap_voice_lines`, lib/adult/usage.ts); admins aren't capped. A replay doesn't count.
  */
-import { createHash } from "node:crypto";
 import { loadCharacter } from "../character";
 import type { Db } from "../db";
 import { keepBytes } from "../object-store";
 import { checkAdultText } from "../safety";
-import { reelNight, replicateVoice, voiceFor, VENICE } from "./reels";
-import { providerError, runMedia } from "./fallback";
-import { runModel } from "./replicate";
-import { logRequest } from "./request-log";
+import { modelVoice, orpheusWords, replicateVoice, sayable, sayLine, voiceFor, voiceKey } from "../voice";
+import { reelNight } from "./reels";
 import { eligiblePair } from "./scenes";
 import { adultKeys, getAdultSettings, type VoiceModel } from "./settings";
 import { capOf, capSentence, countUse, usageLeft } from "./usage";
 
+// The shared voice kit (lib/voice.ts) is where these live now; After Dark's callers and tests import them from here too.
+export { modelVoice, orpheusWords, sayable, setVoiceFetchForTests, VOICE_TEXT_MAX, voiceKey } from "../voice";
+
 /** Lines a request may ask for: the next few to play. */
 export const VOICE_BATCH_MAX = 3;
-/** The most of a line that's said (Kokoro's input). */
-export const VOICE_TEXT_MAX = 600;
-const MAX_AUDIO_BYTES = 20 * 1024 * 1024;
-/**
- * A line's voice not back by then is left silent: the theater has moved on (it waits 8 s), and a model starting cold can
- * take minutes (Orpheus took 297 s cold and 4 s warm, 2026-10-29), longer than the route's 60 s.
- */
-const VOICE_TIMEOUT_MS = 25_000;
-
-type Fetch = typeof fetch;
-let testFetch: Fetch | null = null;
-export function setVoiceFetchForTests(f: Fetch | null): void {
-  testFetch = f;
-}
-const doFetch: Fetch = (...a) => (testFetch ?? fetch)(...a);
-
-/** What a line says out loud: every *action* out, the rest tidied. Empty for a line that's only an action. */
-export function sayable(text: string): string {
-  return text
-    .replace(/\*[^*]*\*/g, " ")
-    .replace(/\*/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, VOICE_TEXT_MAX);
-}
-
-/** A line's audio is found again by this: whose night it's from, the voice, and the words. */
-export const voiceKey = (ownerId: string, voice: string, words: string): string => createHash("sha256").update(`${ownerId}\n${voice}\n${words}`).digest("hex");
 
 /** What's asked: the pair, a saved night (else the running scene), and the lines by place and words. */
 export type VoiceAsk = { a: string; b: string; night_id?: string | null; lines: { i: number; text: string }[] };
@@ -67,68 +39,6 @@ export type VoiceAsk = { a: string; b: string; night_id?: string | null; lines: 
 export type LineVoice = { i: number; id: string | null; reason?: "silent" | "stale" | "lines" | "cap" | "failed"; message?: string; provider?: string; fell_back?: boolean };
 
 export type VoiceResult = { ok: true; voices: LineVoice[] } | { ok: false; status: number; error: string; message: string };
-
-/** Venice's id for each voice model (lib/adult/settings.ts VOICE_MODELS). */
-const VENICE_TTS: Record<VoiceModel, string> = { kokoro: "tts-kokoro", orpheus: "tts-orpheus", chatterbox: "tts-chatterbox-hd", inworld: "tts-inworld-1-5-max" };
-/**
- * Each model's own voices, by how a character is referred to (Kokoro's are lib/adult/reels.ts voiceFor's), from Venice's
- * model list (2026-10-29). One is picked from a character's id, so it's theirs in every line.
- */
-const MODEL_VOICES: Record<Exclude<VoiceModel, "kokoro">, { she: readonly string[]; he: readonly string[]; they: readonly string[] }> = {
-  orpheus: { she: ["tara", "leah", "jess", "mia", "zoe"], he: ["leo", "dan", "zac"], they: ["tara", "leo"] },
-  chatterbox: { she: ["Aurora", "Britney", "Siobhan", "Vicky"], he: ["Blade", "Carl", "Cliff", "Richard", "Rico"], they: ["Aurora", "Rico"] },
-  inworld: { she: ["Ashley", "Elizabeth", "Luna", "Olivia", "Pixie", "Priya", "Sarah"], he: ["Alex", "Craig", "Edward", "Hades", "Mark", "Ronald", "Theodore"], they: ["Luna", "Alex"] },
-};
-
-/** A character's voice in a model: Kokoro's as always (voiceFor), else one of that model's, "orpheus:tara". */
-export function modelVoice(model: VoiceModel, c: { id: string; pronouns: string | null }): string {
-  if (model === "kokoro") return voiceFor(c);
-  const p = c.pronouns?.toLowerCase() ?? "";
-  const set = MODEL_VOICES[model];
-  const list = p.startsWith("she") ? set.she : p.startsWith("he") ? set.he : set.they;
-  let h = 0;
-  for (const ch of c.id) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
-  return `${model}:${list[h % list.length]}`;
-}
-
-/**
- * The sounds Orpheus makes when its line asks for them, from what the line's action shows: "*laughs*" is heard as a laugh
- * (docs/PRDs/theater-immersion.md #3). At most one, before the words.
- */
-const ORPHEUS_SOUNDS: readonly (readonly [RegExp, string])[] = [
-  [/\blaugh(?:s|ing|ed)?\b/i, "<laugh>"],
-  [/\bchuckl(?:es|ing|ed|e)\b/i, "<chuckle>"],
-  [/\bgasp(?:s|ing|ed)?\b/i, "<gasp>"],
-  [/\bsigh(?:s|ing|ed)?\b/i, "<sigh>"],
-  [/\b(?:groan|moan)(?:s|ing|ed)?\b/i, "<groan>"],
-  [/\byawn(?:s|ing|ed)?\b/i, "<yawn>"],
-];
-export function orpheusWords(text: string, words: string): string {
-  const action = (text.match(/\*[^*]+\*/g) ?? []).join(" ");
-  const sound = ORPHEUS_SOUNDS.find(([re]) => re.test(action))?.[1];
-  return sound ? `${sound} ${words}` : words;
-}
-
-/**
- * One line in a voice, on Venice: Kokoro's stock voice (MP3), or a "model:name" one (WAV, the only format Orpheus,
- * Chatterbox and Inworld give: their 400 said so, 2026-10-29).
- */
-async function veniceVoice(key: string, words: string, voice: string): Promise<{ bytes: Buffer; mime: string }> {
-  const [model, name] = voice.includes(":") ? (voice.split(":") as [VoiceModel, string]) : (["kokoro", voice] as const);
-  const format = model === "kokoro" ? "mp3" : "wav";
-  const body = { model: VENICE_TTS[model] ?? "tts-kokoro", input: words, voice: name, response_format: format };
-  logRequest(`${VENICE}/audio/speech`, body);
-  const res = await doFetch(`${VENICE}/audio/speech`, {
-    method: "POST",
-    headers: { authorization: `Bearer ${key}`, "content-type": "application/json" },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(VOICE_TIMEOUT_MS),
-  });
-  if (!res.ok) throw await providerError(res, (status, text) => `Venice ${status}: ${text.slice(0, 120)}`);
-  const bytes = Buffer.from(await res.arrayBuffer());
-  if (!bytes.length || bytes.length > MAX_AUDIO_BYTES) throw new Error("Venice returned no usable audio");
-  return { bytes, mime: format === "mp3" ? "audio/mpeg" : "audio/wav" };
-}
 
 /**
  * The voices for the lines asked for, made where missing (and allowed) and kept. Lines come back in the order asked;
@@ -195,13 +105,8 @@ export async function voiceLines(db: Db, ownerId: string, ask: VoiceAsk): Promis
     }
     try {
       // A voice line is one job: said on the other provider's Kokoro when the configured one is limited (lib/adult/fallback.ts).
-      const said = await runMedia(db, "voice", (p) =>
-        p === "replicate"
-          ? runModel(keys.replicate!, settings.replicate_voice_model, { text: words, voice: replicateVoice(stock[line.who]), speed: 1 }, { maxBytes: MAX_AUDIO_BYTES, timeoutMs: 60_000 })
-          : veniceVoice(keys.venice!, model === "orpheus" ? orpheusWords(line.text, words) : words, chosen[line.who]),
-      );
+      const said = await sayLine(db, { words, stock: stock[line.who], chosen: chosen[line.who], spoken: model === "orpheus" ? orpheusWords(line.text, words) : undefined });
       const audio = said.value;
-      if (!audio.mime.startsWith("audio/")) throw new Error("no audio came back");
       const id = crypto.randomUUID();
       const bytes = await keepBytes("after-dark", id, audio.bytes, audio.mime);
       const [speaker, other] = line.who === "a" ? pair : [pair[1], pair[0]];

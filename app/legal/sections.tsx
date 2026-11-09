@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { AFTER_DARK_ABOUT } from "@/lib/after-dark-public";
 import { formatPrice, PACK_5 } from "@/lib/catalog";
-import { COMPANION_FAIR_USE_PER_MONTH, COMPANION_FREE_PER_DAY } from "@/lib/companion-shared";
+import { COMPANION_EXTRAS, COMPANION_FAIR_USE_PER_MONTH, COMPANION_FREE_PER_DAY } from "@/lib/companion-shared";
 import {
   AFTER_DARK_BLOCKED_COUNTRIES,
   AFTER_DARK_BLOCKED_US_STATES,
@@ -321,6 +321,12 @@ export function TermsSections() {
           it runs.
         </li>
         <li>It&apos;s for one adult with an account. Sharing it isn&apos;t allowed, and fair use is for talking, not for scripts.</li>
+        <li id="companion-extras">
+          <strong>Extras.</strong> The plan includes {COMPANION_EXTRAS.voice.included} voice notes a calendar month (a companion&apos;s reply recorded in
+          their own voice). Past that, and without the plan, a bought token from a pack buys {COMPANION_EXTRAS.voice.bundle} voice notes, which never expire.
+          The price is on the button before anything is made, a voice note is never charged in the middle of a reply, and anything that fails gives back
+          what it took. Included ones that aren&apos;t used don&apos;t carry over. Extras need an account.
+        </li>
       </ul>
 
       <h2 id="subscription">The After Dark subscription</h2>

@@ -14,11 +14,15 @@ import type { CrisisResources } from "@/lib/crisis";
 import type { CompanionAllowance } from "@/lib/companion-plan";
 import {
   COMPANION_MESSAGE_MAX,
+  COMPANION_EXTRAS,
   COMPANION_REPORT_LABELS,
   COMPANION_REPORT_REASONS,
+  extraPrice,
   REPLY_LENGTH_LABELS,
   REPLY_LENGTHS,
   SCENE_PLACES,
+  type CompanionExtraKind,
+  type CompanionExtraState,
   type CompanionMessageView,
   type CompanionReportReason,
   type CompanionThreadView,
@@ -27,7 +31,8 @@ import {
 import type { CharacterRef } from "@/lib/game";
 import { venueName, type VenueId } from "@/lib/venues";
 
-type Reply = { view?: CompanionThreadView; message?: string; allowance?: CompanionAllowance };
+type Extras = Record<CompanionExtraKind, CompanionExtraState> | null;
+type Reply = { view?: CompanionThreadView; message?: string; allowance?: CompanionAllowance; extras?: Extras; voice?: { message_id: string; url: string } };
 
 /** "in 5 hours", "in 40 minutes": until the free count starts again. */
 function untilReset(iso: string, now = Date.now()): string {
@@ -56,17 +61,25 @@ export default function CompanionChat({
   initial,
   initialCrisis,
   initialAllowance,
+  initialExtras = null,
   signedIn = false,
 }: {
   initial: CompanionThreadView;
   initialCrisis: CrisisResources | null;
   initialAllowance: CompanionAllowance;
+  /** What the extras (voice notes) cost this person; null for a guest, who's asked to sign in first. */
+  initialExtras?: Extras;
   /** For the roleplay picker's ✨ Yours (the Create library, accounts only). */
   signedIn?: boolean;
 }) {
   const router = useRouter();
   const [view, setView] = useState(initial);
   const [allowance, setAllowance] = useState(initialAllowance);
+  const [extras, setExtras] = useState<Extras>(initialExtras);
+  // The reply being recorded as a voice note, and the one playing.
+  const [voicing, setVoicing] = useState<string | null>(null);
+  const [playing, setPlaying] = useState<string | null>(null);
+  const player = useRef<HTMLAudioElement | null>(null);
   const [draft, setDraft] = useState("");
   const [pending, setPending] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -136,6 +149,7 @@ export default function CompanionChat({
       }
       if (data?.view) setView(data.view);
       if (data?.allowance) setAllowance(data.allowance);
+      if (data && "extras" in data) setExtras(data.extras ?? null);
       if (res.status === 402) return false;
       if (!res.ok) {
         setNote(data?.message ?? "That didn't work. Try again in a moment.");
@@ -195,6 +209,50 @@ export default function CompanionChat({
     if (next && onStage.them) speech.speak(onStage.them.text, who);
   }
 
+  /** Plays a voice note (one at a time); a second tap on the one playing stops it. */
+  function play(id: string, url: string) {
+    player.current?.pause();
+    if (playing === id) {
+      setPlaying(null);
+      return;
+    }
+    const audio = new Audio(url);
+    player.current = audio;
+    setPlaying(id);
+    audio.onended = () => setPlaying((p) => (p === id ? null : p));
+    audio.play().catch(() => setPlaying((p) => (p === id ? null : p)));
+  }
+
+  /**
+   * Records one of their replies as a voice note (an extra, lib/companion-extras.ts), then plays it. The button showed the
+   * price before this, so `buy` lets a token pay for a bundle when nothing else does.
+   */
+  async function voice(m: CompanionMessageView) {
+    if (m.voice) return play(m.id, m.voice);
+    setVoicing(m.id);
+    setNote(null);
+    try {
+      const res = await fetch(`/api/companion/${view.id}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: "voice", message_id: m.id, buy: extraPrice("voice", extras?.voice) !== "" }),
+      });
+      const data = (await res.json().catch(() => null)) as Reply | null;
+      if (data?.view) setView(data.view);
+      if (data?.allowance) setAllowance(data.allowance);
+      if (data && "extras" in data) setExtras(data.extras ?? null);
+      if (!res.ok || !data?.voice) {
+        setNote(data?.message ?? "Couldn't record that one. Try again in a moment.");
+        return;
+      }
+      play(m.id, data.voice.url);
+    } catch {
+      setNote("Network error. Try again.");
+    } finally {
+      setVoicing(null);
+    }
+  }
+
   async function carryOn() {
     if (await post({ action: "carry_on" })) setCrisis(null);
   }
@@ -212,6 +270,7 @@ export default function CompanionChat({
   }
 
   const paused = view.paused || Boolean(crisis);
+  const voicePrice = extraPrice("voice", extras?.voice);
   const outOfReplies = !allowance.unlimited && allowance.left === 0;
   const typing = busy && (pending !== null || waitingOnThem || opening);
 
@@ -262,6 +321,20 @@ export default function CompanionChat({
                 </label>
               ))}
             </fieldset>
+            {extras && (
+              <p className="muted small">
+                🔊 Voice notes:{" "}
+                {extras.voice.free
+                  ? "free for admins"
+                  : [
+                      extras.voice.included_left !== null ? `${extras.voice.included_left} of ${COMPANION_EXTRAS.voice.included} left this month with the plan` : null,
+                      extras.voice.credits ? `${extras.voice.credits} bought` : null,
+                      `${extras.voice.tokens} token buys ${extras.voice.bundle}`,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
+              </p>
+            )}
             <p>
               <Link href={`/companion/${view.id}/memory`}>
                 What {first} knows about you ({view.facts})
@@ -370,6 +443,31 @@ export default function CompanionChat({
                     <p className="chat-bubble">{m.text}</p>
                     {m.role === "character" && (
                       <div className="companion-foot">
+                        {m.voice ? (
+                          <button type="button" className="linklike small companion-voice-note" onClick={() => play(m.id, m.voice!)} aria-pressed={playing === m.id} data-track="companion-voice-play">
+                            {playing === m.id ? "⏸ Playing" : "▶ Voice note"}
+                          </button>
+                        ) : extras ? (
+                          !paused && (
+                            <button
+                              type="button"
+                              className="linklike small muted companion-voice-note"
+                              onClick={() => void voice(m)}
+                              disabled={voicing !== null}
+                              title={voicePrice ? `Voice notes: ${voicePrice}. Taken only if it's made.` : `Hear ${first} say it`}
+                              data-track="companion-voice"
+                            >
+                              {voicing === m.id ? "🔊 Recording…" : voicePrice ? `🔊 Voice note · ${voicePrice}` : "🔊 Voice note"}
+                            </button>
+                          )
+                        ) : (
+                          // A guest: asked once, on the newest reply, to sign in for them.
+                          newest?.id === m.id && (
+                            <Link className="small muted companion-voice-note" href={`/account?next=${encodeURIComponent(`/companion/${view.id}`)}`} title="Voice notes come with a free account" data-track="companion-voice-signin">
+                              🔊 Voice notes with a free account
+                            </Link>
+                          )
+                        )}
                         {m.reported ? (
                           <span className="muted small">Reported</span>
                         ) : reporting === m.id ? (

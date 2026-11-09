@@ -140,7 +140,7 @@ David, 2026-11-04: "maybe enable this to go into theater mode too". The show's t
   starts and ends (`companion_messages.marker`: `scene` or `texting`; `scene` on each message and the thread).
 - **Voice:** "🔈 Voice off / 🔊 Voice on" reads their new lines aloud in the device's own voices (`app/stage/useSpeech.ts`:
   speechSynthesis, free, nothing sent), a steady voice per character; the switch is kept on the device. Recorded voice
-  notes come with P3.
+  notes in the character's own voice are P3's (below).
 - **The prompt** is the same one with the scene in it: "playing a scene together, imagining you're both at {place},
   face to face", spoken lines and stage directions, PG for what they do too, and the scene as shared make-believe
   ("never suggest meeting for real"). Their earlier lines carry what they did: `(leans on the railing) …`.
@@ -178,12 +178,59 @@ currently the companion you can only set the location". Show dates have had PG r
 - **Over MCP (2.23.0):** `companion {action: "scene", place, roleplay, my_role}`: a show id or `{title, premise, roles}`,
   my_role 0/1 or the role's words; `read` shows `scene.roleplay`.
 
+## Voice notes (P3, built 2026-11-09)
+
+David, 2026-11-09: "yes work on P3". The first of P3's three parts.
+- **🔊 Voice note** under any of the companion's replies records it in the character's own voice, and from then on the
+  reply plays as a voice note (▶). Only what the reply says is voiced: a texted `*action*` comes out, and a scene's stage
+  direction is its own field.
+- **The voice** (`lib/voice.ts`, the shared voice kit that After Dark's voiced nights in `lib/adult/voice-lines.ts` now
+  use too, unchanged): Kokoro, one fixed stock voice per character (`voiceFor`, from their pronouns and id), the same one
+  their reels and nights use; never a cloned voice. Said where After Dark's media is made (`media_provider`: Venice's
+  `tts-kokoro`, or Replicate's Kokoro), on the other when that one is limited (`runMedia`).
+- **Never paid twice** (`lib/companion-voice.ts`): the audio is kept in `companion_voice` by a hash of the voice and the
+  words, and a reply points at it (`companion_messages.voice_key`). Asking again, a replay, or another reply with the same
+  words costs nothing.
+- **Checks:** the words go to the voice only if they're still under the PG line and the crisis list (they were checked
+  when drawn); never in a paused (crisis) thread; only the character's replies, never the person's own lines.
+- **Storage:** the show's bucket (`lib/object-store.ts`, area `companion/`; Postgres where there's no bucket), played
+  back by `GET /api/companion/:id/voice/:message` to the thread's owner only (a redirect to a short-lived presigned link,
+  marked AI-generated in its headers). Deleting a thread or the account deletes its voice notes, files and all
+  (`forgetUnusedVoices`, also run by the daily job).
+- **Limits:** 60 an hour and 300 a day per person (abuse only, each is paid for) and 3,000 a day across everyone
+  (`COMPANION_VOICE_ALL`, about $6 at the most).
+- **Over MCP (2.24.0):** `companion {action: "voice", message_id}` gives a signed MP3 link that plays for an hour (agents
+  have no session); `read` carries `voice` on a reply that has one. Free to agents, 10 an hour and 30 a day each
+  (`COMPANION_AGENT_VOICE_LIMITS`), inside the same daily ceiling.
+
+### What extras cost (`lib/companion-extras.ts`)
+
+David's pricing call (2026-11-09): the Companion Plan includes some each month, then the show's bought tokens at about
+cost, priced like After Dark's extras; guests get none.
+- **The Companion Plan includes 30 voice notes a calendar month** (UTC), counted per person (`companion_extras_usage`);
+  unused ones don't carry over.
+- **After that, and without the plan, 1 bought token buys 100 voice notes**, kept as credits until used
+  (`companion_credits`), never expiring.
+- **Why 100 for a token.** A token is the show's smallest unit: $0.80 (the 5-pack is $4), about $0.72 after Stripe's fee,
+  and it can't be split. A voice note is one Kokoro call: about $0.0004 on Venice ($3.50 per million characters, a reply
+  of 100-300 characters) and up to about $0.002 on Replicate, plus a few kB of storage. One a token would be 360× cost
+  and ten a token still 36×; at 100 a token a voice note sells for about $0.007, about 3× the dearest provider's cost and
+  in line with After Dark's "extras at about cost" (a clip past the 3 at 1 token against $0.16-0.70). Most people will
+  never use 100, so that's where the bundle stops.
+- **Honest pricing:** the button says the price before anything is made ("🔊 Voice note · 1 token for 100") whenever the
+  next one isn't already paid for, and a token is spent only when the request says so (`buy`, which the button sends
+  only while it shows the price). A voice note is asked for on its own, after the reply is there, so it's never charged
+  mid-reply, and it isn't a reply: the free replies aren't touched. One is taken before it's made and given back if it
+  isn't (a provider failure, a refusal); a bundle bought for one that then fails is undone whole, the token back and the
+  bundle gone.
+- **Guests** (no account) get none: the button asks them to sign in. **Admins** aren't counted.
+- In the terms at `/terms#companion-extras` and on the plan page.
+
 ## Still to build
 
-- **P3, voice notes, selfies, proactive texts:** voice from `lib/adult/voice-lines.ts` generalised into `lib/voice.ts`
-  (a fixed voice per character); PG selfies from `lib/studio/date-photos.ts` with the face reference; proactive texts
-  at most once a day after 20 hours of quiet, in the person's waking hours, off by default per thread, never into a
-  paused thread.
+- **P3, the rest (voice notes are built, above):** PG selfies from `lib/studio/date-photos.ts` with the face reference;
+  proactive texts at most once a day after 20 hours of quiet, in the person's waking hours, off by default per thread,
+  never into a paused thread.
 - **P4, the quality gate: built and passed 2026-11-08** (`npm run sim:companion`, [companion-quality.md](companion-quality.md)):
   average 8.3, recall 97%, PG and crisis 100%, after fixes to the crisis prefilter, repeats, facts in the prompt and a
   parent's kid talk.
