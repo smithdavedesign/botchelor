@@ -76,6 +76,24 @@ export function afterDarkAccess(where: Place): Access {
   return { mode: "open", place: p, reason: null };
 }
 
+/**
+ * The places a passed age check opens (lib/adult/age-check.ts, Didit; David, 2026-11-09). The UK's Online Safety Act
+ * asks for "highly effective age assurance" before pictures, video and voice; Australia's eSafety codes and Brazil's ECA
+ * Digital ask for an age check before adult content at all. A verified person there gets After Dark in full. Nowhere
+ * else: the US age-check states, France, Italy and Germany ask for more than this check (certified providers, ID on
+ * every visit, a closed user group), so they stay blocked whatever the person has passed.
+ */
+export const VERIFY_OPENS = ["GB", "AU", "BR"] as const;
+
+/** Whether a passed age check would open more of After Dark in this place. */
+export const verifyOpens = (where: Place): boolean => (VERIFY_OPENS as readonly string[]).includes(place(where.country, where.region).country ?? "");
+
+/** The access for someone holding a current age pass: open in the places a pass opens, unchanged elsewhere. */
+export function withAgePass(access: Access, passed: boolean): Access {
+  if (!passed || access.mode === "open" || !verifyOpens(access.place)) return access;
+  return { mode: "open", place: access.place, reason: null };
+}
+
 /** The operator is exempt: an admin's After Dark is open wherever they are. */
 export const adminAccess = (where: Place): Access => ({ mode: "open", place: place(where.country, where.region), reason: null });
 

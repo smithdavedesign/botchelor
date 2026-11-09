@@ -2933,3 +2933,50 @@ nights with them: the pair dropped off the hub and `/after-dark/<a>/<b>` was a b
   this season's cast. A warning before the rollover (the issue's third point) isn't built.
 
 **Proof:** tests/after-dark-old-cast.test.ts.
+
+## Age checks with Didit (2026-11-09)
+
+David's call ("Didit"): a real age check, so the places that want one can open for a person who passes. **Built and
+off**: until `DIDIT_API_KEY`, `DIDIT_WORKFLOW_ID` and `DIDIT_WEBHOOK_SECRET` are all set, nothing changes anywhere.
+
+- **What a pass opens** (`lib/jurisdiction.ts` `VERIFY_OPENS = ["GB","AU","BR"]`, `withAgePass`): in the UK, pictures,
+  video and voice (unverified stays text only); in Australia and Brazil, After Dark itself (unverified stays blocked).
+  Nowhere else: the 27 US age-check states, France, Italy and Germany stay blocked whatever the person has passed.
+- **Where it's read** (`lib/adult/place.ts` `accessForUser`): `accessHere`, `viewerAccess` (so the remembered mode is
+  "open" and background media runs), and the subscribe, taste, invite and token routes. `mediaAllowedFor` also asks
+  for a current pass when a remembered "open" in GB/AU/BR came only from one, so an expired pass stops background media
+  before the person comes back. The free taste opens for a verified person in AU, BR or GB like any open place.
+- **The flow** (`lib/adult/age-check.ts`): "Verify your age" (`app/after-dark/VerifyAge.tsx`, on the blocked notice in
+  AU/BR and under the text-only line in GB, for a signed-in person entitled or able to taste, ask or subscribe, not
+  held by a billing flag) → `POST /api/after-dark/verify` creates a Didit session (`POST
+  https://verification.didit.me/v3/session/`, `workflow_id`, `vendor_data` = user id, `callback`, `metadata.country`)
+  and sends them to Didit's page → back at `GET /api/after-dark/verify/return?verificationSessionId=…`, which reads the
+  decision from Didit's API (`GET /v3/session/{id}/decision/`) and counts it only when it names that signed-in person →
+  `/after-dark/subscribe?age=passed|failed|pending`. Didit's webhook (`POST /api/after-dark/verify/webhook`) records the
+  same result; only bodies whose `X-Signature` (HMAC-SHA256 hex of the raw body) or `X-Signature-V2` (of its canonical
+  JSON) matches, with an `X-Timestamp` within 5 minutes, are read. Approved passes, Declined fails, anything else waits.
+- **Idempotent:** a current pass is never overwritten (replays and a late decline change nothing); a failed or expired
+  one takes the next result. Session starts are limited to 3 an hour and 6 a day per person and per address (each can
+  cost a check).
+- **What's kept** (`adult_age_checks`): passed or not, `method` 'didit', `checked_at`, `country`. Never the selfie, an
+  ID, a birth date, an estimated age or Didit's payload. A pass lasts `AGE_PASS_DAYS` (365), then they verify again.
+  Deleting After Dark data (`lib/account.ts` `AFTER_DARK_OWNED`) removes the row.
+- **Cost:** Didit says about $0.10 an age estimate and 500 full checks free a month (its own claim, unverified).
+- **Didit's docs used (read 2026-11-09):** https://docs.didit.me/sessions-api/create-session,
+  https://docs.didit.me/sessions-api/retrieve-session, https://docs.didit.me/integration/webhooks,
+  https://docs.didit.me/core-technology/age-estimation/overview.
+
+**How to turn it on (David):**
+
+1. Sign up at didit.me, set a spend cap in its console, and create an API key with `write:sessions` and `read:sessions`.
+   Store it: `~/ai-stack/bin/secrets add botchelor DIDIT_API_KEY --cap "<limit>"`.
+2. Make a workflow for age: the "Adaptive Age Verification" type (an age estimate on the liveness step, threshold 18,
+   with an ID check for borderline ages), or a liveness workflow with age estimation on and
+   `age_estimation_decline_threshold` 18. Its id is `DIDIT_WORKFLOW_ID`. Add `ad.botchelor.com` to allowed callback
+   domains if the app has a list.
+3. Add a webhook destination: `https://ad.botchelor.com/api/after-dark/verify/webhook`, event `status.updated`. Its
+   secret is `DIDIT_WEBHOOK_SECRET` (store it in the keychain too).
+4. Set all three on **both** DigitalOcean apps (show `botchelor-show` and After Dark `clownfish-app`; docs/hosting.md),
+   then redeploy. Check: from GB, a signed-in account sees "Verify your age" under the text-only line.
+
+**Proof:** tests/after-dark-age-check.test.ts.

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { isAdmin } from "@/lib/admins";
 import { canAfterDark } from "@/lib/adult/entitlement";
-import { accessFor } from "@/lib/adult/place";
+import { accessForUser } from "@/lib/adult/place";
 import { startTaste, TASTE_REFUSAL_TEXT } from "@/lib/adult/taste";
 import { detectBot } from "@/lib/bots";
 import { getDb } from "@/lib/db";
@@ -32,7 +32,7 @@ export const POST = handle(async (req: Request) => {
   if ((visitor !== null && (await overLimit(db, "ad_taste", visitor, TASTE_LIMITS))) || (await overLimit(db, "ad_taste_user", auth.userId, TASTE_LIMITS))) {
     return json({ error: "rate_limited", message: "Too many tries. Try again in an hour." }, 429);
   }
-  const access = accessFor(requestPlace(req.headers), await isAdmin(db, auth.userId));
+  const access = await accessForUser(db, auth.userId, requestPlace(req.headers), await isAdmin(db, auth.userId));
   if (access.mode !== "open") {
     return json({ error: "not_available_here", message: access.reason ?? "The free taste isn't offered where you're connecting from." }, 451);
   }
