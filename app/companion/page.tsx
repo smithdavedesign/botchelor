@@ -59,7 +59,7 @@ export default async function CompanionsPage({ searchParams }: { searchParams?: 
     const cap = companionGuestReplies();
     const left = allowance?.left ?? cap;
     return (
-      <article className="companion-page">
+      <article className="companion-page page-wide">
         <header>
           <p className="kicker">Companions</p>
           <h1>Talk with a character, one to one</h1>
@@ -91,7 +91,7 @@ export default async function CompanionsPage({ searchParams }: { searchParams?: 
   if (!auth?.authenticated && companionOpen()) {
     const { cast } = await listCompanions(db, "");
     return (
-      <article className="companion-page">
+      <article className="companion-page page-wide">
         <header>
           <p className="kicker">Companions</p>
           <h1>Talk with a character, one to one</h1>
@@ -121,7 +121,7 @@ export default async function CompanionsPage({ searchParams }: { searchParams?: 
   if (!(await companionAllowed(db, auth))) notFound();
   const [{ threads, yours, cast }, allowance] = await Promise.all([listCompanions(db, auth!.userId), companionAllowance(db, auth!.userId)]);
   return (
-    <article className="companion-page">
+    <article className="companion-page page-wide">
       <header>
         <p className="kicker">Companions</p>
         <h1>Talk with a character, one to one</h1>

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import Avatar from "@/app/Avatar";
+import Icon from "@/app/Icon";
 import EmptyState from "@/app/EmptyState";
 import When from "@/app/When";
 import type { CompanionListItem, CompanionSource } from "@/lib/companion";
@@ -37,6 +38,12 @@ const SORTS = [
   { id: "oldest", label: "Oldest" },
 ] as const;
 type Sort = (typeof SORTS)[number]["id"];
+
+/**
+ * How many tiles show before "Show more" (2026-11-08 UI audit, item 4: all 173 at once ran 58 phone screens and ~11,700
+ * words). Each press shows this many more; a new search or filter starts again from the first page.
+ */
+export const COMPANIONS_PAGE = 24;
 
 const SOURCE_LABEL: Record<CompanionSource, string> = { yours: "Yours", house: "House cast", agent: "Made by agents", community: "A creator's" };
 
@@ -109,7 +116,11 @@ function Tile({ c, signIn }: { c: CompanionListItem; signIn: boolean }) {
           <strong>{c.name}</strong>
           <span className="muted small">{[c.age, c.pronouns].filter(Boolean).join(" · ")}</span>
           <span className="companion-tile-badges">
-            {c.on_show && <span className="chip">📺 On the show</span>}
+            {c.on_show && (
+              <span className="chip">
+                <Icon name="tv" /> On the show
+              </span>
+            )}
             <span className="chip chip-quiet">{SOURCE_LABEL[c.source]}</span>
           </span>
         </div>
@@ -156,6 +167,10 @@ export default function CompanionBrowser({
   const [who, setWho] = useState<Who>(oneOf(WHO, initial.who, "all"));
   const [pronouns, setPronouns] = useState<Pronouns>(oneOf(PRONOUNS, initial.pronouns, "any"));
   const [sort, setSort] = useState<Sort>(oneOf(SORTS, initial.sort, "suggested"));
+  // How far down "Show more" has gone, for these filters: a new search, filter or sort starts from the first page again.
+  const filterKey = `${q.trim()}|${who}|${pronouns}|${sort}`;
+  const [paging, setPaging] = useState({ key: filterKey, limit: COMPANIONS_PAGE });
+  const limit = paging.key === filterKey ? paging.limit : COMPANIONS_PAGE;
 
   // The filters live in the URL (replaceState: no history entry a keystroke), so Back to this page keeps them.
   useEffect(() => {
@@ -242,11 +257,23 @@ export default function CompanionBrowser({
           {filtered ? `${shown.length} of ${others.length}` : `${others.length} to choose from`}
         </p>
         {shown.length ? (
-          <ul className="companion-grid">
-            {shown.map((c) => (
-              <Tile key={c.id} c={c} signIn={signIn} />
-            ))}
-          </ul>
+          <>
+            <ul className="companion-grid">
+              {shown.slice(0, limit).map((c) => (
+                <Tile key={c.id} c={c} signIn={signIn} />
+              ))}
+            </ul>
+            {shown.length > limit && (
+              <p className="companion-more">
+                <button type="button" className="button secondary" onClick={() => setPaging({ key: filterKey, limit: limit + COMPANIONS_PAGE })}>
+                  Show {Math.min(COMPANIONS_PAGE, shown.length - limit)} more
+                </button>{" "}
+                <span className="muted small">
+                  {limit} of {shown.length} shown
+                </span>
+              </p>
+            )}
+          </>
         ) : (
           <EmptyState
             emoji="🔎"

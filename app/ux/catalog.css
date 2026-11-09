@@ -1,0 +1,396 @@
+/* The 2026-11-08 UI design audit (docs/audits/2026-11-08-ui-design-audit.md): page widths, one heading scale, icons,
+   picture-led episode cards, balanced grids. Loaded last (app/layout.tsx), so it settles what earlier sheets left.
+   Tokens only (tests/css-tokens.test.ts). */
+
+/* ---------------- page widths (docs/brand.md, Layout) ---------------- */
+/* Two widths: the reading column (main's own, --page-read) and the wide one for the pages you browse, which opt in
+   with .page-wide on their root (home, the show's five tabs, Characters, Companions; an episode by its own rule). */
+main:has(> .page-wide) {
+  max-width: var(--page-wide);
+}
+
+/* ---------------- headings: one scale (item 7) ---------------- */
+/* Every section heading is the same size on every page; it used to be the browser's 24px here and 17–19px on Watch,
+   where a vote card's heading outranked the sections around it. A heading set as an eyebrow is an eyebrow. */
+h2 {
+  font-size: var(--text-xl);
+  line-height: 1.2;
+}
+h3 {
+  font-size: var(--text-lg);
+}
+/* The show's eyebrow labels, one look (.kicker's): small capitals in the body face, whatever element carries them. */
+:is(.kicker, .watch-lead-kicker, .watch-tonight-kicker, .tonight-band-eyebrow, .tonight-slot-label, .matches-label, .episode-prev-label) {
+  font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* The Reunion right under the show's tabs: their underline is the divider. The panel's own top rule (for when it sat
+   lower on a page) made a second line 24px under the first. */
+.show-tabs + .reunion-panel {
+  margin-top: var(--space-3);
+  padding-top: 0;
+  border-top: 0;
+}
+
+/* ---------------- icons (app/Icon.tsx, item 8) ---------------- */
+.icon {
+  display: inline-block;
+  flex: none;
+  width: 1.15em;
+  height: 1.15em;
+  vertical-align: -0.2em;
+}
+:is(.badge, .chip, .photo-chip) .icon {
+  width: 1.05em;
+  height: 1.05em;
+}
+.nav-bell-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+.private-teaser-lock .icon {
+  color: var(--muted);
+}
+
+/* ---------------- a venue's photo (app/VenuePhoto.tsx, item 1) ---------------- */
+.venue-photo {
+  position: relative;
+  overflow: hidden;
+  background-color: var(--photo-bg);
+  background-size: cover;
+  background-position: center;
+}
+.venue-photo > img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+/* Darker toward the bottom, where the faces and any words sit. */
+.venue-photo::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(20, 8, 30, 0) 35%, rgba(20, 8, 30, 0.62) 100%);
+  pointer-events: none;
+}
+/* What sits on a picture is above its grade (z-index 1), so above the card's .stretch overlay too: it lets a tap
+   through to the card's link rather than swallowing it (the faces are much of a phone card's picture). */
+.photo-chip {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  z-index: 1;
+  pointer-events: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+  padding: 0.15rem 0.55rem;
+  border-radius: var(--radius-pill);
+  background: rgba(14, 8, 20, 0.6);
+  color: var(--on-photo);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* ---------------- an episode in Watch's list (app/EpisodeItem.tsx, items 1–2) ---------------- */
+.watch-latest-list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-2);
+  margin: var(--space-3) 0;
+  padding: 0;
+  list-style: none;
+}
+.watch-latest-list > li.card {
+  margin: 0;
+}
+@media (min-width: 761px) {
+  .watch-latest-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-4);
+  }
+}
+@media (min-width: 1100px) {
+  .watch-latest-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+.episode-item.card {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+.episode-item-photo {
+  flex: none;
+  aspect-ratio: 16 / 7;
+}
+.episode-item-photo :is(.pair-faces, .night-faces) {
+  position: absolute;
+  left: var(--space-3);
+  bottom: var(--space-3);
+  z-index: 1;
+  pointer-events: none;
+}
+.episode-item-photo .avatar,
+.episode-shelf-card .avatar {
+  box-shadow: 0 0 0 2px var(--on-photo);
+}
+.episode-item-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 0;
+  padding: var(--space-3) var(--space-4) var(--space-4);
+}
+.episode-item-names {
+  color: var(--ink);
+  text-decoration: none;
+  line-height: 1.3;
+}
+.episode-item-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+}
+.episode-item-setting {
+  display: -webkit-box;
+  margin: 0.1rem 0 0;
+  overflow: hidden;
+  font-size: var(--text-sm);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+/* A whole mixer night: its singles' faces overlap in a row. */
+.night-faces {
+  display: inline-flex;
+  align-items: center;
+}
+.night-faces > * + * {
+  margin-left: -10px;
+}
+.night-faces-more {
+  display: inline-grid;
+  place-items: center;
+  min-width: 36px;
+  height: 36px;
+  padding: 0 0.3rem;
+  border-radius: var(--radius-pill);
+  background: rgba(14, 8, 20, 0.7);
+  box-shadow: 0 0 0 2px var(--on-photo);
+  color: var(--on-photo);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+}
+/* On a phone, a row: the picture a square on the left, so twelve to a page still fit a few screens. */
+@media (max-width: 760px) {
+  .episode-item.card {
+    flex-direction: row;
+    align-items: stretch;
+  }
+  .episode-item-photo {
+    width: 6.5rem;
+    min-height: 6.5rem;
+    aspect-ratio: auto;
+  }
+  .episode-item-photo :is(.pair-faces, .night-faces) {
+    left: 50%;
+    bottom: var(--space-2);
+    transform: translateX(-50%);
+  }
+  .night-item .night-faces > :nth-child(n + 3) {
+    display: none;
+  }
+  .episode-item-photo .photo-chip {
+    top: var(--space-1);
+    right: auto;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 0.1rem 0.4rem;
+    letter-spacing: 0.03em;
+  }
+  .episode-item-body {
+    padding: var(--space-3);
+  }
+  .episode-item-setting {
+    -webkit-line-clamp: 1;
+  }
+}
+
+/* ---------------- Watch's airing-soon cards (item 5, on the wide page) ---------------- */
+/* A sideways strip on a phone, as before. From a tablet's width, the same three-across grid as the rooms under it: on
+   the wide page three fixed 14rem cards left half the row empty, and the most it lists (eight) scrolled sideways on
+   desktop (David, 2026-10-22: no sideways scroll on desktop). */
+@media (min-width: 721px) {
+  .watch-airing {
+    grid-auto-flow: row;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    overflow-x: visible;
+  }
+}
+
+/* ---------------- home's Just aired shelf (app/EpisodeShelf.tsx) ---------------- */
+/* The venue's photo fills the card behind its words (isolated, so it can sit under them and over the card's fill). */
+.episode-shelf-card {
+  isolation: isolate;
+  background-color: var(--photo-bg);
+}
+.episode-shelf-photo {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+}
+.episode-shelf-photo::after {
+  background: linear-gradient(180deg, rgba(20, 8, 30, 0.2) 0%, rgba(20, 8, 30, 0.55) 50%, rgba(20, 8, 30, 0.92) 100%);
+}
+.episode-shelf-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+}
+
+/* ---------------- a real date's opening lines (app/DateExcerpt.tsx, item 3) ---------------- */
+/* The first lines are simply there; only the rest type in (the card no longer opens half empty). */
+.date-excerpt {
+  align-content: start;
+  background-color: var(--photo-bg);
+}
+.date-excerpt-line.is-now,
+.date-excerpt-line.is-now .date-excerpt-bubble {
+  animation: none;
+}
+/* Watch's lead on its wide page: the pair and the button on the left, the lines on the right. */
+@media (min-width: 900px) {
+  .date-excerpt.is-wide {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr);
+    grid-template-areas:
+      "head lines"
+      "cta lines";
+    grid-template-rows: auto 1fr;
+    column-gap: var(--space-6);
+    row-gap: var(--space-4);
+    padding: var(--space-6);
+  }
+  .date-excerpt.is-wide .date-excerpt-head {
+    grid-area: head;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-3);
+  }
+  .date-excerpt.is-wide .date-excerpt-who strong {
+    font-family: "Fraunces", Georgia, serif;
+    font-size: var(--text-2xl);
+    line-height: 1.15;
+  }
+  .date-excerpt.is-wide .date-excerpt-meta {
+    margin-top: var(--space-1);
+    font-size: var(--text-sm);
+  }
+  .date-excerpt.is-wide .date-excerpt-lines {
+    grid-area: lines;
+    align-self: center;
+  }
+  .date-excerpt.is-wide .date-excerpt-cta {
+    grid-area: cta;
+    align-self: end;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+/* ---------------- balanced grids (lib/grid-balance.ts, item 6) ---------------- */
+/* A short grid (the season's cast) never ends on one lonely card: --cols is set from the count. Two a row up to a
+   tablet's width, then the balanced count. */
+.grid-balanced {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+/* The grid owns its gaps: a .card's own 1rem margins don't collapse in a grid, so rows sat 44px apart against 12px
+   between columns. */
+.grid-balanced > .card {
+  margin: 0;
+}
+@media (min-width: 900px) {
+  .grid-balanced {
+    grid-template-columns: repeat(var(--cols, 3), minmax(0, 1fr));
+  }
+}
+
+/* ---------------- Characters: job and hometown (app/characters/page.tsx) ---------------- */
+.dir-job {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem 0.75rem;
+}
+.dir-fact {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.dir-fact .icon {
+  color: var(--muted);
+}
+
+/* ---------------- Companions: show more (app/companion/CompanionBrowser.tsx, item 4) ---------------- */
+.companion-more {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2) var(--space-3);
+  margin: 0 0 var(--space-5);
+}
+.companion-more .button {
+  margin: 0;
+}
+
+/* ---------------- Create: the first step on a phone (app/create/CreateWizard.tsx, item 10) ---------------- */
+@media (max-width: 640px) {
+  .wizard-preview.is-first {
+    display: none;
+  }
+}
+
+/* ---------------- the feedback button (app/FeedbackDock.tsx, item 13) ---------------- */
+/* A 44px circle in the corner until it's pointed at or focused; then it says "Feedback". The word stays in the
+   button (clipped, not hidden), so a screen reader still hears it. */
+.feedback-fab {
+  justify-content: center;
+  width: 2.75rem;
+  padding: 0;
+  gap: 0;
+}
+.feedback-fab-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+.feedback-fab-label {
+  max-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  opacity: 0;
+  transition: max-width 0.2s ease, opacity 0.2s ease;
+}
+.feedback-fab:is(:hover, :focus-visible) {
+  width: auto;
+  padding: 0 var(--space-4);
+  gap: var(--space-2);
+}
+.feedback-fab:is(:hover, :focus-visible) .feedback-fab-label {
+  max-width: 8rem;
+  opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .feedback-fab-label {
+    transition: none;
+  }
+}

@@ -26,7 +26,7 @@ export default async function ShowcasePage({ searchParams }: Props) {
   const viewer = await pageViewer(db);
   const sp = await searchParams;
   return (
-    <main className="showcase-page">
+    <div className="showcase-page page-wide">
       <ShowTabs active="/showcase" />
       <div className="showcase-head">
         {/* "Reels", the word on the show's tab (app/ShowTabs.tsx) and the one people type (/reels comes here). */}
@@ -43,6 +43,6 @@ export default async function ShowcasePage({ searchParams }: Props) {
         </p>
       )}
       <ShowcaseBrowser db={db} viewer={viewer} base="/showcase" filters={parseFilters(sp)} />
-    </main>
+    </div>
   );
 }

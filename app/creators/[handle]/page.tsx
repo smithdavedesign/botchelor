@@ -30,7 +30,7 @@ export default async function CreatorPage({ params, searchParams }: Props) {
   const db = await getDb();
   const viewer = await pageViewer(db);
   return (
-    <main className="showcase-page">
+    <div className="showcase-page page-wide">
       <header className="creator-head">
         <h1>{c.display_name}</h1>
         <p className="muted">@{c.handle}</p>
@@ -41,6 +41,6 @@ export default async function CreatorPage({ params, searchParams }: Props) {
         </Link>
       </header>
       <ShowcaseBrowser db={db} viewer={viewer} base={`/creators/${c.handle}`} filters={parseFilters(await searchParams)} fixed={{ creator: c.handle }} />
-    </main>
+    </div>
   );
 }

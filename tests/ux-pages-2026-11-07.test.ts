@@ -132,7 +132,7 @@ describe("the companions browser (app/companion/CompanionBrowser.tsx)", () => {
     expect(html).toContain("1 of 3");
     expect(html).toContain("Nell Hart");
     expect(html).not.toContain("Dex Arlo");
-    expect(html).toContain("📺 On the show");
+    expect(html).toMatch(/<span class="chip"><svg class="icon"[^>]*aria-hidden="true">.*?<\/svg> On the show<\/span>/); // an icon, not 📺 (2026-11-08 UI audit)
     expect(html).toContain("27 · she/her");
     expect(html).toContain("See you Tuesday?");
     expect(html).toContain("Clear filters");

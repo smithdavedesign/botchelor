@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import Link from "next/link";
 import Avatar from "@/app/Avatar";
-import EpisodeItem from "@/app/EpisodeItem";
+import { FeedEntry } from "@/app/EpisodeItem";
+import Icon from "@/app/Icon";
 import JsonLd from "@/app/JsonLd";
 import { airWindowMinutes } from "@/lib/air";
 import { getDb } from "@/lib/db";
@@ -35,7 +36,8 @@ import { showSince } from "@/lib/show-since";
 import { backingBoard } from "@/lib/backing";
 import { dareBoard } from "@/lib/dares";
 import { situationBoard } from "@/lib/situations";
-import { listAiredPage, listAiringSoon, parsePage, type AiringSoon } from "@/lib/game";
+import { listAiredFeed, listAiringSoon, parsePage, type AiringSoon } from "@/lib/game";
+import { feedEpisodes, withoutEpisode } from "@/lib/feed-items";
 import { userIdFromCookieStore } from "@/lib/http";
 import { listMyLeagues } from "@/lib/leagues";
 import { getProfileName } from "@/lib/people";
@@ -183,7 +185,7 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
     mine("lobby", () => listLobby(db)),
     shared("watch:private-dates", () => countRecentPrivateDates(db)),
     mine("home:airing", () => listAiringSoon(db, viewerId, airWindowMinutes())),
-    mine(`watch:aired:${page}`, () => listAiredPage(db, viewerId, page)),
+    mine(`watch:feed:${page}`, () => listAiredFeed(db, viewerId, page)),
     viewerId ? listMyLeagues(db, viewerId) : Promise.resolve([]),
     getProfileName(db, viewerId),
     shared("watch:reunion", () => getReunion(db)),
@@ -207,7 +209,8 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
   ]);
   // Their shared calls link carries their display name when it's theirs alone (lib/share-record-name.ts).
   const sharer = profileName && record?.called ? await sharerOf(db, viewerId).catch(() => null) : null;
-  const feed = latest.episodes;
+  // A mixer night is one entry of the list (2026-11-08 UI audit, item 2); its tables are still each a date.
+  const feed = feedEpisodes(latest.items);
   const now = Date.now();
   const live = rooms.filter((r) => r.status === "live");
   const ready = rooms.filter((r) => r.status === "ready");
@@ -216,10 +219,10 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
   // The date first (2026-11-07 audit, item 3): what's live, else the newest aired date playing its opening lines. It
   // isn't listed again under Latest episodes.
   const featured = page === 1 && live.length === 0 ? pickFeaturedDate(feed) : null;
-  const listed = featured ? feed.filter((e) => e.id !== featured.episode_id) : feed;
+  const listed = featured ? withoutEpisode(latest.items, featured.episode_id) : latest.items;
 
   return (
-    <article className="watch-page">
+    <article className="watch-page page-wide">
       <JsonLd
         data={itemListJsonLd(
           page > 1 ? `Latest Botchelor episodes, page ${page}` : "Latest Botchelor episodes",
@@ -251,7 +254,7 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
             <h2 id="watch-lead-head" className="watch-lead-kicker">
               Just aired
             </h2>
-            <DateExcerpt date={featured} />
+            <DateExcerpt date={featured} wide />
           </section>
         )
       )}
@@ -303,7 +306,7 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
         {ready.length > 0 && (
           <>
             <h3 className="watch-subhead">Ready to start</h3>
-            <StripPager label="Ready to start pages">
+            <StripPager label="Rooms ready to start">
               {ready.map((r) => (
                 <RoomCard key={r.id} room={r} action="Start it" />
               ))}
@@ -313,7 +316,7 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
         {upcoming.length > 0 && (
           <>
             <h3 className="watch-subhead">Premieres coming up</h3>
-            <StripPager label="Premieres pages">
+            <StripPager label="Premieres coming up">
               {upcoming.map((r) => (
                 <RoomCard key={r.id} room={r} action={`Starts ${startsIn(r.starts_at, now)}`} />
               ))}
@@ -323,7 +326,6 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
       </section>
 
       {situation && <SituationVote board={situation} now={now} />}
-      {reveal && reveal.state !== "open" && reveal.state !== "closed" && <WeeklyReveal board={reveal} now={now} />}
       {/* The season pool's board just came out (the first week of the next season): shown, not folded. */}
       {poolRevealed && <SeasonPoolPanel standing={pool} revealed={poolRevealed} now={now} />}
 
@@ -331,8 +333,8 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
         <h2>Latest episodes{page > 1 ? ` · page ${page}` : ""}</h2>
         {listed.length ? (
           <ul className="list watch-latest-list">
-            {listed.map((episode) => (
-              <EpisodeItem key={episode.id} episode={episode} />
+            {listed.map((item) => (
+              <FeedEntry key={item.kind === "mixer" ? `night-${item.night_id}` : item.episode.id} item={item} />
             ))}
           </ul>
         ) : featured ? (
@@ -350,9 +352,15 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
         <Pager page={page} pages={latest.pages} label="Latest episodes pages" href={(n) => `${pagePath(n)}#latest`} prev="Newer" next="Older" />
       </section>
 
+      {/* Sunday's reveal between its votes: after the episodes, not stacked on tonight's vote as a second framed card
+          (2026-11-08 UI audit, item 12). While its vote is open it leads, above. */}
+      {reveal && reveal.state !== "open" && reveal.state !== "closed" && <WeeklyReveal board={reveal} now={now} />}
+
       {privateDates > 0 && (
         <p className="private-teaser private-teaser-compact">
-          <span className="private-teaser-lock" aria-hidden="true">🔒</span>
+          <span className="private-teaser-lock">
+            <Icon name="lock" />
+          </span>
           <span>
             <strong>{privateDates}</strong> private {privateDates === 1 ? "date" : "dates"} this week, seen only by
             {privateDates === 1 ? " its creators" : " their creators"}. Yours are in{" "}
@@ -367,7 +375,7 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
           <summary>
             <h2>Replays</h2> <span className="muted small">{replays.length > REPLAYS_SHOWN ? `the newest ${REPLAYS_SHOWN} of ${replays.length}` : replays.length}</span>
           </summary>
-          <StripPager label="Replays pages">
+          <StripPager label="Replays">
             {replays.slice(0, REPLAYS_SHOWN).map((r) => (
               <RoomCard key={r.id} room={r} action="Replay" />
             ))}
@@ -416,7 +424,9 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
         )}
         {/* Folded: the form is tall, and most visitors come to watch (2026-10-21). */}
         <details className="watch-league-details ux-fold">
-          <summary>🏆 Start a league with friends</summary>
+          <summary>
+            <Icon name="trophy" /> Start a league with friends
+          </summary>
           <p className="muted small">Call endings together: the top 3 in each league earn a badge when a season closes.</p>
           <CreateLeagueForm hasName={profileName !== null} />
         </details>

@@ -60,7 +60,7 @@ export default async function GraphPage({ searchParams }: { searchParams: Search
   const first = firstSky({ nodes, edges, stats, kinds });
 
   return (
-    <article className="constellation-page">
+    <article className="constellation-page page-wide">
       <JsonLd
         data={[
           breadcrumbJsonLd([

@@ -6,6 +6,7 @@ import { requestJson } from "./request";
 import { useAction } from "./useAction";
 import { countdown } from "@/lib/countdown";
 import type { RevealBoard, RevealResult } from "@/lib/weekly-reveal";
+import Icon from "@/app/Icon";
 
 /** "Sunday, 7 pm UTC": a fixed time in words, the same for everyone (a countdown sits beside it). */
 const utcTime = (iso: string): string => {
@@ -20,7 +21,7 @@ const utcTime = (iso: string): string => {
 export function RevealResultLine({ last }: { last: RevealResult }) {
   return (
     <p className="situation-last small weekly-reveal-result">
-      <span aria-hidden="true">🔓</span> <strong>{last.name}&apos;s secret is out:</strong> “{last.secret}”{" "}
+      <Icon name="unlock" /> <strong>{last.name}&apos;s secret is out:</strong> “{last.secret}”{" "}
       <span className="muted">
         {last.producers_pick ? "Nobody voted, so the producers picked." : `${last.votes} of ${last.total} ${last.total === 1 ? "vote" : "votes"}.`}
       </span>{" "}
@@ -58,7 +59,9 @@ export default function WeeklyReveal({ board, now }: { board: RevealBoard; now: 
       <div className="situation-head">
         <div>
           <p className="kicker">Every Sunday · the audience decides</p>
-          <h2 id="sunday-reveal-head">🔓 Sunday&apos;s reveal{board.state === "open" ? ": whose secret comes out?" : ""}</h2>
+          <h2 id="sunday-reveal-head">
+            <Icon name="unlock" /> Sunday&apos;s reveal{board.state === "open" ? ": whose secret comes out?" : ""}
+          </h2>
           {when && <p className="chip weekly-reveal-when">{when}</p>}
           {board.state === "open" ? (
             <p className="muted small">

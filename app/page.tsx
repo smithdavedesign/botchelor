@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import type { CSSProperties } from "react";
 import { cookies } from "next/headers";
 import Link from "next/link";
 import PhoneActionBar from "@/app/PhoneActionBar";
@@ -8,7 +9,9 @@ import { pageMetadata, SITE_DESCRIPTION, SITE_TITLE } from "@/lib/seo";
 import { episodeAllowance, freshAllowance } from "@/lib/allowance";
 import { PACK_5 } from "@/lib/catalog";
 import { getDb } from "@/lib/db";
-import { listAiredPage, listAiringSoon, listMyCharacters } from "@/lib/game";
+import { listAiredFeed, listAiringSoon, listMyCharacters } from "@/lib/game";
+import { feedEpisodes } from "@/lib/feed-items";
+import { balancedColumns } from "@/lib/grid-balance";
 import { countNotifications } from "@/lib/notifications";
 import { sinceYouWereHere } from "@/lib/since";
 import When from "@/app/When";
@@ -114,7 +117,8 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
     db && viewerId ? showSince(db, viewerId).catch(() => null) : null,
     // Someone signed out sees what everyone does: from a few seconds' shared copy (lib/shared-cache.ts).
     Promise.all([
-      forViewer(viewerId, "home:aired", () => listAiredPage(conn, viewerId, 1, 6)).catch(() => null),
+      // A mixer night is one card (2026-11-08 UI audit, item 2). Its own key: the gate caches listAiredPage as "home:aired".
+      forViewer(viewerId, "home:feed", () => listAiredFeed(conn, viewerId, 1, 6)).catch(() => null),
       cachedConstellation(conn).catch(() => null), // the minute-old sky is plenty (2026-11-01 audit, R9)
       // The audience boards are a creator's: a first visit doesn't show them, so it doesn't pay for them either.
       myCharactersP.then((mine) => (mine.length ? forViewer(viewerId, "home:situation", () => situationBoard(conn, viewerId)).catch(() => null) : null)),
@@ -143,14 +147,15 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
   ];
   const [heroA, heroB] = onSeason;
   // A real date's opening lines for the hero (lib/featured-date.ts), from the aired episodes already loaded.
-  const featured = pickFeaturedDate(aired?.episodes ?? []);
+  const airedEpisodes = feedEpisodes(aired?.items ?? []);
+  const featured = pickFeaturedDate(airedEpisodes);
   // Next month's newcomers are written from the 20th (lib/season-gen.ts): from then, the cast strip points at them.
   const candidatesOut = new Date().getUTCDate() >= GENERATE_FROM_DAY;
   const creator = myCharacters.length > 0;
-  const tonight = <TonightBand rooms={rooms} airing={airing} situation={situation} reveal={reveal} latest={aired?.episodes[0] ?? null} now={Date.now()} />;
+  const tonight = <TonightBand rooms={rooms} airing={airing} situation={situation} reveal={reveal} latest={airedEpisodes[0] ?? null} now={Date.now()} />;
 
   return (
-    <div className="home">
+    <div className="home page-wide">
       {/* A creator's show is on before anything else (docs/show-style.md: lead with tonight); a first visit meets the
           pitch first and the band right under it. */}
       {creator && tonight}
@@ -252,14 +257,14 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
       {dares && <DareVote board={dares} />}
       {record && (record.called > 0 || airing.length > 0) && <CallsLine record={record} airing={airing.length} href="/watch#airing-soon" nameless={viewerId !== null && profileName === null} sharer={sharer} where="home" />}
 
-      {aired && aired.episodes.length > 0 && (
+      {aired && aired.items.length > 0 && (
         <section className="home-aired">
           <div className="section-head">
             <h2>Just aired</h2>
             <Link href="/watch">Watch more →</Link>
           </div>
           {/* A shelf of small title cards, not rows (docs/show-style.md: faces first). */}
-          <EpisodeShelf episodes={aired.episodes.slice(0, 6)} />
+          <EpisodeShelf items={aired.items.slice(0, 6)} />
         </section>
       )}
 
@@ -285,7 +290,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
         <p className="muted">
           A handful a month. Date one now, or <Link href="/swipe">swipe</Link> to match with another creator&apos;s character.
         </p>
-        <ul className="home-cast-faces">
+        <ul className="home-cast-faces grid-balanced" style={{ "--cols": balancedColumns(Math.min(cast.length, HOME_CAST_SHOWN), 4) } as CSSProperties}>
           {cast.slice(0, HOME_CAST_SHOWN).map((p) => (
             <li key={p.id} className="card tap-card home-cast-tile">
               <Avatar seed={p.id} name={p.name} house={!p.fan} portraitSrc={p.portrait ?? null} size={72} />

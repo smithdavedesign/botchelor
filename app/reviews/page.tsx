@@ -20,7 +20,7 @@ export default async function ReviewsPage({ searchParams }: { searchParams: Sear
   const { said, bots, ref } = await searchParams;
   const refSlug = cleanRef(typeof ref === "string" ? ref : undefined);
   return (
-    <article className="reviews-page">
+    <article className="reviews-page page-wide">
       <ShowTabs active="/reviews" />
       <BotReviews said={said} page={bots} keep={refSlug ? { ref: refSlug } : {}} />
     </article>

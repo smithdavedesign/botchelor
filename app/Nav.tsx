@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import Icon from "@/app/Icon";
 import { afterDarkHref } from "@/lib/after-dark-host";
 import { openFeedback } from "@/lib/user-feedback-shared";
 
@@ -179,11 +180,11 @@ export default function Nav({
         ))}
         {afterDark && (
           <Link href={afterDarkHref("/after-dark")} className="nav-after-dark" aria-current={pathname.startsWith("/after-dark") ? "page" : undefined}>
-            🌙 After Dark
+            <Icon name="moon" /> After Dark
           </Link>
         )}
         <Link prefetch={pf} href="/notifications" aria-current={pathname === "/notifications" ? "page" : undefined} className="nav-bell">
-          <span aria-hidden="true">🔔</span>
+          <Icon name="bell" className="nav-bell-icon" />
           <span className="nav-bell-label">Notifications</span>
           {unread > 0 && (
             <span className="nav-count" aria-label={`${unread} unread`}>
@@ -200,7 +201,7 @@ export default function Nav({
             openFeedback();
           }}
         >
-          <span aria-hidden="true">💬</span> Give us feedback
+          <Icon name="chat" /> Give us feedback
         </button>
       </div>
     </nav>

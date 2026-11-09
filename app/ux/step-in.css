@@ -99,7 +99,7 @@
   font: inherit;
   font-size: 1rem;
   padding: 0.7rem 0.9rem;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   border: 1px solid rgba(255, 255, 255, 0.24);
   background: rgba(255, 255, 255, 0.06);
   color: var(--stepin-ink);
@@ -227,7 +227,7 @@
   margin: 0;
 }
 .stepin-setup .stepin-disclosure {
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   border: 0;
   margin-bottom: var(--space-3);
   background: var(--soft);

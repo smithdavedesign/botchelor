@@ -26,9 +26,10 @@ import { checkPgPictureText } from "./safety";
 import { stricter } from "./content-rating";
 import { publish } from "./showcase";
 import { DELETED_OWNER } from "./rules";
+import { SHOW_HANDLE } from "./showcase-labels";
 
 /** The show's own creator page, for what it publishes itself. A reserved handle: nobody else can take it. */
-export const SHOW_CREATOR = { user_id: "botchelor-show", handle: "botchelor", display_name: "Botchelor", bio: "The show itself: its cast and the characters made for it, brought to life." } as const;
+export const SHOW_CREATOR = { user_id: "botchelor-show", handle: SHOW_HANDLE, display_name: "Botchelor", bio: "The show itself: its cast and the characters made for it, brought to life." } as const;
 
 /** How many are made at once: each is a minute or so of Replicate, and a batch has to fit in one request. */
 export const LOOP_BATCH = 3;
