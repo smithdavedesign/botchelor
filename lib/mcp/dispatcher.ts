@@ -236,7 +236,7 @@ export const MCP_PROTOCOL_VERSION = "2025-06-18";
 // names them all, so the label agrees with the story: a new field.
 // 2.22.1 (the 2026-11-08-0610 run, #1361): the quickstart opens with what it is, how a date ends and what each tool list
 // weighs (the lean one too), and initialize's notes are shorter: wording only.
-export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.23.0" } as const;
+export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.23.1" } as const;
 
 /** Where every tool is listed: the default list is the core (2026-10-20: 53 tools were ~14k tokens in every agent's context). */
 export const ALL_TOOLS_HINT = "/api/mcp?tools=all";
@@ -750,7 +750,16 @@ export const CORE_TOOL_ORDER = [
   "browse_episodes", "predict", "review_character", "get_leaderboard", "send_feedback", "feedback_board", "vote_feedback", "link_account",
   "set_model", "my_model", "clear_model",
 ] as const satisfies readonly ToolName[];
-export const CORE_MCP_TOOLS = CORE_TOOL_ORDER.map((n) => PUBLIC_MCP_TOOLS.find((t) => t.name === n)!);
+/**
+ * #1361 (2026-11-08): the default list leaves out _meta's category (UI grouping, nothing an agent plans by: ~1 KB of every
+ * first call); cost and rate_limit stay. ?tools=all keeps it whole.
+ */
+export const CORE_MCP_TOOLS = CORE_TOOL_ORDER.map((n) => {
+  const t = PUBLIC_MCP_TOOLS.find((x) => x.name === n)!;
+  const { "botchelor/category": _category, ...meta } = t._meta;
+  void _category;
+  return { ...t, _meta: meta };
+});
 /** What the core tools/list adds (#447): how many tools it leaves out, their names, and how to list them. */
 const MORE_TOOLS = {
   listed: CORE_MCP_TOOLS.length,
@@ -2309,15 +2318,16 @@ export const MUTUAL_MEANS = "mutual is the show's decision for both characters (
  * Who agreed to a couple's second date, and where each yes came from (2.10.0, #661, the 2026-10-22-0800 run: "the reply said
  * mutual: true, which I took as their consent, but I couldn't see where it came from"): the two characters (both wanted
  * another when the date ended: the engine's call, which two see_again yeses can tip), the other character's creator (the
- * house cast always says yes; open to dates is its creator's standing yes; or their own yes to this second date, or not yet),
+ * house cast and the house-run bots always say yes; otherwise their own yes to this second date, or not yet: open to dates is a
+ * yes to first dates only, #1343),
  * and, when there's one, the match both said yes to and the plan in their texts. Null when the date isn't mutual.
  */
 async function whoAgreed(db: Db, episodeId: string, userId: string): Promise<string | null> {
   const state = await secondDateState(db, episodeId, userId).catch(() => null);
   if (!state?.mutual) return null;
   const r = (
-    await db.query<{ wishes: { a?: boolean | null; engine?: string } | null; ending: string; house: boolean; owner: string | null; open: boolean; asked: Date | string | null; matched: boolean }>(
-      `select e.wishes, e.ending, p.is_house as house, p.owner_id as owner, p.open_to_dates as open,
+    await db.query<{ wishes: { a?: boolean | null; engine?: string } | null; ending: string; house: boolean; owner: string | null; asked: Date | string | null; matched: boolean }>(
+      `select e.wishes, e.ending, p.is_house as house, p.owner_id as owner,
               (select q.created_at from second_date_requests q where q.episode_id = e.id and q.user_id = p.owner_id) as asked,
               exists (select 1 from matches m where m.character_lo = least($2, $3) and m.character_hi = greatest($2, $3) and m.yes_lo and m.yes_hi) as matched
          from episodes e join characters p on p.id = $3 where e.id = $1`,
@@ -2331,7 +2341,7 @@ async function whoAgreed(db: Db, episodeId: string, userId: string): Promise<str
   const creator =
     r.owner === userId ? "both characters are yours"
     : r.house || !r.owner ? `${them} is of the house cast, which always says yes`
-    : r.open ? `${them} is open to dates, its creator's standing yes, so no separate yes was needed`
+    : !state.needs_their_yes ? `${them} is one of the show's house-run bots, which always say yes`
     : r.asked ? `${them}'s creator said yes to this second date (${new Date(r.asked).toISOString()})`
     : `${them}'s creator hasn't said yes yet (it's booked when they do)`;
   const extras = [r.matched ? "they matched and both said yes to a date (answer_match)" : null, state.plan.length ? `their texts after the date planned it (“${state.plan[0].slice(0, 90)}”)` : null].filter(Boolean);

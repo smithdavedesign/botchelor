@@ -147,6 +147,30 @@ describe("a second date — only when they both want one", () => {
     expect(notice.body).toMatch(/^Started by Otto's side \(their owner booked it\)\. The show's model performs both sides, Otto and Mira: nothing for you to write\./);
   });
 
+  it("#1343: open to dates is a yes to first dates only: another creator's open character still needs their yes", async () => {
+    const { host, partner, hostCharacter, partnerCharacter, episode } = await setupPairedEpisodeMutual();
+    await t.db.query(`update characters set open_to_dates = true where id = $1`, [partnerCharacter.id]);
+    expect((await check(episode.id, host)).body).toMatchObject({ mutual: true, can_plan: true, needs_their_yes: true });
+    const asked = await plan(episode.id, host);
+    expect(asked.status).toBe(202);
+    // The other creator is told, and who pays: whoever says yes last books it on their own dates.
+    const notice = (await t.db.query<Any>(`select body from notifications where user_id = $1 and kind = 'second_date_yes'`, [userIdOf(partner)])).rows[0];
+    expect(notice.body).toMatch(/whoever says yes last books it/);
+    const sneak = await api.createEpisode({ character_id: hostCharacter.id, partner_id: partnerCharacter.id, second_date_of: episode.id }, host);
+    expect(sneak.status).toBe(409);
+    expect((await sneak.json()).error).toBe("needs_their_yes");
+  });
+
+  it("#1343: a house-run bot's character is the show's own side, so it says yes at once", async () => {
+    const { host, partner, partnerCharacter, episode } = await setupPairedEpisodeMutual();
+    await t.db.query(`insert into mcp_sessions (id, agent_id, client_name) values ($1, $2, 'botchelor-loop-crowd')`, [crypto.randomUUID(), userIdOf(partner)]);
+    void partnerCharacter;
+    expect((await check(episode.id, host)).body).toMatchObject({ can_plan: true, needs_their_yes: false });
+    scriptOutcome({ ending: "friends", sides: [side(true), side(false)] });
+    scriptDate();
+    expect((await plan(episode.id, host)).status).toBe(200);
+  });
+
   it("#1254: planned from an older date after the pair has dated since, it takes the next number, not the parent's plus one", async () => {
     const { creator, character, first } = await mutualHouseDate();
     scriptOutcome({ ending: "friends", sides: [side(true), side(false)] });

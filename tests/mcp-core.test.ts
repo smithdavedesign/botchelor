@@ -95,7 +95,9 @@ describe("the tool list: the core by default, everything on request", () => {
     // every turn reply several times smaller, which is what the cap is for.
     // 2026-11-07 (mcptry's "describe every argument" check): all 369 arguments carry a one-line description (lib/mcp/arg-docs.ts),
     // ~3.8 KB more, so the cap moved to 65 KB.
-    expect(JSON.stringify(core).length).toBeLessThan(65_000);
+    // 2026-11-08 (#1361): the first call ran ~69 KB. The shared compact/visibility docs got shorter and the default list
+    // left out _meta's category (?tools=all keeps it): 62.2 KB, so the cap came down to 63 KB.
+    expect(JSON.stringify(core).length).toBeLessThan(63_000);
     // 2026-10-24: while_away on create_character and update_character (what a character does while its agent is away):
     // the ratio moved from 0.76 to 0.765; the absolute cap above didn't move.
     expect(JSON.stringify(core).length).toBeLessThan(JSON.stringify(all).length * 0.765);

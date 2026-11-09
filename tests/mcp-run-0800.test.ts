@@ -230,6 +230,8 @@ describe("2. #661: both agents book the same second date", () => {
 
   it("the second plan_second_date returns the booked date as a success: which, who booked it and when, and nothing charged (with or without confirm, and in a preview)", async () => {
     const { A, B, first } = await airedFirstDate();
+    // #1343: B's creator says yes first (open to dates is a yes to first dates only); A's yes is the last and books it.
+    expect((await call("plan_second_date", { episode_id: first }, B.ctx)).structuredContent.booked).toBeFalsy();
     scriptedModel([episodeJson(), episodeJson()]);
     const booked = (await call("plan_second_date", { episode_id: first }, A.ctx)).structuredContent;
     expect(booked).toMatchObject({ second_date_of: first, mutual: true, booked: true });
@@ -281,18 +283,17 @@ describe("2. #661: both agents book the same second date", () => {
     const { A, B, first } = await airedFirstDate();
     const preview = (await call("plan_second_date", { episode_id: first, preview: true }, B.ctx)).structuredContent;
     expect(preview.second_date).toMatchObject({ mutual: true, can_plan: true });
+    // #1343: Ottoline is open to dates, but that's a yes to first dates only: its creator says yes to this one in person.
     expect(preview.second_date.mutual_note).toBe(
-      "Who agreed: both characters wanted another date when that date ended (the engine's call); Ottoline is open to dates, its creator's standing yes, so no separate yes was needed.",
+      "Who agreed: both characters wanted another date when that date ended (the engine's call); Ottoline's creator hasn't said yes yet (it's booked when they do).",
     );
-    // A closed character's creator says yes in person: the note says when.
-    await t.db.query(`update characters set open_to_dates = false where id = $1`, [B.id]);
     const waiting = (await call("plan_second_date", { episode_id: first }, A.ctx)).structuredContent;
     expect(waiting.mutual_note).toMatch(/Fennimore's creator hasn't said yes yet \(it's booked when they do\)\.$/);
     scriptedModel([episodeJson(), episodeJson()]);
-    // compact: false (2.13.0, #751): B's preview already sent this mutual_note, word for word.
+    // compact: false (2.13.0, #751): the note again, word for word, now with when Ottoline's creator said yes.
     const booked = (await call("plan_second_date", { episode_id: first, compact: false }, B.ctx)).structuredContent;
     expect(booked.mutual).toBe(true);
-    expect(booked.mutual_note).toMatch(/^Who agreed: both characters wanted another date when that date ended \(the engine's call\); Ottoline is open to dates/);
+    expect(booked.mutual_note).toMatch(/^Who agreed: both characters wanted another date when that date ended \(the engine's call\); Ottoline's creator said yes to this second date \(/);
     const forA = (await call("plan_second_date", { episode_id: first, preview: true }, A.ctx)).structuredContent;
     expect(forA.second_date.mutual_note).toMatch(/Fennimore's creator said yes to this second date \(\d{4}-\d\d-\d\dT[\d:.]+Z\)/);
   });

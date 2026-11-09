@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { Db } from "./db";
 import type { Model } from "./model";
 import type { CompanionFactView } from "./companion-shared";
-import { checkShowText } from "./safety";
+import { checkFamilyTalk } from "./safety";
 import { crisisIntent } from "./crisis";
 import { maybeCrisis } from "./step-in";
 import { jsonOf, RECENT_TURNS, type PromptFact } from "./companion-prompt";
@@ -17,8 +17,14 @@ import { jsonOf, RECENT_TURNS, type PromptFact } from "./companion-prompt";
 export const FACTS_EVERY = 6;
 /** The most facts a thread keeps (unpinned, unedited, least-used ones make room). */
 export const FACTS_PER_THREAD = 60;
-/** The most facts in a prompt: pinned first, then the ones the conversation is about, then the newest. */
-export const FACTS_IN_PROMPT = 8;
+/**
+ * The most facts in a prompt: pinned first, then the ones the conversation is about, then the lasting kinds, then the
+ * newest. 2026-11-08 (companion quality sim): 8 left out stored facts asked about by meaning, not by word ("what don't I
+ * eat?" never matched "They are vegetarian"); a fact is ~15 tokens, so 20 costs little.
+ */
+export const FACTS_IN_PROMPT = 20;
+/** How much each kind of fact counts toward a place in the prompt: who they are and their life before passing jokes. */
+const KIND_WEIGHT: Record<string, number> = { name: 2, people: 1, work: 1, plans: 1, events: 1, boundaries: 1.5, likes: 0.5, dislikes: 0.5 };
 /** The summary is redrawn once this many messages have fallen out of the recent turns since it last was. */
 export const SUMMARY_EVERY = 40;
 export const FACT_MAX = 160;
@@ -40,7 +46,7 @@ export async function factsForPrompt(db: Db, threadId: string, about: string, no
   if (!rows.length) return [];
   const topic = words(about);
   const ranked = rows
-    .map((r, i) => ({ r, score: (r.pinned ? 10 : 0) + (r.edited_by_user ? 1 : 0) + overlap(words(r.text), topic) * 3 + (r.kind === "name" ? 2 : 0), i }))
+    .map((r, i) => ({ r, score: (r.pinned ? 10 : 0) + (r.edited_by_user ? 1 : 0) + overlap(words(r.text), topic) * 6 + (KIND_WEIGHT[r.kind] ?? 0), i }))
     .sort((a, b) => b.score - a.score || +new Date(b.r.created_at) - +new Date(a.r.created_at))
     .slice(0, FACTS_IN_PROMPT)
     .map((x) => x.r);
@@ -49,7 +55,7 @@ export async function factsForPrompt(db: Db, threadId: string, about: string, no
 }
 
 const FACTS_PROMPT = (name: string) =>
-  `You read part of a conversation between a person and ${name}, an AI character they talk with. List what ${name} should remember about THE PERSON (never about ${name}): their name, what they like and dislike, the people in their life, what happened to them, plans coming up, their work, topics they don't want to talk about (boundaries), and inside jokes between them. Only what they actually said or clearly meant; skip small talk and anything already known. Lines marked [roleplay: …] are make-believe from a roleplay the two played: never take a fact from them. Each fact is short, in the third person ("Their sister is called Maya."), under 140 characters. Answer only JSON: {"facts":[{"kind":"name|likes|dislikes|people|events|plans|work|boundaries|jokes|other","text":"..."}]}, at most 8, or {"facts":[]}.`;
+  `You read part of a conversation between a person and ${name}, an AI character they talk with. List what ${name} should remember about THE PERSON (never about ${name}): their name, what they like and dislike, the people in their life, what happened to them, plans coming up, their work, topics they don't want to talk about (boundaries), and a running joke between them only when they keep coming back to it. Facts that will still be true next week: never a quip, a tease or a bit of banter from this conversation ("They joke that their dog is a pasta bandit" is not a fact). Only what they actually said or clearly meant; skip small talk and anything already known. Lines marked [roleplay: …] are make-believe from a roleplay the two played: never take a fact from them. Each fact is short, in the third person ("Their sister is called Maya."), under 140 characters. When someone in their life has died or left, the fact says so ("Their wife June died; they were married forty years."). Answer only JSON: {"facts":[{"kind":"name|likes|dislikes|people|events|plans|work|boundaries|jokes|other","text":"..."}]}, at most 8, or {"facts":[]}.`;
 
 /**
  * Draws new facts from the person's recent messages when FACTS_EVERY have come in since the last draw. One model call;
@@ -102,7 +108,7 @@ export async function updateFacts(db: Db, threadId: string, name: string, model:
     if (text.length < 4) continue;
     // Never the words of a crisis (not even a maybe: a companion keeps no notes on someone's mental health), never
     // anything the show wouldn't say.
-    if (crisisIntent(text) || maybeCrisis(text) || !checkShowText({ fact: text }).ok) continue;
+    if (crisisIntent(text) || maybeCrisis(text) || !checkFamilyTalk(text).ok) continue;
     const w = words(text);
     if (knownWords.some((k) => overlap(k, w) >= 0.8)) continue;
     const kind = (FACT_KINDS as readonly string[]).includes(f?.kind) ? (f.kind as string) : "other";
@@ -184,7 +190,7 @@ export async function editFacts(db: Db, threadId: string, e: FactEdit, now: Date
     const text = e.text.replace(/\s+/g, " ").trim();
     if (text.length < 2) return "Say what they should remember.";
     if (text.length > FACT_MAX) return `Keep it under ${FACT_MAX} characters.`;
-    if (!checkShowText({ fact: text }).ok) return "That can't go in a companion's memory: the show is PG.";
+    if (!checkFamilyTalk(text).ok) return "That can't go in a companion's memory: the show is PG.";
     // Like the facts it draws, never a note on someone's mental health (the crisis check ran first: screenFact).
     if (crisisIntent(text) || maybeCrisis(text)) return "That's one a companion doesn't keep notes on. You can still talk with them about it.";
     if (e.op === "add") {

@@ -487,8 +487,8 @@ comments on #619 and #656, and what the reports shared. New fields, a resource a
   (`already_booked`), and when the other side's booking lands between the check and the booking (the route's refusal is read
   the same way). A date of theirs that isn't this second date still refuses, saying who started it and that nothing was spent.
   `mutual: true` comes with `mutual_note`: both characters wanted another date when the first ended (the engine's call, and
-  whether two see_again yeses tipped it), and where the other creator's yes came from (the house cast, open to dates as a
-  standing yes, their own yes with when, or not yet), with the match and the plan in their texts when there are ones.
+  whether two see_again yeses tipped it), and where the other creator's yes came from (the house cast or a house-run bot,
+  their own yes with when, or not yet; since #1343 open to dates is a yes to first dates only), with the match and the plan in their texts when there are ones.
 - **#662: argument names.** More guesses read, said in `read_arguments_as`, under one guard (`genericAliases`): `verdict`,
   `decision`, `choice`, `answer`, `response` or `reply` for a tool's one required yes-or-no (swipe's `like`, answer_match's
   `yes`, answer_date_proposal's `accept`); `open_for_predictions` for `open`; `cursor` for `since` (or read_texts' `before`);

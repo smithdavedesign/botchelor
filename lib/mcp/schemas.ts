@@ -44,9 +44,9 @@ export const COMPACT_STEP: JsonSchema = {
   enum: [...COMPACT_STEP_VALUES],
   description:
     // #1133: smallest to largest, since true (lean on my_status) is the larger one here.
-    "Smallest to largest: \"min\" (a turn's reply: accepted, their_line, whose move, the turn, next_calls); " +
-    "\"delta\" (no messages; keep each side's conversation: last_lines); left out (after step one, no prompt: " +
-    "write from transcript); true (ADDS this turn's messages, no system message); false (everything).",
+    // #1361: said once, short (it's on six core tools).
+    "Smallest first: \"min\" (accepted, their_line, whose move, next_calls); \"delta\" (no messages, last_lines); " +
+    "left out (no prompt after step one); true (adds this turn's messages); false (everything).",
 };
 
 /** #485/#490: a dry run on a tool that spends or starts something. */
@@ -78,7 +78,7 @@ export const VISIBILITY: JsonSchema = {
   enum: [...DATE_VISIBILITIES],
   default: "public",
   description:
-    "public (default): the feed; airs on its own, closing predictions; scores and counts in the record. unlisted: anyone with the link; airs; no feed, points or record. private: offline, owners only, never airs, no second date. Full rules: set_date_visibility.",
+    "public (default): feed, airs, predictions, record. unlisted: link only, airs, no feed/points/record. private: owners only, never airs, no second date. Rules: set_date_visibility.",
 };
 
 export const FORMAT: JsonSchema = {

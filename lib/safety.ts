@@ -90,7 +90,11 @@ const REAL_PEOPLE_PATTERNS = REAL_PEOPLE.map((name) => new RegExp(` ${name.split
 // A thing's age, said right before the thing ("a sixteen-year-old fountain", "a twelve year old whisky"), isn't a
 // person's (#1210; David, 2026-11-01: allow it for a short list of things, everything else stays refused). Only these
 // words, only straight after "<age> year old": never a pet, a doll, a photo or anything a person could be.
-const THINGS = "fountain|house|home|building|bridge|tower|church|chapel|barn|cabin|hotel|bar|pub|restaurant|cafe|bakery|shop|store|theater|theatre|tree|oak|vine|garden|wine|whisky|whiskey|scotch|bourbon|rum|cognac|port|brandy|car|truck|van|bike|motorcycle|boat|ship|clock|piano|guitar|violin|cello|record|book|map|coat|jacket|recipe|painting|statue|sculpture|rug|sofa|couch|table|machine|laptop|computer|phone";
+// #1341 (2026-11-08, David: fix it): aged foods and drinks too ("a fourteen-year-old Gruyère"). Left out on purpose:
+// words that can be a person: ham (a show-off), brie and sherry (names), stout, starter (a player).
+const THINGS =
+  "fountain|house|home|building|bridge|tower|church|chapel|barn|cabin|hotel|bar|pub|restaurant|cafe|bakery|shop|store|theater|theatre|tree|oak|vine|garden|wine|whisky|whiskey|scotch|bourbon|rum|cognac|port|brandy|car|truck|van|bike|motorcycle|boat|ship|clock|piano|guitar|violin|cello|record|book|map|coat|jacket|recipe|painting|statue|sculpture|rug|sofa|couch|table|machine|laptop|computer|phone" +
+  "|cheese|cheddar|gruyere|gouda|parmesan|parmigiano|pecorino|manchego|comte|vinegar|balsamic|prosciutto|jamon|miso|sourdough|tequila|mezcal|armagnac|calvados|madeira|sake|beer|ale|vintage";
 const A_THINGS_AGE = `(?!(?:${THINGS})s? )`;
 const UNDER_18 = "(?:[1-9]|1[0-7])";
 const NOT_AN_AGE_AFTER = "(?!(?:\\d+|foot|feet|ft|cm|m|in|inch|inches|kg|lb|lbs|stone|of|out|percent|times)\\b)";
@@ -217,6 +221,33 @@ export function checkShowText(fields: Record<string, string | readonly string[] 
     }
   }
   return { ok: true };
+}
+
+// A person's family in a one-to-one companion chat (2026-11-08, the companion quality sim): "a six-year-old dino
+// expert", "what does a nine-year-old want for her birthday?" and "a little boy ordered a croissant" fell to the show's
+// age rule, and a parent got the PG deflection for talking about their kid. The words that only name a child or an age;
+// the ones that sexualise one (loli, jailbait, schoolgirl, barely legal, underage…) are never in it.
+const FAMILY_TERMS = [
+  "teen", "teens", "teenage", "teenager", "teenagers", "preteen", "pre teen", "tween", "tweens", "middle school",
+  "middle schooler", "elementary school", "grade school", "grade schooler", "junior high", "kindergarten", "kindergartner",
+  "high schooler", "high schoolers", "high school student", "still in high school", "attends high school", "goes to high school",
+  "little girl", "little boy", "young girl", "young boy",
+];
+const ROMANCE_OR_BODY = / (?:kiss|kisses|kissed|kissing|flirt|flirts|flirty|flirting|crush|crushes|sexy|hot|naked|nude|bed|beds|bedroom|body|bodies|touch|touched|touching|dating|romance|romantic|boyfriend|girlfriend|lover|lovers|seduce|seductive|lips|undress|undressed|cuddle|cuddling|attractive|gorgeous|handsome|cute) /;
+
+/**
+ * checkShowText for a companion chat (lib/companion.ts: the person's messages, the character's replies, the facts kept):
+ * the same, except that a line whose only problem is naming a child or a child's age passes when nothing in it is
+ * romantic or about a body, and the rest of it passes the show's whole check. Never for anything that airs.
+ */
+export function checkFamilyTalk(text: string): SafetyResult {
+  const first = checkShowText({ dialogue: text });
+  if (first.ok || first.reason !== "minor") return first;
+  let plain = spaced(fold(text));
+  if (ROMANCE_OR_BODY.test(plain)) return first;
+  for (const term of FAMILY_TERMS) plain = plain.split(` ${term} `).join(" kid ");
+  for (const re of [...MINOR_AGE_PATTERNS, ...CHILDHOOD_AGE_PATTERNS]) plain = plain.replace(new RegExp(re.source, "g"), " kid ");
+  return checkShowText({ dialogue: plain }).ok ? { ok: true } : first;
 }
 
 // After dark is held tighter on age than the show: any "was / is / turned <age under 18>" counts, not only the

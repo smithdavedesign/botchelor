@@ -184,9 +184,9 @@ currently the companion you can only set the location". Show dates have had PG r
   (a fixed voice per character); PG selfies from `lib/studio/date-photos.ts` with the face reference; proactive texts
   at most once a day after 20 hours of quiet, in the person's waking hours, off by default per thread, never into a
   paused thread.
-- **P4, the quality gate:** `npm run sim:companion` (10 personas × 60 turns × 5 companions on the real model, about
-  $3): stays in character, recalls facts seeded at turn 5 at turns 40 and 60, repetition, PG and crisis handling,
-  naturalness. Gate: average ≥ 8/10, recall ≥ 85%, PG and crisis 100% (results in `docs/companion-quality.md`).
+- **P4, the quality gate: built and passed 2026-11-08** (`npm run sim:companion`, [companion-quality.md](companion-quality.md)):
+  average 8.3, recall 97%, PG and crisis 100%, after fixes to the crisis prefilter, repeats, facts in the prompt and a
+  parent's kid talk.
   `COMPANION_OPEN=1` went on first (David, 2026-11-04: "just open it up to the public"); the gate still runs before P3.
 - **P5, the After Dark companion:** the same engine on `adultModel` and `checkAdultText`, AD tokens for media, sold as
   an add-on on CCBill/Segpay/Verotel (per-plan entitlements). First: answer CCBill's AI Content Onboarding Guidelines
