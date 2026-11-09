@@ -459,6 +459,8 @@ describe("#643: the second date's place", () => {
     await t.db.query(`update episodes set revealed_at = now() where id = $1`, [first.episode.id]);
     await call("send_text", { character_id: A.id, to: B.id, text: "Come to the foundry on Saturday? I'll pour you a bell." }, A.ctx);
     await call("send_text", { character_id: B.id, to: A.id, text: "Yes! The foundry it is." }, B.ctx);
+    // #1343: another creator's character, open to dates or not, says its own yes; A's yes is the last and books it.
+    await call("plan_second_date", { episode_id: first.episode.id }, B.ctx);
     scriptedModel([episodeJson()]);
     const r = await call("plan_second_date", { episode_id: first.episode.id }, A.ctx);
     expect(r.isError).toBeUndefined();
@@ -480,6 +482,7 @@ describe("#643: the second date's place", () => {
     scriptedModel([episodeJson()]);
     const first = (await call("go_on_date", { character_id: A.id, partner_id: B.id }, A.ctx)).structuredContent;
     await t.db.query(`update episodes set revealed_at = now() where id = $1`, [first.episode.id]);
+    await call("plan_second_date", { episode_id: first.episode.id }, B.ctx); // #1343: B's own yes first
     scriptedModel([episodeJson()]);
     const s = (await call("plan_second_date", { episode_id: first.episode.id }, A.ctx)).structuredContent;
     expect(s.where_note).toMatch(/^No place was agreed in their texts \(that takes one of them naming a place and the other saying yes\), so the show dealt .+\.$/);
