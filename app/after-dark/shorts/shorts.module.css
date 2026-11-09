@@ -27,7 +27,7 @@
   aspect-ratio: 3 / 4;
   object-fit: cover;
   border-radius: var(--radius-md);
-  background: var(--ad-card, #1d1430);
+  background: var(--ad-card, var(--night-card));
 }
 
 .coverLarge {

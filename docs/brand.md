@@ -51,6 +51,29 @@ keeps it as a token on its root, not a literal in its rules: the reels' screen (
 Shading and masks aren't palette colours: a mask's opaque stop and a `color-mix()` toward black say `black`, not
 `#000` (a mask only reads the alpha; "mix 6% black into the card" is a shade of the card, in either theme).
 
+### After Dark's night palette
+
+After Dark is always night, in both themes (David, 2026-10-18: never unsure which mode you're in). Its colours are
+`--night-*` tokens on `:root`, the same in light and dark. `.after-dark-mode` is made of them: its `--ad-*` tokens
+point at them, and it remaps the site's own tokens (`--ink`, `--card`, `--accent`…) to them, so a shared component
+inside it is night without knowing. A night piece that can show outside `.after-dark-mode` (the show's teaser, the
+theater's overlays, Studio, the admin pages) uses `--night-*` directly; a rule shared with the show's pages keeps
+`var(--ad-x, var(--site-x))`.
+
+| Token | Value | Use |
+|------|-------|-----|
+| `--night-bg` | `#120c1c` | The night page and stage (`--ad-bg`) |
+| `--night-card` | `#1d1430` | Night cards, the teaser (`--ad-card`) |
+| `--night-ink` | `#f1e9ff` | Words (`--ad-ink`) |
+| `--night-muted` | `#b7a8d3` | Secondary words (`--ad-muted`) |
+| `--night-line` | `#33264d` | Borders and dividers (`--ad-line`) |
+| `--night-accent` | `#c792ff` | Links, focus, a picked item's edge (`--ad-accent`) |
+| `--night-accent-text` | `#e2c8ff` | Accent words: the action line, the marker, a roleplay's roles (`--accent-text` at night) |
+| `--night-ink-on` | `#fff` | Words on what's picked: a chosen chip, tab or step |
+| `--night-faint` | `#6a5a7f` | A field's placeholder, a shot with no picture yet |
+| `--night-control` | `#c9a2ff` | A native control's `accent-color` (checkbox, radio, range) and the line it ticks |
+| `--night-hot` | `#ff9f80` | Studio's coral: the chip, tile or tab that's on, the spicy heat |
+
 **Contrast is checked, not assumed.** Every text token clears 4.5:1 on every surface it sits on, and every
 control edge and focus ring clears 3:1, in light and dark, and again under `prefers-contrast: more`. When you
 add a colour, check it on each surface it will sit on (a WCAG ratio script is enough) before you use it. Text
