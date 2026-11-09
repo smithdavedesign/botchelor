@@ -110,6 +110,8 @@ export type Post = {
   poster?: boolean;
   /** Where its file is fetched (mediaHref): the show's media route, or After Dark's host when the file lives there. */
   media?: string;
+  /** A clip read and found to have no sound track (lib/showcase-audio.ts): no 🔇 on it. */
+  silent?: boolean;
 };
 
 type SourceRow = {
@@ -413,9 +415,9 @@ export async function listShowcase(
   }
   const { rows } = await db.query<Omit<Post, "creator" | "character" | "partner" | "published_at" | "mine" | "mime"> & {
     handle: string; display_name: string; character_id: string; character_name: string; character_b: string | null; partner_name: string | null; published_at: Date; owner_id: string; mime: string | null;
-    likes: number; liked: boolean; remixable: boolean; dateable: boolean; poster: boolean;
+    likes: number; liked: boolean; remixable: boolean; dateable: boolean; poster: boolean; has_audio: boolean | null;
   }>(
-    `select p.id, p.source, p.media_id, p.rating, p.medium, p.aspect, p.act, p.place, p.pov, p.from_date, p.caption, p.status, p.published_at, p.owner_id, (p.remix is not null) as remixable,
+    `select p.id, p.source, p.media_id, p.rating, p.medium, p.aspect, p.act, p.place, p.pov, p.from_date, p.caption, p.status, p.published_at, p.owner_id, (p.remix is not null) as remixable, p.has_audio,
             cp.handle, cp.display_name, p.character_id, c.name as character_name, p.character_b, cb.name as partner_name, (c.is_house or c.open_to_dates) as dateable,
             coalesce((select i.mime from adult_images i where p.source = 'after_dark' and i.id = p.media_id and i.status = 'ready'),
                      (select g.mime from studio_pg_pictures g where p.source = 'pg' and g.id = p.media_id)) as mime,
@@ -437,7 +439,7 @@ export async function listShowcase(
       caption: r.caption, status: r.status, published_at: new Date(r.published_at).toISOString(),
       creator: { handle: r.handle, display_name: r.display_name }, character: { id: r.character_id, name: r.character_name },
       partner: r.character_b ? { id: r.character_b, name: r.partner_name ?? "" } : null, mine: Boolean(v.id && r.owner_id === v.id),
-      likes: r.likes, liked: r.liked, remixable: r.remixable, dateable: r.dateable, poster: r.poster,
+      likes: r.likes, liked: r.liked, remixable: r.remixable, dateable: r.dateable, poster: r.poster, silent: r.has_audio === false,
       media: mediaHref({ id: r.id, source: r.source, rating: r.rating }),
     }));
   return { posts: posts.slice(0, size), more: rows.length > size };
