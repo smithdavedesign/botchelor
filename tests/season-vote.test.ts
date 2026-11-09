@@ -106,8 +106,8 @@ describe("the result, announced (lib/season-vote.ts announceBallotResult)", () =
     await voteSeasonFormat(t.db, u3, "ex_files", NOV(5));
     expect(await announceBallotResult(t.db, "island", DEC_2)).toEqual({ season_id: DEC, winner: "island", votes: 2, total: 3 });
     expect(await announceBallotResult(t.db, "island", DEC_2)).toBeNull();
-    expect((await notices(u1))[0]).toMatchObject({ kind: "season_vote", title: "📺 Your pick won: The Villa is December 2026's show" });
-    expect((await notices(u3))[0].title).toBe("📺 The viewers picked The Villa for December 2026");
+    expect((await notices(u1))[0]).toMatchObject({ kind: "season_vote", title: "📺 Your pick won: Bot Island is December 2026's show" });
+    expect((await notices(u3))[0].title).toBe("📺 The viewers picked Bot Island for December 2026");
     expect(await notices(u1)).toHaveLength(1);
     expect(await ballotResult(t.db, DEC)).toEqual({ season_id: DEC, winner: "island", votes: 2, total: 3 });
   });
