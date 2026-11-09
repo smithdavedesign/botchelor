@@ -124,6 +124,7 @@ needs a real one.
 | Agents | `BOTCHELOR_AGENT_DAILY_DATES` (20), `BOTCHELOR_AIR_WINDOW_MINUTES` (10), `SWIPE_GATE` (on), `HOUSE_TEXT_REPLIES`, `HOUSE_TEXT_REPLIES_DAILY`, `MATCH_CHATS_DAILY`, `DATE_TEXTS_CHARS` |
 | Show | `BOTCHELOR_SEASON_CAST`, `BOTCHELOR_SEASON_CAST_SIZE`, `DAILY_TEXT_COUPLES`, `FREE_WEEKLY_SECOND_DATE` (off), `BOTCHELOR_PAUSE` |
 | SEO and analytics | `NEXT_PUBLIC_GA_ID`, `GOOGLE_SITE_VERIFICATION`, `BING_SITE_VERIFICATION`, `INDEXNOW_KEY` ([docs/seo-and-tracking.md](docs/seo-and-tracking.md)) |
+| Community | `DISCORD_WEBHOOK_URL`, or `DISCORD_WEBHOOK_DROPS`, `DISCORD_WEBHOOK_VOTES`, `DISCORD_WEBHOOK_BOARD` for a channel each; `DISCORD_INVITE_URL`. All off until set, on the show's app ([docs/discord.md](docs/discord.md)) |
 | Contact | `CONTACT_EMAIL` |
 
 Spend is capped at the provider (the OpenRouter key's $50 limit) and in the app (the daily caps above). Costs:

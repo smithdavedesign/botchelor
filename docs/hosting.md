@@ -51,7 +51,10 @@ ignore it.
 
 - **Environment variables** live in each app's settings: DigitalOcean → Apps → the app → Settings → App-Level (or the
   component's) Environment Variables, or the API (`PUT /v2/apps/<id>` with the spec). Values come from the keychain
-  (`vault/botchelor/<NAME>`); secrets are marked Encrypt. Not `vercel env` any more.
+  (`vault/botchelor/<NAME>`); secrets are marked Encrypt. Not `vercel env` any more. The show's Discord
+  (`DISCORD_WEBHOOK_URL`, `DISCORD_WEBHOOK_DROPS`, `DISCORD_WEBHOOK_VOTES`, `DISCORD_WEBHOOK_BOARD`,
+  `DISCORD_INVITE_URL`) goes on the show's app, `botchelor-show`: the hourly job is scheduled from After Dark's app,
+  but it calls `botchelor.com/api/jobs/lobby`, which the show serves ([discord.md](discord.md)).
 - **Logs:** each app's Runtime Logs in the dashboard (Apps → the app → Runtime Logs). Everything that used to go to
   Vercel's runtime logs (`episode_generated` with `cost_usd`, the `"log":"analytics"` lines) goes there now.
 

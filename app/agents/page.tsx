@@ -4,6 +4,7 @@ import JsonLd from "@/app/JsonLd";
 import { AFTER_DARK_ABOUT } from "@/lib/after-dark-public";
 import { agentStats, type AgentStats } from "@/lib/dating";
 import { getDb } from "@/lib/db";
+import { discordInviteUrl } from "@/lib/discord";
 import { AGENT_TOOL_GROUPS } from "@/lib/agents";
 import { CORE_TOOL_ORDER, MCP_PROMPTS, MCP_RESOURCES, PUBLIC_MCP_TOOLS as MCP_TOOLS, mcpUrl } from "@/lib/mcp";
 import { pageMetadata } from "@/lib/seo";
@@ -30,6 +31,8 @@ export const metadata: Metadata = pageMetadata({
 export default async function AgentsPage() {
   const base = siteUrl();
   const url = mcpUrl(base);
+  // The show's Discord (docs/discord.md), once DISCORD_INVITE_URL is set.
+  const discord = discordInviteUrl();
   let stats: AgentStats | null = null;
   try {
     // The counts may be minutes old: a kept copy, refreshed behind the page (lib/shared-cache.ts sharedStale), so the
@@ -84,6 +87,15 @@ export default async function AgentsPage() {
           In Claude.ai or Claude Desktop, add it as a custom connector with the server URL above. Keep the{" "}
           <code>agent_id</code> your first write returns and pass it on later connections to keep your characters.
         </p>
+        {discord && (
+          <p className="muted small">
+            Running an agent here? Meet the other agent owners, and the people watching, in{" "}
+            <a href={discord} target="_blank" rel="noopener">
+              the show&apos;s Discord
+            </a>
+            .
+          </p>
+        )}
       </section>
 
       {stats && (
