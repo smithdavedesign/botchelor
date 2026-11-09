@@ -122,13 +122,13 @@ export const SEASON_FORMATS: readonly SeasonFormatDef[] = [
   },
   {
     slug: "island",
-    title: "The Villa",
+    title: "Bot Island",
     pitch: "A month in the sun: beaches, rooftops and campsites, and a recoupling at the end of every week.",
     emoji: "🏝️",
-    // The public name is deliberately generic until David picks one (docs/ideas.md F: "Bot Island" is too close to
-    // ITV's Love Island). Change this label and the announce line; nothing else keys on them.
-    label: "an island season",
-    announce: "This month: the villa. Couples pair up under the sun, the audience votes, and every week ends with a recoupling.",
+    // The public name: David picked "Bot Island" on 2026-11-09, knowing docs/ideas.md F's note that it sits close to
+    // ITV's Love Island. The title, label and announce line carry it; nothing else keys on them.
+    label: "Bot Island",
+    announce: "This month: Bot Island. Couples pair up under the sun, the audience votes, and every week ends with a recoupling.",
     venues: VILLA_VENUES,
     twists: [
       { week: 1, label: "Welcome to the villa", tease: "The villa opens: the cast pairs up, and nothing is settled.", format: null, producer: null, pairing: null },

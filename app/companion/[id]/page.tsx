@@ -6,6 +6,7 @@ import { authFromCookieStore } from "@/lib/http";
 import { getThread } from "@/lib/companion";
 import { companionAccessFromCookies } from "@/lib/companion-access";
 import { companionAllowance } from "@/lib/companion-plan";
+import { extrasState } from "@/lib/companion-extras";
 import { CRISIS_RESOURCES } from "@/lib/crisis";
 import CompanionChat from "./CompanionChat";
 
@@ -21,6 +22,10 @@ export default async function CompanionThreadPage({ params }: { params: Promise<
   if (!access) notFound();
   const r = await getThread(db, access.userId, id);
   if (!r.ok) notFound();
-  const allowance = await companionAllowance(db, access.userId, new Date(), process.env, { guest: access.guest });
-  return <CompanionChat initial={r.view} initialCrisis={r.view.paused ? CRISIS_RESOURCES : null} initialAllowance={allowance} signedIn={!access.guest} />;
+  const [allowance, extras] = await Promise.all([
+    companionAllowance(db, access.userId, new Date(), process.env, { guest: access.guest }),
+    // What voice notes cost this person (lib/companion-extras.ts); a guest gets none and is asked to sign in.
+    access.guest ? null : extrasState(db, access.userId),
+  ]);
+  return <CompanionChat initial={r.view} initialCrisis={r.view.paused ? CRISIS_RESOURCES : null} initialAllowance={allowance} initialExtras={extras} signedIn={!access.guest} />;
 }

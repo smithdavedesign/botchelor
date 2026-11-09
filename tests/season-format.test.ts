@@ -283,7 +283,7 @@ describe("/api/admin/season: the format picker", () => {
     expect(set.status).toBe(200);
     const after = await set.json();
     expect(after.next_season.format).toBe("island");
-    expect(after.note).toContain("island");
+    expect(after.note).toContain("Bot Island");
 
     const closed = await post({ action: "format", season_id: "2026-10-19", slug: "island" });
     expect(closed.status).toBe(400);

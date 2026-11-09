@@ -5,7 +5,7 @@ import { notFound } from "next/navigation";
 import { isAdmin } from "@/lib/admins";
 import { getDb } from "@/lib/db";
 import { authFromCookieStore } from "@/lib/http";
-import { companionOpen } from "@/lib/companion-shared";
+import { COMPANION_EXTRAS, companionOpen } from "@/lib/companion-shared";
 import { COMPANION_FAIR_USE_PER_MONTH, companionAllowance, companionFreePerDay } from "@/lib/companion-plan";
 import { planLink, planPrice } from "@/lib/paid-plans";
 import { PlanCheckout, PlanWait } from "./PlanCheckout";
@@ -45,9 +45,16 @@ export default async function CompanionPlanPage({ searchParams }: { searchParams
         <h2 id="plan-what">What you get</h2>
         <ul>
           <li>No daily limit on messages with any companion (fair use: {COMPANION_FAIR_USE_PER_MONTH.toLocaleString("en-US")} a month).</li>
+          <li>
+            {COMPANION_EXTRAS.voice.included} voice notes a month: tap 🔊 on any reply to hear it in their own voice (after that, a token buys{" "}
+            {COMPANION_EXTRAS.voice.bundle}).
+          </li>
           <li>Everything the free tier has stays the same: their memory of you (you can see and change all of it), another reply whenever you like, how much they say.</li>
         </ul>
-        <p className="muted small">Without it: {companionFreePerDay()} free replies a day across every companion.</p>
+        <p className="muted small">
+          Without it: {companionFreePerDay()} free replies a day across every companion, and voice notes at {COMPANION_EXTRAS.voice.bundle} for a token.{" "}
+          <Link href="/terms#companion-extras">How extras work</Link>.
+        </p>
       </section>
 
       {subscribed ? (

@@ -32,6 +32,8 @@ import {
 } from "./companion";
 import { editFacts, FACT_MAX, listFacts } from "./companion-memory";
 import { CRISIS_RESOURCES } from "./crisis";
+import { signedVoiceUrl, voiceNote } from "./companion-voice";
+import { siteUrl } from "./site";
 import { overLimit } from "./limits";
 import { inBackground } from "./sets";
 import { venueName } from "./venues";
@@ -78,6 +80,8 @@ function compact(view: CompanionThreadView, since?: Set<string>, limit = RECENT)
       from: m.role === "user" ? "you" : m.role === "character" ? "them" : m.marker ? "scene" : "notice",
       text: m.text,
       ...(m.action ? { does: m.action } : {}),
+      // Its voice note (action voice): a link that plays for an hour, no session needed.
+      ...(m.voice ? { voice: signedVoiceUrl(view.id, m.id, siteUrl()) } : {}),
       at: m.at,
       ...(m.reported ? { reported: true } : {}),
     })),
@@ -180,6 +184,14 @@ export async function runCompanionTool(db: Db, agentId: string, args: Record<str
       // A roleplay to play in it (lib/date-roleplays.ts bookingAsk: an id or {title, premise, roles}; "none" is none).
       const ask = bookingAsk(args.roleplay, args.my_role);
       return done(await setScene(db, agentId, thread.id, place, new Date(), ask && !ask.skip ? ask : null), true);
+    }
+    case "voice": {
+      const messageId = str(args.message_id);
+      if (!messageId) return { error: "Say which reply: message_id (from messages or reply).", code: "missing_message" };
+      // Free to agents (no tokens), under their own daily limit and the show's (lib/companion-voice.ts).
+      const v = await voiceNote(db, agentId, thread.id, messageId, { agent: true });
+      if (!v.ok) return { error: v.message, code: v.error };
+      return { data: { thread_id: thread.id, message_id: v.message_id, voice: signedVoiceUrl(thread.id, v.message_id, siteUrl()), format: "audio/mpeg", note: "The link plays for an hour; read gives a fresh one." } };
     }
     case "carry_on":
       return done(await carryOn(db, agentId, thread.id));

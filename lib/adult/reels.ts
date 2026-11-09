@@ -73,6 +73,10 @@ import { logRequest, requestJson, withRequestLog, type LoggedRequest } from "./r
 import { candidates, ensureTagged, placeKeys, rank, tagNow } from "./media-tags";
 import { giveBackIncludedClip } from "./usage";
 import { jobKey, jobUsability, recordJobFailure, recordJobSpend } from "../connections";
+import { replicateVoice, voiceFor } from "../voice";
+
+// A character's stock voice lives in the shared voice kit (lib/voice.ts) now; reels and their callers still import it from here.
+export { replicateVoice, voiceFor };
 
 export const VENICE = "https://api.venice.ai/api/v1";
 /** Shots in a reel, and how many words a shot can carry (people say about 2.5 words a second). */
@@ -114,12 +118,6 @@ const CHECK_PAUSE_MS = 1500;
 const CHECK_AGAIN_MS = 5000;
 /** A shot with no video queued this long after its reel started was cut off while starting (the POST runs 300 s at most). */
 const NEVER_QUEUED_MS = 10 * 60 * 1000;
-/** Kokoro's stock voices, by how a character is referred to. */
-const VOICES = {
-  she: ["af_bella", "af_nicole", "af_sarah", "af_heart", "af_nova", "af_jessica", "af_kore", "af_aoede"],
-  he: ["am_onyx", "am_michael", "am_adam", "am_eric", "am_liam", "am_fenrir", "am_echo", "am_puck"],
-  they: ["af_river", "am_echo", "af_sky", "am_liam"],
-} as const;
 /** Models that take our audio in and lip-sync to it; anything else gets the line quoted in its prompt. */
 const AUDIO_IN = /^wan-2\.(5|6)|^wan-2-7-(image|text)-to-video/;
 /** On every shot: away from anyone young-looking, and from what breaks a shot of two (a third person, a cut). */
@@ -283,15 +281,6 @@ export function setReelPausesForTests(on: boolean): void {
   pauseScale = on ? 1 : 0;
 }
 const pause = (ms: number) => new Promise<void>((done) => setTimeout(done, ms * pauseScale));
-
-/** A character's voice: picked once from their pronouns and id, so it's the same in every reel. */
-export function voiceFor(c: Pick<Character, "id" | "pronouns">): string {
-  const p = c.pronouns?.toLowerCase() ?? "";
-  const list = p.startsWith("she") ? VOICES.she : p.startsWith("he") ? VOICES.he : VOICES.they;
-  let h = 0;
-  for (const ch of c.id) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
-  return list[h % list.length];
-}
 
 /**
  * What a line says out loud (its *action* apart), cut to what fits a shot: at the last whole sentence within WORDS_MAX
@@ -917,17 +906,6 @@ export function shotPrompt(cast: readonly [ReelPerson, ReelPerson], s: Pick<Reel
   // A clip with no line in it (lib/adult/clips.ts, an act from the menu): nobody speaks.
   if (!s.text.trim()) return `${base} Neither of them speaks: only their breathing and the sounds of the room.`;
   return audioIn ? `${base} ${cap(speaker.tag)} is the one speaking, lips moving with the words.` : `${base} ${cap(speaker.tag)}, in ${speaker.voice}, says: "${s.text}"`;
-}
-
-/** Kokoro's voices on Replicate (jaaari/kokoro-82m's list, 2026-10-22): all of ours but af_heart, which it lacks. */
-const REPLICATE_VOICES = new Set([
-  "af_alloy", "af_aoede", "af_bella", "af_jessica", "af_kore", "af_nicole", "af_nova", "af_river", "af_sarah", "af_sky",
-  "am_adam", "am_echo", "am_eric", "am_fenrir", "am_liam", "am_michael", "am_onyx", "am_puck",
-]);
-/** A character's voice as Replicate's Kokoro has it: af_heart becomes af_alloy, a voice no one else of ours has. */
-export function replicateVoice(voice: string): string {
-  if (REPLICATE_VOICES.has(voice)) return voice;
-  return voice === "af_heart" ? "af_alloy" : voice.startsWith("am_") ? "am_adam" : "af_bella";
 }
 
 /** Wan 2.2 on Replicate makes 81 to 121 frames (four to a step, plus one) at 16 a second: about 5 to 7.5 seconds. */
