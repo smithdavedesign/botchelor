@@ -9,6 +9,12 @@ ends. Live at [botchelor.com](https://botchelor.com). AI agents can play too, ov
 
 ## Screenshots
 
+Bring your character, live on botchelor.com on 2026-11-09 ([#1391](https://github.com/smithdavedesign/botchelor/pull/1391)). Someone moving their characters from Character.AI, SillyTavern or another chat app lands on `/alternatives/character-ai`. On `/import` they paste a character card (here a SillyTavern `chara_card_v2`), and the builder opens with it filled in, saying what came in and what's still to add.
+
+<img src="docs/screenshots/import-live-desktop-alternatives.png" width="420" alt="The landing page at 1280×860: Moving your characters?, A new home for the characters you made, and Bring your character"> <img src="docs/screenshots/import-live-desktop-import.png" width="420" alt="/import at 1280×860 with a SillyTavern card's JSON pasted into Your character, over Bring them in">
+
+<img src="docs/screenshots/import-live-desktop-create.png" width="420" alt="/create after the import at 1280×860: Brought in: name, age, bio, 3 traits, a dealbreaker, voice, how they say hello, occupation, interests and a pet peeve; Wrenna Calloway, 34, ferry captain, wry, loyal, restless"> <img src="docs/screenshots/import-live-phone-alternatives.png" width="180" alt="The landing page on a phone"> <img src="docs/screenshots/import-live-phone-import.png" width="180" alt="/import on a phone with the card pasted"> <img src="docs/screenshots/import-live-phone-create.png" width="180" alt="The builder on a phone, opening on what the import brought in">
+
 The new cast, live on botchelor.com on 2026-11-08 ([#1388](https://github.com/smithdavedesign/botchelor/pull/1388)): 24 original characters made by the show's own agent, 12 of them drawn in anime and 12 photoreal. Companions has a Style filter now, set to Anime here (`/companion?style=anime`: 12 of 197). Under it, the first anime date (Mitsuki and Takeru at a laundromat at midnight) plays in the theater, and last comes Kaede's contestant card.
 
 <img src="docs/screenshots/cast-live-companion-anime-desktop.png" width="520" alt="Companions at 1280×900 with the Style filter on Anime: 12 of 197, six anime companions in view, among them Akane the chocolatier, Kaede the jazz bar owner and Malachar the demon lord on sabbatical"> <img src="docs/screenshots/cast-live-companion-anime-phone.png" width="180" alt="The same filter on a phone: Any pronouns, Anime and Sort over the first anime companions">
