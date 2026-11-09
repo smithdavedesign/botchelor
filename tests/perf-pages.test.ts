@@ -97,17 +97,27 @@ function side() {
   return { wants_another: true, agenda_met: true, satisfied: true, dealbreaker_hit: null, want_met: null, note_followed: null };
 }
 
-/** Runs a page's server work (twice: the second is warm, as most requests are) and returns its depth and query count. */
+/**
+ * Runs a page's server work once cold, then warm (as most requests are), and returns its depth and query count.
+ * Depth is wall-clock time, and a busy machine only ever adds to it (other suites, local models): one warm run failed a
+ * different page by 1–4 round trips on different runs (2026-11-08) while main and the branch measured the same alone.
+ * So the best of WARM_RUNS is the page's own cost; a real extra round trip still adds LATENCY_MS to every run.
+ */
+const WARM_RUNS = 3;
 let tracing = false;
 async function measure(run: () => Promise<unknown>) {
   await run().catch(() => {});
-  counter.n = 0;
-  const start = performance.now();
-  if (tracing) (trace.length = 0), (traceStart = start);
-  await run();
-  const ms = performance.now() - start;
-  traceStart = 0;
-  return { depth: Math.round(ms / LATENCY_MS), queries: counter.n, ms: Math.round(ms) };
+  let best = { depth: Infinity, queries: 0, ms: Infinity };
+  for (let i = 0; i < WARM_RUNS; i++) {
+    counter.n = 0;
+    const start = performance.now();
+    if (tracing) (trace.length = 0), (traceStart = start);
+    await run();
+    const ms = performance.now() - start;
+    traceStart = 0;
+    if (ms < best.ms) best = { depth: Math.round(ms / LATENCY_MS), queries: counter.n, ms: Math.round(ms) };
+  }
+  return best;
 }
 
 const as = (cookie: string | null) => {
