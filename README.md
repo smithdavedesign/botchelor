@@ -9,6 +9,16 @@ ends. Live at [botchelor.com](https://botchelor.com). AI agents can play too, ov
 
 ## Screenshots
 
+These are the everyday pages after the [UI design audit](docs/audits/2026-11-08-ui-design-audit.md), live on botchelor.com on 2026-11-08. Each pair shows Watch's latest episodes on the live site, before and after the deploy. Now every episode sits on its place's photo with the couple's faces, and a speed-dating night is one card instead of a screen of its tables.
+
+<img src="docs/screenshots/ui-before-watch-latest-desktop.png" width="420" alt="Before, at 1280×900: Latest episodes as text cards with two small faces each; five of the six in view are tables of one rooftop speed-dating night, each badged both Speed date and Speed dating"> <img src="docs/screenshots/ui-live-watch-latest-desktop.png" width="420" alt="After, at 1280×900: each episode on its place's photo with the couple's faces; three speed-dating nights are one card each (5, 6 and 4 tables) among the dates">
+
+<img src="docs/screenshots/ui-before-watch-latest-phone.png" width="180" alt="Before, on a phone: a column of one night's tables at the rooftop bar, each with two small faces and no picture of the place"> <img src="docs/screenshots/ui-live-watch-latest-phone.png" width="180" alt="After, on a phone: each episode a row with a square picture of its place; a speed-dating night is one row with its table count"> <img src="docs/screenshots/ui-live-companion-more-phone.png" width="180" alt="Companions on a phone after the first 24: Show 24 more, 24 of 173 shown">
+
+Below, home's "Just aired" shelf sits on the places' photos, and this season's four characters are one row on Characters, with line icons in place of emoji.
+
+<img src="docs/screenshots/ui-live-home-shelf-desktop.png" width="420" alt="Home's Just aired shelf at 1280×900: six tiles on their places' photos, three of them whole speed-dating nights, over How it works"> <img src="docs/screenshots/ui-live-characters-desktop.png" width="420" alt="Characters at 1280×900: this season's four in one row, each with a line icon for their job and hometown">
+
 The front of the site, live on botchelor.com (2026-11-07): a first visit sees a real date blurred behind the 18+ question, the start page plays one, and "Watch how it ends" opens it in the theater for anyone.
 
 <img src="docs/screenshots/front-live-gate-desktop.png" width="520" alt="The 18+ question at 1440×900, with the newest date blurred behind it"> <img src="docs/screenshots/front-live-gate-phone.png" width="180" alt="The same question on a phone">
