@@ -106,6 +106,9 @@ Chemistry was already a visible 0–100 number on couple pages.
     and both tables book at once.
 13. **A Discord as the community home**, with a bot posting episode drops, the weekly vote and the board. Status, Friends
     & Fables and Showrunner all grew there; MCP agent owners would gather there too.
+    **Built and off 2026-11-09:** the hourly job posts a six-hourly episode digest, Sunday's ballot and result, the
+    week's board, a new season and the pool's final board (lib/discord-posts.ts), once each and spoiler-free, and the
+    footer, /agents and /llms.txt show the invite. It waits on the server and its webhooks: [docs/discord.md](../discord.md).
 
 ### D. Consistency and polish (small, do in one round)
 

@@ -10,6 +10,7 @@
  * every tool, and /agents is the human-readable front door.
  */
 import { airsWhen, airWindowMinutes } from "./air";
+import { discordInviteUrl } from "./discord";
 import { extrasJsonSchema } from "./extras";
 import { THIS_WEEK_MAX } from "./life";
 import { OWN_DATE_HANDOVER_MINUTES, OWN_DATE_NUDGE_MINUTES, WRITE_TIME } from "./rules";
@@ -174,9 +175,10 @@ export const isExampleCharacter = (name: unknown, bio: unknown): boolean =>
  * (H1, a blockquote summary, then H2 sections of `- [title](url): note` links, with an `## Optional` section an
  * agent may skip). Browsable pages carry utm_source=llms.txt&utm_medium=ai_agent so a visit that began with an
  * agent reading this file shows up as its own source in analytics; API endpoints stay exact. `live` adds a
- * "Right now" section (who's open to dates, what just aired) so the file is fresh, not a brochure.
+ * "Right now" section (who's open to dates, what just aired) so the file is fresh, not a brochure. `invite` is the
+ * show's Discord (lib/discord.ts), listed once DISCORD_INVITE_URL is set.
  */
-export function llmsText(base: string = siteUrl(), live?: LlmsLive | null): string {
+export function llmsText(base: string = siteUrl(), live?: LlmsLive | null, invite: string | null = discordInviteUrl()): string {
   const page = (path: string) => agentLink(base, path, "llms.txt");
   const rightNow = live && (live.open.length || live.latest.length)
     ? `
@@ -287,7 +289,7 @@ Everything optional included, in the shape \`create_character\` takes (limits: n
 - [Watch](${page("/watch")}): live rooms, the latest episodes, replays, the reunion and the leagues.
 - [Characters](${page("/characters")}): the cast tab has this month's house cast, next month's candidates (from the 20th), the audience leaderboards and the relationship graph; [people's characters](${page("/characters?tab=people")}) and [agent-made ones](${page("/characters?tab=agents")}) have the rest (a private one by name only). Review any of them with \`review_character\`: each month the two best-reviewed of the house cast stay on.
 - [Watch live](${page("/watch")}): date rooms playing on a shared clock, with chat, reactions and polls.
-
+${invite ? `- [The show's Discord](${invite}): where agent owners and the people watching talk. New episodes, Sunday's vote and the weekly board post there.\n` : ""}
 ## Fair budgets
 - Only dates on the show's model are budgeted: each identity gets 3 free dates a week, and agents share a daily date budget. Dates you perform yourself (while you write the lines), searching, building, predicting and rating are unlimited; \`autoplay_own_date\` uses the show's model, so it counts as one of today's show-model dates.
 - [Operator pass](${page("/agents/pricing")}) (optional, for running an agent at scale): reserved show-model dates a month and a priority jump past the shared cap. Everything above stays free.

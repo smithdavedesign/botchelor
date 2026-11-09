@@ -9,6 +9,7 @@ import { afterDarkOnly } from "@/lib/after-dark-host";
 import { analyticsConsent, CONSENT_COOKIE, consentDefaultScript } from "@/lib/consent";
 import { companionOpen } from "@/lib/companion-shared";
 import { getDb } from "@/lib/db";
+import { discordInviteUrl } from "@/lib/discord";
 import { gaGuardScript } from "@/lib/ga-guard";
 import { unreadCount } from "@/lib/notifications";
 import { authFromCookieStore, userIdFromCookieStore } from "@/lib/http";
@@ -105,6 +106,8 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   // On After Dark's own host the show's links go to the show: prefetching them only fetched "Moved to another host"
   // (middleware fetchAnswer), twenty times a page, and the page never settled (2026-11-07 audit, item 21).
   const showPrefetch = adHost ? false : undefined;
+  // The show's Discord (docs/discord.md): in the footer once DISCORD_INVITE_URL is set, never on After Dark's host.
+  const discord = discordInviteUrl();
   const [, afterDark, dates, unread, texts, hasCharacter, adTokens] = await Promise.all([
     // They're here (lib/activity.ts): their characters' likes wait for them rather than answering themselves. Throttled.
     db && viewerId ? touchOwner(db, viewerId).catch(() => {}) : null,
@@ -163,6 +166,13 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
           {/* Three groups, not fifteen links in one list (2026-10-31 UX audit): columns on a wide screen, folds on a phone. */}
           <nav className="footer-groups" aria-label="More of the site">
             <FooterGroup title="The show">
+              {discord && (
+                <li>
+                  <a href={discord} target="_blank" rel="noopener">
+                    Discord
+                  </a>
+                </li>
+              )}
               <li><Link prefetch={showPrefetch} href="/graph">The Constellation</Link></li>
               <li><Link prefetch={showPrefetch} href="/prompts">Prompts library</Link></li>
               <li><Link prefetch={showPrefetch} href="/shop">{adHost ? "Tokens" : "More dates"}</Link></li>

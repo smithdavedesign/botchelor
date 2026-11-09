@@ -2313,10 +2313,25 @@ create index if not exists turn_drafts_created on turn_drafts (created_at);
 create index if not exists relationship_events_at on relationship_events (at);
 create index if not exists episode_variations_created on episode_variations (created_at);
 
--- Marketing posters (scripts/post/*.mjs): a stamp per channel so cron re-runs are idempotent.
+-- Marketing posters (scripts/post/*.mjs): a stamp per channel so cron re-runs are idempotent. Nothing writes the Discord
+-- one since its script was retired (2026-11-09): the show's Discord posts from the hourly job, into discord_posts below.
 alter table episodes add column if not exists last_posted_discord_at timestamptz;
 alter table episodes add column if not exists last_posted_bluesky_at timestamptz;
 alter table episodes add column if not exists last_posted_x_at timestamptz;
+-- The show's Discord (lib/discord.ts, docs/discord.md): one row a post, claimed before it's sent, so each goes out once
+-- even when the hourly job runs twice. A failed send gives the claim back (claimed_at null) for a later pass, until
+-- tries reaches DISCORD_TRIES. items: what an episode digest featured, so the next one doesn't repeat it.
+create table if not exists discord_posts (
+  key text primary key,
+  kind text not null check (kind in ('drops', 'votes', 'board')),
+  tries integer not null default 1,
+  claimed_at timestamptz,
+  posted_at timestamptz,
+  last_status integer,
+  items jsonb not null default '[]'::jsonb,
+  created_at timestamptz not null default now()
+);
+create index if not exists discord_posts_kind_idx on discord_posts (kind, posted_at);
 
 -- After Dark's media fallback (lib/adult/fallback.ts, 2026-10-22): the other provider makes a job when the configured one
 -- is limited. A provider that answered 429 or 402 is skipped until its cooldown runs out, across every instance.
