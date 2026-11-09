@@ -245,8 +245,8 @@ meaning; pass `label` when it stands alone, and it becomes `role="img"` with tha
    `tests/css-tokens.test.ts` holds you to it: every literal hex colour, font size and corner in `app/**/*.css`
    is counted in `tests/css-tokens-baseline.json`, and a new one fails with its file and line. When you remove
    literals, lower the baseline (`UPDATE_CSS_BASELINE=1 npx vitest run tests/css-tokens.test.ts`) so they can't
-   come back; never run it to let a new one in. On 2026-11-08: 267 hex, 136 font sizes, 16 radii (the radii left are
-   shaped on purpose: a bubble's tail, a sheet's top corners).
+   come back; never run it to let a new one in. On 2026-11-08: 267 hex, 136 font sizes, 16 radii; on 2026-11-09: 74,
+   36 and 12 (the radii left are shaped on purpose: a bubble's tail, a sheet's top corners, the phone mockup).
 2. New color? Define it on `:root` **and** under both dark-mode selectors.
 3. New component? Give it a class here, make it work at phone width with the `--gutter`, and give it a
    `:focus-visible` state if it's interactive.
