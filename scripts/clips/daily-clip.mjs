@@ -42,7 +42,7 @@ export function captionFor(e, base) {
 }
 
 /** The newest Chromium Playwright has cached on this Mac (no download, ever). */
-function chromiumPath() {
+export function chromiumPath() {
   if (process.env.CHROMIUM_PATH) return process.env.CHROMIUM_PATH;
   const cache = join(homedir(), "Library", "Caches", "ms-playwright");
   const dirs = existsSync(cache) ? readdirSync(cache).filter((d) => /^chromium-\d+$/.test(d)).sort((x, y) => Number(y.split("-")[1]) - Number(x.split("-")[1])) : [];

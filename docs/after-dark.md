@@ -103,6 +103,18 @@ tokens for extras], but since we're brand new just break even overall is the goa
   $12.99 includes, from the settings.
 - **Refunds** (`refundAdTokens`) only ever give back what was charged; nothing included is charged.
 
+## A free taste (2026-11-08)
+
+The competitor review (2026-11-08; David's "1-5") found every adult competitor lets new people in before they pay (CrushOn 50 free messages a day, OurDream 55 free coins), while After Dark had only the invite queue. `lib/adult/taste.ts`:
+
+- A signed-in person who never had After Dark starts it on the subscribe page (`app/api/after-dark/taste`), ticking the 18+ box. No card, no email to David.
+- It's an ordinary pass (`adult_entitlements` provider `taste`) for **48 hours**, so every existing check works; a subscription or beta pass replaces it.
+- **Scenes only:** `mediaAllowedFor` is false and `mediaRefusal` answers 402 `media_needs_subscription`, so no pictures, clips, voice or Hive checks. Chapters cost no tokens.
+- **40 scene steps** (`adult_tastes.writes`, counted in `countUse`), then `overCap` says "That's the end of your free taste".
+- Only where After Dark is fully **open** (not text-only GB/JP, not blocked places). One per person (`adult_tastes`), and at most **40 started a UTC day** site-wide.
+- Cost: text calls on the default model only, roughly a cent or two a taste, under a dollar a day at the cap.
+- A banner on every After Dark page shows the steps left and when it ends.
+
 ## After Dark's own tokens (2026-11-04)
 
 David, 2026-11-04: "I agree with your price analysis, lets do it." The show's tokens are bought through Stripe, whose

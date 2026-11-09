@@ -10,3 +10,4 @@ export type FeedEpisode = {
 };
 export function pickClip<T extends FeedEpisode>(episodes: T[], opts?: { clipped?: Set<string> }): T | null;
 export function captionFor(e: FeedEpisode, base: string): string;
+export function chromiumPath(): string;

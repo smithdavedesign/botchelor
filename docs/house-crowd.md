@@ -103,6 +103,26 @@ How a clip is made:
 Analytics are blocked during the recording, so it doesn't count as a visit. David posts the clips; nothing here posts.
 The Discord and Bluesky posters in `scripts/post` cover text posts once their credentials are set.
 
+### A post kit (`scripts/clips/post-kit.mjs`)
+
+The daily clip is a bare recording. For a TikTok, Reels or Shorts post, the post kit wraps a date the way short video
+needs (David, 2026-11-09):
+
+1. **A hook card** (2.6 s): the pair's faces and one line on why to watch (`--hook`, else the pair and the place).
+2. **The date's opening** in the theater (`--date-seconds`, 45 by default). Cut it just after a good line: a whole date
+   runs for minutes, and botchelor.com has the rest.
+3. **The reveal:** how it ended and its best line, only after the date has played.
+4. **An end card:** botchelor.com, with "AI characters · AI-generated fiction · 18+".
+
+`node scripts/clips/post-kit.mjs <episode_id> --hook "…" --tags "#anime" --date-seconds 47` writes these to
+`~/BotchelorClips/posts/<day>-<pair>/`:
+- `post.mp4`, 1080×1920 with no sound (pick the sound in the app);
+- `cover.png`;
+- `caption.txt`, which carries the AI disclosure;
+- `checklist.md`, with the posting steps, including TikTok's "AI-generated content" label.
+
+It's public, aired show dates only, never After Dark. David posts; it never does.
+
 ## Controls
 
 | To | Do |
