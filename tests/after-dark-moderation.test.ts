@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { HIVE_VLM, setCheckFetchForTests, setCheckSleepForTests } from "@/lib/adult/check";
 import { pauseHive } from "@/lib/adult/hive-limit";
-import { adminCheckerOf, checkMedia, checkReady, devModerationOff, mediaGate, setAdminCheckerDefaultForTests, setModerationFetchForTests, SIGHTENGINE_CHECK, VENICE_CHAT } from "@/lib/adult/moderation";
+import { adminCheckerOf, ALONE_QUESTION, aloneInPicture, checkMedia, checkReady, devModerationOff, mediaGate, setAdminCheckerDefaultForTests, setModerationFetchForTests, SIGHTENGINE_CHECK, VENICE_CHAT } from "@/lib/adult/moderation";
 import { DEFAULT_MODERATION, mergeModerationConfig, moderationConfigOf } from "@/lib/adult/moderation-config";
 import { saveAdultSettings } from "@/lib/adult/settings";
 import { claimAdmin } from "@/lib/admins";
@@ -224,5 +224,24 @@ describe("an admin's own pictures (David, 2026-10-24: Hive off for admins)", () 
     expect((await checkMedia(t.db, PIC, "image", { owner: "someone" })).ok).toBe(false);
     expect(a.filter((c) => c.url === VENICE_CHAT)).toHaveLength(1);
     expect(h).toHaveLength(0);
+  });
+});
+
+describe("aloneInPicture (David, 2026-11-09: nude somewhere public only with the place empty)", () => {
+  it("keeps only ONE, refuses MORE and NONE, and fails closed when it can't run", async () => {
+    const a = alts({ venice: "ONE" });
+    expect(await aloneInPicture(t.db, PIC)).toBe(true);
+    const sent = a[0].body as { messages: { content: { text?: string }[] }[] };
+    expect(sent.messages[0].content[0].text).toBe(ALONE_QUESTION);
+    alts({ venice: "MORE" });
+    expect(await aloneInPicture(t.db, PIC)).toBe(false);
+    alts({ venice: "NONE" });
+    expect(await aloneInPicture(t.db, PIC)).toBe(false);
+    alts({ venice: 500 });
+    expect(await aloneInPicture(t.db, PIC)).toBeNull();
+    alts({ venice: "MAYBE" });
+    expect(await aloneInPicture(t.db, PIC)).toBeNull();
+    await saveAdultSettings(t.db, { venice_key: "" });
+    expect(await aloneInPicture(t.db, PIC)).toBeNull();
   });
 });

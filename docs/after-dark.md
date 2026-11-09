@@ -2350,8 +2350,8 @@ configurable … best in class"). What's built, by phase:
   until payments and age checks are live. Linked from the hub ("🎨 Studio") and each pair page.
 - **Shoot:** menus (pose, framing, angle, POV, wardrobe, up to three accessories, place incl. their own drawn places,
   light, expression), each option a fixed phrase with a level (0 dressed … 3 explicit); held to the viewer's studio
-  intensity and hard nos for the character, the configured maximum, and to suggestive in public. `shoot_size` (4) pictures
-  by the chosen edit model from the face they keep (Picture 1), their body reference (Picture 2) and the place's set.
+  intensity and hard nos for the character, the configured maximum, and to nude in public with the place empty (every
+  picture checked for anyone else; nothing explicit in public). `shoot_size` (4) pictures by the chosen edit model from the face they keep (Picture 1), their body reference (Picture 2) and the place's set.
   Ratings steer it; the light test picks the light when they don't.
 - **Identity:** Restyle (the looks builder's chips as an edit of the face: 3 baselines to pick from; "Save to their look"
   writes `extras.looks` and the appearance line when it was the builder's), Recast (3 new baselines on a new-picture

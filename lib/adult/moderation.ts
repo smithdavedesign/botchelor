@@ -409,3 +409,46 @@ export async function showsRole(db: Db, media: Checkable, role: string, kind?: s
     return null;
   }
 }
+
+/** What "is anyone else there" asks: the picture alone, counting every person, however small or far away. */
+export const ALONE_QUESTION =
+  'Look at this image. Count every person visible anywhere in it, including small, distant, blurred, partly hidden or reflected people in the background. Ignore only a hand, arm or leg at the very edge of the frame. Reply with JSON only: {"answer": "ONE" | "MORE" | "NONE"}.';
+const ALONE_FORMAT = {
+  type: "json_schema",
+  json_schema: {
+    name: "alone_check",
+    schema: { type: "object", properties: { answer: { type: "string", enum: ["ONE", "MORE", "NONE"] } }, required: ["answer"], additionalProperties: false },
+    strict: true,
+  },
+} as const;
+
+/**
+ * Whether a picture shows its one person and nobody else (David, 2026-11-09: a nude somewhere public is fine only with
+ * the place empty, so no stranger is made to watch): one call to the moderation settings' vision model on Venice. True
+ * only on ONE; false on MORE or NONE; null when it couldn't run (no Venice key, an error, no answer), which the caller
+ * refuses (fails closed). With `MODERATION_DEV_OFF=1` off production and no Venice key, it passes (dev only). Never throws.
+ */
+export async function aloneInPicture(db: Db, media: Checkable): Promise<boolean | null> {
+  const m = (await getAdultSettings(db)).moderation;
+  const keys = await adultKeys(db);
+  if (!keys.venice) return devModerationOff() ? true : null;
+  try {
+    const res = await doFetch(VENICE_CHAT, {
+      method: "POST",
+      headers: { authorization: `Bearer ${keys.venice}`, "content-type": "application/json" },
+      body: JSON.stringify({
+        model: m.vlm_model,
+        temperature: 0,
+        max_tokens: 16,
+        response_format: ALONE_FORMAT,
+        venice_parameters: { include_venice_system_prompt: false },
+        messages: [{ role: "user", content: [{ type: "text", text: ALONE_QUESTION }, { type: "image_url", image_url: { url: dataUri(media) } }] }],
+      }),
+    });
+    if (!res.ok) return null;
+    const answer = vlmAnswer(await res.json());
+    return answer === "ONE" ? true : answer === "MORE" || answer === "NONE" ? false : null;
+  } catch {
+    return null;
+  }
+}
