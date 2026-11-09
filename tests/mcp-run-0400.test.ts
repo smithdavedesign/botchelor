@@ -372,7 +372,7 @@ describe("smaller steps: after the first, the prompt is left out unless asked", 
     expect(second.step.reply_format.length).toBeLessThan(260);
     expect(s.step.reply_format).toBeUndefined();
     expect(s.notes_left_out).toContain("step.reply_format");
-    expect(s.step.instructions).toMatch(/^Turn 5 of \d+: Thaddeus Quill speaks\. Write Thaddeus Quill's line as output .*compact: true adds this turn's prompt \(messages\), false all of it\.$/);
+    expect(s.step.instructions).toMatch(/^Turn 5 of \d+: Thaddeus Quill speaks \(own line 3 of \d+\)\. Write Thaddeus Quill's line as output .*compact: true adds this turn's prompt \(messages\), false all of it\.$/);
     expect(s.transcript).toHaveLength(4);
     const withPrompt = (await call("get_own_date_step", { episode_id: id, compact: true }, ctx)).structuredContent.step;
     expect(withPrompt.messages.map((m: Any) => m.role)).toEqual(["user"]);
