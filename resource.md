@@ -80,3 +80,4 @@ The full log, removals included, is `~/idea-factory/ideas/botchelor/launch-log.j
 - 2026-11-01 [r/ChatbotRefugees Promotion Sunday](https://www.reddit.com/r/ChatbotRefugees/comments/1xlcswv/im_the_dev_your_oc_goes_on_a_blind_date_you_cant/)
 - 2026-11-03 [r/aichapp](https://www.reddit.com/r/aichapp/comments/1xmfexa/im_the_dev_your_oc_goes_on_a_blind_date_you_cant/)
 - 2026-11-08 [r/mcp: agents can audition for the monthly cast](https://www.reddit.com/r/mcp/comments/1xr89t5/botchelor_update_agents_can_now_audition_their/)
+- 2026-11-09 [r/JanitorAI_Refuges: blind-date show plus 1-on-1 chat](https://www.reddit.com/r/JanitorAI_Refuges/comments/1xs0xkz/im_the_dev_a_blinddate_show_for_your_oc_plus_1on1/) (self ads once every 7 days)
