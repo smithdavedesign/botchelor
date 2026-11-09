@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import Link from "next/link";
+import type { CSSProperties } from "react";
 import Avatar from "@/app/Avatar";
+import Icon from "@/app/Icon";
+import { balancedColumns } from "@/lib/grid-balance";
 import CharacterName from "@/app/CharacterName";
 import Pager from "@/app/Pager";
 import JsonLd from "@/app/JsonLd";
@@ -57,7 +60,7 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
 function PrivateName({ name }: { name: string }) {
   return (
     <span className="directory-private">
-      <strong>{name}</strong> <span aria-label="private">🔒</span>
+      <strong>{name}</strong> <Icon name="lock" label="private" />
     </span>
   );
 }
@@ -95,7 +98,20 @@ function Entry({ e, badge, origin = true }: { e: DirectoryEntry; badge?: string;
       </div>
       {/* The basics: age and pronouns, then what they do and where they're from (only what's filled in). */}
       {(e.age || e.pronouns) && <p className="muted small dir-basics">{[e.age, e.pronouns].filter(Boolean).join(" · ")}</p>}
-      {(e.occupation || e.hometown) && <p className="small dir-job">{[e.occupation ? `💼 ${e.occupation}` : null, e.hometown ? `📍 ${e.hometown}` : null].filter(Boolean).join(" · ")}</p>}
+      {(e.occupation || e.hometown) && (
+        <p className="small dir-job">
+          {e.occupation && (
+            <span className="dir-fact">
+              <Icon name="briefcase" /> {e.occupation}
+            </span>
+          )}
+          {e.hometown && (
+            <span className="dir-fact">
+              <Icon name="pin" /> {e.hometown}
+            </span>
+          )}
+        </p>
+      )}
       <ul className="chips">
         {e.traits.slice(0, 3).map((trait) => (
           <li className="chip" key={trait}>
@@ -129,7 +145,7 @@ export default async function CharactersPage({ searchParams }: Props) {
   const count: Record<Tab, number> = { cast: season.length, people: counts.people, agents: counts.agents };
 
   return (
-    <article className="characters-hub">
+    <article className="characters-hub page-wide">
       {/* 2026-10-31 UX audit: on a phone the first screen was all words (a paragraph restating the tabs, a helper line,
           the season's rules) and no faces. One line each now, and the cards are two to a row. */}
       <div className="section-head characters-head">
@@ -197,7 +213,7 @@ async function castTab({ season, thisId, castIds, now, pairsPage, viewerId }: { 
       <section>
         <h2>This season: {seasonLabel(thisId)}</h2>
         <p className="muted">The show&apos;s own. Each month the two best-reviewed stay and two newcomers join.</p>
-        <ul className="gallery">
+        <ul className="gallery grid-balanced" style={{ "--cols": balancedColumns(season.length, 4) } as CSSProperties}>
           {season.map((e) => (
             <Entry key={e.id} e={e} origin={false} />
           ))}
@@ -224,7 +240,7 @@ async function castTab({ season, thisId, castIds, now, pairsPage, viewerId }: { 
       {upcoming.length > 0 && (
         <section id="next-season">
           <h2>Next season&apos;s candidates: {seasonLabel(nextId)}</h2>
-          <ul className="gallery">
+          <ul className="gallery grid-balanced" style={{ "--cols": balancedColumns(upcoming.length, 4) } as CSSProperties}>
             {upcoming.map((e) => (
               <Entry key={e.id} e={e} origin={false} badge={statusOf.get(e.id) === "approved" ? "Joining next season" : "Candidate"} />
             ))}
@@ -373,7 +389,12 @@ async function madeByTab({ tab, page, privateCount, viewerId }: { tab: "people" 
             &ldquo;House-run bot&rdquo;. <Link href="/agents">Send your agent</Link>.
           </>
         )}
-        {privateCount > 0 && <> A private character (🔒) shows only its name.</>}
+        {privateCount > 0 && (
+          <>
+            {" "}
+            A private character (<Icon name="lock" label="locked" />) shows only its name.
+          </>
+        )}
       </p>
       {list.entries.length ? (
         <ul className="gallery">

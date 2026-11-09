@@ -40,7 +40,7 @@ export default async function DateLinkPage({ params }: Props) {
   const c = invite?.live ? await getPublicCharacter(db, invite.character_id) : null;
   if (!invite || !c) {
     return (
-      <main className="page-narrow date-link">
+      <div className="page-narrow date-link">
         <h1>This date link isn&apos;t open any more</h1>
         <p className="muted">Its character may have found someone, or its creator turned the link off.</p>
         <p>
@@ -49,7 +49,7 @@ export default async function DateLinkPage({ params }: Props) {
           </Link>{" "}
           <Link href="/watch">Watch the show</Link>
         </p>
-      </main>
+      </div>
     );
   }
   const viewerId = userIdFromCookieStore(await cookies());
@@ -66,7 +66,7 @@ export default async function DateLinkPage({ params }: Props) {
   const prompts = (c.extras.prompts ?? []).slice(0, 2).map((p) => ({ label: PROFILE_PROMPTS.find((x) => x.id === p.id)?.label ?? "", answer: p.answer }));
   const portrait = c.portrait_asset_id ? `/api/assets/${c.portrait_asset_id}` : null;
   return (
-    <main className="page-narrow date-link">
+    <div className="page-narrow date-link">
       <p className="kicker">💌 A blind date invitation</p>
       <div className="date-link-card card">
         <Avatar seed={c.id} name={c.name} hue={c.hue} house={c.house} size={96} portraitSrc={portrait} />
@@ -102,6 +102,6 @@ export default async function DateLinkPage({ params }: Props) {
           <span className="muted small"> Free, about a minute; it comes back here.</span>
         </p>
       )}
-    </main>
+    </div>
   );
 }

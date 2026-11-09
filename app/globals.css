@@ -49,7 +49,21 @@
   --frame-ink: #241022;
   --bad: #dc2626;
   --bad-text: #b91c1c;
+  /* Corners, smallest to largest (docs/brand.md, Spacing & shape): hairline bars, small chips and thumbnails, controls
+     and inner panels, cards (--radius), heroes and sheets, and pills. A literal radius fails tests/css-tokens.test.ts; reach for one of these. */
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
   --radius: 16px;
+  --radius-lg: 22px;
+  --radius-pill: 999px;
+  /* The two page widths (docs/brand.md, Layout): the reading column every page starts as, and the wide one for the
+     pages you browse (home, the show's tabs, Characters, Companions, an episode). A page opts in with .page-wide. */
+  --page-read: 46rem;
+  --page-wide: 72rem;
+  /* Behind a photo while it loads, and words laid on one: the same in both themes (a photo is a photo). */
+  --photo-bg: #1d1030;
+  --on-photo: #fff;
   --shadow: 0 1px 2px rgba(36, 16, 34, 0.05), 0 10px 30px -16px rgba(36, 16, 34, 0.22);
   --shadow-sm: 0 1px 2px rgba(36, 16, 34, 0.06);
   --grad: linear-gradient(120deg, var(--accent-btn), var(--accent-2));
@@ -265,7 +279,7 @@ body {
   position: relative;
   display: block;
   overflow: hidden;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--ink) 8%, transparent);
 }
 .sk::after {
@@ -405,7 +419,7 @@ body {
   top: -3rem;
   z-index: 100;
   padding: 0.5rem 0.9rem;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: var(--accent-btn);
   color: var(--accent-ink);
   font-weight: 700;
@@ -417,7 +431,7 @@ body {
 }
 
 main {
-  max-width: 46rem;
+  max-width: var(--page-read);
   margin: 0 auto;
   padding: 1.25rem var(--gutter) 4rem;
   scroll-margin-top: 1rem;
@@ -430,7 +444,7 @@ a {
 a:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
 }
 
 h1,
@@ -606,7 +620,7 @@ h2 {
   padding: 0;
   width: 2.4rem;
   height: 2.4rem;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   background: var(--card);
   border: 1.5px solid var(--field);
   box-shadow: none;
@@ -719,7 +733,7 @@ h2 {
     padding: 0.5rem;
     background: var(--card);
     border: 1px solid var(--line);
-    border-radius: 14px;
+    border-radius: var(--radius-md);
     box-shadow: var(--shadow);
   }
   .nav-links[data-open="true"] {
@@ -795,7 +809,7 @@ h2 {
   position: relative;
   margin: 0.5rem 0 1.5rem;
   padding: 2rem 1.5rem;
-  border-radius: 24px;
+  border-radius: var(--radius-lg);
   background:
     radial-gradient(120% 120% at 85% 0%, color-mix(in srgb, var(--accent-2) 22%, transparent), transparent 55%),
     radial-gradient(120% 120% at 0% 100%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 55%),
@@ -881,7 +895,7 @@ h2 {
   /* 36px: compact controls (button.small, inline toolbars). */
   --control-h-sm: 2.25rem;
   --control-px: 0.85rem;
-  --control-radius: 12px;
+  --control-radius: var(--radius-md);
   --control-border: 1.5px;
   /* The focus halo every control shares, on top of the accent edge. */
   --control-ring: 0 0 0 3px color-mix(in srgb, var(--accent) 24%, transparent);
@@ -1352,7 +1366,7 @@ button.chosen {
   display: block;
   margin: 0 0 0.75rem;
   padding: 0.85rem 1rem;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background-size: cover;
   color: #fff;
   font-family: "Fraunces", Georgia, serif;
@@ -1454,7 +1468,7 @@ button.chosen {
 .hint-nudge {
   margin: var(--space-1) 0 0;
   padding: 0.45rem 0.7rem;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--accent-2) 10%, transparent);
   font-size: var(--text-sm);
 }
@@ -1692,7 +1706,7 @@ button.chosen {
 .frame {
   display: inline-block;
   padding: 0 0.45rem;
-  border-radius: 0.4rem;
+  border-radius: var(--radius-sm);
   border: 2px solid transparent;
 }
 
@@ -1713,7 +1727,7 @@ button.chosen {
 details.settings {
   margin: 0.75rem 0;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   padding: 0.6rem 0.9rem;
   background: color-mix(in srgb, var(--paper-2) 60%, var(--card));
 }
@@ -2039,7 +2053,7 @@ button.button-ghost:hover:not(:disabled) {
   align-items: center;
   background: var(--card);
   border: 1px solid var(--line);
-  border-radius: 18px;
+  border-radius: var(--radius);
   padding: 1.25rem;
   box-shadow: var(--shadow);
 }
@@ -2411,7 +2425,7 @@ button.poll-option {
   width: 100%;
   min-height: 2.9rem;
   padding: 0.65rem 0.9rem;
-  border-radius: 14px;
+  border-radius: var(--radius-md);
   border: 1.5px solid color-mix(in srgb, var(--accent) 38%, var(--line));
   background: var(--card);
   color: var(--ink);
@@ -2565,7 +2579,6 @@ button.poll-option.chosen {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  font-size: var(--text-lg);
 }
 .watch-dot.off {
   background: var(--line);
@@ -2693,36 +2706,7 @@ button.poll-option.chosen {
   color: var(--accent-text);
   font-weight: 700;
 }
-/* Latest episodes on a wide screen: two columns, so 12 a page is six rows. */
-@media (min-width: 761px) {
-  .watch-latest-list {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: var(--space-3);
-  }
-  .watch-latest-list > li.card {
-    margin: 0;
-  }
-  .watch-latest-list > li.card > p.muted {
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
-    overflow: hidden;
-  }
-}
-/* Latest episodes on a phone: compact rows, the setting on one line (12 a page, as before). */
-@media (max-width: 760px) {
-  .watch-latest-list > li.card {
-    padding: var(--space-3);
-    margin: 0 0 var(--space-2);
-  }
-  .watch-latest-list > li.card > p.muted {
-    margin: 0.25rem 0 0;
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-  }
-}
+/* Latest episodes: picture-led cards (app/EpisodeItem.tsx, app/ux/catalog.css), rows on a phone, a grid wider up. */
 .watch-airing-card {
   display: flex;
   flex-direction: column;
@@ -2786,7 +2770,7 @@ button.poll-option.chosen {
 .watch-how-details {
   margin: var(--space-5) 0 var(--space-3);
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   padding: var(--space-3) var(--space-4);
   background: color-mix(in srgb, var(--paper-2) 60%, var(--card));
 }
@@ -2939,7 +2923,7 @@ button.poll-option.chosen {
 }
 .afterglow .turn-body {
   max-width: 80%;
-  border-radius: 14px;
+  border-radius: var(--radius-md);
   padding: 0.55rem 0.8rem;
   background: color-mix(in srgb, var(--accent) 12%, transparent);
 }
@@ -3097,7 +3081,7 @@ button.phone-head-btn {
   min-height: 2rem;
   margin: 0;
   padding: 0.2rem 0.4rem;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: none;
   box-shadow: none;
   color: var(--accent-text);
@@ -3173,7 +3157,7 @@ button.phone-earlier-btn:hover:not(:disabled) {
   margin: 0.45rem 0;
   padding: 0.55rem 0.8rem 0.6rem;
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--soft) 55%, var(--card));
   text-align: center;
   font-size: var(--text-xs);
@@ -3221,7 +3205,7 @@ button.phone-earlier-btn:hover:not(:disabled) {
 .phone-bubble {
   margin: 0;
   padding: 0.45rem 0.75rem;
-  border-radius: 1.1rem;
+  border-radius: var(--radius);
   font-size: 0.94rem;
   line-height: 1.35;
   overflow-wrap: anywhere;
@@ -3233,7 +3217,7 @@ button.phone-earlier-btn:hover:not(:disabled) {
   display: block;
   width: 100%;
   max-width: 14rem;
-  border-radius: 0.8rem;
+  border-radius: var(--radius-md);
   margin-bottom: 0.3rem;
 }
 .phone-bubble.chat-typing {
@@ -3249,22 +3233,22 @@ button.phone-earlier-btn:hover:not(:disabled) {
   color: var(--ink);
 }
 .phone-msg-me:not(.starts) .phone-bubble {
-  border-top-right-radius: 0.45rem;
+  border-top-right-radius: var(--radius-sm);
 }
 .phone-msg-me:not(.ends) .phone-bubble {
-  border-bottom-right-radius: 0.45rem;
+  border-bottom-right-radius: var(--radius-sm);
 }
 .phone-msg-me.ends .phone-bubble {
-  border-bottom-right-radius: 0.3rem;
+  border-bottom-right-radius: var(--radius-xs);
 }
 .phone-msg-them:not(.starts) .phone-bubble {
-  border-top-left-radius: 0.45rem;
+  border-top-left-radius: var(--radius-sm);
 }
 .phone-msg-them:not(.ends) .phone-bubble {
-  border-bottom-left-radius: 0.45rem;
+  border-bottom-left-radius: var(--radius-sm);
 }
 .phone-msg-them.ends .phone-bubble {
-  border-bottom-left-radius: 0.3rem;
+  border-bottom-left-radius: var(--radius-xs);
 }
 
 button.phone-jump {
@@ -3553,7 +3537,7 @@ html.phone-open body {
   flex-direction: column;
   overflow: hidden;
   border: 1px solid var(--line);
-  border-radius: 1.5rem;
+  border-radius: var(--radius-lg);
   background: var(--card);
   box-shadow: var(--shadow);
   user-select: none;
@@ -3620,7 +3604,7 @@ html.phone-open body {
 .swipe-prompt {
   margin: 0.5rem 0;
   padding: 0.6rem 0.8rem;
-  border-radius: 0.9rem;
+  border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--soft) 60%, var(--card));
 }
 .swipe-prompt p {
@@ -3655,7 +3639,7 @@ html.phone-open body {
   z-index: 3;
   padding: 0.15rem 0.7rem;
   border: 3px solid;
-  border-radius: 0.5rem;
+  border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--card) 85%, transparent);
   font-size: 1.4rem;
   font-weight: 800;
@@ -3722,7 +3706,7 @@ button.swipe-btn-nope:hover:not(:disabled) {
 .swipe-match-card {
   max-width: 24rem;
   padding: 1.6rem 1.4rem;
-  border-radius: 1.5rem;
+  border-radius: var(--radius-lg);
   background: var(--card);
   box-shadow: var(--shadow);
   text-align: center;
@@ -3886,7 +3870,7 @@ button.rating-chip:hover {
 .watch-chaos {
   margin-top: var(--space-3);
   padding: var(--space-3);
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   border: 1px dashed color-mix(in srgb, var(--accent-2) 45%, var(--line));
   background: color-mix(in srgb, var(--accent-2) 8%, transparent);
 }
@@ -4052,7 +4036,7 @@ button.rating-chip:hover {
   margin: 0;
   max-width: min(32ch, 42vw);
   padding: 0.7rem 1rem;
-  border-radius: 16px;
+  border-radius: var(--radius);
   background: rgba(255, 255, 255, 0.95);
   color: #241022;
   font-size: 1rem;
@@ -4294,7 +4278,7 @@ button.rating-chip:hover {
 .chat-bubble {
   margin: 0;
   padding: 0.55rem 0.85rem;
-  border-radius: 18px;
+  border-radius: var(--radius);
   line-height: 1.38;
   overflow-wrap: anywhere;
   background: var(--paper-2);
@@ -4302,10 +4286,10 @@ button.rating-chip:hover {
   animation: chat-in 0.22s ease;
 }
 .chat-row-a .chat-bubble {
-  border-bottom-left-radius: 6px;
+  border-bottom-left-radius: var(--radius-sm);
 }
 .chat-row-b .chat-bubble {
-  border-bottom-right-radius: 6px;
+  border-bottom-right-radius: var(--radius-sm);
   background: var(--grad);
   color: var(--accent-ink);
 }
@@ -4539,7 +4523,7 @@ button.linklike {
   margin: 0;
   padding: 0.125rem 0;
   border: 0;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   background: none;
   box-shadow: none;
   color: var(--accent-text);
@@ -4591,7 +4575,7 @@ details.recap-toggle > summary {
   display: block;
   padding: var(--space-3) var(--space-4);
   border: 1px dashed color-mix(in srgb, var(--accent) 40%, var(--line));
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--paper-2) 60%, var(--card));
   color: var(--accent-text);
   font-weight: 700;
@@ -4823,7 +4807,7 @@ details.recap-toggle[open] > summary {
 .character-clip {
   width: 100%;
   max-width: 320px;
-  border-radius: 14px;
+  border-radius: var(--radius-md);
   display: block;
 }
 
@@ -4844,7 +4828,7 @@ details.recap-toggle[open] > summary {
   max-width: 30rem;
   background: var(--card);
   border: 1.5px solid var(--line);
-  border-radius: 20px;
+  border-radius: var(--radius-lg);
   padding: 2rem 1.75rem;
   box-shadow: 0 18px 50px rgba(0, 0, 0, 0.12);
   text-align: center;
@@ -4951,7 +4935,7 @@ details.recap-toggle[open] > summary {
   gap: 0.85rem;
   padding: 0.85rem 1rem;
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: var(--radius-md);
   background: var(--paper-2);
   margin-bottom: 0.25rem;
 }
@@ -5023,7 +5007,7 @@ details.recap-toggle[open] > summary {
 .wizard-pro-hint {
   margin: 0.85rem 0 0;
   padding: 0.6rem 0.8rem;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--accent-2) 9%, transparent);
   font-size: var(--text-sm);
 }
@@ -5074,7 +5058,7 @@ details.recap-toggle[open] > summary {
   gap: 0.7rem;
   margin: 1rem 0;
   padding: 0.85rem 1rem;
-  border-radius: 14px;
+  border-radius: var(--radius-md);
   border: 1px dashed color-mix(in srgb, var(--accent-2) 45%, var(--line));
   background: color-mix(in srgb, var(--accent-2) 8%, var(--card));
   font-size: var(--text-md);
@@ -5106,7 +5090,7 @@ details.recap-toggle[open] > summary {
 .wizard-open {
   margin-top: 1rem;
   padding: 0.6rem 0.75rem;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--accent) 6%, var(--card));
   border: 1px solid color-mix(in srgb, var(--accent) 20%, var(--line));
 }
@@ -5137,7 +5121,7 @@ details.recap-toggle[open] > summary {
 .code-block {
   margin: 0;
   padding: 0.75rem 0.9rem;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   background: var(--paper-2);
   border: 1px solid var(--line);
   overflow-x: auto;
@@ -5186,7 +5170,7 @@ button.dice {
   width: var(--control-h);
   height: var(--control-h);
   padding: 0;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   background: var(--card);
   border: 1.5px solid var(--field);
   box-shadow: none;
@@ -5200,7 +5184,7 @@ button.dice:hover:not(:disabled) {
   margin: 0.85rem 0 0;
   padding: 0.6rem 0.85rem 0.85rem;
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: var(--radius-md);
   background: var(--paper);
 }
 .detail-group > summary {
@@ -5269,7 +5253,7 @@ button.dice:hover:not(:disabled) {
 .prompt-edit {
   margin: 0.6rem 0;
   padding: 0.6rem 0.75rem;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   background: var(--card);
   border: 1px solid var(--line);
 }
@@ -5396,7 +5380,7 @@ button.dice:hover:not(:disabled) {
 .originality {
   margin-top: 1rem;
   padding: 0.85rem 1rem;
-  border-radius: 14px;
+  border-radius: var(--radius-md);
   border: 1px solid var(--line);
   background: var(--paper-2);
 }
@@ -5441,7 +5425,7 @@ button.dice:hover:not(:disabled) {
 .this-week {
   margin: 0.75rem 0 0;
   padding: 0.55rem 0.85rem;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   background: var(--soft);
   font-size: var(--text-sm);
 }
@@ -5465,7 +5449,7 @@ button.dice:hover:not(:disabled) {
 .profile-prompt {
   margin: 0;
   padding: 0.85rem 1rem;
-  border-radius: 14px;
+  border-radius: var(--radius-md);
   background: var(--paper-2);
   border: 1px solid var(--line);
 }
@@ -5490,7 +5474,7 @@ button.dice:hover:not(:disabled) {
 }
 .profile-facts div {
   padding: 0.5rem 0.65rem;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: var(--paper);
 }
 .profile-facts dt {
@@ -5521,7 +5505,7 @@ button.dice:hover:not(:disabled) {
   gap: 0.5rem 1rem;
   padding: 0.75rem 1rem;
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: var(--radius-md);
   background: var(--card);
   box-shadow: var(--shadow);
   font-size: var(--text-sm);
@@ -5677,7 +5661,7 @@ body:has(.feedback-fab) .site-footer {
   animation: feedback-rise 0.25s ease-out;
 }
 .install-hint img {
-  border-radius: 9px;
+  border-radius: var(--radius-sm);
 }
 .install-hint p {
   margin: 0;
@@ -5749,7 +5733,7 @@ body:has(.beta-toast) .install-hint {
   max-height: min(48rem, calc(100dvh - 2 * var(--space-4)));
   padding: 0;
   border: 1px solid var(--line);
-  border-radius: 20px;
+  border-radius: var(--radius-lg);
   background: var(--card);
   color: var(--ink);
   box-shadow: var(--shadow);
@@ -5948,7 +5932,7 @@ html.feedback-open body {
   max-height: min(40rem, calc(100dvh - 2 * var(--space-4)));
   padding: 0;
   border: 1px solid var(--line);
-  border-radius: 20px;
+  border-radius: var(--radius-lg);
   background: var(--card);
   color: var(--ink);
   box-shadow: var(--shadow);
@@ -6496,7 +6480,7 @@ main:has(> .admin-wide) {
   padding: 0.55rem 0.8rem;
   border: 1px solid var(--line);
   border-left: 4px solid var(--accent-2);
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   background: var(--card);
 }
 .insight.is-up {
@@ -6613,7 +6597,7 @@ main:has(> .admin-wide) {
   flex: none;
   width: 0.7rem;
   height: 0.7rem;
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
 }
 .chart-key.is-line {
   width: 1rem;
@@ -6648,7 +6632,7 @@ main:has(> .admin-wide) {
 .chart svg:focus-visible {
   outline: 3px solid var(--focus);
   outline-offset: 2px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
 }
 .chart-grid {
   stroke: var(--line);
@@ -6671,7 +6655,7 @@ main:has(> .admin-wide) {
   max-width: 14rem;
   padding: 0.45rem 0.6rem;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: var(--card);
   box-shadow: var(--shadow);
   font-size: var(--text-xs);
@@ -6746,7 +6730,7 @@ button.sort-button {
   margin: 0;
   padding: 0;
   border: 0;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   background: none;
   box-shadow: none;
   color: inherit;
@@ -6929,7 +6913,7 @@ button.table-more {
   min-width: 0;
   padding: var(--space-2) var(--space-1);
   border: 1.5px solid transparent;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   color: inherit;
   font-size: var(--text-sm);
   font-weight: 600;
@@ -7041,10 +7025,6 @@ button.table-more {
 }
 .matches-head h1 {
   margin: 0;
-}
-.matches-page {
-  max-width: 40rem;
-  margin-inline: auto;
 }
 .matches-label {
   margin: var(--space-5) 0 var(--space-2);
@@ -7361,7 +7341,7 @@ a.phone-head-btn {
 .thread-preview-msg p {
   margin: 0;
   padding: 0.45rem 0.75rem;
-  border-radius: 1rem;
+  border-radius: var(--radius);
   background: var(--soft);
 }
 .thread-preview-msg.is-mine {
@@ -7486,7 +7466,7 @@ a.phone-head-btn {
   width: max-content;
   max-width: 18rem;
   padding: 0.4rem 0.6rem;
-  border-radius: 0.6rem;
+  border-radius: var(--radius-sm);
   background: var(--card);
   box-shadow: var(--shadow);
   color: var(--bad-text);
@@ -7518,7 +7498,7 @@ a.phone-head-btn {
   gap: 0.7rem;
   align-items: flex-start;
   padding: 0.6rem 0.8rem;
-  border-radius: 0.8rem;
+  border-radius: var(--radius-md);
   background: var(--soft);
 }
 .after-dark-line > p {
@@ -7579,7 +7559,7 @@ a.phone-head-btn {
 .after-dark-gallery img,
 .after-dark-gallery video {
   width: 100%;
-  border-radius: 0.8rem;
+  border-radius: var(--radius-md);
 }
 .after-dark-settings {
   display: grid;
@@ -7597,7 +7577,7 @@ a.phone-head-btn {
   --ad-accent: #c792ff;
   padding: var(--space-5) var(--space-4);
   min-height: 70vh;
-  border-radius: 1rem;
+  border-radius: var(--radius);
   background: var(--ad-bg);
   color: var(--ad-ink);
   color-scheme: dark;
@@ -7723,7 +7703,7 @@ a.phone-head-btn {
   overflow-y: auto;
   padding: var(--space-3);
   border: 1px solid var(--accent);
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   background: rgba(16, 8, 22, 0.92);
   color: #f4ecff;
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.6);
@@ -7745,7 +7725,7 @@ a.phone-head-btn {
   width: min(24rem, calc(100% - 32px));
   padding: var(--space-4);
   border: 1px solid var(--accent);
-  border-radius: 14px;
+  border-radius: var(--radius-md);
   background: rgba(16, 8, 22, 0.9);
   color: #f4ecff;
   text-align: center;
@@ -7787,7 +7767,7 @@ a.phone-head-btn {
   margin: 0 0 var(--space-3);
   padding: var(--space-3);
   border: 1px solid var(--accent);
-  border-radius: 12px;
+  border-radius: var(--radius-md);
 }
 .ad-ready-card.ok {
   border-color: rgba(120, 220, 160, 0.6);
@@ -7841,7 +7821,7 @@ a.phone-head-btn {
   resize: vertical;
   padding: 6px 8px;
   border: 1px solid rgba(203, 184, 224, 0.35);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: rgba(255, 255, 255, 0.06);
   color: inherit;
   font: inherit;
@@ -7866,7 +7846,7 @@ a.phone-head-btn {
   margin-top: var(--space-2);
   padding: var(--space-2);
   border: 1px solid var(--line, rgba(203, 184, 224, 0.3));
-  border-radius: 10px;
+  border-radius: var(--radius-md);
 }
 @media (max-width: 720px) {
   /* #1155: on a phone it sits at the top and stops short of the bar, so Next (which answers it "later") stays in reach. */
@@ -7884,7 +7864,7 @@ a.phone-head-btn {
   margin: var(--space-2) 0;
   padding: 0.35rem 0.6rem;
   border: 1px solid #33264d;
-  border-radius: 0.4rem;
+  border-radius: var(--radius-sm);
   background: rgba(10, 5, 18, 0.5);
   color: #f1e9ff;
   font-size: var(--text-sm);
@@ -7899,7 +7879,7 @@ a.phone-head-btn {
   align-items: center;
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--accent);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
 }
 .ad-theater-bar {
   position: absolute;
@@ -7940,7 +7920,7 @@ a.phone-head-btn {
   width: min(24rem, calc(100vw - 2rem));
   padding: var(--space-3) var(--space-4);
   border: 1px solid #33264d;
-  border-radius: 0.6rem;
+  border-radius: var(--radius-sm);
   background: rgba(18, 10, 28, 0.96);
   color: #f1e9ff;
   font-size: var(--text-sm);
@@ -7978,13 +7958,13 @@ a.phone-head-btn {
   width: min(20rem, calc(100vw - 2rem));
   padding: var(--space-3);
   border: 1px solid #33264d;
-  border-radius: 0.6rem;
+  border-radius: var(--radius-sm);
   background: rgba(18, 10, 28, 0.98);
   color: #f1e9ff;
 }
 .ad-scene-match-pop img {
   width: 100%;
-  border-radius: 0.5rem;
+  border-radius: var(--radius-sm);
   display: block;
 }
 .ad-scene-match-note {
@@ -8056,7 +8036,7 @@ a.phone-head-btn {
   margin: auto;
   padding: var(--space-4);
   border: 1px solid #33264d;
-  border-radius: 0.75rem;
+  border-radius: var(--radius-md);
   background: rgba(18, 10, 28, 0.98);
   color: #f1e9ff;
 }
@@ -8087,7 +8067,7 @@ a.phone-head-btn {
   display: flex;
   flex-direction: column;
   border: 1px solid #2c2142;
-  border-radius: 0.6rem;
+  border-radius: var(--radius-sm);
   overflow: hidden;
   background: rgba(10, 5, 18, 0.6);
 }
@@ -8131,7 +8111,7 @@ a.phone-head-btn {
   margin: 0;
   padding: 0.1rem 0.45rem;
   border: 0;
-  border-radius: 0.4rem;
+  border-radius: var(--radius-sm);
   font-size: 0.72rem;
   font-weight: 600;
   text-decoration: none;
@@ -8163,7 +8143,7 @@ a.phone-head-btn {
   width: 100%;
   padding: 0.3rem 0.5rem;
   border: 1px solid #33264d;
-  border-radius: 0.35rem;
+  border-radius: var(--radius-xs);
   background: rgba(10, 5, 18, 0.5);
   color: #f1e9ff;
   font-size: 0.8rem;
@@ -8248,7 +8228,7 @@ a.phone-head-btn {
   align-items: flex-start;
   padding: 0.45rem 0.55rem;
   border: 1px solid transparent;
-  border-radius: 0.5rem;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   font-size: var(--text-sm);
   line-height: 1.45;
@@ -8381,7 +8361,7 @@ a.phone-head-btn {
   height: 6px;
   margin: 0;
   border: 0;
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
   padding: 0;
   background: var(--line);
   cursor: pointer;
@@ -8424,7 +8404,7 @@ a.phone-head-btn {
   margin: 0;
   padding: 0;
   border: 2px solid var(--line);
-  border-radius: 14px;
+  border-radius: var(--radius-md);
   background: var(--paper-2);
   color: var(--ink);
   font: inherit;
@@ -8498,7 +8478,7 @@ a.phone-head-btn {
   min-width: 48px;
   min-height: 48px;
   border: 2px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   background: var(--card);
   color: var(--ink);
   font: inherit;
@@ -8661,7 +8641,7 @@ a.phone-head-btn {
 .review-stars label:has(input:focus-visible) {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
 }
 /* Set the scene on the filming stage (GeneratingPoller.tsx): the same bar as After Dark's, on the show's stage. */
 .theater-filming .set-scene-bar {
@@ -8697,7 +8677,7 @@ a.phone-head-btn {
   width: 100%;
   aspect-ratio: 3 / 4;
   object-fit: cover;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
 }
 .season-candidate.is-rejected {
   opacity: 0.5;
@@ -8745,7 +8725,7 @@ a.phone-head-btn {
 @media (max-width: 600px) {
   .segmented {
     width: 100%;
-    border-radius: 14px;
+    border-radius: var(--radius-md);
     flex-wrap: nowrap;
   }
   .segmented-tab {
@@ -8755,7 +8735,7 @@ a.phone-head-btn {
     gap: 0;
     min-height: 48px;
     padding: 0.3rem 0.4rem;
-    border-radius: 10px;
+    border-radius: var(--radius-md);
     white-space: normal;
     text-align: center;
     line-height: 1.15;
@@ -8900,7 +8880,7 @@ a.phone-head-btn {
   width: min(92%, 820px);
   margin: 0;
   padding: 0.4rem 0.8rem;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: rgba(10, 6, 18, 0.72);
   color: #fff;
   text-align: center;
@@ -9116,7 +9096,7 @@ a.phone-head-btn {
 }
 .ad-face-pic {
   width: min(100%, 14rem);
-  border-radius: 0.8rem;
+  border-radius: var(--radius-md);
 }
 .ad-face-actions {
   display: flex;
@@ -9137,7 +9117,7 @@ a.phone-head-btn {
 }
 .ad-face-choices img {
   width: 100%;
-  border-radius: 0.6rem;
+  border-radius: var(--radius-sm);
 }
 .ad-face-choices button {
   padding-inline: 0.3rem;
@@ -9212,7 +9192,7 @@ a.phone-head-btn {
   min-height: 2.2rem;
   padding: 0.35rem 0.8rem;
   border: 1px solid var(--ad-line, var(--line));
-  border-radius: 1rem;
+  border-radius: var(--radius);
   background: var(--ad-card, var(--card));
   color: var(--ad-ink, var(--ink));
   box-shadow: none;
@@ -9313,7 +9293,7 @@ a.phone-head-btn {
   min-width: 0;
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--ad-line, var(--line));
-  border-radius: 0.8rem;
+  border-radius: var(--radius-md);
   background: var(--ad-card, var(--card));
 }
 .ad-panel > summary {
@@ -9346,7 +9326,7 @@ a.phone-head-btn {
   gap: 0.2rem 0.4rem;
   align-items: baseline;
   padding: 0.35rem 0.6rem;
-  border-radius: 0.6rem;
+  border-radius: var(--radius-sm);
   border: 1px solid transparent;
 }
 .ad-intensity label.chosen {
@@ -9425,7 +9405,7 @@ a.phone-head-btn {
   margin-top: var(--space-2);
   padding: 0.35rem 0.6rem;
   border: 1px solid #33264d;
-  border-radius: 0.4rem;
+  border-radius: var(--radius-sm);
   background: rgba(10, 5, 18, 0.5);
   color: #f1e9ff;
   font-size: var(--text-sm);
@@ -9435,7 +9415,7 @@ a.phone-head-btn {
   width: 100%;
   padding: 0.5rem 0.65rem;
   border: 1px solid #4a3a6a;
-  border-radius: 0.5rem;
+  border-radius: var(--radius-sm);
   background: rgba(10, 5, 18, 0.6);
   color: #f1e9ff;
   font-size: var(--text-sm);
@@ -9480,7 +9460,7 @@ a.phone-head-btn {
   width: 100%;
   aspect-ratio: 3 / 4;
   object-fit: cover;
-  border-radius: 0.5rem;
+  border-radius: var(--radius-sm);
   background: #000;
 }
 .ad-studio-item-tools {
@@ -9504,7 +9484,7 @@ a.phone-head-btn {
   place-items: center;
   aspect-ratio: 3 / 4;
   border: 1px dashed var(--ad-line, var(--line));
-  border-radius: 0.5rem;
+  border-radius: var(--radius-sm);
   padding: var(--space-3);
   text-align: center;
   font-size: var(--text-sm);
@@ -9527,7 +9507,7 @@ a.phone-head-btn {
   margin-top: var(--space-2);
   padding: var(--space-2);
   border: 1px solid var(--ad-line, var(--line));
-  border-radius: 0.5rem;
+  border-radius: var(--radius-sm);
 }
 .ad-studio-share select {
   max-width: 100%;
@@ -9548,7 +9528,7 @@ a.phone-head-btn {
   width: 100%;
   aspect-ratio: 3 / 4;
   object-fit: cover;
-  border-radius: 0.5rem;
+  border-radius: var(--radius-sm);
   background: #000;
 }
 /* A clip's own (native) full-screen button must show it whole, not the tile's cover-crop (David, 2026-10-25: a vertical
@@ -9572,7 +9552,7 @@ a.phone-head-btn {
   display: grid;
   place-items: center;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: rgba(10, 6, 18, 0.6);
   color: #fff;
   font-size: 1.05rem;
@@ -9612,7 +9592,7 @@ a.phone-head-btn {
   width: auto;
   height: auto;
   object-fit: contain;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
 }
 .ad-lightbox-close {
   position: absolute;
@@ -9659,7 +9639,7 @@ a.phone-head-btn {
   width: 4.5rem;
   aspect-ratio: 3 / 4;
   object-fit: cover;
-  border-radius: 0.5rem;
+  border-radius: var(--radius-sm);
   background: #000;
   padding: 0;
   font-size: 0.7rem;
@@ -9684,7 +9664,7 @@ a.phone-head-btn {
   margin: 0;
   padding: 0;
   border: 2px solid var(--ad-line, var(--line));
-  border-radius: 0.6rem;
+  border-radius: var(--radius-sm);
   background: var(--ad-card, var(--card));
   color: #fff;
   box-shadow: none;
@@ -9708,7 +9688,7 @@ a.phone-head-btn {
 .ad-tile-row > .ad-chip {
   min-height: 0;
   aspect-ratio: 4 / 5;
-  border-radius: 0.6rem;
+  border-radius: var(--radius-sm);
 }
 .ad-tile.on {
   border-color: #ff9f80;
@@ -9909,7 +9889,7 @@ html.ad-studio-locked {
   gap: 0.3rem 0.5rem;
   align-items: center;
   padding: 0.35rem 0.5rem;
-  border-radius: 0.6rem;
+  border-radius: var(--radius-sm);
   background: var(--soft);
   font-size: var(--text-sm);
 }
@@ -9949,7 +9929,7 @@ html.ad-studio-locked {
   gap: 0.35rem;
   align-content: start;
   padding: var(--space-2) var(--space-3);
-  border-radius: 0.7rem;
+  border-radius: var(--radius-md);
   border: 1px solid var(--ad-line, var(--line));
   background: var(--soft);
 }
@@ -10705,7 +10685,7 @@ html.theater-lock body {
 /* ---------------- the episode page (app/episodes/[id]/page.tsx, 2026-10-21) ----------------
    A hero with the venue's photo behind the pair and the setting, the way to watch on it; then one reading column. */
 main:has(> .episode-page) {
-  max-width: 68rem;
+  max-width: var(--page-wide);
 }
 .episode-hero {
   position: relative;
@@ -10721,7 +10701,7 @@ main:has(> .episode-page) {
 @media (min-width: 761px) {
   .episode-hero {
     margin: 0 0 var(--space-6, 2rem);
-    border-radius: 22px;
+    border-radius: var(--radius-lg);
     overflow: hidden;
     box-shadow: 0 18px 50px -24px rgba(20, 8, 30, 0.55);
   }
@@ -10819,7 +10799,7 @@ main:has(> .episode-page) {
 @media (min-width: 761px) {
   .episode-prev {
     margin: 0 0 var(--space-3);
-    border-radius: 14px;
+    border-radius: var(--radius-md);
   }
 }
 /* An episode's title on a list row: the billing, not another badge. */
@@ -11049,7 +11029,7 @@ html.constellation-locked body {
   padding: 0;
   flex-shrink: 0;
   border: 1px solid var(--constellation-line);
-  border-radius: 0.6rem;
+  border-radius: var(--radius-sm);
   background: rgba(255, 255, 255, 0.06);
   color: var(--constellation-label);
   font-size: 1.15rem;
@@ -11302,7 +11282,7 @@ html.constellation-locked body {
   text-align: left;
   padding: var(--space-2) var(--space-3);
   border: 1px dashed color-mix(in srgb, var(--accent) 40%, var(--line));
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--paper-2) 60%, var(--card));
   color: var(--accent-text);
   font-size: var(--text-sm);
@@ -11377,7 +11357,7 @@ html.constellation-locked body {
     padding: 0 0.9rem;
     flex-shrink: 0;
     border: 1px solid var(--constellation-line);
-    border-radius: 0.6rem;
+    border-radius: var(--radius-sm);
     background: rgba(255, 255, 255, 0.06);
     color: var(--constellation-label);
     font-size: var(--text-sm);
@@ -11486,7 +11466,7 @@ section:has(> .ad-pairs) {
 .ad-pictures video,
 .ad-pictures img {
   width: 100%;
-  border-radius: 0.5rem;
+  border-radius: var(--radius-sm);
   background: #000;
 }
 /* The After Dark library (lib/adult/library.ts): filters, a grid of cards, stars, pages. */
@@ -11512,7 +11492,7 @@ section:has(> .ad-pairs) {
   width: 100%;
   aspect-ratio: 3 / 4;
   object-fit: cover;
-  border-radius: 0.5rem;
+  border-radius: var(--radius-sm);
   background: #000;
 }
 .ad-library-item .ad-shots {
@@ -11578,11 +11558,12 @@ section:has(> .ad-pairs) {
   font-weight: 700;
 }
 
-/* Room rows on desktop: a grid of three a page, no sideways scroll (app/watch/StripPager.tsx; phones keep the strip). */
+/* Room rows on desktop: a grid, its first row and "Show all N" (app/watch/StripPager.tsx); a phone keeps the strip,
+   every card in it, and needs no button. */
 .strip-item > * {
   height: 100%;
 }
-.strip-pager {
+.strip-more {
   display: none;
 }
 @media (min-width: 721px) {
@@ -11594,8 +11575,9 @@ section:has(> .ad-pairs) {
   .watch-strip.strip-paged > .off-page {
     display: none;
   }
-  .strip-pager {
-    display: block;
+  .strip-more {
+    display: inline-flex;
+    margin: 0 0 var(--space-2);
   }
 }
 
@@ -11746,7 +11728,7 @@ a.char-name-link:focus-visible {
   right: 0;
   top: 9px;
   height: 6px;
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
   background: var(--line);
 }
 .looks-dots button.done::before {
@@ -11956,7 +11938,7 @@ details > summary.small {
   margin: auto;
   padding: var(--space-4);
   border: 1px solid #33264d;
-  border-radius: 0.75rem;
+  border-radius: var(--radius-md);
   background: rgba(18, 10, 28, 0.98);
   color: #f1e9ff;
   text-align: left;
@@ -11997,7 +11979,7 @@ details > summary.small {
   padding: var(--space-2) var(--space-3);
   max-height: 22rem;
   overflow: auto;
-  border-radius: 0.5rem;
+  border-radius: var(--radius-sm);
   background: #0c0714;
   color: #e9dfff;
   font-size: var(--text-xs);
@@ -12047,7 +12029,7 @@ details > summary.small {
   margin: 0;
   padding: 0;
   border: 2px solid transparent;
-  border-radius: 0.4rem;
+  border-radius: var(--radius-sm);
   background: none;
   overflow: hidden;
 }
@@ -12101,7 +12083,7 @@ details > summary.small {
   align-items: center;
   padding: 0.1rem 0.5rem;
   border: 1px solid var(--ad-line, #33264d);
-  border-radius: 1rem;
+  border-radius: var(--radius);
   font-size: var(--text-xs);
 }
 .ad-media-tag.is-manual {
@@ -12125,7 +12107,7 @@ details > summary.small {
   right: 0.2rem;
   bottom: 0.2rem;
   padding: 0 0.25rem;
-  border-radius: 0.3rem;
+  border-radius: var(--radius-xs);
   background: rgba(8, 4, 14, 0.8);
   color: #f1e9ff;
   font-size: 0.65rem;
@@ -12152,7 +12134,7 @@ details > summary.small {
   width: 3rem;
   height: 4rem;
   object-fit: cover;
-  border-radius: 0.4rem;
+  border-radius: var(--radius-sm);
   flex: none;
 }
 /* What a tile shows, from its tags (lib/adult/tag-labels.ts): "Going down · Movie theater · POV". */
@@ -12443,7 +12425,7 @@ button.pg-group-head:hover {
   margin: 0;
   padding: 0.35rem;
   border: 1.5px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   background: var(--card, #fff);
 }
 .choose-picture-grid li.is-current {
@@ -12454,7 +12436,7 @@ button.pg-group-head:hover {
   width: 100%;
   aspect-ratio: 3 / 4;
   object-fit: cover;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
 }
 .choose-picture-tools {
   display: flex;
@@ -12571,7 +12553,7 @@ button.thread-menu-item {
   margin: 0;
   padding: 0.45rem 0.7rem;
   border: 0;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: none;
   box-shadow: none;
   color: var(--ink);
@@ -12729,7 +12711,7 @@ button.thread-menu-item:hover:not(:disabled) {
 /* /about: the stack, one card per thing. */
 .about-stack-toc { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; padding: 0; list-style: none; }
 .about-stack-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 0.75rem; padding: 0; list-style: none; }
-.about-stack-grid li { display: flex; flex-direction: column; gap: 0.25rem; padding: 0.75rem 0.9rem; border: 1px solid var(--line); border-radius: 10px; }
+.about-stack-grid li { display: flex; flex-direction: column; gap: 0.25rem; padding: 0.75rem 0.9rem; border: 1px solid var(--line); border-radius: var(--radius-md); }
 .about-stack-grid li span { font-size: 0.92em; opacity: 0.85; }
 
 /* ---------------- roleplays on dates (app/RoleplayPicker.tsx, the couple page's RoleplayCard) ---------------- */
@@ -12788,7 +12770,7 @@ button.thread-menu-item:hover:not(:disabled) {
   width: 100%;
   height: 100%;
   padding: 0.6rem 0.75rem;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   line-height: 1.35;
 }
 .rp-tile-title {
@@ -12820,7 +12802,7 @@ button.thread-menu-item:hover:not(:disabled) {
   margin: 0;
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--radius-md);
 }
 .rp-own-roles {
   display: grid;
@@ -13276,7 +13258,7 @@ button.thread-menu-item:hover:not(:disabled) {
 .chat-thought p {
   margin: 0 0 var(--space-1);
   padding: 0.35rem 0.6rem;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   border: 1px dashed var(--line, rgba(127, 127, 127, 0.4));
   color: var(--muted);
   font-style: italic;
@@ -13354,7 +13336,7 @@ button.thread-menu-item:hover:not(:disabled) {
 }
 .cast-secrets-list li {
   padding: 0.5rem 0.75rem;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: var(--paper-2);
   border: 1px solid var(--line);
 }
@@ -13370,7 +13352,7 @@ button.thread-menu-item:hover:not(:disabled) {
 .tonight-band {
   margin: 0 0 var(--space-4);
   padding: var(--space-3) var(--space-4) var(--space-4);
-  border-radius: 22px;
+  border-radius: var(--radius-lg);
   background:
     radial-gradient(120% 150% at 85% -30%, rgba(229, 53, 107, 0.3), transparent 60%),
     linear-gradient(160deg, #241131, #140a1e 70%);
@@ -13424,7 +13406,7 @@ button.thread-menu-item:hover:not(:disabled) {
   height: 100%;
   padding: var(--space-3);
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 14px;
+  border-radius: var(--radius-md);
   background: rgba(255, 255, 255, 0.06);
   color: #fff;
   text-decoration: none;
@@ -13735,7 +13717,7 @@ button.thread-menu-item:hover:not(:disabled) {
   gap: 0.25rem;
   padding: 0.5rem 0.6rem;
   border: 1.5px solid var(--line);
-  border-radius: 14px;
+  border-radius: var(--radius-md);
   background: var(--card);
   color: var(--ink);
   cursor: pointer;

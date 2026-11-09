@@ -13,11 +13,11 @@ export const metadata: Metadata = { title: "Showcase requests", robots: { index:
 export default async function RequestsPage() {
   const id = userIdFromCookieStore(await cookies());
   return (
-    <main className="showcase-page">
+    <div className="showcase-page page-wide">
       <h1>Showcase requests</h1>
       <p className="muted">Someone wants to publish a picture or clip with one of your characters in it. Nothing goes up without your OK.</p>
       {id ? <Requests initial={await myRequests(await getDb(), id)} /> : <p><Link href="/account">Sign in</Link> to see what&apos;s waiting on you.</p>}
       <p><Link href="/showcase">Back to the showcase</Link></p>
-    </main>
+    </div>
   );
 }

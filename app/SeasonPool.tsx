@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { countdown } from "@/lib/countdown";
 import { ordinal, type PoolBoard, type PoolStanding } from "@/lib/season-pool";
+import Icon from "@/app/Icon";
 
 /** A revealed season pool (lib/season-pool.ts): its top places, ties sharing one, and the viewer's own line. */
 export function PoolBoardList({ board, link = true }: { board: PoolBoard; link?: boolean }) {
@@ -42,7 +43,9 @@ export default function SeasonPoolPanel({ standing, revealed, now }: { standing:
   if (!standing && !revealed) return null;
   return (
     <section className="watch-section season-pool" id="season-pool" aria-labelledby="season-pool-head">
-      <h2 id="season-pool-head">🏆 The season pool</h2>
+      <h2 id="season-pool-head">
+        <Icon name="trophy" /> The season pool
+      </h2>
       {revealed && (
         <>
           <p className="small">

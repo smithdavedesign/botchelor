@@ -21,7 +21,7 @@ export default async function DoubleInvitePage({ params }: { params: Promise<{ i
   const view = await inviteView(await getDb(), viewerId, id);
   if (!view) notFound();
   return (
-    <main className="page-narrow">
+    <div className="page-narrow">
       <h1>💞💞 A double date</h1>
       <p>
         <strong>{view.couple_a.join(" × ")}</strong> want a double date with <strong>{view.couple_b.join(" × ")}</strong>: two couples, one table,
@@ -47,6 +47,6 @@ export default async function DoubleInvitePage({ params }: { params: Promise<{ i
       <p>
         <Link href="/matches">Back to Matches</Link>
       </p>
-    </main>
+    </div>
   );
 }

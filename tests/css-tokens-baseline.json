@@ -1,0 +1,271 @@
+{
+  "app/after-dark/discreet.css": {
+    "hex": {
+      "#f1e9ff": 1
+    },
+    "font-size": {
+      "0.8rem": 1
+    }
+  },
+  "app/after-dark/shorts/shorts.module.css": {
+    "hex": {
+      "#1d1430": 1,
+      "#fff": 1
+    },
+    "font-size": {
+      "0.8rem": 1,
+      "1.05rem": 1
+    }
+  },
+  "app/globals.css": {
+    "font-size": {
+      "0.65rem": 2,
+      "0.72rem": 1,
+      "0.75em": 1,
+      "0.75rem": 1,
+      "0.7rem": 3,
+      "0.82rem": 1,
+      "0.85rem": 5,
+      "0.8rem": 3,
+      "0.92em": 1,
+      "0.92rem": 1,
+      "0.94rem": 1,
+      "0.95rem": 1,
+      "0.9em": 1,
+      "0.9rem": 2,
+      "1.05rem": 3,
+      "1.15rem": 5,
+      "1.1rem": 3,
+      "1.25rem": 3,
+      "1.2rem": 3,
+      "1.3rem": 1,
+      "1.4rem": 2,
+      "1.5rem": 2,
+      "1.6rem": 4,
+      "1.7rem": 1,
+      "11px": 1,
+      "1rem": 12,
+      "2.4rem": 1,
+      "2rem": 2,
+      "3px": 1,
+      "clamp(0.84rem, 0.78rem + 1cqi, 0.95rem)": 1,
+      "clamp(1.05rem, 2.4vw, 1.3rem)": 1,
+      "clamp(1.1rem, 2.5vw, 1.6rem)": 1,
+      "clamp(1.2rem, 3vw, 2.1rem)": 1,
+      "clamp(1.2rem, 3vw, 2rem)": 1,
+      "clamp(1.75rem, 8vw, 2.75rem)": 1,
+      "clamp(2rem, 6vw, 2.75rem)": 1,
+      "clamp(2rem, 6vw, 3.1rem)": 1,
+      "clamp(2rem, 6vw, 3.4rem)": 1,
+      "clamp(3rem, 10vw, 4.5rem)": 1,
+      "max(16px, 1em)": 1
+    },
+    "radius": {
+      "1.25rem": 1,
+      "1.6rem": 1,
+      "18px 18px 18px 6px": 1,
+      "1px": 1,
+      "2.1rem": 1,
+      "2.45rem": 1,
+      "2.5rem": 1,
+      "20px 20px 0 0": 2,
+      "2px": 1,
+      "3rem": 1
+    },
+    "hex": {
+      "#000": 15,
+      "#0c0714": 1,
+      "#0c0810": 1,
+      "#0f0818": 1,
+      "#10091c": 1,
+      "#120c1c": 1,
+      "#140a1c": 1,
+      "#140a1e": 3,
+      "#140c1a": 1,
+      "#1d1030": 2,
+      "#1d1430": 2,
+      "#221628": 1,
+      "#241022": 1,
+      "#241131": 2,
+      "#241133": 1,
+      "#2b1640": 1,
+      "#2c2142": 1,
+      "#33264d": 11,
+      "#4a3a6a": 1,
+      "#6a5a7f": 4,
+      "#7a4fd6": 1,
+      "#888": 1,
+      "#8ff0b0": 2,
+      "#b7a8d3": 2,
+      "#b9a8d6": 1,
+      "#c792ff": 4,
+      "#c9a2ff": 4,
+      "#c9b8e8": 1,
+      "#cbb8e0": 4,
+      "#cdbce6": 3,
+      "#e2c8ff": 3,
+      "#e9dfff": 1,
+      "#f1e9ff": 17,
+      "#f4c430": 1,
+      "#f4ecff": 2,
+      "#f5b301": 1,
+      "#f5e9ff": 1,
+      "#ff4d79": 2,
+      "#ff9f80": 4,
+      "#ff9f9f": 3,
+      "#ffb3d9": 1,
+      "#ffb4b4": 1,
+      "#ffd1e0": 1,
+      "#ffd2c4": 1,
+      "#ffd2dc": 1,
+      "#fff": 35,
+      "#ffffff": 1
+    }
+  },
+  "app/showcase/reels/reels.module.css": {
+    "hex": {
+      "#000": 1,
+      "#07050b": 2,
+      "#1a0f22": 3,
+      "#2a0f33": 1,
+      "#6b2a6e": 1,
+      "#b0306a": 1,
+      "#fff": 10
+    },
+    "font-size": {
+      "0.6rem": 1,
+      "0.7rem": 2,
+      "0.85rem": 2,
+      "0.95rem": 2,
+      "0.9rem": 2,
+      "1.15rem": 1,
+      "1.3rem": 1,
+      "1.6rem": 1
+    },
+    "radius": {
+      "18px 18px 0 0": 1
+    }
+  },
+  "app/ux/after-dark.css": {
+    "font-size": {
+      "0.72em": 1,
+      "0.72rem": 1,
+      "0.75rem": 2,
+      "0.85rem": 5,
+      "0.8rem": 4,
+      "0.95rem": 2,
+      "1.15rem": 1,
+      "1.1rem": 1,
+      "1.6rem": 1,
+      "2rem": 1
+    },
+    "hex": {
+      "#000": 5,
+      "#120c1c": 3,
+      "#14091f": 1,
+      "#140c20": 2,
+      "#1b1129": 4,
+      "#2c2044": 4,
+      "#33264d": 11,
+      "#3a2b57": 2,
+      "#3b1f5e": 1,
+      "#4a3a6a": 1,
+      "#6b2348": 1,
+      "#9d8dba": 3,
+      "#b7a8d3": 4,
+      "#c792ff": 2,
+      "#c9a2ff": 1,
+      "#c9b9e6": 2,
+      "#d8b8ff": 1,
+      "#e2c8ff": 2,
+      "#e6dcf7": 2,
+      "#f1e9ff": 14,
+      "#ffb4c8": 1,
+      "#fff": 9
+    }
+  },
+  "app/ux/agents-footer.css": {
+    "font-size": {
+      "0.72rem": 1,
+      "1.1rem": 1,
+      "1.25rem": 1
+    },
+    "hex": {
+      "#fff": 1
+    }
+  },
+  "app/ux/companion.css": {
+    "font-size": {
+      "0.95rem": 1,
+      "1.15rem": 1,
+      "1.6rem": 1,
+      "1rem": 1
+    },
+    "hex": {
+      "#fff": 2
+    }
+  },
+  "app/ux/create.css": {
+    "font-size": {
+      "2.6rem": 1
+    }
+  },
+  "app/ux/filters.css": {
+    "font-size": {
+      "2rem": 1
+    }
+  },
+  "app/ux/front.css": {
+    "hex": {
+      "#241022": 1,
+      "#8a6f86": 1,
+      "#fff": 5
+    },
+    "radius": {
+      "16px 16px 16px 4px": 2,
+      "16px 16px 4px 16px": 2
+    }
+  },
+  "app/ux/seasons.css": {
+    "hex": {
+      "#140a1e": 1,
+      "#241131": 1
+    }
+  },
+  "app/ux/show.css": {
+    "font-size": {
+      "1.5rem": 2
+    }
+  },
+  "app/ux/showcase.css": {
+    "font-size": {
+      "0.65rem": 1,
+      "0.7rem": 1,
+      "0.8rem": 1,
+      "1rem": 1
+    },
+    "hex": {
+      "#fff": 4
+    }
+  },
+  "app/ux/step-in.css": {
+    "font-size": {
+      "1rem": 1,
+      "clamp(1.6rem, 4vw, 2.3rem)": 1
+    },
+    "hex": {
+      "#ffd1dc": 1,
+      "#fff": 1
+    }
+  },
+  "app/ux/studio-media.css": {
+    "font-size": {
+      "0.72rem": 1,
+      "0.75rem": 1,
+      "0.82rem": 1,
+      "1.4rem": 1,
+      "1.5rem": 1,
+      "2.6rem": 1
+    }
+  }
+}

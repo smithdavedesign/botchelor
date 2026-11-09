@@ -528,7 +528,10 @@ describe("the modal, the button and the footer link (markup)", () => {
     expect(typeof FLOATING_FEEDBACK_BUTTON).toBe("boolean");
     const page = renderToStaticMarkup(createElement(FeedbackDock));
     expect(page).toContain('class="feedback-dialog"');
-    if (FLOATING_FEEDBACK_BUTTON) expect(page).toMatch(/<button[^>]*class="feedback-fab"[^>]*aria-haspopup="dialog"[^>]*>.*Feedback<\/button>/);
+    // A round icon button that says "Feedback" when pointed at or focused (2026-11-08 UI audit, item 13). The word stays
+    // in the button, clipped rather than hidden, so it's still the button's name.
+    if (FLOATING_FEEDBACK_BUTTON)
+      expect(page).toMatch(/<button[^>]*class="feedback-fab"[^>]*aria-haspopup="dialog"[^>]*><svg class="icon feedback-fab-icon"[^>]*aria-hidden="true">.*?<\/svg><span class="feedback-fab-label">Feedback<\/span><\/button>/);
     nav.pathname = "/gate";
     expect(renderToStaticMarkup(createElement(FeedbackDock))).toBe("");
   });

@@ -789,6 +789,69 @@ export async function listAiredPage(db: Db, viewerId: string | null, page = 1, p
   return { episodes: rows.map(toView), page, pages, total, per_page: perPage };
 }
 
+/** One entry of Watch's latest list and home's Just aired: a date, or a whole mixer night (the tables of it you may see). */
+export type FeedItem =
+  | { kind: "episode"; episode: EpisodeView }
+  | { kind: "mixer"; night_id: string; venue: string | null; episodes: EpisodeView[] };
+
+export type FeedPage = { items: FeedItem[]; page: number; pages: number; total: number; per_page: number };
+
+/**
+ * listAiredPage with a mixer night as ONE entry (2026-11-08 UI audit, item 2: a single night's nine tables filled Watch
+ * with the same rooftop and nine "Golden Hour" titles). The same dates and filters (public, ready, not hidden, not the
+ * viewer's own, nobody they blocked), but a mixer's tables share one key, so a page is `perPage` entries, a night is
+ * placed by its newest table and brings every table of it on the list, in the order they aired. A night with only one
+ * table left to show reads as that date.
+ */
+export async function listAiredFeed(db: Db, viewerId: string | null, page = 1, perPage = WATCH_PAGE_SIZE): Promise<FeedPage> {
+  const keyed = `select e.id, e.revealed_at, e.created_at,
+           case when gn.kind = 'mixer' then 'n:' || gn.id else 'e:' || e.id end as item
+      from episodes e
+      join characters a on a.id = e.character_a
+      join characters b on b.id = e.character_b
+      cross join lateral (select count(*)::int as n from reports r where r.episode_id = e.id) rep
+      left join group_nights gn on gn.id = e.group_id
+     where ${PUBLIC_FEED_WHERE} and e.revealed_at is not null and ${NOT_THE_VIEWERS}`;
+  const total = (await db.query<{ n: number }>(`select count(distinct item)::int as n from (${keyed}) k`, [viewerId, REPORT_HIDE_THRESHOLD])).rows[0]?.n ?? 0;
+  const pages = Math.max(1, Math.ceil(total / perPage));
+  if (page > pages) return { items: [], page, pages, total, per_page: perPage };
+  const { rows: keys } = await db.query<{ id: string; item: string }>(
+    `with k as (${keyed}),
+          items as (
+            select item, max(revealed_at) as at, max(created_at) as made
+              from k
+             group by item
+             order by at desc, made desc, item
+             limit $3 offset $4)
+     select k.id, k.item
+       from k
+       join items on items.item = k.item
+      order by items.at desc, items.made desc, items.item, k.revealed_at, k.created_at, k.id`,
+    [viewerId, REPORT_HIDE_THRESHOLD, perPage, (page - 1) * perPage],
+  );
+  const ids = keys.map((k) => k.id);
+  const { rows } = ids.length ? await db.query<EpisodeRow>(`${EPISODE_SELECT} where e.id = any($3::text[])`, [viewerId, REPORT_HIDE_THRESHOLD, ids]) : { rows: [] as EpisodeRow[] };
+  const views = new Map(rows.map((r) => [r.id, toView(r)]));
+  const items: FeedItem[] = [];
+  const nights = new Map<string, Extract<FeedItem, { kind: "mixer" }>>();
+  for (const { id, item } of keys) {
+    const view = views.get(id);
+    if (!view) continue;
+    if (!item.startsWith("n:")) {
+      items.push({ kind: "episode", episode: view });
+      continue;
+    }
+    const night = nights.get(item);
+    if (night) night.episodes.push(view);
+    else {
+      const entry = { kind: "mixer" as const, night_id: item.slice(2), venue: view.venue ?? null, episodes: [view] };
+      nights.set(item, entry);
+      items.push(entry);
+    }
+  }
+  return { items: items.map((i) => (i.kind === "mixer" && i.episodes.length === 1 ? { kind: "episode", episode: i.episodes[0] } : i)), page, pages, total, per_page: perPage };
+}
+
 export type AiringSoon = EpisodeView & {
   /** When its finale airs on its own: its scheduled time, or its booking plus the prediction window. */
   airs_at: string;

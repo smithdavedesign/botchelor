@@ -689,7 +689,8 @@ export default function CreateWizard({
   const [pictureOpen, setPictureOpen] = useState(false);
   const [looksOpen, setLooksOpen] = useState(false);
   const livePreview = (
-    <div className={`wizard-preview${compactPreview ? " is-compact" : ""}`}>
+    // On a phone's first step the preview is only an empty "?" card above the first field: hidden there (UI audit, item 10).
+    <div className={`wizard-preview${compactPreview ? " is-compact" : ""}${!edit && step === S.identity ? " is-first" : ""}`}>
       <span className="wizard-preview-face">
         <Avatar seed={avatarSeed} name={sheet.name || created?.name || "?"} hue={hue} size={compactPreview ? 44 : 88} portraitSrc={portrait} />
         {/* Editing: the picture is changed from here, in a modal (B9), not from buttons in the middle of the Look step
@@ -777,12 +778,10 @@ export default function CreateWizard({
         <>
           <p className="kicker">Create</p>
           <h1>Build your character</h1>
+          {/* One line (2026-11-08 UI audit, item 10: five lines of intro pushed the first field off a phone's first screen;
+              that nobody steers a date is on the home page and in the questions). */}
           {step === S.identity && (
-            <p className="muted">
-              An original fictional adult. You give them a personality; an engine decides how their dates end, and nobody (not
-              even you) can steer them. Only who they are and a short dating profile are needed: the steps marked optional make
-              their dates better.
-            </p>
+            <p className="muted wizard-intro">An original fictional adult. Only who they are and a short dating profile are needed; the rest is optional.</p>
           )}
         </>
       )}

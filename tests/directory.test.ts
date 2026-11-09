@@ -84,7 +84,10 @@ describe("the Characters hub's tabs", () => {
     setSeasonCastForTests(["house-juniper"]);
     const html = await render({ tab: "cast" });
     expect(html).toContain('<p class="muted small dir-basics">29 · she/her</p>');
-    expect(html).toContain("💼 Lighthouse keeper and podcaster · 📍 A rock off the Cornish coast");
+    // Drawn icons, not emoji (2026-11-08 UI audit, item 8): a briefcase and a pin, each fact its own piece.
+    expect(html).toMatch(
+      /<p class="small dir-job"><span class="dir-fact"><svg class="icon"[^>]*aria-hidden="true">.*?<\/svg> Lighthouse keeper and podcaster<\/span><span class="dir-fact"><svg class="icon"[^>]*aria-hidden="true">.*?<\/svg> A rock off the Cornish coast<\/span><\/p>/,
+    );
   });
 
   it("has a Make your character button at the top, on every tab", async () => {

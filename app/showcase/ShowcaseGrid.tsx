@@ -8,7 +8,7 @@ import AdminSide from "./AdminSide";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Post } from "@/lib/showcase";
-import { actLabel, placeLabel } from "@/lib/showcase-labels";
+import { actLabel, placeLabel, SHOW_HANDLE } from "@/lib/showcase-labels";
 
 const route = (p: Post) => `/api/showcase/${p.id}/media`;
 /** Where its file is (Post.media: After Dark's host straight away when the file is there), else the show's route. */
@@ -119,7 +119,13 @@ export default function ShowcaseGrid({ posts, admin = false, reels = "" }: { pos
                 {veiled && <span className="showcase-veil">After Dark · tap to show</span>}
               </button>
               <p className="showcase-by small">
-                <LikeButton postId={x.id} likes={x.likes} liked={x.liked} /> <Link href={`/creators/${x.creator.handle}`}>@{x.creator.handle}</Link> · {x.character.name}
+                <LikeButton postId={x.id} likes={x.likes} liked={x.liked} />{" "}
+                {x.creator.handle !== SHOW_HANDLE && (
+                  <>
+                    <Link href={`/creators/${x.creator.handle}`}>@{x.creator.handle}</Link> ·{" "}
+                  </>
+                )}
+                {x.character.name}
                 {x.partner ? ` & ${x.partner.name}` : ""}
               </p>
             </li>

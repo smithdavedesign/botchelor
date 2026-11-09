@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import FeedbackModal from "./FeedbackModal";
+import Icon from "./Icon";
 import { BETA_PROMPT_KEY, betaPromptDue, OPEN_FEEDBACK_EVENT, openFeedback, promptPathBlocked } from "@/lib/user-feedback-shared";
 
 /**
@@ -137,10 +138,10 @@ export default function FeedbackDock() {
     <>
       {FLOATING_FEEDBACK_BUTTON && (
         <button ref={fab} type="button" className="feedback-fab" aria-haspopup="dialog" onClick={show}>
-          <span className="feedback-fab-icon" aria-hidden="true">
-            💬
-          </span>
-          Feedback
+          {/* A 44px circle until it's pointed at or focused, then it says "Feedback" (2026-11-08 UI audit, item 13: the
+              full pill sat over the edge of the wide pages' cards). The word stays in the button for screen readers. */}
+          <Icon name="chat" className="feedback-fab-icon" />
+          <span className="feedback-fab-label">Feedback</span>
         </button>
       )}
       {/* Always in the page, so a screen reader hears the prompt when it arrives. */}

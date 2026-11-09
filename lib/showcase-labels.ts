@@ -8,6 +8,13 @@ import { PLACES } from "./adult/tag-labels";
 import { PG_GROUPS } from "./studio/pg-catalog";
 import { FORMATS } from "./studio/formats";
 
+/**
+ * The show's own creator handle (lib/showcase-loops.ts SHOW_CREATOR): its posts are the house's, so a tile names the
+ * character alone, not "@botchelor ·" on every one (2026-11-08 UI audit, item 11). Here, not there, so the client grid
+ * can read it.
+ */
+export const SHOW_HANDLE = "botchelor";
+
 export const actLabel = (id: string): string => ACTS.find((a) => a.id === id)?.label ?? id.replace(/_/g, " ");
 
 export function placeLabel(key: string): string {

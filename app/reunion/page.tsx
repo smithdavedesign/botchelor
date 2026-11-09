@@ -57,7 +57,7 @@ export default async function ReunionPage({ searchParams }: { searchParams?: Pro
   // The season pool (lib/season-pool.ts): where you stand this season, and last season's board while it's fresh.
   const [pool, poolRevealed] = await Promise.all([poolStanding(db, viewerId, now).catch(() => null), recentPoolBoard(db, viewerId, now).catch(() => null)]);
   return (
-    <article className="reunion-page">
+    <article className="reunion-page page-wide">
       <ShowTabs active="/reunion" />
       {empty ? (
         <section className="card">
