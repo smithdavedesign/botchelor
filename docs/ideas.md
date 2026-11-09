@@ -138,7 +138,7 @@ David asked whether to expand: let a person date a character themselves, and add
 - "Bot Island" is very close to *Love Island*, an ITV trademark, so pick a less direct name.
 - "Botchelor" already riffs on The Bachelor, so this is a matter of degree.
 
-**Status (2026-11-02):** built as a season format CONFIG, not a second show (#1269 + #1270, `lib/season-format.ts` + `lib/recoupling.ts`): slug `island` — villa venue pool, weekly recoupling nights with the viewer vote, final vote on next season's newcomer. Selectable per season on /admin/season; December stays unscheduled until David picks it. The public label lives in the config and is still the placeholder "an island season": the name is David's call (see the naming risk above).
+**Status (2026-11-02):** built as a season format CONFIG, not a second show (#1269 + #1270, `lib/season-format.ts` + `lib/recoupling.ts`): slug `island` — villa venue pool, weekly recoupling nights with the viewer vote, final vote on next season's newcomer. Selectable per season on /admin/season; December stays unscheduled until David picks it. The public name is **Bot Island** (David, 2026-11-09, knowing the naming note above); it's the format's title, label and announce line in the config.
 
 ### Order (2026-11-01)
 1. **This week, visitors:**
