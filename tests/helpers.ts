@@ -187,6 +187,8 @@ export async function startTestDb() {
         "language_seen",
         // Site engagement (lib/engagement.ts) and After Dark's invite requests (lib/adult/invites.ts).
         "web_events",
+        // The show's Discord (lib/discord.ts): what it posted, keyed by time slot, week and season.
+        "discord_posts",
         // Tonight's situation (lib/situations.ts): the house cast outlives a reset, so its nights would too.
         "situation_votes",
         "season_format_votes",

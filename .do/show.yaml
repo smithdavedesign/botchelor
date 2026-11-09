@@ -211,4 +211,26 @@ services:
         type: SECRET
         value: "CHANGE_ME"
         scope: RUN_AND_BUILD_TIME
+      # The show's Discord (docs/discord.md), off while these are CHANGE_ME. DISCORD_WEBHOOK_URL takes every post; the
+      # other three send their kind to a channel of its own (a CHANGE_ME one goes to DISCORD_WEBHOOK_URL). Each holds a
+      # webhook's token. DISCORD_INVITE_URL is the footer's invite: not a secret, so commit it here once it's made.
+      - key: DISCORD_WEBHOOK_URL
+        type: SECRET
+        value: "CHANGE_ME"
+        scope: RUN_TIME
+      - key: DISCORD_WEBHOOK_DROPS
+        type: SECRET
+        value: "CHANGE_ME"
+        scope: RUN_TIME
+      - key: DISCORD_WEBHOOK_VOTES
+        type: SECRET
+        value: "CHANGE_ME"
+        scope: RUN_TIME
+      - key: DISCORD_WEBHOOK_BOARD
+        type: SECRET
+        value: "CHANGE_ME"
+        scope: RUN_TIME
+      - key: DISCORD_INVITE_URL
+        value: "CHANGE_ME"
+        scope: RUN_TIME
       # Not set here: ADULT_MODE, AFTER_DARK_ONLY, GEO_HEADERS (only behind our own Cloudflare zone: lib/place.ts).

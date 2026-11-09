@@ -143,7 +143,7 @@ David asked whether to expand: let a person date a character themselves, and add
 ### Order (2026-11-01)
 1. **This week, visitors:**
    - the AI and MCP directory listings;
-   - switching on the Bluesky and Discord posters ([marketing-pipeline.md](marketing-pipeline.md));
+   - switching on the Bluesky poster ([marketing-pipeline.md](marketing-pipeline.md)) and the show's Discord ([discord.md](discord.md));
    - the first short videos.
 2. **Step into the date (E),** built small and measured. Does anyone use it, and does anyone pay?
 3. **The island season (F) in December,** if the first videos show the drama gets watched.

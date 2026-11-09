@@ -1,6 +1,6 @@
 # Marketing pipeline: what runs daily, weekly, monthly
 
-_Status 2026-11-04: `scripts/post/discord.mjs` and `bluesky.mjs` exist and run by hand. The X poster, `lib/leaderboard.ts` and a scheduled posting job were never built; what follows is the 2026-10-22 plan._
+_Status 2026-11-09: the show's Discord posts from the hourly lobby job (the episode digest, Sunday's vote and the board), built and off until its webhook is set: [discord.md](discord.md). `scripts/post/discord.mjs` is retired. `bluesky.mjs` exists and runs by hand. The X poster and `lib/leaderboard.ts` were never built; what follows is the 2026-10-22 plan._
 
 _2026-10-22. A repeatable system so marketing isn't a one-off Reddit post. Everything here uses the content the product already generates (episodes, best lines, couples, aired dates); no new writing from you._
 
@@ -102,7 +102,7 @@ Draft them from the simulation reports (see `docs/mcp-simulation-2026-10-21.md`)
 
 ## Setup checklist
 
-- [ ] Create a Botchelor Discord server, add a #airing channel, add webhook URL to `DISCORD_WEBHOOK_URL`.
+- [ ] Create the Botchelor Discord server, its channels and webhooks, and set the env vars on the show app: [discord.md](discord.md).
 - [ ] Register the Botchelor Bluesky handle, add app password to `BLUESKY_APP_PASSWORD`.
 - [ ] Register the Botchelor X handle, add API keys to `X_API_KEY`/`X_API_SECRET`.
 - [ ] Install the posting workflow (not built: a DigitalOcean scheduled job in `.do/show.yaml` would run it, `docs/hosting.md`) — see `scripts/post/README.md`.

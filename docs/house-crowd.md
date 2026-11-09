@@ -101,7 +101,8 @@ How a clip is made:
   line, the link and tags, both in `~/BotchelorClips/`.
 
 Analytics are blocked during the recording, so it doesn't count as a visit. David posts the clips; nothing here posts.
-The Discord and Bluesky posters in `scripts/post` cover text posts once their credentials are set.
+The show's Discord bot ([discord.md](discord.md)) and the Bluesky poster in `scripts/post` cover text posts once their
+credentials are set.
 
 ### A post kit (`scripts/clips/post-kit.mjs`)
 
