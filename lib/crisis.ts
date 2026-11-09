@@ -14,6 +14,7 @@
  * event (track "crisis_notice_shown", with the surface and nothing else: no id, no words).
  */
 import { track } from "./analytics";
+import type { Db } from "./db";
 
 export type CrisisLine = { region: string; how: string; href: string };
 export type CrisisResources = {
@@ -87,7 +88,31 @@ export function crisisIntent(text: string | null | undefined): boolean {
 export function crisisCheck(surface: CrisisSurface, ...texts: (string | null | undefined)[]): CrisisResources | null {
   if (!texts.some(crisisIntent)) return null;
   track("crisis_notice_shown", { surface });
+  // The yearly count SB 243 asks for (crisis_referrals). Best effort, never in the way of the reply.
+  void import("./db").then(({ getDb }) => getDb()).then((db) => countReferral(db, surface)).catch(() => {});
   return CRISIS_RESOURCES;
+}
+
+/**
+ * Counts one crisis referral shown, by UTC day and surface (crisis_referrals; California SB 243's annual report to the
+ * Office of Suicide Prevention, from 2027-07-01, asks how many there were). Never who, never the words. Never throws.
+ */
+export async function countReferral(db: Db, surface: CrisisSurface, now: Date = new Date()): Promise<void> {
+  await db
+    .query(`insert into crisis_referrals as r (day, surface, n) values ($1, $2, 1) on conflict (day, surface) do update set n = r.n + 1`, [now.toISOString().slice(0, 10), surface])
+    .catch(() => {});
+}
+
+/** A year's referrals for the SB 243 report: the total and each surface's, from crisis_referrals. */
+export async function referralReport(db: Db, year: number): Promise<{ year: number; total: number; by_surface: Record<string, number>; protocol: string }> {
+  const rows = (
+    await db.query<{ surface: string; n: number }>(
+      `select surface, sum(n)::int as n from crisis_referrals where day >= $1 and day < $2 group by surface order by surface`,
+      [`${year}-01-01`, `${year + 1}-01-01`],
+    )
+  ).rows;
+  const by_surface = Object.fromEntries(rows.map((r) => [r.surface, r.n]));
+  return { year, total: rows.reduce((a, r) => a + r.n, 0), by_surface, protocol: "/safety" };
 }
 
 /** `{ crisis_resources }` to spread into a reply when the check trips, else nothing. */

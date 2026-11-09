@@ -90,6 +90,15 @@ Texas fines keeping identifying data ($10k per instance). Prices found:
 In the UK a credit-card check counts, so the processor's own card check may cover it (a question for the lawyer and the
 processor).
 
+### Re-checked 2026-11-08 (competitor review, #5)
+
+- **US states:** the 27 in `US_AGE_CHECK_STATES` match the trackers. Utah started enforcing SB 73 on 2026-11-02 and was already blocked. Maryland, New York, Pennsylvania and Washington only have bills. Re-check each quarter.
+- **UK:** Part 5 of the Online Safety Act covers provider pornographic *images, video and audio*, not text-only content, so GB stays text-only (no pictures, video or voice). Ofcom's Joi.com investigation (opened 2026-01-15) was about age assurance for media; one secondary source says it closed on 2026-07-31 with no finding. A chatbot that only talks with its user is outside Parts 3 and 4 under Ofcom's chatbot explainer. If the UK makes 18+ the minimum age for romantic companion bots, GB moves to blocked until there's an age-assurance provider.
+- **AU and BR:** still blocked. JanitorAI opens them with k-ID (face estimate, ID or AgeKey; it receives only pass or fail). We'd need a provider account and its per-check fee, so it's David's call, not built.
+- **The free taste** (docs/after-dark.md) opens only where After Dark is fully open.
+- **SB 243:** the AI notice, the crisis protocol at /safety and the minors line were already live. The yearly referral count is now complete (docs/safety-protocol.md).
+- **EU AI Act Art. 50:** pictures and video already carry the XMP mark (`lib/ai-mark.ts`) ahead of 2026-12-02.
+
 ## Other laws that touch After Dark
 
 | Law | What it asks | Applies? | Cheapest compliant move |
