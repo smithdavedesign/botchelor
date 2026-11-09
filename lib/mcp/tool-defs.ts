@@ -1223,7 +1223,7 @@ const RAW_TOOL_DEFS = [
         place: { type: "string", enum: [...SCENE_PLACES, SCENE_TEXTING], description: `scene: where to play a scene together (one of the show's places), or ${SCENE_TEXTING} to go back to texting.` },
         roleplay: { type: ["string", "object"], description: "scene: a roleplay to play in it: the show's id (roleplay tools: ?tools=all), or {title, premise, roles}." },
         my_role: { type: ["string", "integer"], description: "scene: your role, 0 (first) or 1, or its words." },
-        message_id: str(64, "report: the reply (an id from reply or messages)."),
+        message_id: str(64, "report / voice: the reply (an id from reply or messages)."),
         reason: { type: "string", enum: [...COMPANION_REPORT_REASONS], description: "report: why." },
         fact_id: str(64, "forget: the fact (an id from memory)."),
         limit: { type: "integer", minimum: 1, maximum: 50, description: "read: how many of the newest messages (default 20)." },

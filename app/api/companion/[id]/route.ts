@@ -24,6 +24,8 @@ import {
 } from "@/lib/companion";
 import type { VenueId } from "@/lib/venues";
 import { companionAllowance, giveBackReply, takeReply } from "@/lib/companion-plan";
+import { extrasState } from "@/lib/companion-extras";
+import { voiceNote } from "@/lib/companion-voice";
 import { companionRefusal } from "../access";
 import { bookingAsk } from "@/lib/date-roleplays";
 
@@ -44,17 +46,24 @@ const Action = z.discriminatedUnion("action", [
   }),
   z.object({ action: z.literal("carry_on") }),
   z.object({ action: z.literal("report"), message_id: z.string().min(1).max(64), reason: z.enum(COMPANION_REPORT_REASONS) }),
+  // A reply as a voice note (lib/companion-voice.ts); `buy`: the button showed the price, so a token may buy a bundle.
+  z.object({ action: z.literal("voice"), message_id: z.string().min(1).max(64), buy: z.boolean().optional() }),
 ]);
 
 type Allowance = Awaited<ReturnType<typeof companionAllowance>>;
+type Extras = Awaited<ReturnType<typeof extrasState>> | null;
 
-const reply = (r: CompanionSend, sess: ReturnType<typeof session>, allowance: Allowance) => {
+const reply = (r: CompanionSend, sess: ReturnType<typeof session>, allowance: Allowance, extras: Extras) => {
   if (!r.ok) {
     const { ok: _ok, status, ...body } = r;
-    return json({ ...body, allowance }, status, sess);
+    return json({ ...body, allowance, extras }, status, sess);
   }
-  return json({ view: r.view, allowance }, 200, sess);
+  return json({ view: r.view, allowance, extras }, 200, sess);
 };
+
+/** What the extras cost this person (P3: voice notes); none for a guest, who's asked to sign in first. */
+const extrasFor = (db: Awaited<ReturnType<typeof getDb>>, sess: ReturnType<typeof session>): Promise<Extras> =>
+  sess.authenticated ? extrasState(db, sess.userId) : Promise.resolve(null);
 
 /** The thread: its messages, its settings, how much the character remembers. */
 export const GET = handle(async (req: Request, ctx: Ctx) => {
@@ -63,13 +72,13 @@ export const GET = handle(async (req: Request, ctx: Ctx) => {
   const db = await getDb();
   const refused = await companionRefusal(db, req, sess);
   if (refused) return refused;
-  return reply(await getThread(db, sess.userId, id), sess, await companionAllowance(db, sess.userId, new Date(), process.env, { guest: !sess.authenticated }));
+  return reply(await getThread(db, sess.userId, id), sess, await companionAllowance(db, sess.userId, new Date(), process.env, { guest: !sess.authenticated }), await extrasFor(db, sess));
 });
 
 /**
  * One move in a thread: say something (send), draw the last reply again (regenerate), rewrite your last message (edit),
  * set how much the character says (length), play a scene somewhere or go back to texting (scene), carry on after the
- * crisis resources (carry_on), or report a reply (report). A reply is taken from the free count or the plan's fair use
+ * crisis resources (carry_on), report a reply (report), or record one as a voice note (voice, an extra). A reply is taken from the free count or the plan's fair use
  * before it's drawn (lib/companion-plan.ts), and given back when none came (a scene's opener included).
  */
 export const POST = handle(async (req: Request, ctx: Ctx) => {
@@ -79,6 +88,17 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
   const refused = await companionRefusal(db, req, sess);
   if (refused) return refused;
   const input = parseBody(Action, await readJson(req), "invalid_request");
+  if (input.action === "voice") {
+    // An extra, never a reply: not counted against the free replies, and for accounts only.
+    if (!sess.authenticated) return json({ error: "sign_in", message: "Voice notes come with a free account. Sign in to hear them." }, 401, sess);
+    const v = await voiceNote(db, sess.userId, id, input.message_id, { buy: input.buy === true });
+    const [view, allowance, extras] = await Promise.all([getThread(db, sess.userId, id), companionAllowance(db, sess.userId), extrasFor(db, sess)]);
+    if (!v.ok) {
+      const { ok: _ok, status, ...body } = v;
+      return json({ ...body, allowance, extras, ...(view.ok ? { view: view.view } : {}) }, status, sess);
+    }
+    return json({ voice: { message_id: v.message_id, url: v.url, cached: v.cached }, ...(view.ok ? { view: view.view } : {}), allowance, extras }, 200, sess);
+  }
   const talks = input.action === "send" || input.action === "regenerate" || input.action === "edit" || (input.action === "scene" && input.place !== null);
   if (talks && (await overLimit(db, "companion", sess.userId, COMPANION_LIMITS))) {
     return json({ error: "rate_limited", message: "That's a lot of talking for now. Take a breather and come back in a bit." }, 429, sess);
@@ -120,7 +140,7 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
   }
   if (ticket?.ok && (!r.ok || r.replied === false)) await giveBackReply(db, sess.userId, ticket);
   if (talks && r.ok) inBackground(() => companionFollowUp(db, id));
-  return reply(r, sess, await companionAllowance(db, sess.userId, new Date(), process.env, { guest }));
+  return reply(r, sess, await companionAllowance(db, sess.userId, new Date(), process.env, { guest }), await extrasFor(db, sess));
 });
 
 /** Deletes the thread, with everything the character remembered of it. */

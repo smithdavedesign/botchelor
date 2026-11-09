@@ -132,6 +132,21 @@
     opacity: 0.6;
   }
 }
+/* A voice note (P3): always shown, with its price before anything is made; Report stays quiet until hovered. */
+.companion-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.75rem;
+}
+.companion-foot .companion-voice-note {
+  opacity: 0.85;
+  font-size: var(--text-2xs);
+}
+.companion-foot .companion-voice-note[aria-pressed="true"] {
+  opacity: 1;
+  font-weight: 600;
+}
 .companion-report {
   display: flex;
   flex-wrap: wrap;

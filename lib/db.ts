@@ -1111,6 +1111,36 @@ create table if not exists companion_usage (
   replies integer not null default 0,
   primary key (user_id, day)
 );
+-- Companions' extras (lib/companion-extras.ts, P3): voice notes, and later selfies. What the Companion Plan includes is
+-- counted a calendar month per person and kind; past it (or without the plan), a bought token buys a bundle, kept as
+-- credits until used.
+create table if not exists companion_extras_usage (
+  user_id text not null,
+  month date not null,
+  kind text not null,
+  used integer not null default 0,
+  primary key (user_id, month, kind)
+);
+create table if not exists companion_credits (
+  user_id text not null,
+  kind text not null,
+  credits integer not null default 0 check (credits >= 0),
+  primary key (user_id, kind)
+);
+-- A voice note's audio (lib/companion-voice.ts), kept by a hash of the voice and the words so the same line is never paid
+-- for twice; a message points at it. Rows no message points at any more (a thread or an account deleted) go, file and all.
+create table if not exists companion_voice (
+  key text primary key,
+  voice text not null,
+  chars integer not null,
+  mime text not null,
+  data bytea,
+  object_key text,
+  provider text,
+  created_at timestamptz not null default now()
+);
+alter table companion_messages add column if not exists voice_key text;
+create index if not exists companion_messages_voice_idx on companion_messages (voice_key) where voice_key is not null;
 -- Subscription plans sold on a Stripe Payment Link (lib/paid-plans.ts): one row per person and plan.
 create table if not exists plan_entitlements (
   user_id text not null,
