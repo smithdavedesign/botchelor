@@ -524,11 +524,16 @@ async function main() {
         await p.goto(`${base}${threadPath}`);
         const callButton = p.locator('[data-track="companion-call"]');
         await callButton.waitFor({ timeout: 15_000 });
-        const at = await callButton.boundingBox();
-        for (const part of [".companion-head-name strong", ".companion-ai"]) {
-          const box = await p.locator(part).boundingBox();
-          assert(box && at && box.x + box.width <= at.x, `${part} should end before the header's buttons`);
+        // The name and "AI character" (the disclosure) end before 📞, here and on the narrowest phones (where ← gives way).
+        for (const width of [390, 360]) {
+          await p.setViewportSize({ width, height: 844 });
+          const at = await callButton.boundingBox();
+          for (const part of [".companion-head-name strong", ".companion-ai"]) {
+            const box = await p.locator(part).boundingBox();
+            assert(box && at && box.x + box.width <= at.x, `${part} should end before the header's buttons at ${width}px`);
+          }
         }
+        await p.setViewportSize({ width: 390, height: 844 });
         await callButton.tap();
         const call = p.getByRole("dialog", { name: `Call with ${first}` });
         await call.waitFor({ timeout: 10_000 });

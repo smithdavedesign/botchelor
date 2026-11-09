@@ -415,9 +415,18 @@
     top: auto;
     bottom: var(--space-2);
   }
-  /* The header's buttons are their icons (the words stay for screen readers), so the name and "AI character" fit. */
+  /* The header's buttons are their icons (the words stay for screen readers), and back is the arrow alone, so the name
+     and "AI character" fit beside 📞, 🎭 and ⚙️. */
+  .companion-head {
+    gap: var(--space-1);
+    padding-inline: var(--space-2);
+  }
   .companion-head .button-ghost {
-    padding-inline: 0.7rem;
+    padding-inline: var(--space-2);
+  }
+  .companion-head > .button-ghost:first-child {
+    padding-inline: var(--space-1);
+    border-color: transparent;
   }
   .companion-head-label {
     position: absolute;
@@ -460,6 +469,12 @@
   padding-top: 0.3rem;
   padding-bottom: 0.3rem;
   font-size: var(--text-sm);
+}
+@media (max-width: 380px) {
+  /* The narrowest phones: the site's menu and the browser's back stand in for ←, so "AI character" is never covered. */
+  .companion-head > .button-ghost:first-child {
+    display: none;
+  }
 }
 @media (max-width: 720px) {
   .companion-selects label {
