@@ -16,6 +16,7 @@ export type Conversion =
   | "reel_cta"
   // After Dark's invite-only beta (lib/adult/invites.ts): a request sent. Never reaches Google (no GA on After Dark).
   | "ad_invite_requested"
+  | "ad_taste_started"
   // GA4's recommended names, so its reports and key-event suggestions pick them up.
   | "sign_up"
   | "begin_checkout"

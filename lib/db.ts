@@ -1677,6 +1677,14 @@ create table if not exists adult_invites (
   requested_at timestamptz not null default now(),
   decided_at timestamptz
 );
+-- A free taste of After Dark (lib/adult/taste.ts): one per person ever, scenes only for 48 hours; writes counts its steps.
+create table if not exists adult_tastes (
+  user_id text primary key,
+  country text,
+  started_at timestamptz not null default now(),
+  writes integer not null default 0
+);
+create index if not exists adult_tastes_started on adult_tastes (started_at);
 -- The mode After Dark last had for someone, from where they last connected (lib/adult/place.ts): background work that
 -- has no request (a chapter's picture, a video of the night) asks here, so text-only or blocked places get no media.
 -- A country and a US state, never an address or an IP; kept only while the account is.

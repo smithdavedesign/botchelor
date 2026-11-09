@@ -3,6 +3,9 @@ import type { ReactNode } from "react";
 import { notFound } from "next/navigation";
 import { afterDarkMetadata } from "@/lib/adult/discreet";
 import AfterDarkFrame from "./Frame";
+import Link from "next/link";
+import { getDb } from "@/lib/db";
+import { tasteLeft } from "@/lib/adult/taste";
 import Unavailable from "./Unavailable";
 import { currentHere, currentView } from "./view";
 import "./discreet.css";
@@ -28,8 +31,17 @@ export default async function AfterDarkLayout({ children }: { children: ReactNod
     if (!here.entitled.ok) notFound();
     return <Unavailable reason={here.reason} />;
   }
+  // A free taste (lib/adult/taste.ts) says what's left of it on every page, and where to carry on.
+  const taste = here.entitled.ok && here.entitled.why === "taste" && here.userId ? await tasteLeft(await getDb(), here.userId) : null;
   return (
     <AfterDarkFrame view={await currentView()}>
+      {taste && (
+        <p className="muted small ad-text-only" data-taste-notice>
+          Free taste: {taste.steps} scene step{taste.steps === 1 ? "" : "s"} left, until{" "}
+          {taste.ends.toLocaleString("en-US", { weekday: "short", hour: "numeric", minute: "2-digit", timeZone: "UTC", timeZoneName: "short" })}.
+          Pictures, video and voice come with the <Link href="/after-dark/subscribe">subscription</Link>.
+        </p>
+      )}
       {here.mode === "text_only" && (
         <p className="muted small ad-text-only" data-text-only-notice>
           {here.reason}

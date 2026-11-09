@@ -214,6 +214,7 @@ export async function startTestDb() {
         "cast_secrets",
         "cast_chats",
         "adult_invites",
+        "adult_tastes",
         "adult_monologues",
         "adult_short_calls",
         "adult_short_views",

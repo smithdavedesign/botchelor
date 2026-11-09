@@ -6,6 +6,10 @@
  */
 import { isAdmin } from "../admins";
 import type { Db } from "../db";
+import { isTasting, TASTE_WRITES } from "./taste";
+
+/** What a free taste says when its steps are used. */
+export const TASTE_DONE = "That's the end of your free taste. Subscribe to carry on where you left off.";
 
 export const USAGE_KINDS = ["writes", "pictures", "clips", "voice_lines", "monologues", "studio", "studio_byok", "upscales", "moments", "captions"] as const;
 export type UsageKind = (typeof USAGE_KINDS)[number];
@@ -33,6 +37,11 @@ export const monthOf = (d: Date = new Date()) => d.toISOString().slice(0, 7);
 /** Null when there's room; otherwise the sentence to show. Admins always have room. */
 export async function overCap(db: Db, ownerId: string, kind: UsageKind, now: Date = new Date()): Promise<string | null> {
   if (await isAdmin(db, ownerId)) return null;
+  if (kind === "writes" && (await isTasting(db, ownerId))) {
+    // A free taste (lib/adult/taste.ts) has its own small allowance of scene steps, counted from when it started.
+    const used = (await db.query<{ n: number }>(`select writes as n from adult_tastes where user_id = $1`, [ownerId])).rows[0]?.n ?? 0;
+    return used >= TASTE_WRITES ? TASTE_DONE : null;
+  }
   const cap = (await db.query<Record<string, number>>(`select cap_${kind} as cap from adult_settings where id = 1`)).rows[0]?.cap ?? 0;
   const used = (await db.query<{ n: number }>(`select ${kind} as n from adult_usage where owner_id = $1 and month = $2`, [ownerId, monthOf(now)])).rows[0]?.n ?? 0;
   return used >= cap ? capSentence(cap, kind) : null;
@@ -60,6 +69,8 @@ export async function countUse(db: Db, ownerId: string, kind: UsageKind, now: Da
      on conflict (owner_id, month) do update set ${kind} = adult_usage.${kind} + $3::int`,
     [ownerId, monthOf(now), n],
   );
+  // A free taste counts its own scene steps (lib/adult/taste.ts); no row, nothing changes.
+  if (kind === "writes") await db.query(`update adult_tastes set writes = writes + $2::int where user_id = $1`, [ownerId, n]);
 }
 
 /**
