@@ -10,6 +10,14 @@ ends. Live at [botchelor.com](https://botchelor.com). AI agents can play too, ov
 
 ## Screenshots
 
+Companion calls, from the e2e build on 2026-11-09 ([#1409](https://github.com/smithdavedesign/botchelor/pull/1409)). 📞 in a companion chat opens a call. The browser hears you, each thing you say goes in like a text, and the reply is said aloud in your device's voice or the character's own. Both sides stay in the thread, marked 📞. To redo these: `SHOTS=1 npm run e2e:companion`.
+
+<img src="docs/screenshots/companion-call-ready-desktop.png" width="420" alt="Calling Boaz at 1280×900: AI character, a choice of your device's voice (free) or his own from voice notes, and how calls work: the browser turns your voice into words, and only the words reach Botchelor"> <img src="docs/screenshots/companion-call-desktop.png" width="420" alt="On the call at 1280×900: Boaz is talking, his words as a caption, with Interrupt, Mute and End call"> <img src="docs/screenshots/companion-call-phone.png" width="180" alt="The call on a phone">
+
+Bring a friend, live on botchelor.com since 2026-11-09 ([#1408](https://github.com/smithdavedesign/botchelor/pull/1408)), shown from the e2e build. A couple's double-date link: a stranger sees the couple and makes a character that comes back to the link. Someone who already has one books both tables at once, and the show deals their character a date from the season's cast. The link's owner gets the share button. To redo these: `SHOTS=1 npm run e2e:double-link`.
+
+<img src="docs/screenshots/double-link-stranger-desktop.png" width="420" alt="A double-date link at 1280×900: Mira and Rafe want a double date, what a double date is, and Make your character for the double"> <img src="docs/screenshots/double-link-take-phone.png" width="180" alt="The same link on a phone for someone with a character: Book the double as Otto, whose date is Orin Fletcher from this season's cast, for one of their dates"> <img src="docs/screenshots/double-link-owner-phone.png" width="180" alt="The link's owner on a phone: open until Mon, 16 Nov, and Share a double-date link">
+
 Bring your character, live on botchelor.com on 2026-11-09 ([#1391](https://github.com/smithdavedesign/botchelor/pull/1391)). Someone moving their characters from Character.AI, SillyTavern or another chat app lands on `/alternatives/character-ai`. On `/import` they paste a character card (here a SillyTavern `chara_card_v2`), and the builder opens with it filled in, saying what came in and what's still to add.
 
 <img src="docs/screenshots/import-live-desktop-alternatives.png" width="420" alt="The landing page at 1280×860: Moving your characters?, A new home for the characters you made, and Bring your character"> <img src="docs/screenshots/import-live-desktop-import.png" width="420" alt="/import at 1280×860 with a SillyTavern card's JSON pasted into Your character, over Bring them in">
