@@ -181,6 +181,7 @@ import { numbersHint } from "../heading";
 import { endingsLately as recentEndings } from "../endings-lately";
 import { previewSwipe, type SwipePreview, UNDO_MINUTES, undoLike } from "../swipes";
 import { welcomeBack } from "../away";
+import { firstDateShare, joinedShare } from "../agent-share";
 import { HOUSE_RUN_LIKES_BACK, WHILE_AWAY_MODES } from "../activity";
 import { PROMPT_ANSWER_MAX, WANT_MAX } from "../field-limits";
 
@@ -239,7 +240,10 @@ export const MCP_PROTOCOL_VERSION = "2025-06-18";
 // 2.24.0 (Companions P3, David 2026-11-09: "yes work on P3"): companion's voice action {message_id}, one of their replies
 // as a voice note in their own voice (a signed MP3 link, an hour long; free to agents, 30 a day), and read's messages
 // carry voice once one's made: a new action and field, nothing else changed.
-export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.24.0" } as const;
+// 2.25.0 (the share step, from the Moltbook review): create_character, and a character's first finished date (get_episode,
+// wait_for_episode), carry share {text, url}, a line the agent offers its human to post (never posts itself), linking the
+// public page tagged utm_source=agent_share (lib/agent-share.ts): a new field, nothing else changed.
+export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.25.0" } as const;
 
 /** Where every tool is listed: the default list is the core (2026-10-20: 53 tools were ~14k tokens in every agent's context). */
 export const ALL_TOOLS_HINT = "/api/mcp?tools=all";
@@ -1463,6 +1467,11 @@ async function episodeData(db: Db, args: Record<string, unknown>, session: Sessi
   }
   // A finished date of yours, read here, is no longer waiting for you.
   if (who && row?.status === "ready") await markReadyRead(db, who.id, id);
+  // 2.25.0 (the share step): your character's first date, finished and not private, comes with a line your human can post.
+  if (who && row?.status === "ready" && row.visibility !== "private") {
+    const share = await firstDateShareFor(db, id, who.id).catch(() => null);
+    if (share) extra.share = share;
+  }
   const data = r.data as { transcript?: unknown };
   // 2.5.0 (the 2026-10-21-2300 run: "6 lines promised, lines_in_all: 5"): the count against the plan, and why, for a reader
   // who can see the lines (a date's length is no hint while its transcript is hidden).
@@ -1481,6 +1490,24 @@ async function episodeData(db: Db, args: Record<string, unknown>, session: Sessi
     return { data: { ...data, transcript: data.transcript.slice(since), transcript_from: since, transcript_total: data.transcript.length, ...extra } };
   }
   return { data: { ...data, ...extra } };
+}
+
+/**
+ * The share step (2.25.0, lib/agent-share.ts): when this finished, not-private date is the first finished date of a public
+ * character this agent owns, a line its human can post and the date's link; otherwise null. One indexed query.
+ */
+export async function firstDateShareFor(db: Db, episodeId: string, ownerId: string) {
+  const { rows } = await db.query<{ mine: string; theirs: string }>(
+    `select c.name as mine, o.name as theirs
+       from episodes e
+       join characters c on c.id in (e.character_a, e.character_b) and c.owner_id = $2 and not c.is_house and coalesce(c.visibility, 'public') = 'public'
+       join characters o on o.id = case when c.id = e.character_a then e.character_b else e.character_a end
+      where e.id = $1 and e.status = 'ready' and e.visibility <> 'private'
+        and not exists (select 1 from episodes p where p.id <> e.id and p.status = 'ready' and (p.character_a = c.id or p.character_b = c.id) and p.created_at < e.created_at)
+      order by c.created_at limit 1`,
+    [episodeId, ownerId],
+  );
+  return rows[0] ? firstDateShare(episodeId, rows[0]) : null;
 }
 
 /**
@@ -4621,7 +4648,7 @@ export function episodeSummary(d: Record<string, unknown>): Record<string, unkno
   // What a wait or a read said beside the episode (#459: a timed-out wait's waited_seconds and retry vanished here, so
   // it read as an instant return): kept whether or not the episode came wrapped.
   // 2.8.0: and a your-move wake's heads_up, first, with why it woke.
-  const KEPT = ["heads_up", "episode_id", "ready", "waited_seconds", "age_seconds", "typical", "retry", "airs_at", "seconds_left", "aired", "aired_note", "started_at", "waiting_seconds", "lines_so_far", "stage", "wait_capped_at", "wait_note", "returned_because", "woke_for", "your_move_note", "wait_cap_seconds", "transcript_total", "lines", "next_calls"];
+  const KEPT = ["heads_up", "episode_id", "ready", "waited_seconds", "age_seconds", "typical", "retry", "airs_at", "seconds_left", "aired", "aired_note", "started_at", "waiting_seconds", "lines_so_far", "stage", "wait_capped_at", "wait_note", "returned_because", "woke_for", "your_move_note", "wait_cap_seconds", "transcript_total", "lines", "next_calls", "share"];
   const rest = d.episode && typeof d.episode === "object" ? Object.fromEntries(Object.entries(d).filter(([k]) => k !== "episode")) : Object.fromEntries(Object.entries(d).filter(([k]) => KEPT.includes(k)));
   // #861: one shape whether the date is generating or ready, wrapped or not: status at the top and in episode.
   const status = summary.status ?? d.status;
@@ -6037,6 +6064,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const week = thisWeek(id, storedWeek);
       const weekByYou = isOwnUpdate(storedWeek);
       const { ignored_soul_keys: ignoredSoul, ...made } = r.data;
+      // 2.25.0 (the share step): a line its human can post, with a link to its public page; never for a private character.
+      const shareable = (await db.query<{ visibility: string }>(`select visibility from characters where id = $1`, [id]).catch(() => ({ rows: [] as { visibility: string }[] }))).rows[0]?.visibility === "public";
       return {
         data: {
           ...(twinWarning ? { warning: twinWarning } : {}),
@@ -6082,6 +6111,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
               ? [nextCall("update_character", { character_id: id, partner_style: "open" }, `Optional: partner_style "open" keeps it open to other dates even in a Dating couple (${OPEN_MEANS}). ${style === "one" ? "It's set to one partner" : "Left to decide, it may settle on one partner"}, which closes it to other dates once it's dating someone.`)]
               : []),
           ],
+          ...(shareable ? { share: joinedShare({ id, name: String(sheet.name ?? "") }) } : {}),
         },
         identity: who,
       };

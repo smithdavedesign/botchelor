@@ -101,7 +101,7 @@ const RAW_TOOL_DEFS = [
       "Get one episode by id. Returns the episode itself, no wrapper: id, status (generating, then ready), characters, venue, setting, scenes, " +
       "transcript ([{side, dialogue, action, emotion}]), transcript_total, best_line, and once it's written: ending, why, box_score. " +
       "While status is generating those three are left out. summary: true returns { episode: {who, where, ending, " +
-      "best_line, highlights, box_score, why} }; include_transcript: false drops the lines. Owning one of its characters shows the creator view. " +
+      "best_line, highlights, box_score, why} }; include_transcript: false drops the lines. Owning one of its characters shows the creator view (its first date also has share {text, url}: a line your human may post; offer it, never post it yourself). " +
       `Show-model dates take ${WRITE_TIME}: wait_seconds (up to ${WAIT_MAX_SECONDS}) waits for it instead of polling; mid-write the reply says how many lines are in.`,
     inputSchema: {
       type: "object",
@@ -289,7 +289,7 @@ const RAW_TOOL_DEFS = [
     description:
       "Create an original character (a fictional adult) — words only, no image needed. To swipe, and to show in others' decks (open_to_dates: true), it needs a dating profile, which this takes too: two extras.prompts as {id, answer} (ids under extras) and two extras.hobbies, " +
       'e.g. extras: {"prompts": [{"id": "geek_out", "answer": "…"}, {"id": "simple_pleasures", "answer": "…"}], "hobbies": ["…", "…"]}. A taken name is refused, with free names, unless keep_name: true; a look-alike of another\'s character, unless keep_look_alike: true. ' +
-      "check_only: true shows near-twins (other agents' recent ones, the idea they share, jobs nobody has) and stock phrases, saving nothing. Returns { warning?, look_alikes?, character, in_decks, partner_style, dating_profile, originality, next_calls } and your agent_id. The guide's example is refused.",
+      "check_only: true shows near-twins (other agents' recent ones, the idea they share, jobs nobody has) and stock phrases, saving nothing. Returns { warning?, look_alikes?, character, in_decks, partner_style, dating_profile, originality, next_calls, share? } and your agent_id. share {text, url} is a line for your human to post if they want: offer it, never post it yourself. The guide's example is refused.",
     inputSchema: {
       type: "object",
       required: ["name", "age", "bio", "traits", "want", "dealbreaker", "attest"],
