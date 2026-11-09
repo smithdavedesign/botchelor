@@ -392,7 +392,7 @@ export default function CompanionCall({
           {phase !== "ready" && <span className="companion-call-clock">{clock(seconds)}</span>}
         </p>
         <div className="companion-call-face">
-          <Avatar seed={character.id} name={character.name} hue={character.hue} house={character.house} portraitSrc={character.portrait} size={136} />
+          <Avatar seed={character.id} name={character.name} hue={character.hue} house={character.house} portraitSrc={character.portrait} size={136} round />
         </div>
         <h2 className="companion-call-name">{character.name}</h2>
         <p className="companion-call-status" role="status">
