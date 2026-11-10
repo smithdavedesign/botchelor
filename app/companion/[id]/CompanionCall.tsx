@@ -6,6 +6,8 @@ import { useSpeech } from "@/app/stage/useSpeech";
 import { extraPrice, type CompanionCharacterRef, type CompanionExtraState, type CompanionMessageView } from "@/lib/companion-shared";
 import { heardSoFar, LIVE_START, liveStep, type Heard, type LiveEvent, type LiveState } from "@/lib/companion-live-shared";
 import { sseData } from "@/lib/sse";
+import { TRANSCRIPT_START, transcriptStep, type Transcript, type TranscriptEvent } from "@/lib/companion-call-transcript";
+import CallTranscript from "./CallTranscript";
 import { listen as listenLive, liveSupported, Mic, newAudioContext, PcmPlayer, type Listening } from "./live-audio";
 
 export type CallVoice = "device" | "own";
@@ -71,6 +73,9 @@ export { liveSupported };
 const SEEN_KEY = "bz_call_ok";
 const VOICE_KEY = "bz_call_voice";
 const MODE_KEY = "bz_call_mode";
+/** The 💬 Transcript open or closed, remembered on this device (closed until it's opened once). */
+const SCRIPT_KEY = "bz_call_transcript";
+const SCRIPT_ID = "companion-call-transcript";
 /** On a live call, a minute with nobody talking pauses it, so the quiet isn't paid for. */
 const LIVE_QUIET_MS = 60_000;
 /** How often a live call's started minutes are taken (the server counts from the start either way). */
@@ -113,6 +118,7 @@ const RECOGNITION_ERRORS: Record<string, string> = {
  * the thread marked 📞), and their answer is said aloud in the device's voice (free) or their own voice (voice notes).
  * One of you at a time: it doesn't listen while they talk, so it never hears them. Interrupt stops them and listens.
  * Ends when you end it, when a turn can't go on (the crisis resources, no replies left), or after five quiet minutes.
+ * 💬 Transcript opens what's been said so far on this call (./CallTranscript.tsx), held only in the page.
  */
 export default function CompanionCall({
   character,
@@ -161,6 +167,9 @@ export default function CompanionCall({
   const [minutes, setMinutes] = useState<CompanionExtraState | null>(live?.minutes ?? null);
   // Paused because the call minutes ran out: the button to go on shows the price.
   const [buyOffer, setBuyOffer] = useState(false);
+  // What's been said on this call (lib/companion-call-transcript.ts), and whether the 💬 Transcript is open.
+  const [script, setScript] = useState<Transcript>(TRANSCRIPT_START);
+  const [showScript, setShowScript] = useState(false);
 
   // What the callbacks below read (they outlive renders): the phase now, how the call is going, the latest props.
   const phaseNow = useRef<Phase>("ready");
@@ -200,6 +209,7 @@ export default function CompanionCall({
     setSeen(stored(SEEN_KEY) === "1");
     const v = stored(VOICE_KEY);
     if (v === "own" && voicePrice !== null) setVoice("own");
+    setShowScript(stored(SCRIPT_KEY) === "1");
     mainButton.current?.focus();
     // On arrival only.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -208,6 +218,23 @@ export default function CompanionCall({
   function go(p: Phase) {
     phaseNow.current = p;
     setPhase(p);
+  }
+
+  /** A step of the transcript: only ever kept in the page for this call. */
+  function log(e: TranscriptEvent) {
+    setScript((s) => transcriptStep(s, e));
+  }
+
+  /** What's heard of your turn so far: on the call screen, and muted at the end of the transcript. */
+  function hear(text: string) {
+    setHeard(text);
+    log({ kind: "heard", text });
+  }
+
+  function toggleScript() {
+    const open = !showScript;
+    setShowScript(open);
+    store(SCRIPT_KEY, open ? "1" : "0");
   }
 
   function stopListening() {
@@ -239,6 +266,7 @@ export default function CompanionCall({
   function end(message: string | null = null) {
     if (ended.current) return;
     ended.current = true;
+    log({ kind: "cut" });
     stopListening();
     stopTalking();
     closeLive();
@@ -253,10 +281,12 @@ export default function CompanionCall({
    */
   function pause(why: string | null, buy = false) {
     go("paused");
+    // Their reply stops here, so whatever of it was still to come is cut off.
+    log({ kind: "cut" });
     stopListening();
     stopTalking();
     closeLive();
-    setHeard("");
+    hear("");
     setNote(why);
     setBuyOffer(buy);
   }
@@ -283,7 +313,7 @@ export default function CompanionCall({
         if (result.isFinal) said += result[0].transcript;
         else interim += result[0].transcript;
       }
-      setHeard(`${said} ${interim}`.trim());
+      hear(`${said} ${interim}`.trim());
     };
     r.onerror = (e) => {
       error = e.error;
@@ -315,6 +345,7 @@ export default function CompanionCall({
   async function turn(text: string) {
     go("thinking");
     setYou(text);
+    log({ kind: "you", text });
     setHeard("");
     setNote(null);
     turns.current += 1;
@@ -344,8 +375,11 @@ export default function CompanionCall({
       }
     }
     setThem(words);
+    log({ kind: "reply", text: words });
     go("speaking");
     await (url ? play(url) : props.current.speech.speakAll(words, who));
+    // Said to the end (stopped by Interrupt, a pause or the end, it was already marked cut off).
+    log({ kind: "done" });
     lastAt.current = Date.now();
     // Stopped by Interrupt: listen now. Paused or ended meanwhile: stay that way.
     if (ended.current || phaseNow.current !== "speaking") return;
@@ -414,6 +448,7 @@ export default function CompanionCall({
   }
 
   function interrupt() {
+    log({ kind: "cut" });
     if (modeNow.current === "live") {
       const { state, effects } = liveStep(liveState.current, { kind: "interrupt" });
       liveState.current = state;
@@ -453,7 +488,7 @@ export default function CompanionCall({
   /** Starts (or, after a pause, starts again) the live line: a minute taken, a token, the microphone and the socket. */
   async function liveBegin(buy: boolean) {
     go("connecting");
-    setHeard("");
+    hear("");
     const r = await livePost({ action: "start", buy, lang: navigator.language });
     const call = r.data?.call as { id?: string } | undefined;
     if (ended.current || (phaseNow.current as Phase) !== "connecting") {
@@ -567,15 +602,17 @@ export default function CompanionCall({
     if (e.kind === "words" && e.text.trim()) heardAt.current = Date.now();
     const { state, effects } = liveStep(liveState.current, e);
     liveState.current = state;
-    if (state.phase === "listening") setHeard(heardSoFar(state));
     for (const fx of effects) {
       if (fx.kind === "barge_in") {
+        log({ kind: "cut" });
         bargeIns.current += 1;
         stopReply();
         props.current.speech.stop();
         go("listening");
       } else void liveTurn(fx.text);
     }
+    // After a barge-in's cut, so what they've started saying follows the reply it cut off.
+    if (state.phase === "listening") hear(heardSoFar(state));
   }
 
   /** What they said goes in; the reply streams back, shown and said piece by piece as it comes; then the floor is theirs. */
@@ -589,6 +626,7 @@ export default function CompanionCall({
     turnAbort.current = abort;
     go("thinking");
     setYou(text);
+    log({ kind: "you", text });
     setHeard("");
     setThem(null);
     setNote(null);
@@ -637,6 +675,7 @@ export default function CompanionCall({
           texts[ev.i] = ev.text;
           said = `${said} ${ev.text}`.trim();
           setThem(said);
+          log({ kind: "piece", text: ev.text });
           liveState.current = liveStep(liveState.current, { kind: "reply_text", text: ev.text }).state;
           if (voiceOff.current) sayOnDevice(ev.text);
         } else if (ev.type === "audio") {
@@ -662,10 +701,14 @@ export default function CompanionCall({
       // Dropped (a barge-in aborts it): nothing more to say.
     }
     if (!current()) return;
-    if (failed) return refused(failed.status, failed.data);
+    if (failed) {
+      log({ kind: "done" });
+      return refused(failed.status, failed.data);
+    }
     await Promise.all([player.current?.idle(), device]);
     if (!current() || phaseNow.current === "paused") return;
     liveState.current = liveStep(liveState.current, { kind: "reply_done" }).state;
+    log({ kind: "done" });
     lastAt.current = Date.now();
     heardAt.current = Date.now();
     go("listening");
@@ -737,6 +780,9 @@ export default function CompanionCall({
     [],
   );
 
+  // Once the call is on: before it, there's nothing said to show.
+  const scriptOpen = showScript && phase !== "ready";
+
   const status =
     phase === "connecting"
       ? "Connecting…"
@@ -752,7 +798,7 @@ export default function CompanionCall({
 
   return (
     <div
-      className={`companion-call is-${phase}`}
+      className={`companion-call is-${phase}${scriptOpen ? " has-script" : ""}`}
       role="dialog"
       aria-modal="true"
       aria-label={`Call with ${first}`}
@@ -767,7 +813,7 @@ export default function CompanionCall({
           {phase !== "ready" && <span className="companion-call-clock">{clock(seconds)}</span>}
         </p>
         <div className="companion-call-face">
-          <Avatar seed={character.id} name={character.name} hue={character.hue} house={character.house} portraitSrc={character.portrait} size={136} round />
+          <Avatar seed={character.id} name={character.name} hue={character.hue} house={character.house} portraitSrc={character.portrait} size={scriptOpen ? 72 : 136} round />
         </div>
         <h2 className="companion-call-name">{character.name}</h2>
         <p className="companion-call-status" role="status">
@@ -843,14 +889,28 @@ export default function CompanionCall({
           </div>
         ) : (
           <>
-            <div className="companion-call-words" aria-live="polite">
-              {phase === "listening" && <p className="companion-call-heard">{heard || "Say something…"}</p>}
-              {phase === "thinking" && you && <p className="companion-call-heard">“{you}”</p>}
-              {(phase === "speaking" || phase === "paused") && them && <p className="companion-call-said">{them}</p>}
-            </div>
+            {scriptOpen ? (
+              <CallTranscript id={SCRIPT_ID} script={script} name={first} />
+            ) : (
+              <div className="companion-call-words" aria-live="polite">
+                {phase === "listening" && <p className="companion-call-heard">{heard || "Say something…"}</p>}
+                {phase === "thinking" && you && <p className="companion-call-heard">“{you}”</p>}
+                {(phase === "speaking" || phase === "paused") && them && <p className="companion-call-said">{them}</p>}
+              </div>
+            )}
             {note && <p className="companion-call-note">{note}</p>}
             {left !== null && <p className="companion-call-left">{left === 1 ? "1 reply left" : `${left} replies left`}</p>}
             <p className="companion-call-controls">
+              <button
+                type="button"
+                className="button-ghost companion-call-script-toggle"
+                onClick={toggleScript}
+                aria-expanded={showScript}
+                aria-controls={showScript ? SCRIPT_ID : undefined}
+                data-track="companion-call-transcript"
+              >
+                💬 Transcript
+              </button>
               {phase === "speaking" && (
                 <button type="button" className="button-ghost" onClick={interrupt} data-track="companion-call-interrupt">
                   ✋ Interrupt

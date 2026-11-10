@@ -314,6 +314,13 @@ you can talk over the other, and it's charged by the minute. It sits behind the 
 - **Privacy:** the person's voice goes from their browser to Deepgram and never to us; the companion's passes through
   our route in memory. Both ask Deepgram to keep nothing for training (`mip_opt_out=true`). Nothing logs audio, tokens
   or the key. In the privacy notice and the terms (`#companion-extras`), dated 10 November 2026.
+- **💬 Transcript** (David, 2026-11-10: "a way to open what has been said live"): a toggle on the call screen, live and
+  taking turns alike, opens what's been said so far on this call in place of the caption: your finished lines, your
+  words still being heard (muted, replaced when the turn goes in), their reply as it streams (only the pieces the
+  server passed and is saying, the `say` events), and "(cut off)" where you talked over them. Closed by default and
+  remembered per device (`bz_call_transcript`); it follows the newest line unless you scroll up; screen readers hear
+  each finished line once. It lives only in the page (`lib/companion-call-transcript.ts`, a pure reducer the tests
+  drive; `CallTranscript.tsx`): nothing new is stored, and afterwards the thread has every turn marked 📞.
 - **Off or down, it's v1:** no key, `COMPANION_LIVE=0`, a guest, or a browser without a microphone: the call takes turns
   as before. Deepgram refusing a token at the start charges nothing and the call carries on taking turns. Firefox, which
   v1 couldn't serve (no speech recognition), can call live.
@@ -335,7 +342,7 @@ you can talk over the other, and it's charged by the minute. It sits behind the 
    key kept); `COMPANION_LIVE_INCLUDED` (plan minutes a month, default 20); `COMPANION_LIVE_BUNDLE` (minutes a token
    buys, default 10); `COMPANION_LIVE_MAX_MINUTES` (default 60); `DEEPGRAM_STT_MODEL` (default `nova-3`);
    `DEEPGRAM_API_URL` (tests only: a stand-in).
-4. Tests: `tests/companion-live.test.ts` (Deepgram stubbed); `npm run e2e:companion` runs a live call with Deepgram
+4. Tests: `tests/companion-live.test.ts` (Deepgram stubbed), `tests/companion-call-transcript.test.ts` (the transcript); `npm run e2e:companion` runs a live call with Deepgram
    stubbed (a local stand-in for the grant and Aura, and the page's socket and microphone faked) on a desktop and a phone.
 
 ## Still to build
