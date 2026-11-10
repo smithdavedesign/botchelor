@@ -205,7 +205,7 @@ describe("what stays on them", () => {
     await t.db.query(`update characters set extras = jsonb_set(extras, '{looks}', extras->'looks' || $2::jsonb) where id = $1`, [LEXI, JSON.stringify({ glasses: "wire", piercings: "ears", tattoos: "sleeve" })]);
     const [lexi, rafe] = await Promise.all([loadCharacter(t.db, LEXI), loadCharacter(t.db, RAFE)]);
     const cast = reelCast(lexi!, rafe!, id);
-    expect(keptDetails(cast)).toBe(" Keep these too, clothes or not: the woman has thin round wire-framed glasses and small gold hoop earrings and a full sleeve tattoo covering one arm.");
+    expect(keptDetails(cast)).toBe(" Keep these too, clothes or not: the woman has thin round wire-framed glasses and small gold hoop earrings and a full sleeve tattoo covering one arm; the man has none of these.");
     for (const stage of [0, 4]) expect(keyframePrompt(cast, "They kiss.", null, stage, false)).toContain("the woman has thin round wire-framed glasses");
     expect(keptDetails(reelCast(rafe!, rafe!, id))).toBe("");
   });

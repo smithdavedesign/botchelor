@@ -272,7 +272,9 @@ export function beatFrame(
   const felt = mood ? withoutNames(mood, cast).replace(/[.\s]+$/, "") : "";
   const base = `${pose}${peak}${pov ? "" : ` ${FRAMING_WORDS[act.framing]}`}${felt && ok(felt) ? ` The mood: ${felt}.` : ""}`;
   if (!ok(base)) return null;
-  const happening = withoutNames(happeningOwn ?? recentActions([...moment], 3).join("; "), cast).replace(/[.\s]+$/, "");
+  // Through one of their eyes, the lines' actions aren't said: told from outside, they put the viewer in the frame, face
+  // and all, and often a different act from the frame's (2026-11-10 audit). The owner's own words still are.
+  const happening = withoutNames(happeningOwn ?? (pov ? "" : recentActions([...moment], 3).join("; ")), cast).replace(/[.\s]+$/, "");
   return happening && ok(happening) ? `${base} What is happening: ${happening}.` : base;
 }
 
@@ -502,7 +504,8 @@ export async function planBeat(
   // that way for this viewer (lib/adult/framing.ts), from their own character's eyes when that's one of the views.
   const kept = beat.eyes !== undefined && beat.eyes !== null ? beat.eyes : null;
   const eyes = kept && shown && povFor(shown, cast, kept) ? kept : !kept && shown ? await pickEyes(db, beat.owner_id, shown, cast, [ca, cb]) : null;
-  const framed = beatFrame({ kind: beat.kind, act: actId }, cast, moment, beat.place, limits, own?.happening ?? (brief?.happening || undefined), own?.mood ?? fields.mood, eyes);
+  // The brief's reading of what's happening is the two of them from outside: not for a first-person picture (beatFrame).
+  const framed = beatFrame({ kind: beat.kind, act: actId }, cast, moment, beat.place, limits, own?.happening ?? (eyes ? undefined : brief?.happening || undefined), own?.mood ?? fields.mood, eyes);
   if (!framed) return { ok: false, status: 422, message: "That moment crosses one of the lines." };
   const place = own?.place ?? fields.place;
   const where = place ? placeWords(place, cast) : null;
