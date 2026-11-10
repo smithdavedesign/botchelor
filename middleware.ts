@@ -90,7 +90,9 @@ const DOC_SOURCES = new Set(["llms.txt", "llms-full.txt", "mcp.json", "agents"])
 /**
  * The policy pages: no adult content, and a person reporting or cancelling shouldn't have to pass the 18+ gate first. The
  * company pages (2026-11-10) too: a journalist, a card processor's reviewer or a security researcher reads them without
- * ticking a box, and they hold nothing adult.
+ * ticking a box, and they hold nothing adult. How it's built (/about) and what it costs (/costs) with them: the press
+ * kit and the footer's Company group link to both, and like the privacy notice they name After Dark's suppliers in
+ * words only.
  */
 const UNGATED_PAGES: ReadonlySet<string> = new Set([
   "/terms",
@@ -106,6 +108,8 @@ const UNGATED_PAGES: ReadonlySet<string> = new Set([
   "/pricing",
   "/security",
   "/accessibility",
+  "/about",
+  "/costs",
 ]);
 
 /**

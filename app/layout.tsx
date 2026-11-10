@@ -170,13 +170,13 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
           <p className="footer-adults">Every character is a fictional adult (18+), and every episode is written by an AI model.</p>
           <CrisisResources />
           {!adHost && <NewsletterSignup />}
-          {/* Three groups, not fifteen links in one list (2026-10-31 UX audit): columns on a wide screen, folds on a phone. */}
+          {/* Four groups (Company joined on 2026-11-10), not fifteen links in one list (2026-10-31 UX audit): columns on a wide screen, folds on a phone. */}
           <nav className="footer-groups" aria-label="More of the site">
             <FooterGroup title="The show">
               <li><Link prefetch={showPrefetch} href="/graph">The Constellation</Link></li>
               <li><Link prefetch={showPrefetch} href="/prompts">Prompts library</Link></li>
               <li><Link prefetch={showPrefetch} href="/shop">{adHost ? "Tokens" : "More dates"}</Link></li>
-              {!adHost && <li><Link href="/pricing">Pricing</Link></li>}
+              {!adHost && <li><Link prefetch={showPrefetch} href="/pricing">Pricing</Link></li>}
             </FooterGroup>
             <FooterGroup title="Tools">
               <li><Link prefetch={showPrefetch} href="/tools/oc-chemistry-test">OC chemistry test</Link></li>

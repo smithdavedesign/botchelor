@@ -18,9 +18,10 @@ has, written from the code so they can't drift from it.
   host.
 - **The Organization JSON-LD** (`lib/seo.ts` `organizationJsonLd`) lists the accounts as `sameAs`, the founder, and the
   support address as a `ContactPoint` once `CONTACT_EMAIL` is set.
-- **The 18+ gate** lets the company pages through (`middleware.ts` `UNGATED_PAGES`): a journalist, a card processor's
-  reviewer or a security researcher reads them without ticking a box. They hold nothing adult, and nothing about After
-  Dark.
+- **The 18+ gate** lets the company pages through (`middleware.ts` `UNGATED_PAGES`), and `/about` and `/costs` with
+  them, since the press kit and the footer link to both: a journalist, a card processor's reviewer or a security
+  researcher reads them without ticking a box. None holds anything adult; `/about` and `/costs` name After Dark's
+  suppliers in words, as the privacy notice does.
 - **Failed sign-ins** are held (`lib/login-guard.ts`): 10 wrong passwords for a handle, or 30 from one visitor, in 15
   minutes. Only failures count.
 - When a fact on one of these pages changes (a model, a host, a price rule), change the page in the same PR.

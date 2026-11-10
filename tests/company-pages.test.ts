@@ -105,6 +105,8 @@ describe("the company pages", () => {
     for (const path of COMPANY_PAGES) expect(PUBLIC_PATHS).toContain(path);
     const visit = (path: string) => middleware(new NextRequest(`${BASE_URL}${path}`, { headers: { "user-agent": BROWSER } }));
     for (const path of COMPANY_PAGES) expect(visit(path).headers.get("location"), path).toBeNull();
+    // How it's built and what it costs, which the press kit and the footer's Company group link to.
+    for (const path of ["/about", "/costs"]) expect(visit(path).headers.get("location"), path).toBeNull();
     expect(visit("/watch").headers.get("location")).toMatch(/\/gate/);
   });
 

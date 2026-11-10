@@ -233,6 +233,32 @@ services:
       - key: DISCORD_INVITE_URL
         value: "https://discord.gg/8VDdRF9YU"
         scope: RUN_TIME
+      # Set on the live app after the move, by API (found missing here on 2026-11-10): fill the secrets in like the rest.
+      - key: COMPANION_LIVE
+        value: "admins"  # live calls (#1425): admins only until a Member-role Deepgram key
+        scope: RUN_TIME
+      - key: DEEPGRAM_API_KEY
+        type: SECRET
+        value: "CHANGE_ME"
+        scope: RUN_TIME
+      - key: DEEPGRAM_PROJECT_ID
+        value: "de51aca4-c207-438e-8274-b8b91086918b"
+        scope: RUN_TIME
+      - key: DIDIT_API_KEY
+        type: SECRET
+        value: "CHANGE_ME"
+        scope: RUN_TIME
+      - key: DIDIT_WEBHOOK_SECRET
+        type: SECRET
+        value: "CHANGE_ME"
+        scope: RUN_TIME
+      - key: DIDIT_WORKFLOW_ID
+        value: "56e999cc-d366-4835-b446-71aee37bbd6f"
+        scope: RUN_TIME
+      - key: DO_BILLING_TOKEN  # /admin/spend: the DigitalOcean balance, read-only (#992)
+        type: SECRET
+        value: "CHANGE_ME"
+        scope: RUN_AND_BUILD_TIME
       # The Sunday letter (docs/newsletter.md): sign-ups and confirmations work with RESEND_API_KEY alone; no letter goes out
       # while NEWSLETTER_POSTAL_ADDRESS is CHANGE_ME (CAN-SPAM wants one in every letter: a PO box or a virtual mailbox,
       # not a home address). NEWSLETTER_DAILY_CAP: the letter's emails a day, confirmations included (CHANGE_ME: 40).
