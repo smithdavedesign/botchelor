@@ -2311,3 +2311,45 @@ a.ad-scenes-make-link {
   margin: var(--space-3) 0 var(--space-1);
   font-size: var(--text-base);
 }
+
+/* The storyboard's video words (lib/adult/reels.ts setShotVideoWords, 2026-11-09): hints to start from, and the note on
+   a video that came back to its storyboard. */
+.ad-shot-hints {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ad-shot-hints button {
+  margin: 0;
+  text-align: left;
+  white-space: normal;
+}
+.ad-shot-yours {
+  color: var(--ad-accent);
+}
+.ad-storyboard-returned {
+  margin: var(--space-2) 0 0;
+  padding: var(--space-2) var(--space-3);
+  border-left: 3px solid var(--ad-accent);
+  background: var(--ad-card);
+  border-radius: var(--radius-sm);
+}
+.ad-reel-returned {
+  display: grid;
+  gap: var(--space-1);
+}
+.ad-reel-returned button {
+  justify-self: start;
+  margin: 0;
+}
+.ad-refilm-words {
+  display: grid;
+  gap: var(--space-1);
+  margin: var(--space-2) 0 0;
+}
+.ad-refilm-words textarea {
+  width: 100%;
+  min-width: 0;
+}

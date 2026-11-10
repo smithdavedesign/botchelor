@@ -600,6 +600,10 @@ export default function SceneWriter({
               setStoryboard(null);
               setPlanning(null);
             }}
+            // A video back as its storyboard is in the videos list: keep that copy current with what's changed here.
+            onChange={(r) => {
+              if (r.returned_at) putReel(r);
+            }}
           />
         )}
         {/* Exit leaves the theater for the pictures, videos and set-up below; the scene itself is only watched in it. */}
@@ -849,7 +853,13 @@ export default function SceneWriter({
             />
           ) : mediaTab === "videos" ? (
             reelList.length ? (
-              <Reels reels={reelList} nightOf={nightOfVideo} onChange={putReel} onMedia={(m) => setGallery((g) => [m, ...g.filter((x) => x.id !== m.id)])} />
+              <Reels
+                reels={reelList}
+                nightOf={nightOfVideo}
+                onChange={putReel}
+                onMedia={(m) => setGallery((g) => [m, ...g.filter((x) => x.id !== m.id)])}
+                onStoryboard={(r) => setStoryboard(r)}
+              />
             ) : (
               <p className="muted small">No videos yet: 🎬 Video in the theater&apos;s top bar makes one of tonight, and each night under Nights has its own, from a storyboard you check first.</p>
             )

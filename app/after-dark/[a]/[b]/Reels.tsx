@@ -35,7 +35,20 @@ const drop = (url: string) => url.startsWith("blob:") && URL.revokeObjectURL(url
  *    and two stacked players swap on each cut, so one shot runs straight into the next;
  *  - "watch the video in theater mode too": a full-screen stage with the line as a caption.
  */
-export default function Reels({ reels, onChange, onMedia, nightOf }: { reels: Reel[]; onChange: (r: Reel) => void; onMedia?: (m: Media) => void; nightOf?: (r: Reel) => number | null }) {
+export default function Reels({
+  reels,
+  onChange,
+  onMedia,
+  nightOf,
+  onStoryboard,
+}: {
+  reels: Reel[];
+  onChange: (r: Reel) => void;
+  onMedia?: (m: Media) => void;
+  nightOf?: (r: Reel) => number | null;
+  /** Opens a video that came back to its storyboard (lib/adult/reels.ts reopenShots), to film it again. */
+  onStoryboard?: (r: Reel) => void;
+}) {
   const price = useClipPrice(reels.find((r) => r.a && r.b), reels.filter((r) => r.kind === "clip").length);
   // A video being made is asked after from the page (SceneWriter), not here: this list isn't shown while the theater is.
 
@@ -78,7 +91,7 @@ export default function Reels({ reels, onChange, onMedia, nightOf }: { reels: Re
                 <li key={r.id}>
                   {/* What it filmed: "Whole night, chapters 1–2" or "Chapter 2" (not recorded on videos from before). */}
                   {r.chapters?.length ? <p className="muted small ad-reel-covers">🎬 {chaptersLabel(r.chapters)}</p> : null}
-                  <ReelPlayer reel={r} onChange={onChange} price={price} onMedia={onMedia} />
+                  <ReelPlayer reel={r} onChange={onChange} price={price} onMedia={onMedia} onStoryboard={onStoryboard} />
                 </li>
               ))}
             </ul>
@@ -91,12 +104,12 @@ export default function Reels({ reels, onChange, onMedia, nightOf }: { reels: Re
 }
 
 /** The shots of a video that play, in order: in, and not in the Archive (lib/adult/clip-chains.ts playable). */
-const readyShots = (r: Reel): PlayShot[] => (r.status === "making" ? [] : r.shots.filter(playable).map((s) => ({ ...s, reel: r.id })));
+const readyShots = (r: Reel): PlayShot[] => (r.status === "making" || r.status === "draft" ? [] : r.shots.filter(playable).map((s) => ({ ...s, reel: r.id })));
 
 /** Takes a shot out of its video into the Archive, or puts it back: the video as it is now, or what went wrong. */
 /** Film one shot again (lib/adult/reels.ts refilmShot): the reel is being made until it's in. */
-async function refilmOne(s: PlayShot): Promise<{ reel: Reel } | { error: string }> {
-  const res = await requestJson("/api/admin/after-dark/reel", { action: "refilm", id: s.reel, media_id: s.media_id }).catch(() => null);
+async function refilmOne(s: PlayShot, videoWords?: string): Promise<{ reel: Reel } | { error: string }> {
+  const res = await requestJson("/api/admin/after-dark/reel", { action: "refilm", id: s.reel, media_id: s.media_id, ...(videoWords !== undefined ? { video_words: videoWords } : {}) }).catch(() => null);
   if (!res) return { error: "That didn't reach the server. Check your connection and try again." };
   return res.ok ? { reel: res.data.reel as Reel } : { error: res.message };
 }
@@ -319,11 +332,45 @@ export async function stopReel(id: string): Promise<Reel | null> {
   return (res?.reel as Reel | undefined) ?? null;
 }
 
-function ReelPlayer({ reel, onChange, what = "video", price = null, onMedia }: { reel: Reel; onChange: (r: Reel) => void; what?: "video" | "clip"; price?: string | null; onMedia?: (m: Media) => void }) {
+function ReelPlayer({
+  reel,
+  onChange,
+  what = "video",
+  price = null,
+  onMedia,
+  onStoryboard,
+}: {
+  reel: Reel;
+  onChange: (r: Reel) => void;
+  what?: "video" | "clip";
+  price?: string | null;
+  onMedia?: (m: Media) => void;
+  onStoryboard?: (r: Reel) => void;
+}) {
   const shots = readyShots(reel);
   const done = reel.shots.filter((s) => s.status !== "queued" && s.status !== "frame_ready").length;
   const [stopping, setStopping] = useState(false);
   const [stopFailed, setStopFailed] = useState(false);
+  const [reopening, setReopening] = useState(false);
+  const [reopenError, setReopenError] = useState<string | null>(null);
+  if (reel.status === "draft") {
+    // Nothing came through, so it came back to its storyboard with its pictures (lib/adult/reels.ts reopenShots).
+    const kept = reel.shots.filter((s) => s.status === "frame_ready" && !s.archived_at).length;
+    const lastWhy = reelFailureNote(reel.shots.filter((s) => s.last_try).map((s) => ({ status: "failed" as const, reason: s.last_try })));
+    return (
+      <div className="ad-reel-returned">
+        <p className="small">
+          ↩ This video didn&apos;t come through, and its tokens are back. It&apos;s a storyboard again with {kept} picture{kept === 1 ? "" : "s"} kept: change what happens in any shot, then film it again.
+          {lastWhy && <span className="muted"> {lastWhy}</span>}
+        </p>
+        {onStoryboard && (
+          <button type="button" className="secondary small" onClick={() => onStoryboard(reel)}>
+            🎬 Open the storyboard
+          </button>
+        )}
+      </div>
+    );
+  }
   if (reel.status === "making") {
     const minutes = Math.floor((Date.now() - new Date(reel.created_at).getTime()) / 60_000);
     const stalled = minutes * 60_000 > REEL_STALLED_MS;
@@ -368,12 +415,46 @@ function ReelPlayer({ reel, onChange, what = "video", price = null, onMedia }: {
   const why = reelFailureNote(reel.shots);
   if (!shots.length) {
     const stopped = reel.shots.some((s) => s.reason === "stopped");
-    if (stopped && !why) return <p className="muted small">Stopped before any shot came through. Its tokens are back.</p>;
+    // A night's video that failed before failures came back as storyboards: its kept pictures can go back to one.
+    const reopenable = reel.status === "failed" && reel.kind !== "clip" && Boolean(onStoryboard) && reel.shots.some((s) => s.frame_id && !s.archived_at);
+    const reopen = reopenable ? (
+      <button
+        type="button"
+        className="secondary small"
+        disabled={reopening}
+        onClick={async () => {
+          setReopening(true);
+          setReopenError(null);
+          const res = await requestJson("/api/admin/after-dark/reel", { action: "reopen", id: reel.id }).catch(() => null);
+          setReopening(false);
+          if (!res) return setReopenError("That didn't reach the server. Try again.");
+          if (!res.ok) return setReopenError(res.message);
+          const r = res.data.reel as Reel;
+          onChange(r);
+          onStoryboard?.(r);
+        }}
+        title="Its pictures are kept: open them as a storyboard and film it again"
+      >
+        {reopening ? "Opening…" : "↩ Back to the storyboard"}
+      </button>
+    ) : null;
+    if (stopped && !why)
+      return (
+        <div className="ad-reel-returned">
+          <p className="muted small">Stopped before any shot came through. Its tokens are back.</p>
+          {reopen}
+          {reopenError && <span className="error small">{reopenError}</span>}
+        </div>
+      );
     const discarded = reel.shots.some((s) => s.status === "discarded");
     return (
-      <p className={why ? "error small" : "muted small"}>
-        That {what} didn&apos;t come through{discarded ? " (the safety check discarded it)" : ""}, and its tokens are back.{why && ` ${why}`}
-      </p>
+      <div className="ad-reel-returned">
+        <p className={why ? "error small" : "muted small"}>
+          That {what} didn&apos;t come through{discarded ? " (the safety check discarded it)" : ""}, and its tokens are back.{why && ` ${why}`}
+        </p>
+        {reopen}
+        {reopenError && <span className="error small">{reopenError}</span>}
+      </div>
     );
   }
   const discarded = reel.shots.filter((s) => s.status === "discarded").length;
@@ -433,6 +514,8 @@ function SeamlessPlayer({ shots, onChange, price = null, onMedia }: { shots: Pla
   const [removing, setRemoving] = useState(false);
   const [removeError, setRemoveError] = useState<string | null>(null);
   const [refilming, setRefilming] = useState(false);
+  // Film again, with what happens in it in the owner's words (David, 2026-11-09): open, and what's typed.
+  const [refilmWords, setRefilmWords] = useState<string | null>(null);
 
   // Each shot's copy in memory once it's fetched (by its place), so a cut doesn't wait on the network.
   const copies = useRef<string[]>([]);
@@ -565,14 +648,17 @@ function SeamlessPlayer({ shots, onChange, price = null, onMedia }: { shots: Pla
     onChange(r.reel);
   }
 
-  async function refilm(s: PlayShot) {
+  async function refilm(s: PlayShot, words: string) {
     if (!onChange) return;
     players.forEach((p) => p.current?.pause());
     setRefilming(true);
     setRemoveError(null);
-    const r = await refilmOne(s);
+    // Only words that changed are sent: the same words keep the shot's own (the director's, or theirs from before).
+    const was = (s.video_words?.trim() || s.motion || "").trim();
+    const r = await refilmOne(s, words.trim() === was ? undefined : words.trim());
     setRefilming(false);
     if ("error" in r) return setRemoveError(r.error);
+    setRefilmWords(null);
     onChange(r.reel);
   }
 
@@ -869,8 +955,18 @@ function SeamlessPlayer({ shots, onChange, price = null, onMedia }: { shots: Pla
             )}
             {onChange && shot.frame_id && (
               // Film it again from its own start picture (lib/adult/reels.ts refilmShot): its share of the price, back if it fails.
-              <button type="button" className="button-ghost small" disabled={refilming} onClick={() => void refilm(shot)} title="Film this shot again from the same start picture">
-                {refilming ? "Starting…" : "🔁 Film again"}
+              <button
+                type="button"
+                className="button-ghost small"
+                disabled={refilming}
+                aria-expanded={refilmWords !== null}
+                onClick={() => {
+                  players[i % 2].current?.pause();
+                  setRefilmWords((v) => (v === null ? shot.video_words?.trim() || shot.motion || "" : null));
+                }}
+                title="Film this shot again from the same start picture, with what happens in your own words"
+              >
+                🔁 Film again
               </button>
             )}
             {onChange && (
@@ -891,6 +987,20 @@ function SeamlessPlayer({ shots, onChange, price = null, onMedia }: { shots: Pla
             </span>
           )}
         </figcaption>
+      )}
+      {ready && refilmWords !== null && shot?.frame_id && onChange && (
+        <div className="ad-refilm-words">
+          <p className="small muted">What happens in the new video, from the same start picture. The line said stays the same.</p>
+          <textarea rows={3} maxLength={400} value={refilmWords} disabled={refilming} onChange={(e) => setRefilmWords(e.target.value)} placeholder="What they do in this shot…" />
+          <div className="ad-shot-buttons">
+            <button type="button" className="secondary small" disabled={refilming} onClick={() => void refilm(shot, refilmWords)}>
+              {refilming ? "Starting…" : "🔁 Film it again"}
+            </button>
+            <button type="button" className="button-ghost small" disabled={refilming} onClick={() => setRefilmWords(null)}>
+              Cancel
+            </button>
+          </div>
+        </div>
       )}
       {ready && trimming && shot?.media_id && (
         <TrimPanel

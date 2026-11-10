@@ -1221,8 +1221,10 @@ describe("the video of the night", () => {
     expect((await make(cookie)).status).toBe(409);
     await t.db.query(`update adult_reels set created_at = now() - interval '4 hours' where id = $1`, [started.id]);
     const settled = await advance(started.id, cookie);
-    expect(settled.status).toBe("failed");
-    expect(settled.shots.every((s) => s.status === "failed")).toBe(true);
+    // Nothing came through, so it's back as its storyboard, each kept picture ready to film again (2026-11-09).
+    expect(settled.status).toBe("draft");
+    expect(settled.shots.every((s) => s.status === "frame_ready" && Boolean(s.last_try))).toBe(true);
+    expect(settled.shots.map((s) => s.last_try)).toContain("gave up waiting");
     fakeHive();
     threeShots();
     expect((await make(cookie)).status).toBe(200);
@@ -1275,8 +1277,9 @@ describe("the video of the night", () => {
     const other = await admin();
     expect((await del(started.id, other.cookie)).status).toBe(404);
     const stopped = (await (await del(started.id, cookie)).json()).reel as Reel;
-    expect(stopped.status).toBe("failed");
-    expect(stopped.shots.every((s) => s.status === "failed" && s.reason === "stopped")).toBe(true);
+    // Stopped with nothing in: back as its storyboard, its pictures kept (2026-11-09).
+    expect(stopped.status).toBe("draft");
+    expect(stopped.shots.every((s) => s.status === "frame_ready" && s.last_try === "stopped")).toBe(true);
     threeShots();
     expect((await make(cookie)).status).toBe(200);
   });

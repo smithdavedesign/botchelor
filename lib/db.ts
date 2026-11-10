@@ -2492,6 +2492,9 @@ alter table adult_reels add column if not exists chapters jsonb;
 -- (planReel) and their keyframes drawn and approved (drawReelFrames), not yet filmed (filmReel). Widen the status check.
 alter table adult_reels drop constraint if exists adult_reels_status_check;
 alter table adult_reels add constraint adult_reels_status_check check (status in ('draft', 'making', 'ready', 'failed'));
+-- A filmed night's video where nothing came through goes back to its storyboard (lib/adult/reels.ts settleIfDone,
+-- 2026-11-09): when it came back, so the pair's videos list it as a draft to film again.
+alter table adult_reels add column if not exists returned_at timestamptz;
 -- After Dark's discreet mode (lib/adult/privacy.ts): blur its pictures until tapped and a neutral tab title (both on
 -- by default), and an optional PIN kept only as a slow salted hash (scrypt), never the PIN. pin_version changes with
 -- every new or removed PIN, which signs every device out; the wrong tries and the wait they set live here too.

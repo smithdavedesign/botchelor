@@ -138,3 +138,23 @@ Within the rules already set (#765 "never train a model"; the data plan's readin
    the checked-keyframe invariant? (Prod stays on Hive until you choose.)
 2. Redraw allowance + pricing above.
 3. ~~Force the storyboard for everyone, or keep one-tap `makeReel` as a "just film it" path?~~ **Decided (David, 2026-10-30): keep both.** The storyboard for control, one-tap `makeReel` to just film it.
+
+## Back to the storyboard, and the owner's video words (2026-11-09)
+
+David: "it should stick as a draft. Also let's allow a way for us to change the prompt for the video generated. Ideally
+we keep the transcript but the actions from the images might be good for the user to guide with the prompt thoughts."
+
+- **A video where nothing came through comes back as its storyboard** (`settleIfDone` → `reopenShots`): a night's
+  video (not a clip) with at least one kept picture goes to `draft` instead of `failed`, `tokens` 0 (all refunded as
+  before), `returned_at` set. Each shot that didn't come through returns to its start picture (`frame_ready`, still
+  approved) with why it failed as `last_try`; one with no kept picture goes back to `planned`. That covers giving up
+  (3 h), Hive's pause, provider errors and Stop. `listReels` lists returned drafts with the pair's videos, where
+  "🎬 Open the storyboard" opens them. Older failed videos get "↩ Back to the storyboard" (`reopen` action, `reopenReel`).
+- **Video words** (`video_words` on a shot, `setShotVideoWords`, action `video_words`): the owner's words for what
+  happens in the video. They replace the director's `motion` at the head of the video prompt (`shotMotion`); the line
+  said stays the transcript's own. Held to David's lines like the picture words (`shotWords`); "" goes back to the
+  director's. The picture and its approval are untouched. The storyboard's 🎬 What happens offers three hints to start
+  from: the picture (the owner's picture words or the director's still), the line's own *action* (`line_action`, kept
+  from the transcript at planning) and the director's motion.
+- **Film again with new words**: the player's 🔁 Film again opens the shot's words; changed words go with `refilm`
+  (`video_words`) and stay on the shot.

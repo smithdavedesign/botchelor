@@ -40,6 +40,7 @@ export default function Storyboard({
   paused = null,
   onFilmed,
   onClose,
+  onChange,
 }: {
   /** Null while it's being planned. */
   reel: Reel | null;
@@ -53,6 +54,8 @@ export default function Storyboard({
   paused?: string | null;
   onFilmed: (r: Reel) => void;
   onClose: () => void;
+  /** Each change to the draft as it lands (a video back as a storyboard is listed with the pair's videos). */
+  onChange?: (r: Reel) => void;
 }) {
   const [reel, setReel] = useState(initial);
   // The plan lands after it opened: take it once (later changes are this storyboard's own).
@@ -61,7 +64,9 @@ export default function Storyboard({
   const [note, setNote] = useState<{ text: string; error?: boolean } | null>(null);
   // The owner's own words typed per shot (by its place in the storyboard), and which shot's words or picker is open.
   const [edits, setEdits] = useState<Record<number, string>>({});
-  const [open, setOpen] = useState<{ shot: number; what: "words" | "pictures" | "videos" } | null>(null);
+  const [open, setOpen] = useState<{ shot: number; what: "words" | "pictures" | "videos" | "video_words" } | null>(null);
+  // The owner's words for what happens in each shot's video (lib/adult/reels.ts setShotVideoWords), as typed.
+  const [videoEdits, setVideoEdits] = useState<Record<number, string>>({});
   // The pictures that fit each shot best (lib/adult/reels.ts shotSuggestions), loaded the first time a picker opens;
   // and the one picked in a picker, to use as is or draw like.
   const [suggested, setSuggested] = useState<Record<number, ShotSuggestion[]> | null>(null);
@@ -118,6 +123,7 @@ export default function Storyboard({
     }
     const r = res.data.reel as Reel;
     setReel(r);
+    onChange?.(r);
     return r;
   }
 
@@ -153,6 +159,22 @@ export default function Storyboard({
     const words = (edits[i] ?? shots[i].custom ?? "").trim();
     setNote({ text: words ? "Drawing that shot to your words…" : "Drawing that shot…" });
     if (await call({ action: "redraw", id: draft.id, shot: i, custom: words || undefined }, `shot:${i}`)) setOpen(null);
+  }
+
+  /** What happens in one shot's video, in the owner's words ("" goes back to the director's): nothing drawn or spent. */
+  async function saveVideoWords(i: number, words: string) {
+    const r = await call({ action: "video_words", id: draft.id, shot: i, words: words.trim() }, `shot:${i}`);
+    if (!r) return;
+    setVideoEdits(({ [i]: _typed, ...rest }) => rest);
+    setOpen(null);
+    setNote({ text: words.trim() ? "Saved: the video of that shot follows your words." : "That shot's video follows the director's words again." });
+  }
+
+  /** Adds a hint (the picture's, the line's or the director's) to the shot's video words. */
+  function addHint(i: number, current: string, hint: string) {
+    const now = current.trim();
+    if (now.toLowerCase().includes(hint.trim().toLowerCase())) return;
+    setVideoEdits((x) => ({ ...x, [i]: now ? `${now.replace(/[.!?]?$/, ".")} ${hint.trim()}` : hint.trim() }));
   }
 
   /** Start one shot from a picture of the pair they already have: nothing drawn. */
@@ -212,7 +234,13 @@ export default function Storyboard({
             Close
           </button>
         </div>
-        <p className="small muted ad-storyboard-intro">Shape each shot — redraw it to your own words, drop the ones you don&apos;t want — then approve each. The movie is made only once every kept shot is approved.</p>
+        {draft.returned_at ? (
+          // A filmed video where nothing came through, back as its storyboard (lib/adult/reels.ts reopenShots).
+          <p className="small ad-storyboard-returned" role="status">
+            ↩ This video didn&apos;t come through, so it&apos;s back here with its pictures kept: nothing to redraw. Change what happens in any shot&apos;s video if you like, then film it again.
+          </p>
+        ) : null}
+        <p className="small muted ad-storyboard-intro">Shape each shot — redraw it to your own words, say what happens in its video, drop the ones you don&apos;t want — then approve each. The movie is made only once every kept shot is approved.</p>
         <ol className="ad-storyboard-grid">
           {shots.map((s, i) => {
             const b = shotBadge(s);
@@ -221,6 +249,15 @@ export default function Storyboard({
             const working = busy === `shot:${i}` || (typeof busy === "string" && busy === `drop:${pic}`);
             const words = edits[i] ?? s.custom ?? "";
             const choosing = open?.shot === i ? open.what : null;
+            // What happens in its video: the owner's words when they gave some, else the director's (lib/adult/reels.ts shotMotion).
+            const motion = s.video_words?.trim() || s.motion;
+            const videoWords = videoEdits[i] ?? motion ?? "";
+            // Hints for the video words: what its picture shows, the line's own action, the director's idea.
+            const hints = [
+              { label: "🖼 The picture", text: s.custom ?? s.frame ?? "" },
+              { label: "🎭 The line", text: s.line_action ?? "" },
+              { label: "🎬 The director", text: s.motion },
+            ].filter((h, k, all) => h.text.trim() && all.findIndex((x) => x.text.trim() === h.text.trim()) === k);
             return (
               <li key={i} className={`ad-shot ad-shot-${b.kind}`}>
                 <div className="ad-shot-pic">
@@ -259,8 +296,14 @@ export default function Storyboard({
                       <strong>{first(s.who === "a" ? names.a : names.b)}</strong> “{s.text}”{s.picked ? <span className="small muted"> · your pick</span> : null}
                     </p>
                   ) : null}
-                  {s.motion ? <p className="small muted ad-shot-motion">{s.motion}</p> : null}
+                  {motion ? (
+                    <p className="small muted ad-shot-motion">
+                      🎬 {motion}
+                      {s.video_words ? <span className="ad-shot-yours"> · your words</span> : null}
+                    </p>
+                  ) : null}
                   {s.reason && (b.kind === "refused" || b.kind === "failed") ? <p className="small ad-shot-reason">{s.reason}</p> : null}
+                  {s.last_try && s.status === "frame_ready" ? <p className="small ad-shot-reason">Last time its video didn&apos;t come through: {s.last_try}</p> : null}
                   {!s.archived_at && (
                     <div className="ad-shot-buttons">
                       <button type="button" className="button-ghost small" aria-expanded={choosing === "words"} disabled={busy !== null} onClick={() => setOpen(choosing === "words" ? null : { shot: i, what: "words" })}>
@@ -277,6 +320,53 @@ export default function Storyboard({
                       <button type="button" className="button-ghost small" disabled={busy !== null || Boolean(paused)} title={paused ?? undefined} onClick={() => void drawOne(i)}>
                         {drawable || b.kind === "failed" || b.kind === "refused" ? "Redraw" : "Draw this one"}
                       </button>
+                      {!s.from_video && (
+                        <button
+                          type="button"
+                          className="button-ghost small"
+                          aria-expanded={choosing === "video_words"}
+                          disabled={busy !== null}
+                          title="What happens in this shot's video: the picture stays, the line said stays"
+                          onClick={() => setOpen(choosing === "video_words" ? null : { shot: i, what: "video_words" })}
+                        >
+                          🎬 What happens
+                        </button>
+                      )}
+                    </div>
+                  )}
+                  {choosing === "video_words" && (
+                    <div className="ad-shot-words">
+                      <p className="small muted">What happens in the video, from its picture on. The line said stays the transcript&apos;s; nothing is drawn or spent until you film.</p>
+                      {hints.length > 0 && (
+                        <ul className="ad-shot-hints" aria-label="Ideas to start from">
+                          {hints.map((h) => (
+                            <li key={h.label}>
+                              <button type="button" className="button-ghost small" disabled={busy !== null} onClick={() => addHint(i, videoWords, h.text)} title={`Add: ${h.text}`}>
+                                {h.label}: <span className="muted">{h.text}</span>
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                      <textarea
+                        className="ad-shot-custom"
+                        rows={3}
+                        maxLength={400}
+                        value={videoWords}
+                        placeholder="What they do in this shot: how they move, where they look, how it ends…"
+                        disabled={busy !== null}
+                        onChange={(e) => setVideoEdits((x) => ({ ...x, [i]: e.target.value }))}
+                      />
+                      <div className="ad-shot-buttons">
+                        <button type="button" className="secondary small" disabled={busy !== null || !videoWords.trim() || videoWords.trim() === motion?.trim()} onClick={() => void saveVideoWords(i, videoWords)}>
+                          Use these words
+                        </button>
+                        {s.video_words ? (
+                          <button type="button" className="button-ghost small" disabled={busy !== null} onClick={() => void saveVideoWords(i, "")}>
+                            Back to the director&apos;s
+                          </button>
+                        ) : null}
+                      </div>
                     </div>
                   )}
                   {choosing === "words" && (

@@ -552,6 +552,105 @@ describe("the storyboard: plan, draw, then film", () => {
     expect(await used()).toBe(15);
   });
 
+  it("a night's video where nothing came through goes back to its storyboard, its pictures kept (David, 2026-11-09)", async () => {
+    const owner = userIdOf(newUserCookie());
+    await t.db.query(`insert into pack_episode_usage (user_id, used) values ($1, 20)`, [owner]);
+    const shot = (status: string, extra: Record<string, unknown> = {}) => ({ line: 1, who: "a", text: "hi there you", frame: "", motion: "", status, ...extra });
+    const reel = async (rid: string, shots: unknown[], kind = "night") => {
+      await t.db.query(`insert into adult_reels (id, owner_id, character_a, character_b, status, tokens, shots, kind) values ($1, $2, $3, $4, 'making', 15, $5::jsonb, $6)`, [rid, owner, ...PAIR, JSON.stringify(shots), kind]);
+      return settleIfDone(t.db, rid);
+    };
+    const used = async () => (await t.db.query<{ used: number }>(`select used from pack_episode_usage where user_id = $1`, [owner])).rows[0].used;
+    const back = await reel("came-back", [
+      shot("failed", { frame_id: "f1", media_id: "f1", queue_id: "q1", reason: "gave up waiting", approved: true, model: "wan" }),
+      shot("discarded", { frame_id: "f2", media_id: "v2", reason: "the check refused it", approved: true }),
+      shot("failed", { reason: "Venice 402", approved: true }),
+      shot("failed", { frame_id: "f4", media_id: "f4", archived_at: "2026-11-01T00:00:00Z" }),
+    ]);
+    expect(back.status).toBe("draft");
+    expect(back.tokens).toBe(0);
+    expect(back.returned_at).toEqual(expect.any(String));
+    // Each kept picture is ready to film again, still approved; why it failed is kept; one with no picture is planned.
+    expect(back.shots[0]).toMatchObject({ status: "frame_ready", media_id: "f1", frame_id: "f1", approved: true, last_try: "gave up waiting" });
+    expect(back.shots[0].queue_id).toBeUndefined();
+    expect(back.shots[0].reason).toBeUndefined();
+    expect(back.shots[1]).toMatchObject({ status: "frame_ready", media_id: "f2", last_try: "the check refused it" });
+    expect(back.shots[2]).toMatchObject({ status: "planned", approved: false, last_try: "Venice 402" });
+    expect(back.shots[2].media_id).toBeUndefined();
+    // One in the Archive stays there.
+    expect(back.shots[3]).toMatchObject({ status: "failed", archived_at: "2026-11-01T00:00:00Z" });
+    // All its tokens back.
+    expect(await used()).toBe(5);
+    // Listed with the pair's videos (a plain draft isn't).
+    await t.db.query(`insert into adult_reels (id, owner_id, character_a, character_b, status, tokens, shots) values ('plain-draft', $1, $2, $3, 'draft', 0, '[]'::jsonb)`, [owner, ...PAIR]);
+    const listed = (await listReels(t.db, owner, CAST_A, CAST_B)).map((r) => r.id);
+    expect(listed).toContain("came-back");
+    expect(listed).not.toContain("plain-draft");
+    // A clip, and a video with no picture kept, still fail.
+    expect((await reel("clip-failed", [shot("failed", { frame_id: "f9", media_id: "f9" })], "clip")).status).toBe("failed");
+    expect((await reel("nothing-kept", [shot("failed", { reason: "Venice 402" })])).status).toBe("failed");
+  });
+
+  it("an older failed night's video goes back to its storyboard on its owner's ask", async () => {
+    const { id, cookie } = await admin();
+    await ready(cookie, id);
+    const shots = [{ line: 1, who: "a", text: "hi", frame: "", motion: "", status: "failed", frame_id: "f1", media_id: "f1", reason: "the check couldn't run (Hive answered 429)", approved: true }];
+    const insert = (rid: string, kind: string, status = "failed", s: unknown[] = shots) =>
+      t.db.query(`insert into adult_reels (id, owner_id, character_a, character_b, status, tokens, shots, kind) values ($1, $2, $3, $4, $5, 0, $6::jsonb, $7)`, [rid, id, ...PAIR, status, JSON.stringify(s), kind]);
+    await insert("old-failed", "night");
+    await insert("old-clip", "clip");
+    await insert("old-ready", "night", "ready");
+    await insert("old-empty", "night", "failed", [{ ...shots[0], frame_id: undefined }]);
+    expect((await make(newUserCookie(), { action: "reopen", id: "old-failed" })).status).not.toBe(200);
+    const res = await make(cookie, { action: "reopen", id: "old-failed" });
+    expect(res.status).toBe(200);
+    const reel = (await res.json()).reel as Reel;
+    expect(reel).toMatchObject({ status: "draft", returned_at: expect.any(String) });
+    expect(reel.shots[0]).toMatchObject({ status: "frame_ready", media_id: "f1", approved: true, last_try: expect.stringContaining("Hive answered 429") });
+    expect((await make(cookie, { action: "reopen", id: "old-clip" })).status).toBe(409);
+    expect((await make(cookie, { action: "reopen", id: "old-ready" })).status).toBe(409);
+    expect((await make(cookie, { action: "reopen", id: "old-empty" })).status).toBe(409);
+  });
+
+  it("the owner says what happens in a shot's video: it leads the video prompt, the line stays, and filming again takes new words", async () => {
+    const { id, cookie } = await admin();
+    await ready(cookie, id);
+    await sceneAt(id, 1, linesOf(1, 8), { place: "the harbour", set: "harbour", stage: 2 });
+    const seen = fakeMedia();
+    director([2, 4]);
+    const plan = (await (await make(cookie, { action: "plan" })).json()).reel as Reel;
+    // The line's own action is kept as a hint.
+    expect(plan.shots[0].line_action).toBe("nods");
+    await make(cookie, { action: "draw", id: plan.id });
+    await make(cookie, { action: "approve", id: plan.id, media_id: null, approved: true });
+    const words = (await (await make(cookie, { action: "video_words", id: plan.id, shot: 0, words: "  she laughs and pulls him down onto the bench  " })).json()).reel as Reel;
+    // Stored trimmed; the picture and its approval stay.
+    expect(words.shots[0]).toMatchObject({ video_words: "she laughs and pulls him down onto the bench", status: "frame_ready", approved: true });
+    // Words that cross a line are refused; a shot that isn't there is not found.
+    expect((await make(cookie, { action: "video_words", id: plan.id, shot: 1, words: "she says she's sixteen" })).status).toBe(422);
+    expect((await make(cookie, { action: "video_words", id: plan.id, shot: 9, words: "x" })).status).toBe(404);
+    // Empty words go back to the director's.
+    const cleared = (await (await make(cookie, { action: "video_words", id: plan.id, shot: 1, words: "" })).json()).reel as Reel;
+    expect(cleared.shots[1].video_words).toBeUndefined();
+    const filmed = (await (await make(cookie, { action: "film", id: plan.id })).json()).reel as Reel;
+    expect(filmed.shots.every((s) => s.status === "queued")).toBe(true);
+    const queued = seen.filter((x) => x.path === "/video/queue");
+    expect(String(queued[0].body.prompt)).toMatch(/^she laughs and pulls him down onto the bench /);
+    expect(String(queued[1].body.prompt)).toContain(plan.shots[1].motion);
+    // Only a draft takes them.
+    expect((await make(cookie, { action: "video_words", id: plan.id, shot: 0, words: "x" })).status).toBe(409);
+    const advance = async () => (await (await reelGet(new Request(`${BASE_URL}/api/admin/after-dark/reel?id=${plan.id}`, { headers: { cookie } }))).json()).reel as Reel;
+    let done = await advance();
+    for (let k = 0; k < 5 && done.status === "making"; k++) done = await advance();
+    expect(done.status).toBe("ready");
+    // Filming one shot again, with new words: they lead its new video and are kept on the shot.
+    expect((await make(cookie, { action: "refilm", id: plan.id, media_id: done.shots[1].media_id, video_words: "she is sixteen" })).status).toBe(422);
+    const again = (await (await make(cookie, { action: "refilm", id: plan.id, media_id: done.shots[1].media_id, video_words: "he slowly turns her around to face the sea" })).json()).reel as Reel;
+    expect(again.shots[1]).toMatchObject({ status: "queued", video_words: "he slowly turns her around to face the sea" });
+    const requeued = seen.filter((x) => x.path === "/video/queue");
+    expect(String(requeued[requeued.length - 1].body.prompt)).toMatch(/^he slowly turns her around to face the sea /);
+  });
+
   it("suggests each shot's best-fitting pictures of theirs by its tags, and draws a shot like one (its pose, framing and place)", async () => {
     const { id, cookie } = await admin();
     await ready(cookie, id);
