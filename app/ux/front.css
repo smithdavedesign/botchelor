@@ -238,3 +238,47 @@
 .season-line-body p {
   margin: 0;
 }
+
+/* ---------------- the Sunday letter (app/NewsletterForm.tsx, app/NewsletterSignup.tsx, app/newsletter) ---------------- */
+/* The address and its button on one row, the 18+ box under them; the button drops under the address on a narrow phone. */
+.newsletter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  margin-top: var(--space-1);
+}
+.newsletter-row input {
+  flex: 1 1 14rem;
+  margin-top: 0;
+}
+.newsletter-row button {
+  margin-top: 0;
+}
+.newsletter-form .check {
+  margin-top: var(--space-2);
+  font-size: var(--text-sm);
+}
+.newsletter-form .error,
+.newsletter-done {
+  margin: var(--space-2) 0 0;
+}
+.newsletter-form-page > label:first-child {
+  margin-top: 0;
+}
+/* In the footer: a line about it and the form, after the two lines that stay in the open. */
+.footer-newsletter {
+  max-width: var(--page-read);
+  margin: var(--space-3) 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--card);
+}
+.footer-newsletter-lede {
+  margin: 0;
+  font-size: var(--text-sm);
+}
+.newsletter-page .newsletter-card {
+  margin: var(--space-4) 0;
+}

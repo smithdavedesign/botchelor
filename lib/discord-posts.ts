@@ -225,11 +225,22 @@ export async function episodeDigest(db: Db, from: Date, to: Date, now: Date = ne
   return rankDrops(groupDrops(rows, new Set(seasonCastIds(now))).filter((i) => !recent.has(i.key))).slice(0, DROPS_PER_POST);
 }
 
+/**
+ * The best `n` items that aired in [from, to), by the digest's own rules (the same dates may be posted, the same
+ * ranking), whatever Discord featured: the Sunday letter's week (lib/newsletter-issue.ts). Read a day at a time, so a busy
+ * week isn't cut short by dropRows' limit.
+ */
+export async function bestAired(db: Db, from: Date, to: Date, n: number, now: Date = new Date()): Promise<DropItem[]> {
+  const rows: DropRow[] = [];
+  for (let at = from.getTime(); at < to.getTime(); at += DAY_MS) rows.push(...(await dropRows(db, new Date(at), new Date(Math.min(at + DAY_MS, to.getTime())))));
+  return rankDrops(groupDrops(rows, new Set(seasonCastIds(now)))).slice(0, n);
+}
+
 const pairOf = (d: DropDate): string => `${d.a.name} × ${d.b.name}`;
 const firstName = (name: string): string => name.split(/\s+/)[0] || name;
 
 /** The episode's own title (lib/episode-title.ts) when one was written; the template one would only repeat the setting. */
-function writtenTitle(d: DropDate): string | null {
+export function writtenTitle(d: DropDate): string | null {
   if (!d.title) return null;
   return d.title === templateEpisodeTitle({ venue: d.venue, dateNumber: d.date_number }) ? null : d.title;
 }
