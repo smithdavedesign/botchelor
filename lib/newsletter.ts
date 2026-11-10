@@ -56,9 +56,12 @@ export function envSetting(raw: string | undefined): string | null {
   return v && v !== "CHANGE_ME" ? v : null;
 }
 
-/** Resend's key and sender for the letter, or null where it's off: email isn't set up, or this is After Dark's host. */
+/**
+ * Resend's key and sender for the letter, or null where it's off: email isn't set up, nothing can sign its links
+ * (SESSION_SECRET), or this is After Dark's host.
+ */
 export function newsletterEmail(env: Env = process.env): EmailConfig | null {
-  if (afterDarkOnly(env)) return null;
+  if (afterDarkOnly(env) || !env.SESSION_SECRET) return null;
   const config = emailConfig(env);
   return config && envSetting(config.apiKey) ? config : null;
 }
@@ -302,7 +305,7 @@ export type ConfirmSend = "sent" | "capped" | "not_due" | "failed";
  */
 export async function sendConfirmation(db: Db, email: string, now: Date = new Date(), env: Env = process.env): Promise<ConfirmSend> {
   const config = newsletterEmail(env);
-  if (!config || !env.SESSION_SECRET) return "not_due";
+  if (!config) return "not_due";
   if ((await newsletterBudget(db, env)).confirms <= 0) return "capped";
   const claimed = await db.query(
     `update newsletter_subscribers set confirm_tried_at = $2, updated_at = $2

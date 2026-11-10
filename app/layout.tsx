@@ -30,6 +30,7 @@ import InstallHint from "./InstallHint";
 import FooterGroup from "./FooterGroup";
 import JsonLd from "./JsonLd";
 import Nav from "./Nav";
+import NewsletterSignup from "./NewsletterSignup";
 import SocialLinks from "./SocialLinks";
 import { unreadTexts } from "@/lib/inbox";
 import { CrisisResources } from "./Notices";
@@ -168,6 +169,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
           {/* The two lines that must never be one tap away stay out in the open: who's on the show, and where help is. */}
           <p className="footer-adults">Every character is a fictional adult (18+), and every episode is written by an AI model.</p>
           <CrisisResources />
+          {!adHost && <NewsletterSignup />}
           {/* Three groups, not fifteen links in one list (2026-10-31 UX audit): columns on a wide screen, folds on a phone. */}
           <nav className="footer-groups" aria-label="More of the site">
             <FooterGroup title="The show">

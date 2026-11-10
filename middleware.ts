@@ -195,9 +195,10 @@ function route(req: NextRequest): NextResponse {
     track("agent_referral_visit", { source, path: pathname });
   }
 
-  // The gate itself, unsubscribing from email (lib/email.ts), and the policy pages (terms, privacy, reporting, cancelling):
-  // leaving, complaining or reading the rules must never take a hurdle, and they hold nothing adult.
-  if (pathname === "/gate" || pathname.startsWith("/email/") || UNGATED_PAGES.has(pathname) || req.cookies.get(ADULT_COOKIE)?.value === "1") {
+  // The gate itself, unsubscribing from email (lib/email.ts), the Sunday letter's confirm and unsubscribe links
+  // (lib/newsletter.ts), and the policy pages (terms, privacy, reporting, cancelling): leaving, complaining or reading
+  // the rules must never take a hurdle, and they hold nothing adult.
+  if (pathname === "/gate" || pathname.startsWith("/email/") || pathname.startsWith("/newsletter/") || UNGATED_PAGES.has(pathname) || req.cookies.get(ADULT_COOKIE)?.value === "1") {
     return NextResponse.next();
   }
 

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { newsletterState } from "@/lib/newsletter";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Confirm the Sunday letter · Botchelor", robots: { index: false, follow: false } };
@@ -18,8 +19,11 @@ export default async function ConfirmNewsletterPage({ searchParams }: { searchPa
       <h1>The Sunday letter</h1>
       {p.done ? (
         <p className="notice">
-          You&apos;re on the list. The next letter comes on Sunday evening, after the reveal. Every one has a one-click
-          unsubscribe at the bottom.
+          {/* Until NEWSLETTER_POSTAL_ADDRESS is set no letter goes out (lib/newsletter.ts), so don't promise this Sunday's. */}
+          {newsletterState() === "on"
+            ? "You're on the list. The next letter comes on Sunday evening, after the reveal."
+            : "You're on the list. The letter starts soon, on a Sunday evening after the reveal."}{" "}
+          Every one has a one-click unsubscribe at the bottom.
         </p>
       ) : p.invalid || !token ? (
         <p className="notice">
