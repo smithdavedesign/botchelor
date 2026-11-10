@@ -659,8 +659,12 @@ async function main() {
       await page.setViewportSize({ width: w, height: h });
       await page.goto(`${app.base}/after-dark/${A}/${B}`);
       // The page opens on the theater (#845): Exit leaves it for the videos below.
+      // isVisible() doesn't wait, and the theater opens once the page has loaded the night: wait for its Exit.
       const exit = page.locator(".theater").getByRole("button", { name: "Exit", exact: true });
-      if (await exit.isVisible({ timeout: 15_000 }).catch(() => false)) await exit.click();
+      if (await exit.waitFor({ state: "visible", timeout: 20_000 }).then(() => true, () => false)) {
+        await exit.click();
+        await page.locator(".theater").waitFor({ state: "hidden", timeout: 10_000 });
+      }
       // The pair's videos are a tab of their own, beside the pictures.
       const videos = page.getByRole("tab", { name: /^Videos \(\d+\)$/ });
       await videos.waitFor({ timeout: 30_000 });
