@@ -66,7 +66,8 @@ import { PICK_LINES_MAX, REEL_STALLED_MS } from "./reel-timing";
 import { cancelPrediction, createPrediction, downloadOutput, getPrediction, isDone, noOutput, outputUrls, ReplicateError, runModel, type Prediction, type ReplicateFile } from "./replicate";
 import { dropForeignActions, eligiblePair, type SceneLine } from "./scenes";
 import { groupNights, type NightChapter } from "./nights";
-import { adultKeys, getAdultSettings, type MediaProvider } from "./settings";
+import { adultKeys, DEFAULT_REPLICATE_VOICE_MODEL, getAdultSettings, type MediaProvider } from "./settings";
+import { padWav, wavSeconds } from "./wav";
 import { STAGES } from "./stages";
 import { faceReferenceId, NO_STEERING, ratingsFor, steeringFor } from "./steering";
 import { logRequest, requestJson, withRequestLog, type LoggedRequest } from "./request-log";
@@ -169,6 +170,13 @@ export type ReelShot = {
   /** On Replicate: the stock voice that says the line, and once the shot is in, that line (an adult_images 'audio'). */
   voice?: string;
   audio_id?: string;
+  /**
+   * Its line already said, before the video (an adult_images 'audio', padded to the shot's length) and how long it runs:
+   * made for a speech model (Wan 2.2 S2V), which moves the speaker's lips to it (2026-11-09). If that model can't make
+   * the shot, the silent one does and this same voice plays beside it, so it's never said twice.
+   */
+  said_id?: string;
+  said_s?: number;
   /** Made on its owner's own key (Connections, "After Dark videos"): collected, stopped and paid for there. */
   own?: boolean;
   /** On Replicate: made by the talk model, which says the line itself (its own sound, no `audio_id`). */
@@ -948,10 +956,19 @@ export function continuePrompt(cast: readonly [ReelPerson, ReelPerson], after: s
   return fitPrompt([head], after, [whoIsWho(cast), keep, tailAt(stage, opts.explicit ?? true)]);
 }
 
-/** A shot's prompt: what they do, both kept as they are, one continuous shot, and who says the line (or that nobody does). */
 /** What happens in a shot's video: the owner's own words when they gave some, else the director's. */
 export const shotMotion = (s: Pick<ReelShot, "motion" | "video_words">): string => s.video_words?.trim() || s.motion;
 
+/** His, her or their: whose mouth, in a prompt. */
+const possessive = (p: ReelPerson): string => (p.noun === "man" ? "his" : p.noun === "woman" ? "her" : "their");
+/**
+ * The one speaking says it with their mouth free (2026-11-09: a shot whose motion was a kiss buried the speaker's mouth,
+ * so no model could show the line being said); the other one listens, mouth still.
+ */
+const mouthFree = (speaker: ReelPerson, other: ReelPerson | null): string =>
+  ` ${cap(speaker.tag)} says it with ${possessive(speaker)} mouth free, not kissing or covered, face turned so the lips show${other ? `; ${other.tag} stays quiet, listening` : ""}.`;
+
+/** A shot's prompt: what they do, both kept as they are, one continuous shot, and who says the line (or that nobody does). */
 export function shotPrompt(cast: readonly [ReelPerson, ReelPerson], s: Pick<ReelShot, "who" | "text" | "motion" | "eyes" | "camera" | "video_words">, audioIn: boolean): string {
   const speaker = cast[s.who === "a" ? 0 : 1];
   const motion = shotMotion(s);
@@ -965,15 +982,31 @@ export function shotPrompt(cast: readonly [ReelPerson, ReelPerson], s: Pick<Reel
     if (!s.text.trim()) return `${base} Neither of them speaks: only their breathing and the sounds of the room.`;
     // Said by the one whose eyes these are: off camera, so no mouth on screen is made to say it.
     if (s.who === s.eyes) return `${base} ${cap(viewer.tag)}, off camera, in ${viewer.voice}, says: "${s.text}"`;
-    return audioIn ? `${base} ${cap(shown.tag)} is the one speaking, lips moving with the words.` : `${base} ${cap(shown.tag)}, in ${shown.voice}, says: "${s.text}"`;
+    return (audioIn ? `${base} ${cap(shown.tag)} is the one speaking, lips moving with the words.` : `${base} ${cap(shown.tag)}, in ${shown.voice}, says: "${s.text}"`) + mouthFree(shown, null);
   }
   const base =
     `${motion || "The two of them stay close, moving together."} Two people only: ${cast[0].tag} and ${cast[1].tag}, exactly as in the picture, ` +
     `the same faces and bodies in the same place. One continuous shot, ${cameraWords(s.camera)}: no cuts, nobody else comes in. Realistic motion.`;
   // A clip with no line in it (lib/adult/clips.ts, an act from the menu): nobody speaks.
   if (!s.text.trim()) return `${base} Neither of them speaks: only their breathing and the sounds of the room.`;
-  return audioIn ? `${base} ${cap(speaker.tag)} is the one speaking, lips moving with the words.` : `${base} ${cap(speaker.tag)}, in ${speaker.voice}, says: "${s.text}"`;
+  const other = cast[s.who === "a" ? 1 : 0];
+  return (audioIn ? `${base} ${cap(speaker.tag)} is the one speaking, lips moving with the words.` : `${base} ${cap(speaker.tag)}, in ${speaker.voice}, says: "${s.text}"`) + mouthFree(speaker, other);
 }
+
+/**
+ * A shot's inputs on a speech model (Wan 2.2 S2V, 2026-11-09): its keyframe, the line's voice (padded to the shot's
+ * length, which the video follows) and the prompt naming who speaks. The frames per chunk cover the whole voice in one,
+ * so the video is one continuous take (SPEECH_CHUNK_MAX).
+ */
+export function speechShotInput(cast: readonly [ReelPerson, ReelPerson], s: Pick<ReelShot, "who" | "text" | "motion" | "eyes" | "camera" | "video_words">, image: string, audio: string, seconds: number): Record<string, unknown> {
+  return { image, audio, prompt: shotPrompt(cast, s, true), num_frames_per_chunk: speechChunk(seconds) };
+}
+
+/** A speech shot runs at least this long: its line padded with silence to it (the video is as long as the audio). */
+export const SPEECH_MIN_S = 5;
+/** Wan 2.2 S2V's frames (16 a second) in one chunk: 4n+1, enough for the voice, at most this. */
+export const SPEECH_CHUNK_MAX = 121;
+export const speechChunk = (seconds: number): number => Math.min(SPEECH_CHUNK_MAX, Math.max(81, 4 * Math.ceil((Math.ceil(seconds * WAN_FPS) - 1) / 4) + 1));
 
 /** Wan 2.2 on Replicate makes 81 to 121 frames (four to a step, plus one) at 16 a second: about 5 to 7.5 seconds. */
 const WAN_FPS = 16;
@@ -1218,7 +1251,17 @@ const MAX_SHOT_BYTES = 100 * 1024 * 1024;
 const MAX_VOICE_BYTES = 20 * 1024 * 1024;
 
 /** A reel made on Replicate: its token, the keyframe and video models, the video LoRA, and the talk model (unset: none). */
-export type ReplicateMedia = { token: string; keyframe: string; video: string; videoLora: string | null; talk?: string | null };
+export type ReplicateMedia = {
+  token: string;
+  keyframe: string;
+  video: string;
+  videoLora: string | null;
+  talk?: string | null;
+  /** The speech model (picture + the line's voice -> lips moving), for shots with a line the talk model doesn't make; null: off. */
+  speech?: string | null;
+  /** The voice model the line is said on, before a speech shot. */
+  voiceModel?: string;
+};
 
 export type ShotContext = {
   pair: [string, string];
@@ -1266,7 +1309,7 @@ export const explicitShot = (s: Pick<ReelShot, "stage">): boolean => (s.stage ??
  * goes to the talk model, which says it; the silent model's input is kept on it for when the talk model can't
  * (collectReplicateShot), which signs its keyframe link again when it sends it.
  */
-async function queueReplicateShot(ctx: Pick<ShotContext, "cast" | "baseUrl" | "replicate" | "avoid">, s: ReelShot): Promise<void> {
+async function queueReplicateShot(ctx: Pick<ShotContext, "cast" | "baseUrl" | "replicate" | "avoid">, s: ReelShot, sayLine?: (s: ReelShot) => Promise<{ id: string; seconds: number }>): Promise<void> {
   const r = ctx.replicate!;
   s.voice = replicateVoice(voiceFor(ctx.cast[s.who === "a" ? 0 : 1]));
   delete s.speaks;
@@ -1279,6 +1322,19 @@ async function queueReplicateShot(ctx: Pick<ShotContext, "cast" | "baseUrl" | "r
     const p = await createPrediction(r.token, r.talk, talkShotInput(ctx.cast, s, link, r.talk, ctx.avoid), { cancelAfter: "30m" });
     Object.assign(s, { queue_id: p.id, model: r.talk, speaks: true, silent_retry: { model: r.video, input: replicateShotInput(ctx.cast, s, link, r.videoLora) } });
     return;
+  }
+  // The rest with a line, said on camera, go to the speech model (2026-11-09): the line said first in their voice, then
+  // the picture with it, the speaker's lips moved to it. A line said off camera (through the speaker's own eyes) has no
+  // mouth to move. If the voice can't be made, the silent model makes the shot and the voice comes after, as before.
+  const offCamera = Boolean(s.eyes && s.who === s.eyes);
+  if (r.speech && sayLine && s.text.trim() && !offCamera) {
+    const said = await sayLine(s).catch(() => null);
+    if (said) {
+      const link = signedMediaUrl(s.media_id!, ctx.baseUrl);
+      const p = await createPrediction(r.token, r.speech, speechShotInput(ctx.cast, s, link, signedMediaUrl(said.id, ctx.baseUrl), said.seconds), { cancelAfter: "30m" });
+      Object.assign(s, { queue_id: p.id, model: r.speech, speaks: true, silent_retry: { model: r.video, input: replicateShotInput(ctx.cast, s, link, r.videoLora) } });
+      return;
+    }
   }
   // Stopped if it's still going in half an hour: nobody will collect it by then.
   const p = await createPrediction(r.token, r.video, replicateShotInput(ctx.cast, s, signedMediaUrl(s.media_id!, ctx.baseUrl), r.videoLora), { cancelAfter: "30m" });
@@ -1297,7 +1353,7 @@ async function queueReplicateShot(ctx: Pick<ShotContext, "cast" | "baseUrl" | "r
 export async function startShots(db: Db, ownerId: string, shots: ReelShot[], ctxIn: ShotContext): Promise<void> {
   const ctx = await withSteering(db, ownerId, ctxIn);
   await drawFrames(db, ownerId, shots, ctx);
-  await queueVideos(db, shots, ctx);
+  await queueVideos(db, shots, ctx, ownerId);
 }
 
 /** The pair's video ratings (lib/adult/steering.ts) into `avoid`, once, so draw and film share it. */
@@ -1436,11 +1492,13 @@ export async function drawFrames(db: Db, ownerId: string, shots: ReelShot[], ctx
  * keyframe and becomes `queued`; a shot whose video won't queue is `failed`. Queuing is a new job, so it may go to the
  * other provider when the configured one is limited; once queued it's collected where it went (`provider`).
  */
-export async function queueVideos(db: Db, shots: ReelShot[], ctx: ShotContext): Promise<void> {
+export async function queueVideos(db: Db, shots: ReelShot[], ctx: ShotContext, ownerId?: string): Promise<void> {
+  // A speech shot's line, said first (lineVoice): only with a speech model, and someone the voice is kept for.
+  const sayLine = ownerId && ctx.replicate?.speech ? (s: ReelShot) => lineVoice(db, ownerId, ctx, s) : undefined;
   for (const s of shots) {
     if (s.status !== "frame_ready" || s.archived_at) continue;
     try {
-      const { value: queued, requests } = await withRequestLog(() => runShotMedia(db, "video", (p) => (p === "replicate" ? queueReplicateShot(ctx, s) : queueShot(ctx, s)), ctx));
+      const { value: queued, requests } = await withRequestLog(() => runShotMedia(db, "video", (p) => (p === "replicate" ? queueReplicateShot(ctx, s, sayLine) : queueShot(ctx, s)), ctx));
       s.request = requests;
       if (queued.provider === "replicate") s.provider = "replicate";
       else delete s.provider;
@@ -1453,6 +1511,33 @@ export async function queueVideos(db: Db, shots: ReelShot[], ctx: ShotContext): 
       if (ctx.own) await ownKeyRefused(db, ctx.own.userId, ctx.own.provider, err);
     }
   }
+}
+
+/**
+ * A speech shot's line in the speaker's voice, said before the video (2026-11-09): on the voice model (Kokoro on
+ * Replicate, the same key as the shot), padded with silence to the shot's length (SPEECH_MIN_S; the video runs as long
+ * as it), and kept as an adult_images 'audio' a signed link can hand the speech model. Made once per shot: filmed
+ * again, it's said again only if it's gone. Throws when there's no voice to give (the shot then goes silent).
+ */
+async function lineVoice(db: Db, ownerId: string, ctx: Pick<ShotContext, "pair" | "replicate">, s: ReelShot): Promise<{ id: string; seconds: number }> {
+  if (s.said_id && s.said_s) {
+    const had = await db.query(`select 1 from adult_images where id = $1 and kind = 'audio' and status = 'ready'`, [s.said_id]);
+    if (had.rows.length) return { id: s.said_id, seconds: s.said_s };
+  }
+  const r = ctx.replicate!;
+  const voice = await runModel(r.token, r.voiceModel || DEFAULT_REPLICATE_VOICE_MODEL, replicateVoiceInput(s), { maxBytes: MAX_VOICE_BYTES, timeoutMs: 60_000 });
+  const length = voice.mime.startsWith("audio/") ? wavSeconds(voice.bytes) : null;
+  if (length === null) throw new Error("the voice came back as something other than a WAV");
+  const seconds = Math.max(SPEECH_MIN_S, Math.ceil((length + BREATH_S) * 10) / 10);
+  const bytes = padWav(voice.bytes, seconds);
+  const id = crypto.randomUUID();
+  const kept = await keepBytes("after-dark", id, bytes, "audio/wav");
+  await db.query(
+    `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, status, source_image, provider, fell_back) values ($1, $2, $3, $4, 'audio', $5, 'audio/wav', $6, $7, 'ready', $8, 'replicate', false)`,
+    [id, ownerId, ctx.pair[0], ctx.pair[1], `Reel line: ${s.text}`.slice(0, 500), kept.data, kept.object_key, s.media_id ?? null],
+  );
+  Object.assign(s, { said_id: id, said_s: seconds });
+  return { id, seconds };
 }
 
 /**
@@ -1645,10 +1730,14 @@ async function assembleShots(db: Db, ownerId: string, a: string, b: string, line
 
 /** The talk model for shots with a line, or null when it's turned off ("off"). */
 export const talkModel = (settings: Pick<Settings, "replicate_talk_model">): string | null => (settings.replicate_talk_model === "off" ? null : settings.replicate_talk_model);
+/** The speech model for shots with a line the talk model doesn't make, or null when it's turned off ("off"). */
+export const speechModel = (settings: Pick<Settings, "replicate_speech_model">): string | null => (settings.replicate_speech_model === "off" ? null : settings.replicate_speech_model);
 
 /** Both providers' details when both keys are set up, for runMedia's fallback; null when there's no Replicate token. */
 const replicateMedia = (keys: Awaited<ReturnType<typeof adultKeys>>, settings: Settings): ReplicateMedia | null =>
-  keys.replicate ? { token: keys.replicate, keyframe: settings.replicate_keyframe_model, video: settings.replicate_video_model, videoLora: settings.replicate_video_lora, talk: talkModel(settings) } : null;
+  keys.replicate
+    ? { token: keys.replicate, keyframe: settings.replicate_keyframe_model, video: settings.replicate_video_model, videoLora: settings.replicate_video_lora, talk: talkModel(settings), speech: speechModel(settings), voiceModel: settings.replicate_voice_model }
+    : null;
 
 /** Where a video's pictures and shots are made, and on whose key. */
 export type ReelMedia = Pick<ShotContext, "venice" | "replicate" | "provider" | "model" | "own">;
@@ -1673,7 +1762,16 @@ export async function reelMedia(db: Db, ownerId: string, settings: Settings, key
     if (provider === "venice") return { ok: true, media: { venice: jk.apiKey, replicate: null, provider, model: jk.model, own } };
     // Wan 2.2 is silent: picked, it films every shot with the line said beside it; any other model says the line itself.
     const silent = /wan-2\.2/.test(jk.model);
-    const replicate: ReplicateMedia = { token: jk.apiKey, keyframe: settings.replicate_keyframe_model, video: silent ? jk.model : settings.replicate_video_model, videoLora: settings.replicate_video_lora, talk: silent ? null : jk.model };
+    const replicate: ReplicateMedia = {
+      token: jk.apiKey,
+      keyframe: settings.replicate_keyframe_model,
+      video: silent ? jk.model : settings.replicate_video_model,
+      videoLora: settings.replicate_video_lora,
+      talk: silent ? null : jk.model,
+      // Wan 2.2 S2V is Wan 2.2 too: on their key, a shot with a line still gets its lips moved.
+      speech: speechModel(settings),
+      voiceModel: settings.replicate_voice_model,
+    };
     return { ok: true, media: { venice: "", replicate, provider, model: settings.reel_model, own } };
   }
   const onReplicate = settings.media_provider === "replicate";
@@ -1694,9 +1792,11 @@ async function ownKeyRefused(db: Db, userId: string, provider: string, err: unkn
  * per prediction): Wan 2.2 with its voice about 11¢; a talking model about 10¢ a second (Replicate's Wan 2.6, 720p),
  * Venice's Wan 3.0 about 13¢; and its keyframe, about 4¢.
  */
-export function ownShotUsd(s: Pick<ReelShot, "model" | "text" | "speaks" | "from_beat" | "from_picture">): number {
+export function ownShotUsd(s: Pick<ReelShot, "model" | "text" | "speaks" | "from_beat" | "from_picture" | "said_s">): number {
   const keyframe = s.from_beat || s.from_picture ? 0 : 0.04;
   const model = s.model ?? "";
+  // The speech model: $0.02 a second of video, as long as its padded line, and the voice (about half a cent).
+  if (/s2v/.test(model) && s.speaks) return keyframe + 0.02 * Math.max(SPEECH_MIN_S, s.said_s ?? 0) + 0.005;
   if (/wan-2\.2/.test(model) && !s.speaks) return keyframe + 0.11;
   const seconds = s.text.split(/\s+/).filter(Boolean).length / WORDS_PER_SECOND + BREATH_S;
   const shot = /wan-2\.7/.test(model) ? Math.min(15, Math.max(5, Math.ceil(seconds))) : seconds <= 5 ? 5 : 10;
@@ -1994,7 +2094,7 @@ export async function filmReel(db: Db, ownerId: string, reelId: string, baseUrl:
     // The draft becomes a reel being made before anything is queued, so "one video at a time" still holds. Its clock
     // starts now: the waits (REEL_GIVE_UP_MS) count from created_at, and a storyboard can sit for hours before filming.
     await db.query(`update adult_reels set status = 'making', tokens = $2, created_at = now(), updated_at = now() where id = $1 and status = 'draft'`, [reelId, pays ? price : 0]);
-    await queueVideos(db, row.shots, ctx);
+    await queueVideos(db, row.shots, ctx, ownerId);
     const made = reelMadeOn(row.shots);
     await db.query(`update adult_reels set shots = $2::jsonb, provider = $3, fell_back = $4 where id = $1`, [reelId, JSON.stringify(row.shots), made.provider, made.fell_back]);
     return { ok: true, reel: await settleIfDone(db, reelId) };
@@ -2129,6 +2229,11 @@ async function collectReplicateShot(
   delete s.reason;
   // A clip with no line in it (an act from the menu) stays silent; a talking shot said its line itself.
   if (!s.text.trim() || s.speaks) return "checked";
+  // Made silent after the speech model couldn't: the voice said for it plays beside it, not a second one.
+  if (s.said_id) {
+    s.audio_id = s.said_id;
+    return "checked";
+  }
   // Its line, in their voice: the words were held to the two lines when the reel started (makeReel). A voice that
   // doesn't come leaves the shot silent, with its caption, rather than losing it.
   try {
@@ -2705,7 +2810,7 @@ export async function refilmShot(db: Db, ownerId: string, reelId: string, mediaI
     }
     for (const f of ["queue_id", "reason", "retry_at", "audio_id", "request", "own", "voiceless"] as const) delete shot[f];
     await db.query(`update adult_reels set status = 'making', updated_at = now() where id = $1 and status in ('ready', 'failed')`, [reelId]);
-    await queueVideos(db, [shot], ctx);
+    await queueVideos(db, [shot], ctx, ownerId);
     if (shot.status !== "queued") throw new Error(shot.reason ?? "it couldn't be queued");
     await db.query(`update adult_reels set shots = $2::jsonb where id = $1`, [reelId, JSON.stringify(r.shots)]);
     return { ok: true, reel: await settleIfDone(db, reelId) };

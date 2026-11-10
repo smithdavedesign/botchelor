@@ -1038,7 +1038,7 @@ describe("the video of the night", () => {
       expect(q.body.prompt).not.toMatch(/Rafe|Juniper/);
     }
     expect(String(queued.find((q) => String(q.body.prompt).includes("rolls her hips"))!.body.prompt)).toContain("She rolls her hips; the man grips her waist.");
-    expect(String(queued.find((q) => String(q.body.prompt).includes("Line number 2"))!.body.prompt)).toMatch(/says: "Line number 2 says something rather vivid here\."$/);
+    expect(String(queued.find((q) => String(q.body.prompt).includes("Line number 2"))!.body.prompt)).toMatch(/says: "Line number 2 says something rather vivid here\." The (man|woman) says it with (his|her) mouth free, not kissing or covered, face turned so the lips show; the (man|woman) stays quiet, listening\.$/);
     expect(seen.some((s) => s.path === "/audio/speech")).toBe(false);
     // Two shots per poll (Hive rate-limits a burst), then the last one; each video row names its keyframe.
     expect((await advance(started.id, cookie)).shots.filter((s) => s.status === "ready")).toHaveLength(2);
@@ -1150,7 +1150,7 @@ describe("the video of the night", () => {
     expect(queued).toHaveLength(3);
     expect(queued[0].body).toMatchObject({ model: "wan-2.6-image-to-video", audio_url: expect.stringMatching(/^data:audio\/mpeg;base64,/) });
     expect(queued[0].body.audio).toBeUndefined();
-    expect(queued[0].body.prompt).toMatch(/The (man|woman) is the one speaking, lips moving with the words\.$/);
+    expect(queued[0].body.prompt).toMatch(/The (man|woman) is the one speaking, lips moving with the words\. The (man|woman) says it with (his|her) mouth free, not kissing or covered, face turned so the lips show; the (man|woman) stays quiet, listening\.$/);
     const speech = seen.filter((s) => s.path === "/audio/speech");
     expect(speech[0].body.input).toBe("Line number 2 says something rather vivid here.");
     // Line 2 is the scene's first character's: their voice, the same every time.
@@ -1396,8 +1396,8 @@ describe("the video of the night", () => {
     expect(keyframePrompt(cast, "x", null, 3, false)).toMatch(/they're half undressed, as the moment says\..*Explicit, uncensored, photorealistic\./);
     expect(keyframePrompt(cast, "x", null, 1, false)).toMatch(/they're dressed as the moment says, not nude: both fully clothed, shirts and tops on and done up\..*Photorealistic\. Both are adults\.$/);
     const s = { who: "b" as const, text: "Come here.", motion: "They kiss." };
-    expect(shotPrompt(cast, s, false)).toMatch(new RegExp(`^They kiss\\. Two people only: .* ${cast[1].tag[0].toUpperCase()}${cast[1].tag.slice(1)}, in a [a-z ,']+voice, says: "Come here\\."$`));
-    expect(shotPrompt(cast, s, true)).toMatch(/is the one speaking, lips moving with the words\.$/);
+    expect(shotPrompt(cast, s, false)).toMatch(new RegExp(`^They kiss\\. Two people only: .* ${cast[1].tag[0].toUpperCase()}${cast[1].tag.slice(1)}, in a [a-z ,']+voice, says: "Come here\\." ${cast[1].tag[0].toUpperCase()}${cast[1].tag.slice(1)} says it with (his|her) mouth free, not kissing or covered, face turned so the lips show; ${cast[0].tag} stays quiet, listening\\.$`));
+    expect(shotPrompt(cast, s, true)).toMatch(/is the one speaking, lips moving with the words\. The (man|woman) says it with (his|her) mouth free, not kissing or covered, face turned so the lips show; the (man|woman) stays quiet, listening\.$/);
   });
 
   it("lets a provider fetch a picture for minutes by a signed link, never a clip, never after it expires", async () => {

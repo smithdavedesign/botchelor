@@ -418,7 +418,7 @@ describe("a clip from here", () => {
     expect(prompt).toContain("they're dressed as the moment says, not nude");
     const queued = seen.find((s) => s.path === "/video/queue")!;
     expect(String(queued.body.prompt)).toMatch(/^The man pulls the woman in by the waist; she laughs into the kiss\./);
-    expect(String(queued.body.prompt)).toMatch(/The man, in a man's voice, says: "Come here, you menace\."$/);
+    expect(String(queued.body.prompt)).toMatch(/The man, in a man's voice, says: "Come here, you menace\." The man says it with his mouth free, not kissing or covered, face turned so the lips show; the woman stays quiet, listening\.$/);
   });
 
   it("falls back to the plain still when what the director wrote goes past the night, or crosses a limit", async () => {
