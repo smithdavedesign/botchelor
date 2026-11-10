@@ -74,6 +74,7 @@ import {
 import { eligiblePair } from "./scenes";
 import { sharePartners, sharesOf, type OutgoingShare, type SharePartner } from "./shares";
 import { STAGES } from "./stages";
+import type { AnimationLinks } from "./studio-chains";
 import { runModel } from "./replicate";
 import { adultKeys, getAdultSettings } from "./settings";
 import { choosePreset, faceReferenceId, NO_STEERING, setFaceReference, steeringFor, withSteering } from "./steering";
@@ -333,7 +334,7 @@ type JobSpec = {
 export type BigShootPlan = { action: "shoot"; character_id: string; input: ShootInput; base: string } | { action: "pair"; character_id: string; input: PairInput; base: string };
 type JobPrompt = { prompt: string; preset: PresetId | null; images?: string[]; view?: IdentityViewId };
 
-const shootRow = (r: {
+export const shootRow = (r: {
   id: string; kind: ShootKind; status: Shoot["status"]; model: string | null; provider: string | null; tokens: number; asked: number; made: number; pictures: unknown;
   redo_of: string | null; error: string | null; created_at: string | Date; background?: boolean | null;
 }): Shoot => ({
@@ -709,7 +710,7 @@ export async function identityPack(db: Db, viewer: string, characterId: string, 
 }
 
 /** The words a check reads: the choices and the look, never the prompt's fixed words. */
-const wordsOk = (words: string): boolean => checkAdultText({ words }).ok && !crossesTaboo(words);
+export const wordsOk = (words: string): boolean => checkAdultText({ words }).ok && !crossesTaboo(words);
 
 /* --------------------------------------------------- a shoot --------------------------------------------------- */
 
@@ -1330,7 +1331,7 @@ const STAGE_FOR_LEVEL: Record<Level, number> = { 0: KISSING, 1: UNDRESSING, 2: L
  * A pair shoot's limits: the pair's own (their intensity and hard nos, set on the pair page) within the Studio's highest
  * level, explicit only at its top. Never how far their night has gone: a shoot is staged (the pair page's menu is the night).
  */
-async function pairLimits(db: Db, viewer: string, pair: [string, string], config: StudioConfig): Promise<MediaLimits> {
+export async function pairLimits(db: Db, viewer: string, pair: [string, string], config: StudioConfig): Promise<MediaLimits> {
   const own = await mediaLimits(db, viewer, ...pair);
   const level = config.max_level as Level;
   return { ...own, maxStage: Math.min(own.maxStage, STAGE_FOR_LEVEL[level]), explicit: own.explicit && level >= 3 };
@@ -1618,14 +1619,19 @@ export async function moreLikeThis(db: Db, viewer: string, characterId: string, 
   });
 }
 
+/** Whether a picture's place (the Studio's own words for a menu place, public as the menu says, or a name) is public. */
+export function placeIsPublic(place: string | null): boolean {
+  if (!place) return false;
+  const menu = groupById("place").options.find((o) => o.words === place);
+  return menu ? Boolean(menu.public) : isPublicPlace(place);
+}
+
 /**
  * A picture drawn from one that's nude somewhere public (More like this, a carousel) has to stay empty too: its place is
  * the Studio's own words (a menu place, public as the menu says) or a name (isPublicPlace).
  */
 export function nudeInPublic(src: { level: number; place: string | null }): boolean {
-  if (src.level < 2 || !src.place) return false;
-  const menu = groupById("place").options.find((o) => o.words === src.place);
-  return menu ? Boolean(menu.public) : isPublicPlace(src.place);
+  return src.level >= 2 && placeIsPublic(src.place);
 }
 
 /**
@@ -1754,17 +1760,17 @@ export async function deleteSetup(db: Db, viewer: string, id: string): Promise<b
 /* ---------------------------------------------------- animate ---------------------------------------------------- */
 
 /** On a Studio clip of one: away from anyone young-looking, and from what breaks a shot of one (a second person, a cut). */
-const ANIMATE_NEGATIVE =
+export const ANIMATE_NEGATIVE =
   "child, teen, minor, young-looking, cartoon, anime, distorted face, extra limbs, text, watermark, " +
   "a second person, extra people, a duplicate person, scene cut, scene change, morphing face";
 /** On a clip of a pair: the same, but the second person is wanted — only a third, or a duplicate, is kept out. */
-const ANIMATE_NEGATIVE_PAIR =
+export const ANIMATE_NEGATIVE_PAIR =
   "child, teen, minor, young-looking, cartoon, anime, distorted face, extra limbs, text, watermark, " +
   "a third person, extra people, a duplicate person, the two merging into one, scene cut, scene change, morphing face";
 /** An animation not back after this long is given up, and its tokens come back. */
 const ANIMATE_GIVE_UP_MS = 60 * 60 * 1000;
 
-const animatingNow = async (db: Db, viewer: string): Promise<boolean> =>
+export const animatingNow = async (db: Db, viewer: string): Promise<boolean> =>
   (
     await db.query(
       `select 1 from adult_studio_shoots where owner_id = $1 and kind = 'animate' and status = 'making' and created_at > now() - ($2::int * interval '1 millisecond') limit 1`,
@@ -1844,7 +1850,7 @@ export async function animatePicture(db: Db, viewer: string, characterId: string
  * Anything not kept gives its tokens back. While Hive is out for the day they wait at Venice, unchecked.
  */
 export async function collectAnimations(db: Db, viewer: string): Promise<void> {
-  const { rows } = await db.query<{ id: string; character_id: string; model: string; tokens: number; choices: { source: string; motion: string | null; queue_id: string; guide?: string; request?: LoggedRequest[] }; created_at: string | Date }>(
+  const { rows } = await db.query<{ id: string; character_id: string; model: string; tokens: number; choices: { source: string; motion: string | null; queue_id: string; guide?: string; cut?: unknown; request?: LoggedRequest[] }; created_at: string | Date }>(
     `select id, character_id, model, tokens, choices, created_at from adult_studio_shoots where owner_id = $1 and kind = 'animate' and status = 'making' order by created_at limit 3`,
     [viewer],
   );
@@ -1888,12 +1894,26 @@ export async function collectAnimations(db: Db, viewer: string): Promise<void> {
     await db.query(
       `insert into adult_images (id, owner_id, character_id, kind, prompt, mime, data, object_key, status, source_image, provider, fell_back, model, shoot_id, request)
        values ($1, $2, $3, 'video', $4, 'video/mp4', $5, $6, 'ready', $7, 'venice', false, $8, $9, $10::jsonb)`,
-      [vid, viewer, r.character_id, `Studio clip: ${r.choices.motion ?? (r.choices.guide ? "your direction" : "clip")}`, kept.data, kept.object_key, r.choices.source, r.model, r.id, requestJson(r.choices.request)],
+      // A link kept going (lib/adult/studio-keep-going.ts) starts from the frame the one before ended on: its source.
+      [vid, viewer, r.character_id, `Studio clip: ${r.choices.cut ? "kept going" : (r.choices.motion ?? (r.choices.guide ? "your direction" : "clip"))}`, kept.data, kept.object_key, r.choices.source, r.model, r.id, requestJson(r.choices.request)],
     );
     await countUse(db, viewer, "clips");
     await tagNow(db, [vid]);
     await releaseVideo(keys.venice, r.model, r.choices.queue_id);
   }
+}
+
+/** Their Studio animations of a character, by video: the one each was kept going from, and how (lib/adult/studio-keep-going.ts). */
+async function animationLinks(db: Db, viewer: string, characterId: string): Promise<AnimationLinks> {
+  const { rows } = await db.query<{ id: string; from_video: string | null; seamless: boolean | null; words: string | null }>(
+    `select v.id, s.choices->'cut'->>'video' as from_video, (s.choices->'cut'->>'seamless')::boolean as seamless,
+            case when s.choices->'cut' is not null then s.choices->>'guide' end as words
+       from adult_images v join adult_studio_shoots s on s.id = v.shoot_id and s.kind = 'animate' and s.owner_id = $1
+      where v.owner_id = $1 and v.character_id = $2 and v.kind = 'video' and v.status = 'ready'
+      order by v.created_at desc limit 200`,
+    [viewer, characterId],
+  );
+  return Object.fromEntries(rows.map((r) => [r.id, { from: r.from_video ?? null, seamless: r.seamless === true, words: r.words ?? null }]));
 }
 
 /* ----------------------------------------------------- redo ----------------------------------------------------- */
@@ -1984,6 +2004,11 @@ export type StudioState = {
   /** Animate (v3): the motions on offer, and the viewer's animations still being made (the page polls while there are). */
   motions: { id: string; label: string }[];
   animating: Shoot[];
+  /**
+   * Their Studio animations of the character, by video (lib/adult/studio-chains.ts): one kept going from another names
+   * it, so a chain plays as one film, and Keep going is offered while the chain has room (lib/adult/studio-keep-going.ts).
+   */
+  animation_links: AnimationLinks;
   /** Their identity pack's views (the creator suite): each one's picture, and whether it was drawn from an earlier face. */
   identity_pack: IdentityPack;
   /** Bigger shoots still landing (the page looks again every few seconds while there are), and the sizes on offer. */
@@ -2093,6 +2118,7 @@ export async function studioState(db: Db, viewer: string, characterId: string): 
       setups: await listSetups(db, viewer),
       motions: ANIMATE_MOTIONS.filter((m) => !config.disabled_options.includes(`motion.${m.id}`)).map(({ id, label }) => ({ id, label })),
       animating: shoots.filter((x) => x.kind === "animate" && x.status === "making"),
+      animation_links: await animationLinks(db, viewer, c.id),
       identity_pack: await identityPackOf(db, viewer, c.id, "after_dark", identity.face),
       shooting: shoots.filter((x) => x.background && x.status === "making"),
       shoot_sizes: [config.shoot_size, ...config.shoot_sizes.filter((n) => n !== config.shoot_size)],

@@ -14,7 +14,7 @@ import RateMedia from "./RateMedia";
 import { MediaAdmin, MediaRequest } from "../../MediaRequest";
 import type { Trim } from "@/lib/adult/trim";
 import TrimPanel from "../../TrimPanel";
-import MomentTools, { keepGoingFromMoment } from "../../MomentTools";
+import MomentTools, { keepGoingFromMoment, NextWords } from "../../MomentTools";
 import type { Media } from "@/lib/adult/media";
 import { trimStep } from "../../trimPlayback";
 
@@ -267,10 +267,11 @@ function Clips({ clips, onChange, price, onMedia }: { clips: Reel[]; onChange: (
   );
 }
 
-/** One clip and the ones kept going from it: played as one, the last one's state, and Keep going. */
+/** One clip and the ones kept going from it: played as one, the last one's state, and Keep going (with what happens next, in their own words). */
 function ClipChain({ chain, price, making, onChange, onMedia }: { chain: Reel[]; price: string | null; making: boolean; onChange: (r: Reel) => void; onMedia?: (m: Media) => void }) {
   const [asking, setAsking] = useState(false);
   const [note, setNote] = useState<{ text: string; busy?: BusyReel } | null>(null);
+  const [words, setWords] = useState("");
   const shots = chain.flatMap((c) => readyShots(c));
   const last = chain[chain.length - 1];
   const from = keepGoingFrom(chain);
@@ -282,10 +283,14 @@ function ClipChain({ chain, price, making, onChange, onMedia }: { chain: Reel[];
     setNote(null);
     // From where it ended (lib/adult/moments.ts): the next shot starts on the clip's last frame (its last shot that plays).
     const last = [...from.shots].reverse().find((x) => playable(x));
-    const res = last?.media_id ? await keepGoingFromMoment(from.id, last.media_id, "end") : await requestJson("/api/admin/after-dark/clips", { continue: from.id }).catch(() => null);
+    const said = words.trim();
+    const res = last?.media_id
+      ? await keepGoingFromMoment(from.id, last.media_id, "end", "seamless", said)
+      : await requestJson("/api/admin/after-dark/clips", { continue: from.id, ...(said ? { prompt: said } : {}) }).catch(() => null);
     setAsking(false);
     if (!res) return setNote({ text: "That didn't reach the server. Check your connection and try again." });
     if (!res.ok) return setNote({ text: res.message, busy: (res.data.busy as BusyReel | undefined) ?? undefined });
+    setWords("");
     onChange(res.data.reel as Reel);
     if (typeof res.data.note === "string") setNote({ text: res.data.note });
   }
@@ -305,7 +310,8 @@ function ClipChain({ chain, price, making, onChange, onMedia }: { chain: Reel[];
         last.status === "failed" && <ReelPlayer reel={last} onChange={onChange} what="clip" price={price} onMedia={onMedia} />
       )}
       {from && (
-        <p>
+        <div className="ad-keep-going">
+          <NextWords value={words} onChange={setWords} disabled={asking || making} />
           <button
             type="button"
             className="secondary small"
@@ -315,7 +321,7 @@ function ClipChain({ chain, price, making, onChange, onMedia }: { chain: Reel[];
           >
             {asking ? "Setting up the next shot…" : `▶▶ Keep going${cost}`}
           </button>
-        </p>
+        </div>
       )}
       {note && (
         <p className="error small" role="status">

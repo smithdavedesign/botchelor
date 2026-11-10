@@ -1791,6 +1791,85 @@ a.ad-scenes-make-link {
   border-radius: calc(var(--radius) / 2);
 }
 
+/* What happens next (MomentTools.tsx NextWords; 2026-11-09): the owner's own words for the next link kept going, beside
+   its button where there's room (a clip's chain end, a Studio animation), on a row of its own under a shot's moments. */
+.ad-keep-going {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  margin: var(--space-2) 0;
+}
+.ad-keep-going button {
+  margin: 0;
+}
+input.ad-next-words {
+  flex: 1 1 14rem;
+  min-width: 0;
+  margin: 0;
+}
+.ad-moments-keep input.ad-next-words {
+  flex-basis: 100%;
+}
+/* A Studio animation's chain and ▶▶ Keep going (app/after-dark/studio/[id]/AnimationChain.tsx): the line naming the
+   chain with ▶ Play all, the button, and the panel under it (Animate's own panel look, one field to a row). */
+.ad-anim-chain {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+.ad-anim-chain > button {
+  justify-self: start;
+  margin: 0;
+}
+.ad-anim-chain-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.ad-anim-chain-line button,
+.ad-anim-keep > button {
+  margin: 0;
+}
+.ad-anim-keep .ad-next-words,
+.ad-anim-keep .ad-studio-own {
+  width: 100%;
+  margin: 0;
+}
+.ad-anim-keep > p {
+  margin: 0;
+}
+/* The chain as one film (ChainFilm, Lightbox.tsx's look): its two players share one place, the one holding the next
+   shot loaded and unseen behind the one on, so a cut doesn't wait; the shot count and pause under them. */
+.ad-chain-film-stage {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-2);
+  max-width: 100%;
+}
+.ad-chain-film-stage video {
+  grid-area: 1 / 1;
+  max-height: 86vh;
+}
+.ad-chain-film-waiting {
+  visibility: hidden;
+}
+.ad-chain-film-bar {
+  grid-area: 2 / 1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--on-photo);
+}
+.ad-chain-film-bar button {
+  margin: 0;
+  color: var(--on-photo);
+}
+
 /* How a framing comes out (app/after-dark/FramingChips.tsx, lib/adult/framing.ts; 2026-10-26): ★ works well, or a quiet
    "Experimental" (worth a try, expect a redraw), inside the act and view chips. */
 .ad-framing-works,

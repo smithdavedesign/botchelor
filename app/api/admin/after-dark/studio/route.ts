@@ -32,6 +32,8 @@ import {
   type StudioFail,
 } from "@/lib/adult/studio";
 import { CUSTOM_MAX, DIALOG_MAX, EXTRA_MAX, GROUP_IDS, PAIR_SECTIONS, TRANSCRIPT_MAX, type PairSection } from "@/lib/adult/studio-catalog";
+import { NEXT_WORDS_MAX } from "@/lib/adult/clip-chains";
+import { keepAnimating, keepAnimatingCheck } from "@/lib/adult/studio-keep-going";
 import { getDb } from "@/lib/db";
 import { IDENTITY_VIEW_IDS, type IdentityViewId } from "@/lib/studio/identity-views";
 import { FORMAT_IDS, type FormatId } from "@/lib/studio/formats";
@@ -139,6 +141,20 @@ const Input = z.discriminatedUnion("action", [
     // How the camera moves through it (lib/adult/camera-moves.ts): steady unless picked.
     camera: z.enum(CAMERA_MOVE_IDS as [CameraMoveId, ...CameraMoveId[]]).nullable().optional(),
   }),
+  // Keep going from one of their animations (lib/adult/studio-keep-going.ts): from the frame its end was cut to (the
+  // moments route), with what happens next in their own words, what they say and how the camera moves. Without a frame,
+  // only asked whether it can be (the page asks before it cuts one), and nothing is spent.
+  z.object({
+    action: z.literal("keep_going"),
+    character_id: id,
+    video_id: id,
+    frame_id: id.optional(),
+    prompt: z.string().max(NEXT_WORDS_MAX).optional(),
+    dialog: z.string().max(DIALOG_MAX).optional(),
+    camera: z.enum(CAMERA_MOVE_IDS as [CameraMoveId, ...CameraMoveId[]]).nullable().optional(),
+    seconds: z.union([z.literal(5), z.literal(10)]),
+    mode: z.enum(["seamless", "fresh"]).optional(),
+  }),
   z.object({ action: z.literal("use_body"), character_id: id, image_id: id.nullable() }),
   z.object({ action: z.literal("limits"), character_id: id, intensity: z.string().max(20).optional(), hard_nos: z.array(z.string().max(30)).max(30).optional() }),
   z.object({ action: z.literal("strength"), character_id: id, strength: z.string().max(20) }),
@@ -228,6 +244,14 @@ export const POST = handle(async (req: Request) => {
       }
       case "animate":
         return job(input.character_id, await animatePicture(db, viewer, input.character_id, { image_id: input.image_id, motion: input.motion, seconds: input.seconds, guide: input.guide, dialog: input.dialog, transcript: input.transcript, camera: input.camera }, base));
+      case "keep_going": {
+        const { action: _a, character_id, frame_id, ...link } = input;
+        if (!frame_id) {
+          const r = await keepAnimatingCheck(db, viewer, character_id, link);
+          return r.ok ? json({ ready: true, fresh: r.fresh }) : failed(r);
+        }
+        return job(character_id, await keepAnimating(db, viewer, character_id, { ...link, frame_id }, base));
+      }
       case "unshare": {
         // The sharer takes an After Dark share back (a photo already in their texts stays: it was sent).
         const ok = await removeShare(db, viewer, input.share_id);

@@ -150,6 +150,10 @@ and the shoot each came from. A shoot whose every picture the viewer 👎'd offe
   sway, turn to camera, walk toward you, a slow spin, lie back), priced like the field (section 6), kept like any clip:
   checked by Hive (videos always are), counted against the month's clips, one video at a time. It runs on our key only
   (an own-key video job is a later step). Queued at once and collected as the Studio's page polls.
+- **Keep going** (David, 2026-11-09): an animation carries on from the frame it ends on, with what happens next in the
+  owner's own words, dialog and a camera move, at Animate's price. It's seamless from that frame, or with their faces
+  drawn fresh on it (every third link is). Each link names the one before, and a chain plays as one film, up to 6 links.
+  docs/after-dark.md (Studio v3, "Keep going") has the rules.
 
 ### v4: their look, presets, Filthy, full screen (David, 2026-10-24)
 

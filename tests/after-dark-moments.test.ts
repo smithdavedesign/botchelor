@@ -5,7 +5,7 @@ import { POST as momentsPost } from "@/app/api/admin/after-dark/moments/route";
 import { GET as reelGet } from "@/app/api/admin/after-dark/reel/route";
 import { POST as settingsPost } from "@/app/api/admin/after-dark/settings/route";
 import { HIVE_VLM, setCheckFetchForTests } from "@/lib/adult/check";
-import { SEAMLESS_RUN_MAX } from "@/lib/adult/clips";
+import { NEXT_WORDS_MAX, SEAMLESS_RUN_MAX } from "@/lib/adult/clips";
 import { setAdultModelForTests } from "@/lib/adult/mode";
 import { deriveClip, saveMoment } from "@/lib/adult/moments";
 import { setReelFetchForTests, setReelPausesForTests, type Reel } from "@/lib/adult/reels";
@@ -286,6 +286,81 @@ describe("keep going from here", () => {
   });
 });
 
+describe("keep going, in the owner's own words", () => {
+  /** The director (the text model): what it was asked, and the motion it writes. */
+  function director(motion = "She draws him closer by his collar and kisses him slowly.") {
+    const asked: string[] = [];
+    setAdultModelForTests({
+      complete: async (messages) => {
+        asked.push(messages.map((m) => String(m.content)).join("\n"));
+        return JSON.stringify({ motion });
+      },
+    });
+    return asked;
+  }
+
+  it("refuses words past the lines, their limits or how far the clip has gone, before the director or a draw; the director writes the motion from words that fit", async () => {
+    const { id, cookie } = await admin();
+    await ready(cookie, id);
+    const seen = fakeVenice();
+    fakeHive();
+    const { reel, video } = await kissClip(cookie);
+    const asked = director();
+    seen.length = 0;
+    const refused = async (prompt: string) => {
+      const res = await clip(cookie, { continue: reel.id, prompt });
+      expect(res.status).toBe(422);
+      return ((await res.json()) as { message: string }).message;
+    };
+    expect(await refused("they kiss like teenagers")).toBe("Those words cross one of the lines After Dark never crosses.");
+    await t.db.query(`update adult_scenes set hard_nos = $1::jsonb`, [JSON.stringify({ chips: ["pain"], own: [] })]);
+    expect(await refused("a playful spank")).toBe("That's past the limits you've set for these two: crossed a hard limit (Pain).");
+    expect(await refused("they undress each other")).toBe("That goes further than they've got so far: this clip goes as far as kissing.");
+    // Asked first with the words (the page does, before it cuts a frame for them): refused at once, or ready, nothing made.
+    const clips = async () => (await t.db.query(`select 1 from adult_reels where kind = 'clip'`)).rows.length;
+    const made = await clips();
+    const check = (prompt: string) => clip(cookie, { continue: reel.id, media_id: video, prompt, check: true });
+    expect((await check("they kiss like teenagers")).status).toBe(422);
+    const fine = await check("she pulls him closer by his collar");
+    expect([fine.status, await fine.json()]).toEqual([200, { ready: true }]);
+    expect(await clips()).toBe(made);
+    expect(asked).toEqual([]);
+    expect(seen).toEqual([]);
+    expect((await clip(cookie, { continue: reel.id, prompt: "x".repeat(NEXT_WORDS_MAX + 1) })).status).toBe(422);
+    // Words that fit: the director is asked for them, from where the shot left them; the clip keeps them.
+    const res = await keepFrom(cookie, reel.id, video, "end", { prompt: "she pulls him closer by his collar" });
+    expect(res.status).toBe(200);
+    const next = (await res.json()).reel as Reel;
+    expect(next.clip).toMatchObject({ prompt: "she pulls him closer by his collar", cut: { video, seamless: true } });
+    expect(asked).toHaveLength(1);
+    expect(asked[0]).toContain('What the viewer wants to happen next, in their own words: "She pulls him closer by his collar"');
+    expect(asked[0]).toContain("no further than kissing");
+    expect(next.shots[0].motion).toBe("She draws him closer by his collar and kisses him slowly.");
+    // The next link from it doesn't carry them on: each link's words are its own.
+    const after = await advance(next.id, cookie);
+    const again = (await (await keepFrom(cookie, after.id, after.shots[0].media_id!, "end")).json()).reel as Reel;
+    expect(again.clip!.prompt).toBeUndefined();
+  });
+
+  it("somewhere public, goes no further than kissing; without words, just as before", async () => {
+    const { id, cookie } = await admin();
+    await ready(cookie, id);
+    fakeVenice();
+    fakeHive();
+    const { reel } = await kissClip(cookie);
+    const asked = director();
+    await t.db.query(`update adult_reels set clip = jsonb_set(clip, '{place}', '"the bar"') where id = $1`, [reel.id]);
+    const res = await clip(cookie, { continue: reel.id, prompt: "she unbuttons his shirt" });
+    expect(res.status).toBe(422);
+    expect(((await res.json()) as { message: string }).message).toBe("Nothing past kissing somewhere public: that waits until they're somewhere private.");
+    // Blank words are no words: the act's own next motion, no director.
+    const plain = await clip(cookie, { continue: reel.id, prompt: "   " });
+    expect(plain.status).toBe(200);
+    expect(((await plain.json()).reel as Reel).clip!.prompt).toBeUndefined();
+    expect(asked).toEqual([]);
+  });
+});
+
 describe("the moments' buttons", () => {
   it("offer a still, a boomerang and a loop on any clip, and Keep going from here (with its price) on a shot of a video", async () => {
     const { createElement } = await import("react");
@@ -303,5 +378,9 @@ describe("the moments' buttons", () => {
     expect(included).toContain("▶▶ Keep going from here · included (2 of 3 clips left this month)");
     expect(shot).toContain('aria-pressed="true"');
     expect(shot).toMatch(/Seamless[\s\S]*Fresh faces/);
+    // What happens next, in their own words: optional, as long as a picture's What's happening.
+    expect(shot).toContain('placeholder="What happens next? Optional, in your own words"');
+    expect(shot).toMatch(new RegExp(`maxlength="${NEXT_WORDS_MAX}"`, "i"));
+    expect(bare).not.toContain("What happens next");
   });
 });

@@ -1457,7 +1457,8 @@ videos list (`Reels.tsx`).
   "a few seconds after the moment in Picture 3… keep its place, its light, its camera angle and framing, and what each of
   them is wearing or not, and carry how they're posed on from it, after this: <the shot's motion>"). The motion carries
   on: an act's `next`, or the director's next five seconds for a clip from here. A chain holds 6 shots at most
-  (`CHAIN_MAX`, about 30 s), and only a clip that came through can be kept going.
+  (`CHAIN_MAX`, about 30 s), and only a clip that came through can be kept going. With `prompt`, the owner's own words
+  for what happens next lead it instead (2026-11-09; "A clip's moments" below).
 
 **What the menu offers** (`GET /api/admin/after-dark/clips?a=&b=`: the price, whether Clip from here can run, the acts):
 - only what the night has reached: each act has a stage it needs, and later ones show locked ("Once they've got to sex");
@@ -2397,6 +2398,39 @@ configurable … best in class"). What's built, by phase:
   signed link; `collectAnimations` (run by the Studio's state, which the page polls every 20 s while one is making)
   retrieves it, Hive checks it, and it's kept as a video in their gallery (`shoot_id`, `source_image`), counted as a
   clip, and Venice's copy deleted. Refused by the check, failed, or not back in an hour: tokens back, logged when refused.
+- **Keep going** (2026-11-09, `lib/adult/studio-keep-going.ts`, `app/after-dark/studio/[id]/AnimationChain.tsx`): ▶▶ Keep
+  going on one of their Studio animations carries it on from the frame it ends on. The page asks first: `{action:
+  "keep_going", video_id, prompt?, dialog?, camera?, seconds, mode?}` without a frame runs every check below that doesn't
+  need one (`keepAnimatingCheck`) and answers `{ready, fresh}`, so a refusal comes at once and nothing is cut or spent.
+  Then it cuts that frame on the moments route (`{action: "frame", media_id, at: "end"}`; `momentFrame` now cuts a
+  Studio animation of one too, so ffmpeg stays in that one route) and sends the same with `frame_id` to the Studio
+  route. What happens next, in the owner's own words, becomes Animate's guide (it leads:
+  "Most important, do exactly this: …"), with the motion "carries on from this very moment, in the same place" (with no
+  words: "…in the same pose and place, moving on naturally from what they were doing"). It goes through Animate's own
+  path and price: Venice's video model, one at a time, the month's clips, `animate_5` / `animate_10`, refunded if it
+  doesn't come through, and collected and Hive-checked by `collectAnimations`.
+  - **Refused before a token is spent:** the words and dialog against David's lines (`wordsOk`). The words can raise the
+    level (`levelForStage(shownStage(words))`) but never past their studio limit. They are held to the character's
+    studio limits (intensity, hard nos) and, for two, the pair's. Somewhere public (#1407): two of them go no further than
+    kissing, and nothing is explicit. One of them may be nude only with the place empty: words that bring anyone in are
+    refused, the prompt and negative clear the place (`animatePrompt` `emptyPlace`, `EMPTY_PLACE_NEGATIVE`), and the
+    frame must show them alone (`aloneInPicture`, failing closed). Also refused: a chain that's full, one already being
+    animated, and a frame that isn't one cut from that video's end or that a link already started from.
+  - **Seamless or fresh faces:** seamless queues the video from the cut frame itself. Fresh faces (when asked, and
+    every third link: after `SEAMLESS_RUN_MAX` seamless links in a row, and the page says so) runs Fix faces' edit on
+    that very frame (`fixFacePrompt`, one face at a time, each made the face that person keeps), so the pose, the place
+    and the light carry on and the faces can't drift. The fresh frame gets the age question, is kept as a `frame` out of
+    the gallery, and is deleted when the queue fails.
+  - **The chain:** each link's shoot names the one before (`choices.from`, `choices.cut` {video, frame, at, seamless})
+    and carries what the first picture showed (`choices.facts`: who, where, its shape and view). No new columns.
+    `StudioState.animation_links` gives the page each animation's link. A link's card says "Kept going · shot n of n"
+    with what was asked, and ▶ Play all plays the chain from its first animation as one film, full screen (two players
+    taking turns, each shot's trim honoured). Up to `CHAIN_MAX` (6) links; then "Kept going as far as it goes".
+  - No MCP change: the After Dark MCP makes a night's video (`after_dark_reel`) but has no clip, Keep going or Studio
+    tools; the Studio is web-only.
+  - **Screenshots:** `node scripts/keep-going-screenshots.mjs` runs Keep going for real in a browser, on both pages,
+    with Venice, Hive and the text model stubbed locally. It writes `docs/screenshots/studio-keep-going-*.png` and
+    `after-dark-keep-going-words-*.png`.
 
 **Screenshots** (`npm run screenshots:studio`, PG placeholders from the repo's own portraits, nothing drawn):
 `docs/screenshots/studio-*.png`: the shoot's menus, a shoot together, the gallery's share and animate panels, setups,
@@ -2510,6 +2544,18 @@ left off". `lib/adult/moments.ts`, `lib/media-tools/ffmpeg.ts`, `POST /api/admin
   ("at the very moment in Picture 3"). After `SEAMLESS_RUN_MAX` (2) seamless links in a row the next is fresh faces
   automatically (and says so), so a long chain can't drift away from their faces. A shot of a night's video can be kept
   going from too (`media_id`): that starts a clip of its own, "Kept going".
+- **What happens next, in their own words** (2026-11-09, David: "continue it with a new prompt … expanding the scene
+  from the existing video"): an optional box beside ▶▶ Keep going, at a chain's end and under a shot's moments
+  (`MomentTools.tsx` `NextWords`), sent as `prompt` on `{continue}`. As long as a picture's "What's happening"
+  (`NEXT_WORDS_MAX` 300 = `PICTURE_FIELD_MAX`). The price is the same. Before the director, a draw or a token, the words
+  are held to everything a clip's motion is (`nextWordsRefusal` in `lib/adult/clips.ts`), each with its own reason:
+  David's lines (`checkAdultText`, the age words, and `crossesTaboo`), the pair's limits (their hard nos and intensity,
+  `limitsHit`), nothing past kissing somewhere public, and no further than the clip has gone (its stage). Then the
+  director (`directNext`) writes the next five seconds doing what was asked, from where the shot left them; failing
+  that, the words themselves, names out. An act's own next motion gives way to them. The words are kept on that clip
+  (`ClipMeta.prompt`) and not carried to the next link. With words, the page asks first (`check: true` on `{continue}`,
+  answered `{ready: true}` or the refusal), so words it can't use are refused before a frame is cut for them. With no
+  words (or blank ones), it's exactly as before.
 - Counted against the month's **moments** (`adult_usage.moments`, `cap_moments` 100; admins uncapped). Owner only:
   never someone else's clip, an admin's moderator view or one shared with them.
 - Where: the player's "⋯ This shot" (all four, with the time the player is on), and 📸 Moments on every clip tile in
