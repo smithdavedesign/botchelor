@@ -34,7 +34,7 @@ export const LAST_UPDATED = "Last updated 24 October 2026.";
 export const TERMS_PRIVACY_UPDATED = "Last updated 10 November 2026.";
 /** What changed last time, in a line. */
 export const PRIVACY_CHANGES =
-  "Changed: who hosts the show and carries its traffic (DigitalOcean, Cloudflare and Bunny, no longer Vercel), and that the show's model is reached through OpenRouter; live calls with a companion, where they're offered: Deepgram hears your voice and makes the companion's, and the terms say how call minutes are charged. Before that (1 November): Analytics names the three events our own dashboard counts (visit, activate, checkout) and says the site you came from goes with a visit only when it's another site; the terms state the pack's price. Before that (24 October): who runs Botchelor, After Dark's data and where it's offered, the location and age we read, everyone who processes data, your rights, and the complaint form.";
+  "Changed: who hosts the show and carries its traffic (DigitalOcean and Cloudflare, no longer Vercel), and that the show's model is reached through OpenRouter; live calls with a companion, where they're offered: Deepgram hears your voice and makes the companion's, and the terms say how call minutes are charged. Before that (1 November): Analytics names the three events our own dashboard counts (visit, activate, checkout) and says the site you came from goes with a visit only when it's another site; the terms state the pack's price. Before that (24 October): who runs Botchelor, After Dark's data and where it's offered, the location and age we read, everyone who processes data, your rights, and the complaint form.";
 
 /** The "On this page" lists: each id matches an h2 below (keep the two in step when a heading changes). */
 export const TERMS_HEADINGS = [
@@ -794,7 +794,7 @@ export function PrivacySections() {
         </li>
         <li>
           <strong>Hosting, storage and delivery:</strong> DigitalOcean hosts the show and After Dark; Neon hosts the
-          database and stores media; Bunny (bunny.net) stores and serves pictures and clips; Cloudflare carries the
+          database and stores media; Bunny (bunny.net) stores and serves After Dark&apos;s pictures and clips; Cloudflare carries the
           site&apos;s traffic and forwards email sent to our addresses.
         </li>
         <li>
