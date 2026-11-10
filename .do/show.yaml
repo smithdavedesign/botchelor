@@ -231,6 +231,6 @@ services:
         value: "CHANGE_ME"
         scope: RUN_TIME
       - key: DISCORD_INVITE_URL
-        value: "CHANGE_ME"
+        value: "https://discord.gg/8VDdRF9YU"
         scope: RUN_TIME
       # Not set here: ADULT_MODE, AFTER_DARK_ONLY, GEO_HEADERS (only behind our own Cloudflare zone: lib/place.ts).

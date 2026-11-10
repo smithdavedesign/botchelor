@@ -1,0 +1,273 @@
+/* The company pages and the footer's company pieces (2026-11-10, lib/company.ts): /contact, /faq, /pricing, /press,
+   /security, /accessibility, the footer's fourth group, its row of accounts and its © line. Tokens only
+   (tests/css-tokens.test.ts). */
+
+/* ---------------- the footer ---------------- */
+/* Four groups since "Company" joined (app/layout.tsx): four columns on a wide screen; a phone keeps its folded rows. */
+@media (min-width: 641px) {
+  .footer-groups {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--space-2) var(--space-4);
+  }
+}
+
+/* The accounts, as marks in round buttons: 40px, 44px on a touchscreen. */
+.social-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: var(--space-3) 0;
+  padding: 0;
+  list-style: none;
+}
+.social-links li {
+  margin: 0;
+}
+.social-links a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-width: 40px;
+  min-height: 40px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  color: var(--ink);
+  text-decoration: none;
+}
+.social-links a:hover {
+  border-color: var(--field);
+  color: var(--accent-text);
+}
+.social-links a:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+@media (pointer: coarse) {
+  .social-links a {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+.social-mark {
+  flex: none;
+}
+/* With words (/contact, /press): a list of the accounts, each mark beside its name and handle. */
+.social-links-labelled {
+  display: grid;
+  gap: var(--space-2);
+}
+.social-links-labelled a {
+  justify-content: flex-start;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--card);
+}
+.social-links-labelled .muted {
+  overflow-wrap: anywhere;
+}
+
+/* The © line closes the footer. */
+.site-footer > p.footer-legal {
+  margin: var(--space-3) 0 0;
+  font-size: var(--text-xs);
+}
+
+/* ---------------- the pages ---------------- */
+.company-page section {
+  margin: var(--space-5) 0;
+}
+.company-page .lede {
+  font-size: var(--text-md);
+}
+
+/* /contact: where each kind of question goes. */
+.contact-email {
+  font-size: var(--text-lg);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.contact-routes {
+  display: grid;
+  gap: var(--space-2);
+  margin: var(--space-3) 0;
+  padding: 0;
+  list-style: none;
+}
+.contact-routes li {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--card);
+}
+.contact-routes strong {
+  color: var(--ink);
+}
+
+/* /faq: one question a row that opens. */
+.faq-list {
+  display: grid;
+  gap: var(--space-2);
+  margin: var(--space-3) 0;
+}
+.faq-item {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--card);
+}
+.faq-item > summary {
+  min-height: 44px;
+  padding: var(--space-2) var(--space-3);
+  color: var(--ink);
+  font-weight: 700;
+  cursor: pointer;
+}
+.faq-item > p {
+  margin: 0;
+  padding: 0 var(--space-3) var(--space-3);
+}
+
+/* /pricing: one card a plan, two to a row (four cards make a square, never three and a straggler); one on a phone. */
+.pricing-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin: var(--space-4) 0;
+  padding: 0;
+  list-style: none;
+}
+.pricing-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+}
+@media (max-width: 640px) {
+  .pricing-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.pricing-card h2 {
+  margin: 0;
+  font-size: var(--text-lg);
+}
+.pricing-price {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--text-xl);
+  font-weight: 800;
+}
+.pricing-card ul {
+  margin: 0;
+  padding-left: 1.1em;
+}
+.pricing-card .button {
+  margin-top: auto;
+  align-self: flex-start;
+}
+
+/* /press: the facts, the assets and the colours. */
+.press-facts {
+  display: grid;
+  grid-template-columns: minmax(7rem, max-content) 1fr;
+  gap: var(--space-1) var(--space-4);
+  margin: var(--space-3) 0;
+}
+.press-facts dt {
+  color: var(--muted);
+  font-weight: 600;
+}
+.press-facts dd {
+  margin: 0;
+}
+@media (max-width: 480px) {
+  .press-facts {
+    grid-template-columns: 1fr;
+  }
+  .press-facts dd {
+    margin-bottom: var(--space-2);
+  }
+}
+.press-boilerplate {
+  margin: var(--space-2) 0 var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--soft);
+}
+.press-assets {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+  gap: var(--space-3);
+  margin: var(--space-3) 0;
+  padding: 0;
+  list-style: none;
+}
+/* Every thumbnail in one box, the top of the shot (a phone's is tall): a row never stretches to the tallest, and the
+   download is the whole file. */
+.press-assets li {
+  display: grid;
+  align-content: start;
+  gap: var(--space-1);
+  margin: 0;
+}
+.press-assets img {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+  object-position: top;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--card);
+}
+.press-assets .press-logo {
+  object-fit: contain;
+  padding: var(--space-4);
+}
+.press-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin: var(--space-3) 0;
+  padding: 0;
+  list-style: none;
+}
+.press-swatches li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+}
+.press-swatch {
+  display: inline-block;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+.press-swatch-pink {
+  background: var(--accent);
+}
+.press-swatch-purple {
+  background: var(--accent-2);
+}
+.press-swatch-ink {
+  background: var(--ink);
+}
+.press-swatch-paper {
+  background: var(--paper);
+}
+
+/* The legal pages indent their lists on a phone (agents-footer.css, .legal-page ul): these lists are rows of cards and
+   marks, so they keep the column's edge. */
+.legal-page.company-page :is(.pricing-grid, .contact-routes, .press-assets, .press-swatches, .social-links) {
+  padding-left: 0;
+}

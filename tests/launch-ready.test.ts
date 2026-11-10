@@ -70,6 +70,12 @@ const PAGES: Record<(typeof PUBLIC_PATHS)[number] | "/legal", () => Promise<Meta
   "/showcase": meta(() => import("@/app/showcase/page")),
   "/import": meta(() => import("@/app/import/page")),
   "/alternatives/character-ai": meta(() => import("@/app/alternatives/character-ai/page")),
+  "/pricing": meta(() => import("@/app/pricing/page")),
+  "/faq": meta(() => import("@/app/faq/page")),
+  "/contact": meta(() => import("@/app/contact/page")),
+  "/press": meta(() => import("@/app/press/page")),
+  "/security": meta(() => import("@/app/security/page")),
+  "/accessibility": meta(() => import("@/app/accessibility/page")),
   "/legal": meta(() => import("@/app/legal/page")),
 };
 
