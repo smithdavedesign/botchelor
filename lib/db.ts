@@ -3016,6 +3016,8 @@ alter table showcase_posts add column if not exists show_prompt boolean not null
 alter table showcase_posts add column if not exists checked_at timestamptz;
 -- Looked at again by the safe side's recheck (lib/showcase-check.ts recheckBatch), once.
 alter table showcase_posts add column if not exists rechecked_at timestamptz;
+-- 2026-11-09: whether a clip's post has a sound track (lib/showcase-audio.ts; null until read): the 🔇 shows only if so.
+alter table showcase_posts add column if not exists has_audio boolean;
 -- The show's own portrait for a public agent-made character with none (lib/agent-portraits.ts): one that couldn't be
 -- kept is noted here and never drawn again, left for the character's creator.
 -- The older SFW twins drawn again with today's prompt (lib/showcase-retwin.ts): each once, the new one's id when it

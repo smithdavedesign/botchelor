@@ -144,7 +144,7 @@ export default function ShowcaseGrid({ posts, admin = false, reels = "" }: { pos
                   {x.rating === "suggestive" && <span className="showcase-rating">Suggestive</span>}
                   {veiled && <span className="showcase-veil">After Dark · tap to show</span>}
                 </button>
-                {x.mime.startsWith("video/") && !veiled && (
+                {x.mime.startsWith("video/") && !x.silent && !veiled && (
                   <button type="button" className="showcase-sound" onClick={() => toggleSound(x.id)} aria-pressed={sound} aria-label={sound ? "Mute clips" : "Turn sound on for clips"}>
                     {sound ? "🔊" : "🔇"}
                   </button>

@@ -382,7 +382,8 @@ function Slide({
           )}
         </div>
         <div className={styles.rail}>
-          {video && (
+          {/* Only on a clip with sound (lib/showcase-audio.ts): on a silent one it would do nothing. */}
+          {video && !p.silent && (
             <button type="button" onClick={onSound} aria-pressed={sound} aria-label={sound ? "Mute" : "Turn sound on"}>
               {sound ? "🔊" : "🔇"}
               <span>{sound ? "Sound" : "Muted"}</span>
