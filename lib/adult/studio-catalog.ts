@@ -652,8 +652,10 @@ export type AnimateGuide = { guide?: string; dialog?: string; transcript?: strin
  * picture's. The owner can guide it (David, 2026-10-24): `guide` leads, so what they ask for happens; `dialog` is what
  * they say (their lips move); `transcript` is the lines around this moment, for the mood. A motion chip is optional once
  * there's a guide. The guide, dialog and transcript are held to the lines by the caller and the clip is Hive-checked.
+ * `emptyPlace`: nude somewhere public (a Studio animation kept going there, lib/adult/studio-keep-going.ts), so the place
+ * stays empty, as a shoot's does (shootPrompt).
  */
-export function animatePrompt(subject: Pick<Subject, "noun">, level: Level, motion: string, g: AnimateGuide = {}, opts: { pair?: boolean; camera?: string | null } = {}): string {
+export function animatePrompt(subject: Pick<Subject, "noun">, level: Level, motion: string, g: AnimateGuide = {}, opts: { pair?: boolean; camera?: string | null; emptyPlace?: boolean } = {}): string {
   const who = subject.noun === "person" ? "person" : subject.noun;
   const them = opts.pair ? "two people" : who;
   const guide = cleanCustom(g.guide, CUSTOM_MAX);
@@ -678,6 +680,7 @@ export function animatePrompt(subject: Pick<Subject, "noun">, level: Level, moti
       `Keep the ${opts.pair ? "same two faces" : "same face"} throughout, frame to frame — the very same features, never changing or morphing.`,
       // How the camera moves (lib/adult/camera-moves.ts): steady unless a move was picked.
       `One continuous shot, ${cameraWords(opts.camera)}: no cuts, nobody new comes in. Realistic, unhurried motion.`,
+      ...(opts.emptyPlace ? [`${EMPTY_PLACE}.`] : []),
       TAIL[level],
     ],
   );

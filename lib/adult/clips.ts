@@ -11,7 +11,9 @@
  *    next clip starts straight from it (seamless), or from a fresh
  *    keyframe of their two faces with that frame as Picture 3 (fresh faces: every third link of a chain, so the faces
  *    don't drift). Without a moment, as before: a fresh keyframe with the clip's own start picture as Picture 3. A
- *    night's video can be kept going from too, from one of its shots: that starts a new clip.
+ *    night's video can be kept going from too, from one of its shots: that starts a new clip. The owner can say what
+ *    happens next in their own words (David, 2026-11-09): held to everything a motion is (nextWordsRefusal) before
+ *    anything is spent, then the director writes the shot's motion from them.
  *
  * Each is a reel of one shot (lib/adult/reels.ts, kind 'clip'): the same keyframe, the same Hive check before anything is
  * kept, the same video models, the same poll that collects it, one video at a time, and a shot that doesn't come through
@@ -29,7 +31,7 @@ import type { Db } from "../db";
 import { checkAdultText } from "../safety";
 import { ACTS, actById, actFor, actLocked, actMenu, actRuledOut, crossesTaboo, FRAMING_WORDS, NO_MEDIA_LIMITS, povFor, type Eyes, type MediaLimits, type MenuAct } from "./acts";
 import { directorHint, framingScores, scoresFrom } from "./framing";
-import { archivedClip, CHAIN_MAX, playable } from "./clip-chains";
+import { archivedClip, CHAIN_MAX, NEXT_WORDS_MAX, playable, SEAMLESS_RUN_MAX } from "./clip-chains";
 import { isPublicPlace } from "./continuity";
 import { hiveGate, hivePausedErrorMessage, HivePausedError } from "./hive-limit";
 import { atLeastExplicit, INTENSITY, intensityOf, limitsHit, storedHardNos, type PairLimits } from "./limits";
@@ -69,11 +71,12 @@ import { eligiblePair, type SceneLine } from "./scenes";
 import { adultKeys, getAdultSettings } from "./settings";
 import { stageShown } from "./stage-floor";
 import { STAGES } from "./stages";
+import { cleanCustom } from "./studio-catalog";
 import { giveBackIncludedClip, takeIncludedClip } from "./usage";
 
 const KISSING = STAGES.indexOf("kissing");
 const LAST = STAGES.length - 1;
-export { CHAIN_MAX };
+export { CHAIN_MAX, NEXT_WORDS_MAX, SEAMLESS_RUN_MAX };
 /** The lines the director reads for "Clip from here". */
 const HERE_LINES = 8;
 
@@ -134,6 +137,23 @@ const upperFirst = (s: string) => (s ? s[0].toUpperCase() + s.slice(1) : s);
 
 /** How far a clip of the night as it stands may go: its stage, held to the intensity, and to kissing somewhere public. */
 const capFor = (stands: NightStands, limits: MediaLimits) => Math.min(stands.stage, limits.maxStage, stands.publicPlace ? KISSING : LAST);
+
+/**
+ * Why the owner's own words for what happens next (Keep going's "What happens next", David 2026-11-09) can't be used,
+ * or null. Held to everything a motion is held to (fitsClip), each with its own reason: David's lines (the age words and
+ * the taboos), the pair's limits (their hard nos and intensity), nothing past kissing somewhere public, and no further
+ * than the clip has gone (`stage`). Asked before the director, a draw or a token is spent.
+ */
+export function nextWordsRefusal(words: string, at: { stage: number; publicPlace: boolean }, limits: MediaLimits): string | null {
+  if (!words.trim()) return null;
+  if (!checkAdultText({ words }).ok || crossesTaboo(words)) return "Those words cross one of the lines After Dark never crosses.";
+  const hit = limits.hit(words);
+  if (hit) return `That's past the limits you've set for these two: ${hit}.`;
+  const shown = shownStage(words);
+  if (at.publicPlace && shown > KISSING) return "Nothing past kissing somewhere public: that waits until they're somewhere private.";
+  if (shown > at.stage) return `That goes further than they've got so far: this clip goes as far as ${STAGES[at.stage]}.`;
+  return null;
+}
 
 /** What the director writes for a clip: the still, the motion, and the line said in it (an index into the night), or none. */
 export type ClipDirection = { frame: string; motion: string; line: number | null; eyes?: Eyes };
@@ -217,9 +237,18 @@ export async function directHere(
   }
 }
 
-/** Keep going from a clip from here: what they do next, carrying on from its still and motion; the same again, failing that. */
-export async function directNext(db: Db, cast: [ReelPerson, ReelPerson], before: { frame: string; motion: string }, cap: number, limits: MediaLimits): Promise<string> {
-  const again = fitsClip(before.motion, cap, limits) && before.motion ? `They carry on: ${before.motion[0].toLowerCase()}${before.motion.slice(1)}` : "The two of them stay close, moving together.";
+/**
+ * Keep going from a clip: what they do next, carrying on from its still and motion; the same again, failing that. With
+ * the owner's own `words` for what happens next (already held to nextWordsRefusal), the director writes the motion that
+ * does what they ask, from where the shot left them; failing that, their words themselves (names out).
+ */
+export async function directNext(db: Db, cast: [ReelPerson, ReelPerson], before: { frame: string; motion: string }, cap: number, limits: MediaLimits, words?: string): Promise<string> {
+  const asked = words?.trim() ? upperFirst(withoutNames(words.trim(), cast)).slice(0, NEXT_WORDS_MAX) : "";
+  const again = asked && fitsClip(asked, cap, limits)
+    ? asked
+    : fitsClip(before.motion, cap, limits) && before.motion
+      ? `They carry on: ${before.motion[0].toLowerCase()}${before.motion.slice(1)}`
+      : "The two of them stay close, moving together.";
   try {
     const raw = await (await adultModel(db)).complete(
       [
@@ -231,7 +260,12 @@ export async function directNext(db: Db, cast: [ReelPerson, ReelPerson], before:
             `How it started: ${before.frame}`,
             `What they did in it: ${before.motion}`,
             "",
-            `Write what they do over the next five seconds, carrying on from where that left them, in the same place and pose: one sentence, concrete and physical, both of them in it, no further than ${STAGES[cap]}, no names.`,
+            ...(asked
+              ? [
+                  `What the viewer wants to happen next, in their own words: "${asked.replace(/"/g, "'")}"`,
+                  `Write what they do over the next five seconds: what the viewer asked for, carrying on from where that shot left them, in the same place: one sentence, concrete and physical, both of them in it, no further than ${STAGES[cap]}, no names.`,
+                ]
+              : [`Write what they do over the next five seconds, carrying on from where that left them, in the same place and pose: one sentence, concrete and physical, both of them in it, no further than ${STAGES[cap]}, no names.`]),
             'Reply with a JSON object: {"motion": "..."}',
           ].join("\n"),
         },
@@ -275,16 +309,17 @@ export async function clipOffer(db: Db, ownerId: string, x: string, y: string): 
 
 /**
  * What's asked for: a moment of the night (the latest, or the line `at`, as the theater shows it; the running scene, or a
- * saved night), an act (with who leads swapped, or not), or to keep going from a clip.
+ * saved night), an act (with who leads swapped, or not), or to keep going from a clip (with `prompt`, the owner's own
+ * words for what happens next; with `check`, only whether they can be used, asked before a frame is cut for it).
  */
 export type ClipAsk =
   | { a: string; b: string; here: true; at?: number; night_id?: string | null }
   | { a: string; b: string; act: string; swap?: boolean; eyes?: Eyes | null; camera?: CameraMoveId | null }
-  | { continue: string; media_id?: string; frame_id?: string; mode?: KeepGoingMode };
+  | { continue: string; media_id?: string; frame_id?: string; mode?: KeepGoingMode; prompt?: string; check?: boolean };
+/** Keep going asked with `check`: it can go on, with those words, as far as anything decided before the director goes. */
+export type ClipReady = { ok: true; ready: true };
 /** From a moment: start straight from its frame, or from a fresh keyframe of their faces with it as Picture 3. */
 export type KeepGoingMode = "seamless" | "fresh";
-/** Seamless links in a row before the next is drawn fresh from their faces (so a long chain can't drift from them). */
-export const SEAMLESS_RUN_MAX = 2;
 
 /** A shot planned, before anything is spent: what it shows and says, how far it goes, where, and its keyframe. */
 type Plan = {
@@ -341,7 +376,7 @@ async function chainLength(db: Db, ownerId: string, clip: ClipMeta | null | unde
  * (admins free), then draws, checks and queues its keyframe like a reel's shot. The page's poll collects it
  * (advanceReel); it lists with the pair's videos.
  */
-export async function makeClip(db: Db, ownerId: string, ask: ClipAsk, baseUrl: string): Promise<MakeReelResult> {
+export async function makeClip(db: Db, ownerId: string, ask: ClipAsk, baseUrl: string): Promise<MakeReelResult | ClipReady> {
   const cont = "continue" in ask ? ask : null;
   // A night's video can be kept going from one of its shots (`media_id`): any of theirs, then; a clip otherwise.
   const parent = cont ? await ownClip(db, ownerId, cont.continue, { anyKind: Boolean(cont.media_id) }) : null;
@@ -391,21 +426,32 @@ export async function makeClip(db: Db, ownerId: string, ask: ClipAsk, baseUrl: s
     };
     const act = meta.act ? actById(meta.act) : null;
     if (meta.stage > limits.maxStage || (act && actRuledOut(act, cast, limits))) return refuse(422, "not_allowed", "That's past the limits you've set for these two.");
-    const motion = act ? actFor(act, cast, meta.swap).next : await directNext(db, cast, { frame: before.frame ?? "", motion: before.motion }, meta.stage, limits);
-    if (!fitsClip(motion, meta.stage, limits)) return refuse(422, "not_allowed", "That's past the limits you've set for these two.");
+    // The owner's own words for what happens next (David, 2026-11-09): held to the lines, their limits, the place and how
+    // far the clip has gone before the director or a token is spent; the director then writes the motion from them (an
+    // act's own next motion gives way to them). Without words, as before.
+    const words = cleanCustom(cont.prompt, NEXT_WORDS_MAX);
+    const publicPlace = isPublicPlace(meta.place, meta.place === stands.place ? stands.home : null);
+    const cap = words && publicPlace ? Math.min(meta.stage, KISSING) : meta.stage;
+    const wordsRefused = words ? nextWordsRefusal(words, { stage: meta.stage, publicPlace }, limits) : null;
+    if (wordsRefused) return refuse(422, "not_allowed", wordsRefused);
+    // Only asked whether the words can be used (the page asks before it cuts a frame for them): nothing's spent yet.
+    if (cont.check) return { ok: true, ready: true };
+    const motion = act && !words ? actFor(act, cast, meta.swap).next : await directNext(db, cast, { frame: before.frame ?? "", motion: before.motion }, cap, limits, words);
+    if (!fitsClip(motion, cap, limits)) return refuse(422, "not_allowed", "That's past the limits you've set for these two.");
     const after = before.motion || "they stay close";
     // From a moment: seamless unless asked for fresh faces, or the chain has run seamless SEAMLESS_RUN_MAX links already.
     const run = cont.frame_id && isClip ? await seamlessRun(db, ownerId, parent.clip) : 0;
     const seamless = Boolean(cont.frame_id) && cont.mode !== "fresh" && run < SEAMLESS_RUN_MAX;
-    // The clip before's cut, and whether it was an included one (this one's own is decided when it's paid for), left behind.
-    const { cut: _old, included: _wasIncluded, ...kept } = meta;
+    // The clip before's cut, whether it was an included one (this one's own is decided when it's paid for) and its own
+    // words, left behind.
+    const { cut: _old, included: _wasIncluded, prompt: _said, ...kept } = meta;
     // Seen through one of their eyes, it carries on that way (the shot's own, or the clip's).
     const eyes = before.eyes ?? meta.eyes ?? undefined;
     plan = {
       shot: { line: before.line, who: before.who, text: "", frame: `Carrying on from the shot before, after this: ${after}`, motion, ...(eyes ? { eyes } : {}) },
       stage: meta.stage,
       place: meta.place,
-      meta: { ...kept, from: isClip ? parent.id : null, ...(eyes ? { eyes } : {}) },
+      meta: { ...kept, from: isClip ? parent.id : null, ...(eyes ? { eyes } : {}), ...(words ? { prompt: words } : {}) },
       keyframe: () => ({
         prompt: eyes
           ? povPrompt(cast, eyes, after, null, meta.stage, false, { explicit: limits.explicit, continueFrom: cutFrame ? "same" : "after" })

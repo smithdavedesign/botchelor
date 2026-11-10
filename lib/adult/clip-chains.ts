@@ -6,6 +6,16 @@ import type { Reel, ReelShot } from "./reels";
 
 /** Shots a clip can be kept going to, in all (about 30 s): Keep going stops being offered there. */
 export const CHAIN_MAX = 6;
+/**
+ * Seamless links in a row before the next is drawn fresh from their faces (so a long chain can't drift from them): a
+ * clip's (lib/adult/clips.ts) and a Studio animation's (lib/adult/studio-keep-going.ts).
+ */
+export const SEAMLESS_RUN_MAX = 2;
+/**
+ * "What happens next", the owner's own words for a link kept going (a clip's, a Studio animation's): as long as the
+ * words a picture's "What's happening" takes (lib/adult/beats.ts PICTURE_FIELD_MAX, a server module, so not imported).
+ */
+export const NEXT_WORDS_MAX = 300;
 
 /**
  * A shot that plays: it came through and it isn't in the Archive (lib/adult/reels.ts archiveShot). Every player, the

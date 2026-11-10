@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { requestJson } from "@/app/request";
+import { NEXT_WORDS_MAX } from "@/lib/adult/clip-chains";
 import type { Media } from "@/lib/adult/media";
 import type { Reel } from "@/lib/adult/reels";
 
@@ -13,20 +14,61 @@ type Done = { text: string; media?: Media; error?: boolean };
 
 /**
  * Keep going from a moment of a shot (lib/adult/clips.ts): its frame cut and checked first (the moments route, the one
- * ffmpeg runs in), then a new clip from it. Resolves to the clips route's answer, or null when nothing reached the server.
+ * ffmpeg runs in), then a new clip from it, with the owner's own words for what happens next when they gave some (asked
+ * about first, so words it can't use are refused before a frame is cut). Resolves to the clips route's answer, or null
+ * when nothing reached the server.
  */
-export async function keepGoingFromMoment(reelId: string, mediaId: string, at: number | "end", mode: "seamless" | "fresh" = "seamless") {
+export async function keepGoingFromMoment(reelId: string, mediaId: string, at: number | "end", mode: "seamless" | "fresh" = "seamless", prompt?: string) {
+  const words = prompt?.trim();
+  if (words) {
+    const ready = await requestJson("/api/admin/after-dark/clips", { continue: reelId, media_id: mediaId, prompt: words, check: true }).catch(() => null);
+    if (!ready?.ok) return ready;
+  }
   const cut = await requestJson("/api/admin/after-dark/moments", { action: "frame", media_id: mediaId, at }).catch(() => null);
   if (!cut?.ok) return cut;
   const frame = cut.data.frame as { id: string };
-  return requestJson("/api/admin/after-dark/clips", { continue: reelId, media_id: mediaId, frame_id: frame.id, mode }).catch(() => null);
+  return requestJson("/api/admin/after-dark/clips", { continue: reelId, media_id: mediaId, frame_id: frame.id, mode, ...(words ? { prompt: words } : {}) }).catch(() => null);
+}
+
+/**
+ * "What happens next" (David, 2026-11-09): the owner's own words for the next link kept going, a clip's or a Studio
+ * animation's. Optional; the server holds them to everything a motion is held to, and says why when it can't use them.
+ */
+export function NextWords({ value, onChange, disabled = false, rows }: { value: string; onChange: (v: string) => void; disabled?: boolean; rows?: number }) {
+  // In a narrow card (a Studio animation's, AnimationChain.tsx) the words wrap in a box like Animate's guide.
+  if (rows)
+    return (
+      <textarea
+        className="ad-studio-custom ad-next-words"
+        rows={rows}
+        value={value}
+        maxLength={NEXT_WORDS_MAX}
+        placeholder="What happens next? Optional, in your own words"
+        aria-label="What happens next (optional)"
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    );
+  return (
+    <input
+      type="text"
+      className="ad-next-words"
+      value={value}
+      maxLength={NEXT_WORDS_MAX}
+      placeholder="What happens next? Optional, in your own words"
+      aria-label="What happens next (optional)"
+      disabled={disabled}
+      onChange={(e) => onChange(e.target.value)}
+    />
+  );
 }
 
 /**
  * A clip's moments (lib/adult/moments.ts; David, 2026-10-26: "save a image or offering a boomerang for a clip … continue
  * where it left off"): 📸 the frame on screen kept as a picture, ↔ a boomerang and ∞ a loop of what its trim keeps, and,
  * for a shot of one of their videos, ▶▶ keep going from the second it's paused on (lib/adult/clips.ts), straight on from
- * that frame or from a fresh picture of their faces. The player's own time is read when a button is pressed.
+ * that frame or from a fresh picture of their faces, with what happens next in their own words if they like. The
+ * player's own time is read when a button is pressed.
  */
 export default function MomentTools({
   mediaId,
@@ -45,6 +87,7 @@ export default function MomentTools({
   const [busy, setBusy] = useState<"save" | "boomerang" | "loop" | "keep" | null>(null);
   const [done, setDone] = useState<Done | null>(null);
   const [mode, setMode] = useState<"seamless" | "fresh">("seamless");
+  const [words, setWords] = useState("");
 
   async function moment(action: "save" | "boomerang" | "loop") {
     pause?.();
@@ -66,10 +109,11 @@ export default function MomentTools({
     const at = Math.round(now() * 100) / 100;
     setBusy("keep");
     setDone(null);
-    const res = await keepGoingFromMoment(keepGoing.reelId, mediaId, at, mode);
+    const res = await keepGoingFromMoment(keepGoing.reelId, mediaId, at, mode, words);
     setBusy(null);
     if (!res) return setDone({ text: "That didn't reach the server. Check your connection and try again.", error: true });
     if (!res.ok) return setDone({ text: res.message, error: true });
+    setWords("");
     keepGoing.onReel(res.data.reel as Reel);
     setDone({ text: (res.data.note as string | undefined) ?? `The next shot carries on from ${secs(at)}: it's being made, and plays on from this one.` });
   }
@@ -100,6 +144,7 @@ export default function MomentTools({
               Fresh faces
             </button>
           </span>
+          <NextWords value={words} onChange={setWords} disabled={busy !== null} />
         </span>
       )}
       {done && (

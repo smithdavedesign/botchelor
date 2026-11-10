@@ -260,6 +260,8 @@ export type ClipMeta = {
    * as Picture 3.
    */
   cut?: { video: string; at: number; seamless: boolean };
+  /** Kept going with the owner's own words for what happens next (lib/adult/clips.ts): the director wrote its motion from them. */
+  prompt?: string;
   /** Seen through one of their eyes (an act's first-person view): whose. */
   eyes?: "a" | "b";
   /** One of a subscriber's included clips (#1005): the month it was taken from, given back there if it fails. */

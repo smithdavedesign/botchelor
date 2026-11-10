@@ -8,6 +8,8 @@ import FavoriteStar from "../../FavoriteStar";
 import SfwTwin from "../../SfwTwin";
 import CameraMoves from "../../CameraMoves";
 import type { CameraMoveId } from "@/lib/adult/camera-moves";
+// ▶▶ Keep going on a Studio animation, and its chain played as one film (lib/adult/studio-keep-going.ts).
+import AnimationChain from "./AnimationChain";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import type { Eyes } from "@/lib/adult/acts";
@@ -636,6 +638,18 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
                   Animate…
                 </button>
               </div>
+            )}
+            {/* One of their Studio animations: ▶▶ Keep going from its last frame, and its chain as one film (AnimationChain.tsx). */}
+            {video && s.animation_links?.[p.id] && !onOwn && (
+              <AnimationChain
+                id={p.id}
+                characterId={c.id}
+                links={s.animation_links}
+                trimOf={(id) => [...s.studio_gallery, ...s.pair_gallery, ...s.gallery].find((m) => m.id === id)?.trim ?? null}
+                price={(sec) => (admin ? "free for admins" : tokens(sec === 10 ? s.prices.animate_10 : s.prices.animate_5))}
+                disabled={Boolean(busy) || making > 0}
+                onState={setS}
+              />
             )}
             {anim && (
               <div className="ad-studio-share">

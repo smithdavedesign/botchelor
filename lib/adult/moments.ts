@@ -6,7 +6,8 @@
  *    any picture before it's kept (it becomes a picture of its own: it can be animated, shared, used).
  *  - A boomerang (what the trim keeps, forward then back) and a loop (its end faded into its start): new videos made of
  *    the clip's own frames, which passed the clip's own check, so nothing new is checked.
- *  - The frame a clip keeps going from (lib/adult/clips.ts): checked like a keyframe, kept out of the gallery.
+ *  - The frame a clip keeps going from (lib/adult/clips.ts), or a Studio animation (lib/adult/studio-keep-going.ts):
+ *    checked like a keyframe, kept out of the gallery.
  * All free (no provider is paid), counted against the month's moments (lib/adult/usage.ts), and the owner's own clips
  * only: never one shared with them.
  */
@@ -24,14 +25,17 @@ export type MomentFail = { ok: false; status: number; error: string; message: st
 export type MomentResult = { ok: true; media: Media } | MomentFail;
 const fail = (status: number, error: string, message: string): MomentFail => ({ ok: false, status, error, message });
 
-type OwnVideo = { id: string; owner_id: string; character_id: string | null; character_b: string | null; trim: KeptTrim | null; derived: string | null; data: Buffer | Uint8Array | null; object_key: string | null };
+type OwnVideo = {
+  id: string; owner_id: string; character_id: string | null; character_b: string | null; trim: KeptTrim | null; derived: string | null; shoot_id: string | null;
+  data: Buffer | Uint8Array | null; object_key: string | null;
+};
 
 /** One of the owner's own ready videos (never one shared with them), with its bytes' whereabouts. */
 async function ownVideo(db: Db, ownerId: string, id: string): Promise<OwnVideo | null> {
   return (
     (
       await db.query<OwnVideo>(
-        `select id, owner_id, character_id, character_b, trim, derived, ${dataColumn()}, object_key
+        `select id, owner_id, character_id, character_b, trim, derived, shoot_id, ${dataColumn()}, object_key
            from adult_images where id = $1 and kind = 'video' and status = 'ready' and owner_id = $2`,
         [id, ownerId],
       )
@@ -175,17 +179,24 @@ export async function deriveClip(db: Db, ownerId: string, videoId: string, kind:
   return { ok: true, media };
 }
 
+/** Whether a video of one is a Studio animation of the owner's (made by an 'animate' shoot of theirs), so it can be kept going. */
+async function studioAnimation(db: Db, ownerId: string, shootId: string): Promise<boolean> {
+  return (await db.query(`select 1 from adult_studio_shoots where id = $1 and owner_id = $2 and kind = 'animate'`, [shootId, ownerId])).rows.length > 0;
+}
+
 /**
  * The frame a clip keeps going from (lib/adult/clips.ts "Keep going from here"): cut at `at` (or the end of what's kept)
- * from the owner's own video of two, asked the age question like any keyframe (lib/adult/check.ts "keyframe": its
- * video's check comes after), and kept out of the gallery as a 'frame' of the pair. The page asks for it first (POST
- * /api/admin/after-dark/moments "frame", the one route ffmpeg runs in), then keeps going from it by its id. Throws what
- * to say when it can't be had.
+ * from the owner's own video of two, or from one of their Studio animations (lib/adult/studio-keep-going.ts: kept as
+ * the character's alone, a pair picture's too), asked the age question like any keyframe (lib/adult/check.ts
+ * "keyframe": its video's check comes after), and kept out of the gallery as a 'frame' of the same one or two. The page
+ * asks for it first (POST /api/admin/after-dark/moments "frame", the one route ffmpeg runs in), then keeps going from it
+ * by its id. Throws what to say when it can't be had.
  */
 export async function momentFrame(db: Db, ownerId: string, videoId: string, at: number | "end"): Promise<{ id: string; at: number }> {
   const video = await ownVideo(db, ownerId, videoId);
-  if (!video?.character_id || !video.character_b) throw new Error("that shot's video isn't there");
-  const pair = [video.character_id, video.character_b] as const;
+  const animation = Boolean(video?.character_id && !video.character_b && video.shoot_id) && (await studioAnimation(db, ownerId, video!.shoot_id!));
+  if (!video?.character_id || (!video.character_b && !animation)) throw new Error("that shot's video isn't there");
+  const people = [video.character_id, video.character_b] as const;
   const bytes = await bytesOf(video);
   if (!bytes) throw new Error("that shot's file isn't there any more");
   const frame = await frameAt(bytes, at, video.trim);
@@ -202,7 +213,7 @@ export async function momentFrame(db: Db, ownerId: string, videoId: string, at: 
   await db.query(
     `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, status, source_image, moment_at, model)
      values ($1, $2, $3, $4, 'frame', $5, 'image/png', $6, $7, 'ready', $8, $9, 'moment')`,
-    [id, ownerId, pair[0], pair[1], `Kept going from a clip, ${frame.at.toFixed(1)} s in`, kept.data, kept.object_key, video.id, frame.at],
+    [id, ownerId, people[0], people[1], `Kept going from ${animation ? "an animation" : "a clip"}, ${frame.at.toFixed(1)} s in`, kept.data, kept.object_key, video.id, frame.at],
   );
   return { id, at: frame.at };
 }

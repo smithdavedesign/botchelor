@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { CAMERA_MOVE_IDS, type CameraMoveId } from "@/lib/adult/camera-moves";
-import { clipOffer, makeClip } from "@/lib/adult/clips";
+import { clipOffer, makeClip, NEXT_WORDS_MAX } from "@/lib/adult/clips";
 import { adultViewer } from "@/lib/adult/mode";
 import { mediaRefusal } from "@/lib/adult/place";
 import { getDb } from "@/lib/db";
@@ -20,12 +20,15 @@ const Input = z.union([
   z.object({ a: id, b: id, act: z.string().min(1).max(40), swap: z.boolean().optional(), eyes: z.enum(["a", "b"]).nullable().optional(), camera: z.enum(CAMERA_MOVE_IDS as [CameraMoveId, ...CameraMoveId[]]).nullable().optional() }),
   // Keep going: from a clip of theirs (or a shot of one of their videos, `media_id`), from a moment of it cut first by
   // the moments route (`frame_id`), started straight from that frame or from a fresh keyframe of their faces (`mode`);
-  // no frame: as before, from the clip's own start picture.
+  // no frame: as before, from the clip's own start picture. `prompt`: the owner's own words for what happens next;
+  // `check`: only whether they can be used (asked before a frame is cut for them), nothing made or spent.
   z.object({
     continue: id,
     media_id: id.optional(),
     frame_id: id.optional(),
     mode: z.enum(["seamless", "fresh"]).optional(),
+    prompt: z.string().max(NEXT_WORDS_MAX).optional(),
+    check: z.literal(true).optional(),
   }),
 ]);
 
@@ -56,5 +59,6 @@ export const POST = handle(async (req: Request) => {
   const input = parseBody(Input, await readJson(req), "invalid_request");
   const r = await makeClip(db, viewer, input, requestBase(req));
   if (!r.ok) return json({ error: r.error, message: r.message, ...(r.busy ? { busy: r.busy } : {}) }, r.status);
+  if ("ready" in r) return json({ ready: true });
   return json({ reel: r.reel, ...(r.note ? { note: r.note } : {}) });
 });
