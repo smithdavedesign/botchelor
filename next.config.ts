@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 import { AI_HEADERS } from "./lib/ai-mark";
+import { SECURITY_HEADERS } from "./lib/security-headers";
 import { afterDarkNextConfig } from "./lib/after-dark-host";
 import { siteUrl } from "./lib/site";
 import { SHOW_WORD_REDIRECTS } from "./lib/site-redirects";
@@ -31,7 +32,13 @@ const nextConfig: NextConfig = {
   // The house cast's portraits and the venue backdrops in public/cast were drawn by a model: they carry the XMP mark
   // (scripts/stamp-ai-marks.mjs) and go out with the same "AI-generated" headers as every other generated file
   // (lib/ai-mark.ts, EU AI Act Art. 50).
-  headers: async () => [{ source: "/cast/:file*", headers: Object.entries(AI_HEADERS).map(([key, value]) => ({ key, value })) }],
+  // Every response carries the security headers (lib/security-headers.ts).
+  headers: async () => [
+    { source: "/:path*", headers: [...SECURITY_HEADERS] },
+    { source: "/cast/:file*", headers: Object.entries(AI_HEADERS).map(([key, value]) => ({ key, value })) },
+  ],
+  // No "X-Powered-By: Next.js": it tells a scanner what to try and tells a visitor nothing.
+  poweredByHeader: false,
   // After Dark on a host of its own (lib/after-dark-host.ts): adds nothing unless AFTER_DARK_ORIGIN is set at build time.
   ...afterDark,
   // The show's words as addresses (lib/site-redirects.ts), before After Dark's own moves.

@@ -71,7 +71,7 @@ export default function SecurityPage() {
       <section aria-labelledby="how">
         <h2 id="how">How we protect the show</h2>
         <ul>
-          <li>Every page and call is served over HTTPS.</li>
+          <li>Every page and call is served over HTTPS, browsers are told to use it every time (HSTS), and no other site can put the show in a frame.</li>
           <li>You pay on Stripe&apos;s own page: card details never reach us.</li>
           <li>Passwords are stored only as salted scrypt hashes, never as the password itself.</li>
           <li>Your sign-in lives in a signed cookie that the page&apos;s scripts can&apos;t read (HttpOnly, SameSite).</li>

@@ -17,6 +17,7 @@ import {
 } from "@/lib/after-dark-host";
 import { signCarry, signSession, verifySession } from "@/lib/auth";
 import { getDb, setDbForTests, type Db } from "@/lib/db";
+import { SECURITY_HEADERS } from "@/lib/security-headers";
 import { requestBase } from "@/lib/site";
 import { middleware } from "@/middleware";
 
@@ -99,6 +100,8 @@ describe("with the switch off (no AFTER_DARK_ORIGIN): exactly today's behaviour"
       outputFileTracingExcludes: { "/**": ["./public/**/*"] },
       outputFileTracingIncludes: { "/api/admin/after-dark/moments": ffmpeg, "/api/admin/after-dark/export": ffmpeg, "/api/admin/showcase/animate": ffmpeg, "/api/jobs/showcase-check": ffmpeg },
       headers: expect.any(Function),
+      // No X-Powered-By (2026-11-10 company pass), with or without the switch.
+      poweredByHeader: false,
       // The show's words as addresses (lib/site-redirects.ts, 2026-11-07 audit item 14), with or without the switch.
       redirects: expect.any(Function),
     });
@@ -108,6 +111,8 @@ describe("with the switch off (no AFTER_DARK_ORIGIN): exactly today's behaviour"
       { source: "/messages", destination: "/matches", permanent: false },
     ]);
     expect(await config.headers!()).toEqual([
+      // The security headers on every response (lib/security-headers.ts), which don't depend on the switch.
+      { source: "/:path*", headers: [...SECURITY_HEADERS] },
       { source: "/cast/:file*", headers: [{ key: "x-ai-generated", value: "true" }, { key: "link", value: '</content-policy>; rel="describedby"' }] },
     ]);
     expect(afterDarkNextConfig({}, SHOW)).toEqual({});

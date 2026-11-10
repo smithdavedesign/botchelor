@@ -24,6 +24,8 @@ import { SECURITY_TXT_DAYS, securityTxt } from "@/lib/security-policy";
 import { organizationJsonLd } from "@/lib/seo";
 import { PUBLIC_PATHS } from "@/lib/site";
 import { middleware } from "@/middleware";
+import config from "@/next.config";
+import { SECURITY_HEADERS } from "@/lib/security-headers";
 import { BASE_URL, startTestDb } from "./helpers";
 
 const INVITE = "https://discord.gg/8VDdRF9YU";
@@ -254,5 +256,24 @@ describe("failed sign-ins (lib/login-guard.ts)", () => {
     expect(held.status).toBe(429);
     expect(held.headers.get("retry-after")).toBe(String(LOGIN_WINDOW_MINUTES * 60));
     expect((await held.json()).error).toBe("too_many_attempts");
+  });
+});
+
+describe("the security headers on every response", () => {
+  it("cover every path, keep the AI mark on the cast's files, and drop X-Powered-By", async () => {
+    const rules = await config.headers!();
+    const all = rules.find((r) => r.source === "/:path*")!;
+    const names = all.headers.map((h) => h.key.toLowerCase());
+    expect(names).toEqual(["strict-transport-security", "x-content-type-options", "x-frame-options", "content-security-policy", "referrer-policy"]);
+    expect(all.headers).toEqual([...SECURITY_HEADERS]);
+    expect(rules.find((r) => r.source === "/cast/:file*")!.headers.map((h) => h.key)).toContain("x-ai-generated");
+    expect(config.poweredByHeader).toBe(false);
+  });
+
+  it("never force https on subdomains we don't serve, and never lock framing out for the show itself", () => {
+    const value = (key: string) => SECURITY_HEADERS.find((h) => h.key === key)!.value;
+    expect(value("Strict-Transport-Security")).not.toMatch(/includeSubDomains|preload/i);
+    expect(value("Content-Security-Policy")).toBe("frame-ancestors 'self'");
+    expect(value("X-Frame-Options")).toBe("SAMEORIGIN");
   });
 });
