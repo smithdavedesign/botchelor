@@ -24,7 +24,7 @@ import MediaTags from "../../MediaTags";
 import Lightbox from "./Lightbox";
 import LocalTime from "../../LocalTime";
 import TrimmableClip from "../../TrimmableClip";
-import FixFaces from "../../FixFaces";
+import FixButton, { FixHost, fixNudge } from "../../FixSheet";
 import IdentityPackGrid from "@/app/studio/IdentityPackGrid";
 import { identityPrice } from "@/lib/studio/identity-views";
 import FormatChips, { tileRatio } from "@/app/studio/FormatChips";
@@ -527,11 +527,19 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
                 kind={p.kind}
                 rating={p.rating ?? null}
                 tags={p.tags ?? []}
-                // 🩹 Fix faces (lib/adult/fix-faces.ts): bolder once they say it doesn't look like them.
+                // 🩹 Fix (lib/adult/fix.ts): repair, faces, a change or undressed; bolder once they say what's off.
                 extra={(r) =>
                   p.kind === "scene" && (
                     <>
-                      <FixFaces id={p.id} src={media} label={two ? "The picture of them" : `The picture of ${first}`} onFixed={() => void refresh()} nudge={r.rating === -1 && r.tags.includes("face")} />
+                      <FixButton
+                        id={p.id}
+                        src={media}
+                        label={two ? "The picture of them" : `The picture of ${first}`}
+                        onAdded={() => void refresh()}
+                        onKept={() => void refresh()}
+                        nudge={fixNudge(r.rating, r.tags)}
+                        said={r.rating === -1 ? r.tags : []}
+                      />
                       {/* 👕 The same picture safe for work (lib/adult/sfw-twin.ts). */}
                       <SfwTwin id={p.id} price={admin ? "free for admins" : tokens(s.prices.sfw_twin)} onAdded={() => void refresh()} />
                     </>
@@ -1606,6 +1614,8 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
       )}
       </div>
       {zoom && <Lightbox id={zoom.id} video={zoom.video} onClose={() => setZoom(null)} />}
+      {/* The Fix sheet opens here, not in a gallery's tile: a refresh can take the tile away (app/after-dark/FixSheet.tsx). */}
+      <FixHost />
     </section>
   );
 }

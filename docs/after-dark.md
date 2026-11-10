@@ -2597,7 +2597,8 @@ riding seen from below 0/5, close together, a kiss, a lap all 👍. So the view 
 David: "generating people together is way harder", after a redraw came back a different woman (#915, #918). Two
 tools for the face, and a fix for a face anchor that outlived its face.
 
-**Fix faces** (🩹, `lib/adult/fix-faces.ts`, `POST /api/admin/after-dark/fix-faces {media_id, who?}`; After Dark only):
+**Fix faces** (🩹, `lib/adult/fix-faces.ts`, `POST /api/admin/after-dark/fix-faces {media_id, who?}`; After Dark only;
+since 2026-11-09 one of Fix's four kinds, below, and the old route runs it):
 - One of the owner's pictures (kind scene) kept exactly as it is but for the faces. The prompt says to change nothing
   else, the clothes (or none) included, and to stay exactly as explicit (or as dressed) as Picture 1.
 - **One face at a time on Venice:** the picture is Picture 1 and that person's face Picture 2, because an edit model
@@ -2611,7 +2612,8 @@ tools for the face, and a fix for a face anchor that outlived its face.
   earlier face.
 - **Free:** it's our model's mistake. It's counted against the month's pictures (a Studio picture's against the
   Studio's), checked like any picture (a refusal is logged as kind `fix`), and kept as a new picture beside the original
-  (`adult_images.fixed_from`) with its tags, except the pin for dates. At most `FIXES_MAX` (3) fixes of one picture.
+  (`adult_images.fixed_from`) with its tags, except the pin for dates. At most `FIXES_MAX` fixes of one picture (3
+  then; 5 since Fix, for every kind together).
 - **Where:** beside 👍/👎 on every scene picture, in the Studio's galleries and a scene's. After a 👎 with "Doesn't look
   like them" it gets bolder and says what it does. A before-and-after slider (`app/after-dark/FixCompare.tsx`) shows the
   result. `RateMedia` takes an `extra` slot that knows what was said.
@@ -2980,3 +2982,72 @@ off**: until `DIDIT_API_KEY`, `DIDIT_WORKFLOW_ID` and `DIDIT_WEBHOOK_SECRET` are
    then redeploy. Check: from GB, a signed-in account sees "Verify your age" under the text-only line.
 
 **Proof:** tests/after-dark-age-check.test.ts.
+
+## Fix: repair, change, faces, undressed (2026-11-09)
+
+David: "we need a way to iterate over a broken image and fix it", for a deformed hand, a small thing that's off, or the
+same picture undressed. 🩹 Fix opens a sheet on any of the owner's scene pictures (`app/after-dark/FixSheet.tsx`,
+`lib/adult/fix.ts`, `GET|POST /api/admin/after-dark/fix`). It's beside 👍/👎 in the Studio's galleries and in a
+night's ⋯ menu. After a 👎 that says what's off (face, anatomy, pose, blurry, body, outfit), it gets bolder and opens
+on the right fix.
+
+**The four kinds:**
+- **Repair:** chips for what's broken (Hands, Arms and legs, Eyes and teeth, Glitches; each a fixed phrase,
+  `REPAIRS`), with their own words if they like.
+- **Change:** one change, in their words.
+- **Faces:** Fix faces, above.
+- **Undressed:** the same picture, pose and place, without clothes. Their nude body reference goes in as Picture 2 when
+  they have one. Anyone not undressed stays exactly as dressed.
+
+**A marked spot** (Repair and Change, optional): drag across what's wrong.
+- **Venice:** the piece round the spot is cut out with room on every side (`spotBoxes`) and fixed close up.
+- **Replicate:** its links can't carry a picture made in between, so the whole picture is fixed and the piece cut from
+  that.
+- **Pasted back** (`pasteSpot`): the spot in full, fading over `featherFor(spot)` pixels (12% of its short side, at
+  least 4) with a smoothstep. Every pixel further out is the original's own (tests/picture-fix.test.ts checks it pixel
+  by pixel). PNG stays PNG; a JPEG or WebP is saved again at quality 95.
+- **Why:** an edit model redraws the whole picture a little each time (faces drift, colours slide), and a spot doesn't.
+
+**Versions and Keep:**
+- **A version each:** every fix is a new picture: `fixed_from` the version it was made from, `fix_root` the original,
+  `fix_kind`, `fix_note` (their words, or the chips), `fix_spot`. It joins the gallery beside the rest, with its tags
+  except the pin for dates.
+- **Fixing again:** any version can be fixed again. `FIXES_MAX` (5) counts every version of one original together.
+- **Keep:** makes one version the one the galleries show. The others get `superseded_by` and leave `listMedia`,
+  `characterMedia` and the Studio's Together tab (where the kept one takes the original's place). The sheet still
+  lists them, with the kept one marked (`FixState.kept`). A night's beats (`adult_beats.picture_id`) that showed one
+  of them show the kept one. A fix made after a Keep is shown beside the kept one until one of them is kept (an e2e
+  run caught the sheet calling both "Kept", with no way to keep the newer one).
+- **Back to the original:** undoes every fix.
+- **Where the sheet lives:** on the page's `FixHost` (the Studio and a night's page), outside the galleries. A gallery
+  refreshes on its own (an animation landing, a fix made), and after a Keep that refresh takes away the tile the sheet
+  was opened from. A sheet inside the tile went with it (caught by the e2e). Keep's change reaches the gallery when the
+  sheet closes.
+- **Before and after:** compares any version with the one it was made from (`FixCompare`).
+
+**Held to:**
+- **Whose:** only the owner's own ready scene pictures, never an upload. Someone else's is not found (404).
+- **Their words:** checked like the Studio's own words (`checkAdultText`, `crossesTaboo`) and against their hard nos
+  (a pair's scene limits; one character's Studio limits).
+- **Never past the picture's level:** `RAISES` reads how far the words reach: underwear is Suggestive, out of their
+  clothes is Nude, sex is Explicit. Words that would undress someone get "pick Undressed"; anything further is refused.
+  `overIntensity` wasn't enough: it reads a night's stages and lets "make her naked" through at flirty.
+- **Limits lowered since:** a picture past what they're held to now (or a partner's consent taken back) can't be fixed
+  at all. The sheet says why (`blocked`).
+- **Undressed:**
+  - Only where their limits reach Nude.
+  - Never the two of them somewhere public.
+  - One person somewhere public only with the place empty (`EMPTY_PLACE`). Then `aloneInPicture` checks the result and
+    fails closed (#1407's rule). A solo nude picture in a public place is checked the same way after any fix.
+- **The check:** every result goes through the output check. A refusal is logged as kind `fix`.
+
+**Price:**
+- **Free:** Repair, Change and Faces (our model's mistake). They count against the month's pictures, or a Studio
+  picture against the Studio's.
+- **Undressed:** `studio.prices.undress` (1 token), admins free. It's taken before drawing and given back when nothing
+  is kept ("Your tokens are back.").
+
+**Proof:** tests/picture-fix.test.ts covers the prompts, spots pixel by pixel, versions and Keep, the word and level
+refusals, Undressed's rules and price, and ownership. tests/creator-faces.test.ts covers Faces. `npm run e2e:studio`
+runs at desktop and phone size: a repair with a marked spot, a change made from it, Keep, back to the original, and
+the sheet from a night's ⋯. Explicit output is never made in tests: David checks Undressed live.

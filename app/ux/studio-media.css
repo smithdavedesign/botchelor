@@ -286,8 +286,8 @@ li.picked {
   }
 }
 
-/* Fix faces (app/after-dark/FixFaces.tsx): the button beside the rating, bolder after "Doesn't look like them", then a
-   before and after, the before laid over the after and cut at the slider. */
+/* 🩹 Fix (app/after-dark/FixSheet.tsx): the button beside the rating, bolder once they've said what's off; its before
+   and after, the before laid over the after and cut at the slider. */
 .ad-fix {
   display: grid;
   gap: var(--space-1);
@@ -730,4 +730,106 @@ li.picked {
   .media-filter-rating {
     margin-left: 0;
   }
+}
+
+/* The Fix sheet (app/after-dark/FixSheet.tsx, lib/adult/fix.ts) in the storyboard's backdrop and panel (globals.css):
+   the picture with its marked spot and its versions beside what to fix; one column on a phone. */
+.ad-fixsheet {
+  width: min(64rem, 100%);
+}
+.ad-fixsheet-body {
+  display: grid;
+  gap: var(--space-4);
+  margin-top: var(--space-3);
+}
+@media (min-width: 760px) {
+  .ad-fixsheet-body {
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+    align-items: start;
+  }
+}
+.ad-fixsheet-view,
+.ad-fixsheet-form {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.ad-fixsheet-pic img {
+  max-height: 60vh;
+}
+/* Before and after at the picture's own shape, never cropped to fill the column. */
+.ad-fixsheet-view .ad-compare {
+  justify-self: center;
+  max-width: 100%;
+}
+.ad-fixsheet-view .ad-compare-frame img {
+  width: auto;
+  max-width: 100%;
+  max-height: 60vh;
+  aspect-ratio: auto;
+  object-fit: contain;
+}
+.ad-fixsheet-view .ad-compare-frame .ad-compare-before {
+  width: 100%;
+  height: 100%;
+}
+.ad-fixsheet-pic {
+  position: relative;
+  justify-self: center;
+  max-width: 100%;
+  line-height: 0;
+}
+.ad-fixsheet-pic img {
+  display: block;
+  max-width: 100%;
+  border-radius: var(--radius-sm);
+  user-select: none;
+  -webkit-user-drag: none;
+}
+.ad-fixsheet-pic.is-marking {
+  cursor: crosshair;
+  touch-action: none;
+}
+.ad-fixsheet-spot {
+  position: absolute;
+  border: 2px dashed var(--night-accent);
+  border-radius: var(--radius-xs);
+  background: color-mix(in srgb, var(--night-accent) 14%, transparent);
+  pointer-events: none;
+}
+.ad-fixsheet-versions {
+  display: flex;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0 0 var(--space-1);
+  list-style: none;
+  overflow-x: auto;
+}
+.ad-fixsheet-version {
+  display: grid;
+  gap: var(--space-1);
+  justify-items: center;
+  width: 5.5rem;
+  padding: var(--space-1);
+  border: 1px solid var(--night-line);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: inherit;
+}
+.ad-fixsheet-version.is-on {
+  border-color: var(--night-accent);
+}
+.ad-fixsheet-version img {
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+  border-radius: var(--radius-xs);
+}
+.ad-fixsheet-words {
+  display: grid;
+  gap: var(--space-1);
+}
+.ad-fixsheet-words textarea {
+  width: 100%;
+  resize: vertical;
 }

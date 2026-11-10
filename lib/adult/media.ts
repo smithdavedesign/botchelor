@@ -77,8 +77,9 @@ export type Media = {
   from_clip?: string | null;
   /** The shape it was drawn in (native sizes, lib/studio/formats.ts: "9:16"); null for one drawn before, all 3:4. */
   aspect?: string | null;
-  /** A picture with its faces fixed (lib/adult/fix-faces.ts): the one it was fixed from. */
+  /** A fixed version (lib/adult/fix.ts): the picture it was made from, and how (faces, repair, change, undress). */
   fixed_from?: string | null;
+  fix_kind?: string | null;
   /** Starred by the viewer (the Studio's ⭐, the rating deck's swipe up). */
   favorite?: boolean;
   /** On the showcase (lib/showcase.ts): its post, live or waiting for the other owner's OK. */
@@ -826,8 +827,8 @@ const MEDIA_SELECT = `select i.id, i.character_id, i.character_b, i.kind, i.stat
             i.trim,
             -- Made from a clip (lib/adult/moments.ts): a boomerang or a loop, or a still saved from it, and which clip.
             i.derived, i.moment_at, (case when i.derived is not null or i.moment_at is not null then i.source_image end) as from_clip,
-            -- Its shape (native sizes) and, its faces fixed, the picture it was fixed from (lib/adult/fix-faces.ts).
-            i.aspect, i.fixed_from,
+            -- Its shape (native sizes) and, a fixed version, the picture it was fixed from and how (lib/adult/fix.ts).
+            i.aspect, i.fixed_from, i.fix_kind,
             -- Starred by the viewer (media_favorites).
             exists (select 1 from media_favorites fv where fv.media_id = i.id and fv.owner_id = $2) as favorite,
             -- Its showcase post, if it's published (lib/showcase.ts).
@@ -882,6 +883,8 @@ export async function listMedia(db: Db, ids: string[], viewerId: string | null =
     `${MEDIA_SELECT}
       where i.character_id = any($1) and (i.character_b is null or i.character_b = any($1)) and i.kind not in ('frame', 'audio')
         and ($2::text is null or i.owner_id = $2 or exists (select 1 from admins a where a.user_id = $2))
+        -- A version another was kept over (lib/adult/fix.ts keepVersion) is only in the Fix sheet.
+        and i.superseded_by is null
         -- A gallery with its filters (lib/media-filter.ts) asks for the Archive too, each marked (shown under Archived).
         and ($3::boolean or i.kind <> 'video' or not exists (
           select 1 from adult_reels v cross join lateral jsonb_array_elements(v.shots) s
@@ -908,6 +911,7 @@ export async function characterMedia(db: Db, characterId: string, viewerId: stri
        ${MEDIA_SELECT}
         where (i.character_id = $1 or i.character_b = $1) and i.kind not in ('frame', 'audio')
           and (i.owner_id = $2 or exists (select 1 from admins a where a.user_id = $2))
+          and i.superseded_by is null
           and ($4::boolean or i.kind <> 'video' or not exists (
             select 1 from adult_reels v cross join lateral jsonb_array_elements(v.shots) s
              where v.owner_id = i.owner_id and s->>'media_id' = i.id and s ? 'archived_at'

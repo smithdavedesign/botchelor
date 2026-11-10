@@ -1622,7 +1622,7 @@ export async function moreLikeThis(db: Db, viewer: string, characterId: string, 
  * A picture drawn from one that's nude somewhere public (More like this, a carousel) has to stay empty too: its place is
  * the Studio's own words (a menu place, public as the menu says) or a name (isPublicPlace).
  */
-function nudeInPublic(src: { level: number; place: string | null }): boolean {
+export function nudeInPublic(src: { level: number; place: string | null }): boolean {
   if (src.level < 2 || !src.place) return false;
   const menu = groupById("place").options.find((o) => o.words === src.place);
   return menu ? Boolean(menu.public) : isPublicPlace(src.place);
@@ -2025,7 +2025,16 @@ export async function studioState(db: Db, viewer: string, characterId: string): 
   const shoots = shootRows.rows.map(shootRow);
   // The pair shoots' pictures, still there (a pair picture lives in the pair's gallery too).
   const pairIds = shoots.filter((s) => s.kind === "pair").flatMap((s) => s.pictures);
-  const pair_gallery = await mediaByIds(db, pairIds, viewer);
+  // One fixed and another version kept (lib/adult/fix.ts keepVersion): the kept one in its place.
+  const keptOver = pairIds.length
+    ? new Map(
+        (await db.query<{ id: string; superseded_by: string }>(`select id, superseded_by from adult_images where id = any($1) and superseded_by is not null`, [pairIds])).rows.map((r) => [
+          r.id,
+          r.superseded_by,
+        ]),
+      )
+    : new Map<string, string>();
+  const pair_gallery = await mediaByIds(db, [...new Set(pairIds.map((id) => keptOver.get(id) ?? id))], viewer);
   const ownProvider = ownRow.rows[0]?.provider === "venice" || ownRow.rows[0]?.provider === "replicate" ? (ownRow.rows[0].provider as "venice" | "replicate") : null;
   const solo = gallery.filter((g) => g.character_b === null);
   // Everything of theirs, alone and with anyone (lib/adult/media.ts characterMedia): the Gallery's Studio and After

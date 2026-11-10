@@ -2960,6 +2960,16 @@ create index if not exists media_exports_owner_idx on media_exports (owner_id, c
 -- character per person and Studio (each picture in that Studio's own table), each with the face it was drawn from
 -- (from_face), as the face anchor is (face_crop_from): one drawn from an earlier face isn't used once they pick another.
 alter table adult_images add column if not exists fixed_from text references adult_images (id) on delete set null;
+-- Fix (lib/adult/fix.ts; David, 2026-11-09: "a way to iterate over a broken image and fix it"): every version of a
+-- picture comes from one original (fix_root), made by one kind of fix (faces, repair, change, undress) with the owner's
+-- words (fix_note) and the spot they marked (fix_spot, fractions of the picture). Keeping one version takes the others
+-- out of the galleries (superseded_by, the version kept); the Fix sheet still lists them.
+alter table adult_images add column if not exists fix_root text references adult_images (id) on delete set null;
+alter table adult_images add column if not exists fix_kind text;
+alter table adult_images add column if not exists fix_note text;
+alter table adult_images add column if not exists fix_spot jsonb;
+alter table adult_images add column if not exists superseded_by text references adult_images (id) on delete set null;
+create index if not exists adult_images_fix_root_idx on adult_images (fix_root) where fix_root is not null;
 -- Native sizes (lib/studio/formats.ts): the shape a picture was drawn in ("9:16"); null for one drawn before, all 3:4.
 alter table adult_images add column if not exists aspect text;
 alter table studio_pg_pictures add column if not exists aspect text;

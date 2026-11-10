@@ -4,7 +4,8 @@ import { POST as fixPost } from "@/app/api/admin/after-dark/fix-faces/route";
 import { POST as pgPost, GET as pgGet } from "@/app/api/characters/[id]/studio/route";
 import { crossesTaboo } from "@/lib/adult/acts";
 import { HIVE_VLM, setCheckFetchForTests, setCheckSleepForTests } from "@/lib/adult/check";
-import { FIXES_MAX, fixFacePrompt } from "@/lib/adult/fix-faces";
+import { FIXES_MAX } from "@/lib/adult/fix";
+import { fixFacePrompt } from "@/lib/adult/fix-faces";
 import { setMediaFetchForTests } from "@/lib/adult/media";
 import { setModerationFetchForTests } from "@/lib/adult/moderation";
 import { setReelFetchForTests, setReelPausesForTests } from "@/lib/adult/reels";
@@ -441,9 +442,11 @@ describe("the faces' buttons", () => {
     expect(some).toContain("1 of 8 views");
     expect(some).toContain("earlier face");
     expect(some).toContain("Draw the 7 still to do · 2 tokens");
-    const { default: FixFaces } = await import("@/app/after-dark/FixFaces");
-    expect(renderToStaticMarkup(createElement(FixFaces, { id: "p", src: (id: string) => id, label: "The picture" }))).toContain("🩹 Fix faces");
-    expect(renderToStaticMarkup(createElement(FixFaces, { id: "p", src: (id: string) => id, label: "The picture", nudge: true }))).toContain("Only the faces get redrawn");
+    // Fix faces is one of the Fix sheet's fixes now (app/after-dark/FixSheet.tsx, lib/adult/fix.ts).
+    const { default: FixButton, fixNudge } = await import("@/app/after-dark/FixSheet");
+    expect(renderToStaticMarkup(createElement(FixButton, { id: "p", src: (id: string) => id, label: "The picture" }))).toContain("🩹 Fix");
+    expect(renderToStaticMarkup(createElement(FixButton, { id: "p", src: (id: string) => id, label: "The picture", nudge: true }))).toContain("Fix just that and keep the rest");
+    expect([fixNudge(-1, ["face"]), fixNudge(-1, ["anatomy"]), fixNudge(-1, ["too_tame"]), fixNudge(1, ["face"]), fixNudge(null, [])]).toEqual([true, true, false, false, false]);
     const { default: RateMedia } = await import("@/app/after-dark/[a]/[b]/RateMedia");
     const rated = renderToStaticMarkup(createElement(RateMedia, { id: "p", kind: "scene", rating: -1, tags: ["face"], extra: (r: { rating: number | null; tags: string[] }) => (r.tags.includes("face") ? "FIX-HERE" : null) }));
     expect(rated).toContain("FIX-HERE");
