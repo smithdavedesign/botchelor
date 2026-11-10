@@ -102,6 +102,15 @@ const previewOf = async (cookie: string, line: number) => (await (await post({ a
 const addLines = (scene: string, more: { who: "a" | "b"; text: string; stage: number }[]) =>
   t.db.query(`update adult_scenes set lines = lines || $2::jsonb, stage = $3 where id = $1`, [scene, JSON.stringify(more), more.at(-1)!.stage]);
 
+const CAPTAIN = "a fitted dark captain's uniform with rank insignia on the collar";
+const PILOT = "a zip-front flight suit with mission patches";
+const cap = (noun: string) => `The ${noun}`;
+/** "woman"/"man" for the scene's first and second (the scene orders the pair itself). */
+async function pairNouns(scene: string): Promise<[string, string]> {
+  const a = (await t.db.query<{ character_a: string }>(`select character_a from adult_scenes where id = $1`, [scene])).rows[0].character_a;
+  return a === LEXI ? ["woman", "man"] : ["man", "woman"];
+}
+
 describe("what they wear tonight", () => {
   it("is fixed at the night's first picture, from what the brief read there, and a later moment keeps it", async () => {
     const { cookie, scene } = await setup(OPENING, "Lexi's living room");
@@ -145,6 +154,36 @@ describe("what they wear tonight", () => {
     expect(asked[0].map((m) => m.content).join("\n")).toContain("Boss and employee, after hours");
     scriptBrief(BRIEF("Lexi in a red slip dress; Rafe in a white shirt"));
     expect((await previewOf(cookie, 1)).fields.wearing).toBe(OFFICE);
+  });
+
+  it("starts a roleplay in character: the captain and the pilot in their uniforms, not her own outfit (David, 2026-11-10)", async () => {
+    const { cookie, scene } = await setup(OPENING, "a space station's crew quarters");
+    await t.db.query(`update adult_scenes set roleplay = $2::jsonb where id = $1`, [scene, JSON.stringify({ id: "starship", chapter: 1, swap: false })]);
+    // The lines say nothing about clothes, so the brief has nothing to read: their parts' costumes, not their looks.
+    const asked = scriptBrief(BRIEF(""));
+    const res = await (await post({ a: LEXI, b: RAFE, picture_preview: { line: 1 } }, cookie)).json();
+    // The first of the scene's pair plays the captain.
+    const [x, y] = await pairNouns(scene);
+    expect(res.preview.fields.wearing).toBe(`${cap(x)} in ${CAPTAIN}; the ${y} in ${PILOT}`);
+    expect(res.preview.wearing_from).toBe("roleplay");
+    expect(res.preview.prompt).toContain(`not their clothes: ${cap(x)} in ${CAPTAIN}; the ${y} in ${PILOT}, both fully clothed.`);
+    // The brief is told the costumes as what they'd usually have on, so it names them too.
+    expect(asked[0].map((m) => m.content).join("\n")).toContain("captain's uniform");
+    expect(((await t.db.query(`select outfits from adult_scenes where id = $1`, [scene])).rows[0] as { outfits: { from: string; for: string } }).outfits).toMatchObject({ from: "roleplay", for: "Captain and pilot" });
+  });
+
+  it("swaps the costumes with the roles, and dresses a chapter already fixed in their own outfits in character", async () => {
+    const { cookie, scene } = await setup(OPENING, "a space station's crew quarters");
+    await t.db.query(`update adult_scenes set roleplay = $2::jsonb, outfits = $3::jsonb where id = $1`, [
+      scene,
+      JSON.stringify({ id: "starship", chapter: 1, swap: true }),
+      JSON.stringify({ for: "Captain and pilot", from: "looks", line: 0, chapter: 1, wearing: "The woman in a tiny string bikini; the man in clean casual clothes" }),
+    ]);
+    scriptBrief(BRIEF(""));
+    const wearing = (await previewOf(cookie, 1)).fields.wearing;
+    const [x, y] = await pairNouns(scene);
+    expect(wearing).toBe(`${cap(x)} in ${PILOT}; the ${y} in ${CAPTAIN}`);
+    expect(wearing).not.toContain("bikini");
   });
 
   it("is kept with the chapter when it's filed, and gone when the night ends", async () => {
