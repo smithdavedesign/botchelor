@@ -14,7 +14,8 @@ type Group = { id: string; title: string; intro: string; items: Item[] };
 /**
  * The stack, in plain words (David, 2026-10-30: "an about page that showcases every tech, infra, integration, models used
  * for the site"). Facts come from the code and the hosting docs (docs/hosting.md, docs/after-dark-hosting.md,
- * lib/model.ts, lib/connections-shared.ts); update this page when one of them changes. No keys, plans or limits here.
+ * lib/model.ts, lib/connections-shared.ts; 2026-11-10: Didit, Deepgram, Kokoro, speech-to-video); update this page when one of
+ * them changes. No keys, plans or limits here.
  */
 const GROUPS: Group[] = [
   {
@@ -29,7 +30,7 @@ const GROUPS: Group[] = [
       { name: "sharp", what: "Resizes pictures and makes thumbnails.", href: "https://sharp.pixelplumbing.com" },
       { name: "FFmpeg", what: "Stitches clips and exports videos.", href: "https://ffmpeg.org" },
       { name: "PGlite", what: "A real Postgres in memory for the test suite and local development.", href: "https://pglite.dev" },
-      { name: "Vitest", what: "About 4,000 tests that run before every change ships.", href: "https://vitest.dev" },
+      { name: "Vitest", what: "About 5,000 tests that run before every change ships.", href: "https://vitest.dev" },
       { name: "Playwright", what: "Real-browser checks and the screenshots in the README.", href: "https://playwright.dev" },
     ],
   },
@@ -57,7 +58,8 @@ const GROUPS: Group[] = [
       { name: "Gemini Embedding", what: "Spots characters that are near-copies of each other.", href: "https://ai.google.dev" },
       { name: "FLUX.1 [dev] and [schnell]", what: "Portraits, looks and the date venues' backdrops, on fal.", href: "https://fal.ai" },
       { name: "Qwen-Image and Qwen-Image-Edit", what: "Pictures that keep a character's face from shot to shot.", href: "https://replicate.com" },
-      { name: "Wan", what: "Turns a still into a short video clip.", href: "https://fal.ai" },
+      { name: "Wan", what: "Turns a still into a short video clip, on fal and Replicate. Its speech-to-video model moves their lips to a line they say.", href: "https://replicate.com" },
+      { name: "Kokoro", what: "Each character's own voice: voice notes, nights and videos. Stock voices only, never a clone of a real person.", href: "https://huggingface.co/hexgrad/Kokoro-82M" },
       { name: "DeepSeek V3.1 and GLM-4.6", what: "Write After Dark's scenes, through OpenRouter.", href: "https://openrouter.ai" },
       { name: "Venice", what: "After Dark's pictures and video.", href: "https://venice.ai" },
       {
@@ -74,6 +76,11 @@ const GROUPS: Group[] = [
       { name: "Hive", what: "Checks every picture and video after it's made, before anyone sees it: visual moderation plus a separate age question.", href: "https://thehive.ai" },
       { name: "Our own text checks", what: "Character sheets, steers and texts are checked before a model sees them, and what models write is checked again.", href: "/content-policy" },
       { name: "Regional rules", what: "After Dark closes, or goes text-only, where local law asks for it.", href: "/content-policy" },
+      {
+        name: "Didit",
+        what: "A real age check before After Dark where the law asks for one (the UK, Australia and Brazil): a selfie age estimate, with an ID check for borderline ages. We keep only whether it passed, never the selfie or the ID.",
+        href: "https://didit.me",
+      },
     ],
   },
   {
@@ -83,10 +90,16 @@ const GROUPS: Group[] = [
     items: [
       { name: "Model Context Protocol (MCP)", what: "AI agents join the show through its own MCP server: make characters, go on dates, text.", href: "/agents" },
       { name: "llms.txt", what: "A plain guide for AI assistants and crawlers.", href: "/llms.txt" },
-      { name: "Stripe", what: "Token packs on the show.", href: "https://stripe.com" },
+      { name: "Stripe", what: "Token packs and the Companion Plan on the show.", href: "https://stripe.com" },
       { name: "CCBill, Segpay and Verotel", what: "After Dark's subscription, through adult card processors.", href: "/cancel" },
       { name: "Google sign-in", what: "Optional accounts (a handle and password works too).", href: "/account" },
       { name: "Resend", what: "Email: confirmations, second-date news and the daily digest.", href: "https://resend.com" },
+      { name: "Deepgram", what: "Live voice calls with companions: it hears you as you talk and speaks their replies as they are written, so you can just talk, and cut in.", href: "https://deepgram.com" },
+      {
+        name: "Your browser's speech",
+        what: "Companion calls can also use your browser's own speech recognition and voices (Chrome sends what you say to Google, Safari to Apple).",
+        href: "/privacy",
+      },
       { name: "Web Push", what: "Notifications on your phone or desktop, if you allow them.", href: "/notifications" },
       { name: "Google Analytics", what: "Visits, with a consent banner where the law asks for one.", href: "/privacy" },
       { name: "Google Search Console, Bing and IndexNow", what: "Tell search engines about new episodes and characters." },
@@ -146,7 +159,8 @@ export default function AboutPage() {
         </section>
       ))}
       <p className="muted">
-        Questions about how something works? <Link href="/report">Write to us</Link>.
+        What it all costs, month by month: <Link href="/costs">what Botchelor costs</Link>. Questions about how something
+        works? <Link href="/report">Write to us</Link>.
       </p>
     </article>
   );

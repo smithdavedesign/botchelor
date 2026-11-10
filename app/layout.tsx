@@ -177,6 +177,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
               <li><Link prefetch={showPrefetch} href="/prompts">Prompts library</Link></li>
               <li><Link prefetch={showPrefetch} href="/shop">{adHost ? "Tokens" : "More dates"}</Link></li>
               <li><Link prefetch={showPrefetch} href="/about">How it&apos;s built</Link></li>
+              <li><Link prefetch={showPrefetch} href="/costs">What it costs</Link></li>
             </FooterGroup>
             <FooterGroup title="Tools">
               <li><Link prefetch={showPrefetch} href="/tools/oc-chemistry-test">OC chemistry test</Link></li>
