@@ -84,6 +84,9 @@ type Table =
   | "league_members"
   | "orders"
   | "waitlist"
+  | "newsletter_subscribers"
+  | "newsletter_issues"
+  | "newsletter_sends"
   | "seasons"
   | "badges"
   | "free_episode_usage"
@@ -345,6 +348,10 @@ export async function startTestDb() {
         "profiles",
         "orders",
         "waitlist",
+        // The Sunday letter (lib/newsletter.ts): its list, its letters and who got which.
+        "newsletter_sends",
+        "newsletter_issues",
+        "newsletter_subscribers",
         "mcp_sessions",
         "analytics_events",
         "character_embeddings",

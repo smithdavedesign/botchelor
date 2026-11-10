@@ -151,6 +151,8 @@ async function sourceOf(db: Db, owner: string, source: ShowcaseSource, mediaId: 
 export function mediumOf(r: Pick<SourceRow, "kind" | "derived" | "reel_kind">): Medium {
   if (r.kind !== "video") return "picture";
   if (r.derived === "boomerang" || r.derived === "loop") return r.derived;
+  // A chain of clips joined into one (lib/adult/moments.ts joinClips): posted as one reel.
+  if (r.derived === "chain") return "reel";
   return r.reel_kind && r.reel_kind !== "clip" ? "reel" : "clip";
 }
 

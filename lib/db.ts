@@ -2939,6 +2939,10 @@ alter table creator_roleplays add column if not exists mode text not null defaul
 -- continue where it left off"): a video made from a clip's own frames (derived: a boomerang or a loop, source_image the
 -- clip), and the second a still was cut at (a moment saved from a clip, or the frame a clip keeps going from).
 alter table adult_images add column if not exists derived text check (derived in ('boomerang', 'loop'));
+-- A chain of clips kept going from each other, joined into one video to post as one reel (lib/adult/moments.ts
+-- joinClips; David, 2026-11-10): derived 'chain', source_image the chain's last clip.
+alter table adult_images drop constraint if exists adult_images_derived_check;
+alter table adult_images add constraint adult_images_derived_check check (derived in ('boomerang', 'loop', 'chain'));
 alter table adult_images add column if not exists moment_at double precision;
 -- How far a picture goes (0 dressed … 3 explicit, lib/adult/studio-catalog.ts LEVELS), kept on the picture itself so
 -- whatever is made from it next (animated, shared) reads it, however it was made; null: read from its shoot as before.
@@ -3566,6 +3570,51 @@ create table if not exists season_pool_entries (
   primary key (season_id, user_id)
 );
 create index if not exists season_pool_entries_place_idx on season_pool_entries (season_id, place);
+-- The Sunday letter (lib/newsletter.ts, docs/newsletter.md): one row an address, lowercased, with no account behind it.
+-- pending until its confirmation link is clicked (double opt-in); pending_since starts each pending spell, and a spell
+-- never confirmed is deleted after 30 days (one that had left goes back to unsubscribed). unsubscribed keeps the address
+-- and when it left, so the opt-out holds until a new sign-up is confirmed. confirms_sent counts this spell's
+-- confirmation emails (a few at most); confirm_tried_at is the last try, sent or not. attested_adult_at: when the
+-- sign-up said 18 or older (none for an address that only ever left, from an old email's link).
+create table if not exists newsletter_subscribers (
+  email text primary key,
+  status text not null check (status in ('pending', 'confirmed', 'unsubscribed')),
+  pending_since timestamptz,
+  attested_adult_at timestamptz,
+  confirm_sent_at timestamptz,
+  confirm_tried_at timestamptz,
+  confirms_sent integer not null default 0,
+  confirmed_at timestamptz,
+  unsubscribed_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists newsletter_subscribers_status_idx on newsletter_subscribers (status, pending_since);
+-- One row a week's letter (id: its ISO week, 2026-W46; week_id: the Sunday of the reveal it follows), built once after
+-- the reveal airs: every subscriber gets this same subject and body. sent counts the emails that went out.
+create table if not exists newsletter_issues (
+  id text primary key,
+  week_id text not null,
+  subject text not null,
+  html text not null,
+  text text not null,
+  built_at timestamptz not null default now(),
+  sent integer not null default 0,
+  last_sent_at timestamptz
+);
+-- Who got which letter: claimed before the send, so an address gets each letter once even when the job runs twice. A
+-- send the provider refused gives its claim back for a later pass, until tries runs out; one whose pass died mid-send
+-- stays claimed, since it may have gone out. Kept 90 days.
+create table if not exists newsletter_sends (
+  issue_id text not null,
+  email text not null,
+  tries integer not null default 1,
+  claimed_at timestamptz,
+  sent_at timestamptz,
+  created_at timestamptz not null default now(),
+  primary key (issue_id, email)
+);
+create index if not exists newsletter_sends_created_idx on newsletter_sends (created_at);
 `;
 
 /** Idempotent: creates the tables and upserts the house characters, free and premium. */

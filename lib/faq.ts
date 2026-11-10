@@ -165,8 +165,11 @@ export function faqs(env: Env = process.env): Faq[] {
     {
       id: "contact",
       q: "How do I reach you?",
+      // The address is a link's whole text, never words inside a sentence: Cloudflare's email obfuscation (ours and
+      // DigitalOcean's edge both run it) cuts an address out of a text node, so React's hydration no longer matched
+      // and /faq threw #418 (2026-11-10). An address that is all of a link's text comes back whole.
       a: email
-        ? [`Email ${email}, or use the feedback button at the foot of every page. `, { text: "Everything else is on Contact", href: "/contact" }, "."]
+        ? ["Email ", { text: email, href: `mailto:${email}` }, ", or use the feedback button at the foot of every page. ", { text: "Everything else is on Contact", href: "/contact" }, "."]
         : ["Use the feedback button at the foot of every page, or see ", { text: "Contact", href: "/contact" }, "."],
     },
   ];

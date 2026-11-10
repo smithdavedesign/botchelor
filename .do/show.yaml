@@ -259,4 +259,14 @@ services:
         type: SECRET
         value: "CHANGE_ME"
         scope: RUN_AND_BUILD_TIME
+      # The Sunday letter (docs/newsletter.md): sign-ups and confirmations work with RESEND_API_KEY alone; no letter goes out
+      # while NEWSLETTER_POSTAL_ADDRESS is CHANGE_ME (CAN-SPAM wants one in every letter: a PO box or a virtual mailbox,
+      # not a home address). NEWSLETTER_DAILY_CAP: the letter's emails a day, confirmations included (CHANGE_ME: 40).
+      # Neither is a secret: the address is printed in every letter.
+      - key: NEWSLETTER_POSTAL_ADDRESS
+        value: "CHANGE_ME"
+        scope: RUN_TIME
+      - key: NEWSLETTER_DAILY_CAP
+        value: "CHANGE_ME"
+        scope: RUN_TIME
       # Not set here: ADULT_MODE, AFTER_DARK_ONLY, GEO_HEADERS (only behind our own Cloudflare zone: lib/place.ts).

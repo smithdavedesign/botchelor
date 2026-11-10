@@ -46,6 +46,7 @@
     "screenshots:roleplays": "node scripts/roleplay-screenshots.mjs",
     "screenshots:swipes-live": "node scripts/swipe-live-screenshots.mjs",
     "screenshots:ux-live": "node scripts/ux-live-screenshots.mjs",
+    "screenshots:company-live": "node scripts/company-live-screenshots.mjs",
     "portraits": "node scripts/portraits.mjs",
     "payment:live": "node scripts/payment-live.mjs",
     "typecheck": "tsc --noEmit"

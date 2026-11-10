@@ -1,23 +1,26 @@
 import { z } from "zod";
 import { adultViewer } from "@/lib/adult/mode";
 import { HivePausedError } from "@/lib/adult/hive-limit";
-import { deriveClip, momentFrame, saveMoment } from "@/lib/adult/moments";
+import { deriveClip, JOIN_MAX, joinClips, momentFrame, saveMoment } from "@/lib/adult/moments";
 import { mediaRefusal } from "@/lib/adult/place";
 import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson } from "@/lib/http";
 
-// Cutting a frame takes a second or two; a boomerang or a loop is re-encoded (ffmpeg, a few seconds for a 10 s clip).
+// Cutting a frame takes a second or two; a boomerang or a loop is re-encoded (ffmpeg, a few seconds for a 10 s clip), a
+// chain joined into one a little longer.
 // The one route ffmpeg runs in (next.config.ts ships its binary here only: lib/media-tools/ffmpeg.ts).
 export const maxDuration = 120;
 
 const id = z.string().min(1).max(64);
-/** A clip's moment (lib/adult/moments.ts): save the still at a second (or its end), or make a boomerang or a loop of it. */
+/** A clip's moment (lib/adult/moments.ts): save the still at a second (or its end), make a boomerang or a loop of it, or join its chain into one. */
 const Input = z.discriminatedUnion("action", [
   z.object({ action: z.literal("save"), media_id: id, at: z.union([z.number().min(0).max(600), z.literal("end")]) }),
   z.object({ action: z.literal("boomerang"), media_id: id }),
   z.object({ action: z.literal("loop"), media_id: id }),
   // The frame a clip keeps going from (lib/adult/clips.ts): cut and checked here, then kept going from by its id.
   z.object({ action: z.literal("frame"), media_id: id, at: z.union([z.number().min(0).max(600), z.literal("end")]) }),
+  // A chain of clips as one video, to post as one reel: its clips in order.
+  z.object({ action: z.literal("join"), media_ids: z.array(id).min(2).max(JOIN_MAX) }),
 ]);
 
 /** Not found for everyone but a viewer after dark is open to (lib/adult/mode.ts). */
@@ -39,7 +42,12 @@ export const POST = handle(async (req: Request) => {
       return json({ error: "not_cut", message: `That moment couldn't be cut from the video (${err instanceof Error ? err.message.slice(0, 160) : "error"}).` }, 502);
     }
   }
-  const r = input.action === "save" ? await saveMoment(db, viewer, input.media_id, input.at) : await deriveClip(db, viewer, input.media_id, input.action);
+  const r =
+    input.action === "join"
+      ? await joinClips(db, viewer, input.media_ids)
+      : input.action === "save"
+        ? await saveMoment(db, viewer, input.media_id, input.at)
+        : await deriveClip(db, viewer, input.media_id, input.action);
   if (!r.ok) return json({ error: r.error, message: r.message }, r.status);
   return json({ media: r.media });
 });

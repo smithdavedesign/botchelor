@@ -14,6 +14,7 @@ import RateMedia from "./RateMedia";
 import { MediaAdmin, MediaRequest } from "../../MediaRequest";
 import type { Trim } from "@/lib/adult/trim";
 import TrimPanel from "../../TrimPanel";
+import ChainPublish from "../../ChainPublish";
 import MomentTools, { keepGoingFromMoment, NextWords, SharedNextWords } from "../../MomentTools";
 import type { Media } from "@/lib/adult/media";
 import { trimStep } from "../../trimPlayback";
@@ -312,6 +313,8 @@ function ClipChain({ chain, price, making, onChange, onMedia }: { chain: Reel[];
         ) : (
           last.status === "failed" && <ReelPlayer reel={last} onChange={onChange} what="clip" price={price} onMedia={onMedia} />
         )}
+        {/* 📣 The chain as one reel on the showcase (ChainPublish.tsx): once it's been kept going and nothing's being made. */}
+        {shots.length > 1 && last.status !== "making" && <ChainPublish key={shots.map((x) => x.media_id).join(",")} mediaIds={shots.map((x) => x.media_id!)} onMade={onMedia} />}
         {from && (
           <div className="ad-keep-going">
             <NextWords value={words} onChange={setWords} disabled={asking || making} />
