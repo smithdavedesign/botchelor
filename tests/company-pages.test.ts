@@ -143,6 +143,21 @@ describe("the company pages", () => {
     expect(ld.mainEntity.map((q) => q.name)).toEqual(list.map((f) => f.q));
   });
 
+  it("shows the support address only as an element's whole text, never inside a sentence", () => {
+    // Cloudflare's email obfuscation (botchelor.com's zone and DigitalOcean's edge both run it) rewrites every address in
+    // the HTML, and its script puts each one back: whole when it was all of an element's text, as a text node of its own
+    // when it sat inside a sentence. That split broke React's hydration on /faq (#418, 2026-11-10).
+    vi.stubEnv("CONTACT_EMAIL", SUPPORT);
+    const pages = { ContactPage, FaqPage, PricingPage, PressPage, SecurityPage, AccessibilityPage };
+    for (const [name, page] of Object.entries(pages)) {
+      const text = render(page)
+        .replace(/<script\b[^>]*>[\s\S]*?<\/script>/g, "")
+        .replace(/<[^>]+>/g, (tag) => tag.replace(/"[^"]*"/g, '""'));
+      expect(text.split(SUPPORT).length, name).toBe(text.split(`>${SUPPORT}<`).length);
+    }
+    expect(render(FaqPage)).toContain(`<a href="mailto:${SUPPORT}">${SUPPORT}</a>`);
+  });
+
   it("/faq offers the pack and refunds only while it's on sale, and companions only while they're open", () => {
     const ids = (env: Record<string, string>) => faqs(env).map((f) => f.id);
     expect(ids({})).not.toContain("refund");

@@ -5,6 +5,7 @@ import { readFileSync } from "node:fs";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 // The root layout reads the viewer from next/headers (an anonymous visitor here), and its nav the page it's on.
+const nav = vi.hoisted(() => ({ pathname: "/" }));
 vi.mock("next/headers", () => ({
   cookies: async () => ({ get: () => undefined, has: () => false, getAll: () => [] }),
   headers: async () => new Headers(),
@@ -12,7 +13,7 @@ vi.mock("next/headers", () => ({
 vi.mock("next/navigation", async (original) => ({
   ...(await original<typeof import("next/navigation")>()),
   useRouter: () => ({ refresh() {}, push() {}, replace() {}, back() {}, prefetch() {} }),
-  usePathname: () => "/",
+  usePathname: () => nav.pathname,
   useSearchParams: () => new URLSearchParams(),
 }));
 
@@ -251,6 +252,23 @@ describe("signing up", () => {
     expect(await runNewsletter(t.db, SUN_AIR, { env: { ...ON, AFTER_DARK_ORIGIN: AD, AFTER_DARK_ONLY: "1" } })).toBe("off");
     expect(await t.count("newsletter_subscribers")).toBe(0);
     expect(sent).toHaveLength(0);
+  });
+
+  it("leaves the footer form off the letter's own pages, which already ask or have just been answered", async () => {
+    vi.stubEnv("RESEND_API_KEY", KEY);
+    const footer = async (path: string) => {
+      nav.pathname = path;
+      const html = renderToStaticMarkup(await RootLayout({ children: null }));
+      return html.slice(html.indexOf('<footer class="site-footer"'));
+    };
+    try {
+      expect(await footer("/pricing")).toContain("footer-newsletter");
+      for (const path of ["/newsletter", "/newsletter/confirm", "/newsletter/unsubscribe"]) {
+        expect(await footer(path), path).not.toContain("footer-newsletter");
+      }
+    } finally {
+      nav.pathname = "/";
+    }
   });
 });
 

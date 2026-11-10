@@ -20,10 +20,14 @@ function Answer({ pieces }: { pieces: Piece[] }) {
       {pieces.map((p, i) =>
         typeof p === "string" ? (
           p
-        ) : (
+        ) : p.href.startsWith("/") ? (
           <Link key={i} href={p.href}>
             {p.text}
           </Link>
+        ) : (
+          <a key={i} href={p.href}>
+            {p.text}
+          </a>
         ),
       )}
     </p>
