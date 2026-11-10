@@ -24,6 +24,12 @@ has, written from the code so they can't drift from it.
   suppliers in words, as the privacy notice does.
 - **Failed sign-ins** are held (`lib/login-guard.ts`): 10 wrong passwords for a handle, or 30 from one visitor, in 15
   minutes. Only failures count.
+- **An email address on a page is always the whole text of its own element** (best a `mailto:` link), never words
+  inside a sentence. Cloudflare's email obfuscation runs on botchelor.com and on DigitalOcean's edge in front of the
+  app, and turning it off on our zone doesn't reach theirs. It rewrites each address in the HTML and its script puts it
+  back. An address inside a sentence comes back as a text node of its own, React's hydration then fails (#418), and the
+  whole page renders again in the browser: /faq did this until 2026-11-10. A test in `tests/company-pages.test.ts`
+  checks the company pages; `npm run screenshots:company-live pages` fails on any page error.
 - When a fact on one of these pages changes (a model, a host, a price rule), change the page in the same PR.
   `tests/company-pages.test.ts` holds the parts that can be checked.
 
