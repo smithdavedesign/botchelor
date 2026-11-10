@@ -673,6 +673,11 @@ async function main() {
       await chain.waitFor({ timeout: 30_000 });
       // Keep going at the chain's end (the shot's own moments have one too, from the second it's paused on).
       const end = chain.locator(".ad-keep-going");
+      // One words box for the whole chain (2026-11-10): the shot's own "Keep going from here" reads the chain's box.
+      // (Checked at desktop size, before this run keeps it going: the phone's pass sees the new shot still being made.)
+      if (size === "desktop") await chain.getByRole("button", { name: /^▶▶ Keep going from here/ }).first().waitFor({ timeout: 30_000 });
+      const boxes = await chain.getByRole("textbox", { name: "What happens next (optional)" }).count();
+      assert(boxes === 1, `a clip's chain shows ${boxes} "What happens next" boxes, not one`);
       await end.getByRole("textbox", { name: "What happens next (optional)" }).fill(CLIP_WORDS);
       await centre(end);
       if (size === "phone") await noSideways(page, "a clip's Keep going");

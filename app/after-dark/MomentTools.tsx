@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { createContext, useContext, useState } from "react";
 import { requestJson } from "@/app/request";
 import { NEXT_WORDS_MAX } from "@/lib/adult/clip-chains";
 import type { Media } from "@/lib/adult/media";
@@ -29,6 +29,12 @@ export async function keepGoingFromMoment(reelId: string, mediaId: string, at: n
   const frame = cut.data.frame as { id: string };
   return requestJson("/api/admin/after-dark/clips", { continue: reelId, media_id: mediaId, frame_id: frame.id, mode, ...(words ? { prompt: words } : {}) }).catch(() => null);
 }
+
+/**
+ * One "What happens next" box for a whole clip chain (Reels.tsx ClipChain, 2026-11-10): its shots' "Keep going from
+ * here" read the chain's own box instead of showing a second one. Without it (a night's video) the moments have their own.
+ */
+export const SharedNextWords = createContext<{ value: string; set: (v: string) => void } | null>(null);
 
 /**
  * "What happens next" (David, 2026-11-09): the owner's own words for the next link kept going, a clip's or a Studio
@@ -87,7 +93,10 @@ export default function MomentTools({
   const [busy, setBusy] = useState<"save" | "boomerang" | "loop" | "keep" | null>(null);
   const [done, setDone] = useState<Done | null>(null);
   const [mode, setMode] = useState<"seamless" | "fresh">("seamless");
-  const [words, setWords] = useState("");
+  const [own, setOwn] = useState("");
+  const shared = useContext(SharedNextWords);
+  const words = shared ? shared.value : own;
+  const setWords = shared ? shared.set : setOwn;
 
   async function moment(action: "save" | "boomerang" | "loop") {
     pause?.();
@@ -133,7 +142,7 @@ export default function MomentTools({
       </button>
       {keepGoing && (
         <span className="ad-moments-keep">
-          <button type="button" className="secondary small" disabled={busy !== null} onClick={() => void keep()} title="A new shot that carries on from the second this one is paused on">
+          <button type="button" className="secondary small" disabled={busy !== null} onClick={() => void keep()} title={`A new shot that carries on from the second this one is paused on${shared ? ", with what happens next from the clip's box below" : ""}`}>
             {busy === "keep" ? "Setting it up…" : `▶▶ Keep going from here${cost}`}
           </button>
           <span className="ad-chip-row ad-moments-mode" role="group" aria-label="How it carries on">
@@ -144,7 +153,7 @@ export default function MomentTools({
               Fresh faces
             </button>
           </span>
-          <NextWords value={words} onChange={setWords} disabled={busy !== null} />
+          {!shared && <NextWords value={words} onChange={setWords} disabled={busy !== null} />}
         </span>
       )}
       {done && (

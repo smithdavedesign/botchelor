@@ -122,7 +122,7 @@ export default function AnimationChain({
           <NextWords value={words} onChange={setWords} disabled={off} rows={2} />
           <input className="ad-studio-own" type="text" maxLength={DIALOG_MAX} value={dialog} placeholder="Dialog — what they say (optional)" aria-label="Dialog (optional)" disabled={off} onChange={(e) => setDialog(e.target.value)} />
           {/* How the camera moves through it (lib/adult/camera-moves.ts): steady unless picked. */}
-          <CameraMoves value={camera} onChange={setCamera} disabled={off} />
+          <CameraMoves value={camera} onChange={setCamera} disabled={off} compact />
           <div className="ad-chip-row" role="group" aria-label="How long">
             {([5, 10] as const).map((sec) => (
               <button key={sec} type="button" className={`ad-chip${seconds === sec ? " on" : ""}`} aria-pressed={seconds === sec} disabled={off} onClick={() => setSeconds(sec)}>
