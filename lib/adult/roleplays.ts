@@ -21,29 +21,34 @@ export type Roleplay = {
   premise: string;
   /** The two roles, the first for {a}; null when they're the same to each other (strangers, roommates). */
   roles: readonly [string, string] | null;
+  /**
+   * What each role wears, in the same order: they start the chapter in character (David, 2026-11-10: Captain and pilot
+   * drew her in her string bikini, from her own outfit). Pieces a picture can draw, for anyone of any gender.
+   */
+  costumes?: readonly [string, string];
 };
 
 export const ROLEPLAYS: readonly Roleplay[] = [
-  { id: "neighbours", title: "The neighbour next door", icon: "🚪", category: "romance", roles: ["the neighbour who knocks", "the neighbour who answers"], premise: "{a} and {b} are neighbours who've flirted in the hallway for months. Tonight {a} knocks with a flimsy excuse, and both of them stop pretending it's about the excuse." },
-  { id: "boss", title: "Boss and employee, after hours", icon: "💼", category: "afterhours", roles: ["the boss", "the employee"], premise: "Late at the office, everyone else gone home. {a} runs the team and {b} is on it. The attraction has been there for months; tonight both of them say so out loud, and both are clear that nobody's job depends on the answer." },
-  { id: "delivery", title: "The last delivery", icon: "📦", category: "strangers", roles: ["the one making the delivery", "the one who ordered"], premise: "The last delivery of the night. {a}'s shift is over the moment the door opens, {b} invites them in, and both of them know the order was never really the point." },
-  { id: "handyman", title: "The handyman", icon: "🔧", category: "strangers", roles: ["the handyman", "the homeowner"], premise: "{a} came round to fix a leak at {b}'s place. The job's done, the tools are packed away, and neither of them is in any hurry for {a} to leave." },
+  { id: "neighbours", title: "The neighbour next door", icon: "🚪", category: "romance", roles: ["the neighbour who knocks", "the neighbour who answers"], costumes: ["a soft knit sweater and jeans", "comfortable loungewear, barefoot"], premise: "{a} and {b} are neighbours who've flirted in the hallway for months. Tonight {a} knocks with a flimsy excuse, and both of them stop pretending it's about the excuse." },
+  { id: "boss", title: "Boss and employee, after hours", icon: "💼", category: "afterhours", roles: ["the boss", "the employee"], costumes: ["a sharp tailored suit", "smart office clothes, a crisp shirt and trousers, a lanyard"], premise: "Late at the office, everyone else gone home. {a} runs the team and {b} is on it. The attraction has been there for months; tonight both of them say so out loud, and both are clear that nobody's job depends on the answer." },
+  { id: "delivery", title: "The last delivery", icon: "📦", category: "strangers", roles: ["the one making the delivery", "the one who ordered"], costumes: ["a courier's uniform polo and cap, a delivery bag on one shoulder", "a soft robe over loungewear"], premise: "The last delivery of the night. {a}'s shift is over the moment the door opens, {b} invites them in, and both of them know the order was never really the point." },
+  { id: "handyman", title: "The handyman", icon: "🔧", category: "strangers", roles: ["the handyman", "the homeowner"], costumes: ["work boots, jeans and a fitted work shirt, a tool belt", "relaxed clothes for an evening at home"], premise: "{a} came round to fix a leak at {b}'s place. The job's done, the tools are packed away, and neither of them is in any hurry for {a} to leave." },
   { id: "roommates", title: "Roommates", icon: "🛋️", category: "nightin", roles: null, premise: "{a} and {b} share a flat: one bathroom, very thin walls, and months of pretending not to notice each other. Tonight neither pretends." },
   { id: "strangers-bar", title: "Strangers at the bar", icon: "🍸", category: "strangers", roles: null, premise: "{a} and {b} have never met. One drink at the bar becomes a long conversation, and the conversation becomes a question neither wants to leave unasked." },
   { id: "no-names", title: "Strangers, no names", icon: "🎭", category: "strangers", roles: null, premise: "{a} and {b} agree on one rule: no names, no questions about real life. Just tonight, as whoever they want to be." },
   { id: "hotel-mixup", title: "The hotel mix-up", icon: "🛎️", category: "getaway", roles: null, premise: "The hotel gave {a} and {b} keys to the same room. Reception can't fix it until morning, and after an hour of talking neither of them wants it fixed." },
-  { id: "photo-shoot", title: "The photo shoot", icon: "📸", category: "afterhours", roles: ["the photographer", "the model"], premise: "A late shoot wraps. {a}, the photographer, and {b}, the model, are both off the clock, and they admit the chemistry the camera kept catching." },
-  { id: "bodyguard", title: "The bodyguard", icon: "🕶️", category: "mystery", roles: ["the bodyguard", "the one they protect"], premise: "{a} has guarded {b} for a year and never once crossed the line. Tonight, safe behind a locked door, {b} asks {a} to, and {a} has wanted to for months." },
-  { id: "celebrity", title: "The star and the stranger", icon: "⭐", category: "nightlife", roles: ["the famous one", "the one who doesn't recognise them"], premise: "{a} is famous; {b} genuinely has no idea who {a} is, and {a} finds that irresistible. One night of being nobody special." },
+  { id: "photo-shoot", title: "The photo shoot", icon: "📸", category: "afterhours", roles: ["the photographer", "the model"], costumes: ["dark casual clothes, a camera on a strap over one shoulder", "the shoot's look, a fitted designer outfit"], premise: "A late shoot wraps. {a}, the photographer, and {b}, the model, are both off the clock, and they admit the chemistry the camera kept catching." },
+  { id: "bodyguard", title: "The bodyguard", icon: "🕶️", category: "mystery", roles: ["the bodyguard", "the one they protect"], costumes: ["a black suit, a white shirt and an earpiece", "an elegant evening outfit"], premise: "{a} has guarded {b} for a year and never once crossed the line. Tonight, safe behind a locked door, {b} asks {a} to, and {a} has wanted to for months." },
+  { id: "celebrity", title: "The star and the stranger", icon: "⭐", category: "nightlife", roles: ["the famous one", "the one who doesn't recognise them"], costumes: ["designer clothes, sunglasses pushed up into the hair", "everyday casual clothes"], premise: "{a} is famous; {b} genuinely has no idea who {a} is, and {a} finds that irresistible. One night of being nobody special." },
   { id: "exes", title: "Exes, one more night", icon: "🔁", category: "second", roles: null, premise: "{a} and {b} broke up years ago. They run into each other, the old pull is right there, and they decide, both of them, on one more night." },
   { id: "friends", title: "Best friends, finally", icon: "🤝", category: "romance", roles: null, premise: "{a} and {b} have been best friends for years. Tonight one of them finally says it, and the other has been waiting to hear it." },
   { id: "rivals", title: "Rivals", icon: "⚔️", category: "romance", roles: null, premise: "{a} and {b} have competed for everything for years: clients, awards, the last word. Tonight the rivalry turns into something they both enjoy far more." },
   { id: "blind-date", title: "Blind date", icon: "🙈", category: "romance", roles: null, premise: "A friend set {a} and {b} up. Neither expected much, and both are surprised how fast the evening stops feeling like a first date." },
   { id: "wedding", title: "Wedding guests", icon: "💍", category: "getaway", roles: null, premise: "{a} and {b} are guests at a friend's wedding, seated together at the singles' table. The reception winds down and neither wants the night to end." },
   { id: "rival-spies", title: "Rival spies", icon: "🕵️", category: "mystery", roles: null, premise: "{a} and {b} are spies for rival agencies, after the same file, who keep meeting in the same places. Tonight they call a truce, and the truce is very convincing." },
-  { id: "vampire", title: "The vampire's invitation", icon: "🦇", category: "fantasy", roles: ["the vampire", "the guest"], premise: "{a} is a centuries-old vampire who never enters without being asked; {b} is the guest who finally asks. Everything happens only by invitation." },
-  { id: "royal", title: "The royal and the guard", icon: "👑", category: "fantasy", roles: ["the royal", "the royal guard"], premise: "In a candlelit castle, {a} is royalty and {b} the guard sworn to stand outside the door. Tonight {a} asks {b} to come inside, and {b} chooses to." },
-  { id: "starship", title: "Captain and pilot", icon: "🚀", category: "scifi", roles: ["the captain", "the pilot"], premise: "Months into a deep-space voyage, {a}, the captain, and {b}, the pilot, both off duty for the night shift, stop pretending the long looks on the bridge meant nothing." },
+  { id: "vampire", title: "The vampire's invitation", icon: "🦇", category: "fantasy", roles: ["the vampire", "the guest"], costumes: ["dark velvet and silk, old-fashioned and elegant, a high collar", "evening clothes for a party at an old manor"], premise: "{a} is a centuries-old vampire who never enters without being asked; {b} is the guest who finally asks. Everything happens only by invitation." },
+  { id: "royal", title: "The royal and the guard", icon: "👑", category: "fantasy", roles: ["the royal", "the royal guard"], costumes: ["rich royal clothes with gold embroidery and a fine circlet", "a royal guard's dress uniform with polished buttons"], premise: "In a candlelit castle, {a} is royalty and {b} the guard sworn to stand outside the door. Tonight {a} asks {b} to come inside, and {b} chooses to." },
+  { id: "starship", title: "Captain and pilot", icon: "🚀", category: "scifi", roles: ["the captain", "the pilot"], costumes: ["a fitted dark captain's uniform with rank insignia on the collar", "a zip-front flight suit with mission patches"], premise: "Months into a deep-space voyage, {a}, the captain, and {b}, the pilot, both off duty for the night shift, stop pretending the long looks on the bridge meant nothing." },
 ];
 
 export const ROLEPLAY_IDS = ROLEPLAYS.map((r) => r.id) as [string, ...string[]];
@@ -69,6 +74,16 @@ export function rolesLine(rp: Roleplay, names: { a: string; b: string }, swap = 
   if (!rp.roles) return null;
   const [x, y] = swap ? [names.b, names.a] : [names.a, names.b];
   return `${x} plays ${rp.roles[0]}, ${y} ${rp.roles[1]}`;
+}
+
+/**
+ * What each of them wears for the roleplay, a's then b's (swapped with the roles): its own costumes, or for one with
+ * roles and none written (someone's own), dressed for the part. Null when it has no roles: they come as themselves.
+ */
+export function roleCostumes(rp: Pick<Roleplay, "roles" | "costumes" | "title">, swap = false): [string, string] | null {
+  if (!rp.roles) return null;
+  const worn = rp.costumes ?? (rp.roles.map((r) => `clothes that fit ${r} in "${rp.title}", dressed for the part`) as [string, string]);
+  return swap ? [worn[1], worn[0]] : [worn[0], worn[1]];
 }
 
 /** The roleplay as the scene's prompt says it, with their names in their roles. */

@@ -36,7 +36,7 @@ import { aheadBudget, countAhead, settleDrawAhead } from "./draw-ahead";
 import { picturesBlocked } from "./readiness";
 import { refundAdTokens } from "./tokens";
 import { pictureBrief, type Brief } from "./picture-brief";
-import { roleplayById, rolesLine } from "./roleplays";
+import { roleplayById, rolesLine, roleCostumes } from "./roleplays";
 import { venueSituation } from "./scene-catalog";
 import { ownPlaceSituation, ownRoleplay } from "../studio/library";
 import { isPublicPlace } from "./continuity";
@@ -388,7 +388,7 @@ export async function beatPicturesSettled(): Promise<void> {
 
 /** A scene picture planned: the fields the owner sees, and the prompt they make (with the place's set as Picture 3, or not). */
 /** Where "what they're wearing" came from (#1142): the chapter's own words, their looks, the stage, or a plain guess. */
-export type WearingFrom = "story" | "looks" | "stage" | "guess";
+export type WearingFrom = "story" | "looks" | "stage" | "guess" | "roleplay";
 
 export type PicturePlan =
   | { ok: true; fields: PictureFields; wearing_from: WearingFrom; edit: PictureEdit | null; prompt: string; promptFor: (withSet: boolean, older?: boolean) => string; characters: [Character, Character]; stage: number; act: string; eyes: Eyes | null }
@@ -416,10 +416,13 @@ export async function planBeat(
   const stage = Math.max(beat.stage, act?.dress ?? 0);
   // What the night says, field by field.
   const roleplay = await chapterRoleplay(db, beat, { a: ca.name, b: cb.name });
-  // What each of them wears, from their own looks, until they undress (one context for every picture).
+  // What each of them wears, from their own looks, until they undress (one context for every picture); in a roleplay with
+  // roles, what their parts wear instead: they start the chapter in character (David, 2026-11-10).
   const situation = await situationOf(db, beat.owner_id, beat.place);
   const publicPlace = isPublicPlace(beat.place) || Boolean(situation);
-  const looks = looksOutfits([ca, cb], beat.owner_id, publicPlace);
+  const costumes = roleplay?.costumes ?? null;
+  const looks: [Worn, Worn] = costumes ? [{ worn: costumes[0], guessed: false }, { worn: costumes[1], guessed: false }] : looksOutfits([ca, cb], beat.owner_id, publicPlace);
+  const fromLooks: WearingFrom = costumes ? "roleplay" : looks.some((t) => t.guessed) ? "guess" : "looks";
   const worn = looks.map((t) => t.worn) as [string, string];
   const outfits = stage >= UNDRESSING ? null : cast.map((who, i) => `${i === 0 ? who.tag.charAt(0).toUpperCase() + who.tag.slice(1) : who.tag} in ${worn[i]}`).join("; ");
   // …unless tonight's are already fixed (lockOutfits): for this night, or for the chapter's roleplay and its costume.
@@ -428,7 +431,9 @@ export async function planBeat(
   // Fixed for this roleplay (or none), and nobody has changed clothes in the lines since: a costume put on partway
   // through a chapter ("pulling on the matching blue cape") is fixed again from there.
   const changed = (from: number) => lines.slice(from + 1, beat.line + 1).some((l) => CHANGES_CLOTHES.test(`${l.doing ?? ""} ${l.text}`));
-  const fresh = saved && saved.for === (roleplay?.title ?? "") && !changed(saved.chapter === beat.chapter ? (saved.line ?? -1) : -1);
+  // A roleplay's clothes fixed from their own outfits before it had costumes (a string bikini on the captain) are fixed again.
+  const outOfCharacter = Boolean(costumes) && (saved?.from === "looks" || saved?.from === "guess");
+  const fresh = saved && saved.for === (roleplay?.title ?? "") && !outOfCharacter && !changed(saved.chapter === beat.chapter ? (saved.line ?? -1) : -1);
   const locked = saved && (beat.night_id || fresh) ? saved : null;
   const fields: PictureFields = {
     happening: recentActions([...moment], 3).join("; "),
@@ -476,7 +481,7 @@ export async function planBeat(
           for: roleplay?.title ?? "",
           chapter: beat.chapter,
           line: beat.line,
-          ...(brief?.wearing ? { wearing: brief.wearing, from: "story" as const } : { wearing: outfits, from: looks.some((t) => t.guessed) ? ("guess" as const) : ("looks" as const) }),
+          ...(brief?.wearing ? { wearing: brief.wearing, from: "story" as const } : { wearing: outfits, from: fromLooks }),
         })
       : null);
   const keepTonight = stage < UNDRESSING && Boolean(tonight);
@@ -510,7 +515,7 @@ export async function planBeat(
     const o = older ? { ...opts, older: OLDER_WORDS } : opts;
     return eyes ? povPrompt(cast, eyes, framed, where, stage, withSet, o) : keyframePrompt(cast, framed, where, stage, withSet, o);
   };
-  const wearing_from: WearingFrom = keepTonight && tonight ? tonight.from : brief?.wearing ? "story" : stage >= UNDRESSING ? "stage" : looks.some((t) => t.guessed) ? "guess" : "looks";
+  const wearing_from: WearingFrom = keepTonight && tonight ? tonight.from : brief?.wearing ? "story" : stage >= UNDRESSING ? "stage" : fromLooks;
   return { ok: true, fields, wearing_from, edit: own, prompt: promptFor(false), promptFor, characters: [ca, cb], stage, act: actId, eyes };
 }
 
@@ -607,7 +612,7 @@ export function briefClothes(b: Pick<Brief, "wearing" | "kept_on"> | null, stage
  * The chapter's roleplay: its title, for the mood, and its premise with who plays whom, for the brief (the running
  * chapter's only: a filed night doesn't keep it).
  */
-async function chapterRoleplay(db: Db, beat: Pick<BeatRow, "scene_id" | "owner_id" | "chapter" | "night_id">, names: { a: string; b: string }): Promise<{ title: string; words: string } | null> {
+async function chapterRoleplay(db: Db, beat: Pick<BeatRow, "scene_id" | "owner_id" | "chapter" | "night_id">, names: { a: string; b: string }): Promise<{ title: string; words: string; costumes: [string, string] | null } | null> {
   if (beat.night_id) return null;
   const row = (await db.query<{ roleplay: { id?: string; chapter?: number; swap?: boolean } | null; chapter: number }>(`select roleplay, chapter from adult_scenes where id = $1 and owner_id = $2`, [beat.scene_id, beat.owner_id])).rows[0];
   const id = row?.roleplay?.id;
@@ -618,7 +623,7 @@ async function chapterRoleplay(db: Db, beat: Pick<BeatRow, "scene_id" | "owner_i
   const swap = Boolean(row.roleplay?.swap);
   const [x, y] = (swap ? [names.b, names.a] : [names.a, names.b]).map(first);
   const roles = rolesLine(rp, { a: first(names.a), b: first(names.b) }, swap);
-  return { title: rp.title, words: `${rp.title}. ${rp.premise.replaceAll("{a}", x).replaceAll("{b}", y)}${roles ? ` ${roles}.` : ""}` };
+  return { title: rp.title, words: `${rp.title}. ${rp.premise.replaceAll("{a}", x).replaceAll("{b}", y)}${roles ? ` ${roles}.` : ""}`, costumes: roleCostumes(rp, swap) };
 }
 
 /** An age check's refusal: someone in the picture could be under 18, or it couldn't tell. */

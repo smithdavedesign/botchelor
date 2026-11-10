@@ -84,8 +84,10 @@ describe("roleplays for a chapter", () => {
     // said out loud, with nobody's job depending on the answer.
     const NEVER = /\b(sister|brother|sibling|mother|father|mom|mum|dad|daughter|son|step\w*|aunt|uncle|cousin|babysit\w*|nanny|teacher|student|pupil|professor|tutor|lesson|classroom|school|campus|dorm|teen|teenage|young|younger|girl|boy|kid|child|drunk|tipsy|wasted|asleep|unconscious|sedated|forced|force|kidnap\w*|captive|tied|against (her|his|their) will|blackmail|paid|pays|payment|intern)\b/i;
     for (const r of ROLEPLAYS) {
-      const text = [r.title, r.premise, ...(r.roles ?? [])].join(" ");
-      expect(checkAdultText({ title: r.title, premise: r.premise, roles: (r.roles ?? []).join(", ") }).ok, r.id).toBe(true);
+      const text = [r.title, r.premise, ...(r.roles ?? []), ...(r.costumes ?? [])].join(" ");
+      expect(checkAdultText({ title: r.title, premise: r.premise, roles: (r.roles ?? []).join(", "), costumes: (r.costumes ?? []).join(", ") }).ok, r.id).toBe(true);
+      // A roleplay with parts dresses them for it (they start in character); one without, they come as themselves.
+      expect(Boolean(r.costumes), r.id).toBe(Boolean(r.roles));
       expect(excludedTheme(text), r.id).toBeNull();
       expect(NEVER.exec(text)?.[0] ?? null, r.id).toBeNull();
       expect(r.premise).toContain("{a}");
