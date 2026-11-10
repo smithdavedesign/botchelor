@@ -9,6 +9,7 @@ import { sendRenewalReminders } from "@/lib/adult/billing";
 import { prunePlanCheckouts, sendPlanReminders } from "@/lib/paid-plans";
 import { pruneCompanionUsage } from "@/lib/companion-plan";
 import { pruneExtrasUsage } from "@/lib/companion-extras";
+import { pruneLiveCalls } from "@/lib/companion-live";
 import { forgetUnusedVoices } from "@/lib/companion-voice";
 import { nudgeLikesWaiting } from "@/lib/away";
 import { getDb } from "@/lib/db";
@@ -85,6 +86,7 @@ async function run(req: Request): Promise<Response> {
   await pruneCompanionUsage(db).catch(() => {});
   // The plan's monthly voice notes past this month, and any voice file no reply points at (lib/companion-voice.ts).
   await pruneExtrasUsage(db).catch(() => {});
+  await pruneLiveCalls(db).catch(() => {});
   await forgetUnusedVoices(db);
   await prunePlanCheckouts(db).catch(() => {});
   // The agent funnel's day-7 return (lib/agent-funnel): agents back 6-8 days after their first date.

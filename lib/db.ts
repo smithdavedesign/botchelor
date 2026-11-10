@@ -1157,6 +1157,22 @@ create table if not exists companion_voice (
 alter table companion_messages add column if not exists voice_key text;
 -- Said on a voice call in the app (docs/companions.md, Calls): the person spoke it, or the reply was spoken aloud.
 alter table companion_messages add column if not exists on_call boolean not null default false;
+-- A live call (docs/companions.md, P6; lib/companion-live.ts): one row a call, to charge it by the minute and count it.
+-- Never any audio and never the words (those are messages, marked on_call). first_ticket: the first minute's, given
+-- back when the call ends at once with nothing said. Kept 90 days.
+create table if not exists companion_live_calls (
+  id text primary key,
+  user_id text not null,
+  thread_id text not null,
+  started_at timestamptz not null,
+  last_at timestamptz not null,
+  ended_at timestamptz,
+  minutes integer not null default 0,
+  turns integer not null default 0,
+  tts_chars integer not null default 0,
+  first_ticket jsonb
+);
+create index if not exists companion_live_calls_user_idx on companion_live_calls (user_id, started_at desc);
 create index if not exists companion_messages_voice_idx on companion_messages (voice_key) where voice_key is not null;
 -- Subscription plans sold on a Stripe Payment Link (lib/paid-plans.ts): one row per person and plan.
 create table if not exists plan_entitlements (

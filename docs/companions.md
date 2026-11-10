@@ -229,7 +229,7 @@ cost, priced like After Dark's extras; guests get none.
 ## Calls (v1, built 2026-11-09)
 
 David, 2026-11-09: "let's tackle 1-3" (the third: live voice calls). v1 takes turns, uses no new provider and spends
-nothing new; P6 below is the always-listening version.
+nothing new; live calls (P6, below) are the always-listening version.
 - **📞 Call** in a companion chat's header opens the call screen (`app/companion/[id]/CompanionCall.tsx`): their face,
   captions of what's being said, Interrupt, Mute and End call. Offered only where the browser can hear you
   (`SpeechRecognition`: Chrome, Edge and Safari, not Firefox), and never in a scene, while paused or out of replies.
@@ -258,7 +258,85 @@ nothing new; P6 below is the always-listening version.
   `companion_reply` carries `call: true`.
 - **How fast:** a turn is the end of your phrase (about a second of quiet), plus one model call (1-3 s on the free
   models), plus their voice starting. That's at once on the device; with their own voice it's after the voice note is
-  made (a few seconds). Fine for a first version; P6 is the fix.
+  made (a few seconds). Fine for a first version; live calls (P6, below) are the fix.
+
+## Live calls (P6, built 2026-11-10; on once the Deepgram key is set)
+
+David, 2026-11-10: approved the spend for a Deepgram key. A live call is a phone call: the line stays open, either of
+you can talk over the other, and it's charged by the minute. It sits behind the same 📞 screen as v1, and while it's off
+(no key) the screen is exactly v1's.
+
+- **No new server.** The browser streams the microphone straight to Deepgram's speech to text (`wss://…/v1/listen`,
+  Nova-3, 16 kHz PCM, interim words, end of a phrase after 300 ms of quiet, `UtteranceEnd` a second later as the
+  backstop). It opens the socket with a token our route mints from the server's key (Deepgram's grant API,
+  `POST /v1/auth/grant`, good for 30 seconds and only needed to open the socket). The key never reaches the browser.
+- **A turn** is `POST /api/companion/:id/live {action: "turn", call_id, text}`, and the answer is a server-sent-events
+  stream from a Node route (`app/api/companion/[id]/live/route.ts`):
+  - **The front half is a call's message** (`lib/companion.ts` `takeIn`, now shared by `sendMessage` and `liveTurnIn`):
+    the same rate limit, the same reply taken from the free count or the plan (`takeReply`), the self-harm check, the PG
+    line, the AI notice, and the line kept marked 📞 (`on_call`). A refusal comes back as JSON with the same status as
+    `send`, crisis resources and all.
+  - **The reply streams** (`liveReply`): the model is asked for plain spoken text (`companionMessages` `live`, call
+    length, `maxTokens` 250) and streams it (`Model.stream` in `lib/model.ts`, OpenAI-style SSE; the fallback model
+    takes over if the first one fails before a word). `ClauseSplitter` (`lib/companion-live-shared.ts`) cuts it at each
+    sentence's end, the first piece also at a comma once it's 28 characters, so the first words go out early.
+  - **Every piece is checked before it's said**: the PG line and the crisis list on the piece and on everything said so
+    far, and not a repeat of an earlier line. A piece that fails stops the reply there (all of what was said was
+    checked). When the first piece fails, or the model can't stream or is down, it's v1's reply instead: drawn whole,
+    checked, drawn again or deflected (`speak`), and said in one piece.
+  - **Their voice is Deepgram Aura**, made on the server one checked piece at a time (`speakAura`: Aura-2, 24 kHz 16-bit
+    PCM, streamed) while the model writes the next. The audio goes down the same stream as base64 PCM, and the browser
+    plays it back to back with Web Audio. One Aura voice per character, from their pronouns and id (`auraVoiceFor`).
+    **Why Aura and not their Kokoro voice:** a voice note is made whole, a few seconds after the reply, and that alone
+    is past the 800 ms goal. Aura streams its first audio in a few hundred ms, the same key covers it, and voicing on
+    the server means only checked words are ever voiced (a browser with a token could make Aura say anything). If Aura
+    fails mid-call, the rest is said in the device's voice and the call says why.
+  - The message is kept as one, marked 📞: what was said, up to a barge-in.
+- **Barge-in** (`liveStep`, a pure reducer the tests drive): while they think or talk, two or more words heard that
+  aren't an echo of what's being said stop their voice, abort the turn's stream (the server stops the model and Aura),
+  and give the floor to the person, keeping what they've started saying. ✋ Interrupt does the same. The microphone has
+  the browser's echo cancelling on, and the echo check (`echoOf`) catches what gets through.
+- **By the minute** (`lib/companion-live.ts`, table `companion_live_calls`: when it started and ended, minutes, turns,
+  Aura's characters; never audio or words; kept 90 days). It's an extra like voice notes (`COMPANION_EXTRAS.minute`):
+  - the Companion Plan includes **20 call minutes** a calendar month (`COMPANION_LIVE_INCLUDED`), then **1 token buys
+    10** (`COMPANION_LIVE_BUNDLE`), kept as credits; admins free; guests get v1 only.
+  - Why 10 a token: a minute costs us about 2¢ at the most (Nova-3 streaming about 0.8¢, Aura about 3¢ per 1,000
+    characters and a talkative companion says maybe 350 a minute, a few model calls at about 0.1¢). A token is about
+    $0.72 after Stripe, so 10 minutes sells near 7¢ a minute, about 3.5×, in line with the voice notes.
+  - **Each minute is taken as it starts** (the first at the start, then every half minute the browser ticks, and before
+    every turn, counted from the server's clock, with 5 s of grace). The price is on the choice and the button before
+    anything is bought (`buy` only when it was shown). When they run out mid-call it pauses and the button says the
+    price ("Keep talking · 1 token for 10 minutes"); nothing is bought mid-sentence.
+  - **Pausing hangs up the line** (the socket and microphone close and the server's call ends), so a pause isn't paid
+    for. A quiet minute pauses it; five quiet minutes, a hidden tab, End call and leaving the page work as in v1. A call
+    that ends within 20 s with nothing said gives its first minute back. Calls end after 60 minutes
+    (`COMPANION_LIVE_MAX_MINUTES`). 20 starts an hour and 60 a day per person.
+- **Privacy:** the person's voice goes from their browser to Deepgram and never to us; the companion's passes through
+  our route in memory. Both ask Deepgram to keep nothing for training (`mip_opt_out=true`). Nothing logs audio, tokens
+  or the key. In the privacy notice and the terms (`#companion-extras`), dated 10 November 2026.
+- **Off or down, it's v1:** no key, `COMPANION_LIVE=0`, a guest, or a browser without a microphone: the call takes turns
+  as before. Deepgram refusing a token at the start charges nothing and the call carries on taking turns. Firefox, which
+  v1 couldn't serve (no speech recognition), can call live.
+- **Counted:** `companion_call` with `live: true` (stage start or end, seconds, turns, minutes, median first-audio ms,
+  barge-ins, voice dropped, refunded; never the words), and `companion_reply` with `live: true`, `first_ms` (the
+  model's first checked piece), `cut` (a barge-in) and `stopped` (a piece failed a check).
+- **How fast:** end of speech → 300 ms of quiet (Deepgram's endpointing) → our route (the checks, a few queries) → the
+  model's first sentence or first long clause (DeepSeek on OpenRouter, often 300-600 ms to the first token) → Aura's
+  first audio (a few hundred ms). Expect around 1 s, sometimes under 800 ms. The call measures it: `first_audio_ms` on
+  `companion_call` is the median from the end of speech to their voice, per call.
+
+### Turning it on
+
+1. Make a Deepgram key with **Member** rights (the grant API needs them) and a spend cap at Deepgram; keep it in the
+   keychain (`vault/botchelor/DEEPGRAM_API_KEY`).
+2. Set `DEEPGRAM_API_KEY` on the show app (DigitalOcean, encrypted). That alone turns live calls on for every signed-in
+   person.
+3. Optional settings (env on the show app): `COMPANION_LIVE=admins` (admins only, for a first try) or `0` (off with the
+   key kept); `COMPANION_LIVE_INCLUDED` (plan minutes a month, default 20); `COMPANION_LIVE_BUNDLE` (minutes a token
+   buys, default 10); `COMPANION_LIVE_MAX_MINUTES` (default 60); `DEEPGRAM_STT_MODEL` (default `nova-3`);
+   `DEEPGRAM_API_URL` (tests only: a stand-in).
+4. Tests: `tests/companion-live.test.ts` (Deepgram stubbed); `npm run e2e:companion` runs a live call with Deepgram
+   stubbed (a local stand-in for the grant and Aura, and the page's socket and microphone faked) on a desktop and a phone.
 
 ## Still to build
 
@@ -272,10 +350,5 @@ nothing new; P6 below is the always-listening version.
 - **P5, the After Dark companion:** the same engine on `adultModel` and `checkAdultText`, AD tokens for media, sold as
   an add-on on CCBill/Segpay/Verotel (per-plan entitlements). First: answer CCBill's AI Content Onboarding Guidelines
   PDF point by point with companions in scope, and tell all three processors.
-- **P6, live calls (v1 above is built; this needs David's go and a spend):** both talking at once, under 800 ms,
-  with barge-in.
-  - **How:** streaming speech to text (Deepgram, about $0.004 a minute), then a streaming model, then streaming
-    speech, over a small always-on WebSocket service on DigitalOcean.
-  - **Price:** by the minute, in tokens.
-  - **The spend to propose:** a Deepgram key capped at $25 at the provider (about 6,000 minutes), and the service's
-    few dollars a month.
+- **P6, live calls: built** (above). Once the key is set, check it live on a phone and a laptop: the first-audio time, a
+  barge-in, and that a quiet minute pauses it.

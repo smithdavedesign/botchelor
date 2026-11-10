@@ -324,6 +324,7 @@ export async function startTestDb() {
         "companion_extras_usage",
         "companion_credits",
         "companion_voice",
+        "companion_live_calls",
         "plan_entitlements",
         "plan_checkouts",
         "plan_events",

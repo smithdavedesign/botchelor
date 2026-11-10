@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { AFTER_DARK_ABOUT } from "@/lib/after-dark-public";
 import { formatPrice, PACK_5 } from "@/lib/catalog";
-import { COMPANION_EXTRAS, COMPANION_FAIR_USE_PER_MONTH, COMPANION_FREE_PER_DAY } from "@/lib/companion-shared";
+import { COMPANION_EXTRAS, COMPANION_FAIR_USE_PER_MONTH, COMPANION_FREE_PER_DAY, extraTerms } from "@/lib/companion-shared";
 import {
   AFTER_DARK_BLOCKED_COUNTRIES,
   AFTER_DARK_BLOCKED_US_STATES,
@@ -31,10 +31,10 @@ import { ConsentChoice } from "../ConsentBanner";
 /** The other policy pages' date (content policy, 2257, cancelling). */
 export const LAST_UPDATED = "Last updated 24 October 2026.";
 /** The terms' and the privacy notice's date: they changed after the rest. */
-export const TERMS_PRIVACY_UPDATED = "Last updated 1 November 2026.";
+export const TERMS_PRIVACY_UPDATED = "Last updated 10 November 2026.";
 /** What changed last time, in a line. */
 export const PRIVACY_CHANGES =
-  "Changed: Analytics names the three events our own dashboard counts (visit, activate, checkout) and says the site you came from goes with a visit only when it's another site; the terms state the pack's price. Before that (24 October): who runs Botchelor, After Dark's data and where it's offered, the location and age we read, everyone who processes data, your rights, and the complaint form.";
+  "Changed: live calls with a companion, where they're offered: Deepgram hears your voice and makes the companion's, and the terms say how call minutes are charged. Before that (1 November): Analytics names the three events our own dashboard counts (visit, activate, checkout) and says the site you came from goes with a visit only when it's another site; the terms state the pack's price. Before that (24 October): who runs Botchelor, After Dark's data and where it's offered, the location and age we read, everyone who processes data, your rights, and the complaint form.";
 
 /** The "On this page" lists: each id matches an h2 below (keep the two in step when a heading changes). */
 export const TERMS_HEADINGS = [
@@ -324,8 +324,11 @@ export function TermsSections() {
         <li id="companion-extras">
           <strong>Extras.</strong> The plan includes {COMPANION_EXTRAS.voice.included} voice notes a calendar month (a companion&apos;s reply recorded in
           their own voice). Past that, and without the plan, a bought token from a pack buys {COMPANION_EXTRAS.voice.bundle} voice notes, which never expire.
-          The price is on the button before anything is made, a voice note is never charged in the middle of a reply, and anything that fails gives back
-          what it took. Included ones that aren&apos;t used don&apos;t carry over. Extras need an account.
+          Where live calls are offered, they&apos;re by the minute: the plan includes {extraTerms("minute").included} call minutes a calendar month, and past
+          that a token buys {extraTerms("minute").bundle}. Each minute is taken as it starts, a quiet minute pauses the call, and a call ended within a few
+          seconds with nothing said gives its minute back; calls that take turns stay free. The price is on the button before anything is made, a voice
+          note is never charged in the middle of a reply, and anything that fails gives back what it took. Included ones that aren&apos;t used don&apos;t
+          carry over. Extras need an account.
         </li>
       </ul>
 
@@ -647,7 +650,8 @@ export function PrivacySections() {
           can see and change on its memory page), and a short running summary of the conversation. Only you see them, except a
           reply you report: we read it and the few messages before it, to review it. They never reach the show, a date, a text
           or another character. A message that set off the self-harm check isn&apos;t kept at all. On a call, what you say reaches us
-          as words and is kept like a message, marked as said on a call; we never receive or keep your voice.
+          as words and is kept like a message, marked as said on a call; we never receive or keep your voice. On a live call we keep
+          when it started and ended, its minutes and how many turns it had, for 90 days, to charge it and count it; never its sound.
         </li>
       </ul>
 
@@ -780,7 +784,9 @@ export function PrivacySections() {
           about you go to OpenRouter, through its hosts CoreWeave and DeepInfra, which write the replies and draw the facts;
           the show&apos;s own model above stands in when they&apos;re down. On a call, your browser&apos;s own speech recognition
           turns your voice into words before anything reaches us (in Chrome that&apos;s Google&apos;s, in Safari Apple&apos;s, under
-          their terms), and the replies are spoken by your device or made as voice notes.
+          their terms), and the replies are spoken by your device or made as voice notes. On a live call, your voice goes from your
+          browser to Deepgram instead, which turns it into words as you speak, and Deepgram also makes the companion&apos;s voice
+          from its words; we ask Deepgram to keep none of it for training, and it keeps the audio only while it works on it.
         </li>
         <li>
           <strong>After Dark:</strong> OpenRouter (through its hosts CoreWeave and DeepInfra) writes the scenes; Venice, with

@@ -430,6 +430,7 @@ export async function deleteAccount(db: Db, userId: string): Promise<AccountDele
   await run("delete from companion_usage where user_id = $1", [userId]);
   await run("delete from companion_extras_usage where user_id = $1", [userId]);
   await run("delete from companion_credits where user_id = $1", [userId]);
+  await run("delete from companion_live_calls where user_id = $1", [userId]);
   await run("delete from plan_checkouts where user_id = $1", [userId]);
   await run("delete from league_members where user_id = $1", [userId]);
   await run("delete from leagues where owner_id = $1", [userId]); // cascades its remaining members

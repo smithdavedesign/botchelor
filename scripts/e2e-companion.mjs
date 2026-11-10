@@ -10,8 +10,10 @@
  *   forget, and the edit reaches the next reply → a scene: they pick a place, the companion opens it on the stage
  *   with what they do, they talk out loud, and go back to texting → the same on a phone (a scene with a roleplay:
  *   picked after the place, on the stage's line and in the prompt), with no sideways scroll → a call: the browser (its
- *   speech faked) hears them, the replies are said aloud and kept marked 📞, on a desktop and a phone → the list shows the
- *   thread → deleting it takes it away.
+ *   speech faked) hears them, the replies are said aloud and kept marked 📞, on a desktop and a phone → a live call (P6,
+ *   with Deepgram stubbed: a local stand-in mints the token and makes the voice, and the page's socket to Deepgram and
+ *   its microphone are faked): what they say streams in, the reply streams back piece by piece in its own voice, talking
+ *   over it stops it, both kept marked 📞, on a desktop and a phone → the list shows the thread → deleting it takes it away.
  *
  * Exits non-zero if any step fails. Set CHROMIUM_PATH; SKIP_BUILD=1 reuses the last build; SHOTS=1 writes the
  * screenshots to docs/screenshots/ (else .data/e2e-companion/).
@@ -54,7 +56,7 @@ async function isNotFound(page, response) {
 }
 
 /** What the stub was last asked to reply to (the companion's system prompt), to check what reaches the model. */
-const seen = { replyPrompts: [], crisisChecks: 0, factCalls: 0 };
+const seen = { replyPrompts: [], crisisChecks: 0, factCalls: 0, streamed: 0, grants: 0, spoken: [] };
 
 /**
  * The model's stand-in (the show's model: with no OpenRouter key saved, companions fall back to it), an
@@ -67,7 +69,9 @@ function startCompanionStub() {
     req.on("end", () => {
       let content = "{}";
       try {
-        const { messages } = JSON.parse(body);
+        const parsed = JSON.parse(body);
+        if (parsed.stream) return streamReply(parsed.messages, res);
+        const { messages } = parsed;
         const system = messages[0]?.content ?? "";
         const last = messages[messages.length - 1]?.content ?? "";
         if (system.startsWith("You check one message")) {
@@ -124,6 +128,146 @@ function startCompanionStub() {
     });
   });
   return new Promise((ok) => srv.listen(0, "127.0.0.1", () => ok(srv)));
+}
+
+/**
+ * A live call's reply (P6), streamed as the real model's is (OpenAI-style server-sent events, plain text), a few words
+ * at a time with a pause between, so the call says the first piece while the rest is still coming.
+ */
+function streamReply(messages, res) {
+  const system = messages[0]?.content ?? "";
+  const last = messages[messages.length - 1]?.content ?? "";
+  seen.streamed++;
+  seen.replyPrompts.push(system);
+  // Each line new: a live reply stops at a piece it has said before in the thread (repeatsEarlier).
+  const text = /wait hold on/i.test(last)
+    ? "Okay, I'm listening. Go on, what is it?"
+    : /phone/i.test(last)
+      ? "Hey, you! Your phone sounds great from here. What are you up to?"
+      : /live/i.test(last)
+      ? "Hi! It's so good to hear you live. Tell me everything about your day."
+      : "Mm, go on. I'm here.";
+  const pieces = text.match(/\S+\s*/g) ?? [text];
+  res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache" });
+  let i = 0;
+  const next = () => {
+    if (i >= pieces.length) {
+      res.write(`data: ${JSON.stringify({ choices: [{ delta: {} , finish_reason: "stop" }], usage: { prompt_tokens: 100, completion_tokens: 20 } })}\n\n`);
+      res.end("data: [DONE]\n\n");
+      return;
+    }
+    res.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: pieces[i++] } }] })}\n\n`);
+    setTimeout(next, 40);
+  };
+  next();
+}
+
+/**
+ * Deepgram's stand-in (P6): the token grant, and Aura's voice as 16-bit PCM (a soft tone, about two seconds a piece,
+ * sent in a few chunks) so a call has something to play and to talk over.
+ */
+function startDeepgramStub() {
+  const srv = createServer((req, res) => {
+    let body = "";
+    req.on("data", (c) => (body += c));
+    req.on("end", () => {
+      if (req.headers.authorization !== `Token ${DEEPGRAM_KEY}`) {
+        res.writeHead(401).end();
+        return;
+      }
+      if (req.url === "/v1/auth/grant") {
+        seen.grants++;
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(JSON.stringify({ access_token: DEEPGRAM_TOKEN, expires_in: 30 }));
+        return;
+      }
+      if (req.url?.startsWith("/v1/speak?")) {
+        seen.spoken.push(JSON.parse(body).text);
+        const rate = 24_000;
+        const samples = new Int16Array(rate * 2);
+        for (let i = 0; i < samples.length; i++) samples[i] = Math.round(Math.sin((2 * Math.PI * 330 * i) / rate) * 2000);
+        const bytes = Buffer.from(samples.buffer);
+        res.writeHead(200, { "content-type": "application/octet-stream" });
+        const step = 24_000;
+        let at = 0;
+        const next = () => {
+          if (at >= bytes.length) return res.end();
+          res.write(bytes.subarray(at, at + step));
+          at += step;
+          setTimeout(next, 30);
+        };
+        next();
+        return;
+      }
+      res.writeHead(404).end();
+    });
+  });
+  return new Promise((ok) => srv.listen(0, "127.0.0.1", () => ok(srv)));
+}
+
+/** The stand-in key and token: made up, built from parts so no scanner takes them for real ones. */
+const DEEPGRAM_KEY = ["e2e", "deepgram", "stand", "in"].join("-");
+const DEEPGRAM_TOKEN = ["e2e", "grant", "token"].join(".");
+
+/**
+ * A live call's browser side, faked in the page (an init script): the microphone is a quiet tone, and the socket to
+ * Deepgram (a URL with /v1/listen) is a stand-in the test drives with window.__dg: say(text) is heard as a phrase that
+ * ends (interim, then final with speech_final), interim(text) as words still coming. It counts the audio sent.
+ */
+function fakeLive() {
+  const dg = { sockets: [], protocols: null, url: null, sent: 0 };
+  window.__dg = dg;
+  if (!navigator.mediaDevices) Object.defineProperty(navigator, "mediaDevices", { value: {}, configurable: true });
+  navigator.mediaDevices.getUserMedia = async () => {
+    const ac = new AudioContext();
+    const osc = ac.createOscillator();
+    const gain = ac.createGain();
+    gain.gain.value = 0.01;
+    const dest = ac.createMediaStreamDestination();
+    osc.connect(gain);
+    gain.connect(dest);
+    osc.start();
+    return dest.stream;
+  };
+  const Real = window.WebSocket;
+  function Socket(url, protocols) {
+    if (!String(url).includes("/v1/listen")) return new Real(url, protocols);
+    const s = {
+      url: String(url),
+      readyState: 0,
+      binaryType: "blob",
+      onopen: null,
+      onmessage: null,
+      onclose: null,
+      onerror: null,
+      send(d) {
+        if (typeof d !== "string") dg.sent += d.byteLength ?? 0;
+      },
+      close() {
+        s.readyState = 3;
+      },
+    };
+    dg.protocols = protocols;
+    dg.url = String(url);
+    dg.sockets.push(s);
+    setTimeout(() => {
+      s.readyState = 1;
+      s.onopen?.({});
+    }, 50);
+    return s;
+  }
+  Object.assign(Socket, { CONNECTING: 0, OPEN: 1, CLOSING: 2, CLOSED: 3 });
+  window.WebSocket = Socket;
+  const emit = (msg) => {
+    const s = dg.sockets.findLast((x) => x.readyState === 1);
+    s?.onmessage?.({ data: JSON.stringify(msg) });
+  };
+  const results = (text, isFinal, speechFinal) => emit({ type: "Results", is_final: isFinal, speech_final: speechFinal, channel: { alternatives: [{ transcript: text }] } });
+  dg.interim = (text) => results(text, false, false);
+  dg.say = (text) => {
+    results(text.split(" ").slice(0, 2).join(" "), false, false);
+    setTimeout(() => results(text, true, true), 150);
+  };
 }
 
 /**
@@ -189,6 +333,7 @@ async function main() {
   if (!process.env.SKIP_BUILD) build();
   const showrunner = await startShowrunner();
   const stub = await startCompanionStub();
+  const deepgram = await startDeepgramStub();
   const env = appEnv(showrunner.address().port, DATA_DIR);
   const ADMIN_PASSWORD = ["e2e", "admin", Math.random().toString(36).slice(2)].join("-");
   Object.assign(env, {
@@ -198,6 +343,9 @@ async function main() {
     LLM_API_KEY: "local-stub-companion",
     LLM_MODEL: "stub-companion",
     COMPANION_DEBUG: "1",
+    // Live calls (P6) on, against the stand-in: the key is made up and only ever sent to it.
+    DEEPGRAM_API_KEY: DEEPGRAM_KEY,
+    DEEPGRAM_API_URL: `http://127.0.0.1:${deepgram.address().port}`,
   });
   delete env.COMPANION_OPEN;
   const app = await startApp(await freePort(), env);
@@ -426,7 +574,14 @@ async function main() {
       await call.waitFor({ timeout: 10_000 });
       assert(await call.locator(".companion-call-how").evaluate((d) => d.open), "how calls work should be open the first time");
       assert(((await call.textContent()) ?? "").includes("only the words come to Botchelor"), "the call should say what's sent where");
+      // Live calls are on here (P6): the choice is offered, live first, with its price (free for an admin).
+      const liveChoice = call.getByRole("radio", { name: /^Live/ });
+      assert(await liveChoice.isChecked(), "a live call should be the first choice where it's on");
+      assert(((await call.textContent()) ?? "").includes("Live · free for you"), "the live choice should say what it costs");
+      assert(((await call.textContent()) ?? "").includes("goes from your browser to Deepgram"), "a live call should say where the voice goes");
       await shot(page, "companion-call-ready-desktop");
+      // v1, taking turns.
+      await call.getByRole("radio", { name: /Taking turns/ }).check();
       await call.getByRole("button", { name: `📞 Call ${first}` }).click();
       await call.locator(".companion-call-said", { hasText: "good to hear your voice" }).waitFor({ timeout: 20_000 });
       await page.locator(".companion-call.is-speaking").waitFor();
@@ -539,6 +694,8 @@ async function main() {
         await call.waitFor({ timeout: 10_000 });
         // Read on the desktop call (this browser's storage came with it): it starts closed now.
         assert(!(await call.locator(".companion-call-how").evaluate((d) => d.open)), "how calls work should start closed once read");
+        const storedMode = await p.evaluate(() => localStorage.getItem("bz_call_mode"));
+        assert(await call.getByRole("radio", { name: /Taking turns/ }).isChecked(), `the way picked last time should be picked again (stored: ${storedMode})`);
         await call.getByRole("button", { name: `📞 Call ${first}` }).tap();
         await call.locator(".companion-call-said").waitFor({ timeout: 20_000 });
         await p.locator(".companion-call.is-speaking").waitFor();
@@ -546,6 +703,85 @@ async function main() {
         const end = await call.getByRole("button", { name: "End call" }).boundingBox();
         assert(end && end.y + end.height <= 844, "End call should be on screen");
         await shot(p, "companion-call-phone");
+        await call.getByRole("button", { name: "End call" }).tap();
+        await call.waitFor({ state: "detached", timeout: 10_000 });
+      } finally {
+        await phone.close();
+      }
+    });
+
+    await step("live calls: heard as they talk, the reply streams back in their own voice, talking over it stops it, all kept 📞", async () => {
+      await admin.addInitScript(fakeLive);
+      await page.goto(`${base}${threadPath}`);
+      await page.locator('[data-track="companion-call"]').click();
+      const call = page.getByRole("dialog", { name: `Call with ${first}` });
+      await call.waitFor({ timeout: 10_000 });
+      await call.getByRole("radio", { name: /^Live/ }).check();
+      const grants = seen.grants;
+      await call.getByRole("button", { name: `📞 Call ${first}` }).click();
+      await page.locator(".companion-call.is-listening").waitFor({ timeout: 15_000 });
+      assert(seen.grants === grants + 1, "starting should mint one token");
+      const dg = await page.evaluate(() => ({ protocols: window.__dg.protocols, url: window.__dg.url }));
+      assert(JSON.stringify(dg.protocols) === JSON.stringify(["bearer", DEEPGRAM_TOKEN]), `the socket should open with the token (${JSON.stringify(dg.protocols)})`);
+      assert(!JSON.stringify(dg).includes(DEEPGRAM_KEY), "the browser never sees the key");
+      assert(/\/v1\/listen\?.*mip_opt_out=true/.test(dg.url ?? ""), `the socket should listen opted out of training (${dg.url})`);
+      await call.locator(".companion-call-live", { hasText: "Live" }).waitFor();
+      await page.waitForFunction(() => window.__dg.sent > 0, null, { timeout: 10_000 });
+      await page.evaluate(() => window.__dg.say("hi, can you hear me live"));
+      await call.locator(".companion-call-said", { hasText: "Hi!" }).waitFor({ timeout: 15_000 });
+      await page.locator(".companion-call.is-speaking").waitFor({ timeout: 10_000 });
+      await call.locator(".companion-call-said", { hasText: "Tell me everything about your day." }).waitFor({ timeout: 15_000 });
+      assert(seen.replyPrompts.at(-1).includes("as plain text"), "a live turn should stream the call's prompt");
+      await shot(page, "companion-live-desktop");
+      // Talking over them: their voice stops, the floor is theirs, and what they say goes in as the next turn.
+      await page.evaluate(() => window.__dg.interim("wait hold on"));
+      await page.locator(".companion-call.is-listening").waitFor({ timeout: 3_000 });
+      await call.locator(".companion-call-heard", { hasText: "wait hold on" }).waitFor();
+      await page.evaluate(() => window.__dg.say("wait hold on a second"));
+      await call.locator(".companion-call-said", { hasText: "Okay, I'm listening." }).waitFor({ timeout: 15_000 });
+      assert(seen.spoken.some((t) => t.startsWith("Hi!")), "their voice should be made from the checked pieces");
+      // They finish, and the floor is the person's again.
+      await call.locator(".companion-call-said", { hasText: "what is it?" }).waitFor({ timeout: 15_000 });
+      await page.locator(".companion-call.is-listening").waitFor({ timeout: 20_000 });
+      await call.getByRole("button", { name: "End call" }).click();
+      await call.waitFor({ state: "detached", timeout: 10_000 });
+      await page.reload();
+      for (const said of ["hi, can you hear me live", "so good to hear you live", "wait hold on a second", "Okay, I'm listening."]) {
+        await bubble(said).first().waitFor({ timeout: 10_000 });
+        assert((await bubble(said).first().locator(".companion-call-tag").count()) === 1, `"${said}" should be in the thread marked as said on the call`);
+      }
+    });
+
+    await step("live calls on a phone: the call screen fits, streams and ends", async () => {
+      const phone = await browser.newContext({
+        viewport: { width: 390, height: 844 },
+        isMobile: true,
+        hasTouch: true,
+        deviceScaleFactor: 2,
+        storageState: await admin.storageState(),
+      });
+      try {
+        await phone.addInitScript(fakeLive);
+        const p = await phone.newPage();
+        await p.goto(`${base}${threadPath}`);
+        await p.locator('[data-track="companion-call"]').tap();
+        const call = p.getByRole("dialog", { name: `Call with ${first}` });
+        await call.waitFor({ timeout: 10_000 });
+        assert(await call.getByRole("radio", { name: /^Live/ }).isChecked(), "live, picked last time, should be picked again");
+        await call.getByRole("button", { name: `📞 Call ${first}` }).tap();
+        await p.locator(".companion-call.is-listening").waitFor({ timeout: 15_000 });
+        await p.evaluate(() => window.__dg.say("calling live from my phone"));
+        await call.locator(".companion-call-said", { hasText: "Hey, you!" }).waitFor({ timeout: 15_000 });
+        await p.locator(".companion-call.is-speaking").waitFor({ timeout: 10_000 });
+        for (const width of [390, 360]) {
+          await p.setViewportSize({ width, height: 844 });
+          assert((await p.evaluate(() => document.documentElement.scrollWidth)) <= width + 1, `the live call should fit a ${width}px phone`);
+          const end = await call.getByRole("button", { name: "End call" }).boundingBox();
+          assert(end && end.y + end.height <= 844 && end.x + end.width <= width, `End call should be on screen at ${width}px`);
+        }
+        await p.setViewportSize({ width: 390, height: 844 });
+        await call.locator(".companion-call-said", { hasText: "What are you up to?" }).waitFor({ timeout: 15_000 });
+        await shot(p, "companion-live-phone");
         await call.getByRole("button", { name: "End call" }).tap();
         await call.waitFor({ state: "detached", timeout: 10_000 });
       } finally {
@@ -577,6 +813,7 @@ async function main() {
     await stopApp(app);
     showrunner.close();
     stub.close();
+    deepgram.close();
   }
   const failed = results.filter((r) => !r).length;
   console.log(failed ? `\n${failed} of ${results.length} steps failed.` : `\nAll ${results.length} steps passed. Screenshots in ${SHOTS_DIR}`);

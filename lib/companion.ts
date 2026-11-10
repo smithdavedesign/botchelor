@@ -5,6 +5,7 @@ import { adultKeys } from "./adult/settings";
 import { track } from "./analytics";
 import { portraitPathSql } from "./assets";
 import { loadCharacter, type Character } from "./character";
+import { ClauseSplitter, spokenClause } from "./companion-live-shared";
 import { AVOID_LINES, companionMessages, RECENT_TURNS, repeatsEarlier, replyBubbles, sceneReply, type PromptRoleplay, type PromptScene, type PromptTurn } from "./companion-prompt";
 import { factsForPrompt, updateFacts, updateSummary } from "./companion-memory";
 import { forgetUnusedVoices, voiceUrl } from "./companion-voice";
@@ -623,22 +624,155 @@ export async function sendMessage(
   surface: CompanionSurface = "companion",
   opts: { call?: boolean } = {},
 ): Promise<CompanionSend> {
+  const took = await takeIn(db, userId, threadId, input, now, surface, { call: opts.call === true });
+  if ("status" in took) return took;
+  const r = await speak(db, took.t, took.character, tick(now, 2), { call: took.call });
+  if (!r.ok) return r;
+  return getThread(db, userId, threadId);
+}
+
+/**
+ * A person's line, in: the thread loaded, not paused, the words cleaned and checked (screen: the self-harm protocol,
+ * then the PG line), the AI notice when due, and the line kept (marked as said on a call, never in a scene). The front
+ * half of every message, typed (sendMessage) or said on a live call (liveTurnIn).
+ */
+async function takeIn(
+  db: Db,
+  userId: string,
+  threadId: string,
+  input: string,
+  now: Date,
+  surface: CompanionSurface,
+  opts: { call: boolean; noScene?: boolean },
+): Promise<{ t: ThreadRow; character: Character; call: boolean } | CompanionFail> {
   const l = await loaded(db, userId, threadId);
   if ("status" in l) return l;
   const { t, character } = l;
   if (t.paused_at) return fail(409, "paused", "This conversation is paused. Carry on when you're ready.");
+  if (opts.noScene && t.scene) return fail(409, "scene", "Calls aren't for a scene. Go back to texting first.");
   const text = clean(input);
   if (!text) return fail(400, "empty", "Say something first.");
   if (text.length > COMPANION_MESSAGE_MAX) return fail(400, "too_long", `Keep it under ${COMPANION_MESSAGE_MAX} characters.`);
   const refused = await screen(db, t, text, now, surface);
   if (refused) return refused;
   if (noticeDue(t, now)) await putNotice(db, t, character.name, now);
-  const call = opts.call === true && !t.scene;
+  const call = opts.call && !t.scene;
   await addMessage(db, t.id, "user", text, tick(now, 1), { scene: t.scene, roleplay: t.roleplay?.title ?? null, onCall: call });
   await db.query(`update companion_threads set last_at = $2 where id = $1`, [t.id, tick(now, 1).toISOString()]);
-  const r = await speak(db, t, character, tick(now, 2), { call });
-  if (!r.ok) return r;
-  return getThread(db, userId, threadId);
+  return { t, character, call };
+}
+
+/* ----------------------------------------------- live calls (P6) ----------------------------------------------- */
+
+/** A live call's turn that's in: the person's line checked and kept, the reply still to come (liveReply). */
+export type LiveTurn = { t: ThreadRow; character: Character; now: Date };
+
+/**
+ * A line said on a live call (docs/companions.md, P6), in: exactly a call's message (sendMessage with `call`): the same
+ * checks, the notice, the line kept marked 📞. Refused in a scene. The reply is liveReply's.
+ */
+export async function liveTurnIn(db: Db, userId: string, threadId: string, input: string, now: Date = new Date()): Promise<{ ok: true; turn: LiveTurn } | CompanionFail> {
+  const took = await takeIn(db, userId, threadId, input, now, "companion", { call: true, noScene: true });
+  if ("status" in took) return took;
+  return { ok: true, turn: { t: took.t, character: took.character, now } };
+}
+
+/** Where a live reply goes as it's written: each checked piece, in order; `signal` is a barge-in (stop now). */
+export type LiveSink = { say: (text: string) => void; signal?: AbortSignal };
+
+export type LiveReply = { ok: true; id: string | null; text: string; streamed: boolean; cut: boolean } | CompanionFail;
+
+/**
+ * The character's reply on a live call, said as it's written: the model streams (plain text, call length), the stream
+ * is cut into pieces (ClauseSplitter), and each piece is checked against the PG line and the crisis list on its own and
+ * with everything before it, and against their earlier lines, before it goes to `sink.say`. A piece that fails stops
+ * the reply there (what was already said stands, every piece of it checked). When nothing sayable came first (the
+ * model can't stream, is down, or its first piece failed), it's v1's reply instead: drawn whole, checked, drawn again
+ * or deflected (speak), and said in one piece. Kept as one message marked 📞: what was said, up to a barge-in.
+ */
+export async function liveReply(db: Db, turn: LiveTurn, sink: LiveSink): Promise<LiveReply> {
+  const { t, character } = turn;
+  const now = tick(turn.now, 2);
+  const model = await modelFor(db);
+  const started = Date.now();
+  const v1 = async (insteadOf: string | null): Promise<LiveReply> => {
+    const r = await speak(db, t, character, now, { call: true, insteadOf });
+    if (!r.ok) return r;
+    const text = r.texts.join(" ");
+    if (!sink.signal?.aborted) sink.say(text);
+    return { ok: true, id: r.ids[0] ?? null, text, streamed: false, cut: false };
+  };
+  if (!model.stream) return v1(null);
+  const { turns, avoid } = await recentTurns(db, t.id);
+  const lastUser = [...turns].reverse().find((x) => x.role === "user")?.text ?? "";
+  const [facts, earlier] = await Promise.all([factsForPrompt(db, t.id, lastUser, now), earlierLines(db, t.id)]);
+  const usage: Usage[] = [];
+  let served = null as string | null;
+  const parts: string[] = [];
+  let stopped: string | null = null;
+  let firstMs: number | null = null;
+  const stop = new AbortController();
+  const signal = sink.signal ? AbortSignal.any([sink.signal, stop.signal]) : stop.signal;
+  const splitter = new ClauseSplitter();
+  /** One piece: said when it passes, else the reply stops here (false). */
+  const take = (clause: string): boolean => {
+    const c = spokenClause(clause, character.name, parts.length === 0);
+    if (!c) return true;
+    const whole = [...parts, c].join(" ");
+    if (!checkFamilyTalk(c).ok || !checkFamilyTalk(whole).ok || crisisIntent(c) || crisisIntent(whole)) {
+      stopped = `${whole.slice(0, 300)} (keep it PG and kind)`;
+      return false;
+    }
+    if (repeatsEarlier(c, [...earlier, ...parts])) {
+      stopped = `${whole.slice(0, 300)} (you've said this before: say something new)`;
+      return false;
+    }
+    parts.push(c);
+    firstMs ??= Date.now() - started;
+    sink.say(c);
+    return true;
+  };
+  try {
+    const stream = model.stream(
+      companionMessages({ character, turns, facts, summary: t.summary, length: t.reply_length, avoid, now, call: true, live: true }),
+      { temperature: 0.9, frequencyPenalty: 0.3, maxTokens: 250, onUsage: (u) => usage.push(u), onModel: (id) => (served = id), signal },
+    );
+    reading: for await (const piece of stream) {
+      if (signal.aborted) break;
+      for (const clause of splitter.push(piece)) {
+        if (!take(clause)) {
+          stop.abort();
+          break reading;
+        }
+      }
+    }
+    if (!stopped && !signal.aborted) for (const clause of splitter.flush()) if (!take(clause)) break;
+  } catch {
+    // The model failed before (or while) it said anything: v1's reply below when nothing was said.
+  }
+  const cut = sink.signal?.aborted === true;
+  if (!parts.length) {
+    // Talked over before a word of it: nothing to keep, and no reply owed.
+    if (cut) return { ok: true, id: null, text: "", streamed: true, cut: true };
+    return v1(stopped);
+  }
+  const text = parts.join(" ");
+  const cost = usage.reduce((sum, u) => sum + (u.cost ?? 0), 0);
+  const modelId = served ?? usage[0]?.model ?? null;
+  const id = await addMessage(db, t.id, "character", text, now, { model: modelId, cost: cost || null, onCall: true });
+  await db.query(`update companion_threads set last_at = $2 where id = $1`, [t.id, tick(now, 1).toISOString()]);
+  track("companion_reply", {
+    model: modelId ?? undefined,
+    cost: cost || undefined,
+    ms: Date.now() - started,
+    first_ms: firstMs ?? undefined,
+    bubbles: 1,
+    call: true,
+    live: true,
+    cut: cut || undefined,
+    stopped: stopped ? true : undefined,
+  });
+  return { ok: true, id, text, streamed: true, cut };
 }
 
 /**
