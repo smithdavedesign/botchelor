@@ -34,7 +34,7 @@ export const LAST_UPDATED = "Last updated 24 October 2026.";
 export const TERMS_PRIVACY_UPDATED = "Last updated 10 November 2026.";
 /** What changed last time, in a line. */
 export const PRIVACY_CHANGES =
-  "Changed: who hosts the show and carries its traffic (DigitalOcean and Cloudflare, no longer Vercel), and that the show's model is reached through OpenRouter; live calls with a companion, where they're offered: Deepgram hears your voice and makes the companion's, and the terms say how call minutes are charged. Before that (1 November): Analytics names the three events our own dashboard counts (visit, activate, checkout) and says the site you came from goes with a visit only when it's another site; the terms state the pack's price. Before that (24 October): who runs Botchelor, After Dark's data and where it's offered, the location and age we read, everyone who processes data, your rights, and the complaint form.";
+  "Changed: the Sunday letter, a weekly email you can sign up for (confirmed by email, with an unsubscribe in every letter); who hosts the show and carries its traffic (DigitalOcean and Cloudflare, no longer Vercel), and that the show's model is reached through OpenRouter; live calls with a companion, where they're offered: Deepgram hears your voice and makes the companion's, and the terms say how call minutes are charged. Before that (1 November): Analytics names the three events our own dashboard counts (visit, activate, checkout) and says the site you came from goes with a visit only when it's another site; the terms state the pack's price. Before that (24 October): who runs Botchelor, After Dark's data and where it's offered, the location and age we read, everyone who processes data, your rights, and the complaint form.";
 
 /** The "On this page" lists: each id matches an h2 below (keep the two in step when a heading changes). */
 export const TERMS_HEADINGS = [
@@ -64,6 +64,7 @@ export const TERMS_HEADINGS = [
 export const PRIVACY_HEADINGS = [
   { id: "who-is-responsible", title: "Who is responsible" },
   { id: "what-we-store", title: "What we store" },
+  { id: "newsletter", title: "The Sunday letter" },
   { id: "after-dark-data", title: "After Dark data" },
   { id: "location-age", title: "Your location and your age" },
   { id: "why", title: "Why we use it" },
@@ -655,6 +656,25 @@ export function PrivacySections() {
         </li>
       </ul>
 
+      <h2 id="newsletter">The Sunday letter</h2>
+      <p>
+        If you sign up for the Sunday letter, our weekly email (no account needed), we keep your email address, that you said
+        you&apos;re 18 or older and when, when we sent the confirmation email and when you confirmed, and which letters went
+        to you. Nothing but a confirmation email goes to the address until its link is clicked. We use the address only to send the letter
+        (through Resend), never share or sell it, and never connect it to an account or your characters.
+      </p>
+      <ul>
+        <li>
+          Every letter has a one-click unsubscribe. Once you leave, we keep the address and when you left, so nothing more
+          goes to it unless you sign up and confirm again. Ask us and we&apos;ll delete it altogether.
+        </li>
+        <li>A sign-up nobody confirms is deleted after 30 days. The record of which letters went to you is kept for 90 days.</li>
+        <li>
+          The letter&apos;s links say they came from the letter (<code>utm_source=newsletter</code>), so our own engagement log
+          can count the visits it brings. They never carry your address.
+        </li>
+      </ul>
+
       <h2 id="after-dark-data">After Dark data</h2>
       <p>
         After Dark is in private testing, so today this is only the team&apos;s own data. When it opens, it keeps, for
@@ -718,7 +738,7 @@ export function PrivacySections() {
           purchases and subscriptions, emails you turned on.
         </li>
         <li>
-          <strong>Your consent:</strong> analytics cookies where we ask first, email notifications, After Dark&apos;s
+          <strong>Your consent:</strong> analytics cookies where we ask first, email notifications and the Sunday letter, After Dark&apos;s
           turn-ons and hard nos (explicit consent), and training and research. You can withdraw it any time; that
           doesn&apos;t undo what was done before.
         </li>
@@ -752,7 +772,11 @@ export function PrivacySections() {
           kept as long as your account, as the record of what you agreed to and when.
         </li>
         <li>The log of an agent&apos;s tool calls: 400 days.</li>
-        <li>The keyed hash of your IP address that limits how many dates one connection starts: two days.</li>
+        <li>The keyed hash of your IP address that limits how many dates one connection starts, and how many sign-ups to the Sunday letter: two days.</li>
+        <li>
+          The Sunday letter: your address while you&apos;re subscribed, and after you leave so it gets nothing more (see{" "}
+          <a href="#newsletter">above</a>); an unconfirmed sign-up 30 days; which letters went to you 90 days.
+        </li>
         <li>
           Reports from the report form: kept as the record of what was reported and what we did. If you delete your
           account, your email and the link to you are removed from them.
@@ -890,7 +914,7 @@ export function PrivacySections() {
           <strong>object</strong> to what we do on our legitimate interests, or ask us to restrict it;
         </li>
         <li>
-          <strong>withdraw consent</strong> at any time (analytics, email, training, After Dark&apos;s turn-ons).
+          <strong>withdraw consent</strong> at any time (analytics, email, the Sunday letter, training, After Dark&apos;s turn-ons).
         </li>
       </ul>
       <p>

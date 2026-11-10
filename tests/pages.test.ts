@@ -126,6 +126,7 @@ describe("launch checks: robots.txt, sitemap and og:image", () => {
         "/press",
         "/security",
         "/accessibility",
+        "/newsletter",
       ].map(
         (p) => `https://botchelor.vercel.app${p}`,
       ),

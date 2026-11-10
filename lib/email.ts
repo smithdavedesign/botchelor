@@ -102,6 +102,14 @@ export function setEmailSenderForTests(s: Sender | null): void {
   sender = s ?? resendSender;
 }
 
+/**
+ * One message to the provider and nothing else, for a sender that keeps its own caps and log (the Sunday letter,
+ * lib/newsletter.ts). Throws when the provider refuses it. The test hook above covers it too.
+ */
+export async function sendEmail(msg: EmailMessage, config: EmailConfig): Promise<void> {
+  await sender(msg, config);
+}
+
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
 /** The frame every email shares: the message, then why you got it and the one-click way out. */

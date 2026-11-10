@@ -21,6 +21,7 @@ import { ensureCastChat } from "@/lib/cast-chat";
 import { runDueReveal } from "@/lib/weekly-reveal";
 import { revealDueSeasonPool } from "@/lib/season-pool";
 import { postDueDiscord } from "@/lib/discord-posts";
+import { runNewsletter } from "@/lib/newsletter-issue";
 
 // One template date (~10 model calls) when the lobby has no open room left to start.
 export const maxDuration = 300;
@@ -81,6 +82,10 @@ async function run(req: Request): Promise<Response> {
   // posted once, after everything above that changes them. Off until a webhook is set; at most a few posts of 5 seconds,
   // and left to the next pass when the run is already long.
   const discord = Date.now() - started > LONG_RUN_MS ? null : await postDueDiscord(db).catch(() => null);
+  // The Sunday letter (lib/newsletter-issue.ts, docs/newsletter.md): the confirmations that had to wait, then the week's
+  // letter once Sunday's reveal above has settled, a batch a pass within its daily cap. Off without email; it sends no
+  // letter until NEWSLETTER_POSTAL_ADDRESS is set. Left to the next pass when the run is already long.
+  const newsletter = Date.now() - started > LONG_RUN_MS ? null : await runNewsletter(db).catch(() => null);
   // Dates whose generation died (a deploy swapped the container mid-date: the 2026-11-02 20:20 mixer's five sat
   // "generating" for hours): run again after the response, so the scheduler's call doesn't wait on the model. Only
   // the daily job did this before.
@@ -97,7 +102,7 @@ async function run(req: Request): Promise<Response> {
   // Every character has a headshot (lib/default-portraits.ts): a few of those still without one are drawn each hour,
   // unless the run is already long (a template date above takes most of the 300 s).
   const portraits = Date.now() - started > LONG_RUN_MS ? { drawn: 0, failed: 0, left: -1 } : await portraitSweep(db).catch(() => ({ drawn: 0, failed: 0, left: -1 }));
-  return json({ ...lobby, portraits, situation, season_ballot: ballot, dare_verdicts: dareVerdicts.length, dare_points_settled: darePoints.reduce((n, d) => n + d.voters, 0), recoupling, reveal, season_pool: pool, secrets, cast_chat: castChat, discord, aired, stuck_generations: stuck, handed_over, sets_rechecked, sets_drawn, scheduled_dates: scheduled, mixers, ...away });
+  return json({ ...lobby, portraits, situation, season_ballot: ballot, dare_verdicts: dareVerdicts.length, dare_points_settled: darePoints.reduce((n, d) => n + d.voters, 0), recoupling, reveal, season_pool: pool, secrets, cast_chat: castChat, discord, newsletter, aired, stuck_generations: stuck, handed_over, sets_rechecked, sets_drawn, scheduled_dates: scheduled, mixers, ...away });
 }
 
 export const GET = handle(run);

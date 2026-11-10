@@ -76,6 +76,7 @@ const PAGES: Record<(typeof PUBLIC_PATHS)[number] | "/legal", () => Promise<Meta
   "/press": meta(() => import("@/app/press/page")),
   "/security": meta(() => import("@/app/security/page")),
   "/accessibility": meta(() => import("@/app/accessibility/page")),
+  "/newsletter": meta(() => import("@/app/newsletter/page")),
   "/legal": meta(() => import("@/app/legal/page")),
 };
 

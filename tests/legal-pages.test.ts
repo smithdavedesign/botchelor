@@ -145,7 +145,8 @@ describe("the privacy notice", () => {
 
   it("is dated 10 November 2026, with what changed", () => {
     expect(render(PrivacyPage)).toMatch(/Last updated 10 November 2026\./);
-    expect(render(PrivacyPage)).toMatch(/Changed: who hosts the show and carries its traffic/);
+    expect(render(PrivacyPage)).toMatch(/Changed: the Sunday letter, a weekly email you can sign up for/);
+    expect(render(PrivacyPage)).toMatch(/; who hosts the show and carries its traffic/);
     expect(render(PrivacyPage)).toMatch(/live calls with a companion/);
     // Who processes it, as deployed (2026-11-10): DigitalOcean, not Vercel; Claude through OpenRouter.
     expect(render(PrivacyPage)).toMatch(/DigitalOcean hosts the show and After Dark/);
