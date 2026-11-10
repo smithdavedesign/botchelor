@@ -6,8 +6,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 const KEY = "bz_read_aloud";
 
 // The device's voices say nothing of who they sound like but their names: the common ones, by platform.
-const FEMALE = /\b(samantha|karen|moira|tessa|fiona|victoria|allison|ava|susan|zira|aria|jenny|serena|kate|veena|nicky|joanna|salli|kimberly|emma|amy|libby|sonia|natasha|female)\b/i;
-const MALE = /\b(daniel|alex|fred|tom|rishi|oliver|guy|david|mark|aaron|arthur|gordon|reed|eddy|matthew|joey|justin|brian|ryan|thomas|william|male)\b/i;
+const FEMALE = /\b(samantha|karen|moira|tessa|fiona|victoria|allison|ava|susan|zira|aria|jenny|serena|kate|veena|nicky|joanna|salli|kimberly|emma|amy|libby|sonia|natasha|michelle|ana|female)\b/i;
+const MALE = /\b(daniel|alex|fred|tom|rishi|oliver|guy|david|mark|aaron|arthur|gordon|reed|eddy|matthew|joey|justin|brian|ryan|thomas|william|andrew|christopher|eric|roger|steffan|male)\b/i;
 
 export type Speaker = { id: string; pronouns?: "she/her" | "he/him" | "they/them" | null };
 
@@ -18,12 +18,23 @@ function hash(s: string): number {
   return h >>> 0;
 }
 
-/** A character's voice among the device's English ones: one that fits their pronouns when the names tell, always the same one. */
+// The devices' more natural voices, by name: the neural ones first (Edge's "Natural", Chrome's and Android's "Neural",
+// Apple's "Enhanced" and "Premium"), then the better standard ones (Google's, Samantha, Ava). Default voices sound robotic.
+const NATURAL = /\b(natural|neural|enhanced|premium)\b/i;
+const GOOD = /\b(google|samantha|ava)\b/i;
+
+/**
+ * A character's voice among the device's English ones, always the same one: one that fits their pronouns when the names
+ * tell, and of those the most natural there is; with none that fits (or no pronouns), the most natural of all.
+ */
 export function voiceFor(voices: readonly SpeechSynthesisVoice[], who: Speaker): SpeechSynthesisVoice | null {
   if (!voices.length) return null;
   const fits =
     who.pronouns === "she/her" ? voices.filter((v) => FEMALE.test(v.name)) : who.pronouns === "he/him" ? voices.filter((v) => MALE.test(v.name) && !FEMALE.test(v.name)) : [];
-  const pool = fits.length ? fits : voices;
+  const base = fits.length ? fits : voices;
+  const natural = base.filter((v) => NATURAL.test(v.name));
+  const good = base.filter((v) => GOOD.test(v.name));
+  const pool = natural.length ? natural : good.length ? good : base;
   return pool[hash(who.id) % pool.length];
 }
 

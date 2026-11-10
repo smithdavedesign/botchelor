@@ -819,7 +819,8 @@ export function PrivacySections() {
           about you go to OpenRouter, through its hosts CoreWeave and DeepInfra, which write the replies and draw the facts;
           the show&apos;s own model above stands in when they&apos;re down. On a call, your browser&apos;s own speech recognition
           turns your voice into words before anything reaches us (in Chrome that&apos;s Google&apos;s, in Safari Apple&apos;s, under
-          their terms), and the replies are spoken by your device or made as voice notes. On a live call, your voice goes from your
+          their terms), and the replies are spoken in the companion&apos;s voice, which Deepgram makes from the reply&apos;s words (or by
+          your device when it can&apos;t), or made as voice notes. On a live call, your voice goes from your
           browser to Deepgram instead, which turns it into words as you speak, and Deepgram also makes the companion&apos;s voice
           from its words; we ask Deepgram to keep none of it for training, and it keeps the audio only while it works on it.
         </li>
