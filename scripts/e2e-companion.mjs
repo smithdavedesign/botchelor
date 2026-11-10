@@ -139,9 +139,12 @@ function streamReply(messages, res) {
   const last = messages[messages.length - 1]?.content ?? "";
   seen.streamed++;
   seen.replyPrompts.push(system);
+  // Each line new: a live reply stops at a piece it has said before in the thread (repeatsEarlier).
   const text = /wait hold on/i.test(last)
     ? "Okay, I'm listening. Go on, what is it?"
-    : /live/i.test(last)
+    : /phone/i.test(last)
+      ? "Hey, you! Your phone sounds great from here. What are you up to?"
+      : /live/i.test(last)
       ? "Hi! It's so good to hear you live. Tell me everything about your day."
       : "Mm, go on. I'm here.";
   const pieces = text.match(/\S+\s*/g) ?? [text];
@@ -768,7 +771,7 @@ async function main() {
         await call.getByRole("button", { name: `📞 Call ${first}` }).tap();
         await p.locator(".companion-call.is-listening").waitFor({ timeout: 15_000 });
         await p.evaluate(() => window.__dg.say("calling live from my phone"));
-        await call.locator(".companion-call-said", { hasText: "Hi!" }).waitFor({ timeout: 15_000 });
+        await call.locator(".companion-call-said", { hasText: "Hey, you!" }).waitFor({ timeout: 15_000 });
         await p.locator(".companion-call.is-speaking").waitFor({ timeout: 10_000 });
         for (const width of [390, 360]) {
           await p.setViewportSize({ width, height: 844 });
@@ -777,7 +780,7 @@ async function main() {
           assert(end && end.y + end.height <= 844 && end.x + end.width <= width, `End call should be on screen at ${width}px`);
         }
         await p.setViewportSize({ width: 390, height: 844 });
-        await call.locator(".companion-call-said", { hasText: "Tell me everything about your day." }).waitFor({ timeout: 15_000 });
+        await call.locator(".companion-call-said", { hasText: "What are you up to?" }).waitFor({ timeout: 15_000 });
         await shot(p, "companion-live-phone");
         await call.getByRole("button", { name: "End call" }).tap();
         await call.waitFor({ state: "detached", timeout: 10_000 });
