@@ -704,6 +704,9 @@ export async function pickShots(
   // Too long to show whole: the same spread, per chapter, so every chapter is still there to pick from.
   const usable = all.length > DIRECTOR_MAX_LINES ? acrossChapters(all, DIRECTOR_MAX_LINES, chapterOf) : all;
   const speaker = (i: number) => cast[lines[i].who === "a" ? 0 : 1];
+  const whoOf = (i: number) => lines[i].who;
+  // A shot of a line with nothing from the director: a still from how far the night had gone, and the line's own action.
+  const fresh = (i: number): ShotPick => ({ line: i, frame: stillOf(cast, stages[i] ?? 0), motion: motionOf(cast, speaker(i), spoken(lines[i].text).action) });
   try {
     const row = (l: (typeof usable)[number]) =>
       [String(l.i), ...(several ? [chapterName(l.i)] : []), speaker(l.i).tag, places[l.i] ? placeWords(places[l.i]!, cast) : "?", STAGES[stages[l.i]] ?? "?", `${l.action ? `(${l.action}) ` : ""}${l.speech}`].join(" | ");
@@ -772,13 +775,53 @@ export async function pickShots(
           ...(eyes ? { eyes } : {}),
         };
       });
-    if (shots.length >= Math.min(3, want)) return shots;
+    if (shots.length >= Math.min(3, want)) return bothSpeak(shots, all.map((l) => l.i), whoOf, fresh);
   } catch {
     /* fall through to the spread */
   }
   // Spread across the night, more of them past the middle where it peaks; a night of chapters, within each of them.
   const picks = several ? acrossChapters(all, want, chapterOf) : spread(all, want);
-  return picks.map((pick) => ({ line: pick.i, frame: stillOf(cast, stages[pick.i] ?? 0), motion: motionOf(cast, speaker(pick.i), pick.action) }));
+  return bothSpeak(
+    picks.map((pick) => fresh(pick.i)),
+    all.map((l) => l.i),
+    whoOf,
+    fresh,
+  );
+}
+
+/**
+ * Both of them say something in a video of the two of them (David, 2026-11-09: a night's video had six of his lines
+ * and none of hers, though the director is asked for both). When every pick is one speaker's and the other has spoken
+ * lines, about a third of the shots (at least one) go to the other's lines nearest the picks, each replacing the pick
+ * it's nearest. One right beside it (two lines or fewer) is the same moment, so it keeps that shot's still and motion;
+ * one further off gets its own (`fresh`). In the night's order.
+ */
+export function bothSpeak<T extends { line: number }>(shots: T[], spokenLines: readonly number[], whoOf: (i: number) => "a" | "b", fresh: (i: number) => T): T[] {
+  if (shots.length < 2) return shots;
+  const said = new Set(shots.map((s) => whoOf(s.line)));
+  if (said.size > 1) return shots;
+  const picked = new Set(shots.map((s) => s.line));
+  const others = spokenLines.filter((i) => !said.has(whoOf(i)) && !picked.has(i));
+  if (!others.length) return shots;
+  const nearest = others
+    .map((i) => {
+      let k = 0;
+      shots.forEach((s, j) => {
+        if (Math.abs(s.line - i) < Math.abs(shots[k].line - i)) k = j;
+      });
+      return { i, k, d: Math.abs(shots[k].line - i) };
+    })
+    .sort((x, y) => x.d - y.d || x.i - y.i);
+  const out = [...shots];
+  const swapped = new Set<number>();
+  const swaps = Math.max(1, Math.floor(shots.length / 3));
+  for (const c of nearest) {
+    if (swapped.size >= swaps) break;
+    if (swapped.has(c.k)) continue;
+    swapped.add(c.k);
+    out[c.k] = c.d <= 2 ? { ...shots[c.k], line: c.i } : fresh(c.i);
+  }
+  return out.sort((x, y) => x.line - y.line);
 }
 
 /**
@@ -2253,17 +2296,23 @@ export async function settleIfDone(db: Db, id: string): Promise<Reel> {
   return (await getReel(db, id))!;
 }
 
-/** A video has pictures to film again: a kept shot with a start picture that passed its check. */
-const hasKeptPictures = (shots: readonly ReelShot[]): boolean => shots.some((s) => s.frame_id && !s.archived_at && s.status !== "ready");
+/**
+ * A shot that comes back to its storyboard: kept, not in, and not refused. A `discarded` one's video was refused by
+ * moderation, so its start picture is never shown or filmed again (tests/keyframe-checks.test.ts).
+ */
+const reopens = (s: ReelShot): boolean => !s.archived_at && s.status !== "ready" && s.status !== "planned" && s.status !== "discarded";
+/** A video has pictures to film again: a shot that comes back with a start picture that passed its check. */
+const hasKeptPictures = (shots: readonly ReelShot[]): boolean => shots.some((s) => reopens(s) && Boolean(s.frame_id));
 
 /**
  * Puts a filmed video's shots back as a storyboard's (David, 2026-11-09): each one that didn't come through returns to
  * its start picture, ready to film and still approved (`frame_ready`), or, with no picture kept, to `planned`; why it
- * failed is kept as `last_try`. Shots that came through and ones in the Archive stay as they are.
+ * failed is kept as `last_try`. Shots that came through, ones in the Archive and ones moderation refused (`discarded`:
+ * held back for good, its picture never shown) stay as they are.
  */
 export function reopenShots(shots: ReelShot[]): void {
   for (const s of shots) {
-    if (s.archived_at || s.status === "ready" || s.status === "planned") continue;
+    if (!reopens(s)) continue;
     if (s.reason) s.last_try = s.reason.slice(0, 200);
     for (const f of ["queue_id", "reason", "retry_at", "audio_id", "request", "own", "voiceless", "silent_retry", "refilm_tokens", "speaks"] as const) delete s[f];
     if (s.frame_id) Object.assign(s, { status: "frame_ready" as const, media_id: s.frame_id });

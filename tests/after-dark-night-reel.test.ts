@@ -6,7 +6,7 @@ import { HIVE_VLM, setCheckFetchForTests } from "@/lib/adult/check";
 import { runAdultTool } from "@/lib/adult/mcp";
 import { setAdultModelForTests } from "@/lib/adult/mode";
 import { byFiling, chaptersLabel, groupNights, nightNumbers, runningNight } from "@/lib/adult/nights";
-import { acrossChapters, DIRECTOR_MAX_LINES, listReels, pickShots, reelCast, reelNight, setReelFetchForTests, setReelPausesForTests, settleIfDone, shareOut, type Reel, type ReelShot } from "@/lib/adult/reels";
+import { acrossChapters, bothSpeak, DIRECTOR_MAX_LINES, listReels, pickShots, reelCast, reelNight, setReelFetchForTests, setReelPausesForTests, settleIfDone, shareOut, type Reel, type ReelShot } from "@/lib/adult/reels";
 import { filmedNight, nightVideos, type NightRow } from "@/lib/adult/shorts";
 import { claimAdmin } from "@/lib/admins";
 import { loadCharacter } from "@/lib/character";
@@ -211,9 +211,10 @@ describe("the director picks across the whole night", () => {
     const cast = reelCast(ca!, cb!);
     const lines = [...linesOf(1, 12), ...linesOf(2, 8)];
     const chapterOf = lines.map((_, i) => (i < 12 ? 0 : 1));
-    const asked = director([3, 9, 15]);
+    // Both of them say something (bothSpeak): 3 and 15 are hers, 8 his.
+    const asked = director([3, 8, 15]);
     const picks = await pickShots(t.db, lines, 3, cast, lines.map(() => "the harbour"), lines.map(() => 2), { chapterOf, chapters: [{ chapter: 1 }, { chapter: 2 }] });
-    expect(picks.map((p) => p.line)).toEqual([3, 9, 15]);
+    expect(picks.map((p) => p.line)).toEqual([3, 8, 15]);
     expect(asked[0]).toContain("The whole night, in 2 chapters one after another, its lines numbered straight through: Chapter 1 is lines 0–11; Chapter 2 is lines 12–19.");
     expect(asked[0]).toContain(`0 | chapter 1 | ${cast[0].tag} | the harbour | kissing | (nods) Placeholder line 0 of chapter 1 goes here.`);
     expect(asked[0]).toContain(`12 | chapter 2 | ${cast[0].tag} |`);
@@ -254,6 +255,41 @@ describe("the director picks across the whole night", () => {
     // Fewer shots than chapters: spread across the night, past the middle.
     expect(shareOut([5, 5, 5, 5], 2)).toEqual([1, 0, 0, 1]);
     expect(acrossChapters([{ i: 0 }, { i: 1 }, { i: 2 }], 2, [0, 0, 1]).map((x) => x.i)).toEqual([1, 2]);
+  });
+});
+
+describe("both of them say something (bothSpeak, David 2026-11-09)", () => {
+  // Lines 0..19: even ones are hers (b), odd ones his (a).
+  const whoOf = (i: number): "a" | "b" => (i % 2 ? "a" : "b");
+  const spokenLines = Array.from({ length: 20 }, (_, i) => i);
+  const pick = (line: number, frame = `still ${line}`) => ({ line, frame, motion: `motion ${line}` });
+  const fresh = (line: number) => pick(line, "fresh");
+
+  it("swaps about a third of one speaker's picks for the other's nearest lines, keeping the moment's still beside it", () => {
+    const shots = [1, 5, 9, 13, 17, 19].map((l) => pick(l));
+    const out = bothSpeak(shots, spokenLines, whoOf, fresh);
+    expect(out).toHaveLength(6);
+    expect(out.filter((s) => whoOf(s.line) === "b")).toHaveLength(2);
+    // In the night's order, no line twice.
+    expect(out.map((s) => s.line)).toEqual([...out.map((s) => s.line)].sort((x, y) => x - y));
+    expect(new Set(out.map((s) => s.line)).size).toBe(6);
+    // Right beside the pick it replaced: that shot's still and motion carry over.
+    for (const s of out.filter((x) => whoOf(x.line) === "b")) expect(s.frame).toMatch(/^still /);
+  });
+
+  it("leaves picks alone when both already speak, when there's one shot, or when the other has no lines", () => {
+    const mixed = [pick(1), pick(2), pick(5)];
+    expect(bothSpeak(mixed, spokenLines, whoOf, fresh)).toBe(mixed);
+    const one = [pick(3)];
+    expect(bothSpeak(one, spokenLines, whoOf, fresh)).toBe(one);
+    const his = [pick(1), pick(3)];
+    expect(bothSpeak(his, [1, 3, 5], whoOf, fresh)).toBe(his);
+  });
+
+  it("a line of the other's far from every pick gets its own still", () => {
+    const out = bothSpeak([pick(1), pick(3)], [1, 3, 12], whoOf, fresh);
+    expect(out.map((s) => s.line)).toEqual([1, 12]);
+    expect(out[1].frame).toBe("fresh");
   });
 });
 
@@ -434,7 +470,7 @@ describe("the storyboard: plan, draw, then film", () => {
     await ready(cookie, id);
     await sceneAt(id, 1, linesOf(1, 8), { place: "the harbour", set: "harbour", stage: 2 });
     const seen = fakeMedia();
-    director([2, 4, 6]);
+    director([2, 3, 6]);
     const plan = (await (await make(cookie, { action: "plan" })).json()).reel as Reel;
     // Where in the night each one is: up to five lines before its own.
     expect(plan.shots[0].before?.map((l) => l.text)).toEqual([0, 1].map((i) => `*nods* Placeholder line ${i} of chapter 1 goes here.`));
@@ -574,7 +610,8 @@ describe("the storyboard: plan, draw, then film", () => {
     expect(back.shots[0]).toMatchObject({ status: "frame_ready", media_id: "f1", frame_id: "f1", approved: true, last_try: "gave up waiting" });
     expect(back.shots[0].queue_id).toBeUndefined();
     expect(back.shots[0].reason).toBeUndefined();
-    expect(back.shots[1]).toMatchObject({ status: "frame_ready", media_id: "f2", last_try: "the check refused it" });
+    // One whose video moderation refused stays held back: its picture is never shown or filmed again.
+    expect(back.shots[1]).toMatchObject({ status: "discarded", media_id: "v2", reason: "the check refused it" });
     expect(back.shots[2]).toMatchObject({ status: "planned", approved: false, last_try: "Venice 402" });
     expect(back.shots[2].media_id).toBeUndefined();
     // One in the Archive stays there.
@@ -589,6 +626,8 @@ describe("the storyboard: plan, draw, then film", () => {
     // A clip, and a video with no picture kept, still fail.
     expect((await reel("clip-failed", [shot("failed", { frame_id: "f9", media_id: "f9" })], "clip")).status).toBe("failed");
     expect((await reel("nothing-kept", [shot("failed", { reason: "Venice 402" })])).status).toBe("failed");
+    // Every picture refused by moderation: nothing comes back.
+    expect((await reel("all-refused", [shot("discarded", { frame_id: "f8", media_id: "v8", reason: "refused" })])).status).toBe("failed");
   });
 
   it("an older failed night's video goes back to its storyboard on its owner's ask", async () => {
@@ -728,7 +767,7 @@ describe("the storyboard: plan, draw, then film", () => {
     await ready(cookie, id);
     await sceneAt(id, 1, linesOf(1, 20), { place: "the harbour", set: "harbour", stage: 2 });
     fakeMedia();
-    director([1, 3, 5, 7, 9, 11, 13, 15, 17, 19]);
+    director([1, 3, 5, 7, 9, 11, 13, 15, 17, 18]);
     await call(settingsPost, "/api/admin/after-dark/settings", { reel_shots: 10 }, cookie);
     const plan = (await (await make(cookie, { action: "plan" })).json()).reel as Reel;
     expect(plan.shots).toHaveLength(10);

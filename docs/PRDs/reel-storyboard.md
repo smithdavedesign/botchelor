@@ -147,7 +147,8 @@ we keep the transcript but the actions from the images might be good for the use
 - **A video where nothing came through comes back as its storyboard** (`settleIfDone` → `reopenShots`): a night's
   video (not a clip) with at least one kept picture goes to `draft` instead of `failed`, `tokens` 0 (all refunded as
   before), `returned_at` set. Each shot that didn't come through returns to its start picture (`frame_ready`, still
-  approved) with why it failed as `last_try`; one with no kept picture goes back to `planned`. That covers giving up
+  approved) with why it failed as `last_try`; one with no kept picture goes back to `planned`. A `discarded` shot
+  (moderation refused its video) never comes back: its picture stays hidden for good. That covers giving up
   (3 h), Hive's pause, provider errors and Stop. `listReels` lists returned drafts with the pair's videos, where
   "🎬 Open the storyboard" opens them. Older failed videos get "↩ Back to the storyboard" (`reopen` action, `reopenReel`).
 - **Video words** (`video_words` on a shot, `setShotVideoWords`, action `video_words`): the owner's words for what
@@ -158,3 +159,7 @@ we keep the transcript but the actions from the images might be good for the use
   from the transcript at planning) and the director's motion.
 - **Film again with new words**: the player's 🔁 Film again opens the shot's words; changed words go with `refilm`
   (`video_words`) and stay on the shot.
+- **Both of them speak** (`bothSpeak`, after the director's pick and its fallback spread): when every picked line is
+  one character's and the other has spoken lines, about a third of the shots (at least one) go to the other's lines
+  nearest the picks. One right beside the pick it replaces keeps that shot's still and motion. Found on a night where
+  the director picked six of his lines and none of hers, so only his voice was heard.
