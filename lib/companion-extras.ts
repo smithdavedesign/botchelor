@@ -12,15 +12,19 @@
  */
 import { isAdmin } from "./admins";
 import { episodeAllowance, refundBoughtTokens, spendBoughtTokens } from "./allowance";
-import { COMPANION_EXTRAS, type CompanionExtraKind, type CompanionExtraState } from "./companion-shared";
+import { COMPANION_EXTRAS, extraTerms, type CompanionExtraKind, type CompanionExtraState } from "./companion-shared";
+
+export { extraTerms };
 import type { Db } from "./db";
 import { planState } from "./paid-plans";
 
 const monthOf = (now: Date) => `${now.toISOString().slice(0, 7)}-01`;
 
+type Env = Record<string, string | undefined>;
+
 /** Where a person stands on one extra (lib/companion-shared.ts CompanionExtraState). */
-export async function extraState(db: Db, userId: string, kind: CompanionExtraKind, now: Date = new Date()): Promise<CompanionExtraState> {
-  const x = COMPANION_EXTRAS[kind];
+export async function extraState(db: Db, userId: string, kind: CompanionExtraKind, now: Date = new Date(), env: Env = process.env): Promise<CompanionExtraState> {
+  const x = extraTerms(kind, env);
   const [admin, plan, credits, tokens] = await Promise.all([
     isAdmin(db, userId),
     planState(db, userId, "companion", now),
@@ -36,6 +40,7 @@ export async function extraState(db: Db, userId: string, kind: CompanionExtraKin
     credits: credits.rows[0]?.credits ?? 0,
     tokens: x.tokens,
     bundle: x.bundle,
+    included: x.included,
     tokens_left: tokens.pack_left,
   };
 }
@@ -51,8 +56,8 @@ export type ExtraTicket = { ok: true; kind: CompanionExtraKind; source: "admin" 
 export type ExtraRefusal = { ok: false; status: number; error: "needs_tokens" | "price"; message: string; price: { tokens: number; bundle: number } };
 
 /** "1 token buys 100 voice notes" */
-export const bundleWords = (kind: CompanionExtraKind): string => {
-  const x = COMPANION_EXTRAS[kind];
+export const bundleWords = (kind: CompanionExtraKind, env: Env = process.env): string => {
+  const x = extraTerms(kind, env);
   return `${x.tokens} token${x.tokens === 1 ? "" : "s"} buys ${x.bundle} ${x.many}`;
 };
 
@@ -60,9 +65,9 @@ export const bundleWords = (kind: CompanionExtraKind): string => {
  * Takes one before it's made: free for an admin, else the plan's included ones this month, else a credit, else (only
  * with `buy`) a bought token for a bundle. Refused (nothing taken) when none of those can pay.
  */
-export async function takeExtra(db: Db, userId: string, kind: CompanionExtraKind, opts: { buy?: boolean; now?: Date } = {}): Promise<ExtraTicket | ExtraRefusal> {
+export async function takeExtra(db: Db, userId: string, kind: CompanionExtraKind, opts: { buy?: boolean; now?: Date; env?: Env } = {}): Promise<ExtraTicket | ExtraRefusal> {
   const now = opts.now ?? new Date();
-  const x = COMPANION_EXTRAS[kind];
+  const x = extraTerms(kind, opts.env);
   const month = monthOf(now);
   const ticket = (source: ExtraTicket["source"], bought = false): ExtraTicket => ({ ok: true, kind, source, month, bought });
   if (await isAdmin(db, userId)) return ticket("admin");
@@ -77,9 +82,9 @@ export async function takeExtra(db: Db, userId: string, kind: CompanionExtraKind
   const credit = await db.query(`update companion_credits set credits = credits - 1 where user_id = $1 and kind = $2 and credits > 0 returning credits`, [userId, kind]);
   if (credit.rows.length) return ticket("credit");
   const price = { tokens: x.tokens, bundle: x.bundle };
-  if (!opts.buy) return { ok: false, status: 402, error: "price", price, message: `${cap(x.many)}: ${bundleWords(kind)}.` };
+  if (!opts.buy) return { ok: false, status: 402, error: "price", price, message: `${cap(x.many)}: ${bundleWords(kind, opts.env)}.` };
   if (!(await spendBoughtTokens(db, userId, x.tokens))) {
-    return { ok: false, status: 402, error: "needs_tokens", price, message: `${cap(bundleWords(kind))}, and you're out of tokens. Get more on the shop page.` };
+    return { ok: false, status: 402, error: "needs_tokens", price, message: `${cap(bundleWords(kind, opts.env))}, and you're out of tokens. Get more on the shop page.` };
   }
   // The bundle, less the one this is.
   await db.query(
@@ -91,8 +96,8 @@ export async function takeExtra(db: Db, userId: string, kind: CompanionExtraKind
 }
 
 /** Gives one back when it wasn't made; a bundle bought for it goes back whole (the token too). */
-export async function giveBackExtra(db: Db, userId: string, t: ExtraTicket): Promise<void> {
-  const x = COMPANION_EXTRAS[t.kind];
+export async function giveBackExtra(db: Db, userId: string, t: ExtraTicket, env: Env = process.env): Promise<void> {
+  const x = extraTerms(t.kind, env);
   if (t.source === "admin") return;
   if (t.source === "included") {
     await db.query(`update companion_extras_usage set used = used - 1 where user_id = $1 and month = $2 and kind = $3 and used > 0`, [userId, t.month, t.kind]);

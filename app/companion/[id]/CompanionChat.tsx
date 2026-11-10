@@ -30,7 +30,7 @@ import {
 } from "@/lib/companion-shared";
 import type { CharacterRef } from "@/lib/game";
 import { venueName, type VenueId } from "@/lib/venues";
-import CompanionCall, { callSupported, type CallStats, type CallTurn, type CallVoice } from "./CompanionCall";
+import CompanionCall, { callSupported, liveSupported, type CallStats, type CallTurn, type CallVoice } from "./CompanionCall";
 
 type Extras = Record<CompanionExtraKind, CompanionExtraState> | null;
 type Reply = { view?: CompanionThreadView; message?: string; allowance?: CompanionAllowance; extras?: Extras; voice?: { message_id: string; url: string } };
@@ -67,6 +67,7 @@ export default function CompanionChat({
   initialAllowance,
   initialExtras = null,
   signedIn = false,
+  liveCalls = false,
 }: {
   initial: CompanionThreadView;
   initialCrisis: CrisisResources | null;
@@ -75,6 +76,8 @@ export default function CompanionChat({
   initialExtras?: Extras;
   /** For the roleplay picker's ✨ Yours (the Create library, accounts only). */
   signedIn?: boolean;
+  /** Live calls (P6) are on for this person (lib/companion-live.ts liveCallsOn); off, a call takes turns (v1). */
+  liveCalls?: boolean;
 }) {
   const router = useRouter();
   const [view, setView] = useState(initial);
@@ -128,7 +131,7 @@ export default function CompanionChat({
     if (el) el.scrollTop = el.scrollHeight;
   }, [shown.length, pending, busy]);
 
-  useEffect(() => setCanCall(callSupported()), []);
+  useEffect(() => setCanCall(callSupported() || (liveCalls && liveSupported())), [liveCalls]);
 
   useEffect(() => {
     if (!note) return;
@@ -183,17 +186,45 @@ export default function CompanionChat({
   async function callSay(text: string): Promise<CallTurn> {
     const r = await postData({ action: "send", text, call: true }, true);
     if (r.crisis) return { ok: false, end: true, again: false, message: null };
-    const message = typeof r.data?.message === "string" ? r.data.message : null;
     if (r.ok && r.data?.view) {
       const ms = r.data.view.messages;
       const reply = ms.slice(ms.findLastIndex((m) => m.role === "user") + 1).filter((m) => m.role === "character");
       return { ok: true, reply };
     }
+    return callRefusal(r.status, r.data);
+  }
+
+  /**
+   * Why a line said on a call got no reply, and what the call does next. The same for both kinds of call: a live turn's
+   * refusal (P6) comes here too, and the crisis resources it carries pause the chat as a message's would.
+   */
+  function callRefusal(status: number, data: Record<string, unknown> | null): Extract<CallTurn, { ok: false }> {
+    const help = crisisFrom(data as Reply | null);
+    if (help) {
+      setCrisis(help);
+      setView((v) => ({ ...v, paused: true }));
+      return { ok: false, end: true, again: false, message: null };
+    }
+    if (data && "allowance" in data && data.allowance) setAllowance(data.allowance as CompanionAllowance);
+    const message = typeof data?.message === "string" ? data.message : null;
     // Out of replies (the box below says what's next), paused, signed out, or a limit: the call can't go on.
-    if ([401, 402, 409, 429].includes(r.status)) return { ok: false, end: true, again: false, message };
+    if ([401, 402, 409, 429].includes(status)) return { ok: false, end: true, again: false, message };
     // Said in a way that's refused (the PG line, too long): it says why and listens again.
-    if (r.status === 400 || r.status === 422) return { ok: false, end: false, again: true, message };
-    return { ok: false, end: false, again: false, message: r.status === 0 ? "The connection dropped. Tap to talk to try again." : message };
+    if (status === 400 || status === 422) return { ok: false, end: false, again: true, message };
+    return { ok: false, end: false, again: false, message: status === 0 ? "The connection dropped. Tap to talk to try again." : message };
+  }
+
+  /** A live turn was kept (P6): the thread, the count and the extras, fresh. */
+  async function refreshThread() {
+    try {
+      const res = await fetch(`/api/companion/${view.id}`, { cache: "no-store" });
+      const data = (await res.json().catch(() => null)) as Reply | null;
+      if (data?.view) setView(data.view);
+      if (data?.allowance) setAllowance(data.allowance);
+      if (data && "extras" in data) setExtras(data.extras ?? null);
+    } catch {
+      // The next one catches up.
+    }
   }
 
   function callStart(voice: CallVoice) {
@@ -719,6 +750,9 @@ export default function CompanionChat({
           onVoice={voiceOf}
           onStart={callStart}
           onEnd={callEnd}
+          live={liveCalls && extras ? { url: `/api/companion/${view.id}/live`, minutes: extras.minute ?? null } : null}
+          onRefused={callRefusal}
+          onKept={() => void refreshThread()}
         />
       )}
     </article>

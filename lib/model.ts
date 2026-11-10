@@ -7,6 +7,9 @@
  */
 
 import { safeEqual } from "./http";
+import { sseData } from "./sse";
+
+export { sseData };
 
 export type ChatMessage = { role: "system" | "user" | "assistant"; content: string };
 
@@ -58,6 +61,12 @@ export type ModelOptions = {
 
 export interface Model {
   complete(messages: ChatMessage[], options?: ModelOptions): Promise<string>;
+  /**
+   * The reply as it's written, piece by piece (plain text, not JSON mode): companions' live calls speak it as it comes
+   * (docs/companions.md, P6). Optional: a model without it is called with complete(). Throws a ModelError when the call
+   * fails before anything came; `signal` stops it (a barge-in), and then it just ends.
+   */
+  stream?(messages: ChatMessage[], options?: ModelOptions & { signal?: AbortSignal }): AsyncIterable<string>;
 }
 
 export class ModelError extends Error {
@@ -275,6 +284,74 @@ export function openAICompatibleModel(opts: {
         return content;
       }
     },
+
+    async *stream(messages, options) {
+      if (now() < trippedUntil) throw new ModelError(trippedBy, 429);
+      const body: Record<string, unknown> = { ...(opts.extraBody ?? {}), model: opts.model, messages, stream: true, stream_options: { include_usage: true } };
+      if (options?.temperature !== undefined) body.temperature = options.temperature;
+      if (options?.frequencyPenalty !== undefined) body.frequency_penalty = options.frequencyPenalty;
+      if (options?.presencePenalty !== undefined) body.presence_penalty = options.presencePenalty;
+      if (options?.repetitionPenalty !== undefined) body.repetition_penalty = options.repetitionPenalty;
+      if (options?.maxTokens !== undefined) body.max_tokens = options.maxTokens;
+      if (opts.reasoning !== undefined && !noReasoning.has(opts.model)) body.reasoning_effort = opts.reasoning;
+      // A live call can't wait out a retry: one try, and the caller falls back.
+      const timeout = AbortSignal.timeout(opts.timeoutMs ?? MODEL_TIMEOUT_MS);
+      const signal = options?.signal ? AbortSignal.any([options.signal, timeout]) : timeout;
+      let res: Response;
+      try {
+        res = await doFetch(url, {
+          method: "POST",
+          headers: { authorization: `Bearer ${opts.apiKey}`, "content-type": "application/json", accept: "text/event-stream" },
+          body: JSON.stringify(body),
+          signal,
+        });
+      } catch (err) {
+        if (options?.signal?.aborted) return;
+        throw new ModelError(`model request failed (${err instanceof Error ? err.name : "unknown"})`);
+      }
+      if (!res.ok || !res.body) {
+        const message = `model returned HTTP ${res.status}${await errorReason(res)}`;
+        if (res.status === 429) {
+          trippedUntil = now() + RATE_LIMIT_TRIP_MS;
+          trippedBy = message;
+        }
+        throw new ModelError(message, res.status);
+      }
+      options?.onModel?.(id);
+      let usage: UsageBody | undefined;
+      let served: { model: unknown; provider: unknown } | null = null;
+      let any = false;
+      try {
+        for await (const data of sseData(res.body)) {
+          if (data === "[DONE]") break;
+          let chunk: { choices?: { delta?: { content?: unknown } }[]; usage?: UsageBody; model?: unknown; provider?: unknown } | null = null;
+          try {
+            chunk = JSON.parse(data);
+          } catch {
+            continue; // a keep-alive comment or a torn line
+          }
+          if (chunk?.usage) usage = chunk.usage;
+          if (chunk && !served && (chunk.model || chunk.provider)) served = { model: chunk.model, provider: chunk.provider };
+          const piece = chunk?.choices?.[0]?.delta?.content;
+          if (typeof piece === "string" && piece) {
+            any = true;
+            yield piece;
+          }
+        }
+      } catch (err) {
+        if (options?.signal?.aborted) return;
+        if (!any) throw new ModelError(`model stream failed (${err instanceof Error ? err.name : "unknown"})`);
+        // Cut off part way: what came is kept, and the caller ends the reply there.
+        return;
+      }
+      if (!any) throw new ModelError("model returned no text");
+      const u = usageFrom(usage, opts.model);
+      if (u) options?.onUsage?.(u);
+      if (options?.onServed && served) {
+        const said = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim().slice(0, 120) : null);
+        options.onServed({ model: said(served.model), provider: said(served.provider) });
+      }
+    },
   };
 }
 
@@ -330,6 +407,25 @@ export function fallbackModel(primary: Model, fallback: Model): Model {
         throw err;
       }
     },
+    // Streamed from the primary; when it fails before a word came, from the fallback (a ModelError when it can't stream).
+    ...(primary.stream
+      ? {
+          async *stream(messages: ChatMessage[], options?: ModelOptions & { signal?: AbortSignal }) {
+            let any = false;
+            try {
+              for await (const piece of primary.stream!(messages, options)) {
+                any = true;
+                yield piece;
+              }
+              return;
+            } catch (err) {
+              if (any || !(err instanceof ModelError)) throw err;
+              if (!fallback.stream) throw err;
+            }
+            yield* fallback.stream(messages, options);
+          },
+        }
+      : {}),
   };
 }
 

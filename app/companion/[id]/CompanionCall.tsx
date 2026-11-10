@@ -3,7 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import Avatar from "@/app/Avatar";
 import { useSpeech } from "@/app/stage/useSpeech";
-import type { CompanionCharacterRef, CompanionMessageView } from "@/lib/companion-shared";
+import { extraPrice, type CompanionCharacterRef, type CompanionExtraState, type CompanionMessageView } from "@/lib/companion-shared";
+import { heardSoFar, LIVE_START, liveStep, type Heard, type LiveEvent, type LiveState } from "@/lib/companion-live-shared";
+import { sseData } from "@/lib/sse";
+import { listen as listenLive, liveSupported, Mic, newAudioContext, PcmPlayer, type Listening } from "./live-audio";
 
 export type CallVoice = "device" | "own";
 
@@ -21,7 +24,21 @@ export type CallTurn =
 
 export type CallStats = { seconds: number; turns: number; voice: CallVoice };
 
-type Phase = "ready" | "listening" | "thinking" | "speaking" | "paused";
+type Phase = "ready" | "connecting" | "listening" | "thinking" | "speaking" | "paused";
+
+/** How the call goes: live (P6: Deepgram hears you as you talk, either of you can talk over the other) or taking turns (v1). */
+export type CallMode = "live" | "classic";
+
+/** Live calls (P6), when they're on for this person: the route, and where they stand on call minutes. */
+export type LiveOffer = { url: string; minutes: CompanionExtraState | null };
+
+/** Their call minutes, in words: free (an admin), what's left, or the price of the next ten. */
+export function minutesWords(s: CompanionExtraState | null | undefined): string {
+  if (!s || s.free) return "free for you";
+  if ((s.included_left ?? 0) > 0) return `${s.included_left} minute${s.included_left === 1 ? "" : "s"} left this month with the plan`;
+  if (s.credits > 0) return `${s.credits} minute${s.credits === 1 ? "" : "s"} left`;
+  return extraPrice("minute", s);
+}
 
 /** The browser's speech recognition, as much of it as a call uses (not in TypeScript's DOM types). */
 type Recognition = {
@@ -47,9 +64,17 @@ export function callSupported(): boolean {
   return recognition() !== null && typeof window !== "undefined" && "speechSynthesis" in window;
 }
 
+/** A live call needs only a microphone, Web Audio and a socket (./live-audio.ts), so Firefox can call live too. */
+export { liveSupported };
+
 /** Remembered in this browser: how calls work was read, and which voice they pick. */
 const SEEN_KEY = "bz_call_ok";
 const VOICE_KEY = "bz_call_voice";
+const MODE_KEY = "bz_call_mode";
+/** On a live call, a minute with nobody talking pauses it, so the quiet isn't paid for. */
+const LIVE_QUIET_MS = 60_000;
+/** How often a live call's started minutes are taken (the server counts from the start either way). */
+const TICK_MS = 30_000;
 /** Nothing said for this long, and the call ends on its own. */
 const QUIET_END_MS = 5 * 60_000;
 /** Silences in a row before it stops listening and waits for a tap. */
@@ -97,6 +122,9 @@ export default function CompanionCall({
   onVoice,
   onStart,
   onEnd,
+  live = null,
+  onRefused,
+  onKept,
 }: {
   character: CompanionCharacterRef;
   /** Free replies left (null: no limit). */
@@ -108,6 +136,12 @@ export default function CompanionCall({
   onVoice: (m: CompanionMessageView, buy: boolean) => Promise<{ url: string } | { message: string }>;
   onStart: (voice: CallVoice) => void;
   onEnd: (stats: CallStats, message: string | null) => void;
+  /** Live calls (P6), when they're on for this person; null: a call takes turns (v1), exactly as before. */
+  live?: LiveOffer | null;
+  /** A live turn that was refused (the chat takes the crisis resources from it): what the call does next. */
+  onRefused?: (status: number, data: Record<string, unknown> | null) => Extract<CallTurn, { ok: false }>;
+  /** A live turn was kept: the chat shows it. */
+  onKept?: () => void;
 }) {
   const first = character.name.split(/\s+/)[0] || character.name;
   const who = { id: character.id, pronouns: character.pronouns ?? null };
@@ -120,6 +154,13 @@ export default function CompanionCall({
   const [them, setThem] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [seconds, setSeconds] = useState(0);
+  const canLive = live !== null && liveSupported();
+  // Live first where it's on, unless they picked taking turns last time. Read as it opens (the call screen only ever
+  // renders in the browser, after a tap), so the first thing on screen is already the right choice.
+  const [mode, setMode] = useState<CallMode>(() => (canLive && stored(MODE_KEY) !== "classic" ? "live" : "classic"));
+  const [minutes, setMinutes] = useState<CompanionExtraState | null>(live?.minutes ?? null);
+  // Paused because the call minutes ran out: the button to go on shows the price.
+  const [buyOffer, setBuyOffer] = useState(false);
 
   // What the callbacks below read (they outlive renders): the phase now, how the call is going, the latest props.
   const phaseNow = useRef<Phase>("ready");
@@ -132,8 +173,26 @@ export default function CompanionCall({
   const paid = useRef(false);
   const rec = useRef<Recognition | null>(null);
   const audio = useRef<HTMLAudioElement | null>(null);
-  const props = useRef({ onSay, onVoice, onStart, onEnd, speech });
-  props.current = { onSay, onVoice, onStart, onEnd, speech };
+  const props = useRef({ onSay, onVoice, onStart, onEnd, speech, onRefused, onKept, live });
+  props.current = { onSay, onVoice, onStart, onEnd, speech, onRefused, onKept, live };
+  // A live call's parts (P6): which way the call goes now, the server's call, the microphone, Deepgram's socket, their
+  // voice, the turn-taking state, and the turn in flight (a barge-in drops it).
+  const modeNow = useRef<CallMode>("classic");
+  const callId = useRef<string | null>(null);
+  const segmentAt = useRef(0);
+  const ctx = useRef<AudioContext | null>(null);
+  const mic = useRef<Mic | null>(null);
+  const socket = useRef<Listening | null>(null);
+  const player = useRef<PcmPlayer | null>(null);
+  const liveState = useRef<LiveState>(LIVE_START);
+  const turnSeq = useRef(0);
+  const turnAbort = useRef<AbortController | null>(null);
+  const heardAt = useRef(0);
+  const lastTick = useRef(0);
+  const firstAudio = useRef<number[]>([]);
+  const bargeIns = useRef(0);
+  const voiceOff = useRef(false);
+  const minutesNow = useRef<CompanionExtraState | null>(live?.minutes ?? null);
   const mainButton = useRef<HTMLButtonElement>(null);
   const endButton = useRef<HTMLButtonElement>(null);
 
@@ -167,6 +226,7 @@ export default function CompanionCall({
   }
 
   function stopTalking() {
+    stopReply();
     props.current.speech.stop();
     const a = audio.current;
     audio.current = null;
@@ -181,17 +241,24 @@ export default function CompanionCall({
     ended.current = true;
     stopListening();
     stopTalking();
+    closeLive();
+    void ctx.current?.close().catch(() => {});
     const secs = startedAt.current ? Math.round((Date.now() - startedAt.current) / 1000) : 0;
     props.current.onEnd({ seconds: secs, turns: turns.current, voice: voiceNow.current }, message);
   }
 
-  /** Stops listening (or talking) and waits for a tap, saying why when there's a reason. */
-  function pause(why: string | null) {
+  /**
+   * Stops listening (or talking) and waits for a tap, saying why when there's a reason. A live call hangs up its line
+   * too (nothing's heard or paid for while paused); `buy`: it paused because the call minutes ran out.
+   */
+  function pause(why: string | null, buy = false) {
     go("paused");
     stopListening();
     stopTalking();
+    closeLive();
     setHeard("");
     setNote(why);
+    setBuyOffer(buy);
   }
 
   function listen() {
@@ -304,6 +371,24 @@ export default function CompanionCall({
 
   function start() {
     store(SEEN_KEY, "1");
+    if (canLive) store(MODE_KEY, mode);
+    if (canLive && mode === "live") {
+      modeNow.current = "live";
+      // From the tap, so the browser lets it play their voice (Safari) and speak if it must fall back.
+      ctx.current = newAudioContext();
+      props.current.speech.unlock();
+      startedAt.current = Date.now();
+      lastAt.current = Date.now();
+      // `buy` only when the button showed the price.
+      void liveBegin(extraPrice("minute", minutesNow.current) !== "");
+      return;
+    }
+    classicStart();
+  }
+
+  /** Taking turns (v1): the browser hears a phrase, it goes in as a message, their answer is said. */
+  function classicStart() {
+    modeNow.current = "classic";
     store(VOICE_KEY, voice);
     voiceNow.current = voice;
     paid.current = voice === "own" && voicePrice !== "";
@@ -319,12 +404,286 @@ export default function CompanionCall({
     silences.current = 0;
     lastAt.current = Date.now();
     setNote(null);
+    if (modeNow.current === "live") {
+      const priced = extraPrice("minute", minutesNow.current) !== "";
+      setBuyOffer(false);
+      void liveBegin(priced);
+      return;
+    }
     listen();
   }
 
   function interrupt() {
+    if (modeNow.current === "live") {
+      const { state, effects } = liveStep(liveState.current, { kind: "interrupt" });
+      liveState.current = state;
+      if (effects.length) bargeIns.current += 1;
+      stopReply();
+      props.current.speech.stop();
+      lastAt.current = Date.now();
+      heardAt.current = Date.now();
+      go("listening");
+      return;
+    }
     // turn() sees it's still "speaking" when the voice stops, and listens.
     stopTalking();
+  }
+
+  /* ------------------------------------------------ live (P6) ------------------------------------------------ */
+
+  type LivePost = { status: number; data: (Record<string, unknown> & { message?: string; extras?: Record<string, CompanionExtraState> | null }) | null };
+
+  async function livePost(body: Record<string, unknown>, keepalive = false): Promise<LivePost> {
+    const url = props.current.live?.url;
+    if (!url) return { status: 0, data: null };
+    try {
+      const res = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body), keepalive });
+      const data = (await res.json().catch(() => null)) as LivePost["data"];
+      const m = data?.extras?.minute;
+      if (m) {
+        minutesNow.current = m;
+        setMinutes(m);
+      }
+      return { status: res.status, data };
+    } catch {
+      return { status: 0, data: null };
+    }
+  }
+
+  /** Starts (or, after a pause, starts again) the live line: a minute taken, a token, the microphone and the socket. */
+  async function liveBegin(buy: boolean) {
+    go("connecting");
+    setHeard("");
+    const r = await livePost({ action: "start", buy, lang: navigator.language });
+    const call = r.data?.call as { id?: string } | undefined;
+    if (ended.current || (phaseNow.current as Phase) !== "connecting") {
+      // Ended or paused while it connected: hang up the call that just started (a quick one gives its minute back).
+      if (call?.id) void livePost({ action: "end", call_id: call.id, seconds: 0 }, true);
+      return;
+    }
+    const stt = r.data?.stt as { url?: string; token?: string } | undefined;
+    if (r.status === 200 && call?.id && stt?.url && stt.token) {
+      callId.current = call.id;
+      segmentAt.current = Date.now();
+      lastTick.current = Date.now();
+      return liveOpen(stt.url, stt.token);
+    }
+    const message = typeof r.data?.message === "string" ? r.data.message : null;
+    if (r.status === 402) return pause(message, true);
+    if (r.status === 401 || r.status === 409 || r.status === 429) return end(message);
+    // Off, down or unreachable: the free way, if this browser can hear.
+    return classicInstead("Live calls aren't working right now");
+  }
+
+  async function liveOpen(url: string, token: string) {
+    const audio = ctx.current;
+    if (!audio) return classicInstead("This browser can't play a live call");
+    player.current ??= new PcmPlayer(audio);
+    try {
+      mic.current?.stop();
+      mic.current = new Mic();
+      await mic.current.start(audio, (pcm) => socket.current?.send(pcm));
+    } catch {
+      return pause(MIC_BLOCKED);
+    }
+    if (ended.current || phaseNow.current !== "connecting") return closeLive();
+    try {
+      socket.current = await listenLive(url, token, { heard: onHeard, closed: () => void reconnect() });
+    } catch {
+      closeLive();
+      return classicInstead("The live line didn't connect");
+    }
+    if (ended.current || phaseNow.current !== "connecting") return closeLive();
+    liveState.current = LIVE_START;
+    heardAt.current = Date.now();
+    go("listening");
+  }
+
+  /** The socket dropped mid-call: a fresh token and it opens again, or it pauses. */
+  async function reconnect() {
+    socket.current = null;
+    if (ended.current || !callId.current || phaseNow.current === "paused") return;
+    const r = await livePost({ action: "token", call_id: callId.current, lang: navigator.language });
+    const stt = r.data?.stt as { url?: string; token?: string } | undefined;
+    if (ended.current || (phaseNow.current as Phase) === "paused") return;
+    if (r.status === 402) return pause(typeof r.data?.message === "string" ? r.data.message : null, true);
+    if (r.status !== 200 || !stt?.url || !stt.token) return pause("The connection dropped. Tap to talk to try again.");
+    try {
+      socket.current = await listenLive(stt.url, stt.token, { heard: onHeard, closed: () => void reconnect() });
+    } catch {
+      pause("The connection dropped. Tap to talk to try again.");
+    }
+  }
+
+  /** Hangs up the live line: the socket, the microphone, the reply in flight, and the server's call (its minutes settle). */
+  function closeLive() {
+    socket.current?.close();
+    socket.current = null;
+    mic.current?.stop();
+    mic.current = null;
+    stopReply();
+    const id = callId.current;
+    callId.current = null;
+    if (!id) return;
+    const sorted = [...firstAudio.current].sort((a, b) => a - b);
+    void livePost(
+      {
+        action: "end",
+        call_id: id,
+        seconds: Math.round((Date.now() - segmentAt.current) / 1000),
+        first_audio_ms: sorted.length ? Math.round(sorted[Math.floor(sorted.length / 2)]) : undefined,
+        barge_ins: bargeIns.current,
+        voice_off: voiceOff.current || undefined,
+      },
+      true,
+    );
+  }
+
+  /** Their voice stops and the reply in flight is dropped (a barge-in, Interrupt, a pause). */
+  function stopReply() {
+    turnSeq.current += 1;
+    turnAbort.current?.abort();
+    turnAbort.current = null;
+    player.current?.stop();
+  }
+
+  function classicInstead(why: string) {
+    closeLive();
+    if (!callSupported()) return end(`${why}, and this browser can't take turns either. Try Chrome, Edge or Safari, or text instead.`);
+    modeNow.current = "classic";
+    setMode("classic");
+    setNote(`${why}, so this call takes turns.`);
+    voiceNow.current = "device";
+    setVoice("device");
+    props.current.onStart("device");
+    listen();
+  }
+
+  /** What Deepgram heard: the turn-taking (lib/companion-live-shared.ts liveStep) decides what it means. */
+  function onHeard(e: Heard) {
+    if (ended.current || modeNow.current !== "live") return;
+    const p = phaseNow.current;
+    if (p !== "listening" && p !== "thinking" && p !== "speaking") return;
+    if (e.kind === "words" && e.text.trim()) heardAt.current = Date.now();
+    const { state, effects } = liveStep(liveState.current, e);
+    liveState.current = state;
+    if (state.phase === "listening") setHeard(heardSoFar(state));
+    for (const fx of effects) {
+      if (fx.kind === "barge_in") {
+        bargeIns.current += 1;
+        stopReply();
+        props.current.speech.stop();
+        go("listening");
+      } else void liveTurn(fx.text);
+    }
+  }
+
+  /** What they said goes in; the reply streams back, shown and said piece by piece as it comes; then the floor is theirs. */
+  async function liveTurn(text: string) {
+    const url = props.current.live?.url;
+    const id = callId.current;
+    if (!url || !id) return;
+    stopReply();
+    const mine = turnSeq.current;
+    const abort = new AbortController();
+    turnAbort.current = abort;
+    go("thinking");
+    setYou(text);
+    setHeard("");
+    setThem(null);
+    setNote(null);
+    turns.current += 1;
+    lastAt.current = Date.now();
+    const sentAt = performance.now();
+    const current = () => mine === turnSeq.current && !ended.current;
+    let res: Response;
+    try {
+      res = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "turn", call_id: id, text }), signal: abort.signal });
+    } catch {
+      if (current()) pause("The connection dropped. Tap to talk to try again.");
+      return;
+    }
+    if (!current()) return;
+    if (!res.ok || !(res.headers.get("content-type") ?? "").includes("event-stream") || !res.body) {
+      const data = (await res.json().catch(() => null)) as Record<string, unknown> | null;
+      if (!current()) return;
+      return refused(res.status, data);
+    }
+    let said = "";
+    const texts: string[] = [];
+    const voiced = new Set<number>();
+    let device: Promise<void> = Promise.resolve();
+    let failed: { status: number; data: Record<string, unknown> } | null = null;
+    const begin = () => {
+      if (phaseNow.current === "speaking") return;
+      firstAudio.current.push(performance.now() - sentAt);
+      liveState.current = liveStep(liveState.current, { kind: "reply_started" }).state;
+      go("speaking");
+    };
+    const sayOnDevice = (t: string) => {
+      begin();
+      device = device.then(() => (current() ? props.current.speech.speakAll(t, who) : undefined));
+    };
+    try {
+      for await (const raw of sseData(res.body)) {
+        if (!current()) break;
+        let ev: LiveEvent;
+        try {
+          ev = JSON.parse(raw) as LiveEvent;
+        } catch {
+          continue;
+        }
+        if (ev.type === "say") {
+          texts[ev.i] = ev.text;
+          said = `${said} ${ev.text}`.trim();
+          setThem(said);
+          liveState.current = liveStep(liveState.current, { kind: "reply_text", text: ev.text }).state;
+          if (voiceOff.current) sayOnDevice(ev.text);
+        } else if (ev.type === "audio") {
+          if (!voiceOff.current && player.current) {
+            begin();
+            player.current.push(ev.pcm, ev.rate);
+          }
+        } else if (ev.type === "audio_end") {
+          voiced.add(ev.i);
+        } else if (ev.type === "voice_off") {
+          voiceOff.current = true;
+          setNote(`${first}'s voice dropped out, so it's your device's voice for now.`);
+          texts.forEach((t, i) => {
+            if (t && !voiced.has(i)) sayOnDevice(t);
+          });
+        } else if (ev.type === "done") {
+          props.current.onKept?.();
+        } else if (ev.type === "fail") {
+          failed = { status: ev.status, data: { error: ev.error, message: ev.message } };
+        }
+      }
+    } catch {
+      // Dropped (a barge-in aborts it): nothing more to say.
+    }
+    if (!current()) return;
+    if (failed) return refused(failed.status, failed.data);
+    await Promise.all([player.current?.idle(), device]);
+    if (!current() || phaseNow.current === "paused") return;
+    liveState.current = liveStep(liveState.current, { kind: "reply_done" }).state;
+    lastAt.current = Date.now();
+    heardAt.current = Date.now();
+    go("listening");
+  }
+
+  /** A turn that didn't get a reply: the minutes ran out (pause and show the price), or what the chat says it means. */
+  function refused(status: number, data: Record<string, unknown> | null) {
+    const message = typeof data?.message === "string" ? data.message : null;
+    if (status === 402 && data && "price" in data) return pause(message, true);
+    const o = props.current.onRefused?.(status, data) ?? { ok: false as const, end: false, again: false, message };
+    if (o.end) return end(o.message);
+    if (o.again) {
+      setNote(o.message);
+      liveState.current = LIVE_START;
+      go("listening");
+      return;
+    }
+    pause(o.message);
   }
 
   // Once it's started, the keyboard is on End call (the button that started it has gone).
@@ -340,6 +699,19 @@ export default function CompanionCall({
       setSeconds(Math.round((Date.now() - startedAt.current) / 1000));
       if (Date.now() - lastAt.current > QUIET_END_MS && phaseNow.current !== "thinking" && phaseNow.current !== "speaking") {
         end(`The call with ${first} ended after five quiet minutes.`);
+        return;
+      }
+      if (modeNow.current !== "live" || !callId.current) return;
+      if (phaseNow.current === "listening" && !liveState.current.said && !liveState.current.interim && Date.now() - Math.max(heardAt.current, lastAt.current) > LIVE_QUIET_MS) {
+        pause("Paused after a quiet minute, so it isn't using your call minutes.");
+        return;
+      }
+      if (Date.now() - lastTick.current >= TICK_MS) {
+        lastTick.current = Date.now();
+        const id = callId.current;
+        void livePost({ action: "tick", call_id: id }).then((r) => {
+          if (r.status === 402 && callId.current === id && !ended.current) pause(typeof r.data?.message === "string" ? r.data.message : null, true);
+        });
       }
     }, 1000);
     return () => clearInterval(t);
@@ -366,7 +738,9 @@ export default function CompanionCall({
   );
 
   const status =
-    phase === "listening"
+    phase === "connecting"
+      ? "Connecting…"
+      : phase === "listening"
       ? "Listening…"
       : phase === "thinking"
         ? `${first} is thinking…`
@@ -389,6 +763,7 @@ export default function CompanionCall({
       <div className="companion-call-inner">
         <p className="companion-call-top">
           <span className="chip companion-ai">🤖 AI character</span>
+          {phase !== "ready" && modeNow.current === "live" && <span className="chip companion-call-live">Live</span>}
           {phase !== "ready" && <span className="companion-call-clock">{clock(seconds)}</span>}
         </p>
         <div className="companion-call-face">
@@ -401,7 +776,23 @@ export default function CompanionCall({
 
         {phase === "ready" ? (
           <div className="companion-call-ready">
-            {voicePrice !== null && (
+            {canLive && (
+              <fieldset className="companion-call-voices companion-call-modes">
+                <legend>How to talk</legend>
+                <label className="check">
+                  <input type="radio" name="call-mode" checked={mode === "live"} onChange={() => setMode("live")} />
+                  <span>
+                    Live · {minutesWords(minutes)}
+                    <span className="muted small"> (talk over each other, {first}&apos;s own voice)</span>
+                  </span>
+                </label>
+                <label className="check">
+                  <input type="radio" name="call-mode" checked={mode === "classic"} onChange={() => setMode("classic")} />
+                  <span>Taking turns · free</span>
+                </label>
+              </fieldset>
+            )}
+            {voicePrice !== null && !(canLive && mode === "live") && (
               <fieldset className="companion-call-voices">
                 <legend>Their voice</legend>
                 <label className="check">
@@ -419,11 +810,26 @@ export default function CompanionCall({
             )}
             <details className="companion-call-how" open={!seen}>
               <summary>How calls work</summary>
-              <p>
-                You talk, {first} talks back. Your browser turns what you say into words (Chrome sends your voice to Google to do it, Safari to Apple),
-                and only the words come to Botchelor, kept in this conversation like messages. {first} is an AI character, and the voice is made, never
-                a real person&apos;s.
-              </p>
+              {canLive && mode === "live" ? (
+                <>
+                  <p>
+                    A live call is like a phone call: talk whenever you like, and if you start talking while {first} is, {first} stops to listen. Your voice
+                    goes from your browser to Deepgram, which turns it into words as you speak and keeps nothing; only the words come to Botchelor, kept in
+                    this conversation like messages. {first} is an AI character, and the voice is made by Deepgram from {first}&apos;s words, never a real
+                    person&apos;s.
+                  </p>
+                  <p>
+                    It&apos;s by the minute: each minute on the line is a call minute ({minutesWords(minutes)}), and a quiet minute pauses it so silence
+                    isn&apos;t paid for.
+                  </p>
+                </>
+              ) : (
+                <p>
+                  You talk, {first} talks back. Your browser turns what you say into words (Chrome sends your voice to Google to do it, Safari to Apple),
+                  and only the words come to Botchelor, kept in this conversation like messages. {first} is an AI character, and the voice is made, never
+                  a real person&apos;s.
+                </p>
+              )}
               <p>Each time {first} answers counts as one reply, the same as a text.{left !== null ? ` You have ${left} left.` : ""}</p>
             </details>
             <p className="companion-call-controls">
@@ -452,10 +858,10 @@ export default function CompanionCall({
               )}
               {phase === "paused" ? (
                 <button type="button" className="button" onClick={resume} ref={mainButton} data-track="companion-call-resume">
-                  🎙 Tap to talk
+                  {modeNow.current === "live" && extraPrice("minute", minutes) !== "" ? `🎙 ${buyOffer ? "Keep talking" : "Tap to talk"} · ${extraPrice("minute", minutes)}` : "🎙 Tap to talk"}
                 </button>
               ) : (
-                <button type="button" className="button-ghost" onClick={() => pause(null)} disabled={phase === "thinking"}>
+                <button type="button" className="button-ghost" onClick={() => pause(null)} disabled={phase === "thinking" || phase === "connecting"}>
                   🔇 Mute
                 </button>
               )}

@@ -46,9 +46,30 @@ export const COMPANION_FAIR_USE_PER_MONTH = 3000;
  */
 export const COMPANION_EXTRAS = {
   voice: { included: 30, bundle: 100, tokens: 1, one: "voice note", many: "voice notes" },
+  /**
+   * A minute of a live call (P6): each minute is taken as it starts. About 2¢ at the most (Deepgram's speech to text,
+   * Aura's voice for their side, a few model calls), so 10 for a token sells near 7¢, about 3.5×, like the voice notes.
+   * COMPANION_LIVE_INCLUDED and COMPANION_LIVE_BUNDLE override the two numbers (extraTerms below).
+   */
+  minute: { included: 20, bundle: 10, tokens: 1, one: "call minute", many: "call minutes" },
 } as const;
 export type CompanionExtraKind = keyof typeof COMPANION_EXTRAS;
 export const COMPANION_EXTRA_KINDS = Object.keys(COMPANION_EXTRAS) as CompanionExtraKind[];
+
+const whole = (raw: string | undefined, min: number): number | null => {
+  const n = Number.parseInt((raw ?? "").trim(), 10);
+  return Number.isFinite(n) && n >= min ? n : null;
+};
+
+/**
+ * One extra's terms: COMPANION_EXTRAS, with a live call's minutes settable on the server (COMPANION_LIVE_INCLUDED: the
+ * plan's a month, 0 for none; COMPANION_LIVE_BUNDLE: minutes a token buys, at least 1).
+ */
+export function extraTerms(kind: CompanionExtraKind, env: Record<string, string | undefined> = process.env): { included: number; bundle: number; tokens: number; one: string; many: string } {
+  const x = COMPANION_EXTRAS[kind];
+  if (kind !== "minute") return { ...x };
+  return { ...x, included: whole(env.COMPANION_LIVE_INCLUDED, 0) ?? x.included, bundle: whole(env.COMPANION_LIVE_BUNDLE, 1) ?? x.bundle };
+}
 
 /** Where a person stands on one extra: what the plan still includes this month, their credits, and whether it's free. */
 export type CompanionExtraState = {
@@ -58,9 +79,10 @@ export type CompanionExtraState = {
   included_left: number | null;
   /** Bought ones left. */
   credits: number;
-  /** What a bundle costs and holds. */
+  /** What a bundle costs and holds, and what the plan includes a month. */
   tokens: number;
   bundle: number;
+  included?: number;
   /** Bought tokens left to spend (the shop's). */
   tokens_left: number;
 };
@@ -69,8 +91,15 @@ export type CompanionExtraState = {
 export function extraPrice(kind: CompanionExtraKind, s: CompanionExtraState | null | undefined): string {
   if (!s || s.free || (s.included_left ?? 0) > 0 || s.credits > 0) return "";
   const x = COMPANION_EXTRAS[kind];
-  return `${x.tokens} token${x.tokens === 1 ? "" : "s"} for ${x.bundle}`;
+  const tokens = s.tokens || x.tokens;
+  return `${tokens} token${tokens === 1 ? "" : "s"} for ${s.bundle || x.bundle}${kind === "minute" ? " minutes" : ""}`;
 }
+
+/**
+ * A live call (P6, docs/companions.md): what a thread page needs to offer one. Null when live calls are off (no Deepgram
+ * key, COMPANION_LIVE=0, admins only, or a guest), and then a call is v1's, taking turns.
+ */
+export type CompanionLiveOffer = { on: true };
 
 export const COMPANION_REPORT_REASONS = ["sexual", "minor", "hateful", "self_harm", "out_of_character", "other"] as const;
 export type CompanionReportReason = (typeof COMPANION_REPORT_REASONS)[number];

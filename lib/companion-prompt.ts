@@ -76,6 +76,11 @@ export function companionMessages(args: {
   scene?: PromptScene | null;
   /** On a voice call in the app (never in a scene): they talk, and the reply is spoken aloud. */
   call?: boolean;
+  /**
+   * A live call (P6): the reply streams and is said as it's written, so it comes as plain spoken words, not JSON, and
+   * its first words come quickly.
+   */
+  live?: boolean;
 }): ChatMessage[] {
   const { character: c, length, now = new Date(), scene = null } = args;
   const call = args.call === true && !scene;
@@ -111,7 +116,9 @@ export function companionMessages(args: {
       : call
         ? [
             `How you talk: out loud, on a call. ${CALL_LENGTH} Only the words you'd say: no emoji, no asterisks or stage directions, no lists or links, nothing that only works written. Contractions and your natural rhythm; a laugh or an "hm" in words now and then is fine. What they said came through speech to text, so if a word looks wrong, go with what they most likely meant.`,
-            `Answer only JSON: {"messages":["what you say"]}, one string.`,
+            args.live
+              ? `Answer with only the words you say, as plain text: no JSON, no quotes around it, no name in front. Start with a short first sentence, since it's spoken while you're still thinking of the rest.`
+              : `Answer only JSON: {"messages":["what you say"]}, one string.`,
           ]
         : [
             `How you talk: like texting. ${LENGTH[length]} One to three messages. Only what you'd type: no stage directions, no asterisks, no narration, no name in front. Your own voice and slang, not polished prose.`,

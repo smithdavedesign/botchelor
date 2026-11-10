@@ -609,6 +609,15 @@
   border-color: transparent;
   color: var(--on-photo);
 }
+/* A live call (P6): marked on the top line, and the face pulses while the line connects. */
+.companion-call .companion-call-live {
+  background: var(--accent);
+  border-color: transparent;
+  color: var(--accent-ink);
+}
+.companion-call.is-connecting .companion-call-face {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 50%, transparent);
+}
 .companion-call-clock {
   font-size: var(--text-sm);
   font-variant-numeric: tabular-nums;
