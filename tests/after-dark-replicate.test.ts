@@ -69,10 +69,30 @@ async function admin() {
 
 const PNG = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
 const MP4 = new Uint8Array([0, 0, 0, 24, 102, 116, 121, 112]);
-const WAV = new Uint8Array([82, 73, 70, 70, 36, 0, 0, 0, 87, 65, 86, 69]);
+/** A real WAV (16-bit mono, 24 kHz like Kokoro's): two seconds of sound, so a speech shot pads it to its length. */
+const WAV_RATE = 24_000;
+function wavOf(seconds: number): Uint8Array<ArrayBuffer> {
+  const data = Math.round(seconds * WAV_RATE) * 2;
+  const b = Buffer.alloc(44 + data, 1);
+  b.write("RIFF", 0, "ascii");
+  b.writeUInt32LE(36 + data, 4);
+  b.write("WAVEfmt ", 8, "ascii");
+  b.writeUInt32LE(16, 16);
+  b.writeUInt16LE(1, 20);
+  b.writeUInt16LE(1, 22);
+  b.writeUInt32LE(WAV_RATE, 24);
+  b.writeUInt32LE(WAV_RATE * 2, 28);
+  b.writeUInt16LE(2, 32);
+  b.writeUInt16LE(16, 34);
+  b.write("data", 36, "ascii");
+  b.writeUInt32LE(data, 40);
+  return new Uint8Array(b);
+}
+const WAV = wavOf(2);
 const KEYFRAME = "qwen/qwen-image-edit-2511";
 const VIDEO = "wan-video/wan-2.2-i2v-fast";
 const TALK = "wan-video/wan-2.6-i2v";
+const S2V = "wan-video/wan-2.2-s2v";
 const VOICE_VERSION = DEFAULT_REPLICATE_VOICE_MODEL.split(":")[1];
 
 type Seen = { method: string; url: string; headers: Record<string, string>; body: Record<string, unknown> | undefined };
@@ -101,7 +121,7 @@ function fakeReplicate(opts: { create?: (model: string) => Response | null; done
       if (refused) return refused;
       const id = `p${++n}`;
       made.set(id, model);
-      if (model === VIDEO || model === TALK) return Response.json({ id, status: "starting" }, { status: 201 });
+      if (model === VIDEO || model === TALK || model === S2V) return Response.json({ id, status: "starting" }, { status: 201 });
       const output = model === VOICE_VERSION ? `https://replicate.delivery/xe/${id}/output.wav` : [`https://replicate.delivery/xe/${id}/out-0.png`];
       return Response.json({ id, status: "succeeded", output }, { status: 201 });
     }
@@ -201,14 +221,14 @@ describe("the Replicate client", () => {
     await expect(downloadOutput("https://evil.example/out.png", "r8_test", 1000)).rejects.toThrow(/host we don't fetch from/);
     await expect(downloadOutput("http://replicate.delivery/x.png", "r8_test", 1000)).rejects.toThrow(/host we don't fetch from/);
     expect(asked).toEqual([]);
-    expect(await downloadOutput(`data:audio/wav;base64,${Buffer.from(WAV).toString("base64")}`, "r8_test", 1000)).toEqual({ bytes: Buffer.from(WAV), mime: "audio/wav" });
+    expect(await downloadOutput(`data:audio/wav;base64,${Buffer.from(WAV.subarray(0, 12)).toString("base64")}`, "r8_test", 1000)).toEqual({ bytes: Buffer.from(WAV.subarray(0, 12)), mime: "audio/wav" });
     // The type from the name when the host doesn't say; the token only to Replicate's own API.
     expect((await downloadOutput("https://pbxt.replicate.delivery/a/output.wav", "r8_test", 1000)).mime).toBe("audio/wav");
     await downloadOutput("https://api.replicate.com/v1/files/f1/download", "r8_test", 1000);
     expect(asked).toEqual(["https://pbxt.replicate.delivery/a/output.wav", "https://api.replicate.com/v1/files/f1/download Bearer r8_test"]);
     await expect(downloadOutput("https://replicate.delivery/big.mp4", "r8_test", 10)).rejects.toThrow(/too large/);
     // One name for WAV: replicate.delivery serves Kokoro's as audio/x-wav.
-    setReplicateFetchForTests(async () => new Response(new Uint8Array(WAV), { headers: { "content-type": "audio/x-wav" } }));
+    setReplicateFetchForTests(async () => new Response(WAV.subarray(0, 12), { headers: { "content-type": "audio/x-wav" } }));
     expect((await downloadOutput("https://replicate.delivery/xe/v/output.wav", "r8_test", 1000)).mime).toBe("audio/wav");
   });
 
@@ -342,7 +362,7 @@ describe("pictures on Replicate", () => {
 describe("the video of the night on Replicate", () => {
   const night = Array.from({ length: 12 }, (_, i) => ({ who: (i % 2 ? "b" : "a") as "a" | "b", text: `*leans closer* Line number ${i} says something rather vivid here.` }));
   async function ready(cookie: string, ownerId: string, extra: Record<string, unknown> = {}) {
-    await settings({ enabled: true, openrouter_key: "placeholder-text-ABCD", replicate_key: "placeholder-replicate-RPLC", hive_key: "placeholder-hive", media_provider: "replicate", reel_shots: 3, replicate_talk_model: "off", ...extra }, cookie);
+    await settings({ enabled: true, openrouter_key: "placeholder-text-ABCD", replicate_key: "placeholder-replicate-RPLC", hive_key: "placeholder-hive", media_provider: "replicate", reel_shots: 3, replicate_talk_model: "off", replicate_speech_model: "off", ...extra }, cookie);
     for (const [pid, c] of [["base-a", CAST_A], ["base-b", CAST_B]]) {
       await t.db.query(`insert into adult_images (id, owner_id, character_id, kind, prompt, mime, data) values ($1, $2, $3, 'baseline', 'p', 'image/png', $4)`, [pid, ownerId, c, Buffer.from(PNG)]);
     }
@@ -410,7 +430,7 @@ describe("the video of the night on Replicate", () => {
         lora_weights_transformer: "https://huggingface.co/x/y/resolve/main/both.safetensors",
         lora_weights_transformer_2: "https://huggingface.co/x/y/resolve/main/both.safetensors",
       });
-      expect(String((v.body!.input as { prompt: string }).prompt)).toMatch(/The (man|woman) is the one speaking, lips moving with the words\.$/);
+      expect(String((v.body!.input as { prompt: string }).prompt)).toMatch(/The (man|woman) is the one speaking, lips moving with the words\. The \1 says it with (his|her) mouth free, not kissing or covered, face turned so the lips show; the (man|woman) stays quiet, listening\.$/);
       expect(v.body!.input).not.toHaveProperty("negative_prompt");
     }
     expect(videos.map((v) => mediaOf((v.body!.input as { image: string }).image)).sort()).toEqual([...frames].sort());
@@ -496,7 +516,7 @@ describe("the video of the night on Replicate", () => {
       expect(input).not.toHaveProperty("disable_safety_checker");
       expect(mediaOf(input.image)).toBeTruthy();
       // The line itself, quoted (the action written as what they do), with who says it.
-      expect(String(input.prompt)).toMatch(/The (man|woman), in .+, says: "Line number \d+ says something rather vivid here\."$/);
+      expect(String(input.prompt)).toMatch(/The (man|woman), in .+, says: "Line number \d+ says something rather vivid here\." The \1 says it with (his|her) mouth free/);
     }
     expect(replicate.creates(VIDEO)).toHaveLength(0);
 
@@ -529,6 +549,77 @@ describe("the video of the night on Replicate", () => {
     const made = (await t.db.query<{ model: string }>(`select model from adult_images where kind = 'video' order by model`)).rows.map((r) => r.model);
     expect(made).toEqual([VIDEO, TALK, TALK]);
     expect(venice).toEqual([]);
+  });
+
+  it("films an explicit shot with a line on the speech model: the voice said first, padded to the shot, its lips moved to it (2026-11-09)", async () => {
+    const { id, cookie } = await admin();
+    const scene = await ready(cookie, id, { replicate_talk_model: "", replicate_speech_model: "" });
+    await t.db.query(`update adult_scenes set lines = $2::jsonb where id = $1`, [scene.id, JSON.stringify(night.map((l, i) => ({ ...l, stage: i >= 8 ? 3 : 1 })))]);
+    const venice = noVenice();
+    fakeHive();
+    const replicate = fakeReplicate();
+    threeShots();
+    const started = (await (await make(cookie)).json()).reel as Reel;
+    // The two before undressing on the talk model as ever; the explicit one on S2V, with its line said already.
+    expect(started.shots.map((s) => [s.line, s.model, s.speaks ?? false])).toEqual([
+      [2, TALK, true],
+      [5, TALK, true],
+      [9, S2V, true],
+    ]);
+    const shot = started.shots.find((s) => s.line === 9)!;
+    expect(shot).toMatchObject({ said_id: expect.any(String), said_s: 5 });
+    expect(started.shots.filter((s) => s.said_id)).toHaveLength(1);
+    // One voice, said by Kokoro in the speaker's stock voice; kept padded with silence to the shot's five seconds.
+    const voices = replicate.creates(VOICE_VERSION);
+    expect(voices).toHaveLength(1);
+    expect((voices[0].body!.input as { text: string }).text).toBe(shot.text);
+    const kept = (await t.db.query<{ data: Buffer; mime: string; prompt: string; source_image: string }>(`select data, mime, prompt, source_image from adult_images where id = $1 and kind = 'audio'`, [shot.said_id])).rows[0];
+    expect(kept).toMatchObject({ mime: "audio/wav", prompt: `Reel line: ${shot.text}`, source_image: shot.media_id });
+    expect(kept.data.length).toBe(44 + 5 * WAV_RATE * 2);
+    // The speech model: its keyframe and that voice by signed link, the frames to cover it in one take, the speaker's mouth free.
+    const s2v = replicate.creates(S2V);
+    expect(s2v).toHaveLength(1);
+    expect(s2v[0].headers).toMatchObject({ "cancel-after": "30m" });
+    const input = s2v[0].body!.input as Record<string, unknown>;
+    expect(mediaOf(input.image)).toBe(shot.media_id);
+    expect(mediaOf(input.audio)).toBe(shot.said_id);
+    expect(input.num_frames_per_chunk).toBe(81);
+    expect(String(input.prompt)).toMatch(/The (man|woman) is the one speaking, lips moving with the words\. The (man|woman) says it with (his|her) mouth free, not kissing or covered, face turned so the lips show; the (man|woman) stays quiet, listening\.$/);
+    const said = await media(shot.said_id!, cookie);
+    expect(said.headers.get("content-type")).toBe("audio/wav");
+
+    for (let i = 0; i < 4; i++) await advance(started.id, cookie);
+    const done = await advance(started.id, cookie);
+    expect(done.status).toBe("ready");
+    // It says its line itself: no second voice made, none played beside it.
+    expect(done.shots.find((s) => s.line === 9)).toMatchObject({ status: "ready", model: S2V, speaks: true });
+    expect(done.shots.every((s) => !s.audio_id)).toBe(true);
+    expect(replicate.creates(VOICE_VERSION)).toHaveLength(1);
+    expect(venice).toEqual([]);
+  });
+
+  it("films a line the speech model can't make silent, with the voice it said played beside it; one said off camera goes silent from the start", async () => {
+    const { id, cookie } = await admin();
+    const scene = await ready(cookie, id, { replicate_speech_model: "" });
+    await t.db.query(`update adult_scenes set lines = $2::jsonb where id = $1`, [scene.id, JSON.stringify(night.map((l) => ({ ...l, stage: 3 })))]);
+    noVenice();
+    fakeHive();
+    // Keyframes p1 to p3; the voices and S2V shots after. The first S2V shot fails, so it's filmed silent instead.
+    let firstS2v: string | null = null;
+    const replicate = fakeReplicate({ done: (pid) => (pid === firstS2v ? { status: "failed", error: "CUDA out of memory" } : null) });
+    threeShots();
+    const started = (await (await make(cookie)).json()).reel as Reel;
+    expect(started.shots.every((s) => s.model === S2V && s.speaks && s.said_id)).toBe(true);
+    firstS2v = started.shots[0].queue_id!;
+    for (let i = 0; i < 5; i++) await advance(started.id, cookie);
+    const done = await advance(started.id, cookie);
+    expect(done.status).toBe("ready");
+    const silent = done.shots.find((s) => s.model === VIDEO)!;
+    expect(silent).toMatchObject({ status: "ready", voiceless: expect.stringMatching(/CUDA/) });
+    // Its voice is the one already said for it: three lines, three voices, never a fourth.
+    expect(silent.audio_id).toBe(silent.said_id);
+    expect(replicate.creates(VOICE_VERSION)).toHaveLength(3);
+    expect(done.shots.filter((s) => s.model === S2V).every((s) => !s.audio_id)).toBe(true);
   });
 
   it("films on someone's own Replicate key with the model they picked, collects and stops with it, and meters it on their card", async () => {

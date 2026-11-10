@@ -182,6 +182,15 @@ price went to **8 tokens** (David, 2026-11-01: "update the token cost"): about $
 with an adult processor, which about breaks even on a mix of short and long lines. Someone filming on their own key
 (Connections, After Dark videos, #1244) pays no tokens.
 
+**Explicit shots with a line, since 2026-11-10 (Wan 2.2 S2V):** Wan 2.6 refuses anything from undressing on, so those
+shots were silent Wan 2.2 with the Kokoro voice playing beside them, and nobody's lips moved. Now the line is said first
+(Kokoro, about $0.005), padded with silence to at least 5 s, and `wan-video/wan-2.2-s2v` moves the speaker's lips to it
+from the keyframe: $0.02 a second of video, about **$0.10 to $0.17 a shot** (the video is as long as the voice), about
+what the silent shot and its voice cost (about $0.13), so the token price stays. If S2V can't make a shot, it's made silent
+on Wan 2.2 and the voice already said plays beside it. The setting is `replicate_speech_model` ("Lip-sync video model";
+"off" goes back to silent). A bake-off on 2026-11-09 (one stage-4 frame) ruled out OmniHuman 1.5 (refuses sexual
+content), Ovi (makes its own voice), lipsync-2-pro (needs a visible mouth) and MultiTalk (3 s clips, slow).
+
 At **7 tokens** (#1005, 2026-10-30 to 2026-11-01: break even on Venice) we take in about $5.05 after Stripe's fee (about $4.75 with an adult processor), so a video about breaks even (from about $0.50 kept to about $0.75 lost on a long one). At the old 15 we kept about $5.30 to $6.50. Test B's route (Wan 2.6 with our own voices) would cost about $3.50, but it lip-syncs the wrong face in a two-person shot.
 
 **Hive's limit:** self-serve allows 100 visual-moderation requests a day, and the only way to raise it is to contact Hive Sales. That's needed before real volume. A video asks for one per shot: **6 for a 6-shot video** (and a clip 1). Until 2026-10-23 it was 12, because each keyframe had its own as well. Now a keyframe gets the age check only, and its moderation is its shot's: Hive's video moderation samples the shot's frames, the first of them the keyframe, and a keyframe is never shown on its own until its shot has passed (docs/after-dark.md, "Hive's daily limit"). So the 100 a day are about 16 six-shot videos, not 8. A picture shown as a still (a baseline, a scene or menu picture) still asks for one moderation request and one age check. The vision-language model (the age check) has no listed limit and costs $0.50 per million input tokens and $2.50 per million output, about $0.001 a check.

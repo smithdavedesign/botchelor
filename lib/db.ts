@@ -3211,6 +3211,8 @@ alter table adult_identity add column if not exists free_setup_at timestamptz;
 -- Reel shots that speak (David, 2026-11-01: "the best reasonable price model"): on Replicate, a shot with a line goes to
 -- a model that says the line itself (lib/adult/reels.ts talkShotInput); null: DEFAULT_REPLICATE_TALK_MODEL.
 alter table adult_settings add column if not exists replicate_talk_model text;
+-- Reel shots with a line the talk model doesn't make: picture + voice -> lips moving (lib/adult/settings.ts, 2026-11-09).
+alter table adult_settings add column if not exists replicate_speech_model text;
 
 -- After Dark videos on someone's own key (David, 2026-11-01): one more Connections job. Widen the CHECK once more.
 do $$ begin

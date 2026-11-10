@@ -300,6 +300,9 @@ export default function SettingsForm({ hive = null }: { hive?: HiveState | null 
         <Field id="ad-replicate-talk" field="replicate_talk_model" label="Speaking video model" hint="Shots with a line: says it itself. Shots it can't make fall back to the video model plus the voice model; off: always that.">
           {text("replicate_talk_model", "ad-replicate-talk")}
         </Field>
+        <Field id="ad-replicate-speech" field="replicate_speech_model" label="Lip-sync video model" hint="Shots with a line the speaking model doesn't make (explicit ones): the picture plus the line's voice, lips moved to it. If it can't, the video model plus the voice; off: always that.">
+          {text("replicate_speech_model", "ad-replicate-speech")}
+        </Field>
         <Field id="ad-replicate-voice" field="replicate_voice_model" label="Voice model">
           {text("replicate_voice_model", "ad-replicate-voice")}
         </Field>
