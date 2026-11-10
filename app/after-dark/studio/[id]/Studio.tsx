@@ -661,7 +661,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
                   ))}
                 </div>
                 {/* How the camera moves (lib/adult/camera-moves.ts), each tile a preview over this very picture. */}
-                <CameraMoves value={anim.camera ?? "steady"} onChange={(m) => setAnimating({ ...anim, camera: m })} src={media(p.id)} disabled={Boolean(busy)} />
+                <CameraMoves value={anim.camera ?? "steady"} onChange={(m) => setAnimating({ ...anim, camera: m })} src={media(p.id)} disabled={Boolean(busy)} compact />
                 <div className="ad-chip-row" role="group" aria-label="How long">
                   {([5, 10] as const).map((sec) => (
                     <button key={sec} type="button" className={`ad-chip${anim.seconds === sec ? " on" : ""}`} aria-pressed={anim.seconds === sec} disabled={Boolean(busy)} onClick={() => setAnimating({ ...anim, seconds: sec })}>

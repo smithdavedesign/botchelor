@@ -339,9 +339,9 @@ async function main() {
       if (size === "phone") await noSideways(page, "the gallery's share panel");
       await shot(page, `studio-gallery-share-${size}`);
       await first.getByRole("button", { name: "Share…" }).click();
-      // A tile's creator tools: the star, Fix faces, the SFW twin, a carousel.
+      // A tile's creator tools: the star, 🩹 Fix (it took in Fix faces, #1419), the SFW twin, a carousel.
       await page.evaluate(() => document.querySelector('.ad-studio-item:has(img[src*="studio-shot-2"])')?.scrollIntoView({ block: "start" }));
-      assert(await first.getByRole("button", { name: /Fix faces/ }).isVisible(), "no Fix faces on a picture");
+      assert(await first.getByRole("button", { name: /🩹 Fix/ }).isVisible(), "no 🩹 Fix on a picture");
       assert(await first.getByRole("button", { name: /SFW twin/ }).isVisible(), "no SFW twin on a picture");
       if (size === "phone") await noSideways(page, "a tile's creator tools");
       await shot(page, `studio-gallery-tools-${size}`);

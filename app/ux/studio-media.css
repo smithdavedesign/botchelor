@@ -543,6 +543,23 @@ li.picked {
   height: 100%;
   object-fit: cover;
 }
+/* Compact (CameraMoves compact, 2026-11-10): in a narrow Studio card the nine tiles were five rows deep; one row of
+   smaller tiles that scrolls sideways instead. */
+.ad-camera-moves.compact {
+  grid-template-columns: none;
+  grid-auto-flow: column;
+  grid-auto-columns: 58px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  padding-bottom: var(--space-1);
+}
+.ad-camera-moves.compact .ad-camera {
+  scroll-snap-align: start;
+}
+.ad-camera-moves.compact .ad-camera-view {
+  width: 38px;
+}
 .ad-camera-blank {
   background: radial-gradient(circle at 50% 38%, var(--line) 0 18%, transparent 19%), linear-gradient(180deg, var(--soft), var(--card));
 }

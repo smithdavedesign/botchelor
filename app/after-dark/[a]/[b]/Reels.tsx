@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useContext, useEffect, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { requestJson } from "@/app/request";
 import { AiTag } from "@/app/AiLabel";
 import { archivedClip, clipChains, keepGoingFrom, playable } from "@/lib/adult/clip-chains";
@@ -14,7 +14,7 @@ import RateMedia from "./RateMedia";
 import { MediaAdmin, MediaRequest } from "../../MediaRequest";
 import type { Trim } from "@/lib/adult/trim";
 import TrimPanel from "../../TrimPanel";
-import MomentTools, { keepGoingFromMoment, NextWords } from "../../MomentTools";
+import MomentTools, { keepGoingFromMoment, NextWords, SharedNextWords } from "../../MomentTools";
 import type { Media } from "@/lib/adult/media";
 import { trimStep } from "../../trimPlayback";
 
@@ -294,41 +294,45 @@ function ClipChain({ chain, price, making, onChange, onMedia }: { chain: Reel[];
     onChange(res.data.reel as Reel);
     if (typeof res.data.note === "string") setNote({ text: res.data.note });
   }
+  // One words box for the chain: its shots' "Keep going from here" reads this one (MomentTools.tsx SharedNextWords).
+  const sharedWords = useMemo(() => (from ? { value: words, set: setWords } : null), [from, words]);
   return (
-    <div className="ad-clip-chain">
-      <p className="ad-clip-title">
-        <strong>🎞 {label}</strong>{" "}
-        <span className="muted small">
-          · {shots.length} shot{shots.length === 1 ? "" : "s"}
-          {chain.length > 1 ? `, kept going ${chain.length - 1} time${chain.length === 2 ? "" : "s"}` : ""}
-        </span>
-      </p>
-      {shots.length > 0 && <SeamlessPlayer shots={shots} onChange={onChange} price={price} onMedia={onMedia} />}
-      {last.status === "making" ? (
-        <ReelPlayer reel={last} onChange={onChange} what="clip" price={price} onMedia={onMedia} />
-      ) : (
-        last.status === "failed" && <ReelPlayer reel={last} onChange={onChange} what="clip" price={price} onMedia={onMedia} />
-      )}
-      {from && (
-        <div className="ad-keep-going">
-          <NextWords value={words} onChange={setWords} disabled={asking || making} />
-          <button
-            type="button"
-            className="secondary small"
-            disabled={asking || making}
-            onClick={() => void keepGoing()}
-            title="Carry this clip on from its last frame: the next shot starts exactly where this one ended"
-          >
-            {asking ? "Setting up the next shot…" : `▶▶ Keep going${cost}`}
-          </button>
-        </div>
-      )}
-      {note && (
-        <p className="error small" role="status">
-          {note.text}
+    <SharedNextWords.Provider value={sharedWords}>
+      <div className="ad-clip-chain">
+        <p className="ad-clip-title">
+          <strong>🎞 {label}</strong>{" "}
+          <span className="muted small">
+            · {shots.length} shot{shots.length === 1 ? "" : "s"}
+            {chain.length > 1 ? `, kept going ${chain.length - 1} time${chain.length === 2 ? "" : "s"}` : ""}
+          </span>
         </p>
-      )}
-    </div>
+        {shots.length > 0 && <SeamlessPlayer shots={shots} onChange={onChange} price={price} onMedia={onMedia} />}
+        {last.status === "making" ? (
+          <ReelPlayer reel={last} onChange={onChange} what="clip" price={price} onMedia={onMedia} />
+        ) : (
+          last.status === "failed" && <ReelPlayer reel={last} onChange={onChange} what="clip" price={price} onMedia={onMedia} />
+        )}
+        {from && (
+          <div className="ad-keep-going">
+            <NextWords value={words} onChange={setWords} disabled={asking || making} />
+            <button
+              type="button"
+              className="secondary small"
+              disabled={asking || making}
+              onClick={() => void keepGoing()}
+              title="Carry this clip on from its last frame: the next shot starts exactly where this one ended"
+            >
+              {asking ? "Setting up the next shot…" : `▶▶ Keep going${cost}`}
+            </button>
+          </div>
+        )}
+        {note && (
+          <p className="error small" role="status">
+            {note.text}
+          </p>
+        )}
+      </div>
+    </SharedNextWords.Provider>
   );
 }
 
