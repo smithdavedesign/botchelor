@@ -338,6 +338,8 @@ export type ReelPerson = {
   voice: string;
   /** The words of their name, kept out of anything a picture or video model reads. */
   names: string[];
+  /** Their whole name as written ("Chud the crusher"), taken out first, so no word of it is left over. */
+  full?: string;
   /** What they always have on them, dressed or not: glasses, piercings, tattoos, marks, makeup (lib/looks.ts keptDetailWords). */
   details?: string[];
 };
@@ -442,6 +444,7 @@ export function reelCast(a: Character, b: Character, viewer?: string | null): [R
       look: lookWords(c, false, viewer),
       voice: voiceWords(noun, c.age),
       details: keptDetailWords(c.extras?.looks),
+      full: c.name.trim(),
       names: c.name
         .split(/[\s-]+/)
         .map((w) => w.replace(/[^\p{L}'’]/gu, ""))
@@ -459,7 +462,11 @@ export function reelCast(a: Character, b: Character, viewer?: string | null): [R
 
 /** Their names in anything a picture or video model reads become how they look ("Dex's hands" → "the man's hands"). */
 export function withoutNames(text: string, cast: readonly ReelPerson[]): string {
-  return cast.reduce((t, p) => p.names.reduce((u, w) => u.replace(new RegExp(`\\b${escapeRe(w)}\\b`, "g"), p.tag), t), text);
+  // The whole name first, however it's cased ("Chud the crusher" left "the man the crusher"), then each word of it, then
+  // a tag said twice in a row ("Star Dust" was "the woman the woman"; 2026-11-10: 29 of a week's 78 pictures).
+  const whole = cast.reduce((t, p) => (p.full && p.full.includes(" ") ? t.replace(new RegExp(`\\b${escapeRe(p.full)}\\b`, "gi"), p.tag) : t), text);
+  const words = cast.reduce((t, p) => p.names.reduce((u, w) => u.replace(new RegExp(`\\b${escapeRe(w)}\\b`, "g"), p.tag), t), whole);
+  return cast.reduce((t, p) => t.replace(new RegExp(`\\b(${escapeRe(p.tag)})(?:\\s+${escapeRe(p.tag)}\\b)+`, "gi"), "$1"), words);
 }
 
 const POSSESSIVE = { woman: "her", man: "his", person: "their" } as const;
@@ -887,21 +894,43 @@ export function povPrompt(
 ): string {
   const viewer = cast[eyes === "a" ? 0 : 1];
   const shown = cast[eyes === "a" ? 1 : 0];
+  // One person in the picture, the one shown (2026-11-10 audit: 3 of 18 rated first-person pictures of two were liked;
+  // the Studio's of one, 23 of 23 on the uncensored models). The viewer is never "the man" or "the woman" here: named
+  // that way, the picture model drew them in full, face and all, often twice. They're "the viewer", seen at the edge.
+  const asViewer = (t: string) => t.replace(new RegExp(`\\b${escapeRe(viewer.tag)}\\b`, "gi"), "the viewer");
   // Kept going (lib/adult/clips.ts): Picture 2 is the shot before, at its very moment or a few seconds on.
   const head = opts.continueFrom
-    ? `Make one first-person photograph, seen through the eyes of ${viewer.tag}, of ${shown.tag} from Picture 1, ${opts.continueFrom === "same" ? "at the very moment in Picture 2" : "a few seconds after the moment in Picture 2"}: keep its place, its light, its camera angle and framing, and what each of them is wearing or not.`
-    : `Make one first-person photograph, seen through the eyes of ${viewer.tag}, of ${shown.tag} from Picture 1${withSet ? ", in the place from Picture 2" : ""}.`;
+    ? `Make one first-person photograph of ${shown.tag} from Picture 1, seen through the viewer's eyes, ${opts.continueFrom === "same" ? "at the very moment in Picture 2" : "a few seconds after the moment in Picture 2"}: keep its place, its light, its camera angle and framing, and what ${shown.tag} is wearing or not.`
+    : `Make one first-person photograph of ${shown.tag} from Picture 1${withSet ? ", in the place from Picture 2" : ""}, seen through the viewer's eyes.`;
   const where = place ? `The place: ${place.replace(/[.\s]+$/, "")}.` : "";
   const light = opts.light ? `Light: ${opts.light}.` : "";
-  const custom = opts.custom?.trim() ? `Most important, do exactly this: ${opts.custom.trim().replace(/[.\s]*$/, "")}. ` : "";
+  const custom = opts.custom?.trim() ? `Most important, do exactly this: ${asViewer(opts.custom.trim()).replace(/[.\s]*$/, "")}. ` : "";
   const dialog = opts.dialog?.trim() ? ` A speech bubble near them reads: "${opts.dialog.trim().replace(/"/g, "'")}".` : "";
-  const extra = opts.extra?.trim() ? ` ${opts.extra.trim()}` : "";
+  const extra = opts.extra?.trim() ? ` ${asViewer(opts.extra.trim())}` : "";
   const keep =
-    `Keep ${shown.tag} as in Picture 1, the same face, hair, skin tone and body, but not their clothes: ${(opts.clothes ?? clothesAt(stage)).replace(/[.\s]+$/, "")}, ${shown.tag}'s face clearly visible.${keptDetails([shown])}` +
+    `Keep ${shown.tag} as in Picture 1, the same face, hair, skin tone and body, but not their clothes: ${shownClothes(opts.clothes ?? clothesAt(stage), shown, viewer)}, ${shown.tag}'s face clearly visible.${keptDetails([shown])}` +
     `${withSet && !opts.continueFrom ? " Keep the place, its furniture and its light from Picture 2." : ""}` +
-    ` Of ${viewer.tag}, whose eyes these are, only hands, arms, hips or thighs at the edge of the frame, never a face: one person in full.`;
+    ` Only this one person in full: of the viewer, whose eyes these are, at most hands, arms, hips or thighs at the edge of the frame, never a face, never a second person.`;
   const steer = opts.steer?.trim() ? `${cap(opts.steer.trim().replace(/[.\s]*$/, ""))}.` : "";
-  return fitPrompt([head, opts.older ?? ""], `${custom}${still}${extra}${dialog}`, [where, light, keep, steer, tailAt(stage, opts.explicit ?? true)]);
+  return fitPrompt([head, opts.older ?? ""], `${custom}${asViewer(still)}${extra}${dialog}`, [where, light, keep, steer, tailAt(stage, opts.explicit ?? true)]);
+}
+
+/**
+ * What the one shown in a first-person picture wears, from words for the two of them: their own part only ("the woman in
+ * a bikini; the man in jeans, both fully clothed" is "the woman in a bikini, fully clothed"), and "both" said of them
+ * alone, so the words never bring the viewer into the frame.
+ */
+export function shownClothes(words: string, shown: Pick<ReelPerson, "tag">, viewer: Pick<ReelPerson, "tag">): string {
+  let w = words.replace(/[.\s]+$/, "");
+  const parts = w.split(/;\s*/);
+  if (parts.length > 1) {
+    const mine = parts.filter((p) => new RegExp(`\\b${escapeRe(shown.tag)}\\b`, "i").test(p) && !new RegExp(`^${escapeRe(viewer.tag)}\\b`, "i").test(p));
+    if (mine.length) {
+      const tail = parts.at(-1)!.match(/,\s*(both [^;]*)$/i)?.[1];
+      w = mine.map((p) => p.replace(/,\s*both [^;]*$/i, "")).join("; ") + (tail ? `, ${tail}` : "");
+    }
+  }
+  return w.replace(/\bboth (completely |fully |still )?/gi, (_m, how: string | undefined) => how ?? "").replace(/\s{2,}/g, " ").trim();
 }
 
 /**
@@ -910,7 +939,10 @@ export function povPrompt(
  */
 export function keptDetails(people: readonly ReelPerson[]): string {
   const each = people.filter((p) => p.details?.length).map((p) => `${p.tag} has ${p.details!.join(" and ")}`);
-  return each.length ? ` Keep these too, clothes or not: ${each.join("; ")}.` : "";
+  // Hers only: said of one of two, her glasses turned up on him too (2026-11-10 audit, Star and Chud).
+  const bare = people.filter((p) => !p.details?.length).map((p) => p.tag);
+  const theirs = each.length && bare.length ? `; ${bare.join(" and ")} ${bare.length > 1 ? "have" : "has"} none of these` : "";
+  return each.length ? ` Keep these too, clothes or not: ${each.join("; ")}${theirs}.` : "";
 }
 
 /** Which of them is which picture, when "the woman" and "the man" don't already say it. */

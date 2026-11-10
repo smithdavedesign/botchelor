@@ -8,7 +8,7 @@ import { HIVE_VLM, setCheckFetchForTests } from "@/lib/adult/check";
 import { chooseView, directorHint, framingScores, scoreFrom, scoresFrom } from "@/lib/adult/framing";
 import { deriveTags, type TagSourceRow } from "@/lib/adult/media-tags";
 import { setAdultModelForTests } from "@/lib/adult/mode";
-import { eyesFromTag, pickShots, pictureEyes, povPrompt, reelCast, setReelFetchForTests, setReelPausesForTests, shotPrompt, type Reel } from "@/lib/adult/reels";
+import { eyesFromTag, pickShots, pictureEyes, povPrompt, reelCast, shownClothes, withoutNames, setReelFetchForTests, setReelPausesForTests, shotPrompt, type Reel } from "@/lib/adult/reels";
 import { setReplicatePausesForTests } from "@/lib/adult/replicate";
 import { rateMedia } from "@/lib/adult/steering";
 import { claimAdmin } from "@/lib/admins";
@@ -158,7 +158,8 @@ describe("first-person views of the two of them", () => {
           expect(pov.still).not.toMatch(/[{}]/);
           expect(checkAdultText({ s: pov.still }).ok).toBe(true);
           expect(crossesTaboo(pov.still)).toBe(false);
-          expect(pov.still).toMatch(/^Seen through /);
+          expect(pov.still).toMatch(/^A first-person view/);
+          expect(pov.still).not.toMatch(new RegExp(`\\b${cast[pov.viewer].tag}\\b`, "i"));
           expect(pov.shown).toBe(eyes === "a" ? 1 : 0);
         }
       }
@@ -176,14 +177,47 @@ describe("first-person views of the two of them", () => {
     const pov = povFor(oral, cast, eyes)!;
     const p = povPrompt(cast, eyes, pov.still, "her bedroom", 4, true, { custom: "x ".repeat(600), steer: "sharp focus, fine detail" });
     expect(p.length).toBeLessThanOrEqual(1500);
-    expect(p).toMatch(/^Make one first-person photograph, seen through the eyes of the (wo)?man, of the (wo)?man from Picture 1, in the place from Picture 2\./);
-    expect(p).toContain("never a face");
+    expect(p).toMatch(/^Make one first-person photograph of the (wo)?man from Picture 1, in the place from Picture 2, seen through the viewer's eyes\./);
+    expect(p).toContain("never a face, never a second person");
     expect(p).toContain("Sharp focus, fine detail.");
     expect(p).not.toMatch(/Picture 3/);
     // The video: first person, and a line the viewer says is off camera.
     const shot = { who: eyes, text: "Don't stop.", motion: "She moves slowly.", eyes } as const;
     expect(shotPrompt(cast, shot, true)).toMatch(/A first-person shot, seen through the eyes of/);
     expect(shotPrompt(cast, shot, true)).toContain("off camera");
+  });
+
+  it("name only the one shown: the viewer is \"the viewer\", never the man or the woman, nor in what they wear (2026-11-10 audit)", async () => {
+    const { cast } = await castOf();
+    const oral = ACTS.find((a) => a.id === "oral")!;
+    const eyes = (["a", "b"] as const).find((e) => povFor(oral, cast, e))!;
+    const viewer = cast[eyes === "a" ? 0 : 1];
+    const shown = cast[eyes === "a" ? 1 : 0];
+    const pov = povFor(oral, cast, eyes)!;
+    // The still names the viewer by their tag; the prompt says "the viewer" wherever it did, the owner's words too.
+    const p = povPrompt(cast, eyes, pov.still, "her bedroom", 4, true, { custom: `${viewer.tag} holds ${shown.tag}'s hair`, clothes: `${shown.tag} in a red slip dress; ${viewer.tag} in jeans, both fully clothed` });
+    expect(p).not.toMatch(new RegExp(`\\b${viewer.tag}\\b`, "i"));
+    expect(p).toContain("the viewer's");
+    expect(p).toContain("the viewer holds");
+    expect(p).toContain(`not their clothes: ${shown.tag} in a red slip dress, fully clothed, ${shown.tag}'s face clearly visible.`);
+    expect(p).not.toContain("jeans");
+    expect(p).not.toMatch(/\bboth\b(?! are adults)/i);
+  });
+
+  it("keep only the one shown's clothes, and say \"both\" of nobody", () => {
+    const her = { tag: "the woman" };
+    const him = { tag: "the man" };
+    expect(shownClothes("both completely naked, none of the clothes from their pictures", her, him)).toBe("completely naked, none of the clothes from their pictures");
+    expect(shownClothes("The man in a charcoal suit; the woman in a black dress, both still dressed.", her, him)).toBe("the woman in a black dress, still dressed");
+    expect(shownClothes("the woman in a bikini", her, him)).toBe("the woman in a bikini");
+  });
+
+  it("take whole names out, however they're cased, and never say a tag twice", async () => {
+    const { cast } = await castOf();
+    const [a, b] = cast;
+    const two = [{ ...a, full: "Star Dust", names: ["Star", "Dust"] }, { ...b, full: "Chud the crusher", names: ["Chud", "Crusher"] }];
+    expect(withoutNames("Star Dust kneels; Chud the crusher has his hand in Star's hair, and Dust laughs", two)).toBe(`${a.tag} kneels; ${b.tag} has his hand in ${a.tag}'s hair, and ${a.tag} laughs`);
+    expect(withoutNames(`${a.tag} Star is lying back`, two)).toBe(`${a.tag} is lying back`);
   });
 
   it("are on the menu as views, with their badges, the acts that come out best first within a stage", async () => {

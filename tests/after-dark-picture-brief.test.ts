@@ -179,7 +179,7 @@ describe("a scene picture's brief", () => {
     scriptBrief({ ...BRIEF, wearing: "both naked; Lexi still has the gold mask on", kept_on: "her gold mask" });
     const p = await previewOf(cookie, 3);
     expect(p.fields.wearing).toBe("both naked; Lexi still has the gold mask on");
-    expect(p.prompt).toMatch(/not their clothes: both completely naked apart from her gold mask, none of the other clothes from their pictures/);
+    expect(p.prompt).toMatch(/not their clothes: (both )?completely naked apart from her gold mask, none of the other clothes from their pictures/);
   });
 });
 

@@ -295,7 +295,7 @@ export const ACTS: readonly Act[] = [
     next: "{X} keeps going, faster; {Y's} back arches off the bed, both faces flushed.",
     framing: "medium",
     pov: {
-      y: "Seen through {Y's} eyes, lying back against the pillows and looking down along {Yp} body: {X} kneels between {Y's} thighs, going down on {Yo}, looking up into the lens.",
+      y: "Seen through {Y's} eyes, looking down from lying back on a bed: {X} kneels between {Y's} thighs, going down on {Yo}, looking up into the lens.",
     },
     hardNos: ["oral"],
   },
@@ -444,7 +444,30 @@ export function povFor(act: Act, cast: readonly [ReelPerson, ReelPerson], eyes: 
   const viewer: 0 | 1 = eyes === "a" ? 0 : 1;
   const text = viewer === x ? act.pov?.x : act.pov?.y;
   if (!text) return null;
-  return { still: fillAct(text, cast[x], cast[y]), viewer, shown: viewer === 0 ? 1 : 0 };
+  return { still: povStill(act.id, text, viewer === x ? "X" : "Y", cast[viewer], cast[viewer === x ? y : x]), viewer, shown: viewer === 0 ? 1 : 0 };
+}
+
+/** What the viewer's sex is, said plainly where an act needs it (going down), as the Studio's first-person shots do. */
+const VIEWER_SEX: Record<ReelPerson["noun"], (shownPossessive: string) => string> = {
+  man: (her) => `the viewer's cock in ${her} mouth`,
+  woman: (her) => `${her} mouth on the viewer's pussy`,
+  person: () => "going down on the viewer",
+};
+
+/**
+ * A first-person still with the viewer said as "the viewer" only: never their tag or he/she, him/her, his/her (2026-11-10
+ * audit: "seen through the man's eyes … along his body … going down on him" drew the man in full, face and all, in
+ * nearly every one; worded like the Studio's, one person in full, 23 of 23 were liked). Pure.
+ */
+export function povStill(act: string, text: string, slot: "X" | "Y", viewer: ReelPerson, shown: ReelPerson): string {
+  const said = text
+    .replaceAll(`{${slot}'s}`, "the viewer's")
+    .replaceAll(`{${slot}p}`, "the viewer's")
+    .replaceAll(`{${slot}o}`, "the viewer")
+    .replaceAll(`{${slot}}`, "the viewer")
+    .replace(/^Seen through the viewer's eyes/, "A first-person view");
+  const filled = fillAct(said, slot === "X" ? { tag: "the viewer", noun: viewer.noun } : shown, slot === "X" ? shown : { tag: "the viewer", noun: viewer.noun });
+  return act === "oral" ? filled.replace(/going down on the viewer/, VIEWER_SEX[viewer.noun](PRONOUNS[shown.noun][0])) : filled;
 }
 
 /** How well each framing of each act has done, for the menu's badges and its order (lib/adult/framing.ts). */
