@@ -8,7 +8,8 @@
  * draws a PG placeholder (the repo's own cast portraits, through ffmpeg) and passes every check, so the app's own checks
  * still run, on a real picture. Never anything explicit.
  *
- * Exits non-zero if any step fails. Set CHROMIUM_PATH; SKIP_BUILD=1 reuses the last build; HEADED=1 shows the browser.
+ * Exits non-zero if any step fails. Set CHROMIUM_PATH; SKIP_BUILD=1 reuses the last build; HEADED=1 shows the browser;
+ * SHOTS=1 writes the README's screenshots (the Fix sheet's, fix-*.png) to docs/screenshots.
  */
 import { createServer } from "node:http";
 import { spawnSync } from "node:child_process";
@@ -32,7 +33,10 @@ async function step(name, fn) {
     console.log(`  ✓ ${name}`);
   } catch (err) {
     results.push(false);
-    console.log(`  ✗ ${name}\n      ${(err instanceof Error ? err.message : String(err)).split("\n")[0]}`);
+    const lines = (err instanceof Error ? err.message : String(err)).split("\n").map((l) => l.trim()).filter(Boolean);
+    // Playwright's call log ("- waiting for …") says what a timeout was waiting for.
+    const waited = lines.filter((l) => l.startsWith("- ")).slice(-2);
+    console.log(`  ✗ ${name}\n      ${[lines[0], ...waited].join("\n      ")}`);
   }
 }
 function assert(cond, msg) {
@@ -222,7 +226,9 @@ async function main() {
       await page.waitForTimeout(250);
       return { status: res.status(), note: await noteText() };
     };
-    const shotOf = (file) => page.screenshot({ path: join(process.env.E2E_SHOTS ?? DATA_DIR, `${file}.png`), fullPage: false });
+    // The README's (`readme`) go to docs/screenshots with SHOTS=1; the rest stay with the run (or E2E_SHOTS).
+    const shotOf = (file, readme = false) =>
+      page.screenshot({ path: join(readme && process.env.SHOTS ? join(ROOT, "docs", "screenshots") : (process.env.E2E_SHOTS ?? DATA_DIR), `${file}.png`), fullPage: false });
     const noSideways = async (name) => {
       const width = page.viewportSize()?.width ?? 0;
       const scroll = await page.evaluate(() => document.documentElement.scrollWidth);
@@ -411,6 +417,122 @@ async function main() {
         assert(a.status === 200, `animate: HTTP ${a.status}, "${a.note}"`);
         await page.getByText(/Animating, started/).waitFor({ timeout: 10_000 });
       });
+      // 🩹 Fix (lib/adult/fix.ts, app/after-dark/FixSheet.tsx): two fixes a size, of the five one picture can have.
+      await step(`${size}: Gallery: 🩹 Fix repairs a marked spot, makes a change from that, keeps one, and goes back to the original`, async () => {
+        try {
+          await fixFlow();
+        } catch (err) {
+          // What the sheet looked like when it stopped (E2E_SHOTS, else the run's folder).
+          await page.screenshot({ path: join(process.env.E2E_SHOTS ?? DATA_DIR, `fix-failed-${size}.png`) }).catch(() => {});
+          const sheets = await page.locator(".ad-fixsheet").count();
+          const text = sheets ? (await page.locator(".ad-fixsheet").first().innerText()).replace(/\s+/g, " ").slice(0, 500) : "";
+          console.log(`      (${sheets} sheet${sheets === 1 ? "" : "s"} open: ${text})`);
+          throw err;
+        } finally {
+          // Stopped part way: the original back in the gallery, the sheet closed, for the steps after this one.
+          if (await page.locator(".ad-fixsheet").count()) await page.keyboard.press("Escape");
+          await page.request.post(`${app.base}/api/admin/after-dark/fix`, { data: { action: "keep", media_id: "e2e-shot-2" } }).catch(() => {});
+        }
+      });
+      async function fixFlow() {
+        await tab("Gallery");
+        const item = galleryItem("e2e-shot-2");
+        await item.waitFor({ timeout: 10_000 });
+        await item.getByRole("button", { name: "🩹 Fix", exact: true }).click();
+        const sheet = page.locator(".ad-fixsheet");
+        await sheet.locator(".ad-fixsheet-body").waitFor({ timeout: 15_000 });
+        // Every picture in the sheet drawn (a new version takes a moment to load), but a lazy one out of sight.
+        const drawn = () =>
+          page
+            .waitForFunction(
+              () => [...document.querySelectorAll(".ad-fixsheet img")].filter((i) => i.loading !== "lazy" || i.getBoundingClientRect().top < window.innerHeight).every((i) => i.complete && i.naturalWidth > 0),
+              null,
+              { timeout: 15_000 },
+            )
+            .catch(() => {});
+        await drawn();
+        const fixed = async (button, says) => {
+          const answered = page.waitForResponse((r) => r.url().includes("/api/admin/after-dark/fix") && r.request().method() === "POST", { timeout: 90_000 });
+          await button.click();
+          const res = await answered;
+          const body = await res.json().catch(() => ({}));
+          assert(res.status() === 200, `${says}: HTTP ${res.status()}, "${body.message ?? ""}"`);
+          await sheet.getByRole("status").filter({ hasText: says }).waitFor({ timeout: 10_000 });
+          return body;
+        };
+        // Repair: a chip, and a spot dragged across the picture.
+        assert((await sheet.getByRole("radio", { name: "🩹 Repair" }).getAttribute("aria-checked")) === "true", "the sheet doesn't open on Repair");
+        await sheet.getByRole("group", { name: "What's broken" }).getByRole("button", { name: "Hands", exact: true }).click();
+        await sheet.getByRole("button", { name: "▭ Mark the spot" }).click();
+        assert((await sheet.getByRole("button", { name: "▭ Mark the spot" }).getAttribute("aria-pressed")) === "true", "Mark the spot didn't turn on");
+        // The sheet brings the picture back into view to mark (on a phone the chips below it scroll it away).
+        await page.waitForTimeout(200);
+        const box = await sheet.locator(".ad-fixsheet-pic").boundingBox();
+        const viewport = page.viewportSize();
+        assert(box && box.y >= -2 && box.y + box.height * 0.8 <= viewport.height, `the picture to mark isn't in view: top ${Math.round(box?.y ?? 0)}, ${Math.round(box?.height ?? 0)} tall on ${viewport.height}`);
+        assert(box && box.width > 100 && box.height > 100, `the picture to mark is ${box?.width ?? 0}×${box?.height ?? 0}px`);
+        await page.mouse.move(box.x + box.width * 0.3, box.y + box.height * 0.5);
+        await page.mouse.down();
+        await page.mouse.move(box.x + box.width * 0.62, box.y + box.height * 0.74, { steps: 8 });
+        await page.mouse.up();
+        const hit = await page.evaluate(([x, y]) => {
+          const el = document.elementFromPoint(x, y);
+          return el ? `${el.tagName.toLowerCase()}.${[...el.classList].join(".")}` : "nothing";
+        }, [box.x + box.width * 0.4, box.y + box.height * 0.6]);
+        assert((await sheet.locator(".ad-fixsheet-spot").count()) === 1, `no spot marked after the drag (the drag's middle is on ${hit}; the picture ${Math.round(box.x)},${Math.round(box.y)} ${Math.round(box.width)}×${Math.round(box.height)})`);
+        await drawn();
+        await shotOf(`fix-spot-${size}`, true);
+        const one = await fixed(sheet.getByRole("button", { name: "Fix it · free" }), "Here it is");
+        assert(one.picture?.id && one.state?.versions?.length >= 2, `the fix came back without its versions: ${JSON.stringify(one).slice(0, 160)}`);
+        assert(one.state.versions.at(-1).spot, "the fix kept no spot");
+        assert((await sheet.getByRole("button", { name: "Before and after" }).getAttribute("aria-pressed")) === "true", "it doesn't open on before and after");
+        // Before and after at the picture's own shape: the frame no wider than the picture in it.
+        await drawn();
+        const frame = await sheet.locator(".ad-compare-frame").boundingBox();
+        const after = await sheet.locator(".ad-compare-frame img").first().boundingBox();
+        assert(frame && after && Math.abs(frame.width - after.width) <= 2 && Math.abs(frame.height - after.height) <= 2, `before and after is cropped: frame ${frame?.width}×${frame?.height}, picture ${after?.width}×${after?.height}`);
+        await drawn();
+        await sheet.locator(".ad-compare").scrollIntoViewIfNeeded();
+        await shotOf(`fix-compare-${size}`, true);
+        // Keep the first fix: the original leaves the gallery once it next refreshes.
+        await sheet.getByRole("button", { name: "Before and after" }).click();
+        const keepFirst = sheet.getByRole("button", { name: "✓ Keep this one" });
+        if (!(await keepFirst.count())) {
+          const buttons = await sheet.getByRole("button").allInnerTexts();
+          throw new Error(`no "✓ Keep this one" after Before and after; the sheet's buttons: ${buttons.map((b) => b.trim()).join(" | ")}`);
+        }
+        await fixed(keepFirst, "Kept:");
+        // A change, made from the fix on screen. The gallery refreshes behind the sheet as it lands, without the
+        // original's tile now: the sheet stays (it lives on the page's FixHost, not in the tile).
+        await sheet.getByRole("radio", { name: "✏️ Change" }).click();
+        await sheet.locator(".ad-fixsheet-words textarea").fill("the lamp light a little warmer");
+        const two = await fixed(sheet.getByRole("button", { name: "Make the change · free" }), "Here it is");
+        assert(two.state.versions.at(-1).from === one.picture.id, "the change wasn't made from the first fix");
+        await page.waitForTimeout(1_500);
+        assert((await galleryItem("e2e-shot-2").count()) === 0, "the gallery didn't refresh behind the sheet (the original's tile is still there)");
+        assert(await sheet.isVisible(), "the sheet closed when the gallery refreshed behind it");
+        // Keep the change instead: the versions strip says which.
+        await sheet.getByRole("button", { name: "Before and after" }).click();
+        await fixed(sheet.getByRole("button", { name: "✓ Keep this one" }), "Kept:");
+        const badges = sheet.locator(".ad-fixsheet-version", { has: page.locator(".badge", { hasText: "Kept" }) });
+        assert((await badges.count()) === 1 && (await badges.innerText()).includes("Change"), "the change isn't the version marked Kept");
+        // The version on screen is in view in the strip, even where the strip runs past a phone's edge.
+        const strip = await sheet.locator(".ad-fixsheet-versions").boundingBox();
+        const on = await sheet.locator(".ad-fixsheet-version.is-on").boundingBox();
+        assert(strip && on && on.x >= strip.x - 1 && on.x + on.width <= strip.x + strip.width + 1, "the version on screen is out of sight in the strip");
+        await page.evaluate(() => document.querySelector(".ad-storyboard-backdrop")?.scrollTo(0, 0));
+        await drawn();
+        await shotOf(`fix-versions-${size}`, true);
+        // Back to the original: picked in the strip, kept again; closing tells the gallery.
+        await sheet.locator(".ad-fixsheet-version", { hasText: "Original" }).click();
+        await fixed(sheet.getByRole("button", { name: "↩ Back to the original" }), "Back to the original");
+        if (size === "phone") await noSideways("the Fix sheet");
+        await sheet.getByRole("button", { name: "Close", exact: true }).click();
+        await sheet.waitFor({ state: "detached", timeout: 5_000 });
+        await page.waitForTimeout(1_000);
+        assert((await galleryItem("e2e-shot-2").count()) > 0, "the original left the gallery after going back to it");
+        assert((await galleryItem(two.picture.id).count()) === 0, "a fix not kept is still in the gallery");
+      }
       await step(`${size}: Gallery and Identity: every picture loads and decodes (the AI mark doesn't break one)`, async () => {
         for (const t of ["Gallery", "Identity"]) {
           await tab(t);
@@ -483,6 +605,26 @@ async function main() {
       await notLiked.locator("li").first().getByRole("button", { name: "Not right", exact: true }).first().click();
       await page.waitForTimeout(800);
       assert((await gallery.locator(".ad-gallery-disliked").count()) === 0, "taking the 👎 back didn't move it back");
+    });
+
+    await step("the scene's gallery: ⋯ then 🩹 Fix opens the sheet on that picture", async () => {
+      const gallery = page.locator("section", { has: page.getByRole("heading", { name: "Gallery", exact: true }) }).last();
+      const tile = gallery.locator(".ad-gallery-section", { has: page.getByRole("heading", { name: "Pictures", exact: true }) }).locator("li").first();
+      await tile.locator("details.ad-tile-more > summary").click();
+      const looked = page.waitForResponse((r) => r.url().includes("/api/admin/after-dark/fix?media_id=") && r.request().method() === "GET", { timeout: 15_000 });
+      await tile.getByRole("button", { name: "🩹 Fix", exact: true }).click();
+      const state = (await (await looked).json()).state;
+      assert(state?.versions?.length >= 1, "the sheet's state didn't load");
+      const sheet = page.locator(".ad-fixsheet");
+      await sheet.locator(".ad-fixsheet-body").waitFor({ timeout: 15_000 });
+      for (const mode of ["🩹 Repair", "🙂 Faces", "✏️ Change", "Undressed"]) assert((await sheet.getByRole("radio", { name: mode }).count()) === 1, `no ${mode}`);
+      // Faces and Undressed can be for one or both, when it shows the two of them.
+      await sheet.getByRole("radio", { name: "🙂 Faces" }).click();
+      const shown = state.people.filter((p) => p.shown).length;
+      const who = await sheet.getByRole("radiogroup", { name: "Who" }).getByRole("radio").count();
+      assert(who === (shown > 1 ? shown + 1 : 0), `${shown} shown, ${who} Who chips`);
+      await page.keyboard.press("Escape");
+      await sheet.waitFor({ state: "detached", timeout: 5_000 });
     });
 
     await step("no page errors or console errors", async () => {

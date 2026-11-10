@@ -532,7 +532,7 @@ export function shootPrompt(plan: ShootPlan, subject: Subject, refs: { body: boo
 
 /** Past suggestive somewhere public: the place has to be empty, so nobody sees them who didn't choose to. */
 export const emptyPlace = (plan: Pick<ShootPlan, "level" | "placePublic">): boolean => plan.placePublic && plan.level >= 2;
-const EMPTY_PLACE = "The place is completely empty and private for now: nobody else anywhere in the picture, no onlookers, not even far in the background";
+export const EMPTY_PLACE = "The place is completely empty and private for now: nobody else anywhere in the picture, no onlookers, not even far in the background";
 /** Kept out of an empty-place shoot's pictures (the negative prompt). */
 export const EMPTY_PLACE_NEGATIVE = "crowd, onlookers, bystanders, other people, people in the background";
 

@@ -46,7 +46,7 @@ import LocalTime from "../../LocalTime";
 import TrimmableClip from "../../TrimmableClip";
 import ExportDialog from "@/app/studio/ExportDialog";
 import TileTools, { SelectBar } from "@/app/studio/TileTools";
-import FixFaces from "../../FixFaces";
+import FixButton, { FixHost, fixNudge } from "../../FixSheet";
 import { tileRatio } from "@/app/studio/FormatChips";
 import { AFTER_DARK_API, useSelection } from "@/app/studio/selection";
 import { videoPrice } from "@/lib/adult/reel-timing";
@@ -581,6 +581,8 @@ export default function SceneWriter({
     // An admin: every media title under it opens what made it (app/after-dark/MediaRequest.tsx).
     <MediaAdmin.Provider value={admin}>
       <section className="after-dark-scene">
+        {/* The Fix sheet opens here, not in a gallery's tile: a refresh can take the tile away (app/after-dark/FixSheet.tsx). */}
+        <FixHost />
         {(storyboard || planning) && (
           <Storyboard
             reel={storyboard}
@@ -844,6 +846,15 @@ export default function SceneWriter({
                 setGallery((g) => [m, ...g]);
                 setScene((s) => (s.picture_note ? { ...s, picture_note: null } : s));
               }}
+              // A version kept (lib/adult/fix.ts): the others leave, and it's back if an earlier keep took it out.
+              onKept={(kept, hidden) =>
+                setGallery((g) => {
+                  const rest = g.filter((x) => !hidden.includes(x.id));
+                  if (rest.some((x) => x.id === kept.id)) return rest;
+                  const at = Math.max(0, g.findIndex((x) => hidden.includes(x.id)));
+                  return [...rest.slice(0, at), kept, ...rest.slice(at)];
+                })
+              }
               paused={mediaPaused}
               faces={faces}
               onFace={pickFace}
@@ -969,6 +980,7 @@ function Gallery({
   onFace,
   pair,
   onRedraw,
+  onKept,
   setup = [],
 }: {
   items: Media[];
@@ -983,6 +995,8 @@ function Gallery({
   /** The pair, for a scene picture's Redraw (its context form asks the scene's route). */
   pair?: { a: string; b: string };
   onRedraw?: (pictureId: string, edit: PictureEdit | undefined) => Promise<void>;
+  /** A fixed version kept (app/after-dark/FixSheet.tsx): the versions it was kept over leave the gallery. */
+  onKept?: (kept: Media, hidden: string[]) => void;
   /** Their own characters not set up for pictures yet (#1207): under a setup note, the one-tap setup and the Studio step. */
   setup?: readonly Readiness[];
 }) {
@@ -1110,8 +1124,16 @@ function Gallery({
                     )}
                     {status === "ready" && m.kind === "scene" && (
                       <>
-                        {/* 🩹 Fix faces (lib/adult/fix-faces.ts): the fixed one joins the gallery; bolder after "Doesn't look like them". */}
-                        <FixFaces id={m.id} src={mediaUrl} label="The picture" onFixed={onAdd} nudge={ratingOf(m) === -1 && (m.tags ?? []).includes("face")} />
+                        {/* 🩹 Fix (lib/adult/fix.ts): each fix joins the gallery, Keep leaves one; bolder once they say what's off. */}
+                        <FixButton
+                          id={m.id}
+                          src={mediaUrl}
+                          label="The picture"
+                          onAdded={onAdd}
+                          onKept={onKept}
+                          nudge={fixNudge(ratingOf(m), m.tags ?? [])}
+                          said={ratingOf(m) === -1 ? (m.tags ?? []) : []}
+                        />
                         {/* 👕 The same picture safe for work (lib/adult/sfw-twin.ts); a twin of two joins this gallery. */}
                         <SfwTwin id={m.id} onAdded={onAdd} />
                       </>

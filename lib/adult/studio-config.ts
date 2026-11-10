@@ -71,12 +71,14 @@ export const StudioConfig = z.object({
       carousel: z.number().int().min(0).max(100).default(1),
       /** An SFW twin: a picture made again safe for work (lib/adult/sfw-twin.ts). */
       sfw_twin: z.number().int().min(0).max(100).default(1),
+      /** Fix → Undressed: one of their pictures again, the same pose and place, without clothes (lib/adult/fix.ts). Fixing what's broken is free. */
+      undress: z.number().int().min(0).max(100).default(1),
       animate_5: z.number().int().min(0).max(100).default(3),
       animate_10: z.number().int().min(0).max(100).default(5),
       own_key: z.number().int().min(0).max(100).default(0),
       share: z.number().int().min(0).max(100).default(0),
     })
-    .default({ shoot: { standard: 1, pro: 2 }, pair: { standard: 1, pro: 2 }, restyle: 1, recast: 1, body: 1, variations: 1, upscale: 0, identity: 2, carousel: 1, sfw_twin: 1, animate_5: 3, animate_10: 5, own_key: 0, share: 0 }),
+    .default({ shoot: { standard: 1, pro: 2 }, pair: { standard: 1, pro: 2 }, restyle: 1, recast: 1, body: 1, variations: 1, upscale: 0, identity: 2, carousel: 1, sfw_twin: 1, undress: 1, animate_5: 3, animate_10: 5, own_key: 0, share: 0 }),
   models: z.array(StudioModel).min(1).max(30).default(DEFAULT_STUDIO_MODELS),
   default_edit: z.string().default("qwen-edit-uncensored"),
   default_new: z.string().default("lustify-v8"),

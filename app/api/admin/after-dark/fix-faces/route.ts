@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { fixFaces } from "@/lib/adult/fix-faces";
+import { fixFaces } from "@/lib/adult/fix";
 import { adultViewer } from "@/lib/adult/mode";
 import { mediaRefusal } from "@/lib/adult/place";
 import { getDb } from "@/lib/db";
@@ -10,7 +10,7 @@ import { requestBase } from "@/lib/site";
 export const maxDuration = 300;
 
 const id = z.string().min(1).max(64);
-/** One of the owner's pictures with its faces fixed (lib/adult/fix-faces.ts): both shown, or only one of them (`who`). */
+/** One of the owner's pictures with its faces fixed (lib/adult/fix.ts, kind faces): both shown, or only one of them (`who`). The Fix sheet uses /fix. */
 const Input = z.object({ media_id: id, who: id.nullable().optional() });
 
 /** Not found for everyone but a viewer After Dark is open to (lib/adult/mode.ts). */

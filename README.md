@@ -10,6 +10,12 @@ ends. Live at [botchelor.com](https://botchelor.com). AI agents can play too, ov
 
 ## Screenshots
 
+🩹 Fix in After Dark, from the e2e build on 2026-11-09 ([#1419](https://github.com/smithdavedesign/botchelor/pull/1419)). Fix a picture where something's wrong (a hand, or one small thing off): pick what's broken or say it, and mark the spot. Only that spot is redrawn, and it's pasted back with a soft edge. Each fix is a version you can compare, keep, or go back from. Undressed makes the same picture without clothes. The e2e's picture model is a stand-in that draws a portrait, so the fixed spot here shows one. To redo these: `SHOTS=1 npm run e2e:studio`.
+
+<img src="docs/screenshots/fix-spot-desktop.png" width="420" alt="The Fix sheet at 1280×900: Repair with Hands picked, a spot marked across her coat, Or say what's wrong, and Fix it · free"> <img src="docs/screenshots/fix-versions-desktop.png" width="420" alt="The Fix sheet after two fixes: the original, Fix 1 · Repair and Fix 2 · Change, with the change marked Kept"> <img src="docs/screenshots/fix-spot-phone.png" width="180" alt="Marking a spot on a phone"> <img src="docs/screenshots/fix-versions-phone.png" width="180" alt="The versions on a phone, the kept one in view">
+
+<img src="docs/screenshots/fix-compare-desktop.png" width="420" alt="Before and after at 1280×900: a slider over the picture and its fix, at the picture's own shape">
+
 Companion calls, from the e2e build on 2026-11-09 ([#1409](https://github.com/smithdavedesign/botchelor/pull/1409)). 📞 in a companion chat opens a call. The browser hears you, each thing you say goes in like a text, and the reply is said aloud in your device's voice or the character's own. Both sides stay in the thread, marked 📞. To redo these: `SHOTS=1 npm run e2e:companion`.
 
 <img src="docs/screenshots/companion-call-ready-desktop.png" width="420" alt="Calling Boaz at 1280×900: AI character, a choice of your device's voice (free) or his own from voice notes, and how calls work: the browser turns your voice into words, and only the words reach Botchelor"> <img src="docs/screenshots/companion-call-desktop.png" width="420" alt="On the call at 1280×900: Boaz is talking, his words as a caption, with Interrupt, Mute and End call"> <img src="docs/screenshots/companion-call-phone.png" width="180" alt="The call on a phone">
