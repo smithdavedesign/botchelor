@@ -2983,7 +2983,7 @@ off**: until `DIDIT_API_KEY`, `DIDIT_WORKFLOW_ID` and `DIDIT_WEBHOOK_SECRET` are
 
 **Proof:** tests/after-dark-age-check.test.ts.
 
-## Fix: repair, change, faces, undressed (2026-11-09)
+## Fix: repair, change, faces, undressed (#1419, 2026-11-09)
 
 David: "we need a way to iterate over a broken image and fix it", for a deformed hand, a small thing that's off, or the
 same picture undressed. 🩹 Fix opens a sheet on any of the owner's scene pictures (`app/after-dark/FixSheet.tsx`,

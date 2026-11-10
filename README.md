@@ -10,7 +10,7 @@ ends. Live at [botchelor.com](https://botchelor.com). AI agents can play too, ov
 
 ## Screenshots
 
-🩹 Fix in After Dark, from the e2e build on 2026-11-09 (PR_LINK). Fix a picture where something's wrong (a hand, or one small thing off): pick what's broken or say it, and mark the spot. Only that spot is redrawn, and it's pasted back with a soft edge. Each fix is a version you can compare, keep, or go back from. Undressed makes the same picture without clothes. The e2e's picture model is a stand-in that draws a portrait, so the fixed spot here shows one. To redo these: `SHOTS=1 npm run e2e:studio`.
+🩹 Fix in After Dark, from the e2e build on 2026-11-09 ([#1419](https://github.com/smithdavedesign/botchelor/pull/1419)). Fix a picture where something's wrong (a hand, or one small thing off): pick what's broken or say it, and mark the spot. Only that spot is redrawn, and it's pasted back with a soft edge. Each fix is a version you can compare, keep, or go back from. Undressed makes the same picture without clothes. The e2e's picture model is a stand-in that draws a portrait, so the fixed spot here shows one. To redo these: `SHOTS=1 npm run e2e:studio`.
 
 <img src="docs/screenshots/fix-spot-desktop.png" width="420" alt="The Fix sheet at 1280×900: Repair with Hands picked, a spot marked across her coat, Or say what's wrong, and Fix it · free"> <img src="docs/screenshots/fix-versions-desktop.png" width="420" alt="The Fix sheet after two fixes: the original, Fix 1 · Repair and Fix 2 · Change, with the change marked Kept"> <img src="docs/screenshots/fix-spot-phone.png" width="180" alt="Marking a spot on a phone"> <img src="docs/screenshots/fix-versions-phone.png" width="180" alt="The versions on a phone, the kept one in view">
 
