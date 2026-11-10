@@ -94,7 +94,7 @@ const GROUPS: Group[] = [
       { name: "CCBill, Segpay and Verotel", what: "After Dark's subscription, through adult card processors.", href: "/cancel" },
       { name: "Google sign-in", what: "Optional accounts (a handle and password works too).", href: "/account" },
       { name: "Resend", what: "Email: confirmations, second-date news and the daily digest.", href: "https://resend.com" },
-      { name: "Deepgram", what: "Live voice calls with companions: hears you as you talk, so you can just speak, and interrupt.", href: "https://deepgram.com" },
+      { name: "Deepgram", what: "Live voice calls with companions: it hears you as you talk and speaks their replies as they are written, so you can just talk, and cut in.", href: "https://deepgram.com" },
       {
         name: "Your browser's speech",
         what: "Companion calls can also use your browser's own speech recognition and voices (Chrome sends what you say to Google, Safari to Apple).",
