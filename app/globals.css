@@ -12764,6 +12764,14 @@ button.thread-menu-item:hover:not(:disabled) {
 .about-stack-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 0.75rem; padding: 0; list-style: none; }
 .about-stack-grid li { display: flex; flex-direction: column; gap: 0.25rem; padding: 0.75rem 0.9rem; border: 1px solid var(--line); border-radius: var(--radius-md); }
 .about-stack-grid li span { font-size: 0.92em; opacity: 0.85; }
+/* What it costs (app/costs, 2026-11-10): plain two-column tables, the amount right-aligned. */
+.costs-table { width: 100%; border-collapse: collapse; margin: var(--space-2) 0 var(--space-3); }
+.costs-table th, .costs-table td { padding: var(--space-2) 0; border-bottom: 1px solid var(--line); vertical-align: top; text-align: left; }
+.costs-table th { font-weight: 600; padding-right: var(--space-3); }
+.costs-table th span { display: block; font-weight: 400; }
+.costs-table td { text-align: right; white-space: nowrap; }
+.costs-month { margin: var(--space-2) 0; }
+.costs-month summary { cursor: pointer; }
 
 /* ---------------- roleplays on dates (app/RoleplayPicker.tsx, the couple page's RoleplayCard) ---------------- */
 

@@ -113,6 +113,7 @@ describe("launch checks: robots.txt, sitemap and og:image", () => {
         "/tools/oc-chemistry-test",
         "/prompts",
         "/about",
+        "/costs",
         "/safety",
         "/agents/pricing",
         "/showcase",

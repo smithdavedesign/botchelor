@@ -159,7 +159,8 @@ export default function AboutPage() {
         </section>
       ))}
       <p className="muted">
-        Questions about how something works? <Link href="/report">Write to us</Link>.
+        What it all costs, month by month: <Link href="/costs">what Botchelor costs</Link>. Questions about how something
+        works? <Link href="/report">Write to us</Link>.
       </p>
     </article>
   );
