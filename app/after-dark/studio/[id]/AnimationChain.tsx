@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { requestJson } from "@/app/request";
 import CameraMoves from "../../CameraMoves";
+import ChainPublish from "../../ChainPublish";
 import { NextWords } from "../../MomentTools";
 import { trimStep } from "../../trimPlayback";
 import type { CameraMoveId } from "@/lib/adult/camera-moves";
@@ -31,6 +32,7 @@ export default function AnimationChain({
   price,
   disabled = false,
   onState,
+  onMade,
 }: {
   id: string;
   characterId: string;
@@ -41,11 +43,15 @@ export default function AnimationChain({
   price: (seconds: 5 | 10) => string;
   disabled?: boolean;
   onState: (s: StudioState) => void;
+  /** A chain joined into one reel, kept in the gallery: the gallery's read again. */
+  onMade?: () => void;
 }) {
   const chain = chainTo(id, links);
   const room = canKeepGoing(id, links);
   const forced = nextStartsFresh(id, links);
   const said = links[id]?.words ?? null;
+  // The chain's last link, nothing kept going from it (yet): where the whole of it is posted from.
+  const atEnd = !Object.values(links).some((l) => l.from === id);
   const [open, setOpen] = useState(false);
   const [film, setFilm] = useState(false);
   const [words, setWords] = useState("");
@@ -110,6 +116,8 @@ export default function AnimationChain({
           </button>
         </p>
       )}
+      {/* 📣 The chain as one reel on the showcase (ChainPublish.tsx), the film Play all plays, from its last link. */}
+      {chain.length > 1 && atEnd && <ChainPublish key={chain.join(",")} mediaIds={chain} onMade={onMade} />}
       {room ? (
         <button type="button" className="button-ghost small" aria-expanded={open} disabled={off} onClick={() => setOpen((v) => !v)} title="Carry it on from its last frame, with what happens next in your own words">
           ▶▶ Keep going…

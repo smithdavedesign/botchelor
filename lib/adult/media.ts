@@ -72,7 +72,7 @@ export type Media = {
   /** A picture of two (characterMedia): the other one, and their name. */
   partner?: { id: string; name: string } | null;
   /** Made from a clip (lib/adult/moments.ts): a boomerang or a loop of it, or (`moment_at`) a still saved from it, and the clip. */
-  derived?: "boomerang" | "loop" | null;
+  derived?: "boomerang" | "loop" | "chain" | null;
   moment_at?: number | null;
   from_clip?: string | null;
   /** The shape it was drawn in (native sizes, lib/studio/formats.ts: "9:16"); null for one drawn before, all 3:4. */

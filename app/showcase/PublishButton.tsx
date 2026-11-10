@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { requestJson } from "@/app/request";
 
 type PostState = { id: string; status: string } | null;
@@ -12,7 +12,18 @@ type Profile = { handle: string; display_name: string; bio: string | null };
  * if they like, or taken down again. The first time, they pick the handle here. It says plainly who will see it: an
  * explicit one admins only for now; one with someone else's character once that owner says yes.
  */
-export default function PublishButton({ source, mediaId, post = null }: { source: "after_dark" | "pg"; mediaId: string; post?: PostState }) {
+export default function PublishButton({
+  source,
+  mediaId,
+  post = null,
+  startOpen = false,
+}: {
+  source: "after_dark" | "pg";
+  mediaId: string;
+  post?: PostState;
+  /** Opened at once (a chain just joined to be posted, app/after-dark/ChainPublish.tsx): no second tap on 📣. */
+  startOpen?: boolean;
+}) {
   const [now, setNow] = useState<PostState>(post);
   const [open, setOpen] = useState(false);
   const [profile, setProfile] = useState<Profile | null | undefined>(undefined);
@@ -27,6 +38,11 @@ export default function PublishButton({ source, mediaId, post = null }: { source
     const res = (await fetch("/api/creator-profile").then((r) => (r.ok ? r.json() : null)).catch(() => null)) as { profile?: Profile | null } | null;
     setProfile(res?.profile ?? null);
   }
+  useEffect(() => {
+    if (startOpen && !post) void start();
+    // Once, as it appears.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   async function saveProfile() {
     setBusy(true);
     const res = await requestJson("/api/creator-profile", { handle: form.handle, display_name: form.display_name, bio: form.bio || null }).catch(() => null);

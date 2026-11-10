@@ -649,6 +649,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
                 price={(sec) => (admin ? "free for admins" : tokens(sec === 10 ? s.prices.animate_10 : s.prices.animate_5))}
                 disabled={Boolean(busy) || making > 0}
                 onState={setS}
+                onMade={() => void refresh()}
               />
             )}
             {anim && (

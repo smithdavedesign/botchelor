@@ -13,7 +13,8 @@ import { setReplicatePausesForTests } from "@/lib/adult/replicate";
 import { claimAdmin } from "@/lib/admins";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import { sessionCookies } from "@/lib/http";
-import { runFfmpeg, videoDuration } from "@/lib/media-tools/ffmpeg";
+import { runFfmpeg, videoDuration, videoInfo } from "@/lib/media-tools/ffmpeg";
+import { publish, saveCreatorProfile } from "@/lib/showcase";
 import { setSeasonCastForTests } from "@/lib/season-cast";
 import { BASE_URL, newUserCookie, startTestDb, userIdOf } from "./helpers";
 
@@ -206,6 +207,75 @@ describe("a boomerang and a loop", () => {
     const trimmed = await deriveClip(t.db, id, video, "boomerang");
     expect(trimmed.ok && trimmed.media.id).not.toBe(boom.id);
     expect((await moments(cookie, { action: "loop", media_id: boom.id })).status).toBe(409);
+  });
+});
+
+describe("a chain of clips posted as one reel", () => {
+  const bytesOf = async (mediaId: string) => Buffer.from((await t.db.query<{ data: Buffer }>(`select data from adult_images where id = $1`, [mediaId])).rows[0].data);
+
+  it("joins the clips, each as its trim keeps it, into one video: unchecked, made once, and posted as a reel", async () => {
+    const { id, cookie } = await admin();
+    await ready(cookie, id);
+    fakeVenice();
+    const hive = fakeHive();
+    const one = (await kissClip(cookie)).video;
+    const two = (await kissClip(cookie)).video;
+    await t.db.query(`update adult_images set trim = $2::jsonb where id = $1`, [two, JSON.stringify({ start: 1, end: null, cuts: [] })]);
+    hive.length = 0;
+    const res = await moments(cookie, { action: "join", media_ids: [one, two] });
+    expect(res.status).toBe(200);
+    const reel = (await res.json()).media as { id: string; kind: string; derived: string; from_clip: string; character_id: string; character_b: string };
+    expect(reel).toMatchObject({ kind: "video", derived: "chain", from_clip: two });
+    expect([reel.character_id, reel.character_b].sort()).toEqual([JUNIPER, RAFE].sort());
+    // 3 s and the 2 s the second one's trim keeps; silent, as both clips are; nothing new checked.
+    const info = await videoInfo(await bytesOf(reel.id));
+    expect(info.duration).toBeCloseTo(5, 0);
+    expect(info.audio).toBe(false);
+    expect(hive).toEqual([]);
+    // Their tags, together.
+    const tags = (await t.db.query<{ kind: string; value: string }>(`select kind, value from adult_media_tags where media_id = $1 and kind in ('who', 'act')`, [reel.id])).rows;
+    expect(tags).toEqual(expect.arrayContaining([{ kind: "who", value: "pair" }, { kind: "act", value: "kiss" }]));
+    // The same chain again is the one made; another order is another reel.
+    expect(((await (await moments(cookie, { action: "join", media_ids: [one, two] })).json()).media as { id: string }).id).toBe(reel.id);
+    // Not a reel of a reel, and two clips at least.
+    expect((await moments(cookie, { action: "join", media_ids: [reel.id, one] })).status).toBe(409);
+    expect((await moments(cookie, { action: "join", media_ids: [one] })).status).toBe(422);
+    // Posted on the showcase like any clip, as a reel.
+    await saveCreatorProfile(t.db, id, { handle: "chainmaker", display_name: "Chain" });
+    const post = await publish(t.db, id, { source: "after_dark", media_id: reel.id });
+    expect(post).toMatchObject({ ok: true, status: "live" });
+    const row = (await t.db.query<{ medium: string }>(`select medium from showcase_posts where media_id = $1`, [reel.id])).rows[0];
+    expect(row.medium).toBe("reel");
+  });
+
+  it("plays a silent shot's voice in its place, the last frame held while a longer line finishes", async () => {
+    const { id, cookie } = await admin();
+    await ready(cookie, id);
+    fakeVenice();
+    fakeHive();
+    const first = await kissClip(cookie);
+    const two = (await kissClip(cookie)).video;
+    const { files } = await runFfmpeg({ args: ["-f", "lavfi", "-i", "sine=frequency=440:duration=4", "-y", "voice.wav"], inputs: {}, outputs: ["voice.wav"] });
+    await t.db.query(`insert into adult_images (id, owner_id, character_id, kind, prompt, mime, data, status) values ('voice-1', $1, $2, 'audio', 'a line', 'audio/wav', $3, 'ready')`, [id, RAFE, files["voice.wav"]]);
+    const shots = first.reel.shots.map((s) => ({ ...s, audio_id: "voice-1" }));
+    await t.db.query(`update adult_reels set shots = $2::jsonb where id = $1`, [first.reel.id, JSON.stringify(shots)]);
+    const reel = (await (await moments(cookie, { action: "join", media_ids: [first.video, two] })).json()).media as { id: string };
+    const info = await videoInfo(await bytesOf(reel.id));
+    // The 4 s line holds the 3 s clip a second longer; then the second clip, silent.
+    expect(info.duration).toBeCloseTo(7, 0);
+    expect(info.audio).toBe(true);
+  });
+
+  it("joins only the owner's own clips of the same people", async () => {
+    const { id, cookie } = await admin();
+    await ready(cookie, id);
+    fakeVenice();
+    fakeHive();
+    const one = (await kissClip(cookie)).video;
+    const two = (await kissClip(cookie)).video;
+    expect((await moments((await admin()).cookie, { action: "join", media_ids: [one, two] })).status).toBe(404);
+    await t.db.query(`update adult_images set character_b = null where id = $1`, [two]);
+    expect((await moments(cookie, { action: "join", media_ids: [one, two] })).status).toBe(422);
   });
 });
 

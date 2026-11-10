@@ -31,6 +31,8 @@ export function typeOf(m: Pick<Media, "kind" | "derived" | "reel_kind" | "twin">
   if (m.twin) return "twin";
   if (m.kind !== "video") return "picture";
   if (m.derived === "boomerang" || m.derived === "loop") return m.derived;
+  // A chain of clips joined into one (lib/adult/moments.ts joinClips) is a reel.
+  if (m.derived === "chain") return "reel";
   return m.reel_kind && m.reel_kind !== "clip" ? "reel" : "clip";
 }
 
