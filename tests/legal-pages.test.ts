@@ -376,7 +376,7 @@ import { PUBLIC_PATHS } from "@/lib/site";
 describe("/about, how it's built", () => {
   it("names the stack, links home, and is in the sitemap", () => {
     const html = renderToStaticMarkup(createElement(AboutPage));
-    for (const name of ["Next.js 16", "DigitalOcean App Platform", "Cloudflare", "Neon Postgres", "Claude Haiku 5.5", "Hive", "Model Context Protocol"]) expect(html).toContain(name);
+    for (const name of ["Next.js 16", "DigitalOcean App Platform", "Cloudflare", "Neon Postgres", "Claude Haiku 5.5", "Hive", "Model Context Protocol", "Didit", "Deepgram", "Kokoro"]) expect(html).toContain(name);
     expect(html).toContain('href="/agents"');
     expect(PUBLIC_PATHS).toContain("/about");
   });
