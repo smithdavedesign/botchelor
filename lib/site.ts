@@ -75,4 +75,11 @@ export const PUBLIC_PATHS = [
   "/showcase",
   "/import",
   "/alternatives/character-ai",
+  // The company pages (2026-11-10, lib/company.ts).
+  "/pricing",
+  "/faq",
+  "/contact",
+  "/press",
+  "/security",
+  "/accessibility",
 ] as const;

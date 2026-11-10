@@ -119,6 +119,13 @@ describe("launch checks: robots.txt, sitemap and og:image", () => {
         "/showcase",
         "/import",
         "/alternatives/character-ai",
+        // The company pages (docs/company.md).
+        "/pricing",
+        "/faq",
+        "/contact",
+        "/press",
+        "/security",
+        "/accessibility",
       ].map(
         (p) => `https://botchelor.vercel.app${p}`,
       ),

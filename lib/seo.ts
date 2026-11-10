@@ -6,6 +6,8 @@
  */
 import type { Metadata, MetadataRoute } from "next";
 import { formatPrice, PACK_5 } from "./catalog";
+import { BOILERPLATE, FOUNDER, socialLinks } from "./company";
+import { contactEmail } from "./legal-entity";
 import type { Db } from "./db";
 import { FREE_EPISODES_PER_SEASON, REPORT_HIDE_THRESHOLD } from "./rules";
 import { seasonCastIds } from "./season-cast";
@@ -51,7 +53,7 @@ export function pageMetadata({
 }
 
 /** The policy pages: they change when the rules do, not daily. */
-const POLICY_PATHS: ReadonlySet<string> = new Set(["/terms", "/privacy", "/content-policy", "/report", "/cancel", "/2257", "/safety"]);
+const POLICY_PATHS: ReadonlySet<string> = new Set(["/terms", "/privacy", "/content-policy", "/report", "/cancel", "/2257", "/safety", "/security", "/accessibility"]);
 const PRIORITY: Record<string, number> = { "/": 1, "/create": 0.9, "/watch": 0.9, "/agents": 0.8, "/characters": 0.7 };
 
 export function staticSitemap(base: string = siteUrl()): MetadataRoute.Sitemap {
@@ -116,9 +118,31 @@ export function siteOffers(env: Record<string, string | undefined> = process.env
   return [free, pack];
 }
 
+/**
+ * The show as an organization: its logo, its own accounts (`sameAs`, so search engines tie X, Bluesky, Discord and GitHub
+ * to the brand), the support address once CONTACT_EMAIL is set, and who makes it (lib/company.ts).
+ */
+export function organizationJsonLd(base: string = siteUrl(), env: Record<string, string | undefined> = process.env): Record<string, unknown> {
+  const email = contactEmail(env);
+  return {
+    "@type": "Organization",
+    "@id": `${base}/#org`,
+    name: "Botchelor",
+    url: base,
+    // A raster logo of at least 112px is what Google's logo guidance asks for; the SVG stays the favicon.
+    logo: { "@type": "ImageObject", url: `${base}/icons/icon-512.png`, width: 512, height: 512 },
+    description: BOILERPLATE.oneLine,
+    founder: { "@type": "Person", name: FOUNDER },
+    sameAs: socialLinks(env).map((s) => s.url),
+    ...(email
+      ? { email, contactPoint: [{ "@type": "ContactPoint", contactType: "customer support", email, url: `${base}/contact`, availableLanguage: ["English"] }] }
+      : {}),
+  };
+}
+
 /** The site-wide organization, website and app, in every public page's JSON-LD (app/layout.tsx). */
 export function siteJsonLd(base: string = siteUrl(), env: Record<string, string | undefined> = process.env): Record<string, unknown>[] {
-  const org = { "@type": "Organization", "@id": `${base}/#org`, name: "Botchelor", url: base, logo: `${base}/icon.svg` };
+  const org = organizationJsonLd(base, env);
   return [
     {
       "@context": "https://schema.org",

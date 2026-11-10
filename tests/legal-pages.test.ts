@@ -145,7 +145,13 @@ describe("the privacy notice", () => {
 
   it("is dated 10 November 2026, with what changed", () => {
     expect(render(PrivacyPage)).toMatch(/Last updated 10 November 2026\./);
-    expect(render(PrivacyPage)).toMatch(/Changed: live calls with a companion/);
+    expect(render(PrivacyPage)).toMatch(/Changed: who hosts the show and carries its traffic/);
+    expect(render(PrivacyPage)).toMatch(/live calls with a companion/);
+    // Who processes it, as deployed (2026-11-10): DigitalOcean, not Vercel; Claude through OpenRouter.
+    expect(render(PrivacyPage)).toMatch(/DigitalOcean hosts the show and After Dark/);
+    expect(render(PrivacyPage)).toMatch(/Cloudflare carries the site/);
+    expect(render(PrivacyPage)).toMatch(/Claude, reached through OpenRouter/);
+    expect(render(PrivacyPage)).not.toMatch(/Vercel hosts|AI Gateway/);
     expect(render(PrivacyPage)).toMatch(/Before that \(1 November\): Analytics names the three events/);
     expect(render(TermsPage)).toMatch(/Last updated 10 November 2026\./);
   });

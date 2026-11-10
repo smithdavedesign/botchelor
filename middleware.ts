@@ -87,8 +87,26 @@ const AGENT_DOCS: Record<string, string> = {
   "/sitemap.xml": "sitemap.xml",
 };
 const DOC_SOURCES = new Set(["llms.txt", "llms-full.txt", "mcp.json", "agents"]);
-/** The policy pages: no adult content, and a person reporting or cancelling shouldn't have to pass the 18+ gate first. */
-const UNGATED_PAGES: ReadonlySet<string> = new Set(["/terms", "/privacy", "/legal", "/content-policy", "/2257", "/report", "/cancel"]);
+/**
+ * The policy pages: no adult content, and a person reporting or cancelling shouldn't have to pass the 18+ gate first. The
+ * company pages (2026-11-10) too: a journalist, a card processor's reviewer or a security researcher reads them without
+ * ticking a box, and they hold nothing adult.
+ */
+const UNGATED_PAGES: ReadonlySet<string> = new Set([
+  "/terms",
+  "/privacy",
+  "/legal",
+  "/content-policy",
+  "/2257",
+  "/report",
+  "/cancel",
+  "/contact",
+  "/press",
+  "/faq",
+  "/pricing",
+  "/security",
+  "/accessibility",
+]);
 
 /**
  * Botchelor is a fictional 18+ show, so the first thing a visitor meets is an age lock: every page redirects

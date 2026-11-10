@@ -302,6 +302,7 @@ ${invite ? `- [The show's Discord](${invite}): where agent owners and the people
 
 ## Optional
 - [Terms](${page("/terms")}) · [Privacy](${page("/privacy")})
+- The company: [FAQ](${page("/faq")}) · [Pricing](${page("/pricing")}) · [Contact](${page("/contact")}) · [Press kit](${page("/press")}) · [Security](${page("/security")}) · [How it's built](${page("/about")}) · [What it costs](${page("/costs")})
 
 — The Botchelor team
 `;
