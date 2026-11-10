@@ -12,7 +12,7 @@
  * only: never one shared with them.
  */
 import type { Db } from "../db";
-import { boomerang, FfmpegError, frameAt, seamlessLoop, type KeptTrim } from "../media-tools/ffmpeg";
+import { boomerang, FfmpegError, frameAt, joinVideos, seamlessLoop, type KeptTrim } from "../media-tools/ffmpeg";
 import { dataColumn, keepBytes, readBytes } from "../object-store";
 import { hivePausedMessage, HivePausedError } from "./hive-limit";
 import { mediaByIds, outputCheckReady, PICTURES_OFF_NOTE, type Media } from "./media";
@@ -174,6 +174,94 @@ export async function deriveClip(db: Db, ownerId: string, videoId: string, kind:
     [id, ownerId, video.character_id, video.character_b, DERIVED_LABEL[kind], kept.data, kept.object_key, video.id, kind, requestJson([{ at: "ffmpeg", body: { from: video.id, kind, trim: video.trim } }])],
   );
   await copyTags(db, video, id, ownerId);
+  await countUse(db, ownerId, "moments");
+  const [media] = await mediaByIds(db, [id], ownerId);
+  return { ok: true, media };
+}
+
+/** The most clips joined into one reel: a chain of clips (CHAIN_MAX, lib/adult/clip-chains.ts) with two shots each. */
+export const JOIN_MAX = 12;
+
+/**
+ * A chain of the owner's clips as one video, to post as one reel (David, 2026-11-10: "once we continue from a clip we
+ * should be able to post the two clips as one reel for the showcase page"): a clip and the ones kept going from it (a
+ * date's clips, or a Studio animation's links), each as its trim keeps it, with its voice where one plays beside it, in
+ * the order given. Made of their own frames, checked when they were, so nothing new is checked; all of the same one or
+ * two people, so the post asks the same owners' OK as each clip would. The same clips with the same trims again are the
+ * one already made. Free; counted as a moment.
+ */
+export async function joinClips(db: Db, ownerId: string, ids: readonly string[]): Promise<MomentResult> {
+  if (ids.length < 2) return fail(422, "too_few", "There's only one clip there: keep it going first, then post them as one.");
+  if (ids.length > JOIN_MAX || new Set(ids).size !== ids.length) return fail(422, "invalid_request", `That's not a chain of clips (${JOIN_MAX} at most, each once).`);
+  const videos: OwnVideo[] = [];
+  for (const id of ids) {
+    const v = await ownVideo(db, ownerId, id);
+    if (!v) return fail(404, "not_found", "One of those clips isn't yours, or isn't there any more.");
+    if (v.derived) return fail(409, "already", `One of those is a ${v.derived === "chain" ? "reel already" : v.derived}: join the clips themselves.`);
+    videos.push(v);
+  }
+  const who = (v: OwnVideo) => [v.character_id, v.character_b].filter(Boolean).sort().join("+");
+  if (!videos[0].character_id || videos.some((v) => who(v) !== who(videos[0]))) return fail(422, "not_one_chain", "Those clips aren't all of the same people: join one chain at a time.");
+  const trims = videos.map((v) => v.trim ?? null);
+  const made = (
+    await db.query<{ id: string; request: { body?: { from?: unknown; trims?: unknown } }[] | null }>(
+      `select id, request from adult_images where source_image = $1 and derived = 'chain' and owner_id = $2 and status = 'ready' order by created_at desc`,
+      [ids[ids.length - 1], ownerId],
+    )
+  ).rows.find((r) => JSON.stringify(r.request?.[0]?.body?.from ?? null) === JSON.stringify(ids) && JSON.stringify(r.request?.[0]?.body?.trims ?? null) === JSON.stringify(trims));
+  if (made) {
+    const [media] = await mediaByIds(db, [made.id], ownerId);
+    if (media) return { ok: true, media };
+  }
+  const capped = await overCap(db, ownerId, "moments");
+  if (capped) return fail(429, "capped", capped);
+  // The voice said beside a silent shot (lib/adult/reels.ts audio_id), as the player plays it: in place of its sound.
+  const voiceIds = (
+    await db.query<{ media_id: string; audio_id: string }>(
+      `select distinct on (s->>'media_id') s->>'media_id' as media_id, s->>'audio_id' as audio_id
+         from adult_reels r cross join lateral jsonb_array_elements(r.shots) s
+        where r.owner_id = $1 and s->>'media_id' = any($2::text[]) and coalesce(s->>'audio_id', '') <> ''`,
+      [ownerId, ids],
+    )
+  ).rows;
+  const voices = new Map<string, Buffer>();
+  for (const { media_id, audio_id } of voiceIds) {
+    const row = (await db.query<{ data: Buffer | Uint8Array | null; object_key: string | null }>(`select ${dataColumn()}, object_key from adult_images where id = $1 and owner_id = $2 and kind = 'audio' and status = 'ready'`, [audio_id, ownerId])).rows[0];
+    const bytes = row ? await readBytes(row).catch(() => null) : null;
+    if (bytes?.length) voices.set(media_id, bytes);
+  }
+  const pieces = [];
+  for (const v of videos) {
+    const bytes = await bytesOf(v);
+    if (!bytes) return fail(404, "not_found", "One of those clips' files isn't there any more.");
+    pieces.push({ video: bytes, trim: v.trim, voice: voices.get(v.id) ?? null });
+  }
+  let out: Buffer;
+  try {
+    out = await joinVideos(pieces);
+  } catch (err) {
+    return fail(502, "not_made", `Those clips couldn't be joined (${err instanceof FfmpegError ? err.message.slice(0, 120) : "a clip couldn't be read"}).`);
+  }
+  const id = crypto.randomUUID();
+  const kept = await keepBytes("after-dark", id, out, "video/mp4");
+  const first = videos[0];
+  await db.query(
+    `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, status, source_image, derived, model, request)
+     values ($1, $2, $3, $4, 'video', $5, 'video/mp4', $6, $7, 'ready', $8, 'chain', 'ffmpeg', $9::jsonb)`,
+    [
+      id,
+      ownerId,
+      first.character_id,
+      first.character_b,
+      `${ids.length} clips kept going, joined into one reel`,
+      kept.data,
+      kept.object_key,
+      ids[ids.length - 1],
+      requestJson([{ at: "ffmpeg", body: { from: ids, trims, voices: [...voices.keys()] } }]),
+    ],
+  );
+  // What each clip shows, together; how far it goes is the furthest any of them went.
+  for (const v of videos) await copyTags(db, v, id, ownerId);
   await countUse(db, ownerId, "moments");
   const [media] = await mediaByIds(db, [id], ownerId);
   return { ok: true, media };

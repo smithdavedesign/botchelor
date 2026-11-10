@@ -224,3 +224,79 @@ export async function exportVideo(video: Buffer, opts: { size: ExportSize; trim?
   });
   return markAiVideo(files["out.mp4"]);
 }
+
+/** One clip of a chain to join (joinVideos): its file, its trim, and the voice that plays beside it, if any. */
+export type JoinPiece = { video: Buffer; trim?: KeptTrim | null; voice?: Buffer | null };
+/** The longest a voice may hold a clip's last frame for, when its line runs past the clip (as the player does). */
+const VOICE_HOLD_MAX = 10;
+/** How a piece's sound is made the same as the rest's, so they join. */
+const SAME_SOUND = "aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo";
+
+/**
+ * A chain of clips as one video (lib/adult/moments.ts joinClips): each one's trim, one after the other, at the first one's
+ * size (the others fitted inside it, never stretched) and a steady 24 fps. With sound when any of them has some: a clip's
+ * voice in place of its own sound (as the player plays it, the last frame held while a longer line finishes), its own
+ * sound otherwise, or silence the clip's length, so the lines stay with their clips.
+ */
+export async function joinVideos(pieces: readonly JoinPiece[]): Promise<Buffer> {
+  if (pieces.length < 2) throw new FfmpegError("there's only one clip to join");
+  const infos: VideoInfo[] = [];
+  for (const p of pieces) infos.push(await videoInfo(p.video));
+  const voiceLengths: (number | null)[] = [];
+  for (const p of pieces) voiceLengths.push(p.voice?.length ? await soundLength(p.voice) : null);
+  const even = (n: number) => Math.max(2, n - (n % 2));
+  const w = even(infos[0].w || 720);
+  const h = even(infos[0].h || 960);
+  const sound = pieces.some((p, k) => infos[k].audio || voiceLengths[k] !== null);
+  const inputs: Record<string, Buffer> = {};
+  const args: string[] = [];
+  const steps: string[] = [];
+  const voiceInput: (number | null)[] = [];
+  pieces.forEach((p, k) => {
+    inputs[`in${k}.mp4`] = p.video;
+    args.push("-i", `in${k}.mp4`);
+  });
+  pieces.forEach((p, k) => {
+    if (voiceLengths[k] === null) return voiceInput.push(null);
+    inputs[`voice${k}`] = p.voice!;
+    args.push("-i", `voice${k}`);
+    voiceInput.push(pieces.length + voiceInput.filter((x) => x !== null).length);
+  });
+  const labels: string[] = [];
+  pieces.forEach((p, k) => {
+    const parts = keptParts(infos[k].duration, p.trim);
+    if (!parts.length) throw new FfmpegError(`nothing is left of clip ${k + 1} to join`);
+    const length = lengthOf(parts);
+    const said = voiceLengths[k];
+    const hold = said !== null ? Math.min(VOICE_HOLD_MAX, Math.max(0, said - length)) : 0;
+    const total = length + hold;
+    const cut = parts.map(([a, b], j) => `[${k}:v]trim=start=${sec(a)}:end=${sec(b)},setpts=PTS-STARTPTS[c${k}_${j}]`);
+    const joined = parts.length > 1 ? `${parts.map((_, j) => `[c${k}_${j}]`).join("")}concat=n=${parts.length}:v=1:a=0[k${k}]` : null;
+    steps.push(...cut, ...(joined ? [joined] : []));
+    steps.push(
+      `[${joined ? `k${k}` : `c${k}_0`}]fps=24,scale=${w}:${h}:force_original_aspect_ratio=decrease,pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2,setsar=1,format=yuv420p${hold > 0 ? `,tpad=stop_mode=clone:stop_duration=${sec(hold)}` : ""}[v${k}]`,
+    );
+    labels.push(`[v${k}]`);
+    if (!sound) return;
+    const vi = voiceInput[k];
+    if (vi !== null) steps.push(`[${vi}:a]${SAME_SOUND},apad,atrim=end=${sec(total)},asetpts=PTS-STARTPTS[a${k}]`);
+    else if (infos[k].audio) {
+      const bits = parts.map(([a, b], j) => `[${k}:a]atrim=start=${sec(a)}:end=${sec(b)},asetpts=PTS-STARTPTS[s${k}_${j}]`);
+      const into = parts.length > 1 ? `${parts.map((_, j) => `[s${k}_${j}]`).join("")}concat=n=${parts.length}:v=0:a=1[sj${k}]` : null;
+      steps.push(...bits, ...(into ? [into] : []), `[${into ? `sj${k}` : `s${k}_0`}]${SAME_SOUND},apad,atrim=end=${sec(total)},asetpts=PTS-STARTPTS[a${k}]`);
+    } else steps.push(`anullsrc=r=48000:cl=stereo,atrim=end=${sec(total)},aformat=sample_fmts=fltp:channel_layouts=stereo[a${k}]`);
+    labels.push(`[a${k}]`);
+  });
+  steps.push(`${labels.join("")}concat=n=${pieces.length}:v=1:a=${sound ? 1 : 0}[out]${sound ? "[aout]" : ""}`);
+  const out = sound ? [...VIDEO_OUT.filter((a) => a !== "-an"), "-map", "[aout]", "-c:a", "aac", "-b:a", "128k"] : VIDEO_OUT;
+  const { files } = await runFfmpeg({ args: [...args, "-filter_complex", steps.join(";"), "-map", "[out]", ...out, "-y", "out.mp4"], inputs, outputs: ["out.mp4"], timeoutMs: 110_000 });
+  return files["out.mp4"];
+}
+
+/** How long a sound file is, in seconds (a voice: WAV or MP3), read like a video's length. */
+async function soundLength(sound: Buffer): Promise<number> {
+  const { stderr } = await runFfmpeg({ args: ["-i", "in.snd"], inputs: { "in.snd": sound }, outputs: [], quiet: false, allowFail: true, timeoutMs: 20_000 });
+  const d = /Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/.exec(stderr);
+  if (!d) throw new FfmpegError("couldn't read a voice's length");
+  return Number(d[1]) * 3600 + Number(d[2]) * 60 + Number(d[3]);
+}

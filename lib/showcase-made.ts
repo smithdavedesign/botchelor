@@ -111,6 +111,7 @@ function howOf(r: ImageRow): string {
     if (r.loop) return "A living portrait: their safe picture, brought to life";
     if (r.derived === "boomerang") return "A boomerang of a clip";
     if (r.derived === "loop") return "A loop of a clip";
+    if (r.derived === "chain") return "A clip kept going, joined into one reel";
     return r.reel_kind && r.reel_kind !== "clip" ? "A shot of a date's video" : "A clip";
   }
   if (r.moment_at !== null && r.moment_at !== undefined) return "A still cut from a clip";

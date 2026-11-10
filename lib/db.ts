@@ -2939,6 +2939,10 @@ alter table creator_roleplays add column if not exists mode text not null defaul
 -- continue where it left off"): a video made from a clip's own frames (derived: a boomerang or a loop, source_image the
 -- clip), and the second a still was cut at (a moment saved from a clip, or the frame a clip keeps going from).
 alter table adult_images add column if not exists derived text check (derived in ('boomerang', 'loop'));
+-- A chain of clips kept going from each other, joined into one video to post as one reel (lib/adult/moments.ts
+-- joinClips; David, 2026-11-10): derived 'chain', source_image the chain's last clip.
+alter table adult_images drop constraint if exists adult_images_derived_check;
+alter table adult_images add constraint adult_images_derived_check check (derived in ('boomerang', 'loop', 'chain'));
 alter table adult_images add column if not exists moment_at double precision;
 -- How far a picture goes (0 dressed … 3 explicit, lib/adult/studio-catalog.ts LEVELS), kept on the picture itself so
 -- whatever is made from it next (animated, shared) reads it, however it was made; null: read from its shoot as before.
