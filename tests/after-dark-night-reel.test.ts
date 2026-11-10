@@ -6,7 +6,7 @@ import { HIVE_VLM, setCheckFetchForTests } from "@/lib/adult/check";
 import { runAdultTool } from "@/lib/adult/mcp";
 import { setAdultModelForTests } from "@/lib/adult/mode";
 import { byFiling, chaptersLabel, groupNights, nightNumbers, runningNight } from "@/lib/adult/nights";
-import { acrossChapters, DIRECTOR_MAX_LINES, listReels, pickShots, reelCast, reelNight, setReelFetchForTests, setReelPausesForTests, settleIfDone, shareOut, type Reel, type ReelShot } from "@/lib/adult/reels";
+import { acrossChapters, bothSpeak, DIRECTOR_MAX_LINES, listReels, pickShots, reelCast, reelNight, setReelFetchForTests, setReelPausesForTests, settleIfDone, shareOut, type Reel, type ReelShot } from "@/lib/adult/reels";
 import { filmedNight, nightVideos, type NightRow } from "@/lib/adult/shorts";
 import { claimAdmin } from "@/lib/admins";
 import { loadCharacter } from "@/lib/character";
@@ -211,9 +211,10 @@ describe("the director picks across the whole night", () => {
     const cast = reelCast(ca!, cb!);
     const lines = [...linesOf(1, 12), ...linesOf(2, 8)];
     const chapterOf = lines.map((_, i) => (i < 12 ? 0 : 1));
-    const asked = director([3, 9, 15]);
+    // Both of them say something (bothSpeak): 3 and 15 are hers, 8 his.
+    const asked = director([3, 8, 15]);
     const picks = await pickShots(t.db, lines, 3, cast, lines.map(() => "the harbour"), lines.map(() => 2), { chapterOf, chapters: [{ chapter: 1 }, { chapter: 2 }] });
-    expect(picks.map((p) => p.line)).toEqual([3, 9, 15]);
+    expect(picks.map((p) => p.line)).toEqual([3, 8, 15]);
     expect(asked[0]).toContain("The whole night, in 2 chapters one after another, its lines numbered straight through: Chapter 1 is lines 0–11; Chapter 2 is lines 12–19.");
     expect(asked[0]).toContain(`0 | chapter 1 | ${cast[0].tag} | the harbour | kissing | (nods) Placeholder line 0 of chapter 1 goes here.`);
     expect(asked[0]).toContain(`12 | chapter 2 | ${cast[0].tag} |`);
@@ -254,6 +255,41 @@ describe("the director picks across the whole night", () => {
     // Fewer shots than chapters: spread across the night, past the middle.
     expect(shareOut([5, 5, 5, 5], 2)).toEqual([1, 0, 0, 1]);
     expect(acrossChapters([{ i: 0 }, { i: 1 }, { i: 2 }], 2, [0, 0, 1]).map((x) => x.i)).toEqual([1, 2]);
+  });
+});
+
+describe("both of them say something (bothSpeak, David 2026-11-09)", () => {
+  // Lines 0..19: even ones are hers (b), odd ones his (a).
+  const whoOf = (i: number): "a" | "b" => (i % 2 ? "a" : "b");
+  const spokenLines = Array.from({ length: 20 }, (_, i) => i);
+  const pick = (line: number, frame = `still ${line}`) => ({ line, frame, motion: `motion ${line}` });
+  const fresh = (line: number) => pick(line, "fresh");
+
+  it("swaps about a third of one speaker's picks for the other's nearest lines, keeping the moment's still beside it", () => {
+    const shots = [1, 5, 9, 13, 17, 19].map((l) => pick(l));
+    const out = bothSpeak(shots, spokenLines, whoOf, fresh);
+    expect(out).toHaveLength(6);
+    expect(out.filter((s) => whoOf(s.line) === "b")).toHaveLength(2);
+    // In the night's order, no line twice.
+    expect(out.map((s) => s.line)).toEqual([...out.map((s) => s.line)].sort((x, y) => x - y));
+    expect(new Set(out.map((s) => s.line)).size).toBe(6);
+    // Right beside the pick it replaced: that shot's still and motion carry over.
+    for (const s of out.filter((x) => whoOf(x.line) === "b")) expect(s.frame).toMatch(/^still /);
+  });
+
+  it("leaves picks alone when both already speak, when there's one shot, or when the other has no lines", () => {
+    const mixed = [pick(1), pick(2), pick(5)];
+    expect(bothSpeak(mixed, spokenLines, whoOf, fresh)).toBe(mixed);
+    const one = [pick(3)];
+    expect(bothSpeak(one, spokenLines, whoOf, fresh)).toBe(one);
+    const his = [pick(1), pick(3)];
+    expect(bothSpeak(his, [1, 3, 5], whoOf, fresh)).toBe(his);
+  });
+
+  it("a line of the other's far from every pick gets its own still", () => {
+    const out = bothSpeak([pick(1), pick(3)], [1, 3, 12], whoOf, fresh);
+    expect(out.map((s) => s.line)).toEqual([1, 12]);
+    expect(out[1].frame).toBe("fresh");
   });
 });
 
@@ -434,7 +470,7 @@ describe("the storyboard: plan, draw, then film", () => {
     await ready(cookie, id);
     await sceneAt(id, 1, linesOf(1, 8), { place: "the harbour", set: "harbour", stage: 2 });
     const seen = fakeMedia();
-    director([2, 4, 6]);
+    director([2, 3, 6]);
     const plan = (await (await make(cookie, { action: "plan" })).json()).reel as Reel;
     // Where in the night each one is: up to five lines before its own.
     expect(plan.shots[0].before?.map((l) => l.text)).toEqual([0, 1].map((i) => `*nods* Placeholder line ${i} of chapter 1 goes here.`));
@@ -552,6 +588,108 @@ describe("the storyboard: plan, draw, then film", () => {
     expect(await used()).toBe(15);
   });
 
+  it("a night's video where nothing came through goes back to its storyboard, its pictures kept (David, 2026-11-09)", async () => {
+    const owner = userIdOf(newUserCookie());
+    await t.db.query(`insert into pack_episode_usage (user_id, used) values ($1, 20)`, [owner]);
+    const shot = (status: string, extra: Record<string, unknown> = {}) => ({ line: 1, who: "a", text: "hi there you", frame: "", motion: "", status, ...extra });
+    const reel = async (rid: string, shots: unknown[], kind = "night") => {
+      await t.db.query(`insert into adult_reels (id, owner_id, character_a, character_b, status, tokens, shots, kind) values ($1, $2, $3, $4, 'making', 15, $5::jsonb, $6)`, [rid, owner, ...PAIR, JSON.stringify(shots), kind]);
+      return settleIfDone(t.db, rid);
+    };
+    const used = async () => (await t.db.query<{ used: number }>(`select used from pack_episode_usage where user_id = $1`, [owner])).rows[0].used;
+    const back = await reel("came-back", [
+      shot("failed", { frame_id: "f1", media_id: "f1", queue_id: "q1", reason: "gave up waiting", approved: true, model: "wan" }),
+      shot("discarded", { frame_id: "f2", media_id: "v2", reason: "the check refused it", approved: true }),
+      shot("failed", { reason: "Venice 402", approved: true }),
+      shot("failed", { frame_id: "f4", media_id: "f4", archived_at: "2026-11-01T00:00:00Z" }),
+    ]);
+    expect(back.status).toBe("draft");
+    expect(back.tokens).toBe(0);
+    expect(back.returned_at).toEqual(expect.any(String));
+    // Each kept picture is ready to film again, still approved; why it failed is kept; one with no picture is planned.
+    expect(back.shots[0]).toMatchObject({ status: "frame_ready", media_id: "f1", frame_id: "f1", approved: true, last_try: "gave up waiting" });
+    expect(back.shots[0].queue_id).toBeUndefined();
+    expect(back.shots[0].reason).toBeUndefined();
+    // One whose video moderation refused stays held back: its picture is never shown or filmed again.
+    expect(back.shots[1]).toMatchObject({ status: "discarded", media_id: "v2", reason: "the check refused it" });
+    expect(back.shots[2]).toMatchObject({ status: "planned", approved: false, last_try: "Venice 402" });
+    expect(back.shots[2].media_id).toBeUndefined();
+    // One in the Archive stays there.
+    expect(back.shots[3]).toMatchObject({ status: "failed", archived_at: "2026-11-01T00:00:00Z" });
+    // All its tokens back.
+    expect(await used()).toBe(5);
+    // Listed with the pair's videos (a plain draft isn't).
+    await t.db.query(`insert into adult_reels (id, owner_id, character_a, character_b, status, tokens, shots) values ('plain-draft', $1, $2, $3, 'draft', 0, '[]'::jsonb)`, [owner, ...PAIR]);
+    const listed = (await listReels(t.db, owner, CAST_A, CAST_B)).map((r) => r.id);
+    expect(listed).toContain("came-back");
+    expect(listed).not.toContain("plain-draft");
+    // A clip, and a video with no picture kept, still fail.
+    expect((await reel("clip-failed", [shot("failed", { frame_id: "f9", media_id: "f9" })], "clip")).status).toBe("failed");
+    expect((await reel("nothing-kept", [shot("failed", { reason: "Venice 402" })])).status).toBe("failed");
+    // Every picture refused by moderation: nothing comes back.
+    expect((await reel("all-refused", [shot("discarded", { frame_id: "f8", media_id: "v8", reason: "refused" })])).status).toBe("failed");
+  });
+
+  it("an older failed night's video goes back to its storyboard on its owner's ask", async () => {
+    const { id, cookie } = await admin();
+    await ready(cookie, id);
+    const shots = [{ line: 1, who: "a", text: "hi", frame: "", motion: "", status: "failed", frame_id: "f1", media_id: "f1", reason: "the check couldn't run (Hive answered 429)", approved: true }];
+    const insert = (rid: string, kind: string, status = "failed", s: unknown[] = shots) =>
+      t.db.query(`insert into adult_reels (id, owner_id, character_a, character_b, status, tokens, shots, kind) values ($1, $2, $3, $4, $5, 0, $6::jsonb, $7)`, [rid, id, ...PAIR, status, JSON.stringify(s), kind]);
+    await insert("old-failed", "night");
+    await insert("old-clip", "clip");
+    await insert("old-ready", "night", "ready");
+    await insert("old-empty", "night", "failed", [{ ...shots[0], frame_id: undefined }]);
+    expect((await make(newUserCookie(), { action: "reopen", id: "old-failed" })).status).not.toBe(200);
+    const res = await make(cookie, { action: "reopen", id: "old-failed" });
+    expect(res.status).toBe(200);
+    const reel = (await res.json()).reel as Reel;
+    expect(reel).toMatchObject({ status: "draft", returned_at: expect.any(String) });
+    expect(reel.shots[0]).toMatchObject({ status: "frame_ready", media_id: "f1", approved: true, last_try: expect.stringContaining("Hive answered 429") });
+    expect((await make(cookie, { action: "reopen", id: "old-clip" })).status).toBe(409);
+    expect((await make(cookie, { action: "reopen", id: "old-ready" })).status).toBe(409);
+    expect((await make(cookie, { action: "reopen", id: "old-empty" })).status).toBe(409);
+  });
+
+  it("the owner says what happens in a shot's video: it leads the video prompt, the line stays, and filming again takes new words", async () => {
+    const { id, cookie } = await admin();
+    await ready(cookie, id);
+    await sceneAt(id, 1, linesOf(1, 8), { place: "the harbour", set: "harbour", stage: 2 });
+    const seen = fakeMedia();
+    director([2, 4]);
+    const plan = (await (await make(cookie, { action: "plan" })).json()).reel as Reel;
+    // The line's own action is kept as a hint.
+    expect(plan.shots[0].line_action).toBe("nods");
+    await make(cookie, { action: "draw", id: plan.id });
+    await make(cookie, { action: "approve", id: plan.id, media_id: null, approved: true });
+    const words = (await (await make(cookie, { action: "video_words", id: plan.id, shot: 0, words: "  she laughs and pulls him down onto the bench  " })).json()).reel as Reel;
+    // Stored trimmed; the picture and its approval stay.
+    expect(words.shots[0]).toMatchObject({ video_words: "she laughs and pulls him down onto the bench", status: "frame_ready", approved: true });
+    // Words that cross a line are refused; a shot that isn't there is not found.
+    expect((await make(cookie, { action: "video_words", id: plan.id, shot: 1, words: "she says she's sixteen" })).status).toBe(422);
+    expect((await make(cookie, { action: "video_words", id: plan.id, shot: 9, words: "x" })).status).toBe(404);
+    // Empty words go back to the director's.
+    const cleared = (await (await make(cookie, { action: "video_words", id: plan.id, shot: 1, words: "" })).json()).reel as Reel;
+    expect(cleared.shots[1].video_words).toBeUndefined();
+    const filmed = (await (await make(cookie, { action: "film", id: plan.id })).json()).reel as Reel;
+    expect(filmed.shots.every((s) => s.status === "queued")).toBe(true);
+    const queued = seen.filter((x) => x.path === "/video/queue");
+    expect(String(queued[0].body.prompt)).toMatch(/^she laughs and pulls him down onto the bench /);
+    expect(String(queued[1].body.prompt)).toContain(plan.shots[1].motion);
+    // Only a draft takes them.
+    expect((await make(cookie, { action: "video_words", id: plan.id, shot: 0, words: "x" })).status).toBe(409);
+    const advance = async () => (await (await reelGet(new Request(`${BASE_URL}/api/admin/after-dark/reel?id=${plan.id}`, { headers: { cookie } }))).json()).reel as Reel;
+    let done = await advance();
+    for (let k = 0; k < 5 && done.status === "making"; k++) done = await advance();
+    expect(done.status).toBe("ready");
+    // Filming one shot again, with new words: they lead its new video and are kept on the shot.
+    expect((await make(cookie, { action: "refilm", id: plan.id, media_id: done.shots[1].media_id, video_words: "she is sixteen" })).status).toBe(422);
+    const again = (await (await make(cookie, { action: "refilm", id: plan.id, media_id: done.shots[1].media_id, video_words: "he slowly turns her around to face the sea" })).json()).reel as Reel;
+    expect(again.shots[1]).toMatchObject({ status: "queued", video_words: "he slowly turns her around to face the sea" });
+    const requeued = seen.filter((x) => x.path === "/video/queue");
+    expect(String(requeued[requeued.length - 1].body.prompt)).toMatch(/^he slowly turns her around to face the sea /);
+  });
+
   it("suggests each shot's best-fitting pictures of theirs by its tags, and draws a shot like one (its pose, framing and place)", async () => {
     const { id, cookie } = await admin();
     await ready(cookie, id);
@@ -629,7 +767,7 @@ describe("the storyboard: plan, draw, then film", () => {
     await ready(cookie, id);
     await sceneAt(id, 1, linesOf(1, 20), { place: "the harbour", set: "harbour", stage: 2 });
     fakeMedia();
-    director([1, 3, 5, 7, 9, 11, 13, 15, 17, 19]);
+    director([1, 3, 5, 7, 9, 11, 13, 15, 17, 18]);
     await call(settingsPost, "/api/admin/after-dark/settings", { reel_shots: 10 }, cookie);
     const plan = (await (await make(cookie, { action: "plan" })).json()).reel as Reel;
     expect(plan.shots).toHaveLength(10);

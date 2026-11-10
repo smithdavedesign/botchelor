@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { adultViewer } from "@/lib/adult/mode";
 import { mediaRefusal } from "@/lib/adult/place";
-import { addShotLines, advanceReel, approveShot, archiveShot, draftTranscript, drawReelFrames, PICK_LINES_MAX, filmReel, listReels, makeReel, planReel, redrawShot, refilmShot, REEL_SCOPES, reelNight, shotSuggestions, stopReel, useShotPicture, useShotVideo } from "@/lib/adult/reels";
+import { addShotLines, advanceReel, approveShot, archiveShot, draftTranscript, drawReelFrames, PICK_LINES_MAX, filmReel, listReels, makeReel, planReel, redrawShot, refilmShot, REEL_SCOPES, reelNight, reopenReel, setShotVideoWords, shotSuggestions, stopReel, useShotPicture, useShotVideo } from "@/lib/adult/reels";
 import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson } from "@/lib/http";
 import { requestBase } from "@/lib/site";
@@ -27,7 +27,12 @@ const VideoInput = z.object({ action: z.literal("use_video"), id, shot: z.number
 // Film one shot of a finished video again (`media_id`, the shot's video).
 // The owner's own moments: 1 to PICK_LINES_MAX lines of the draft's transcript, each a new shot.
 const AddLinesInput = z.object({ action: z.literal("add_lines"), id, lines: z.array(z.number().int().min(0).max(5000)).min(1).max(PICK_LINES_MAX) });
-const RefilmInput = z.object({ action: z.literal("refilm"), id, media_id: id });
+// video_words: what happens in the shot's new video, in the owner's words ("" goes back to the director's; absent keeps it).
+const RefilmInput = z.object({ action: z.literal("refilm"), id, media_id: id, video_words: z.string().max(400).optional() });
+// What happens in one draft shot's video, in the owner's words (David, 2026-11-09); "" goes back to the director's.
+const VideoWordsInput = z.object({ action: z.literal("video_words"), id, shot: z.number().int().min(0).max(50), words: z.string().max(400) });
+// A night's video that failed: back to its storyboard, its kept pictures with it, to film again.
+const ReopenInput = z.object({ action: z.literal("reopen"), id });
 // One shot of a video (`media_id`, the shot itself) into the Archive, or back out (`archived` false).
 const ArchiveInput = z.object({ id, media_id: id, archived: z.boolean() });
 
@@ -82,7 +87,17 @@ export const POST = handle(async (req: Request) => {
   }
   if (act === "refilm") {
     const input = parseBody(RefilmInput, body, "invalid_request");
-    const r = await refilmShot(db, viewer, input.id, input.media_id, requestBase(req));
+    const r = await refilmShot(db, viewer, input.id, input.media_id, requestBase(req), input.video_words);
+    return r.ok ? json({ reel: r.reel }) : fail(r);
+  }
+  if (act === "video_words") {
+    const input = parseBody(VideoWordsInput, body, "invalid_request");
+    const r = await setShotVideoWords(db, viewer, input.id, input.shot, input.words);
+    return r.ok ? json({ reel: r.reel }) : fail(r);
+  }
+  if (act === "reopen") {
+    const input = parseBody(ReopenInput, body, "invalid_request");
+    const r = await reopenReel(db, viewer, input.id);
     return r.ok ? json({ reel: r.reel }) : fail(r);
   }
   const input = parseBody(Input, body, "invalid_request");

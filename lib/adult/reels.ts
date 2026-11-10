@@ -134,6 +134,19 @@ export type ReelShot = {
   /** What they do next: what the shot shows. */
   motion: string;
   /**
+   * The owner's own words for what happens in the video (David, 2026-11-09: "allow a way for us to change the prompt for
+   * the video"): when set, they lead the shot's video prompt in place of the director's `motion`. The line said stays
+   * the transcript's own. Set on a draft (setShotVideoWords) or when filming one shot again (refilmShot).
+   */
+  video_words?: string;
+  /** The line's own *action* from the transcript (its stage direction), kept as a hint for the owner's video words. */
+  line_action?: string;
+  /**
+   * Why its last filming didn't come through, kept when the video came back to its storyboard (reopenShots) so the
+   * owner sees what went wrong before filming it again. Cleared once it's queued again.
+   */
+  last_try?: string;
+  /**
    * The storyboard's stages (docs/PRDs/reel-storyboard.md): `planned` (picked, no keyframe yet), `frame_ready` (its
    * keyframe drawn, checked and kept — ready to film), then the filming ones: `queued` (video in flight), `ready`,
    * `discarded` (the check refused its keyframe), `failed`. A one-tap reel runs planned -> frame_ready -> queued at once.
@@ -267,6 +280,11 @@ export type Reel = {
   /** A night's reel: one chapter or the whole night, and the chapters it filmed (null: made before it was recorded). */
   scope?: ReelScope | null;
   chapters?: ReelChapter[] | null;
+  /**
+   * When a filmed night's video came back to its storyboard because nothing came through (David, 2026-11-09: "it
+   * should stick as a draft"): its pictures kept, ready to film again. Such a draft is listed with the pair's videos.
+   */
+  returned_at?: string | null;
 };
 
 type Fetch = typeof fetch;
@@ -686,6 +704,9 @@ export async function pickShots(
   // Too long to show whole: the same spread, per chapter, so every chapter is still there to pick from.
   const usable = all.length > DIRECTOR_MAX_LINES ? acrossChapters(all, DIRECTOR_MAX_LINES, chapterOf) : all;
   const speaker = (i: number) => cast[lines[i].who === "a" ? 0 : 1];
+  const whoOf = (i: number) => lines[i].who;
+  // A shot of a line with nothing from the director: a still from how far the night had gone, and the line's own action.
+  const fresh = (i: number): ShotPick => ({ line: i, frame: stillOf(cast, stages[i] ?? 0), motion: motionOf(cast, speaker(i), spoken(lines[i].text).action) });
   try {
     const row = (l: (typeof usable)[number]) =>
       [String(l.i), ...(several ? [chapterName(l.i)] : []), speaker(l.i).tag, places[l.i] ? placeWords(places[l.i]!, cast) : "?", STAGES[stages[l.i]] ?? "?", `${l.action ? `(${l.action}) ` : ""}${l.speech}`].join(" | ");
@@ -754,13 +775,53 @@ export async function pickShots(
           ...(eyes ? { eyes } : {}),
         };
       });
-    if (shots.length >= Math.min(3, want)) return shots;
+    if (shots.length >= Math.min(3, want)) return bothSpeak(shots, all.map((l) => l.i), whoOf, fresh);
   } catch {
     /* fall through to the spread */
   }
   // Spread across the night, more of them past the middle where it peaks; a night of chapters, within each of them.
   const picks = several ? acrossChapters(all, want, chapterOf) : spread(all, want);
-  return picks.map((pick) => ({ line: pick.i, frame: stillOf(cast, stages[pick.i] ?? 0), motion: motionOf(cast, speaker(pick.i), pick.action) }));
+  return bothSpeak(
+    picks.map((pick) => fresh(pick.i)),
+    all.map((l) => l.i),
+    whoOf,
+    fresh,
+  );
+}
+
+/**
+ * Both of them say something in a video of the two of them (David, 2026-11-09: a night's video had six of his lines
+ * and none of hers, though the director is asked for both). When every pick is one speaker's and the other has spoken
+ * lines, about a third of the shots (at least one) go to the other's lines nearest the picks, each replacing the pick
+ * it's nearest. One right beside it (two lines or fewer) is the same moment, so it keeps that shot's still and motion;
+ * one further off gets its own (`fresh`). In the night's order.
+ */
+export function bothSpeak<T extends { line: number }>(shots: T[], spokenLines: readonly number[], whoOf: (i: number) => "a" | "b", fresh: (i: number) => T): T[] {
+  if (shots.length < 2) return shots;
+  const said = new Set(shots.map((s) => whoOf(s.line)));
+  if (said.size > 1) return shots;
+  const picked = new Set(shots.map((s) => s.line));
+  const others = spokenLines.filter((i) => !said.has(whoOf(i)) && !picked.has(i));
+  if (!others.length) return shots;
+  const nearest = others
+    .map((i) => {
+      let k = 0;
+      shots.forEach((s, j) => {
+        if (Math.abs(s.line - i) < Math.abs(shots[k].line - i)) k = j;
+      });
+      return { i, k, d: Math.abs(shots[k].line - i) };
+    })
+    .sort((x, y) => x.d - y.d || x.i - y.i);
+  const out = [...shots];
+  const swapped = new Set<number>();
+  const swaps = Math.max(1, Math.floor(shots.length / 3));
+  for (const c of nearest) {
+    if (swapped.size >= swaps) break;
+    if (swapped.has(c.k)) continue;
+    swapped.add(c.k);
+    out[c.k] = c.d <= 2 ? { ...shots[c.k], line: c.i } : fresh(c.i);
+  }
+  return out.sort((x, y) => x.line - y.line);
 }
 
 /**
@@ -886,14 +947,18 @@ export function continuePrompt(cast: readonly [ReelPerson, ReelPerson], after: s
 }
 
 /** A shot's prompt: what they do, both kept as they are, one continuous shot, and who says the line (or that nobody does). */
-export function shotPrompt(cast: readonly [ReelPerson, ReelPerson], s: Pick<ReelShot, "who" | "text" | "motion" | "eyes" | "camera">, audioIn: boolean): string {
+/** What happens in a shot's video: the owner's own words when they gave some, else the director's. */
+export const shotMotion = (s: Pick<ReelShot, "motion" | "video_words">): string => s.video_words?.trim() || s.motion;
+
+export function shotPrompt(cast: readonly [ReelPerson, ReelPerson], s: Pick<ReelShot, "who" | "text" | "motion" | "eyes" | "camera" | "video_words">, audioIn: boolean): string {
   const speaker = cast[s.who === "a" ? 0 : 1];
+  const motion = shotMotion(s);
   if (s.eyes) {
     // First person (an act's view through one of their eyes): the one in full is the picture's, the other never a face.
     const viewer = cast[s.eyes === "a" ? 0 : 1];
     const shown = cast[s.eyes === "a" ? 1 : 0];
     const base =
-      `${s.motion || "They stay close, moving together."} A first-person shot, seen through the eyes of ${viewer.tag}: ${shown.tag} in full, exactly as in the picture, ` +
+      `${motion || "They stay close, moving together."} A first-person shot, seen through the eyes of ${viewer.tag}: ${shown.tag} in full, exactly as in the picture, ` +
       `the same face and body in the same place; of ${viewer.tag} only hands, arms or hips at the edge of the frame, never a face. One continuous shot, the camera moving as ${viewer.tag}'s eyes would: no cuts, nobody else comes in. Realistic motion.`;
     if (!s.text.trim()) return `${base} Neither of them speaks: only their breathing and the sounds of the room.`;
     // Said by the one whose eyes these are: off camera, so no mouth on screen is made to say it.
@@ -901,7 +966,7 @@ export function shotPrompt(cast: readonly [ReelPerson, ReelPerson], s: Pick<Reel
     return audioIn ? `${base} ${cap(shown.tag)} is the one speaking, lips moving with the words.` : `${base} ${cap(shown.tag)}, in ${shown.voice}, says: "${s.text}"`;
   }
   const base =
-    `${s.motion || "The two of them stay close, moving together."} Two people only: ${cast[0].tag} and ${cast[1].tag}, exactly as in the picture, ` +
+    `${motion || "The two of them stay close, moving together."} Two people only: ${cast[0].tag} and ${cast[1].tag}, exactly as in the picture, ` +
     `the same faces and bodies in the same place. One continuous shot, ${cameraWords(s.camera)}: no cuts, nobody else comes in. Realistic motion.`;
   // A clip with no line in it (lib/adult/clips.ts, an act from the menu): nobody speaks.
   if (!s.text.trim()) return `${base} Neither of them speaks: only their breathing and the sounds of the room.`;
@@ -942,7 +1007,7 @@ export function replicateKeyframeInput(prompt: string, images: string[], aspect 
  * itself is said beside it), long enough for the line, 720p like Venice's, and the safety checker off (the shot passes
  * Hive before it's kept). A LoRA: one URL for both of Wan's transformers, or two, high noise then low.
  */
-export function replicateShotInput(cast: readonly [ReelPerson, ReelPerson], s: Pick<ReelShot, "who" | "text" | "motion" | "eyes">, image: string, lora: string | null): Record<string, unknown> {
+export function replicateShotInput(cast: readonly [ReelPerson, ReelPerson], s: Pick<ReelShot, "who" | "text" | "motion" | "eyes" | "video_words">, image: string, lora: string | null): Record<string, unknown> {
   const [high, low] = (lora ?? "").split(/[\s,]+/).filter(Boolean);
   return {
     prompt: shotPrompt(cast, s, true),
@@ -961,7 +1026,7 @@ export function replicateShotInput(cast: readonly [ReelPerson, ReelPerson], s: P
  * the line quoted in the prompt with who says it, long enough for the line (5 or 10 s; Wan 2.7 takes any 2 to 15), 720p.
  * No safety checker to turn off on these (Alibaba's own runs on every one): what comes back still passes Hive.
  */
-export function talkShotInput(cast: readonly [ReelPerson, ReelPerson], s: Pick<ReelShot, "who" | "text" | "motion" | "eyes" | "camera">, image: string, model: string, avoid?: string): Record<string, unknown> {
+export function talkShotInput(cast: readonly [ReelPerson, ReelPerson], s: Pick<ReelShot, "who" | "text" | "motion" | "eyes" | "camera" | "video_words">, image: string, model: string, avoid?: string): Record<string, unknown> {
   const seconds = s.text.split(/\s+/).filter(Boolean).length / WORDS_PER_SECOND + BREATH_S;
   const anyLength = /wan-2\.7/.test(model);
   return {
@@ -1379,6 +1444,7 @@ export async function queueVideos(db: Db, shots: ReelShot[], ctx: ShotContext): 
       else delete s.provider;
       if (queued.fell_back) s.fell_back = true;
       if (ctx.own) s.own = true;
+      delete s.last_try;
       s.status = "queued";
     } catch (err) {
       Object.assign(s, { status: "failed", reason: err instanceof Error ? err.message.slice(0, 200) : "error" });
@@ -1522,7 +1588,9 @@ function lineShot(
   onReplicate: boolean,
 ): ReelShot | null {
   const l = lines[p.line];
-  const { speech } = spoken(l.text);
+  const { speech, action } = spoken(l.text);
+  // The line's own direction, a hint for the owner's video words: only when it's within the lines too.
+  const lineAction = action && checkAdultText({ action }).ok && !crossesTaboo(action) ? action.slice(0, 200) : "";
   // Every word that will be spoken, and every direction, is held to David's lines first.
   if (!checkAdultText({ speech, frame: p.frame, motion: p.motion }).ok || crossesTaboo(`${speech} ${p.frame} ${p.motion}`)) return null;
   const k = whole?.chapterOf[p.line];
@@ -1535,6 +1603,7 @@ function lineShot(
     text: speech,
     frame: p.frame,
     motion: p.motion,
+    ...(lineAction ? { line_action: lineAction } : {}),
     status: "planned",
     place: places[p.line] ?? null,
     stage: stages[p.line] ?? 0,
@@ -2204,6 +2273,9 @@ export async function settleIfDone(db: Db, id: string): Promise<Reel> {
   if (r.status === "making" && !r.shots.some(stillOut)) {
     const good = r.shots.filter((s) => s.status === "ready").length;
     const status = good ? "ready" : "failed";
+    // A night's video where nothing came through goes back to its storyboard, its kept pictures with it (David,
+    // 2026-11-09: "it should stick as a draft"), so it's filmed again from them rather than lost behind a failure.
+    const back = !good && r.kind !== "clip" && hasKeptPictures(r.shots);
     // A shot filmed again (refilmShot) settles on its own: its price back if it failed. The reel's own share was settled
     // when it was first made, so it isn't refunded twice.
     const refilmed = r.shots.filter((s) => s.refilm_tokens !== undefined);
@@ -2211,15 +2283,78 @@ export async function settleIfDone(db: Db, id: string): Promise<Reel> {
       ? refilmed.reduce((t, s) => t + (s.status === "ready" ? 0 : (s.refilm_tokens ?? 0)), 0)
       : r.tokens - Math.ceil((r.tokens * good) / r.shots.length);
     for (const s of refilmed) delete s.refilm_tokens;
+    if (back) reopenShots(r.shots);
+    const writeShots = refilmed.length > 0 || back;
     const done = await db.query(
-      `update adult_reels set status = $2, updated_at = now()${refilmed.length ? ", shots = $3::jsonb" : ""} where id = $1 and status = 'making' returning 1`,
-      refilmed.length ? [id, status, JSON.stringify(r.shots)] : [id, status],
+      `update adult_reels set status = $2, updated_at = now()${back ? ", tokens = 0, returned_at = now()" : ""}${writeShots ? ", shots = $3::jsonb" : ""} where id = $1 and status = 'making' returning 1`,
+      writeShots ? [id, back ? "draft" : status, JSON.stringify(r.shots)] : [id, status],
     );
     if (done.rows.length && refund > 0) await refundAdTokens(db, r.owner_id, refund);
     // An included clip (#1005) that didn't come through: its place in the month's allowance back (a refilm's isn't one).
     if (done.rows.length && status === "failed" && !refilmed.length && r.kind === "clip" && r.clip?.included) await giveBackIncludedClip(db, r.owner_id, r.clip.included);
   }
   return (await getReel(db, id))!;
+}
+
+/**
+ * A shot that comes back to its storyboard: kept, not in, and not refused. A `discarded` one's video was refused by
+ * moderation, so its start picture is never shown or filmed again (tests/keyframe-checks.test.ts).
+ */
+const reopens = (s: ReelShot): boolean => !s.archived_at && s.status !== "ready" && s.status !== "planned" && s.status !== "discarded";
+/** A video has pictures to film again: a shot that comes back with a start picture that passed its check. */
+const hasKeptPictures = (shots: readonly ReelShot[]): boolean => shots.some((s) => reopens(s) && Boolean(s.frame_id));
+
+/**
+ * Puts a filmed video's shots back as a storyboard's (David, 2026-11-09): each one that didn't come through returns to
+ * its start picture, ready to film and still approved (`frame_ready`), or, with no picture kept, to `planned`; why it
+ * failed is kept as `last_try`. Shots that came through, ones in the Archive and ones moderation refused (`discarded`:
+ * held back for good, its picture never shown) stay as they are.
+ */
+export function reopenShots(shots: ReelShot[]): void {
+  for (const s of shots) {
+    if (!reopens(s)) continue;
+    if (s.reason) s.last_try = s.reason.slice(0, 200);
+    for (const f of ["queue_id", "reason", "retry_at", "audio_id", "request", "own", "voiceless", "silent_retry", "refilm_tokens", "speaks"] as const) delete s[f];
+    if (s.frame_id) Object.assign(s, { status: "frame_ready" as const, media_id: s.frame_id });
+    else {
+      s.status = "planned";
+      s.approved = false;
+      delete s.media_id;
+    }
+  }
+}
+
+/**
+ * A night's video that failed before videos came back to their storyboard (settleIfDone does it now): back to a draft,
+ * by its owner's ask, so its kept pictures can be filmed again. Its tokens came back when it failed.
+ */
+export async function reopenReel(db: Db, ownerId: string, id: string): Promise<ArchiveResult> {
+  const r = (await db.query<{ owner_id: string; status: string; shots: ReelShot[]; kind: string | null }>(`select owner_id, status, shots, kind from adult_reels where id = $1`, [id])).rows[0];
+  if (!r || r.owner_id !== ownerId) return { ok: false, status: 404, error: "not_found", message: "That video isn't here." };
+  if (r.status !== "failed" || r.kind === "clip") return { ok: false, status: 409, error: "not_failed", message: "Only a night's video that didn't come through goes back to its storyboard." };
+  if (!hasKeptPictures(r.shots)) return { ok: false, status: 409, error: "no_pictures", message: "None of its pictures were kept, so there's nothing to film again: make a new video of the night." };
+  reopenShots(r.shots);
+  await db.query(`update adult_reels set status = 'draft', tokens = 0, returned_at = now(), shots = $2::jsonb, updated_at = now() where id = $1 and status = 'failed'`, [id, JSON.stringify(r.shots)]);
+  return { ok: true, reel: (await getReel(db, id))! };
+}
+
+/**
+ * The owner's own words for what happens in one shot's video (David, 2026-11-09), on a draft: they lead its video
+ * prompt in place of the director's motion; empty words go back to the director's. Held to David's lines like a
+ * keyframe's words. The picture and its approval stay: only the video is affected.
+ */
+export async function setShotVideoWords(db: Db, ownerId: string, reelId: string, shotIndex: number, words: string | undefined): Promise<ArchiveResult> {
+  const row = await loadDraft(db, ownerId, reelId);
+  if (!row) return { ok: false, status: 404, error: "not_found", message: "That storyboard isn't here." };
+  if (row.status !== "draft") return { ok: false, status: 409, error: "not_draft", message: "This storyboard has already been filmed." };
+  const k = findShot(row.shots, { shot: shotIndex });
+  if (k < 0) return { ok: false, status: 404, error: "not_found", message: "There's no such shot." };
+  const w = shotWords(words);
+  if (!w.ok) return notAllowed;
+  if (w.words) row.shots[k].video_words = w.words;
+  else delete row.shots[k].video_words;
+  await db.query(`update adult_reels set shots = $2::jsonb, updated_at = now() where id = $1 and status = 'draft'`, [reelId, JSON.stringify(row.shots)]);
+  return { ok: true, reel: (await getReel(db, reelId))! };
 }
 
 type ReelRow = {
@@ -2234,8 +2369,9 @@ type ReelRow = {
   character_b: string;
   scope: string | null;
   chapters: ReelChapter[] | null;
+  returned_at: string | Date | null;
 };
-const REEL_COLUMNS = "id, status, tokens, shots, created_at, kind, clip, character_a, character_b, scope, chapters";
+const REEL_COLUMNS = "id, status, tokens, shots, created_at, kind, clip, character_a, character_b, scope, chapters, returned_at";
 const reelOf = (r: ReelRow): Reel => ({
   id: r.id,
   status: r.status,
@@ -2249,6 +2385,7 @@ const reelOf = (r: ReelRow): Reel => ({
   b: r.character_b,
   scope: r.scope === "night" || r.scope === "chapter" ? r.scope : null,
   chapters: r.chapters ?? null,
+  returned_at: r.returned_at ? new Date(r.returned_at).toISOString() : null,
 });
 
 export async function getReel(db: Db, id: string): Promise<Reel | null> {
@@ -2261,7 +2398,7 @@ export async function listReels(db: Db, ownerId: string, x: string, y: string): 
   const pair = await eligiblePair(db, ownerId, x, y);
   if (!pair) return [];
   const { rows } = await db.query<ReelRow>(
-    `(select ${REEL_COLUMNS} from adult_reels where owner_id = $1 and character_a = $2 and character_b = $3 and coalesce(kind, 'night') <> 'clip' and status <> 'draft' order by created_at desc limit 20)
+    `(select ${REEL_COLUMNS} from adult_reels where owner_id = $1 and character_a = $2 and character_b = $3 and coalesce(kind, 'night') <> 'clip' and (status <> 'draft' or returned_at is not null) order by created_at desc limit 20)
      union all
      (select ${REEL_COLUMNS} from adult_reels where owner_id = $1 and character_a = $2 and character_b = $3 and kind = 'clip' and status <> 'draft' order by created_at desc limit 40)`,
     [ownerId, ...pair],
@@ -2530,12 +2667,15 @@ export async function useShotVideo(db: Db, ownerId: string, reelId: string, shot
  * video"): its share of the reel's price (admins free), given back if the new video fails. The old video is let go.
  * Only once the reel is done (ready or failed), one reel at a time as ever.
  */
-export async function refilmShot(db: Db, ownerId: string, reelId: string, mediaId: string, baseUrl: string): Promise<MakeReelResult> {
+export async function refilmShot(db: Db, ownerId: string, reelId: string, mediaId: string, baseUrl: string, videoWords?: string): Promise<MakeReelResult> {
   const r = (await db.query<{ owner_id: string; status: string; character_a: string; character_b: string; shots: ReelShot[]; kind: string | null }>(`select owner_id, status, character_a, character_b, shots, kind from adult_reels where id = $1`, [reelId])).rows[0];
   if (!r || r.owner_id !== ownerId) return { ok: false, status: 404, error: "not_found", message: "That video isn't here." };
   if (r.status !== "ready" && r.status !== "failed") return { ok: false, status: 409, error: "not_done", message: "Wait for this video to finish first." };
   const shot = r.shots.find((s) => s.media_id === mediaId && s.frame_id && !s.archived_at && (s.status === "ready" || s.status === "failed" || s.status === "discarded"));
   if (!shot) return { ok: false, status: 404, error: "not_found", message: "There's no such shot to film again." };
+  // New words for what happens (David, 2026-11-09), held to the lines before anything is spent; none keeps the old.
+  const words = videoWords === undefined ? null : shotWords(videoWords);
+  if (words && !words.ok) return notAllowed;
   const settings = await getAdultSettings(db);
   const keys = await adultKeys(db);
   // On their own key (Connections) or ours, and Hive's for the checks.
@@ -2557,6 +2697,10 @@ export async function refilmShot(db: Db, ownerId: string, reelId: string, mediaI
     const ctx = await withSteering(db, ownerId, { pair: [r.character_a, r.character_b], cast: reelCast(ca, cb, ownerId), places, stages, bases, hive: keys.hive!, baseUrl, ...where.media });
     // Back to its start picture, queued again; the reel is being made until it's in.
     Object.assign(shot, { status: "frame_ready" as const, media_id: shot.frame_id, refilm_tokens: price });
+    if (words?.ok) {
+      if (words.words) shot.video_words = words.words;
+      else delete shot.video_words;
+    }
     for (const f of ["queue_id", "reason", "retry_at", "audio_id", "request", "own", "voiceless"] as const) delete shot[f];
     await db.query(`update adult_reels set status = 'making', updated_at = now() where id = $1 and status in ('ready', 'failed')`, [reelId]);
     await queueVideos(db, [shot], ctx);

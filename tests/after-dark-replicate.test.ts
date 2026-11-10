@@ -647,7 +647,8 @@ describe("the video of the night on Replicate", () => {
     threeShots();
     const started = (await (await make(cookie)).json()).reel as Reel;
     const stopped = (await (await reelDelete(new Request(`${BASE_URL}/api/admin/after-dark/reel?id=${started.id}`, { method: "DELETE", headers: { cookie } }))).json()).reel as Reel;
-    expect(stopped.status).toBe("failed");
+    // Stopped with nothing in: back as its storyboard (2026-11-09), and every running prediction is cancelled.
+    expect(stopped.status).toBe("draft");
     const cancelled = replicate.seen.filter((s) => s.method === "POST" && s.url.endsWith("/cancel")).map((s) => s.url.match(/predictions\/([^/]+)\/cancel/)![1]);
     expect(cancelled.sort()).toEqual(started.shots.map((s) => s.queue_id!).sort());
   });
