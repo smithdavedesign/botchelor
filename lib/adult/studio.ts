@@ -49,7 +49,7 @@ import { mediaLimits } from "./clips";
 import type { CheckResult } from "./check";
 import { isPublicPlace } from "./continuity";
 import { HivePausedError, hivePausedErrorMessage, hivePausedUntil } from "./hive-limit";
-import { checkMedia, checkReady, mediaGate } from "./moderation";
+import { aloneInPicture, checkMedia, checkReady, mediaGate } from "./moderation";
 import { HARD_NO_IDS, INTENSITIES, type Intensity } from "./limits";
 import { baselinePrompt, characterMedia, ensureBaseline, listMedia, mediaByIds, NEGATIVE_PROMPT, physicalLook, replicatePictureInput, signedMediaUrl, venicePicture, type Media } from "./media";
 import { PICTURE_PRESETS, type PresetId } from "./rating-tags";
@@ -87,6 +87,8 @@ import {
   cleanCustom,
   CUSTOM_MAX,
   DIALOG_MAX,
+  EMPTY_PLACE_NEGATIVE,
+  emptyPlace,
   bodyPrompt,
   groupById,
   headshotPrompt,
@@ -324,6 +326,8 @@ type JobSpec = {
   ratio?: string;
   /** A bigger shoot: what to build its next batches from (BIG_BATCH at a time, after the answer; advanceShoot). */
   background?: BigShootPlan;
+  /** Nude somewhere public (studio-catalog.ts emptyPlace): each picture is refused unless it shows them and nobody else. */
+  alone?: boolean;
 };
 /** A bigger shoot's own input, kept on its row, so any later look can build its next pictures the same way. */
 export type BigShootPlan = { action: "shoot"; character_id: string; input: ShootInput; base: string } | { action: "pair"; character_id: string; input: PairInput; base: string };
@@ -420,6 +424,16 @@ async function drawAndKeep(db: Db, viewer: string, c: Character, spec: JobSpec, 
         await db.query(`insert into adult_rejections (id, owner_id, kind, reason) values ($1, $2, 'studio', $3)`, [crypto.randomUUID(), viewer, `studio ${spec.kind}: ${verdict.reason}`.slice(0, 300)]).catch(() => {});
       }
       continue;
+    }
+    // Nude somewhere public: kept only with nobody else in it (fails closed when the check can't run).
+    if (spec.alone) {
+      const alone = await aloneInPicture(db, { base64: d.file.bytes.toString("base64"), mime: d.file.mime });
+      if (alone !== true) {
+        lastError = alone === null ? "the check for anyone else in the picture couldn't run" : "someone else was in the picture, somewhere public";
+        if (alone === false) refused++;
+        await db.query(`insert into adult_rejections (id, owner_id, kind, reason) values ($1, $2, 'studio', $3)`, [crypto.randomUUID(), viewer, `studio ${spec.kind}: ${lastError}`.slice(0, 300)]).catch(() => {});
+        continue;
+      }
     }
     const pid = crypto.randomUUID();
     const store = await keepBytes("after-dark", pid, d.file.bytes, d.file.mime);
@@ -837,8 +851,9 @@ async function shootSpec(db: Db, viewer: string, characterId: string, input: Sho
       pictureKind: "scene",
       prompts: Array.from({ length: size }, () => ({ prompt, preset })),
       images,
-      negative: [NEGATIVE_PROMPT, ...steer.negative].join(", "),
+      negative: [NEGATIVE_PROMPT, ...(emptyPlace(plan) ? [EMPTY_PLACE_NEGATIVE] : []), ...steer.negative].join(", "),
       model,
+      ...(emptyPlace(plan) ? { alone: true } : {}),
       tokens: opts.free ? 0 : shootPrice(input.own_key ? config.prices.own_key : config.prices.shoot[model.tier], size),
       choices: { ...input.choices, level: plan.level, ...(input.format && input.format !== "portrait" ? { format: input.format } : {}), ...(big ? { size } : {}) },
       place: plan.place,
@@ -1589,9 +1604,10 @@ export async function moreLikeThis(db: Db, viewer: string, characterId: string, 
   return runJob(db, viewer, access, {
     kind: "variations",
     pictureKind: "scene",
+    ...(nudeInPublic(src) ? { alone: true } : {}),
     prompts,
     images,
-    negative: NEGATIVE_PROMPT,
+    negative: nudeInPublic(src) ? `${NEGATIVE_PROMPT}, ${EMPTY_PLACE_NEGATIVE}` : NEGATIVE_PROMPT,
     model,
     tokens: input.own_key ? config.prices.own_key : config.prices.variations,
     choices: { source: src.id, level: src.level },
@@ -1600,6 +1616,16 @@ export async function moreLikeThis(db: Db, viewer: string, characterId: string, 
     // In the shape of the picture it's like.
     ratio: src.aspect ?? undefined,
   });
+}
+
+/**
+ * A picture drawn from one that's nude somewhere public (More like this, a carousel) has to stay empty too: its place is
+ * the Studio's own words (a menu place, public as the menu says) or a name (isPublicPlace).
+ */
+function nudeInPublic(src: { level: number; place: string | null }): boolean {
+  if (src.level < 2 || !src.place) return false;
+  const menu = groupById("place").options.find((o) => o.words === src.place);
+  return menu ? Boolean(menu.public) : isPublicPlace(src.place);
 }
 
 /**
@@ -1630,9 +1656,10 @@ export async function carouselShoot(db: Db, viewer: string, characterId: string,
   return runJob(db, viewer, access, {
     kind: "carousel",
     pictureKind: "scene",
+    ...(nudeInPublic(src) ? { alone: true } : {}),
     prompts: CAROUSEL_ANGLES.map((angle) => ({ prompt: carouselPrompt(subject, src.level, { body }, angle, identity.strength), preset: src.preset })),
     images,
-    negative: NEGATIVE_PROMPT,
+    negative: nudeInPublic(src) ? `${NEGATIVE_PROMPT}, ${EMPTY_PLACE_NEGATIVE}` : NEGATIVE_PROMPT,
     model,
     tokens: input.own_key ? config.prices.own_key : config.prices.carousel,
     choices: { source: src.id, level: src.level, format },

@@ -5,6 +5,7 @@ import { POST as settingsPost } from "@/app/api/admin/after-dark/settings/route"
 import { crossesTaboo } from "@/lib/adult/acts";
 import { HIVE_VLM, setCheckFetchForTests, setCheckSleepForTests } from "@/lib/adult/check";
 import { setMediaFetchForTests } from "@/lib/adult/media";
+import { ALONE_QUESTION, setModerationFetchForTests, VENICE_CHAT } from "@/lib/adult/moderation";
 import { setReelFetchForTests, setReelPausesForTests } from "@/lib/adult/reels";
 import { setReplicateFetchForTests, setReplicatePausesForTests } from "@/lib/adult/replicate";
 import { getAdultSettings, saveAdultSettings } from "@/lib/adult/settings";
@@ -15,6 +16,7 @@ import {
   animatePrompt,
   bodyPrompt,
   CUSTOM_MAX,
+  emptyPlace,
   planShoot,
   restylePrompt,
   shootPrompt,
@@ -57,12 +59,30 @@ describe("the Studio's menus", () => {
     }
   });
 
-  it("plans a shoot at its highest choice's level, nothing past suggestive in public, within the limits and hard nos", () => {
+  it("plans a shoot at its highest choice's level, nude in public only with the place empty, within the limits and hard nos", () => {
     const ok = planShoot({ pose: "standing", wardrobe: "lingerie", place: "hotel", accessories: ["choker", "heels"] }, ALL, her);
     expect(ok.ok && ok.plan.level).toBe(1);
     expect(ok.ok && ok.plan.place).toBe("a luxury hotel suite with a city view");
-    const pub = planShoot({ wardrobe: "nude", place: "beach" }, ALL, her);
-    expect(pub).toMatchObject({ ok: false, error: "public" });
+    // Nude somewhere public: planned, with the place cleared in the prompt (and every picture checked for anyone else).
+    const pub = planShoot({ wardrobe: "nude", place: "pool" }, ALL, her);
+    expect(pub).toMatchObject({ ok: true, plan: { level: 2, placePublic: true } });
+    expect(pub.ok && emptyPlace(pub.plan)).toBe(true);
+    const pubPrompt = pub.ok ? shootPrompt(pub.plan, her, { body: false, set: false }) : "";
+    expect(pubPrompt).toContain("The place is completely empty and private for now: nobody else anywhere in the picture");
+    expect(pubPrompt.endsWith("Uncensored, photorealistic. Everyone shown is an adult.")).toBe(true);
+    // Not past suggestive, or not in public: no empty-place words.
+    const swim = planShoot({ wardrobe: "swim", place: "pool" }, ALL, her);
+    expect(swim).toMatchObject({ ok: true, plan: { level: 1, placePublic: true } });
+    expect(swim.ok && emptyPlace(swim.plan)).toBe(false);
+    expect(swim.ok ? shootPrompt(swim.plan, her, { body: false, set: false }) : "").not.toContain("completely empty");
+    const home = planShoot({ wardrobe: "nude", place: "hotel" }, ALL, her);
+    expect(home).toMatchObject({ ok: true, plan: { level: 2, placePublic: false } });
+    expect(home.ok && emptyPlace(home.plan)).toBe(false);
+    // The empty place survives the longest own words (it rides with the tail, which is never cut).
+    const long = planShoot({ wardrobe: "nude", place: "beach", custom: "word ".repeat(400) }, ALL, her);
+    const longPrompt = long.ok ? shootPrompt(long.plan, her, { body: false, set: false }) : "";
+    expect(longPrompt.length).toBeLessThanOrEqual(STUDIO_PROMPT_MAX);
+    expect(longPrompt).toContain("The place is completely empty");
     const flirty = planShoot({ wardrobe: "nude" }, { ...ALL, maxLevel: 1 }, her);
     expect(flirty).toMatchObject({ ok: false, error: "locked" });
     expect(planShoot({ pose: "toy" }, { ...ALL, hardNos: ["toys"] }, her)).toMatchObject({ ok: false, error: "locked" });
@@ -73,7 +93,7 @@ describe("the Studio's menus", () => {
     expect(planShoot({ pose: "standing" }, { ...ALL, disabled: new Set(["pose.standing"]) }, her)).toMatchObject({ ok: false, error: "locked" });
     // A place of their own, public or not.
     expect(planShoot({ place: "own:0", wardrobe: "nude" }, ALL, her, { place: "her bedroom", public: false })).toMatchObject({ ok: true });
-    expect(planShoot({ place: "own:0", wardrobe: "nude" }, ALL, her, { place: "the bar", public: true })).toMatchObject({ ok: false, error: "public" });
+    expect(planShoot({ place: "own:0", wardrobe: "nude" }, ALL, her, { place: "the bar", public: true })).toMatchObject({ ok: true, plan: { placePublic: true } });
     // The menu says why a choice is locked.
     const menu = studioMenu({ ...ALL, maxLevel: 1, hardNos: ["toys"] }, "woman");
     const pose = menu.find((g) => g.id === "pose")!;
@@ -166,7 +186,8 @@ describe("the Studio's menus", () => {
     expect(q).not.toContain("Camera: a close shot");
     // Hard nos still take an act away, and nothing explicit somewhere public.
     expect(planShoot({ filthy: "pov_blowjob" }, { ...filthy, hardNos: ["oral"] }, her)).toMatchObject({ ok: false, error: "locked" });
-    expect(planShoot({ filthy: "orgasm", place: "beach" }, filthy, her)).toMatchObject({ ok: false, error: "public" });
+    expect(planShoot({ filthy: "orgasm", place: "beach" }, filthy, her)).toMatchObject({ ok: false, error: "public", message: "Nothing explicit somewhere public: pick a private place." });
+    expect(planShoot({ filthy: "orgasm", place: "own:0" }, filthy, her, { place: "the bar", public: true })).toMatchObject({ ok: false, error: "public" });
     expect(studioMenu(filthy, "man").find((g) => g.id === "filthy")!.options.some((o) => o.id === "squirting")).toBe(false);
   });
 
@@ -237,6 +258,7 @@ afterEach(() => {
   setMediaFetchForTests(null);
   setCheckFetchForTests(null);
   setCheckSleepForTests(null);
+  setModerationFetchForTests(null);
   setReelPausesForTests(true);
   setReplicatePausesForTests(true);
   setStudioPausesForTests(true);
@@ -350,6 +372,39 @@ describe("a shoot", () => {
     expect((await look(signedIn(userIdOf(newUserCookie())))).status).toBe(404);
     // The page's state has them in the gallery, from that shoot.
     expect(out.state.gallery.filter((g: { id: string }) => out.state.shoot_of[g.id] === out.shoot.id)).toHaveLength(4);
+  });
+
+  it("shoots nude at the pool with the place empty, keeping only pictures with nobody else in them", async () => {
+    const { cookie, character } = await setup({ admin: true });
+    fakeHive();
+    const { edits } = fakeVenice();
+    // The "anyone else?" check: two of the four pictures have someone in the background.
+    const asked: string[] = [];
+    const answers = ["ONE", "MORE", "ONE", "MORE"];
+    setModerationFetchForTests(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body ?? "{}"));
+      const text = body.messages?.[0]?.content?.[0]?.text ?? "";
+      if (String(input) === VENICE_CHAT && text === ALONE_QUESTION) {
+        asked.push(text);
+        return Response.json(answer(answers[asked.length - 1] ?? "ONE"));
+      }
+      return Response.json(answer("ADULTS"));
+    });
+    const res = await post({ action: "shoot", character_id: character, choices: { wardrobe: "nude", place: "pool" } }, cookie);
+    expect(res.status).toBe(200);
+    const out = await res.json();
+    expect(edits[0].prompt).toContain("beside a turquoise swimming pool");
+    expect(edits[0].prompt).toContain("The place is completely empty");
+    expect(asked).toHaveLength(4);
+    expect(out.shoot.made).toBe(2);
+    expect(out.pictures).toHaveLength(2);
+    const why = (await t.db.query<{ reason: string }>(`select reason from adult_rejections`)).rows.map((r) => r.reason);
+    expect(why.filter((r) => r.includes("someone else was in the picture"))).toHaveLength(2);
+    // Explicit there is still refused before anything is drawn; dressed at the pool asks nothing more.
+    expect((await post({ action: "shoot", character_id: character, choices: { pose: "toy", place: "pool" } }, cookie)).status).toBe(422);
+    asked.length = 0;
+    expect((await post({ action: "shoot", character_id: character, choices: { wardrobe: "swim", place: "pool" } }, cookie)).status).toBe(200);
+    expect(asked).toHaveLength(0);
   });
 
   it("takes the owner's own words — a partial extra, custom and dialog — without demanding every section", async () => {

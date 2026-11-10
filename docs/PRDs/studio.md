@@ -94,7 +94,8 @@ each pair page under its two names. Four tabs: **Shoot**, **Identity**, **Galler
   boots, a hat, stockings, a garter belt.
 - **Place:** their own places (the drawn sets of where their nights have been) and a list: a bedroom, a hotel suite, a
   shower, a bathtub, a sofa, a kitchen, a candlelit room, a cabin, a sauna, a studio backdrop, a beach at sunset, a pool,
-  a rooftop at night, a bar. Public places allow nothing past the suggestive level.
+  a rooftop at night, a bar. Public places allow nude only with the place empty (the prompt clears it and a vision check refuses any picture with
+  anyone else in it; David, 2026-11-09), and nothing explicit.
 - **Light:** natural, golden hour, warm and moody, soft studio, neon, candlelight (the viewer's light test,
   `choosePreset`, picks one when they don't).
 - **Expression:** smiling, sultry, laughing, serious, playful.
@@ -102,7 +103,7 @@ each pair page under its two names. Four tabs: **Shoot**, **Identity**, **Galler
 
 Each option has a **level**: 0 dressed, 1 suggestive (underwear, swimwear), 2 nude, 3 explicit. A shoot's level is the
 highest of its choices; it's refused above the viewer's studio intensity for the character or the configured maximum,
-and above 1 in a public place. A shoot makes **4 pictures** (configurable, 1–4) from the face reference (and body
+and above 2 in a public place (nude there only with the place empty). A shoot makes **4 pictures** (configurable, 1–4) from the face reference (and body
 reference, and the place's drawn set when there is one) through the multi-image edit model, each checked before it's
 kept (section 9), stored in the gallery as the character's own pictures.
 

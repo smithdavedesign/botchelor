@@ -30,7 +30,7 @@ export type StudioOption = {
   man?: string;
   person?: string;
   level: Level;
-  /** A place out in public: nothing past suggestive there. */
+  /** A place out in public: nothing explicit there, and nude only with nobody else around (planShoot). */
   public?: true;
   /** The pair limits' hard nos (lib/adult/limits.ts) this option is. */
   hardNos?: readonly string[];
@@ -56,7 +56,7 @@ const f = (id: string, label: string, words: string, more: Partial<StudioOption>
 /**
  * The PG Studio's everyday extras, in After Dark's Studio too (the PG Studio plan, PR 5; 2026-10-30): its wearable
  * accessories (this menu reads "Wearing …", so no props) and its places, at level 0, an id After Dark already has
- * left as After Dark's. A place is public unless it's a home or a studio backdrop (nothing past suggestive in public).
+ * left as After Dark's. A place is public unless it's a home or a studio backdrop (nothing explicit in public, nude only with the place empty).
  */
 const PG_WEARABLE = new Set(["necklace", "rings", "bracelets", "beanie", "cap", "fedora", "beret", "scarf", "headphones"]);
 const PG_PRIVATE = new Set(["kitchen", "living_room", "studio_white", "studio_grey", "studio_colour"]);
@@ -399,7 +399,7 @@ export type PlanResult = { ok: true; plan: ShootPlan } | { ok: false; error: str
 
 /**
  * Plans a shoot from its choices: every option known and on the viewer's menu, the level the highest choice's, nothing
- * past suggestive in a public place, at most three accessories, and nude needs a private place. A place of their own
+ * explicit in a public place (nude there only with the place empty: emptyPlace), at most three accessories. A place of their own
  * (`ownPlace`, the name of a drawn set) is private unless `ownPublic`.
  */
 export function planShoot(choices: ShootChoices, limits: ShootLimits, subject: Subject, own: { place?: string | null; public?: boolean } = {}): PlanResult {
@@ -443,7 +443,10 @@ export function planShoot(choices: ShootChoices, limits: ShootLimits, subject: S
     const r = take(g, choices[g]);
     if (r) return r;
   }
-  if (placePublic && level > 1) return no("public", "Nothing past suggestive somewhere public: pick a private place.");
+  // Somewhere public (David, 2026-11-09: "why can't I shoot a nude at the pool?"): nude is fine with the place empty —
+  // the prompt clears it (shootPrompt) and every picture is checked for anyone else (studio.ts aloneInPicture) — but
+  // nothing explicit, which stays private.
+  if (placePublic && level > 2) return no("public", "Nothing explicit somewhere public: pick a private place.");
   if (level > limits.maxLevel) return no("locked", `Past ${LEVEL_LABEL[limits.maxLevel].toLowerCase()}: their studio limit.`);
   // The owner's own words: the overall direction, and anything added to a single section. Taboo in them is caught by the
   // caller's wordsOk, like the tiles', and the picture is still age-checked.
@@ -523,8 +526,15 @@ export function shootPrompt(plan: ShootPlan, subject: Subject, refs: { body: boo
   ]
     .filter(Boolean)
     .join(" ");
-  return fit([pictures, person, keep], middle, [TAIL[plan.level]]);
+  // The empty place goes with the tail, which fit() never cuts short.
+  return fit([pictures, person, keep], middle, [emptyPlace(plan) ? `${EMPTY_PLACE}.` : "", TAIL[plan.level]]);
 }
+
+/** Past suggestive somewhere public: the place has to be empty, so nobody sees them who didn't choose to. */
+export const emptyPlace = (plan: Pick<ShootPlan, "level" | "placePublic">): boolean => plan.placePublic && plan.level >= 2;
+const EMPTY_PLACE = "The place is completely empty and private for now: nobody else anywhere in the picture, no onlookers, not even far in the background";
+/** Kept out of an empty-place shoot's pictures (the negative prompt). */
+export const EMPTY_PLACE_NEGATIVE = "crowd, onlookers, bystanders, other people, people in the background";
 
 /** A prompt within STUDIO_PROMPT_MAX: the middle (the choices) is what gets cut short, at a word. */
 function fit(before: string[], middle: string, after: string[]): string {
