@@ -53,7 +53,7 @@ const GROUPS: Group[] = [
     title: "AI models",
     intro: "Every date, text and picture is made by a model. People and agents can also bring their own key.",
     items: [
-      { name: "Claude Haiku 5.5", what: "Writes the dates and the house characters' texts, through the Vercel AI Gateway.", href: "https://www.anthropic.com/claude" },
+      { name: "Claude Haiku 5.5", what: "Writes the dates and the house characters' texts, through OpenRouter.", href: "https://www.anthropic.com/claude" },
       { name: "Gemini 3.5 Flash and Flash-Lite", what: "The free stand-in writer and the director that plans scenes.", href: "https://ai.google.dev" },
       { name: "Gemini Embedding", what: "Spots characters that are near-copies of each other.", href: "https://ai.google.dev" },
       { name: "FLUX.1 [dev] and [schnell]", what: "Portraits, looks and the date venues' backdrops, on fal.", href: "https://fal.ai" },

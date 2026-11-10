@@ -9,7 +9,8 @@ import { afterDarkOnly } from "@/lib/after-dark-host";
 import { analyticsConsent, CONSENT_COOKIE, consentDefaultScript } from "@/lib/consent";
 import { companionOpen } from "@/lib/companion-shared";
 import { getDb } from "@/lib/db";
-import { discordInviteUrl } from "@/lib/discord";
+import { socialLinks } from "@/lib/company";
+import { contactEmail, TRADING_AS } from "@/lib/legal-entity";
 import { gaGuardScript } from "@/lib/ga-guard";
 import { unreadCount } from "@/lib/notifications";
 import { authFromCookieStore, userIdFromCookieStore } from "@/lib/http";
@@ -29,6 +30,7 @@ import InstallHint from "./InstallHint";
 import FooterGroup from "./FooterGroup";
 import JsonLd from "./JsonLd";
 import Nav from "./Nav";
+import SocialLinks from "./SocialLinks";
 import { unreadTexts } from "@/lib/inbox";
 import { CrisisResources } from "./Notices";
 import "./globals.css";
@@ -44,6 +46,7 @@ import "./ux/step-in.css";
 import "./ux/companion.css";
 import "./ux/filters.css";
 import "./ux/front.css";
+import "./ux/company.css";
 import "./ux/catalog.css";
 
 const TRACKING = trackingConfig();
@@ -106,8 +109,10 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   // On After Dark's own host the show's links go to the show: prefetching them only fetched "Moved to another host"
   // (middleware fetchAnswer), twenty times a page, and the page never settled (2026-11-07 audit, item 21).
   const showPrefetch = adHost ? false : undefined;
-  // The show's Discord (docs/discord.md): in the footer once DISCORD_INVITE_URL is set, never on After Dark's host.
-  const discord = discordInviteUrl();
+  // The show's accounts (lib/company.ts): X, Bluesky, GitHub, and Discord once DISCORD_INVITE_URL is set (docs/discord.md),
+  // never on After Dark's host. The support address closes the footer once CONTACT_EMAIL is set.
+  const socials = socialLinks(process.env, adHost);
+  const support = contactEmail();
   const [, afterDark, dates, unread, texts, hasCharacter, adTokens] = await Promise.all([
     // They're here (lib/activity.ts): their characters' likes wait for them rather than answering themselves. Throttled.
     db && viewerId ? touchOwner(db, viewerId).catch(() => {}) : null,
@@ -166,23 +171,26 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
           {/* Three groups, not fifteen links in one list (2026-10-31 UX audit): columns on a wide screen, folds on a phone. */}
           <nav className="footer-groups" aria-label="More of the site">
             <FooterGroup title="The show">
-              {discord && (
-                <li>
-                  <a href={discord} target="_blank" rel="noopener">
-                    Discord
-                  </a>
-                </li>
-              )}
               <li><Link prefetch={showPrefetch} href="/graph">The Constellation</Link></li>
               <li><Link prefetch={showPrefetch} href="/prompts">Prompts library</Link></li>
               <li><Link prefetch={showPrefetch} href="/shop">{adHost ? "Tokens" : "More dates"}</Link></li>
-              <li><Link prefetch={showPrefetch} href="/about">How it&apos;s built</Link></li>
-              <li><Link prefetch={showPrefetch} href="/costs">What it costs</Link></li>
+              {!adHost && <li><Link href="/pricing">Pricing</Link></li>}
             </FooterGroup>
             <FooterGroup title="Tools">
               <li><Link prefetch={showPrefetch} href="/tools/oc-chemistry-test">OC chemistry test</Link></li>
               <li><Link prefetch={showPrefetch} href="/tools/ship-name-generator">Ship name generator</Link></li>
               <li><Link prefetch={showPrefetch} href="/agents">For AI agents</Link></li>
+            </FooterGroup>
+            {/* The company (2026-11-10, lib/company.ts): who makes it, what it costs, and how to reach us, for people,
+                press and the card processors' reviewers alike. */}
+            <FooterGroup title="Company">
+              <li><Link prefetch={showPrefetch} href="/about">How it&apos;s built</Link></li>
+              <li><Link prefetch={showPrefetch} href="/costs">What it costs</Link></li>
+              <li><Link prefetch={showPrefetch} href="/faq">FAQ</Link></li>
+              <li><Link prefetch={showPrefetch} href="/press">Press kit</Link></li>
+              <li><Link prefetch={showPrefetch} href="/contact">Contact</Link></li>
+              <li><Link prefetch={showPrefetch} href="/security">Security</Link></li>
+              <li><Link prefetch={showPrefetch} href="/accessibility">Accessibility</Link></li>
             </FooterGroup>
             <FooterGroup title="Help and legal">
               <li><Link prefetch={showPrefetch} href="/report">Report a problem</Link></li>
@@ -197,6 +205,8 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
               <li><Link prefetch={showPrefetch} href="/cancel">Cancel a subscription</Link></li>
             </FooterGroup>
           </nav>
+          {/* The show's own accounts (lib/company.ts), Discord's once its invite is set; none on After Dark's host. */}
+          <SocialLinks links={socials} area="footer" />
           <details className="footer-about ux-fold">
             <summary>About this show</summary>
             <p>
@@ -208,6 +218,15 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
               Nothing you buy changes points, badges or rank.
             </p>
           </details>
+          <p className="footer-legal">
+            © {new Date().getUTCFullYear()} {TRADING_AS} · <Link prefetch={showPrefetch} href="/contact">Contact us</Link>
+            {support && (
+              <>
+                {" "}
+                · <a href={`mailto:${support}`}>{support}</a>
+              </>
+            )}
+          </p>
         </footer>
         <FeedbackDock />
         <InstallHint hasCharacter={hasCharacter} />
