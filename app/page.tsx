@@ -250,6 +250,8 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
           </Link>
         </PhoneActionBar>
       )}
+      {/* The season's arc for a visitor too (the design system, 2026-11-11): the show has a month, and this is where in it we are. */}
+      {!creator && <SeasonBanner />}
       {!creator && tonight}
       {!creator && showNews && <ShowSince card={showNews} />}
 

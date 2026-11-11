@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import Link from "next/link";
 import { isSignedInAdmin } from "@/lib/admins";
+import Icon from "@/app/Icon";
 import { canAfterDark } from "@/lib/adult/entitlement";
 import { houseProviderStatus, type HouseCard } from "@/lib/adult/provider-status";
 import { lockedForCookies } from "@/lib/adult/privacy";
@@ -149,7 +150,11 @@ export default async function KeysPage() {
         {house && (
           <ConnectionCard
             id="after-dark"
-            title="🌙 After Dark"
+            title={
+              <>
+                <Icon name="moon" /> After Dark
+              </>
+            }
             subtitle="Text, pictures, video and voice on the house's providers. Studio pictures can also run on your own key (After Dark pictures)."
             provider="after-dark"
             tone={housePaused ? "paused" : "ok"}

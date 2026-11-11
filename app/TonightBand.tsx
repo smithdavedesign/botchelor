@@ -113,6 +113,17 @@ export default function TonightBand({
     });
   }
   if (!slots.length) return null;
+  // Live now (the design system, 2026-11-11): what's happening on the show right now, as facts under the slots. Never
+  // pressure: a count of rooms filming and people watching, how many dates are about to air, when Sunday's secret
+  // comes out once the vote is in. Only facts the page already has.
+  const filming = rooms.filter((r) => r.status === "live");
+  const watching = filming.reduce((n, r) => n + (r.watching ?? 0), 0);
+  const facts: { key: string; text: string; live?: boolean }[] = [];
+  if (filming.length) {
+    facts.push({ key: "filming", live: true, text: `${filming.length} ${filming.length === 1 ? "date" : "dates"} filming${watching > 0 ? ` · ${watching} watching` : ""}` });
+  }
+  if (airing.length > 1) facts.push({ key: "airing", text: `${airing.length} dates airing soon` });
+  if (reveal && reveal.state === "closed") facts.push({ key: "secret", live: true, text: `Sunday's secret comes out ${inWords(reveal.airs_at, now)}` });
   return (
     <section className="tonight-band" aria-label="Tonight on Botchelor">
       <p className="tonight-band-eyebrow">
@@ -137,6 +148,16 @@ export default function TonightBand({
           </li>
         ))}
       </ul>
+      {facts.length > 0 && (
+        <ul className="tonight-live" aria-label="Live now">
+          {facts.map((f) => (
+            <li key={f.key}>
+              {f.live && <span className="tonight-live-dot" aria-hidden="true" />}
+              {f.text}
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   );
 }

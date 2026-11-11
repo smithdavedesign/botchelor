@@ -1,5 +1,6 @@
 import { cookies, headers } from "next/headers";
 import Link from "next/link";
+import Icon from "@/app/Icon";
 import { accessHere } from "@/lib/adult/place";
 import { fillerLines, teasersFor } from "@/lib/adult/teaser";
 import { afterDarkHref } from "@/lib/after-dark-host";
@@ -26,7 +27,9 @@ export default async function AfterDarkTeaser({ pair, character }: { pair?: [str
   const open = here.entitled.ok;
   return (
     <section className="card ad-teaser" aria-label="After Dark">
-      <h2>🌙 After Dark</h2>
+      <h2>
+        <Icon name="moon" /> After Dark
+      </h2>
       {teasers.map((t) => (
         <div key={t.path} className="ad-teaser-scene">
           <p className="ad-teaser-title">

@@ -30,6 +30,7 @@ import { ballotResult } from "@/lib/season-vote";
 import { seasonIdOf } from "@/lib/season-window";
 import { thisWeekOn } from "@/lib/season-format";
 import { seasonFormatNow } from "@/lib/season-format-store";
+import SeasonBanner from "@/app/SeasonBanner";
 import ChemistryShiftsPanel from "@/app/ChemistryShifts";
 import { chemistryShifts } from "@/lib/chemistry-shifts";
 import { showSince } from "@/lib/show-since";
@@ -230,6 +231,8 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
         )}
       />
       <ShowTabs active="/watch" />
+      {/* The season's arc (or, in a month's first week, last season's finale): the design system, 2026-11-11. */}
+      <SeasonBanner now={new Date(now)} format={seasonDef?.title ?? null} />
       <p className="kicker">The Botchelor · watch</p>
       <h1>Watch a date</h1>
       <p className="lede watch-intro">
@@ -270,7 +273,8 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
       />
       {recoupling && recoupling.choices.length > 0 && <RecouplingCard board={recoupling} now={now} />}
       {/* Sunday's reveal leads while its vote is open or its result is minutes away; otherwise it sits by tonight's vote. */}
-      {reveal && (reveal.state === "open" || reveal.state === "closed") && <WeeklyReveal board={reveal} now={now} />}
+      {/* …and once the secret is out it stays, as the opened envelope, while it's fresh (lib/weekly-reveal.ts LAST_SHOWN_DAYS). */}
+      {reveal && (reveal.state === "open" || reveal.state === "closed" || reveal.last) && <WeeklyReveal board={reveal} now={now} />}
       {showNews && <ShowSince card={showNews} />}
 
       {airing.length === 0 && record && record.called > 0 && <CallsLine record={record} airing={0} nameless={viewerId !== null && profileName === null} sharer={sharer} where="watch" />}

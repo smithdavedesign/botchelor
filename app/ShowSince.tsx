@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import Icon from "@/app/Icon";
 import When from "./When";
 import type { ShowSince as ShowSinceData } from "@/lib/show-since";
 
@@ -15,7 +16,7 @@ function Items({ card }: { card: ShowSinceData }) {
     <ul className="show-since-list">
       {card.season && (
         <li>
-          <span aria-hidden="true">🎬</span> Season {card.season.number} ({card.season.label}) is over:{" "}
+          <Icon name="clapper" /> Season {card.season.number} ({card.season.label}) is over:{" "}
           <Link href={card.season.path}>watch the recap</Link>
         </li>
       )}

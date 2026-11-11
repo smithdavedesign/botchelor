@@ -28,7 +28,8 @@ export default function ConnectionCard({
   children,
 }: {
   id: string;
-  title: string;
+  /** The card's heading; a node so the house's After Dark card can wear the moon icon. */
+  title: ReactNode;
   subtitle?: ReactNode;
   provider: string | null;
   tone: CardTone;

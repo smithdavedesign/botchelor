@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
+import Icon from "@/app/Icon";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { listSwitchable } from "@/lib/adult/characters";
@@ -43,7 +44,9 @@ export default async function AfterDarkPage({ searchParams }: { searchParams?: P
     return (
       <div className="after-dark-mode">
         <article className="after-dark">
-          <p className="kicker">🌙 After Dark · {settings}</p>
+          <p className="kicker">
+            <Icon name="moon" /> After Dark · {settings}
+          </p>
           <h1>After Dark</h1>
           <p>It&apos;s off. Turn it on and add an OpenRouter key in {settings}, or run the app locally with ADULT_MODE=1.</p>
         </article>
@@ -72,7 +75,9 @@ export default async function AfterDarkPage({ searchParams }: { searchParams?: P
   return (
     <div className="after-dark-mode">
       <article className="after-dark">
-        <p className="kicker">🌙 After Dark · private</p>
+        <p className="kicker">
+          <Icon name="moon" /> After Dark · private
+        </p>
         {/* The hub's other pages as one row of small buttons, not a kicker that wraps on a phone. */}
         <nav className="ad-hub-links" aria-label="After Dark">
           <Link className="button-ghost" href="/after-dark/shorts">

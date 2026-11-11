@@ -12,6 +12,7 @@ import { backingBadges } from "@/lib/backing";
 import { listMyBadges, tryCloseDueSeasons, type Badge } from "@/lib/seasons";
 import AccountPanel from "./AccountPanel";
 import { UnlinkAgentButton } from "./AgentLinks";
+import Icon from "@/app/Icon";
 import ThemeSetting from "@/app/ThemeSetting";
 import { THEME_COOKIE, themeFromCookie } from "@/lib/theme";
 import { linkedAgents } from "@/lib/agent-links";
@@ -78,7 +79,9 @@ export default async function AccountPage({ searchParams }: { searchParams: Sear
       {/* After Dark: for an account it's open to, or one with a subscription (lib/adult/billing.ts), never where it isn't offered. */}
       {afterDark && (
         <section className="card" data-after-dark-card>
-          <h2>🌙 After Dark</h2>
+          <h2>
+            <Icon name="moon" /> After Dark
+          </h2>
           <p className="muted">The private adult season. Switch your characters in and out there.</p>
           {afterDark.sub.status === "active" && (
             <p data-subscription="active">Subscribed: renews monthly{afterDark.sub.periodEnd ? `, next on ${day(afterDark.sub.periodEnd)}` : ""}.</p>
@@ -118,7 +121,9 @@ export default async function AccountPage({ searchParams }: { searchParams: Sear
 
       {companionPlan && companionPlan.status !== "none" && (
         <section className="card" data-companion-plan-card>
-          <h2>💬 Companion Plan</h2>
+          <h2>
+            <Icon name="chat" /> Companion Plan
+          </h2>
           {companionPlan.status === "active" && <p>On: renews monthly{companionPlan.period_end ? `, next on ${day(companionPlan.period_end)}` : ""}.</p>}
           {companionPlan.status === "cancelled" && <p>Cancelled: no more charges. It runs until {companionPlan.period_end ? day(companionPlan.period_end) : "the end of the month"}.</p>}
           {companionPlan.status === "lapsed" && <p>Your plan has ended.</p>}
