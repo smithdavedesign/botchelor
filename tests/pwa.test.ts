@@ -3,8 +3,15 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
-import { metadata, viewport } from "@/app/layout";
+import { describe, expect, it, vi } from "vitest";
+import { generateViewport, metadata } from "@/app/layout";
+
+// The viewport reads the theme pick (lib/theme.ts) from the cookie jar; nothing picked unless a test sets it.
+const jar: Record<string, string> = {};
+vi.mock("next/headers", () => ({
+  cookies: async () => ({ get: (name: string) => (jar[name] ? { value: jar[name] } : undefined), has: (name: string) => name in jar, getAll: () => [] }),
+  headers: async () => new Headers(),
+}));
 import manifest from "@/app/manifest";
 import { config } from "@/middleware";
 import {
@@ -92,11 +99,20 @@ describe("the iPhone tags and theme colour (app/layout.tsx)", () => {
     expect(metadata.appleWebApp).toEqual({ capable: true, title: "Botchelor", statusBarStyle: "default" });
   });
 
-  it("paints the browser bar in the page's paper, light and dark", () => {
-    expect(viewport.themeColor).toEqual([
+  it("paints the browser bar in the page's paper, light and dark", async () => {
+    delete jar.bz_theme;
+    expect((await generateViewport()).themeColor).toEqual([
       { media: "(prefers-color-scheme: light)", color: PAPER_LIGHT },
       { media: "(prefers-color-scheme: dark)", color: PAPER_DARK },
     ]);
+  });
+
+  it("follows a picked theme (the design system, 2026-11-11), whatever the device says", async () => {
+    jar.bz_theme = "dark";
+    expect((await generateViewport()).themeColor).toBe(PAPER_DARK);
+    jar.bz_theme = "light";
+    expect((await generateViewport()).themeColor).toBe(PAPER_LIGHT);
+    delete jar.bz_theme;
   });
 });
 
