@@ -4,7 +4,8 @@ import { useState } from "react";
 import { requestJson } from "@/app/request";
 
 type Option = { id: "ccbill" | "segpay" | "verotel"; label: string; statement: string; packs: number[] };
-type Pack = { tokens: number; price: string; each: string };
+/** `cents`: the price of one token in the pack, so the cheapest per token can wear "Best value" (the design system, 2026-11-11). */
+type Pack = { tokens: number; price: string; each: string; cents?: number };
 
 /**
  * After Dark's token packs (app/api/after-dark/tokens): pick a pack, the processor when there's a choice, then off to the
@@ -15,6 +16,10 @@ export default function BuyTokens({ packs, options }: { packs: Pack[]; options: 
   const [busy, setBusy] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const chosen = options.find((o) => o.id === processor) ?? options[0]!;
+  // "Best value": the cheapest token among the packs this processor sells, when exactly one pack has that price.
+  const priced = packs.filter((p) => chosen.packs.includes(p.tokens) && p.cents !== undefined).map((p) => p.cents as number);
+  const cheapest = priced.length ? Math.min(...priced) : null;
+  const bestCents = cheapest !== null && priced.filter((c) => c === cheapest).length === 1 ? cheapest : null;
 
   async function buy(tokens: number) {
     setBusy(tokens);
@@ -48,9 +53,22 @@ export default function BuyTokens({ packs, options }: { packs: Pack[]; options: 
       <ul className="ad-token-packs">
         {packs.map((p) => {
           const sold = chosen.packs.includes(p.tokens);
+          const best = sold && p.cents !== undefined && p.cents === bestCents;
           return (
             <li key={p.tokens}>
-              <button type="button" disabled={busy !== null || !sold} onClick={() => void buy(p.tokens)} data-token-pack={p.tokens}>
+              <button
+                type="button"
+                className={best ? "is-best" : undefined}
+                disabled={busy !== null || !sold}
+                onClick={() => void buy(p.tokens)}
+                data-token-pack={p.tokens}
+                aria-label={`${p.tokens} tokens for ${p.price}${best ? ", best value" : ""}`}
+              >
+                {best && (
+                  <span className="ad-token-pack-flag" aria-hidden="true">
+                    Best value
+                  </span>
+                )}
                 <strong>{p.tokens} tokens</strong>
                 <span>{busy === p.tokens ? "Opening checkout…" : p.price}</span>
                 <span className="small muted">{sold ? `${p.each} a token` : `not on ${chosen.label}`}</span>

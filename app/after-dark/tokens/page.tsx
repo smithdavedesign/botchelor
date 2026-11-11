@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Icon from "@/app/Icon";
 import { cookies } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -89,7 +90,9 @@ export default async function AfterDarkTokensPage({ searchParams }: { searchPara
     <div className="after-dark-mode">
       <article className="after-dark" data-ad-tokens>
         <p className="kicker">
-          <Link href="/after-dark">← 🌙 After Dark</Link>
+          <Link href="/after-dark">
+            ← <Icon name="moon" /> After Dark
+          </Link>
         </p>
         <h1>Tokens</h1>
         {own && params.done === "1" && (
@@ -138,7 +141,7 @@ export default async function AfterDarkTokensPage({ searchParams }: { searchPara
             <h2>Getting more</h2>
             <p>After Dark&apos;s tokens are its own, apart from the show&apos;s dates, and come in packs:</p>
             <BuyTokens
-              packs={tokenPacks().map((p) => ({ tokens: p.tokens, price: priceLabel(p.usd), each: `${Math.round((p.usd / p.tokens) * 100)}¢` }))}
+              packs={tokenPacks().map((p) => ({ tokens: p.tokens, price: priceLabel(p.usd), each: `${Math.round((p.usd / p.tokens) * 100)}¢`, cents: Math.round((p.usd / p.tokens) * 100) }))}
               options={tokenProcessors().map((id) => ({
                 id,
                 label: PROCESSOR_INFO[id].label,
