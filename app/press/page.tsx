@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { BASED_IN, BOILERPLATE, FOUNDER, launchedOn, mailto, socialLinks } from "@/lib/company";
+import { BASED_IN, BOILERPLATE, FOUNDER, launchedOn, mailto, roleEmail, socialLinks } from "@/lib/company";
 import { contactEmail } from "@/lib/legal-entity";
 import { pageMetadata } from "@/lib/seo";
 import SocialLinks from "../SocialLinks";
@@ -39,8 +39,8 @@ const COLOURS = [
  * that would need a footnote: the show is new, and its counts mix people, agents and the house cast.
  */
 export default function PressPage() {
-  const email = contactEmail();
-  const pressMail = mailto("Press");
+  const email = roleEmail("press") ?? contactEmail();
+  const pressMail = mailto("Press", process.env, "press");
   return (
     <article className="legal-page company-page">
       <p className="kicker">Press</p>

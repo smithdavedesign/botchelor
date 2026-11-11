@@ -9,7 +9,7 @@ import { afterDarkOnly } from "@/lib/after-dark-host";
 import { analyticsConsent, CONSENT_COOKIE, consentDefaultScript } from "@/lib/consent";
 import { companionOpen } from "@/lib/companion-shared";
 import { getDb } from "@/lib/db";
-import { socialLinks } from "@/lib/company";
+import { socialLinks, STATUS_PAGE_URL } from "@/lib/company";
 import { contactEmail, TRADING_AS } from "@/lib/legal-entity";
 import { gaGuardScript } from "@/lib/ga-guard";
 import { unreadCount } from "@/lib/notifications";
@@ -192,6 +192,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
               <li><Link prefetch={showPrefetch} href="/press">Press kit</Link></li>
               <li><Link prefetch={showPrefetch} href="/contact">Contact</Link></li>
               <li><Link prefetch={showPrefetch} href="/security">Security</Link></li>
+              <li><a href={STATUS_PAGE_URL} rel="noopener">Status</a></li>
               <li><Link prefetch={showPrefetch} href="/accessibility">Accessibility</Link></li>
             </FooterGroup>
             <FooterGroup title="Help and legal">

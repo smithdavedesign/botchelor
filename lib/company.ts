@@ -69,9 +69,28 @@ export const CONTACT_ROUTES: readonly Route[] = [
   { id: "accessibility", what: "Something you can't use", how: "Tell us what got in the way.", href: "/accessibility", subject: "Accessibility" },
 ];
 
-/** A mailto link with its subject filled in, or null when no support address is set. */
-export function mailto(subject: string | undefined, env: Env = process.env): string | null {
+/**
+ * The show's public status page (UptimeRobot, set up 2026-11-10): the home page, both apps' /api/health and two company
+ * pages, checked every 5 minutes from outside, so it still answers when botchelor.com doesn't. Free plan, so it lives on
+ * UptimeRobot's own address, not status.botchelor.com.
+ */
+export const STATUS_PAGE_URL = "https://stats.uptimerobot.com/9FWth2eqBE";
+
+export type RoleAddress = "press" | "security";
+
+/**
+ * press@ and security@ (Cloudflare Email Routing, 2026-11-10) forward to the same inbox as the support address. Only when
+ * that address is on botchelor.com: anywhere else (a test, a fork) it's the support address itself. Null without one.
+ */
+export function roleEmail(role: RoleAddress, env: Env = process.env): string | null {
   const email = contactEmail(env);
+  if (!email) return null;
+  return email.slice(email.lastIndexOf("@") + 1).toLowerCase() === "botchelor.com" ? `${role}@botchelor.com` : email;
+}
+
+/** A mailto link with its subject filled in, or null when no support address is set. */
+export function mailto(subject: string | undefined, env: Env = process.env, role?: RoleAddress): string | null {
+  const email = role ? roleEmail(role, env) : contactEmail(env);
   if (!email) return null;
   return subject ? `mailto:${email}?subject=${encodeURIComponent(subject)}` : `mailto:${email}`;
 }
