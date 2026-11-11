@@ -68,6 +68,7 @@ export default function CompanionChat({
   initialExtras = null,
   signedIn = false,
   liveCalls = false,
+  callVoice = false,
 }: {
   initial: CompanionThreadView;
   initialCrisis: CrisisResources | null;
@@ -78,6 +79,8 @@ export default function CompanionChat({
   signedIn?: boolean;
   /** Live calls (P6) are on for this person (lib/companion-live.ts liveCallsOn); off, a call takes turns (v1). */
   liveCalls?: boolean;
+  /** A taking-turns call's replies are said in the character's own Aura voice (lib/companion-call-voice.ts); off, the device's. */
+  callVoice?: boolean;
 }) {
   const router = useRouter();
   const [view, setView] = useState(initial);
@@ -751,6 +754,7 @@ export default function CompanionChat({
           onStart={callStart}
           onEnd={callEnd}
           live={liveCalls && extras ? { url: `/api/companion/${view.id}/live`, minutes: extras.minute ?? null } : null}
+          speakUrl={callVoice ? `/api/companion/${view.id}/speak` : null}
           onRefused={callRefusal}
           onKept={() => void refreshThread()}
         />

@@ -126,11 +126,12 @@ export function auraVoiceFor(c: Pick<Character, "id" | "pronouns">): string {
  * A checked piece of a reply in the character's voice: Aura's 16-bit mono PCM at LIVE_AUDIO_RATE, as it's made (Deepgram
  * streams the body). Throws when Deepgram refuses; `signal` stops it (a barge-in).
  */
-export async function speakAura(text: string, voice: string, opts: { signal?: AbortSignal; env?: Env } = {}): Promise<ReadableStream<Uint8Array>> {
+export async function speakAura(text: string, voice: string, opts: { signal?: AbortSignal; env?: Env; container?: "none" | "wav" } = {}): Promise<ReadableStream<Uint8Array>> {
   const env = opts.env ?? process.env;
   const key = deepgramKey(env);
   if (!key) throw new Error("no Deepgram key");
-  const q = new URLSearchParams({ model: voice, encoding: "linear16", sample_rate: String(LIVE_AUDIO_RATE), container: "none", mip_opt_out: "true" });
+  // Raw PCM for a live call's player; a WAV file (the same samples with a header) for an <audio> element (lib/companion-call-voice.ts).
+  const q = new URLSearchParams({ model: voice, encoding: "linear16", sample_rate: String(LIVE_AUDIO_RATE), container: opts.container ?? "none", mip_opt_out: "true" });
   const timeout = AbortSignal.timeout(15_000);
   const res = await doFetch()(`${apiBase(env)}/v1/speak?${q}`, {
     method: "POST",

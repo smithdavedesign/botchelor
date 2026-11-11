@@ -100,6 +100,11 @@ function store(key: string, value: string) {
   }
 }
 
+/** A moment of silence, played from the tap that starts a call so a phone lets the call play their voice later (Safari). */
+const SILENCE = "data:audio/wav;base64,UklGRjQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YRAAAAAAAAAAAAAAAAAAAAAAAAAA";
+/** Their voice that can't come back this call (off, down, busy): the device's voice says the rest. */
+const AURA_GONE = new Set(["voice_off", "voice_down", "busy"]);
+
 const clock = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 
 const MIC_BLOCKED =
@@ -129,6 +134,7 @@ export default function CompanionCall({
   onStart,
   onEnd,
   live = null,
+  speakUrl = null,
   onRefused,
   onKept,
 }: {
@@ -144,6 +150,11 @@ export default function CompanionCall({
   onEnd: (stats: CallStats, message: string | null) => void;
   /** Live calls (P6), when they're on for this person; null: a call takes turns (v1), exactly as before. */
   live?: LiveOffer | null;
+  /**
+   * Taking turns: where a reply is said in the character's own Aura voice (lib/companion-call-voice.ts), in place of the
+   * device's; null, or when it fails, the device's voice.
+   */
+  speakUrl?: string | null;
   /** A live turn that was refused (the chat takes the crisis resources from it): what the call does next. */
   onRefused?: (status: number, data: Record<string, unknown> | null) => Extract<CallTurn, { ok: false }>;
   /** A live turn was kept: the chat shows it. */
@@ -182,8 +193,11 @@ export default function CompanionCall({
   const paid = useRef(false);
   const rec = useRef<Recognition | null>(null);
   const audio = useRef<HTMLAudioElement | null>(null);
-  const props = useRef({ onSay, onVoice, onStart, onEnd, speech, onRefused, onKept, live });
-  props.current = { onSay, onVoice, onStart, onEnd, speech, onRefused, onKept, live };
+  const props = useRef({ onSay, onVoice, onStart, onEnd, speech, onRefused, onKept, live, speakUrl });
+  props.current = { onSay, onVoice, onStart, onEnd, speech, onRefused, onKept, live, speakUrl };
+  // Taking turns in their Aura voice: the <audio> unlocked by the tap that started the call, and whether it's gone for this call.
+  const spare = useRef<HTMLAudioElement | null>(null);
+  const auraGone = useRef(false);
   // A live call's parts (P6): which way the call goes now, the server's call, the microphone, Deepgram's socket, their
   // voice, the turn-taking state, and the turn in flight (a barge-in drops it).
   const modeNow = useRef<CallMode>("classic");
@@ -374,10 +388,22 @@ export default function CompanionCall({
         setNote(`${first}'s own voice stopped (${v.message.replace(/\.$/, "")}), so it's your device's voice for now.`);
       }
     }
+    // Otherwise their call voice (Aura), made on the server from the reply that was kept; the device's when it can't be.
+    let made: string | null = null;
+    if (!url && voiceNow.current === "device" && r.reply.length) {
+      made = await aura(r.reply.map((m) => m.id));
+      if (ended.current) {
+        if (made) URL.revokeObjectURL(made);
+        return;
+      }
+    }
     setThem(words);
     log({ kind: "reply", text: words });
     go("speaking");
-    await (url ? play(url) : props.current.speech.speakAll(words, who));
+    const played = url || made ? await play((url ?? made)!) : false;
+    if (made) URL.revokeObjectURL(made);
+    // Not played (a phone that wouldn't, a file that broke): the device says it, unless they stopped it meanwhile.
+    if (!played && !ended.current && phaseNow.current === "speaking") await props.current.speech.speakAll(words, who);
     // Said to the end (stopped by Interrupt, a pause or the end, it was already marked cut off).
     log({ kind: "done" });
     lastAt.current = Date.now();
@@ -386,25 +412,50 @@ export default function CompanionCall({
     listen();
   }
 
-  function play(url: string): Promise<void> {
-    return new Promise<void>((resolve) => {
-      const a = new Audio(url);
+  /** Plays a voice to its end (or until it's stopped): true, or false when it couldn't play at all. */
+  function play(url: string): Promise<boolean> {
+    return new Promise<boolean>((resolve) => {
+      const a = spare.current ?? new Audio();
+      a.src = url;
       audio.current = a;
       let done = false;
-      const finish = () => {
+      const finish = (ok: boolean) => {
         if (done) return;
         done = true;
+        a.removeEventListener("ended", onEnded);
+        a.removeEventListener("error", failed);
         if (audio.current === a) audio.current = null;
-        resolve();
+        resolve(ok);
       };
-      a.addEventListener("ended", finish);
-      a.addEventListener("error", finish);
-      a.play().catch(finish);
+      const onEnded = () => finish(true);
+      const failed = () => finish(false);
+      a.addEventListener("ended", onEnded);
+      a.addEventListener("error", failed);
+      a.play().catch(failed);
     });
+  }
+
+  /** The reply (its messages) in their Aura voice, as a file to play; null when it can't be (the device's voice then). */
+  async function aura(ids: string[]): Promise<string | null> {
+    const url = props.current.speakUrl;
+    if (!url || auraGone.current) return null;
+    try {
+      const res = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ message_ids: ids }) });
+      if (!res.ok || !(res.headers.get("content-type") ?? "").startsWith("audio/")) {
+        const data = (await res.json().catch(() => null)) as { error?: string } | null;
+        if (data?.error && AURA_GONE.has(data.error)) auraGone.current = true;
+        return null;
+      }
+      return URL.createObjectURL(await res.blob());
+    } catch {
+      return null;
+    }
   }
 
   function start() {
     store(SEEN_KEY, "1");
+    // From the tap, so a phone lets the call play a voice later (taking turns: their own, or their call voice).
+    unlockAudio();
     if (canLive) store(MODE_KEY, mode);
     if (canLive && mode === "live") {
       modeNow.current = "live";
@@ -426,12 +477,24 @@ export default function CompanionCall({
     store(VOICE_KEY, voice);
     voiceNow.current = voice;
     paid.current = voice === "own" && voicePrice !== "";
-    // A tap: browsers that speak only after one (Safari) can speak for the rest of the call.
+    // A tap: browsers that speak only after one (Safari) can speak for the rest of the call, and play their voice.
     props.current.speech.unlock();
     startedAt.current = Date.now();
     lastAt.current = Date.now();
     props.current.onStart(voice);
     listen();
+  }
+
+  /** From a tap: one <audio> plays a moment of silence, so the phone lets it play their voice for the rest of the call. */
+  function unlockAudio() {
+    if (spare.current || typeof Audio === "undefined") return;
+    try {
+      const a = new Audio(SILENCE);
+      spare.current = a;
+      void a.play().catch(() => {});
+    } catch {
+      // No audio element: the device's voice.
+    }
   }
 
   function resume() {
@@ -843,7 +906,7 @@ export default function CompanionCall({
                 <legend>Their voice</legend>
                 <label className="check">
                   <input type="radio" name="call-voice" checked={voice === "device"} onChange={() => setVoice("device")} />
-                  <span>Your device&apos;s voice · free</span>
+                  <span>{speakUrl ? `${first}'s call voice · free` : "Your device's voice · free"}</span>
                 </label>
                 <label className="check">
                   <input type="radio" name="call-voice" checked={voice === "own"} onChange={() => setVoice("own")} />
@@ -873,7 +936,7 @@ export default function CompanionCall({
                 <p>
                   You talk, {first} talks back. Your browser turns what you say into words (Chrome sends your voice to Google to do it, Safari to Apple),
                   and only the words come to Botchelor, kept in this conversation like messages. {first} is an AI character, and the voice is made, never
-                  a real person&apos;s.
+                  a real person&apos;s{speakUrl ? `: Deepgram makes it from ${first}'s words (your device's own voice when it can't)` : ""}.
                 </p>
               )}
               <p>Each time {first} answers counts as one reply, the same as a text.{left !== null ? ` You have ${left} left.` : ""}</p>

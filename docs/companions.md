@@ -249,6 +249,18 @@ nothing new; live calls (P6, below) are the always-listening version.
   - Their own voice is for accounts only, and its price is next to the choice. `buy` is sent only when the price was
     shown.
   - If a voice note is refused or fails, the call carries on in the device's voice and says why.
+  - **Their call voice (2026-11-10):** David heard a guest's call and found the device's voice "really robotic". With the
+    Deepgram key set (and `COMPANION_LIVE` not `0`/`off`), the free choice is now the character's own **Aura-2** voice,
+    the one their live calls use (`auraVoiceFor`), for guests too. `POST /api/companion/:id/speak {message_ids}`
+    (`lib/companion-call-voice.ts`) voices the stored, checked reply (re-checked, *actions* off, at most 600
+    characters) as a WAV: only the character's messages marked `on_call` in the caller's own thread, each at most
+    twice; 60 an hour and 200 a day per person, a guest's address held to `COMPANION_GUEST_IP_LIMITS`, and 1,000 a
+    day across everyone (about $6 of Aura at the most; a guest's 5 replies are about 3¢). Off, down, busy or blocked
+    by the phone, the device's voice says it. Counted as `companion_call` stage `voice` with `aura_chars`; no audio
+    is kept or logged.
+  - **The device's voice**, when it's the device's, is the most natural one there (names with Natural, Neural,
+    Enhanced or Premium, then Google's, Samantha or Ava), of those that fit the character's pronouns when the names
+    tell (`app/stage/useSpeech.ts voiceFor`).
 - **Taking turns:** it doesn't listen while they talk, so it never hears itself. Interrupt stops them and listens.
   - It pauses until a tap after three silences in a row, a hidden tab, or Mute.
   - Five quiet minutes end the call.

@@ -8,6 +8,7 @@ import { companionAccessFromCookies } from "@/lib/companion-access";
 import { companionAllowance } from "@/lib/companion-plan";
 import { extrasState } from "@/lib/companion-extras";
 import { liveCallsOn } from "@/lib/companion-live";
+import { callVoiceOn } from "@/lib/companion-call-voice";
 import { isAdmin } from "@/lib/admins";
 import { CRISIS_RESOURCES } from "@/lib/crisis";
 import CompanionChat from "./CompanionChat";
@@ -40,6 +41,7 @@ export default async function CompanionThreadPage({ params }: { params: Promise<
       initialExtras={extras}
       signedIn={!access.guest}
       liveCalls={live}
+      callVoice={callVoiceOn(process.env)}
     />
   );
 }

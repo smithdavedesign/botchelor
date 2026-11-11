@@ -58,7 +58,7 @@ async function isNotFound(page, response) {
 }
 
 /** What the stub was last asked to reply to (the companion's system prompt), to check what reaches the model. */
-const seen = { replyPrompts: [], crisisChecks: 0, factCalls: 0, streamed: 0, grants: 0, spoken: [] };
+const seen = { replyPrompts: [], crisisChecks: 0, factCalls: 0, streamed: 0, grants: 0, spoken: [], wav: [], auraDown: false };
 
 /**
  * The model's stand-in (the show's model: with no OpenRouter key saved, companions fall back to it), an
@@ -184,12 +184,36 @@ function startDeepgramStub() {
         return;
       }
       if (req.url?.startsWith("/v1/speak?")) {
-        seen.spoken.push(JSON.parse(body).text);
+        const text = JSON.parse(body).text;
+        seen.spoken.push(text);
+        if (seen.auraDown) {
+          res.writeHead(500).end();
+          return;
+        }
+        // A taking-turns call asks for a WAV file (lib/companion-call-voice.ts): the same tone, a second of it, with a header.
+        const wav = new URL(req.url, "http://x").searchParams.get("container") === "wav";
+        if (wav) seen.wav.push(text);
         const rate = 24_000;
-        const samples = new Int16Array(rate * 2);
+        const samples = new Int16Array(wav ? rate : rate * 2);
         for (let i = 0; i < samples.length; i++) samples[i] = Math.round(Math.sin((2 * Math.PI * 330 * i) / rate) * 2000);
-        const bytes = Buffer.from(samples.buffer);
-        res.writeHead(200, { "content-type": "application/octet-stream" });
+        const pcm = Buffer.from(samples.buffer);
+        const head = Buffer.alloc(44);
+        if (wav) {
+          head.write("RIFF", 0);
+          head.writeUInt32LE(36 + pcm.length, 4);
+          head.write("WAVEfmt ", 8);
+          head.writeUInt32LE(16, 16);
+          head.writeUInt16LE(1, 20);
+          head.writeUInt16LE(1, 22);
+          head.writeUInt32LE(rate, 24);
+          head.writeUInt32LE(rate * 2, 28);
+          head.writeUInt16LE(2, 32);
+          head.writeUInt16LE(16, 34);
+          head.write("data", 36);
+          head.writeUInt32LE(pcm.length, 40);
+        }
+        const bytes = wav ? Buffer.concat([head, pcm]) : pcm;
+        res.writeHead(200, { "content-type": wav ? "audio/wav" : "application/octet-stream" });
         const step = 24_000;
         let at = 0;
         const next = () => {
@@ -317,9 +341,14 @@ function fakeSpeech(lines) {
       this.onerror = null;
     }
   };
+  // What the device's voice said, so a test can tell it from the character's call voice.
+  window.__said = [];
   const synth = {
     getVoices: () => [],
-    speak: (u) => setTimeout(() => u.onend?.(), 900),
+    speak: (u) => {
+      if (u.text.trim()) window.__said.push(u.text);
+      setTimeout(() => u.onend?.(), 900);
+    },
     cancel() {},
     addEventListener() {},
     removeEventListener() {},
@@ -584,13 +613,22 @@ async function main() {
       await shot(page, "companion-call-ready-desktop");
       // v1, taking turns.
       await call.getByRole("radio", { name: /Taking turns/ }).check();
+      // Taking turns, the reply is said in their call voice (Aura, made on the server), not the device's.
+      assert(((await call.textContent()) ?? "").includes(`${first}'s call voice · free`), "taking turns should offer their call voice");
       await call.getByRole("button", { name: `📞 Call ${first}` }).click();
       await call.locator(".companion-call-said", { hasText: "good to hear your voice" }).waitFor({ timeout: 20_000 });
+      assert(seen.wav.some((t) => t.includes("good to hear your voice")), `the reply should be voiced by Aura from the kept words (${JSON.stringify(seen.wav)})`);
+      // Their voice down for the next one: the device says it instead.
+      seen.auraDown = true;
       await page.locator(".companion-call.is-speaking").waitFor();
       await shot(page, "companion-call-desktop");
       // The second line: two messages back from the model, said as one.
       await call.locator(".companion-call-said", { hasText: "Busy week. I fixed three radios and broke one. Yours?" }).waitFor({ timeout: 20_000 });
       assert(seen.replyPrompts.at(-1).includes("on a voice call with them"), "a line on a call should reach the model as one");
+      await page.waitForFunction(() => window.__said.some((t) => t.includes("three radios")), null, { timeout: 10_000 });
+      const device = await page.evaluate(() => window.__said.join(" "));
+      seen.auraDown = false;
+      assert(!device.includes("good to hear your voice"), `the first reply should be in their call voice, not the device's (${device})`);
       // 💬 Transcript, taking turns: closed until opened, then both sides of the call so far, in order.
       const toggle = call.getByRole("button", { name: /Transcript/ });
       assert((await toggle.getAttribute("aria-expanded")) === "false", "the transcript should start closed");
