@@ -28,6 +28,7 @@ export type AnalyticsEvent =
   | "generation_failed"
   | "conversation_failed" // the best-effort two-agent conversation gave up (the date still airs, with no thread)
   | "daily_job" // the daily cron: lobby refresh + transcript backfill + queued-job backstop
+  | "daily_job_load" // what one daily-job request cost the instance: time, memory peak, longest event-loop stall (lib/job-meter.ts)
   | "date_quality" // the free genuineness metrics for one generated conversation (lib/quality.ts) — no content
   | "bot_visit" // a crawler or AI agent let past the 18+ gate (lib/bots.ts): its name, kind and the path
   | "agent_connected" // an MCP client initialized: its self-declared name/version, and the session we issued

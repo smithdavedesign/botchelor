@@ -32,7 +32,11 @@ The move was `region` in each app's spec, at the same price; Bunny's storage zon
   `cf-region-code` give the country and the US state (both on since 2026-10-30; checked: a signed-out After Dark hop
   carries `place.v1.US.CA`).
 - **Scheduled jobs** call `https://botchelor.com/api/jobs/<name>` with `Authorization: Bearer $CRON_SECRET`, as Vercel
-  Cron did.
+  Cron did. The daily job goes one part per request (`?part=upkeep|show|people|growth`, 45 s apart), and each part's
+  answer streams newlines until it's done, so the next part never starts while one is still running. Run whole, it held
+  the show's one instance for minutes and botchelor.com answered 504 for ~5 and ~9 minutes on 2026-11-11. Each part's
+  time, memory peak and longest event-loop stall go to `job_runs` (`lib/job-meter.ts`) and show in the monitor's
+  `/api/health` (`daily_job`, with the instance's memory under `process`).
 - **Long requests:** App Platform has no `maxDuration`. Its edge (Cloudflare) ends a response that sends nothing for
   100 seconds, so streams keep sending, and slow work runs in `after()` once the response is out, as before.
   MCP waits (`wait_seconds`) still sometimes got a bare `error code: 504` from it at 50 seconds, though 40 or less never

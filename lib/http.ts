@@ -170,3 +170,49 @@ export function handle<C extends unknown[]>(fn: (req: Request, ...ctx: C) => Pro
     }
   };
 }
+
+/**
+ * A JSON response for work that can run past the edge's 100-second idle cutoff (docs/hosting.md): a newline every
+ * `everyMs` keeps the connection open, then the JSON (leading whitespace is valid JSON). The caller waits for the work
+ * instead of getting a 504 at 100 s while the work goes on behind it (the daily job's parts, 2026-11-11).
+ * `no-transform` keeps the server's compression from holding the newlines back. The status is 200 from the first
+ * byte, so a failure is the body `{ error: "internal_error" }`, recorded for the monitor as handle() does.
+ */
+export function jsonWhenDone(req: Request, work: () => Promise<unknown>, everyMs = 20_000): Response {
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      const send = (s: string) => {
+        try {
+          controller.enqueue(encoder.encode(s));
+        } catch {
+          /* the caller went away; the work still finishes */
+        }
+      };
+      const tick = setInterval(() => send("\n"), everyMs);
+      void (async () => {
+        let out: unknown;
+        try {
+          out = await work();
+        } catch (err) {
+          const message = err instanceof Error ? err.message : "unknown";
+          console.error("[api] unexpected error:", message);
+          await import("./errors").then((m) => m.recordServerError("api", new URL(req.url).pathname, message)).catch(() => {});
+          out = { error: "internal_error" };
+        } finally {
+          clearInterval(tick);
+        }
+        send(JSON.stringify(out));
+        try {
+          controller.close();
+        } catch {
+          /* already closed */
+        }
+      })();
+    },
+  });
+  return new Response(stream, {
+    status: 200,
+    headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store, no-transform", "x-accel-buffering": "no" },
+  });
+}
