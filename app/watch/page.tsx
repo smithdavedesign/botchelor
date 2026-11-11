@@ -89,7 +89,8 @@ function airsIn(iso: string, now: number): string {
 function RoomCard({ room, action }: { room: LobbyEntry; action: string }) {
   const [a, b] = room.characters;
   return (
-    <Link href={room.room_path} className={`card watch-lobby-card is-${room.status}`}>
+    // "Start it" starts it (lib/watch.ts syncRoom `start`); any other way into a waiting room asks first.
+    <Link href={room.status === "ready" ? `${room.room_path}?start=1` : room.room_path} className={`card watch-lobby-card is-${room.status}`}>
       <div className="watch-lobby-avatars">
         <Avatar seed={a.id} name={a.name} hue={a.hue} house={a.house} portraitSrc={a.portrait} size={44} />
         <Avatar seed={b.id} name={b.name} hue={b.hue} house={b.house} portraitSrc={b.portrait} size={44} />

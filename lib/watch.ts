@@ -556,16 +556,22 @@ function capitalize(s: string): string {
 /* ---------------------------------------- the heartbeat ---------------------------------------- */
 
 /**
- * The polling heartbeat: records the viewer as present, starts a template room on the first join
- * ("join and the date starts"), and airs the finale the moment the clock passes the decision — so
- * predictions resolve into points at the room's climax, with no manual step and no cron. Returns the
- * fresh room state. The read path (getRoomState) never writes; every side effect lives here.
+ * The polling heartbeat: records the viewer as present, starts a template room on the first join that asks for it
+ * ("join and the date starts"), and airs the finale the moment the clock passes the decision — so predictions
+ * resolve into points at the room's climax, with no manual step and no cron. Returns the fresh room state. The
+ * read path (getRoomState) never writes; every side effect lives here.
+ *
+ * `start` (default true, as every library caller expects): whether this join may start a waiting template room.
+ * The room's page sends false for a cold visitor until they tap Start (the audit, 2026-11-11, 2.7: a page load by any
+ * browser-looking crawler was starting house dates), and true from the lobby's Start button, for a viewer with
+ * characters of their own, and after the tap.
  */
 export async function syncRoom(
   db: Db,
   partyId: string,
   viewerId: string,
   now: Date = new Date(),
+  { start = true }: { start?: boolean } = {},
 ): Promise<RoomState | null> {
   const exists = (await db.query<{ starts_at: Date | string | null; kind: string; episode_id: string }>(
     `select starts_at, kind, episode_id from watch_parties where id = $1`,
@@ -578,8 +584,8 @@ export async function syncRoom(
      on conflict (party_id, user_id) do update set last_seen = now()`,
     [partyId, viewerId],
   );
-  // A template starts the moment the first viewer arrives.
-  if (exists.kind === "template" && !exists.starts_at) {
+  // A template starts the moment the first viewer who asks for it arrives.
+  if (start && exists.kind === "template" && !exists.starts_at) {
     await db.query(
       `update watch_parties set starts_at = now() where id = $1 and kind = 'template' and starts_at is null`,
       [partyId],

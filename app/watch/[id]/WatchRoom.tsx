@@ -160,8 +160,12 @@ function readChatHidden(): boolean {
   }
 }
 
-export default function WatchRoom({ initial }: { initial: RoomState }) {
+export default function WatchRoom({ initial, autoStart = true }: { initial: RoomState; autoStart?: boolean }) {
   const [state, setState] = useState<RoomState>(initial);
+  // Whether this viewer's heartbeat may start a waiting open room (lib/watch.ts syncRoom `start`): from the page's
+  // call on arrival, or from the Start button below. A ref too, so the polling closure reads the latest answer.
+  const [wantStart, setWantStart] = useState(autoStart);
+  const startRef = useRef(autoStart);
   const [chatHidden, setChatHidden] = useState(false);
   // A date opens in the standard view (David, 2026-10-22); theater mode is a button, and choosing it is remembered here.
   const [theater, setTheaterState] = useState(false);
@@ -178,7 +182,7 @@ export default function WatchRoom({ initial }: { initial: RoomState }) {
       const res = await fetch(`/api/watch-parties/${initial.id}/sync`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: "{}",
+        body: JSON.stringify({ start: startRef.current }),
       });
       if (res.ok) setState((await res.json()) as RoomState);
     } catch {
@@ -187,6 +191,14 @@ export default function WatchRoom({ initial }: { initial: RoomState }) {
       busy.current = false;
     }
   }, [initial.id]);
+
+  // The viewer's word: from here on the heartbeat may start the room (and does, at once).
+  const startDate = useCallback(() => {
+    startRef.current = true;
+    setWantStart(true);
+    void sync();
+  }, [sync]);
+  const waiting = !state.clock.started && !wantStart;
 
   useEffect(() => {
     setChatHidden(readChatHidden());
@@ -254,7 +266,7 @@ export default function WatchRoom({ initial }: { initial: RoomState }) {
           <span className="watch-live">
             <span className="watch-dot" aria-hidden /> {state.watching} watching
           </span>
-          <span className="chip">{state.clock.started ? state.clock.phase_label : "Starting…"}</span>
+          <span className="chip">{state.clock.started ? state.clock.phase_label : wantStart ? "Starting…" : "Ready"}</span>
           <button type="button" className={state.clock.ended ? "primary small" : "secondary small"} onClick={() => setTheater(true)}>
             {state.clock.ended ? "▶ Watch the replay" : "🎬 Theater mode"}
           </button>
@@ -265,7 +277,7 @@ export default function WatchRoom({ initial }: { initial: RoomState }) {
           tall empty chat box and a third column of polls). On a phone the sidebar follows the date. */}
       <div className="watch-grid">
         <section className="watch-stage" aria-label="The date">
-          <Stage state={state} onPredict={sync} preshowLeft={preshowLeft} />
+          <Stage state={state} onPredict={sync} preshowLeft={preshowLeft} onStart={waiting ? startDate : undefined} />
         </section>
         {sheet ? (
           <>
@@ -476,7 +488,7 @@ function Theater({
           onHide={phone ? undefined : () => showSide(false)}
           script={
             <>
-              {preshow && <Preshow state={state} left={preshowLeft} tone="dark" />}
+              {preshow && <Preshow state={state} left={preshowLeft} tone="dark" onStart={waiting ? startDate : undefined} />}
               <ChatThread
                 characters={state.characters}
                 turns={turns}
@@ -503,12 +515,21 @@ function inPreshow(state: RoomState): boolean {
  * The pre-show: "Starts in 0:23" ticking down from the room's synced clock, and who's on stage. It stands in for
  * the empty conversation until the first line plays.
  */
-function Preshow({ state, left, tone = "light" }: { state: RoomState; left: number | null; tone?: "light" | "dark" }) {
+function Preshow({ state, left, tone = "light", onStart }: { state: RoomState; left: number | null; tone?: "light" | "dark"; onStart?: () => void }) {
   const [a, b] = state.characters;
   const place = state.place_name ?? state.venue_name;
   return (
     <div className={`watch-countdown${tone === "dark" ? " is-dark" : ""}`}>
-      <p className="watch-countdown-time">{preshowCountdownLabel(state.clock.started ? left : null)}</p>
+      {onStart ? (
+        // A waiting open room, for a viewer who hasn't asked for it yet: the date starts on their word, not their arrival.
+        <p className="watch-countdown-start">
+          <button type="button" className="primary" onClick={onStart} data-track="room-start">
+            Start the date
+          </button>
+        </p>
+      ) : (
+        <p className="watch-countdown-time">{preshowCountdownLabel(state.clock.started ? left : null)}</p>
+      )}
       <div className="watch-countdown-cast">
         <Avatar seed={a.id} name={a.name} hue={a.hue} house={a.house} portraitSrc={a.portrait} size={44} />
         <Avatar seed={b.id} name={b.name} hue={b.hue} house={b.house} portraitSrc={b.portrait} size={44} />
@@ -518,13 +539,17 @@ function Preshow({ state, left, tone = "light" }: { state: RoomState; left: numb
         {place ? <> at {place}</> : null}.
       </p>
       <p className="watch-countdown-hint">
-        {state.predictions_open ? "Call the ending before the first line." : "The first lines play when the countdown ends."}
+        {onStart
+          ? "Anyone who joins in the next few minutes watches it with you."
+          : state.predictions_open
+            ? "Call the ending before the first line."
+            : "The first lines play when the countdown ends."}
       </p>
     </div>
   );
 }
 
-function Stage({ state, onPredict, preshowLeft }: { state: RoomState; onPredict: () => void; preshowLeft: number | null }) {
+function Stage({ state, onPredict, preshowLeft, onStart }: { state: RoomState; onPredict: () => void; preshowLeft: number | null; onStart?: () => void }) {
   const [a, b] = state.characters;
   const leadingChemistry = state.chemistry.options.find((o) => o.id === state.chemistry.leading);
   return (
@@ -548,8 +573,8 @@ function Stage({ state, onPredict, preshowLeft }: { state: RoomState; onPredict:
 
       {state.turns.length === 0 && inPreshow(state) && (
         <section className="card watch-preshow">
-          <h2>The date is about to start</h2>
-          <Preshow state={state} left={preshowLeft} />
+          <h2>{onStart ? "Ready when you are" : "The date is about to start"}</h2>
+          <Preshow state={state} left={preshowLeft} onStart={onStart} />
           {/* The call, right here: one tap (it was only in the sidebar's Vote tab, which a room could open past). */}
           <Predictions state={state} onDone={onPredict} compact />
         </section>
