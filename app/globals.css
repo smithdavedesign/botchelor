@@ -832,10 +832,13 @@ h2 {
 }
 .nav a.nav-cta-compact {
   display: none;
-  width: 2.4rem;
-  height: 2.4rem;
+  width: 2rem;
+  height: 2rem;
+  min-height: 0;
   padding: 0;
+  align-items: center;
   justify-content: center;
+  line-height: 1;
   font-size: var(--icon-sm);
 }
 /* Above 900px the call to action sits in the tools, so its twin in the links hides. */
