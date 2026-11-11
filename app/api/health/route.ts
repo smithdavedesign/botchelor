@@ -7,6 +7,7 @@ import { serverErrorSummary } from "@/lib/errors";
 import { openReportSummary } from "@/lib/moderation";
 import { contentReportSummary } from "@/lib/content-reports";
 import { companionReportSummary } from "@/lib/companion-reports";
+import { latestJobRuns, processMemory } from "@/lib/job-meter";
 
 export const dynamic = "force-dynamic";
 
@@ -37,7 +38,7 @@ export const GET = handle(async (req: Request) => {
   const db = await getDb();
   // The MCP checkers' rows wait for the database to be awake for something else (lib/mcp/probe-log.ts): at least hourly.
   await flushCheckerLog(db).catch(() => 0);
-  const [reports, takedowns, companionReports, stuck, paidToday, errors] = await Promise.all([
+  const [reports, takedowns, companionReports, stuck, paidToday, errors, daily] = await Promise.all([
     openReportSummary(db),
     contentReportSummary(db),
     companionReportSummary(db),
@@ -47,6 +48,8 @@ export const GET = handle(async (req: Request) => {
     ),
     paidDatesToday(db),
     serverErrorSummary(db),
+    // The daily job's parts in the last day: what each cost this instance (lib/job-meter.ts, after the 2026-11-11 504s).
+    latestJobRuns(db, "daily").catch(() => []),
   ]);
   return json({
     ok: true,
@@ -56,5 +59,8 @@ export const GET = handle(async (req: Request) => {
     stuck_generating: stuck.rows[0]?.n ?? 0,
     paid_dates: { today: paidToday, cap: paidDatesPerDay() },
     errors,
+    // This instance's memory: a slow climb toward heap_limit_mb shows here before it becomes an outage.
+    process: processMemory(),
+    daily_job: daily,
   });
 });

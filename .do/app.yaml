@@ -100,10 +100,14 @@ jobs:
       repository: alpine
       tag: "3.20"
     # The lobby every hour at :20, the daily job at 16:20 UTC, and the showcase check about twenty minutes later.
+    # The daily job goes one part per request with a pause between (app/api/jobs/daily PARTS): run whole, it held the
+    # show's only instance for minutes and 504'd botchelor.com twice on 2026-11-11.
     run_command: >-
       sh -c 'call() { wget -q -O - -T 290 -U "botchelor-cron/1.0 (DigitalOcean)"
       --header "Authorization: Bearer $CRON_SECRET" "https://$1/api/jobs/$2"; echo; };
-      call botchelor.com lobby; if [ "$(date -u +%H)" = "16" ]; then call botchelor.com daily; call ad.botchelor.com after-dark-daily; fi;
+      call botchelor.com lobby; if [ "$(date -u +%H)" = "16" ]; then
+      for p in upkeep show people growth; do call botchelor.com "daily?part=$p"; sleep 45; done;
+      call ad.botchelor.com after-dark-daily; fi;
       sleep 1200; call ad.botchelor.com showcase-check'
     instance_size_slug: apps-s-1vcpu-0.5gb
     instance_count: 1

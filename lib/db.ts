@@ -1383,6 +1383,18 @@ create table if not exists server_errors (
 );
 create index if not exists server_errors_at_idx on server_errors (at);
 
+-- How each part of a background job went (lib/job-meter.ts): time, memory and event-loop stalls per step, numbers only.
+-- The daily job's 504s on 2026-11-11 left no trace once the instance restarted. Kept 30 days.
+create table if not exists job_runs (
+  id bigserial primary key,
+  job text not null,
+  part text not null,
+  at timestamptz not null default now(),
+  ms integer not null,
+  report jsonb not null
+);
+create index if not exists job_runs_job_at_idx on job_runs (job, at desc);
+
 -- Places a date went that the library has no set for yet (lib/scenes.ts): a plan two characters agreed to by text, or a
 -- move on the date. The date shows a generic background with the place's name; this tells the owner which sets to make
 -- next. One row per date and place, logged when the date is finished.
