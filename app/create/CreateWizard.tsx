@@ -161,15 +161,16 @@ const hidingList = (xs: readonly string[]) => xs.map((x) => x.trim()).filter(Boo
 /** "a, b and c". */
 const listWords = (xs: string[]) => (xs.length < 2 ? (xs[0] ?? "") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`);
 
-/** The steps a new character can skip: everything but who they are, the dating profile and the review. */
-const OPTIONAL_STEPS: readonly number[] = [S.voice, S.look, S.facts, S.deeper, S.soul];
+/** The steps a new character can skip: everything but who they are, their look, the dating profile and the review. */
+const OPTIONAL_STEPS: readonly number[] = [S.voice, S.facts, S.deeper, S.soul];
 /**
  * The two tracks through the steps (the 2026-11-11 audit, 2.2: the hero promised "under a minute", the rail promised
- * eight steps). A new character takes the quick track, three steps; "Add depth" on the review, or editing later, opens
+ * eight steps). A new character takes the quick track, four steps; "Add depth" on the review, or editing later, opens
  * every step. `maxStep` keeps counting real step indexes, so the depth track's rail knows what's been reached.
+ * The look stays on the quick track (David, 2026-11-11: "it's important"): their free portrait is drawn from the picks.
  */
 const ALL_STEPS: readonly number[] = [S.identity, S.voice, S.look, S.details, S.facts, S.deeper, S.soul, S.review];
-const QUICK_TRACK: readonly number[] = [S.identity, S.details, S.review];
+const QUICK_TRACK: readonly number[] = [S.identity, S.look, S.details, S.review];
 
 /** The build steps, shown as a tappable progress rail. The ones that can be skipped say so (2026-10-31 UX audit). */
 function Stepper({
@@ -843,7 +844,7 @@ export default function CreateWizard({
             <p className="muted wizard-intro">
               {depth
                 ? "An original fictional adult. Only who they are and a short dating profile are needed; the rest is optional."
-                : "An original fictional adult, in three steps. Their voice, look and inner life can wait until after their first date."}
+                : "An original fictional adult, in four steps. Their voice and inner life can wait until after their first date."}
             </p>
           )}
         </>
@@ -1184,7 +1185,7 @@ export default function CreateWizard({
             {!edit && !depth && (
               <div className="notice wizard-depth">
                 <p>
-                  <strong>Add depth?</strong> Their voice, how they look, more about them, what makes them deeper, their inner life: five short
+                  <strong>Add depth?</strong> Their voice, more about them, what makes them deeper, their inner life: four short
                   optional steps, now or any time from their page.
                 </p>
                 <button type="button" className="secondary small" onClick={addDepth} data-track="create-add-depth">
