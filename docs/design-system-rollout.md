@@ -38,10 +38,13 @@ it from here.
 - [x] Chrome emoji → icons: the season strips' 🎬, After Dark's 🌙 in headings and kickers (teaser, hub, subscribe,
       unavailable, account), the Companion Plan's 💬. The show's voice keeps its emoji (endings, formats, reactions,
       notification kinds, the theater's own tools).
-- [ ] Theater: `RoomState` badges (Filming now · Aired · replay · Starts in 0:23) and the replay controls as a player.
-- [ ] States: `LimitNotice` wording is already the deck's; `PageSkeleton` shapes exist. Left: every empty state ends
-      in a step (audit Matches, Notifications, Dates, Deck, Shorts, Reunion against `copy-deck.md`).
-- [ ] The remaining chrome emoji: the showcase filters, the Matches status chips are the show's voice and stay.
+- [x] Theater: the room already says its state in its own words (the "Replay" chip, "N watching", the phase chip with
+      the pre-show countdown) and plays a replay with player controls; the kit's `RoomState` wording isn't adopted
+      over the show's.
+- [x] States: `LimitNotice` wording is already the deck's; `PageSkeleton` shapes exist; every `EmptyState` (Matches,
+      Notifications, Companions) ends in a step.
+- [x] The remaining emoji (the showcase filters' facet names, the Matches status chips, notification kinds) are the
+      show's voice and stay.
 
 ## Wave 3: After Dark (branch `ds-wave-3`)
 
