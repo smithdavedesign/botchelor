@@ -474,6 +474,25 @@ details.recap-toggle[open] .recap-toggle-hide {
   background: var(--accent-ink);
 }
 
+/* ---------------- /watch: tonight's votes ---------------- */
+/* The situation vote and Sunday's reveal as one row after the lead (the audit, 2026-11-11, 2.3). Two cards share the
+   row on a wide screen; on a phone they stack, as the sections above and below do. The cards keep their own frames
+   and lose the vertical margins the grid gap now provides. */
+.watch-votes {
+  display: grid;
+  gap: var(--space-3);
+  margin: var(--space-4) 0;
+}
+.watch-votes > .situation {
+  margin: 0;
+}
+@media (min-width: 60rem) {
+  .watch-votes.is-two {
+    grid-template-columns: 1fr 1fr;
+    align-items: start;
+  }
+}
+
 /* ---------------- a couple (app/couples/[a]/[b]) ---------------- */
 /* An action and its small print: the button(s) on one line, the muted note under them, never wrapped beside. */
 .action-hint {
