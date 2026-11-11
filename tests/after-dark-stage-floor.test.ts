@@ -10,6 +10,8 @@ describe("the stage floor", () => {
     expect(stageShown("*Quickly unbuttoning Star's blouse* You talk too much, Star.")).toBe(3);
     expect(stageShown("*Rips Star's pants off and starts eating her out* I've been dreaming about this.")).toBe(4);
     expect(stageShown("*Goes over to Sable's face and sits on it* Enjoy the show.")).toBe(4);
+    // An October night reel shot the floor missed (2026-11-10).
+    expect(stageShown("And you're going to burn for me, Chud. | B sinks to her knees, taking him in her mouth.")).toBe(4);
   });
 
   it("raises a claim that ran behind the lines, line by line, and never lowers one", () => {

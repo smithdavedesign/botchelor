@@ -103,8 +103,10 @@ export function deriveTags(row: TagSourceRow, source: MediaTag[] = []): MediaTag
     const key = `${kind}:${value}`;
     if (!out.has(key)) out.set(key, { kind, value, source: from });
   };
-  // A clip from a picture shows what the picture shows (not its level or light: the clip has its own).
-  for (const t of source) if (t.kind !== "date") add(t.kind, t.value, t.source);
+  // A clip from a picture shows what the picture shows (not its level or light: the clip has its own). A baseline's
+  // "dressed" (its derived stage 0) never comes with it: the October night reels were filmed from baselines and all read
+  // dressed however far they went (2026-11-10); a stage from a picture's own record still does, when the clip has none.
+  for (const t of source) if (t.kind !== "date" && !(t.kind === "stage" && t.source === "derived")) add(t.kind, t.value, t.source);
   add("who", row.character_b ? "pair" : "solo", "choice");
   const c = row.choices ?? {};
   const str = (v: unknown) => (typeof v === "string" ? v : undefined);
