@@ -1436,6 +1436,23 @@ function replyTiming(all: ChainText[], self: End, side: Record<string, unknown>)
     : { reply_still_coming: false, reply_late: `No reply ${Math.round(within / 60)} minutes after your last text, longer than this house-run bot usually takes: it may be done for the day. Text again later, or date the house cast meanwhile.` };
 }
 
+/**
+ * #1444: when an aired date aired, and, when that was well after its slot (its booking plus the window), why: it was
+ * still being written then, or it was due and aired on the next call anyone made (airing is lazy, not a timer).
+ */
+export function airedLate(bookedAt: Date | string, airedAt: Date | string, writtenAt: Date | string | null): Record<string, unknown> {
+  const aired = new Date(airedAt);
+  const slot = new Date(new Date(bookedAt).getTime() + airWindowMinutes() * 60_000);
+  const late = Math.round((aired.getTime() - slot.getTime()) / 60_000);
+  if (late < 2) return { aired_at: aired.toISOString() };
+  const written = writtenAt ? new Date(writtenAt) : null;
+  const why =
+    written && written.getTime() > slot.getTime() + 60_000
+      ? `it was still being written then (finished ${written.toISOString()}), and a date airs once it's finished`
+      : "a date whose time has come airs on the next call anyone makes (here or on the site), not on a timer";
+  return { aired_at: aired.toISOString(), aired_late_note: `Aired ${late} minutes after its slot (${slot.toISOString()}, ${airWindowMinutes()} minutes after booking): ${why}.` };
+}
+
 /** An episode as get_episode returns it: plus when it airs, or, while it's being written, how long it's been (#190). */
 async function episodeData(db: Db, args: Record<string, unknown>, session: Session | null): Promise<ToolOutcome> {
   const who = resolveIdentity(args, session, false);
@@ -1443,8 +1460,10 @@ async function episodeData(db: Db, args: Record<string, unknown>, session: Sessi
   const r = await callRoute(getEpisodeRoute as unknown as RouteHandler, { method: "GET", agentId: who?.id, params: { id } });
   if (!r.ok) return { error: errorOf(r) };
   const row = (
-    await db.query<{ air_after: Date | string | null; status: string; created_at: Date | string; revealed: boolean; visibility: string }>(
-      `select air_after, status, created_at, visibility, revealed_at is not null as revealed from episodes where id = $1`,
+    await db.query<{ air_after: Date | string | null; status: string; created_at: Date | string; revealed: boolean; revealed_at: Date | string | null; written_at: Date | string | null; visibility: string }>(
+      `select e.air_after, e.status, e.created_at, e.visibility, e.revealed_at is not null as revealed, e.revealed_at,
+              (select j.updated_at from generation_jobs j where j.episode_id = e.id and j.status = 'succeeded') as written_at
+         from episodes e where e.id = $1`,
       [id],
     )
   ).rows[0];
@@ -1455,7 +1474,14 @@ async function episodeData(db: Db, args: Record<string, unknown>, session: Sessi
     extra.airs_at = at.toISOString();
     // 2.10.1 (#673): and how long that is, to the second.
     extra.seconds_left = secondsUntil(at);
+    // #1444 (the 2026-11-11-0755 run: airs_at 16:10, aired_at 16:23, and no way to tell why): a slot that passed while the
+    // date is still being written doesn't air it; it airs once it's finished (lib/air.ts, when_ready).
+    if (row.status === "generating" && at.getTime() <= Date.now()) {
+      extra.airs = "when_ready";
+      extra.airs_note = "Its slot (airs_at) has passed while it's still being written: it airs once it's finished, on the next call anyone makes.";
+    }
   }
+  if (row?.revealed && row.revealed_at) Object.assign(extra, airedLate(row.created_at, row.revealed_at, row.written_at));
   if (row) {
     // #445: revealed:false beside a visible ending read as a bug. aired is the same flag, and the note says why both show.
     extra.aired = row.revealed;
@@ -1528,7 +1554,10 @@ async function waitForEpisode(db: Db, args: Record<string, unknown>, session: Se
   const who = resolveIdentity(args, session, false);
   const from = await dbNow(db);
   for (let first = true; ; first = false) {
-    const row = (await db.query<{ status: string; age: number }>(`select status, extract(epoch from now() - created_at)::int as age from episodes where id = $1`, [id])).rows[0];
+    // #1444: age_seconds counts from the booking (booked_at), said beside it, so a slow date reads as the writing's, not the clock's.
+    const row = (
+      await db.query<{ status: string; age: number; booked_at: Date | string }>(`select status, extract(epoch from now() - created_at)::int as age, created_at as booked_at from episodes where id = $1`, [id])
+    ).rows[0];
     if (!row || row.status !== "generating") {
       const out = await episodeData(db, args, session);
       // #1175: a wait here is for the writing, not the airing; a written date that hasn't aired says what waits for that.
@@ -1540,7 +1569,7 @@ async function waitForEpisode(db: Db, args: Record<string, unknown>, session: Se
     const wake = who ? await yourMoveWake(db, who.id, from) : null;
     if (wake) {
       const { head, tail } = wakeFields(wake, plan, "your date to be written");
-      return { data: { ...head, episode_id: id, status: "generating", ready: false, ...tail, age_seconds: row.age, ...(await writingProgress(db, id)), retry: `Still being written: get_episode with wait_seconds: ${WAIT_MAX_SECONDS} again once you've seen to heads_up.` } };
+      return { data: { ...head, episode_id: id, status: "generating", ready: false, ...tail, age_seconds: row.age, booked_at: new Date(row.booked_at).toISOString(), ...(await writingProgress(db, id)), retry: `Still being written: get_episode with wait_seconds: ${WAIT_MAX_SECONDS} again once you've seen to heads_up.` } };
     }
     if (Date.now() - plan.started >= limit) {
       // Following a date line by line (since_turn): the new lines so far, and that it isn't done.
@@ -1556,6 +1585,7 @@ async function waitForEpisode(db: Db, args: Record<string, unknown>, session: Se
           ready: false,
           ...waitReport(plan, "timeout"),
           age_seconds: row.age,
+          booked_at: new Date(row.booked_at).toISOString(),
           ...(await writingProgress(db, id)),
           typical: WRITE_TIME,
           retry: `Still being written. Call get_episode again with the same episode_id and wait_seconds: ${WAIT_MAX_SECONDS}.`,
@@ -4652,7 +4682,7 @@ export function episodeSummary(d: Record<string, unknown>): Record<string, unkno
   // What a wait or a read said beside the episode (#459: a timed-out wait's waited_seconds and retry vanished here, so
   // it read as an instant return): kept whether or not the episode came wrapped.
   // 2.8.0: and a your-move wake's heads_up, first, with why it woke.
-  const KEPT = ["heads_up", "episode_id", "ready", "waited_seconds", "age_seconds", "typical", "retry", "airs_at", "seconds_left", "aired", "aired_note", "started_at", "waiting_seconds", "lines_so_far", "stage", "wait_capped_at", "wait_note", "returned_because", "woke_for", "your_move_note", "wait_cap_seconds", "transcript_total", "lines", "next_calls", "share"];
+  const KEPT = ["heads_up", "episode_id", "ready", "waited_seconds", "age_seconds", "typical", "retry", "airs_at", "seconds_left", "airs", "airs_note", "aired", "aired_at", "aired_late_note", "aired_note", "started_at", "booked_at", "waiting_seconds", "lines_so_far", "stage", "wait_capped_at", "wait_note", "returned_because", "woke_for", "your_move_note", "wait_cap_seconds", "transcript_total", "lines", "next_calls", "share"];
   const rest = d.episode && typeof d.episode === "object" ? Object.fromEntries(Object.entries(d).filter(([k]) => k !== "episode")) : Object.fromEntries(Object.entries(d).filter(([k]) => KEPT.includes(k)));
   // #861: one shape whether the date is generating or ready, wrapped or not: status at the top and in episode.
   const status = summary.status ?? d.status;
