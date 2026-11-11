@@ -181,16 +181,20 @@ describe("the companions browser (app/companion/CompanionBrowser.tsx)", () => {
 });
 
 describe("the show's pages", () => {
-  it("/watch links the ballot from This Week and keeps the secondary boards inside one fold", async () => {
+  it("/watch links the ballot from This Week; the dare and backing are out in the open, the cast chat stays in the fold", async () => {
     as(newUserCookie());
     const WatchPage = (await import("@/app/watch/page")).default;
     const html = renderToStaticMarkup(await WatchPage({ searchParams: Promise.resolve({}) } as never));
     expect(html).toContain('href="/reunion#next-season"');
+    // The design system's /watch (all-screens board, 2026-11-11): today's dare beside the situation, who you back and
+    // the best callers in the open; only the cast chat, the shifts and the pool wait inside "More from the show".
     const fold = html.indexOf("More from the show");
-    for (const id of ['id="dare"', 'id="back-cast"', 'id="cast-chat"']) {
+    for (const id of ['id="dare"', 'id="back-cast"']) {
       const at = html.indexOf(id);
-      if (at >= 0) expect(at).toBeGreaterThan(fold);
+      if (at >= 0 && fold >= 0) expect(at).toBeLessThan(fold);
     }
+    const chat = html.indexOf('id="cast-chat"');
+    if (chat >= 0) expect(chat).toBeGreaterThan(fold);
   });
 
   it("/reunion carries next season's ballot, counts hidden until you vote", async () => {

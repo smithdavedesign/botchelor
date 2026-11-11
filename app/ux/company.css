@@ -271,3 +271,24 @@
 .legal-page.company-page :is(.pricing-grid, .contact-routes, .press-assets, .press-swatches, .social-links) {
   padding-left: 0;
 }
+
+/* The footer as the design system draws it (all-screens board, 2026-11-11): the page's full width, the fiction line
+   centred over it, and the link groups as plain quiet links that underline on hover. The crisis line, the letter and
+   the legal line stay where they are. */
+.site-footer {
+  max-width: var(--page-wide);
+}
+.site-footer > p.footer-adults {
+  color: var(--ink);
+  font-weight: 600;
+  text-align: center;
+}
+.site-footer .footer-links a {
+  color: var(--muted);
+  text-decoration: none;
+}
+.site-footer .footer-links a:hover,
+.site-footer .footer-links a:focus-visible {
+  color: var(--accent-text);
+  text-decoration: underline;
+}

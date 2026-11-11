@@ -150,15 +150,23 @@ export default function ShowcaseGrid({ posts, admin = false, reels = "" }: { pos
                   </button>
                 )}
               </div>
+              {/* Two lines, as the design system captions a reel (all-screens board, 2026-11-11): who's in it, then
+                  what it is, where, and whose. */}
               <p className="showcase-by small">
                 <LikeButton postId={x.id} likes={x.likes} liked={x.liked} />{" "}
+                <strong>
+                  {x.character.name}
+                  {x.partner ? ` × ${x.partner.name}` : ""}
+                </strong>
+              </p>
+              <p className="showcase-meta small muted">
+                {[x.medium === "picture" ? "Picture" : x.from_date ? "Date reel" : "Clip", x.place ? placeLabel(x.place) : ""].filter(Boolean).join(" · ")}
                 {x.creator.handle !== SHOW_HANDLE && (
                   <>
-                    <Link href={`/creators/${x.creator.handle}`}>@{x.creator.handle}</Link> ·{" "}
+                    {" · by "}
+                    <Link href={`/creators/${x.creator.handle}`}>@{x.creator.handle}</Link>
                   </>
                 )}
-                {x.character.name}
-                {x.partner ? ` & ${x.partner.name}` : ""}
               </p>
             </li>
           );

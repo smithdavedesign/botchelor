@@ -383,10 +383,14 @@ describe("the showcase grid's caption", () => {
   it("names a creator, but not the show itself", () => {
     expect(SHOW_HANDLE).toBe("botchelor");
     const grid = html(createElement(ShowcaseGrid, { posts: [post("p1", "mara"), post("p2", SHOW_HANDLE)] }));
+    // Two lines a tile (the design system's Reels, 2026-11-11): who's in it, then what it is, where, and "by @handle".
     const captions = grid.match(/<p class="showcase-by small">.*?<\/p>/g) ?? [];
+    const metas = grid.match(/<p class="showcase-meta small muted">.*?<\/p>/g) ?? [];
     expect(captions).toHaveLength(2);
-    expect(captions[0]).toContain('<a href="/creators/mara">@mara</a> · Juniper');
-    expect(captions[1]).not.toContain("@botchelor");
+    expect(metas).toHaveLength(2);
+    expect(captions[0]).toContain("Juniper");
+    expect(metas[0]).toContain('by <a href="/creators/mara">@mara</a>');
+    expect(metas[1]).not.toContain("@botchelor");
     expect(captions[1]).toContain("Juniper");
   });
 });
