@@ -42,6 +42,19 @@ no private or test character), and the callers board with only the display names
    the next one. Sends pause 0.6 s apart (Resend's free plan takes two requests a second), and a pass spends at most
    45 s.
 
+## Bounces and complaints
+
+Every email the letter sends (confirmations and letters) keeps Resend's id in `newsletter_deliveries`. Before it sends
+anything, the hourly job asks Resend how each one went (`GET /emails/{id}`, `lib/newsletter.ts` `checkDeliveries`): for
+4 days after it went, at most every 12 hours, 20 lookups a pass. An email that **bounced**, was **reported as spam**
+(`complained`) or that Resend wouldn't send (`suppressed`: its own list of addresses that bounced or complained before)
+takes the address off the list. It becomes `unsubscribed` with `left_reason` saying why, so nothing more goes there
+until someone signs it up and confirms again. A person's own unsubscribe sets `left_reason = 'unsubscribed'`. A lookup
+that fails ends the pass, and the next one carries on. The deliveries are kept 14 days.
+
+Asking beats a webhook here: nothing new to set up or keep secret. A webhook (Resend's `email.bounced` and
+`email.complained`) would be quicker, and is worth it if the list grows past what the hourly lookups cover.
+
 ## The caps
 
 - **`NEWSLETTER_DAILY_CAP`** (default 40): the letter's emails in any 24 hours, confirmations included. Letters stop a
@@ -77,13 +90,13 @@ unsubscribe link, and it carries the postal address too once it's set. The list 
 ## Watching it
 
 - **The hourly job** (`/api/jobs/lobby`): `newsletter` is `"off"`, `"waiting for NEWSLETTER_POSTAL_ADDRESS"`, or
-  `{issue, sent, failed, left, confirmations, pruned, pending, confirmed}`.
+  `{issue, sent, failed, left, confirmations, pruned, dropped, pending, confirmed}`, where `dropped` counts the
+  addresses taken off for a bounce or complaint.
 - **`GET /api/admin/newsletter`** (the admin password or an admin account): whether it's on, how many addresses are
-  pending, confirmed and unsubscribed, today's sends against the caps and the last few letters, never an address.
+  pending, confirmed and unsubscribed (and, in `left_because`, why they left), today's sends against the caps and the
+  last few letters, never an address.
   `?preview=1` adds the latest week's letter as text: as it went out, or as it would be built now.
 
 ## Not built (yet)
 
-- **Bounces and complaints.** Resend's webhooks (a hard bounce, a spam complaint) don't unsubscribe anyone yet. An
-  address that bounces keeps being tried each week; worth adding before the list is large.
 - **A welcome email** on confirming, and an archive of past letters on the site.

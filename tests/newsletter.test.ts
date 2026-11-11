@@ -27,12 +27,14 @@ import { POST as signUpRoute } from "@/app/api/newsletter/route";
 import ConfirmPage from "@/app/newsletter/confirm/page";
 import UnsubscribePage from "@/app/newsletter/unsubscribe/page";
 import { SECRET_POOL } from "@/lib/cast-secrets";
-import { setEmailSenderForTests, signEmailToken, verifyEmailToken, type EmailMessage } from "@/lib/email";
+import { setEmailLookupForTests, setEmailSenderForTests, signEmailToken, verifyEmailToken, type EmailMessage } from "@/lib/email";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import {
   addSignUp,
   catchUpConfirmations,
+  checkDeliveries,
   confirmSubscription,
+  DELIVERY_CHECK_DAYS,
   leaveNewsletter,
   letterEmail,
   logNewsletterSend,
@@ -41,6 +43,7 @@ import {
   newsletterState,
   postalAddress,
   pruneNewsletter,
+  recordDelivery,
   sendConfirmation,
   signNewsletterToken,
   SIGNUP_LIMITS,
@@ -418,7 +421,7 @@ describe("the weekly letter", () => {
     expect(await ensureIssue(t.db, SUN_MORNING, ON)).toBeNull();
     const pass = await runNewsletter(t.db, SUN_AIR, { env: ON, pauseMs: 0 });
     // The pending address got its confirmation (it never had one), and no letter.
-    expect(pass).toEqual({ issue: "2026-W46", sent: 2, failed: 0, left: 0, confirmations: 1, pruned: 0, pending: 1, confirmed: 2 });
+    expect(pass).toEqual({ issue: "2026-W46", sent: 2, failed: 0, left: 0, confirmations: 1, pruned: 0, dropped: 0, pending: 1, confirmed: 2 });
     expect(letters().map((m) => m.to).sort()).toEqual(["one@example.com", "two@example.com"]);
 
     const [letter] = letters();
@@ -573,5 +576,92 @@ describe("watching it", () => {
     expect(call).toBeGreaterThan(-1);
     for (const before of ["airDueDates(db)", "runDueReveal(db)", "postDueDiscord(db)"]) expect(route.indexOf(before)).toBeLessThan(call);
     expect(route).toMatch(/discord, newsletter,/);
+  });
+});
+
+describe("bounces and complaints", () => {
+  const SENT = new Date("2026-11-16T20:00:00Z");
+  const at = (ms: number) => new Date(SENT.getTime() + ms);
+  afterEach(() => setEmailLookupForTests(null));
+
+  it("keep Resend's id for each email the letter sends, confirmations and letters alike", async () => {
+    let n = 0;
+    setEmailSenderForTests(async (msg) => {
+      sent.push(msg);
+      return `re_${++n}`;
+    });
+    await signUp({ email: "new@example.com", attest: true });
+    const { rows } = await t.db.query<{ provider_id: string; email: string; kind: string }>(`select provider_id, email, kind from newsletter_deliveries`);
+    expect(rows).toEqual([{ provider_id: "re_1", email: "new@example.com", kind: "confirm" }]);
+  });
+
+  it("take an address off the list, saying why, and a delivered email is asked about again until a complaint could no longer come", async () => {
+    await confirmed("bounce@example.com", "spam@example.com", "fine@example.com");
+    for (const e of ["bounce@example.com", "spam@example.com", "fine@example.com"]) await recordDelivery(t.db, `re_${e}`, e, "letter", SENT);
+    const events: Record<string, string> = { "re_bounce@example.com": "bounced", "re_spam@example.com": "complained", "re_fine@example.com": "delivered" };
+    const asked: string[] = [];
+    setEmailLookupForTests(async (id) => {
+      asked.push(id);
+      return events[id] ?? null;
+    });
+
+    expect(await checkDeliveries(t.db, at(HOUR), ON)).toEqual({ checked: 3, left: 2 });
+    expect(await row("bounce@example.com")).toMatchObject({ status: "unsubscribed", left_reason: "bounced" });
+    expect(await row("spam@example.com")).toMatchObject({ status: "unsubscribed", left_reason: "complained" });
+    expect(await row("fine@example.com")).toMatchObject({ status: "confirmed", left_reason: null });
+
+    // Not again within 12 hours; after that only the delivered one, since the other two are settled.
+    asked.length = 0;
+    expect(await checkDeliveries(t.db, at(2 * HOUR), ON)).toEqual({ checked: 0, left: 0 });
+    events["re_fine@example.com"] = "complained";
+    expect(await checkDeliveries(t.db, at(14 * HOUR), ON)).toEqual({ checked: 1, left: 1 });
+    expect(asked).toEqual(["re_fine@example.com"]);
+    expect(await row("fine@example.com")).toMatchObject({ status: "unsubscribed", left_reason: "complained" });
+
+    // Past DELIVERY_CHECK_DAYS nothing is asked about.
+    await recordDelivery(t.db, "re_old", "old@example.com", "letter", SENT);
+    asked.length = 0;
+    await checkDeliveries(t.db, at(DELIVERY_CHECK_DAYS * DAY + HOUR), ON);
+    expect(asked).toEqual([]);
+  });
+
+  it("run in the hourly pass before anything is sent, and a failed lookup leaves everything for the next pass", async () => {
+    await confirmed("bounce@example.com");
+    await recordDelivery(t.db, "re_b", "bounce@example.com", "letter", SENT);
+    setEmailLookupForTests(async () => {
+      throw new Error("resend: down");
+    });
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(await checkDeliveries(t.db, at(HOUR), ON)).toEqual({ checked: 0, left: 0 });
+    expect((await t.db.query(`select checked_at from newsletter_deliveries`)).rows[0]).toEqual({ checked_at: null });
+
+    setEmailLookupForTests(async () => "bounced");
+    const pass = await runNewsletter(t.db, at(HOUR), { env: ON, pauseMs: 0 });
+    expect(pass).toMatchObject({ dropped: 1, confirmed: 0 });
+    expect(await row("bounce@example.com")).toMatchObject({ status: "unsubscribed", left_reason: "bounced" });
+  });
+
+  it("lets an address that bounced come back by signing up and confirming again", async () => {
+    await confirmed("back@example.com");
+    await recordDelivery(t.db, "re_x", "back@example.com", "letter", SENT);
+    setEmailLookupForTests(async () => "suppressed");
+    await checkDeliveries(t.db, at(HOUR), ON);
+    expect(await row("back@example.com")).toMatchObject({ status: "unsubscribed", left_reason: "suppressed" });
+
+    await addSignUp(t.db, "back@example.com", at(DAY));
+    const token = signNewsletterToken({ e: "back@example.com", p: "confirm", x: at(2 * DAY).getTime() }, ON);
+    expect(await confirmSubscription(t.db, token, at(DAY + HOUR), ON)).toBe(true);
+    expect(await row("back@example.com")).toMatchObject({ status: "confirmed", left_reason: null });
+  });
+
+  it("are counted for the admin, and a person's own unsubscribe says so", async () => {
+    await confirmed("me@example.com", "bounce@example.com");
+    expect(await leaveNewsletter(t.db, signNewsletterToken({ e: "me@example.com", p: "unsub" }, ON), at(0), ON)).toBe(true);
+    await recordDelivery(t.db, "re_b", "bounce@example.com", "letter", SENT);
+    setEmailLookupForTests(async () => "bounced");
+    await checkDeliveries(t.db, at(HOUR), ON);
+    vi.stubEnv("FRONTIER_PASSWORD", ADMIN_PW);
+    const res = await adminRoute(new Request(`${BASE_URL}/api/admin/newsletter`, { headers: { "x-frontier-key": ADMIN_PW } }));
+    expect(((await res.json()) as { left_because: Record<string, number> }).left_because).toEqual({ bounced: 1, unsubscribed: 1 });
   });
 });

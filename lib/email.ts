@@ -90,11 +90,13 @@ export function verifyEmailToken(token: string | null | undefined, purpose: Purp
 /* ------------------------------------------------------ sending ------------------------------------------------------ */
 
 export type EmailMessage = { from: string; to: string; subject: string; html: string; text: string; headers: Record<string, string>; replyTo?: string };
-type Sender = (msg: EmailMessage, config: EmailConfig) => Promise<void>;
+/** Sends one message; resolves to the provider's id for it when there is one (tests' senders may return nothing). */
+type Sender = (msg: EmailMessage, config: EmailConfig) => Promise<string | null | void>;
 
 const resendSender: Sender = async (msg, config) => {
-  const { error } = await new Resend(config.apiKey).emails.send({ from: msg.from, to: [msg.to], subject: msg.subject, html: msg.html, text: msg.text, headers: msg.headers, ...(msg.replyTo ? { replyTo: msg.replyTo } : {}) });
+  const { data, error } = await new Resend(config.apiKey).emails.send({ from: msg.from, to: [msg.to], subject: msg.subject, html: msg.html, text: msg.text, headers: msg.headers, ...(msg.replyTo ? { replyTo: msg.replyTo } : {}) });
   if (error) throw new Error(`resend: ${error.name ?? "error"}`);
+  return data?.id ?? null;
 };
 let sender: Sender = resendSender;
 /** Tests swap the network out. */
@@ -104,10 +106,29 @@ export function setEmailSenderForTests(s: Sender | null): void {
 
 /**
  * One message to the provider and nothing else, for a sender that keeps its own caps and log (the Sunday letter,
- * lib/newsletter.ts). Throws when the provider refuses it. The test hook above covers it too.
+ * lib/newsletter.ts). Throws when the provider refuses it; otherwise the provider's id for the message, if it gave one.
+ * The test hook above covers it too.
  */
-export async function sendEmail(msg: EmailMessage, config: EmailConfig): Promise<void> {
-  await sender(msg, config);
+export async function sendEmail(msg: EmailMessage, config: EmailConfig): Promise<string | null> {
+  return (await sender(msg, config)) || null;
+}
+
+/** Asks the provider what last happened to a message it took: "delivered", "bounced", "complained", "suppressed"… */
+type Lookup = (id: string, config: EmailConfig) => Promise<string | null>;
+const resendLookup: Lookup = async (id, config) => {
+  const { data, error } = await new Resend(config.apiKey).emails.get(id);
+  if (error) throw new Error(`resend: ${error.name ?? "error"}`);
+  return data?.last_event ?? null;
+};
+let lookup: Lookup = resendLookup;
+/** Tests swap the network out. */
+export function setEmailLookupForTests(l: Lookup | null): void {
+  lookup = l ?? resendLookup;
+}
+
+/** What last happened to a message the provider took (its id from sendEmail), or null if it doesn't say. Throws on trouble. */
+export async function emailLastEvent(id: string, config: EmailConfig): Promise<string | null> {
+  return lookup(id, config);
 }
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
