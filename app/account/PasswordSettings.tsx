@@ -115,7 +115,7 @@ export default function PasswordSettings({ handle }: { handle: string | null }) 
       <form onSubmit={changePassword}>
         <h3>Change your password</h3>
         {/* So a password manager saves the new password under the right account. */}
-        <input type="text" name="username" autoComplete="username" value={handle ?? ""} readOnly hidden />
+        <input type="text" name="username" autoComplete="username" value={handle ?? ""} readOnly className="sr-only" tabIndex={-1} aria-hidden="true" />
         <label>
           Current password
           <input type="password" name="current" required maxLength={200} autoComplete="current-password" />

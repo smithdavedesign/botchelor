@@ -95,7 +95,7 @@ export default function ResetPasswordForm() {
         For <strong>@{state.handle}</strong>. Pick something you don&apos;t use anywhere else.
       </p>
       {/* So a password manager saves the new password under the right account. */}
-      <input type="text" name="username" autoComplete="username" value={state.handle} readOnly hidden />
+      <input type="text" name="username" autoComplete="username" value={state.handle} readOnly className="sr-only" tabIndex={-1} aria-hidden="true" />
       <label>
         New password
         <input type="password" name="password" required minLength={8} maxLength={200} autoComplete="new-password" autoFocus />
