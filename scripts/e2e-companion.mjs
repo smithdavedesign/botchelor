@@ -13,7 +13,9 @@
  *   speech faked) hears them, the replies are said aloud and kept marked 📞, on a desktop and a phone → a live call (P6,
  *   with Deepgram stubbed: a local stand-in mints the token and makes the voice, and the page's socket to Deepgram and
  *   its microphone are faked): what they say streams in, the reply streams back piece by piece in its own voice, talking
- *   over it stops it, both kept marked 📞, on a desktop and a phone → the list shows the thread → deleting it takes it away.
+ *   over it stops it, both kept marked 📞, on a desktop and a phone; the 💬 Transcript shows your line, your words in
+ *   progress, their streamed line and "(cut off)" where you talked over them (both kinds of call, at 390 and 360 px)
+ *   → the list shows the thread → deleting it takes it away.
  *
  * Exits non-zero if any step fails. Set CHROMIUM_PATH; SKIP_BUILD=1 reuses the last build; SHOTS=1 writes the
  * screenshots to docs/screenshots/ (else .data/e2e-companion/).
@@ -589,6 +591,17 @@ async function main() {
       // The second line: two messages back from the model, said as one.
       await call.locator(".companion-call-said", { hasText: "Busy week. I fixed three radios and broke one. Yours?" }).waitFor({ timeout: 20_000 });
       assert(seen.replyPrompts.at(-1).includes("on a voice call with them"), "a line on a call should reach the model as one");
+      // 💬 Transcript, taking turns: closed until opened, then both sides of the call so far, in order.
+      const toggle = call.getByRole("button", { name: /Transcript/ });
+      assert((await toggle.getAttribute("aria-expanded")) === "false", "the transcript should start closed");
+      await toggle.click();
+      const script = call.locator(".companion-call-script");
+      await script.locator(".companion-call-script-line.is-them", { hasText: "I fixed three radios" }).waitFor({ timeout: 10_000 });
+      const lines = await script.locator(".companion-call-script-line:not(.is-interim)").allTextContents();
+      const at = (t) => lines.findIndex((l) => l.includes(t));
+      assert(at("hi, can you hear me on the call") === 0 && at("good to hear your voice") === 1 && at("tell me about your week") === 2 && at("I fixed three radios") === 3, `the transcript should hold the call in order (${JSON.stringify(lines)})`);
+      await toggle.click();
+      assert((await page.evaluate(() => localStorage.getItem("bz_call_transcript"))) === "0", "closing the transcript should be remembered");
       await call.getByRole("button", { name: "End call" }).click();
       await call.waitFor({ state: "detached", timeout: 10_000 });
       for (const said of ["hi, can you hear me on the call", "good to hear your voice", "tell me about your week", "I fixed three radios"]) {
@@ -733,16 +746,37 @@ async function main() {
       await call.locator(".companion-call-said", { hasText: "Tell me everything about your day." }).waitFor({ timeout: 15_000 });
       assert(seen.replyPrompts.at(-1).includes("as plain text"), "a live turn should stream the call's prompt");
       await shot(page, "companion-live-desktop");
+      // 💬 Transcript, open while they're still talking: your line, then their reply as it streamed.
+      const toggle = call.getByRole("button", { name: /Transcript/ });
+      await toggle.click();
+      assert((await toggle.getAttribute("aria-expanded")) === "true", "the transcript toggle should say it's open");
+      assert((await page.evaluate(() => localStorage.getItem("bz_call_transcript"))) === "1", "opening the transcript should be remembered");
+      const script = call.locator(".companion-call-script");
+      await script.locator(".companion-call-script-line.is-you", { hasText: "hi, can you hear me live" }).waitFor({ timeout: 5_000 });
+      await script.locator(".companion-call-script-line.is-them", { hasText: "Tell me everything about your day." }).waitFor({ timeout: 5_000 });
       // Talking over them: their voice stops, the floor is theirs, and what they say goes in as the next turn.
       await page.evaluate(() => window.__dg.interim("wait hold on"));
       await page.locator(".companion-call.is-listening").waitFor({ timeout: 3_000 });
-      await call.locator(".companion-call-heard", { hasText: "wait hold on" }).waitFor();
+      // Their reply ends "(cut off)", and your words in progress follow it, muted.
+      await script.locator(".companion-call-script-line.is-them", { hasText: "(cut off)" }).waitFor({ timeout: 3_000 });
+      await script.locator(".companion-call-script-line.is-interim", { hasText: "wait hold on" }).waitFor({ timeout: 3_000 });
+      await shot(page, "companion-call-transcript-desktop");
       await page.evaluate(() => window.__dg.say("wait hold on a second"));
-      await call.locator(".companion-call-said", { hasText: "Okay, I'm listening." }).waitFor({ timeout: 15_000 });
+      // The words in progress are replaced by the finished line.
+      await script.locator(".companion-call-script-line.is-you:not(.is-interim)", { hasText: "wait hold on a second" }).waitFor({ timeout: 5_000 });
+      assert((await script.locator(".is-interim").count()) === 0, "the words in progress should go once the turn is in");
+      await script.locator(".companion-call-script-line.is-them", { hasText: "Okay, I'm listening." }).waitFor({ timeout: 15_000 });
       assert(seen.spoken.some((t) => t.startsWith("Hi!")), "their voice should be made from the checked pieces");
       // They finish, and the floor is the person's again.
-      await call.locator(".companion-call-said", { hasText: "what is it?" }).waitFor({ timeout: 15_000 });
+      await script.locator(".companion-call-script-line.is-them", { hasText: "what is it?" }).waitFor({ timeout: 15_000 });
       await page.locator(".companion-call.is-listening").waitFor({ timeout: 20_000 });
+      const cut = await script.locator(".companion-call-script-cut").count();
+      assert(cut === 1, `only the reply talked over should be cut off (${cut})`);
+      // Screen readers hear finished lines only: the polite region holds the newest one.
+      const announced = await script.locator('[aria-live="polite"]').textContent();
+      assert((announced ?? "").includes("what is it?"), `the newest finished line should be announced (${announced})`);
+      // Closed again for the calls below (remembered on this device).
+      await toggle.click();
       await call.getByRole("button", { name: "End call" }).click();
       await call.waitFor({ state: "detached", timeout: 10_000 });
       await page.reload();
@@ -782,6 +816,30 @@ async function main() {
         await p.setViewportSize({ width: 390, height: 844 });
         await call.locator(".companion-call-said", { hasText: "What are you up to?" }).waitFor({ timeout: 15_000 });
         await shot(p, "companion-live-phone");
+        // 💬 Transcript on a phone: open, both lines, talked over, and it still fits at 390 and 360 px.
+        await call.getByRole("button", { name: /Transcript/ }).tap();
+        const script = call.locator(".companion-call-script");
+        await script.locator(".companion-call-script-line.is-you", { hasText: "calling live from my phone" }).waitFor({ timeout: 5_000 });
+        await script.locator(".companion-call-script-line.is-them", { hasText: "What are you up to?" }).waitFor({ timeout: 5_000 });
+        // Their turn ends first, so the next line is a turn of its own (not talking over them).
+        await p.locator(".companion-call.is-listening").waitFor({ timeout: 20_000 });
+        await p.evaluate(() => window.__dg.say("one more thing for you"));
+        const next = script.locator(".companion-call-script-line.is-them", { hasText: "Mm, go on." });
+        await next.waitFor({ timeout: 15_000 });
+        await p.locator(".companion-call.is-speaking").waitFor({ timeout: 10_000 });
+        await p.evaluate(() => window.__dg.interim("sorry go ahead"));
+        await next.locator(".companion-call-script-cut").waitFor({ timeout: 5_000 });
+        await script.locator(".companion-call-script-line.is-interim", { hasText: "sorry go ahead" }).waitFor({ timeout: 3_000 });
+        for (const width of [390, 360]) {
+          await p.setViewportSize({ width, height: 844 });
+          assert((await p.evaluate(() => document.documentElement.scrollWidth)) <= width + 1, `the transcript should fit a ${width}px phone`);
+          const box = await script.boundingBox();
+          assert(box && box.x >= 0 && box.x + box.width <= width, `the transcript should be inside a ${width}px phone`);
+          const end = await call.getByRole("button", { name: "End call" }).boundingBox();
+          assert(end && end.y + end.height <= 844 && end.x + end.width <= width, `End call should be on screen at ${width}px with the transcript open`);
+        }
+        await p.setViewportSize({ width: 390, height: 844 });
+        await shot(p, "companion-call-transcript-phone");
         await call.getByRole("button", { name: "End call" }).tap();
         await call.waitFor({ state: "detached", timeout: 10_000 });
       } finally {
