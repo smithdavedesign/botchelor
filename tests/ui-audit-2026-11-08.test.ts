@@ -218,6 +218,8 @@ const featured: FeaturedDate = {
     { side: "a", text: "People say a lot of things." },
     { side: "b", text: "I'm not people." },
   ] as FeaturedDate["lines"],
+  ending: "second_date",
+  date_number: null,
 };
 
 describe("the real date's opening lines (app/DateExcerpt.tsx)", () => {

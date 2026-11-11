@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
 import Link from "next/link";
 import Avatar from "@/app/Avatar";
+import FirstRunCall from "@/app/FirstRunCall";
 import Icon from "@/app/Icon";
 import type { FeaturedDate } from "@/lib/featured-date";
 import { venueBackdrop } from "@/lib/portraits";
@@ -23,12 +24,15 @@ export default function DateExcerpt({
   still = false,
   cta = true,
   wide = false,
+  call = false,
   className = "",
 }: {
   date: FeaturedDate;
   still?: boolean;
   cta?: boolean;
   wide?: boolean;
+  /** The first-run track (app/FirstRunCall.tsx): call the ending on the card, then "Now send yours". A visitor's hero. */
+  call?: boolean;
   className?: string;
 }) {
   const [a, b] = date.characters;
@@ -85,13 +89,20 @@ export default function DateExcerpt({
           );
         })}
       </ol>
-      {cta && (
-        <figcaption className="date-excerpt-cta">
-          <Link className="button" href={`${date.share_path}?play=1`} data-track="excerpt-watch">
-            <Icon name="play" /> Watch how it ends
-          </Link>
+      {cta && call && date.ending ? (
+        <figcaption className="date-excerpt-cta is-call">
+          <FirstRunCall ending={date.ending} dateNumber={date.date_number} watchHref={`${date.share_path}?play=1`} />
           <span className="date-excerpt-note">A real date from the show: nobody wrote it in advance.</span>
         </figcaption>
+      ) : (
+        cta && (
+          <figcaption className="date-excerpt-cta">
+            <Link className="button" href={`${date.share_path}?play=1`} data-track="excerpt-watch">
+              <Icon name="play" /> Watch how it ends
+            </Link>
+            <span className="date-excerpt-note">A real date from the show: nobody wrote it in advance.</span>
+          </figcaption>
+        )
       )}
     </figure>
   );
