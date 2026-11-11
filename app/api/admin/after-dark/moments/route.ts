@@ -49,5 +49,7 @@ export const POST = handle(async (req: Request) => {
         ? await saveMoment(db, viewer, input.media_id, input.at)
         : await deriveClip(db, viewer, input.media_id, input.action);
   if (!r.ok) return json({ error: r.error, message: r.message }, r.status);
+  // A join is made in the background: asked again with the same clips, it's `making` until the video's in.
+  if ("making" in r) return json({ making: true, id: r.id }, 202);
   return json({ media: r.media });
 });

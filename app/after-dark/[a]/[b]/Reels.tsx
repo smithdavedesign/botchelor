@@ -85,6 +85,10 @@ export default function Reels({
                   {n === null ? "All of them" : `Night ${n}, all its videos`} <span className="muted small">· {finished} videos, oldest first · {night.length} shots</span>
                 </h3>
                 <SeamlessPlayer shots={night} onChange={onChange} price={price} onMedia={onMedia} />
+                {/* 📣 The whole night as one reel on the showcase (ChainPublish.tsx), once none of its videos is being made. */}
+                {night.length > 1 && !these.some((r) => r.status === "making") && (
+                  <ChainPublish key={night.map((x) => x.media_id).join(",")} mediaIds={night.map((x) => x.media_id!)} what="shot" onMade={onMedia} />
+                )}
               </div>
             )}
             <ul className="after-dark-reels">
@@ -314,7 +318,7 @@ function ClipChain({ chain, price, making, onChange, onMedia }: { chain: Reel[];
           last.status === "failed" && <ReelPlayer reel={last} onChange={onChange} what="clip" price={price} onMedia={onMedia} />
         )}
         {/* 📣 The chain as one reel on the showcase (ChainPublish.tsx): once it's been kept going and nothing's being made. */}
-        {shots.length > 1 && last.status !== "making" && <ChainPublish key={shots.map((x) => x.media_id).join(",")} mediaIds={shots.map((x) => x.media_id!)} onMade={onMedia} />}
+        {shots.length > 1 && last.status !== "making" && <ChainPublish key={shots.map((x) => x.media_id).join(",")} mediaIds={shots.map((x) => x.media_id!)} what="shot" onMade={onMedia} />}
         {from && (
           <div className="ad-keep-going">
             <NextWords value={words} onChange={setWords} disabled={asking || making} />

@@ -7,7 +7,7 @@ import { POST as settingsPost } from "@/app/api/admin/after-dark/settings/route"
 import { HIVE_VLM, setCheckFetchForTests } from "@/lib/adult/check";
 import { NEXT_WORDS_MAX, SEAMLESS_RUN_MAX } from "@/lib/adult/clips";
 import { setAdultModelForTests } from "@/lib/adult/mode";
-import { deriveClip, saveMoment } from "@/lib/adult/moments";
+import { deriveClip, joinsSettled, saveMoment } from "@/lib/adult/moments";
 import { setReelFetchForTests, setReelPausesForTests, type Reel } from "@/lib/adult/reels";
 import { setReplicatePausesForTests } from "@/lib/adult/replicate";
 import { claimAdmin } from "@/lib/admins";
@@ -211,6 +211,13 @@ describe("a boomerang and a loop", () => {
 });
 
 describe("a chain of clips posted as one reel", () => {
+  /** Asks for the join, lets it be made in the background, and asks again: the video. */
+  async function join(cookie: string, ids: string[]) {
+    const first = await moments(cookie, { action: "join", media_ids: ids });
+    if (first.status !== 202) return first;
+    await joinsSettled();
+    return moments(cookie, { action: "join", media_ids: ids });
+  }
   const bytesOf = async (mediaId: string) => Buffer.from((await t.db.query<{ data: Buffer }>(`select data from adult_images where id = $1`, [mediaId])).rows[0].data);
 
   it("joins the clips, each as its trim keeps it, into one video: unchecked, made once, and posted as a reel", async () => {
@@ -222,10 +229,18 @@ describe("a chain of clips posted as one reel", () => {
     const two = (await kissClip(cookie)).video;
     await t.db.query(`update adult_images set trim = $2::jsonb where id = $1`, [two, JSON.stringify({ start: 1, end: null, cuts: [] })]);
     hive.length = 0;
+    const started = await moments(cookie, { action: "join", media_ids: [one, two] });
+    expect(started.status).toBe(202);
+    const pending = (await started.json()) as { making: boolean; id: string };
+    expect(pending.making).toBe(true);
+    // Asked again while it's being made: the same one, still making; out of every gallery till it's in.
+    expect(((await (await moments(cookie, { action: "join", media_ids: [one, two] })).json()) as { id: string }).id).toBe(pending.id);
+    expect((await t.db.query<{ status: string }>(`select status from adult_images where id = $1`, [pending.id])).rows[0].status).toBe("pending");
+    await joinsSettled();
     const res = await moments(cookie, { action: "join", media_ids: [one, two] });
     expect(res.status).toBe(200);
     const reel = (await res.json()).media as { id: string; kind: string; derived: string; from_clip: string; character_id: string; character_b: string };
-    expect(reel).toMatchObject({ kind: "video", derived: "chain", from_clip: two });
+    expect(reel).toMatchObject({ id: pending.id, kind: "video", derived: "chain", from_clip: two });
     expect([reel.character_id, reel.character_b].sort()).toEqual([JUNIPER, RAFE].sort());
     // 3 s and the 2 s the second one's trim keeps; silent, as both clips are; nothing new checked.
     const info = await videoInfo(await bytesOf(reel.id));
@@ -259,11 +274,27 @@ describe("a chain of clips posted as one reel", () => {
     await t.db.query(`insert into adult_images (id, owner_id, character_id, kind, prompt, mime, data, status) values ('voice-1', $1, $2, 'audio', 'a line', 'audio/wav', $3, 'ready')`, [id, RAFE, files["voice.wav"]]);
     const shots = first.reel.shots.map((s) => ({ ...s, audio_id: "voice-1" }));
     await t.db.query(`update adult_reels set shots = $2::jsonb where id = $1`, [first.reel.id, JSON.stringify(shots)]);
-    const reel = (await (await moments(cookie, { action: "join", media_ids: [first.video, two] })).json()).media as { id: string };
+    const reel = (await (await join(cookie, [first.video, two])).json()).media as { id: string };
     const info = await videoInfo(await bytesOf(reel.id));
     // The 4 s line holds the 3 s clip a second longer; then the second clip, silent.
     expect(info.duration).toBeCloseTo(7, 0);
     expect(info.audio).toBe(true);
+  });
+
+  it("says once why a join failed, and tries again when asked again", async () => {
+    const { id, cookie } = await admin();
+    await ready(cookie, id);
+    fakeVenice();
+    fakeHive();
+    const one = (await kissClip(cookie)).video;
+    const two = (await kissClip(cookie)).video;
+    await t.db.query(`update adult_images set data = $2 where id = $1`, [two, Buffer.from("not a video")]);
+    const res = await join(cookie, [one, two]);
+    expect(res.status).toBe(502);
+    expect(((await res.json()) as { message: string }).message).toMatch(/couldn't be joined/);
+    expect((await t.db.query(`select 1 from adult_images where derived = 'chain' and status = 'ready'`)).rows).toHaveLength(0);
+    expect((await moments(cookie, { action: "join", media_ids: [one, two] })).status).toBe(202);
+    await joinsSettled();
   });
 
   it("joins only the owner's own clips of the same people", async () => {
