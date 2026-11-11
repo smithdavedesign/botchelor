@@ -239,7 +239,7 @@ export default function WatchRoom({ initial, autoStart = true }: { initial: Room
   const preshowLeft = useCountdown(state.clock.started && !state.clock.ended ? state.clock.preshow_left : null);
 
   if (theater) {
-    return <Theater state={state} sync={sync} onExit={() => setTheater(false)} preshowLeft={preshowLeft} />;
+    return <Theater state={state} sync={sync} onExit={() => setTheater(false)} preshowLeft={preshowLeft} onStart={waiting ? startDate : undefined} />;
   }
 
   return (
@@ -346,11 +346,14 @@ function Theater({
   sync,
   onExit,
   preshowLeft,
+  onStart,
 }: {
   state: RoomState;
   sync: () => void;
   onExit: () => void;
   preshowLeft: number | null;
+  /** A waiting open room's Start, for a viewer who hasn't asked for the date yet (the room's own, threaded through). */
+  onStart?: () => void;
 }) {
   const [a, b] = state.characters;
   // The sidebar (chat, the date's lines, the vote) sits beside the stage; on a wide screen it can be hidden, and that's
@@ -497,7 +500,7 @@ function Theater({
           onHide={phone ? undefined : () => showSide(false)}
           script={
             <>
-              {preshow && <Preshow state={state} left={preshowLeft} tone="dark" onStart={waiting ? startDate : undefined} />}
+              {preshow && <Preshow state={state} left={preshowLeft} tone="dark" onStart={onStart} />}
               <ChatThread
                 characters={state.characters}
                 turns={turns}
