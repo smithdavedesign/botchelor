@@ -63,7 +63,7 @@ export default function DateExcerpt({
           <span className="date-excerpt-meta">{[date.code, date.title ? `“${date.title}”` : where].filter(Boolean).join(" · ")}</span>
         </span>
       </div>
-      <ol className="date-excerpt-lines" aria-label="The date's first lines">
+      <ol className="date-excerpt-lines" aria-label={date.from === "moment" ? "A moment from the date" : "The date's first lines"}>
         {date.lines.map((line, i) => {
           const who = face(line.side);
           const atOnce = i < EXCERPT_LINES_AT_ONCE;

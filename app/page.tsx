@@ -10,7 +10,7 @@ import { pageMetadata, SITE_DESCRIPTION, SITE_TITLE } from "@/lib/seo";
 import { episodeAllowance, freshAllowance } from "@/lib/allowance";
 import { PACK_5 } from "@/lib/catalog";
 import { getDb } from "@/lib/db";
-import { listAiredFeed, listAiringSoon, listMyCharacters } from "@/lib/game";
+import { listAiredFeed, listAiringSoon, listMyCharacters, listStandoutDates } from "@/lib/game";
 import { feedEpisodes } from "@/lib/feed-items";
 import { balancedColumns } from "@/lib/grid-balance";
 import { countNotifications } from "@/lib/notifications";
@@ -107,7 +107,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
       ? Promise.all([sinceYouWereHere(db, viewerId, mine).catch(() => []), countNotifications(db, viewerId, { unread: true }).catch(() => 0)])
       : [[], 0],
   );
-  const [owned, tokens, myCharacters, [since, unread], profileName, sharer, showNews, [aired, sky, situation, dares, record, airing, rooms, onSeason, reveal, seasonDef]] = await Promise.all([
+  const [owned, tokens, myCharacters, [since, unread], profileName, sharer, showNews, [aired, standout, sky, situation, dares, record, airing, rooms, onSeason, reveal, seasonDef]] = await Promise.all([
     db && viewerId ? ownedSkus(db, viewerId) : Promise.resolve<string[]>([]),
     db && viewerId ? episodeAllowance(db, viewerId) : freshAllowance(),
     myCharactersP,
@@ -123,6 +123,8 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
     Promise.all([
       // A mixer night is one card (2026-11-08 UI audit, item 2). Its own key: the gate caches listAiredPage as "home:aired".
       forViewer(viewerId, "home:feed", () => listAiredFeed(conn, viewerId, 1, 6)).catch(() => null),
+      // The hero's sample date: the week's best-rated dates (lib/game.ts listStandoutDates), shared with the 18+ gate.
+      forViewer(viewerId, "home:standout", () => listStandoutDates(conn, viewerId)).catch(() => []),
       cachedConstellation(conn).catch(() => null), // the minute-old sky is plenty (2026-11-01 audit, R9)
       // The audience boards are a creator's: a first visit doesn't show them, so it doesn't pay for them either.
       myCharactersP.then((mine) => (mine.length ? forViewer(viewerId, "home:situation", () => situationBoard(conn, viewerId)).catch(() => null) : null)),
@@ -152,9 +154,10 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
     })),
   ];
   const [heroA, heroB] = onSeason;
-  // A real date's opening lines for the hero (lib/featured-date.ts), from the aired episodes already loaded.
   const airedEpisodes = feedEpisodes(aired?.items ?? []);
-  const featured = pickFeaturedDate(airedEpisodes);
+  // The hero's real date (lib/featured-date.ts): the best moment of one of the week's best-rated dates (2026-11-11
+  // bounce review: the newest one was often hard to follow cold), else the newest date's opening.
+  const featured = pickFeaturedDate(standout, undefined, { best: true }) ?? pickFeaturedDate(airedEpisodes);
   // Next month's newcomers are written from the 20th (lib/season-gen.ts): from then, the cast strip points at them.
   const candidatesOut = new Date().getUTCDate() >= GENERATE_FROM_DAY;
   const creator = myCharacters.length > 0;
@@ -231,8 +234,9 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
           )}
           <p className="trust-micro">Fictional characters only, no real people</p>
         </div>
-        {/* The show itself where a made-up box score used to be (2026-11-07 audit, item 2): the opening lines of a real
-            aired date, typing in, and the way to watch how it ends. The old matchup only when nothing has aired. */}
+        {/* The show itself where a made-up box score used to be (2026-11-07 audit, item 2): a few lines of a real aired
+            date (its best moment, 2026-11-11), typing in, and the way to watch how it ends. The old matchup only when
+            nothing has aired. */}
         {featured ? (
           <div className="hero-art has-date">
             {/* A first visit calls the ending on the card (app/FirstRunCall.tsx); a creator's hero just plays it. */}
