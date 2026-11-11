@@ -14,10 +14,13 @@ function tokens(block: RegExp): Record<string, string> {
   return Object.fromEntries([...m[1].matchAll(/--([\w-]+):\s*(#[0-9a-fA-F]{6});/g)].map((x) => [x[1], x[2]]));
 }
 
+// Dark is the system's unless the viewer picked Light (lib/theme.ts), so its block is :root:not([data-theme="light"]);
+// the picked-dark block (:root[data-theme="dark"]) holds the same tokens (tests/theme.test.ts) and is checked here too.
 const light = tokens(/^:root \{([\s\S]*?)\n\}/m);
-const dark = { ...light, ...tokens(/@media \(prefers-color-scheme: dark\) \{\s*:root \{([\s\S]*?)\n {2}\}/) };
+const dark = { ...light, ...tokens(/@media \(prefers-color-scheme: dark\) \{\s*:root:not\(\[data-theme="light"\]\) \{([\s\S]*?)\n {2}\}/) };
+const darkPicked = { ...light, ...tokens(/^:root\[data-theme="dark"\] \{([\s\S]*?)\n\}/m) };
 const lightMore = { ...light, ...tokens(/@media \(prefers-contrast: more\) \{\s*:root \{([\s\S]*?)\n {2}\}/) };
-const darkMore = { ...dark, ...tokens(/@media \(prefers-contrast: more\) and \(prefers-color-scheme: dark\) \{\s*:root \{([\s\S]*?)\n {2}\}/) };
+const darkMore = { ...dark, ...tokens(/@media \(prefers-contrast: more\) and \(prefers-color-scheme: dark\) \{\s*:root:not\(\[data-theme="light"\]\) \{([\s\S]*?)\n {2}\}/) };
 
 function luminance(hex: string): number {
   const [r, g, b] = [1, 3, 5].map((i) => {
@@ -37,7 +40,7 @@ const TEXT = ["ink", "muted", "accent-text", "accent-2", "ok-text", "bad-text", 
 const SURFACES = ["paper", "paper-2", "card", "soft"];
 
 describe("theme contrast (WCAG 2.2 AA)", () => {
-  const themes = { light, dark, "light, prefers-contrast: more": lightMore, "dark, prefers-contrast: more": darkMore };
+  const themes = { light, dark, "dark (picked)": darkPicked, "light, prefers-contrast: more": lightMore, "dark, prefers-contrast: more": darkMore };
 
   for (const [name, t] of Object.entries(themes)) {
     it(`${name}: text tokens clear 4.5:1 on every surface`, () => {
