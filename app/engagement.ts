@@ -141,6 +141,12 @@ function leavePage(): void {
 
 /** A page opened (first load or a client-side move): counts the view and starts its timer. */
 export function pageView(): void {
+  // Chrome may load a page ahead of time (typing the address, a search result) and never show it: count it only once
+  // it's on screen. A prerendered page that's never shown sends nothing (2026-11-11 bounce review).
+  if ((document as Document & { prerendering?: boolean }).prerendering) {
+    document.addEventListener("prerenderingchange", () => pageView(), { once: true });
+    return;
+  }
   const path = currentPath();
   if (page?.path === path) return;
   leavePage();
