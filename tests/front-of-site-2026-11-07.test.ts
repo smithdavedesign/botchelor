@@ -209,9 +209,10 @@ describe("/create (item 5)", () => {
     const { default: CreateWizard } = await import("@/app/create/CreateWizard");
     const html = renderToStaticMarkup(createElement(CreateWizard, {}));
     expect(html).toContain('aria-label="Step 1: Identity (this step)"');
-    // The quick track (2026-11-11 audit, 2.2): three steps for a new character; depth is opted into from the review.
-    expect(html).toContain('aria-label="Step 2: Dating profile"');
-    expect(html).toContain('aria-label="Step 3: Review"');
+    // The quick track (2026-11-11 audit, 2.2): four steps for a new character (look included); depth is opted into from the review.
+    expect(html).toContain('aria-label="Step 2: Look"');
+    expect(html).toContain('aria-label="Step 3: Dating profile"');
+    expect(html).toContain('aria-label="Step 4: Review"');
     expect(html).not.toContain("Step 8");
   });
 });
