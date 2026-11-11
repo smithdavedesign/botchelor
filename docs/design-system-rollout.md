@@ -43,13 +43,15 @@ it from here.
       in a step (audit Matches, Notifications, Dates, Deck, Shorts, Reunion against `copy-deck.md`).
 - [ ] The remaining chrome emoji: the showcase filters, the Matches status chips are the show's voice and stay.
 
-## Wave 3: After Dark
+## Wave 3: After Dark (branch `ds-wave-3`)
 
-- [ ] A price on every button that spends tokens (`◈ n`, or "included" under the subscription), from
-      `lib/adult/settings.ts`; `TokenPacks` with "Best value" on /after-dark/tokens and the shop.
-- [ ] The night's theater: the tool words fold under 760px; the player bottom right; the PIN gate, blocked and
-      text-only states as the kit's components; the gallery's filter bar unchanged.
-- [ ] The AI line once per page (`AiFiction`), the `AiTag` once per picture.
+- [x] A price on every button that spends tokens: already the app's rule (`lib/adult/price-words.ts` in the theater,
+      the media menu, the reels and the tokens page), checked, nothing to add.
+- [x] The token packs flag "Best value" once, on the cheapest token the chosen processor sells
+      (`app/after-dark/tokens/BuyTokens.tsx`). The show's shop sells dates, not tokens, so it has no packs to flag.
+- [x] The night's theater already folds its tool words under 760px (`.ad-tool-word`) and carries the AI line once per
+      page (`AfterDarkFrame`); the PIN gate, blocked and text-only states are the components the kit lifted.
+- [x] After Dark's control edges (`--field`) landed in wave 1.
 
 ## Wave 4: proof
 

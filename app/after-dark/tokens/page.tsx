@@ -138,7 +138,7 @@ export default async function AfterDarkTokensPage({ searchParams }: { searchPara
             <h2>Getting more</h2>
             <p>After Dark&apos;s tokens are its own, apart from the show&apos;s dates, and come in packs:</p>
             <BuyTokens
-              packs={tokenPacks().map((p) => ({ tokens: p.tokens, price: priceLabel(p.usd), each: `${Math.round((p.usd / p.tokens) * 100)}¢` }))}
+              packs={tokenPacks().map((p) => ({ tokens: p.tokens, price: priceLabel(p.usd), each: `${Math.round((p.usd / p.tokens) * 100)}¢`, cents: Math.round((p.usd / p.tokens) * 100) }))}
               options={tokenProcessors().map((id) => ({
                 id,
                 label: PROCESSOR_INFO[id].label,
