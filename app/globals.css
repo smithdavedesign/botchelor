@@ -933,7 +933,10 @@ h2 {
   .nav-toggle {
     display: inline-flex;
   }
-  .nav-tools .nav-cta {
+  /* The same specificity as the 1180px rules above, and later, so the plus goes too: on a phone the call to action is
+     in the menu, and the bar is the wordmark, the door, the meter and the menu button. */
+  .nav a.nav-cta-full,
+  .nav a.nav-cta-compact {
     display: none;
   }
   .nav-links a.nav-create {
