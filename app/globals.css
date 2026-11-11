@@ -125,8 +125,10 @@
   --viz-prev: #8f7f8e;
 }
 
+/* Dark: the system's, unless the viewer picked Light on /account; or the viewer's own pick (lib/theme.ts writes
+   <html data-theme>). The two blocks below hold the same tokens; tests/theme.test.ts keeps them identical. */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     color-scheme: dark;
     --ink: #f5e9f0;
     --muted: #b49fbd;
@@ -161,6 +163,40 @@
   }
 }
 
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ink: #f5e9f0;
+  --muted: #b49fbd;
+  --paper: #130a16;
+  --paper-2: #1d1024;
+  --card: #1e1324;
+  --accent: #ff5e8c;
+  --accent-text: #ff5e8c;
+  --accent-btn: #ff5e8c;
+  --accent-2: #a98bff;
+  /* Dark label on the bright dark-mode gradient: white would fall to 2.9:1 there. */
+  --accent-ink: #130a16;
+  --line: #342140;
+  --field: #7a5f93;
+  --focus: #ff5e8c;
+  --soft: #2a1730;
+  --ok: #3ddc84;
+  --ok-text: #3ddc84;
+  --warn: #fbbf24;
+  --bad: #ff6b6b;
+  --bad-text: #ff6b6b;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 14px 40px -18px rgba(0, 0, 0, 0.7);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  /* The same chart hues, stepped for the dark card (--viz-1 holds in both). */
+  --viz-2: #3987e5;
+  --viz-3: #d95926;
+  --viz-4: #199e70;
+  --viz-prev: #7d6c87;
+  --constellation-bg: #0e0712;
+  --constellation-line: #43304f;
+  --constellation-label: #b49fbd;
+}
+
 /* Users who ask for more contrast get darker secondary text and stronger control edges, in both themes. */
 @media (prefers-contrast: more) {
   :root {
@@ -169,7 +205,13 @@
   }
 }
 @media (prefers-contrast: more) and (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
+    --muted: #d6c6e0;
+    --field: #9d84b3;
+  }
+}
+@media (prefers-contrast: more) {
+  :root[data-theme="dark"] {
     --muted: #d6c6e0;
     --field: #9d84b3;
   }
@@ -521,18 +563,8 @@ h2 {
   color: transparent;
 }
 
-.tagline {
-  color: var(--muted);
-  font-size: var(--text-md);
-}
-/* Only where the header has room for it beside the nav: at 1280px it pushed the nav onto a second row, a ~115px
-   sticky header (2026-10-31 UX audit). */
-@media (max-width: 1439px) {
-  .tagline {
-    display: none;
-  }
-}
-
+/* The tagline left the header for the hero (design system, 2026-11-11: the header holds five kinds of thing and no
+   more); the class stays for the hero's own use. */
 .tagline,
 .muted {
   color: var(--muted);
@@ -696,6 +728,140 @@ h2 {
   align-items: center;
 }
 
+/* ---- The header's tools (design system, 2026-11-11; docs/brand.md, Header) ----
+   Five kinds of thing and no more: the wordmark, the After Dark door, the meter, one call to action, the links. */
+.nav-tools {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 0 0 auto;
+}
+/* The door to After Dark: a link to its own host, never a toggle; night-coloured in every theme so it reads as the
+   adult side. On that host it turns into the way back. */
+.nav a.nav-ad-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.8rem;
+  border-radius: var(--radius-pill);
+  border: 1.5px solid var(--night-line);
+  background: var(--night-card);
+  color: var(--night-ink);
+  font-weight: 700;
+  font-size: var(--text-sm);
+  line-height: 1;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.12s ease;
+}
+.nav a.nav-ad-link:hover,
+.nav a.nav-ad-link[aria-current="page"] {
+  background: var(--night-bg);
+  color: var(--night-ink);
+  border-color: var(--night-accent);
+}
+.nav a.nav-ad-link .icon {
+  color: var(--night-accent);
+}
+.nav-ad-link-out {
+  opacity: 0.7;
+}
+.nav a.nav-ad-link--back {
+  background: var(--card);
+  color: var(--ink);
+  border-color: var(--field);
+}
+.nav a.nav-ad-link--back:hover {
+  background: var(--soft);
+  color: var(--ink);
+  border-color: var(--accent);
+}
+.nav a.nav-ad-link--back .icon {
+  color: var(--accent-text);
+}
+/* After Dark's host wears the moon beside the wordmark on every page: never unsure which side you're on. */
+.moon-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.25rem 0.6rem;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--night-line);
+  background: var(--night-card);
+  color: var(--night-accent-text);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.moon-badge .icon {
+  color: var(--night-accent);
+}
+/* Two meters, two units. The show's dates: a clapper on the outline pill above. After Dark's tokens: ◈ on a night pill,
+   night in every theme. */
+.nav a.token-pill--tokens {
+  background: var(--night-card);
+  color: var(--night-ink);
+  border-color: var(--night-line);
+}
+.nav a.token-pill--tokens .token-pip {
+  color: var(--night-accent);
+}
+.nav a.token-pill--tokens .token-word {
+  color: var(--night-muted);
+}
+.nav a.token-pill--tokens:hover {
+  background: var(--night-bg);
+  border-color: var(--night-accent);
+}
+.nav a.token-pill--dates .token-pip.icon {
+  font-size: var(--icon-xs);
+}
+/* The one call to action in the bar: the site's button; between 900 and 1180px an icon-only plus. */
+.nav a.nav-cta,
+.nav a.nav-cta:hover {
+  color: var(--accent-ink);
+  background: var(--grad);
+  margin-top: 0;
+  padding: 0.4rem 0.9rem;
+  font-size: var(--text-sm);
+  box-shadow: none;
+}
+.nav a.nav-cta[aria-current="page"] {
+  color: var(--accent-text);
+  background: var(--soft);
+}
+.nav a.nav-cta-compact {
+  display: none;
+  width: 2.4rem;
+  height: 2.4rem;
+  padding: 0;
+  justify-content: center;
+  font-size: var(--icon-sm);
+}
+/* Above 900px the call to action sits in the tools, so its twin in the links hides. */
+.nav-links a.nav-create {
+  display: none;
+}
+/* Appearance, on /account (app/ThemeSetting.tsx): three radios in a row. */
+.theme-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.25rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.theme-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: var(--control-h-sm);
+  font-weight: 600;
+}
+.theme-option input {
+  margin: 0;
+}
+
 /* Notifications (lib/notifications.ts): a bell with an unread count; on phones, a dot on the menu button. */
 .nav-bell {
   display: inline-flex;
@@ -735,12 +901,44 @@ h2 {
   border: 1.5px solid var(--card);
 }
 
-@media (max-width: 720px) {
+/* Between 900 and 1180px the bar tightens instead of collapsing: the call to action becomes the plus, the meter drops
+   its word, the door drops its "leaves the site" arrow but keeps its words (a moon alone doesn't say "adult side"). */
+@media (max-width: 1180px) {
+  .site-header {
+    padding: 0.6rem var(--gutter);
+    gap: 0.5rem;
+  }
+  .nav .token-word {
+    display: none;
+  }
+  .nav a.nav-cta-full {
+    display: none;
+  }
+  .nav a.nav-cta-compact {
+    display: inline-flex;
+  }
+  .nav-ad-link-out {
+    display: none;
+  }
+  .nav-links a {
+    padding: 0.4rem 0.55rem;
+  }
+}
+
+/* Under 900px the links fold behind the menu button; the tools stay in the bar and the call to action moves into the menu. */
+@media (max-width: 900px) {
   .nav {
     gap: 0.5rem;
   }
   .nav-toggle {
     display: inline-flex;
+  }
+  .nav-tools .nav-cta {
+    display: none;
+  }
+  .nav-links a.nav-create {
+    display: inline-flex;
+    justify-content: center;
   }
   .nav-links {
     display: none;
@@ -791,6 +989,33 @@ h2 {
     height: auto;
     overflow: visible;
     clip: auto;
+  }
+}
+
+/* The phone layout: the wordmark, the door and the meter as marks, the menu button. */
+@media (max-width: 560px) {
+  .site-header {
+    gap: 0.4rem;
+  }
+  .site-header > .logo {
+    font-size: var(--text-lg);
+    margin-right: 0;
+  }
+  .nav-tools {
+    gap: 0.4rem;
+  }
+  .nav a.nav-ad-link {
+    padding: 0.35rem 0.5rem;
+  }
+  .nav a.nav-ad-link span,
+  .moon-badge span {
+    display: none;
+  }
+  .moon-badge {
+    padding: 0.25rem 0.4rem;
+  }
+  .nav a.token-pill {
+    padding: 0.3rem 0.55rem;
   }
 }
 
@@ -2995,13 +3220,18 @@ button.poll-option.chosen {
     inset 0 0 0 1px rgba(255, 255, 255, 0.08),
     0 22px 48px -24px rgba(36, 16, 34, 0.55);
 }
-/* On a dark page the dark device needs a lighter edge to read as a phone. */
+/* On a dark page the dark device needs a lighter edge to read as a phone (the system's dark, or the viewer's pick). */
 @media (prefers-color-scheme: dark) {
-  .phone {
+  :root:not([data-theme="light"]) .phone {
     box-shadow:
       inset 0 0 0 1px rgba(255, 255, 255, 0.16),
       0 22px 48px -24px rgba(0, 0, 0, 0.8);
   }
+}
+:root[data-theme="dark"] .phone {
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.16),
+    0 22px 48px -24px rgba(0, 0, 0, 0.8);
 }
 .phone-short {
   height: auto;
@@ -7640,7 +7870,9 @@ a.phone-head-btn {
   --paper: var(--ad-bg);
   --paper-2: var(--ad-card);
   --line: var(--ad-line);
-  --field: #241a3a;
+  /* Control edges at night: the dark theme's value, 3.2:1 on the night card. It was #241a3a, which is near-invisible as
+     a 1.5px border (the design system's review, 2026-11-11). */
+  --field: #7a5f93;
   --soft: #2a1f42;
   --accent: var(--ad-accent);
   --accent-text: var(--night-accent-text);
@@ -7664,11 +7896,6 @@ a.phone-head-btn {
 .after-dark-mode a {
   color: var(--ad-accent);
 }
-.nav-after-dark {
-  color: #7a4fd6;
-  font-weight: 700;
-}
-
 /* After Dark's teaser in the show: the length, under a blur, and the way to unlock it. The text is filler. */
 .ad-teaser {
   background: var(--night-card);

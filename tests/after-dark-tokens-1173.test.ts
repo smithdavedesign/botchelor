@@ -93,7 +93,7 @@ describe("#1173: After Dark's tokens page", () => {
   });
 
   it("After Dark's header pill links to it; the show's goes to the shop", () => {
-    expect(renderToStaticMarkup(createElement(Nav, { tokens: 3, meter: "tokens" }))).toMatch(/class="token-pill"[^>]*href="\/after-dark\/tokens"/);
-    expect(renderToStaticMarkup(createElement(Nav, { tokens: 3 }))).toMatch(/class="token-pill"[^>]*href="\/shop"/);
+    expect(renderToStaticMarkup(createElement(Nav, { tokens: 3, meter: "tokens" }))).toMatch(/class="token-pill[^"]*"[^>]*href="\/after-dark\/tokens"/);
+    expect(renderToStaticMarkup(createElement(Nav, { tokens: 3 }))).toMatch(/class="token-pill[^"]*"[^>]*href="\/shop"/);
   });
 });

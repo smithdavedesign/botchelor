@@ -34,6 +34,8 @@ import NewsletterSignup from "./NewsletterSignup";
 import SocialLinks from "./SocialLinks";
 import { unreadTexts } from "@/lib/inbox";
 import { CrisisResources } from "./Notices";
+import Icon from "@/app/Icon";
+import { THEME_COOKIE, themeAttribute, themeFromCookie } from "@/lib/theme";
 import "./globals.css";
 // The UX audit's per-area styles (2026-10-23), after the globals so they win ties.
 import "./ux/after-dark.css";
@@ -101,6 +103,8 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   // agent reading the page) it shows the fresh weekly allowance as "free dates", not as someone's count (run 2026-10-22-0215).
   const cookieStore = await cookies();
   const viewerId = userIdFromCookieStore(cookieStore);
+  // A picked theme (lib/theme.ts, set on /account) paints right from the first byte; "system" writes nothing.
+  const theme = themeFromCookie(cookieStore.get(THEME_COOKIE)?.value);
   // The nav's numbers, all at once (2026-11-04 performance audit: one after another they were five database round trips
   // on every signed-in page load, ~70 ms each from New York to the database in Oregon).
   const db = viewerId ? await getDb() : null;
@@ -136,7 +140,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   const consent = analyticsConsent(cookieStore.get(CONSENT_COOKIE)?.value, placeFromEdge(await headers())?.country);
 
   return (
-    <html lang="en">
+    <html lang="en" data-theme={themeAttribute(theme)}>
       {google && (
         <head>
           {/* Before the Google tags load: GA stays off on After Dark's pages, and in a tab after it (lib/ga-guard.ts). */}
@@ -161,8 +165,16 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
           <Link prefetch={showPrefetch} href="/" className="logo">
             Botchelor
           </Link>
-          <span className="tagline">a blind-date show for original characters</span>
-          <Nav tokens={adHost && viewerId ? (adTokens ?? dates.pack_left) : dates.left} meter={adHost && viewerId ? "tokens" : "dates"} personal={Boolean(viewerId)} unread={unread} texts={texts} afterDark={afterDark} hasCharacter={hasCharacter} companions={!adHost && companionOpen()} prefetchShow={!adHost} />
+          {/* The header holds five kinds of thing (docs/brand.md, Header): the wordmark, the After Dark door, the meter,
+              one call to action and the links. The tagline is the hero's; the theme setting is Account's. After Dark's
+              host wears the moon beside the wordmark on every page, so nobody is unsure which side they're on. */}
+          {adHost && (
+            <span className="moon-badge">
+              <Icon name="moon" />
+              <span>After Dark</span>
+            </span>
+          )}
+          <Nav tokens={adHost && viewerId ? (adTokens ?? dates.pack_left) : dates.left} meter={adHost && viewerId ? "tokens" : "dates"} personal={Boolean(viewerId)} unread={unread} texts={texts} afterDark={afterDark} adHost={adHost} hasCharacter={hasCharacter} companions={!adHost && companionOpen()} prefetchShow={!adHost} />
         </header>
         <main id="main">{children}</main>
         <footer className="site-footer">
