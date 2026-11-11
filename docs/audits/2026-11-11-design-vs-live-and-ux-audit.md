@@ -36,9 +36,10 @@ and live traffic numbers (real use is still near zero; the engagement log is the
 5. **The IA is shallow and reachable** (every route in two clicks from five doors, five tabs and four footer groups);
    its problem is names, not depth: the same four house characters live under "cast", "Characters" and "Companions",
    the "Seasons" tab opens "The Reunion", and clips are "Reels" on the show and "Shorts" after dark.
-6. **Defects found today:** the open room's prediction shows twice on one desktop screen; three house-cast companions
-   render without their portraits; Pricing's Free card and the Companions page disagree about free replies; loading an
-   open room's page started it (a crawler can spend house dates); the phone's tab strips cut off with no hint.
+6. **Defects found today:** the open room's prediction shows twice on one desktop screen; Pricing's Free card and the
+   Companions page disagree about free replies; loading an open room's page started it (a crawler can spend house
+   dates); the Companions filter row cuts off at a phone's edge with no hint. (Three house-cast companions looked
+   portrait-less in the sweep's screenshot; that was lazy-loading caught mid-way, every portrait file answers 200.)
 
 ## Part 1: live versus the design system
 
@@ -195,10 +196,9 @@ doors on it. Character pages do link both ways ("💬 Talk with", "Their story s
 kit's proposal (Companions as the "Talk" tab of Characters, a "Talk" button on every character card, four doors) is
 the fix; Part 4 has the shape.
 
-Also seen: Sable Quist, Teo Brandt and Wally Osei render as gradient placeholders on /companion while Sable has her
-portrait on /characters (same session, same minute). `listCompanions` (`lib/companion.ts`) and the Characters page both
-read `portraitPathSql`, so the difference is upstream of the query (a cache, or the companion list's own portrait
-rule); not traced today.
+A false alarm, kept so nobody chases it: Sable Quist, Teo Brandt and Wally Osei showed as gradient squares on
+/companion in the sweep's screenshot. Their `<img>` tags point at `/cast/house-*.webp` files that answer 200; the
+squares were the Avatar's gradient under a lazy-loaded picture the full-page capture didn't wait for.
 
 ### 2.6 Trust and safety surfaces
 
@@ -232,7 +232,7 @@ are two link rows where one would do.
 10") sit above the vote and are, for a visitor, ten chances to start a house date by tapping. The season strip
 ("Season 2: Classic Botchelor · The newcomers' week · 💘 The Recoupling …") is a collapsed row under the hero that
 repeats the arc's banner one block above. On the phone, the ShowTabs strip (Watch · Reels · Seasons · Reviews ·
-Constellation) cuts "Const…" at the edge with no fade or scroll hint.
+Constellation) scrolls sideways and fades at the edge, as designed (`.tabs`' mask); fine.
 
 **The open room.** The strongest page on the site: the phase chip, "N watching", the venue chip, the wants, the
 countdown, the side panel's Vote · Chat tabs, and on the phone a bottom bar (🔮 Vote • · 💬 Chat) that is exactly the
@@ -248,8 +248,8 @@ page are the line reactions and tools; fine. "🎬 Watch in theater" (D).
 leaderboard folded, Play matchmaker, two folded lists. Good hub bones. "Make your character" appears twice at 1280
 (nav and page); the page's could be "Audition yours". No "Talk" on the cards (2.5).
 
-**/companion.** See 2.5. The filter chips cut at the phone's edge ("House cast" half visible), same fix as the tab
-strip. The "Sort: Suggested" select and two filter selects stack to three rows on the phone before the first card.
+**/companion.** See 2.5. The filter chips cut at the phone's edge ("House cast" half visible) with no fade: the
+`.filter-pills` row scrolls under 720px without the tabs' edge mask. The "Sort: Suggested" select and two filter selects stack to three rows on the phone before the first card.
 
 **/create.** See 2.2. The desktop stepper's eight labels wrap to two and three lines ("More about them optional").
 
@@ -266,8 +266,8 @@ for one page. Either the tab says "Reunion" or the h1 says "Season 2: the Reunio
 below. "Optional. Anonymous play already works." is the right first line. The Appearance card is the only setting on
 the page for a visitor, which is fine.
 
-**Phone, in general.** Every page fits 390px with no horizontal scroll (checked on all 17). The two strips that cut off
-(ShowTabs, the Companions chips) need an edge fade or a wrap. The phone menu's one CTA ("Make your character" as the
+**Phone, in general.** Every page fits 390px with no horizontal scroll (checked on all 17). The Companions chip row
+needs the tabs' edge fade. The phone menu's one CTA ("Make your character" as the
 menu's first row) is right.
 
 **Dark theme and After Dark's night.** Not re-swept today; the dark proof from #1451 stands.
@@ -311,10 +311,10 @@ newsletter, gate and invite pages. Nothing public is orphaned by mistake. Depth 
 
 ## What I'd do, in order
 
-**P1, one PR of small fixes (an hour):** one prediction per screen in the room; the Free card's reply line; the three
-house portraits on /companion; the four chrome emoji → icons; an edge fade on the two phone strips; the Reunion name;
-the bell hidden until it has a job; the Tonight band collapsing to one line when nothing is filming, never the hero's
-episode.
+**P1, one PR of small fixes (an hour):** one prediction per screen in the room; the Free card's reply line; the four
+chrome emoji → icons; the edge fade on the Companions chip row; the Reunion name; the bell hidden until it has a job;
+the visitor's Tonight band never carrying the hero's episode (it shows what's on the air, and stays away on a quiet
+night).
 
 **P2, one PR each (product changes I recommend; David's word first):** Characters as the hub with Talk on every card
 and four doors; /watch re-ordered (live → votes → episodes → the rest folded) and home's "Just aired" cut to three
