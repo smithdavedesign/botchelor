@@ -297,16 +297,25 @@ describe("a chain of clips posted as one reel", () => {
     await joinsSettled();
   });
 
-  it("joins only the owner's own clips of the same people", async () => {
+  it("joins only the owner's own clips of one pair: shots of one of them alone go with the two of them, a third person doesn't", async () => {
     const { id, cookie } = await admin();
     await ready(cookie, id);
     fakeVenice();
     fakeHive();
     const one = (await kissClip(cookie)).video;
     const two = (await kissClip(cookie)).video;
+    const three = (await kissClip(cookie)).video;
     expect((await moments((await admin()).cookie, { action: "join", media_ids: [one, two] })).status).toBe(404);
-    await t.db.query(`update adult_images set character_b = null where id = $1`, [two]);
-    expect((await moments(cookie, { action: "join", media_ids: [one, two] })).status).toBe(422);
+    // A night's film: a shot of one of them alone first, then the two of them; the reel is the pair's.
+    const pairOf = (await t.db.query<{ character_id: string; character_b: string }>(`select character_id, character_b from adult_images where id = $1`, [two])).rows[0];
+    await t.db.query(`update adult_images set character_id = $2, character_b = null where id = $1`, [one, pairOf.character_b]);
+    const res = await join(cookie, [one, two]);
+    expect(res.status).toBe(200);
+    const reel = (await res.json()).media as { character_id: string; character_b: string };
+    expect([reel.character_id, reel.character_b]).toEqual([pairOf.character_id, pairOf.character_b]);
+    // Someone else in one of them: not one pair.
+    await t.db.query(`update adult_images set character_b = $2 where id = $1`, [three, HOUSE_CHARACTERS[2].id]);
+    expect((await moments(cookie, { action: "join", media_ids: [two, three] })).status).toBe(422);
   });
 });
 

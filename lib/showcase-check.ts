@@ -7,7 +7,10 @@
  * output check, so a dressed picture published from After Dark landed on the explicit side. Each such post is checked:
  *
  * - **Which:** a live After Dark post still rated explicit and never checked, unless it was asked to be nude or more
- *   (its level, its shoot's, a stage tag, a nude baseline): that one is explicit whatever a check says.
+ *   (its level, its shoot's, a stage tag, a nude baseline): that one is explicit whatever a check says. Not a reel's
+ *   shot, nor clips joined into one (lib/adult/moments.ts joinClips, 2026-11-10): a night's film runs from dressed to
+ *   explicit over a minute or two, more than five frames can vouch for, so it stays on After Dark's side unless an
+ *   admin moves it by hand, as a reel's shots do.
  * - **How:** the PG check, fresh, with its age question: a picture as it is, a clip by three frames (start, middle,
  *   end). A pass brings the item down to the stricter of every frame and what it was asked for, and the post to the
  *   safe side; if its SFW twin (lib/adult/sfw-twin.ts) is up already for as many people, the twin stays its one safe
@@ -33,7 +36,8 @@ const CANDIDATES = `
   where p.source = 'after_dark' and p.status = 'live' and not p.held and p.rating = 'nsfw' and p.checked_at is null
     and i.status = 'ready' and coalesce(i.attire, '') <> 'nude' and coalesce(i.level, 0) <= 1 and coalesce(${SHOOT_LEVEL}, 0) <= 1
     and not exists (select 1 from adult_media_tags t where t.media_id = i.id and t.kind = 'stage' and not t.removed and t.value in ('2', '3'))
-    and not exists (select 1 from adult_reels r where r.shots @> jsonb_build_array(jsonb_build_object('media_id', i.id)))`;
+    and not exists (select 1 from adult_reels r where r.shots @> jsonb_build_array(jsonb_build_object('media_id', i.id)))
+    and coalesce(i.derived, '') <> 'chain'`;
 /** A reel's shot (lib/adult/reels.ts): filmed from an After Dark night, it stays on the After Dark side unless an admin moves it by hand. */
 const FROM_A_REEL = `exists (select 1 from adult_reels r where r.shots @> jsonb_build_array(jsonb_build_object('media_id', i.id)))`;
 const LEVEL = `greatest(i.level, ${SHOOT_LEVEL},

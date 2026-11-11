@@ -198,7 +198,8 @@ export const joinsSettled = (): Promise<void> => joining;
  * should be able to post the two clips as one reel for the showcase page", then the whole night's film): a clip and the
  * ones kept going from it (a date's clips, a Studio animation's links) or a night's videos, each as its trim keeps it,
  * with its voice where one plays beside it, in the order given. Made of their own frames, checked when they were, so
- * nothing new is checked; all of the same one or two people, so the post asks the same owners' OK as each clip would.
+ * nothing new is checked; all of one pair (a night's shots of one of them alone among them), so the post asks the
+ * pair's owners' OK, as its clips would.
  *
  * Made in the background (a night takes a minute or more on this server): the first ask starts it and answers
  * `making`; asking again with the same clips answers `making` until it's in, then the video. The same clips with the
@@ -218,8 +219,13 @@ export async function joinClips(db: Db, ownerId: string, ids: readonly string[])
   const chain = ids.map((id) => byId.get(id)!);
   const derived = chain.find((v) => v.derived);
   if (derived) return fail(409, "already", `One of those is a ${derived.derived === "chain" ? "reel already" : derived.derived}: join the clips themselves.`);
-  const who = (v: { character_id: string | null; character_b: string | null }) => [v.character_id, v.character_b].filter(Boolean).sort().join("+");
-  if (!chain[0].character_id || chain.some((v) => who(v) !== who(chain[0]))) return fail(422, "not_one_chain", "Those clips aren't all of the same people: join one chain at a time.");
+  // Who's in it: the one or two people of its clips. A night's film mixes shots of the two of them with shots of one of
+  // them alone (the director films one alone at times), so any of the pair's clips go together; a third person doesn't.
+  // The reel is the pair's (a pair clip says which is which), so publishing it asks the same owners' OK as its clips.
+  const people = [...new Set(chain.flatMap((v) => [v.character_id, v.character_b]).filter((x): x is string => Boolean(x)))];
+  if (!people.length || chain.some((v) => !v.character_id) || people.length > 2) return fail(422, "not_one_chain", "Those clips aren't all of the same people: join one chain at a time.");
+  const pair = chain.find((v) => v.character_b);
+  const [personA, personB] = pair ? [pair.character_id!, pair.character_b!] : [people[0], null];
   const trims = chain.map((v) => v.trim ?? null);
   const same = (r: { request: { body?: { from?: unknown; trims?: unknown } }[] | null }) =>
     JSON.stringify(r.request?.[0]?.body?.from ?? null) === JSON.stringify(ids) && JSON.stringify(r.request?.[0]?.body?.trims ?? null) === JSON.stringify(trims);
@@ -251,7 +257,7 @@ export async function joinClips(db: Db, ownerId: string, ids: readonly string[])
   await db.query(
     `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, status, source_image, derived, model, request)
      values ($1, $2, $3, $4, 'video', $5, 'video/mp4', 'pending', $6, 'chain', 'ffmpeg', $7::jsonb)`,
-    [id, ownerId, chain[0].character_id, chain[0].character_b, `${ids.length} clips joined into one reel`, ids[ids.length - 1], requestJson([{ at: "ffmpeg", body: { from: ids, trims } }])],
+    [id, ownerId, personA, personB, `${ids.length} clips joined into one reel`, ids[ids.length - 1], requestJson([{ at: "ffmpeg", body: { from: ids, trims } }])],
   );
   joining = joining.then(() =>
     makeJoin(db, ownerId, id, ids).catch(async (err) => {
