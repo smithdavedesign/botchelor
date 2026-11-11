@@ -16,7 +16,7 @@ import PricingPage from "@/app/pricing/page";
 import SecurityPage from "@/app/security/page";
 import SocialLinks from "@/app/SocialLinks";
 import { GET as securityTxtRoute } from "@/app/.well-known/security.txt/route";
-import { CONTACT_ROUTES, launchedOn, mailto, SOCIALS, socialLinks } from "@/lib/company";
+import { CONTACT_ROUTES, launchedOn, mailto, roleEmail, SOCIALS, socialLinks, STATUS_PAGE_URL } from "@/lib/company";
 import { setDbForTests } from "@/lib/db";
 import { answerText, faqJsonLd, faqs } from "@/lib/faq";
 import { LOGIN_FAILS_PER_HANDLE, LOGIN_FAILS_PER_VISITOR, LOGIN_WINDOW_MINUTES, loginHeld, recordLoginFailure } from "@/lib/login-guard";
@@ -192,8 +192,19 @@ describe("the company pages", () => {
     expect(launchedOn("2026-10-16")).toBe("16 October 2026");
   });
 
+  it("press@ and security@ only on botchelor.com, else the support address", () => {
+    expect(roleEmail("press", { CONTACT_EMAIL: SUPPORT })).toBe("press@botchelor.com");
+    expect(roleEmail("security", { CONTACT_EMAIL: "Support@Botchelor.com" })).toBe("security@botchelor.com");
+    expect(roleEmail("press", { CONTACT_EMAIL: "help@example.test" })).toBe("help@example.test");
+    expect(roleEmail("press", {})).toBeNull();
+    expect(mailto("Press", { CONTACT_EMAIL: SUPPORT }, "press")).toBe("mailto:press@botchelor.com?subject=Press");
+    expect(STATUS_PAGE_URL).toMatch(/^https:\/\//);
+  });
+
   it("/security and /accessibility give the subject line to use", () => {
     vi.stubEnv("CONTACT_EMAIL", SUPPORT);
+    expect(render(SecurityPage)).toContain("mailto:security@botchelor.com?subject=Security");
+    expect(render(SecurityPage)).toContain(STATUS_PAGE_URL);
     expect(render(SecurityPage)).toContain("?subject=Security");
     expect(render(AccessibilityPage)).toContain("?subject=Accessibility");
     expect(words(render(SecurityPage))).toContain(`after ${LOGIN_FAILS_PER_HANDLE} wrong passwords`);
@@ -205,7 +216,12 @@ describe("/.well-known/security.txt", () => {
 
   it("names the contact, the policy and its own address, and expires under a year out", () => {
     const body = securityTxt("https://botchelor.com", { CONTACT_EMAIL: SUPPORT }, now)!;
-    expect(body).toContain(`Contact: mailto:${SUPPORT}`);
+    // security@ first, the support address as a fallback.
+    expect(body.indexOf("Contact: mailto:security@botchelor.com")).toBeGreaterThanOrEqual(0);
+    expect(body.indexOf("Contact: mailto:security@botchelor.com")).toBeLessThan(body.indexOf(`Contact: mailto:${SUPPORT}`));
+    // Off botchelor.com there's no security@ to name: just the one address.
+    const other = securityTxt("https://example.test", { CONTACT_EMAIL: "help@example.test" }, now)!;
+    expect(other.match(/^Contact:/gm)).toHaveLength(1);
     expect(body).toContain("Policy: https://botchelor.com/security");
     expect(body).toContain("Canonical: https://botchelor.com/.well-known/security.txt");
     const expires = new Date(body.match(/^Expires: (.+)$/m)![1]);

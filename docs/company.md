@@ -44,7 +44,20 @@ These would make it more of a company, and each costs money or needs his name on
 3. **The DMCA agent**, registered with the US Copyright Office ($6, renewed every three years). `DMCA_AGENT` in
    `lib/legal-entity.ts` says it isn't registered yet.
 4. **A trademark** on "Botchelor" (USPTO, from $350 a class). Optional.
-5. **More addresses** (press@, security@) as Cloudflare Email Routing rules to the same inbox. Free, but it's his
-   Cloudflare account. Until then every page uses support@ with a subject line.
-6. **An outside status page** (UptimeRobot or Better Stack, both have free plans). It means a new account, so it's his
-   call.
+Decided on 2026-11-10: David set the postal address himself (for the newsletter) and gave Claude two keys, kept in the
+keychain: `vault/botchelor/CLOUDFLARE_DNS_TOKEN` (DNS and Email Routing on botchelor.com only) and
+`vault/botchelor/UPTIMEROBOT_API_KEY`. The LLC, the DMCA agent and the trademark wait.
+
+## Mail and status (set up 2026-11-10)
+
+- **Addresses.** Cloudflare Email Routing forwards support@, press@, security@ and dmarc@ to the same inbox.
+  `roleEmail()` in `lib/company.ts` gives /press press@ and /security and security.txt security@, but only when
+  `CONTACT_EMAIL` is on botchelor.com.
+- **DMARC.** `_dmarc` is `v=DMARC1; p=none; rua=mailto:dmarc@botchelor.com; adkim=r; aspf=r; fo=1`. Resend signs as
+  d=botchelor.com, so its mail passes. After about two weeks of clean aggregate reports in the dmarc@ inbox, move to
+  `p=quarantine` (ask David first). No CAA record, on purpose: one that leaves out a certificate authority Cloudflare or
+  DigitalOcean uses can quietly break certificate renewal.
+- **Status page.** UptimeRobot (free plan), https://stats.uptimerobot.com/9FWth2eqBE, `STATUS_PAGE_URL` in
+  `lib/company.ts`, linked from the footer and /security. It shows the home page, `/api/health` on both apps (a
+  keyword check for `"ok":true`), /pricing and /contact. The account also checks /admin and staging, which stay off the
+  public page. A custom status.botchelor.com address is a paid feature.

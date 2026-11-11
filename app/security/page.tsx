@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { mailto } from "@/lib/company";
+import { mailto, roleEmail, STATUS_PAGE_URL } from "@/lib/company";
 import { contactEmail } from "@/lib/legal-entity";
 import { LOGIN_FAILS_PER_HANDLE, LOGIN_WINDOW_MINUTES } from "@/lib/login-guard";
 import { pageMetadata } from "@/lib/seo";
@@ -20,8 +20,8 @@ export const dynamic = "force-dynamic";
  * lib/key-crypto.ts (AES-256-GCM), lib/login-guard.ts, lib/admin-auth.ts. Change this page when one of them changes.
  */
 export default function SecurityPage() {
-  const email = contactEmail();
-  const securityMail = mailto("Security");
+  const email = roleEmail("security") ?? contactEmail();
+  const securityMail = mailto("Security", process.env, "security");
   return (
     <article className="legal-page company-page">
       <h1>Security</h1>
@@ -87,6 +87,10 @@ export default function SecurityPage() {
           <li>The admin tools need a signed-in admin account.</li>
           <li>Every change runs the test suite and a scan for leaked secrets before it ships.</li>
           <li>The servers and the database are in the United States.</li>
+          <li>
+            The site is checked from outside every 5 minutes, and the results are public on the{" "}
+            <a href={STATUS_PAGE_URL} rel="noopener">status page</a>, which stays up when the site doesn&apos;t.
+          </li>
         </ul>
         <p>
           What we store and why is in the <Link href="/privacy">privacy notice</Link>. The machine-readable version of this
