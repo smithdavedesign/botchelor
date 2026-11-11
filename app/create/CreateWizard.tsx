@@ -242,6 +242,7 @@ export default function CreateWizard({
   startName = null,
   startPair = null,
   startImported = false,
+  startMeet = null,
   lookTiles = [],
   afterDark = false,
   afterDarkOpen = false,
@@ -265,6 +266,8 @@ export default function CreateWizard({
   startPair?: StartPair | null;
   /** From "Bring your character" (/import, then /create?imported=1): the draft it left in this browser goes in. */
   startImported?: boolean;
+  /** A house cast member a post named (/create?meet=<id>): a first character's first date is with them. */
+  startMeet?: string | null;
   /** The looks builder's tiles that have a picture (lib/looks-draw.ts readyTiles). */
   lookTiles?: readonly string[];
   /** This viewer can open After Dark, so its looks tab is unlocked (lib/adult/entitlement.ts). */
@@ -803,6 +806,7 @@ export default function CreateWizard({
         afterDarkOpen={afterDarkOpen}
         // Their first character (none before this page): the date step leads with a date that plays at once (lib/first-date.ts).
         firstCharacter={!edit && myCharacters.length === 0}
+        meet={startMeet}
         // The chemistry test's other character, until they have one by that name.
         buildNext={
           startPair && !myCharacters.some((c) => c.name.trim().toLowerCase() === startPair.b.name.trim().toLowerCase())
@@ -1554,9 +1558,11 @@ type SendProps = {
   afterDarkOpen?: boolean;
   /** The creator's first character: lead with one date that plays straight away (lib/first-date.ts). */
   firstCharacter?: boolean;
+  /** /create?meet=<id>: the house cast member that first date is with, when they're on this season's cast. */
+  meet?: string | null;
 };
 
-export function SendPhase({ character, partners, openCharacters, swipeGate, tokens, offer, autonomy: startAutonomy, busy, setBusy, error, setError, outOfTokens, setOutOfTokens, onSend, returnTo, buildNext, signedIn, afterDarkOpen = false, firstCharacter = false }: SendProps) {
+export function SendPhase({ character, partners, openCharacters, swipeGate, tokens, offer, autonomy: startAutonomy, busy, setBusy, error, setError, outOfTokens, setOutOfTokens, onSend, returnTo, buildNext, signedIn, afterDarkOpen = false, firstCharacter = false, meet = null }: SendProps) {
   const [format, setFormat] = useState<FormatId>(DEFAULT_FORMAT);
   // How much of a mind of its own, per date (B6): it rides on each send, so it's set here, not on the character.
   const [autonomy, setAutonomy] = useState<Autonomy>(startAutonomy);
@@ -1627,7 +1633,7 @@ export function SendPhase({ character, partners, openCharacters, swipeGate, toke
   const taken = character.taken ?? null;
   const partnerFirst = taken ? shortName(taken.name) : "";
   // A first character's first date, one tap and straight into the theater (2026-11-11 bounce review): no menu, no sheet.
-  const firstPartner = pickFirstPartner(partners, character.id);
+  const firstPartner = pickFirstPartner(partners, character.id, meet);
   const instant = offerFirstDate({ firstCharacter, taken: Boolean(taken), datesLeft: tokens.left, partner: firstPartner }) ? firstPartner : null;
   const closed = (id: string) => Boolean(taken) && id !== taken?.id;
   const closedWhy = `${first} only dates ${partnerFirst} for now`;

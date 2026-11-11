@@ -102,6 +102,7 @@ export default async function CreatePage({ searchParams }: { searchParams: Searc
       startName={typeof sp.name === "string" ? sp.name.trim().slice(0, 40) || null : null}
       startPair={pair.ok ? { a: pair.a, b: pair.b, otherHref: createPairHref(pair.b, pair.a) } : null}
       startImported={sp.imported === "1"}
+      startMeet={typeof sp.meet === "string" ? sp.meet.slice(0, 64) : null}
       lookTiles={looks.tiles}
       afterDark={looks.afterDark}
       afterDarkOpen={afterDarkOpen}

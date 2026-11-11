@@ -29,6 +29,11 @@ describe("a newcomer's first date, straight away", () => {
     }
     expect(picks.size).toBe(2); // different newcomers meet different cast members
     expect(pickFirstPartner([CAST[2]], "x")).toBeNull();
+    // A post's link names a house character (/create?meet=<id>): that one, but never a premium one or someone off the cast.
+    expect(pickFirstPartner(CAST, "anyone", "house-juniper")?.id).toBe("house-juniper");
+    expect(pickFirstPartner(CAST, "anyone", "house-nell")?.id).toBe("house-nell");
+    expect(pickFirstPartner(CAST, "anyone", "house-gold")?.premium).toBeFalsy();
+    expect(pickFirstPartner(CAST, "anyone", "not-on-cast")).toEqual(pickFirstPartner(CAST, "anyone"));
   });
 
   it("is offered only for a first character that's free to date and has a date left", () => {

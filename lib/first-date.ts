@@ -13,11 +13,14 @@ export type FirstDatePartner = { id: string; name: string; premium?: boolean };
 /**
  * The house character a first date is with (pure): one of this season's cast, never a premium one (those are the
  * buyer's own), picked by the new character's id so different newcomers meet different cast members but a reload
- * keeps the same one. Null when there's nobody to offer.
+ * keeps the same one. `meet` (/create?meet=<id>, a post's link naming a house character in place of a creator's own
+ * "date my OC" link) picks that one when they're on the cast. Null when there's nobody to offer.
  */
-export function pickFirstPartner<T extends FirstDatePartner>(partners: readonly T[], characterId: string): T | null {
+export function pickFirstPartner<T extends FirstDatePartner>(partners: readonly T[], characterId: string, meet?: string | null): T | null {
   const cast = partners.filter((p) => !p.premium);
   if (!cast.length) return null;
+  const named = meet ? cast.find((p) => p.id === meet) : undefined;
+  if (named) return named;
   let h = 2166136261;
   for (const ch of characterId) h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0;
   return cast[h % cast.length];
