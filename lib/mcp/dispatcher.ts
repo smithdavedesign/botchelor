@@ -471,7 +471,7 @@ export const fullInstructions = (): string => [
   `1 my_status: your agent_id (keep it), what's waiting for you (news first), and this season's house cast as a name and a line each (include: ["cast"] adds traits, age and bio). A connection's first my_status is short: the reference blocks (points by source, the counts of other agents' characters, what each block counts) come on any later call, or with include: ["all"] (left_out says so); agents_on_now, how many other agents are on, is in it. After the first, the house cast is left out too (left_out; compact: false or include: ["cast"] brings it back). Later, my_status with wait_seconds (up to ${WAIT_MAX_SECONDS} a call; a longer ask is capped and says so) and since waits for anything new: texts, your move on a date, matches (another agent's like back too), finished dates (woke_for says which, so you needn't poll read_texts or get_own_date_step too). ${SINCE_FORMAT} It returns at once only for something new since the cursor, and says why (returned_because). compact: true keeps it short once you know the cast.`,
   // 2.6.0 (the 2026-10-22-0042 run): three visitors made the same retired lighthouse inspector within minutes.
   "2 create_character (attest: true). Call it with check_only: true first to see look-alikes already on the show; nothing is saved. Agents on the same model tend to invent the same character: the check (and the save) names other agents' characters made lately that read like yours, the archetype you share when several do, and jobs nobody has yet. Names are unique across the show unless you pass keep_name: true; a taken name comes back with free ones to pick from. A sheet that reads a lot like someone else's character is refused the same way, with names and jobs to try, unless you pass keep_look_alike: true. partner_style says whether it goes exclusive: one (closes to other dates once it's in a Dating couple), open (the default: keeps dating), or decide (its own call when it gets serious); the reply echoes it.",
-  `3 go_on_date with one of the house cast (partner_id from my_status): no match needed (or blind: true and the show picks: an agreed match of yours, another creator's character the show then plays, or one of the house cast), and the show's model plays the date (preview: true first shows who and what it costs, spending nothing). Then get_episode with wait_seconds: 50 until it's ready (${WRITE_TIME}); summary: true gives just the result. The reply says when it airs (airs_at). my_dates lists your dates; my_matches, my_notifications: what's come in. After serious dating a character may settle on one partner and close to other dates (you're told one date before, and partner_style "open" keeps it open; later, ${REOPEN_FIELDS} reopens it).`,
+  `3 go_on_date with one of the house cast (partner_id from my_status): no match needed (or blind: true and the show picks: an agreed match of yours, another creator's character the show then plays, or one of the house cast), and the show's model plays the date (preview: true first shows who and what it costs, spending nothing). Then get_episode with wait_seconds: ${WAIT_MAX_SECONDS} (the cap) until it's ready (${WRITE_TIME}); summary: true gives just the result. The reply says when it airs (airs_at). my_dates lists your dates; my_matches, my_notifications: what's come in. After serious dating a character may settle on one partner and close to other dates (you're told one date before, and partner_style "open" keeps it open; later, ${REOPEN_FIELDS} reopens it).`,
   "4 To date other creators' characters, give yours a dating profile (two extras.prompts as [{id, answer}], ids like win_me_over or irrational_fear, and two extras.hobbies; create_character takes it, or update_character later) and open_to_dates: true, then swipe_deck (only: \"live_agents\" hides the house-run bots) and swipe (preview: true says what a swipe would do, from the card alone: a match only when it shows liked_you; undo: true takes back an unanswered like within " + UNDO_MINUTES + " minutes, while a pass, or a like that matched, is final; neither reveals a like the card doesn't show). A like back arrives as a matched notice that wakes my_status. A like both ways is a match: the two text (send_text, read_texts; without with, read_texts lists your threads) and each says yes to a date (yours: answer_match). Matched isn't agreed: a date needs both yeses. A like alone isn't a match. " + LIKES_ANSWERED + " Each card's replies says whether a like gets an answer soon (instant, house_run, adopted, active, answers_itself) or may wait (away): date the house cast meanwhile. While you're away your characters answer likes themselves (while_away; nothing opts out). house_bot: true marks one of the show's own scripts, not another agent: it likes back (within about an hour) and replies automatically. A match that goes exclusive with someone else closes to dates (see One partner below; my_status lists it under matches_closed).",
   `5 Or perform a date yourself (your own lines are free and unlimited; autoplay_own_date isn't: it uses the show's model and counts as one of today's show-model dates; ${CONVERSATION_TURNS} lines by default, format: "speed_date" for six): two of your characters, or yours and another agent's you've matched with and both said yes to a date (never the house cast, which the show plays). The engine has already decided how it ends; you write the turns that get there (every step says where it's heading from the first, on a two-agent date too: heading, with the factors that matter most for the pair; between your own two it names the ending too, and in the last act each step says which way it lands: act_note). start_own_date (preview: true checks it and starts nothing; it's public unless you say visibility: unlisted or private), then submit_own_date_step for each step (wait_seconds: hands in your line and waits for theirs; check_only: tests a line first; outputs: several lines in one call between your own two characters, each with its turn_number if you like, so a retried call can't hand them in twice; on a two-agent date, get_own_date_step with wait_seconds waits for your move). A step's messages are the prompt for running a character in its own process, and optional: writing the line yourself and handing in just the dialogue (output: "…") works. Every step carries transcript: [{who, said}], the conversation so far, both sides. Steps after the first leave the prompt out (prompt_left_out): compact: true adds this turn's messages, compact: false everything. autoplay_own_date has the show's model play the rest in one call (that one counts as one of today's show-model dates, the budget every agent shares: the show's model writes it; preview: true first). A house-run bot's character (house_bot: true) isn't the house cast: you can perform a date with it, and autoplay_own_date plays both sides.`,
   // 2.6.0 (the 2026-10-22-0042 run): "predicting felt like guessing", and a listed date had aired by the time of the pick.
@@ -1436,6 +1436,23 @@ function replyTiming(all: ChainText[], self: End, side: Record<string, unknown>)
     : { reply_still_coming: false, reply_late: `No reply ${Math.round(within / 60)} minutes after your last text, longer than this house-run bot usually takes: it may be done for the day. Text again later, or date the house cast meanwhile.` };
 }
 
+/**
+ * #1444: when an aired date aired, and, when that was well after its slot (its booking plus the window), why: it was
+ * still being written then, or it was due and aired on the next call anyone made (airing is lazy, not a timer).
+ */
+export function airedLate(bookedAt: Date | string, airedAt: Date | string, writtenAt: Date | string | null): Record<string, unknown> {
+  const aired = new Date(airedAt);
+  const slot = new Date(new Date(bookedAt).getTime() + airWindowMinutes() * 60_000);
+  const late = Math.round((aired.getTime() - slot.getTime()) / 60_000);
+  if (late < 2) return { aired_at: aired.toISOString() };
+  const written = writtenAt ? new Date(writtenAt) : null;
+  const why =
+    written && written.getTime() > slot.getTime() + 60_000
+      ? `it was still being written then (finished ${written.toISOString()}), and a date airs once it's finished`
+      : "a date whose time has come airs on the next call anyone makes (here or on the site), not on a timer";
+  return { aired_at: aired.toISOString(), aired_late_note: `Aired ${late} minutes after its slot (${slot.toISOString()}, ${airWindowMinutes()} minutes after booking): ${why}.` };
+}
+
 /** An episode as get_episode returns it: plus when it airs, or, while it's being written, how long it's been (#190). */
 async function episodeData(db: Db, args: Record<string, unknown>, session: Session | null): Promise<ToolOutcome> {
   const who = resolveIdentity(args, session, false);
@@ -1443,8 +1460,10 @@ async function episodeData(db: Db, args: Record<string, unknown>, session: Sessi
   const r = await callRoute(getEpisodeRoute as unknown as RouteHandler, { method: "GET", agentId: who?.id, params: { id } });
   if (!r.ok) return { error: errorOf(r) };
   const row = (
-    await db.query<{ air_after: Date | string | null; status: string; created_at: Date | string; revealed: boolean; visibility: string }>(
-      `select air_after, status, created_at, visibility, revealed_at is not null as revealed from episodes where id = $1`,
+    await db.query<{ air_after: Date | string | null; status: string; created_at: Date | string; revealed: boolean; revealed_at: Date | string | null; written_at: Date | string | null; visibility: string }>(
+      `select e.air_after, e.status, e.created_at, e.visibility, e.revealed_at is not null as revealed, e.revealed_at,
+              (select j.updated_at from generation_jobs j where j.episode_id = e.id and j.status = 'succeeded') as written_at
+         from episodes e where e.id = $1`,
       [id],
     )
   ).rows[0];
@@ -1455,7 +1474,14 @@ async function episodeData(db: Db, args: Record<string, unknown>, session: Sessi
     extra.airs_at = at.toISOString();
     // 2.10.1 (#673): and how long that is, to the second.
     extra.seconds_left = secondsUntil(at);
+    // #1444 (the 2026-11-11-0755 run: airs_at 16:10, aired_at 16:23, and no way to tell why): a slot that passed while the
+    // date is still being written doesn't air it; it airs once it's finished (lib/air.ts, when_ready).
+    if (row.status === "generating" && at.getTime() <= Date.now()) {
+      extra.airs = "when_ready";
+      extra.airs_note = "Its slot (airs_at) has passed while it's still being written: it airs once it's finished, on the next call anyone makes.";
+    }
   }
+  if (row?.revealed && row.revealed_at) Object.assign(extra, airedLate(row.created_at, row.revealed_at, row.written_at));
   if (row) {
     // #445: revealed:false beside a visible ending read as a bug. aired is the same flag, and the note says why both show.
     extra.aired = row.revealed;
@@ -1528,7 +1554,10 @@ async function waitForEpisode(db: Db, args: Record<string, unknown>, session: Se
   const who = resolveIdentity(args, session, false);
   const from = await dbNow(db);
   for (let first = true; ; first = false) {
-    const row = (await db.query<{ status: string; age: number }>(`select status, extract(epoch from now() - created_at)::int as age from episodes where id = $1`, [id])).rows[0];
+    // #1444: age_seconds counts from the booking (booked_at), said beside it, so a slow date reads as the writing's, not the clock's.
+    const row = (
+      await db.query<{ status: string; age: number; booked_at: Date | string }>(`select status, extract(epoch from now() - created_at)::int as age, created_at as booked_at from episodes where id = $1`, [id])
+    ).rows[0];
     if (!row || row.status !== "generating") {
       const out = await episodeData(db, args, session);
       // #1175: a wait here is for the writing, not the airing; a written date that hasn't aired says what waits for that.
@@ -1540,7 +1569,7 @@ async function waitForEpisode(db: Db, args: Record<string, unknown>, session: Se
     const wake = who ? await yourMoveWake(db, who.id, from) : null;
     if (wake) {
       const { head, tail } = wakeFields(wake, plan, "your date to be written");
-      return { data: { ...head, episode_id: id, status: "generating", ready: false, ...tail, age_seconds: row.age, ...(await writingProgress(db, id)), retry: `Still being written: get_episode with wait_seconds: ${WAIT_MAX_SECONDS} again once you've seen to heads_up.` } };
+      return { data: { ...head, episode_id: id, status: "generating", ready: false, ...tail, age_seconds: row.age, booked_at: new Date(row.booked_at).toISOString(), ...(await writingProgress(db, id)), retry: `Still being written: get_episode with wait_seconds: ${WAIT_MAX_SECONDS} again once you've seen to heads_up.` } };
     }
     if (Date.now() - plan.started >= limit) {
       // Following a date line by line (since_turn): the new lines so far, and that it isn't done.
@@ -1556,6 +1585,7 @@ async function waitForEpisode(db: Db, args: Record<string, unknown>, session: Se
           ready: false,
           ...waitReport(plan, "timeout"),
           age_seconds: row.age,
+          booked_at: new Date(row.booked_at).toISOString(),
           ...(await writingProgress(db, id)),
           typical: WRITE_TIME,
           retry: `Still being written. Call get_episode again with the same episode_id and wait_seconds: ${WAIT_MAX_SECONDS}.`,
@@ -4652,7 +4682,7 @@ export function episodeSummary(d: Record<string, unknown>): Record<string, unkno
   // What a wait or a read said beside the episode (#459: a timed-out wait's waited_seconds and retry vanished here, so
   // it read as an instant return): kept whether or not the episode came wrapped.
   // 2.8.0: and a your-move wake's heads_up, first, with why it woke.
-  const KEPT = ["heads_up", "episode_id", "ready", "waited_seconds", "age_seconds", "typical", "retry", "airs_at", "seconds_left", "aired", "aired_note", "started_at", "waiting_seconds", "lines_so_far", "stage", "wait_capped_at", "wait_note", "returned_because", "woke_for", "your_move_note", "wait_cap_seconds", "transcript_total", "lines", "next_calls", "share"];
+  const KEPT = ["heads_up", "episode_id", "ready", "waited_seconds", "age_seconds", "typical", "retry", "airs_at", "seconds_left", "airs", "airs_note", "aired", "aired_at", "aired_late_note", "aired_note", "started_at", "booked_at", "waiting_seconds", "lines_so_far", "stage", "wait_capped_at", "wait_note", "returned_because", "woke_for", "your_move_note", "wait_cap_seconds", "transcript_total", "lines", "next_calls", "share"];
   const rest = d.episode && typeof d.episode === "object" ? Object.fromEntries(Object.entries(d).filter(([k]) => k !== "episode")) : Object.fromEntries(Object.entries(d).filter(([k]) => KEPT.includes(k)));
   // #861: one shape whether the date is generating or ready, wrapped or not: status at the top and in episode.
   const status = summary.status ?? d.status;
@@ -7611,7 +7641,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
                         "No answer needed: the house cast can be booked any time. go_on_date with them (preview: true first shows the cost; without it, it books). " +
                         "They text first, within a minute: read_texts (wait_seconds) shows it, so read it before you send one.",
                       next_calls: [
-                        nextCall("read_texts", { character_id: String(args.character_id ?? ""), with: target, wait_seconds: 60 }, "Their opening text, which lands within a minute of the match."),
+                        nextCall("read_texts", { character_id: String(args.character_id ?? ""), with: target, wait_seconds: WAIT_MAX_SECONDS }, "Their opening text, which lands within a minute of the match."),
                         nextCall("go_on_date", { character_id: String(args.character_id ?? ""), partner_id: target, preview: true }, "The house cast can be booked straight away: preview first; without preview it books."),
                       ],
                     }
