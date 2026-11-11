@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Icon from "@/app/Icon";
 import { cookies, headers } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -36,7 +37,7 @@ export default async function ShortsPage() {
       <div className="after-dark-mode ad-shorts-page">
         <article className="after-dark">
           <p className="kicker">
-            🌙 After Dark · <Link href="/admin/after-dark/settings">Settings</Link>
+            <Icon name="moon" /> After Dark · <Link href="/admin/after-dark/settings">Settings</Link>
           </p>
           <h1>Shorts</h1>
           <p>After Dark is off, so its Shorts are too. Turn it on in its settings.</p>
@@ -50,7 +51,7 @@ export default async function ShortsPage() {
       <div className="after-dark-mode ad-shorts-page">
         <article className="after-dark">
           <p className="kicker">
-            🌙 After Dark · <Link href="/">Back to the show</Link>
+            <Icon name="moon" /> After Dark · <Link href="/">Back to the show</Link>
           </p>
           <h1>Shorts</h1>
           <p>This season&apos;s house cast, after the cameras stop: whole nights between two of them, as episodes to read and watch.</p>
@@ -74,7 +75,9 @@ export default async function ShortsPage() {
     <div className="after-dark-mode ad-shorts-page">
       <article className="after-dark">
         <p className="kicker">
-          <Link href="/after-dark">← 🌙 After Dark</Link>
+          <Link href="/after-dark">
+            ← <Icon name="moon" /> After Dark
+          </Link>
         </p>
         <h1>Shorts</h1>
         <p className="muted">

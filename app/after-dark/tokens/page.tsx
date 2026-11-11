@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Icon from "@/app/Icon";
 import { cookies } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -89,7 +90,9 @@ export default async function AfterDarkTokensPage({ searchParams }: { searchPara
     <div className="after-dark-mode">
       <article className="after-dark" data-ad-tokens>
         <p className="kicker">
-          <Link href="/after-dark">← 🌙 After Dark</Link>
+          <Link href="/after-dark">
+            ← <Icon name="moon" /> After Dark
+          </Link>
         </p>
         <h1>Tokens</h1>
         {own && params.done === "1" && (

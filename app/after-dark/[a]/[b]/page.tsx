@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Icon from "@/app/Icon";
 import { cookies } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -68,7 +69,9 @@ export default async function AfterDarkScenePage({ params }: Props) {
       <div className="after-dark-mode">
         <article className="after-dark" data-pair-absent="true">
           <p className="kicker">
-            <Link href="/after-dark">← 🌙 After Dark</Link>
+            <Link href="/after-dark">
+            ← <Icon name="moon" /> After Dark
+          </Link>
           </p>
           <h1>{out.length > 1 ? "They aren't in your After Dark" : `${shortName(out[0].name)} isn't in your After Dark`}</h1>
           {absent.left.map((c) => (
@@ -101,7 +104,9 @@ export default async function AfterDarkScenePage({ params }: Props) {
     <div className="after-dark-mode">
     <article className="after-dark">
       <p className="kicker">
-        <Link href="/after-dark">← 🌙 After Dark</Link>
+        <Link href="/after-dark">
+            ← <Icon name="moon" /> After Dark
+          </Link>
       </p>
       <h1>
         <CharacterName character={characters[0]} link={false} size={34} /> × <CharacterName character={characters[1]} link={false} size={34} />

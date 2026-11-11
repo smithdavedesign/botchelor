@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Icon from "@/app/Icon";
 import { cookies, headers } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -50,7 +51,9 @@ export default async function ShortPage({ params }: Props) {
       <div className="after-dark-mode">
         <article className="after-dark">
           <p className="kicker">
-            <Link href="/after-dark/shorts">← 🌙 Shorts</Link>
+            <Link href="/after-dark/shorts">
+            ← <Icon name="moon" /> Shorts
+          </Link>
           </p>
           <h1>{short.title}</h1>
           <ul className={styles.grid}>
@@ -68,7 +71,9 @@ export default async function ShortPage({ params }: Props) {
     <div className="after-dark-mode">
       <article className="after-dark">
         <p className="kicker">
-          <Link href="/after-dark/shorts">← 🌙 Shorts</Link>
+          <Link href="/after-dark/shorts">
+            ← <Icon name="moon" /> Shorts
+          </Link>
         </p>
         <div className={styles.hero}>
           {short.cover && !textOnly ? (

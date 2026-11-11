@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Icon from "@/app/Icon";
 import { cookies } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -31,7 +32,9 @@ export default async function StudioPage({ params }: Props) {
       <div className="after-dark-mode">
         <article className="after-dark ad-studio">
           <p className="kicker">
-            <Link href="/after-dark">← 🌙 After Dark</Link>
+            <Link href="/after-dark">
+            ← <Icon name="moon" /> After Dark
+          </Link>
           </p>
           <h1>Studio</h1>
           <p data-text-only>{here.reason}</p>
@@ -45,7 +48,9 @@ export default async function StudioPage({ params }: Props) {
     <div className="after-dark-mode">
       <article className="after-dark ad-studio">
         <p className="kicker">
-          <Link href="/after-dark">← 🌙 After Dark</Link>
+          <Link href="/after-dark">
+            ← <Icon name="moon" /> After Dark
+          </Link>
         </p>
         {r.ok ? (
           <Studio initial={r.state} admin={await isAdmin(db, viewer)} />
