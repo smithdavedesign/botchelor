@@ -1210,3 +1210,108 @@ details.recap-toggle[open] .recap-toggle-hide {
 .tonight-live .tonight-live-dot {
   animation-duration: 2.4s;
 }
+
+/* ---------------- the episode page in two columns (app/episodes/[id]/page.tsx; the design system, 2026-11-11) ----------------
+   The date on the left; on the right a rail: previously on, "tell me when they text", ask them how it went, the watch
+   party, make your own, your points and report. One column, rail last, below 60rem. */
+.episode-main {
+  min-width: 0;
+}
+.episode-rail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.episode-rail > * {
+  margin: 0;
+}
+.episode-rail > .episode-prev {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+}
+.episode-rail > .episode-foot {
+  margin-top: 0;
+}
+@media (min-width: 60rem) {
+  .episode-body.episode-layout {
+    max-width: none;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(16rem, 21rem);
+    gap: var(--space-5);
+    align-items: start;
+  }
+  .episode-rail > .episode-foot {
+    padding-top: 0;
+    border-top: 0;
+  }
+}
+
+/* ---------------- the mixer room's overview (app/mixers/[id]/MixerNight.tsx; the design system, 2026-11-11) ----------------
+   The rounds, each table with a link down to it, and who left with whom behind a tap; side by side on a wide screen. */
+.mixer-overview {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-4);
+}
+.mixer-overview > .card {
+  margin: 0;
+}
+.mixer-rounds ol {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.mixer-rounds li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.mixer-rounds-n {
+  flex: 0 0 auto;
+  min-width: 1.5rem;
+  font-family: var(--font-display, "Fraunces", Georgia, serif);
+  font-weight: 800;
+}
+.mixer-rounds-pair {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.mixer-left > summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  cursor: pointer;
+}
+.mixer-left > p {
+  margin: var(--space-2) 0 0;
+}
+.mixer-table {
+  scroll-margin-top: var(--space-6);
+}
+@media (min-width: 60rem) {
+  .mixer-overview {
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+    align-items: start;
+  }
+}
+
+/* ---------------- the reels' captions and their way in (app/showcase; the design system, 2026-11-11) ---------------- */
+.showcase-tile .showcase-meta {
+  margin: 0;
+}
+.showcase-cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin: var(--space-5) 0 0;
+  background: color-mix(in srgb, var(--accent) 7%, var(--card));
+}
+.showcase-cta p {
+  margin: var(--space-1) 0 0;
+}
