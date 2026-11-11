@@ -3050,6 +3050,10 @@ button.poll-option.chosen {
   margin: var(--space-3) 0;
   text-align: center;
 }
+/* A waiting open room's Start, where the countdown will be (the audit, 2026-11-11, 2.7). */
+.watch-countdown-start {
+  margin: 0 0 var(--space-2);
+}
 .watch-countdown-time {
   margin: 0;
   font-size: var(--text-xl);

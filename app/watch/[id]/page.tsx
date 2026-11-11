@@ -9,7 +9,7 @@ import WatchRoom from "./WatchRoom";
 
 export const dynamic = "force-dynamic";
 
-type Props = { params: Promise<{ id: string }> };
+type Props = { params: Promise<{ id: string }>; searchParams?: Promise<{ start?: string | string[] }> };
 
 /**
  * A room replays one episode, so search engines are pointed at the episode page as the canonical copy (one
@@ -34,10 +34,19 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 /** A synchronized "date room": the pre-generated date plays on one shared clock, with live reactions,
  * chat and audience polls. The audience reacts and predicts; it never steers the characters. */
-export default async function WatchRoomPage({ params }: Props) {
+export default async function WatchRoomPage({ params, searchParams }: Props) {
   const { id } = await params;
+  const sp = (await searchParams) ?? {};
   const viewerId = userIdFromCookieStore(await cookies());
-  const state = await getRoomState(await getDb(), id, viewerId);
+  const db = await getDb();
+  const [state, engaged] = await Promise.all([
+    getRoomState(db, id, viewerId),
+    // A viewer with characters of their own (the nav's own test, app/layout.tsx) came for the show, not by accident.
+    viewerId ? db.query(`select 1 from characters where owner_id = $1 and not is_house limit 1`, [viewerId]).then((r) => r.rows.length > 0, () => false) : false,
+  ]);
   if (!state) notFound();
-  return <WatchRoom initial={state} />;
+  // A waiting open room starts on arrival only for someone who meant it: the lobby's Start button (?start=1) or a
+  // viewer with characters; anyone else gets a Start button (the audit, 2026-11-11, 2.7: page loads were starting dates).
+  const autoStart = state.clock.started || sp.start === "1" || engaged;
+  return <WatchRoom initial={state} autoStart={autoStart} />;
 }
