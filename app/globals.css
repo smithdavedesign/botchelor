@@ -7398,9 +7398,9 @@ button.table-more {
 .matches-empty {
   padding: var(--space-4) 0;
 }
-/* "Show 3 that didn't work out": the passed and the disasters, left out of the list by default. */
-.matches-over {
-  margin-top: var(--space-3);
+/* The "Didn't work out" list's one line of why (the passed and the disasters, a tab of their own since 2026-11-11). */
+.matches-over-note {
+  margin: 0 0 var(--space-3);
 }
 
 /* A thread and nothing else: the bare phone at full height, with whose matches above it. */
