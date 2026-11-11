@@ -1210,3 +1210,29 @@ details.recap-toggle[open] .recap-toggle-hide {
 .tonight-live .tonight-live-dot {
   animation-duration: 2.4s;
 }
+
+/* ---------------- a couple in two columns (app/couples/[a]/[b]; the design system, 2026-11-11) ----------------
+   Their dates on the left; the roleplay, the arc, their texts and inside jokes on the right. One column below 60rem. */
+main:has(> .couple-page) {
+  max-width: var(--page-wide);
+}
+.couple-main,
+.couple-rail {
+  min-width: 0;
+}
+.couple-rail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.couple-rail > * {
+  margin: 0;
+}
+@media (min-width: 60rem) {
+  .couple-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(18rem, 24rem);
+    gap: var(--space-5);
+    align-items: start;
+  }
+}
