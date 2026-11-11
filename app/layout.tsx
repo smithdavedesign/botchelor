@@ -123,7 +123,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   // On After Dark's own host the show's links go to the show: prefetching them only fetched "Moved to another host"
   // (middleware fetchAnswer), twenty times a page, and the page never settled (2026-11-07 audit, item 21).
   const showPrefetch = adHost ? false : undefined;
-  // The show's accounts (lib/company.ts): X, Bluesky, GitHub, and Discord once DISCORD_INVITE_URL is set (docs/discord.md),
+  // The show's accounts (lib/company.ts): X, Bluesky, TikTok, GitHub, and Discord once DISCORD_INVITE_URL is set (docs/discord.md),
   // never on After Dark's host. The support address closes the footer once CONTACT_EMAIL is set.
   const socials = socialLinks(process.env, adHost);
   const support = contactEmail();

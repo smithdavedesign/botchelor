@@ -119,7 +119,7 @@ export function siteOffers(env: Record<string, string | undefined> = process.env
 }
 
 /**
- * The show as an organization: its logo, its own accounts (`sameAs`, so search engines tie X, Bluesky, Discord and GitHub
+ * The show as an organization: its logo, its own accounts (`sameAs`, so search engines tie X, Bluesky, TikTok, Discord and GitHub
  * to the brand), the support address once CONTACT_EMAIL is set, and who makes it (lib/company.ts).
  */
 export function organizationJsonLd(base: string = siteUrl(), env: Record<string, string | undefined> = process.env): Record<string, unknown> {

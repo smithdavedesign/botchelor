@@ -48,9 +48,9 @@ afterEach(() => vi.unstubAllEnvs());
 
 describe("the show's accounts", () => {
   it("lists X, Bluesky and GitHub, and Discord only once its invite is set", () => {
-    expect(socialLinks({}).map((s) => s.id)).toEqual(["x", "bluesky", "github"]);
-    expect(socialLinks({ DISCORD_INVITE_URL: INVITE }).map((s) => s.id)).toEqual(["x", "bluesky", "discord", "github"]);
-    expect(socialLinks({ DISCORD_INVITE_URL: "CHANGE_ME" }).map((s) => s.id)).toEqual(["x", "bluesky", "github"]);
+    expect(socialLinks({}).map((s) => s.id)).toEqual(["x", "bluesky", "tiktok", "github"]);
+    expect(socialLinks({ DISCORD_INVITE_URL: INVITE }).map((s) => s.id)).toEqual(["x", "bluesky", "tiktok", "discord", "github"]);
+    expect(socialLinks({ DISCORD_INVITE_URL: "CHANGE_ME" }).map((s) => s.id)).toEqual(["x", "bluesky", "tiktok", "github"]);
   });
 
   it("shows none on After Dark's host", () => {
@@ -60,7 +60,7 @@ describe("the show's accounts", () => {
 
   it("are https addresses on each network's own site", () => {
     for (const s of SOCIALS) expect(new URL(s.url).protocol).toBe("https:");
-    expect(SOCIALS.map((s) => new URL(s.url).hostname)).toEqual(["x.com", "bsky.app", "github.com"]);
+    expect(SOCIALS.map((s) => new URL(s.url).hostname)).toEqual(["x.com", "bsky.app", "www.tiktok.com", "github.com"]);
   });
 
   it("render as links that say where they go, opening in a new tab", () => {
@@ -86,7 +86,7 @@ describe("the footer", () => {
 describe("the Organization in every page's JSON-LD", () => {
   it("names the accounts as sameAs and the founder", () => {
     const org = organizationJsonLd("https://botchelor.com", { DISCORD_INVITE_URL: INVITE });
-    expect(org.sameAs).toEqual([...SOCIALS.slice(0, 2).map((s) => s.url), INVITE, SOCIALS[2].url]);
+    expect(org.sameAs).toEqual([...SOCIALS.slice(0, 3).map((s) => s.url), INVITE, SOCIALS[3].url]);
     expect(org.founder).toEqual({ "@type": "Person", name: "David Smith" });
     // A raster logo at 512px (Google's logo guidance), and the file is there.
     expect(org.logo).toEqual({ "@type": "ImageObject", url: "https://botchelor.com/icons/icon-512.png", width: 512, height: 512 });
