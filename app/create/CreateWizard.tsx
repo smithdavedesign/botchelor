@@ -66,6 +66,7 @@ import CharacterName from "@/app/CharacterName";
 import { APPEARANCE_MAX, DEALBREAKER_MAX, TRAIT_MAX, WANT_MAX } from "@/lib/field-limits";
 import { THIS_WEEK_MAX } from "@/lib/life";
 import { IMPORT_PATH, IMPORT_STORAGE_KEY, type ImportedDraft } from "@/lib/import-character";
+import { offerFirstDate, pickFirstPartner } from "@/lib/first-date";
 
 export type Partner = {
   id: string;
@@ -800,6 +801,8 @@ export default function CreateWizard({
         returnTo={returnTo}
         signedIn={signedIn}
         afterDarkOpen={afterDarkOpen}
+        // Their first character (none before this page): the date step leads with a date that plays at once (lib/first-date.ts).
+        firstCharacter={!edit && myCharacters.length === 0}
         // The chemistry test's other character, until they have one by that name.
         buildNext={
           startPair && !myCharacters.some((c) => c.name.trim().toLowerCase() === startPair.b.name.trim().toLowerCase())
@@ -1549,9 +1552,11 @@ type SendProps = {
   buildNext: { name: string; href: string } | null;
   signedIn: boolean;
   afterDarkOpen?: boolean;
+  /** The creator's first character: lead with one date that plays straight away (lib/first-date.ts). */
+  firstCharacter?: boolean;
 };
 
-function SendPhase({ character, partners, openCharacters, swipeGate, tokens, offer, autonomy: startAutonomy, busy, setBusy, error, setError, outOfTokens, setOutOfTokens, onSend, returnTo, buildNext, signedIn, afterDarkOpen = false }: SendProps) {
+export function SendPhase({ character, partners, openCharacters, swipeGate, tokens, offer, autonomy: startAutonomy, busy, setBusy, error, setError, outOfTokens, setOutOfTokens, onSend, returnTo, buildNext, signedIn, afterDarkOpen = false, firstCharacter = false }: SendProps) {
   const [format, setFormat] = useState<FormatId>(DEFAULT_FORMAT);
   // How much of a mind of its own, per date (B6): it rides on each send, so it's set here, not on the character.
   const [autonomy, setAutonomy] = useState<Autonomy>(startAutonomy);
@@ -1621,6 +1626,9 @@ function SendPhase({ character, partners, openCharacters, swipeGate, tokens, off
   const first = shortName(character.name);
   const taken = character.taken ?? null;
   const partnerFirst = taken ? shortName(taken.name) : "";
+  // A first character's first date, one tap and straight into the theater (2026-11-11 bounce review): no menu, no sheet.
+  const firstPartner = pickFirstPartner(partners, character.id);
+  const instant = offerFirstDate({ firstCharacter, taken: Boolean(taken), datesLeft: tokens.left, partner: firstPartner }) ? firstPartner : null;
   const closed = (id: string) => Boolean(taken) && id !== taken?.id;
   const closedWhy = `${first} only dates ${partnerFirst} for now`;
   /** On a row: their partner's tag, or nothing. */
@@ -1748,7 +1756,32 @@ function SendPhase({ character, partners, openCharacters, swipeGate, tokens, off
         </div>
       )}
 
-      {/* The one primary action on this screen (unless they're with someone: then it's the date with them, above). */}
+      {instant && (
+        // The first date, straight away (lib/first-date.ts): the default settings, a house cast member, the theater next.
+        <div className="card send-first" data-first-date>
+          <Avatar seed={instant.id} name={instant.name} hue={instant.hue ?? null} house size={56} />
+          <div className="send-first-meta">
+            <strong>{`${first}'s first date can start right now`}</strong>
+            <p>
+              {`${first} meets ${shortName(instant.name)}`}
+              {instant.archetype ? `, ${instant.archetype.toLowerCase()} from this season's cast` : ", from this season's cast"}
+              {". It plays as you watch, and nobody can steer how it ends."}
+            </p>
+            <button type="button" className="primary" data-track="first_date_now" disabled={busy !== null} onClick={() => void sendOnDate(instant.id, true)}>
+              {busy === "episode" ? "Starting the date…" : "▶ Start the date now"}
+            </button>
+            {busy === "episode" && <p className="muted small">The engine is deciding the outcome and the showrunner is writing it…</p>}
+            {error && !pending && (
+              <p className="error small" role="alert">
+                {error} {outOfTokens && offer && <Link href="/shop">{offer}</Link>}
+              </p>
+            )}
+            <p className="muted small">Or choose who they meet below. Uses 1 of your {tokens.left} free {tokens.left === 1 ? "date" : "dates"}.</p>
+          </div>
+        </div>
+      )}
+
+      {/* The one primary action on this screen (unless they're with someone: then it's the date with them, above, or a first date: then it's that). */}
       <div className={taken ? "card send-blind is-closed" : "card send-blind"}>
         <strong>A blind date</strong>
         <p>
@@ -1763,7 +1796,7 @@ function SendPhase({ character, partners, openCharacters, swipeGate, tokens, off
           You stay anonymous to each other unless you both agree to reveal yourselves.
         </p>
         {taken && <p className="muted small">Not while {closedWhy}.</p>}
-        <button type="button" disabled={busy !== null || Boolean(taken)} title={taken ? closedWhy : undefined} onClick={() => ask(null, null)}>
+        <button type="button" className={instant ? "secondary" : undefined} disabled={busy !== null || Boolean(taken)} title={taken ? closedWhy : undefined} onClick={() => ask(null, null)}>
           Send {character.name} on a blind date
         </button>
       </div>
