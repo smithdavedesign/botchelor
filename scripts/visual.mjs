@@ -66,6 +66,9 @@ function auditPage({ phone, dark, width }) {
     const r = el.getBoundingClientRect();
     if (r.width === 0 || r.height === 0) return false;
     const cs = getComputedStyle(el);
+    // A control that's inert for people isn't one to size or style: aria-hidden, or screen-reader-only (the password
+    // manager's username field in PasswordSettings is a pixel by design, #1436).
+    if (el.getAttribute("aria-hidden") === "true" || el.classList.contains("sr-only")) return false;
     return cs.visibility !== "hidden" && cs.display !== "none" && Number(cs.opacity) > 0.01;
   };
   const px = (v) => parseFloat(v) || 0;
