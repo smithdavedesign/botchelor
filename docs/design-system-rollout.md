@@ -12,7 +12,7 @@ drawn icons for the interface's chrome and emoji only in the show's voice, a who
 states that say when a limit comes back and then the way around, and copy from `copy-deck.md` where the kit lifted
 it from here.
 
-## Wave 1: the foundation every page inherits (this branch, `design-system`)
+## Wave 1: the foundation every page inherits (merged 2026-11-11, #1446)
 
 - [x] **Themes.** Light / Dark / System on /account (`app/ThemeSetting.tsx`, `lib/theme.ts`), a cookie into
       `<html data-theme>`; the dark tokens in two identical blocks (`tests/theme.test.ts`).
@@ -25,7 +25,7 @@ it from here.
 - [x] **After Dark control edges.** `.after-dark-mode --field` `#241a3a` → `#7a5f93` (3.2:1 on the night card).
 - [x] Icons: `clapper`, `arrowUpRight`, `chevronLeft`, `plus`. `docs/brand.md`: Header, Themes.
 
-## Wave 2: the show's pages (branch `ds-wave-2`)
+## Wave 2: the show's pages (merged 2026-11-11, #1447)
 
 - [x] Home and Watch: live facts under the Tonight band ("2 dates filming · 7 watching", "Sunday's secret comes out
       in 20 min"): facts the page already has, never pressure (`app/TonightBand.tsx`).
@@ -46,7 +46,7 @@ it from here.
 - [x] The remaining emoji (the showcase filters' facet names, the Matches status chips, notification kinds) are the
       show's voice and stay.
 
-## Wave 3: After Dark (branch `ds-wave-3`)
+## Wave 3: After Dark (merged 2026-11-11, #1448)
 
 - [x] A price on every button that spends tokens: already the app's rule (`lib/adult/price-words.ts` in the theater,
       the media menu, the reels and the tokens page), checked, nothing to add.
@@ -56,7 +56,13 @@ it from here.
       page (`AfterDarkFrame`); the PIN gate, blocked and text-only states are the components the kit lifted.
 - [x] After Dark's control edges (`--field`) landed in wave 1.
 
-## Wave 4: proof
+## Wave 4: proof (branch `ds-wave-4`)
 
-- [ ] `npm run e2e:visual` clean; live screenshots (desktop and phone, light, dark and After Dark) under
-      `docs/screenshots/` and at the top of the README.
+- [x] `npm run e2e:visual` on the full stack: 272 page states, clean but for four harness conditions that fail
+      identically on untouched main (admin and admin-analytics as anonymous → 403, after-dark-scene-open → 422,
+      after-dark-subscribe → 404; a follow-up for `scripts/visual.mjs`). Full suite 499 files / 5311 tests.
+- [x] Live screenshots from botchelor.com and After Dark's host after the deploy of `dd573a8` (2026-11-11): the
+      header at 1280 / 1000 / 390, the Dark pick, After Dark's moon badge and Back to the show, Appearance, the
+      season's arc: `docs/screenshots/design-system-*.png`, at the top of the README's Screenshots.
+- Left for later, by design: the kit's proposals (Characters as the hub, the first-run track, the intensity picker,
+  "Make more", the chapter reader) wait for David's call; the harness's four red visual states.
