@@ -163,6 +163,13 @@ const listWords = (xs: string[]) => (xs.length < 2 ? (xs[0] ?? "") : `${xs.slice
 
 /** The steps a new character can skip: everything but who they are, the dating profile and the review. */
 const OPTIONAL_STEPS: readonly number[] = [S.voice, S.look, S.facts, S.deeper, S.soul];
+/**
+ * The two tracks through the steps (the 2026-11-11 audit, 2.2: the hero promised "under a minute", the rail promised
+ * eight steps). A new character takes the quick track, three steps; "Add depth" on the review, or editing later, opens
+ * every step. `maxStep` keeps counting real step indexes, so the depth track's rail knows what's been reached.
+ */
+const ALL_STEPS: readonly number[] = [S.identity, S.voice, S.look, S.details, S.facts, S.deeper, S.soul, S.review];
+const QUICK_TRACK: readonly number[] = [S.identity, S.details, S.review];
 
 /** The build steps, shown as a tappable progress rail. The ones that can be skipped say so (2026-10-31 UX audit). */
 function Stepper({
@@ -277,6 +284,9 @@ export default function CreateWizard({
   // Build-phase state (the character being made, or edited).
   const [step, setStep] = useState(0);
   const [maxStep, setMaxStep] = useState(edit ? last : 0); // the furthest step reached; editing opens them all
+  // Depth: the five optional steps in the rail. On for an edit; a new character opts in from the review.
+  const [depth, setDepth] = useState(Boolean(edit));
+  const track = depth ? ALL_STEPS : QUICK_TRACK;
   const [sheet, setSheet] = useState<Sheet>(
     init
       ? { name: init.name, age: String(init.age), bio: init.bio, want: init.want, dealbreaker: init.dealbreaker }
@@ -570,14 +580,24 @@ export default function CreateWizard({
       if (stillNeeded[0]) showMe(stillNeeded[0].field);
       return;
     }
-    const n = Math.min(step + 1, last);
+    const at = track.indexOf(step);
+    const n = at >= 0 ? track[Math.min(at + 1, track.length - 1)] : Math.min(step + 1, last);
     setTriedNext(false);
     setStep(n);
     setMaxStep((m) => Math.max(m, n));
   }
   function back() {
     setTriedNext(false);
-    setStep((s) => Math.max(0, s - 1));
+    setStep((s) => {
+      const at = track.indexOf(s);
+      return at > 0 ? track[at - 1] : at === 0 ? s : Math.max(0, s - 1);
+    });
+  }
+  /** Open the depth track and go to its first step (the review's "Add depth"). */
+  function addDepth() {
+    setDepth(true);
+    setTriedNext(false);
+    setStep(S.voice);
   }
   function jump(i: number) {
     setTriedNext(false);
@@ -820,7 +840,11 @@ export default function CreateWizard({
           {/* One line (2026-11-08 UI audit, item 10: five lines of intro pushed the first field off a phone's first screen;
               that nobody steers a date is on the home page and in the questions). */}
           {step === S.identity && (
-            <p className="muted wizard-intro">An original fictional adult. Only who they are and a short dating profile are needed; the rest is optional.</p>
+            <p className="muted wizard-intro">
+              {depth
+                ? "An original fictional adult. Only who they are and a short dating profile are needed; the rest is optional."
+                : "An original fictional adult, in three steps. Their voice, look and inner life can wait until after their first date."}
+            </p>
           )}
         </>
       )}
@@ -828,7 +852,13 @@ export default function CreateWizard({
       {!edit && startPair && step === S.identity && <PairPrefill pair={startPair} />}
       {!edit && imported && step === S.identity && <ImportPrefill note={imported} />}
 
-      <Stepper step={step} max={maxStep} onJump={jump} labels={labels} optional={edit ? [] : OPTIONAL_STEPS} />
+      <Stepper
+        step={Math.max(0, track.indexOf(step))}
+        max={track.reduce((far, real, i) => (real <= maxStep ? i : far), 0)}
+        onJump={(i) => jump(track[i] ?? i)}
+        labels={track.map((i) => labels[i])}
+        optional={edit || !depth ? [] : OPTIONAL_STEPS}
+      />
       {livePreview}
       {edit && (
         <ModalSheet open={pictureOpen} onClose={() => setPictureOpen(false)} title={`${shortName(sheet.name || init?.name || "Their")}'s picture`}>
@@ -1151,6 +1181,17 @@ export default function CreateWizard({
         {step === S.review && (
           <fieldset className="wizard-fields">
             <legend className="wizard-legend">{edit ? "Review" : "Review & create"}</legend>
+            {!edit && !depth && (
+              <div className="notice wizard-depth">
+                <p>
+                  <strong>Add depth?</strong> Their voice, how they look, more about them, what makes them deeper, their inner life: five short
+                  optional steps, now or any time from their page.
+                </p>
+                <button type="button" className="secondary small" onClick={addDepth} data-track="create-add-depth">
+                  Add depth now
+                </button>
+              </div>
+            )}
             {fromSample && !edit && (
               <p className="notice wizard-sample-note">
                 <strong>{sheet.name || "A sample character"}</strong>, ready to go. Create them as they are, or change anything first with

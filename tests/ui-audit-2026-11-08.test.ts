@@ -415,7 +415,7 @@ describe("Watch's open rooms (app/watch/StripPager.tsx)", () => {
 describe("smaller things", () => {
   it("cuts Create's intro to one line and hides the empty preview on the first step on a phone", () => {
     const wizard = source("app/create/CreateWizard.tsx");
-    expect(wizard).toContain('<p className="muted wizard-intro">An original fictional adult.');
+    expect(wizard).toMatch(/<p className="muted wizard-intro">\s*\{depth\s*\? "An original fictional adult\./);
     expect(wizard).toMatch(/!edit && step === S\.identity \? " is-first" : ""/);
     expect(source("app/ux/catalog.css")).toMatch(/@media \(max-width: 640px\) \{\s*\.wizard-preview\.is-first \{\s*display: none;/);
   });
