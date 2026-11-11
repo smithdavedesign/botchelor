@@ -36,7 +36,6 @@ import SituationVote from "./SituationVote";
 import TonightBand from "./TonightBand";
 import EpisodeShelf from "./EpisodeShelf";
 import { listLobby } from "@/lib/watch";
-import SeasonBanner from "./SeasonBanner";
 import ShowSince from "./ShowSince";
 import { showSince } from "@/lib/show-since";
 import { dareBoard } from "@/lib/dares";
@@ -124,8 +123,9 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
       // A mixer night is one card (2026-11-08 UI audit, item 2). Its own key: the gate caches listAiredPage as "home:aired".
       forViewer(viewerId, "home:feed", () => listAiredFeed(conn, viewerId, 1, 6)).catch(() => null),
       cachedConstellation(conn).catch(() => null), // the minute-old sky is plenty (2026-11-01 audit, R9)
-      // The audience boards are a creator's: a first visit doesn't show them, so it doesn't pay for them either.
-      myCharactersP.then((mine) => (mine.length ? forViewer(viewerId, "home:situation", () => situationBoard(conn, viewerId)).catch(() => null) : null)),
+      // Tonight's situation is everyone's, as on /watch: the design system's visitor home asks a first visit to pick it
+      // too (all-screens board, 2026-11-11). The other audience boards stay a creator's, so a first visit doesn't pay for them.
+      forViewer(viewerId, "home:situation", () => situationBoard(conn, viewerId)).catch(() => null),
       myCharactersP.then((mine) => (mine.length ? forViewer(viewerId, "home:dares", () => dareBoard(conn, viewerId)).catch(() => null) : null)),
       // Your calls (lib/streaks.ts): your record and run, and how many dates you could still call.
       myCharactersP.then((mine) => (mine.length ? forViewer(viewerId, "home:calls", () => callRecord(conn, viewerId)).catch(() => null) : null)),
@@ -158,9 +158,9 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
   // Next month's newcomers are written from the 20th (lib/season-gen.ts): from then, the cast strip points at them.
   const candidatesOut = new Date().getUTCDate() >= GENERATE_FROM_DAY;
   const creator = myCharacters.length > 0;
-  // A first visit's hero already plays the latest date (the audit, 2026-11-11, 2.1): its band carries only what's on
-  // the air (live rooms, an airing, Sunday's vote) and stays away on a quiet night; a creator's keeps "Just aired".
-  const tonight = <TonightBand rooms={rooms} airing={airing} situation={situation} reveal={reveal} latest={creator ? (airedEpisodes[0] ?? null) : null} now={Date.now()} />;
+  // The band is there for a first visit too, on a quiet night as well (the design system's visitor home, all-screens
+  // board, 2026-11-11): what just aired, what's open for predictions, and what's live, as proof the show is on.
+  const tonight = <TonightBand rooms={rooms} airing={airing} situation={situation} reveal={reveal} latest={airedEpisodes[0] ?? null} now={Date.now()} />;
 
   return (
     <div className="home page-wide">
@@ -168,7 +168,6 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
           pitch first and the band right under it. */}
       {creator && tonight}
       {/* The first week of a month: last season's finale (lib/season-ref.ts). */}
-      {creator && <SeasonBanner format={seasonDef?.title ?? null} />}
       {creator && (
         <section id="start" className="card start-card since-card" aria-labelledby="since-title">
           <div className="section-head">
@@ -260,7 +259,6 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
         </PhoneActionBar>
       )}
       {/* The season's arc for a visitor too (the design system, 2026-11-11): the show has a month, and this is where in it we are. */}
-      {!creator && <SeasonBanner format={seasonDef?.title ?? null} />}
       {!creator && tonight}
       {!creator && showNews && <ShowSince card={showNews} />}
 
