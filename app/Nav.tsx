@@ -209,15 +209,18 @@ export default function Nav({
             )}
           </Link>
         ))}
-        <Link prefetch={pf} href="/notifications" aria-current={pathname === "/notifications" ? "page" : undefined} className="nav-bell">
-          <Icon name="bell" className="nav-bell-icon" />
-          <span className="nav-bell-label">Notifications</span>
-          {unread > 0 && (
-            <span className="nav-count" aria-label={`${unread} unread`}>
-              {unread > 99 ? "99+" : unread}
-            </span>
+        {/* A first visit has nothing to be told yet (the audit, 2026-11-11, 2.6): the bell waits for a viewer of their own. */}
+        {(personal || unread > 0) && (
+          <Link prefetch={pf} href="/notifications" aria-current={pathname === "/notifications" ? "page" : undefined} className="nav-bell">
+            <Icon name="bell" className="nav-bell-icon" />
+            <span className="nav-bell-label">Notifications</span>
+            {unread > 0 && (
+              <span className="nav-count" aria-label={`${unread} unread`}>
+                {unread > 99 ? "99+" : unread}
+              </span>
           )}
         </Link>
+        )}
         {/* On a phone the floating Feedback button sat on forms (UX audit 2026-10-23): it lives in the menu there. */}
         <button
           type="button"

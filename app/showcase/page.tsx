@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import Icon from "@/app/Icon";
 import { myRequests } from "@/lib/showcase-social";
 import { getDb } from "@/lib/db";
 import { pageMetadata } from "@/lib/seo";
@@ -32,8 +33,8 @@ export default async function ShowcasePage({ searchParams }: Props) {
         {/* "Reels", the word on the show's tab (app/ShowTabs.tsx) and the one people type (/reels comes here). */}
         <h1>Reels</h1>
         {/* The same posts and filters, one a screen (app/showcase/reels). */}
-        <Link href={`/showcase/reels${reelsQuery(sp)}`} className="button primary small showcase-reels-link">
-          ▶ Watch full screen
+        <Link href={`/showcase/reels${reelsQuery(sp)}`} className="button secondary small showcase-reels-link">
+          <Icon name="play" /> Watch full screen
         </Link>
       </div>
       <p className="muted">Pictures, clips and date reels their creators chose to share. Everything here was made with AI, and every character is a fictional adult.</p>

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type { CSSProperties } from "react";
 import { cookies } from "next/headers";
 import Link from "next/link";
+import Icon, { type IconName } from "@/app/Icon";
 import PhoneActionBar from "@/app/PhoneActionBar";
 import { redirect } from "next/navigation";
 import Avatar from "@/app/Avatar";
@@ -54,10 +55,10 @@ type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 // How it works, in three rows with an icon (2026-10-31 UX audit, A2): the six feature cards and the four long steps said
 // the same things; what's left of them (the soul, looks, seasons) is in the questions below.
-const STEPS = [
-  { icon: "🎨", title: "Make an original character", body: "A name, a short bio, three traits, a want and a dealbreaker: under a minute. A private soul and their looks if you like." },
-  { icon: "🎲", title: "Send them on a blind date", body: "An engine decides how it ends and the AI writes it as a short episode. Nobody can steer it, not even you." },
-  { icon: "🍿", title: "Watch it air", body: "Friends predict the ending for free points. Characters remember every date, and sparks and rivalries build." },
+const STEPS: { icon: IconName; title: string; body: string }[] = [
+  { icon: "wand", title: "Make an original character", body: "A name, a short bio, three traits, a want and a dealbreaker: under a minute. A private soul and their looks if you like." },
+  { icon: "send", title: "Send them on a blind date", body: "An engine decides how it ends and the AI writes it as a short episode. Nobody can steer it, not even you." },
+  { icon: "tv", title: "Watch it air", body: "Friends predict the ending for free points. Characters remember every date, and sparks and rivalries build." },
 ];
 
 const FAQ = [
@@ -157,7 +158,9 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
   // Next month's newcomers are written from the 20th (lib/season-gen.ts): from then, the cast strip points at them.
   const candidatesOut = new Date().getUTCDate() >= GENERATE_FROM_DAY;
   const creator = myCharacters.length > 0;
-  const tonight = <TonightBand rooms={rooms} airing={airing} situation={situation} reveal={reveal} latest={airedEpisodes[0] ?? null} now={Date.now()} />;
+  // A first visit's hero already plays the latest date (the audit, 2026-11-11, 2.1): its band carries only what's on
+  // the air (live rooms, an airing, Sunday's vote) and stays away on a quiet night; a creator's keeps "Just aired".
+  const tonight = <TonightBand rooms={rooms} airing={airing} situation={situation} reveal={reveal} latest={creator ? (airedEpisodes[0] ?? null) : null} now={Date.now()} />;
 
   return (
     <div className="home page-wide">
@@ -283,7 +286,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
           {STEPS.map((f) => (
             <li className="feature card" key={f.title}>
               <span className="feature-icon" aria-hidden="true">
-                {f.icon}
+                <Icon name={f.icon} />
               </span>
               <div>
                 <h3>{f.title}</h3>

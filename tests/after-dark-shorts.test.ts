@@ -429,7 +429,9 @@ describe("the pages", () => {
     expect(html).toContain("with its video");
     expect(html).not.toContain("Subscribe to unlock");
     const page = await one(short.id);
-    expect(page).toContain("▶ Play");
+    // The play is drawn (the 2026-11-11 audit, chrome emoji → icons); the word stays.
+    expect(page).toMatch(/<svg class="icon"[^>]*>.*?<\/svg> Play<\/button>/s);
+    expect(page).not.toContain("▶ Play");
     for (const words of NIGHT_WORDS) expect(page).not.toContain(words);
     await watch(short.id, sub.cookie);
     const after = await one(short.id);

@@ -199,7 +199,8 @@ describe("an episode page (item 4)", () => {
     expect(talk).toBeGreaterThan(html.indexOf('id="predict"'));
     const plain = renderToStaticMarkup(await EpisodePage({ params: Promise.resolve({ id }), searchParams: Promise.resolve({}) }));
     expect(plain).not.toContain("theater-clean");
-    expect(plain).toContain("🎬 Watch in theater");
+    expect(plain).toContain("Watch in theater");
+    expect(plain).not.toContain("🎬 Watch in theater");
   });
 });
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import Icon from "@/app/Icon";
 import { queueEvent } from "@/app/engagement";
 import Scene from "@/app/Scene";
 import ChatThread from "@/app/ChatThread";
@@ -46,7 +47,7 @@ export default function EpisodeTheater(props: Props) {
   if (!open) {
     return (
       <button type="button" className="primary" onClick={() => setOpen(true)}>
-        🎬 Watch in theater
+        <Icon name="clapper" /> Watch in theater
       </button>
     );
   }
