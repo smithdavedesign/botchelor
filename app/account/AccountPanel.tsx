@@ -6,7 +6,9 @@ import { useRouter } from "next/navigation";
 import { trackConversion } from "../conversion";
 import { requestJson } from "../request";
 import EmailNotifications from "./EmailNotifications";
+import ForgotPassword from "./ForgotPassword";
 import MlConsent from "./MlConsent";
+import PasswordSettings from "./PasswordSettings";
 import YourDates from "./YourDates";
 import CharacterName from "../CharacterName";
 
@@ -42,9 +44,12 @@ export default function AccountPanel({ next = null, emailConfirmed = null }: { n
   const [mode, setModeState] = useState<"login" | "register">("register");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // "Forgot your password?" in place of the sign-in form (lib/account-recovery.ts).
+  const [forgot, setForgot] = useState(false);
   const setMode = (m: "login" | "register") => {
     setModeState(m);
     setError(null);
+    setForgot(false);
     try {
       localStorage.setItem(AUTH_MODE_KEY, m);
     } catch {}
@@ -176,34 +181,47 @@ export default function AccountPanel({ next = null, emailConfirmed = null }: { n
           Optional. Anonymous play already works. An account keeps your characters across devices, lets you keep dates
           private, and bring your own model key. No email needed — a handle is anonymous.
         </p>
-        {me.google_available && (
+        {forgot && mode === "login" ? (
+          <ForgotPassword onBack={() => setForgot(false)} />
+        ) : (
           <>
-            <a className="button-google" href={next ? `/api/auth/google/start?next=${encodeURIComponent(next)}` : "/api/auth/google/start"}>
-              Continue with Google
-            </a>
-            <p className="muted small or-divider">or use a handle</p>
+            {me.google_available && (
+              <>
+                <a className="button-google" href={next ? `/api/auth/google/start?next=${encodeURIComponent(next)}` : "/api/auth/google/start"}>
+                  Continue with Google
+                </a>
+                <p className="muted small or-divider">or use a handle</p>
+              </>
+            )}
+            <form onSubmit={submit}>
+              <label>
+                Handle
+                <input type="text" name="handle" required minLength={3} maxLength={20} autoComplete="username" placeholder="3-20 letters, numbers or _" />
+              </label>
+              <label>
+                Password
+                <input type="password" name="password" required minLength={8} maxLength={200} autoComplete={mode === "register" ? "new-password" : "current-password"} />
+              </label>
+              {mode === "register" && (
+                <label className="check">
+                  <input type="checkbox" name="attest" required />
+                  <span>I&apos;m 18 or older.</span>
+                </label>
+              )}
+              <button type="submit" disabled={busy}>
+                {busy ? "…" : mode === "register" ? "Create account" : "Sign in"}
+              </button>
+            </form>
+            {error && <p className="error">{error}</p>}
+            {mode === "login" && (
+              <p>
+                <button type="button" className="link-button" onClick={() => setForgot(true)}>
+                  Forgot your password?
+                </button>
+              </p>
+            )}
           </>
         )}
-        <form onSubmit={submit}>
-          <label>
-            Handle
-            <input type="text" name="handle" required minLength={3} maxLength={20} autoComplete="username" placeholder="3-20 letters, numbers or _" />
-          </label>
-          <label>
-            Password
-            <input type="password" name="password" required minLength={8} maxLength={200} autoComplete={mode === "register" ? "new-password" : "current-password"} />
-          </label>
-          {mode === "register" && (
-            <label className="check">
-              <input type="checkbox" name="attest" required />
-              <span>I&apos;m 18 or older.</span>
-            </label>
-          )}
-          <button type="submit" disabled={busy}>
-            {busy ? "…" : mode === "register" ? "Create account" : "Sign in"}
-          </button>
-        </form>
-        {error && <p className="error">{error}</p>}
         </div>
       </section>
     );
@@ -243,6 +261,7 @@ export default function AccountPanel({ next = null, emailConfirmed = null }: { n
       {characters.length > 0 && <YourDates />}
 
       {/* The settings below what's theirs (2026-10-31 UX audit, D8: a signed-in page opened on email and training). */}
+      {me.authenticated && me.account?.has_password && <PasswordSettings handle={me.account.handle} />}
       {me.authenticated && <EmailNotifications confirmed={emailConfirmed} />}
       {me.authenticated && <MlConsent />}
 
