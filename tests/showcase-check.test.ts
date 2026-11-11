@@ -110,6 +110,19 @@ describe("the PG check on After Dark's posts", () => {
     expect(await checkCount(t.db)).toBe(0);
   });
 
+  it("leaves clips joined into one reel on After Dark's side: more than five frames can vouch for", async () => {
+    const w = await world();
+    await t.db.query(`insert into adult_images (id, owner_id, character_id, kind, prompt, mime, data, status, level, derived) values ('joined', $1, $2, 'video', 'p', 'video/mp4', $3, 'ready', 0, 'chain')`, [w.me, w.mara, MP4]);
+    const r = await publish(t.db, w.me, { source: "after_dark", media_id: "joined" });
+    expect(r.ok).toBe(true);
+    const targets = (await checkTargets(t.db)).map((x) => x.media_id);
+    expect(targets).toContain("clip");
+    expect(targets).not.toContain("joined");
+    verdict("CLOTHED");
+    await checkBatch(t.db);
+    expect(r.ok && (await side(r.post_id))).toBe("nsfw");
+  });
+
   it("keeps what a check didn't pass explicit (an age doubt held out of sight too), and tries again one it couldn't check", async () => {
     const w = await world();
     setModerationFetchForTests(async () => new Response("busy", { status: 503 }));
