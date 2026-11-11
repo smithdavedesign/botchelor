@@ -47,7 +47,8 @@ export type IconName =
   | "share"
   | "image"
   | "wand"
-  | "more";
+  | "more"
+  | "vote";
 
 const PATHS: Record<IconName, ReactNode> = {
   bell: (
@@ -201,6 +202,13 @@ const PATHS: Record<IconName, ReactNode> = {
       <path d="m14 6 1 1M18 2l1 1M20 8l1 1M15 11l1 1" />
       <path d="m3 21 9-9" />
       <path d="M12.2 6.2 17.8 11.8" />
+    </>
+  ),
+  vote: (
+    <>
+      <path d="m9 12 2 2 4-4" />
+      <path d="M5 7c0-1.1.9-2 2-2h10a2 2 0 0 1 2 2v12H5V7Z" />
+      <path d="M22 19H2" />
     </>
   ),
   more: (

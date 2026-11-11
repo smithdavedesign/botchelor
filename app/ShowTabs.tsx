@@ -8,7 +8,7 @@ import Link from "next/link";
 const TABS = [
   { href: "/watch", label: "Watch" },
   { href: "/showcase", label: "Reels" },
-  { href: "/reunion", label: "Seasons" },
+  { href: "/reunion", label: "Reunion" },
   { href: "/reviews", label: "Reviews" },
   { href: "/graph", label: "Constellation" },
 ] as const;

@@ -38,9 +38,11 @@ ol.home-features {
   gap: var(--space-3);
 }
 .feature-icon {
+  display: inline-flex;
   flex: none;
   font-size: 1.5rem;
   line-height: 1.2;
+  color: var(--accent-text);
 }
 .home-features .feature p {
   margin: 0;
@@ -411,6 +413,13 @@ details.recap-toggle[open] .recap-toggle-hide {
 .watch-dock,
 .watch-sheet-backdrop {
   display: none;
+}
+/* One call per screen (the audit, 2026-11-11, Part 3): beside the sidebar, the pre-show card leaves the prediction to the
+   panel's Vote tab (which opens on it); on a phone, where the panel is a sheet, the card keeps its one-tap call. */
+@media (min-width: 60rem) {
+  .watch-preshow .watch-predict.is-compact {
+    display: none;
+  }
 }
 @media (max-width: 59.99rem) {
   .watch:has(> .watch-dock) {

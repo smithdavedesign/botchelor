@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Avatar from "@/app/Avatar";
+import Icon from "@/app/Icon";
 import AfterDarkTheater from "@/app/after-dark/[a]/[b]/AfterDarkTheater";
 import { requestJson } from "@/app/request";
 import type { TwoSides } from "@/lib/adult/monologues";
@@ -72,7 +73,17 @@ export default function ShortEpisode({
       {!episode && canCall && <CallIt id={id} names={names} initial={call} onCall={setCall} />}
       <p>
         <button type="button" className="primary" disabled={busy} onClick={() => void play()}>
-          {busy ? "Loading…" : episode ? "🎬 Watch in theater" : "▶ Play"}
+          {busy ? (
+            "Loading…"
+          ) : episode ? (
+            <>
+              <Icon name="clapper" /> Watch in theater
+            </>
+          ) : (
+            <>
+              <Icon name="play" /> Play
+            </>
+          )}
         </button>
         {!episode && canCall && <span className="muted small"> {call ? " Your call locks when it plays." : " Pressing play closes calls on it."}</span>}
       </p>

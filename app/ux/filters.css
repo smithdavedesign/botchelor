@@ -52,12 +52,22 @@
     flex-wrap: nowrap;
     overflow-x: auto;
     scrollbar-width: none;
+    /* The row fades at the edge it scrolls toward, as .tabs does (app/globals.css), so a chip past the edge shows there's
+       more: the companions' "House cast" sat half off a 390px screen with no cue (the audit, 2026-11-11). */
+    mask-image: linear-gradient(to right, black calc(100% - 1.5rem), transparent);
     margin-left: calc(-1 * var(--gutter));
     margin-right: calc(-1 * var(--gutter));
     padding: 0 var(--gutter) 2px;
   }
   .filter-pills::-webkit-scrollbar {
     display: none;
+  }
+  @supports (animation-timeline: scroll()) {
+    .filter-pills {
+      mask-image: linear-gradient(to right, transparent, black var(--tabs-fade-l), black calc(100% - var(--tabs-fade-r)), transparent);
+      animation: tabs-fade linear both;
+      animation-timeline: scroll(self inline);
+    }
   }
 }
 /* A finger gets a 44px target. */

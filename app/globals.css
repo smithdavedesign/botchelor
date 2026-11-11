@@ -2529,7 +2529,9 @@ main:has(> .watch) {
   margin: 0;
 }
 .venue-chip {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
   margin: 0 0 0.5rem;
   padding: 0.15rem 0.6rem;
   border-radius: 999px;

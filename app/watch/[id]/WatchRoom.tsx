@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import Avatar from "@/app/Avatar";
+import Icon from "@/app/Icon";
 import Scene from "@/app/Scene";
 import ChatThread from "@/app/ChatThread";
 import { useReplay } from "@/app/useReplay";
@@ -256,7 +257,15 @@ export default function WatchRoom({ initial }: { initial: RoomState }) {
           </span>
           <span className="chip">{state.clock.started ? state.clock.phase_label : "Starting…"}</span>
           <button type="button" className={state.clock.ended ? "primary small" : "secondary small"} onClick={() => setTheater(true)}>
-            {state.clock.ended ? "▶ Watch the replay" : "🎬 Theater mode"}
+            {state.clock.ended ? (
+              <>
+                <Icon name="play" /> Watch the replay
+              </>
+            ) : (
+              <>
+                <Icon name="clapper" /> Theater mode
+              </>
+            )}
           </button>
         </div>
       </header>
@@ -300,11 +309,11 @@ export default function WatchRoom({ initial }: { initial: RoomState }) {
         <nav className="watch-dock" aria-label="The room">
           {/* Filled only while there's something to vote on. */}
           <button type="button" className={`watch-dock-btn${voteLive(state) ? "" : " secondary"}`} onClick={() => setSheet("vote")}>
-            🗳️ Vote
+            <Icon name="vote" /> Vote
             {voteLive(state) && <span className="room-tab-live" aria-label="open now" />}
           </button>
           <button type="button" className="watch-dock-btn secondary" onClick={() => setSheet("chat")}>
-            💬 Chat
+            <Icon name="chat" /> Chat
             {state.messages.length > 0 && <span className="room-tab-count">{state.messages.length}</span>}
           </button>
         </nav>
@@ -430,7 +439,7 @@ function Theater({
             )}
             {!open && (
               <button type="button" className="theater-pill" onClick={() => showSide(true)}>
-                💬 Chat &amp; vote
+                <Icon name="chat" /> Chat &amp; vote
                 {voteLive(state) && <span className="room-tab-live" aria-label="voting open" />}
               </button>
             )}
@@ -530,7 +539,9 @@ function Stage({ state, onPredict, preshowLeft }: { state: RoomState; onPredict:
   return (
     <>
       <section className="card watch-set">
-        {(state.place_name ?? state.venue_name) && <p className="venue-chip">📍 {state.place_name ?? state.venue_name}</p>}
+        {(state.place_name ?? state.venue_name) && <p className="venue-chip">
+            <Icon name="pin" /> {state.place_name ?? state.venue_name}
+          </p>}
         <p>{state.setting}</p>
         <ul className="watch-goals">
           {state.goals.map((g) => {

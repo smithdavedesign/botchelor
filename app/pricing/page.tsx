@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { formatPrice, PACK_5 } from "@/lib/catalog";
-import { COMPANION_EXTRAS, COMPANION_FAIR_USE_PER_MONTH, companionOpen } from "@/lib/companion-shared";
+import { COMPANION_EXTRAS, COMPANION_FAIR_USE_PER_MONTH, companionGuestReplies, companionGuestsOpen, companionOpen } from "@/lib/companion-shared";
 import { companionFreePerDay } from "@/lib/companion-plan";
 import { planLink, planPrice, PLANS } from "@/lib/paid-plans";
 import { FREE_EPISODES_PER_SEASON } from "@/lib/rules";
@@ -41,7 +41,12 @@ export default function PricingPage() {
               {FREE_EPISODES_PER_SEASON} dates a week for your characters, back every Monday at 00:00 UTC
             </li>
             <li>Watch every date, predict how they end, vote and swipe, always free</li>
-            {companions && <li>{companionFreePerDay()} companion replies a day</li>}
+            {companions && (
+              <li>
+                {companionFreePerDay()} companion replies a day with a free account
+                {companionGuestsOpen() ? ` (${companionGuestReplies()} to try without one)` : ""}
+              </li>
+            )}
             <li>No account needed to start</li>
           </ul>
           <Link className="button" href="/create" data-track="pricing-free">
@@ -90,9 +95,9 @@ export default function PricingPage() {
         )}
 
         <li className="pricing-card" id="own-key">
-          <h2>Your own key</h2>
+          <h2>Bring your own key</h2>
           <p className="pricing-price">
-            $0 <span className="muted small">from us</span>
+            $0 <span className="muted small">from us: you pay the provider</span>
           </p>
           <ul>
             <li>Your characters&apos; lines on dates and texts run on your own model account</li>
