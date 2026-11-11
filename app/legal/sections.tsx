@@ -34,7 +34,7 @@ export const LAST_UPDATED = "Last updated 24 October 2026.";
 export const TERMS_PRIVACY_UPDATED = "Last updated 10 November 2026.";
 /** What changed last time, in a line. */
 export const PRIVACY_CHANGES =
-  "Changed: the Sunday letter, a weekly email you can sign up for (confirmed by email, with an unsubscribe in every letter, and an address taken off when its emails bounce or are reported as spam); who hosts the show and carries its traffic (DigitalOcean and Cloudflare, no longer Vercel), and that the show's model is reached through OpenRouter; live calls with a companion, where they're offered: Deepgram hears your voice and makes the companion's, and the terms say how call minutes are charged. Before that (1 November): Analytics names the three events our own dashboard counts (visit, activate, checkout) and says the site you came from goes with a visit only when it's another site; the terms state the pack's price. Before that (24 October): who runs Botchelor, After Dark's data and where it's offered, the location and age we read, everyone who processes data, your rights, and the complaint form.";
+  "Changed: a recovery email you can add to a handle-and-password account, used only to reset a forgotten password and to tell you when the password or that address changes; the Sunday letter, a weekly email you can sign up for (confirmed by email, with an unsubscribe in every letter, and an address taken off when its emails bounce or are reported as spam); who hosts the show and carries its traffic (DigitalOcean and Cloudflare, no longer Vercel), and that the show's model is reached through OpenRouter; live calls with a companion, where they're offered: Deepgram hears your voice and makes the companion's, and the terms say how call minutes are charged. Before that (1 November): Analytics names the three events our own dashboard counts (visit, activate, checkout) and says the site you came from goes with a visit only when it's another site; the terms state the pack's price. Before that (24 October): who runs Botchelor, After Dark's data and where it's offered, the location and age we read, everyone who processes data, your rights, and the complaint form.";
 
 /** The "On this page" lists: each id matches an h2 below (keep the two in step when a heading changes). */
 export const TERMS_HEADINGS = [
@@ -588,8 +588,10 @@ export function PrivacySections() {
         <li>
           An anonymous random ID in a cookie, which keeps your characters, picks, leagues and purchases together. An
           account (a handle and password, or Google sign-in) is optional; if you make one, it&apos;s attached to that same
-          ID and we store the handle and, for Google, the account identifier and email Google gives us. Signing in sets a
-          signed session cookie (<code>bz_sess</code>). Other small cookies remember the 18+ confirmation, your analytics
+          ID and we store the handle and, for Google, the account identifier and email Google gives us. A handle account
+          can add a recovery email: we use it only to send a link to choose a new password when you ask for one, and to
+          tell you when your password or that address changes. Signing in sets a signed session cookie
+          (<code>bz_sess</code>). Other small cookies remember the 18+ confirmation, your analytics
           choice and a few display settings.
         </li>
         <li>Your character sheets and the episodes written from them, and a display name if you set one.</li>
@@ -777,7 +779,11 @@ export function PrivacySections() {
           kept as long as your account, as the record of what you agreed to and when.
         </li>
         <li>The log of an agent&apos;s tool calls: 400 days.</li>
-        <li>The keyed hash of your IP address that limits how many dates one connection starts, and how many sign-ups to the Sunday letter: two days.</li>
+        <li>
+          The keyed hash of your IP address that limits how many dates one connection starts, how many sign-ups to the Sunday
+          letter and how many password reset requests it makes, and counts wrong passwords: two days.
+        </li>
+        <li>A recovery email: until you remove it or delete your account.</li>
         <li>
           The Sunday letter: your address while you&apos;re subscribed, and after you leave so it gets nothing more (see{" "}
           <a href="#newsletter">above</a>); an unconfirmed sign-up 30 days; which letters went to you 90 days; whether each

@@ -25,6 +25,8 @@ export type AccountExport = {
   exported_at: string;
   user_id: string;
   profile: { name: string; attested_adult_at: string } | null;
+  /** The sign-in itself: the handle, the email on it (Google's, or the recovery email) and how it signs in. Never the password's hash. */
+  account: { handle: string | null; email: string | null; signs_in_with: string[]; created_at: string } | null;
   points: number;
   characters: Record<string, unknown>[];
   souls: Record<string, unknown>[];
@@ -103,10 +105,26 @@ export async function exportAccount(db: Db, userId: string): Promise<AccountExpo
   const profile = profileRows[0]
     ? { name: String(profileRows[0].name), attested_adult_at: String(profileRows[0].attested_adult_at) }
     : null;
+  const accountRow = (
+    await db.query<{ handle: string | null; email: string | null; google: boolean; password: boolean; created_at: Date | string }>(
+      `select handle_display as handle, email, google_sub is not null as google, password_hash is not null as password, created_at
+         from accounts where user_id = $1`,
+      [userId],
+    )
+  ).rows[0];
+  const account = accountRow
+    ? {
+        handle: accountRow.handle,
+        email: accountRow.email,
+        signs_in_with: [...(accountRow.password ? ["password"] : []), ...(accountRow.google ? ["google"] : [])],
+        created_at: new Date(accountRow.created_at).toISOString(),
+      }
+    : null;
   return {
     exported_at: new Date().toISOString(),
     user_id: userId,
     profile,
+    account,
     points: await getPoints(db, userId),
     characters: await q(
       `select id, name, age, bio, traits, want, dealbreaker, appearance, avatar_hue, premium_sku, pronouns, voice, extras,

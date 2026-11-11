@@ -60,6 +60,15 @@ export function faqs(env: Env = process.env): Faq[] {
       ],
     },
     {
+      id: "forgot-password",
+      q: "I forgot my password. Can I get my account back?",
+      a: [
+        "Yes, if your handle account has a recovery email. Under Sign in on your ",
+        { text: "account page", href: "/account" },
+        ", press Forgot your password? and type your handle or that email. A link to choose a new one comes by email, and it works for an hour. If you signed up with Google, use Continue with Google: there's no password to reset. A handle needs no email, so add a recovery email on your account page while you can still sign in.",
+      ],
+    },
+    {
       id: "real",
       q: "Are the characters real people?",
       a: [

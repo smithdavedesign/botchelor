@@ -279,10 +279,13 @@ export async function clearPin(db: Db, userId: string, now = Date.now()): Promis
 /** How this account can prove it's the owner: a code to its confirmed email (shown masked), else its password. */
 export type ResetWays = { email: string | null; password: boolean };
 
-/** The account's confirmed address: its Google sign-in email, else the notification address it confirmed. */
+/**
+ * The account's confirmed address: the email on the account (Google's, or a recovery email the owner confirmed,
+ * lib/account-recovery.ts), else the notification address it confirmed.
+ */
 async function accountEmail(db: Db, userId: string): Promise<string | null> {
-  const a = (await db.query<{ email: string | null; google_sub: string | null }>(`select email, google_sub from accounts where user_id = $1`, [userId])).rows[0];
-  if (a?.google_sub && a.email) return a.email;
+  const a = (await db.query<{ email: string | null }>(`select email from accounts where user_id = $1`, [userId])).rows[0];
+  if (a?.email) return a.email;
   const p = (await db.query<{ email: string }>(`select email from email_prefs where user_id = $1 and confirmed_at is not null`, [userId])).rows[0];
   return p?.email ?? null;
 }

@@ -47,6 +47,11 @@ Server components read identity with `userIdFromCookieStore`; routes use `sessio
 | `POST /api/auth/login` | Verify handle+password; the session id becomes that account's id (its characters and dates). |
 | `POST /api/auth/logout` | Clear the session, drop back to a fresh anonymous identity. |
 | `GET /api/auth/google/start` → `…/callback` | Google OAuth: a signed `state` cookie (CSRF), code exchanged server-side, the `id_token` read from Google's TLS response. Links Google to the current anonymous id, or logs into the existing account for that Google sub. |
+| `POST /api/auth/password` | Change the password: the current one first (wrong tries count as failed sign-ins). |
+| `GET/POST/DELETE /api/auth/recovery` | The recovery email: read it, add or change it (current password, then a confirmation link), remove it. |
+| `POST /api/auth/recovery/confirm?t=` | The confirmation page's button (`/email/confirm-recovery`) puts the address on the account. |
+| `POST /api/auth/forgot` | "Forgot your password?": `{ who }` is a handle or a recovery email. Always the same answer. |
+| `POST /api/auth/reset` | `{ t }` says whether a reset link still works; `{ t, password }` sets the password and signs in. |
 
 - **Passwords**: scrypt with a per-password salt, constant-time verify. Login verifies even on an unknown
   handle, so timing doesn't reveal whether a handle exists.
@@ -54,6 +59,38 @@ Server components read identity with `userIdFromCookieStore`; routes use `sessio
   display name (for leagues and reveals) is separate.
 - **Google** stays hidden until `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` are set. Owner action:
   create a Web OAuth client, redirect URI `https://botchelor.com/api/auth/google/callback`.
+
+### Getting back in (`lib/account-recovery.ts`, 2026-11-10)
+
+A handle needs no email, so a forgotten password used to lose the account for good. Now:
+
+- **The recovery email** is `accounts.email`, the column Google sign-in fills with Google's verified address, so an
+  address is on one account at most. Adding or changing it takes the current password, so a minute with someone's
+  signed-in browser isn't enough to plant an address and take the account later. A new address counts once the button
+  on `/email/confirm-recovery` is pressed (two days); an address the account already confirmed for its notifications
+  counts at once. The request never says whether an address is on another account: only the person who clicks its link
+  hears that. Removing it takes the password too.
+- **"Forgot your password?"** (under Sign in, and "Forgot it? Email me a link" on a signed-in account page) takes the
+  handle or the recovery email and always answers the same; the email goes after the answer (`after()`), so the time
+  taken doesn't tell either. People only (a bot user agent gets 403), 5 an hour and 20 a day from one connection, and an
+  account gets at most 3 links a day, one a minute.
+- **The reset link** is `/email/reset-password#t=…`. The token sits after the `#`, so it never reaches a server log, a
+  Referer header or GA4 (which records page addresses with their query strings), and the page takes it out of the
+  address bar. It lasts an hour and works once: it's an HMAC over the account, the expiry and the account's current
+  password hash (not in the token), so any new password ends every link sent before it. Setting the password signs that
+  browser in.
+- **Changing the password** (`/account#password`, which `/.well-known/change-password` points password managers at)
+  takes the current one; wrong tries count against the sign-in limits (`lib/login-guard.ts`).
+- **The owner hears about changes:** a new password emails the recovery address, and a changed or removed recovery
+  email emails the address that was on the account.
+- After Dark's PIN reset (`lib/adult/privacy.ts`) sends its code to the account's email first, so a confirmed recovery
+  email works there too.
+- **Not yet: signing other browsers out.** Sessions are signed cookies with no server-side store, so a new password
+  doesn't end a session someone else already has. That needs a session store or a per-account "sessions since" check on
+  every request.
+
+Emails go through `sendAccountEmail` (lib/email.ts): inside `EMAIL_DAILY_CAP`, logged in `email_sends` as
+`password_reset`, `recovery_confirm`, `password_changed` and `recovery_changed`. Tests: `tests/account-recovery.test.ts`.
 
 `/api/me` reports `{ authenticated, account: { handle, has_password, has_google } | null, accounts_available,
 google_available }`. `deleteAccount` (unchanged privacy flow) removes the account row too, cascading its keys.

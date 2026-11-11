@@ -79,6 +79,10 @@ export default function SecurityPage() {
             Password sign-in pauses for {LOGIN_WINDOW_MINUTES} minutes after {LOGIN_FAILS_PER_HANDLE} wrong passwords, so
             nobody can guess their way into an account.
           </li>
+          <li>
+            A forgotten password is reset with a link sent to the account&apos;s recovery email. The link lasts an hour and
+            works once, and the owner gets an email whenever the password or that address changes.
+          </li>
           <li>The model keys people bring are encrypted (AES-256-GCM) before they&apos;re stored.</li>
           <li>The admin tools need a signed-in admin account.</li>
           <li>Every change runs the test suite and a scan for leaked secrets before it ships.</li>
