@@ -42,15 +42,16 @@ describe("the header's date meter", () => {
   });
 });
 
-// Five doors since the 2026-11-07 product review (David: "do 1-5"): Watch · Dating · Characters · (Companions) ·
-// Account. The Constellation and the Showcase moved under Watch — the ShowTabs strip on every spectator surface —
+// Four doors: Watch · Dating · Characters · Account (the 2026-11-07 product review's five, less Companions since the
+// 2026-11-11 audit: it's a way to meet a character, so every character card carries Talk and /characters points at the
+// directory). The Constellation and the Showcase live under Watch — the ShowTabs strip on every spectator surface —
 // which supersedes the 2026-11-01 "Constellation stays in the nav" call, with David's sign-off on the review plan.
-describe("the five-door nav", () => {
+describe("the four-door nav", () => {
   it("shows the doors and nothing else; Dating is one door at /matches", () => {
     const owner = renderToStaticMarkup(createElement(Nav, { tokens: 3, hasCharacter: true }));
     expect(owner).toMatch(/<a[^>]*href="\/matches"[^>]*>Dating/);
     for (const href of ["/watch", "/characters", "/account"]) expect(owner).toContain(`href="${href}"`);
-    for (const gone of ["/graph", "/showcase", "/swipe"]) expect(owner).not.toContain(`href="${gone}"`);
+    for (const gone of ["/graph", "/showcase", "/swipe", "/companion"]) expect(owner).not.toContain(`href="${gone}"`);
     const newcomer = renderToStaticMarkup(createElement(Nav, { tokens: 3, hasCharacter: false }));
     expect(newcomer).not.toContain('href="/matches"');
     expect(newcomer).toContain('href="/create"');

@@ -29,13 +29,12 @@ const NEWCOMER_LINKS: readonly NavLink[] = [
   { href: "/account", label: "Account" },
 ];
 
-const COMPANIONS_LINK: NavLink = { href: "/companion", label: "Companions" };
-/** The links for this viewer: Companions (once open) after Dating, or after Characters for a newcomer. */
-function navLinks(hasCharacter: boolean, companions: boolean): readonly NavLink[] {
-  const base = hasCharacter ? OWNER_LINKS : NEWCOMER_LINKS;
-  if (!companions) return base;
-  const after = base.findIndex((l) => l.href === (hasCharacter ? "/matches" : "/characters"));
-  return [...base.slice(0, after + 1), COMPANIONS_LINK, ...base.slice(after + 1)];
+/**
+ * The links for this viewer. Companions is no door of its own (the audit, 2026-11-11, Part 4: a second product behind a
+ * fifth door): every character card carries Talk, /characters points at the directory, and the footer lists it.
+ */
+function navLinks(hasCharacter: boolean): readonly NavLink[] {
+  return hasCharacter ? OWNER_LINKS : NEWCOMER_LINKS;
 }
 
 /** Whether this link is where the viewer is, counting its sibling routes (`also`: /swipe and /messages are Dating). */
@@ -60,7 +59,6 @@ export default function Nav({
   afterDark = false,
   adHost = false,
   hasCharacter = true,
-  companions = false,
   prefetchShow = true,
 }: {
   tokens: number;
@@ -74,8 +72,6 @@ export default function Nav({
   afterDark?: boolean;
   /** On After Dark's own host: the door turns into "Back to the show", and there's no create button. */
   adHost?: boolean;
-  /** Companions are open to everyone (lib/companion-shared.ts companionOpen): their link after Matches. */
-  companions?: boolean;
   /** False on After Dark's own host: the show's links there only redirect, so they aren't prefetched (app/layout.tsx). */
   prefetchShow?: boolean;
 }) {
@@ -203,7 +199,7 @@ export default function Nav({
             Make your character
           </Link>
         )}
-        {navLinks(hasCharacter, companions).map((l) => (
+        {navLinks(hasCharacter).map((l) => (
           <Link prefetch={pf} key={l.href} href={l.href} aria-current={atLink(l, pathname) ? "page" : undefined}>
             {l.label}
             {l.href === "/matches" && texts > 0 && (

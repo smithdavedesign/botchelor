@@ -183,7 +183,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
               <span>After Dark</span>
             </span>
           )}
-          <Nav tokens={adHost && viewerId ? (adTokens ?? dates.pack_left) : dates.left} meter={adHost && viewerId ? "tokens" : "dates"} personal={Boolean(viewerId)} unread={unread} texts={texts} afterDark={afterDark} adHost={adHost} hasCharacter={hasCharacter} companions={!adHost && companionOpen()} prefetchShow={!adHost} />
+          <Nav tokens={adHost && viewerId ? (adTokens ?? dates.pack_left) : dates.left} meter={adHost && viewerId ? "tokens" : "dates"} personal={Boolean(viewerId)} unread={unread} texts={texts} afterDark={afterDark} adHost={adHost} hasCharacter={hasCharacter} prefetchShow={!adHost} />
         </header>
         <main id="main">{children}</main>
         <footer className="site-footer">
@@ -195,6 +195,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
           <nav className="footer-groups" aria-label="More of the site">
             <FooterGroup title="The show">
               <li><Link prefetch={showPrefetch} href="/graph">The Constellation</Link></li>
+              {!adHost && companionOpen() && <li><Link prefetch={showPrefetch} href="/companion">Companions</Link></li>}
               <li><Link prefetch={showPrefetch} href="/prompts">Prompts library</Link></li>
               <li><Link prefetch={showPrefetch} href="/shop">{adHost ? "Tokens" : "More dates"}</Link></li>
               {!adHost && <li><Link prefetch={showPrefetch} href="/pricing">Pricing</Link></li>}

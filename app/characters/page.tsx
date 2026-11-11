@@ -11,6 +11,8 @@ import JsonLd from "@/app/JsonLd";
 import OriginBadge from "@/app/OriginBadge";
 import { forViewer, shared } from "@/lib/shared-cache";
 import { getDb } from "@/lib/db";
+import TalkButton from "@/app/companion/TalkButton";
+import { companionOpen } from "@/lib/companion-shared";
 import { directoryEntries, listTab, offSeasonHouse, privateAmong, tabCounts, type DirectoryEntry } from "@/lib/directory";
 import { authFromCookieStore, userIdFromCookieStore } from "@/lib/http";
 import { stepInAllowed } from "@/lib/step-in";
@@ -66,7 +68,7 @@ function PrivateName({ name }: { name: string }) {
 }
 
 /** `origin={false}` on the cast tab, where every card is the show's own and a "Cast" chip on each says nothing. */
-function Entry({ e, badge, origin = true }: { e: DirectoryEntry; badge?: string; origin?: boolean }) {
+function Entry({ e, badge, origin = true, talk = false }: { e: DirectoryEntry; badge?: string; origin?: boolean; talk?: boolean }) {
   if (e.private) {
     return (
       <li className="card is-private">
@@ -119,6 +121,13 @@ function Entry({ e, badge, origin = true }: { e: DirectoryEntry; badge?: string;
           </li>
         ))}
       </ul>
+      {/* Talk, on the card (the audit, 2026-11-11, Part 4): the companion is a way to meet a character, not a door of
+          its own. The thread opens with the first reply (app/companion/TalkButton.tsx). */}
+      {talk && (
+        <p className="dir-talk">
+          <TalkButton characterId={e.id} name={e.name} label="Talk" className="button secondary small" />
+        </p>
+      )}
     </li>
   );
 }
@@ -164,6 +173,13 @@ export default async function CharactersPage({ searchParams }: Props) {
           </Link>
         ))}
       </nav>
+      {/* The companions' own directory (search, filters, who's on the show now) one line down, now that it's no door of
+          the nav's (the audit, 2026-11-11, Part 4). */}
+      {companionOpen() && (
+        <p className="characters-talk muted">
+          <Link href="/companion">Talk with any of them, one to one: the companions →</Link>
+        </p>
+      )}
       {/* Awaited here, not rendered as async components, so the whole page is one server render (and testable). */}
       {tab === "cast" ? await castTab({ season, thisId, castIds, now, pairsPage: parsePage(sp.pairs), viewerId }) : await madeByTab({ tab, page: pageOf(sp.page), privateCount: counts.private, viewerId })}
     </article>
@@ -171,6 +187,8 @@ export default async function CharactersPage({ searchParams }: Props) {
 }
 
 async function castTab({ season, thisId, castIds, now, pairsPage, viewerId }: { season: DirectoryEntry[]; thisId: string; castIds: string[]; now: Date; pairsPage: number; viewerId: string | null }) {
+  // Talk on every card once companions are open (lib/companion-shared.ts).
+  const talk = companionOpen();
   const db = await getDb();
   // Step into the date (lib/step-in.ts): for whoever it's open to (admins until STEP_IN_OPEN).
   const stepIn = await stepInAllowed(db, authFromCookieStore(await cookies())).catch(() => false);
@@ -215,7 +233,7 @@ async function castTab({ season, thisId, castIds, now, pairsPage, viewerId }: { 
         <p className="muted">The show&apos;s own. Each month the two best-reviewed stay and two newcomers join.</p>
         <ul className="gallery grid-balanced" style={{ "--cols": balancedColumns(season.length, 4) } as CSSProperties}>
           {season.map((e) => (
-            <Entry key={e.id} e={e} origin={false} />
+            <Entry key={e.id} e={e} origin={false} talk={talk} />
           ))}
         </ul>
       </section>
@@ -362,7 +380,7 @@ async function castTab({ season, thisId, castIds, now, pairsPage, viewerId }: { 
           <p className="muted small">House characters from earlier seasons, and the premium ones. Their cards and dates stay up.</p>
           <ul className="gallery">
             {earlier.map((e) => (
-              <Entry key={e.id} e={e} origin={false} />
+              <Entry key={e.id} e={e} origin={false} talk={talk} />
             ))}
           </ul>
         </details>
@@ -372,6 +390,8 @@ async function castTab({ season, thisId, castIds, now, pairsPage, viewerId }: { 
 }
 
 async function madeByTab({ tab, page, privateCount, viewerId }: { tab: "people" | "agents"; page: number; privateCount: number; viewerId: string | null }) {
+  // Talk on every card once companions are open (lib/companion-shared.ts).
+  const talk = companionOpen();
   const db = await getDb();
   const list = await forViewer(viewerId, `characters:${tab}:${page}`, () => listTab(db, tab, page));
   const what = tab === "people" ? "characters made by people" : "characters made by AI agents";
@@ -399,7 +419,7 @@ async function madeByTab({ tab, page, privateCount, viewerId }: { tab: "people" 
       {list.entries.length ? (
         <ul className="gallery">
           {list.entries.map((e) => (
-            <Entry key={e.id} e={e} />
+            <Entry key={e.id} e={e} talk={talk} />
           ))}
         </ul>
       ) : (

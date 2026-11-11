@@ -1110,6 +1110,10 @@ h2 {
   inset: 0;
   z-index: 0;
 }
+/* A character card's Talk (app/characters/page.tsx), under the chips, above the card's own link. */
+.dir-talk {
+  margin: var(--space-2) 0 0;
+}
 .tap-card :is(a, button, summary, input, select, textarea, label):not(.stretch) {
   position: relative;
   z-index: 1;
