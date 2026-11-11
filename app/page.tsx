@@ -18,6 +18,7 @@ import When from "@/app/When";
 import { cachedConstellation } from "@/lib/graph-cache";
 import { PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
 import { seasonCastCards } from "@/lib/season-cast";
+import { seasonFormatNow } from "@/lib/season-format-store";
 import { GENERATE_FROM_DAY } from "@/lib/season-gen";
 import { userIdFromCookieStore } from "@/lib/http";
 import { ownedSkus } from "@/lib/payments";
@@ -103,7 +104,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
       ? Promise.all([sinceYouWereHere(db, viewerId, mine).catch(() => []), countNotifications(db, viewerId, { unread: true }).catch(() => 0)])
       : [[], 0],
   );
-  const [owned, tokens, myCharacters, [since, unread], profileName, sharer, showNews, [aired, sky, situation, dares, record, airing, rooms, onSeason, reveal]] = await Promise.all([
+  const [owned, tokens, myCharacters, [since, unread], profileName, sharer, showNews, [aired, sky, situation, dares, record, airing, rooms, onSeason, reveal, seasonDef]] = await Promise.all([
     db && viewerId ? ownedSkus(db, viewerId) : Promise.resolve<string[]>([]),
     db && viewerId ? episodeAllowance(db, viewerId) : freshAllowance(),
     myCharactersP,
@@ -132,6 +133,8 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
       shared("season-cast", () => seasonCastCards(conn)),
       // Sunday's reveal (lib/weekly-reveal.ts): the tonight band points at it while its vote is open, for everyone.
       forViewer(viewerId, "home:reveal", () => revealBoard(conn, viewerId)).catch(() => null),
+      // This season's format, for the arc under the header (the same cached read /watch makes).
+      shared("watch:season-format", () => seasonFormatNow(conn)).catch(() => null),
     ]),
   ]);
 
@@ -160,7 +163,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
           pitch first and the band right under it. */}
       {creator && tonight}
       {/* The first week of a month: last season's finale (lib/season-ref.ts). */}
-      {creator && <SeasonBanner />}
+      {creator && <SeasonBanner format={seasonDef?.title ?? null} />}
       {creator && (
         <section id="start" className="card start-card since-card" aria-labelledby="since-title">
           <div className="section-head">
@@ -250,6 +253,8 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
           </Link>
         </PhoneActionBar>
       )}
+      {/* The season's arc for a visitor too (the design system, 2026-11-11): the show has a month, and this is where in it we are. */}
+      {!creator && <SeasonBanner format={seasonDef?.title ?? null} />}
       {!creator && tonight}
       {!creator && showNews && <ShowSince card={showNews} />}
 

@@ -920,7 +920,8 @@ h2 {
   .nav a.nav-cta-compact {
     display: inline-flex;
   }
-  .nav-ad-link-out {
+  /* Outranks .icon's own display, which comes later in the sheet. */
+  .nav a.nav-ad-link .nav-ad-link-out {
     display: none;
   }
   .nav-links a {

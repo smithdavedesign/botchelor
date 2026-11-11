@@ -91,12 +91,21 @@ export const metadata: Metadata = {
 };
 
 /** The browser's bar (and an installed app's status bar) in the page's own paper colour, light or dark (docs/brand.md). */
-export const viewport: Viewport = {
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: PAPER_LIGHT },
-    { media: "(prefers-color-scheme: dark)", color: PAPER_DARK },
-  ],
-};
+/** …and a picked theme (lib/theme.ts) colours the bar to match, whatever the device says. */
+export async function generateViewport(): Promise<Viewport> {
+  const theme = themeFromCookie((await cookies()).get(THEME_COOKIE)?.value);
+  return {
+    themeColor:
+      theme === "system"
+        ? [
+            { media: "(prefers-color-scheme: light)", color: PAPER_LIGHT },
+            { media: "(prefers-color-scheme: dark)", color: PAPER_DARK },
+          ]
+        : theme === "dark"
+          ? PAPER_DARK
+          : PAPER_LIGHT,
+  };
+}
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
   // The nav's token meter needs this viewer's dates left. Without an identity (a newcomer before their first action, or an

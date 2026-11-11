@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Icon from "@/app/Icon";
 import { siteUrl } from "@/lib/site";
 import VerifyAge from "./VerifyAge";
 
@@ -11,7 +12,9 @@ export default function Unavailable({ reason, verify = null }: { reason: string 
   return (
     <div className="after-dark-mode">
       <article className="after-dark" data-after-dark-unavailable>
-        <p className="kicker">🌙 After Dark</p>
+        <p className="kicker">
+          <Icon name="moon" /> After Dark
+        </p>
         <h1>Not available where you are</h1>
         <p>{reason ?? "After Dark isn't offered where you're connecting from."}</p>
         {verify && <VerifyAge failed={verify === "failed"} opens="all" />}

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
+import Icon from "@/app/Icon";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import WaitlistForm from "@/app/WaitlistForm";
@@ -45,7 +46,9 @@ export default async function AfterDarkSubscribe({ searchParams }: { searchParam
     return (
       <div className="after-dark-mode">
         <article className="after-dark">
-          <p className="kicker">🌙 After Dark</p>
+          <p className="kicker">
+            <Icon name="moon" /> After Dark
+          </p>
           <h1>The private side of the season</h1>
           <AgeResult age={params.age} />
           <p>
@@ -89,7 +92,9 @@ export default async function AfterDarkSubscribe({ searchParams }: { searchParam
   return (
     <div className="after-dark-mode">
       <article className="after-dark" data-subscribe>
-        <p className="kicker">🌙 After Dark</p>
+        <p className="kicker">
+          <Icon name="moon" /> After Dark
+        </p>
         <h1>The private side of the season</h1>
         <AgeResult age={params.age} />
         {params.done === "1" && (

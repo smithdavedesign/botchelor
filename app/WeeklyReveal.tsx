@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import Avatar from "./Avatar";
+import Reveal from "./Reveal";
 import { requestJson } from "./request";
 import { useAction } from "./useAction";
 import { countdown } from "@/lib/countdown";
@@ -114,7 +115,29 @@ export default function WeeklyReveal({ board, now }: { board: RevealBoard; now: 
         </ul>
       )}
       {error && <p className="error small">{error}</p>}
-      {board.last && <RevealResultLine last={board.last} />}
+      {/* The envelope (app/Reveal.tsx): sealed while the vote is in and the secret is minutes away; opened, with the
+          unseal once per week per browser, as soon as it's out. While a new vote is open the last result is a line. */}
+      {board.state === "closed" && (
+        <Reveal
+          id={`${board.week_id}-sealed`}
+          sealed
+          kicker="This week's envelope"
+          sealedTitle={`Sealed until ${utcTime(board.airs_at)}`}
+          sealedNote={voted ? "Your vote's in. The envelope opens for everyone at once." : "The vote is in. The envelope opens for everyone at once."}
+        />
+      )}
+      {board.last && board.state !== "closed" && board.state !== "open" && (
+        <Reveal
+          id={board.last.week_id}
+          kicker="This week's envelope"
+          who={<Avatar seed={board.last.character_id} name={board.last.name} hue={null} house size={56} decorative />}
+          line={`${board.last.name.split(" ")[0]}'s secret is out`}
+          detail={`“${board.last.secret}”`}
+        >
+          <RevealResultLine last={board.last} />
+        </Reveal>
+      )}
+      {board.last && board.state === "open" && <RevealResultLine last={board.last} />}
     </section>
   );
 }

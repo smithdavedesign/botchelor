@@ -126,7 +126,8 @@ describe("/account/keys: Connections", () => {
     await saveAdultSettings(t.db, { openrouter_key: fakeKey("house"), hive_key: fakeKey("hive") });
     await t.db.query(`insert into adult_media_cooldowns (provider, until, status) values ('hive', now() + interval '2 hours', 429)`);
     const html = await page();
-    expect(html).toContain("🌙 After Dark");
+    // The card's heading wears the moon icon, not the emoji (the design system, 2026-11-11: chrome uses drawn icons).
+    expect(html).toMatch(/<h2 id="after-dark-title"><svg class="icon"[^>]*>[\s\S]*?<\/svg> After Dark<\/h2>/);
     expect(html).toContain("Studio pictures can also run on your own key");
     // After Dark is open to an admin: its own job's card too.
     expect(html).toContain("After Dark pictures");

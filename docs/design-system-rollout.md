@@ -25,19 +25,26 @@ it from here.
 - [x] **After Dark control edges.** `.after-dark-mode --field` `#241a3a` → `#7a5f93` (3.2:1 on the night card).
 - [x] Icons: `clapper`, `arrowUpRight`, `chevronLeft`, `plus`. `docs/brand.md`: Header, Themes.
 
-## Wave 2: the show's pages
+## Wave 2: the show's pages (branch `ds-wave-2`)
 
-- [ ] Home: `LiveNow` presence in the Tonight band's footer ("Kaz is texting Ines now", "3 dates filming",
-      "412 watched tonight"); the hero wash as the one wash.
-- [ ] Watch, episode page, couple, theater: the prediction block's "Just watch" beside the picks; `RoomState`
-      badges (Filming now · Aired · replay · Starts in 0:23); the venue chip; replay controls as a player.
-- [ ] Sunday's reveal: `Reveal` (the envelope's unseal, the one signature motion) with `ShareCard` baked in;
-      `CallsLine` and `BestCallers` as the kit draws them.
-- [ ] `SeasonBanner` as the running arc under the header on spectator pages (today only the "season is over" strip).
-- [ ] States: `PageSkeleton` shapes per route (profile · date · couple · list), `LimitNotice` copy ("when it comes
-      back, then the way around"), every empty state ending in a step (`copy-deck.md`).
-- [ ] Chrome emoji → icons on Matches, Messages, Characters, Create, Account, Notifications (the show's voice keeps
-      its emoji); the five older tests that assert emoji updated with them.
+- [x] Home and Watch: live facts under the Tonight band ("2 dates filming · 7 watching", "Sunday's secret comes out
+      in 20 min"): facts the page already has, never pressure (`app/TonightBand.tsx`).
+- [x] Sunday's reveal: `Reveal` (`app/Reveal.tsx`), the envelope that unseals, the show's one signature motion.
+      Sealed while the vote is in and the secret is minutes away; opened once it's out, and the card now stays on
+      /watch while the result is fresh (it used to vanish at the airing). The unseal plays once per week per browser;
+      prefers-reduced-motion opens it at once. The share stays in `CallsLine`, one card down.
+- [x] `SeasonBanner` is the running arc under the header on home and /watch (season · month · night of 30 · days to
+      the finale · the format), linking to the Reunion; the first week of a month keeps last season's finale strip.
+- [x] Chrome emoji → icons: the season strips' 🎬, After Dark's 🌙 in headings and kickers (teaser, hub, subscribe,
+      unavailable, account), the Companion Plan's 💬. The show's voice keeps its emoji (endings, formats, reactions,
+      notification kinds, the theater's own tools).
+- [x] Theater: the room already says its state in its own words (the "Replay" chip, "N watching", the phase chip with
+      the pre-show countdown) and plays a replay with player controls; the kit's `RoomState` wording isn't adopted
+      over the show's.
+- [x] States: `LimitNotice` wording is already the deck's; `PageSkeleton` shapes exist; every `EmptyState` (Matches,
+      Notifications, Companions) ends in a step.
+- [x] The remaining emoji (the showcase filters' facet names, the Matches status chips, notification kinds) are the
+      show's voice and stay.
 
 ## Wave 3: After Dark
 
