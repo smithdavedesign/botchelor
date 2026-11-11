@@ -861,30 +861,42 @@ details.recap-toggle[open] .recap-toggle-hide {
   margin: 0;
 }
 
-/* A long page's parts in one row of links (the character page, C4): chips that scroll sideways on a phone. */
-.page-jumps {
+/* A long page's parts as tabs (the character page; the design system's underline tabs, 2026-11-11). One row that
+   scrolls sideways on a phone rather than wrapping. */
+.page-tabs {
   display: flex;
-  gap: var(--space-2);
+  gap: var(--space-4);
   overflow-x: auto;
-  margin: var(--space-3) 0;
-  padding-bottom: 2px;
+  margin: var(--space-3) 0 var(--space-4);
+  border-bottom: 1px solid var(--line);
   scrollbar-width: none;
 }
-.page-jumps a {
+.page-tabs [role="tab"] {
   flex: none;
   display: inline-flex;
   align-items: center;
-  min-height: 36px;
-  padding: 0 var(--space-3);
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: var(--card);
-  color: var(--ink);
+  min-height: var(--control-h-sm);
+  margin-bottom: -1px;
+  padding: 0;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: none;
+  color: var(--muted);
+  font: inherit;
   font-size: var(--text-sm);
-  text-decoration: none;
+  font-weight: 600;
+  cursor: pointer;
+}
+.page-tabs [role="tab"]:hover {
+  color: var(--ink);
+}
+.page-tabs [role="tab"][aria-selected="true"] {
+  border-bottom-color: var(--accent);
+  color: var(--ink);
 }
 @media (pointer: coarse) {
-  .page-jumps a {
+  .page-tabs [role="tab"] {
     min-height: 44px;
   }
 }
