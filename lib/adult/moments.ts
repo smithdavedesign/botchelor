@@ -179,92 +179,128 @@ export async function deriveClip(db: Db, ownerId: string, videoId: string, kind:
   return { ok: true, media };
 }
 
-/** The most clips joined into one reel: a chain of clips (CHAIN_MAX, lib/adult/clip-chains.ts) with two shots each. */
-export const JOIN_MAX = 12;
+/** The most clips joined into one reel: a whole night's film (15 shots on the longest night so far), with room. */
+export const JOIN_MAX = 24;
+/** A join still pending after this long was lost (the server restarted mid-way): it's made again. */
+const JOIN_STALE_MS = 15 * 60_000;
+/** Below the pages: a join is the longest thing the After Dark server does with its one CPU. */
+const JOIN_NICE = 10;
+
+export type JoinResult = MomentResult | { ok: true; making: true; id: string };
+
+/** One join at a time on this server (one CPU, 1 GB, shared with every visitor): the next waits for the one before. */
+let joining: Promise<void> = Promise.resolve();
+/** For tests: once every join started has finished. */
+export const joinsSettled = (): Promise<void> => joining;
 
 /**
  * A chain of the owner's clips as one video, to post as one reel (David, 2026-11-10: "once we continue from a clip we
- * should be able to post the two clips as one reel for the showcase page"): a clip and the ones kept going from it (a
- * date's clips, or a Studio animation's links), each as its trim keeps it, with its voice where one plays beside it, in
- * the order given. Made of their own frames, checked when they were, so nothing new is checked; all of the same one or
- * two people, so the post asks the same owners' OK as each clip would. The same clips with the same trims again are the
- * one already made. Free; counted as a moment.
+ * should be able to post the two clips as one reel for the showcase page", then the whole night's film): a clip and the
+ * ones kept going from it (a date's clips, a Studio animation's links) or a night's videos, each as its trim keeps it,
+ * with its voice where one plays beside it, in the order given. Made of their own frames, checked when they were, so
+ * nothing new is checked; all of the same one or two people, so the post asks the same owners' OK as each clip would.
+ *
+ * Made in the background (a night takes a minute or more on this server): the first ask starts it and answers
+ * `making`; asking again with the same clips answers `making` until it's in, then the video. The same clips with the
+ * same trims are the one already made. Free; counted as a moment when it's made.
  */
-export async function joinClips(db: Db, ownerId: string, ids: readonly string[]): Promise<MomentResult> {
+export async function joinClips(db: Db, ownerId: string, ids: readonly string[]): Promise<JoinResult> {
   if (ids.length < 2) return fail(422, "too_few", "There's only one clip there: keep it going first, then post them as one.");
   if (ids.length > JOIN_MAX || new Set(ids).size !== ids.length) return fail(422, "invalid_request", `That's not a chain of clips (${JOIN_MAX} at most, each once).`);
-  const videos: OwnVideo[] = [];
-  for (const id of ids) {
-    const v = await ownVideo(db, ownerId, id);
-    if (!v) return fail(404, "not_found", "One of those clips isn't yours, or isn't there any more.");
-    if (v.derived) return fail(409, "already", `One of those is a ${v.derived === "chain" ? "reel already" : v.derived}: join the clips themselves.`);
-    videos.push(v);
-  }
-  const who = (v: OwnVideo) => [v.character_id, v.character_b].filter(Boolean).sort().join("+");
-  if (!videos[0].character_id || videos.some((v) => who(v) !== who(videos[0]))) return fail(422, "not_one_chain", "Those clips aren't all of the same people: join one chain at a time.");
-  const trims = videos.map((v) => v.trim ?? null);
-  const made = (
-    await db.query<{ id: string; request: { body?: { from?: unknown; trims?: unknown } }[] | null }>(
-      `select id, request from adult_images where source_image = $1 and derived = 'chain' and owner_id = $2 and status = 'ready' order by created_at desc`,
+  const videos = (
+    await db.query<Omit<OwnVideo, "data" | "object_key">>(
+      `select id, owner_id, character_id, character_b, trim, derived, shoot_id from adult_images where id = any($1::text[]) and kind = 'video' and status = 'ready' and owner_id = $2`,
+      [ids, ownerId],
+    )
+  ).rows;
+  const byId = new Map(videos.map((v) => [v.id, v]));
+  if (ids.some((id) => !byId.has(id))) return fail(404, "not_found", "One of those clips isn't yours, or isn't there any more.");
+  const chain = ids.map((id) => byId.get(id)!);
+  const derived = chain.find((v) => v.derived);
+  if (derived) return fail(409, "already", `One of those is a ${derived.derived === "chain" ? "reel already" : derived.derived}: join the clips themselves.`);
+  const who = (v: { character_id: string | null; character_b: string | null }) => [v.character_id, v.character_b].filter(Boolean).sort().join("+");
+  if (!chain[0].character_id || chain.some((v) => who(v) !== who(chain[0]))) return fail(422, "not_one_chain", "Those clips aren't all of the same people: join one chain at a time.");
+  const trims = chain.map((v) => v.trim ?? null);
+  const same = (r: { request: { body?: { from?: unknown; trims?: unknown } }[] | null }) =>
+    JSON.stringify(r.request?.[0]?.body?.from ?? null) === JSON.stringify(ids) && JSON.stringify(r.request?.[0]?.body?.trims ?? null) === JSON.stringify(trims);
+  const before = (
+    await db.query<{ id: string; status: string; created_at: Date | string; prompt: string | null; request: { body?: { from?: unknown; trims?: unknown } }[] | null }>(
+      `select id, status, created_at, prompt, request from adult_images where source_image = $1 and derived = 'chain' and owner_id = $2 and status in ('ready', 'pending', 'failed') order by created_at desc`,
       [ids[ids.length - 1], ownerId],
     )
-  ).rows.find((r) => JSON.stringify(r.request?.[0]?.body?.from ?? null) === JSON.stringify(ids) && JSON.stringify(r.request?.[0]?.body?.trims ?? null) === JSON.stringify(trims));
-  if (made) {
-    const [media] = await mediaByIds(db, [made.id], ownerId);
+  ).rows.filter(same);
+  const ready = before.find((r) => r.status === "ready");
+  if (ready) {
+    const [media] = await mediaByIds(db, [ready.id], ownerId);
     if (media) return { ok: true, media };
+  }
+  const pending = before.find((r) => r.status === "pending");
+  if (pending) {
+    if (Date.now() - new Date(pending.created_at).getTime() < JOIN_STALE_MS) return { ok: true, making: true, id: pending.id };
+    await db.query(`update adult_images set status = 'failed' where id = $1 and status = 'pending'`, [pending.id]);
+  }
+  // The last try failed, and nothing's been asked since: why, once (asking again tries again).
+  const failed = before[0]?.status === "failed" && before[0].prompt?.startsWith("Not joined: ") ? before[0] : null;
+  if (failed) {
+    await db.query(`update adult_images set prompt = $2 where id = $1`, [failed.id, `${ids.length} clips that couldn't be joined`]);
+    return fail(502, "not_made", `Those clips couldn't be joined (${failed.prompt!.slice("Not joined: ".length)}). Try again, or join fewer.`);
   }
   const capped = await overCap(db, ownerId, "moments");
   if (capped) return fail(429, "capped", capped);
-  // The voice said beside a silent shot (lib/adult/reels.ts audio_id), as the player plays it: in place of its sound.
-  const voiceIds = (
-    await db.query<{ media_id: string; audio_id: string }>(
-      `select distinct on (s->>'media_id') s->>'media_id' as media_id, s->>'audio_id' as audio_id
-         from adult_reels r cross join lateral jsonb_array_elements(r.shots) s
-        where r.owner_id = $1 and s->>'media_id' = any($2::text[]) and coalesce(s->>'audio_id', '') <> ''`,
-      [ownerId, ids],
-    )
-  ).rows;
-  const voices = new Map<string, Buffer>();
-  for (const { media_id, audio_id } of voiceIds) {
-    const row = (await db.query<{ data: Buffer | Uint8Array | null; object_key: string | null }>(`select ${dataColumn()}, object_key from adult_images where id = $1 and owner_id = $2 and kind = 'audio' and status = 'ready'`, [audio_id, ownerId])).rows[0];
-    const bytes = row ? await readBytes(row).catch(() => null) : null;
-    if (bytes?.length) voices.set(media_id, bytes);
-  }
-  const pieces = [];
-  for (const v of videos) {
-    const bytes = await bytesOf(v);
-    if (!bytes) return fail(404, "not_found", "One of those clips' files isn't there any more.");
-    pieces.push({ video: bytes, trim: v.trim, voice: voices.get(v.id) ?? null });
-  }
-  let out: Buffer;
-  try {
-    out = await joinVideos(pieces);
-  } catch (err) {
-    return fail(502, "not_made", `Those clips couldn't be joined (${err instanceof FfmpegError ? err.message.slice(0, 120) : "a clip couldn't be read"}).`);
-  }
   const id = crypto.randomUUID();
-  const kept = await keepBytes("after-dark", id, out, "video/mp4");
-  const first = videos[0];
   await db.query(
-    `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, status, source_image, derived, model, request)
-     values ($1, $2, $3, $4, 'video', $5, 'video/mp4', $6, $7, 'ready', $8, 'chain', 'ffmpeg', $9::jsonb)`,
-    [
-      id,
-      ownerId,
-      first.character_id,
-      first.character_b,
-      `${ids.length} clips kept going, joined into one reel`,
-      kept.data,
-      kept.object_key,
-      ids[ids.length - 1],
-      requestJson([{ at: "ffmpeg", body: { from: ids, trims, voices: [...voices.keys()] } }]),
-    ],
+    `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, status, source_image, derived, model, request)
+     values ($1, $2, $3, $4, 'video', $5, 'video/mp4', 'pending', $6, 'chain', 'ffmpeg', $7::jsonb)`,
+    [id, ownerId, chain[0].character_id, chain[0].character_b, `${ids.length} clips joined into one reel`, ids[ids.length - 1], requestJson([{ at: "ffmpeg", body: { from: ids, trims } }])],
   );
+  joining = joining.then(() =>
+    makeJoin(db, ownerId, id, ids).catch(async (err) => {
+      const why = err instanceof FfmpegError ? err.message.slice(0, 120) : err instanceof Error ? err.message.slice(0, 120) : "a clip couldn't be read";
+      console.error(`[join] ${id}: ${why}`);
+      await db.query(`update adult_images set status = 'failed', prompt = $2 where id = $1`, [id, `Not joined: ${why}`]).catch(() => {});
+    }),
+  );
+  return { ok: true, making: true, id };
+}
+
+/** The join itself, one clip's file at a time, then kept and tagged; the pending row becomes the video. */
+async function makeJoin(db: Db, ownerId: string, id: string, ids: readonly string[]): Promise<void> {
+  // The voice said beside a silent shot (lib/adult/reels.ts audio_id), as the player plays it: in place of its sound.
+  const voiceOf = new Map(
+    (
+      await db.query<{ media_id: string; audio_id: string }>(
+        `select distinct on (s->>'media_id') s->>'media_id' as media_id, s->>'audio_id' as audio_id
+           from adult_reels r cross join lateral jsonb_array_elements(r.shots) s
+          where r.owner_id = $1 and s->>'media_id' = any($2::text[]) and coalesce(s->>'audio_id', '') <> ''`,
+        [ownerId, ids],
+      )
+    ).rows.map((r) => [r.media_id, r.audio_id]),
+  );
+  const voiced: string[] = [];
+  const videos: OwnVideo[] = [];
+  const loaders = ids.map((clip) => async () => {
+    const v = await ownVideo(db, ownerId, clip);
+    const bytes = v ? await bytesOf(v) : null;
+    if (!v || !bytes) throw new FfmpegError("a clip's file isn't there any more");
+    videos.push({ ...v, data: null });
+    const audio = voiceOf.get(clip);
+    const row = audio
+      ? (await db.query<{ data: Buffer | Uint8Array | null; object_key: string | null }>(`select ${dataColumn()}, object_key from adult_images where id = $1 and owner_id = $2 and kind = 'audio' and status = 'ready'`, [audio, ownerId])).rows[0]
+      : null;
+    const voice = row ? await readBytes(row).catch(() => null) : null;
+    if (voice?.length) voiced.push(clip);
+    return { video: bytes, trim: v.trim, voice: voice?.length ? voice : null };
+  });
+  const out = await joinVideos(loaders, { nice: JOIN_NICE });
+  const kept = await keepBytes("after-dark", id, out, "video/mp4");
+  const done = await db.query(
+    `update adult_images set data = $2, object_key = $3, status = 'ready', request = jsonb_set(request, '{0,body,voices}', $4::jsonb) where id = $1 and status = 'pending' returning id`,
+    [id, kept.data, kept.object_key, JSON.stringify(voiced)],
+  );
+  if (!done.rows.length) return;
   // What each clip shows, together; how far it goes is the furthest any of them went.
   for (const v of videos) await copyTags(db, v, id, ownerId);
   await countUse(db, ownerId, "moments");
-  const [media] = await mediaByIds(db, [id], ownerId);
-  return { ok: true, media };
 }
 
 /** Whether a video of one is a Studio animation of the owner's (made by an 'animate' shoot of theirs), so it can be kept going. */
