@@ -50,6 +50,49 @@ export const LOOK_AGES: readonly number[] = Array.from({ length: LOOK_MAX_AGE - 
  */
 export const isAnime = (c: { extras?: { looks?: { style?: string } | null } | null } | null | undefined): boolean => c?.extras?.looks?.style === "anime";
 
+/**
+ * "Work clothes": dressed for their job. The occupation is typed, and nothing typed reaches the image model, so it only
+ * picks one of these fixed outfits by keyword (first match wins, so "pirate captain" is a pirate, not a ship's captain).
+ * No match, or no job yet: smart work clothes.
+ */
+const WORK_FALLBACK = "smart, practical work clothes";
+export const WORK_OUTFITS: readonly { id: string; label: string; match: RegExp; prompt: string }[] = [
+  { id: "pirate", label: "Pirate coat", match: /\bpirate|buccaneer/, prompt: "a pirate captain's long coat, a loose white shirt and a tricorn hat" },
+  { id: "knight", label: "Knight's armour", match: /\bknight|paladin/, prompt: "polished knight's armour with a cloak" },
+  { id: "wizard", label: "Robes", match: /wizard|witch|mage\b|sorcer|warlock|druid/, prompt: "flowing embroidered robes" },
+  { id: "royal", label: "Royal attire", match: /\b(king|queen|prince|princess|duke|duchess|royal|monarch|emperor|empress)\b/, prompt: "regal royal attire with a fine sash" },
+  { id: "astronaut", label: "Spacesuit", match: /astronaut|cosmonaut|spaceship|starship/, prompt: "a white spacesuit, helmet off and tucked under one arm" },
+  { id: "pilot", label: "Pilot's uniform", match: /pilot|aviator|flight captain|airline/, prompt: "an airline pilot's uniform with epaulettes and a peaked cap" },
+  { id: "captain", label: "Captain's uniform", match: /captain|skipper|sailor|navy|naval|admiral|\bship\b|yacht|ferry/, prompt: "a ship captain's white uniform with gold buttons and a peaked cap" },
+  { id: "firefighter", label: "Firefighter's gear", match: /fire ?fighter|fireman|firewoman/, prompt: "a firefighter's turnout jacket and trousers" },
+  { id: "police", label: "Police uniform", match: /police|cop\b|officer|sheriff|deputy|constable/, prompt: "a police officer's dark uniform" },
+  { id: "detective", label: "Detective's coat", match: /detective|investigator|sleuth|\bspy\b/, prompt: "a belted trench coat over a suit" },
+  { id: "military", label: "Dress uniform", match: /soldier|army|military|marine|sergeant|lieutenant|colonel|general\b/, prompt: "a military dress uniform" },
+  { id: "scrubs", label: "Scrubs", match: /nurse|paramedic|surgeon|medic\b|\bemt\b|dentist|\bvet\b|veterinar/, prompt: "medical scrubs" },
+  { id: "doctor", label: "Doctor's coat", match: /doctor|physician|\bdr\b|pharmac/, prompt: "a white doctor's coat over smart clothes, a stethoscope around the neck" },
+  { id: "lab", label: "Lab coat", match: /scien|chemist|biolog|physicist|research|\blab\b|inventor/, prompt: "a white lab coat with safety goggles pushed up on the head" },
+  { id: "chef", label: "Chef's whites", match: /chef|cook\b|baker|pastry|patissier|butcher/, prompt: "a white chef's jacket and apron" },
+  { id: "barista", label: "Apron", match: /barista|bartender|waiter|waitress|server\b|sommelier|cafe|café|diner/, prompt: "a black shirt and a barista's apron" },
+  { id: "mechanic", label: "Overalls", match: /mechanic|engineer|plumber|electrician|welder|builder|construction|carpenter|repair|technician/, prompt: "work overalls with a tool belt" },
+  { id: "farmer", label: "Farm clothes", match: /farm|rancher|cowboy|cowgirl|shepherd|goat|horse/, prompt: "a flannel shirt, work jeans and boots" },
+  { id: "gardener", label: "Garden apron", match: /garden|florist|botan|landscap/, prompt: "a canvas gardening apron over a rolled-sleeve shirt" },
+  { id: "artist", label: "Painter's smock", match: /artist|painter|sculpt|potter|ceramic|illustrat/, prompt: "a paint-spattered smock over a t-shirt" },
+  { id: "musician", label: "Stage clothes", match: /musician|guitar|drummer|singer|\bband\b|rock ?star|\bdj\b|rapper|pianist/, prompt: "stage clothes: a leather jacket over a band t-shirt" },
+  { id: "dancer", label: "Dance clothes", match: /dancer|ballet|ballerina|choreograph/, prompt: "dance rehearsal clothes: a wrap top and soft trousers" },
+  { id: "athlete", label: "Team kit", match: /athlete|footballer|soccer|basketball|tennis|trainer|boxer|swimmer|runner/, prompt: "a sports team kit" },
+  { id: "lifeguard", label: "Lifeguard kit", match: /lifeguard|surf/, prompt: "a red lifeguard t-shirt and shorts" },
+  { id: "teacher", label: "Teacher's cardigan", match: /teacher|professor|lecturer|librarian|tutor|academic/, prompt: "a cardigan over a collared shirt and smart trousers" },
+  { id: "suit", label: "Business suit", match: /lawyer|attorney|banker|executive|\bceo\b|founder|consultant|accountant|manager|politician|broker|analyst/, prompt: "a sharp tailored business suit" },
+];
+/** Their job's outfit, from its words (lowercased), or the fallback. */
+export function workOutfit(occupation: string | null | undefined): { id: string; label: string; prompt: string } {
+  const t = (occupation ?? "").toLowerCase();
+  const hit = t.trim() ? WORK_OUTFITS.find((w) => w.match.test(t)) : undefined;
+  return hit ?? { id: "work", label: "Work clothes", prompt: WORK_FALLBACK };
+}
+/** The outfit's words, with "Work clothes" dressed for their job. */
+const dressed = (o: LookOption, gender: Gender, occupation?: string | null): string => (o.id === "work" ? workOutfit(occupation).prompt : optionPrompt(o, gender));
+
 export const LOOK_STEPS: readonly LookStep[] = [
   {
     id: "gender",
@@ -184,8 +227,19 @@ export const LOOK_STEPS: readonly LookStep[] = [
       { id: "smart", label: "Smart", prompt: "a tailored blazer over a silk blouse and trousers" },
       { id: "sporty", label: "Sporty", prompt: "a matching sports top and leggings" },
       { id: "evening", label: "Evening", prompt: "an elegant floor-length satin evening dress" },
-      { id: "street", label: "Streetwear", prompt: "an oversized hoodie, cargo trousers and sneakers" },
+      // Not the oversized hoodie the men's tile wears: on a woman it read young, and the age check refused the tile.
+      { id: "street", label: "Streetwear", prompt: "a cropped bomber jacket over a fitted top, wide-leg cargo trousers and chunky sneakers" },
       { id: "swim", label: "Swimwear", prompt: "a one-piece swimsuit" },
+      { id: "cocktail", label: "Cocktail", prompt: "a fitted little black cocktail dress and heels" },
+      { id: "summer", label: "Summer", prompt: "a light floral sundress and sandals" },
+      { id: "cozy", label: "Cozy", prompt: "a chunky cream knit sweater and jeans" },
+      { id: "rocker", label: "Rocker", prompt: "a black leather jacket, a band t-shirt and ripped jeans" },
+      { id: "boho", label: "Boho", prompt: "a flowing boho maxi skirt, a loose embroidered blouse and layered necklaces" },
+      { id: "gothic", label: "Gothic", prompt: "all-black gothic clothes: a lace blouse, a long black skirt and lace-up boots" },
+      { id: "preppy", label: "Preppy", prompt: "a cable-knit sweater draped over a collared shirt and tailored trousers" },
+      { id: "vintage", label: "Vintage", prompt: "a 1950s-style polka-dot swing dress" },
+      { id: "western", label: "Western", prompt: "a denim shirt, jeans, cowboy boots and a cowboy hat" },
+      { id: "work", label: "Work clothes", prompt: WORK_FALLBACK },
     ],
     optionsMan: [
       { id: "casual", label: "Casual", prompt: "a fitted white t-shirt and blue jeans" },
@@ -194,6 +248,16 @@ export const LOOK_STEPS: readonly LookStep[] = [
       { id: "evening", label: "Evening", prompt: "a black tuxedo with a bow tie" },
       { id: "street", label: "Streetwear", prompt: "an oversized hoodie, cargo trousers and sneakers" },
       { id: "swim", label: "Swimwear", prompt: "swim shorts, shirtless" },
+      { id: "cocktail", label: "Cocktail", prompt: "a dark velvet blazer over a black shirt" },
+      { id: "summer", label: "Summer", prompt: "a linen shirt, chino shorts and loafers" },
+      { id: "cozy", label: "Cozy", prompt: "a chunky cream knit sweater and jeans" },
+      { id: "rocker", label: "Rocker", prompt: "a black leather jacket, a band t-shirt and ripped jeans" },
+      { id: "boho", label: "Boho", prompt: "an open linen shirt, beaded bracelets and loose trousers" },
+      { id: "gothic", label: "Gothic", prompt: "all-black gothic clothes: a long black coat, a high-collared shirt and boots" },
+      { id: "preppy", label: "Preppy", prompt: "a cable-knit sweater over a collared shirt and chinos" },
+      { id: "vintage", label: "Vintage", prompt: "a 1950s-style suit with braces and a fedora" },
+      { id: "western", label: "Western", prompt: "a denim shirt, jeans, cowboy boots and a cowboy hat" },
+      { id: "work", label: "Work clothes", prompt: WORK_FALLBACK },
     ],
   },
 ];
@@ -462,7 +526,8 @@ export function looksAppearance(l: Looks | undefined): string {
  */
 const ethnicityLook = (o: LookOption, g: Gender): string => `${optionLabel(o, g).replace(" / Afro", "")}, ${optionPrompt(o, g).replace(/^.*\{who\}\s*/, "")}`;
 
-export function looksPictureWords(l: Looks | undefined, own: boolean): { body: string; outfit: string | null; everyday: string | null; undressed: string | null } {
+/** `occupation` dresses "Work clothes" for their job (workOutfit: fixed words, never the typed job). */
+export function looksPictureWords(l: Looks | undefined, own: boolean, occupation?: string | null): { body: string; outfit: string | null; everyday: string | null; undressed: string | null } {
   if (!l?.gender) return { body: "", outfit: null, everyday: null, undressed: null };
   const g = l.gender;
   const body = [
@@ -484,7 +549,7 @@ export function looksPictureWords(l: Looks | undefined, own: boolean): { body: s
   const outfit = pick("outfit", g, l.outfit);
   // What they wear out (the show's pick): out in public, or before anything's started, After Dark's outfit (lingerie)
   // would be wrong (David, 2026-10-25: "if they were just at a bar they wouldn't be in underwear").
-  const everyday = outfit ? optionPrompt(outfit, g) : null;
+  const everyday = outfit ? dressed(outfit, g, occupation) : null;
   const adOutfit = own ? pick("outfit", g, l.after_dark?.outfit, true) : undefined;
   if (adOutfit) return { body, outfit: adOutfit.id === "nude" ? null : optionPrompt(adOutfit, g), everyday, undressed };
   return { body, outfit: everyday, everyday, undressed };
@@ -563,8 +628,8 @@ export function nsfwPrompt(s: Subject, framing: string): string {
   ].join(" ");
 }
 
-const outfitWords = (gender: Gender, id: string, afterDark: boolean) =>
-  optionPrompt(pick("outfit", gender, id, afterDark) ?? { id, label: id, prompt: "a fitted white t-shirt and blue jeans" }, gender);
+const outfitWords = (gender: Gender, id: string, afterDark: boolean, occupation?: string | null) =>
+  dressed(pick("outfit", gender, id, afterDark) ?? { id, label: id, prompt: "a fitted white t-shirt and blue jeans" }, gender, occupation);
 
 /**
  * Every tile the builder shows: for each gender, every option of every picture step on the normal tab (drawn PG), and
@@ -662,12 +727,12 @@ const KIND_LOOK_WORDS: Partial<Record<KindId, string>> = {
  * is the look's own pick, else the character's capped at the oldest look (a 212-year-old vampire is drawn 60 at most,
  * not 212), and its kind adds its own fixed words.
  */
-export function looksPortraitPrompt(l: Looks, age: number, kind?: KindId | null): string | null {
+export function looksPortraitPrompt(l: Looks, age: number, kind?: KindId | null, occupation?: string | null): string | null {
   if (!l.gender) return null;
   const d = DEFAULTS[l.gender];
   const looks = { ...d, ...l, breasts: undefined, after_dark: undefined, age: l.age ?? Math.min(age, LOOK_MAX_AGE) } as Looks & { age: number };
   return pgPrompt(
-    { gender: l.gender, looks, outfit: outfitWords(l.gender, l.outfit ?? d.outfit, false) },
+    { gender: l.gender, looks, outfit: outfitWords(l.gender, l.outfit ?? d.outfit, false, occupation) },
     "Head-and-shoulders portrait, facing the camera, warm natural smile",
     l.style === "anime",
     kind ? KIND_LOOK_WORDS[kind] : undefined,

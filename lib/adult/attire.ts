@@ -15,7 +15,7 @@ import { looksPictureWords } from "../looks";
 export type Attire = "nude" | "dressed";
 
 /** Whether a character's baseline is drawn in something (an outfit they picked), so they need a nude one too. */
-export const wearsSomething = (c: Character, viewer?: string | null): boolean => Boolean(looksPictureWords(c.extras?.looks, Boolean(viewer) && c.ownerId === viewer).outfit);
+export const wearsSomething = (c: Character, viewer?: string | null): boolean => Boolean(looksPictureWords(c.extras?.looks, Boolean(viewer) && c.ownerId === viewer, c.extras?.occupation).outfit);
 
 /** The words only a nude baseline's prompt has (baselinePrompt). */
 const NUDE_WORDS = /\.\s*Nude, alone,/;

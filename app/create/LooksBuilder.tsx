@@ -21,6 +21,7 @@ import {
   type LookDetail,
   type LookStep,
   type Looks,
+  workOutfit,
 } from "@/lib/looks";
 
 type Props = {
@@ -35,6 +36,9 @@ type Props = {
   /** The appearance line the picks describe, each time they change. */
   onAppearance: (line: string) => void;
   onGender?: (g: Gender) => void;
+  /** Their job (extras.occupation): "Work clothes" dresses them for it. Typed here when it's picked and still empty. */
+  occupation?: string;
+  setOccupation?: (job: string) => void;
 };
 
 /**
@@ -98,7 +102,7 @@ function lockedTile(gender: Gender, step: LookStep, option: string): string {
   return tileId(gender, step.id, option, false);
 }
 
-export default function LooksBuilder({ looks, setLooks, age, tiles, afterDark, onAppearance, onGender }: Props) {
+export default function LooksBuilder({ looks, setLooks, age, tiles, afterDark, onAppearance, onGender, occupation = "", setOccupation }: Props) {
   const [tab, setTab] = useState<"show" | "after_dark">("show");
   const adTab = tab === "after_dark";
   const locked = adTab && !afterDark;
@@ -108,7 +112,10 @@ export default function LooksBuilder({ looks, setLooks, age, tiles, afterDark, o
   const [i, setI] = useState(() => (looks.gender ? flow(looks.gender, false).length : 0));
   const at = Math.min(i, steps.length);
   const step = steps[at] as LookStep | undefined; // undefined: the summary
-  const have = new Set(tiles);
+  // A tile listed as drawn whose picture won't load (its stored bytes went missing): its label, not a broken box.
+  const [broken, setBroken] = useState<ReadonlySet<string>>(() => new Set());
+  const have = new Set(tiles.filter((t) => !broken.has(t)));
+  const work = workOutfit(occupation);
   const advance = useRef<number | null>(null);
 
   useEffect(() => () => {
@@ -194,16 +201,18 @@ export default function LooksBuilder({ looks, setLooks, age, tiles, afterDark, o
                       tabIndex={locked ? -1 : undefined}
                     >
                       {img ? (
-                        <img src={img} alt="" loading="lazy" decoding="async" />
+                        <img src={img} alt="" loading="lazy" decoding="async" onError={() => setBroken((b) => new Set(b).add(id))} />
                       ) : (
                         // No picture drawn for this tile yet: a figure over the label, not an empty box.
                         <span className="looks-tile-fallback" aria-hidden>
-                          {step.id === "gender" ? (o.id === "man" ? "👨" : "👩") : "👤"}
+                          {step.id === "gender" ? (o.id === "man" ? "👨" : "👩") : o.id === "work" ? "💼" : "👤"}
                         </span>
                       )}
                       <span className="looks-tile-label">
                         {chosen && <span aria-hidden>✓ </span>}
                         {label}
+                        {/* Their job's outfit, when the job's known: "Work clothes · Captain's uniform". */}
+                        {o.id === "work" && work.id !== "work" && <span className="looks-tile-sub"> · {work.label}</span>}
                       </span>
                     </button>
                   </li>
@@ -226,7 +235,7 @@ export default function LooksBuilder({ looks, setLooks, age, tiles, afterDark, o
                   return (
                     <li key={s.id}>
                       <button type="button" className="chip" onClick={() => go(steps.indexOf(s))}>
-                        {s.id === "gender" ? (v === "man" ? "Man" : "Woman") : o ? optionLabel(o, gender) : v}
+                        {s.id === "gender" ? (v === "man" ? "Man" : "Woman") : v === "work" && work.id !== "work" ? work.label : o ? optionLabel(o, gender) : v}
                       </button>
                     </li>
                   );
@@ -239,6 +248,21 @@ export default function LooksBuilder({ looks, setLooks, age, tiles, afterDark, o
                 </li>
               )}
             </ul>
+            {current(looks, steps.find((s) => s.id === "outfit") ?? steps[0], adTab) === "work" && setOccupation && (
+              // Work clothes: their job picks the outfit (lib/looks.ts workOutfit), so ask for it here if it's not in yet.
+              <label className="looks-job">
+                <span className="looks-detail-title">Their job</span>
+                <input
+                  value={occupation}
+                  maxLength={60}
+                  placeholder="Ship's captain, chef, astronaut…"
+                  onChange={(e) => setOccupation(e.target.value)}
+                />
+                <span className="muted small">
+                  {work.id === "work" ? "Dressed in smart work clothes until their job says more." : `Dressed for it: ${work.label.toLowerCase()}.`}
+                </span>
+              </label>
+            )}
             {looks.gender && (
               // The finer details: fixed choices, no pictures, none needed (lib/looks.ts LOOK_DETAILS).
               <div className="looks-details">
@@ -294,9 +318,13 @@ export default function LooksBuilder({ looks, setLooks, age, tiles, afterDark, o
 
       <div className="looks-nav">
         {/* Small text links, so they don't compete with the wizard's own Back and Next below. */}
-        <button type="button" className="link-button" onClick={() => go((n) => Math.max(0, n - 1))} disabled={at === 0}>
-          ← Previous
-        </button>
+        {/* Not on the summary: its chips and Change look go back to a step (David, 2026-11-11: Previous there felt
+            like leaving the panel). */}
+        {step && (
+          <button type="button" className="link-button" onClick={() => go(Math.max(0, at - 1))} disabled={at === 0}>
+            ← Previous
+          </button>
+        )}
         {step && (
           <button type="button" className="link-button" onClick={() => go((n) => Math.min(n + 1, steps.length))}>
             {current(looks, step, adTab) ? "Next →" : "Skip →"}

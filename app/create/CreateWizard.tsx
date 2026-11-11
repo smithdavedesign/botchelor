@@ -1016,6 +1016,8 @@ export default function CreateWizard({
                 afterDark={afterDark}
                 onAppearance={looksAppearanceChanged}
                 onGender={(g) => setPronouns((p) => p || (g === "man" ? "he/him" : "she/her"))}
+                occupation={extras.occupation ?? ""}
+                setOccupation={(job) => setExtras((p) => ({ ...p, occupation: job }))}
               />
               <div className="sheet-actions">
                 <button type="button" className="primary" onClick={() => setLooksOpen(false)}>
