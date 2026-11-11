@@ -10,7 +10,7 @@ import { PUBLIC_LAUNCH_DAY } from "./our-traffic";
 
 type Env = Record<string, string | undefined>;
 
-export type SocialId = "x" | "bluesky" | "discord" | "github";
+export type SocialId = "x" | "bluesky" | "tiktok" | "discord" | "github";
 export type Social = { id: SocialId; name: string; handle: string; url: string };
 
 /**
@@ -20,18 +20,20 @@ export type Social = { id: SocialId; name: string; handle: string; url: string }
 export const SOCIALS: readonly Social[] = [
   { id: "x", name: "X", handle: "@botchelorLLC", url: "https://x.com/botchelorLLC" },
   { id: "bluesky", name: "Bluesky", handle: "@botchelor.bsky.social", url: "https://bsky.app/profile/botchelor.bsky.social" },
+  { id: "tiktok", name: "TikTok", handle: "@botchelorcom", url: "https://www.tiktok.com/@botchelorcom" },
   { id: "github", name: "GitHub", handle: "smithdavedesign/botchelor-mcp", url: "https://github.com/smithdavedesign/botchelor-mcp" },
 ];
 
 /**
- * Every account to show, in order: X, Bluesky, Discord (once DISCORD_INVITE_URL is set, lib/discord.ts) and GitHub. None
+ * Every account to show, in order: X, Bluesky, TikTok (clips of the dates, from 2026-11-09), Discord (once
+ * DISCORD_INVITE_URL is set, lib/discord.ts) and GitHub. None
  * on After Dark's own host: these are the PG show's accounts, and Discord's invite is already kept off that host.
  */
 export function socialLinks(env: Env = process.env, afterDarkHost = false): Social[] {
   if (afterDarkHost) return [];
   const discord = discordInviteUrl(env);
-  const [x, bluesky, github] = SOCIALS;
-  return [x, bluesky, ...(discord ? [{ id: "discord", name: "Discord", handle: "The Botchelor server", url: discord } as Social] : []), github];
+  const github = SOCIALS[SOCIALS.length - 1];
+  return [...SOCIALS.slice(0, -1), ...(discord ? [{ id: "discord", name: "Discord", handle: "The Botchelor server", url: discord } as Social] : []), github];
 }
 
 /** The day botchelor.com went public (lib/our-traffic.ts), as the press page says it: "16 October 2026". */
