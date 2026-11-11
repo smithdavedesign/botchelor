@@ -10,6 +10,7 @@
 import type { Turn } from "./conversation";
 import { episodeCode } from "./episode-title";
 import type { CharacterRef, EpisodeView } from "./game";
+import type { Ending } from "./rules";
 import type { PlaceId } from "./venues";
 
 /** How many lines the excerpt shows: enough for a back-and-forth, short enough to read in a few seconds. */
@@ -30,6 +31,9 @@ export type FeaturedDate = {
   venue: PlaceId | null;
   setting: string;
   lines: ExcerptLine[];
+  /** How it ended, for the card's own call (app/FirstRunCall.tsx): public once aired, like the lines. */
+  ending: Ending | null;
+  date_number: number | null;
 };
 
 /** The episode a path names (/episodes/<id>, with or without a query): what the 18+ gate's `from` was headed to. */
@@ -90,5 +94,7 @@ export function pickFeaturedDate(episodes: readonly EpisodeView[], n = EXCERPT_L
     venue: pick.venue ?? null,
     setting: pick.setting,
     lines: excerptLines(pick.transcript ?? [], n),
+    ending: pick.ending ?? null,
+    date_number: pick.date_number ?? null,
   };
 }

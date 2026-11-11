@@ -230,7 +230,8 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
             aired date, typing in, and the way to watch how it ends. The old matchup only when nothing has aired. */}
         {featured ? (
           <div className="hero-art has-date">
-            <DateExcerpt date={featured} />
+            {/* A first visit calls the ending on the card (app/FirstRunCall.tsx); a creator's hero just plays it. */}
+            <DateExcerpt date={featured} call={!creator} />
           </div>
         ) : (
           heroA &&
