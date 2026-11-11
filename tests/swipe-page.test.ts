@@ -14,7 +14,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import MatchesPage from "@/app/matches/page";
 import SwipePage from "@/app/swipe/page";
 import { setSeasonCastForTests } from "@/lib/season-cast";
-import { api, HOUSE_PARTNER_ID, newUserCookie, startTestDb, validCharacter } from "./helpers";
+import { api, HOUSE_PARTNER_ID, newUserCookie, startTestDb, userIdOf, validCharacter } from "./helpers";
 
 // David, 2026-10-22: the swipe page picks whose deck it is the way /matches picks whose matches, with your characters'
 // faces instead of a drop-down, and a taken one (in a relationship, wanting one partner) easy to tell apart.
@@ -112,26 +112,63 @@ describe("the swipe page: whose deck, as faces", () => {
     expect(html).toContain('<span class="swipe-topbar-name">Wren</span>');
   });
 
-  it("/matches leaves out the matches that didn't work out unless asked, and says how many", async () => {
+  // David, 2026-11-11: new matches "didn't appear", and "Show N that didn't work out" mixed them back in with everyone
+  // instead of filtering. Now two tabs, one list at a time, each pass saying whose it was, and nothing filed away unseen.
+  it("/matches files the ones that didn't work out under their own tab, says why, and never before they're seen", async () => {
+    const owner = newUserCookie();
+    const wren = await make("Wren Kestrel", owner);
+    const other = async (name: string, yes: { wren: boolean | null; them: boolean | null }) => {
+      const id = await make(name, newUserCookie());
+      const [lo, hi] = [wren, id].sort();
+      const [yesLo, yesHi] = lo === wren ? [yes.wren, yes.them] : [yes.them, yes.wren];
+      // Past the wait for texts (talk, then decide), so the answers show.
+      await t.db.query(`insert into matches (character_lo, character_hi, yes_lo, yes_hi, matched_at) values ($1, $2, $3, $4, now() - interval '3 hours')`, [lo, hi, yesLo, yesHi]);
+      return { id, lo, hi };
+    };
+    await other("Bo Quill", { wren: true, them: true }); // open: a date both want
+    await other("Cy Marr", { wren: true, them: false }); // Cy passed, seen: filed away
+    await other("Di Vale", { wren: false, them: true }); // Wren passed, seen: filed away
+    const ed = await other("Ed Fenn", { wren: true, them: false }); // Ed passed, but the match is still unseen
+    await t.db.query(`insert into notifications (id, user_id, kind, title, link) values ('n-ed', $1, 'matched', 'New match', $2)`, [userIdOf(owner), `/messages/${ed.lo}/${ed.hi}`]);
+    jar.cookies.set(owner.split("=")[0], owner.split("=")[1]);
+    const page = async (q: { show?: string; all?: string } = {}) => renderToStaticMarkup(await MatchesPage({ searchParams: Promise.resolve({ character: wren, ...q }) }));
+    const shows = (html: string, name: string) => html.includes(`>${name}</span>`) || html.includes(`>${name}</strong>`);
+
+    const open = await page();
+    expect(["Bo", "Ed"].filter((n) => shows(open, n))).toEqual(["Bo", "Ed"]);
+    expect(["Cy", "Di"].filter((n) => shows(open, n))).toEqual([]);
+    expect(open).toContain('<nav class="tabs matches-filter" aria-label="Which matches">');
+    expect(open).toMatch(/aria-current="page"[^>]*>Open · 2</);
+    expect(open).toContain(`href="/matches?character=${wren}&amp;show=over#messages-title">Didn&#x27;t work out · 2<`);
+    expect(open).toContain('title="Ed passed"'); // still here while unseen, with why on it
+
+    const over = await page({ show: "over" });
+    expect(["Cy", "Di"].filter((n) => shows(over, n))).toEqual(["Cy", "Di"]);
+    expect(["Bo", "Ed"].filter((n) => shows(over, n))).toEqual([]); // only the ones that didn't work out
+    expect(over).toContain("Cy passed");
+    expect(over).toContain("Wren passed");
+    expect(over).toContain("Matched, no texts");
+    expect(over).toMatch(/aria-current="page"[^>]*>Didn&#x27;t work out · /);
+    // The old link (?all=1) opens the same list.
+    const legacy = await page({ all: "1" });
+    expect(["Cy", "Di"].filter((n) => shows(legacy, n))).toEqual(["Cy", "Di"]);
+
+    // Once Ed's match is seen, it's filed away too.
+    await t.db.query(`update notifications set read_at = now() where id = 'n-ed'`);
+    expect(shows(await page(), "Ed")).toBe(false);
+    expect(shows(await page({ show: "over" }), "Ed")).toBe(true);
+  });
+
+  it("/matches shows no filter while nothing has been filed away", async () => {
     const owner = newUserCookie();
     const wren = await make("Wren Kestrel", owner);
     const bo = await make("Bo Quill", newUserCookie());
-    const cy = await make("Cy Marr", newUserCookie());
-    for (const [other, yes] of [[bo, true], [cy, false]] as const) {
-      const [lo, hi] = [wren, other].sort();
-      await t.db.query(`insert into matches (character_lo, character_hi, yes_lo, yes_hi, matched_at) values ($1, $2, $3, $3, now() - interval '3 hours')`, [lo, hi, yes]); // past the wait for texts (talk, then decide)
-    }
+    const [lo, hi] = [wren, bo].sort();
+    await t.db.query(`insert into matches (character_lo, character_hi, yes_lo, yes_hi, matched_at) values ($1, $2, true, true, now() - interval '3 hours')`, [lo, hi]);
     jar.cookies.set(owner.split("=")[0], owner.split("=")[1]);
-    const page = async (all?: string) => renderToStaticMarkup(await MatchesPage({ searchParams: Promise.resolve({ character: wren, ...(all ? { all } : {}) }) }));
-    const html = await page();
-    expect(html).toContain("Bo");
-    expect(html).not.toContain("Cy");
-    expect(html).toContain("Show 1 that didn&#x27;t work out");
-    expect(html).toContain(`href="/matches?character=${wren}&amp;all=1#messages-title"`);
-    const everyone = await page("1");
-    expect(everyone).toContain("Cy");
-    expect(everyone).toContain("Not this time");
-    expect(everyone).toContain("Hide the 1 that didn&#x27;t work out");
+    const html = renderToStaticMarkup(await MatchesPage({ searchParams: Promise.resolve({ character: wren }) }));
+    expect(html).not.toContain("matches-filter");
+    expect(html).toContain(">Bo</span>");
   });
 
   it("/matches marks the same taken face", async () => {

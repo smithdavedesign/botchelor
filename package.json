@@ -18,6 +18,7 @@
     "e2e:live": "node scripts/e2e-live.mjs",
     "e2e:companion": "node scripts/e2e-companion.mjs",
     "e2e:double-link": "node scripts/e2e-double-link.mjs",
+    "e2e:matches": "node scripts/e2e-matches.mjs",
     "e2e:companion-plan": "node scripts/e2e-companion-plan.mjs",
     "seed": "node scripts/seed.mjs",
     "seed:prompts": "node scripts/build-prompts-library.mjs",
