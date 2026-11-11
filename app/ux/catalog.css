@@ -394,3 +394,18 @@ h3 {
     transition: none;
   }
 }
+
+/* A visually hidden field (PasswordSettings' username for password managers, #1436) stays out of sight: the control
+   system's input:not(…) rule outranks .sr-only and gave it width: 100% and the control height, so it ran 1,592px
+   wide on /account (the design system's visual gate, 2026-11-11). Loaded last, this puts it back to a pixel. */
+input.sr-only,
+textarea.sr-only,
+select.sr-only {
+  width: 1px;
+  min-width: 0;
+  height: 1px;
+  min-height: 0;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+}
