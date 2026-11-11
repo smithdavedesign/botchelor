@@ -276,6 +276,14 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
       {/* Sunday's reveal leads while its vote is open or its result is minutes away; otherwise it sits by tonight's vote. */}
       {/* …and once the secret is out it stays, as the opened envelope, while it's fresh (lib/weekly-reveal.ts LAST_SHOWN_DAYS). */}
       {reveal && (reveal.state === "open" || reveal.state === "closed" || reveal.last) && <WeeklyReveal board={reveal} now={now} />}
+      {/* What the audience does tonight, before the listings and the archive (the audit, 2026-11-11, 2.3: the situation
+          vote sat fifth on the page): tonight's situation and, until its vote opens, Sunday's reveal beside it. */}
+      {(situation || (reveal && reveal.state !== "open" && reveal.state !== "closed" && !reveal.last)) && (
+        <div className={`watch-votes${situation && reveal && reveal.state !== "open" && reveal.state !== "closed" && !reveal.last ? " is-two" : ""}`}>
+          {situation && <SituationVote board={situation} now={now} />}
+          {reveal && reveal.state !== "open" && reveal.state !== "closed" && !reveal.last && <WeeklyReveal board={reveal} now={now} />}
+        </div>
+      )}
       {showNews && <ShowSince card={showNews} />}
 
       {airing.length === 0 && record && record.called > 0 && <CallsLine record={record} airing={0} nameless={viewerId !== null && profileName === null} sharer={sharer} where="watch" />}
@@ -330,7 +338,6 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
         )}
       </section>
 
-      {situation && <SituationVote board={situation} now={now} />}
       {/* The season pool's board just came out (the first week of the next season): shown, not folded. */}
       {poolRevealed && <SeasonPoolPanel standing={pool} revealed={poolRevealed} now={now} />}
 
@@ -356,10 +363,6 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
         )}
         <Pager page={page} pages={latest.pages} label="Latest episodes pages" href={(n) => `${pagePath(n)}#latest`} prev="Newer" next="Older" />
       </section>
-
-      {/* Sunday's reveal between its votes: after the episodes, not stacked on tonight's vote as a second framed card
-          (2026-11-08 UI audit, item 12). While its vote is open it leads, above. */}
-      {reveal && reveal.state !== "open" && reveal.state !== "closed" && <WeeklyReveal board={reveal} now={now} />}
 
       {privateDates > 0 && (
         <p className="private-teaser private-teaser-compact">

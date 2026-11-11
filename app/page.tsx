@@ -70,6 +70,8 @@ const FAQ = [
   { q: "Who can use it?", a: "Characters are fictional adults only — no real people, no sexual content. Every episode is AI-labeled with a report button." },
   { q: "Do I need an account?", a: "No sign-up to start. Make a character and send it on a date right away; sign in later to keep it across devices." },
 ];
+/** The questions the home page answers itself: is it free, can I steer it, do I need an account. */
+const HOME_FAQ = [FAQ[0], FAQ[1], FAQ[FAQ.length - 1]];
 
 /**
  * The landing page, pitched at AI-friendly roleplayers, with two front doors (the 2026-11-07 outside reviews: too many
@@ -269,8 +271,9 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
             <h2>Just aired</h2>
             <Link href="/watch">Watch more →</Link>
           </div>
-          {/* A shelf of small title cards, not rows (docs/show-style.md: faces first). */}
-          <EpisodeShelf items={aired.items.slice(0, 6)} />
+          {/* A shelf of small title cards, not rows (docs/show-style.md: faces first). Three: the hero already plays the
+              latest and /watch has the rest (the audit, 2026-11-11, 2.1: six cards, two of them the same mixer). */}
+          <EpisodeShelf items={aired.items.slice(0, 3)} />
         </section>
       )}
 
@@ -334,12 +337,16 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
 
       <section className="faq">
         <h2>Questions</h2>
-        {FAQ.map((item) => (
+        {/* The three a first visit asks; the rest are on /faq (the audit, 2026-11-11, 2.1: eight rows repeated that page). */}
+        {HOME_FAQ.map((item) => (
           <details className="card ux-fold" key={item.q}>
             <summary>{item.q}</summary>
             <p className="muted">{item.a}</p>
           </details>
         ))}
+        <p className="faq-more">
+          <Link href="/faq">More questions →</Link>
+        </p>
       </section>
 
       <p className="cta-row cta-final">
