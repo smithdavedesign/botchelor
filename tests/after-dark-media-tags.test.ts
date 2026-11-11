@@ -93,6 +93,12 @@ describe("tags from what it was made with", () => {
     // A clip from that picture: its act, place and POV come with it.
     const clip = deriveTags({ ...base, kind: "video", mime: "video/mp4", shoot_kind: "animate", choices: { source: "x", level: 3 } }, pic);
     expect(clip).toEqual(expect.arrayContaining([expect.objectContaining({ kind: "act", value: "oral" }), expect.objectContaining({ kind: "pov", value: "yes" }), expect.objectContaining({ kind: "place", value: "movie_theater" })]));
+    // A night reel shot filmed from a baseline: the baseline's "dressed" doesn't come with it; the shot's own stage does.
+    const baseline = deriveTags({ ...base, kind: "baseline", shoot_kind: null, choices: null });
+    expect(baseline).toEqual(expect.arrayContaining([{ kind: "stage", value: "0", source: "derived" }]));
+    const shot = (stage?: number) => deriveTags({ ...base, kind: "video", mime: "video/mp4", shoot_kind: null, choices: null, character_b: "b", shot: { text: "Hi.", ...(stage === undefined ? {} : { stage }) } }, baseline);
+    expect(shot().some((x) => x.kind === "stage")).toBe(false);
+    expect(shot(4).filter((x) => x.kind === "stage")).toEqual([{ kind: "stage", value: "3", source: "choice" }]);
   });
 
   it("labels a tile with what it shows: the act, the place, POV; nothing when it has none", () => {
