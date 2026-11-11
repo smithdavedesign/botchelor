@@ -34,7 +34,7 @@ export const LAST_UPDATED = "Last updated 24 October 2026.";
 export const TERMS_PRIVACY_UPDATED = "Last updated 10 November 2026.";
 /** What changed last time, in a line. */
 export const PRIVACY_CHANGES =
-  "Changed: the Sunday letter, a weekly email you can sign up for (confirmed by email, with an unsubscribe in every letter); who hosts the show and carries its traffic (DigitalOcean and Cloudflare, no longer Vercel), and that the show's model is reached through OpenRouter; live calls with a companion, where they're offered: Deepgram hears your voice and makes the companion's, and the terms say how call minutes are charged. Before that (1 November): Analytics names the three events our own dashboard counts (visit, activate, checkout) and says the site you came from goes with a visit only when it's another site; the terms state the pack's price. Before that (24 October): who runs Botchelor, After Dark's data and where it's offered, the location and age we read, everyone who processes data, your rights, and the complaint form.";
+  "Changed: the Sunday letter, a weekly email you can sign up for (confirmed by email, with an unsubscribe in every letter, and an address taken off when its emails bounce or are reported as spam); who hosts the show and carries its traffic (DigitalOcean and Cloudflare, no longer Vercel), and that the show's model is reached through OpenRouter; live calls with a companion, where they're offered: Deepgram hears your voice and makes the companion's, and the terms say how call minutes are charged. Before that (1 November): Analytics names the three events our own dashboard counts (visit, activate, checkout) and says the site you came from goes with a visit only when it's another site; the terms state the pack's price. Before that (24 October): who runs Botchelor, After Dark's data and where it's offered, the location and age we read, everyone who processes data, your rights, and the complaint form.";
 
 /** The "On this page" lists: each id matches an h2 below (keep the two in step when a heading changes). */
 export const TERMS_HEADINGS = [
@@ -668,6 +668,11 @@ export function PrivacySections() {
           Every letter has a one-click unsubscribe. Once you leave, we keep the address and when you left, so nothing more
           goes to it unless you sign up and confirm again. Ask us and we&apos;ll delete it altogether.
         </li>
+        <li>
+          Resend tells us whether each of these emails reached you, bounced, or was reported as spam. One that bounces or is
+          reported takes the address off the list, as an unsubscribe would, and we keep that it left and why. That record of
+          each email goes after 14 days.
+        </li>
         <li>A sign-up nobody confirms is deleted after 30 days. The record of which letters went to you is kept for 90 days.</li>
         <li>
           The letter&apos;s links say they came from the letter (<code>utm_source=newsletter</code>), so our own engagement log
@@ -775,7 +780,8 @@ export function PrivacySections() {
         <li>The keyed hash of your IP address that limits how many dates one connection starts, and how many sign-ups to the Sunday letter: two days.</li>
         <li>
           The Sunday letter: your address while you&apos;re subscribed, and after you leave so it gets nothing more (see{" "}
-          <a href="#newsletter">above</a>); an unconfirmed sign-up 30 days; which letters went to you 90 days.
+          <a href="#newsletter">above</a>); an unconfirmed sign-up 30 days; which letters went to you 90 days; whether each
+          email bounced or was reported as spam, 14 days.
         </li>
         <li>
           Reports from the report form: kept as the record of what was reported and what we did. If you delete your

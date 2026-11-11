@@ -20,7 +20,7 @@
 import { createHmac, randomUUID } from "node:crypto";
 import { afterDarkOnly } from "./after-dark-host";
 import type { Db } from "./db";
-import { emailConfig, emailDailyCap, sendEmail, type EmailConfig, type EmailMessage } from "./email";
+import { emailConfig, emailDailyCap, emailLastEvent, sendEmail, type EmailConfig, type EmailMessage } from "./email";
 import { safeEqual } from "./http";
 import { siteUrl } from "./site";
 
@@ -43,6 +43,16 @@ export const SIGNUP_LIMITS = { perHour: 5, perDay: 20 };
 const CATCH_UP_PER_PASS = 20;
 /** What email_sends calls the letter's emails, so they count toward the show's daily cap too. */
 export const SEND_KINDS = { confirm: "newsletter_confirm", letter: "newsletter_letter" } as const;
+/** How long after a send the hourly job keeps asking Resend how it went (complaints can come days later). */
+export const DELIVERY_CHECK_DAYS = 4;
+/** And how often, per email. */
+export const DELIVERY_RECHECK_HOURS = 12;
+/** Lookups per pass: Resend takes two requests a second, and the pass shares 45 s with the sends. */
+const CHECKS_PER_PASS = 20;
+/** The deliveries kept for the admin's counts. */
+const DELIVERIES_KEEP_DAYS = 14;
+/** What Resend says about an email that takes its address off the list: it bounced, was reported as spam, or Resend won't send there. */
+export const LEAVING_EVENTS = ["bounced", "complained", "suppressed"] as const;
 /** email_sends.user_id for the letter's emails: they belong to no account. */
 const SENDER_ID = "newsletter";
 /** What the hourly job says while the letter waits for its postal address (app/api/jobs/lobby). */
@@ -145,7 +155,7 @@ export async function confirmSubscription(db: Db, token: string | null, now: Dat
   const email = verifyNewsletterToken(token, "confirm", env, now.getTime());
   if (!email) return false;
   const done = await db.query(
-    `update newsletter_subscribers set status = 'confirmed', confirmed_at = $2, pending_since = null, updated_at = $2
+    `update newsletter_subscribers set status = 'confirmed', confirmed_at = $2, pending_since = null, left_reason = null, updated_at = $2
       where email = $1 and status = 'pending' returning email`,
     [email, now.toISOString()],
   );
@@ -163,8 +173,8 @@ export async function leaveNewsletter(db: Db, token: string | null, now: Date = 
   const email = verifyNewsletterToken(token, "unsub", env);
   if (!email) return false;
   await db.query(
-    `insert into newsletter_subscribers (email, status, unsubscribed_at, created_at, updated_at) values ($1, 'unsubscribed', $2, $2, $2)
-     on conflict (email) do update set status = 'unsubscribed', unsubscribed_at = $2, pending_since = null, updated_at = $2
+    `insert into newsletter_subscribers (email, status, unsubscribed_at, left_reason, created_at, updated_at) values ($1, 'unsubscribed', $2, 'unsubscribed', $2, $2)
+     on conflict (email) do update set status = 'unsubscribed', unsubscribed_at = $2, pending_since = null, left_reason = 'unsubscribed', updated_at = $2
       where newsletter_subscribers.status <> 'unsubscribed'`,
     [email, now.toISOString()],
   );
@@ -184,6 +194,7 @@ export async function pruneNewsletter(db: Db, now: Date = new Date()): Promise<n
   );
   const gone = await db.query(`delete from newsletter_subscribers where status = 'pending' and pending_since < $1 and unsubscribed_at is null returning email`, [cutoff]);
   await db.query(`delete from newsletter_sends where created_at < $1`, [new Date(now.getTime() - SENDS_KEEP_DAYS * DAY_MS).toISOString()]);
+  await db.query(`delete from newsletter_deliveries where sent_at < $1`, [new Date(now.getTime() - DELIVERIES_KEEP_DAYS * DAY_MS).toISOString()]);
   return back.rows.length + gone.rows.length;
 }
 
@@ -220,6 +231,66 @@ export async function newsletterBudget(db: Db, env: Env = process.env): Promise<
 /** Logs one of the letter's emails where the show's daily cap counts them (lib/email.ts). */
 export async function logNewsletterSend(db: Db, kind: (typeof SEND_KINDS)[keyof typeof SEND_KINDS]): Promise<void> {
   await db.query(`insert into email_sends (id, user_id, kind) values ($1, $2, $3)`, [randomUUID(), SENDER_ID, kind]);
+}
+
+/** Keeps the provider's id for an email the letter sent, so checkDeliveries can ask how it went. */
+export async function recordDelivery(db: Db, providerId: string | null, email: string, kind: "confirm" | "letter", now: Date): Promise<void> {
+  if (!providerId) return;
+  await db.query(
+    `insert into newsletter_deliveries (provider_id, email, kind, sent_at) values ($1, $2, $3, $4) on conflict (provider_id) do nothing`,
+    [providerId, email, kind, now.toISOString()],
+  );
+}
+
+export type DeliveryCheck = { checked: number; left: number };
+
+/**
+ * Asks Resend how the letter's recent emails went (the hourly job, before it sends anything): each one for
+ * DELIVERY_CHECK_DAYS after it went, at most every DELIVERY_RECHECK_HOURS. One that bounced, was reported as spam, or that
+ * Resend wouldn't send (its suppression list) takes its address off the list, with why: nothing more goes there until
+ * someone signs it up and confirms again. A lookup that fails ends the pass; the next one carries on.
+ */
+export async function checkDeliveries(db: Db, now: Date = new Date(), env: Env = process.env, opts: { until?: number; pauseMs?: number } = {}): Promise<DeliveryCheck> {
+  const config = newsletterEmail(env);
+  if (!config) return { checked: 0, left: 0 };
+  const { rows } = await db.query<{ provider_id: string; email: string }>(
+    `select provider_id, email from newsletter_deliveries
+      where sent_at > $1 and sent_at <= $2 and (checked_at is null or checked_at <= $3)
+        and (last_event is null or last_event <> all($4::text[]))
+      order by coalesce(checked_at, sent_at), provider_id limit $5`,
+    [
+      new Date(now.getTime() - DELIVERY_CHECK_DAYS * DAY_MS).toISOString(),
+      // A minute's grace: an email just handed over has nothing to say yet.
+      new Date(now.getTime() - 60_000).toISOString(),
+      new Date(now.getTime() - DELIVERY_RECHECK_HOURS * 3_600_000).toISOString(),
+      [...LEAVING_EVENTS],
+      CHECKS_PER_PASS,
+    ],
+  );
+  let checked = 0;
+  let left = 0;
+  for (const d of rows) {
+    if (opts.until !== undefined && Date.now() > opts.until) break;
+    let event: string | null;
+    try {
+      event = await emailLastEvent(d.provider_id, config);
+    } catch (err) {
+      console.error("[newsletter] delivery check failed:", err instanceof Error ? err.message : "unknown");
+      break;
+    }
+    checked++;
+    await db.query(`update newsletter_deliveries set checked_at = $2, last_event = $3 where provider_id = $1`, [d.provider_id, now.toISOString(), event]);
+    if (event && (LEAVING_EVENTS as readonly string[]).includes(event)) {
+      const off = await db.query(
+        `update newsletter_subscribers set status = 'unsubscribed', unsubscribed_at = $2, pending_since = null, left_reason = $3, updated_at = $2
+          where email = $1 and status <> 'unsubscribed' returning email`,
+        [d.email, now.toISOString(), event],
+      );
+      left += off.rows.length;
+    }
+    await pause(opts.pauseMs ?? 0);
+  }
+  return { checked, left };
 }
 
 /** A wait between sends, so a batch keeps under Resend's rate limit. */
@@ -316,14 +387,16 @@ export async function sendConfirmation(db: Db, email: string, now: Date = new Da
   if (!claimed.rows.length) return "not_due";
   const msg = confirmationEmail(email, config, now, env);
   if (!msg) return "not_due";
+  let providerId: string | null;
   try {
-    await sendEmail(msg, config);
+    providerId = await sendEmail(msg, config);
   } catch (err) {
     console.error("[newsletter] confirmation failed:", err instanceof Error ? err.message : "unknown");
     return "failed";
   }
   await db.query(`update newsletter_subscribers set confirm_sent_at = $2, confirms_sent = confirms_sent + 1 where email = $1`, [email, now.toISOString()]);
   await logNewsletterSend(db, SEND_KINDS.confirm);
+  await recordDelivery(db, providerId, email, "confirm", now);
   return "sent";
 }
 
@@ -362,12 +435,14 @@ export type NewsletterStatus = {
   /** The letter's emails in the last 24 hours, and what's left of the day. */
   sent_today: { confirmations: number; letters: number };
   budget: NewsletterBudget;
+  /** Why the unsubscribed addresses left: the person, or a bounce, complaint or suppression Resend reported. */
+  left_because: Record<string, number>;
   issues: { id: string; week_id: string; subject: string; built_at: string; sent: number }[];
 };
 
 /** The admin's view (app/api/admin/newsletter): counts only, never an address. */
 export async function newsletterStatus(db: Db, env: Env = process.env): Promise<NewsletterStatus> {
-  const [subscribers, today, budget, issues] = await Promise.all([
+  const [subscribers, today, budget, issues, reasons] = await Promise.all([
     subscriberCounts(db),
     db.query<{ confirmations: number; letters: number }>(
       `select count(*) filter (where kind = $1)::int as confirmations, count(*) filter (where kind = $2)::int as letters
@@ -378,6 +453,9 @@ export async function newsletterStatus(db: Db, env: Env = process.env): Promise<
     db.query<{ id: string; week_id: string; subject: string; built_at: string | Date; sent: number }>(
       `select id, week_id, subject, built_at, sent from newsletter_issues order by built_at desc limit 8`,
     ),
+    db.query<{ reason: string; n: number }>(
+      `select coalesce(left_reason, 'unsubscribed') as reason, count(*)::int as n from newsletter_subscribers where status = 'unsubscribed' group by 1`,
+    ),
   ]);
   return {
     state: newsletterState(env),
@@ -385,6 +463,7 @@ export async function newsletterStatus(db: Db, env: Env = process.env): Promise<
     subscribers,
     sent_today: today.rows[0] ?? { confirmations: 0, letters: 0 },
     budget,
+    left_because: Object.fromEntries(reasons.rows.map((r) => [r.reason, r.n])),
     issues: issues.rows.map((i) => ({ ...i, built_at: new Date(i.built_at).toISOString() })),
   };
 }

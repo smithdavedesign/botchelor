@@ -3615,6 +3615,19 @@ create table if not exists newsletter_sends (
   primary key (issue_id, email)
 );
 create index if not exists newsletter_sends_created_idx on newsletter_sends (created_at);
+-- Every email the Sunday letter sends, by Resend's id, so the hourly job can ask how it went: a bounce, a spam complaint
+-- or Resend's own suppression takes the address off the list (lib/newsletter.ts checkDeliveries). Kept two weeks.
+create table if not exists newsletter_deliveries (
+  provider_id text primary key,
+  email text not null,
+  kind text not null check (kind in ('confirm', 'letter')),
+  sent_at timestamptz not null,
+  checked_at timestamptz,
+  last_event text
+);
+create index if not exists newsletter_deliveries_sent_idx on newsletter_deliveries (sent_at);
+-- Why an address left: 'unsubscribed' (the person), or 'bounced', 'complained' or 'suppressed' (from Resend).
+alter table newsletter_subscribers add column if not exists left_reason text;
 `;
 
 /** Idempotent: creates the tables and upserts the house characters, free and premium. */

@@ -9,6 +9,7 @@ import type { Db } from "./db";
 import { bestAired, writtenTitle, type DropDate, type DropItem } from "./discord-posts";
 import {
   catchUpConfirmations,
+  checkDeliveries,
   EMAIL_COLOURS,
   escapeHtml,
   letterEmail,
@@ -19,6 +20,7 @@ import {
   pause,
   postalAddress,
   pruneNewsletter,
+  recordDelivery,
   SEND_KINDS,
   subscriberCounts,
   WAITING_FOR_ADDRESS,
@@ -307,9 +309,10 @@ export async function sendLetter(db: Db, issue: IssueRow, now: Date = new Date()
       const email = await claimNext(db, issue.id, now);
       if (!email) break;
       const msg = letterEmail(issue, email, config, env);
+      let providerId: string | null;
       try {
         if (!msg) throw new Error("no message");
-        await sendEmail(msg, config);
+        providerId = await sendEmail(msg, config);
       } catch (err) {
         console.error("[newsletter] letter failed:", err instanceof Error ? err.message : "unknown");
         await db.query(`update newsletter_sends set claimed_at = null where issue_id = $1 and email = $2 and sent_at is null`, [issue.id, email]);
@@ -319,6 +322,7 @@ export async function sendLetter(db: Db, issue: IssueRow, now: Date = new Date()
       await db.query(`update newsletter_sends set sent_at = $3 where issue_id = $1 and email = $2`, [issue.id, email, now.toISOString()]);
       await db.query(`update newsletter_issues set sent = sent + 1, last_sent_at = $2 where id = $1`, [issue.id, now.toISOString()]);
       await logNewsletterSend(db, SEND_KINDS.letter);
+      await recordDelivery(db, providerId, email, "letter", now);
       sent++;
       await pause(opts.pauseMs ?? 0);
     }
@@ -329,12 +333,13 @@ export async function sendLetter(db: Db, issue: IssueRow, now: Date = new Date()
 export type NewsletterRun =
   | "off"
   | typeof WAITING_FOR_ADDRESS
-  | { issue: string | null; sent: number; failed: number; left: number; confirmations: number; pruned: number; pending: number; confirmed: number };
+  | { issue: string | null; sent: number; failed: number; left: number; confirmations: number; pruned: number; dropped: number; pending: number; confirmed: number };
 
 /**
- * The hourly lobby job's part (app/api/jobs/lobby): tidies the list, sends the confirmations that had to wait, then, once
- * NEWSLETTER_POSTAL_ADDRESS is set, builds the week's letter when it's due and sends its next batch. Each step stands
- * alone: one that fails leaves the rest to run. Within PASS_MS, with a pause between sends for Resend's rate limit.
+ * The hourly lobby job's part (app/api/jobs/lobby): tidies the list, takes off the addresses whose emails bounced or were
+ * reported as spam (checkDeliveries), sends the confirmations that had to wait, then, once NEWSLETTER_POSTAL_ADDRESS is
+ * set, builds the week's letter when it's due and sends its next batch. Each step stands alone: one that fails leaves the
+ * rest to run. Within PASS_MS, with a pause between calls for Resend's rate limit.
  */
 export async function runNewsletter(db: Db, now: Date = new Date(), opts: { env?: Env; pauseMs?: number; budgetMs?: number } = {}): Promise<NewsletterRun> {
   const env = opts.env ?? process.env;
@@ -343,13 +348,15 @@ export async function runNewsletter(db: Db, now: Date = new Date(), opts: { env?
   const until = Date.now() + (opts.budgetMs ?? PASS_MS);
   const pauseMs = opts.pauseMs ?? SEND_PAUSE_MS;
   const pruned = await pruneNewsletter(db, now).catch(() => 0);
+  // Before anything goes out, so an address that just bounced gets nothing more.
+  const { left: dropped } = await checkDeliveries(db, now, env, { until, pauseMs }).catch(() => ({ checked: 0, left: 0 }));
   const confirmations = await catchUpConfirmations(db, now, env, { until, pauseMs }).catch(() => 0);
   if (state === "waiting_for_address") return WAITING_FOR_ADDRESS;
   await ensureIssue(db, now, env).catch((err) => console.error("[newsletter] building the letter failed:", err instanceof Error ? err.message : "unknown"));
   const issue = await currentIssue(db, now);
   const pass = issue ? await sendLetter(db, issue, now, env, { until, pauseMs }) : { sent: 0, failed: 0, left: 0 };
   const { pending, confirmed } = await subscriberCounts(db);
-  return { issue: issue?.id ?? null, ...pass, confirmations, pruned, pending, confirmed };
+  return { issue: issue?.id ?? null, ...pass, confirmations, pruned, dropped, pending, confirmed };
 }
 
 /** The latest week's letter as it stands, or as it would be built now: the admin's look before it goes out. Stores nothing. */
