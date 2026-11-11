@@ -12,6 +12,8 @@ import { backingBadges } from "@/lib/backing";
 import { listMyBadges, tryCloseDueSeasons, type Badge } from "@/lib/seasons";
 import AccountPanel from "./AccountPanel";
 import { UnlinkAgentButton } from "./AgentLinks";
+import ThemeSetting from "@/app/ThemeSetting";
+import { THEME_COOKIE, themeFromCookie } from "@/lib/theme";
 import { linkedAgents } from "@/lib/agent-links";
 import { accessHere } from "@/lib/adult/place";
 import { afterDarkHref } from "@/lib/after-dark-host";
@@ -65,10 +67,13 @@ export default async function AccountPage({ searchParams }: { searchParams: Sear
   const afterDark = await afterDarkCard(db, auth);
   // The Companion Plan (lib/paid-plans.ts): its state and where to cancel, for anyone who ever had it.
   const companionPlan = auth?.authenticated && companionOpen() ? await planState(db, auth.userId, "companion") : null;
+  // Appearance (lib/theme.ts): the pick this browser holds, so the radios open on it.
+  const theme = themeFromCookie((await cookies()).get(THEME_COOKIE)?.value);
   return (
     <>
       <h1>Your account</h1>
       <AccountPanel next={next} emailConfirmed={emailConfirmed} />
+      <ThemeSetting initial={theme} />
 
       {/* After Dark: for an account it's open to, or one with a subscription (lib/adult/billing.ts), never where it isn't offered. */}
       {afterDark && (

@@ -58,6 +58,7 @@ export default function Nav({
   unread = 0,
   texts = 0,
   afterDark = false,
+  adHost = false,
   hasCharacter = true,
   companions = false,
   prefetchShow = true,
@@ -71,6 +72,8 @@ export default function Nav({
   unread?: number;
   texts?: number;
   afterDark?: boolean;
+  /** On After Dark's own host: the door turns into "Back to the show", and there's no create button. */
+  adHost?: boolean;
   /** Companions are open to everyone (lib/companion-shared.ts companionOpen): their link after Matches. */
   companions?: boolean;
   /** False on After Dark's own host: the show's links there only redirect, so they aren't prefetched (app/layout.tsx). */
@@ -126,27 +129,59 @@ export default function Nav({
 
   return (
     <nav className="nav" aria-label="Primary">
-      {/* #539: the count is free dates this week plus topped-up tokens, so it says "dates left", not "tokens". */}
-      {personal && meter === "tokens" ? (
-        // #1173: After Dark's own page says what a token buys and how to get more (the show's shop sells them as dates).
-        <Link href="/after-dark/tokens" className={`token-pill${tone}`} title="Tokens left. The subscription includes the chapters, their pictures and a few clips a month; tokens pay for the extras (more clips, the video of the night). The show's free weekly dates aren't spent here.">
-          <span className="token-pip" aria-hidden="true">◈</span>
-          <span className="token-count">{tokens}</span>
-          <span className="token-word">{tokens === 1 ? "token" : "tokens"}</span>
-        </Link>
-      ) : personal ? (
-        <Link prefetch={pf} href="/shop" className={`token-pill${tone}`} title="Dates left: your free dates this week plus any tokens you've topped up. One sends a character on one date.">
-          <span className="token-pip" aria-hidden="true">◈</span>
-          <span className="token-count">{tokens}</span>
-          <span className="token-word">{tokens === 1 ? "date left" : "dates left"}</span>
-        </Link>
-      ) : (
-        <Link prefetch={pf} href="/shop" className="token-pill" title={`Everyone gets ${tokens} free dates a week; yours count down here once you start. One sends a character on one date.`}>
-          <span className="token-pip" aria-hidden="true">◈</span>
-          <span className="token-count">{tokens}</span>
-          <span className="token-word">{tokens === 1 ? "free date" : "free dates"}</span>
-        </Link>
-      )}
+      {/* The tools (docs/brand.md, Header): the After Dark door (a link to its host, never a toggle; "Back to the show"
+          on that host), the meter, and the newcomer's one call to action. The links follow. */}
+      <div className="nav-tools">
+        {adHost ? (
+          <Link prefetch={false} href="/" className="nav-ad-link nav-ad-link--back">
+            <Icon name="chevronLeft" />
+            <span>Back to the show</span>
+          </Link>
+        ) : (
+          afterDark && (
+            <Link href={afterDarkHref("/after-dark")} className="nav-ad-link" aria-current={pathname.startsWith("/after-dark") ? "page" : undefined}>
+              <Icon name="moon" />
+              <span>After Dark</span>
+              <Icon name="arrowUpRight" className="nav-ad-link-out" />
+            </Link>
+          )
+        )}
+        {/* Two meters, two units: the show's dates are a clapper on an outline pill; After Dark's tokens are ◈ on a night
+            pill. Never the same pill with a different word, so no page has to explain which is spent where. */}
+        {/* #539: the count is free dates this week plus topped-up tokens, so it says "dates left", not "tokens". */}
+        {personal && meter === "tokens" ? (
+          // #1173: After Dark's own page says what a token buys and how to get more (the show's shop sells them as dates).
+          <Link href="/after-dark/tokens" className={`token-pill token-pill--tokens${tone}`} title="Tokens left. The subscription includes the chapters, their pictures and a few clips a month; tokens pay for the extras (more clips, the video of the night). The show's free weekly dates aren't spent here.">
+            <span className="token-pip" aria-hidden="true">◈</span>
+            <span className="token-count">{tokens}</span>
+            <span className="token-word">{tokens === 1 ? "token" : "tokens"}</span>
+          </Link>
+        ) : personal ? (
+          <Link prefetch={pf} href="/shop" className={`token-pill token-pill--dates${tone}`} title="Dates left: your free dates this week plus any tokens you've topped up. One sends a character on one date.">
+            <Icon name="clapper" className="token-pip" />
+            <span className="token-count">{tokens}</span>
+            <span className="token-word">{tokens === 1 ? "date left" : "dates left"}</span>
+          </Link>
+        ) : (
+          <Link prefetch={pf} href="/shop" className="token-pill token-pill--dates" title={`Everyone gets ${tokens} free dates a week; yours count down here once you start. One sends a character on one date.`}>
+            <Icon name="clapper" className="token-pip" />
+            <span className="token-count">{tokens}</span>
+            <span className="token-word">{tokens === 1 ? "free date" : "free dates"}</span>
+          </Link>
+        )}
+        {/* The one call to action, in the bar above 900px: words, or an icon-only plus between 900 and 1180px. On a
+            phone it's in the menu (nav-create below). */}
+        {!hasCharacter && !adHost && (
+          <>
+            <Link prefetch={pf} href="/create" className="button nav-cta nav-cta-full" aria-current={pathname === "/create" ? "page" : undefined}>
+              Make your character
+            </Link>
+            <Link prefetch={pf} href="/create" className="button nav-cta nav-cta-compact" aria-label="Make your character" aria-current={pathname === "/create" ? "page" : undefined}>
+              <Icon name="plus" />
+            </Link>
+          </>
+        )}
+      </div>
       <button
         type="button"
         className="nav-toggle"
@@ -178,11 +213,6 @@ export default function Nav({
             )}
           </Link>
         ))}
-        {afterDark && (
-          <Link href={afterDarkHref("/after-dark")} className="nav-after-dark" aria-current={pathname.startsWith("/after-dark") ? "page" : undefined}>
-            <Icon name="moon" /> After Dark
-          </Link>
-        )}
         <Link prefetch={pf} href="/notifications" aria-current={pathname === "/notifications" ? "page" : undefined} className="nav-bell">
           <Icon name="bell" className="nav-bell-icon" />
           <span className="nav-bell-label">Notifications</span>

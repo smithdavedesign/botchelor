@@ -210,13 +210,41 @@ All in `globals.css`; reuse the class, don't restyle.
   / right (side b), act headers in accent small-caps. Afterglow uses a warmer tint to read as texts.
 - **`.boxscore`**, **`.venue`** (gradient backdrop + location), **`.ending`** (the verdict line).
 
+## Header
+
+Five kinds of thing and no more (the design system, 2026-11-11): the wordmark, the After Dark door, the meter, one
+call to action, the links (the bell is a link). The tagline belongs in the hero; the theme setting in Account.
+
+- **The door** (`.nav-ad-link`) is a link to After Dark's own host, never a toggle, night-coloured in every theme so
+  it reads as the adult side; its ↗ says it leaves the site. On that host it turns into "Back to the show", and the
+  wordmark wears the `.moon-badge` on every page, so nobody is unsure which side they're on.
+- **Two meters, two units.** The show's dates are a clapper on an outline pill (`.token-pill--dates`); After Dark's
+  tokens are ◈ on a night pill (`.token-pill--tokens`). Never the same pill with a different word, so no page has
+  to explain that "the show's dates aren't spent here".
+- **One call to action** (`.nav-cta`), for a newcomer only: in words above 1180px, an icon-only plus from 900 to
+  1180px, and in the menu under 900px.
+- **Breakpoints.** Under 1180px the bar tightens (the meter drops its word, the door keeps its words). Under 900px
+  the links fold behind the menu button and the tools stay. Under 560px the door and the badge are marks.
+
+## Themes
+
+Light is the default and dark follows the device, as before. A viewer may also pick Light or Dark on /account
+(`app/ThemeSetting.tsx`): the pick is a cookie (`lib/theme.ts`) that the root layout writes into
+`<html data-theme>`, so the first paint is right. The stylesheet's dark tokens live in two identical blocks,
+`@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) }` and `:root[data-theme="dark"]`
+(`tests/theme.test.ts` keeps them the same); a new dark rule goes in both. After Dark is night in every theme and
+ignores the pick. Nothing else about theming is in the header.
+
 ## Icons
 
 The interface's own markers are drawn icons, not emoji: `<Icon name="…" />` from [`app/Icon.tsx`](../app/Icon.tsx),
 line icons on a 24px grid (2px stroke, round caps and joins) in `currentColor` at `1em`, so an icon takes its
 text's colour and size and sits on its baseline. Emoji drew differently on every platform and read as unfinished
 next to the type (2026-11-08 audit). Use an icon for the nav and its bell, badges and chips, a fact's marker (a
-job, a hometown), locks, the feedback bubble and a button's play mark.
+job, a hometown), locks, the feedback bubble and a button's play mark. The design system's additions (2026-11-11):
+`clapper` (the dates meter), `arrowUpRight` (a link that leaves the site), `chevronLeft` (the way back) and `plus`
+(the compact call to action). Emoji may still label a tool when the tool is part of the show itself (📸 Picture
+this, 🔈 Listen, 🎬 the video of the night), always beside its words, never alone.
 
 Emoji stay where they're **the show's voice, not the interface**: an award's or a format's own emoji, a
 roleplay's icon, a reaction, anything a character writes. A new icon is a new name in `IconName` with its paths

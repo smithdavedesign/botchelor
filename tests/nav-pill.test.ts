@@ -16,15 +16,26 @@ const text = (html: string) => html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " "
 
 describe("the header's date meter", () => {
   it("shows a viewer's own dates left, warning when they're low", () => {
-    expect(text(pill({ tokens: 2 }))).toBe("◈ 2 dates left");
-    expect(text(pill({ tokens: 1, personal: true }))).toBe("◈ 1 date left");
-    expect(pill({ tokens: 1 })).toContain('class="token-pill low"');
-    expect(pill({ tokens: 0 })).toContain('class="token-pill empty"');
+    expect(text(pill({ tokens: 2 }))).toBe("2 dates left");
+    expect(text(pill({ tokens: 1, personal: true }))).toBe("1 date left");
+    expect(pill({ tokens: 1 })).toMatch(/class="token-pill token-pill--dates low"/);
+    expect(pill({ tokens: 0 })).toMatch(/class="token-pill token-pill--dates empty"/);
+  });
+
+  // Two meters, two units (design system, 2026-11-11): the show's dates are a clapper on an outline pill; After Dark's
+  // tokens are ◈ on a night pill. Never the same pill with a different word.
+  it("draws the show's dates as a clapper and After Dark's tokens as ◈ on the night pill", () => {
+    const dates = pill({ tokens: 2 });
+    expect(dates).toContain('class="icon token-pip"');
+    expect(dates).not.toContain("◈");
+    const tokens = pill({ tokens: 2, meter: "tokens" });
+    expect(tokens).toContain('class="token-pill token-pill--tokens"');
+    expect(text(tokens)).toBe("◈ 2 tokens");
   });
 
   it("without an identity, says the weekly allowance, not someone's count", () => {
     const html = pill({ tokens: 3, personal: false });
-    expect(text(html)).toBe("◈ 3 free dates");
+    expect(text(html)).toBe("3 free dates");
     expect(html).not.toMatch(/dates? left/);
     expect(html).toContain("Everyone gets 3 free dates a week");
     expect(html).toContain('href="/shop"');

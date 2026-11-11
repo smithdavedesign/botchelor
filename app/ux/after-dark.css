@@ -3,10 +3,14 @@
 /* ---------------- the night card itself ---------------- */
 /* In the site's dark theme the night card was nearly the page's colour: a hairline and a faint glow mark its edge. */
 @media (prefers-color-scheme: dark) {
-  .after-dark-mode {
+  :root:not([data-theme="light"]) .after-dark-mode {
     border: 1px solid var(--ad-line);
     box-shadow: 0 0 0 1px rgba(199, 146, 255, 0.06), 0 0 48px -16px rgba(199, 146, 255, 0.35);
   }
+}
+:root[data-theme="dark"] .after-dark-mode {
+  border: 1px solid var(--ad-line);
+  box-shadow: 0 0 0 1px rgba(199, 146, 255, 0.06), 0 0 48px -16px rgba(199, 146, 255, 0.35);
 }
 /* A face's name inside a heading or legend takes the heading's type (Memory's "Rafe remembers about June"). */
 .after-dark :is(h1, h2, h3, h4, legend, summary) .char-name-text {
