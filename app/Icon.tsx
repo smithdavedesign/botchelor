@@ -8,19 +8,15 @@ import type { ReactNode } from "react";
  * Decorative by default (aria-hidden): the words beside it carry the meaning. Give `label` when it stands alone.
  */
 export type IconName =
-  | "arrowUpRight"
   | "bell"
   | "bot"
   | "briefcase"
   | "chat"
-  | "chevronLeft"
-  | "clapper"
   | "glass"
   | "lock"
   | "moon"
   | "pin"
   | "play"
-  | "plus"
   | "trophy"
   | "tv"
   | "unlock"
@@ -54,24 +50,6 @@ export type IconName =
   | "more";
 
 const PATHS: Record<IconName, ReactNode> = {
-  /* The design system's additions (2026-11-11), Lucide paths on the same grid: the After Dark door's "leaves the site"
-     mark, a back chevron, the show's dates meter (a clapper: two meters, two units; After Dark's tokens keep ◈) and
-     the header's compact call to action. */
-  arrowUpRight: (
-    <>
-      <path d="M7 7h10v10" />
-      <path d="M7 17 17 7" />
-    </>
-  ),
-  chevronLeft: <path d="m15 18-6-6 6-6" />,
-  clapper: (
-    <>
-      <path d="M20.2 6 3 11l-.9-2.4c-.3-1.1.3-2.2 1.3-2.5l13.5-4c1.1-.3 2.2.3 2.5 1.3Z" />
-      <path d="m6.2 5.3 3.1 3.9M12.4 3.4l3.1 4" />
-      <path d="M3 11h18v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" />
-    </>
-  ),
-  plus: <path d="M5 12h14M12 5v14" />,
   bell: (
     <>
       <path d="M10.3 21a2 2 0 0 0 3.4 0" />
