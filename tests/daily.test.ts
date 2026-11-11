@@ -6,6 +6,9 @@ import { HOUSE_CHARACTERS } from "@/lib/house";
 import { ModelError, setModelForTests } from "@/lib/model";
 import { CONVERSATION_TURNS, ENDING_LABELS } from "@/lib/rules";
 import { GET as lobbyJob } from "@/app/api/jobs/lobby/route";
+import { GET as health } from "@/app/api/health/route";
+import { latestJobRuns, recordJobRun, startJobMeter } from "@/lib/job-meter";
+import { jsonWhenDone } from "@/lib/http";
 import { createTemplateParty, FRESH_ROOMS_PER_DAY, listLobby, refreshLobby } from "@/lib/watch";
 import { getEpisodeView } from "@/lib/game";
 import { api, BASE_URL, episodeJson, HOUSE_PARTNER_ID, newUserCookie, planJson, scriptedModel, scriptOutcome, setupEpisode, startTestDb, userIdOf, validCharacter } from "./helpers";
@@ -349,5 +352,66 @@ describe("GET /api/jobs/daily", () => {
     const body = await res.json();
     expect(body.lobby.created).toBeTruthy();
     expect(body.backfill).toEqual({ filled: [], failed: [] });
+    // The whole run is measured and kept as one "all" report, step by step.
+    expect(body.load.steps.map((s: { step: string }) => s.step)).toEqual(expect.arrayContaining(["retention", "lobby", "texts", "matchmaker", "embeddings"]));
+    expect(body.load.heap_limit_mb).toBeGreaterThan(0);
+  });
+
+  // 2026-11-11: run whole, the job held the show's only instance for minutes and botchelor.com answered 504 twice.
+  // The scheduled job now calls it a part at a time (.do/app.yaml), and each part's cost is kept (lib/job-meter.ts).
+  it("runs one part at a time with ?part, and keeps what each part cost the instance", async () => {
+    vi.stubEnv("CRON_SECRET", secret);
+    const part = (p: string) => dailyJob(new Request(`${BASE_URL}/api/jobs/daily?backfill=0&part=${p}`, { headers: { authorization: `Bearer ${secret}` } }));
+    expect((await part("everything")).status).toBe(400);
+
+    const upkeep = await (await part("upkeep")).json();
+    expect(upkeep).toHaveProperty("own_dates_cleared");
+    expect(upkeep).not.toHaveProperty("lobby"); // the show part didn't run
+    expect(upkeep.load.steps.map((s: { step: string }) => s.step)).toEqual([
+      "retention",
+      "exports",
+      "own_dates",
+      "rate_hits",
+      "mcp_calls",
+      "companion_usage",
+      "extras_usage",
+      "live_calls",
+      "voices",
+      "plan_checkouts",
+      "server_errors",
+    ]);
+    for (const s of upkeep.load.steps) expect(s).toEqual({ step: expect.any(String), ms: expect.any(Number), heap_mb: expect.any(Number), rss_mb: expect.any(Number) });
+
+    const growth = await (await part("growth")).json();
+    expect(growth).toHaveProperty("embeddings");
+    expect(growth).not.toHaveProperty("texts");
+
+    const kept = (await t.db.query<{ part: string }>(`select part from job_runs where job = 'daily' order by at`)).rows;
+    expect(kept.map((r) => r.part)).toEqual(expect.arrayContaining(["upkeep", "growth"]));
+    const latest = await latestJobRuns(t.db, "daily");
+    expect(latest.find((r) => r.part === "upkeep")).toMatchObject({ ms: expect.any(Number), loop_max_ms: expect.any(Number), slowest: expect.stringMatching(/ms$/) });
+  });
+
+  it("a part answers only when it's done, sending newlines meanwhile so the edge's 100 s cutoff never ends the call", async () => {
+    const slow = jsonWhenDone(new Request(`${BASE_URL}/api/jobs/daily`), () => new Promise((r) => setTimeout(() => r({ done: true }), 120)), 30);
+    expect(slow.headers.get("cache-control")).toContain("no-transform"); // the server's compression would hold the newlines back
+    const text = await slow.text();
+    expect(text).toMatch(/^\n+\{"done":true\}$/);
+    expect(JSON.parse(text)).toEqual({ done: true });
+    const failed = jsonWhenDone(new Request(`${BASE_URL}/api/jobs/daily`), async () => {
+      throw new Error("boom");
+    });
+    expect(failed.status).toBe(200); // the status is sent before the work ends
+    expect(await failed.json()).toEqual({ error: "internal_error" });
+  });
+
+  it("the health check shows the instance's memory and the daily job's parts to the monitor only", async () => {
+    vi.stubEnv("CRON_SECRET", secret);
+    await recordJobRun(t.db, "daily", "people", { ...startJobMeter().finish(), ms: 1234 });
+    const pub = await (await health(new Request(`${BASE_URL}/api/health`))).json();
+    expect(pub).toEqual({ ok: true });
+    const mon = await (await health(new Request(`${BASE_URL}/api/health`, { headers: { authorization: `Bearer ${secret}` } }))).json();
+    expect(mon.process).toMatchObject({ uptime_s: expect.any(Number), rss_mb: expect.any(Number), heap_used_mb: expect.any(Number), heap_limit_mb: expect.any(Number) });
+    expect(mon.daily_job).toEqual(expect.arrayContaining([expect.objectContaining({ part: "people", ms: 1234, slowest: null })]));
   });
 });
