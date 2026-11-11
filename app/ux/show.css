@@ -501,6 +501,21 @@ details.recap-toggle[open] .recap-toggle-hide {
     align-items: start;
   }
 }
+/* Who you back and the best callers, side by side on a wide screen (the design system's /watch). */
+.watch-games {
+  display: grid;
+  gap: var(--space-3);
+  margin: var(--space-4) 0;
+}
+.watch-games > * {
+  margin: 0;
+}
+@media (min-width: 60rem) {
+  .watch-games {
+    grid-template-columns: 1fr 1fr;
+    align-items: start;
+  }
+}
 
 /* ---------------- a couple (app/couples/[a]/[b]) ---------------- */
 /* An action and its small print: the button(s) on one line, the muted note under them, never wrapped beside. */
@@ -1187,6 +1202,26 @@ details.recap-toggle[open] .recap-toggle-hide {
     flex-basis: 100%;
     order: 9;
   }
+}
+
+/* The strip under the header (app/SeasonStrip.tsx): the arc, or the closed season's banner, as a full-width band on the
+   show's spectator pages, as the design system draws it. Its contents keep the page's own width. */
+.season-strip {
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--accent-2) 9%, var(--paper));
+}
+.season-strip > .season-arc,
+.season-strip > .season-banner {
+  max-width: var(--page-wide);
+  margin: 0 auto;
+  padding: var(--space-2) var(--gutter);
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+.season-strip > .season-arc:hover,
+.season-strip > .season-banner:hover {
+  background: color-mix(in srgb, var(--accent-2) 5%, transparent);
 }
 
 /* ---------------- live now (app/TonightBand.tsx footer; the design system, 2026-11-11) ----------------

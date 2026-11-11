@@ -30,7 +30,6 @@ import { ballotResult } from "@/lib/season-vote";
 import { seasonIdOf } from "@/lib/season-window";
 import { thisWeekOn } from "@/lib/season-format";
 import { seasonFormatNow } from "@/lib/season-format-store";
-import SeasonBanner from "@/app/SeasonBanner";
 import ChemistryShiftsPanel from "@/app/ChemistryShifts";
 import { chemistryShifts } from "@/lib/chemistry-shifts";
 import { showSince } from "@/lib/show-since";
@@ -233,7 +232,6 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
       />
       <ShowTabs active="/watch" />
       {/* The season's arc (or, in a month's first week, last season's finale): the design system, 2026-11-11. */}
-      <SeasonBanner now={new Date(now)} format={seasonDef?.title ?? null} />
       <p className="kicker">The Botchelor · watch</p>
       <h1>Watch a date</h1>
       <p className="lede watch-intro">
@@ -278,9 +276,11 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
       {reveal && (reveal.state === "open" || reveal.state === "closed" || reveal.last) && <WeeklyReveal board={reveal} now={now} />}
       {/* What the audience does tonight, before the listings and the archive (the audit, 2026-11-11, 2.3: the situation
           vote sat fifth on the page): tonight's situation and, until its vote opens, Sunday's reveal beside it. */}
-      {(situation || (reveal && reveal.state !== "open" && reveal.state !== "closed" && !reveal.last)) && (
-        <div className={`watch-votes${situation && reveal && reveal.state !== "open" && reveal.state !== "closed" && !reveal.last ? " is-two" : ""}`}>
+      {(situation || dares || (reveal && reveal.state !== "open" && reveal.state !== "closed" && !reveal.last)) && (
+        <div className={`watch-votes${[situation, dares, reveal && reveal.state !== "open" && reveal.state !== "closed" && !reveal.last].filter(Boolean).length > 1 ? " is-two" : ""}`}>
           {situation && <SituationVote board={situation} now={now} />}
+          {/* Today's dare sits beside the situation, as the design system lays out /watch (all-screens board, 2026-11-11). */}
+          {dares && <DareVote board={dares} />}
           {reveal && reveal.state !== "open" && reveal.state !== "closed" && !reveal.last && <WeeklyReveal board={reveal} now={now} />}
         </div>
       )}
@@ -393,22 +393,27 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
 
       {/* Shorter (UX round C, 2026-11-07): the cast chat, the dare, backing, chemistry shifts and the callers board fold
           under one line, so the page is tonight's dates, the vote and the episodes. A link into one opens it (OpenOnHash). */}
-      {(castChat || dares || backing || shifts || callers || (pool && !poolRevealed)) && (
+      {/* Who you back this month and the best callers, out in the open (the design system's /watch): they're the
+          show's own games, not extras. */}
+      {(backing || callers) && (
+        <div className="watch-games">
+          {backing && <BackCast board={backing} />}
+          {callers && <CallersBoardPanel board={callers} nameless={viewerId !== null && profileName === null} />}
+        </div>
+      )}
+      {(castChat || shifts || (pool && !poolRevealed)) && (
         <details className="watch-section watch-more ux-fold">
           <summary>
             <h2>More from the show</h2>{" "}
             <span className="muted small">
-              {[castChat && "the cast chat", dares && "today's dare", backing && "who you back", shifts && "chemistry shifts", callers && "the best callers", pool && !poolRevealed && "the season pool"]
+              {[castChat && "the cast chat", shifts && "chemistry shifts", pool && !poolRevealed && "the season pool"]
                 .filter(Boolean)
                 .join(" · ")}
             </span>
           </summary>
           {/* Yesterday's cast group chat (lib/cast-chat.ts): only ever about what has aired. */}
           {castChat && <CastChat chat={castChat} />}
-          {dares && <DareVote board={dares} />}
-          {backing && <BackCast board={backing} />}
           {shifts && <ChemistryShiftsPanel shifts={shifts} />}
-          {callers && <CallersBoardPanel board={callers} nameless={viewerId !== null && profileName === null} />}
           {pool && !poolRevealed && <SeasonPoolPanel standing={pool} revealed={null} now={now} />}
         </details>
       )}
