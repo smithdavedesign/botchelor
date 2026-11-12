@@ -459,6 +459,14 @@ button.ad-capture-item:disabled {
   .theater-after-dark .theater-tools {
     flex-wrap: nowrap;
   }
+  /* ⋯'s panel hangs from the tool row's right edge, not ⋯'s own: ⋯ sits left of Exit, so a panel as wide as the screen
+     allows (✍️'s list of writers, "✨ Bring them to life · …") ran off the left edge from there (2026-11-12, #1491). */
+  .theater-after-dark .theater-tools {
+    position: relative;
+  }
+  .theater-after-dark .theater-tools .ad-tools-more {
+    position: static;
+  }
   .theater-after-dark .theater-tools > * {
     flex-shrink: 0;
     white-space: nowrap;
@@ -962,6 +970,8 @@ label.ad-check-row {
 .ad-tools-steps .ad-writer-logo-error {
   position: static;
   box-shadow: none;
+  /* The phone's tool row is nowrap (one row of icons); the writers' notes wrap inside the panel. */
+  white-space: normal;
 }
 
 /* 📖 The chapter, and the saved ones to play again. */
