@@ -925,6 +925,29 @@ export async function characterMedia(db: Db, characterId: string, viewerId: stri
 }
 
 /**
+ * After Dark's Gallery (app/after-dark/gallery): everything this person made, from every night and every shoot, newest
+ * first, with who's in each. Their own only, an admin's too (the house cast's nights are on their own pages). Like
+ * listMedia, no keyframes or voices, no version another was kept over, and a shot taken out of its video only with
+ * the Archive.
+ */
+export async function ownMedia(db: Db, viewerId: string, limit = 120, opts: { withArchived?: boolean } = {}): Promise<(Media & { a_name: string | null; b_name: string | null })[]> {
+  const { rows } = await db.query<Media & { face_of: string | null; a_name: string | null; b_name: string | null }>(
+    `select m.*, ca.name as a_name, cb.name as b_name from (
+       ${MEDIA_SELECT}
+        where i.owner_id = $2 and i.kind not in ('frame', 'audio') and i.superseded_by is null
+          and ($3::boolean or i.kind <> 'video' or not exists (
+            select 1 from adult_reels v cross join lateral jsonb_array_elements(v.shots) s
+             where v.owner_id = i.owner_id and s->>'media_id' = i.id and s ? 'archived_at'
+               and coalesce(s->>'archived_by', '') <> 'rating'))
+        order by i.created_at desc limit $1
+     ) m left join characters ca on ca.id = m.character_id left join characters cb on cb.id = m.character_b
+     order by m.created_at desc`,
+    [limit, viewerId, opts.withArchived === true],
+  );
+  return rows.map(({ a_name, b_name, ...r }) => ({ ...mediaRow(r), a_name, b_name }));
+}
+
+/**
  * A link to one picture that works without a session for a few minutes, for a provider to fetch as a video's start
  * frame (lib/adult/reels.ts). HMAC over the id and the expiry with SESSION_SECRET; pictures only, never clips.
  */

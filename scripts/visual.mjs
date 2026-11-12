@@ -423,6 +423,8 @@ async function main() {
       { name: "after-dark-scene", path: scenePath, as: "adult-admin", walk: writeScene },
       { name: "after-dark-theater", path: `${scenePath}?play=1`, as: "adult-admin" },
       { name: "after-dark-shorts", path: "/after-dark/shorts", as: "adult-admin" },
+      // Every picture and video of theirs in one place (the design kit's Gallery, 2026-11-12).
+      { name: "after-dark-gallery", path: "/after-dark/gallery", as: "adult-admin" },
       // Signed in but not subscribed: an admin is sent on to the hub (and /admin/after-dark is only a redirect there).
       { name: "after-dark-subscribe", path: "/after-dark/subscribe", as: "member" },
       { name: "admin-after-dark-settings", path: "/admin/after-dark/settings", as: "adult-admin" },

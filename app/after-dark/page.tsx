@@ -83,6 +83,9 @@ export default async function AfterDarkPage({ searchParams }: { searchParams?: P
           <Link className="button-ghost" href="/after-dark/shorts">
             📺 Shorts
           </Link>
+          <Link className="button-ghost" href="/after-dark/gallery">
+            🖼 Gallery
+          </Link>
           <a className="button-ghost" href="#shared">
             💌 Shared{shared.shares.some((x) => x.status === "pending") ? ` (${shared.shares.filter((x) => x.status === "pending").length})` : ""}
           </a>
