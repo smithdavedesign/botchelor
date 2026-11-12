@@ -13,6 +13,7 @@ export default function EpisodeShare({ path, base, names, dateNumber }: { path: 
   return (
     <p className="episode-share">
       <ShareButton
+        track="share-episode"
         path={shared}
         title={`${names[0]} × ${names[1]} on Botchelor`}
         label="🔗 Share this date"

@@ -109,6 +109,9 @@ const SOURCES: [RegExp, string][] = [
   [/(^|\.)github\.com$/, "github"],
 ];
 
+/** A link's ?ref tag (app/funnel.ts BEACON_REFS) as a source: which kind of share the visitor followed. */
+const REF_SOURCES: Readonly<Record<string, string>> = { share: "share_link", invite: "date_link", double: "double_link", owner: "owner_share" };
+
 /**
  * Where a visit came from, in one word: utm_source when the link was tagged, a share link's ref, our name for the
  * referring site, "other" for a site we don't name, "direct" for none. Our own hosts are never a source.
@@ -116,7 +119,7 @@ const SOURCES: [RegExp, string][] = [
 export function sourceOf(src: BeaconSource | undefined): string {
   const utm = clean(src?.utm_source, UTM)?.toLowerCase();
   if (utm) return utm.replace(/\s+/g, "_").slice(0, 40);
-  if (src?.ref === "share") return "share_link";
+  if (src?.ref && Object.hasOwn(REF_SOURCES, src.ref)) return REF_SOURCES[src.ref];
   const host = String(src?.ref_host ?? "").toLowerCase().replace(/^www\./, "").slice(0, 100);
   if (!host || /(^|\.)botchelor\.com$/.test(host) || host === "localhost") return "direct";
   if (/(^|\.)google\./.test(host) && host.startsWith("gemini.")) return "gemini";
@@ -234,7 +237,8 @@ export const ENGAGEMENT_FUNNEL = [
 export type EngagementQuery = { from: string; to: string; includeOurs: boolean; host: "all" | "show" | "after_dark" };
 export type CountRow = { key: string; count: number; visitors: number };
 export type PageRow = { path: string; views: number; visitors: number; avg_seconds: number | null; avg_scroll: number | null };
-export type SourceRow = { source: string; sessions: number; visitors: number; engaged: number; signups: number; created: number };
+/** One source's visitors and how far they got: `started` a date, `watched` one end (the two steps that matter most). */
+export type SourceRow = { source: string; sessions: number; visitors: number; engaged: number; signups: number; created: number; started: number; watched: number };
 export type Engagement = {
   query: EngagementQuery;
   generated_at: string;
@@ -367,7 +371,9 @@ export async function loadEngagement(db: Db, q: EngagementQuery, now = new Date(
     `select coalesce(source, 'direct') as source, count(distinct session)::int as sessions, count(distinct visitor)::int as visitors,
             count(distinct visitor) filter (where event in ('link_click', 'button_click', 'outbound_click'))::int as engaged,
             count(distinct visitor) filter (where event = 'sign_up')::int as signups,
-            count(distinct visitor) filter (where event = 'character_created')::int as created
+            count(distinct visitor) filter (where event = 'character_created')::int as created,
+            count(distinct visitor) filter (where event = 'date_started')::int as started,
+            count(distinct visitor) filter (where event = 'date_watched')::int as watched
      from web_events where ${scope} group by 1 order by sessions desc limit 40`,
   );
   const campaigns = await rows<CountRow>(

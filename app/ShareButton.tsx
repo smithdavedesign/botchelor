@@ -14,6 +14,7 @@ export default function ShareButton({
   note,
   label = "🔗 Share",
   field,
+  track,
 }: {
   path: string;
   title: string;
@@ -22,6 +23,8 @@ export default function ShareButton({
   label?: string;
   /** The link itself in a field to select, with this label (the episode's "Episode link"). */
   field?: string;
+  /** The engagement log's name for this share (data-track); each target is logged with `data-track-target`. */
+  track?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [shown, setShown] = useState(path);
@@ -56,17 +59,17 @@ export default function ShareButton({
 
   return (
     <span className="share-button" ref={box}>
-      <button type="button" className="secondary small" aria-expanded={open} aria-haspopup="true" onClick={() => void share()}>
+      <button type="button" className="secondary small" aria-expanded={open} aria-haspopup="true" onClick={() => void share()} data-track={track}>
         {label}
       </button>
       {/* Rendered hidden rather than not at all, so its links are in the page for crawlers and the share tests. */}
       <span className="share-pop card" role="group" aria-label="Share" hidden={!open}>
           {field && <input type="text" readOnly value={shown} aria-label={field} onFocus={(e) => e.currentTarget.select()} />}
-          <button type="button" className="secondary small" onClick={() => void copy()}>
+          <button type="button" className="secondary small" onClick={() => void copy()} data-track={track} data-track-target={track ? "copy" : undefined}>
             {copied ? "Link copied ✓" : "Copy link"}
           </button>
           {targets.map((t) => (
-            <a key={t.label} className="button-ghost small" href={t.href} target="_blank" rel="noopener noreferrer">
+            <a key={t.label} className="button-ghost small" href={t.href} target="_blank" rel="noopener noreferrer" data-track={track} data-track-target={track ? t.label.toLowerCase() : undefined}>
               {t.label}
             </a>
           ))}

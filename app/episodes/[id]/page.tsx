@@ -36,6 +36,7 @@ import { venueBackdrop } from "@/lib/portraits";
 import Avatar from "@/app/Avatar";
 import CharacterName from "@/app/CharacterName";
 import Afterglow, { SecondDate } from "./Afterglow";
+import EndingSeen from "./EndingSeen";
 import EpisodeTheater from "./EpisodeTheater";
 import ChatThread from "@/app/ChatThread";
 import BoxScore from "./BoxScore";
@@ -558,6 +559,8 @@ export default async function EpisodePage({
             )}
             <div className="ending-beat">
               <p className="ending">Ending: {endingWithDetail(episode.ending, dateNo, episode.ending_detail)}</p>
+              {/* A reader who scrolled this far saw how it ended: the funnel's "Watched it end" (EndingSeen.tsx). */}
+              {episode.revealed && <EndingSeen />}
             </div>
             {episode.drama_question && episode.drama_answer && (
               <p>

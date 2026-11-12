@@ -71,7 +71,7 @@ function Playback({ episodeId, characters, venue, transcript, endingLabel, justF
   useEffect(() => {
     if (!replay.done || watched.current) return;
     watched.current = true;
-    queueEvent("date_watched", { just_filmed: Boolean(justFilmed) });
+    queueEvent("date_watched", { via: "theater", just_filmed: Boolean(justFilmed) });
   }, [replay.done, justFilmed]);
   const shown = replay.shown;
   const [a, b] = characters;

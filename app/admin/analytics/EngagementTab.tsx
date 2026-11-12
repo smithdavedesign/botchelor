@@ -36,6 +36,8 @@ const sourceColumns: Column<SourceRow>[] = [
   { key: "visitors", label: "Visitors", value: (r) => r.visitors, numeric: true },
   { key: "engaged", label: "Clicked", value: (r) => r.engaged, numeric: true, title: "Visitors who clicked anything" },
   { key: "created", label: "Made a character", value: (r) => r.created, numeric: true },
+  { key: "started", label: "Started a date", value: (r) => r.started, numeric: true },
+  { key: "watched", label: "Watched it end", value: (r) => r.watched, numeric: true },
   { key: "signups", label: "Signed up", value: (r) => r.signups, numeric: true },
 ];
 
