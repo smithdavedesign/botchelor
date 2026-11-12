@@ -370,7 +370,7 @@ describe("Fix: repair and change", () => {
     const res = await fix({ media_id: pic, kind: "repair", repairs: ["hands"] }, cookie);
     expect([res.status, (await res.json()).error]).toEqual([422, "past_limits"]);
     const s = (await (await state(pic, cookie)).json()).state;
-    expect(s.blocked).toMatch(/Mara's limits stop at nude now/);
+    expect(s.blocked).toMatch(/Mara's limits stop at Spicy now/);
     expect(edits).toHaveLength(0);
   });
 });
@@ -494,7 +494,7 @@ describe("Fix: Undressed", () => {
     await limits(owner, character, "flirty");
     const s = (await (await state(pic, cookie)).json()).state;
     expect(s.undress.ok).toBe(false);
-    expect(s.undress.why).toMatch(/Mara's limits stop at suggestive/);
+    expect(s.undress.why).toMatch(/Mara's limits stop at Flirty/);
     const locked = await fix({ media_id: pic, kind: "undress" }, cookie);
     expect([locked.status, (await locked.json()).error]).toEqual([422, "locked"]);
     expect(edits).toHaveLength(0);

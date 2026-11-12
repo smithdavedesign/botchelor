@@ -344,7 +344,7 @@ describe("Keep going on a Studio animation", () => {
     await post({ action: "limits", character_id: me.character, hard_nos: ["pain"] }, me.cookie);
     await refused({ prompt: "a playful spank" }, 422, /past the limits you've set: crossed a hard limit \(Pain\)/);
     await post({ action: "limits", character_id: me.character, intensity: "flirty" }, me.cookie);
-    await refused({ prompt: "she undresses slowly" }, 422, /Those words go past suggestive: their studio limit/);
+    await refused({ prompt: "she undresses slowly" }, 422, /Those words go past Flirty: their studio limit/);
     // A frame cut from another video isn't this one's.
     const other = await moments({ action: "frame", media_id: first, at: 1 }, me.cookie);
     const elsewhere = ((await other.json()) as { frame: { id: string } }).frame.id;

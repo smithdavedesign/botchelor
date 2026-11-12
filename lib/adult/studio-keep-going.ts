@@ -204,8 +204,8 @@ async function planLink(db: Db, viewer: string, characterId: string, input: Link
   const before = (typeof prev.choices.level === "number" && prev.choices.level >= 0 && prev.choices.level <= 3 ? prev.choices.level : 2) as Level;
   const stage = words ? shownStage(words) : 0;
   const level = Math.max(before, levelForStage(stage)) as Level;
-  if (before > maxLevel) return fail(422, "locked", `That animation is past ${LEVEL_LABEL[maxLevel].toLowerCase()}: their studio limit.`);
-  if (level > maxLevel) return fail(422, "locked", `Those words go past ${LEVEL_LABEL[maxLevel].toLowerCase()}: their studio limit.`);
+  if (before > maxLevel) return fail(422, "locked", `That animation is past ${LEVEL_LABEL[maxLevel]}: their studio limit.`);
+  if (level > maxLevel) return fail(422, "locked", `Those words go past ${LEVEL_LABEL[maxLevel]}: their studio limit.`);
   if (words) {
     // Their studio limits (the intensity and hard nos set for them here), and the pair's own for two.
     const hit = limitsHit(words, { intensity: identity.intensity, hard_nos: { chips: identity.hard_nos, own: [] } }) ?? (pair ? (await pairLimits(db, viewer, pair, config)).hit(words) : null);

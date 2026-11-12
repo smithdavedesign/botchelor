@@ -1062,7 +1062,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
               <FormatChips value={format} onChange={setFormat} disabled={Boolean(busy)} />
               {sizeChips}
             </div>
-            <span className="badge">{LEVEL_LABEL[level]}</span>
+            <span className="badge" title="How far this shoot goes, in their limits' words (Identity sets how far they can go)">{LEVEL_LABEL[level]}</span>
             <button
               type="button"
               className="chip ad-studio-shape-toggle"
