@@ -66,6 +66,8 @@ export type CharacterRef = {
   agent?: boolean;
   /** Private to someone other than the viewer (characters.visibility): its name is shown, never linked (app/CharacterName.tsx). */
   private?: boolean;
+  /** How they're referred to (the sheet's public field): the daily clip picks a voice by it (scripts/clips/voice.mjs). */
+  pronouns?: string | null;
 };
 export type CreatorRef = { character_id: string; name: string };
 
@@ -524,6 +526,7 @@ type EpisodeRow = {
   a_name: string;
   a_house: boolean;
   a_hue: number | null;
+  a_pronouns?: string | null;
   a_portrait: string | null;
   a_agent: boolean;
   a_private: boolean;
@@ -531,6 +534,7 @@ type EpisodeRow = {
   b_name: string;
   b_house: boolean;
   b_hue: number | null;
+  b_pronouns?: string | null;
   b_portrait: string | null;
   b_agent: boolean;
   b_private: boolean;
@@ -564,9 +568,9 @@ select e.id, e.setting, e.goals, e.scenes, e.twist, e.finale, e.ending, e.drama_
        e.revealed_at is not null as revealed, e.title, e.revealed_at as aired_at,
        e.best_line, e.box_score, e.confessionals, e.confessionals_shared, e.sides, e.setup, e.transcript, e.afterglow, e.status, e.wishes, e.inner_life, e.ending_detail,
        coalesce((e.generated_with->>'transcript_partial')::boolean, false) as transcript_partial,
-       a.id as a_id, a.name as a_name, a.is_house as a_house, a.avatar_hue as a_hue, ${portraitPathSql("a")} as a_portrait, a.created_via = 'mcp' as a_agent,
+       a.id as a_id, a.name as a_name, a.is_house as a_house, a.avatar_hue as a_hue, a.pronouns as a_pronouns, ${portraitPathSql("a")} as a_portrait, a.created_via = 'mcp' as a_agent,
        (a.visibility = 'private' and a.owner_id is distinct from $1::text) as a_private,
-       b.id as b_id, b.name as b_name, b.is_house as b_house, b.avatar_hue as b_hue, ${portraitPathSql("b")} as b_portrait, b.created_via = 'mcp' as b_agent,
+       b.id as b_id, b.name as b_name, b.is_house as b_house, b.avatar_hue as b_hue, b.pronouns as b_pronouns, ${portraitPathSql("b")} as b_portrait, b.created_via = 'mcp' as b_agent,
        (b.visibility = 'private' and b.owner_id is distinct from $1::text) as b_private,
        coalesce($1::text in (a.owner_id, b.owner_id), false) as is_creator,
        coalesce(e.creator_id = $1::text, false) as is_host,
@@ -609,8 +613,8 @@ function debriefFrom(side: SideOutcome, setup: DateSetup | null, mySide: 0 | 1):
 
 function toView(row: EpisodeRow): EpisodeView {
   const characters: [CharacterRef, CharacterRef] = [
-    { id: row.a_id, name: row.a_name, house: row.a_house, hue: row.a_hue, portrait: row.a_portrait, agent: row.a_agent, ...(row.a_private ? { private: true } : {}) },
-    { id: row.b_id, name: row.b_name, house: row.b_house, hue: row.b_hue, portrait: row.b_portrait, agent: row.b_agent, ...(row.b_private ? { private: true } : {}) },
+    { id: row.a_id, name: row.a_name, house: row.a_house, hue: row.a_hue, portrait: row.a_portrait, agent: row.a_agent, pronouns: row.a_pronouns ?? null, ...(row.a_private ? { private: true } : {}) },
+    { id: row.b_id, name: row.b_name, house: row.b_house, hue: row.b_hue, portrait: row.b_portrait, agent: row.b_agent, pronouns: row.b_pronouns ?? null, ...(row.b_private ? { private: true } : {}) },
   ];
   const identityRevealed = row.needed > 0 && row.consents >= row.needed;
   const creators = identityRevealed

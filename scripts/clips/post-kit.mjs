@@ -93,6 +93,16 @@ export function postCaption(e, { hook, tags = "" } = {}) {
   ].join("\n");
 }
 
+/**
+ * The kit's audio from the recording's (pure): the clip's track starts `hookSeconds` in (silence under the hook card),
+ * runs for `dateSeconds`, and silence pads to `totalSeconds`. A clip with no track (a silent recording) still yields a
+ * silent, valid track, so post.mp4 always has audio the apps accept.
+ */
+export function voiceShiftFilter(hookSeconds, dateSeconds, totalSeconds) {
+  const ms = Math.round(hookSeconds * 1000);
+  return `[1:a]atrim=0:${dateSeconds.toFixed(3)},asetpts=PTS-STARTPTS,aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,adelay=${ms}|${ms},apad=whole_dur=${totalSeconds.toFixed(3)},atrim=0:${totalSeconds.toFixed(3)}[a]`;
+}
+
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 
 /** One 1080×1920 card (rendered at 405×720 CSS px, scale 1080/405), in the site's type and colours. */
@@ -185,7 +195,14 @@ async function main() {
       "-filter_complex",
       [still(0, CARD_SECONDS.hook), `[1:v]scale=1080:1920,setsar=1,fps=30,format=yuv420p,fade=t=out:st=${(dateSeconds - 0.3).toFixed(2)}:d=0.3[v1]`, still(2, CARD_SECONDS.reveal), still(3, CARD_SECONDS.end), "[v0][v1][v2][v3]concat=n=4:v=1:a=0[v]"].join(";"),
       "-map", "[v]", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-preset", "medium", "-crf", "19", "-movflags", "+faststart", "-an",
-      join(out, "post.mp4"),
+      join(tmp, "video.mp4"),
+    ]);
+    // The voices (daily-clip.mjs, from 2026-11-11): the recording's own track, moved past the hook card and padded to
+    // the end, under the same picture. A silent recording (--silent) leaves a silent kit, as before.
+    execFileSync(process.env.FFMPEG || "ffmpeg", [
+      "-y", "-loglevel", "error", "-i", join(tmp, "video.mp4"), "-i", join(tmp, clip),
+      "-filter_complex", voiceShiftFilter(CARD_SECONDS.hook, dateSeconds, CARD_SECONDS.hook + dateSeconds + CARD_SECONDS.reveal + CARD_SECONDS.end),
+      "-map", "0:v", "-map", "[a]", "-c:v", "copy", "-c:a", "aac", "-b:a", "128k", "-shortest", join(out, "post.mp4"),
     ]);
     execFileSync("cp", [join(tmp, "hook.png"), join(out, "cover.png")]);
     writeFileSync(join(out, "caption.txt"), postCaption(e, { hook: arg("hook"), tags: arg("tags") ?? "" }) + "\n");
@@ -197,7 +214,7 @@ async function main() {
         `Episode: ${base}/episodes/${e.id}`,
         "",
         "1. TikTok → + → Upload → post.mp4.",
-        "2. Sounds: pick a trending or calm instrumental sound at low volume (the video has none, so the app's sound is the only audio).",
+        "2. Sounds: the video has the characters' AI voices (Kokoro). Add a quiet instrumental under them or none; keep the voices audible.",
         "3. Cover: choose the first frame (the hook card) or upload cover.png.",
         "4. Paste caption.txt. The video shows the date's opening and how it ended; the caption sends people to the whole date.",
         "5. More options → turn on \"AI-generated content\" (TikTok requires the label for AI-made people and stories).",
