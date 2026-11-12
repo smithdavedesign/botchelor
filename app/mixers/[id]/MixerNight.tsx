@@ -77,6 +77,37 @@ export default function MixerNight({ tables, rounds, closing }: { tables: MixerT
 
   return (
     <div className="mixer-night">
+      {/* The night at a glance, as the design system draws the mixer room (all-screens board, 2026-11-11): every table
+          by round with a link down to it, and who left with whom behind a tap (it gives the endings away). */}
+      <div className="mixer-overview">
+        <section className="card mixer-rounds" aria-labelledby="mixer-rounds-title">
+          <h2 id="mixer-rounds-title">The rounds</h2>
+          <ol>
+            {tables.map((t) => (
+              <li key={t.index}>
+                <span className="mixer-rounds-n" aria-label={`Round ${t.round + 1}`}>
+                  {t.round + 1}
+                </span>
+                <span className="mixer-rounds-pair">
+                  <CharacterName character={t.characters[0]} /> <span className="vs">×</span> <CharacterName character={t.characters[1]} />
+                </span>
+                <a className="button secondary small" href={`#table-${t.index}`}>
+                  Their table
+                </a>
+              </li>
+            ))}
+          </ol>
+        </section>
+        {closing && (
+          <details className="card mixer-left">
+            <summary>
+              <span className="kicker">Who left with whom</span>
+              <span className="muted small">Tap to see: it gives the endings away.</span>
+            </summary>
+            <p>{closing}</p>
+          </details>
+        )}
+      </div>
       <div className="mixer-strip" role="group" aria-label="The night's rounds">
         <span className="mixer-strip-rounds">
           {Array.from({ length: rounds }, (_, r) => (
@@ -115,7 +146,7 @@ export default function MixerNight({ tables, rounds, closing }: { tables: MixerT
               </p>
             )}
             {reached(k) && (
-              <section className="card mixer-table" ref={(el) => { refs.current[k] = el; }} aria-label={`${t.characters[0].name} and ${t.characters[1].name}`}>
+              <section className="card mixer-table" id={`table-${t.index}`} ref={(el) => { refs.current[k] = el; }} aria-label={`${t.characters[0].name} and ${t.characters[1].name}`}>
                 <header className="mixer-table-head">
                   <strong>
                     <CharacterName character={t.characters[0]} /> <span className="vs">×</span> <CharacterName character={t.characters[1]} />

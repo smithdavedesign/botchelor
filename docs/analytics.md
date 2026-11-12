@@ -150,6 +150,10 @@ Every page in the browser sends, in batches of up to 25 every few seconds and wh
 | `create_opened` | /create opens | — |
 | the conversions | `character_created`, `date_started`, `prediction_made`, `character_rated`, `reel_cta`, `sign_up`, `begin_checkout`, `purchase`, `ad_invite_requested` (`app/conversion.ts`, which still sends them to GA4 too) | as before |
 
+- **Never-shown loads are left out** (2026-11-11): a visitor whose only rows ever are `page_view`s never had the page on
+  screen (Chrome prerendering it, or a script with a browser's name). They were a third of November's "visitors", all
+  counted as bounces. The report leaves them out of every number and shows how many as `totals.unseen_visitors`; the
+  client also waits for `prerenderingchange` before counting a prerendered page.
 - **Who:** `visitor` is a random id in localStorage (`bz_vid`), `session` a visit in sessionStorage (`bz_sid`), renewed
   after 30 minutes idle as GA4 counts one; `user_id` the signed cookie's id when there is one. Device from the user
   agent, country from the edge (`lib/place.ts`), host `show` or `after_dark`.

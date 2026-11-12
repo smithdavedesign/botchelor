@@ -30,6 +30,7 @@ import { loadCharacter } from "@/lib/character";
 import { thisWeek } from "@/lib/life";
 import { castSecrets, ownSecretsCard } from "@/lib/cast-secrets";
 import { Secrets } from "./Secrets";
+import PageTabs from "./PageTabs";
 import { describeTemperament } from "@/lib/temperament";
 import { connections, describeDrift, describeForgets, loadCharacterMemory, loadForgets, stageFor } from "@/lib/memory";
 import { getCharacterRatings } from "@/lib/ratings";
@@ -545,15 +546,19 @@ export default async function CharacterPage({ params, searchParams }: Props) {
         </p>
       )}
 
-      {/* Where each part of a long page is, in one row (2026-10-31 UX audit, C4: ~5 phone screens of cards). */}
-      <nav className="page-jumps" aria-label="On this page">
-        <a href="#profile">Profile</a>
-        {secrets && <a href="#secrets">Secrets</a>}
-        <a href="#audience">Audience</a>
-        {memory && (memory.arc || (memory.milestones?.length ?? 0) > 0 || (memory.chapters?.length ?? 0) > 0) && <a href="#story">Story</a>}
-        <a href="#date-record">Dates</a>
-      </nav>
+      {/* Tabs, one part at a time (the design system's character page, 2026-11-11), where a row of jump links used to
+          lead down ~5 phone screens of cards (2026-10-31 UX audit, C4). Old #links still open the right tab. */}
+      <PageTabs
+        tabs={[
+          { id: "profile", label: "Profile" },
+          ...(secrets ? [{ id: "secrets", label: "Secrets" }] : []),
+          { id: "audience", label: "Audience" },
+          ...(memory && (memory.arc || (memory.milestones?.length ?? 0) > 0 || (memory.chapters?.length ?? 0) > 0) ? [{ id: "story", label: "Story" }] : []),
+          { id: "dates", label: "Dates" },
+        ]}
+      />
 
+      <div data-panel="profile" id="panel-profile" role="tabpanel" aria-labelledby="tab-profile">
       {c.clip_asset_id && (
         <section className="card">
           {c.clip_is_video ? (
@@ -635,8 +640,6 @@ export default async function CharacterPage({ params, searchParams }: Props) {
 
       {hasExtras(shownExtras) && <ProfileDetails extras={shownExtras} owner={ratings.is_owner} />}
 
-      {secrets && <Secrets name={shortName(c.name)} secrets={secrets} />}
-
       {photos.length > 0 && (
         <section className="card profile-photos" aria-label="Photos">
           <h2>Photos</h2>
@@ -651,7 +654,17 @@ export default async function CharacterPage({ params, searchParams }: Props) {
           <AiTag />
         </section>
       )}
+      {c.house && <AfterDarkTeaser character={c.id} />}
+      {/* Their own After Dark pictures of them, blurred: the owner's page only. */}
+      {adPhotos && <AfterDarkPhotos characterId={c.id} data={adPhotos} />}
+      </div>
+      {secrets && (
+        <div data-panel="secrets" id="panel-secrets" role="tabpanel" aria-labelledby="tab-secrets" hidden>
+          <Secrets name={shortName(c.name)} secrets={secrets} />
+        </div>
+      )}
 
+      <div data-panel="audience" id="panel-audience" role="tabpanel" aria-labelledby="tab-audience" hidden>
       {/* The crowd's read of them and its reviews, one card (2026-10-31 UX audit: two cards for one thing). */}
       <section className="card character-audience" id="audience" aria-labelledby="audience-title">
         {/* The "never changes points" line behind an ⓘ (2026-10-31 UX audit, A10: one of seven copies of it on the way
@@ -667,10 +680,12 @@ export default async function CharacterPage({ params, searchParams }: Props) {
         <h3>Reviews</h3>
         <Reviews characterId={c.id} name={c.name} initial={reviews} isOwner={ratings.is_owner} house={c.house} open={!c.house || (await reviewableNow(c.id))} />
       </section>
+      </div>
 
       {/* Who they've become and their story, one card (2026-10-31 UX audit: the same dates were told in four cards); what
           they've learned, the owner's alone, folded inside it. */}
       {memory && (memory.arc || (memory.milestones?.length ?? 0) > 0 || (memory.chapters?.length ?? 0) > 0) && (
+        <div data-panel="story" id="panel-story" role="tabpanel" aria-labelledby="tab-story" hidden>
         <section className="card character-story" id="story">
           <h2>Their story so far</h2>
           {memory.arc && <p>{memory.arc}</p>}
@@ -699,12 +714,10 @@ export default async function CharacterPage({ params, searchParams }: Props) {
             </details>
           )}
         </section>
+        </div>
       )}
 
-      {c.house && <AfterDarkTeaser character={c.id} />}
-      {/* Their own After Dark pictures of them, blurred: the owner's page only. */}
-      {adPhotos && <AfterDarkPhotos characterId={c.id} data={adPhotos} />}
-
+      <div data-panel="dates" id="panel-dates" role="tabpanel" aria-labelledby="tab-dates" hidden>
       {/* One card for their dates (2026-10-31 UX audit, A6: "Relationships" and "Date record" told the same dates
           twice): the totals, one row per person, and every date folded under them. */}
       <section className="card" id="date-record">
@@ -770,6 +783,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
           </p>
         )}
       </section>
+      </div>
 
       {(cta.kind === "send" || cta.kind === "make") && (
         <section className="card">

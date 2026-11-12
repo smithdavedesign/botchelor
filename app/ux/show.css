@@ -501,6 +501,21 @@ details.recap-toggle[open] .recap-toggle-hide {
     align-items: start;
   }
 }
+/* Who you back and the best callers, side by side on a wide screen (the design system's /watch). */
+.watch-games {
+  display: grid;
+  gap: var(--space-3);
+  margin: var(--space-4) 0;
+}
+.watch-games > * {
+  margin: 0;
+}
+@media (min-width: 60rem) {
+  .watch-games {
+    grid-template-columns: 1fr 1fr;
+    align-items: start;
+  }
+}
 
 /* ---------------- a couple (app/couples/[a]/[b]) ---------------- */
 /* An action and its small print: the button(s) on one line, the muted note under them, never wrapped beside. */
@@ -861,30 +876,42 @@ details.recap-toggle[open] .recap-toggle-hide {
   margin: 0;
 }
 
-/* A long page's parts in one row of links (the character page, C4): chips that scroll sideways on a phone. */
-.page-jumps {
+/* A long page's parts as tabs (the character page; the design system's underline tabs, 2026-11-11). One row that
+   scrolls sideways on a phone rather than wrapping. */
+.page-tabs {
   display: flex;
-  gap: var(--space-2);
+  gap: var(--space-4);
   overflow-x: auto;
-  margin: var(--space-3) 0;
-  padding-bottom: 2px;
+  margin: var(--space-3) 0 var(--space-4);
+  border-bottom: 1px solid var(--line);
   scrollbar-width: none;
 }
-.page-jumps a {
+.page-tabs [role="tab"] {
   flex: none;
   display: inline-flex;
   align-items: center;
-  min-height: 36px;
-  padding: 0 var(--space-3);
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: var(--card);
-  color: var(--ink);
+  min-height: var(--control-h-sm);
+  margin-bottom: -1px;
+  padding: 0;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: none;
+  color: var(--muted);
+  font: inherit;
   font-size: var(--text-sm);
-  text-decoration: none;
+  font-weight: 600;
+  cursor: pointer;
+}
+.page-tabs [role="tab"]:hover {
+  color: var(--ink);
+}
+.page-tabs [role="tab"][aria-selected="true"] {
+  border-bottom-color: var(--accent);
+  color: var(--ink);
 }
 @media (pointer: coarse) {
-  .page-jumps a {
+  .page-tabs [role="tab"] {
     min-height: 44px;
   }
 }
@@ -1189,6 +1216,26 @@ details.recap-toggle[open] .recap-toggle-hide {
   }
 }
 
+/* The strip under the header (app/SeasonStrip.tsx): the arc, or the closed season's banner, as a full-width band on the
+   show's spectator pages, as the design system draws it. Its contents keep the page's own width. */
+.season-strip {
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--accent-2) 9%, var(--paper));
+}
+.season-strip > .season-arc,
+.season-strip > .season-banner {
+  max-width: var(--page-wide);
+  margin: 0 auto;
+  padding: var(--space-2) var(--gutter);
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+.season-strip > .season-arc:hover,
+.season-strip > .season-banner:hover {
+  background: color-mix(in srgb, var(--accent-2) 5%, transparent);
+}
+
 /* ---------------- live now (app/TonightBand.tsx footer; the design system, 2026-11-11) ----------------
    What's happening on the show right now, each fact with the live dot: "2 dates filming · 9 watching",
    "Sunday's secret comes out in 1h 10m". Facts, never pressure. */
@@ -1210,6 +1257,110 @@ details.recap-toggle[open] .recap-toggle-hide {
 .tonight-live .tonight-live-dot {
   animation-duration: 2.4s;
 }
+
+/* ---------------- the episode page in two columns (app/episodes/[id]/page.tsx; the design system, 2026-11-11) ----------------
+   The date on the left; on the right a rail: previously on, "tell me when they text", ask them how it went, the watch
+   party, make your own, your points and report. One column, rail last, below 60rem. */
+.episode-main {
+  min-width: 0;
+}
+.episode-rail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.episode-rail > * {
+  margin: 0;
+}
+.episode-rail > .episode-prev {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+}
+.episode-rail > .episode-foot {
+  margin-top: 0;
+}
+@media (min-width: 60rem) {
+  .episode-body.episode-layout {
+    max-width: none;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(16rem, 21rem);
+    gap: var(--space-5);
+    align-items: start;
+  }
+  .episode-rail > .episode-foot {
+    padding-top: 0;
+    border-top: 0;
+  }
+}
+
+/* ---------------- the mixer room's overview (app/mixers/[id]/MixerNight.tsx; the design system, 2026-11-11) ----------------
+   The rounds, each table with a link down to it, and who left with whom behind a tap; side by side on a wide screen. */
+.mixer-overview {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-4);
+}
+.mixer-overview > .card {
+  margin: 0;
+}
+.mixer-rounds ol {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.mixer-rounds li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.mixer-rounds-n {
+  flex: 0 0 auto;
+  min-width: 1.5rem;
+  font-family: var(--font-display, "Fraunces", Georgia, serif);
+  font-weight: 800;
+}
+.mixer-rounds-pair {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.mixer-left > summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  cursor: pointer;
+}
+.mixer-left > p {
+  margin: var(--space-2) 0 0;
+}
+.mixer-table {
+  scroll-margin-top: var(--space-6);
+}
+@media (min-width: 60rem) {
+  .mixer-overview {
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+    align-items: start;
+  }
+}
+
+/* ---------------- the reels' captions and their way in (app/showcase; the design system, 2026-11-11) ---------------- */
+.showcase-tile .showcase-meta {
+  margin: 0;
+}
+.showcase-cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin: var(--space-5) 0 0;
+  background: color-mix(in srgb, var(--accent) 7%, var(--card));
+}
+.showcase-cta p {
+  margin: var(--space-1) 0 0;
 
 /* ---------------- a couple in two columns (app/couples/[a]/[b]; the design system, 2026-11-11) ----------------
    Their dates on the left; the roleplay, the arc, their texts and inside jokes on the right. One column below 60rem. */

@@ -44,6 +44,16 @@ export default async function ShowcasePage({ searchParams }: Props) {
         </p>
       )}
       <ShowcaseBrowser db={db} viewer={viewer} base="/showcase" filters={parseFilters(sp)} />
+      {/* The way in, under the grid (the design system's Reels): anyone's characters can be here. */}
+      <aside className="showcase-cta card">
+        <div>
+          <strong>Your characters can be in here too.</strong>
+          <p className="muted small">Share a picture or a date reel from any of your characters&apos; pages.</p>
+        </div>
+        <Link className="button small" href="/create">
+          Make your character
+        </Link>
+      </aside>
     </div>
   );
 }

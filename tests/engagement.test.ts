@@ -184,12 +184,22 @@ describe("the Engagement tab", () => {
     expect(e.returning).toEqual({ new_visitors: 2, returned: 0, rate: 0 });
 
     const withOurs = await loadEngagement(t.db, { from: today, to: today, includeOurs: true, host: "all" });
-    expect(withOurs.totals.visitors).toBe(3);
+    // The admin's lone page_view is also a never-shown load, so it is left out either way and counted as unseen.
+    expect(withOurs.totals).toMatchObject({ visitors: 2, unseen_visitors: 1 });
+  });
+
+  it("leaves out page loads that were never on screen (prerender, scripts), and says how many (2026-11-11 bounce review)", async () => {
+    await visit(V1, S1, {}, [{ e: "page_view", path: "/" }, { e: "button_click", path: "/", props: { label: "Make your character", area: "main" } }]);
+    await visit(V2, S2, {}, [{ e: "page_view", path: "/" }]);
+    const e = await loadEngagement(t.db, { from: today, to: today, includeOurs: false, host: "all" });
+    expect(e.totals).toMatchObject({ visitors: 1, unseen_visitors: 1, bounce_rate: 0 });
+    expect(e.funnel.find((f) => f.key === "visited")?.visitors).toBe(1);
+    expect(e.returning.new_visitors).toBe(1);
   });
 
   it("counts a new visitor as back once any later day has a row of theirs (2026-11-07 review, the fourth number)", async () => {
-    await visit(V1, S1, {}, [{ e: "page_view", path: "/" }]);
-    await visit(V2, S2, {}, [{ e: "page_view", path: "/watch" }], IPHONE);
+    await visit(V1, S1, {}, [{ e: "page_view", path: "/" }, { e: "page_leave", path: "/", props: { seconds: 5, scroll: 20 } }]);
+    await visit(V2, S2, {}, [{ e: "page_view", path: "/watch" }, { e: "page_leave", path: "/watch", props: { seconds: 3, scroll: 0 } }], IPHONE);
     // V1 comes back tomorrow (written straight to the table: the beacon only writes "now").
     await t.db.query(`insert into web_events (at, visitor, session, event, path) values (now() + interval '1 day', $1, $2, 'page_view', '/watch')`, [
       V1,
