@@ -2,6 +2,7 @@ import { z } from "zod";
 import { AuthError, PASSWORD_MAX, PASSWORD_MIN, registerAccount, sessionsSignable } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { handle, json, jsonWithSession, parseBody, readJson, session } from "@/lib/http";
+import { welcome } from "@/lib/notifications";
 import { assertSafeName } from "@/lib/people";
 
 const RegisterInput = z.object({
@@ -24,6 +25,8 @@ export const POST = handle(async (req) => {
   const db = await getDb();
   try {
     const account = await registerAccount(db, sess.userId, input.handle, input.password);
+    // The account's first notice (lib/notifications.ts welcome): never in the way of the sign-up itself.
+    await welcome(db, account.user_id).catch(() => {});
     // Seed a display name from the handle if the user hasn't picked one (leagues/reveals need one).
     await db.query(
       `insert into profiles (user_id, name) values ($1, $2) on conflict (user_id) do nothing`,

@@ -736,9 +736,21 @@ export default async function EpisodePage({
               </p>
             </aside>
           )}
-          {/* J3: a creator's finished date is when they want to hear what happens next (gone once notifications are on). */}
+          {/* J3: a creator's finished date is when they want to hear what happens next (gone once notifications are on).
+              Before it airs (2026-11-11 growth plan: push is live and nothing asked at the moment it matters), the same
+              row asks about the airing itself: date_aired already reaches push (lib/air.ts notifyOwnersAired). */}
           {episode.is_creator && episode.status === "ready" && push && (
-            <PushToggle publicKey={push.publicKey} prompt emailFallback title="Tell me when they text" body="They text each other after a date. Hear it as it happens, even with the site closed." />
+            <PushToggle
+              publicKey={push.publicKey}
+              prompt
+              emailFallback
+              title={episode.revealed ? "Tell me when they text" : "Tell me when it airs"}
+              body={
+                episode.revealed
+                  ? "They text each other after a date. Hear it as it happens, even with the site closed."
+                  : "One notification when their date is on the air, and when they text after it, even with the site closed."
+              }
+            />
           )}
           {/* After the date and how it ended (2026-11-07 audit, item 4: it asked "how did it go?" above the date itself). */}
           {talk.length > 0 && (

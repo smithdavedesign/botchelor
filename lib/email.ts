@@ -131,13 +131,20 @@ export async function emailLastEvent(id: string, config: EmailConfig): Promise<s
   return lookup(id, config);
 }
 
+/** A link in an email, tagged so the visit counts as source "email" (a mail client sends no referrer). Pure. */
+export const emailLink = (base: string, link: string | null): string => {
+  const path = link || "/notifications";
+  return `${base}${path}${path.includes("?") ? "&" : "?"}utm_source=email&utm_medium=digest`;
+};
+
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
 /** The frame every email shares: the message, then why you got it and the one-click way out. */
 function render(intro: string, items: { title: string; body: string | null; link: string | null }[], unsubUrl: string, base: string) {
   const rows = items
     .map((i) => {
-      const href = i.link ? `${base}${i.link}` : `${base}/notifications`;
+      // Mail clients send no referrer: the link says it came from email (lib/engagement.ts sourceOf reads utm_source).
+      const href = emailLink(base, i.link);
       return `<p style="margin:0 0 14px"><a href="${esc(href)}" style="color:#b52c59;font-weight:600">${esc(i.title)}</a>${i.body ? `<br><span style="color:#6a5a6f">“${esc(i.body)}”</span>` : ""}</p>`;
     })
     .join("");
