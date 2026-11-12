@@ -1,4 +1,5 @@
-node_modules/
+# No trailing slash: a node_modules symlink (a worktree sharing another's install) must stay out too (4a54c22 committed one).
+node_modules
 .next/
 out/
 coverage/
