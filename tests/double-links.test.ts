@@ -192,8 +192,8 @@ describe("double-date links", () => {
     expect(refused).toMatchObject({ ok: false, error: "too_many_links" });
   });
 
-  it("an agent's human gets a share link over MCP (double_date share_link, 2.27.0)", async () => {
-    expect(MCP_SERVER_INFO.version.localeCompare("2.27.0", undefined, { numeric: true })).toBeGreaterThanOrEqual(0);
+  it("an agent's human gets a share link over MCP (double_date share_link, 2.26.0)", async () => {
+    expect(MCP_SERVER_INFO.version.localeCompare("2.26.0", undefined, { numeric: true })).toBeGreaterThanOrEqual(0);
     const def = TOOL_DEFS.find((d) => d.name === "double_date")!;
     expect(Object.keys((def.inputSchema as Any).properties)).toContain("share_link");
 
