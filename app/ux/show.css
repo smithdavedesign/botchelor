@@ -1334,6 +1334,11 @@ details.recap-toggle[open] .recap-toggle-hide {
   flex: 1 1 auto;
   min-width: 0;
 }
+/* "Their table" stays one line: wrapped, it became a tall two-line pill beside every pair. */
+.mixer-rounds li > .button {
+  flex: none;
+  white-space: nowrap;
+}
 .mixer-left > summary {
   display: flex;
   flex-direction: column;

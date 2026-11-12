@@ -61,6 +61,12 @@ describe("what the beacon keeps", () => {
   });
 
   it("names where a visit came from", () => {
+    // A tagged share link is its own source, by the kind of share (app/funnel.ts BEACON_REFS).
+    expect(sourceOf({ ref: "share" })).toBe("share_link");
+    expect(sourceOf({ ref: "invite" })).toBe("date_link");
+    expect(sourceOf({ ref: "double" })).toBe("double_link");
+    expect(sourceOf({ ref: "owner" })).toBe("owner_share");
+    expect(sourceOf({ ref: "constructor" })).toBe("direct"); // not a known tag, and never a prototype name
     expect(sourceOf({ ref_host: "www.google.com" })).toBe("google");
     expect(sourceOf({ ref_host: "old.reddit.com" })).toBe("reddit");
     expect(sourceOf({ ref_host: "t.co" })).toBe("x");
@@ -172,7 +178,8 @@ describe("the Engagement tab", () => {
     const e = await loadEngagement(t.db, { from: today, to: today, includeOurs: false, host: "all" });
     expect(e.totals).toMatchObject({ visitors: 2, new_visitors: 2, sessions: 2, page_views: 3, pages_per_session: 1.5, avg_session_seconds: 62, bounce_rate: 50 });
     expect(e.pages.find((p) => p.path === "/create")).toMatchObject({ views: 1, visitors: 1, avg_seconds: 100, avg_scroll: 90 });
-    expect(e.sources.map((s) => [s.source, s.sessions, s.created])).toEqual(expect.arrayContaining([["google", 1, 1], ["reddit", 1, 0]]));
+    // Each source says how far its people got: the Google visitor made a character, started a date and watched it end.
+    expect(e.sources.map((s) => [s.source, s.sessions, s.created, s.started, s.watched])).toEqual(expect.arrayContaining([["google", 1, 1, 1, 1], ["reddit", 1, 0, 0, 0]]));
     expect(e.campaigns).toEqual([{ key: "reddit / social / launch / sillytavern", count: 1, visitors: 1 }]);
     expect(e.clicks).toEqual([{ key: "/create · nav", count: 1, visitors: 1 }]);
     expect(e.landing.map((l) => l.key).sort()).toEqual(["/", "/watch"]);

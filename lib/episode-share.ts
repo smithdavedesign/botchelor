@@ -2,8 +2,11 @@
  * Sharing an episode (GROWTH.md, 2026-10-21): the link a viewer shares, the words that go with it, and the
  * description its preview shows. Pure, so the page, its share buttons and the card agree, and tests read them directly.
  *
- * Nothing here ever names a creator or the ending: a preview is seen by people who haven't watched, and creators stay
- * anonymous unless both agree (lib/game.ts). The characters are public, so they're the headline.
+ * Nothing here ever names a creator, and a viewer's share never names the ending: a preview is seen by people who
+ * haven't watched, and creators stay anonymous unless both agree (lib/game.ts). The characters are public, so they're
+ * the headline. One exception, David's call (2026-11-11 growth plan): an OWNER sharing a date that went well, once it
+ * has aired, may say so (ownerSharedPath, wentWellText): the news is theirs to tell, and the aired page prints the
+ * ending anyway.
  */
 import { endingLabel, ENDINGS } from "./rules";
 
@@ -18,6 +21,28 @@ export const episodeCardPath = (id: string) => `/api/og/episode/${encodeURICompo
 
 /** The page's address with the share tag: what Copy link, Reddit and Bluesky all share. */
 export const sharedEpisodePath = (path: string) => `${path}${path.includes("?") ? "&" : "?"}ref=${SHARE_REF}`;
+
+/** The tag on an owner's share of a date that went well (app/funnel.ts BEACON_REFS → source owner_share). */
+export const OWNER_REF = "owner";
+/** The card variant an owner's happy share asks for (?card=ending): the page's metadata and the OG route read it. */
+export const ENDING_CARD = "ending";
+
+/**
+ * An owner's share of a date that went well: tagged `ref=owner`, and asking for the ending card. The page only honours
+ * `card=ending` once the date has aired and ended in a second date, so a typed address can't make a spoiler card.
+ */
+export const ownerSharedPath = (path: string) => `${path}${path.includes("?") ? "&" : "?"}ref=${OWNER_REF}&card=${ENDING_CARD}`;
+
+/** Whether the ending card may be drawn for this date: aired, and a second date (the one ending worth telling). */
+export const endingCardAllowed = (e: { revealed: boolean; ending?: string | null }) => Boolean(e.revealed && e.ending === "second_date");
+
+/** The owner's headline: the happy ending, named. "a third date" after their second, and so on (dateNumberOf). */
+export const wentWellTitle = (names: [string, string], dateNumber?: number | null) =>
+  `${names[0]} and ${names[1]} both want ${endingLabel("second_date", dateNumber).toLowerCase().replace(/^a second date$/, "a second date")} 💘`;
+
+/** The owner's post: the news, then where to watch how it happened. */
+export const wentWellText = (names: [string, string], url: string, dateNumber?: number | null) =>
+  `${wentWellTitle(names, dateNumber)} Watch how it happened on Botchelor: ${url}`;
 
 const clip = (s: string, max: number) => (max <= 1 ? "" : s.length > max ? `${s.slice(0, max - 1).trimEnd()}…` : s);
 
@@ -66,6 +91,14 @@ const query = (params: Record<string, string>) =>
 
 /** Reddit's submit page, with the link and a title filled in. */
 export const redditShareUrl = (url: string, names: [string, string]) => `https://www.reddit.com/submit?${query({ url, title: shareTitle(names) })}`;
+
+/** Reddit's submit page for an owner's happy share: the title names the ending. */
+export const ownerRedditShareUrl = (url: string, names: [string, string], dateNumber?: number | null) =>
+  `https://www.reddit.com/submit?${query({ url, title: wentWellTitle(names, dateNumber) })}`;
+
+/** Bluesky's composer for an owner's happy share. */
+export const ownerBlueskyShareUrl = (url: string, names: [string, string], dateNumber?: number | null) =>
+  `https://bsky.app/intent/compose?${query({ text: wentWellText(names, url, dateNumber) })}`;
 
 /**
  * Bluesky's composer, with a post and the link filled in (Bluesky unfurls the link into the card). dateNumber is which

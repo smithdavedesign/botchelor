@@ -2,8 +2,9 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { trackConversion } from "@/app/conversion";
 
-type Option = { character_id: string; name: string; partner_id: string; partner_name: string };
+type Option ={ character_id: string; name: string; partner_id: string; partner_name: string };
 
 const firstName = (name: string) => name.split(/\s+/)[0] || name;
 
@@ -29,6 +30,8 @@ export default function TakeDoubleLink({ code, options, datesLeft }: { code: str
       });
       const body = (await res.json().catch(() => ({}))) as { watch?: string; message?: string; episode_a?: string };
       if (res.ok && body.watch) {
+        // A double date taken through a friend's link is a date started, for the funnel and its by-source table.
+        trackConversion("date_started", { mode: "double_link" });
         router.push(body.watch);
         return;
       }

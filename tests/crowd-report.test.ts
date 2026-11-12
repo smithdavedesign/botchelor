@@ -54,3 +54,27 @@ describe("the daily clip", () => {
     expect(text).toContain("#botchelor");
   });
 });
+
+describe("the week by channel (2026-11-11 growth plan)", () => {
+  it("prints each source's visitors and how far they got, and names the sources that brought nobody to a date", async () => {
+    const { buildReport, channelLines } = await import("../scripts/crowd/weekly-report.mjs");
+    const engagement = {
+      sources: [
+        { source: "reddit", sessions: 24, visitors: 22, engaged: 14, created: 3, started: 2, watched: 1, signups: 1 },
+        { source: "direct", sessions: 15, visitors: 15, engaged: 6, created: 0, started: 0, watched: 0, signups: 0 },
+        { source: "nobody", sessions: 0, visitors: 0, engaged: 0, created: 0, started: 0, watched: 0, signups: 0 },
+      ],
+    };
+    const md = buildReport({ ledger: [], server: null, engagement, now: new Date("2026-11-16T08:00:00Z") });
+    expect(md).toContain("## By channel (last 7 days)");
+    expect(md).toContain("| reddit | 22 | 14 (64%) | 3 (14%) | 2 (9%) | 1 (5%) | 1 (5%) |");
+    expect(md).toContain("| direct | 15 | 6 (40%) | 0 (0%) | 0 (0%) | 0 (0%) | 0 (0%) |");
+    expect(md).not.toContain("| nobody |");
+    expect(md).toContain("No date started or watched from: direct.");
+    expect(md.indexOf("## By channel")).toBeLessThan(md.indexOf("## Prompt tests"));
+    // The site couldn't be read: the section is simply absent, and older rows without the new columns still print.
+    expect(channelLines(null)).toEqual([]);
+    expect(buildReport({ ledger: [], server: null, now: new Date("2026-11-16T08:00:00Z") })).not.toContain("By channel");
+    expect(channelLines({ sources: [{ source: "x", visitors: 1, engaged: 1, created: 0, signups: 0 }] }).join("\n")).toContain("| x | 1 | 1 (100%) | 0 (0%) | 0 (0%) | 0 (0%) | 0 (0%) |");
+  });
+});

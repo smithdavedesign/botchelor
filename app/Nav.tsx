@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import Icon from "@/app/Icon";
 import { afterDarkHref } from "@/lib/after-dark-host";
@@ -20,18 +20,20 @@ type NavLink = { href: string; label: string; also?: readonly string[] };
 const OWNER_LINKS: readonly NavLink[] = [
   { href: "/watch", label: "Watch" },
   { href: "/matches", label: "Dating", also: ["/swipe", "/messages"] },
-  { href: "/characters", label: "Characters" },
+  { href: "/characters", label: "Characters", also: ["/companion"] },
   { href: "/account", label: "Account" },
 ];
 const NEWCOMER_LINKS: readonly NavLink[] = [
   { href: "/watch", label: "Watch" },
-  { href: "/characters", label: "Characters" },
+  { href: "/characters", label: "Characters", also: ["/companion"] },
   { href: "/account", label: "Account" },
 ];
 
 /**
  * The links for this viewer. Companions is no door of its own (the audit, 2026-11-11, Part 4: a second product behind a
- * fifth door): every character card carries Talk, /characters points at the directory, and the footer lists it.
+ * fifth door): every character card carries Talk, and the directory is Characters' fourth tab (app/characters/
+ * CharactersTabs.tsx), so Characters stays current there. The phone menu also lists it under Characters (David,
+ * 2026-11-11: the directory had become a footer link).
  */
 function navLinks(hasCharacter: boolean): readonly NavLink[] {
   return hasCharacter ? OWNER_LINKS : NEWCOMER_LINKS;
@@ -60,6 +62,7 @@ export default function Nav({
   adHost = false,
   hasCharacter = true,
   prefetchShow = true,
+  companions = false,
 }: {
   tokens: number;
   /** "tokens" on After Dark's host: bought tokens only, which is all After Dark spends (#1005). */
@@ -72,6 +75,8 @@ export default function Nav({
   afterDark?: boolean;
   /** On After Dark's own host: the door turns into "Back to the show", and there's no create button. */
   adHost?: boolean;
+  /** Companions are open (lib/companion-shared.ts companionOpen): the phone menu lists the directory under Characters. */
+  companions?: boolean;
   /** False on After Dark's own host: the show's links there only redirect, so they aren't prefetched (app/layout.tsx). */
   prefetchShow?: boolean;
 }) {
@@ -200,14 +205,22 @@ export default function Nav({
           </Link>
         )}
         {navLinks(hasCharacter).map((l) => (
-          <Link prefetch={pf} key={l.href} href={l.href} aria-current={atLink(l, pathname) ? "page" : undefined}>
-            {l.label}
-            {l.href === "/matches" && texts > 0 && (
-              <span className="nav-count" aria-label={`${texts} unread texts`}>
-                {texts > 99 ? "99+" : texts}
-              </span>
+          <Fragment key={l.href}>
+            <Link prefetch={pf} href={l.href} aria-current={atLink(l, pathname) ? "page" : undefined}>
+              {l.label}
+              {l.href === "/matches" && texts > 0 && (
+                <span className="nav-count" aria-label={`${texts} unread texts`}>
+                  {texts > 99 ? "99+" : texts}
+                </span>
+              )}
+            </Link>
+            {/* Phone menu only: the companions' directory under Characters (hidden in the desktop bar, where it's a tab). */}
+            {l.href === "/characters" && companions && !adHost && (
+              <Link prefetch={pf} href="/companion" className="nav-sub">
+                Companions
+              </Link>
             )}
-          </Link>
+          </Fragment>
         ))}
         {/* A first visit has nothing to be told yet (the audit, 2026-11-11, 2.6): the bell waits for a viewer of their own. */}
         {(personal || unread > 0) && (

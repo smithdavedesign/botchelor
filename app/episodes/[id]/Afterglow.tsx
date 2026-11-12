@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import Avatar from "@/app/Avatar";
 import DateConfirm from "@/app/DateConfirm";
+import ShareEnding from "./ShareEnding";
 import { requestJson } from "@/app/request";
 import type { CharacterRef, EpisodeView } from "@/lib/game";
 import { afterglowVerdictKind, dateLabel } from "@/lib/rules";
@@ -20,6 +21,8 @@ type Props = {
   secondDate?: SecondDateState | null;
   /** Which date this was for the couple (lib/rules dateNumberOf): after their third, the one they'd skip is a fourth. */
   dateNumber?: number | null;
+  /** The date may be shared (not private): the good news gets its share card (ShareEnding). */
+  shareable?: boolean;
 };
 
 /** The one-line mutual verdict, built client-side from each side's wants_another (never a model call). */
@@ -41,7 +44,7 @@ function verdictLine(verdict: { a_wants: boolean; b_wants: boolean }, names: [st
  * M11 — the afterglow, for the characters' owners only: the morning-after texts and whether the interest was
  * mutual, shown as soon as they exist. No owner has to open it or agree first.
  */
-export default function Afterglow({ episodeId, characters, afterglow, secondDate, dateNumber }: Props) {
+export default function Afterglow({ episodeId, characters, afterglow, secondDate, dateNumber, shareable = false }: Props) {
   const [a, b] = characters;
   const names: [string, string] = [a.name, b.name];
   // These texts open the couple's text chain, which carries on between dates (lib/text-chain.ts).
@@ -52,6 +55,10 @@ export default function Afterglow({ episodeId, characters, afterglow, secondDate
       <h2>The afterglow</h2>
       <p className="muted">The morning after, your characters kept texting. Only the characters&apos; owners see this.</p>
       {afterglow.verdict && <p className="ending">{verdictLine(afterglow.verdict, names, dateNumber)}</p>}
+      {/* The share where the feeling is (2026-11-11 growth plan): the owner may tell the good news (lib/episode-share.ts). */}
+      {shareable && afterglow.verdict && afterglowVerdictKind(afterglow.verdict.a_wants, afterglow.verdict.b_wants) === "mutual_yes" && (
+        <ShareEnding episodeId={episodeId} names={names} dateNumber={dateNumber} kind="owner_well" />
+      )}
       {afterglow.thread.map((line, i) => {
         const who = line.side === "a" ? a : b;
         return (

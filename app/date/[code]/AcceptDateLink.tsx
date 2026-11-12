@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { trackConversion } from "@/app/conversion";
 
 /** Pick which of your characters takes the date; the match is made with the date agreed, then on to their thread. */
 export default function AcceptDateLink({ code, first, characters }: { code: string; first: string; characters: { id: string; name: string }[] }) {
@@ -25,6 +26,8 @@ export default function AcceptDateLink({ code, first, characters }: { code: stri
         setBusy(false);
         return;
       }
+      // A date agreed through a creator's link is a date started, for the funnel and its by-source table.
+      trackConversion("date_started", { mode: "date_link" });
       router.push(body.thread);
     } catch {
       setError("That didn't work; try again in a moment.");
