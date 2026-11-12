@@ -2,6 +2,7 @@ import { safeFrom } from "@/lib/age";
 import { exchangeGoogleCode, googleAccountExists, googleConfigured, loginWithGoogle, oauthRedirectUri, verifyOAuthState } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { authFromRequest, handle, sessionCookies } from "@/lib/http";
+import { welcome } from "@/lib/notifications";
 
 function redirect(path: string, cookies: string[] = []): Response {
   const headers = new Headers({ location: path });
@@ -49,6 +50,8 @@ export const GET = handle(async (req) => {
     const db = await getDb();
     const isNew = !(await googleAccountExists(db, identity.sub));
     const userId = await loginWithGoogle(db, current, identity.sub, identity.email);
+    // The account's first notice (lib/notifications.ts welcome): never in the way of the sign-in itself.
+    if (isNew) await welcome(db, userId).catch(() => {});
     // A one-shot, readable cookie so the next page sends GA4's sign_up event (app/FunnelBeacon.tsx).
     const signup = isNew ? ["bz_signup=google; Path=/; SameSite=Lax; Max-Age=600"] : [];
     return redirect(next ?? "/account?signed_in=1", [...sessionCookies({ userId, authenticated: true }), ...signup]);
