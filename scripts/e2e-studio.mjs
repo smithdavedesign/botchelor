@@ -39,6 +39,9 @@ async function step(name, fn) {
     console.log(`  ✗ ${name}\n      ${[lines[0], ...waited].join("\n      ")}`);
   }
 }
+/** A Studio tab by its word: the tabs carry an emoji first and the Gallery a count ("🖼 Gallery (6)"). */
+const tabName = (word) => new RegExp(`^(\\S+ )?${word}( \\(\\d+\\))?$`, "u");
+
 function assert(cond, msg) {
   if (!cond) throw new Error(msg);
 }
@@ -206,7 +209,7 @@ async function main() {
     page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
     page.on("console", (m) => m.type() === "error" && !/Failed to load resource/.test(m.text()) && errors.push(`console: ${m.text()}`));
     const studio = `${app.base}/after-dark/studio/${HER}`;
-    const tab = (name) => page.getByRole("tab", { name, exact: true }).click();
+    const tab = (name) => page.getByRole("tab", { name: tabName(name) }).click();
     // The legend's own name, not any legend that mentions it ("Filthy: one act, in place of a pose" isn't Pose).
     const group = (legend) => page.locator("fieldset.ad-studio-group", { has: page.locator("legend", { hasText: new RegExp(`^\\s*${legend}`) }) });
     // The Shoot tab's sections fold to one row each, their pick on the right (the 2026-11-11 Studio review): open one first.
@@ -325,7 +328,7 @@ async function main() {
         const row = page.locator("li, .ad-studio-setup").filter({ hasText: `Shoot setup ${size}` }).first();
         await row.waitFor({ timeout: 10_000 });
         await row.getByRole("button", { name: "Use", exact: true }).click();
-        assert((await page.getByRole("tab", { name: "Shoot", exact: true }).getAttribute("aria-selected")) === "true", "Use didn't open Shoot");
+        assert((await page.getByRole("tab", { name: tabName("Shoot") }).getAttribute("aria-selected")) === "true", "Use didn't open Shoot");
         assert((await (await fold("Pose")).locator('button[aria-pressed="true"]').count()) === 1, "the setup's pose isn't picked");
         // Shoot lists it too, to load in one tap.
         assert((await page.locator(".ad-studio-setups-quick").getByRole("button", { name: `Shoot setup ${size}`, exact: true }).count()) === 1, "Shoot doesn't list the saved setup");

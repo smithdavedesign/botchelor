@@ -47,12 +47,14 @@ const TILE_TIME = { time: true, hour: "2-digit", minute: "2-digit" } as const;
 const STUDIO_TIMEOUT_MS = 290_000;
 const REDO_TIME = { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" } as const;
 const media = (id: string) => `/api/admin/after-dark/media/${id}`;
+// One tab vocabulary with the PG Studio (app/characters/[id]/studio/PgStudio.tsx: 📸 Shoot · 🖼 Gallery · 🪪 Identity ·
+// ✨ Create), in its order, with After Dark's two extra tabs where they belong (the design kit, 2026-11-12).
 const TABS = [
-  { id: "shoot", label: "Shoot" },
-  { id: "pair", label: "Together" },
-  { id: "identity", label: "Identity" },
-  { id: "gallery", label: "Gallery" },
-  { id: "setups", label: "Setups" },
+  { id: "shoot", label: "📸 Shoot" },
+  { id: "pair", label: "👥 Together" },
+  { id: "gallery", label: "🖼 Gallery" },
+  { id: "identity", label: "🪪 Identity" },
+  { id: "setups", label: "🗂 Setups" },
   // The Create library (lib/studio/library.ts): their own venues, prompts and roleplays.
   { id: "create", label: "✨ Create" },
 ] as const;
@@ -859,13 +861,13 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
   const latest = fresh && fresh.pictures.length > 0 ? null : filterMedia(s.gallery, DEFAULT_FILTER).slice(0, 4);
 
   return (
-    <section className={`ad-studio-main${full ? " is-full" : ""}`} aria-label={full ? `${c.name}'s studio, full screen` : undefined}>
+    <section className={`ad-studio-main${full ? " is-full" : ""}`} aria-label={full ? `${c.name}'s Studio, full screen` : undefined}>
       <div className="ad-studio-head">
         {/* On a phone the Studio is always the whole screen (globals.css), over the page's own way back: its own. */}
         <Link href="/after-dark" className="ad-studio-back" aria-label="Back to After Dark">
           ←
         </Link>
-        <h1>🎨 {c.name}&apos;s studio</h1>
+        <h1>🎨 {c.name}&apos;s Studio</h1>
         <button type="button" className="button-ghost small ad-studio-full-toggle" aria-pressed={full} onClick={() => setFull((x) => !x)} title={full ? "Back to the page (Esc)" : "The Studio on the whole screen"}>
           {full ? "✕ Exit full screen" : "⛶ Full screen"}
         </button>
@@ -910,6 +912,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
         {TABS.map((t) => (
           <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} className={tab === t.id ? "on" : ""} onClick={() => setTab(t.id)}>
             {t.label}
+            {t.id === "gallery" ? ` (${s.studio_gallery.length + s.dates_gallery.length})` : ""}
           </button>
         ))}
       </nav>

@@ -136,7 +136,7 @@ export default async function AfterDarkScenePage({ params }: Props) {
           <p className="ad-studio-links">
             {open.map((c) => (
               <Link key={c.id} className="button-ghost small" href={`/after-dark/studio/${c.id}`}>
-                🎨 {c.name.split(/\s+/)[0]}&apos;s studio
+                🎨 {c.name.split(/\s+/)[0]}&apos;s Studio
               </Link>
             ))}
           </p>
