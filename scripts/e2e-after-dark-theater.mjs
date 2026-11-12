@@ -474,9 +474,10 @@ async function main() {
       assert(!(await subPage.locator(".theater-tools > .ad-writer-logo").count()), "the writer left the top bar for ⋯");
       await subPage.click(".ad-tools-toggle");
       await subPage.click(".ad-tools-steps .ad-writer-logo-button");
-      const quick = subPage.locator('.ad-writer-menu [role="menuitemradio"]', { hasText: "Quick (DeepSeek V3.1)" });
+      // The quick writer is the default (DeepSeek, #1195), so the step picks the richer one: a change, and saved.
+      const quick = subPage.locator('.ad-writer-menu [role="menuitemradio"]', { hasText: "Richer, slower (GLM-4.6)" });
       await quick.waitFor({ timeout: 10_000 });
-      assert((await subPage.locator(".ad-writer-menu").innerText()).includes("Richer, slower (GLM-4.6)"), "the same words as the hub's settings");
+      assert((await subPage.locator(".ad-writer-menu").innerText()).includes("Quick (DeepSeek V3.1)"), "the same words as the hub's settings");
       // Nothing of the stage's over it: the item itself is what's under its middle.
       const onTop = await quick.evaluate((el) => {
         const r = el.getBoundingClientRect();
@@ -485,9 +486,9 @@ async function main() {
       });
       assert(onTop, "something on the stage covers the writers' list");
       await quick.click({ timeout: 5_000 });
-      await until("the chip to say DeepSeek", async () => (await subPage.locator(".ad-writer-logo-button").innerText()).includes("DeepSeek"), 10_000);
+      await until("the chip to say GLM", async () => (await subPage.locator(".ad-writer-logo-button").innerText()).includes("GLM"), 10_000);
       const mine = (await (await api(sub, "/api/admin/after-dark/writer")).json());
-      assert(mine.chosen === "deepseek/deepseek-chat-v3.1:nitro" && mine.picked, "the pick was saved");
+      assert(mine.chosen === "z-ai/glm-4.6" && mine.picked, `the pick was saved (${mine.chosen}, picked ${mine.picked})`);
       // A step held for a moment: Next stays on screen and says Writing… until the lines come.
       await subPage.route("**/api/admin/after-dark", async (route) => {
         if (route.request().method() === "POST") await new Promise((r) => setTimeout(r, 2_500));
@@ -531,6 +532,21 @@ async function main() {
       await phone.locator(".ad-tools-steps button", { hasText: "Drawing ahead" }).waitFor({ timeout: 10_000 });
       const wide = await phone.evaluate(() => document.documentElement.scrollWidth);
       assert(wide <= 392, `no sideways scroll (${wide}px)`);
+      // Off the left edge never scrolls, so scrollWidth can't see it: every row of ⋯, and ✍️'s list open, on screen.
+      const writer = phone.locator(".ad-tools-steps .ad-writer-logo-button");
+      if (await writer.count()) {
+        await writer.click();
+        await phone.locator(".ad-tools-steps .ad-writer-menu").waitFor({ timeout: 5_000 });
+      }
+      const off = await phone.evaluate(() =>
+        [...document.querySelectorAll(".ad-tools-steps button")]
+          .filter((el) => {
+            const r = el.getBoundingClientRect();
+            return r.width > 0 && (r.left < 0 || r.right > innerWidth);
+          })
+          .map((el) => el.textContent.trim().slice(0, 30)),
+      );
+      assert(off.length === 0, `⋯ runs off the screen: ${off.join(", ")}`);
       await phone.screenshot({ path: join(OUT_DIR, "e2e-after-dark-theater-phone.png") });
       await phone.close();
     });
