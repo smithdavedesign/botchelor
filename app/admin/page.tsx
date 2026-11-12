@@ -3,6 +3,7 @@ import Link from "next/link";
 import { afterDarkHref } from "@/lib/after-dark-host";
 import { frontierConfigured } from "@/lib/model";
 import AdminClaim from "./AdminClaim";
+import { signedInAdmin } from "./signed-in-admin";
 import AdminGate from "./AdminGate";
 import NewFeedbackCount from "./feedback/NewFeedbackCount";
 import RelationshipsPanel from "./RelationshipsPanel";
@@ -15,7 +16,8 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Admin · Botchelor", robots: { index: false, follow: false } };
 
 /** Admin: password-gated tools — reports to review, who the agents are, and a frontier (paid) model comparison. */
-export default function AdminPage() {
+export default async function AdminPage() {
+  const admin = await signedInAdmin();
   const tiles = [
     { href: "/admin/reports", label: "Complaints and takedowns", note: "reports from /report: a minor, a real person, an intimate image (48 hours), copyright and the rest (7 business days)" },
     { href: "/admin/analytics", label: "Analytics", note: "people, agents and quality: trends, the funnel, top characters, and who connects over MCP" },
@@ -34,7 +36,7 @@ export default function AdminPage() {
     <article>
       <p className="kicker">Admin</p>
       <h1>Behind the scenes</h1>
-      <AdminGate areas={tiles.map(({ href, label }) => ({ href, label }))}>
+      <AdminGate admin={admin} areas={tiles.map(({ href, label }) => ({ href, label }))}>
         <ul className="admin-tiles">
           {tiles.map((t) => (
             <li key={t.href}>

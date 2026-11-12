@@ -81,8 +81,10 @@ const adminFetch = (path: string) => {
 /**
  * The analytics page (owner-only): one row of filters that scopes every tab, kept in the address, and five tabs. It
  * signs in like the other admin panels (the saved admin password, a signed-in admin account, or a box to enter it).
+ * `admin` is the server's answer for a signed-in admin account: with neither it nor a saved password, the box shows
+ * straight away and nothing asks the API (that ask was a 403 in the console).
  */
-export default function InsightsDashboard() {
+export default function InsightsDashboard({ admin }: { admin: boolean }) {
   const params = useSearchParams();
   const [today] = useState(() => isoDay(new Date()));
   const [filters, setFilters] = useState<Filters>(() => readFilters(params, today));
@@ -119,6 +121,10 @@ export default function InsightsDashboard() {
   const load = useCallback(
     async (fresh = false) => {
       const id = ++request.current;
+      if (!admin && !savedKey()) {
+        setNeedsPassword(true);
+        return;
+      }
       setLoading(true);
       setError(null);
       try {
@@ -140,7 +146,7 @@ export default function InsightsDashboard() {
         if (id === request.current) setLoading(false);
       }
     },
-    [insightsPath],
+    [insightsPath, admin],
   );
 
   useEffect(() => {

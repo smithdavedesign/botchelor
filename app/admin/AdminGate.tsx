@@ -11,16 +11,19 @@ type Area = { href: string; label: string };
  * /admin's sign-in. Every panel below reads the admin password from this browser (localStorage) and, without it, used
  * to say "Not signed in." over its own empty form — eight times down a phone screen. Until there's a password (or the
  * account is an admin), this shows one sign-in card and a line of the admin areas instead.
+ *
+ * `admin` is the server's answer for a signed-in admin account (./signed-in-admin.ts), so a signed-out visit asks no
+ * admin API anything (each ask was a 403 in the console).
  */
-export default function AdminGate({ areas, children }: { areas: Area[]; children: ReactNode }) {
+export default function AdminGate({ areas, admin, children }: { areas: Area[]; admin: boolean; children: ReactNode }) {
   const [state, setState] = useState<"checking" | "out" | "in">("checking");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  // The same check the panels' API makes: the password, or a signed-in admin account (no header).
+  // The same check the panels' API makes, for a typed password.
   async function check(key: string): Promise<boolean> {
-    const res = await fetch("/api/admin/reports", { headers: key ? { "x-frontier-key": key } : {} }).catch(() => null);
+    const res = await fetch("/api/admin/reports", { headers: { "x-frontier-key": key } }).catch(() => null);
     return Boolean(res?.ok);
   }
 
@@ -31,12 +34,8 @@ export default function AdminGate({ areas, children }: { areas: Area[]; children
     } catch {
       /* private mode: an admin account still works */
     }
-    if (saved) {
-      setState("in");
-      return;
-    }
-    void check("").then((ok) => setState(ok ? "in" : "out"));
-  }, []);
+    setState(saved || admin ? "in" : "out");
+  }, [admin]);
 
   async function signIn(e: FormEvent) {
     e.preventDefault();
