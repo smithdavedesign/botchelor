@@ -105,8 +105,9 @@
   gap: var(--space-2);
   margin: var(--space-2) 0 0;
 }
-/* a.button's own top margin made the row taller and stretched the ghost link with its label stuck at the top. */
-.empty-state-actions > * {
+/* a.button's own top margin (1rem) pushed the filled button below the ghost link beside it. The selector carries two
+   classes because `a.button` outranks a lone class with `> *`, which is why the first version of this rule never applied. */
+.empty-state .empty-state-actions > * {
   margin: 0;
 }
 
