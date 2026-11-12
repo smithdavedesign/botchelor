@@ -65,8 +65,11 @@ export default function Nav({
   companions = false,
 }: {
   tokens: number;
-  /** "tokens" on After Dark's host: bought tokens only, which is all After Dark spends (#1005). */
-  meter?: "dates" | "tokens";
+  /**
+   * "tokens" on After Dark's host: bought tokens only, which is all After Dark spends (#1005). "none" there for someone
+   * After Dark isn't open to (its Subscribe page, a locked Short): nothing to spend, so no count (the 2026-11-11 review).
+   */
+  meter?: "dates" | "tokens" | "none";
   personal?: boolean;
   /** The viewer owns a character: the owner's nav. Without one, the newcomer's, with the create button. */
   hasCharacter?: boolean;
@@ -150,7 +153,7 @@ export default function Nav({
         {/* Two meters, two units: the show's dates are a clapper on an outline pill; After Dark's tokens are ◈ on a night
             pill. Never the same pill with a different word, so no page has to explain which is spent where. */}
         {/* #539: the count is free dates this week plus topped-up tokens, so it says "dates left", not "tokens". */}
-        {personal && meter === "tokens" ? (
+        {meter === "none" ? null : personal && meter === "tokens" ? (
           // #1173: After Dark's own page says what a token buys and how to get more (the show's shop sells them as dates).
           <Link href="/after-dark/tokens" className={`token-pill token-pill--tokens${tone}`} title="Tokens left. The subscription includes the chapters, their pictures and a few clips a month; tokens pay for the extras (more clips, the video of the night). The show's free weekly dates aren't spent here.">
             <span className="token-pip" aria-hidden="true">◈</span>

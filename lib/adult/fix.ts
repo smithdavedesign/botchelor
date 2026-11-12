@@ -297,17 +297,17 @@ function wordsRefusal(note: string, held: Held, level: Level): Fail | null {
   if (reach <= level) return null;
   // Out of their clothes, and no further: what they're after is Undressed.
   if (reach === 2) return fail(422, "undress_instead", "To take their clothes off, pick Undressed.");
-  return fail(422, "past_level", `A fix keeps the picture as it is (${LEVEL_LABEL[level].toLowerCase()}): those words would take it further.`);
+  return fail(422, "past_level", `A fix keeps the picture at its level (${LEVEL_LABEL[level]}): those words would take it further.`);
 }
 
 const whoseLimits = (people: readonly Character[]): string => (people.length === 2 ? "Their" : `${people[0].name.split(/\s+/)[0]}'s`);
 /** A picture past what they're held to now (their limits lowered since, or a partner's consent taken back) isn't remade. */
 const pastLimits = (held: Held, people: readonly Character[]): string =>
-  `${whoseLimits(people)} limits stop at ${LEVEL_LABEL[held.maxLevel].toLowerCase()} now, and this picture is past that, so it can't be fixed.`;
+  `${whoseLimits(people)} limits stop at ${LEVEL_LABEL[held.maxLevel]} now, and this picture is past that, so it can't be fixed.`;
 
 /** Whether Undressed can be had for this picture, and why not: their limits, and somewhere public. */
 function undressRefusal(held: Held, people: readonly Character[], place: string | null): Fail | null {
-  if (held.maxLevel < 2) return fail(422, "locked", `${whoseLimits(people)} limits stop at ${LEVEL_LABEL[held.maxLevel].toLowerCase()}: change them in the Studio to go further.`);
+  if (held.maxLevel < 2) return fail(422, "locked", `${whoseLimits(people)} limits stop at ${LEVEL_LABEL[held.maxLevel]}: change them in the Studio to go further.`);
   if (people.length === 2 && nudeInPublic({ level: 2, place })) return fail(422, "public", "Somewhere public, the two of them stay dressed: undress them somewhere private.");
   return null;
 }

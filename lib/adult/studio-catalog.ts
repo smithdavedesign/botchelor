@@ -17,7 +17,12 @@ import { PG_GROUPS } from "../studio/pg-catalog";
 
 export const LEVELS = ["dressed", "suggestive", "nude", "explicit"] as const;
 export type Level = 0 | 1 | 2 | 3;
-export const LEVEL_LABEL: Record<Level, string> = { 0: "Dressed", 1: "Suggestive", 2: "Nude", 3: "Explicit" };
+/**
+ * A level in the limits' words (one ladder, the 2026-11-11 design review): the lowest studio intensity that opens it
+ * (LEVEL_FOR_INTENSITY below), so "Past Spicy: their studio limit" and the Identity tab's Spicy are the same step. The
+ * ids above (dressed … explicit) stay the data's; only what a person reads changed (it was Dressed, Suggestive, Nude).
+ */
+export const LEVEL_LABEL: Record<Level, string> = { 0: "Slow burn", 1: "Flirty", 2: "Spicy", 3: "Explicit" };
 
 /** Who the words describe: a woman, a man, or anyone (they). */
 export type Noun = "woman" | "man" | "person";
@@ -363,7 +368,7 @@ export function optionLocked(group: GroupId, opt: StudioOption, limits: ShootLim
   if (limits.disabled.has(`${group}.${opt.id}`)) return "Switched off in the settings.";
   if (group === "pov" && !limits.pov) return "POV is switched off in the settings.";
   if (opt.only && noun !== "person" && opt.only !== noun) return `Only for a ${opt.only}.`;
-  if (opt.level > limits.maxLevel) return `Past ${LEVEL_LABEL[limits.maxLevel].toLowerCase()}: their studio limit.`;
+  if (opt.level > limits.maxLevel) return `Past ${LEVEL_LABEL[limits.maxLevel]}: their studio limit.`;
   if (opt.filthy && !limits.filthy) return "Filthy only: set their studio intensity to Filthy (Identity).";
   const no = opt.hardNos?.find((h) => limits.hardNos.includes(h));
   if (no) return "One of their hard nos.";
@@ -447,7 +452,7 @@ export function planShoot(choices: ShootChoices, limits: ShootLimits, subject: S
   // the prompt clears it (shootPrompt) and every picture is checked for anyone else (studio.ts aloneInPicture) — but
   // nothing explicit, which stays private.
   if (placePublic && level > 2) return no("public", "Nothing explicit somewhere public: pick a private place.");
-  if (level > limits.maxLevel) return no("locked", `Past ${LEVEL_LABEL[limits.maxLevel].toLowerCase()}: their studio limit.`);
+  if (level > limits.maxLevel) return no("locked", `Past ${LEVEL_LABEL[limits.maxLevel]}: their studio limit.`);
   // The owner's own words: the overall direction, and anything added to a single section. Taboo in them is caught by the
   // caller's wordsOk, like the tiles', and the picture is still age-checked.
   const custom = cleanCustom(choices.custom, CUSTOM_MAX);

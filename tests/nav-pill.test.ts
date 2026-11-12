@@ -33,6 +33,16 @@ describe("the header's date meter", () => {
     expect(text(tokens)).toBe("◈ 2 tokens");
   });
 
+  // The 2026-11-11 review: a locked After Dark screen (its Subscribe page, a locked Short) showed "◈ 0 tokens" to someone
+  // with nothing to spend them on. On After Dark's host the meter shows only to someone it's open to (app/layout.tsx).
+  it("shows no meter where it's \"none\": After Dark's host, for someone it isn't open to", async () => {
+    expect(pill({ tokens: 0, meter: "none", personal: true })).toBe("");
+    expect(pill({ tokens: 3, meter: "none", personal: false })).toBe("");
+    const { readFileSync } = await import("node:fs");
+    const layout = readFileSync("app/layout.tsx", "utf8");
+    expect(layout).toContain('meter={adHost ? (viewerId && afterDark ? "tokens" : "none") : "dates"}');
+  });
+
   it("without an identity, says the weekly allowance, not someone's count", () => {
     const html = pill({ tokens: 3, personal: false });
     expect(text(html)).toBe("3 free dates");

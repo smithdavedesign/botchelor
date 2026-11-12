@@ -7,12 +7,13 @@
  * anything explicit.
  *
  *   nobody else gets in (a stranger, a signed-in non-subscriber: the page and every media route are not found) →
- *   the theater plays a night → 📸 Picture this: the form reads the scene (the brief: the costume, the place), the prompt
+ *   the theater opens a night at its newest line → 📸 Picture this: the form reads the scene (the brief: the costume, the place), the prompt
  *   has no names, the picture is drawn and goes on the stage → Next: a moment is offered ("Picture this?"), Not now →
  *   ⚡ Draw ahead: the next moment is drawn without asking → ✨ Bring them to life: portraits, expressions, loops →
- *   🗣 Hear it from them: a talking moment plays → 🔈 Listen: their voices, and the place's sound → ↻ Redraw from the
- *   gallery → 🎬 Video of the night: the storyboard → a subscriber: Draw ahead's price, and no tokens says so → ✍️ the
- *   writers → ⋯ reaches the tabs under the theater, and the gallery says how to show a blurred picture → the phone.
+ *   🗣 Hear it from them: a talking moment plays → 🔈 Listen: their voices as ⏮ plays it again, and the place's sound →
+ *   ↻ Redraw from the gallery → 🎬 Video of the night: the storyboard → a subscriber: Draw ahead is included and turns on
+ *   → ⋯ then ✍️ the writers → the strip under the stage opens the night's tabs, and the gallery says how to show a
+ *   blurred picture → the phone.
  *
  * The rest of After Dark has its own: e2e:after-dark (the gate, writing, autoplay, rewind, start over), e2e:after-dark-
  * scene (Scene & roleplay, the first lines, the picture's context) and e2e:studio (every Studio tab). e2e:after-dark-all
@@ -314,10 +315,11 @@ async function main() {
     };
     const momentsOf = async () => (await (await api(owner, `/api/admin/after-dark/moment-pictures?${q}`)).json()).moments ?? [];
 
-    await step("the theater opens on the night, its lines playing", async () => {
+    // #1214 (2026-11-01): a night opens where it's got to, its newest line on stage, not replaying its last six.
+    await step("the theater opens on the night, at its newest line", async () => {
       await page.goto(`${app.base}${PAGE}`, { waitUntil: "domcontentloaded" });
       await page.waitForSelector(".theater-after-dark", { timeout: 30_000 });
-      await until("a line on stage", async () => (await page.locator(".theater-after-dark").innerText()).includes("canon"));
+      await until("the newest line on stage", async () => (await page.locator(".theater-after-dark").innerText()).includes("Prove it."));
     });
 
     let firstPicture = null;
@@ -406,6 +408,9 @@ async function main() {
     await step("🔈 Listen: each line in their own voice, and the place's own sound under them", async () => {
       const speeches = seen.calls.filter((c) => c.endsWith("/audio/speech")).length;
       await page.click('button[aria-label="Listen: each line in their own voice"]');
+      // The night opens at its newest line (#1214), which 🗣 Hear it has voiced already: ⏮ plays it again from the top, and
+      // each line is asked for in its voice as it comes on stage.
+      await page.click('button[aria-label="From the top"]');
       await until("voices asked for", async () => seen.calls.filter((c) => c.endsWith("/audio/speech")).length > speeches, 30_000);
       const sound = await until("the place's sound", async () => {
         const r = await (await api(owner, `/api/admin/after-dark/place-sound?venue=${encodeURIComponent("elsewhere@her living room")}`)).json();
@@ -442,24 +447,24 @@ async function main() {
       await page.screenshot({ path: join(OUT_DIR, "e2e-after-dark-theater-storyboard.png") });
     });
 
-    await step("a subscriber: Draw ahead says its price, and turned on with no tokens says what it takes", async () => {
+    // #1005 (2026-10-30): the subscription includes Draw ahead, so a subscriber reads "included" where a price was, and it
+    // turns on with no tokens. (The paid side, a chapter's price taken or refused, is in tests/after-dark-beats.test.ts and after-dark-pricing.)
+    await step("a subscriber: Draw ahead says it's included, and turns on with no tokens", async () => {
       const subPage = await sub.newPage();
       watch(subPage);
       await subPage.goto(`${app.base}${PAGE}`, { waitUntil: "domcontentloaded" });
       await subPage.waitForSelector(".theater-after-dark", { timeout: 30_000 });
       await subPage.click(".ad-tools-toggle");
       const item = subPage.locator(".ad-tools-steps button", { hasText: "Draw ahead" });
-      assert((await item.innerText()).includes("1 token a chapter"), "its price");
-      // A moment waiting, then turned on: the chapter's price can't be taken.
+      assert((await item.innerText()).includes("included"), `its price: "${await item.innerText()}"`);
       await subPage.click(".ad-tools-toggle");
-      await subPage.click(".ad-theater-bar button[type=submit]");
-      await subPage.locator('[aria-label="Picture this moment?"]').waitFor({ timeout: 90_000 });
-      await subPage.locator('[aria-label="Picture this moment?"] button', { hasText: "Not now" }).click();
       const r = await sub.request.post(`${app.base}/api/admin/after-dark/draw-ahead`, { data: { a: HIM, b: HER, on: true, at: 0 } });
-      assert(r.status() === 402, `HTTP ${r.status()}`);
-      assert(((await r.json()).message ?? "").includes("1 token a chapter"), "says what it takes");
+      assert(r.ok(), `HTTP ${r.status()}`);
       const view = (await (await api(sub, `/api/admin/after-dark/draw-ahead?${q}`)).json()).draw_ahead;
-      assert(view.on === false && view.price === 1, "left off");
+      assert(view.on === true && view.price === 0 && view.included === true, `on and included (${JSON.stringify(view)})`);
+      // Off again, so the steps after it write their lines as before.
+      const off = await sub.request.post(`${app.base}/api/admin/after-dark/draw-ahead`, { data: { a: HIM, b: HER, on: false, at: 0 } });
+      assert(off.ok(), `turning it off: HTTP ${off.status()}`);
       await subPage.close();
     });
 
@@ -503,7 +508,8 @@ async function main() {
 
     // #1061 (the 2026-10-30 ad visitor: the tabs "hidden under the full-screen theater", "<div class="scene-cast"> …
     // intercepts pointer events", and blurred gallery pictures with "no clear tap to reveal"): a subscriber, blur on.
-    await step("a subscriber: ⋯ reaches the tabs under the theater, the cast takes no clicks, and the gallery says how to show a blurred picture", async () => {
+    // #1195 (2026-11-01): the night's tabs are a strip under the stage (not in ⋯), and one opens as a sheet over the theater.
+    await step("a subscriber: the strip under the stage opens the night's tabs, the cast takes no clicks, and the gallery says how to show a blurred picture", async () => {
       const subPage = await sub.newPage();
       await subPage.setViewportSize({ width: 1280, height: 860 });
       watch(subPage);
@@ -511,11 +517,10 @@ async function main() {
       await subPage.waitForSelector(".theater-after-dark", { timeout: 30_000 });
       const cast = await subPage.locator(".theater-after-dark .scene-cast").evaluate((el) => getComputedStyle(el).pointerEvents);
       assert(cast === "none", `the cast row takes clicks (${cast})`);
-      await subPage.click(".ad-tools-toggle");
-      await subPage.locator(".ad-tools-steps button", { hasText: "Two sides" }).click({ timeout: 5_000 });
-      await subPage.waitForSelector(".theater-after-dark", { state: "detached", timeout: 10_000 });
-      await until("the Two sides tab", async () => (await subPage.locator('.ad-page-tabbar [role="tab"][aria-selected="true"]').innerText()).includes("Two sides"), 10_000);
-      await subPage.locator('.ad-page-tabbar [role="tab"]', { hasText: "Gallery" }).click({ timeout: 5_000 });
+      await subPage.locator(".ad-theater-tabs button", { hasText: "Two sides" }).click({ timeout: 5_000 });
+      await subPage.locator(".ad-tab-sheet").waitFor({ timeout: 10_000 });
+      await until("the Two sides tab", async () => (await subPage.locator('.ad-tab-sheet .ad-page-tabbar [role="tab"][aria-selected="true"]').innerText()).includes("Two sides"), 10_000);
+      await subPage.locator('.ad-tab-sheet .ad-page-tabbar [role="tab"]', { hasText: "Gallery" }).click({ timeout: 5_000 });
       const blurNote = subPage.locator(".ad-gallery-blur-note");
       await blurNote.waitFor({ timeout: 10_000 });
       assert((await blurNote.innerText()).includes("tap a picture to show it"), "the gallery says how to show one");

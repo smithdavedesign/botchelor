@@ -1593,7 +1593,7 @@ export async function moreLikeThis(db: Db, viewer: string, characterId: string, 
   if (!src) return fail(404, "not_found", "Pick one of your pictures of them alone.");
   const identity = await identityOf(db, viewer, c.id);
   const { maxLevel } = shootLimits(identity, config);
-  if (src.level > maxLevel) return fail(422, "locked", `That picture is past ${LEVEL_LABEL[maxLevel].toLowerCase()}: their studio limit.`);
+  if (src.level > maxLevel) return fail(422, "locked", `That picture is past ${LEVEL_LABEL[maxLevel]}: their studio limit.`);
   const face = await faceLink(db, viewer, c, baseUrl);
   if (typeof face !== "string") return face;
   const images = [face];
@@ -1650,7 +1650,7 @@ export async function carouselShoot(db: Db, viewer: string, characterId: string,
   if (!src) return fail(404, "not_found", "Pick one of your pictures of them alone.");
   const identity = await identityOf(db, viewer, c.id);
   const { maxLevel } = shootLimits(identity, config);
-  if (src.level > maxLevel) return fail(422, "locked", `That picture is past ${LEVEL_LABEL[maxLevel].toLowerCase()}: their studio limit.`);
+  if (src.level > maxLevel) return fail(422, "locked", `That picture is past ${LEVEL_LABEL[maxLevel]}: their studio limit.`);
   const face = await faceLink(db, viewer, c, baseUrl);
   if (typeof face !== "string") return face;
   const images = [identity.faceCrop && identity.strength !== "loose" ? signedMediaUrl(identity.faceCrop, baseUrl) : face];
@@ -1805,7 +1805,7 @@ export async function animatePicture(db: Db, viewer: string, characterId: string
   if (!src) return fail(404, "not_found", "Pick one of your pictures of them.");
   const pair = !solo;
   const { maxLevel } = shootLimits(await identityOf(db, viewer, c.id), config);
-  if (src.level > maxLevel) return fail(422, "locked", `That picture is past ${LEVEL_LABEL[maxLevel].toLowerCase()}: their studio limit.`);
+  if (src.level > maxLevel) return fail(422, "locked", `That picture is past ${LEVEL_LABEL[maxLevel]}: their studio limit.`);
   const keys = await adultKeys(db);
   if (!keys.venice) return fail(409, "not_set_up", "Animating needs the Venice key in After Dark's settings.");
   // A video is checked by Hive alone (the alternatives read stills): none starts while it's out.
