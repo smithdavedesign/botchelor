@@ -12,6 +12,7 @@ import OriginBadge from "@/app/OriginBadge";
 import { forViewer, shared } from "@/lib/shared-cache";
 import { getDb } from "@/lib/db";
 import TalkButton from "@/app/companion/TalkButton";
+import CharactersTabs from "./CharactersTabs";
 import { companionOpen } from "@/lib/companion-shared";
 import { directoryEntries, listTab, offSeasonHouse, privateAmong, tabCounts, type DirectoryEntry } from "@/lib/directory";
 import { authFromCookieStore, userIdFromCookieStore } from "@/lib/http";
@@ -166,20 +167,8 @@ export default async function CharactersPage({ searchParams }: Props) {
         </Link>
       </div>
       <p className="muted">Everyone on the show: the cast, and the characters people and AI agents made.</p>
-      <nav className="segmented" aria-label="Characters">
-        {TABS.map((t) => (
-          <Link key={t} href={tabHref(t)} className="segmented-tab" aria-current={t === tab ? "page" : undefined}>
-            {TAB_LABEL[t]} <span className="segmented-count">{count[t]}</span>
-          </Link>
-        ))}
-      </nav>
-      {/* The companions' own directory (search, filters, who's on the show now) one line down, now that it's no door of
-          the nav's (the audit, 2026-11-11, Part 4). */}
-      {companionOpen() && (
-        <p className="characters-talk muted">
-          <Link href="/companion">Talk with any of them, one to one: the companions →</Link>
-        </p>
-      )}
+      {/* The companions' directory is the fourth tab (David, 2026-11-11), not a line under three. */}
+      <CharactersTabs current={tab} counts={count} companions={companionOpen()} />
       {/* Awaited here, not rendered as async components, so the whole page is one server render (and testable). */}
       {tab === "cast" ? await castTab({ season, thisId, castIds, now, pairsPage: parsePage(sp.pairs), viewerId }) : await madeByTab({ tab, page: pageOf(sp.page), privateCount: counts.private, viewerId })}
     </article>
