@@ -929,6 +929,11 @@ h2 {
   }
 }
 
+/* The companions' directory as a sub-link under Characters (app/Nav.tsx): phone menu only; above 900px it's a tab. */
+.nav-links a.nav-sub {
+  display: none;
+}
+
 /* Under 900px the links fold behind the menu button; the tools stay in the bar and the call to action moves into the menu. */
 @media (max-width: 900px) {
   .nav {
@@ -982,6 +987,13 @@ h2 {
   .nav-links a {
     padding: 0.7rem 0.9rem;
     font-size: var(--text-base);
+  }
+  .nav-links a.nav-sub {
+    display: block;
+    padding-block: var(--space-2);
+    padding-inline: var(--space-6) var(--space-4);
+    font-size: var(--text-sm);
+    color: var(--muted);
   }
   .nav a.nav-create,
   .nav a.nav-create:hover,
