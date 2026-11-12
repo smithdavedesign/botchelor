@@ -1,15 +1,16 @@
 "use client";
 
-import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { requestJson } from "@/app/request";
 import { AiTag } from "@/app/AiLabel";
 import { archivedClip, clipChains, keepGoingFrom, playable } from "@/lib/adult/clip-chains";
 import type { BusyReel, Reel, ReelShot } from "@/lib/adult/reels";
 import type { ClipOffer } from "@/lib/adult/clips";
-import { includedClipsWords, priceWords } from "@/lib/adult/price-words";
+import { includedClipsWords } from "@/lib/adult/price-words";
+import TokenPrice from "../../TokenPrice";
 import { chaptersLabel } from "@/lib/adult/nights";
 import { pausedUntil, reelFailureNote } from "@/lib/adult/reel-failure";
-import { REEL_STALLED_MS } from "@/lib/adult/reel-timing";
+import { REEL_STALLED_MS, refilmTokens } from "@/lib/adult/reel-timing";
 import RateMedia from "./RateMedia";
 import { MediaAdmin, MediaRequest } from "../../MediaRequest";
 import type { Trim } from "@/lib/adult/trim";
@@ -22,7 +23,14 @@ import { trimStep } from "../../trimPlayback";
 const mediaUrl = (id: string) => `/api/admin/after-dark/media/${id}`;
 
 /** A shot as a player plays it: with the video it's from, so it can be taken out of it (the Archive). */
-type PlayShot = ReelShot & { reel: string };
+/** A shot as played: its video, and that video's kind and length (what filming it again costs, refilmTokens). */
+type PlayShot = ReelShot & { reel: string; reelKind?: string | null; reelShots?: number };
+
+/**
+ * What filming a shot again costs this viewer (lib/adult/reel-timing.ts refilmTokens): the settings' prices, or null when
+ * it's free (an admin, or their own video key). Undefined where nobody said, and then 🔁 shows no price.
+ */
+export const RefilmPrices = createContext<{ clip_tokens: number; reel_tokens: number } | null | undefined>(undefined);
 
 /** Lets a preloaded copy of a file go (a link played as it is, when the copy couldn't be made, has nothing to let go). */
 const drop = (url: string) => url.startsWith("blob:") && URL.revokeObjectURL(url);
@@ -109,7 +117,8 @@ export default function Reels({
 }
 
 /** The shots of a video that play, in order: in, and not in the Archive (lib/adult/clip-chains.ts playable). */
-const readyShots = (r: Reel): PlayShot[] => (r.status === "making" || r.status === "draft" ? [] : r.shots.filter(playable).map((s) => ({ ...s, reel: r.id })));
+const readyShots = (r: Reel): PlayShot[] =>
+  r.status === "making" || r.status === "draft" ? [] : r.shots.filter(playable).map((s) => ({ ...s, reel: r.id, reelKind: r.kind ?? null, reelShots: r.shots.length }));
 
 /** Takes a shot out of its video into the Archive, or puts it back: the video as it is now, or what went wrong. */
 /** Film one shot again (lib/adult/reels.ts refilmShot): the reel is being made until it's in. */
@@ -230,8 +239,8 @@ function ArchivedShot({ shot, onChange }: { shot: PlayShot & { from: string }; o
  * A clip's price for this pair (the clip menu's), for Keep going, in words: "included" while a subscriber's clips this
  * month last (#1005), then the tokens ("free" for an admin). Null until it's known.
  */
-function useClipPrice(pair: Reel | undefined, clipCount: number): string | null {
-  const [price, setPrice] = useState<string | null>(null);
+function useClipPrice(pair: Reel | undefined, clipCount: number): ReactNode {
+  const [price, setPrice] = useState<ReactNode>(null);
   useEffect(() => {
     if (!pair?.a || !pair.b) return;
     let gone = false;
@@ -240,7 +249,12 @@ function useClipPrice(pair: Reel | undefined, clipCount: number): string | null 
       .then((offer: Partial<ClipOffer> | null) => {
         if (gone || typeof offer?.price !== "number") return;
         const left = includedClipsWords(offer.included_left, offer.included_of ?? 0);
-        setPrice(`${priceWords(offer.price, offer.included)}${left ? ` (${left})` : ""}`);
+        setPrice(
+          <>
+            <TokenPrice tokens={offer.price} included={offer.included} />
+            {left ? ` (${left})` : ""}
+          </>,
+        );
       })
       .catch(() => {});
     return () => {
@@ -251,7 +265,7 @@ function useClipPrice(pair: Reel | undefined, clipCount: number): string | null 
   return price;
 }
 
-function Clips({ clips, onChange, price, onMedia }: { clips: Reel[]; onChange: (r: Reel) => void; price: string | null; onMedia?: (m: Media) => void }) {
+function Clips({ clips, onChange, price, onMedia }: { clips: Reel[]; onChange: (r: Reel) => void; price: ReactNode; onMedia?: (m: Media) => void }) {
   // A chain whose every clip went to the Archive is listed there, not here.
   const chains = clipChains(clips).filter((chain) => !chain.every(archivedClip));
   const making = clips.some((c) => c.status === "making");
@@ -273,7 +287,7 @@ function Clips({ clips, onChange, price, onMedia }: { clips: Reel[]; onChange: (
 }
 
 /** One clip and the ones kept going from it: played as one, the last one's state, and Keep going (with what happens next, in their own words). */
-function ClipChain({ chain, price, making, onChange, onMedia }: { chain: Reel[]; price: string | null; making: boolean; onChange: (r: Reel) => void; onMedia?: (m: Media) => void }) {
+function ClipChain({ chain, price, making, onChange, onMedia }: { chain: Reel[]; price: ReactNode; making: boolean; onChange: (r: Reel) => void; onMedia?: (m: Media) => void }) {
   const [asking, setAsking] = useState(false);
   const [note, setNote] = useState<{ text: string; busy?: BusyReel } | null>(null);
   const [words, setWords] = useState("");
@@ -281,7 +295,7 @@ function ClipChain({ chain, price, making, onChange, onMedia }: { chain: Reel[];
   const last = chain[chain.length - 1];
   const from = keepGoingFrom(chain);
   const label = chain[0].clip?.label ?? "A clip";
-  const cost = price === null ? "" : ` · ${price}`;
+  const cost = price == null ? null : <>{" · "}{price}</>;
   async function keepGoing() {
     if (!from) return;
     setAsking(true);
@@ -329,7 +343,7 @@ function ClipChain({ chain, price, making, onChange, onMedia }: { chain: Reel[];
               onClick={() => void keepGoing()}
               title="Carry this clip on from its last frame: the next shot starts exactly where this one ended"
             >
-              {asking ? "Setting up the next shot…" : `▶▶ Keep going${cost}`}
+              {asking ? "Setting up the next shot…" : <>▶▶ Keep going{cost}</>}
             </button>
           </div>
         )}
@@ -360,7 +374,7 @@ function ReelPlayer({
   reel: Reel;
   onChange: (r: Reel) => void;
   what?: "video" | "clip";
-  price?: string | null;
+  price?: ReactNode;
   onMedia?: (m: Media) => void;
   onStoryboard?: (r: Reel) => void;
 }) {
@@ -511,7 +525,8 @@ function ReelPlayer({
  * Under it, the shot on screen: 👍/👎 (lib/adult/steering.ts), and with `onChange`, Remove this shot, which takes it out
  * of its video into the Archive (nothing is deleted). The shots already fetched are kept for the shots that are left.
  */
-function SeamlessPlayer({ shots, onChange, price = null, onMedia }: { shots: PlayShot[]; onChange?: (r: Reel) => void; price?: string | null; onMedia?: (m: Media) => void }) {
+function SeamlessPlayer({ shots, onChange, price = null, onMedia }: { shots: PlayShot[]; onChange?: (r: Reel) => void; price?: ReactNode; onMedia?: (m: Media) => void }) {
+  const refilmPrices = useContext(RefilmPrices);
   const key = shots.map((s) => `${s.media_id}${s.audio_id ? `+${s.audio_id}` : ""}`).join(",");
   const admin = useContext(MediaAdmin);
   const [urls, setUrls] = useState<string[] | null>(null);
@@ -1011,7 +1026,19 @@ function SeamlessPlayer({ shots, onChange, price = null, onMedia }: { shots: Pla
           <textarea rows={3} maxLength={400} value={refilmWords} disabled={refilming} onChange={(e) => setRefilmWords(e.target.value)} placeholder="What they do in this shot…" />
           <div className="ad-shot-buttons">
             <button type="button" className="secondary small" disabled={refilming} onClick={() => void refilm(shot, refilmWords)}>
-              {refilming ? "Starting…" : "🔁 Film it again"}
+              {refilming ? (
+                "Starting…"
+              ) : (
+                <>
+                  🔁 Film it again
+                  {refilmPrices !== undefined && (
+                    <>
+                      {" · "}
+                      <TokenPrice tokens={refilmPrices ? refilmTokens(shot.reelKind, shot.reelShots ?? 1, refilmPrices) : 0} />
+                    </>
+                  )}
+                </>
+              )}
             </button>
             <button type="button" className="button-ghost small" disabled={refilming} onClick={() => setRefilmWords(null)}>
               Cancel

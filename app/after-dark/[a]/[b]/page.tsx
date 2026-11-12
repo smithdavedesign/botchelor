@@ -30,6 +30,7 @@ import { shortName } from "@/lib/names";
 import { pairKey } from "@/lib/relationships";
 import CharacterName from "@/app/CharacterName";
 import { currentHere } from "../../view";
+import { SET_SCENE_TOKEN_COST } from "@/lib/allowance";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "After dark · Botchelor", robots: { index: false, follow: false } };
@@ -100,6 +101,11 @@ export default async function AfterDarkScenePage({ params }: Props) {
   // A pair kept from an earlier cast (#1132) says so, as on the hub.
   const earlier = (await keptPairs(db, admin, { pair: pairKey(scene.a.id, scene.b.id) }))[0] ?? null;
   const characters = [refOf(scene.a.id, scene.a.name, await getPublicCharacter(db, scene.a.id)), refOf(scene.b.id, scene.b.name, await getPublicCharacter(db, scene.b.id))] as [CharacterRef, CharacterRef];
+  // This viewer's prices, read once (the kit's price rule: every button that spends says what it costs).
+  const adSettings = await getAdultSettings(db);
+  const viewerAdmin = await isAdmin(db, admin);
+  const ownVideoKey = await hasJobKey(db, admin, "after_dark_video");
+  const chapterPrice = await includedPrice(db, admin, adSettings.chapter_tokens);
   return (
     <div className="after-dark-mode">
     <article className="after-dark">
@@ -150,19 +156,28 @@ export default async function AfterDarkScenePage({ params }: Props) {
         myRoleplays={library.roleplays.map(asRoleplay)}
         nights={await listNights(db, admin, scene.a.id, scene.b.id)}
         reels={await listReels(db, admin, scene.a.id, scene.b.id)}
-        // On their own key (Connections, After Dark videos) a video costs no tokens (lib/adult/reels.ts reelMedia).
-        reelTokens={(await hasJobKey(db, admin, "after_dark_video")) ? 0 : (await getAdultSettings(db)).reel_tokens}
+        // On their own key (Connections, After Dark videos) a video costs no tokens (lib/adult/reels.ts reelMedia), nor for
+        // an admin (lib/adult/reels.ts filmReel): the buttons say "on your key" or "free" (SceneWriter videoFree).
+        reelTokens={viewerAdmin || ownVideoKey ? 0 : adSettings.reel_tokens}
         // With "Set up for pictures" on each of theirs not ready yet (#1207), where the Studio is theirs to use.
         readiness={textOnlyHere ? [] : await withSetupOffers(db, admin, await pairReadiness(db, admin, scene.a.id, scene.b.id))}
+        // The gallery's priced buttons (the kit's rule: every button that spends says what): Redraw at a menu picture's
+        // price (included with a subscription), 👕 SFW twin (admins free), 🔁 Film it again (free on their key or for an admin).
+        prices={{
+          redraw: await includedPrice(db, admin, adSettings.menu_picture_tokens),
+          sfwTwin: viewerAdmin ? 0 : adSettings.studio.prices.sfw_twin,
+          move: viewerAdmin ? 0 : SET_SCENE_TOKEN_COST,
+          refilm: viewerAdmin || ownVideoKey ? null : { clip_tokens: adSettings.clip_tokens, reel_tokens: adSettings.reel_tokens },
+        }}
         // A chapter's price for this viewer: free for an admin, included with a subscription (#1005, lib/adult/pricing.ts).
-        chapterTokens={(await includedPrice(db, admin, (await getAdultSettings(db)).chapter_tokens)).tokens}
-        chapterIncluded={(await includedPrice(db, admin, (await getAdultSettings(db)).chapter_tokens)).included}
+        chapterTokens={chapterPrice.tokens}
+        chapterIncluded={chapterPrice.included}
         hive={await hiveNotice(db)}
         faces={await facesFor(db, admin, [scene.a.id, scene.b.id])}
         steer={await steerSummary(db, admin, [scene.a.id, scene.b.id])}
         textOnly={here.mode === "text_only" ? here.reason : null}
         writer={await writerOptions(db, admin)}
-        admin={await isAdmin(db, admin)}
+        admin={viewerAdmin}
         // The Two sides tab (lib/adult/monologues.ts): each one's inner monologue of one of the viewer's whole nights.
         twoSides={<TwoSidesPanel flat a={scene.a} b={scene.b} />}
         adminTools={

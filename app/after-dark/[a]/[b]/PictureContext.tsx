@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { requestJson } from "@/app/request";
 import type { PictureEdit, PictureFields, WearingFrom } from "@/lib/adult/beats";
 
@@ -41,7 +41,7 @@ export default function PictureContext({
   b: string;
   target: { beat?: string; line?: number; picture?: string };
   disabled?: boolean;
-  submitLabel: string;
+  submitLabel: ReactNode;
   onSubmit: (edit: PictureEdit | undefined) => void;
   onCancel: () => void;
   cancelLabel?: string;

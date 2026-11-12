@@ -34,7 +34,8 @@ import ShootReveal from "@/app/studio/ShootReveal";
 import { shootPrice } from "@/lib/adult/studio-config";
 import { FORMATS, type FormatId } from "@/lib/studio/formats";
 import { actMark, FramingMark, openingView, ViewChips } from "../../FramingChips";
-import { setupPrice, setupWords } from "../../SetupForPictures";
+import { SetupPrice, setupWords } from "../../SetupForPictures";
+import TokenPrice from "../../TokenPrice";
 import ExportDialog from "@/app/studio/ExportDialog";
 import TileTools, { SelectBar } from "@/app/studio/TileTools";
 import { AFTER_DARK_API, useSelection } from "@/app/studio/selection";
@@ -202,7 +203,10 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
   const first = c.name.split(/\s+/)[0];
   const picked = editModels.find((m) => m.id === editModel) ?? editModels[0];
   const pickedNew = newModels.find((m) => m.id === newModel) ?? newModels[0];
-  const price = (ours: number) => (onOwn ? s.prices.own_key : ours);
+  // What a job costs this viewer: nothing for an admin (lib/adult/studio.ts never charges one), the own-key price on their
+  // key, else ours. `cost` puts it on a button the kit's way ("◈ 1", "free").
+  const price = (ours: number) => (admin ? 0 : onOwn ? s.prices.own_key : ours);
+  const cost = (n: number) => <TokenPrice tokens={n} />;
   const own = onOwn ? { own_key: true } : {};
 
   /** Sends one Studio action; the new state comes back with it. */
@@ -586,7 +590,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
                               title={`${s.sizes.shoot} more like this one, ${tokens(price(s.prices.variations))}`}
                               onClick={() => void act(`more:${p.id}`, { action: "variations", character_id: c.id, image_id: p.id, model: picked?.id, ...own }, { title: "More like this" })}
                             >
-                              {busy === `more:${p.id}` ? "Drawing…" : "More like this"}
+                              {busy === `more:${p.id}` ? "Drawing…" : <>More like this · {cost(price(s.prices.variations))}</>}
                             </button>
                             <button
                               type="button"
@@ -595,7 +599,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
                               title={`This very moment from six angles, a set to post together (the feed's 4:5 unless you picked another shape), ${tokens(price(s.prices.carousel))}`}
                               onClick={() => void act(`carousel:${p.id}`, { action: "carousel", character_id: c.id, image_id: p.id, model: picked?.id, format: format === "portrait" ? "feed" : format, ...own }, { title: "A carousel" })}
                             >
-                              {busy === `carousel:${p.id}` ? "Drawing six angles…" : "🎠 Carousel"}
+                              {busy === `carousel:${p.id}` ? "Drawing six angles…" : <>🎠 Carousel · {cost(price(s.prices.carousel))}</>}
                             </button>
                             {(!onOwn || s.own_key.provider === "venice") && (
                               <button
@@ -605,7 +609,13 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
                                 title={`${s.upscale.scale}× larger, ${tokens(price(s.prices.upscale))}${s.upscale.left === null ? "" : `, ${s.upscale.left} left this month`}`}
                                 onClick={() => void act(`up:${p.id}`, { action: "upscale", character_id: c.id, image_id: p.id, ...own }, { title: "Upscaled" })}
                               >
-                                {busy === `up:${p.id}` ? "Upscaling…" : `Upscale ${s.upscale.scale}×`}
+                                {busy === `up:${p.id}` ? (
+                                  "Upscaling…"
+                                ) : (
+                                  <>
+                                    Upscale {s.upscale.scale}× · {cost(price(s.prices.upscale))}
+                                  </>
+                                )}
                               </button>
                             )}
                           </>
@@ -624,7 +634,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
                           </button>
                         )}
                         {/* 👕 The same picture safe for work (lib/adult/sfw-twin.ts). */}
-                        {p.kind === "scene" && <SfwTwin id={p.id} price={admin ? "free for admins" : tokens(s.prices.sfw_twin)} onAdded={() => void refresh()} />}
+                        {p.kind === "scene" && <SfwTwin id={p.id} price={admin ? 0 : s.prices.sfw_twin} onAdded={() => void refresh()} />}
                       </div>
                     </div>
                   )}
@@ -675,7 +685,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
                 characterId={c.id}
                 links={s.animation_links}
                 trimOf={(id) => [...s.studio_gallery, ...s.pair_gallery, ...s.gallery].find((m) => m.id === id)?.trim ?? null}
-                price={(sec) => (admin ? "free for admins" : tokens(sec === 10 ? s.prices.animate_10 : s.prices.animate_5))}
+                price={(sec) => cost(admin ? 0 : sec === 10 ? s.prices.animate_10 : s.prices.animate_5)}
                 disabled={Boolean(busy) || making > 0}
                 onState={setS}
                 onMade={() => void refresh()}
@@ -711,7 +721,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
                     void act(`animate:${p.id}`, { action: "animate", character_id: c.id, image_id: p.id, motion: anim.motion, seconds: anim.seconds, guide: anim.guide, dialog: anim.dialog, transcript: anim.transcript, ...(anim.camera && anim.camera !== "steady" ? { camera: anim.camera } : {}) }, { title: "Animating" }).then((d) => d && setAnimating(null))
                   }
                 >
-                  Animate · {tokens(anim.seconds === 10 ? s.prices.animate_10 : s.prices.animate_5)}
+                  Animate · {cost(admin ? 0 : anim.seconds === 10 ? s.prices.animate_10 : s.prices.animate_5)}
                 </button>
               </div>
             )}
@@ -755,7 +765,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
                     void act(`share:${p.id}`, { action: "share", character_id: c.id, image_id: p.id, to_character: open.to, kind: open.kind }, { done: open.kind === "photo" ? `Sent to ${to?.name ?? "them"} as a photo.` : `Shared with ${to?.name ?? "them"}: they see it once they accept.` }).then(() => setSharing(null))
                   }
                 >
-                  Share{s.prices.share ? ` · ${tokens(s.prices.share)}` : ""}
+                  Share{s.prices.share && !admin ? <> · {cost(s.prices.share)}</> : ""}
                 </button>
               </div>
             )}
@@ -1083,7 +1093,13 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
               disabled={Boolean(busy) || !picked || !usable(picked)}
               onClick={() => void act("shoot", { action: "shoot", character_id: c.id, choices, model: picked?.id, format, size, ...own }, { title: "This shoot" })}
             >
-              {busy === "shoot" ? `Shooting… ${elapsed()}` : `Shoot ${size} · ${tokens(shootPrice(price(picked?.price ?? 0), size))}`}
+              {busy === "shoot" ? (
+                `Shooting… ${elapsed()}`
+              ) : (
+                <>
+                  Shoot {size} · {cost(shootPrice(price(picked?.price ?? 0), size))}
+                </>
+              )}
             </button>
           </div>
           <p className="muted small">
@@ -1245,7 +1261,13 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
                     )
                   }
                 >
-                  {busy === "pair" ? `Shooting… ${elapsed()}` : `Shoot ${size} together · ${tokens(shootPrice(price(pairModel ? pairMenu.price[pairModel.tier] : 0), size))}`}
+                  {busy === "pair" ? (
+                    `Shooting… ${elapsed()}`
+                  ) : (
+                    <>
+                      Shoot {size} together · {cost(shootPrice(price(pairModel ? pairMenu.price[pairModel.tier] : 0), size))}
+                    </>
+                  )}
                 </button>
               </div>
               <p className="muted small">Pick what they&apos;re doing, what they wear, the framing and the place. Pictures of the two of them also land in their pair&apos;s gallery.</p>
@@ -1356,7 +1378,13 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
                       disabled={Boolean(busy) || s.ready.setup.drawing}
                       onClick={() => void act("setup", { action: "setup", character_id: c.id })}
                     >
-                      {busy === "setup" || s.ready.setup.drawing ? `Setting up… ${busy === "setup" ? elapsed() : ""}`.trim() : `✨ Set up for pictures · ${setupPrice(s.ready.setup)}`}
+                      {busy === "setup" || s.ready.setup.drawing ? (
+                        `Setting up… ${busy === "setup" ? elapsed() : ""}`.trim()
+                      ) : (
+                        <>
+                          ✨ Set up for pictures · <SetupPrice offer={s.ready.setup} />
+                        </>
+                      )}
                     </button>
                   </p>
                   <p className="muted small">{setupWords(s.ready, s.ready.setup)}</p>
@@ -1407,20 +1435,20 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
               <figcaption className="small">
                 Face anchor{" "}
                 <button type="button" className="linklike" disabled={Boolean(busy)} onClick={() => void act("face", { action: "face", character_id: c.id, model: picked?.id, ...own }, { title: "Drawing a close-up…" })}>
-                  {s.identity.faceCrop || s.identity.faceCropStale ? "redraw" : "sharpen"}
+                  {s.identity.faceCrop || s.identity.faceCropStale ? "redraw" : "sharpen"} · {cost(price(s.prices.body))}
                 </button>
                 {s.identity.faceCropStale && <span className="muted small"> — drawn from an earlier face, so shoots use the face above until it&apos;s redrawn.</span>}
               </figcaption>
             </figure>
           </div>
           <p className="muted small">
-            The face anchor is a tight close-up drawn from the baseline. Once you make one, every shoot leads with it, so a bold prompt can change the pose and scene while the face stays theirs — exactly the baseline. {tokens(price(s.prices.body))}; free for admins.
+            The face anchor is a tight close-up drawn from the baseline. Once you make one, every shoot leads with it, so a bold prompt can change the pose and scene while the face stays theirs — exactly the baseline. {tokens(price(s.prices.body))}{admin ? "" : "; free for admins"}.
           </p>
 
           <IdentityPackGrid
             pack={s.identity_pack}
             name={c.name}
-            price={(n) => (admin ? "free for admins" : tokens(price(identityPrice(s.prices.identity, n))))}
+            price={(n) => cost(price(identityPrice(s.prices.identity, n)))}
             src={media}
             busy={Boolean(busy)}
             uses={`Eight views of ${first}, each drawn from the face above: 🩹 Fix faces gives each face the view that suits the picture's angle.`}
@@ -1478,7 +1506,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
               disabled={Boolean(busy) || !anyMoved || !picked || !usable(picked)}
               onClick={() => void act("restyle", { action: "restyle", character_id: c.id, changes: moved, model: picked?.id, ...own }, { title: "Restyled: pick one" })}
             >
-              {busy === "restyle" ? "Restyling…" : `Restyle · ${tokens(price(s.prices.restyle))}`}
+              {busy === "restyle" ? "Restyling…" : <>Restyle · {cost(price(s.prices.restyle))}</>}
             </button>
             {c.own && !c.house && (
               <button
@@ -1508,7 +1536,13 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
               disabled={Boolean(busy) || !pickedNew || !usable(pickedNew)}
               onClick={() => void act("recast", { action: "recast", character_id: c.id, model: pickedNew?.id, ...own }, { title: "New faces: pick one" })}
             >
-              {busy === "recast" ? "Drawing…" : `Draw ${s.sizes.recast} · ${tokens(price(s.prices.recast))}`}
+              {busy === "recast" ? (
+                "Drawing…"
+              ) : (
+                <>
+                  Draw {s.sizes.recast} · {cost(price(s.prices.recast))}
+                </>
+              )}
             </button>
             {/* When the age check keeps reading them as young (the scene's note says so): faces that read plainly adult. */}
             <button
@@ -1518,7 +1552,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
               title="New faces drawn plainly older: for a character the age check keeps reading as young"
               onClick={() => void act("recast", { action: "recast", character_id: c.id, model: pickedNew?.id, older: true, ...own }, { title: "Older-looking faces: pick one" })}
             >
-              Older-looking faces
+              Older-looking faces · {cost(price(s.prices.recast))}
             </button>
           </div>
           {s.drawn.faces.length > 0 && (
@@ -1541,7 +1575,13 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
               disabled={Boolean(busy) || !picked || !usable(picked)}
               onClick={() => void act("body", { action: "body", character_id: c.id, nude: bodyNude, model: picked?.id, ...own }, { title: "Body references: pick one" })}
             >
-              {busy === "body" ? "Drawing…" : `Make ${s.sizes.body} · ${tokens(price(s.prices.body))}`}
+              {busy === "body" ? (
+                "Drawing…"
+              ) : (
+                <>
+                  Make {s.sizes.body} · {cost(price(s.prices.body))}
+                </>
+              )}
             </button>
           </div>
           {s.drawn.bodies.length > 0 && (
@@ -1685,7 +1725,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
                           disabled={Boolean(busy) || !usable(m)}
                           onClick={() => void act(`setup:${x.id}`, { action: "shoot", character_id: c.id, choices: x.choices, model: m.id, ...own }, { title: x.name })}
                         >
-                          {busy === `setup:${x.id}` ? `Shooting… ${elapsed()}` : `Shoot it · ${tokens(price(m.price))}`}
+                          {busy === `setup:${x.id}` ? `Shooting… ${elapsed()}` : <>Shoot it · {cost(price(m.price))}</>}
                         </button>
                       )}
                       <button type="button" className="linklike" disabled={Boolean(busy)} onClick={() => void act(`del:${x.id}`, { action: "delete_setup", character_id: c.id, setup_id: x.id }, { done: `Deleted "${x.name}".` })}>

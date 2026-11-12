@@ -3,7 +3,7 @@
 import { useState } from "react";
 import type { NightChapter } from "@/lib/adult/nights";
 import type { ReelScope } from "@/lib/adult/reels";
-import { videoPrice } from "@/lib/adult/reel-timing";
+import TokenPrice from "../../TokenPrice";
 
 /** A video needs at least this many lines (lib/adult/reels.ts makeReel). */
 const MIN_LINES = 6;
@@ -20,6 +20,7 @@ export default function VideoChoice({
   chapters,
   scene,
   tokens,
+  free = "on your key",
   busy = false,
   paused = null,
   onMake,
@@ -30,6 +31,8 @@ export default function VideoChoice({
   /** The chapter being written now, and its lines so far (none yet, just after a chapter closed). */
   scene: { chapter: number; lines: number };
   tokens: number;
+  /** What a video that costs no tokens says: "on your key" (their own video key), or "free" (an admin). */
+  free?: string;
   busy?: boolean;
   /** Hive's breaker is open (lib/adult/hive-limit.ts): disabled, with this as the tooltip. */
   paused?: string | null;
@@ -40,7 +43,8 @@ export default function VideoChoice({
   const [open, setOpen] = useState(false);
   const [scope, setScope] = useState<ReelScope>("night");
   const whole = chapters.reduce((t, c) => t + c.lines, 0);
-  const price = videoPrice(tokens);
+  // The kit's price rule (app/after-dark/TokenPrice.tsx): "◈ 8", or `free`'s word when it costs nothing.
+  const price = <TokenPrice tokens={tokens} free={free} />;
   const nums = chapters.map((c) => c.chapter).filter((n): n is number => typeof n === "number");
   const span = nums.length ? `chapters ${Math.min(...nums)}–${Math.max(...nums)}` : `${chapters.length} chapters`;
   const thisOne = `chapter ${scene.chapter}`;
@@ -51,7 +55,8 @@ export default function VideoChoice({
     const tooShort = whole < MIN_LINES;
     return (
       <button type="button" className="secondary small" onClick={() => void go("night")} disabled={busy || Boolean(paused) || tooShort} title={paused ?? "A short film of the night: check each shot's picture, then film"}>
-        🎬 <span className="ad-tool-word">Video of the night · </span>
+        🎬 <span className="ad-tool-word">Video of the night ·</span>
+        {"\u00a0"}
         {price}
       </button>
     );
@@ -64,7 +69,8 @@ export default function VideoChoice({
   return (
     <span className="ad-video-choice">
       <button type="button" className="secondary small" aria-expanded={open} onClick={() => setOpen((v) => !v)} disabled={busy || Boolean(paused)} title={paused ?? "A short film, in their own voices: of this chapter or the whole night"}>
-        🎬 <span className="ad-tool-word">Video · </span>
+        🎬 <span className="ad-tool-word">Video ·</span>
+        {"\u00a0"}
         {price}
       </button>
       {open && (

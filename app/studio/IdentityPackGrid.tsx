@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { IDENTITY_VIEWS, type IdentityViewId } from "@/lib/studio/identity-views";
 
 type Pack = Partial<Record<IdentityViewId, { id: string; stale: boolean }>>;
@@ -22,7 +22,7 @@ export default function IdentityPackGrid({
   pack: Pack;
   name: string;
   /** What drawing `views` of them costs, as words ("2 tokens", "free for admins"). */
-  price: (views: number) => string;
+  price: (views: number) => ReactNode;
   src: (id: string) => string;
   busy: boolean;
   onDraw: (views: IdentityViewId[]) => void;

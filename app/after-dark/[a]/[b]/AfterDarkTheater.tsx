@@ -22,7 +22,6 @@ import { presenceUrl, usePresence } from "./usePresence";
 import { talkUrl, useTalks } from "./useTalks";
 import { stagePicture, useMomentPictures } from "./useMomentPictures";
 import { useDrawAhead } from "./useDrawAhead";
-import { tokensWord } from "@/lib/adult/price-words";
 import TalkPlayer from "./TalkPlayer";
 import LivingFace from "../../LivingFace";
 import Avatar from "@/app/Avatar";
@@ -40,7 +39,7 @@ import type { Readiness } from "@/lib/adult/readiness";
 import SetupForPictures from "../../SetupForPictures";
 import type { PictureEdit } from "@/lib/adult/beats";
 import { roleplayById, type Roleplay } from "@/lib/adult/roleplays";
-import { videoPrice } from "@/lib/adult/reel-timing";
+import TokenPrice from "../../TokenPrice";
 
 /** A saved chapter the 📖 menu can play again (lib/adult/scenes.ts AdultNight, trimmed). */
 export type ChapterEntry = { id: string; chapter: number | null; lines: number; created_at: string; place: string | null; night?: number };
@@ -236,6 +235,8 @@ export default function AfterDarkTheater({
   writer = null,
   videoChapters = [],
   videoTokens = 8,
+  videoFree = "on your key",
+  moveTokens = 1,
   chapterTokens = 0,
   chapterIncluded = false,
   readiness = [],
@@ -310,6 +311,10 @@ export default function AfterDarkTheater({
   writer?: WriterOptions | null;
   videoChapters?: readonly NightChapter[];
   videoTokens?: number;
+  /** What a video that costs no tokens says (SceneWriter videoFree): "on your key", or "free" for an admin. */
+  videoFree?: string;
+  /** Taking them somewhere else mid-night (lib/allowance.ts SET_SCENE_TOKEN_COST; 0 for an admin): on the picker's Go. */
+  moveTokens?: number;
   /** A chapter's price for this viewer (0: free, an admin): Start and the Next that opens a chapter say it. */
   chapterTokens?: number;
   /** Chapters are included with the viewer's subscription (#1005; David, 2026-10-30): Start and Next say "included". */
@@ -370,6 +375,14 @@ export default function AfterDarkTheater({
   onScenario?: (id: string) => Promise<void>;
 }) {
   const live = Boolean(onWrite);
+  // What a step that opens a chapter costs (Surprise me and Autoplay with no lines yet, like Next): the kit's price rule.
+  const chapterPrice =
+    chapterTokens && !scene.lines.length ? (
+      <>
+        {" · "}
+        <TokenPrice tokens={chapterTokens} />
+      </>
+    ) : null;
   const turns = useMemo(() => scene.lines.map(lineToTurn), [scene.lines]);
   // Both open at the end: a replay of a night already watched (David, 2026-10-24: revisiting shouldn't make you sit
   // through it again; ▶ or From the top replays it), and a night still going, which waits at the newest line and carries
@@ -724,7 +737,7 @@ export default function AfterDarkTheater({
                   </button>
                   {" · "}
                   <button type="button" className="linklike" disabled={!lastNight.canVideo} onClick={lastNight.onVideo}>
-                    🎬 Make its video · {videoPrice(lastNight.videoTokens)}
+                    🎬 Make its video · <TokenPrice tokens={lastNight.videoTokens} free={videoFree} />
                   </button>
                 </p>
               )}
@@ -772,7 +785,14 @@ export default function AfterDarkTheater({
                   </button>
                 )}
                 <button type="button" className="primary" disabled={busy} onClick={() => void onWrite?.(direction.trim()).then((ok) => ok !== false && setDirection(""))}>
-                  {busy ? "Starting…" : `▶ Start the night${chapterTokens ? ` · ${tokensWord(chapterTokens)}` : chapterIncluded ? " · included" : ""}`}
+                  {busy ? (
+                    "Starting…"
+                  ) : (
+                    <>
+                      ▶ Start the night{chapterTokens || chapterIncluded ? " · " : ""}
+                      {chapterTokens || chapterIncluded ? <TokenPrice tokens={chapterTokens} included={!chapterTokens && chapterIncluded} /> : null}
+                    </>
+                  )}
                 </button>
               </div>
             </div>
@@ -886,7 +906,7 @@ export default function AfterDarkTheater({
             )}
             {/* Before the first line there's nothing to film or picture yet: fewer buttons on the first screen. */}
             {onMakeVideo && !(waiting && !videoChapters.length) && (
-              <VideoChoice chapters={videoChapters} scene={{ chapter: scene.chapter ?? 1, lines: scene.lines.length }} tokens={videoTokens} busy={busy} paused={mediaPaused} onMake={onMakeVideo} onPlan={onPlanVideo} />
+              <VideoChoice chapters={videoChapters} scene={{ chapter: scene.chapter ?? 1, lines: scene.lines.length }} tokens={videoTokens} free={videoFree} busy={busy} paused={mediaPaused} onMake={onMakeVideo} onPlan={onPlanVideo} />
             )}
             <button
               type="button"
@@ -953,7 +973,12 @@ export default function AfterDarkTheater({
                       }
                     >
                       🗣 Hear it from {firstName(stageSpeaker)}
-                      {stageTalk?.status !== "ready" && talks.price > 0 ? ` · ${talks.price} token${talks.price === 1 ? "" : "s"}` : ""}
+                      {stageTalk?.status !== "ready" && talks.price > 0 ? (
+                        <>
+                          {" · "}
+                          <TokenPrice tokens={talks.price} />
+                        </>
+                      ) : null}
                     </button>
                   )}
                   {/* #1099: why it's greyed out, on screen (a title never shows on a phone or to a keyboard). */}
@@ -978,7 +1003,19 @@ export default function AfterDarkTheater({
                           : `Each moment drawn as soon as it's written, so it's on the stage when its line plays: up to ${drawAhead.view.pictures} more pictures a chapter, without agreeing on each first (Redraw stays)`
                       }
                     >
-                      {drawAhead.view.on ? "⚡ Drawing ahead ✓" : `⚡ Draw ahead${drawAhead.view.price > 0 ? ` · ${tokensWord(drawAhead.view.price)} a chapter` : drawAhead.view.included ? " · included" : ""}`}
+                      {drawAhead.view.on ? (
+                        "⚡ Drawing ahead ✓"
+                      ) : (
+                        <>
+                          ⚡ Draw ahead
+                          {drawAhead.view.price > 0 || drawAhead.view.included ? (
+                            <>
+                              {" · "}
+                              <TokenPrice tokens={drawAhead.view.price} included={drawAhead.view.price <= 0 && drawAhead.view.included} per={drawAhead.view.price > 0 ? "a chapter" : undefined} />
+                            </>
+                          ) : null}
+                        </>
+                      )}
                     </button>
                   )}
                 </div>
@@ -1041,7 +1078,17 @@ export default function AfterDarkTheater({
                         : // The Next that opens a chapter pays for it (lib/adult/settings.ts chapter_tokens).
                           // #1005: after that, Next says it's already paid for, so no step looks free or unexplained.
                           // A subscriber's chapters are included (#1005, David 2026-10-30): every Next says so.
-                          `Next${chapterTokens ? (scene.lines.length ? " · included" : ` · ${tokensWord(chapterTokens)}`) : chapterIncluded ? " · included" : ""}`}
+                          <>
+                            Next
+                            {chapterTokens && !scene.lines.length ? (
+                              <>
+                                {" · "}
+                                <TokenPrice tokens={chapterTokens} />
+                              </>
+                            ) : chapterTokens || chapterIncluded ? (
+                              " · included"
+                            ) : null}
+                          </>}
                 </button>
               </div>
               <div className="ad-theater-options">
@@ -1065,6 +1112,8 @@ export default function AfterDarkTheater({
                 {onAutoplay && (
                   <label className="ad-steer-mode" title="It carries on by itself, no Next needed, until the chapter ends">
                     <input type="checkbox" checked={autoplay} onChange={(e) => onAutoplay(e.target.checked)} /> Autoplay
+                    {/* With no lines yet it opens the chapter, which is paid for then (the kit's price rule). */}
+                    {chapterPrice}
                   </label>
                 )}
                 {onSuggest && suggestions.length > 0 && (
@@ -1079,9 +1128,10 @@ export default function AfterDarkTheater({
                         // Surprise me stays a surprise and goes at once.
                         onClick={() => (sg.heat === "mild" ? void onSuggest(sg.text) : (setDirection(sg.text), onWhisperTo?.(null), onSteerMode?.("nudge")))}
                         title={sg.heat === "mild" ? "A surprise: something they didn't see coming (sent at once)" : `Puts it in the steer box: "${sg.text}"`}
-                        aria-label={sg.heat === "mild" ? "Surprise me: send a surprise turn" : `${HEAT_WORD[sg.heat]}: put "${sg.text}" in the steer box`}
+                        aria-label={sg.heat === "mild" ? `Surprise me: send a surprise turn${chapterTokens && !scene.lines.length ? `, ${chapterTokens} token${chapterTokens === 1 ? "" : "s"}` : ""}` : `${HEAT_WORD[sg.heat]}: put "${sg.text}" in the steer box`}
                       >
                         <span className="ad-heat">{HEAT_WORD[sg.heat]}</span>
+                        {sg.heat === "mild" && chapterPrice}
                       </button>
                     ))}
                   </span>
@@ -1150,6 +1200,9 @@ export default function AfterDarkTheater({
             onGo={onSetScene}
             onScenario={onScenario}
             onClose={() => setPicking(false)}
+            moveTokens={moveTokens}
+            chapterTokens={chapterTokens}
+            chapterIncluded={chapterIncluded}
           />
         )}
       </div>

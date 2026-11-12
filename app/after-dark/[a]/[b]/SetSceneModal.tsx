@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import TokenPrice from "../../TokenPrice";
 import { filterScenes, SCENE_CATEGORIES, SCENE_TAGS, type CatalogScene, type SceneCategory, type SceneTag } from "@/lib/adult/scene-catalog";
 import { normalizeScene } from "@/lib/venues";
 import { ROLEPLAYS, roleplayById, rolesLine, type Roleplay } from "@/lib/adult/roleplays";
@@ -35,6 +36,9 @@ export default function SetSceneModal({
   onGo,
   onScenario,
   onClose,
+  moveTokens = 1,
+  chapterTokens = 0,
+  chapterIncluded = false,
 }: {
   /** Shown; false keeps it mounted but hidden. */
   open?: boolean;
@@ -61,6 +65,13 @@ export default function SetSceneModal({
   onGo: (place: string | null, roleplay: RoleplayPick) => Promise<void>;
   onScenario?: (id: string) => Promise<void>;
   onClose: () => void;
+  /**
+   * The prices on its buttons (the kit's rule): a move somewhere else (lib/allowance.ts SET_SCENE_TOKEN_COST, 0 for an
+   * admin), and a story's chapter (AfterDarkTheater's chapterTokens / chapterIncluded).
+   */
+  moveTokens?: number;
+  chapterTokens?: number;
+  chapterIncluded?: boolean;
 }) {
   const [category, setCategory] = useState<SceneCategory | null>(null);
   const [tags, setTags] = useState<SceneTag[]>([]);
@@ -142,7 +153,10 @@ export default function SetSceneModal({
               <span>
                 {place ? (
                   <>
-                    📍 <strong>{place}</strong> <span className="muted small">· 1 token</span>
+                    📍 <strong>{place}</strong>{" "}
+                    <span className="muted small">
+                      · <TokenPrice tokens={moveTokens} />
+                    </span>
                   </>
                 ) : (
                   <span className="muted">📍 They stay where they are</span>
@@ -205,11 +219,19 @@ export default function SetSceneModal({
               </span>
               {place && (
                 <button type="button" className="button-ghost small" disabled={busy} onClick={() => void go(null)}>
-                  Skip the roleplay
+                  Skip the roleplay · <TokenPrice tokens={moveTokens} />
                 </button>
               )}
               <button type="button" className="primary" disabled={busy || (!place && (pick?.id ?? null) === (roleplay?.id ?? null) && pick?.swap === roleplay?.swap)} onClick={() => void go(pick)}>
-                {place ? "Go · 1 token" : picked ? "Start the roleplay" : "End the roleplay"}
+                {place ? (
+                  <>
+                    Go · <TokenPrice tokens={moveTokens} />
+                  </>
+                ) : picked ? (
+                  "Start the roleplay"
+                ) : (
+                  "End the roleplay"
+                )}
               </button>
             </footer>
           </>
@@ -290,6 +312,12 @@ export default function SetSceneModal({
                           }}
                         >
                           Start this story
+                          {chapterTokens || chapterIncluded ? (
+                            <>
+                              {" · "}
+                              <TokenPrice tokens={chapterTokens} included={!chapterTokens && chapterIncluded} />
+                            </>
+                          ) : null}
                         </button>
                       )}
                     </span>
