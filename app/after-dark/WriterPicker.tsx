@@ -8,9 +8,21 @@ import { plainName } from "@/lib/adult/writer-config";
 /**
  * Who writes your scenes (lib/adult/writer.ts): a writer from the list, kept for every scene and the two sides of a
  * night. The hub shows it as a card; the theater and the scene's steer bar as a ✍️ button with the writer's short name
- * that opens the list (`icon`; David, 2026-10-25: "the writer drop down as a logo in the theatre mode").
+ * that opens the list (`icon`; David, 2026-10-25: "the writer drop down as a logo in the theatre mode"), in the
+ * theater's ⋯ menu since 2026-11-11 (`inMenu`).
  */
-export default function WriterPicker({ initial, compact = false, icon = false }: { initial: WriterOptions; compact?: boolean; icon?: boolean }) {
+export default function WriterPicker({
+  initial,
+  compact = false,
+  icon = false,
+  inMenu = false,
+}: {
+  initial: WriterOptions;
+  compact?: boolean;
+  icon?: boolean;
+  /** In the theater's ⋯ menu: a row among Rewind and End the night, so it says what it is ("Writer: DeepSeek"). */
+  inMenu?: boolean;
+}) {
   const [w, setW] = useState(initial);
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
@@ -67,7 +79,7 @@ export default function WriterPicker({ initial, compact = false, icon = false }:
     return (
       <div className={`ad-writer-logo${open ? " open" : ""}`} ref={box}>
         <button type="button" className="ad-writer-logo-button" aria-haspopup="menu" aria-expanded={open} disabled={busy} onClick={() => setOpen((v) => !v)} title={`Who writes the lines: ${whose}. Tap to switch`}>
-          <span aria-hidden="true">✍️</span> <span className="ad-writer-logo-name">{busy ? "…" : short}</span>
+          <span aria-hidden="true">✍️</span> <span className="ad-writer-logo-name">{inMenu ? "Writer: " : ""}{busy ? "…" : short}</span>
         </button>
         {open && (
           <div className="ad-writer-menu" role="menu" aria-label="Who writes the lines">

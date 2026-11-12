@@ -951,6 +951,18 @@ label.ad-check-row {
   justify-content: flex-start;
   margin: 0;
 }
+/* ✍️ The writer, first in ⋯ (2026-11-11): a row like the others, its list opening in place under it. */
+.ad-tools-steps .ad-writer-logo {
+  display: grid;
+}
+.ad-tools-steps .ad-writer-logo button.ad-writer-logo-button {
+  justify-content: flex-start;
+}
+.ad-tools-steps .ad-writer-menu,
+.ad-tools-steps .ad-writer-logo-error {
+  position: static;
+  box-shadow: none;
+}
 
 /* 📖 The chapter, and the saved ones to play again. */
 .ad-chapter {
@@ -1890,13 +1902,6 @@ input.ad-next-words {
   color: var(--muted);
   font-size: 0.72em;
   vertical-align: 0.1em;
-}
-/* One row on a 390px phone (the audit, 2026-10-29: seven tools ran off the left edge and cut 📍 in half, and "GLM-4.6"
-   wrapped): the writer is its ✍️ there, its name in the menu it opens. */
-@media (max-width: 420px) {
-  .theater-tools .ad-writer-logo-name {
-    display: none;
-  }
 }
 /* The hub's settings (who's in, the writer): one card, closed until wanted; the cards inside sit flat in it. */
 .ad-hub-settings > summary {

@@ -464,13 +464,16 @@ async function main() {
     });
 
     // #1053 (the 2026-10-30 ad visitor: "I clicked the DeepSeek button. No picker appeared"): a subscriber, discreet mode on.
-    await step("a subscriber: ✍️ opens the writers over the stage, a pick sticks, and Next says Writing… while it writes", async () => {
+    await step("a subscriber: ⋯ then ✍️ opens the writers over the stage, a pick sticks, and Next says Writing… while it writes", async () => {
       const subPage = await sub.newPage();
       await subPage.setViewportSize({ width: 1280, height: 860 });
       watch(subPage);
       await subPage.goto(`${app.base}${PAGE}`, { waitUntil: "domcontentloaded" });
       await subPage.waitForSelector(".theater-after-dark", { timeout: 30_000 });
-      await subPage.click(".ad-writer-logo-button");
+      // ✍️ is the first row in ⋯ (2026-11-11), not its own button in the top bar.
+      assert(!(await subPage.locator(".theater-tools > .ad-writer-logo").count()), "the writer left the top bar for ⋯");
+      await subPage.click(".ad-tools-toggle");
+      await subPage.click(".ad-tools-steps .ad-writer-logo-button");
       const quick = subPage.locator('.ad-writer-menu [role="menuitemradio"]', { hasText: "Quick (DeepSeek V3.1)" });
       await quick.waitFor({ timeout: 10_000 });
       assert((await subPage.locator(".ad-writer-menu").innerText()).includes("Richer, slower (GLM-4.6)"), "the same words as the hub's settings");
