@@ -7632,12 +7632,17 @@ a.phone-head-btn {
 .room-next {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   justify-content: center;
   gap: 0.5rem;
   margin: var(--space-3) 0 0;
 }
-.room-next > * {
+/* One size for the filled-outline link and the ghost links beside it: a.button's own margin-top and font-size
+   outranked a plain `> *`, so the first sat 1rem low and stretched the row (the ghosts' labels stuck to the top). */
+.room-next > :is(a, button) {
+  --control-h: var(--control-h-sm);
   margin: 0;
+  font-size: var(--text-sm);
 }
 
 /* Account: each character with its quick links. */
