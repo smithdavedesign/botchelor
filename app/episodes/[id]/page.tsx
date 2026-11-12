@@ -4,7 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import JsonLd from "@/app/JsonLd";
 import { breadcrumbJsonLd } from "@/lib/seo";
-import { episodeCardPath, pageTitle, SHARE_QUESTION, shareDescription, shareTitle } from "@/lib/episode-share";
+import { ENDING_CARD, endingCardAllowed, episodeCardPath, pageTitle, SHARE_QUESTION, shareDescription, shareTitle, wentWellTitle } from "@/lib/episode-share";
 import EpisodeNotices from "@/app/Notices";
 import { siteUrl } from "@/lib/site";
 import { getDb } from "@/lib/db";
@@ -36,7 +36,9 @@ import { venueBackdrop } from "@/lib/portraits";
 import Avatar from "@/app/Avatar";
 import CharacterName from "@/app/CharacterName";
 import Afterglow, { SecondDate } from "./Afterglow";
+import EndingSeen from "./EndingSeen";
 import EpisodeTheater from "./EpisodeTheater";
+import ShareEnding from "./ShareEnding";
 import ChatThread from "@/app/ChatThread";
 import BoxScore from "./BoxScore";
 import DiaryCam from "./DiaryCam";
@@ -69,15 +71,22 @@ const PREMIUM_IDS = new Set(PREMIUM_HOUSE_CHARACTERS.map((c) => c.id));
  * The link preview is the share card (/api/og/episode/<id>): a "How does it end?" poll, as a large Twitter card.
  * Setting openGraph.images here is what puts it ahead of ./opengraph-image (the box score card, still served).
  */
-export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+export async function generateMetadata({ params, searchParams }: { params: Promise<{ id: string }>; searchParams?: Promise<Record<string, string | string[] | undefined>> }): Promise<Metadata> {
   const { id } = await params;
   const episode = await getEpisodeView(await getDb(), id, null);
   if (!episode || episode.hidden) return { title: "Episode · Botchelor", robots: { index: false, follow: false } };
   const [a, b] = episode.characters;
   const names: [string, string] = [a.name, b.name];
   const indexable = episode.visibility === "public";
-  const description = shareDescription(names, episode.setting, episode.revealed);
-  const card = { url: episodeCardPath(id), width: 1200, height: 630, alt: `${a.name} × ${b.name}: ${SHARE_QUESTION} A poll with three answers.` };
+  // An owner's share of a date that went well (lib/episode-share.ts ownerSharedPath, David 2026-11-11): the card and the
+  // headline name the second date, only once aired and only for that ending; any other date keeps the question.
+  const wentWell = (await searchParams)?.card === ENDING_CARD && endingCardAllowed(episode);
+  const dateNo = wentWell ? dateNumberOf(episode) : null;
+  const description = wentWell ? `${wentWellTitle(names, dateNo)} Watch how it happened, then send a character of your own.` : shareDescription(names, episode.setting, episode.revealed);
+  const card = wentWell
+    ? { url: `${episodeCardPath(id)}?card=${ENDING_CARD}`, width: 1200, height: 630, alt: wentWellTitle(names, dateNo) }
+    : { url: episodeCardPath(id), width: 1200, height: 630, alt: `${a.name} × ${b.name}: ${SHARE_QUESTION} A poll with three answers.` };
+  const headline = wentWell ? wentWellTitle(names, dateNo) : shareTitle(names);
   // The place in words ("the night market"), never its id (2026-10-23: titles read "at night_market").
   const venue = typeof episode.venue === "string" ? venuePhrase(episode.venue) : null;
   return {
@@ -88,8 +97,8 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
     alternates: { canonical: `/episodes/${id}` },
     robots: indexable ? { index: true, follow: true } : { index: false, follow: false },
     // The root layout's openGraph and twitter are replaced, not merged, so the site's own fields are repeated here.
-    openGraph: { type: "website", siteName: "Botchelor", locale: "en_US", url: `/episodes/${id}`, title: shareTitle(names), description, images: [card] },
-    twitter: { card: "summary_large_image", title: shareTitle(names), description, images: [{ url: card.url, alt: card.alt }] },
+    openGraph: { type: "website", siteName: "Botchelor", locale: "en_US", url: `/episodes/${id}`, title: headline, description, images: [card] },
+    twitter: { card: "summary_large_image", title: headline, description, images: [{ url: card.url, alt: card.alt }] },
   };
 }
 
@@ -387,14 +396,6 @@ export default async function EpisodePage({
           ])]}
         />
       )}
-      {prev && (
-        <aside className="episode-prev" aria-label="Previously on Botchelor">
-          <span className="episode-prev-label">Previously on</span>
-          <p>
-            {prev.line} <Link href={`/episodes/${prev.episode_id}`}>Watch that one</Link>
-          </p>
-        </aside>
-      )}
       <EpisodeHero
         characters={episode.characters}
         venue={episode.venue ?? null}
@@ -448,7 +449,10 @@ export default async function EpisodePage({
         </div>
       </EpisodeHero>
 
-      <div className="episode-body">
+      {/* Two columns on a wide screen, as the design system draws the episode page (all-screens board, 2026-11-11): the
+          date on the left; on the right, the rail with what came before and what comes after. One column on a phone. */}
+      <div className="episode-body episode-layout">
+        <div className="episode-main">
         {/* J1: a finished date whose lines didn't (all) come out says so, instead of quietly turning into a prose recap. */}
         {episode.transcript_note && <p className="notice episode-transcript-note">{episode.transcript_note}</p>}
         {episode.roleplay && (
@@ -527,10 +531,6 @@ export default async function EpisodePage({
             lately={lately}
           />
         </div>
-        {/* J3: a creator's finished date is when they want to hear what happens next (gone once notifications are on). */}
-        {episode.is_creator && episode.status === "ready" && push && (
-          <PushToggle publicKey={push.publicKey} prompt emailFallback title="Tell me when they text" body="They text each other after a date. Hear it as it happens, even with the site closed." />
-        )}
 
         {episode.transcript && episode.transcript.length > 0 && (
           // The theater is the way to watch; the line-by-line read folds away under it (open when there's no theater).
@@ -567,6 +567,8 @@ export default async function EpisodePage({
             )}
             <div className="ending-beat">
               <p className="ending">Ending: {endingWithDetail(episode.ending, dateNo, episode.ending_detail)}</p>
+              {/* A reader who scrolled this far saw how it ended: the funnel's "Watched it end" (EndingSeen.tsx). */}
+              {episode.revealed && <EndingSeen />}
             </div>
             {episode.drama_question && episode.drama_answer && (
               <p>
@@ -677,31 +679,13 @@ export default async function EpisodePage({
         />
       )}
 
-      {/* After the date and how it ended (2026-11-07 audit, item 4: it asked "how did it go?" above the date itself). */}
-      {talk.length > 0 && (
-        <section className="card episode-talk" aria-labelledby="episode-talk-head">
-          <p className="kicker">After the date</p>
-          <h2 id="episode-talk-head">Ask {talk.length === 1 ? talk[0].name.split(/\s+/)[0] : "them"} how it went</h2>
-          <p className="muted small">Off the show, one to one. They&apos;ll tell you their side. Every companion is an AI character.</p>
-          <p className="episode-talk-actions">
-            {talk.map((c) =>
-              c.signIn ? (
-                <Link key={c.id} className="button secondary small" href={`/account?next=${encodeURIComponent(`/characters/${c.id}`)}`}>
-                  Sign in to talk to {c.name.split(/\s+/)[0]}
-                </Link>
-              ) : (
-                <TalkButton key={c.id} characterId={c.id} name={c.name.split(/\s+/)[0]} label={`Talk to ${c.name.split(/\s+/)[0]}`} className="button secondary small" />
-              ),
-            )}
-          </p>
-        </section>
-      )}
       {episode.afterglow && (
-        <Afterglow episodeId={episode.id} characters={episode.characters} afterglow={episode.afterglow} secondDate={secondDate} dateNumber={dateNo} />
+        <Afterglow episodeId={episode.id} characters={episode.characters} afterglow={episode.afterglow} secondDate={secondDate} dateNumber={dateNo} shareable={episode.visibility !== "private"} />
       )}
       {datePhotos && <DatePhotos episodeId={episode.id} state={datePhotos} styles={DATE_PHOTO_STYLES.map((s) => ({ id: s.id, label: s.label }))} />}
       {!episode.afterglow && secondDate?.mutual && (
         <section className="card">
+          {episode.visibility !== "private" && <ShareEnding episodeId={episode.id} names={[episode.characters[0].name, episode.characters[1].name]} dateNumber={dateNo} kind="owner_well" />}
           <SecondDate episodeId={episode.id} state={secondDate} />
         </section>
       )}
@@ -754,28 +738,62 @@ export default async function EpisodePage({
         />
       )}
 
-      <WatchPartyLaunch episodeId={episode.id} isHost={episode.is_host} partyId={partyId} />
-
-      {!episode.is_creator && <MakeYourOwn />}
-
-      <footer className="episode-foot">
-        <p className="muted">
-          Your points: {points}. <Link href="/watch">More episodes</Link>
-          {episode.characters[0] && (
-            <>
-              {" · "}
-              <Link href={`/graph?focus=${encodeURIComponent(episode.characters[0].id)}`}>✨ Where they sit in the Constellation</Link>
-            </>
+        </div>
+        <aside className="episode-rail" aria-label="Around this date">
+          {prev && (
+            <aside className="episode-prev" aria-label="Previously on Botchelor">
+              <span className="episode-prev-label">Previously on</span>
+              <p>
+                {prev.line} <Link href={`/episodes/${prev.episode_id}`}>Watch that one</Link>
+              </p>
+            </aside>
           )}
-        </p>
-        {/* Report and block: one tap away on every episode, folded so it doesn't sit in the way. */}
-        <details className="episode-safety">
-          <summary>Something wrong? Report or block</summary>
-          <SafetyActions episodeId={episode.id} canBlock={canBlock} blocked={episode.blocked} />
-        </details>
-        {/* The site footer, straight below, carries the crisis links. */}
-        <EpisodeNotices crisis={false} />
-      </footer>
+          {/* J3: a creator's finished date is when they want to hear what happens next (gone once notifications are on). */}
+          {episode.is_creator && episode.status === "ready" && push && (
+            <PushToggle publicKey={push.publicKey} prompt emailFallback title="Tell me when they text" body="They text each other after a date. Hear it as it happens, even with the site closed." />
+          )}
+          {/* After the date and how it ended (2026-11-07 audit, item 4: it asked "how did it go?" above the date itself). */}
+          {talk.length > 0 && (
+            <section className="card episode-talk" aria-labelledby="episode-talk-head">
+              <p className="kicker">After the date</p>
+              <h2 id="episode-talk-head">Ask {talk.length === 1 ? talk[0].name.split(/\s+/)[0] : "them"} how it went</h2>
+              <p className="muted small">Off the show, one to one. They&apos;ll tell you their side. Every companion is an AI character.</p>
+              <p className="episode-talk-actions">
+                {talk.map((c) =>
+                  c.signIn ? (
+                    <Link key={c.id} className="button secondary small" href={`/account?next=${encodeURIComponent(`/characters/${c.id}`)}`}>
+                      Sign in to talk to {c.name.split(/\s+/)[0]}
+                    </Link>
+                  ) : (
+                    <TalkButton key={c.id} characterId={c.id} name={c.name.split(/\s+/)[0]} label={`Talk to ${c.name.split(/\s+/)[0]}`} className="button secondary small" />
+                  ),
+                )}
+              </p>
+            </section>
+          )}
+          <WatchPartyLaunch episodeId={episode.id} isHost={episode.is_host} partyId={partyId} />
+
+          {!episode.is_creator && <MakeYourOwn />}
+
+          <footer className="episode-foot">
+            <p className="muted">
+              Your points: {points}. <Link href="/watch">More episodes</Link>
+              {episode.characters[0] && (
+                <>
+                  {" · "}
+                  <Link href={`/graph?focus=${encodeURIComponent(episode.characters[0].id)}`}>✨ Where they sit in the Constellation</Link>
+                </>
+              )}
+            </p>
+            {/* Report and block: one tap away on every episode, folded so it doesn't sit in the way. */}
+            <details className="episode-safety">
+              <summary>Something wrong? Report or block</summary>
+              <SafetyActions episodeId={episode.id} canBlock={canBlock} blocked={episode.blocked} />
+            </details>
+            {/* The site footer, straight below, carries the crisis links. */}
+            <EpisodeNotices crisis={false} />
+          </footer>
+        </aside>
       </div>
     </article>
   );

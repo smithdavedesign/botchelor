@@ -17,9 +17,33 @@ export const WINNER_AT = 0.9;
 /** Below this many people per arm the experiment can't say much yet. */
 export const ENOUGH_PER_ARM = 100;
 
-/** The report as markdown, from the ledger and the site's crowd report (null when it couldn't be read). Pure. */
-export function buildReport({ ledger, server, now = new Date(), rng = Math.random }) {
+/** How many of `n`, as "3 (25%)"; a dash when there's nobody to count from. */
+const ofN = (k, n) => (n ? `${k} (${Math.round((100 * k) / n)}%)` : "–");
+
+/**
+ * The week's visitors by where they came from, with how far each source's people got (lib/engagement.ts `sources`:
+ * started a date, watched one end). The 2026-11-11 growth plan: channels are judged by people who finish a date, not
+ * by clicks, and whatever brings nobody after two weeks is cut. Null engagement (the site couldn't be read) → []. Pure.
+ */
+export function channelLines(engagement) {
+  const rows = (engagement?.sources ?? []).filter((s) => s.visitors > 0).sort((a, b) => b.visitors - a.visitors).slice(0, 12);
+  if (!rows.length) return [];
+  const out = ["## By channel (last 7 days)", "", "Real visitors by first source; each step is how many of that source's visitors did it. Loads nobody saw and our own traffic are left out.", ""];
+  out.push("| Source | Visitors | Clicked | Made a character | Started a date | Watched it end | Signed up |", "|---|---|---|---|---|---|---|");
+  for (const s of rows) out.push(`| ${s.source} | ${s.visitors} | ${ofN(s.engaged, s.visitors)} | ${ofN(s.created, s.visitors)} | ${ofN(s.started ?? 0, s.visitors)} | ${ofN(s.watched ?? 0, s.visitors)} | ${ofN(s.signups, s.visitors)} |`);
+  const quiet = rows.filter((s) => !(s.started || s.watched)).map((s) => s.source);
+  out.push("", quiet.length ? `No date started or watched from: ${quiet.join(", ")}.` : "Every source above brought someone who started or watched a date.", "");
+  return out;
+}
+
+/**
+ * The report as markdown, from the ledger, the site's crowd report and its engagement report (each null when it
+ * couldn't be read). Pure.
+ * @param {{ ledger: any[]; server: any; engagement?: any; now?: Date; rng?: () => number }} input
+ */
+export function buildReport({ ledger, server, engagement = null, now = new Date(), rng = Math.random }) {
   const lines = [`# House crowd: week to ${now.toISOString().slice(0, 10)}`, ""];
+  lines.push(...channelLines(engagement));
 
   lines.push("## Prompt tests", "", "Scored by whether the other side wrote back themselves within a day (an agent, or a person on their own key; never a text the show wrote for them).", "");
   for (const dimension of Object.keys(VARIANTS)) {
@@ -112,7 +136,17 @@ async function main() {
   } catch (e) {
     console.error(`crowd-report: ${e.message}`);
   }
-  const md = buildReport({ ledger, server });
+  // The same key reads the engagement report (app/api/admin/engagement): the week by source.
+  let engagement = null;
+  try {
+    const day = (ms) => new Date(Date.now() - ms).toISOString().slice(0, 10);
+    const res = await fetch(`${base}/api/admin/engagement?from=${day(7 * 86_400_000)}&to=${day(0)}`, { headers: { "x-frontier-key": adminKey(), "user-agent": "botchelor-crowd-report/1.0" } });
+    if (res.ok) engagement = await res.json();
+    else console.error(`engagement: HTTP ${res.status}`);
+  } catch (e) {
+    console.error(`engagement: ${e.message}`);
+  }
+  const md = buildReport({ ledger, server, engagement });
   mkdirSync(join(home, "reports"), { recursive: true });
   const file = join(home, "reports", `${new Date().toISOString().slice(0, 10)}.md`);
   writeFileSync(file, md);

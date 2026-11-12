@@ -797,6 +797,35 @@ export type FeedItem =
 export type FeedPage = { items: FeedItem[]; page: number; pages: number; total: number; per_page: number };
 
 /**
+ * The home page's and the 18+ gate's sample date (2026-11-11 bounce review, David: "yes do 1-4"): the best-rated aired
+ * public dates of the last `days`, best first, where the newest date used to be shown whatever it was like (that week's
+ * was a spatula and a tea urn, hard to follow cold). Nobody rates a date directly yet (watch reactions were all zero),
+ * so it ranks by what every aired date has: chemistry at the end, a second date, and the two characters' review stars
+ * (lib/reviews.ts). The same filters as Watch's list. lib/featured-date.ts picks one and cuts its best moment.
+ */
+export async function listStandoutDates(db: Db, viewerId: string | null, days = 7, limit = 12): Promise<EpisodeView[]> {
+  const { rows: keys } = await db.query<{ id: string }>(
+    `select e.id
+       from episodes e
+       join characters a on a.id = e.character_a
+       join characters b on b.id = e.character_b
+       cross join lateral (select count(*)::int as n from reports r where r.episode_id = e.id) rep
+      where ${PUBLIC_FEED_WHERE} and e.revealed_at > now() - make_interval(days => $3::int) and ${NOT_THE_VIEWERS}
+      order by coalesce((e.box_score -> 'chemistry' ->> 'final')::numeric, 0)
+             + case when e.ending = 'second_date' then 15 else 0 end
+             + 10 * coalesce((select avg(cr.stars) from character_reviews cr where cr.character_id in (e.character_a, e.character_b)) - 3, 0) desc,
+               e.revealed_at desc, e.id
+      limit $4`,
+    [viewerId, REPORT_HIDE_THRESHOLD, days, limit],
+  );
+  const ids = keys.map((k) => k.id);
+  if (!ids.length) return [];
+  const { rows } = await db.query<EpisodeRow>(`${EPISODE_SELECT} where e.id = any($3::text[])`, [viewerId, REPORT_HIDE_THRESHOLD, ids]);
+  const views = new Map(rows.map((r) => [r.id, toView(r)]));
+  return ids.map((id) => views.get(id)).filter((v): v is EpisodeView => !!v);
+}
+
+/**
  * listAiredPage with a mixer night as ONE entry (2026-11-08 UI audit, item 2: a single night's nine tables filled Watch
  * with the same rooftop and nine "Golden Hour" titles). The same dates and filters (public, ready, not hidden, not the
  * viewer's own, nobody they blocked), but a mixer's tables share one key, so a page is `perPage` entries, a night is

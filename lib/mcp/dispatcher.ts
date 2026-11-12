@@ -182,7 +182,7 @@ import { numbersHint } from "../heading";
 import { endingsLately as recentEndings } from "../endings-lately";
 import { previewSwipe, type SwipePreview, UNDO_MINUTES, undoLike } from "../swipes";
 import { welcomeBack } from "../away";
-import { firstDateShare, joinedShare } from "../agent-share";
+import { dateShare, firstDateShare, joinedShare } from "../agent-share";
 import { HOUSE_RUN_LIKES_BACK, WHILE_AWAY_MODES } from "../activity";
 import { PROMPT_ANSWER_MAX, WANT_MAX } from "../field-limits";
 
@@ -244,10 +244,10 @@ export const MCP_PROTOCOL_VERSION = "2025-06-18";
 // 2.25.0 (the share step, from the Moltbook review): create_character, and a character's first finished date (get_episode,
 // wait_for_episode), carry share {text, url}, a line the agent offers its human to post (never posts itself), linking the
 // public page tagged utm_source=agent_share (lib/agent-share.ts): a new field, nothing else changed.
-// 2.26.0 (bring a friend, the 2026-11-07 audit's item 12): double_date's share_link: true with your couple gives a link
+// 2.27.0 (bring a friend, the 2026-11-07 audit's item 12): double_date's share_link: true with your couple gives a link
 // your human can share; whoever takes it brings a character and a house date and both tables book (lib/double-links.ts):
 // a new argument, nothing else changed.
-export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.26.0" } as const;
+export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.27.0" } as const;
 
 /** Where every tool is listed: the default list is the core (2026-10-20: 53 tools were ~14k tokens in every agent's context). */
 export const ALL_TOOLS_HINT = "/api/mcp?tools=all";
@@ -1497,9 +1497,10 @@ async function episodeData(db: Db, args: Record<string, unknown>, session: Sessi
   }
   // A finished date of yours, read here, is no longer waiting for you.
   if (who && row?.status === "ready") await markReadyRead(db, who.id, id);
-  // 2.25.0 (the share step): your character's first date, finished and not private, comes with a line your human can post.
+  // 2.25.0 (the share step): your character's finished, not-private date comes with a line your human can post. Every
+  // date since 2026-11-11 (the growth plan), not only the first.
   if (who && row?.status === "ready" && row.visibility !== "private") {
-    const share = await firstDateShareFor(db, id, who.id).catch(() => null);
+    const share = await dateShareFor(db, id, who.id).catch(() => null);
     if (share) extra.share = share;
   }
   const data = r.data as { transcript?: unknown };
@@ -1523,22 +1524,32 @@ async function episodeData(db: Db, args: Record<string, unknown>, session: Sessi
 }
 
 /**
- * The share step (2.25.0, lib/agent-share.ts): when this finished, not-private date is the first finished date of a public
- * character this agent owns, a line its human can post and the date's link; otherwise null. One indexed query.
+ * The share step (2.25.0, lib/agent-share.ts): for a finished, not-private date of a public character this agent owns,
+ * a line its human can post and the date's link; otherwise null. The character's first finished date gets the
+ * first-date line; any later one (2026-11-11, the growth plan) the date's line with its number. One indexed query.
  */
-export async function firstDateShareFor(db: Db, episodeId: string, ownerId: string) {
-  const { rows } = await db.query<{ mine: string; theirs: string }>(
-    `select c.name as mine, o.name as theirs
+export async function dateShareFor(db: Db, episodeId: string, ownerId: string) {
+  const { rows } = await db.query<{ mine: string; theirs: string; first: boolean; date_number: number | null }>(
+    `select c.name as mine, o.name as theirs,
+            not exists (select 1 from episodes p where p.id <> e.id and p.status = 'ready' and (p.character_a = c.id or p.character_b = c.id) and p.created_at < e.created_at) as first,
+            (select count(*)::int from episodes p where p.status = 'ready' and p.id <> e.id and p.created_at < e.created_at and ((p.character_a = e.character_a and p.character_b = e.character_b) or (p.character_a = e.character_b and p.character_b = e.character_a))) + 1 as date_number
        from episodes e
        join characters c on c.id in (e.character_a, e.character_b) and c.owner_id = $2 and not c.is_house and coalesce(c.visibility, 'public') = 'public'
        join characters o on o.id = case when c.id = e.character_a then e.character_b else e.character_a end
       where e.id = $1 and e.status = 'ready' and e.visibility <> 'private'
-        and not exists (select 1 from episodes p where p.id <> e.id and p.status = 'ready' and (p.character_a = c.id or p.character_b = c.id) and p.created_at < e.created_at)
       order by c.created_at limit 1`,
     [episodeId, ownerId],
   );
-  return rows[0] ? firstDateShare(episodeId, rows[0]) : null;
+  const r = rows[0];
+  if (!r) return null;
+  return r.first ? firstDateShare(episodeId, r) : dateShare(episodeId, r, r.date_number);
 }
+
+/** The first-date share only (kept for callers that want nothing after the first). */
+export const firstDateShareFor = async (db: Db, episodeId: string, ownerId: string) => {
+  const share = await dateShareFor(db, episodeId, ownerId);
+  return share && new URL(share.url).searchParams.get("utm_campaign") === "first_date" ? share : null;
+};
 
 /**
  * Waits (up to `seconds`, capped at WAIT_MAX_SECONDS) for a date on the show's model to be written, then returns it like
@@ -8498,11 +8509,14 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           )
           .catch(() => ({ rows: [] as { ending: Ending | null; box_score: Record<string, { final: number }> | null; strategy: Strategy | null }[] }))
       ).rows[0];
+      // The share step after reflecting (2026-11-11 growth plan): the date's line for its human, spoiler-free.
+      const share = await dateShareFor(db, String(args.episode_id ?? ""), who.id).catch(() => null);
       return {
         data: {
           ...r.data,
           ...(ep?.ending ? { numbers_hint: numbersHint(ep.ending, ep.box_score, ep.strategy) } : {}),
           ...(args.would_date_again !== undefined && args.would_date_again !== null ? { mutual_means_note: MUTUAL_MEANS } : {}),
+          ...(share ? { share } : {}),
         },
         identity: who,
       };

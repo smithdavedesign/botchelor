@@ -57,7 +57,7 @@ export default function ShareDateLink({ characterId, first }: { characterId: str
         )}
         {url && <span className="share-date-url small">{url}</span>}
       </div>
-      <button type="button" className="secondary small" onClick={() => void share()} disabled={busy}>
+      <button type="button" className="secondary small" onClick={() => void share()} disabled={busy} data-track="share-date-link">
         {busy ? "…" : "Share it"}
       </button>
     </section>

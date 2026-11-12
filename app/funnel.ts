@@ -61,8 +61,13 @@ export function beaconPath(pathname: string, search = ""): string {
   return path === "/ship" || path.startsWith("/ship/") ? "/ship" : path;
 }
 
-/** The tags a link may carry (?ref=…) and the only ones sent: an episode's share links (lib/episode-share.ts). */
-export const BEACON_REFS: readonly string[] = [SHARE_REF];
+/**
+ * The tags a link may carry (?ref=…) and the only ones sent: an episode's share links (lib/episode-share.ts), a
+ * creator's date link (`invite`, lib/date-invites.ts), a bring-a-friend double link (`double`, lib/double-links.ts) and
+ * an owner's share of a date that went well (`owner`, lib/episode-share.ts). Each becomes its own source
+ * (lib/engagement.ts sourceOf), so the weekly report can say which kind of share brings people.
+ */
+export const BEACON_REFS: readonly string[] = [SHARE_REF, "invite", "double", "owner"];
 
 /**
  * The tag a visit came with: this page's ?ref, or on the 18+ gate the ?ref of the page the visitor was headed to (the

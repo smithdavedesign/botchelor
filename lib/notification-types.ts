@@ -46,6 +46,7 @@ const TYPE_OF: Record<NotificationKind, NotificationType> = {
   stage_up: "dates",
   couple_date: "dates",
   date_aired: "dates",
+  date_went_well: "dates",
   partner_style: "dates",
   match_taken: "dates",
   exclusive_soon: "dates",

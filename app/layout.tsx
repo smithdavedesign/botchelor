@@ -28,6 +28,10 @@ import EngagementBeacon from "./EngagementBeacon";
 import FunnelBeacon from "./FunnelBeacon";
 import InstallHint from "./InstallHint";
 import FooterGroup from "./FooterGroup";
+import SeasonBanner from "./SeasonBanner";
+import SeasonStrip from "./SeasonStrip";
+import { seasonFormatNow } from "@/lib/season-format-store";
+import { shared } from "@/lib/shared-cache";
 import JsonLd from "./JsonLd";
 import Nav from "./Nav";
 import NewsletterSignup from "./NewsletterSignup";
@@ -127,7 +131,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   // never on After Dark's host. The support address closes the footer once CONTACT_EMAIL is set.
   const socials = socialLinks(process.env, adHost);
   const support = contactEmail();
-  const [, afterDark, dates, unread, texts, hasCharacter, adTokens] = await Promise.all([
+  const [, afterDark, dates, unread, texts, hasCharacter, adTokens, seasonDef] = await Promise.all([
     // They're here (lib/activity.ts): their characters' likes wait for them rather than answering themselves. Throttled.
     db && viewerId ? touchOwner(db, viewerId).catch(() => {}) : null,
     // After Dark's link shows only to someone it's open to (lib/adult/entitlement.ts), and only where it's offered
@@ -143,6 +147,8 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
       ? db.query(`select 1 from characters where owner_id = $1 and not is_house limit 1`, [viewerId]).then((r) => r.rows.length > 0, () => false)
       : false,
     db && viewerId && adHost && adTokensOn() ? adTokenBalance(db, viewerId).catch(() => null) : null,
+    // The season's format for the arc under the header (app/SeasonStrip.tsx): one shared copy for every visitor.
+    adHost ? null : shared("watch:season-format", async () => seasonFormatNow(await getDb())).catch(() => null),
   ]);
   // Google tags wait for consent in the EEA/UK/CH (Consent Mode v2); Vercel sets the visitor's country header.
   const google = Boolean(TRACKING.gaId || TRACKING.gtmId);
@@ -183,8 +189,14 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
               <span>After Dark</span>
             </span>
           )}
-          <Nav tokens={adHost && viewerId ? (adTokens ?? dates.pack_left) : dates.left} meter={adHost && viewerId ? "tokens" : "dates"} personal={Boolean(viewerId)} unread={unread} texts={texts} afterDark={afterDark} adHost={adHost} hasCharacter={hasCharacter} prefetchShow={!adHost} />
+          <Nav tokens={adHost && viewerId ? (adTokens ?? dates.pack_left) : dates.left} meter={adHost && viewerId ? "tokens" : "dates"} personal={Boolean(viewerId)} unread={unread} texts={texts} afterDark={afterDark} adHost={adHost} hasCharacter={hasCharacter} prefetchShow={!adHost} companions={companionOpen()} />
         </header>
+        {/* The season's arc runs under the header on the show's spectator pages (the design system's all-screens board). */}
+        {!adHost && (
+          <SeasonStrip>
+            <SeasonBanner format={seasonDef?.title ?? null} />
+          </SeasonStrip>
+        )}
         <main id="main">{children}</main>
         <footer className="site-footer">
           {/* The two lines that must never be one tap away stay out in the open: who's on the show, and where help is. */}

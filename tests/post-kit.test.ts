@@ -44,6 +44,10 @@ describe("the post kit (TikTok / Reels / Shorts)", () => {
     expect(caption).toContain("AI characters; the date is AI-generated fiction");
     expect(caption).toContain("botchelor.com");
     expect(caption).toContain("botchelor.com/vote?s=tiktok");
+    // The vote's couple rotates daily and is rarely this clip's (2026-11-11 bounce review): never promise "their" date.
+    expect(caption).not.toMatch(/tomorrow's date/i);
+    expect(caption).toContain("one of the show's dates");
+    expect(cardHtml("end", { e: date, base: "https://botchelor.com", hook: "", reveal: revealFor(date) })).not.toMatch(/tomorrow's date/i);
     expect(caption.trim().split("\n").at(-1)).toMatch(/^#botchelor .* #anime$/);
   });
 

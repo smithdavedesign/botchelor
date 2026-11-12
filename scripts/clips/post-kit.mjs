@@ -4,7 +4,9 @@
 //   1. a hook card (the first ~2.5 s decide whether anyone stays): the pair's faces and one line on why to watch;
 //   2. the date itself, recorded in the theater at phone size (daily-clip.mjs does the recording);
 //   3. the reveal, after the date: how it ended and its best line (never before it: that would spoil the watch);
-//   4. an end card: botchelor.com/vote (tonight's situation vote decides tomorrow's date) and what you can do there.
+//   4. an end card: botchelor.com/vote (each night's vote picks the situation for a house couple's next date) and what
+//      you can do there. Never "this couple's next date": the vote's pair rotates daily and is rarely the clip's pair
+//      (2026-11-11 bounce review: a Kaede × Malachar clip promised a vote that showed Juniper × Nell).
 // Out: ~/BotchelorClips/posts/<day>-<a>-<b>/ with post.mp4 (1080×1920, H.264, no sound: add a sound in the app),
 // cover.png (the hook card, for the app's cover picker), caption.txt and checklist.md. Free: local Chromium + ffmpeg.
 // David posts it; this never does.
@@ -70,6 +72,12 @@ export function revealFor(e) {
   return { ...ending, line, by };
 }
 
+/**
+ * The caption's vote line. The vote is about whichever house couple tonight's board has (lib/situations.ts), not the
+ * couple in this clip, so it never says "their" date or "tomorrow's date" right under a clip of someone else.
+ */
+export const VOTE_LINE = "Every night the audience votes what happens on one of the show's dates: botchelor.com/vote?s=tiktok";
+
 /** The caption to paste: the hook, a question for the comments, where to watch it all, AI disclosure, tags. */
 export function postCaption(e, { hook, tags = "" } = {}) {
   const [a, b] = (e.characters ?? []).map((c) => firstName(c.name));
@@ -78,7 +86,7 @@ export function postCaption(e, { hook, tags = "" } = {}) {
     "",
     `Would you have said yes to ${b}? 👀`,
     "",
-    "Vote what happens on tomorrow's date: botchelor.com/vote?s=tiktok",
+    VOTE_LINE,
     "Watch the whole date at botchelor.com. Both are AI characters; the date is AI-generated fiction.",
     "",
     ["#botchelor #aicharacters #blinddate #datingshow #originalcharacter", tags.trim()].filter(Boolean).join(" "),
@@ -99,7 +107,7 @@ export function cardHtml(kind, { e, base, hook, reveal }) {
         ? `<p class="kicker">How it ended</p><div class="faces small">${faces}</div><p class="ending">${reveal.mark} ${esc(reveal.label)}</p>${
             reveal.line ? `<blockquote>“${esc(reveal.line)}”${reveal.by ? `<cite>— ${esc(reveal.by)}</cite>` : ""}</blockquote>` : ""
           }`
-        : `<p class="brand">Botchelor</p><h1>Make a character.<br>Send them on a date.<br>Watch how it ends.</h1><p class="url">Vote tomorrow's date:<br>botchelor.com/vote</p><p class="fine">AI characters · AI-generated fiction · 18+</p>`;
+        : `<p class="brand">Botchelor</p><h1>Make a character.<br>Send them on a date.<br>Watch how it ends.</h1><p class="url">Tonight's vote: what happens<br>on the show's next date<br>botchelor.com/vote</p><p class="fine">AI characters · AI-generated fiction · 18+</p>`;
   return `<!doctype html><html><head><meta charset="utf-8">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@500;600&display=block" rel="stylesheet">
 <style>

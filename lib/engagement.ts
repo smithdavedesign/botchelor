@@ -109,6 +109,9 @@ const SOURCES: [RegExp, string][] = [
   [/(^|\.)github\.com$/, "github"],
 ];
 
+/** A link's ?ref tag (app/funnel.ts BEACON_REFS) as a source: which kind of share the visitor followed. */
+const REF_SOURCES: Readonly<Record<string, string>> = { share: "share_link", invite: "date_link", double: "double_link", owner: "owner_share" };
+
 /**
  * Where a visit came from, in one word: utm_source when the link was tagged, a share link's ref, our name for the
  * referring site, "other" for a site we don't name, "direct" for none. Our own hosts are never a source.
@@ -116,7 +119,7 @@ const SOURCES: [RegExp, string][] = [
 export function sourceOf(src: BeaconSource | undefined): string {
   const utm = clean(src?.utm_source, UTM)?.toLowerCase();
   if (utm) return utm.replace(/\s+/g, "_").slice(0, 40);
-  if (src?.ref === "share") return "share_link";
+  if (src?.ref && Object.hasOwn(REF_SOURCES, src.ref)) return REF_SOURCES[src.ref];
   const host = String(src?.ref_host ?? "").toLowerCase().replace(/^www\./, "").slice(0, 100);
   if (!host || /(^|\.)botchelor\.com$/.test(host) || host === "localhost") return "direct";
   if (/(^|\.)google\./.test(host) && host.startsWith("gemini.")) return "gemini";
@@ -234,7 +237,8 @@ export const ENGAGEMENT_FUNNEL = [
 export type EngagementQuery = { from: string; to: string; includeOurs: boolean; host: "all" | "show" | "after_dark" };
 export type CountRow = { key: string; count: number; visitors: number };
 export type PageRow = { path: string; views: number; visitors: number; avg_seconds: number | null; avg_scroll: number | null };
-export type SourceRow = { source: string; sessions: number; visitors: number; engaged: number; signups: number; created: number };
+/** One source's visitors and how far they got: `started` a date, `watched` one end (the two steps that matter most). */
+export type SourceRow = { source: string; sessions: number; visitors: number; engaged: number; signups: number; created: number; started: number; watched: number };
 export type Engagement = {
   query: EngagementQuery;
   generated_at: string;
@@ -247,6 +251,8 @@ export type Engagement = {
     pages_per_session: number | null;
     avg_session_seconds: number | null;
     bounce_rate: number | null;
+    /** Page loads never shown (prerender or scripts): left out of every other number. */
+    unseen_visitors: number;
   };
   previous: { visitors: number; sessions: number; page_views: number };
   /** The range's new visitors who had a row on any later UTC day (the "came back" number, 2026-11-07 review). */
@@ -268,6 +274,14 @@ export type Engagement = {
 /** Rows from our own browsers and accounts: admins, reviewers and every visitor id ever seen with one of their accounts. */
 const OURS_FILTER = `not (coalesce(user_id, '') = any($3::text[]) or visitor in (select visitor from web_events where user_id = any($3::text[])))`;
 
+/**
+ * Visitors whose page was never on screen: every row they ever sent is a page_view (no page_leave, no click). That is
+ * Chrome loading the page ahead of time (prerender) or a script with a browser's name loading it and quitting, and it
+ * was a third of November's "visitors", all counted as bounces (2026-11-11 bounce review). They're left out; the
+ * client also no longer records a prerendered page until it's shown (app/engagement.ts).
+ */
+const SEEN_FILTER = `visitor not in (select visitor from web_events group by visitor having bool_and(event = 'page_view'))`;
+
 export async function loadEngagement(db: Db, q: EngagementQuery, now = new Date()): Promise<Engagement> {
   const ours = q.includeOurs ? [] : await loadOurIds(db);
   const start = `${q.from}T00:00:00.000Z`;
@@ -276,7 +290,7 @@ export async function loadEngagement(db: Db, q: EngagementQuery, now = new Date(
   const prevStart = `${addDays(q.from, -span)}T00:00:00.000Z`;
   const hostFilter = q.host === "all" ? "" : ` and host = '${q.host === "show" ? "show" : "after_dark"}'`;
   // Every query reads the same rows: the range, our own traffic out unless asked for, the host if one was picked.
-  const scope = `at >= $1 and at < $2 and ${OURS_FILTER}${hostFilter}`;
+  const scope = `at >= $1 and at < $2 and ${OURS_FILTER} and ${SEEN_FILTER}${hostFilter}`;
   const args = [start, end, ours];
   const rows = async <T,>(sql: string, extra: unknown[] = []) => (await db.query<T & Record<string, unknown>>(sql, [...args, ...extra])).rows as T[];
   const n = (v: unknown) => Number(v ?? 0);
@@ -286,11 +300,14 @@ export async function loadEngagement(db: Db, q: EngagementQuery, now = new Date(
             count(*) filter (where event = 'page_view')::int as page_views, count(*)::int as events
      from web_events where ${scope}`,
   );
+  const [unseen] = await rows<{ n: number }>(
+    `select count(distinct visitor)::int as n from web_events where at >= $1 and at < $2 and ${OURS_FILTER}${hostFilter} and not (${SEEN_FILTER})`,
+  );
   const [prev] = (
     await db.query<{ visitors: number; sessions: number; page_views: number }>(
       `select count(distinct visitor)::int as visitors, count(distinct session)::int as sessions,
               count(*) filter (where event = 'page_view')::int as page_views
-       from web_events where at >= $1 and at < $2 and ${OURS_FILTER}${hostFilter}`,
+       from web_events where at >= $1 and at < $2 and ${OURS_FILTER} and ${SEEN_FILTER}${hostFilter}`,
       [prevStart, start, ours],
     )
   ).rows;
@@ -301,7 +318,7 @@ export async function loadEngagement(db: Db, q: EngagementQuery, now = new Date(
             count(*) filter (where exists (
               select 1 from web_events w where w.visitor = f.visitor and date_trunc('day', w.at) > date_trunc('day', f.first)
             ))::int as returned
-     from (select visitor, min(at) as first from web_events where ${OURS_FILTER}${hostFilter} group by visitor) f
+     from (select visitor, min(at) as first from web_events where ${OURS_FILTER} and ${SEEN_FILTER}${hostFilter} group by visitor) f
      where f.first >= $1 and f.first < $2`,
   );
   // Per session: pages seen, seconds engaged (the page_leave beats), whether anything was clicked.
@@ -354,7 +371,9 @@ export async function loadEngagement(db: Db, q: EngagementQuery, now = new Date(
     `select coalesce(source, 'direct') as source, count(distinct session)::int as sessions, count(distinct visitor)::int as visitors,
             count(distinct visitor) filter (where event in ('link_click', 'button_click', 'outbound_click'))::int as engaged,
             count(distinct visitor) filter (where event = 'sign_up')::int as signups,
-            count(distinct visitor) filter (where event = 'character_created')::int as created
+            count(distinct visitor) filter (where event = 'character_created')::int as created,
+            count(distinct visitor) filter (where event = 'date_started')::int as started,
+            count(distinct visitor) filter (where event = 'date_watched')::int as watched
      from web_events where ${scope} group by 1 order by sessions desc limit 40`,
   );
   const campaigns = await rows<CountRow>(
@@ -390,6 +409,7 @@ export async function loadEngagement(db: Db, q: EngagementQuery, now = new Date(
       pages_per_session: sess?.pages == null ? null : Math.round(sess.pages * 10) / 10,
       avg_session_seconds: sess?.seconds == null ? null : Math.round(sess.seconds),
       bounce_rate: sess?.bounced == null ? null : Math.round(sess.bounced * 1000) / 10,
+      unseen_visitors: n(unseen?.n),
     },
     previous: { visitors: n(prev?.visitors), sessions: n(prev?.sessions), page_views: n(prev?.page_views) },
     returning: {

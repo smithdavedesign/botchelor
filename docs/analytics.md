@@ -150,6 +150,12 @@ Every page in the browser sends, in batches of up to 25 every few seconds and wh
 | `create_opened` | /create opens | — |
 | the conversions | `character_created`, `date_started`, `prediction_made`, `character_rated`, `reel_cta`, `sign_up`, `begin_checkout`, `purchase`, `ad_invite_requested` (`app/conversion.ts`, which still sends them to GA4 too) | as before |
 
+- **Never-shown loads are left out** (2026-11-11): a visitor whose only rows ever are `page_view`s never had the page on
+- **"Watched it end" counts readers too** (2026-11-11): `date_watched` fired only when the theater's replay reached the ending, and never had (the page prints the whole date as text, ending last, and people read it there). It now also fires once when the recap's ending block is half on screen, with `via: "page"`; the theater's carries `via: "theater"`. The step is not comparable with days before 2026-11-11.
+- **Sources carry activation** (2026-11-11): each source row also counts `started` (date_started) and `watched` (date_watched) visitors, and Monday's house-crowd report prints them as "By channel". Share links tag themselves: `?ref=share` (an episode's share), `?ref=invite` (a creator's date link), `?ref=double` (a bring-a-friend link) and `?ref=owner` (an owner's share of a date that went well) become the sources `share_link`, `date_link`, `double_link` and `owner_share`.
+  screen (Chrome prerendering it, or a script with a browser's name). They were a third of November's "visitors", all
+  counted as bounces. The report leaves them out of every number and shows how many as `totals.unseen_visitors`; the
+  client also waits for `prerenderingchange` before counting a prerendered page.
 - **Who:** `visitor` is a random id in localStorage (`bz_vid`), `session` a visit in sessionStorage (`bz_sid`), renewed
   after 30 minutes idle as GA4 counts one; `user_id` the signed cookie's id when there is one. Device from the user
   agent, country from the edge (`lib/place.ts`), host `show` or `after_dark`.
