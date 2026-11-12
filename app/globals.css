@@ -3107,9 +3107,6 @@ button.poll-option.chosen {
   gap: 0.75rem;
   margin-bottom: 0.5rem;
 }
-.couple-timeline li .badge {
-  margin-left: 0.4rem;
-}
 .meter {
   display: grid;
   grid-template-columns: 9rem 1fr 4.5rem;
@@ -13945,40 +13942,50 @@ button.thread-menu-item:hover:not(:disabled) {
   font-size: var(--text-xl);
   margin: 0.35rem 0 0.1rem;
 }
-.couple-timeline {
-  position: relative;
-  margin: 0.25rem 0 0;
+/* Their dates on a couple page (the design system's couple screen, 2026-11-11): one row a date, the place's photo
+   beside the date and when, where it was, and how it ended. */
+.couple-dates {
+  display: grid;
+  gap: var(--space-2);
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
 }
-.couple-timeline > li {
-  position: relative;
-  padding: 0.4rem 0 0.4rem 1.35rem;
+.couple-date {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3) var(--space-2) var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--card);
 }
-.couple-timeline > li::before {
-  content: "";
-  position: absolute;
-  left: 0.35rem;
-  top: 0;
-  bottom: 0;
-  width: 2px;
-  background: var(--line);
+.couple-date-photo {
+  flex: none;
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: var(--radius-sm);
 }
-.couple-timeline > li::after {
-  content: "";
-  position: absolute;
-  left: calc(0.35rem - 3.5px);
-  top: 1.05rem;
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 0 3px var(--card);
+/* Nothing sits on this one, so no grade. */
+.couple-date-photo::after {
+  display: none;
 }
-.couple-timeline > li:first-child::before {
-  top: 1.05rem;
+.couple-date-text {
+  min-width: 0;
 }
-.couple-timeline > li:last-child::before {
-  bottom: auto;
-  height: 1.05rem;
+.couple-date-text > p {
+  margin: 0;
+}
+.couple-date-venue {
+  font-family: "Fraunces", Georgia, serif;
+  font-style: italic;
+  color: var(--accent-text);
+}
+.couple-date-text > .couple-date-tags {
+  margin-top: var(--space-1);
+}
+.couple-date-tags .badge {
+  margin: 0 var(--space-1) 0 0;
 }
 
 /* The contestant header as a cast card: the headshot gets a ring and some air. */

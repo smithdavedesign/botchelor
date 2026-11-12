@@ -17,6 +17,7 @@ import { loadRelationship, pairKey, viewRelationship } from "@/lib/relationships
 import { SHARE_IMAGE } from "@/lib/seo";
 import { planFromChain } from "@/lib/simulation";
 import { venueName } from "@/lib/venues";
+import VenuePhoto from "@/app/VenuePhoto";
 import { chainPage, loadChain } from "@/lib/text-chain";
 import NudgeForm from "./NudgeForm";
 import ThreadPreview from "./ThreadPreview";
@@ -86,7 +87,9 @@ async function load(a: string, b: string) {
     owner ? roleplayCard(db, viewerId!, owners, nextP.then((n) => n?.option.kind === "unavailable")) : null,
   ]);
   const chain = fullChain ? chainPage(fullChain) : null;
-  return { ca, cb, view, owner, mine, seeing: { [a]: seeingA, [b]: seeingB } as Record<string, string[]>, chain, texted, nudges, follow, arc, next, roleplay };
+  // Each date's place, for its photo in Their dates (the view carries the venue's name only).
+  const placeOf = new Map(rel!.history.map((h) => [h.episode_id, h.venue] as const));
+  return { ca, cb, view, owner, mine, seeing: { [a]: seeingA, [b]: seeingB } as Record<string, string[]>, chain, texted, nudges, follow, arc, next, roleplay, placeOf };
 }
 
 /**
@@ -156,7 +159,7 @@ export default async function CouplePage({ params, searchParams }: Props) {
     if (!match) notFound();
     return <MatchPage {...match} />;
   }
-  const { ca, cb, view, owner, mine, seeing, chain, texted, nudges, follow, arc, next, roleplay } = data;
+  const { ca, cb, view, owner, mine, seeing, chain, texted, nudges, follow, arc, next, roleplay, placeOf } = data;
   const followedUp = view.timeline.filter((t) => t.second_date_of).length;
   const latest = [...view.timeline].reverse().find((t) => t.aired) ?? view.timeline.at(-1) ?? null;
   const complicated = [ca, cb].filter((c) => seeing[c.id]?.length);
@@ -247,18 +250,29 @@ export default async function CouplePage({ params, searchParams }: Props) {
           on the left; the roleplay, the arc, their texts, inside jokes and what they've told each other on the right. */}
       <div className="couple-layout">
         <div className="couple-main">
-          <section className="card" id="their-dates">
+          <section className="couple-dates-section" id="their-dates">
             <h2>Their dates</h2>
-            <ol className="list couple-timeline" start={(timeline.page - 1) * TIMELINE_PAGE + 1}>
+            {/* One row a date, as the design system draws them: the place's photo, the date and when, where, and how it
+                ended. */}
+            <ol className="couple-dates" start={(timeline.page - 1) * TIMELINE_PAGE + 1}>
               {timeline.items.map((t) => (
-                <li key={t.episode_id}>
-                  <Link href={`/episodes/${t.episode_id}`}>Date {t.n}</Link> <span className="muted">· {t.venue}</span>{" "}
-                  <span className="muted small">
-                    · <When iso={t.at} style="date" />
-                  </span> → <strong>{t.ending_label}</strong>
-                  {t.second_date_of && <span className="badge">planned together</span>}
-                  {t.roleplay && <span className="badge">🎭 {t.roleplay}</span>}
-                  {!t.aired && <span className="badge">not aired yet</span>}
+                <li key={t.episode_id} className="couple-date">
+                  <VenuePhoto venue={placeOf.get(t.episode_id)} className="couple-date-photo" />
+                  <div className="couple-date-text">
+                    <p className="couple-date-when small">
+                      <Link href={`/episodes/${t.episode_id}`}>Date {t.n}</Link>{" "}
+                      <span className="muted">
+                        · <When iso={t.at} style="date" />
+                      </span>
+                    </p>
+                    <p className="couple-date-venue">{t.venue}</p>
+                    <p className="couple-date-tags">
+                      <span className="badge couple-date-ending">{t.ending_label}</span>
+                      {t.second_date_of && <span className="badge">planned together</span>}
+                      {t.roleplay && <span className="badge">🎭 {t.roleplay}</span>}
+                      {!t.aired && <span className="badge">not aired yet</span>}
+                    </p>
+                  </div>
                 </li>
               ))}
             </ol>
