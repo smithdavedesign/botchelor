@@ -127,6 +127,7 @@ describe("launch checks: robots.txt, sitemap and og:image", () => {
         "/security",
         "/accessibility",
         "/newsletter",
+        "/seasons",
               // Plus the RSS feed (app/feed.xml/route.ts): a route, not a page.
         "/feed.xml",
       ].map(
