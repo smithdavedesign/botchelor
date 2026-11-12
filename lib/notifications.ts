@@ -30,6 +30,7 @@ export type NotificationKind =
   | "couple_date" // a couple you follow went on another date
   | "arc_resolved" // a prediction you made about a couple's arc came true (or didn't)
   | "date_aired" // a date with your character (or that you booked) aired: on its own once its window closed, or by someone else (lib/air.ts notifyOwnersAired, #1032)
+  | "date_went_well" // the day after your character's date aired, when it ended in a second date: share it, or book the next (lib/air.ts notifyWentWell)
   | "prediction_scored" // a date you predicted aired: what your pick scored (lib/air.ts notifyPredictors, #851)
   | "partner_style" // your character settled one partner or more, or closed to dates because they're taken
   | "match_taken" // a character you matched went exclusive with someone else (one partner) and closed to other dates (#514)

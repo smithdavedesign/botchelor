@@ -159,6 +159,43 @@ export async function notifyOwnersAired(db: Db, id: string, skip: (string | null
   });
 }
 
+/**
+ * The day after a date that went well (the 2026-11-11 growth plan): owners of a date that aired 24 to 48 hours ago and
+ * ended in a second date get one notice, with the share and the booking a tap away. A day late on purpose:
+ * notifyOwnersAired never names the ending, so an owner who wants to watch first isn't told; by the next day the aired
+ * page has said it anyway. Never twice for one date (the link is the key), never to a house character's owner (the
+ * show), and only public or unlisted dates. Runs from the daily job. Returns how many notices went out.
+ */
+export async function notifyWentWell(db: Db, now = new Date()): Promise<number> {
+  const { rows } = await db.query<{ id: string; a: string; b: string; owner_a: string | null; owner_b: string | null; number: number | null }>(
+    `select e.id, ca.name as a, cb.name as b,
+            case when ca.is_house then null else ca.owner_id end as owner_a,
+            case when cb.is_house then null else cb.owner_id end as owner_b,
+            (select count(*)::int from episodes p where p.status = 'ready' and p.id <> e.id and p.created_at < e.created_at and ((p.character_a = e.character_a and p.character_b = e.character_b) or (p.character_a = e.character_b and p.character_b = e.character_a))) + 1 as number
+       from episodes e join characters ca on ca.id = e.character_a join characters cb on cb.id = e.character_b
+      where e.ending = 'second_date' and e.visibility <> 'private' and e.status = 'ready'
+        and e.revealed_at between $1::timestamptz - interval '48 hours' and $1::timestamptz - interval '24 hours'
+        and not exists (select 1 from notifications n where n.kind = 'date_went_well' and n.link = '/episodes/' || e.id)
+      order by e.revealed_at`,
+    [now.toISOString()],
+  );
+  let sent = 0;
+  for (const r of rows) {
+    const to = [r.owner_a, r.owner_b].filter((u): u is string => Boolean(u));
+    if (!to.length) continue;
+    const [x, y] = pairNames(r.a, r.b);
+    const next = r.number && r.number > 1 ? `date ${r.number + 1}` : "a second date";
+    await notifyAll(db, to, {
+      kind: "date_went_well",
+      title: `💘 ${x} × ${y}: it went well`,
+      body: `Their date aired yesterday and they both want ${next}. Share the good news from the episode page, or book the next one.`,
+      link: `/episodes/${r.id}`,
+    });
+    sent += to.length;
+  }
+  return sent;
+}
+
 /** When this date may air (its booking plus the window), or null when it may air now. */
 export async function airsFrom(db: Db, id: string, env: Record<string, string | undefined> = process.env): Promise<Date | null> {
   const minutes = airWindowMinutes(env);

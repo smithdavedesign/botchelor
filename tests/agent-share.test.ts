@@ -93,7 +93,7 @@ describe("the share step over MCP (2.25.0)", () => {
     expect((await call("get_episode", { episode_id: id }, ctx)).structuredContent.share).toBeUndefined();
   });
 
-  it("the first finished date has share (read, summary and wait); the second doesn't, nor does anyone else's read", async () => {
+  it("the first finished date has share (read, summary and wait); the second has its own; nobody else's read does", async () => {
     const ctx = await connect();
     const c = (await call("create_character", validCharacter({ name: "Ottoline Prewitt", keep_name: true }), ctx)).structuredContent.character_id as string;
     const first = await houseDate(ctx, c);
@@ -106,10 +106,13 @@ describe("the share step over MCP (2.25.0)", () => {
     // Someone else reading it: no share (it's the owner's moment).
     const other = await connect();
     expect((await call("get_episode", { episode_id: first }, other)).structuredContent.share).toBeUndefined();
-    // The second date: no share.
+    // The second date (2026-11-11, the growth plan): its own share, with the date's number, still spoiler-free.
     await t.db.query(`update episodes set created_at = now() - interval '1 hour' where id = $1`, [first]);
     const second = await houseDate(ctx, c);
-    expect((await call("get_episode", { episode_id: second }, ctx)).structuredContent.share).toBeUndefined();
+    const again = (await call("get_episode", { episode_id: second }, ctx)).structuredContent.share;
+    expect(again.url).toContain(`/episodes/${second}?utm_source=agent_share&utm_medium=mcp&utm_campaign=date_aired`);
+    expect(again.text).toMatch(/^My agent's character just finished date 2 for Ottoline Prewitt × /);
+    expect(again.text).not.toMatch(/second date|friends|disaster/i);
   });
 
   it("a private first date gets no share", async () => {

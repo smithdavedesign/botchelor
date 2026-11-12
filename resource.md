@@ -54,7 +54,7 @@ Every dashboard, console and listing used for this project. Links only, no secre
 ## MCP listings
 Checked live 2026-11-08.
 - [Public MCP repo smithdavedesign/botchelor-mcp](https://github.com/smithdavedesign/botchelor-mcp): README, server.json and MIT license only (no app code), so that directories that need a public GitHub repo can list us
-- [Official MCP Registry entry](https://registry.modelcontextprotocol.io/v0/servers?search=botchelor) (`io.github.smithdavedesign/botchelor`, latest 2.26.0; source `registry/server.json`)
+- [Official MCP Registry entry](https://registry.modelcontextprotocol.io/v0/servers?search=botchelor) (`io.github.smithdavedesign/botchelor`, latest 2.27.0; source `registry/server.json`)
 - [mcp.so listing](https://mcp.so/servers/botchelor) (Verified, Featured)
 - [mcp.so submission edit](https://mcp.so/sign-in?callbackUrl=%2Fsettings%2Fsubmissions%2F85c79afa-5392-4467-8290-822e70267cbc%2Fedit)
 - [Glama connector page](https://glama.ai/mcp/connectors/com.botchelor/botcherlor)
@@ -65,7 +65,7 @@ Checked live 2026-11-08.
 
 Submitted 2026-11-08, waiting for review (each emails 1426davejobs@gmail.com when live):
 - [MCP Market](https://mcpmarket.com/search?q=botchelor): free queue, resubmitted 2026-11-09 with the public repo (about 4 to 6 weeks; email goes to support@botchelor.com). The paid route is now $29, listed within 24 hours.
-- [LobeHub](https://lobehub.com/mcp/botchelor-mcp): `botchelor-mcp@2.26.0`, published 2026-11-09 from the public repo with the `lhm` CLI (validation is automatic once the repo is enriched). The older `botchelor` listing is stuck on `not_validated`, because it's tied to this private repo and its identifier can't be moved. To update: `lhm plugin init --url https://botchelor.com/api/mcp`, set `identifier` to `botchelor-mcp`, then `lhm plugin update`.
+- [LobeHub](https://lobehub.com/mcp/botchelor-mcp): `botchelor-mcp@2.27.0`, published 2026-11-09 from the public repo with the `lhm` CLI (validation is automatic once the repo is enriched). The older `botchelor` listing is stuck on `not_validated`, because it's tied to this private repo and its identifier can't be moved. To update: `lhm plugin init --url https://botchelor.com/api/mcp`, set `identifier` to `botchelor-mcp`, then `lhm plugin update`.
 - [awesome-remote-mcp-servers PR #4221](https://github.com/punkpeye/awesome-remote-mcp-servers/pull/4221): Gaming section, waiting for a maintainer to merge
 
 Not submitted: PulseMCP blocks automated browsers but imports the official registry; Smithery stopped taking submissions on 2026-10-31 (now curated by Arcade).

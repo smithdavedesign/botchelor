@@ -4,7 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import JsonLd from "@/app/JsonLd";
 import { breadcrumbJsonLd } from "@/lib/seo";
-import { episodeCardPath, pageTitle, SHARE_QUESTION, shareDescription, shareTitle } from "@/lib/episode-share";
+import { ENDING_CARD, endingCardAllowed, episodeCardPath, pageTitle, SHARE_QUESTION, shareDescription, shareTitle, wentWellTitle } from "@/lib/episode-share";
 import EpisodeNotices from "@/app/Notices";
 import { siteUrl } from "@/lib/site";
 import { getDb } from "@/lib/db";
@@ -38,6 +38,7 @@ import CharacterName from "@/app/CharacterName";
 import Afterglow, { SecondDate } from "./Afterglow";
 import EndingSeen from "./EndingSeen";
 import EpisodeTheater from "./EpisodeTheater";
+import ShareEnding from "./ShareEnding";
 import ChatThread from "@/app/ChatThread";
 import BoxScore from "./BoxScore";
 import DiaryCam from "./DiaryCam";
@@ -70,15 +71,22 @@ const PREMIUM_IDS = new Set(PREMIUM_HOUSE_CHARACTERS.map((c) => c.id));
  * The link preview is the share card (/api/og/episode/<id>): a "How does it end?" poll, as a large Twitter card.
  * Setting openGraph.images here is what puts it ahead of ./opengraph-image (the box score card, still served).
  */
-export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+export async function generateMetadata({ params, searchParams }: { params: Promise<{ id: string }>; searchParams?: Promise<Record<string, string | string[] | undefined>> }): Promise<Metadata> {
   const { id } = await params;
   const episode = await getEpisodeView(await getDb(), id, null);
   if (!episode || episode.hidden) return { title: "Episode · Botchelor", robots: { index: false, follow: false } };
   const [a, b] = episode.characters;
   const names: [string, string] = [a.name, b.name];
   const indexable = episode.visibility === "public";
-  const description = shareDescription(names, episode.setting, episode.revealed);
-  const card = { url: episodeCardPath(id), width: 1200, height: 630, alt: `${a.name} × ${b.name}: ${SHARE_QUESTION} A poll with three answers.` };
+  // An owner's share of a date that went well (lib/episode-share.ts ownerSharedPath, David 2026-11-11): the card and the
+  // headline name the second date, only once aired and only for that ending; any other date keeps the question.
+  const wentWell = (await searchParams)?.card === ENDING_CARD && endingCardAllowed(episode);
+  const dateNo = wentWell ? dateNumberOf(episode) : null;
+  const description = wentWell ? `${wentWellTitle(names, dateNo)} Watch how it happened, then send a character of your own.` : shareDescription(names, episode.setting, episode.revealed);
+  const card = wentWell
+    ? { url: `${episodeCardPath(id)}?card=${ENDING_CARD}`, width: 1200, height: 630, alt: wentWellTitle(names, dateNo) }
+    : { url: episodeCardPath(id), width: 1200, height: 630, alt: `${a.name} × ${b.name}: ${SHARE_QUESTION} A poll with three answers.` };
+  const headline = wentWell ? wentWellTitle(names, dateNo) : shareTitle(names);
   // The place in words ("the night market"), never its id (2026-10-23: titles read "at night_market").
   const venue = typeof episode.venue === "string" ? venuePhrase(episode.venue) : null;
   return {
@@ -89,8 +97,8 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
     alternates: { canonical: `/episodes/${id}` },
     robots: indexable ? { index: true, follow: true } : { index: false, follow: false },
     // The root layout's openGraph and twitter are replaced, not merged, so the site's own fields are repeated here.
-    openGraph: { type: "website", siteName: "Botchelor", locale: "en_US", url: `/episodes/${id}`, title: shareTitle(names), description, images: [card] },
-    twitter: { card: "summary_large_image", title: shareTitle(names), description, images: [{ url: card.url, alt: card.alt }] },
+    openGraph: { type: "website", siteName: "Botchelor", locale: "en_US", url: `/episodes/${id}`, title: headline, description, images: [card] },
+    twitter: { card: "summary_large_image", title: headline, description, images: [{ url: card.url, alt: card.alt }] },
   };
 }
 
@@ -672,11 +680,12 @@ export default async function EpisodePage({
       )}
 
       {episode.afterglow && (
-        <Afterglow episodeId={episode.id} characters={episode.characters} afterglow={episode.afterglow} secondDate={secondDate} dateNumber={dateNo} />
+        <Afterglow episodeId={episode.id} characters={episode.characters} afterglow={episode.afterglow} secondDate={secondDate} dateNumber={dateNo} shareable={episode.visibility !== "private"} />
       )}
       {datePhotos && <DatePhotos episodeId={episode.id} state={datePhotos} styles={DATE_PHOTO_STYLES.map((s) => ({ id: s.id, label: s.label }))} />}
       {!episode.afterglow && secondDate?.mutual && (
         <section className="card">
+          {episode.visibility !== "private" && <ShareEnding episodeId={episode.id} names={[episode.characters[0].name, episode.characters[1].name]} dateNumber={dateNo} kind="owner_well" />}
           <SecondDate episodeId={episode.id} state={secondDate} />
         </section>
       )}
