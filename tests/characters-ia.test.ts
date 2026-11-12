@@ -216,3 +216,27 @@ describe("stale “Book it” notices (lib/notifications.ts)", () => {
     expect(n.read).toBe(false);
   });
 });
+
+describe("the character page in tabs (the design system's character page, 2026-11-11)", () => {
+  /** The opening tag of a page part, `<div data-panel="<id>" …>`, or null. */
+  const panelTag = (html: string, id: string) => html.match(new RegExp(`<div data-panel="${id}"[^>]*>`))?.[0] ?? null;
+
+  it("shows one part at a time: Profile open, the rest arrive hidden, one tab each", async () => {
+    const html = await characterPage("house-juniper", null);
+    const tabs = html.slice(html.indexOf('<div class="page-tabs" role="tablist"'));
+    for (const label of ["Profile", "Audience", "Dates"]) expect(tabs).toMatch(new RegExp(`role="tab"[^>]*>${label}</button>`));
+    expect(tabs).toMatch(/id="tab-profile"[^>]*aria-selected="true"/);
+    expect(panelTag(html, "profile")).not.toContain("hidden");
+    for (const id of ["audience", "dates"]) expect(panelTag(html, id)).toContain("hidden");
+    expect(html).not.toContain("page-jumps");
+  });
+
+  it("keeps the old anchors inside their parts, so links to #date-record or #audience still land", async () => {
+    const html = await characterPage("house-juniper", null);
+    const part = (id: string) => html.slice(html.indexOf(panelTag(html, id)!));
+    expect(html.indexOf(panelTag(html, "profile")!)).toBeLessThan(html.indexOf('id="profile"'));
+    expect(html.indexOf('id="profile"')).toBeLessThan(html.indexOf(panelTag(html, "audience")!));
+    expect(part("audience")).toMatch(/^<div data-panel="audience"[^>]*>\s*<section class="card character-audience" id="audience"/);
+    expect(part("dates")).toMatch(/^<div data-panel="dates"[^>]*>\s*<section class="card" id="date-record"/);
+  });
+});

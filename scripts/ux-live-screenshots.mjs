@@ -117,7 +117,7 @@ try {
   await shot(page, "ux-constellation-filters-phone.png");
 
   await page.goto(`${BASE}/characters/house-juniper`);
-  assert((await page.locator("nav.page-jumps a").count()) >= 3, "a character page should have its jump links");
+  assert((await page.locator('.page-tabs [role="tab"]').count()) >= 3, "a character page should have its tabs");
   await checkPhone(page, "a character page");
   await shot(page, "ux-character-jumps-phone.png");
 
