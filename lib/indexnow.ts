@@ -8,6 +8,8 @@
  * a nicety, never load-bearing. The daily cron submits the last day's newly public URLs.
  */
 import type { Db } from "./db";
+import { closedSeasons } from "./season-ref";
+import { seasonWindow } from "./season-window";
 import { REPORT_HIDE_THRESHOLD } from "./rules";
 import { siteUrl } from "./site";
 import { isProductionDeploy } from "./deploy";
@@ -21,9 +23,13 @@ export function indexNowKey(env: Record<string, string | undefined> = process.en
   return key && KEY_FORMAT.test(key) ? key : null;
 }
 
-/** Public pages that became indexable since `since`: aired public episodes and characters newly open to dates. */
-export async function recentPublicUrls(db: Db, since: Date, base: string = siteUrl()): Promise<string[]> {
-  const [episodes, characters] = await Promise.all([
+/**
+ * Public pages that became indexable since `since`: aired public episodes, characters newly open to dates, couples
+ * whose latest public date aired since (their /couples page changed), and a season whose finale closed since.
+ */
+export async function recentPublicUrls(db: Db, since: Date, base: string = siteUrl(), now = new Date()): Promise<string[]> {
+  const seasons = closedSeasons(now).filter((s) => seasonWindow(new Date(`${s.id}T00:00:00Z`)).end >= since);
+  const [episodes, characters, couples] = await Promise.all([
     db.query<{ id: string }>(
       `select e.id from episodes e
         where e.visibility = 'public' and e.status = 'ready' and e.revealed_at >= $1
@@ -32,8 +38,14 @@ export async function recentPublicUrls(db: Db, since: Date, base: string = siteU
       [since.toISOString(), REPORT_HIDE_THRESHOLD],
     ),
     db.query<{ id: string }>(`select id from characters where open_to_dates and created_at >= $1 limit 5000`, [since.toISOString()]),
+    db.query<{ a: string; b: string }>(`select character_a as a, character_b as b from relationships where public_dates > 0 and public_last_at >= $1 limit 5000`, [since.toISOString()]),
   ]);
-  return [...episodes.rows.map((r) => `${base}/episodes/${r.id}`), ...characters.rows.map((r) => `${base}/characters/${r.id}`)];
+  return [
+    ...episodes.rows.map((r) => `${base}/episodes/${r.id}`),
+    ...characters.rows.map((r) => `${base}/characters/${r.id}`),
+    ...couples.rows.map((r) => `${base}/couples/${r.a}/${r.b}`),
+    ...seasons.map((s) => `${base}${s.path}`),
+  ];
 }
 
 export type IndexNowResult = { submitted: number; status: number | null; skipped?: "no_key" | "not_production" | "nothing_new" };

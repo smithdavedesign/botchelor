@@ -90,7 +90,7 @@ export const metadata: Metadata = {
   twitter: { card: "summary_large_image" },
   // Search Console / Bing Webmaster ownership meta tags, when their tokens are set (lib/tracking.ts).
   ...(TRACKING.verification ? { verification: TRACKING.verification } : {}),
-  alternates: { types: { "text/plain": "/llms.txt" } },
+  alternates: { types: { "text/plain": "/llms.txt", "application/rss+xml": "/feed.xml" } },
   robots: { index: true, follow: true, googleBot: { index: true, follow: true, "max-image-preview": "large", "max-snippet": -1 } },
 };
 

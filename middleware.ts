@@ -94,6 +94,14 @@ const DOC_SOURCES = new Set(["llms.txt", "llms-full.txt", "mcp.json", "agents"])
  * kit and the footer's Company group link to both, and like the privacy notice they name After Dark's suppliers in
  * words only.
  */
+/**
+ * PG pages with no date, character or chat on them, open to a person from a search result (David, 2026-11-11; GROWTH.md
+ * named this the next experiment after every Google visitor of the month met the gate first): the ship-name generator
+ * and the chemistry test, the ship pages they make, and the /alternatives search landings. Anything they link to (a
+ * date, a character, the builder) still meets the gate.
+ */
+export const UNGATED_PREFIXES: readonly string[] = ["/tools/", "/ship/", "/alternatives/"];
+
 const UNGATED_PAGES: ReadonlySet<string> = new Set([
   "/terms",
   "/privacy",
@@ -202,7 +210,14 @@ function route(req: NextRequest): NextResponse {
   // The gate itself, unsubscribing from email (lib/email.ts), the Sunday letter's confirm and unsubscribe links
   // (lib/newsletter.ts), and the policy pages (terms, privacy, reporting, cancelling): leaving, complaining or reading
   // the rules must never take a hurdle, and they hold nothing adult.
-  if (pathname === "/gate" || pathname.startsWith("/email/") || pathname.startsWith("/newsletter/") || UNGATED_PAGES.has(pathname) || req.cookies.get(ADULT_COOKIE)?.value === "1") {
+  if (
+    pathname === "/gate" ||
+    pathname.startsWith("/email/") ||
+    pathname.startsWith("/newsletter/") ||
+    UNGATED_PAGES.has(pathname) ||
+    UNGATED_PREFIXES.some((p) => pathname === p.slice(0, -1) || pathname.startsWith(p)) ||
+    req.cookies.get(ADULT_COOKIE)?.value === "1"
+  ) {
     return NextResponse.next();
   }
 
