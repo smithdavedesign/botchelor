@@ -906,6 +906,13 @@ details.recap-toggle[open] .recap-toggle-hide {
 .page-tabs [role="tab"]:hover {
   color: var(--ink);
 }
+/* Not the site's button: no glow and no lift (button and button:hover set both). */
+.page-tabs [role="tab"],
+.page-tabs [role="tab"]:hover:not(:disabled),
+.page-tabs [role="tab"]:active:not(:disabled) {
+  box-shadow: none;
+  transform: none;
+}
 .page-tabs [role="tab"][aria-selected="true"] {
   border-bottom-color: var(--accent);
   color: var(--ink);
