@@ -27,6 +27,16 @@ describe("the Shoot tab", () => {
     expect(at("<FormatChips")).toBeGreaterThan(at("ad-studio-folds"));
   });
 
+  it("puts the shape and how many in the stuck Shoot bar: one line that says them, their chips a tap away there", () => {
+    const bar = shoot.slice(shoot.indexOf('<div className="ad-studio-go is-main">'));
+    expect(bar.indexOf("<FormatChips")).toBeGreaterThan(-1);
+    expect(bar.indexOf("{sizeChips}")).toBeGreaterThan(-1);
+    expect(bar).toContain('hidden={!shapeOpen}');
+    expect(bar).toContain('aria-controls="ad-shoot-shape"');
+    expect(bar).toMatch(/\?\.ratio\} · \{size\}/);
+    expect(shoot.indexOf("<FormatChips")).toBe(shoot.lastIndexOf("<FormatChips"));
+  });
+
   it("folds each section to a row that says its pick, one open at a time, every chip and own-words box kept", () => {
     expect(shoot).toMatch(/className="ad-studio-fold-head" aria-expanded=\{isOpen\}/);
     expect(shoot).toContain("{foldSummary(g)}");

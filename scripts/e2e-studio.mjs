@@ -279,6 +279,19 @@ async function main() {
         assert(await shoot.isEnabled(), `disabled: "${await shoot.innerText()}"`);
       });
 
+      // The 2026-11-11 review: the shape and how many ride in the stuck Shoot bar, one line that opens their chips there.
+      await step(`${size}: Shoot: the bar says the shape and how many, and opens their chips`, async () => {
+        const toggle = page.locator(".ad-studio-go.is-main .ad-studio-shape-toggle");
+        assert(/3:4 · 4/.test(await toggle.innerText()), `the bar says "${await toggle.innerText()}"`);
+        assert(!(await page.locator("#ad-shoot-shape").isVisible()), "the chips start folded");
+        await toggle.click();
+        await page.locator("#ad-shoot-shape .studio-format", { hasText: "Square" }).click();
+        await page.waitForFunction(() => /1:1 · 4/.test(document.querySelector(".ad-studio-go.is-main .ad-studio-shape-toggle")?.textContent ?? ""), null, { timeout: 5_000 });
+        await page.locator("#ad-shoot-shape .studio-format", { hasText: "Portrait" }).click();
+        await toggle.click();
+        assert(!(await page.locator("#ad-shoot-shape").isVisible()), "the chips fold again");
+      });
+
       await step(`${size}: Shoot: "Save as a setup" asks for a name when there's none, and saves once named`, async () => {
         const name = page.getByRole("textbox", { name: "Setup name" });
         const save = page.getByRole("button", { name: "Save as a setup" });

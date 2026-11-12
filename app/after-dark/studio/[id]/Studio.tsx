@@ -137,6 +137,8 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
   // The Shoot tab's sections fold to one row each, its pick on the right (the PG Studio's way; the 2026-11-11 Studio review:
   // nine open groups ran a phone to 4,400 px before the Shoot button). One open at a time; all closed to start.
   const [openGroup, setOpenGroup] = useState<string | null>(null);
+  // The shape and how many, in the Shoot bar: one line says them, a tap opens their chips there (the 2026-11-11 review).
+  const [shapeOpen, setShapeOpen] = useState(false);
   // Their own key (Connections, After Dark pictures): its provider's models only, and its price.
   const ownKeyReady = Boolean(s.own_key.provider && s.own_key.allowed);
   const [ownKey, setOwnKey] = useState(false);
@@ -1045,8 +1047,6 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
               );
             })}
           </div>
-          <FormatChips value={format} onChange={setFormat} disabled={Boolean(busy)} />
-          {sizeChips}
           {/* The model, folded (the 2026-11-11 review): its name on the line; open when the one picked can't run. */}
           <details className="ad-studio-advanced" open={!picked || !usable(picked) || undefined}>
             <summary className="small">
@@ -1056,8 +1056,24 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
               <label>Model {modelSelect(editModels, picked?.id ?? "", setEditModel, "Model", (m) => m.price)}</label>
             </div>
           </details>
+          {/* Stuck to the bottom: the level, the shape and how many (their chips open above, in the bar), and Shoot. */}
           <div className="ad-studio-go is-main">
+            <div className="ad-studio-shape" id="ad-shoot-shape" hidden={!shapeOpen}>
+              <FormatChips value={format} onChange={setFormat} disabled={Boolean(busy)} />
+              {sizeChips}
+            </div>
             <span className="badge">{LEVEL_LABEL[level]}</span>
+            <button
+              type="button"
+              className="chip ad-studio-shape-toggle"
+              aria-expanded={shapeOpen}
+              aria-controls="ad-shoot-shape"
+              title="The shape and how many pictures"
+              onClick={() => setShapeOpen((v) => !v)}
+            >
+              <span className="ad-studio-shape-word">{FORMATS.find((f) => f.id === format)?.label} </span>
+              {FORMATS.find((f) => f.id === format)?.ratio} · {size} {shapeOpen ? "▴" : "▾"}
+            </button>
             <button
               type="button"
               className="primary"

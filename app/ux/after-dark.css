@@ -2071,6 +2071,23 @@ button.ad-studio-fold-head:active:not(:disabled) {
   border-top: 1px solid var(--ad-line);
   background: var(--ad-bg);
 }
+/* The shape and how many ride in the bar: their chips take a row above the level and Shoot when opened. */
+.ad-studio-go.is-main .ad-studio-shape {
+  display: grid;
+  flex-basis: 100%;
+  gap: var(--space-2);
+}
+.ad-studio-go.is-main .ad-studio-shape[hidden] {
+  display: none;
+}
+.ad-studio-go.is-main .ad-studio-shape > * {
+  margin: 0;
+}
+@media (max-width: 480px) {
+  .ad-studio-shape-word {
+    display: none;
+  }
+}
 
 /* Two pictures a row on a phone, not one tall column (the night page ran to 32,000 px). */
 @media (max-width: 600px) {
