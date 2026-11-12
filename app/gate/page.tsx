@@ -3,7 +3,7 @@ import AgeGate from "../AgeGate";
 import DateExcerpt from "../DateExcerpt";
 import { getDb } from "@/lib/db";
 import { episodeIdFrom, pickFeaturedDate, type FeaturedDate } from "@/lib/featured-date";
-import { getEpisodeView, listAiredPage } from "@/lib/game";
+import { getEpisodeView, listStandoutDates } from "@/lib/game";
 import { shared } from "@/lib/shared-cache";
 import { afterDarkOnly } from "@/lib/after-dark-host";
 
@@ -26,8 +26,9 @@ async function behindTheGate(from: string): Promise<{ date: FeaturedDate; target
       const date = episode ? pickFeaturedDate([episode]) : null;
       if (date) return { date, target: true };
     }
-    // The same shared copy as a signed-out home page's "Just aired" (app/page.tsx), so each warms the other.
-    const date = pickFeaturedDate((await shared("home:aired", () => listAiredPage(db, null, 1, 6))).episodes);
+    // The same shared copy as a signed-out home page's hero (app/page.tsx), so each warms the other: the week's
+    // best-rated dates, at their best moment.
+    const date = pickFeaturedDate(await shared("home:standout", () => listStandoutDates(db, null)), undefined, { best: true });
     return date ? { date, target: false } : null;
   } catch {
     return null;

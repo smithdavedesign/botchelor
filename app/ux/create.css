@@ -232,6 +232,25 @@
   margin-top: var(--space-2);
 }
 
+/* A first character's first date, straight away (lib/first-date.ts): their match's face, then one button. */
+.send-phase .send-first {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+  border-color: var(--accent);
+}
+.send-phase .send-first-meta {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.send-phase .send-first-meta p {
+  margin: 0;
+}
+.send-phase .send-first-meta > button {
+  justify-self: start;
+}
+
 /* Date settings, in the send sheet (app/DateConfirm.tsx, rendered into <body>, so not under .send-phase): one column
    of fields. */
 .send-settings {
