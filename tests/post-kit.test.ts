@@ -47,7 +47,9 @@ describe("the post kit (TikTok / Reels / Shorts)", () => {
     // The vote's couple rotates daily and is rarely this clip's (2026-11-11 bounce review): never promise "their" date.
     expect(caption).not.toMatch(/tomorrow's date/i);
     expect(caption).toContain("one of the show's dates");
-    expect(cardHtml("end", { e: date, base: "https://botchelor.com", hook: "", reveal: revealFor(date) })).not.toMatch(/tomorrow's date/i);
+    const end = cardHtml("end", { e: date, base: "https://botchelor.com", hook: "", reveal: revealFor(date) });
+    expect(end).not.toMatch(/tomorrow's date/i);
+    expect(end).toContain("The audience picks what happens next<br>botchelor.com/vote"); // two short lines: the pill wrapped raggedly before
     expect(caption.trim().split("\n").at(-1)).toMatch(/^#botchelor .* #anime$/);
   });
 
