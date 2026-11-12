@@ -5,6 +5,8 @@
  * reports. Private, unlisted, unaired and hidden things are never listed.
  */
 import type { Metadata, MetadataRoute } from "next";
+import { ALTERNATIVES, alternativePath } from "./alternatives";
+import { indexablePromptTags, promptTagPath } from "./prompts-library";
 import { closedSeasons } from "./season-ref";
 import { readName, shipPath } from "./ship-names";
 import { formatPrice, PACK_5 } from "./catalog";
@@ -58,8 +60,13 @@ export function pageMetadata({
 const POLICY_PATHS: ReadonlySet<string> = new Set(["/terms", "/privacy", "/content-policy", "/report", "/cancel", "/2257", "/safety", "/security", "/accessibility"]);
 const PRIORITY: Record<string, number> = { "/": 1, "/create": 0.9, "/watch": 0.9, "/agents": 0.8, "/characters": 0.7 };
 
+/** The search landings beside PUBLIC_PATHS: the other /alternatives pages and the prompt tag pages (2026-11-11). */
+export function landingPaths(): string[] {
+  return [...ALTERNATIVES.filter((a) => !(PUBLIC_PATHS as readonly string[]).includes(alternativePath(a.slug))).map((a) => alternativePath(a.slug)), ...indexablePromptTags().map((t) => promptTagPath(t.id))];
+}
+
 export function staticSitemap(base: string = siteUrl()): MetadataRoute.Sitemap {
-  return [...PUBLIC_PATHS, "/feed.xml"].map((path) => ({
+  return [...PUBLIC_PATHS, ...landingPaths(), "/feed.xml"].map((path) => ({
     url: `${base}${path}`,
     changeFrequency: POLICY_PATHS.has(path) ? "monthly" : "daily",
     priority: PRIORITY[path] ?? 0.5,

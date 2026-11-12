@@ -21,7 +21,7 @@ import ShopPage from "@/app/shop/page";
 import sitemap from "@/app/sitemap";
 import TermsPage from "@/app/terms/page";
 import { setDbForTests, type Db } from "@/lib/db";
-import { SHARE_IMAGE, siteJsonLd, siteOffers } from "@/lib/seo";
+import { landingPaths, SHARE_IMAGE, siteJsonLd, siteOffers } from "@/lib/seo";
 import { PUBLIC_PATHS } from "@/lib/site";
 
 afterEach(() => {
@@ -184,8 +184,8 @@ describe("robots.txt and sitemap.xml", () => {
     setDbForTests(down);
     try {
       const urls = (await sitemap()).map((entry) => entry.url);
-      // Plus the RSS feed (app/feed.xml/route.ts): a route, not a page, so it has no metadata of its own.
-      expect(urls).toEqual([...PUBLIC_PATHS, "/feed.xml"].map((path) => `https://botchelor.com${path}`));
+      // Plus the search landings (lib/seo.ts landingPaths) and the RSS feed (app/feed.xml/route.ts, a route, not a page).
+      expect(urls).toEqual([...PUBLIC_PATHS, ...landingPaths(), "/feed.xml"].map((path) => `https://botchelor.com${path}`));
       expect(urls).toEqual(expect.arrayContaining(["https://botchelor.com/privacy", "https://botchelor.com/terms", "https://botchelor.com/shop"]));
     } finally {
       setDbForTests(null);

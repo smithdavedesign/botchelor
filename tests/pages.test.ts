@@ -11,7 +11,7 @@ import { GET as llmGet } from "@/app/llm.txt/route";
 import { GET as schemaGet } from "@/app/character.schema.json/route";
 import { characterSchema, llmsText } from "@/lib/agents";
 import BuyButton from "@/app/shop/BuyButton";
-import { staticSitemap } from "@/lib/seo";
+import { landingPaths, staticSitemap } from "@/lib/seo";
 import TermsPage from "@/app/terms/page";
 import { siteUrl } from "@/lib/site";
 
@@ -128,7 +128,8 @@ describe("launch checks: robots.txt, sitemap and og:image", () => {
         "/accessibility",
         "/newsletter",
         "/seasons",
-              // Plus the RSS feed (app/feed.xml/route.ts): a route, not a page.
+        // Plus the search landings (lib/seo.ts landingPaths) and the RSS feed (app/feed.xml/route.ts, a route, not a page).
+        ...landingPaths(),
         "/feed.xml",
       ].map(
         (p) => `https://botchelor.vercel.app${p}`,

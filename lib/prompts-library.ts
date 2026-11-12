@@ -142,3 +142,15 @@ export function findPrompts({ query = "", source = null, tag = null, showNsfw = 
     return words.every((w) => text.includes(w));
   });
 }
+
+/** A tag gets a page of its own (app/prompts/tag/[id]) from this many prompts: enough to be worth a search result. */
+export const TAG_PAGE_MIN = 50;
+/** The tag page's address. */
+export const promptTagPath = (id: string): string => `/prompts/tag/${encodeURIComponent(id)}`;
+/**
+ * The tags that get a page of their own (the 2026-11-11 growth plan: 2,000 prompts sat on one address): the PG ones
+ * with at least TAG_PAGE_MIN prompts, in catalog order. Pure.
+ */
+export function indexablePromptTags(min = TAG_PAGE_MIN, all: readonly LibraryPrompt[] = ALL_PROMPTS): (PromptTag & { count: number })[] {
+  return tagCounts(false, all).filter((t) => !t.nsfw && t.count >= min);
+}
