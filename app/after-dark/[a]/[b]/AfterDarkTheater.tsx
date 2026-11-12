@@ -899,8 +899,6 @@ export default function AfterDarkTheater({
               {/* #1099 (the 2026-10-31-1329 visitor: "the small 📜 icon. Its meaning is unlabeled"): a word beside it. */}
               📜 <span className="theater-icon-word">Story</span>
             </button>
-            {/* Who writes the lines (David, 2026-10-25: "the writer drop down as a logo in the theatre mode"). */}
-            {live && writer && <WriterPicker initial={writer} icon />}
             {!waiting && (
             <CaptureMenu
               a={a.id}
@@ -915,10 +913,14 @@ export default function AfterDarkTheater({
             )}
             {steps && (
               <div className={`ad-tools-more${tools ? " open" : ""}`}>
-                <button type="button" className="theater-icon ad-tools-toggle" aria-expanded={tools} aria-label="More tools" title="Rewind, redo, start over" onClick={() => setTools((v) => !v)}>
+                <button type="button" className="theater-icon ad-tools-toggle" aria-expanded={tools} aria-label="More tools" title="Who writes the lines, rewind, redo, end the night and more" onClick={() => setTools((v) => !v)}>
                   ⋯
                 </button>
                 <div className="ad-tools-items ad-tools-steps">
+                  {/* Who writes the lines (David, 2026-10-25: "the writer drop down as a logo in the theatre mode"), first in ⋯
+                      since the design review (2026-11-11): it's picked once a night, and the top bar keeps the in-the-moment
+                      tools. The hub (/after-dark) still has it as a card. */}
+                  {live && writer && <WriterPicker initial={writer} icon inMenu />}
                   <button type="button" className="button-ghost small" disabled={busy || !steps.canRewind} onClick={() => (setTools(false), steps.onRewind())} title={steps.canRewind ? "Take the last step back: its lines, and where the scene was" : "Nothing to rewind yet"}>
                     ↺ Rewind
                   </button>
