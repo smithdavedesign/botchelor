@@ -9716,6 +9716,18 @@ a.phone-head-btn {
   border-bottom-color: var(--night-hot);
   font-weight: 700;
 }
+/* A phone: the six tabs (📸 Shoot … ✨ Create, #1500) wrap to two rows rather than hide half of them off the side. */
+@media (max-width: 600px) {
+  .ad-studio-tabs {
+    flex-wrap: wrap;
+    overflow-x: visible;
+    gap: 0;
+  }
+  .ad-studio-tabs button {
+    padding: var(--space-2);
+    font-size: var(--text-sm);
+  }
+}
 .ad-studio-group {
   border: 0;
   margin: 0 0 var(--space-3);
