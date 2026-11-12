@@ -48,6 +48,7 @@ const PAGES: Record<(typeof PUBLIC_PATHS)[number] | "/legal", () => Promise<Meta
   "/reunion": meta(() => import("@/app/reunion/page")),
   "/graph": meta(() => import("@/app/graph/page")),
   "/casting": meta(() => import("@/app/casting/page")),
+  "/seasons": meta(() => import("@/app/seasons/page")),
   "/characters": meta(() => import("@/app/characters/page")),
   "/characters?tab=people": meta(() => import("@/app/characters/page"), { tab: "people" }),
   "/characters?tab=agents": meta(() => import("@/app/characters/page"), { tab: "agents" }),
@@ -183,7 +184,8 @@ describe("robots.txt and sitemap.xml", () => {
     setDbForTests(down);
     try {
       const urls = (await sitemap()).map((entry) => entry.url);
-      expect(urls).toEqual(PUBLIC_PATHS.map((path) => `https://botchelor.com${path}`));
+      // Plus the RSS feed (app/feed.xml/route.ts): a route, not a page, so it has no metadata of its own.
+      expect(urls).toEqual([...PUBLIC_PATHS, "/feed.xml"].map((path) => `https://botchelor.com${path}`));
       expect(urls).toEqual(expect.arrayContaining(["https://botchelor.com/privacy", "https://botchelor.com/terms", "https://botchelor.com/shop"]));
     } finally {
       setDbForTests(null);

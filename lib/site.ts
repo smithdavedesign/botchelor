@@ -84,4 +84,6 @@ export const PUBLIC_PATHS = [
   "/accessibility",
   // The Sunday letter's sign-up (lib/newsletter.ts).
   "/newsletter",
+  // Every closed season's finale, one page (app/seasons/page.tsx).
+  "/seasons",
 ] as const;

@@ -27,6 +27,8 @@ import { siblingEpisode } from "@/lib/group-dates";
 import { mixerNightOf } from "@/lib/mixer-night";
 import { getDealbreakerQuiz, getSurprise } from "@/lib/mechanics";
 import { getProfileName } from "@/lib/people";
+import { seasonRef } from "@/lib/season-ref";
+import { seasonIdOf } from "@/lib/season-window";
 import { DATE_ACTS, dateLabel, dateNumberOf, DRAMA_QUESTION_LABELS, dramaAnswerLabel, endingLabel, endingWithDetail, HIDDEN_EPISODE_MESSAGE } from "@/lib/rules";
 import { formatLabel } from "@/lib/formats";
 import { venuePhrase, venueBackdropCss, venueName } from "@/lib/venues";
@@ -362,6 +364,8 @@ export default async function EpisodePage({
   const hasTheater = Boolean(episode.ending && episode.transcript && episode.transcript.length > 0);
   // Which date this is for the couple: a happy ending on their third date reads "A fourth date", never "A second date".
   const dateNo = dateNumberOf(episode);
+  // Which monthly season the date aired in (lib/season-ref.ts), for the TVEpisode markup; none before the seasons began.
+  const season = episode.aired_at ? (({ number, label, path }) => (number > 0 ? { number, label, path } : null))(seasonRef(seasonIdOf(new Date(episode.aired_at)))) : null;
   const squash = (t: string | null | undefined) => (t ?? "").replace(/\s+/g, " ").trim().toLowerCase();
   // The title card (docs/show-style.md): the episode's code and title once it airs. Older aired episodes have no
   // stored title, so the $0 template stands in; an unaired episode shows none (the setting is the tease).
@@ -376,7 +380,12 @@ export default async function EpisodePage({
         <JsonLd
           data={[{
             "@context": "https://schema.org",
-            "@type": "CreativeWork",
+            // A TVEpisode too (2026-11-11 growth plan): a date is an episode of a show with seasons; no VideoObject,
+            // since there is no video file to point at.
+            "@type": ["CreativeWork", "TVEpisode"],
+            partOfSeries: { "@type": "TVSeries", name: "Botchelor", url: `${base}/watch` },
+            ...(season ? { partOfSeason: { "@type": "TVSeason", name: season.label, seasonNumber: season.number, url: `${base}${season.path}` } } : {}),
+            ...(episode.aired_at ? { datePublished: episode.aired_at } : {}),
             name: `${a.name} × ${b.name}`,
             headline: `${a.name} × ${b.name}: an AI blind date`,
             description: episode.setting,

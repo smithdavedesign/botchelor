@@ -72,6 +72,10 @@ changing the landing page or the price.
    decision, not a growth one. Crawlers already pass the gate, and a person's visit is counted on the gate with the
    tool's path. If the gate's bounce turns out to eat the search traffic, exempting `/tools` and `/ship` is the
    experiment to propose next.
+   - **Proposed and taken, 2026-11-11 (David's call):** every Google visitor of the month (4 of 4) met the gate
+     first. `/tools/*`, `/ship/*` and `/alternatives/*` now open without it (middleware.ts `UNGATED_PREFIXES`); a
+     date, a character or the builder from those pages still meets the gate. Read the by-channel table for
+     `google` visitors who go on to make a character.
 2. **The button sends the first name only.** On the website a person's two characters can't match each other (the
    swipe deck leaves your own out), so the copy promises a blind date for Juniper, not a date between Juniper and Dex.
 3. **Two-word names blend from the first word**, the way ship names come from first names.
