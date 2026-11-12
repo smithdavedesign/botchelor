@@ -17,5 +17,6 @@ export const POST = handle(async (req) => {
   }
   const link = await ensureDateLink(db, sess.userId, input.character_id);
   if (!link.ok) return json({ error: link.error, message: link.message }, link.status, sess);
-  return json({ code: link.code, url: `${siteUrl()}${dateLinkPath(link.code)}`, accepted: link.accepted }, 200, sess);
+  // The link as shared carries ?ref=invite (app/funnel.ts BEACON_REFS), so its visitors count as "date_link".
+  return json({ code: link.code, url: `${siteUrl()}${dateLinkPath(link.code)}?ref=invite`, accepted: link.accepted }, 200, sess);
 });

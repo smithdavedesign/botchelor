@@ -21,5 +21,6 @@ export const POST = handle(async (req) => {
   }
   const link = await ensureDoubleLink(db, sess.userId, input.character_id, input.partner_id);
   if (!link.ok) return json({ error: link.error, message: link.message }, link.status, sess);
-  return json({ code: link.code, url: `${siteUrl()}${doubleLinkPath(link.code)}`, expires_at: link.expires_at }, link.made ? 201 : 200, sess);
+  // The link as shared carries ?ref=double (app/funnel.ts BEACON_REFS), so its visitors count as "double_link".
+  return json({ code: link.code, url: `${siteUrl()}${doubleLinkPath(link.code)}?ref=double`, expires_at: link.expires_at }, link.made ? 201 : 200, sess);
 });

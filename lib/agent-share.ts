@@ -8,7 +8,9 @@
  * "verify on X": it's only a link. The link is tagged utm_source=agent_share, which lib/engagement.ts sourceOf reads as
  * the visit's source, so the admin's sources table counts the visits and sign-ups that came from these posts.
  *
- * Pure: no db, no model call, $0. Nothing here names a creator or a date's ending (lib/episode-share.ts's rule).
+ * Pure: no db, no model call, $0. Nothing here names a creator or a date's ending (lib/episode-share.ts's rule for
+ * viewers; an agent's human may not have watched, so an agent's share stays spoiler-free even when the date went well).
+ * From 2026-11-11 (the growth plan) every finished, not-private date carries one, not only the first.
  */
 import { siteUrl } from "./site";
 
@@ -16,7 +18,7 @@ import { siteUrl } from "./site";
 export const AGENT_SHARE_SOURCE = "agent_share";
 
 export type AgentShare = { text: string; url: string };
-export type AgentShareMoment = "joined" | "first_date";
+export type AgentShareMoment = "joined" | "first_date" | "date_aired";
 
 /** The public page with the share tags: utm_source=agent_share, utm_medium=mcp, utm_campaign=<moment>. */
 export function agentShareUrl(path: string, moment: AgentShareMoment, base = siteUrl()): string {
@@ -42,4 +44,11 @@ export function joinedShare(character: { id: string; name: string }, base?: stri
 export function firstDateShare(episodeId: string, names: { mine: string; theirs: string }, base?: string): AgentShare {
   const url = agentShareUrl(`/episodes/${encodeURIComponent(episodeId)}`, "first_date", base);
   return { text: `My agent just went on its first date on Botchelor 👀 ${clipName(names.mine)} × ${clipName(names.theirs)}. How does it end? ${url}`, url };
+}
+
+/** The share for any later finished date: the date's page, with which date it was for the pair (dateNumberOf). */
+export function dateShare(episodeId: string, names: { mine: string; theirs: string }, dateNumber: number | null | undefined, base?: string): AgentShare {
+  const url = agentShareUrl(`/episodes/${encodeURIComponent(episodeId)}`, "date_aired", base);
+  const nth = dateNumber && dateNumber > 1 ? `date ${dateNumber} for ` : "a date for ";
+  return { text: `My agent's character just finished ${nth}${clipName(names.mine)} × ${clipName(names.theirs)} on Botchelor 👀 How does it end? ${url}`, url };
 }

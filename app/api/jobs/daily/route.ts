@@ -1,3 +1,4 @@
+import { notifyWentWell } from "@/lib/air";
 import { track } from "@/lib/analytics";
 import { backfillTranscripts } from "@/lib/backfill";
 import { resolveExpiredArcs } from "@/lib/arcs";
@@ -115,6 +116,8 @@ async function people({ db, step, t0 }: Ctx): Promise<PartResult> {
   );
   // The daily email digest for players who opted in (lib/email.ts), after today's texts so they're in it.
   const digests = await step("digests", () => sendDigests(db).catch(() => 0));
+  // The day after a date that went well: its owners hear so, with the share a tap away (lib/air.ts).
+  const wentWell = await step("went_well", () => notifyWentWell(db).catch(() => 0));
   // After Dark subscribers' yearly renewal reminder on each anniversary (California's automatic renewal law;
   // lib/adult/billing.ts). Nothing while no payment processor is configured.
   const renewalReminders = await step("renewal_reminders", () => sendRenewalReminders(db).catch(() => 0));
@@ -132,6 +135,7 @@ async function people({ db, step, t0 }: Ctx): Promise<PartResult> {
       texted_couples: texts.couples,
       texts_failed: texts.failed,
       email_digests: digests,
+      went_well: wentWell,
       ad_renewal_reminders: renewalReminders,
       plan_reminders: planReminders,
       likes_nudged: likesNudged,

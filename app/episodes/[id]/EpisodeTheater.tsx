@@ -12,6 +12,7 @@ import type { Turn } from "@/lib/conversation";
 import type { CharacterRef } from "@/lib/game";
 import { placeAt, type PlaceId } from "@/lib/venues";
 import CharacterName from "@/app/CharacterName";
+import ShareEnding from "./ShareEnding";
 
 type Props = {
   /** For the 👍/👎 on each line (lib/line-feedback.ts): line i is transcript[i], and playback shows them from the top. */
@@ -71,7 +72,7 @@ function Playback({ episodeId, characters, venue, transcript, endingLabel, justF
   useEffect(() => {
     if (!replay.done || watched.current) return;
     watched.current = true;
-    queueEvent("date_watched", { just_filmed: Boolean(justFilmed) });
+    queueEvent("date_watched", { via: "theater", just_filmed: Boolean(justFilmed) });
   }, [replay.done, justFilmed]);
   const shown = replay.shown;
   const [a, b] = characters;
@@ -141,6 +142,8 @@ function Playback({ episodeId, characters, venue, transcript, endingLabel, justF
                 Watch again
               </button>
             </p>
+            {/* The share where the feeling is (2026-11-11 growth plan): spoiler-free, like every viewer's share. */}
+            <ShareEnding episodeId={episodeId} names={[a.name, b.name]} kind="viewer" />
           </div>
         )}
       </div>

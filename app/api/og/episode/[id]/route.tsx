@@ -3,7 +3,7 @@ import { markedImageResponse } from "@/lib/ai-mark";
 import { avatarGradientCss, avatarPalette, initials } from "@/lib/avatar";
 import { approvedPortraitDataUrl } from "@/lib/assets";
 import { getDb } from "@/lib/db";
-import { SHARE_QUESTION } from "@/lib/episode-share";
+import { ENDING_CARD, endingCardAllowed, SHARE_QUESTION, wentWellTitle } from "@/lib/episode-share";
 import { getEpisodeView, type EpisodeView } from "@/lib/game";
 import { handle, json } from "@/lib/http";
 import { dateNumberOf, endingLabel, ENDINGS, POINTS_PER_CORRECT_PICK } from "@/lib/rules";
@@ -31,15 +31,21 @@ const CACHE = "public, max-age=600, s-maxage=3600, stale-while-revalidate=86400"
  * the finale airs, and it never names a creator: the characters are the headline. It doesn't mark the ending after the
  * finale either, since a preview is for people who haven't watched. Unknown, private and hidden (reported) episodes
  * are a 404, so nobody can unfurl one.
+ *
+ * One variant, David's call (2026-11-11 growth plan): `?card=ending` draws "They both want a second date", for an
+ * OWNER's share of a date that went well (lib/episode-share.ts ownerSharedPath). It's drawn only once the date has
+ * aired and ended in a second date (endingCardAllowed); any other date with `?card=ending` gets the usual card, so a
+ * typed address can't spoil anything.
  */
-export const GET = handle(async (_req: Request, ctx: { params: Promise<{ id: string }> }) => {
+export const GET = handle(async (req: Request, ctx: { params: Promise<{ id: string }> }) => {
   const { id } = await ctx.params;
   const db = await getDb();
   const episode = await getEpisodeView(db, id, null);
   if (!episode || episode.hidden) return json({ error: "episode_not_found" }, 404);
+  const wentWell = new URL(req.url).searchParams.get("card") === ENDING_CARD && endingCardAllowed(episode);
   // An OC's approved portrait when it has one, else the gradient tile (a failed read just means the tile).
   const portraits = await Promise.all(episode.characters.map((c) => approvedPortraitDataUrl(db, c.id).catch(() => null)));
-  const card = new ImageResponse(<EpisodeCard episode={episode} portraits={portraits} />, { ...SIZE, headers: { "cache-control": CACHE } });
+  const card = new ImageResponse(<EpisodeCard episode={episode} portraits={portraits} wentWell={wentWell} />, { ...SIZE, headers: { "cache-control": CACHE } });
   // A card with a generated portrait in it is marked AI-generated, in its PNG's XMP and its headers (lib/ai-mark.ts).
   return portraits.some(Boolean) ? markedImageResponse(card) : card;
 });
@@ -72,13 +78,17 @@ function Tile({ character, portrait }: { character: Character; portrait: string 
   );
 }
 
-function EpisodeCard({ episode, portraits }: { episode: EpisodeView; portraits: (string | null)[] }) {
+function EpisodeCard({ episode, portraits, wentWell = false }: { episode: EpisodeView; portraits: (string | null)[]; wentWell?: boolean }) {
   const [a, b] = episode.characters;
   const names = `${a.name} × ${b.name}`;
   const namesSize = names.length > 44 ? 38 : names.length > 30 ? 46 : 56;
-  const footer = episode.revealed
-    ? "The finale has aired. Make your guess, then watch how it went."
-    : `Pick one before the finale airs: a right guess earns ${POINTS_PER_CORRECT_PICK} points.`;
+  const footer = wentWell
+    ? "Their owner shared the good news. Watch how it happened, then send a character of your own."
+    : episode.revealed
+      ? "The finale has aired. Make your guess, then watch how it went."
+      : `Pick one before the finale airs: a right guess earns ${POINTS_PER_CORRECT_PICK} points.`;
+  const headline = wentWell ? wentWellTitle([a.name, b.name], dateNumberOf(episode)) : SHARE_QUESTION;
+  const headlineSize = headline.length > 44 ? 50 : 76;
   return (
     <div
       style={{
@@ -106,9 +116,9 @@ function EpisodeCard({ episode, portraits }: { episode: EpisodeView; portraits: 
           {episode.venue && <div style={{ display: "flex", fontSize: 28, color: MUTED, marginTop: 8 }}>{venueName(episode.venue)}</div>}
         </div>
       </div>
-      <div style={{ display: "flex", fontSize: 76, fontWeight: 800, marginTop: 36, letterSpacing: -1 }}>{SHARE_QUESTION}</div>
+      <div style={{ display: "flex", fontSize: headlineSize, fontWeight: 800, marginTop: 36, letterSpacing: -1, lineHeight: 1.1 }}>{headline}</div>
       <div style={{ display: "flex", marginTop: 22 }}>
-        {ENDINGS.map((ending) => (
+        {(wentWell ? [] : ENDINGS).map((ending) => (
           <div
             key={ending}
             style={{
