@@ -209,6 +209,18 @@ async function main() {
     const tab = (name) => page.getByRole("tab", { name, exact: true }).click();
     // The legend's own name, not any legend that mentions it ("Filthy: one act, in place of a pose" isn't Pose).
     const group = (legend) => page.locator("fieldset.ad-studio-group", { has: page.locator("legend", { hasText: new RegExp(`^\\s*${legend}`) }) });
+    // The Shoot tab's sections fold to one row each, their pick on the right (the 2026-11-11 Studio review): open one first.
+    const foldHead = (title) => page.locator("button.ad-studio-fold-head", { has: page.locator("strong", { hasText: new RegExp(`^\\s*${title}`) }) });
+    const fold = async (title) => {
+      const head = foldHead(title);
+      if ((await head.getAttribute("aria-expanded")) !== "true") await head.click();
+      return group(title);
+    };
+    // A gallery tile's ⋯: everything but ⭐, 👍/👎 and 🩹 Fix lives in it (the same review).
+    const openMore = async (item) => {
+      const more = item.locator("details.ad-tile-more").first();
+      if (!(await more.evaluate((d) => d.open))) await more.locator("summary").click();
+    };
     const note = () => page.locator(".ad-studio-main > [role=status], .ad-studio-main > [role=alert]").first();
     const noteText = async () => ((await note().count()) ? (await note().innerText()).trim() : "");
     /**
@@ -249,9 +261,14 @@ async function main() {
       await page.getByRole("tab", { name: "Shoot" }).click();
 
       await step(`${size}: Shoot: picking a chip turns it on, and again turns it off`, async () => {
-        const chip = group("Pose").getByRole("button").first();
+        assert((await page.locator("fieldset.ad-studio-fold-body").count()) === 0, "a Shoot section is open before any was tapped");
+        const chip = (await fold("Pose")).getByRole("button").first();
+        const label = (await chip.innerText()).trim();
         await chip.click();
         assert((await chip.getAttribute("aria-pressed")) === "true", "the chip didn't turn on");
+        // The folded row says what's picked.
+        const summary = (await foldHead("Pose").locator(".muted").innerText()).trim();
+        assert(summary.includes(label), `the Pose row says "${summary}", not "${label}"`);
         await chip.click();
         assert((await chip.getAttribute("aria-pressed")) === "false", "the chip didn't turn off");
         await chip.click();
@@ -296,7 +313,9 @@ async function main() {
         await row.waitFor({ timeout: 10_000 });
         await row.getByRole("button", { name: "Use", exact: true }).click();
         assert((await page.getByRole("tab", { name: "Shoot", exact: true }).getAttribute("aria-selected")) === "true", "Use didn't open Shoot");
-        assert((await group("Pose").locator('button[aria-pressed="true"]').count()) === 1, "the setup's pose isn't picked");
+        assert((await (await fold("Pose")).locator('button[aria-pressed="true"]').count()) === 1, "the setup's pose isn't picked");
+        // Shoot lists it too, to load in one tap.
+        assert((await page.locator(".ad-studio-setups-quick").getByRole("button", { name: `Shoot setup ${size}`, exact: true }).count()) === 1, "Shoot doesn't list the saved setup");
         await tab("Setups");
         const del = row.getByRole("button", { name: /^delete$/i });
         assert((await del.count()) > 0, "no Delete on a setup");
@@ -370,19 +389,23 @@ async function main() {
         await tab("Gallery");
         const item = galleryItem("e2e-shot-1");
         await item.waitFor({ timeout: 10_000 });
+        await openMore(item);
         // Already her face after the first pass: then it says so instead of offering it.
         const useFace = item.getByRole("button", { name: "Use this face", exact: true });
         if (await useFace.count()) {
           const face = await act(useFace.first());
           assert(face.status === 200, `use this face: HTTP ${face.status}, "${face.note}"`);
         } else assert((await item.getByText("The face", { exact: true }).count()) > 0, "neither Use this face nor The face");
+        await openMore(item);
         const body = item.getByRole("button", { name: "Use as body", exact: true });
         if (await body.count()) {
           const b = await act(body.first());
           assert(b.status === 200, `use as body: HTTP ${b.status}, "${b.note}"`);
         }
+        await openMore(item);
         const more = await act(item.locator("button", { hasText: /^(More like this|Drawing…)$/ }).first());
         assert(more.status === 200 && /picture/.test(more.note), `more like this: HTTP ${more.status}, "${more.note}"`);
+        await openMore(item);
         const up = item.getByRole("button", { name: /^Upscale/ }).first();
         if (await up.isEnabled()) {
           const u = await act(up);
@@ -392,6 +415,7 @@ async function main() {
 
       await step(`${size}: Gallery: Share sends a picture to someone she's dated, and Take back undoes it`, async () => {
         const item = galleryItem("e2e-shot-2");
+        await openMore(item);
         await item.getByRole("button", { name: "Share…" }).click();
         const panel = item.locator(".ad-studio-share");
         await panel.waitFor({ timeout: 10_000 });
@@ -407,6 +431,7 @@ async function main() {
 
       await step(`${size}: Gallery: Animate starts a clip (one at a time)`, async () => {
         const item = galleryItem("e2e-shot-1");
+        await openMore(item);
         const anim = item.getByRole("button", { name: "Animate…" });
         if (await anim.isDisabled()) return; // already one being made, from the desktop pass
         await anim.click();
