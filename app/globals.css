@@ -8803,10 +8803,28 @@ a.phone-head-btn {
 .looks-chips {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: var(--space-2);
   list-style: none;
   margin: var(--space-2) 0;
   padding: 0;
+}
+/* The summary's chips: the picks (buttons) and the age (a span) the same height on one line, no button margin. */
+.looks-chips .chip {
+  display: inline-flex;
+  align-items: center;
+  margin: 0;
+  min-height: 32px;
+  padding: 0.3rem 0.75rem;
+}
+/* Work clothes: their job, asked on the summary when it's picked. */
+.looks-job {
+  display: grid;
+  gap: var(--space-1);
+  margin: var(--space-3) 0;
+}
+.looks-tile-sub {
+  font-weight: 400;
 }
 /* The finer details (lib/looks.ts LOOK_DETAILS): a row of chip toggles per detail, on the look's summary. */
 .looks-details {

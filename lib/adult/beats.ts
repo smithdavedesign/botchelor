@@ -556,7 +556,7 @@ type Worn = { worn: string; guessed: boolean };
  */
 function looksOutfits(people: readonly [Character, Character], owner: string, publicPlace: boolean): [Worn, Worn] {
   return people.map((c) => {
-    const p = looksPictureWords(c.extras?.looks, c.ownerId === owner);
+    const p = looksPictureWords(c.extras?.looks, c.ownerId === owner, c.extras?.occupation);
     const own = publicPlace ? p.everyday : (p.outfit ?? p.everyday);
     return { worn: own ?? everydayOf(c), guessed: !(own ?? ownClothes(c)) };
   }) as [Worn, Worn];

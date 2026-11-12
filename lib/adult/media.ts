@@ -234,7 +234,7 @@ export function physicalLook(c: Character, undressed = false): string {
  * A character built in the looks builder (lib/looks.ts) is drawn from every pick, its outfit included until they
  * undress; the private After Dark picks only in a picture its owner (`viewer`) makes.
  */
-const picks = (c: Character, viewer?: string | null) => looksPictureWords(c.extras?.looks, Boolean(viewer) && c.ownerId === viewer);
+const picks = (c: Character, viewer?: string | null) => looksPictureWords(c.extras?.looks, Boolean(viewer) && c.ownerId === viewer, c.extras?.occupation);
 
 /**
  * How a picture describes a character's look: their looks-builder picks when they have them, else physicalLook.

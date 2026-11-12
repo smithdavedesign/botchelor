@@ -216,7 +216,7 @@ export function shootLimits(identity: Pick<Identity, "intensity" | "hard_nos">, 
 
 /** Who a picture shows: the noun, the age, the look's words (the looks builder's picks, else their sheet's), the outfit. */
 export function subjectOf(c: Character, viewer: string, undressed: boolean): Subject {
-  const picks = looksPictureWords(c.extras?.looks, c.ownerId === viewer);
+  const picks = looksPictureWords(c.extras?.looks, c.ownerId === viewer, c.extras?.occupation);
   return { noun: nounOf(c), age: c.age, look: picks.body || physicalLook(c, undressed), outfit: picks.outfit };
 }
 
