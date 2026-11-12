@@ -1980,6 +1980,83 @@ input.ad-next-words {
   gap: var(--space-1);
   align-items: center;
 }
+/* The Studio's ⋯ (app/after-dark/studio/[id]/Studio.tsx): the same tools as before, in three labelled rows. */
+.ad-studio-more {
+  margin-top: var(--space-2);
+}
+.ad-tile-groups {
+  display: grid;
+  gap: var(--space-3);
+}
+.ad-tile-group {
+  display: grid;
+  gap: var(--space-1);
+}
+/* The Studio's Shoot sections: one row each with its pick on the right, one open at a time (the PG Studio's .pg-group). */
+.ad-studio-folds {
+  display: grid;
+  gap: var(--space-2);
+  margin: var(--space-3) 0;
+}
+.ad-studio-fold {
+  border: 1px solid var(--ad-line);
+  border-radius: var(--radius-sm);
+  background: var(--ad-card);
+  overflow: hidden;
+}
+button.ad-studio-fold-head {
+  display: flex;
+  width: 100%;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+button.ad-studio-fold-head:hover:not(:disabled),
+button.ad-studio-fold-head:active:not(:disabled) {
+  transform: none;
+  box-shadow: none;
+  background: var(--soft);
+}
+.ad-studio-fold-head .muted {
+  max-width: 60%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+}
+.ad-studio-fold-body {
+  margin: 0;
+  padding: 0 var(--space-4) var(--space-3);
+}
+/* Settings folded to one line: the own-key switch above the tabs, the model under Shoot. */
+.ad-studio-advanced > summary {
+  cursor: pointer;
+  color: var(--ad-muted);
+}
+.ad-studio-advanced[open] > summary {
+  margin-bottom: var(--space-1);
+}
+/* Shoot stays in reach at the bottom of the screen while the menus scroll, on every screen (was full screen only). */
+.ad-studio-go.is-main {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  margin-bottom: 0;
+  padding: var(--space-2) 0;
+  border-top: 1px solid var(--ad-line);
+  background: var(--ad-bg);
+}
+
 /* Two pictures a row on a phone, not one tall column (the night page ran to 32,000 px). */
 @media (max-width: 600px) {
   .after-dark-mode .after-dark-gallery {

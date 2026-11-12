@@ -134,6 +134,9 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
     if (fresh && fresh.pictures.length > 0) freshRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, [fresh]);
   const [choices, setChoices] = useState<ShootChoices>({});
+  // The Shoot tab's sections fold to one row each, its pick on the right (the PG Studio's way; the 2026-11-11 Studio review:
+  // nine open groups ran a phone to 4,400 px before the Shoot button). One open at a time; all closed to start.
+  const [openGroup, setOpenGroup] = useState<string | null>(null);
   // Their own key (Connections, After Dark pictures): its provider's models only, and its price.
   const ownKeyReady = Boolean(s.own_key.provider && s.own_key.allowed);
   const [ownKey, setOwnKey] = useState(false);
@@ -377,6 +380,19 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
     }
   }
 
+  /** The setups that load on Shoot (Together ones load on their own tab). */
+  const shootSetups = s.setups.filter((x) => x.kind === "shoot");
+  /** A folded Shoot section's line: what's picked and their own words, else "any" (or why it's shut). */
+  const foldSummary = (g: StudioState["menu"][number]): string => {
+    const ids = g.multi > 1 ? (choices.accessories ?? []) : [choices[g.id as Exclude<GroupId, "accessories">]].filter((x): x is string => Boolean(x));
+    const all: { id: string; label: string }[] = g.id === "place" ? [...s.places.map((p) => ({ id: p.id, label: `${p.label} (theirs)` })), ...g.options] : g.options;
+    const words = choices.extra?.[g.id]?.trim();
+    const parts = [...ids.map((id) => all.find((o) => o.id === id)?.label ?? ""), words ? `“${words}”` : ""].filter(Boolean);
+    if (parts.length) return parts.join(", ");
+    if (g.id === "filthy" && s.identity.intensity !== "filthy") return `locked at ${INTENSITY[s.identity.intensity].label}`;
+    return g.multi > 1 ? `up to ${g.multi}` : "any";
+  };
+
   /** "Use this face": the existing face route (lib/adult/steering.ts), with the others it was picked from. */
   async function useFace(imageId: string, rivals: string[] = []) {
     setBusy(`face:${imageId}`);
@@ -483,6 +499,9 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
         const to = s.share_to.find((x) => x.character_id === open?.to);
         const video = p.kind === "video";
         const anim = animating?.image === p.id ? animating : null;
+        // A picture of them alone (More like this, Carousel, Upscale, face, body and Share are solo-only), and one that can move.
+        const solo = !two && !video;
+        const canAnimate = !video && s.motions.length > 0 && !onOwn;
         return (
           <li key={p.id} className={`card ad-studio-item${sel.has(p.id) ? " picked" : ""}`}>
             {admin && (
@@ -509,8 +528,6 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
             {(p.partner || !p.studio) && (
               <p className="small muted ad-studio-item-from">{[p.partner ? `With ${p.partner.name.split(/\s+/)[0]}` : "", p.studio ? "" : "from a date"].filter(Boolean).join(" · ")}</p>
             )}
-            {/* What it shows, for their dates and the storyboard (lib/adult/media-tags.ts): 📌 and the tags. */}
-            <MediaTags id={p.id} pinned={p.date_pin} />
             {opts.shootLike && two && !video && (
               <div className="ad-studio-item-tools">
                 <button type="button" className={`small ${pairPick.reference === p.id ? "secondary" : "button-ghost"}`} disabled={Boolean(busy)} onClick={() => opts.shootLike!(p)} title="The next shoot together is posed, framed and placed like this picture">
@@ -518,12 +535,11 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
                 </button>
               </div>
             )}
-            {/* ⬇ Download and ✍️ captions in their voice; a tick while picking pictures to export (app/studio/TileTools.tsx). */}
-            <TileTools id={p.id} api={AFTER_DARK_API} selecting={sel.selecting} selected={sel.has(p.id)} onToggle={() => sel.toggle(p.id)} />
+            {/* Picking pictures to export: the tick stays on the tile (app/studio/TileTools.tsx). */}
+            {sel.selecting && <TileTools id={p.id} api={AFTER_DARK_API} selecting selected={sel.has(p.id)} onToggle={() => sel.toggle(p.id)} />}
+            {/* On the tile: ⭐, 👍/👎 and 🩹 Fix (the answer to a 👎), and whether it's their face or body. */}
             <div className="ad-studio-item-tools">
               <FavoriteStar id={p.id} on={p.favorite} onChange={() => void refresh()} />
-              {/* 📣 On the creator showcase (lib/showcase.ts), under their handle. */}
-              <PublishButton source="after_dark" mediaId={p.id} post={p.post ?? null} />
               <RateMedia
                 id={p.id}
                 kind={p.kind}
@@ -532,112 +548,121 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
                 // 🩹 Fix (lib/adult/fix.ts): repair, faces, a change or undressed; bolder once they say what's off.
                 extra={(r) =>
                   p.kind === "scene" && (
-                    <>
-                      <FixButton
-                        id={p.id}
-                        src={media}
-                        label={two ? "The picture of them" : `The picture of ${first}`}
-                        onAdded={() => void refresh()}
-                        onKept={() => void refresh()}
-                        nudge={fixNudge(r.rating, r.tags)}
-                        said={r.rating === -1 ? r.tags : []}
-                      />
-                      {/* 👕 The same picture safe for work (lib/adult/sfw-twin.ts). */}
-                      <SfwTwin id={p.id} price={admin ? "free for admins" : tokens(s.prices.sfw_twin)} onAdded={() => void refresh()} />
-                    </>
+                    <FixButton
+                      id={p.id}
+                      src={media}
+                      label={two ? "The picture of them" : `The picture of ${first}`}
+                      onAdded={() => void refresh()}
+                      onKept={() => void refresh()}
+                      nudge={fixNudge(r.rating, r.tags)}
+                      said={r.rating === -1 ? r.tags : []}
+                    />
                   )
                 }
               />
-              {!two && !video &&
-                (s.identity.face === p.id ? (
-                  <span className="badge">The face</span>
-                ) : (
-                  <button type="button" className="button-ghost small" disabled={Boolean(busy)} onClick={() => void useFace(p.id, opts.rivals?.filter((r) => r !== p.id) ?? [])}>
-                    Use this face
-                  </button>
-                ))}
-              {!two &&
-                !video &&
-                (s.identity.body === p.id ? (
-                  <span className="badge">The body</span>
-                ) : (
-                  p.kind === "scene" && (
-                    <button type="button" className="button-ghost small" disabled={Boolean(busy)} onClick={() => void act(`body:${p.id}`, { action: "use_body", character_id: c.id, image_id: p.id })}>
-                      Use as body
-                    </button>
-                  )
-                ))}
+              {!two && !video && s.identity.face === p.id && <span className="badge">The face</span>}
+              {!two && !video && s.identity.body === p.id && <span className="badge">The body</span>}
             </div>
-            {!two && !video && (
-              <div className="ad-studio-item-tools">
-                <button
-                  type="button"
-                  className="button-ghost small"
-                  disabled={Boolean(busy) || !picked || !usable(picked)}
-                  title={`${s.sizes.shoot} more like this one, ${tokens(price(s.prices.variations))}`}
-                  onClick={() => void act(`more:${p.id}`, { action: "variations", character_id: c.id, image_id: p.id, model: picked?.id, ...own }, { title: "More like this" })}
-                >
-                  {busy === `more:${p.id}` ? "Drawing…" : "More like this"}
-                </button>
-                <button
-                  type="button"
-                  className="button-ghost small"
-                  disabled={Boolean(busy) || !picked || !usable(picked)}
-                  title={`This very moment from six angles, a set to post together (the feed's 4:5 unless you picked another shape), ${tokens(price(s.prices.carousel))}`}
-                  onClick={() => void act(`carousel:${p.id}`, { action: "carousel", character_id: c.id, image_id: p.id, model: picked?.id, format: format === "portrait" ? "feed" : format, ...own }, { title: "A carousel" })}
-                >
-                  {busy === `carousel:${p.id}` ? "Drawing six angles…" : "🎠 Carousel"}
-                </button>
-                {(!onOwn || s.own_key.provider === "venice") && (
-                  <button
-                    type="button"
-                    className="button-ghost small"
-                    disabled={Boolean(busy) || s.upscale.left === 0}
-                    title={`${s.upscale.scale}× larger, ${tokens(price(s.prices.upscale))}${s.upscale.left === null ? "" : `, ${s.upscale.left} left this month`}`}
-                    onClick={() => void act(`up:${p.id}`, { action: "upscale", character_id: c.id, image_id: p.id, ...own }, { title: "Upscaled" })}
-                  >
-                    {busy === `up:${p.id}` ? "Upscaling…" : `Upscale ${s.upscale.scale}×`}
-                  </button>
-                )}
-                {s.motions.length > 0 && !onOwn && (
-                  <button
-                    type="button"
-                    className="button-ghost small"
-                    aria-expanded={Boolean(anim)}
-                    disabled={Boolean(busy) || making > 0}
-                    title={making ? "One is being animated: one at a time" : "A 5 or 10 second clip of this picture"}
-                    onClick={() => setAnimating(anim ? null : { image: p.id, motion: s.motions[0].id, seconds: 5 })}
-                  >
-                    Animate…
-                  </button>
-                )}
-                {s.share_to.length > 0 && (s.share.after_dark || s.share.photos) && (
-                  <button
-                    type="button"
-                    className="button-ghost small"
-                    aria-expanded={Boolean(open)}
-                    disabled={Boolean(busy)}
-                    onClick={() => setSharing(open ? null : { image: p.id, to: s.share_to[0].character_id, kind: s.share.after_dark && !s.share_to[0].agent ? "after_dark" : "photo" })}
-                  >
-                    Share…
-                  </button>
-                )}
-              </div>
-            )}
-            {/* A pair picture can be animated too (keeps both of them); More-like-this and Upscale stay solo-only. */}
-            {two && !video && s.motions.length > 0 && !onOwn && (
-              <div className="ad-studio-item-tools">
-                <button
-                  type="button"
-                  className="button-ghost small"
-                  aria-expanded={Boolean(anim)}
-                  disabled={Boolean(busy) || making > 0}
-                  title={making ? "One is being animated: one at a time" : "A 5 or 10 second clip of the two of them"}
-                  onClick={() => setAnimating(anim ? null : { image: p.id, motion: s.motions[0].id, seconds: 5 })}
-                >
-                  Animate…
-                </button>
-              </div>
+            {/* Everything else a picture can do, in one ⋯ (the night gallery's way, SceneWriter.tsx; the 2026-11-11 Studio
+                review: sixteen buttons under every picture, taller than the picture). Nothing went: three labelled rows. */}
+            {!sel.selecting && (
+              <details className="ad-tile-more ad-studio-more">
+                <summary title="More like this, animate, use as their face, publish, share, download">⋯</summary>
+                <div className="ad-tile-groups">
+                  {(solo || canAnimate || p.kind === "scene") && (
+                    <div className="ad-tile-group" role="group" aria-label="Make more">
+                      <span className="muted small">Make more</span>
+                      <div className="ad-tile-menu">
+                        {solo && (
+                          <>
+                            <button
+                              type="button"
+                              className="button-ghost small"
+                              disabled={Boolean(busy) || !picked || !usable(picked)}
+                              title={`${s.sizes.shoot} more like this one, ${tokens(price(s.prices.variations))}`}
+                              onClick={() => void act(`more:${p.id}`, { action: "variations", character_id: c.id, image_id: p.id, model: picked?.id, ...own }, { title: "More like this" })}
+                            >
+                              {busy === `more:${p.id}` ? "Drawing…" : "More like this"}
+                            </button>
+                            <button
+                              type="button"
+                              className="button-ghost small"
+                              disabled={Boolean(busy) || !picked || !usable(picked)}
+                              title={`This very moment from six angles, a set to post together (the feed's 4:5 unless you picked another shape), ${tokens(price(s.prices.carousel))}`}
+                              onClick={() => void act(`carousel:${p.id}`, { action: "carousel", character_id: c.id, image_id: p.id, model: picked?.id, format: format === "portrait" ? "feed" : format, ...own }, { title: "A carousel" })}
+                            >
+                              {busy === `carousel:${p.id}` ? "Drawing six angles…" : "🎠 Carousel"}
+                            </button>
+                            {(!onOwn || s.own_key.provider === "venice") && (
+                              <button
+                                type="button"
+                                className="button-ghost small"
+                                disabled={Boolean(busy) || s.upscale.left === 0}
+                                title={`${s.upscale.scale}× larger, ${tokens(price(s.prices.upscale))}${s.upscale.left === null ? "" : `, ${s.upscale.left} left this month`}`}
+                                onClick={() => void act(`up:${p.id}`, { action: "upscale", character_id: c.id, image_id: p.id, ...own }, { title: "Upscaled" })}
+                              >
+                                {busy === `up:${p.id}` ? "Upscaling…" : `Upscale ${s.upscale.scale}×`}
+                              </button>
+                            )}
+                          </>
+                        )}
+                        {/* A pair picture can be animated too (keeps both of them); More-like-this and Upscale stay solo-only. */}
+                        {canAnimate && (
+                          <button
+                            type="button"
+                            className="button-ghost small"
+                            aria-expanded={Boolean(anim)}
+                            disabled={Boolean(busy) || making > 0}
+                            title={making ? "One is being animated: one at a time" : two ? "A 5 or 10 second clip of the two of them" : "A 5 or 10 second clip of this picture"}
+                            onClick={() => setAnimating(anim ? null : { image: p.id, motion: s.motions[0].id, seconds: 5 })}
+                          >
+                            Animate…
+                          </button>
+                        )}
+                        {/* 👕 The same picture safe for work (lib/adult/sfw-twin.ts). */}
+                        {p.kind === "scene" && <SfwTwin id={p.id} price={admin ? "free for admins" : tokens(s.prices.sfw_twin)} onAdded={() => void refresh()} />}
+                      </div>
+                    </div>
+                  )}
+                  <div className="ad-tile-group" role="group" aria-label="Use it">
+                    <span className="muted small">Use it</span>
+                    <div className="ad-tile-menu">
+                      {solo && s.identity.face !== p.id && (
+                        <button type="button" className="button-ghost small" disabled={Boolean(busy)} onClick={() => void useFace(p.id, opts.rivals?.filter((r) => r !== p.id) ?? [])}>
+                          Use this face
+                        </button>
+                      )}
+                      {solo && s.identity.body !== p.id && p.kind === "scene" && (
+                        <button type="button" className="button-ghost small" disabled={Boolean(busy)} onClick={() => void act(`body:${p.id}`, { action: "use_body", character_id: c.id, image_id: p.id })}>
+                          Use as body
+                        </button>
+                      )}
+                    </div>
+                    {/* What it shows, for their dates and the storyboard (lib/adult/media-tags.ts): 📌 and the tags. */}
+                    <MediaTags id={p.id} pinned={p.date_pin} />
+                  </div>
+                  <div className="ad-tile-group" role="group" aria-label="Share it">
+                    <span className="muted small">Share it</span>
+                    <div className="ad-tile-menu">
+                      {/* 📣 On the creator showcase (lib/showcase.ts), under their handle. */}
+                      <PublishButton source="after_dark" mediaId={p.id} post={p.post ?? null} />
+                      {solo && s.share_to.length > 0 && (s.share.after_dark || s.share.photos) && (
+                        <button
+                          type="button"
+                          className="button-ghost small"
+                          aria-expanded={Boolean(open)}
+                          disabled={Boolean(busy)}
+                          onClick={() => setSharing(open ? null : { image: p.id, to: s.share_to[0].character_id, kind: s.share.after_dark && !s.share_to[0].agent ? "after_dark" : "photo" })}
+                        >
+                          Share…
+                        </button>
+                      )}
+                    </div>
+                    {/* ⬇ Download and ✍️ captions in their voice (app/studio/TileTools.tsx). */}
+                    <TileTools id={p.id} api={AFTER_DARK_API} selecting={false} selected={false} onToggle={() => sel.toggle(p.id)} />
+                  </div>
+                </div>
+              </details>
             )}
             {/* One of their Studio animations: ▶▶ Keep going from its last frame, and its chain as one film (AnimationChain.tsx). */}
             {video && s.animation_links?.[p.id] && !onOwn && (
@@ -849,7 +874,12 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
         it&apos;s kept.
       </p>
       {s.own_key.provider && (
-        <div className="ad-studio-own">
+        // Folded to one line (the 2026-11-11 Studio review): it applies on every tab, so it stays above them, but closed
+        // until wanted; open when it's on or has something to say.
+        <details className="ad-studio-own ad-studio-advanced" open={onOwn || Boolean(s.own_key.problem) || undefined}>
+          <summary className="small">
+            Your own {PROVIDER_LABEL[s.own_key.provider]} key: <strong>{onOwn ? "on" : "off"}</strong>
+          </summary>
           <label className="ad-check-row">
             <input
               type="checkbox"
@@ -872,7 +902,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
               {s.own_key.problem} <a href="/account/keys">Connections</a>
             </p>
           )}
-        </div>
+        </details>
       )}
       <nav className="ad-studio-tabs" role="tablist" aria-label="Studio">
         {TABS.map((t) => (
@@ -902,57 +932,25 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
       {tab === "shoot" && (
         <div className="ad-studio-panel">
           {presetStrip}
-          {s.menu.map((g) => (
-            <fieldset key={g.id} className="ad-studio-group">
-              <legend>
-                {g.title}
-                {g.multi > 1 ? <span className="muted small"> (up to {g.multi})</span> : null}
-                {g.id === "filthy" ? <span className="muted small"> 🔞 one act, in place of a pose</span> : null}
-              </legend>
-              {g.id === "filthy" && s.identity.intensity !== "filthy" && (
-                <p className="muted small">
-                  Locked at {INTENSITY[s.identity.intensity].label}.{" "}
-                  <button type="button" className="linklike" disabled={Boolean(busy)} onClick={() => void act("limits", { action: "limits", character_id: c.id, intensity: "filthy" })}>
-                    Set {first}&apos;s studio intensity to Filthy
-                  </button>
-                </p>
-              )}
-              <div className={g.options.some((o) => tileOf(`shoot.${g.id}.${o.id}`)) ? "ad-tile-row" : "ad-chip-row"}>
-                {(g.id === "place" ? [...s.places.map((p) => ({ id: p.id, label: `${p.label} (theirs)`, level: 0 as Level, public: p.public, locked: null })), ...g.options] : g.options).map((o) => {
-                  const on = g.multi > 1 ? (choices.accessories ?? []).includes(o.id) : choices[g.id as Exclude<GroupId, "accessories">] === o.id;
-                  const key = `shoot.${g.id}.${o.id}`;
-                  return (
-                    <button
-                      key={o.id}
-                      type="button"
-                      className={`${tileOf(key) ? "ad-tile" : "ad-chip"}${on ? " on" : ""}`}
-                      aria-pressed={on}
-                      disabled={Boolean(o.locked) || Boolean(busy)}
-                      title={o.locked ?? (o.level ? LEVEL_LABEL[o.level] : undefined)}
-                      onClick={() => pick(g.id, o.id, g.multi)}
-                    >
-                      {/* A locked option's picture isn't shown: its label says why it's shut. */}
-                      {o.locked ? null : tileImg(key)}
-                      <span className="ad-tile-label">
-                        {o.label}
-                        {o.level >= 2 ? " 🔞" : ""}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-              {/* The owner's own words for this one section, on top of the tiles (lib/adult/studio-catalog.ts extra). */}
-              <input
-                className="ad-studio-own"
-                type="text"
-                maxLength={EXTRA_MAX}
-                value={choices.extra?.[g.id] ?? ""}
-                placeholder={`…or add your own ${g.title.toLowerCase()}`}
-                disabled={Boolean(busy)}
-                onChange={(e) => setExtra(g.id, e.target.value)}
-              />
-            </fieldset>
-          ))}
+          {/* Their limits shut some options below; they're set on Identity, so here they're one line (the 2026-11-11 review). */}
+          <p className="muted small ad-studio-limits">
+            Their limits: {INTENSITY[s.identity.intensity].label}
+            {s.identity.hard_nos.length ? ` · ${s.identity.hard_nos.length} hard no${s.identity.hard_nos.length === 1 ? "" : "s"}` : ""}.{" "}
+            <button type="button" className="linklike" onClick={() => setTab("identity")}>
+              change
+            </button>
+          </p>
+          {/* A saved setup loads in one tap here too (the Setups tab keeps Shoot it, Use and delete). */}
+          {shootSetups.length > 0 && (
+            <p className="create-ideas ad-studio-setups-quick">
+              <span className="muted small">Your setups:</span>
+              {shootSetups.map((x) => (
+                <button key={x.id} type="button" className="chip" disabled={Boolean(busy)} title="Load these choices" onClick={() => loadSetup(x)}>
+                  {x.name}
+                </button>
+              ))}
+            </p>
+          )}
           <fieldset className="ad-studio-group">
             <legend>
               Your own words <span className="muted small">— this leads the picture, so what you ask for actually happens</span>
@@ -982,10 +980,83 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
             )}
             <input className="ad-studio-own" type="text" maxLength={DIALOG_MAX} value={choices.dialog ?? ""} placeholder="Dialog — a short line for a speech bubble (optional; how it reads depends on the model)" disabled={Boolean(busy)} onChange={(e) => setDialog(e.target.value)} />
           </fieldset>
+          <div className="ad-studio-folds">
+            {s.menu.map((g) => {
+              const isOpen = openGroup === g.id;
+              return (
+                <div key={g.id} className={`ad-studio-fold${isOpen ? " open" : ""}`}>
+                  <button type="button" className="ad-studio-fold-head" aria-expanded={isOpen} aria-controls={`ad-fold-${g.id}`} onClick={() => setOpenGroup(isOpen ? null : g.id)}>
+                    <strong>
+                      {g.title}
+                      {g.id === "filthy" ? " 🔞" : ""}
+                    </strong>
+                    <span className="muted small">{foldSummary(g)}</span>
+                  </button>
+                  {isOpen && (
+                    <fieldset id={`ad-fold-${g.id}`} className="ad-studio-group ad-studio-fold-body">
+                      <legend className="sr-only">{g.title}</legend>
+                      {g.multi > 1 ? <p className="muted small">Up to {g.multi}.</p> : null}
+                      {g.id === "filthy" ? <p className="muted small">🔞 One act, in place of a pose.</p> : null}
+                      {g.id === "filthy" && s.identity.intensity !== "filthy" && (
+                        <p className="muted small">
+                          Locked at {INTENSITY[s.identity.intensity].label}.{" "}
+                          <button type="button" className="linklike" disabled={Boolean(busy)} onClick={() => void act("limits", { action: "limits", character_id: c.id, intensity: "filthy" })}>
+                            Set {first}&apos;s studio intensity to Filthy
+                          </button>
+                        </p>
+                      )}
+                      <div className={g.options.some((o) => tileOf(`shoot.${g.id}.${o.id}`)) ? "ad-tile-row" : "ad-chip-row"}>
+                        {(g.id === "place" ? [...s.places.map((p) => ({ id: p.id, label: `${p.label} (theirs)`, level: 0 as Level, public: p.public, locked: null })), ...g.options] : g.options).map((o) => {
+                          const on = g.multi > 1 ? (choices.accessories ?? []).includes(o.id) : choices[g.id as Exclude<GroupId, "accessories">] === o.id;
+                          const key = `shoot.${g.id}.${o.id}`;
+                          return (
+                            <button
+                              key={o.id}
+                              type="button"
+                              className={`${tileOf(key) ? "ad-tile" : "ad-chip"}${on ? " on" : ""}`}
+                              aria-pressed={on}
+                              disabled={Boolean(o.locked) || Boolean(busy)}
+                              title={o.locked ?? (o.level ? LEVEL_LABEL[o.level] : undefined)}
+                              onClick={() => pick(g.id, o.id, g.multi)}
+                            >
+                              {/* A locked option's picture isn't shown: its label says why it's shut. */}
+                              {o.locked ? null : tileImg(key)}
+                              <span className="ad-tile-label">
+                                {o.label}
+                                {o.level >= 2 ? " 🔞" : ""}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {/* The owner's own words for this one section, on top of the tiles (lib/adult/studio-catalog.ts extra). */}
+                      <input
+                        className="ad-studio-own"
+                        type="text"
+                        maxLength={EXTRA_MAX}
+                        value={choices.extra?.[g.id] ?? ""}
+                        placeholder={`…or add your own ${g.title.toLowerCase()}`}
+                        disabled={Boolean(busy)}
+                        onChange={(e) => setExtra(g.id, e.target.value)}
+                      />
+                    </fieldset>
+                  )}
+                </div>
+              );
+            })}
+          </div>
           <FormatChips value={format} onChange={setFormat} disabled={Boolean(busy)} />
           {sizeChips}
+          {/* The model, folded (the 2026-11-11 review): its name on the line; open when the one picked can't run. */}
+          <details className="ad-studio-advanced" open={!picked || !usable(picked) || undefined}>
+            <summary className="small">
+              Model: <strong>{picked?.label ?? "none ready"}</strong>
+            </summary>
+            <div className="ad-studio-go">
+              <label>Model {modelSelect(editModels, picked?.id ?? "", setEditModel, "Model", (m) => m.price)}</label>
+            </div>
+          </details>
           <div className="ad-studio-go is-main">
-            <label>Model {modelSelect(editModels, picked?.id ?? "", setEditModel, "Model", (m) => m.price)}</label>
             <span className="badge">{LEVEL_LABEL[level]}</span>
             <button
               type="button"
