@@ -734,7 +734,8 @@ export async function recentAgentTwins(
   const since = Date.now() - hours * 3_600_000;
   const twins = all
     .filter((x) => x.kind === "concept" && x.row.agent && Date.parse(x.row.made_at) >= since)
-    .map((x) => ({ id: x.id, name: x.name, why: x.why, shared: x.shared, made_at: x.row.made_at }));
+    // #1498: the shared terms as this sheet wrote them ("meticulous", not the stem "meticulou"), as the twin's why does.
+    .map((x) => ({ id: x.id, name: x.name, why: x.why, shared: [...new Set(x.shared.map((t) => asWritten(t, sheet)))], made_at: x.row.made_at }));
   // The idea several share: the shared concept the most twins have in common (a phrase over a single word on a tie).
   const counts = new Map<string, number>();
   for (const t of twins) for (const term of new Set(t.shared)) counts.set(term, (counts.get(term) ?? 0) + 1);

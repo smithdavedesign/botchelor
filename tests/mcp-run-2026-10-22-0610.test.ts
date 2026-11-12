@@ -522,6 +522,19 @@ describe("6. #655: the look-alike check finds a same-hook twin made minutes earl
     const flagged = house.flatMap((x, i) => house.slice(i + 1).flatMap((y) => (twinWhy(x, y, conceptTerms(x), conceptTerms(y), weight) ? [`${x.name} × ${y.name}`] : [])));
     expect(flagged).toEqual([]);
   });
+
+  it("#1498: the look-alike notice names shared ideas as the sheet wrote them, never a stem ('meticulou')", async () => {
+    const one = await connect();
+    expect((await call("create_character", { ...ODALYS, traits: ["meticulous", "dry", "wistful"], name: "Odalys Merriweather" }, one)).isError).toBeUndefined();
+    const two = await connect();
+    const sheet = { ...THADDEUS, traits: ["meticulous", "tender", "superstitious"], name: "Ludovic Brannock" };
+    const check = (await call("create_character", { ...sheet, check_only: true }, two)).structuredContent;
+    const written = new Set(JSON.stringify(sheet).toLowerCase().split(/[^a-z']+/));
+    const named = [check.shared_archetype.idea, ...check.look_alikes.flatMap((l: Any) => l.both ?? [])] as string[];
+    expect(named.length).toBeGreaterThan(1);
+    for (const term of named) for (const word of term.split(" ")) expect(written).toContain(word);
+    expect(JSON.stringify(check)).not.toMatch(/meticulou\b|\b(?:tide tabl|barometer collectin)\b/);
+  });
 });
 
 describe("7. how an ending is made, said before booking", () => {
