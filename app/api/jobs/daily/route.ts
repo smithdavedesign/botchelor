@@ -1,5 +1,6 @@
 import { notifyWentWell } from "@/lib/air";
 import { track } from "@/lib/analytics";
+import { nudgeQuietWeek } from "@/lib/reengage";
 import { backfillTranscripts } from "@/lib/backfill";
 import { resolveExpiredArcs } from "@/lib/arcs";
 import { settleDueBackings } from "@/lib/backing";
@@ -125,6 +126,8 @@ async function people({ db, step, t0 }: Ctx): Promise<PartResult> {
   const planReminders = await step("plan_reminders", () => sendPlanReminders(db).catch(() => 0));
   // "Likes waiting" (never who) to owners away a day whose characters don't answer for themselves (lib/away.ts).
   const likesNudged = await step("likes_nudged", () => nudgeLikesWaiting(db).catch(() => 0));
+  // A quiet week (lib/reengage.ts): the week's best date to opted-in people gone 7 days, once a month at most.
+  const weekBest = await step("week_best", () => nudgeQuietWeek(db).catch(() => 0));
   // The agent funnel's day-7 return (lib/agent-funnel): agents back 6-8 days after their first date.
   const day7 = await step("day7", () => markDay7Returns(db).catch(() => 0));
   // The house matchmaker (lib/house-matchmaker.ts): a few deterministic pair picks a day, both owners told why.
@@ -136,6 +139,7 @@ async function people({ db, step, t0 }: Ctx): Promise<PartResult> {
       texts_failed: texts.failed,
       email_digests: digests,
       went_well: wentWell,
+      week_best: weekBest,
       ad_renewal_reminders: renewalReminders,
       plan_reminders: planReminders,
       likes_nudged: likesNudged,

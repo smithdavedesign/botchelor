@@ -929,6 +929,11 @@ h2 {
   }
 }
 
+/* The companions' directory as a sub-link under Characters (app/Nav.tsx): phone menu only; above 900px it's a tab. */
+.nav-links a.nav-sub {
+  display: none;
+}
+
 /* Under 900px the links fold behind the menu button; the tools stay in the bar and the call to action moves into the menu. */
 @media (max-width: 900px) {
   .nav {
@@ -982,6 +987,13 @@ h2 {
   .nav-links a {
     padding: 0.7rem 0.9rem;
     font-size: var(--text-base);
+  }
+  .nav-links a.nav-sub {
+    display: block;
+    padding-block: var(--space-2);
+    padding-inline: var(--space-6) var(--space-4);
+    font-size: var(--text-sm);
+    color: var(--muted);
   }
   .nav a.nav-create,
   .nav a.nav-create:hover,
@@ -8791,10 +8803,28 @@ a.phone-head-btn {
 .looks-chips {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: var(--space-2);
   list-style: none;
   margin: var(--space-2) 0;
   padding: 0;
+}
+/* The summary's chips: the picks (buttons) and the age (a span) the same height on one line, no button margin. */
+.looks-chips .chip {
+  display: inline-flex;
+  align-items: center;
+  margin: 0;
+  min-height: 32px;
+  padding: 0.3rem 0.75rem;
+}
+/* Work clothes: their job, asked on the summary when it's picked. */
+.looks-job {
+  display: grid;
+  gap: var(--space-1);
+  margin: var(--space-3) 0;
+}
+.looks-tile-sub {
+  font-weight: 400;
 }
 /* The finer details (lib/looks.ts LOOK_DETAILS): a row of chip toggles per detail, on the look's summary. */
 .looks-details {

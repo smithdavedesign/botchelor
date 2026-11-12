@@ -27,6 +27,8 @@ import { siblingEpisode } from "@/lib/group-dates";
 import { mixerNightOf } from "@/lib/mixer-night";
 import { getDealbreakerQuiz, getSurprise } from "@/lib/mechanics";
 import { getProfileName } from "@/lib/people";
+import { seasonRef } from "@/lib/season-ref";
+import { seasonIdOf } from "@/lib/season-window";
 import { DATE_ACTS, dateLabel, dateNumberOf, DRAMA_QUESTION_LABELS, dramaAnswerLabel, endingLabel, endingWithDetail, HIDDEN_EPISODE_MESSAGE } from "@/lib/rules";
 import { formatLabel } from "@/lib/formats";
 import { venuePhrase, venueBackdropCss, venueName } from "@/lib/venues";
@@ -362,6 +364,8 @@ export default async function EpisodePage({
   const hasTheater = Boolean(episode.ending && episode.transcript && episode.transcript.length > 0);
   // Which date this is for the couple: a happy ending on their third date reads "A fourth date", never "A second date".
   const dateNo = dateNumberOf(episode);
+  // Which monthly season the date aired in (lib/season-ref.ts), for the TVEpisode markup; none before the seasons began.
+  const season = episode.aired_at ? (({ number, label, path }) => (number > 0 ? { number, label, path } : null))(seasonRef(seasonIdOf(new Date(episode.aired_at)))) : null;
   const squash = (t: string | null | undefined) => (t ?? "").replace(/\s+/g, " ").trim().toLowerCase();
   // The title card (docs/show-style.md): the episode's code and title once it airs. Older aired episodes have no
   // stored title, so the $0 template stands in; an unaired episode shows none (the setting is the tease).
@@ -376,7 +380,12 @@ export default async function EpisodePage({
         <JsonLd
           data={[{
             "@context": "https://schema.org",
-            "@type": "CreativeWork",
+            // A TVEpisode too (2026-11-11 growth plan): a date is an episode of a show with seasons; no VideoObject,
+            // since there is no video file to point at.
+            "@type": ["CreativeWork", "TVEpisode"],
+            partOfSeries: { "@type": "TVSeries", name: "Botchelor", url: `${base}/watch` },
+            ...(season ? { partOfSeason: { "@type": "TVSeason", name: season.label, seasonNumber: season.number, url: `${base}${season.path}` } } : {}),
+            ...(episode.aired_at ? { datePublished: episode.aired_at } : {}),
             name: `${a.name} × ${b.name}`,
             headline: `${a.name} × ${b.name}: an AI blind date`,
             description: episode.setting,
@@ -748,9 +757,21 @@ export default async function EpisodePage({
               </p>
             </aside>
           )}
-          {/* J3: a creator's finished date is when they want to hear what happens next (gone once notifications are on). */}
+          {/* J3: a creator's finished date is when they want to hear what happens next (gone once notifications are on).
+              Before it airs (2026-11-11 growth plan: push is live and nothing asked at the moment it matters), the same
+              row asks about the airing itself: date_aired already reaches push (lib/air.ts notifyOwnersAired). */}
           {episode.is_creator && episode.status === "ready" && push && (
-            <PushToggle publicKey={push.publicKey} prompt emailFallback title="Tell me when they text" body="They text each other after a date. Hear it as it happens, even with the site closed." />
+            <PushToggle
+              publicKey={push.publicKey}
+              prompt
+              emailFallback
+              title={episode.revealed ? "Tell me when they text" : "Tell me when it airs"}
+              body={
+                episode.revealed
+                  ? "They text each other after a date. Hear it as it happens, even with the site closed."
+                  : "One notification when their date is on the air, and when they text after it, even with the site closed."
+              }
+            />
           )}
           {/* After the date and how it ended (2026-11-07 audit, item 4: it asked "how did it go?" above the date itself). */}
           {talk.length > 0 && (

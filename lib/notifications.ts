@@ -31,6 +31,8 @@ export type NotificationKind =
   | "arc_resolved" // a prediction you made about a couple's arc came true (or didn't)
   | "date_aired" // a date with your character (or that you booked) aired: on its own once its window closed, or by someone else (lib/air.ts notifyOwnersAired, #1032)
   | "date_went_well" // the day after your character's date aired, when it ended in a second date: share it, or book the next (lib/air.ts notifyWentWell)
+  | "welcome" // the account's first notice: what to do here (lib/auth.ts, the 2026-11-11 growth plan)
+  | "week_best" // a quiet week: the best date of the week, once a month at most (lib/reengage.ts)
   | "prediction_scored" // a date you predicted aired: what your pick scored (lib/air.ts notifyPredictors, #851)
   | "partner_style" // your character settled one partner or more, or closed to dates because they're taken
   | "match_taken" // a character you matched went exclusive with someone else (one partner) and closed to other dates (#514)
@@ -435,4 +437,18 @@ export async function markRead(db: Db, userId: string, ids: string[] | "all", op
       ? await db.query(`update notifications set read_at = now() where user_id = $1 and read_at is null returning id`, [userId])
       : await db.query(`update notifications set read_at = now() where user_id = $1 and id = any($2) and read_at is null returning id`, [userId, ids]);
   return rows.length;
+}
+
+/**
+ * The account's first notice (the 2026-11-11 growth plan): what to do here, in the inbox from the first minute, and on
+ * push or in the digest where those are on. Email is opt-in, so there is no welcome email; this is the honest form.
+ * Called once, where an account is first made (lib/auth.ts registerAccount and a new loginWithGoogle).
+ */
+export async function welcome(db: Db, userId: string): Promise<void> {
+  await notify(db, userId, {
+    kind: "welcome",
+    title: "Welcome to Botchelor 👋",
+    body: "Make a character, send them on a date, and call how it ends. Your first dates are free.",
+    link: "/create",
+  });
 }

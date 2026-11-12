@@ -90,7 +90,7 @@ export const metadata: Metadata = {
   twitter: { card: "summary_large_image" },
   // Search Console / Bing Webmaster ownership meta tags, when their tokens are set (lib/tracking.ts).
   ...(TRACKING.verification ? { verification: TRACKING.verification } : {}),
-  alternates: { types: { "text/plain": "/llms.txt" } },
+  alternates: { types: { "text/plain": "/llms.txt", "application/rss+xml": "/feed.xml" } },
   robots: { index: true, follow: true, googleBot: { index: true, follow: true, "max-image-preview": "large", "max-snippet": -1 } },
 };
 
@@ -189,7 +189,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
               <span>After Dark</span>
             </span>
           )}
-          <Nav tokens={adHost && viewerId ? (adTokens ?? dates.pack_left) : dates.left} meter={adHost && viewerId ? "tokens" : "dates"} personal={Boolean(viewerId)} unread={unread} texts={texts} afterDark={afterDark} adHost={adHost} hasCharacter={hasCharacter} prefetchShow={!adHost} />
+          <Nav tokens={adHost && viewerId ? (adTokens ?? dates.pack_left) : dates.left} meter={adHost && viewerId ? "tokens" : "dates"} personal={Boolean(viewerId)} unread={unread} texts={texts} afterDark={afterDark} adHost={adHost} hasCharacter={hasCharacter} prefetchShow={!adHost} companions={companionOpen()} />
         </header>
         {/* The season's arc runs under the header on the show's spectator pages (the design system's all-screens board). */}
         {!adHost && (

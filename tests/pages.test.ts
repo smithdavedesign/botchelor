@@ -127,8 +127,10 @@ describe("launch checks: robots.txt, sitemap and og:image", () => {
         "/security",
         "/accessibility",
         "/newsletter",
-              // Plus the search landings (lib/seo.ts landingPaths): the other /alternatives pages and the prompt tag pages.
+        "/seasons",
+        // Plus the search landings (lib/seo.ts landingPaths) and the RSS feed (app/feed.xml/route.ts, a route, not a page).
         ...landingPaths(),
+        "/feed.xml",
       ].map(
         (p) => `https://botchelor.vercel.app${p}`,
       ),

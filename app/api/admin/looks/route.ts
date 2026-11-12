@@ -25,16 +25,17 @@ export const GET = handle(async (req: Request) => {
 
 /**
  * Owner-only: draws tiles not drawn yet, `limit` at a time (max 40). `variant` "pg" or "nsfw" narrows it; `only` names
- * tiles, and `set: "studio"` draws the Studio's menu tiles (lib/adult/studio-tiles.ts) instead. Each is drawn once: a refused tile stays refused, and a drawn one is never redrawn.
+ * tiles, and `set: "studio"` draws the Studio's menu tiles (lib/adult/studio-tiles.ts) instead. Each is drawn once: a refused tile stays refused, and a drawn one is never redrawn,
+ * unless `redraw: true` names them in `only` (a refused tile whose prompt changed, or a drawn one whose picture went missing).
  */
 export const POST = handle(async (req: Request) => {
   if (!(await authorized(req))) return denied();
-  const body = (await req.json().catch(() => ({}))) as { limit?: unknown; variant?: unknown; only?: unknown; set?: unknown };
+  const body = (await req.json().catch(() => ({}))) as { limit?: unknown; variant?: unknown; only?: unknown; set?: unknown; redraw?: unknown };
   const variant = body.variant === "pg" || body.variant === "nsfw" ? body.variant : undefined;
   const only = Array.isArray(body.only) ? body.only.filter((x): x is string => typeof x === "string").slice(0, 40) : undefined;
   const db = await getDb();
   // The Studio's menu tiles only when asked for by name (`set: "studio"`): a looks batch never spends on them.
-  const drawn = await drawMissingTiles(db, { limit: Number(body.limit) || 10, variant, only, set: body.set === "studio" ? "studio" : "looks" });
+  const drawn = await drawMissingTiles(db, { limit: Number(body.limit) || 10, variant, only, set: body.set === "studio" ? "studio" : "looks", redraw: body.redraw === true });
   // Hive over its daily limit (lib/adult/hive-limit.ts): nothing was drawn, and this says until when.
   const paused = await hivePausedUntil(db);
   return json({ drawn, ...(paused ? { paused: hivePausedMessage(paused) } : {}) });

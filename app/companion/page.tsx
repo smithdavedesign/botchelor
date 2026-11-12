@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import CharactersTabs from "@/app/characters/CharactersTabs";
 import PhoneActionBar from "@/app/PhoneActionBar";
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
@@ -60,6 +61,7 @@ export default async function CompanionsPage({ searchParams }: { searchParams?: 
     const left = allowance?.left ?? cap;
     return (
       <article className="companion-page page-wide">
+        <CharactersTabs current="companions" companions />
         <header>
           <p className="kicker">Companions</p>
           <h1>Talk with a character, one to one</h1>
@@ -92,6 +94,7 @@ export default async function CompanionsPage({ searchParams }: { searchParams?: 
     const { cast } = await listCompanions(db, "");
     return (
       <article className="companion-page page-wide">
+        <CharactersTabs current="companions" companions />
         <header>
           <p className="kicker">Companions</p>
           <h1>Talk with a character, one to one</h1>
@@ -122,6 +125,7 @@ export default async function CompanionsPage({ searchParams }: { searchParams?: 
   const [{ threads, yours, cast }, allowance] = await Promise.all([listCompanions(db, auth!.userId), companionAllowance(db, auth!.userId)]);
   return (
     <article className="companion-page page-wide">
+      <CharactersTabs current="companions" companions />
       <header>
         <p className="kicker">Companions</p>
         <h1>Talk with a character, one to one</h1>

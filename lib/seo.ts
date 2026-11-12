@@ -7,6 +7,8 @@
 import type { Metadata, MetadataRoute } from "next";
 import { ALTERNATIVES, alternativePath } from "./alternatives";
 import { indexablePromptTags, promptTagPath } from "./prompts-library";
+import { closedSeasons } from "./season-ref";
+import { readName, shipPath } from "./ship-names";
 import { formatPrice, PACK_5 } from "./catalog";
 import { BOILERPLATE, FOUNDER, socialLinks } from "./company";
 import { contactEmail } from "./legal-entity";
@@ -64,7 +66,7 @@ export function landingPaths(): string[] {
 }
 
 export function staticSitemap(base: string = siteUrl()): MetadataRoute.Sitemap {
-  return [...PUBLIC_PATHS, ...landingPaths()].map((path) => ({
+  return [...PUBLIC_PATHS, ...landingPaths(), "/feed.xml"].map((path) => ({
     url: `${base}${path}`,
     changeFrequency: POLICY_PATHS.has(path) ? "monthly" : "daily",
     priority: PRIORITY[path] ?? 0.5,
@@ -94,15 +96,33 @@ export async function contentSitemap(db: Db, base: string = siteUrl()): Promise<
       limit 20000`,
     [seasonCastIds()],
   );
-  // Couples whose dates have aired publicly (the relationship graph's public layer).
-  const couples = await db.query<{ a: string; b: string; at: Date | string | null }>(
-    `select character_a as a, character_b as b, public_last_at as at from relationships
-      where public_dates > 0 order by public_last_at desc nulls last limit 5000`,
+  // Couples whose dates have aired publicly (the relationship graph's public layer), with both names for their ship page.
+  const couples = await db.query<{ a: string; b: string; at: Date | string | null; name_a: string; name_b: string }>(
+    `select r.character_a as a, r.character_b as b, r.public_last_at as at, ca.name as name_a, cb.name as name_b
+       from relationships r join characters ca on ca.id = r.character_a join characters cb on cb.id = r.character_b
+      where r.public_dates > 0 order by r.public_last_at desc nulls last limit 5000`,
   );
+  // Creators with a handle (lib/showcase.ts) and at least one PG post: their page lists what they published.
+  const creators = await db.query<{ handle: string; at: Date | string }>(
+    `select cp.handle, cp.created_at as at from creator_profiles cp
+      where not cp.hidden and exists (select 1 from showcase_posts sp where sp.owner_id = cp.user_id and sp.rating = 'pg')
+      order by cp.created_at desc limit 5000`,
+  );
+  // The ship-name page of each aired couple (app/ship/[a]/[b]): a search landing that nothing else listed (2026-11-11).
+  const ships = couples.rows.flatMap((r) => {
+    const a = readName(r.name_a.split(/\s+/)[0] ?? "");
+    const b = readName(r.name_b.split(/\s+/)[0] ?? "");
+    return a && b && a.slug !== b.slug ? [{ url: `${base}${shipPath(a, b)}`, ...(r.at ? { lastModified: new Date(r.at) } : {}), changeFrequency: "monthly" as const, priority: 0.4 }] : [];
+  });
+  // Every closed season's finale (lib/season-ref.ts): the page never changes once the month ends.
+  const seasons = closedSeasons().map((s) => ({ url: `${base}${s.path}`, changeFrequency: "yearly" as const, priority: 0.6 }));
   return [
     ...characters.rows.map((r) => ({ url: `${base}/characters/${r.id}`, lastModified: new Date(r.at), changeFrequency: "weekly" as const, priority: 0.6 })),
     ...couples.rows.map((r) => ({ url: `${base}/couples/${r.a}/${r.b}`, ...(r.at ? { lastModified: new Date(r.at) } : {}), changeFrequency: "weekly" as const, priority: 0.5 })),
     ...episodes.rows.map((r) => ({ url: `${base}/episodes/${r.id}`, lastModified: new Date(r.at), changeFrequency: "monthly" as const, priority: 0.6 })),
+    ...seasons,
+    ...creators.rows.map((r) => ({ url: `${base}/creators/${r.handle}`, lastModified: new Date(r.at), changeFrequency: "weekly" as const, priority: 0.5 })),
+    ...ships,
   ];
 }
 

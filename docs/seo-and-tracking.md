@@ -61,3 +61,18 @@ choice is stored in the `bz_consent` cookie for a year and can be changed on /pr
 - **Custom Metrics** (`agent.doc_fetch`, `agent.referral_visit`) were emitted too; querying them needed Vercel
   Observability Plus (a paid add-on, the owner's call). They're Vercel-only, so off since 2026-10-30; the logs above
   carry the same numbers.
+
+## 2026-11-11: search plumbing that runs on its own
+
+- **Sitemap** (`lib/seo.ts`): every closed season (`/seasons/<slug>`), the `/seasons` index, creators with a handle
+  and a PG post (`/creators/<handle>`), each aired couple's ship page (`/ship/<a>/<b>`) and `/feed.xml` join the
+  episodes, characters and couples.
+- **IndexNow** (`lib/indexnow.ts`): couples whose latest public date aired since the last run, and a season the day
+  its finale closes, go out with the new episodes and characters.
+- **RSS**: `/feed.xml` (`app/feed.xml/route.ts`, `lib/rss.ts`) carries the newest 30 aired dates as teasers (never
+  the ending), each linking to the theater with `utm_source=rss`. The root layout announces it with
+  `alternates.types`.
+- **TVEpisode**: an aired public episode's JSON-LD is `["CreativeWork", "TVEpisode"]` with `partOfSeries` and the
+  monthly season as `partOfSeason`. No `VideoObject`: there is no video file to point at.
+- **The gate**: `/tools/*`, `/ship/*` and `/alternatives/*` open to a person without the 18+ cookie (GROWTH.md's
+  decision 1, taken on David's word). Everything they link to still meets it.

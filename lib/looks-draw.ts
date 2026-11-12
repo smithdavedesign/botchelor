@@ -198,8 +198,13 @@ export function setLooksPauseForTests(ms: number): void {
 export type TileSet = "looks" | "studio";
 const specsOf = (set: TileSet): TileSpec[] => (set === "studio" ? studioTileSpecs() : tileSpecs());
 
-export async function drawMissingTiles(db: Db, opts: { limit?: number; variant?: TileVariant; only?: string[]; set?: TileSet } = {}): Promise<{ id: string; status: string }[]> {
+export async function drawMissingTiles(
+  db: Db,
+  opts: { limit?: number; variant?: TileVariant; only?: string[]; set?: TileSet; redraw?: boolean } = {},
+): Promise<{ id: string; status: string }[]> {
   if (await hivePausedUntil(db)) return [];
+  // Redraw: only tiles named one by one, never a whole batch. Their rows go, so they're drawn afresh below.
+  if (opts.redraw && opts.only?.length) await db.query(`delete from look_tiles where id = any($1::text[]) and status <> 'drawing'`, [opts.only]);
   const done = new Set(
     (
       await db.query<{ id: string }>(
@@ -268,8 +273,8 @@ export type PortraitResult = { ok: true; asset_id: string } | { ok: false; statu
  * (Hive-screened generation from fixed option words, nothing typed). Capped per character and per day.
  */
 export async function drawLooksPortrait(db: Db, characterId: string, env: Record<string, string | undefined> = process.env): Promise<PortraitResult> {
-  const c = (await db.query<{ age: number; extras: { looks?: Looks; kind?: KindId } | null }>(`select age, extras from characters where id = $1`, [characterId])).rows[0];
-  const prompt = c?.extras?.looks ? looksPortraitPrompt(c.extras.looks, c.age, c.extras.kind) : null;
+  const c = (await db.query<{ age: number; extras: { looks?: Looks; kind?: KindId; occupation?: string } | null }>(`select age, extras from characters where id = $1`, [characterId])).rows[0];
+  const prompt = c?.extras?.looks ? looksPortraitPrompt(c.extras.looks, c.age, c.extras.kind, c.extras.occupation) : null;
   if (!prompt) return { ok: false, status: 400, error: "no_looks", message: "Pick their looks first (at least who they are), then draw a portrait." };
   const used = await db.query<{ mine: number; today: number }>(
     `select count(*) filter (where character_id = $1)::int as mine,
