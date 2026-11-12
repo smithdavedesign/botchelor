@@ -322,6 +322,13 @@ async function main() {
         assert(/new picture/.test(said), `after shooting: "${said}"`);
       });
       if (size === "phone") await step("phone: Shoot: no sideways scroll", () => noSideways("the Shoot tab"));
+      if (size === "phone")
+        await step("phone: every Studio tab is on screen (they wrap, none hide off the side)", async () => {
+          const off = await page.locator("nav.ad-studio-tabs[aria-label=Studio] [role=tab]").evaluateAll((tabs) =>
+            tabs.filter((b) => { const r = b.getBoundingClientRect(); return r.left < 0 || r.right > window.innerWidth + 1; }).map((b) => b.textContent),
+          );
+          assert(off.length === 0, `tabs off screen: ${off.join(", ")}`);
+        });
 
       await step(`${size}: Setups: the saved one is listed, Use loads it onto Shoot, and Delete removes it`, async () => {
         await tab("Setups");
