@@ -230,6 +230,47 @@
   margin-top: auto;
   align-self: flex-start;
 }
+/* The casting page as the design system draws it: the auditions, and a rail with the rules and the call to put one up;
+   one column on a phone, the rail after the auditions. */
+.casting-layout {
+  display: grid;
+  gap: var(--space-4);
+}
+.casting-rail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.casting-rail .card {
+  margin: 0;
+}
+.casting-rail h2 {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-lg);
+}
+.casting-rules ol {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding-left: 1.2rem;
+  font-size: var(--text-sm);
+}
+.casting-yours {
+  background: color-mix(in srgb, var(--accent) 8%, var(--card));
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--line));
+}
+.casting-yours p {
+  margin: 0 0 var(--space-3);
+}
+@media (min-width: 60rem) {
+  .casting-layout {
+    grid-template-columns: minmax(0, 1fr) minmax(16rem, 20rem);
+    align-items: start;
+  }
+  .casting-main .casting-grid {
+    margin-top: 0;
+  }
+}
 .audition-panel {
   border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
 }
