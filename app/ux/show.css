@@ -1368,6 +1368,7 @@ details.recap-toggle[open] .recap-toggle-hide {
 }
 .showcase-cta p {
   margin: var(--space-1) 0 0;
+}
 
 /* ---------------- a couple in two columns (app/couples/[a]/[b]; the design system, 2026-11-11) ----------------
    Their dates on the left; the roleplay, the arc, their texts and inside jokes on the right. One column below 60rem. */
