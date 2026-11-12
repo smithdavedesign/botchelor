@@ -384,10 +384,10 @@
 }
 /* After the first step a phone starts on the step: the kicker goes and the title shrinks (the rail says where). */
 @media (max-width: 640px) {
-  .wizard.is-later > .kicker {
+  .wizard.is-later .wizard-main > .kicker {
     display: none;
   }
-  .wizard.is-later > h1 {
+  .wizard.is-later .wizard-main > h1 {
     margin-bottom: 0;
     font-size: var(--text-lg);
   }
@@ -531,4 +531,46 @@
 }
 .import-prefill p + p {
   margin-top: var(--space-2);
+}
+
+/* How the deck sees them (app/create/DeckPreview.tsx; the design system's create screen, 2026-11-11): on a wide screen
+   the form keeps its width and the card a person will swipe on sits beside it, filling in as they type; a phone keeps
+   the one-row preview above the form. */
+.wizard-deck {
+  display: none;
+}
+.wizard-deck > .kicker {
+  margin: 0 0 var(--space-2);
+}
+.wizard-deck-card.swipe-card {
+  position: relative;
+  inset: auto;
+  max-height: calc(100dvh - 9rem);
+  user-select: auto;
+  touch-action: auto;
+}
+.wizard-deck-card .swipe-body {
+  touch-action: auto;
+}
+.wizard-deck .wizard-picture-btn {
+  margin-top: var(--space-2);
+}
+@media (min-width: 60rem) {
+  main:has(.wizard.has-deck) {
+    max-width: calc(var(--page-read) + 21rem);
+  }
+  .wizard.has-deck {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 19rem;
+    gap: var(--space-5);
+    align-items: start;
+  }
+  .wizard.has-deck .wizard-preview {
+    display: none;
+  }
+  .wizard-deck {
+    display: block;
+    position: sticky;
+    top: 5.25rem;
+  }
 }

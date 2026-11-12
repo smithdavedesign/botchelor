@@ -23,6 +23,7 @@ import LooksBuilder from "./LooksBuilder";
 import { looksAppearance } from "@/lib/looks";
 import FactsStep from "./FactsStep";
 import DeeperStep from "./DeeperStep";
+import DeckPreview from "./DeckPreview";
 import { findCliches } from "@/lib/originality";
 import { AVATAR_HUES, imageTraits, type ImageSignals } from "@/lib/avatar";
 import { languageName } from "@/lib/language";
@@ -826,7 +827,8 @@ export default function CreateWizard({
       : null;
 
   return (
-    <article className={`wizard${!edit && step > 0 ? " is-later" : ""}`}>
+    <article className={`wizard has-deck${!edit && step > 0 ? " is-later" : ""}`}>
+      <div className="wizard-main">
       {edit ? (
         <>
           <p className="kicker">Edit</p>
@@ -1364,6 +1366,24 @@ export default function CreateWizard({
         {edit && !identityOk && <p className="error">Fill in the Identity step (a name nobody on the show has, an adult age, bio, three traits, want, dealbreaker) to save.</p>}
         {error && <p className="error">{error}</p>}
       </form>
+      </div>
+      <DeckPreview
+        seed={avatarSeed}
+        name={sheet.name}
+        age={sheet.age}
+        hue={hue}
+        portrait={portrait}
+        bio={sheet.bio}
+        want={sheet.want}
+        extras={extras}
+        picture={
+          edit && (
+            <button type="button" className="link-button wizard-picture-btn" onClick={() => setPictureOpen(true)}>
+              Change picture
+            </button>
+          )
+        }
+      />
     </article>
   );
 }
