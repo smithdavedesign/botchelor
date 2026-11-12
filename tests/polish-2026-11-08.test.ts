@@ -30,7 +30,7 @@ const SECRET = ["polish", "test", "secret", "0123456789abcdef"].join("-");
 
 describe("the show's words as addresses (item 14)", () => {
   it("sends /reels, /seasons and /messages where the tabs and nav mean", () => {
-    expect(SHOW_WORD_REDIRECTS.map((r) => `${r.source} → ${r.destination}`)).toEqual(["/reels → /showcase", "/seasons → /reunion", "/messages → /matches"]);
+    expect(SHOW_WORD_REDIRECTS.map((r) => `${r.source} → ${r.destination}`)).toEqual(["/reels → /showcase", "/messages → /matches"]) // /seasons has its own page since 2026-11-11;
     expect(SHOW_WORD_REDIRECTS.every((r) => r.permanent === false)).toBe(true);
   });
 });

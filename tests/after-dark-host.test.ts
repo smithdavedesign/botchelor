@@ -107,7 +107,6 @@ describe("with the switch off (no AFTER_DARK_ORIGIN): exactly today's behaviour"
     });
     expect(await config.redirects!()).toEqual([
       { source: "/reels", destination: "/showcase", permanent: false },
-      { source: "/seasons", destination: "/reunion", permanent: false },
       { source: "/messages", destination: "/matches", permanent: false },
     ]);
     expect(await config.headers!()).toEqual([
