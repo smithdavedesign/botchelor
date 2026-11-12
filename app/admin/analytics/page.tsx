@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
+import { signedInAdmin } from "../signed-in-admin";
 import InsightsDashboard from "./InsightsDashboard";
 
 export const dynamic = "force-dynamic";
@@ -12,7 +13,8 @@ export const metadata: Metadata = { title: "Analytics · Admin · Botchelor", ro
  * connection, lib/agent-analytics.ts) and Quality (the golden set, the observer, the visitor loop). docs/analytics.md
  * says what each chart means and where its numbers come from.
  */
-export default function AdminAnalyticsPage() {
+export default async function AdminAnalyticsPage() {
+  const admin = await signedInAdmin();
   return (
     <article className="admin-wide">
       <p className="kicker">
@@ -29,7 +31,7 @@ export default function AdminAnalyticsPage() {
         </p>
       </details>
       <Suspense fallback={<p className="muted">Loading…</p>}>
-        <InsightsDashboard />
+        <InsightsDashboard admin={admin} />
       </Suspense>
     </article>
   );
