@@ -98,10 +98,12 @@ async function main() {
         const page = await ctx.newPage();
         assert((await page.goto(`${base}/after-dark`)).status() === 404, "/after-dark should be not-found without a subscription");
         await page.goto(`${base}/create`);
-        // The looks builder is the wizard's third step: a sample character, then on through Voice to Look.
+        // The looks builder is the quick track's second step. A sample fills every step and lands on Review, so the rail
+        // takes it back to Look.
         await page.getByRole("button", { name: "Use a sample character" }).click();
-        await page.getByRole("button", { name: "Next: Voice" }).click();
-        await page.getByRole("button", { name: "Next: Look" }).click();
+        await page.getByRole("button", { name: /^Step 2: Look/ }).click();
+        // The looks builder opens in its own sheet (B4).
+        await page.getByRole("button", { name: "Pick their look" }).click();
         const tab = page.getByRole("tab", { name: /After Dark/ });
         await tab.waitFor({ timeout: 10_000 });
         assert((await tab.locator(".looks-lock").count()) === 1, "the After Dark looks tab should show its lock");
@@ -176,7 +178,7 @@ async function main() {
             await picker.getByRole("button", { name: "⇄ Swap roles" }).click();
             if (process.env.SHOTS_DIR) await page.screenshot({ path: join(process.env.SHOTS_DIR, `after-dark-roleplay-${viewport.width}.png`) });
             const moved = page.waitForRequest((r) => r.url().endsWith("/api/admin/after-dark") && r.method() === "POST");
-            await picker.getByRole("button", { name: "Go · 1 token" }).click();
+            await picker.getByRole("button", { name: /^Go · / }).click();
             const sent = JSON.parse((await moved).postData() ?? "{}");
             assert(sent.set_scene && sent.roleplay?.id === "neighbours" && sent.roleplay?.swap === true, `the place and the roleplay should go together (sent ${JSON.stringify(sent)})`);
             await page.locator(".theater .ad-roleplay-chip").getByText("The neighbour next door").waitFor({ timeout: 10_000 });
@@ -267,7 +269,9 @@ async function main() {
         await bar.getByRole("button", { name: "Next" }).click();
         await page.locator(".theater .chat-thread").getByText(SAFE[1]).waitFor({ state: "attached", timeout: 30_000 });
         await page.locator(".theater").getByRole("button", { name: "More tools" }).click();
-        await page.locator(".theater").getByRole("button", { name: "Start over" }).click();
+        // Ending the night asks once (#1194): "🌙 End the night", then "Yes, end it".
+        await page.locator(".theater").getByRole("button", { name: "🌙 End the night" }).click();
+        await page.locator(".theater").getByRole("button", { name: /^Yes, end it/ }).click();
         // Empty again, the night waits on its start card (#896).
         await page.locator(".theater .ad-start-card").waitFor({ timeout: 15_000 });
         // The night that ran is a saved chapter now: 📖 plays it again over the theater.

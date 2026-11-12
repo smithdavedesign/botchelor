@@ -580,14 +580,16 @@ export default function CreateWizard({
     el?.focus({ preventScroll: true });
   };
 
+  // The step Next goes to: the next one on the track (the quick track skips Voice and the depth steps).
+  const at = track.indexOf(step);
+  const nextStep = at >= 0 ? track[Math.min(at + 1, track.length - 1)] : Math.min(step + 1, last);
   function next() {
     if (!canAdvance) {
       setTriedNext(true);
       if (stillNeeded[0]) showMe(stillNeeded[0].field);
       return;
     }
-    const at = track.indexOf(step);
-    const n = at >= 0 ? track[Math.min(at + 1, track.length - 1)] : Math.min(step + 1, last);
+    const n = nextStep;
     setTriedNext(false);
     setStep(n);
     setMaxStep((m) => Math.max(m, n));
@@ -1335,7 +1337,7 @@ export default function CreateWizard({
             )}
             {step < last ? (
               <button type="submit">
-                Next<span className="wizard-next-label">: {labels[step + 1]}</span>
+                Next<span className="wizard-next-label">: {labels[nextStep]}</span>
               </button>
             ) : (
               <button type="submit" disabled={busy !== null || !attest || !identityOk || !profileOk}>

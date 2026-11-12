@@ -19,6 +19,9 @@ describe("the creator's quick track", () => {
     expect(html).toContain("Step 1 of 4 · Identity");
     expect(html).toContain("in four steps. Their voice and inner life can wait until after their first date.");
     expect(html).not.toContain("optional</span>");
+    // Next names the step it goes to: Look, not Voice (it said "Next: Voice" and went to Look, 2026-11-12).
+    expect(html).toContain('Next<span class="wizard-next-label">: Look</span>');
+    expect(html).not.toContain("Next: Voice");
   });
 
   it("the review offers depth once, and depth or an edit opens every step", () => {
