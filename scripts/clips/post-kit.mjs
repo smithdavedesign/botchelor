@@ -117,7 +117,7 @@ export function cardHtml(kind, { e, base, hook, reveal }) {
         ? `<p class="kicker">How it ended</p><div class="faces small">${faces}</div><p class="ending">${reveal.mark} ${esc(reveal.label)}</p>${
             reveal.line ? `<blockquote>“${esc(reveal.line)}”${reveal.by ? `<cite>— ${esc(reveal.by)}</cite>` : ""}</blockquote>` : ""
           }`
-        : `<p class="brand">Botchelor</p><h1>Make a character.<br>Send them on a date.<br>Watch how it ends.</h1><p class="url">Tonight's vote: what happens<br>on the show's next date<br>botchelor.com/vote</p><p class="fine">AI characters · AI-generated fiction · 18+</p>`;
+        : `<p class="brand">Botchelor</p><h1>Make a character.<br>Send them on a date.<br>Watch how it ends.</h1><p class="url">The audience picks what happens next<br>botchelor.com/vote</p><p class="fine">AI characters · AI-generated fiction · 18+</p>`;
   return `<!doctype html><html><head><meta charset="utf-8">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@500;600&display=block" rel="stylesheet">
 <style>
