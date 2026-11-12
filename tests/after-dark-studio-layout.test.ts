@@ -76,7 +76,7 @@ describe("a gallery tile", () => {
   });
 
   it("puts every other tool under ⋯, in three rows: none of them went", () => {
-    for (const s of ["More like this", "🎠 Carousel", "Upscale ${s.upscale.scale}×", "Animate…", "<SfwTwin", "Use this face", "Use as body", "<MediaTags", "<PublishButton", "Share…", "<TileTools id={p.id} api={AFTER_DARK_API} selecting={false}"]) {
+    for (const s of ["More like this", "🎠 Carousel", "Upscale {s.upscale.scale}×", "Animate…", "<SfwTwin", "Use this face", "Use as body", "<MediaTags", "<PublishButton", "Share…", "<TileTools id={p.id} api={AFTER_DARK_API} selecting={false}"]) {
       expect(more, s).toContain(s);
       expect(onTile, s).not.toContain(s);
     }

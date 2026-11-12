@@ -4,13 +4,15 @@ import Link from "next/link";
 import { useState } from "react";
 import { requestJson } from "@/app/request";
 import type { Media } from "@/lib/adult/media";
+import TokenPrice from "./TokenPrice";
 
 /**
  * 👕 SFW twin (lib/adult/sfw-twin.ts): this picture made again safe for work, the same people, place and light, for a
  * public post. A picture of their own character alone lands in the PG Studio's gallery (said, with the way there); one
  * of two stays here, rated pg, and joins the gallery.
  */
-export default function SfwTwin({ id, price, onAdded }: { id: string; price?: string; onAdded?: (m: Media) => void }) {
+/** `price`: its tokens for this viewer (0: free, an admin); left out, the button names no price. */
+export default function SfwTwin({ id, price, onAdded }: { id: string; price?: number; onAdded?: (m: Media) => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<{ pg: string | null } | null>(null);
@@ -43,7 +45,19 @@ export default function SfwTwin({ id, price, onAdded }: { id: string; price?: st
   return (
     <div className="ad-fix">
       <button type="button" className="button-ghost small" disabled={busy} onClick={() => void make()} title="The same picture, safe for work: everyone dressed, an everyday pose">
-        {busy ? "Dressing them… about a minute" : `👕 SFW twin${price ? ` · ${price}` : ""}`}
+        {busy ? (
+          "Dressing them… about a minute"
+        ) : (
+          <>
+            👕 SFW twin
+            {price !== undefined && (
+              <>
+                {" · "}
+                <TokenPrice tokens={price} />
+              </>
+            )}
+          </>
+        )}
       </button>
       {error && (
         <p className="error small" role="status">

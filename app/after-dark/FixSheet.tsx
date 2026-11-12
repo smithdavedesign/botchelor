@@ -5,6 +5,7 @@ import { requestJson } from "@/app/request";
 import type { FixKind, FixState, FixVersion, RepairId, Spot } from "@/lib/adult/fix";
 import type { Media } from "@/lib/adult/media";
 import FixCompare from "./FixCompare";
+import TokenPrice from "./TokenPrice";
 
 /**
  * 🩹 Fix (lib/adult/fix.ts; David, 2026-11-09: "a way to iterate over a broken image and fix it"): the button beside a
@@ -459,7 +460,12 @@ function FixSheet({
                   {busy === "fix"
                     ? "Fixing… about a minute"
                     : mode === "undress"
-                      ? `Undress ${shownPeople.length > 1 && !who ? "them" : (shownPeople.find((p) => p.id === who)?.name ?? shownPeople[0]?.name ?? "them")}${undress && undress.price > 0 ? ` · ${undress.price} token${undress.price === 1 ? "" : "s"}` : " · free"}`
+                      ? (
+                          <>
+                            Undress {shownPeople.length > 1 && !who ? "them" : (shownPeople.find((p) => p.id === who)?.name ?? shownPeople[0]?.name ?? "them")} ·{" "}
+                            <TokenPrice tokens={undress?.price ?? 0} />
+                          </>
+                        )
                       : mode === "change"
                         ? "Make the change · free"
                         : mode === "faces"

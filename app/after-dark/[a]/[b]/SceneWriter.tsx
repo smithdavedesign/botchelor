@@ -24,7 +24,7 @@ import Limits from "./Limits";
 import Memory from "./Memory";
 import Profile from "./Profile";
 import Link from "next/link";
-import Reels, { stopReel } from "./Reels";
+import Reels, { RefilmPrices, stopReel } from "./Reels";
 import Storyboard from "./Storyboard";
 import MediaMenu from "./MediaMenu";
 import type { BusyReel, Reel, ReelScope } from "@/lib/adult/reels";
@@ -50,6 +50,7 @@ import FixButton, { FixHost, fixNudge } from "../../FixSheet";
 import { tileRatio } from "@/app/studio/FormatChips";
 import { AFTER_DARK_API, useSelection } from "@/app/studio/selection";
 import { videoPrice } from "@/lib/adult/reel-timing";
+import TokenPrice from "../../TokenPrice";
 
 /** The tabs under the theater, in order; the gallery opens first. */
 const PAGE_TABS = ["gallery", "make", "setup", "sides"] as const;
@@ -114,6 +115,7 @@ export default function SceneWriter({
   myRoleplays = [],
   twoSides = null,
   adminTools = null,
+  prices,
 }: {
   initial: AdultScene;
   gallery: Media[];
@@ -148,7 +150,11 @@ export default function SceneWriter({
   /** The page's Two sides tab (TwoSidesPanel, flat), and the admins' line under the tabs (null for everyone else). */
   twoSides?: ReactNode;
   adminTools?: ReactNode;
+  /** What the gallery's spending buttons cost this viewer (page.tsx): Redraw, 👕 SFW twin, and 🔁 Film it again (null: free). */
+  prices?: GalleryPrices;
 }) {
+  // A video that costs no tokens (page.tsx sets reelTokens 0): free for an admin, else it's on their own video key.
+  const videoFree = admin ? "free" : "on your key";
   // Shown until the pause is over, then the buttons come back (the next one probes Hive first).
   const [hivePause, setHivePause] = useState(hive);
   useEffect(() => {
@@ -590,6 +596,7 @@ export default function SceneWriter({
             names={{ a: scene.a.name, b: scene.b.name }}
             pictures={gallery.filter((m) => !m.archived)}
             tokens={reelTokens}
+            free={videoFree}
             paused={mediaPaused}
             onFilmed={(r) => {
               putReel(r);
@@ -688,6 +695,8 @@ export default function SceneWriter({
               { chapter: scene.chapter, lines: scene.lines.length },
             )}
             videoTokens={reelTokens}
+            videoFree={videoFree}
+            moveTokens={prices?.move}
             chapterTokens={chapterTokens}
             chapterIncluded={chapterIncluded}
             readiness={readiness}
@@ -837,6 +846,7 @@ export default function SceneWriter({
             </p>
           ) : mediaTab === "pictures" ? (
             <Gallery
+              prices={prices}
               items={gallery}
               drawing={picture === "drawing"}
               fresh={freshPictures}
@@ -864,13 +874,15 @@ export default function SceneWriter({
             />
           ) : mediaTab === "videos" ? (
             reelList.length ? (
-              <Reels
-                reels={reelList}
-                nightOf={nightOfVideo}
-                onChange={putReel}
-                onMedia={(m) => setGallery((g) => [m, ...g.filter((x) => x.id !== m.id)])}
-                onStoryboard={(r) => setStoryboard(r)}
-              />
+              <RefilmPrices value={prices ? prices.refilm : undefined}>
+                <Reels
+                  reels={reelList}
+                  nightOf={nightOfVideo}
+                  onChange={putReel}
+                  onMedia={(m) => setGallery((g) => [m, ...g.filter((x) => x.id !== m.id)])}
+                  onStoryboard={(r) => setStoryboard(r)}
+                />
+              </RefilmPrices>
             ) : (
               <p className="muted small">No videos yet: 🎬 Video in the theater&apos;s top bar makes one of tonight, and each night under Nights has its own, from a storyboard you check first.</p>
             )
@@ -901,7 +913,7 @@ export default function SceneWriter({
                           disabled={Boolean(mediaPaused) || lines < 6}
                           title={mediaPaused ?? (lines < 6 ? "Too short for a video yet" : `A short film of ${many ? "the whole night, every chapter" : "this night"}: check each shot's picture, then film (${videoPrice(reelTokens)})`)}
                         >
-                          🎬 {many ? "Video of the night" : "Video"} · {videoPrice(reelTokens)}
+                          🎬 {many ? "Video of the night" : "Video"} · <TokenPrice tokens={reelTokens} free={videoFree} />
                         </button>
                       </p>
                       {(() => {
@@ -930,7 +942,7 @@ export default function SceneWriter({
                                   ▶ Chapter {n.chapter ?? "?"}
                                 </button>{" "}
                                 <button type="button" className="button-ghost small" onClick={() => void planVideo("chapter", n.id)} disabled={Boolean(mediaPaused) || n.lines.length < 6} title={mediaPaused ?? `A short film of this chapter alone (${videoPrice(reelTokens)})`}>
-                                  🎬 This chapter · {videoPrice(reelTokens)}
+                                  🎬 This chapter · <TokenPrice tokens={reelTokens} free={videoFree} />
                                 </button>{" "}
                                 <span className="muted small">
                                   {n.lines.length} lines{n.place ? ` · ${n.place}` : ""}
@@ -969,7 +981,17 @@ const SECTIONS: [string, (m: Media) => boolean][] = [
   ["Shots from videos of the night", (m) => m.kind === "video" && Boolean(m.in_reel)],
 ];
 
+/** What the gallery's spending buttons cost this viewer (the kit's price rule; page.tsx works them out). */
+type GalleryPrices = {
+  redraw: { tokens: number; included: boolean };
+  sfwTwin: number;
+  refilm: { clip_tokens: number; reel_tokens: number } | null;
+  /** Taking them somewhere else mid-night (the theater's picker). */
+  move: number;
+};
+
 function Gallery({
+  prices,
   items,
   drawing = false,
   fresh,
@@ -983,6 +1005,7 @@ function Gallery({
   onKept,
   setup = [],
 }: {
+  prices?: GalleryPrices;
   items: Media[];
   /** #1039: a picture the viewer asked for is on its way (a card at the top says so), and the ones that just landed. */
   drawing?: boolean;
@@ -1001,6 +1024,13 @@ function Gallery({
   setup?: readonly Readiness[];
 }) {
   // Redraw (David, 2026-10-25: "regenerate an image for a scene in case it's wrong"): the picture whose context is open.
+  // Redraw's price (the kit's rule): a menu picture's, included with a subscription, nothing shown while unknown.
+  const redrawCost = prices ? (
+    <>
+      {" · "}
+      <TokenPrice tokens={prices.redraw.tokens} included={prices.redraw.included} />
+    </>
+  ) : null;
   const [redrawing, setRedrawing] = useState<string | null>(null);
   const [motion, setMotion] = useState("");
   const [pending, setPending] = useState<Record<string, string>>({});
@@ -1135,7 +1165,7 @@ function Gallery({
                           said={ratingOf(m) === -1 ? (m.tags ?? []) : []}
                         />
                         {/* 👕 The same picture safe for work (lib/adult/sfw-twin.ts); a twin of two joins this gallery. */}
-                        <SfwTwin id={m.id} onAdded={onAdd} />
+                        <SfwTwin id={m.id} price={prices?.sfwTwin} onAdded={onAdd} />
                       </>
                     )}
                     {status === "ready" && <MediaTags id={m.id} pinned={m.date_pin} />}
@@ -1151,7 +1181,11 @@ function Gallery({
                           b={pair.b}
                           target={{ picture: m.id }}
                           disabled={Boolean(paused)}
-                          submitLabel="↻ Redraw it"
+                          submitLabel={
+                            <>
+                              ↻ Redraw it{redrawCost}
+                            </>
+                          }
                           onSubmit={(edit) => {
                             setRedrawing(null);
                             void onRedraw(m.id, edit);
@@ -1160,7 +1194,7 @@ function Gallery({
                         />
                       ) : (
                         <button type="button" className="button-ghost small" disabled={Boolean(paused)} title={paused ?? "Draw this moment again, after checking what it's drawn from"} onClick={() => setRedrawing(m.id)}>
-                          ↻ Redraw
+                          ↻ Redraw{redrawCost}
                         </button>
                       )
                     )}

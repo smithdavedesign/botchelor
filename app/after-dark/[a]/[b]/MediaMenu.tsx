@@ -12,6 +12,7 @@ import type { PictureMenu } from "@/lib/adult/pictures-menu";
 import type { Reel } from "@/lib/adult/reels";
 import type { AdultScene } from "@/lib/adult/scenes";
 import { includedClipsWords, priceWords } from "@/lib/adult/price-words";
+import TokenPrice from "../../TokenPrice";
 
 /** A clip made in the theater (ClipHere) is announced on the window, so the page's videos list picks it up. */
 export const REEL_EVENT = "after-dark:reel";
@@ -207,7 +208,7 @@ export default function MediaMenu({
             <p className="muted small">A 5–10 second shot of the two of them at the scene&apos;s latest moment, the way the lines have it.</p>
             <p className="ad-panel-actions">
               <button type="button" className="secondary small" disabled={busy || Boolean(paused) || !clips.here.available} title={paused ?? undefined} onClick={() => void make("clips", { here: true })}>
-                🎬 Clip from here · {priceWords(clips.price, clips.included)}
+                🎬 Clip from here · <TokenPrice tokens={clips.price} included={clips.included} />
               </button>
               {/* A subscriber's included clips this month (#1005; David, 2026-10-30). */}
               {includedClipsWords(clips.included_left, clips.included_of) && <span className="muted small"> {includedClipsWords(clips.included_left, clips.included_of)}</span>}
@@ -231,7 +232,13 @@ export default function MediaMenu({
             )}
             <p className="ad-panel-actions">
               <button type="button" className="primary small" disabled={busy || Boolean(paused) || !clipAct || Boolean(clipAct.why)} title={paused ?? undefined} onClick={() => clipAct && void make("clips", { act: clipAct.id, swap, ...(eyes ? { eyes } : camera !== "steady" ? { camera } : {}) })}>
-                {busy ? "Setting it up…" : `🎬 Make this clip · ${priceWords(clips.price, clips.included)}`}
+                {busy ? (
+                  "Setting it up…"
+                ) : (
+                  <>
+                    🎬 Make this clip · <TokenPrice tokens={clips.price} included={clips.included} />
+                  </>
+                )}
               </button>
             </p>
           </fieldset>
@@ -297,7 +304,13 @@ export default function MediaMenu({
               title={paused ?? undefined}
               onClick={() => pictureAct && pickedOutfit && where && void make("pictures", { act: pictureAct.id, swap, outfit: pickedOutfit.id, framing, place: where.place, ...(eyes ? { eyes } : {}) })}
             >
-              {busy ? "Drawing it…" : `📸 Take the picture · ${priceWords(pictures.price, pictures.included)}`}
+              {busy ? (
+                "Drawing it…"
+              ) : (
+                <>
+                  📸 Take the picture · <TokenPrice tokens={pictures.price} included={pictures.included} />
+                </>
+              )}
             </button>{" "}
             {pictures.left !== null && <span className="muted small">{pictures.left} picture{pictures.left === 1 ? "" : "s"} left this month</span>}
           </p>
@@ -358,7 +371,19 @@ export function ClipHere({ a, b, at, nightId, paused = null }: { a: string; b: s
           `A 5–10 s clip of the two of them at this moment${offer ? ` (${[priceWords(offer.price, offer.included), includedClipsWords(offer.included_left, offer.included_of)].filter(Boolean).join("; ")})` : ""}`
         }
       >
-        {asking ? "🎞 …" : `🎞 Clip${offer?.included ? " · included" : offer?.price ? ` · ${offer.price}` : ""}`}
+        {asking ? (
+          "🎞 …"
+        ) : (
+          <>
+            🎞 Clip
+            {offer ? (
+              <>
+                {" · "}
+                <TokenPrice tokens={offer.price} included={offer.included} />
+              </>
+            ) : null}
+          </>
+        )}
       </button>
       {note && (
         <span

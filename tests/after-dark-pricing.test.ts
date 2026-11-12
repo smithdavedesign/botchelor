@@ -45,9 +45,15 @@ describe("After Dark's prices (#1005)", () => {
     const render = (lines: { who: "a" | "b"; text: string }[], props: Record<string, unknown>) =>
       renderToStaticMarkup(createElement(AfterDarkTheater, { scene: { lines, place: null, stage: 0, dateVenue: null }, characters: chars, onExit: () => {}, onWrite: async () => true, ...props }));
     const line = [{ who: "a" as const, text: "*smiles* Hi." }];
-    expect(render(line, { chapterIncluded: true })).toContain("Next · included");
-    expect(render([], { chapterIncluded: true })).toContain("▶ Start the night · included");
-    expect(render([], { chapterTokens: 1 })).toContain("▶ Start the night · 1 token");
+    // What a screen reader hears (the ◈ is aria-hidden) and what's on screen (the kit's "◈ 1"; "1 token" is sr-only).
+    const said = (html: string) => html.replace(/<span[^>]*aria-hidden="true"[^>]*>[^<]*<\/span>/g, "").replace(/<[^>]+>/g, "").replace(/\s+/g, " ");
+    const shown = (html: string) => html.replace(/<span class="sr-only">[^<]*<\/span>/g, "").replace(/<[^>]+>/g, "").replace(/\s+/g, " ");
+    expect(said(render(line, { chapterIncluded: true }))).toContain("Next · included");
+    expect(said(render([], { chapterIncluded: true }))).toContain("▶ Start the night · included");
+    expect(said(render([], { chapterTokens: 1 }))).toContain("▶ Start the night · 1 token");
+    expect(shown(render([], { chapterTokens: 1 }))).toContain("▶ Start the night · ◈ 1");
+    // A paid chapter's later steps add nothing to pay: Next says it's covered, never a second price.
+    expect(shown(render(line, { chapterTokens: 1 }))).toContain("Next · included");
     // An admin: nothing to say.
     expect(render(line, {})).toMatch(/>Next</);
     // #1099: the scene's 📜 toggle says what it is on screen.
@@ -113,5 +119,16 @@ describe("who pays what (lib/adult/pricing.ts)", () => {
     // The allowance is a setting: 0 turns it off.
     await saveAdultSettings(t.db, { included_clips: 0 });
     expect(await clipPrice(t.db, await subscriber())).toEqual({ tokens: 1, included: false, included_left: null, included_of: 0 });
+  });
+});
+
+describe("refilmTokens (the 🔁 Film it again price, shared by the button and lib/adult/reels.ts refilmShot)", () => {
+  it("a clip at a clip's price, a night's shot its share of the video, never under one", async () => {
+    const { refilmTokens } = await import("@/lib/adult/reel-timing");
+    const prices = { clip_tokens: 1, reel_tokens: 8 };
+    expect(refilmTokens("clip", 3, prices)).toBe(1);
+    expect(refilmTokens("night", 6, prices)).toBe(2);
+    expect(refilmTokens(null, 8, prices)).toBe(1);
+    expect(refilmTokens("night", 0, prices)).toBe(8);
   });
 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { requestJson } from "@/app/request";
 import CameraMoves from "../../CameraMoves";
 import ChainPublish from "../../ChainPublish";
@@ -39,8 +39,8 @@ export default function AnimationChain({
   links: AnimationLinks;
   /** Each video's trim, so the film plays what each one keeps (lib/adult/trim.ts). */
   trimOf: (id: string) => Trim | null;
-  /** Animate's price for 5 or 10 seconds, in words ("3 tokens", "free"). */
-  price: (seconds: 5 | 10) => string;
+  /** Animate's price for 5 or 10 seconds, as the button shows it ("◈ 3", "free": app/after-dark/TokenPrice.tsx). */
+  price: (seconds: 5 | 10) => ReactNode;
   disabled?: boolean;
   onState: (s: StudioState) => void;
   /** A chain joined into one reel, kept in the gallery: the gallery's read again. */
@@ -148,7 +148,7 @@ export default function AnimationChain({
           </div>
           {forced && mode === "seamless" && <p className="muted small">This one starts with their faces drawn fresh: every third link does, so they keep looking like themselves.</p>}
           <button type="button" className="primary small" disabled={off} onClick={() => void keepGoing()}>
-            {busy === "check" ? "Checking…" : busy === "cut" ? "Cutting its last frame…" : busy === "send" ? "Setting up the next shot…" : `▶▶ Keep going · ${price(seconds)}`}
+            {busy === "check" ? "Checking…" : busy === "cut" ? "Cutting its last frame…" : busy === "send" ? "Setting up the next shot…" : <>▶▶ Keep going · {price(seconds)}</>}
           </button>
         </div>
       )}

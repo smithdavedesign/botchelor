@@ -154,12 +154,12 @@ describe("a night that's over (David, 2026-11-01: \"once the night is over you c
   it("the new night's start card says where the last one went, to watch it or make its video", () => {
     const html = render({ scene: { ...scene, lines: [] }, onWrite: async () => {}, lastNight: { label: "3 chapters", videoTokens: 7, canVideo: true, onWatch() {}, onVideo() {} } });
     expect(html).toMatch(/data-last-night[^>]*>🌙 Your last night \(3 chapters\) is kept under 🖼 Gallery → Nights\./);
-    expect(html).toMatch(/<button type="button" class="linklike">▶ Watch it<\/button> · <button type="button" class="linklike">🎬 Make its video · 7 tokens<\/button>/);
+    expect(html).toMatch(/<button type="button" class="linklike">▶ Watch it<\/button> · <button type="button" class="linklike">🎬 Make its video · <span class="token-price"><span class="token-price-pip" aria-hidden="true">◈<\/span> 7<span class="sr-only"> tokens<\/span><\/span><\/button>/);
   });
 
   it("a night too short to film says so with the button off; with no ended night there's no line", () => {
     const short = render({ scene: { ...scene, lines: [] }, onWrite: async () => {}, lastNight: { label: "4 lines", videoTokens: 7, canVideo: false, onWatch() {}, onVideo() {} } });
-    expect(short).toMatch(/<button type="button" class="linklike" disabled="">🎬 Make its video · 7 tokens<\/button>/);
+    expect(short).toMatch(/<button type="button" class="linklike" disabled="">🎬 Make its video · <span class="token-price"><span class="token-price-pip" aria-hidden="true">◈<\/span> 7<span class="sr-only"> tokens<\/span><\/span><\/button>/);
     expect(render({ scene: { ...scene, lines: [] }, onWrite: async () => {} })).not.toContain("data-last-night");
   });
 

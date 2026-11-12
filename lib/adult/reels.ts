@@ -62,7 +62,7 @@ import { ensureBaseline, ensureNudeBaseline, lookWords, signedMediaUrl, type Fac
 import { keptDetailWords } from "../looks";
 import { nudeSql } from "./attire";
 import { adultModel } from "./mode";
-import { PICK_LINES_MAX, REEL_STALLED_MS } from "./reel-timing";
+import { PICK_LINES_MAX, REEL_STALLED_MS, refilmTokens } from "./reel-timing";
 import { cancelPrediction, createPrediction, downloadOutput, getPrediction, isDone, noOutput, outputUrls, ReplicateError, runModel, type Prediction, type ReplicateFile } from "./replicate";
 import { dropForeignActions, eligiblePair, type SceneLine } from "./scenes";
 import { groupNights, type NightChapter } from "./nights";
@@ -2824,7 +2824,7 @@ export async function refilmShot(db: Db, ownerId: string, reelId: string, mediaI
   if (busy) return { ok: false, status: 409, error: "busy", message: busyMessage(busy), busy };
   const pays = !where.media.own && !(await isAdmin(db, ownerId));
   // A clip filmed again costs what a clip past the allowance does (#1005: extras at about cost); a night's shot, its share.
-  const price = !pays ? 0 : r.kind === "clip" ? settings.clip_tokens : Math.max(1, Math.ceil(settings.reel_tokens / Math.max(1, r.shots.length)));
+  const price = !pays ? 0 : refilmTokens(r.kind, r.shots.length, settings);
   if (price && !(await spendAdTokens(db, ownerId, price))) {
     return { ok: false, status: 402, error: "needs_tokens", message: `Filming a shot again costs ${price} token${price === 1 ? "" : "s"}. Get more on the tokens page.` };
   }

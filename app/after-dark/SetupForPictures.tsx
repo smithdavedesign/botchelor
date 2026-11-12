@@ -5,11 +5,17 @@ import { useState } from "react";
 import { requestJson } from "@/app/request";
 import { setupStep } from "@/lib/adult/picture-notes";
 import type { Readiness, SetupOffer } from "@/lib/adult/readiness";
+import TokenPrice from "./TokenPrice";
 
 /** A setup draws faces and bodies and checks each: a couple of minutes at most (the Studio's own limit). */
 const SETUP_TIMEOUT_MS = 290_000;
 
-/** What the button says it costs: the character's first setup included, otherwise the Recast and Body reference prices. */
+/** What the button says it costs (the kit's rule): the character's first setup included, otherwise ◈ the Recast and Body reference prices. */
+export function SetupPrice({ offer }: { offer: SetupOffer }) {
+  return <TokenPrice tokens={offer.tokens} included={offer.free} free="no tokens" />;
+}
+
+/** The same in words, for a line of prose. */
 export function setupPrice(offer: SetupOffer): string {
   if (offer.free) return "included";
   return offer.tokens === 0 ? "no tokens" : `${offer.tokens} token${offer.tokens === 1 ? "" : "s"}`;
@@ -68,7 +74,13 @@ export default function SetupForPictures({ r }: { r: Readiness }) {
       {offer && (
         <p className="ad-setup-offer-row">
           <button type="button" className="primary small" disabled={Boolean(busy) || offer.drawing} onClick={() => void setUp()}>
-            {busy === "setup" || offer.drawing ? "Setting up… about a minute" : `✨ Set up ${first} for pictures · ${setupPrice(offer)}`}
+            {busy === "setup" || offer.drawing ? (
+              "Setting up… about a minute"
+            ) : (
+              <>
+                ✨ Set up {first} for pictures · <SetupPrice offer={offer} />
+              </>
+            )}
           </button>
           {offer.baseline && !r.face && (
             <>

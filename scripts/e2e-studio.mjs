@@ -426,7 +426,7 @@ async function main() {
           assert(b.status === 200, `use as body: HTTP ${b.status}, "${b.note}"`);
         }
         await openMore(item);
-        const more = await act(item.locator("button", { hasText: /^(More like this|Drawing…)$/ }).first());
+        const more = await act(item.locator("button", { hasText: /^(More like this( · .+)?|Drawing…)$/ }).first());
         assert(more.status === 200 && /picture/.test(more.note), `more like this: HTTP ${more.status}, "${more.note}"`);
         await openMore(item);
         const up = item.getByRole("button", { name: /^Upscale/ }).first();

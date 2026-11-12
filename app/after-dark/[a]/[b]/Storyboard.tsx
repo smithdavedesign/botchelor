@@ -6,7 +6,8 @@ import { AiTag } from "@/app/AiLabel";
 import type { Media } from "@/lib/adult/media";
 import type { Reel, ReelScope, ReelShot, ShotSuggestion } from "@/lib/adult/reels";
 import { MediaRequest } from "../../MediaRequest";
-import { PICK_LINES_MAX, videoPrice } from "@/lib/adult/reel-timing";
+import { PICK_LINES_MAX } from "@/lib/adult/reel-timing";
+import TokenPrice from "../../TokenPrice";
 import PickLines from "./PickLines";
 
 const mediaUrl = (id: string) => `/api/admin/after-dark/media/${id}`;
@@ -37,6 +38,7 @@ export default function Storyboard({
   names,
   pictures = [],
   tokens,
+  free = "on your key",
   paused = null,
   onFilmed,
   onClose,
@@ -50,6 +52,8 @@ export default function Storyboard({
   /** The pair's own pictures (the scene's gallery), to start a shot from one. */
   pictures?: Media[];
   tokens: number;
+  /** What filming says when it costs no tokens: "on your key" (their own video key), or "free" (an admin). */
+  free?: string;
   /** Hive's breaker is open (lib/adult/hive-limit.ts): drawing is disabled, with this as the reason. */
   paused?: string | null;
   onFilmed: (r: Reel) => void;
@@ -228,7 +232,7 @@ export default function Storyboard({
         <div className="ad-storyboard-head">
           <strong>🎬 Storyboard</strong>
           <span className="small muted">
-            {kept.length} shot{kept.length === 1 ? "" : "s"} kept · {tokens ? `${tokens} tokens to film` : "filmed on your key"}
+            {kept.length} shot{kept.length === 1 ? "" : "s"} kept · {tokens ? `${tokens} tokens to film` : free === "on your key" ? "filmed on your key" : "free to film"}
           </span>
           <button type="button" className="button-ghost small" onClick={onClose}>
             Close
@@ -487,7 +491,15 @@ export default function Storyboard({
             </button>
           ) : null}
           <button type="button" className="primary" onClick={() => void film()} disabled={busy !== null || !canFilm} title={!kept.length ? "Draw and keep at least one picture first" : toApprove ? `Approve ${toApprove} more shot${toApprove === 1 ? "" : "s"} first` : undefined}>
-            {busy === "film" ? "Filming…" : !canFilm && kept.length ? `Approve ${toApprove} more first` : `🎬 Make the movie · ${videoPrice(tokens)}`}
+            {busy === "film" ? (
+              "Filming…"
+            ) : !canFilm && kept.length ? (
+              `Approve ${toApprove} more first`
+            ) : (
+              <>
+                🎬 Make the movie · <TokenPrice tokens={tokens} free={free} />
+              </>
+            )}
           </button>
           <AiTag />
         </div>

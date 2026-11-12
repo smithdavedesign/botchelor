@@ -2570,3 +2570,11 @@ button.ad-studio-fold-head:active:not(:disabled) {
   white-space: nowrap;
   pointer-events: none;
 }
+
+/* A price on a spending button (app/after-dark/TokenPrice.tsx): the nav pill's ◈, in its colour, kept on one line. */
+.token-price {
+  white-space: nowrap;
+}
+.token-price-pip {
+  color: var(--accent-text);
+}
