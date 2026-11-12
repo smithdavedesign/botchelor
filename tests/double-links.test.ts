@@ -63,7 +63,8 @@ describe("double-date links", () => {
     const made = await linkRoute(req("/api/double-links", host.cookie, { character_id: host.id, partner_id: HOUSE_PARTNER_ID }));
     expect(made.status).toBe(201);
     const link = (await made.json()) as Any;
-    expect(link.url).toMatch(new RegExp(`/double/${link.code}$`));
+    // Handed out tagged (?ref=double), so the by-channel table counts its visitors as double_link (2026-11-11).
+    expect(link.url).toMatch(new RegExp(`/double/${link.code}\\?ref=double$`));
     // The same link every time (one open link per couple).
     const again = await linkRoute(req("/api/double-links", host.cookie, { character_id: host.id, partner_id: HOUSE_PARTNER_ID }));
     expect(again.status).toBe(200);

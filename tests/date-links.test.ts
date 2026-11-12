@@ -40,7 +40,8 @@ describe("date links", () => {
     const res = await linkRoute(req("/api/date-links", host.cookie, { character_id: host.id }));
     expect(res.status).toBe(200);
     const link = (await res.json()) as Any;
-    expect(link.url).toMatch(new RegExp(`/date/${link.code}$`));
+    // Handed out tagged (?ref=invite), so the by-channel table counts its visitors as date_link (2026-11-11).
+    expect(link.url).toMatch(new RegExp(`/date/${link.code}\\?ref=invite$`));
     // The same link every time (one live link per character).
     expect(((await (await linkRoute(req("/api/date-links", host.cookie, { character_id: host.id }))).json()) as Any).code).toBe(link.code);
 
