@@ -21,6 +21,7 @@ import { asRoleplay, getLibrary } from "@/lib/studio/library";
 import { studioAccess, withSetupOffers } from "@/lib/adult/studio";
 import { getDb } from "@/lib/db";
 import { getPublicCharacter, type CharacterRef, type PublicCharacter } from "@/lib/game";
+import Reader from "./Reader";
 import SceneWriter from "./SceneWriter";
 import ShortsPanel from "./ShortsPanel";
 import TwoSidesPanel from "./TwoSidesPanel";
@@ -36,8 +37,9 @@ import { SET_SCENE_TOKEN_COST } from "@/lib/allowance";
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "After dark · Botchelor", robots: { index: false, follow: false } };
 
-// `?play=1` links still work: the page opens on the theater either way.
-type Props = { params: Promise<{ a: string; b: string }>; searchParams?: Promise<{ play?: string }> };
+// `?play=1` links still work: the page opens on the theater either way. `?view=reader&chapter=<id|now>` is the chapter
+// reader (Reader.tsx), where it's on for the viewer (lib/adult/rollout.ts reader); anywhere else it's the theater.
+type Props = { params: Promise<{ a: string; b: string }>; searchParams?: Promise<{ play?: string; view?: string; chapter?: string }> };
 
 const refOf = (id: string, name: string, c: PublicCharacter | null): CharacterRef => ({
   id,
@@ -51,8 +53,9 @@ const refOf = (id: string, name: string, c: PublicCharacter | null): CharacterRe
  * Two of this season's cast, after dark, or a pair kept from an earlier one (#1132). Not found for anyone After Dark isn't
  * open to; a pair they can't have says why (pairAbsence) when it's theirs to know.
  */
-export default async function AfterDarkScenePage({ params }: Props) {
+export default async function AfterDarkScenePage({ params, searchParams }: Props) {
   const { a, b } = await params;
+  const sp = (await searchParams) ?? {};
   const db = await getDb();
   const admin = await adultViewerFromCookies(db, await cookies());
   if (!admin) notFound();
@@ -110,6 +113,9 @@ export default async function AfterDarkScenePage({ params }: Props) {
   // Not open yet (lib/adult/rollout.ts): Make more and the phone's ⋯ sheet, admins only until they're switched on.
   const makeMore = rolloutOn(adSettings.rollout, "make_more", viewerAdmin);
   const phoneSheet = rolloutOn(adSettings.rollout, "phone_sheet", viewerAdmin);
+  const reader = rolloutOn(adSettings.rollout, "reader", viewerAdmin);
+  const base = `/after-dark/${encodeURIComponent(a)}/${encodeURIComponent(b)}`;
+  const reading = reader && sp.view === "reader";
   const studios: { id: string; name: string }[] = [];
   for (const c of [scene.a, scene.b]) if ((await studioAccess(db, admin, c.id)).ok) studios.push(c);
   return (
@@ -142,15 +148,31 @@ export default async function AfterDarkScenePage({ params }: Props) {
       )}
       {/* The Studio (lib/adult/studio.ts) for whichever of the two it's the viewer's to use on; in Make more instead, once
           that's on for this viewer. */}
-      {!makeMore && studios.length > 0 && (
+      {!reading && ((!makeMore && studios.length > 0) || reader) && (
         <p className="ad-studio-links">
-          {studios.map((c) => (
-            <Link key={c.id} className="button-ghost small" href={`/after-dark/studio/${c.id}`}>
-              🎨 {c.name.split(/\s+/)[0]}&apos;s Studio
+          {!makeMore &&
+            studios.map((c) => (
+              <Link key={c.id} className="button-ghost small" href={`/after-dark/studio/${c.id}`}>
+                🎨 {c.name.split(/\s+/)[0]}&apos;s Studio
+              </Link>
+            ))}
+          {/* The chapter reader (Reader.tsx), once it's on for this viewer. */}
+          {reader && (
+            <Link className="button-ghost small" href={`${base}?view=reader`} data-read-it>
+              📖 Read it
             </Link>
-          ))}
+          )}
         </p>
       )}
+      {reading ? (
+        <Reader
+          names={{ a: scene.a.name, b: scene.b.name }}
+          base={base}
+          now={{ chapter: scene.chapter, lines: scene.lines, place: scene.place }}
+          saved={await listNights(db, admin, scene.a.id, scene.b.id)}
+          pick={sp.chapter ?? null}
+        />
+      ) : (
       <SceneWriter
         initial={scene}
         gallery={await listMedia(db, [scene.a.id, scene.b.id], admin, { withArchived: true })}
@@ -202,6 +224,7 @@ export default async function AfterDarkScenePage({ params }: Props) {
           ) : null
         }
       />
+      )}
     </article>
     </div>
   );
