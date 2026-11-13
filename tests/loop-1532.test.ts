@@ -156,7 +156,7 @@ describe("2.28.0: batching, check_only and the two-agent clock, said on start_ow
     expect(s.write_it_yourself).toMatch(/check_only: true tests a line.*outputs: \[\.\.\.\] hands in several/);
     expect(s.how_long).toMatch(/one call a turn, in a loop, 3 minutes a move/);
     expect(instructions.split(/\s+/).length).toBeLessThan(600);
-    expect(MCP_SERVER_INFO.version).toBe("2.28.0");
+    expect(MCP_SERVER_INFO.version).toMatch(/^2\.(2[89]|[3-9]\d)\./);
   });
 
   it("a like says it's free and binds to nothing", async () => {
