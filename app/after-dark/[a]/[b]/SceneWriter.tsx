@@ -116,6 +116,9 @@ export default function SceneWriter({
   twoSides = null,
   adminTools = null,
   prices,
+  makeMore = false,
+  phoneSheet = false,
+  studios = [],
 }: {
   initial: AdultScene;
   gallery: Media[];
@@ -152,6 +155,11 @@ export default function SceneWriter({
   adminTools?: ReactNode;
   /** What the gallery's spending buttons cost this viewer (page.tsx): Redraw, 👕 SFW twin, and 🔁 Film it again (null: free). */
   prices?: GalleryPrices;
+  /** Not open yet (lib/adult/rollout.ts), for this viewer: the theater's Make more menu and the phone's ⋯ sheet. */
+  makeMore?: boolean;
+  phoneSheet?: boolean;
+  /** Whose Studio is the viewer's to open, for Make more. */
+  studios?: readonly { id: string; name: string }[];
 }) {
   // A video that costs no tokens (page.tsx sets reelTokens 0): free for an admin, else it's on their own video key.
   const videoFree = admin ? "free" : "on your key";
@@ -737,6 +745,9 @@ export default function SceneWriter({
               setSheet(true);
             }}
             crisis={crisisNotice}
+            makeMore={makeMore}
+            phoneSheet={phoneSheet}
+            studios={studios}
           />
         )}
         {watching && (
