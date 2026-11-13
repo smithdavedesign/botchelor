@@ -330,6 +330,7 @@ export async function startTestDb() {
         "companion_voice",
         "companion_live_calls",
         "face_kits",
+        "live_faces",
         "plan_entitlements",
         "plan_checkouts",
         "plan_events",

@@ -1193,6 +1193,23 @@ create table if not exists face_kits (
   updated_at timestamptz not null default now()
 );
 create unique index if not exists face_kits_one on face_kits (character_id, source_id, part);
+-- A character's live face at a renderer (lib/live-face/index.ts; docs/PRDs/digital-human.md Tier 1): one per character per
+-- kit portrait per provider, built by an admin (hours), the renderer's face id once it exists. Sessions aren't rows:
+-- a call's face time is on companion_live_calls (face_provider, face_seconds) for the spend view.
+create table if not exists live_faces (
+  id text primary key,
+  character_id text not null references characters (id) on delete cascade,
+  source_id text not null,
+  provider text not null,
+  provider_face_id text,
+  status text not null check (status in ('making', 'ready', 'failed')),
+  error text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create unique index if not exists live_faces_one on live_faces (character_id, source_id, provider);
+alter table companion_live_calls add column if not exists face_provider text;
+alter table companion_live_calls add column if not exists face_seconds integer not null default 0;
 -- Subscription plans sold on a Stripe Payment Link (lib/paid-plans.ts): one row per person and plan.
 create table if not exists plan_entitlements (
   user_id text not null,

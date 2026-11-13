@@ -7,9 +7,10 @@ import { extraPrice, type CompanionCharacterRef, type CompanionExtraState, type 
 import { heardSoFar, LIVE_START, liveStep, type Heard, type LiveEvent, type LiveState } from "@/lib/companion-live-shared";
 import { sseData } from "@/lib/sse";
 import { kitComplete, type FaceKit } from "@/lib/face-kit-shared";
+import { voiceForLiveFace, type LiveFaceSession } from "@/lib/live-face-shared";
 import { TRANSCRIPT_START, transcriptStep, type Transcript, type TranscriptEvent } from "@/lib/companion-call-transcript";
 import CallTranscript from "./CallTranscript";
-import LiveFace from "./LiveFace";
+import LiveFace, { type LiveFaceHandle } from "./LiveFace";
 import { listen as listenLive, liveSupported, Mic, newAudioContext, PcmPlayer, type Listening } from "./live-audio";
 
 export type CallVoice = "device" | "own";
@@ -188,6 +189,10 @@ export default function CompanionCall({
   const [showScript, setShowScript] = useState(false);
   // Their face for the call, and what's come of it since the page loaded (a kit being drawn arrives part by part).
   const [faceKit, setFaceKit] = useState<FaceKit | null>(kit);
+  // A live face (lib/live-face): the renderer's session the call started with, and the face itself once it streams.
+  const [faceSession, setFaceSession] = useState<LiveFaceSession | null>(null);
+  const face = useRef<LiveFaceHandle>(null);
+  const faceWas = useRef<string | null>(null);
 
   // What the callbacks below read (they outlive renders): the phase now, how the call is going, the latest props.
   const phaseNow = useRef<Phase>("ready");
@@ -575,6 +580,9 @@ export default function CompanionCall({
       callId.current = call.id;
       segmentAt.current = Date.now();
       lastTick.current = Date.now();
+      // Their live face, when the server offered one: it opens beside the line and takes the voice once it streams.
+      const offered = r.data?.face as LiveFaceSession | null | undefined;
+      setFaceSession(offered ?? null);
       return liveOpen(stt.url, stt.token);
     }
     const message = typeof r.data?.message === "string" ? r.data.message : null;
@@ -617,6 +625,7 @@ export default function CompanionCall({
     if (ended.current || (phaseNow.current as Phase) === "paused") return;
     if (r.status === 402) return pause(typeof r.data?.message === "string" ? r.data.message : null, true);
     if (r.status !== 200 || !stt?.url || !stt.token) return pause("The connection dropped. Tap to talk to try again.");
+    if (!face.current?.live()) setFaceSession((r.data?.face as LiveFaceSession | null | undefined) ?? null);
     try {
       socket.current = await listenLive(stt.url, stt.token, { heard: onHeard, closed: () => void reconnect() });
     } catch {
@@ -635,6 +644,9 @@ export default function CompanionCall({
     callId.current = null;
     if (!id) return;
     const sorted = [...firstAudio.current].sort((a, b) => a - b);
+    const faceSeconds = face.current?.seconds() ?? 0;
+    face.current?.stop();
+    setFaceSession(null);
     void livePost(
       {
         action: "end",
@@ -643,6 +655,8 @@ export default function CompanionCall({
         first_audio_ms: sorted.length ? Math.round(sorted[Math.floor(sorted.length / 2)]) : undefined,
         barge_ins: bargeIns.current,
         voice_off: voiceOff.current || undefined,
+        face: faceSeconds > 0 && faceWas.current ? faceWas.current : undefined,
+        face_seconds: faceSeconds > 0 ? faceSeconds : undefined,
       },
       true,
     );
@@ -654,6 +668,7 @@ export default function CompanionCall({
     turnAbort.current?.abort();
     turnAbort.current = null;
     player.current?.stop();
+    face.current?.clear();
   }
 
   function classicInstead(why: string) {
@@ -753,7 +768,13 @@ export default function CompanionCall({
           liveState.current = liveStep(liveState.current, { kind: "reply_text", text: ev.text }).state;
           if (voiceOff.current) sayOnDevice(ev.text);
         } else if (ev.type === "audio") {
-          if (!voiceOff.current && player.current) {
+          if (voiceOff.current) {
+            // Nothing: the device says the words.
+          } else if (face.current?.live()) {
+            // The live face says it, lips and all; its own audio plays the voice.
+            begin();
+            face.current.sendAudio(voiceForLiveFace(ev.pcm, ev.rate));
+          } else if (player.current) {
             begin();
             player.current.push(ev.pcm, ev.rate);
           }
@@ -779,7 +800,7 @@ export default function CompanionCall({
       log({ kind: "done" });
       return refused(failed.status, failed.data);
     }
-    await Promise.all([player.current?.idle(), device]);
+    await Promise.all([player.current?.idle(), device, face.current?.idle()]);
     if (!current() || phaseNow.current === "paused") return;
     liveState.current = liveStep(liveState.current, { kind: "reply_done" }).state;
     log({ kind: "done" });
@@ -913,12 +934,17 @@ export default function CompanionCall({
         </p>
         <div className="companion-call-face">
           <LiveFace
+            ref={face}
             kit={faceKit}
             phase={phase}
             level={faceLevel}
             said={them}
             name={first}
             size={scriptOpen ? 72 : 136}
+            session={faceSession}
+            onLive={(on) => {
+              if (on) faceWas.current = faceSession?.provider ?? "simli";
+            }}
             fallback={<Avatar seed={character.id} name={character.name} hue={character.hue} house={character.house} portraitSrc={character.portrait} size={scriptOpen ? 72 : 136} round />}
           />
         </div>
