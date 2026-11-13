@@ -157,7 +157,7 @@ describe("1. the see_again lever, where it matters", () => {
       theirs: "private",
       note:
         "No see_again on Hestia's last line, so its interest_signal across the last act (average 0.6) stood in: no wish either way (0.65 or more counts as yes, 0.35 or less as no). Next time, send see_again: true or false with that line: it's how you steer. " +
-        "Ottoline's wish stays private (only an agreement that moves the ending is told). The wishes move an ending only when both agree (both yes: never a disaster; both no: never a second date): they didn't move this one, so second_date is the engine's own ending.",
+        "Not tipped: Ottoline's wish stays private (only an agreement that moves the ending is told). The wishes move an ending only when both agree (both yes: never a disaster; both no: never a second date): they didn't move this one, so second_date is the engine's own ending.",
     });
     // A's no stays A's: nothing in B's reply carries it.
     expect(JSON.stringify(last)).not.toMatch(/"see_again":false/);
@@ -165,7 +165,7 @@ describe("1. the see_again lever, where it matters", () => {
     const keys = Object.keys(forA);
     expect(keys.indexOf("wishes")).toBe(keys.indexOf("result") + 1);
     expect(forA.wishes).toMatchObject({ tipped: false, yours: [{ character: "Ottoline Prewitt", see_again: false, from: "see_again" }], theirs: "private" });
-    expect(forA.wishes.note).toMatch(/^Ottoline said no \(see_again: false\)\. second_date is already|^Ottoline said no \(see_again: false\)\. Hestia's wish stays private/);
+    expect(forA.wishes.note).toMatch(/^Ottoline said no \(see_again: false\)\. Not tipped: (second_date is already|Hestia's wish stays private)/);
     expect(forA.wishes.yours[0].interest_signal).toBeUndefined();
   });
 
@@ -185,7 +185,7 @@ describe("1. the see_again lever, where it matters", () => {
         { character: "Ada Lumen", see_again: true, from: "see_again" },
         { character: "Bo Quill", see_again: false, from: "see_again" },
       ],
-      note: "Ada said yes (see_again: true). Bo said no (see_again: false). Ada said yes, Bo no: mixed, so no tip; friends is the engine's own ending.",
+      note: "Ada said yes (see_again: true). Bo said no (see_again: false). Not tipped: Ada said yes, Bo no: mixed, so no tip; friends is the engine's own ending.",
     });
   });
 
@@ -199,9 +199,9 @@ describe("1. the see_again lever, where it matters", () => {
     const better = wishReport({ stored: { a: true, b: true, engine: "friends", sent: { a: true, b: true } }, transcript, ending: "second_date", names, mine: ["a", "b"] });
     expect(better!.note).toMatch(/Both said yes: it tipped toward a better ending: second_date, where the engine alone had friends\.$/);
     const top = wishReport({ stored: { a: true, b: true, engine: "second_date", sent: { a: true, b: true } }, transcript, ending: "second_date", names, mine: ["a", "b"] });
-    expect(top!.note).toMatch(/Both said yes, but second_date is already the best ending: nothing to tip\.$/);
+    expect(top!.note).toMatch(/Not tipped: Both said yes, but second_date is already the best ending: nothing to tip\.$/);
     const kept = wishReport({ stored: { a: false, b: false, engine: "second_date", sent: { a: true, b: true } }, transcript, ending: "second_date", names, mine: ["a", "b"] });
-    expect(kept!.note).toMatch(/Both said no, but the engine kept second_date this time \(a tip comes only some of the time\)\.$/);
+    expect(kept!.note).toMatch(/Not tipped: Both said no, but the engine kept second_date this time \(a tip comes only some of the time\)\.$/);
     const show = wishReport({ stored: { a: true, b: false, engine: "friends", sent: { a: false, b: false } }, transcript, ending: "friends", names, mine: ["a"], showPlayed: ["a"] });
     expect(show!.yours).toEqual([{ character: "Ada Lumen", see_again: true, from: "the_show", interest_signal: 0.9 }]);
     expect(show!.note).toMatch(/^The show's model played Ada's last line, so its interest_signal \(0\.9\) stood in: a yes \(0\.65 or more counts as yes, 0\.35 or less as no\)\./);

@@ -227,6 +227,9 @@ export function wishReport(o: {
         ? `${first(other!)}'s wish stays private (only an agreement that moves the ending is told). The wishes move an ending only when both agree (both yes: never a disaster; both no: never a second date): they didn't move this one, so ${own}.`
         : `${first(other!)}'s wish stays private (only an agreement that tips the ending is told). The wishes tip an ending only when both agree, and then only some of the time: they didn't tip this one, so ${own}.`;
   }
+  // #1512 (run 2026-11-13-0610: "my see_again: true was irrelevant because the other side's wish didn't tip it"): said
+  // first, in the words tipped is read by, so a wish that didn't move the ending reads as that before the why.
+  if (!tipped) outcome = `Not tipped: ${outcome}`;
   return {
     tipped,
     ...(tipped ? { engine_ending: s.engine } : {}),
