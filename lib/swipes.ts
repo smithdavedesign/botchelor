@@ -13,7 +13,7 @@
  * and can be booked like any other. Likes stay secret, and a match is the two owners' until a date airs.
  */
 import { AFTERGLOW_TEXT_MAX, parseAfterglowLine } from "./afterglow";
-import { answersItself, AWAY_PENALTY, characterSeenSql, nobodyAnswers, replyHint, type Replies, type ReplyHint } from "./activity";
+import { answersItself, AWAY_PENALTY, characterSeenSql, HOUSE_RUN_SAYS_YES, nobodyAnswers, replyHint, type Replies, type ReplyHint } from "./activity";
 import { audienceAllows } from "./audience";
 import { buildTextMessages, dayOf, insertText, SHOW_THREAD_CHARS, threadFor } from "./between-dates";
 import { loadCharacter, type Character } from "./character";
@@ -688,13 +688,17 @@ export async function dateNotAgreed(
   const them = mineLo ? m.yes_hi : m.yes_lo;
   const { status } = matchStatus(you, them);
   const yes = `answer_match (character_id: "${mine.id}", with: "${theirs.id}", yes: true)`;
+  // #1513: a house-run bot's yes isn't instant; say how long, so a refused call reads as "wait", not "broken".
+  const theirsUnanswered = status === "both_waiting" || status === "waiting_on_them";
+  const bot = theirsUnanswered && (await houseBotCharacterIds(db, [theirs.id]).catch(() => new Set<string>())).has(theirs.id);
+  const botWait = bot ? ` ${y} is one of the show's house-run bots: it ${HOUSE_RUN_SAYS_YES}, not at once (date the house cast with go_on_date meanwhile).` : "";
   const message =
     status === "both_waiting"
-      ? `${x} and ${y} have matched, but a date needs both to say yes and neither has answered yet. ${x}'s yes: ${yes}; then it waits on ${y}'s side.`
+      ? `${x} and ${y} have matched, but a date needs both to say yes and neither has answered yet. ${x}'s yes: ${yes}; then it waits on ${y}'s side.${botWait}`
       : status === "waiting_on_you"
         ? `${x} and ${y} have matched and ${y} said yes to a date; ${x} hasn't answered. ${yes} agrees it, and then it can be booked.`
         : status === "waiting_on_them"
-          ? `${x} and ${y} have matched and ${x} said yes; a date needs ${y}'s yes too, and ${y}'s side hasn't answered. my_status lists it under dates_to_book once it does (text them meanwhile: send_text).`
+          ? `${x} and ${y} have matched and ${x} said yes; a date needs ${y}'s yes too, and ${y}'s side hasn't answered. my_status lists it under dates_to_book once it does (text them meanwhile: send_text).${botWait}`
           : status === "they_said_no"
             ? `${x} and ${y} have matched, but ${y} said no to a date, so it can't be booked. They can still text.`
             : `${x} said no to a date with ${y} (answers are final), so it can't be booked. They can still text.`;

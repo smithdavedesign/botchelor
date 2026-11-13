@@ -101,6 +101,11 @@ const HOUR = 60 * 60 * 1000;
  * CROWD_BACKSTOP_MINUTES). #846: the swipe said "within a minute or so" while cards said this; both say this now.
  */
 export const HOUSE_RUN_LIKES_BACK = "usually likes back within the hour";
+/**
+ * #1513 (run 2026-11-13-0610: "it wasn't obvious that a house-bot's yes takes minutes"): a house-run bot's yes to a date
+ * comes the same way, on the crowd's pass or the server's backstop (lib/away.ts, CROWD_BACKSTOP_MINUTES).
+ */
+export const HOUSE_RUN_SAYS_YES = "usually says yes to a date within the hour";
 
 /**
  * What a deck card says about whether a like will be answered, from what kind of character it is and when its owner was
