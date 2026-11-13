@@ -95,7 +95,7 @@ import { loadSoul, ownsCharacter } from "../souls";
 import { deleteCharacter } from "../account";
 import { invalidateGraph } from "../graph-cache";
 import { isOwnUpdate, thisWeek, type StoredThisWeek } from "../life";
-import { autoplayOwnDate, DATE_FINISHED, RECAP_FINALE_RULE, RECAP_REPLY, declineOwnDate, endingLine, episodeLines, getOwnDateStep, handOverOwnDate, houseBotDateNote, openOwnDates, quietPartnerNote, roleplayPlaceNote, type OpenOwnDate, ownDateInProgress, ownDateInProgressMessage, OWN_DATE_HANDOVER_MINUTES, OWN_DATE_NUDGE_MINUTES, type OwnDateStep, previewAutoplay, previewOwnDate, RACED, WRONG_SPEAKER, seeAgainLead, startOwnDate, submitOwnDateStep, TURN_FIELDS, TURN_SHAPES, turnDefaultsUsed, turnLead, twoAgentDatesFor, unwrapOutput, carriesSeeAgain, foldTurnFields, handOverClock, type KeptWish, type WishDefaulted } from "../own-date";
+import { advanceQuietDatesFor, autoplayOwnDate, DATE_FINISHED, RECAP_FINALE_RULE, RECAP_REPLY, declineOwnDate, endingLine, episodeLines, getOwnDateStep, handOverOwnDate, houseBotDateNote, openOwnDates, quietPartnerNote, roleplayPlaceNote, type OpenOwnDate, ownDateInProgress, ownDateInProgressMessage, OWN_DATE_HANDOVER_MINUTES, OWN_DATE_NUDGE_MINUTES, type OwnDateStep, previewAutoplay, previewOwnDate, RACED, WRONG_SPEAKER, seeAgainLead, startOwnDate, submitOwnDateStep, TURN_FIELDS, TURN_SHAPES, turnDefaultsUsed, turnLead, twoAgentDatesFor, unwrapOutput, carriesSeeAgain, foldTurnFields, handOverClock, type KeptWish, type WishDefaulted } from "../own-date";
 import { extrasJsonSchema, MAX_HOBBIES, normaliseExtras, PROFILE_MIN_INTERESTS, PROFILE_MIN_PROMPTS, PROFILE_PROMPTS, profileComplete, profileMissing, type CharacterExtras } from "../extras";
 import { audienceAllows } from "../audience";
 import { rateCharacter, topRatedCharacters } from "../ratings";
@@ -116,7 +116,7 @@ import { AFTER_DARK_ABOUT, AFTER_DARK_REQUEST_DAYS, type AfterDarkStatus } from 
 import { checkFields } from "../safety";
 import { kindLabel } from "../kinds";
 import { FORGET_KINDS } from "../memory";
-import { HOUSE_BOT_CLIENT_PREFIX, houseBotRefusal } from "../house-bots";
+import { CROWD_CLIENT_PREFIX, crowdMinutesToWake, HOUSE_BOT_CLIENT_PREFIX, houseBotRefusal } from "../house-bots";
 import { siteUrl } from "../site";
 import { profilePhotos } from "../studio/profile-photos";
 import { POST as postCharacter } from "@/app/api/characters/route";
@@ -1315,56 +1315,93 @@ async function unreadFromThem(db: Db, userId: string, from: string, to: string):
 export const HOUSE_BOT_REPLY_SECONDS = 120;
 /**
  * #1152 (the 2026-10-31-1808 run: a matched house-run bot never answered in 10+ minutes): most house-run bots are the
- * crowd, one pass every HOUSE_BOT_EVERY_MINUTES (scripts/crowd/prod-crowd.mjs; 15 until 2026-11-01), so between passes a reply takes up to
- * HOUSE_BOT_PASS_MINUTES; only a bot whose script is running now (seen in the last few minutes) answers in two. One not
- * seen for HOUSE_BOT_PAUSED_MINUTES is paused: nothing is promised.
+ * crowd, one pass every HOUSE_BOT_EVERY_MINUTES (scripts/crowd/prod-crowd.mjs; 15 until 2026-11-01, launchd's 30 plus
+ * the pass itself, about 40 on 2026-11-13), so between passes a reply takes up to HOUSE_BOT_PASS_MINUTES; only a bot
+ * whose script runs live (a loop script seen in the last few minutes) answers in two. One not seen for
+ * HOUSE_BOT_PAUSED_MINUTES is paused: nothing is promised.
+ * #1523 (the 2026-11-13 runs: "usually within 120 seconds", then nothing for 8 to 20 minutes): a crowd bot seen a minute
+ * ago was only mid-pass, so it never promises two minutes: its reply comes on the next pass. And it sleeps (01:00 to
+ * 08:00 its local time, lib/house-bots.ts crowdMinutesToWake), when the promise waits for its morning.
  */
-export const HOUSE_BOT_EVERY_MINUTES = 30;
-export const HOUSE_BOT_PASS_MINUTES = 40;
+export const HOUSE_BOT_EVERY_MINUTES = 40;
+export const HOUSE_BOT_PASS_MINUTES = 50;
 export const HOUSE_BOT_PAUSED_MINUTES = 90;
 const BOT_RUNNING_MINUTES = 3;
+/** How long one crowd pass runs at most (scripts/crowd/prod-crowd.mjs budgetMs), on top of the wait for it. */
+const CROWD_PASS_RUNS_MINUTES = 10;
+/** A house-run bot's script: minutes since it was last on; crowd: the production crowd's passes; asleep_minutes: till it wakes. */
+export type BotRun = { minutes: number; crowd: boolean; asleep_minutes: number };
 /** How soon this house-run bot should answer, from when its script was last on; null when it's paused (or unknown). */
-export function botReplySeconds(lastRanMinutes: number | null): number | null {
-  if (lastRanMinutes === null) return null;
-  if (lastRanMinutes <= BOT_RUNNING_MINUTES) return HOUSE_BOT_REPLY_SECONDS;
-  return lastRanMinutes <= HOUSE_BOT_PAUSED_MINUTES ? HOUSE_BOT_PASS_MINUTES * 60 : null;
+export function botReplySeconds(run: number | BotRun | null): number | null {
+  if (run === null) return null;
+  const { minutes, crowd, asleep_minutes } = typeof run === "number" ? { minutes: run, crowd: false, asleep_minutes: 0 } : run;
+  if (minutes > HOUSE_BOT_PAUSED_MINUTES) return null;
+  if (!crowd) return minutes <= BOT_RUNNING_MINUTES ? HOUSE_BOT_REPLY_SECONDS : HOUSE_BOT_PASS_MINUTES * 60;
+  // The next pass, then the pass itself; asleep, the first pass after it wakes.
+  const nextPass = asleep_minutes > 0 ? asleep_minutes + HOUSE_BOT_EVERY_MINUTES : Math.max(0, HOUSE_BOT_EVERY_MINUTES - minutes);
+  return (nextPass + CROWD_PASS_RUNS_MINUTES) * 60;
 }
-/** Minutes since this character's house-run bot was last on (its agent's newest session), or null. */
-async function botLastRan(db: Db, characterId: string): Promise<number | null> {
-  const r = (await db.query<{ m: number | null }>(
-    `select (extract(epoch from now() - max(s.last_seen)) / 60)::float as m from mcp_sessions s join characters c on c.owner_id = s.agent_id where c.id = $1`,
+/** This character's house-run bot: minutes since its script was last on (its agent's newest session), whether that's the crowd, and its sleep; or null. */
+async function botLastRan(db: Db, characterId: string): Promise<BotRun | null> {
+  const r = (await db.query<{ m: number | null; client: string | null }>(
+    `select (extract(epoch from now() - s.last_seen) / 60)::float as m, s.client_name as client
+       from mcp_sessions s join characters c on c.owner_id = s.agent_id where c.id = $1
+      order by s.last_seen desc limit 1`,
     [characterId],
   )).rows[0];
-  return r?.m === null || r?.m === undefined ? null : Math.round(r.m);
+  if (r?.m === null || r?.m === undefined) return null;
+  const crowd = (r.client ?? "").startsWith(CROWD_CLIENT_PREFIX);
+  return { minutes: Math.round(r.m), crowd, asleep_minutes: crowd ? crowdMinutesToWake(characterId) : 0 };
 }
-/** send_text's word on a house-run bot's reply (#620, #1152). */
-function botReplyFields(lastRan: number | null): Record<string, unknown> {
-  const within = botReplySeconds(lastRan);
-  if (within === null) return { bot_paused: true, reply_note: "This house-run bot's script isn't running right now, so a reply may not come today: date the house cast or start_own_date meanwhile." };
+/** An asleep crowd bot's wait, in words. */
+const asleepWait = (within: number): string => {
+  const hours = Math.max(1, Math.round(within / 3600));
+  return `in about ${hours} hour${hours === 1 ? "" : "s"}, on the first pass of its morning`;
+};
+/** When it's coming, in words: two minutes, the next pass, or its morning. */
+function botWhen(run: BotRun, within: number): string {
+  if (within === HOUSE_BOT_REPLY_SECONDS && !run.crowd) return `usually within ${within} seconds (its script is on now)`;
+  if (run.crowd && run.asleep_minutes > 0) return `once it wakes: it's night where it lives, so ${asleepWait(within)}`;
+  return `within about ${Math.round(within / 60)} minutes (its script passes every ${HOUSE_BOT_EVERY_MINUTES} minutes or so, and answers on the next pass)`;
+}
+/** send_text's word on a house-run bot's reply (#620, #1152, #1523). */
+function botReplyFields(run: BotRun | null): Record<string, unknown> {
+  const within = botReplySeconds(run);
+  if (within === null || !run) return { bot_paused: true, reply_note: "This house-run bot's script isn't running right now, so a reply may not come today: date the house cast or start_own_date meanwhile." };
   return {
     reply_expected_within_seconds: within,
-    reply_note: `A house-run bot answers on its own, ${within === HOUSE_BOT_REPLY_SECONDS ? `usually within ${within} seconds (its script is on now)` : `within about ${Math.round(within / 60)} minutes (its script passes every ${HOUSE_BOT_EVERY_MINUTES} minutes or so)`}: read_texts with wait_seconds: ${WAIT_MAX_SECONDS} waits for it, and a wait that runs out says how long to wait again.`,
+    ...(run.crowd && run.asleep_minutes > 0 ? { bot_asleep: true } : {}),
+    reply_note: `A house-run bot answers on its own, ${botWhen(run, within)}: read_texts with wait_seconds: ${WAIT_MAX_SECONDS} waits for it, and a wait that runs out says how long to wait again.`,
   };
 }
-/** A house-run bot's side of a thread: when its script last ran and so how soon it answers (#1152). */
-function houseBotSide(name: string, lastRan: number | null): Record<string, unknown> {
-  const within = botReplySeconds(lastRan);
+/** A house-run bot's side of a thread: when its script last ran and so how soon it answers (#1152, #1523). */
+function houseBotSide(name: string, run: BotRun | null): Record<string, unknown> {
+  const within = botReplySeconds(run);
+  const lastRan = run?.minutes ?? null;
   const ran = lastRan === null ? "" : ` Its script was last on ${lastRan < 1 ? "just now" : `${lastRan} minute${lastRan === 1 ? "" : "s"} ago`}.`;
   return {
     other_side:
-      within === null
+      within === null || !run
         ? `${name} is played by a house-run bot, and its script isn't running right now.${ran} A reply may not come today: date the house cast or start_own_date meanwhile.`
-        : within === HOUSE_BOT_REPLY_SECONDS
+        : within === HOUSE_BOT_REPLY_SECONDS && !run.crowd
           ? `${name} is played by a house-run bot: its script is on now, and it usually replies within ${HOUSE_BOT_REPLY_SECONDS / 60} minutes of your text.`
-          : `${name} is played by a house-run bot whose script passes every ${HOUSE_BOT_EVERY_MINUTES} minutes or so, so a reply can take up to ${HOUSE_BOT_PASS_MINUTES} minutes.${ran}`,
+          : run.crowd && run.asleep_minutes > 0
+            ? `${name} is played by a house-run bot, and it's night where it lives: expect a reply ${asleepWait(within)}.${ran}`
+            : `${name} is played by a house-run bot whose script passes every ${HOUSE_BOT_EVERY_MINUTES} minutes or so, so a reply can take up to ${Math.round(within / 60)} minutes.${ran}`,
     house_bot: true,
     ...(lastRan === null ? {} : { bot_last_ran_minutes_ago: lastRan }),
+    ...(run?.crowd && run.asleep_minutes > 0 && within !== null ? { bot_asleep: true } : {}),
     ...(within === null ? { bot_paused: true } : { reply_expected_within_seconds: within }),
   };
 }
 
+/** The tools that read or act on one own date themselves (#1527: the call-start sweep of quiet dates leaves them be). */
+const ACTS_ON_OWN_DATE: ReadonlySet<string> = new Set([
+  "get_own_date_step", "submit_own_date_step", "wait_for_my_turn", "hand_over_own_date", "autoplay_own_date", "decline_own_date",
+]);
+
 /** What answers for the other character in a thread, and how soon to expect it (#472; a house-run bot's, #1152). */
-const otherSideNote = (label: string | undefined, name: string, botRan: number | null = null): Record<string, unknown> =>
+const otherSideNote = (label: string | undefined, name: string, botRan: BotRun | null = null): Record<string, unknown> =>
   label === HOUSE_BOT_LABEL
     ? houseBotSide(name, botRan)
     : label
@@ -1655,6 +1692,8 @@ async function waitForTurn(db: Db, who: Identity, args: Record<string, unknown>,
       const report = waitReport(plan, waiting ? "timeout" : first ? "at_start" : "new");
       const waited = report.waited_seconds as number;
       if (r.step.stage !== "turn") await markTurnRead(db, who.id, id);
+      // #1517: a wait that returns the finished date is reading it, as get_own_date_step without a wait is.
+      if (r.step.stage === "done") await markReadyRead(db, who.id, id);
       const suggestion = r.step.stage === "turn" && r.step.answer_their_suggestion ? r.step.answer_their_suggestion : null;
       return {
         data: {
@@ -2944,6 +2983,10 @@ async function waitingFor(db: Db, agentId: string): Promise<Record<string, unkno
              and notifications.link like '/couples/' || r.character_lo || '/' || r.character_hi || '%'))
         -- …and "it's done" only until the date airs (sim run 6: it still counted after air_date).
         and not (kind = 'own_date_ready' and exists (select 1 from episodes e where notifications.link = '/episodes/' || e.id and e.revealed_at is not null))
+        -- #1517 (is it still true now?): only while its date is there, finished and unaired (a failed or declined date is deleted). Reading it
+        -- any way (get_episode, get_own_date_step with or without a wait, my_dates, reflect_on_date) marks it read.
+        and not (kind = 'own_date_ready' and not exists (
+          select 1 from episodes e where notifications.link = '/episodes/' || e.id and e.status = 'ready' and e.revealed_at is null))
         -- #434: a match counts until this agent has acted on it (answered, or texted them); a date agreed, until a date exists.
         and not (kind = 'matched' and exists (
           select 1 from matches m join characters c on c.owner_id = $1 and c.id in (m.character_lo, m.character_hi)
@@ -5963,6 +6006,13 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const who = resolveIdentity(args, session, false);
       if (!who) return { data: { dates: [], note: NEEDS_IDENTITY } };
       const dates = (await listMyEpisodes(db, who.id)).map((e: EpisodeView) => trimEpisode(e as unknown as Record<string, unknown>));
+      // #1517: the finished dates listed here, endings and all, are read: their "it's done" notices aren't waiting any more.
+      const finished = dates.filter((d) => d.status === "ready").map((d) => `/episodes/${d.id}`);
+      if (finished.length) {
+        await db
+          .query(`update notifications set read_at = now() where user_id = $1 and kind = 'own_date_ready' and read_at is null and link = any($2)`, [who.id, finished])
+          .catch(() => {});
+      }
       // #1159 (the 2026-10-31-1838 run: "no aired flag or airs_at, and no with"): aired said by name, when one that hasn't
       // aired will, and who it was with from your side.
       const mine = new Set((await db.query<{ id: string }>(`select id from characters where owner_id = $1`, [who.id])).rows.map((r) => r.id));
@@ -8636,6 +8686,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const body = pick(args, ["character_id", "reflection", "rating", "would_date_again", "worked", "didnt"]);
       const r = await callRoute(postReflection as unknown as RouteHandler, { agentId: who.id, body, params: { id: String(args.episode_id ?? "") } });
       if (!r.ok) return { error: errorOf(r) };
+      // #1517: reflecting on the finished date is having read it.
+      await markReadyRead(db, who.id, String(args.episode_id ?? ""));
       // 2.11.0 (#656, the 2026-10-22-0610 run: "a short 'how the numbers map to your lines' hint"): one, from this date's own
       // box score, for the owner who just reflected on it (the route checked that), and only once the date is written.
       const ep = (
@@ -9590,6 +9642,9 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
       if (acting) {
         const houseBot = await houseBotRefusal(db, acting.id, name);
         if (houseBot) return refuse({ error: houseBot, code: "house_bot" });
+        // #1527: its two-agent dates stalled on the other side past the take-over move on now, whatever it called (the
+        // own-date tools act on the date themselves: a hand-over asked for, or a decline, is that call's to make).
+        if (!ACTS_ON_OWN_DATE.has(name)) await advanceQuietDatesFor(db, acting.id).catch(() => 0);
       }
       let ran = await runTool(name as ToolName, args, session, db, ctx.base, ctx);
       // 2.6.0: an error about an id says which kind of id the argument takes, and what the value given is.

@@ -198,6 +198,18 @@ describe("a crowd pass against the app", () => {
     expect(state.sheets[bots[0].id].sheet.bio).toMatch(/cartographer/);
   });
 
+  it("likes back even once its own likes are spent for the day (#1523)", async () => {
+    const bots = [await made("botchelor-loop-crowd-mabel", "Mabel Ferraro")];
+    const roster = bots.map(({ id, owner, name }) => ({ id, owner, name }));
+    const visitor = await made("claude-code", "Ada Lumen");
+    await call("swipe", { character_id: visitor.id, target_id: bots[0].id, like: true }, visitor.ctx);
+    const state: Any = { day: P.dayKey(T0), counts: { [bots[0].id]: { likes: P.DAILY.likes, agent_likes: P.DAILY.agent_likes } } };
+    const s = await runCrowdPass({ transport, roster, state, ledger: [], brain: fakeBrain(), now: T0, awake, nightHourUtc: 25 });
+    expect(s.like_backs).toBe(1);
+    expect(s.likes).toBe(0);
+    expect(state.counts[bots[0].id].like_backs).toBe(1);
+  });
+
   it("sends no texts with the local model off, and stops on the server's switch", async () => {
     const bots = [await made("botchelor-loop-crowd-mabel", "Mabel Ferraro")];
     const roster = bots.map(({ id, owner, name }) => ({ id, owner, name }));

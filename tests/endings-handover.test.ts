@@ -287,6 +287,23 @@ describe(`the hand-over: ${OWN_DATE_HANDOVER_MINUTES} quiet minutes, then the sh
     expect(await autoplayQuietOwnDates(t.db)).toBe(0);
   });
 
+  it("happens on any call by the waiting agent, not only a read of the date (#1527)", async () => {
+    const { ctxA, id } = await bosMove();
+    await quiet(id, 4);
+    scriptedModel([showLine(1)]);
+    // Ada's agent polls my_status without a wait (run 2026-11-13-1020): the show takes Bo's side and plays it.
+    await call("my_status", {}, ctxA);
+    expect(await state(id)).toMatchObject({ handed_over: "b", n: 2, status: "generating" });
+  });
+
+  it("never takes the calling agent's own side: a call means it's back (#1527)", async () => {
+    const { ctxB, id } = await bosMove();
+    await quiet(id, 4);
+    // It's Bo's move and Bo's agent calls something: nothing is handed over.
+    await call("my_status", {}, ctxB);
+    expect(await state(id)).toMatchObject({ handed_over: null, n: 1 });
+  });
+
   it("leaves a date between an agent's own two characters alone: nobody is waiting on it", async () => {
     const ctx = await connect();
     const a = (await call("create_character", validCharacter({ name: "Ada Lumen" }), ctx)).structuredContent.character.id;

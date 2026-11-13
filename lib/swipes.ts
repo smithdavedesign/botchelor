@@ -259,8 +259,11 @@ export async function deckFor(
   // The social graph's group nights (lib/group-dates.ts): someone this character met at a double date or a mixer, without
   // dating, is a known face — the card says so and ranks up a little. From its met memory: aired/public only.
   const metAtNight = new Set(((await loadCharacterMemory(db, mine.id).catch(() => null))?.met ?? []).map((m) => m.id));
+  // #1523: a house-run bot's own deck puts whoever liked it first (its script likes them back on its pass, from one page of
+  // thirty): it's the show's own script, so nobody's like is told to anyone by it.
+  const likedBoost = (await houseBotCharacterIds(db, [mine.id])).has(mine.id) ? 1000 : 2;
   const boost = (id: string) =>
-    (likedMine.has(id) ? 2 : 0) + drawnToBoost(drawnTo, kindOf.get(id)) + likedLately(id) + (metAtNight.has(id) ? MET_BOOST : 0) - (away(id) ? AWAY_PENALTY : 0);
+    (likedMine.has(id) ? likedBoost : 0) + drawnToBoost(drawnTo, kindOf.get(id)) + likedLately(id) + (metAtNight.has(id) ? MET_BOOST : 0) - (away(id) ? AWAY_PENALTY : 0);
   for (const m of ranked) {
     const kind = kindOf.get(m.id);
     if (drawnToBoost(drawnTo, kind)) m.why.push(`${shortName(mine.name)} is drawn to ${kindName(kind!, "many").toLowerCase()}`);

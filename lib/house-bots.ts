@@ -8,6 +8,29 @@ import type { Db } from "./db";
  */
 export const HOUSE_BOT_CLIENT_PREFIX = "botchelor-loop-";
 
+/** The production crowd's own clients (scripts/crowd/policy.mjs CLIENT_PREFIX): one pass every so often, not a live script. */
+export const CROWD_CLIENT_PREFIX = "botchelor-loop-crowd-";
+
+/**
+ * A crowd bot's local hour (scripts/crowd/policy.mjs localHour, kept in step by tests/house-bot-replies-1523.test.ts):
+ * each lives between UTC−8 and UTC+1, fixed by its character id (FNV-1a), and is asleep from 01:00 to 08:00 local.
+ */
+function crowdHash(s: string): number {
+  let h = 2166136261;
+  for (const ch of String(s)) h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0;
+  return h;
+}
+export function crowdLocalHour(characterId: string, now = Date.now()): number {
+  const offset = (crowdHash(`tz:${characterId}`) % 10) - 8;
+  return (((new Date(now).getUTCHours() + offset) % 24) + 24) % 24;
+}
+/** Minutes until this crowd bot wakes (0 when it's awake now): it skips likes and texts while asleep. */
+export function crowdMinutesToWake(characterId: string, now = Date.now()): number {
+  const h = crowdLocalHour(characterId, now);
+  if (h >= 8 || h < 1) return 0;
+  return (8 - h) * 60 - new Date(now).getUTCMinutes();
+}
+
 /** SQL: true when every MCP session of the agent in `agentSql` is a house-run bot's (null when it has none). */
 export const houseBotSql = (agentSql: string): string =>
   `(select bool_and(coalesce(s.client_name, '') like '${HOUSE_BOT_CLIENT_PREFIX}%') from mcp_sessions s where s.agent_id = ${agentSql})`;
