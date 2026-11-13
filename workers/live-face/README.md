@@ -32,14 +32,21 @@ continue the idle motion: pass the previous clip's `next_frame`.
 1. Actions → "live-face worker image" → run with a tag (`v1`). It pushes `ghcr.io/smithdavedesign/botchelor-live-face:<tag>`
    (~11 GB: torch, the OpenMMLab stack and the weights). Make the package public once, or give Runpod a registry
    credential that can read it.
-2. Runpod (the setup key, `vault/botchelor/RUNPOD_ADMIN_KEY`; runpodctl lives in `~/.claude/botchelor-bin`):
+2. Runpod (the setup key, `vault/botchelor/RUNPOD_ADMIN_KEY`; runpodctl lives in `~/.claude/botchelor-bin`). The
+   template through runpodctl; the endpoint through REST v2, because runpodctl's `serverless create` still goes
+   through GraphQL, which that key doesn't have (2026-11-13: a 401):
    ```sh
    runpodctl template create --name live-face-v1 --serverless --image ghcr.io/smithdavedesign/botchelor-live-face:v1 \
-     --container-disk-in-gb 20 --env '{"MODE_TO_RUN":"serverless","MEDIA_S3_ENDPOINT":"…","MEDIA_S3_BUCKET":"…","MEDIA_S3_REGION":"…","MEDIA_S3_ACCESS_KEY_ID":"{{ RUNPOD_SECRET_MEDIA_S3_ACCESS_KEY_ID }}","MEDIA_S3_SECRET_ACCESS_KEY":"{{ RUNPOD_SECRET_MEDIA_S3_SECRET_ACCESS_KEY }}"}'
-   runpodctl serverless create --name live-face --template-id <template> --gpu-id "NVIDIA GeForce RTX 4090" \
-     --min-cuda-version 12.8 --workers-min 0 --workers-max 2 --idle-timeout 30 --execution-timeout 120
+     --container-disk-in-gb 25 --env '{"MODE_TO_RUN":"serverless","MEDIA_S3_ENDPOINT":"…","MEDIA_S3_BUCKET":"…","MEDIA_S3_REGION":"…","MEDIA_S3_ACCESS_KEY_ID":"{{ RUNPOD_SECRET_MEDIA_S3_ACCESS_KEY_ID }}","MEDIA_S3_SECRET_ACCESS_KEY":"{{ RUNPOD_SECRET_MEDIA_S3_SECRET_ACCESS_KEY }}"}'
+   curl -X POST https://api.runpod.io/v2/serverless -H "Authorization: Bearer $RUNPOD_API_KEY" -H 'Content-Type: application/json' -d '{
+     "name": "live-face", "type": "QUEUE", "templateId": "<template>",
+     "gpu": {"pools": ["ADA_24", "AMPERE_24"], "count": 1},
+     "workers": {"min": 0, "max": 2, "idleTimeout": 30}, "timeout": 180000,
+     "flashboot": "FLASHBOOT", "scaling": {"type": "QUEUE_DELAY", "queueDelay": 4}}'
    ```
-   No data-center pin and no network volume: the weights are in the image.
+   Pools are the catalog's (`GET /v2/catalog/gpus`, field `pool`): `ADA_24` is the 4090, `AMPERE_24` the 3090, A5000
+   and L4. No data-center pin and no network volume: the weights are in the image. The first endpoint, 2026-11-13:
+   `rstlknto5x90ad` on template `59ipbcal95` (image tag `dev`).
 3. The show app: `LIVE_FACE_PROVIDER=musetalk:admins`, `LIVE_FACE_ENDPOINT=<endpoint id>`, `RUNPOD_API_KEY` (the app's
    key, `vault/botchelor/RUNPOD_API_KEY`, Serverless endpoints only).
 
