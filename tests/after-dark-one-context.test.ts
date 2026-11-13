@@ -287,7 +287,7 @@ describe("one context for every scene picture", () => {
     expect(night.updated_at).toMatch(/^\d{4}-/);
     // Lexi's face is the one she picked (adult_face_refs), behind the privacy blur's /after-dark/ hook; Rafe has none kept.
     const lexi = [night.a, night.b].find((c) => c.id === LEXI)!;
-    expect(lexi.photo).toBe("/api/admin/after-dark/media/base-lexi");
+    expect(lexi.photo).toBe("/api/admin/after-dark/media/base-lexi?w=320"); // at a list's size (lib/thumbs.ts)
     expect(pairs.find((p) => p.lines === 0)?.last).toBeUndefined();
   });
 });
