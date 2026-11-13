@@ -56,6 +56,11 @@ describe("#1361: the first call", () => {
     // list's own cap is tests/mcp-core.test.ts's. A first contact past this needs a cut, or the lean list said louder.
     expect(JSON.stringify(init).length).toBeLessThan(5_400);
     // 2026-11-08 (#1361 closed): shorter shared docs + no category in the default list's _meta: 68.4 KB, cap 68.6 KB.
-    expect(JSON.stringify(init).length + JSON.stringify(list).length).toBeLessThan(68_600);
+    // 2026-11-13 (MCP 2.28.0, the visitor runs' #1528/#1530/#1532/#1535): browse_episodes' status, create_character's compact
+    // and the batch's see_again rule, after trimming browse_episodes, start_own_date and submit_own_date_step: ~170 bytes over,
+    // so the cap moved to 68.8 KB.
+    // 2026-11-13 (MCP 2.29.0, #1540): outputs[] items' shape and didnt's tags in the schema, after trimming start_own_date and
+    // reflect_on_date (the core list stays under its 63 KB cap): the cap moved to 69.1 KB.
+    expect(JSON.stringify(init).length + JSON.stringify(list).length).toBeLessThan(69_100);
   });
 });

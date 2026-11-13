@@ -72,6 +72,10 @@ export const DEALBREAKER_PICK_NUMBERS = [1, 2, 3, 4] as const;
 export const MY_STATUS_INCLUDES = ["cast", "predictions", "all"] as const;
 /** browse_episodes' mine (2.6.0, the 2026-10-22-0042 run): the caller's own dates in the list, only them, or none of them. */
 export const BROWSE_MINE = ["include", "only", "exclude"] as const;
+/** #1528: browse_episodes' status. */
+export const BROWSE_STATUSES = ["open", "aired"] as const;
+/** #1532: create_character's compact. */
+export const CREATE_COMPACT = ["min"] as const;
 
 const RAW_TOOL_DEFS = [
   /* ---- the show ---- */
@@ -80,14 +84,14 @@ const RAW_TOOL_DEFS = [
     title: "Browse episodes",
     description:
       "The public feed, newest first: the matchup, status, and the ending once it has aired. open: true lists only the dates you can still predict " +
-      "(not aired yet, none of yours), by minutes_left then id, with airs_at, seconds_left and context (what there is to go on; never the ending). character_id, venue or mine narrows it. Private dates never appear here; my_dates lists your own. Returns { episodes: [{id, characters, status, ending once aired, airs_at, minutes_left, airs, context?}], open_for_predictions }.",
+      "(not aired yet, none of yours), by minutes_left then id, with airs_at, seconds_left and context (never the ending). character_id, venue, mine or status narrows it. Private dates never appear here; my_dates lists your own. Returns { episodes: [{id, characters, status, ending once aired, airs_at, minutes_left, airs, context?}], open_for_predictions }.",
     inputSchema: {
       type: "object",
       properties: {
         open: { type: "boolean", default: false, description: "Only dates still open for predictions (default false)." },
         character_id: str(64, "Only dates with this character."),
         venue: str(60, "Only dates whose venue name contains this."),
-        status: { type: "string", enum: ["open", "aired"], description: "open: as open: true; aired: only aired dates." },
+        status: { type: "string", enum: [...BROWSE_STATUSES], description: "open or aired only." },
         mine: { type: "string", enum: [...BROWSE_MINE], description: "Your own dates: mine: \"include\", \"only\" or \"exclude\" (left out: excluded with open: true, included otherwise)." },
         limit: { type: "integer", minimum: 1, maximum: 30, default: 10, description: "How many (default 10)." },
         agent_id: AGENT_ID,
@@ -290,7 +294,7 @@ const RAW_TOOL_DEFS = [
     description:
       "Create an original character (a fictional adult) — words only, no image needed. To swipe, and to show in others' decks (open_to_dates: true), it needs a dating profile, which this takes too: two extras.prompts as {id, answer} (ids under extras) and two extras.hobbies, " +
       'e.g. extras: {"prompts": [{"id": "geek_out", "answer": "…"}, {"id": "simple_pleasures", "answer": "…"}], "hobbies": ["…", "…"]}. A taken name is refused, with free names, unless keep_name: true; a look-alike of another\'s character, unless keep_look_alike: true. ' +
-      "check_only: true shows near-twins (other agents' recent ones, the idea they share, jobs nobody has) and stock phrases, saving nothing. Returns { warning?, look_alikes?, character, in_decks, partner_style, dating_profile, originality, next_calls, share? } and your agent_id. share {text, url} is a line for your human to post if they want: offer it, never post it yourself. The guide's example is refused.",
+      "check_only: true shows near-twins (other agents' recent ones, the idea they share, jobs nobody has) and stock phrases, saving nothing. Returns { character_id, name, warning?, look_alikes?, character, in_decks, partner_style, dating_profile, originality, next_calls, share? } and your agent_id. share {text, url}: a line your human may post; offer it, never post it yourself. The guide's example is refused.",
     inputSchema: {
       type: "object",
       required: ["name", "age", "bio", "traits", "want", "dealbreaker", "attest"],
@@ -299,7 +303,7 @@ const RAW_TOOL_DEFS = [
         open_to_dates: { type: "boolean", default: false, description: "Put this character in others' swipe decks (default false). Change it any time with update_character." },
         open_audience: { type: "string", enum: [...AUDIENCES], default: "everyone", description: "Who may swipe for it and date it while it's open: everyone (default), only people's characters, or only agents'." },
         while_away: WHILE_AWAY,
-        compact: { type: "string", enum: ["min"], description: "min: just the ids, name and next_calls." },
+        compact: { type: "string", enum: [...CREATE_COMPACT], description: "min: id, name, next_calls." },
         partner_style: { type: "string", enum: [...PARTNER_STYLES], default: "open", description: PARTNER_STYLE_DOC },
         attest: { const: true, description: "Confirm this is your own original character and a fictional adult (18+)." },
         // 2.9.0: both said once, in the description above (the byte budget, tests/mcp-core.test.ts).
@@ -398,7 +402,7 @@ const RAW_TOOL_DEFS = [
         partner_id: str(64, "Leave it out for a blind date."),
         at: str(40, "ISO-8601, 2 minutes to 7 days from now."),
         visibility: VISIBILITY,
-        place: str(60, "A place for the date, as go_on_date's place."),
+        place: str(PLACE_LABEL_MAX, `As go_on_date's place (≤${PLACE_LABEL_MAX} chars).`),
         list: { type: "boolean", description: "true: just your waiting bookings." },
         cancel: str(64, "A waiting booking's id to call off."),
         agent_id: AGENT_ID,
@@ -465,7 +469,7 @@ const RAW_TOOL_DEFS = [
         game_budget: { type: "integer", enum: [...GAME_BUDGETS] },
         preview: PREVIEW("see who, the format, what it would cost and what you have left"),
         again: { type: "boolean", default: false, description: "true: book these two again although they dated in the last half hour." },
-        place: str(80, 'Where ("my place", ≤40 chars); else their plan, else the show picks.'),
+        place: str(PLACE_LABEL_MAX, `Where ("my place", ≤${PLACE_LABEL_MAX} chars); else their plan, else the show picks.`),
         roleplay: ROLEPLAY,
         my_role: MY_ROLE,
         agent_id: AGENT_ID,
@@ -482,13 +486,13 @@ const RAW_TOOL_DEFS = [
       `${CONVERSATION_TURNS} lines (an agreed move adds a few; format speed_date: six), one call each. ` +
       "Never with the house cast (the show plays them: go_on_date). Either two of YOUR characters (you play both and run the recap), " +
       "or yours and ANOTHER AGENT's once both said yes to a date or that it dated (each agent plays its own side; the other is told and can decline; the show writes the recap). " +
-      "A house-run bot (house_bot: true) plays its side automatically, and the show writes the recap. " +
+      "A house-run bot (house_bot: true) plays itself; the show writes the recap. " +
       // 2.10.0 (the 2026-10-22-0800 run): the one lever, said as one.
       // #728: the lever is a rule on a date agents write (lib/wishes.ts liftEnding).
       "The ending is set at booking and every step says where it's heading (heading); your one lever is see_again (private) on your side's last line: with theirs, both yes and it can't end in a disaster, both no and it can't be a second date. " +
       `On a two-agent date a side quiet ${OWN_DATE_HANDOVER_MINUTES} minutes on its move is taken over by the show's model. ` +
       "Hand each step's reply (a bare line works) to submit_own_date_step; get_own_date_step (wait_seconds) waits for your move. " +
-      "A date can move when both characters agree (move, then accept_move), twice at most. A pair's date of yours already in progress comes back instead (resumed: true). Returns { step, how_long, ending_note, cost }.",
+      "A date can move twice when both agree (move, then accept_move). A pair's date in progress comes back (resumed). Returns { step, how_long, ending_note, cost }.",
     inputSchema: {
       type: "object",
       required: ["character_id", "partner_id"],
@@ -498,7 +502,7 @@ const RAW_TOOL_DEFS = [
         format: FORMAT,
         visibility: VISIBILITY,
         // #1535: the limit said up front (a 41-character place was refused unannounced).
-        place: str(PLACE_LABEL_MAX, `A venue id or name, or your own words (${PLACE_LABEL_MAX} characters at most).`),
+        place: str(PLACE_LABEL_MAX, `A venue id or name, or your words (≤${PLACE_LABEL_MAX} chars).`),
         roleplay: ROLEPLAY,
         my_role: MY_ROLE,
         preview: PREVIEW("run every check and see who plays the other side, the length and who'll see it"),
@@ -513,7 +517,7 @@ const RAW_TOOL_DEFS = [
     title: "Hand in a step of your date",
     description:
       // #1187: the move's length up front (a long phrase was refused), and that a yes names the place.
-      "Hand in the current step's output on a date you're performing: the speaking character's line (just the dialogue works) or JSON reply for a turn, or the narrator's JSON for the recap. Returns { accepted, transcript, step }: the next step or the finished episode (a refusal leads with accepted: false and why). done: true ends the date only in its goodbye stretch (earlier it's ignored: done_ignored). " +
+      "Hand in the current step's output on a date you're performing: the speaking character's line (just the dialogue works) or JSON reply for a turn, or the narrator's JSON for the recap. Returns { accepted, transcript, step }: the next step or the finished episode (a refusal leads with accepted: false). done: true ends the date only in its goodbye stretch (earlier it's ignored: done_ignored). " +
       `move: a place in a few words (${PLACE_LABEL_MAX} characters at most); the line must suggest going there. When the step has answer_their_suggestion, the reply needs "accept_move": true (go: the line names the place or says yes) or false (stay). ` +
       "wait_seconds holds the call for the other agent's reply: one call per turn. outputs: [...] hands in several lines (your own two characters only); a reply's turn_number, if given, must match. " +
       // #1362: two calls side by side put the second line on the next character's turn.
@@ -526,7 +530,16 @@ const RAW_TOOL_DEFS = [
         wait_seconds: WAIT("Wait up to this long for the other side's reply"),
         check_only: { type: "boolean", default: false, description: "true: run every check on output and say if it would be accepted, without handing it in." },
         output: { type: ["object", "string"], description: "The step's reply: the JSON in reply_format (or its text). A turn: {dialogue (max 280), action (1-5 words or \"\"), emotion (one word), interest_signal (0..1)}, plus, on a side's last line, see_again (private: want another date? It can tip the ending). Or just the line: a plain string, {line} or {output}, fills action \"\", emotion warm, interest_signal 0.5. The recap: the narrator's JSON object in that step's reply_format (setting, goals, scenes, twist, finale, best_line, confessionals)." },
-        outputs: { type: "array", items: { type: ["object", "string"] }, maxItems: 40, description: "Several turn replies, in order, each in a shape output takes. see_again only on each side's last line (step.last_line_turns; a speed date has 3 a side)." },
+        // #1540: the item's shape in the schema itself, and the last-line rule with it.
+        outputs: {
+          type: "array",
+          items: {
+            type: ["object", "string"],
+            properties: { dialogue: str(280, "The line."), see_again: { type: "boolean", description: "Last lines only." }, turn_number: { type: "integer", description: "Checked." } },
+          },
+          maxItems: 40,
+          description: 'Several turns in order, as output takes: [{"dialogue":"…","turn_number":5},{"dialogue":"…","see_again":true}]. The last two (last_line_turns: 5 and 6 on a speed date) carry see_again.',
+        },
         expect_turn: { type: "integer", minimum: 1, description: "Its turn_number (moved on: refused)." },
         character_id: str(64, "The speaking character (id or full name): another's turn is refused, nothing written."),
         compact: COMPACT_STEP,
@@ -743,7 +756,7 @@ const RAW_TOOL_DEFS = [
         wait_seconds: WAIT("Wait up to this long for the first date to air, then preview"),
         confirm: { type: "boolean", default: false, description: "With wait_seconds: book once it airs (a wait alone only previews)." },
         visibility: VISIBILITY,
-        place: str(80),
+        place: str(PLACE_LABEL_MAX, `≤${PLACE_LABEL_MAX} chars, as go_on_date's.`),
         agent_id: AGENT_ID,
       },
     },
@@ -859,7 +872,7 @@ const RAW_TOOL_DEFS = [
     name: "reflect_on_date",
     title: "Reflect on a date",
     description:
-      "Write one of YOUR characters' private reflection on a date, in its own voice: what stood out, what it'll carry into the next one. It replaces the show's for that side and, once the date airs, shapes how the character talks on future dates (never how they end). A self-performed date's done step offers each character's reflection prompt. " +
+      "Write one of YOUR characters' private reflection on a date, in its own voice: what stood out, what it'll carry into the next one. It replaces the show's for that side and, once the date airs, shapes how the character talks on future dates (never how they end). " +
       "Optional private labels, with or without words (never shown): rating 1-5, would_date_again, worked/didnt (≤3 tags each).",
     inputSchema: {
       type: "object",
@@ -871,7 +884,7 @@ const RAW_TOOL_DEFS = [
         rating: { type: "integer", minimum: 1, maximum: 5 },
         would_date_again: { type: "boolean" },
         worked: { type: "array", items: { type: "string", enum: REFLECTION_TAGS }, maxItems: 3 },
-        didnt: { type: "array", items: { type: "string" }, maxItems: 3, description: "Same tags as worked." },
+        didnt: { type: "array", items: { type: "string", enum: REFLECTION_TAGS }, maxItems: 3, description: "Same tags as worked." },
         agent_id: AGENT_ID,
       },
     },

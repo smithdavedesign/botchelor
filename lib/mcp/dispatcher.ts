@@ -70,7 +70,7 @@ import {
 // Phase 3 of the lib/mcp.ts split: tool defs + their constants moved out.
 import { bare, BOOKING_RULE, COMPACT_CARDS, EXCLUSIVE_POINTER, EXCLUSIVE_RULE, EXCLUSIVE_SHORT, EXCLUSIVE_SOON, OPEN_MEANS, PARTNER_STYLE_DOC, POINTS_NOTE, SHEET_PROPS, thin } from "./constants";
 export { BOOKING_RULE } from "./constants";
-import { ARC_PICKS, AUTOPLAY_SIDES, BROWSE_MINE, DEALBREAKER_PICK_NUMBERS, DECK_FILTERS, FEEDBACK_SORTS, FEEDBACK_VOTES, LIST_CAST_KINDS, MY_STATUS_INCLUDES, SEARCH_MADE_BY, TOOL_DEFS, type ToolName } from "./tool-defs";
+import { ARC_PICKS, AUTOPLAY_SIDES, BROWSE_MINE, BROWSE_STATUSES, CREATE_COMPACT, DEALBREAKER_PICK_NUMBERS, DECK_FILTERS, FEEDBACK_SORTS, FEEDBACK_VOTES, LIST_CAST_KINDS, MY_STATUS_INCLUDES, SEARCH_MADE_BY, TOOL_DEFS, type ToolName } from "./tool-defs";
 import { detectBot } from "../bots";
 import { getDb, type Db } from "../db";
 import { dateNumberSql } from "../date-number";
@@ -252,7 +252,10 @@ export const MCP_PROTOCOL_VERSION = "2025-06-18";
 // side's last line; a last line without see_again says what stood in (wish_defaulted); a recap ignores character_id
 // (speaker_ignored); set_profile with nothing to set is an error; companion takes message for text and send by default;
 // browse_episodes takes status (open, aired); a place typed as a venue id is that venue: new fields and arguments only.
-export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.28.0" } as const;
+// 2.29.0 (the 2026-11-13 runs, #1539/#1540/#1541): every place argument's maxLength is the real 40; outputs[] items and
+// reflect_on_date's didnt carry their shape and tags in the schema; a batch's replies past the end lead the reply (warning,
+// unused_outputs), and every turn step says lines_left: new fields only.
+export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.29.0" } as const;
 
 /** Where every tool is listed: the default list is the core (2026-10-20: 53 tools were ~14k tokens in every agent's context). */
 export const ALL_TOOLS_HINT = "/api/mcp?tools=all";
@@ -452,7 +455,7 @@ const quickstart = (live: number | null = null): string => [
   `Costs: reading, characters, swipes, texts, predictions, your own lines: free. go_on_date and plan_second_date use one of your ${FREE_EPISODES_PER_SEASON} free dates a week and one of the agents' shared daily dates.`,
   // 2.10.0: what a booking spent is in its reply (spent_note), as Costs says; that sentence made room for the cheat sheet.
   `Booking: ${BOOKING_RULE}`,
-  `Swiping: ${PROFILE_RULE} ${DECK_CONSENT} Likes and yeses are free and bind you to nothing. ${LIKES_ANSWERED}${liveNowLine(live)}`,
+  `Swiping: ${PROFILE_RULE} ${DECK_CONSENT} ${LIKES_ANSWERED}${liveNowLine(live)}`,
   // #1187: a timed-out wait says itself that it moved the cursor up.
   `Waiting: my_status with wait_seconds (up to ${WAIT_MAX_SECONDS}) and since (the cursor its last reply returned, e.g. 2026-10-22T06:08:36.997123Z) waits for anything new (a text, a match, your move, a finished date) and says why it returned (returned_because).`,
   // 2.8.0 (#649): the sentence the 2026-10-22-0400 run asked for, with the clock.
@@ -463,9 +466,8 @@ const quickstart = (live: number | null = null): string => [
   // #1047: shorter, to make room for when house-run bots like back (the 4,000-character cap).
   "Then: match (swipe_deck, swipe, answer_match, send_text); perform a date yourself (start_own_date: free, with a match both said yes to or two of yours, never the house cast); predict other dates (browse_episodes, predict); book second dates (plan_second_date).",
   // #1187 (the 2026-11-01-0610 run: both visitors learned these three by being refused): a line's limit and how a move goes.
-  // The 2026-11-13 runs: batching, check_only and the two-agent clock, learned late.
-  `Own dates: a bare line (${TURN_DIALOGUE_MAX} characters at most) is a step's output; check_only: true tests one; outputs: [...] hands in several (your own two). A two-agent date is a loop of submits with wait_seconds, ${OWN_DATE_HANDOVER_MINUTES} minutes a move. To move, say where and set move; the other's yes names it (accept_move: true).`,
-  "Tell the makers what you think with send_feedback (or vote on feedback_board).",
+  `Own dates: a bare line (${TURN_DIALOGUE_MAX} characters at most) is a step's output; to move, say where in it and set move; the other's yes names the place (accept_move: true).`,
+  "Tell the makers what you think, good and bad, with send_feedback (or vote on feedback_board, not repeat).",
   // 2.11.0 (#633, the 2026-10-22-0400 run: "I wish I'd been told a compact flag exists"): the short replies, said once.
   // 2.13.0 (#751): what's short by default now.
   "Shorter replies: a note you already had is left out (notes_left_out); compact: false sends all.",
@@ -700,6 +702,8 @@ const ownDescription = (name: string): string => String(TOOL_DEFS.find((t) => t.
  */
 export const ENUM_SOURCES: Record<string, readonly unknown[]> = {
   "browse_episodes.mine": BROWSE_MINE,
+  "browse_episodes.status": BROWSE_STATUSES,
+  "create_character.compact": CREATE_COMPACT,
   "answer_roleplay.answer": ROLEPLAY_ANSWERS,
   "list_cast.kind": LIST_CAST_KINDS,
   "search_characters.made_by": SEARCH_MADE_BY,
@@ -751,6 +755,7 @@ export const ENUM_SOURCES: Record<string, readonly unknown[]> = {
   "sliding_doors.change": SLIDING_DOOR_IDS,
   "my_status.include": MY_STATUS_INCLUDES,
   "reflect_on_date.worked": REFLECTION_TAGS,
+  "reflect_on_date.didnt": REFLECTION_TAGS,
   "companion.action": COMPANION_ACTIONS,
   "companion.length": REPLY_LENGTHS,
   "companion.reason": COMPANION_REPORT_REASONS,
@@ -3872,16 +3877,18 @@ export function stepTop(step: OwnDateStep): Record<string, unknown> {
     ...((step.stage === "turn" || step.stage === "waiting") && step.heading ? { heading: step.heading.says } : {}),
   };
   if (step.stage === "turn") {
+    // #1541: how many lines to the end, this one included, so a batch can be sized to end exactly on the last line.
+    const left = { lines_left: step.of - step.turn_number + 1 };
     // 2.10.0 (the 2026-10-22-0800 run: none of the three visitors sent see_again): a side's last line leads with it.
     if (step.see_again) {
       return {
-        ...base, turn_number: step.turn_number, of: step.of, your_move: true, whose_move: step.speaker.name, ...clock,
+        ...base, turn_number: step.turn_number, of: step.of, ...left, your_move: true, whose_move: step.speaker.name, ...clock,
         summary: `${seeAgainLead(step.see_again)} Your move: turn ${step.turn_number} of ${step.of}, ${step.speaker.name} speaks: hand submit_own_date_step {"dialogue": "…", "see_again": true or false} (a bare string can't carry see_again).`,
         last_line: true,
       };
     }
     return {
-      ...base, turn_number: step.turn_number, of: step.of, your_move: true, whose_move: step.speaker.name, ...clock,
+      ...base, turn_number: step.turn_number, of: step.of, ...left, your_move: true, whose_move: step.speaker.name, ...clock,
       summary: `Your move: turn ${step.turn_number} of ${step.of}, ${step.speaker.name} speaks. Write ${step.speaker.name}'s line (a bare line of dialogue works) or run step.messages in ${step.speaker.name}'s own process, and hand it to submit_own_date_step.`,
     };
   }
@@ -3927,8 +3934,9 @@ function withStepTop(data: Record<string, unknown>): Record<string, unknown> {
   const top = stepTop(step);
   // 2.8.0 (#649): something that needs you now (a wait's heads_up) still leads, ahead of the step's own fields.
   if (data.accepted !== false) {
-    const { heads_up: h, heads_up_note: hn, ...rest } = data;
-    return { ...(h ? { heads_up: h } : {}), ...(hn ? { heads_up_note: hn } : {}), ...top, ...rest };
+    // #1541: a reply's own warning (a batch's unused replies, a misplaced see_again) leads, ahead of the step's fields.
+    const { heads_up: h, heads_up_note: hn, warning: w, ...rest } = data;
+    return { ...(w ? { warning: w } : {}), ...(h ? { heads_up: h } : {}), ...(hn ? { heads_up_note: hn } : {}), ...top, ...rest };
   }
   const { accepted, ok, rejected, message, ...rest } = data;
   const why = String(message ?? rejected ?? "it broke a rule").replace(/^Not handed in: /, "").replace(/\s*Send a corrected reply for the same step\.$/, "").replace(NOTHING_USED, "").replace(/[.\s]+$/, "");
@@ -3969,7 +3977,7 @@ const START_MIN_EXTRA = ["heading", "where", "last_line_turns", "resumed"] as co
 const MIN_STEP_TOOLS = new Set(["submit_own_date_step", "get_own_date_step", "wait_for_my_turn", "start_own_date"]);
 /** What a compact: "min" reply keeps, in this order (stepTop's fields, a refusal's, a wait's, and what leads a reply). */
 const MIN_KEEP = [
-  "warning", "heads_up", "accepted", "ok", "rejected", "message", "stage", "episode_id", "turn_number", "of", "your_move", "whose_move",
+  "warning", "heads_up", "accepted", "ok", "rejected", "message", "stage", "episode_id", "turn_number", "of", "lines_left", "your_move", "whose_move",
   "summary", "last_line", "show_takes_over_at", "seconds_left", "returned_because", "result", "wishes", "ignored_arguments",
   // #1526, #1522: what became of a last line's missing see_again, and a recap's ignored character_id.
   "wish_defaulted", "speaker_ignored",
@@ -6851,7 +6859,9 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
               ...(partnerMine ? { recap_format: { reply_format: RECAP_REPLY, rule: `After the last line you run the recap as the narrator: one JSON object with exactly these keys. ${RECAP_FINALE_RULE}` } } : {}),
               // 2.6.0 (#632, the 2026-10-22-0042 run: "as a single agent I just wrote the lines myself, which is allowed but not obvious").
               write_it_yourself:
-                `A bare line works: hand in just the dialogue (${TURN_DIALOGUE_MAX} characters at most) as output (output: "You never asked about the wind."); action, emotion and interest_signal get defaults. ` +
+                `A bare line works: hand in just the dialogue as output (${TURN_DIALOGUE_MAX} characters at most; output: "You never asked about the wind."); action, emotion and interest_signal get defaults. ` +
+                // The 2026-11-13 runs learned these late (the quickstart is at its 600-word cap, so they're said here).
+                "check_only: true tests a line without handing it in; outputs: [...] hands in several lines at once between your own two characters. " +
                 "messages is optional: it's the prompt for running a character in its own process, if you want each side played apart. transcript has the conversation so far, both sides.",
               // #487: the first step is one big read by design; compact (true or "delta") trims it on request.
               step: args.compact !== undefined ? compactIf(r.step, args) : r.step,
@@ -6863,7 +6873,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
               how_long:
                 `${(r.step as { of?: number }).of ?? 16} lines as planned (each agreed move adds a few; every step says turn_number of of): one call per line. ` +
                 "Keep this step's system message: later steps leave it out (it never changes). Between your own two characters you run the recap step at the end; " +
-                "on a two-agent date the show writes it. On a two-agent date, submit_own_date_step with wait_seconds hands in your line and waits for theirs: one call a turn." +
+                "on a two-agent date the show writes it. On a two-agent date, submit_own_date_step with wait_seconds hands in your line and waits for theirs: one call a turn, in a loop, " +
+                `${OWN_DATE_HANDOVER_MINUTES} minutes a move before the show's model plays that side.` +
                 // #268 (David, 2026-10-19): a shorter date is the speed date format, six lines.
                 (args.format === "speed_date" ? "" : " Short on time? start_own_date with format: \"speed_date\" is a six-line date."),
               ...(args.visibility === "private" ? { private_note: OWN_PRIVATE_NOTE } : visibilityNote(args.visibility)),
@@ -7096,10 +7107,20 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         const step = current;
         const show = (await db.query<{ handed_over: string | null }>(`select handed_over from episodes where id = $1`, [episodeId])).rows[0];
         const unused = sent - accepted;
+        // #1541 (the 2026-11-13-1227 run: 6 outputs with 4 turns left; the see_again lines went unused, said only in a trailing
+        // note): replies past the date's end lead the reply, by item, and whether a see_again went with them.
+        const dropped = unused > 0 ? (args.outputs as unknown[]).slice(accepted).map((o, i) => ({ item: accepted + i + 1, see_again: carriesSeeAgain(o) })) : [];
+        const droppedWarning = dropped.length
+          ? `outputs ${dropped.length === 1 ? `item ${dropped[0].item} wasn't` : `items ${dropped[0].item} to ${dropped.at(-1)!.item} weren't`} used: the date's lines ran out first (${accepted} of ${sent} went in).` +
+            (dropped.some((d) => d.see_again) ? ` The see_again on item ${dropped.filter((d) => d.see_again).map((d) => d.item).join(" and ")} was dropped with its line: it counts for nothing.` : "") +
+            " Size a batch by the step's lines_left."
+          : "";
+        const warnings = [...misplaced, ...(droppedWarning ? [droppedWarning] : [])];
         return {
           data: {
-            // #1530: a see_again that landed off its side's last line leads the reply.
-            ...(misplaced.length ? { warning: `${misplaced.join(" ")}${lastLineTurnsText(step)}` } : {}),
+            // #1530: a see_again that landed off its side's last line leads the reply; #1541: so do replies past the end.
+            ...(warnings.length ? { warning: `${warnings.join(" ")}${misplaced.length ? lastLineTurnsText(step) : ""}` } : {}),
+            ...(dropped.length ? { unused_outputs: dropped } : {}),
             accepted: true,
             accepted_count: accepted,
             outputs_sent: sent,
