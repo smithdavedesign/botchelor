@@ -19,7 +19,7 @@ import CompanionChat, { type CompanionAbout } from "./CompanionChat";
 export const metadata: Metadata = { title: "Companion · Botchelor", robots: { index: false, follow: false } };
 
 /** Who they are, beside the thread (2026-11-13 design lift): their job, the first line of their bio, and their week on the show. */
-export async function aboutCharacter(db: Awaited<ReturnType<typeof getDb>>, characterId: string): Promise<CompanionAbout> {
+async function aboutCharacter(db: Awaited<ReturnType<typeof getDb>>, characterId: string): Promise<CompanionAbout> {
   const { rows } = await db.query<{ bio: string | null; extras: CharacterExtras | null; this_week: StoredThisWeek | null }>(
     "select bio, extras, this_week from characters where id = $1",
     [characterId],
