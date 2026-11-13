@@ -14,6 +14,7 @@ import { listNights, openScene } from "@/lib/adult/scenes";
 import { pairReadiness } from "@/lib/adult/readiness";
 import { includedPrice } from "@/lib/adult/pricing";
 import { getAdultSettings } from "@/lib/adult/settings";
+import { rolloutOn } from "@/lib/adult/rollout";
 import { hasJobKey } from "@/lib/connections";
 import { mineScenes, sceneCatalog } from "@/lib/adult/scene-catalog";
 import { asRoleplay, getLibrary } from "@/lib/studio/library";
@@ -106,6 +107,11 @@ export default async function AfterDarkScenePage({ params }: Props) {
   const viewerAdmin = await isAdmin(db, admin);
   const ownVideoKey = await hasJobKey(db, admin, "after_dark_video");
   const chapterPrice = await includedPrice(db, admin, adSettings.chapter_tokens);
+  // Not open yet (lib/adult/rollout.ts): Make more and the phone's ⋯ sheet, admins only until they're switched on.
+  const makeMore = rolloutOn(adSettings.rollout, "make_more", viewerAdmin);
+  const phoneSheet = rolloutOn(adSettings.rollout, "phone_sheet", viewerAdmin);
+  const studios: { id: string; name: string }[] = [];
+  for (const c of [scene.a, scene.b]) if ((await studioAccess(db, admin, c.id)).ok) studios.push(c);
   return (
     <div className="after-dark-mode">
     <article className="after-dark">
@@ -134,20 +140,17 @@ export default async function AfterDarkScenePage({ params }: Props) {
           {earlier.gone.length > 1 ? "have" : "has"} left the cast since, and this pair stays yours to play.
         </p>
       )}
-      {/* The Studio (lib/adult/studio.ts) for whichever of the two it's the viewer's to use on. */}
-      {await (async () => {
-        const open = [];
-        for (const c of [scene.a, scene.b]) if ((await studioAccess(db, admin, c.id)).ok) open.push(c);
-        return open.length ? (
-          <p className="ad-studio-links">
-            {open.map((c) => (
-              <Link key={c.id} className="button-ghost small" href={`/after-dark/studio/${c.id}`}>
-                🎨 {c.name.split(/\s+/)[0]}&apos;s Studio
-              </Link>
-            ))}
-          </p>
-        ) : null;
-      })()}
+      {/* The Studio (lib/adult/studio.ts) for whichever of the two it's the viewer's to use on; in Make more instead, once
+          that's on for this viewer. */}
+      {!makeMore && studios.length > 0 && (
+        <p className="ad-studio-links">
+          {studios.map((c) => (
+            <Link key={c.id} className="button-ghost small" href={`/after-dark/studio/${c.id}`}>
+              🎨 {c.name.split(/\s+/)[0]}&apos;s Studio
+            </Link>
+          ))}
+        </p>
+      )}
       <SceneWriter
         initial={scene}
         gallery={await listMedia(db, [scene.a.id, scene.b.id], admin, { withArchived: true })}
@@ -180,6 +183,9 @@ export default async function AfterDarkScenePage({ params }: Props) {
         admin={viewerAdmin}
         // The Two sides tab (lib/adult/monologues.ts): each one's inner monologue of one of the viewer's whole nights.
         twoSides={<TwoSidesPanel flat a={scene.a} b={scene.b} />}
+        makeMore={makeMore}
+        phoneSheet={phoneSheet}
+        studios={studios}
         adminTools={
           (await isAdmin(db, admin)) ? (
             <>

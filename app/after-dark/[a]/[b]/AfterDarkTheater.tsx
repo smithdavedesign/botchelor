@@ -265,6 +265,9 @@ export default function AfterDarkTheater({
   scenes = [],
   myRoleplays = [],
   onScenario,
+  makeMore = false,
+  phoneSheet = false,
+  studios = [],
 }: {
   scene: {
     lines: SceneLine[];
@@ -373,6 +376,20 @@ export default function AfterDarkTheater({
   /** The owner's own roleplays (lib/studio/library.ts), beside the show's in the picker and the labels. */
   myRoleplays?: readonly Roleplay[];
   onScenario?: (id: string) => Promise<void>;
+  /**
+   * "Make more" (lib/adult/rollout.ts make_more; the design kit's MakeMore, admins only until it's opened): everything that
+   * makes more in one priced menu (the video, a picture or clip, draw ahead, a talking moment, bringing them to life, a new
+   * place, the Studio, and Keep going / Fix from the Gallery), in place of the separate buttons; ⋯ keeps the writer and
+   * the steps (rewind, redo, end the night).
+   */
+  makeMore?: boolean;
+  /**
+   * The phone's ⋯ sheet (lib/adult/rollout.ts phone_sheet): on a phone the top bar keeps the 📖 chapter chip, ⋯ and Exit,
+   * play and Listen stay bottom right, and every other tool is in one sheet from the bottom.
+   */
+  phoneSheet?: boolean;
+  /** Whose Studio is the viewer's to open (lib/adult/studio.ts studioAccess), for Make more. */
+  studios?: readonly { id: string; name: string }[];
 }) {
   const live = Boolean(onWrite);
   // What a step that opens a chapter costs (Surprise me and Autoplay with no lines yet, like Next): the kit's price rule.
@@ -412,6 +429,31 @@ export default function AfterDarkTheater({
   }, [mediaShape]);
   // Rewind, Redo and Start over fold into "⋯".
   const [tools, setTools] = useState(false);
+  // Make more's menu (makeMore), and whether this is a phone the ⋯ sheet is for (phoneSheet).
+  const [making, setMaking] = useState(false);
+  const [phone, setPhone] = useState(false);
+  useEffect(() => {
+    if (!phoneSheet) return;
+    const mq = window.matchMedia("(max-width: 600px)");
+    const on = () => setPhone(mq.matches);
+    on();
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, [phoneSheet]);
+  const sheet = phoneSheet && phone;
+  useEffect(() => {
+    if (!making) return;
+    const close = (e: PointerEvent) => {
+      if (!(e.target instanceof Element && e.target.closest(".ad-make-more"))) setMaking(false);
+    };
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setMaking(false);
+    document.addEventListener("pointerdown", close);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", close);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [making]);
   // End the night asks once: the first tap says where its chapters go, the second ends it; the menu closing forgets it.
   const [ending, setEnding] = useState(false);
   useEffect(() => {
@@ -641,6 +683,186 @@ export default function AfterDarkTheater({
     watch.observe(bottom);
     return () => watch.disconnect();
   }, []);
+  // The top bar's tools, as pieces (lib/adult/rollout.ts): in the row as before; with Make more (makeMore), what makes
+  // more goes in its one menu; on a phone with the ⋯ sheet (phoneSheet), everything but ⋯ and Exit goes in the sheet.
+  const closeMenus = () => (setTools(false), setMaking(false));
+  const sceneTool = (
+    <>
+      {live && onSetScene && (
+        <button
+          type="button"
+          className="secondary small ad-set-scene"
+          onClick={() => (closeMenus(), setPicking(waiting && scene.planned ? "who" : "where"), setPickerOpened(true))}
+          disabled={busy}
+          title={waiting && scene.planned ? `They decided on ${scene.planned.place} by text: pick who they are this chapter` : "Take them anywhere (1 token), and pick who they are this chapter"}
+        >
+          📍 <span className="ad-tool-word">Scene &amp; roleplay</span>
+        </button>
+      )}
+    </>
+  );
+  const videoTool = (
+    <>
+      {/* Before the first line there's nothing to film or picture yet: fewer buttons on the first screen. */}
+      {onMakeVideo && !(waiting && !videoChapters.length) && (
+        <VideoChoice chapters={videoChapters} scene={{ chapter: scene.chapter ?? 1, lines: scene.lines.length }} tokens={videoTokens} free={videoFree} busy={busy} paused={mediaPaused} onMake={onMakeVideo} onPlan={onPlanVideo} />
+      )}
+    </>
+  );
+  const storyTool = (
+    <>
+      <button
+        type="button"
+        className={`theater-icon theater-icon-wide${convo ? " on" : ""}`}
+        onClick={() => (closeMenus(), setConvo((v) => !v))}
+        aria-pressed={convo}
+        aria-label="The scene so far"
+        title="The scene so far"
+      >
+        {/* #1099 (the 2026-10-31-1329 visitor: "the small 📜 icon. Its meaning is unlabeled"): a word beside it. */}
+        📜 <span className="theater-icon-word">Story</span>
+      </button>
+    </>
+  );
+  const captureTool = (
+    <>
+      {!waiting && (
+        <CaptureMenu
+          a={a.id}
+          b={b.id}
+          at={shown.length - 1}
+          nightId={live ? null : feedbackRef}
+          paused={mediaPaused}
+          onPicture={live && onPictureNow ? () => setPicturing({ line: Math.max(0, shown.length - 1) }) : null}
+          canPicture={shown.length > 0}
+          match={live ? sceneMedia.match : null}
+        />
+      )}
+    </>
+  );
+  const writerItem = (
+    <>
+      {/* Who writes the lines (David, 2026-10-25: "the writer drop down as a logo in the theatre mode"), first in ⋯
+          since the design review (2026-11-11): it's picked once a night, and the top bar keeps the in-the-moment
+          tools. The hub (/after-dark) still has it as a card. */}
+      {live && writer && <WriterPicker initial={writer} icon inMenu />}
+    </>
+  );
+  const stepItems = steps ? (
+    <>
+      <button type="button" className="button-ghost small" disabled={busy || !steps.canRewind} onClick={() => (setTools(false), steps.onRewind())} title={steps.canRewind ? "Take the last step back: its lines, and where the scene was" : "Nothing to rewind yet"}>
+        ↺ Rewind
+      </button>
+      <button type="button" className="button-ghost small" disabled={busy || !steps.canRewind} onClick={() => (setTools(false), steps.onRedo())} title={steps.redoTitle}>
+        ↻ Redo
+      </button>
+      {/* Ending the night was "Start over", one tap (David, 2026-11-01: "ending the night or date is confusing,
+          where are the previous 3 chapter nights stored?"): it says what it does, and asks once. */}
+      <button
+        type="button"
+        className={`button-ghost small${ending ? " ad-end-confirm" : ""}`}
+        disabled={busy || !steps.canReset}
+        onClick={() => (ending ? (setTools(false), setEnding(false), steps.onReset()) : setEnding(true))}
+        title="Files tonight's chapters under Gallery → Nights (watch them again or make their video there) and starts a new night"
+      >
+        {ending ? "Yes, end it: its chapters go to Gallery → Nights" : "🌙 End the night"}
+      </button>
+    </>
+  ) : null;
+  const madeItems = (
+    <>
+      {stageSpeaker && sayable && (
+        <button
+          type="button"
+          className="button-ghost small"
+          disabled={!speakerPortrait || stageTalk?.status === "making"}
+          onClick={() => void hearIt()}
+          title={
+            !speakerPortrait
+              ? `✨ Bring them to life first: a talking moment starts from ${firstName(stageSpeaker)}'s portrait`
+              : stageTalk?.status === "making"
+                ? "Being made: it opens here when it's ready"
+                : `A few seconds of ${firstName(stageSpeaker)} saying the line on screen, in their voice`
+          }
+        >
+          🗣 Hear it from {firstName(stageSpeaker)}
+          {stageTalk?.status !== "ready" && talks.price > 0 ? (
+            <>
+              {" · "}
+              <TokenPrice tokens={talks.price} />
+            </>
+          ) : null}
+        </button>
+      )}
+      {/* #1099: why it's greyed out, on screen (a title never shows on a phone or to a keyboard). */}
+      {stageSpeaker && sayable && !speakerPortrait && (
+        <span className="muted small ad-tools-why">Bring them to life first: a talking moment starts from {firstName(stageSpeaker)}&apos;s portrait.</span>
+      )}
+      {canBringToLife && (
+        <button type="button" className="button-ghost small" onClick={() => void bringToLife()} title="Their expressions as they speak, and a living portrait in place of the still face: made once, kept for every night. No tokens: it counts toward this month's pictures, and takes a few minutes">
+          {/* #1099: what it costs and how long, before it starts. */}
+          ✨ Bring them to life · no tokens, a few minutes
+        </button>
+      )}
+      {drawAhead.view?.offered && (
+        <button
+          type="button"
+          className="button-ghost small"
+          aria-pressed={drawAhead.view.on}
+          onClick={() => void toggleDrawAhead()}
+          title={
+            drawAhead.view.on
+              ? "Each moment is drawn as soon as it's written. Tap to stop: moments wait for \"Picture this?\" again"
+              : `Each moment drawn as soon as it's written, so it's on the stage when its line plays: up to ${drawAhead.view.pictures} more pictures a chapter, without agreeing on each first (Redraw stays)`
+          }
+        >
+          {drawAhead.view.on ? (
+            "⚡ Drawing ahead ✓"
+          ) : (
+            <>
+              ⚡ Draw ahead
+              {drawAhead.view.price > 0 || drawAhead.view.included ? (
+                <>
+                  {" · "}
+                  <TokenPrice tokens={drawAhead.view.price} included={drawAhead.view.price <= 0 && drawAhead.view.included} per={drawAhead.view.price > 0 ? "a chapter" : undefined} />
+                </>
+              ) : null}
+            </>
+          )}
+        </button>
+      )}
+    </>
+  );
+  // Make more (the design kit's one menu, each item priced): the video, a picture or clip of the moment, draw ahead, a
+  // talking moment, bringing them to life, a new place, their Studio, and Keep going / Fix, which live on a clip or a
+  // picture in the Gallery.
+  const makeMenu = makeMore ? (
+    <div className={`ad-make-more${making ? " open" : ""}`} data-make-more>
+      <button type="button" className="secondary small ad-make-toggle" aria-expanded={making} onClick={() => setMaking((v) => !v)} title="Everything that makes more of tonight, each with its price">
+        ✨ <span className="ad-tool-word">Make more</span>
+      </button>
+      <div className="ad-make-items" role="group" aria-label="Make more">
+        {videoTool}
+        {captureTool}
+        {madeItems}
+        {live && onSetScene && !waiting && (
+          <button type="button" className="button-ghost small" disabled={busy} onClick={() => (closeMenus(), setPicking("where"), setPickerOpened(true))} title="Mid-night, a new room">
+            📍 Take them somewhere else · <TokenPrice tokens={moveTokens} />
+          </button>
+        )}
+        {studios.map((c) => (
+          <a key={c.id} className="button-ghost small" href={`/after-dark/studio/${c.id}`} title="Pose them, pick the light, shoot four at a time">
+            🎨 {c.name.split(/\s+/)[0]}&apos;s Studio <span className="muted small">· priced per shoot</span>
+          </a>
+        ))}
+        {onPageTab && pageTabs?.some((t) => t.id === "gallery") && (
+          <button type="button" className="button-ghost small" onClick={() => (closeMenus(), onPageTab("gallery"))} title="On a clip's moment the video carries on from there; on a picture, redraw what came out wrong">
+            ▶▶ Keep going · 🩹 Fix <span className="muted small">· on a clip or a picture in the Gallery</span>
+          </button>
+        )}
+      </div>
+    </div>
+  ) : null;
   /** One saved chapter in the 📖 menu: plays it again over the theater. */
   const chapterItem = (c: ChapterEntry) => (
     <button
@@ -892,132 +1114,53 @@ export default function AfterDarkTheater({
               </button>
             )}
           </div>
-          <div className="theater-tools">
-            {live && onSetScene && (
-              <button
-                type="button"
-                className="secondary small ad-set-scene"
-                onClick={() => (setPicking(waiting && scene.planned ? "who" : "where"), setPickerOpened(true))}
-                disabled={busy}
-                title={waiting && scene.planned ? `They decided on ${scene.planned.place} by text: pick who they are this chapter` : "Take them anywhere (1 token), and pick who they are this chapter"}
-              >
-                📍 <span className="ad-tool-word">Scene &amp; roleplay</span>
-              </button>
+          <div className={`theater-tools${sheet ? " ad-sheet-mode" : ""}`}>
+            {!sheet && (
+              <>
+                {sceneTool}
+                {makeMore ? makeMenu : videoTool}
+                {storyTool}
+                {!makeMore && captureTool}
+              </>
             )}
-            {/* Before the first line there's nothing to film or picture yet: fewer buttons on the first screen. */}
-            {onMakeVideo && !(waiting && !videoChapters.length) && (
-              <VideoChoice chapters={videoChapters} scene={{ chapter: scene.chapter ?? 1, lines: scene.lines.length }} tokens={videoTokens} free={videoFree} busy={busy} paused={mediaPaused} onMake={onMakeVideo} onPlan={onPlanVideo} />
-            )}
-            <button
-              type="button"
-              className={`theater-icon theater-icon-wide${convo ? " on" : ""}`}
-              onClick={() => setConvo((v) => !v)}
-              aria-pressed={convo}
-              aria-label="The scene so far"
-              title="The scene so far"
-            >
-              {/* #1099 (the 2026-10-31-1329 visitor: "the small 📜 icon. Its meaning is unlabeled"): a word beside it. */}
-              📜 <span className="theater-icon-word">Story</span>
-            </button>
-            {!waiting && (
-            <CaptureMenu
-              a={a.id}
-              b={b.id}
-              at={shown.length - 1}
-              nightId={live ? null : feedbackRef}
-              paused={mediaPaused}
-              onPicture={live && onPictureNow ? () => setPicturing({ line: Math.max(0, shown.length - 1) }) : null}
-              canPicture={shown.length > 0}
-              match={live ? sceneMedia.match : null}
-            />
-            )}
-            {steps && (
-              <div className={`ad-tools-more${tools ? " open" : ""}`}>
-                <button type="button" className="theater-icon ad-tools-toggle" aria-expanded={tools} aria-label="More tools" title="Who writes the lines, rewind, redo, end the night and more" onClick={() => setTools((v) => !v)}>
+            {(steps || sheet) && (
+              <div className={`ad-tools-more${tools ? " open" : ""}${sheet ? " ad-sheet" : ""}`}>
+                <button
+                  type="button"
+                  className="theater-icon ad-tools-toggle"
+                  aria-expanded={tools}
+                  aria-label={sheet ? "Tools" : "More tools"}
+                  title={sheet ? "Every tool: the scene, making more, the story, the writer and the steps" : "Who writes the lines, rewind, redo, end the night and more"}
+                  onClick={() => setTools((v) => !v)}
+                >
                   ⋯
                 </button>
-                <div className="ad-tools-items ad-tools-steps">
-                  {/* Who writes the lines (David, 2026-10-25: "the writer drop down as a logo in the theatre mode"), first in ⋯
-                      since the design review (2026-11-11): it's picked once a night, and the top bar keeps the in-the-moment
-                      tools. The hub (/after-dark) still has it as a card. */}
-                  {live && writer && <WriterPicker initial={writer} icon inMenu />}
-                  <button type="button" className="button-ghost small" disabled={busy || !steps.canRewind} onClick={() => (setTools(false), steps.onRewind())} title={steps.canRewind ? "Take the last step back: its lines, and where the scene was" : "Nothing to rewind yet"}>
-                    ↺ Rewind
-                  </button>
-                  <button type="button" className="button-ghost small" disabled={busy || !steps.canRewind} onClick={() => (setTools(false), steps.onRedo())} title={steps.redoTitle}>
-                    ↻ Redo
-                  </button>
-                  {/* Ending the night was "Start over", one tap (David, 2026-11-01: "ending the night or date is confusing,
-                      where are the previous 3 chapter nights stored?"): it says what it does, and asks once. */}
-                  <button
-                    type="button"
-                    className={`button-ghost small${ending ? " ad-end-confirm" : ""}`}
-                    disabled={busy || !steps.canReset}
-                    onClick={() => (ending ? (setTools(false), setEnding(false), steps.onReset()) : setEnding(true))}
-                    title="Files tonight's chapters under Gallery → Nights (watch them again or make their video there) and starts a new night"
-                  >
-                    {ending ? "Yes, end it: its chapters go to Gallery → Nights" : "🌙 End the night"}
-                  </button>
-                  {stageSpeaker && sayable && (
-                    <button
-                      type="button"
-                      className="button-ghost small"
-                      disabled={!speakerPortrait || stageTalk?.status === "making"}
-                      onClick={() => void hearIt()}
-                      title={
-                        !speakerPortrait
-                          ? `✨ Bring them to life first: a talking moment starts from ${firstName(stageSpeaker)}'s portrait`
-                          : stageTalk?.status === "making"
-                            ? "Being made: it opens here when it's ready"
-                            : `A few seconds of ${firstName(stageSpeaker)} saying the line on screen, in their voice`
-                      }
-                    >
-                      🗣 Hear it from {firstName(stageSpeaker)}
-                      {stageTalk?.status !== "ready" && talks.price > 0 ? (
-                        <>
-                          {" · "}
-                          <TokenPrice tokens={talks.price} />
-                        </>
-                      ) : null}
-                    </button>
+                <div className="ad-tools-items ad-tools-steps" {...(sheet ? { role: "dialog", "aria-label": "Tools" } : {})}>
+                  {sheet && (
+                    <p className="ad-sheet-head">
+                      <strong>Tools</strong>
+                      <button type="button" className="button-ghost small" onClick={() => setTools(false)}>
+                        Close
+                      </button>
+                    </p>
                   )}
-                  {/* #1099: why it's greyed out, on screen (a title never shows on a phone or to a keyboard). */}
-                  {stageSpeaker && sayable && !speakerPortrait && (
-                    <span className="muted small ad-tools-why">Bring them to life first: a talking moment starts from {firstName(stageSpeaker)}&apos;s portrait.</span>
-                  )}
-                  {canBringToLife && (
-                    <button type="button" className="button-ghost small" onClick={() => void bringToLife()} title="Their expressions as they speak, and a living portrait in place of the still face: made once, kept for every night. No tokens: it counts toward this month's pictures, and takes a few minutes">
-                      {/* #1099: what it costs and how long, before it starts. */}
-                      ✨ Bring them to life · no tokens, a few minutes
-                    </button>
-                  )}
-                  {drawAhead.view?.offered && (
-                    <button
-                      type="button"
-                      className="button-ghost small"
-                      aria-pressed={drawAhead.view.on}
-                      onClick={() => void toggleDrawAhead()}
-                      title={
-                        drawAhead.view.on
-                          ? "Each moment is drawn as soon as it's written. Tap to stop: moments wait for \"Picture this?\" again"
-                          : `Each moment drawn as soon as it's written, so it's on the stage when its line plays: up to ${drawAhead.view.pictures} more pictures a chapter, without agreeing on each first (Redraw stays)`
-                      }
-                    >
-                      {drawAhead.view.on ? (
-                        "⚡ Drawing ahead ✓"
+                  {sheet && (
+                    <>
+                      {sceneTool}
+                      {makeMore ? (
+                        makeMenu
                       ) : (
                         <>
-                          ⚡ Draw ahead
-                          {drawAhead.view.price > 0 || drawAhead.view.included ? (
-                            <>
-                              {" · "}
-                              <TokenPrice tokens={drawAhead.view.price} included={drawAhead.view.price <= 0 && drawAhead.view.included} per={drawAhead.view.price > 0 ? "a chapter" : undefined} />
-                            </>
-                          ) : null}
+                          {videoTool}
+                          {captureTool}
                         </>
                       )}
-                    </button>
+                      {storyTool}
+                    </>
                   )}
+                  {writerItem}
+                  {stepItems}
+                  {!makeMore && madeItems}
                 </div>
               </div>
             )}

@@ -48,8 +48,15 @@ applies, on production) or `everyone`. `rolloutOn(cfg, piece, admin)` is the one
   (`app/Threshold.tsx`: "Lights low. Doors locked." on the way in, "Back to the show" on the way back, once a session
   each way) shows. On admins only, only the arrival screen shows (to admins), and an admin previews the landing with
   `/after-dark/subscribe?preview=visitor` or `?preview=signed-in`. Payments go live first.
-- **`make_more`**, **`phone_sheet`**, **`reader`**: the night page's one priced "Make more" menu, the phone's ⋯ sheet in
-  the theater, and the chapter reader (`?view=reader`); see their PRs.
+- **`make_more`** (`AfterDarkTheater.tsx` `makeMore`): one "✨ Make more" menu in the theater's top bar holds what makes
+  more, each with its price: the video (`VideoChoice`), a picture or clip of the moment (`CaptureMenu`), ⚡ Draw ahead,
+  🗣 a talking moment, ✨ Bring them to life, 📍 Take them somewhere else, each of theirs' 🎨 Studio, and ▶▶ Keep going ·
+  🩹 Fix (they live on a clip or a picture, so it opens the Gallery). ⋯ keeps the writer and the steps; 📍 Scene &
+  roleplay and 📜 Story stay in the row; the page's Studio links go (they're in the menu).
+- **`phone_sheet`** (`phoneSheet`): at 600px and under (a matchMedia, so the server renders the row as before), the top
+  bar keeps 📖, ⋯ and Exit, ▶ and Listen stay bottom right, and every other tool is in one sheet from the bottom
+  (`.ad-sheet-mode`), with its words back.
+- **`reader`**: the chapter reader (`?view=reader`); see its PR.
 
 ## #1 Output moderation — the most urgent hole (do before any image ships)
 

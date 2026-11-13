@@ -2648,3 +2648,89 @@ button.ad-studio-fold-head:active:not(:disabled) {
     animation: none;
   }
 }
+
+/* Make more (AfterDarkTheater.tsx makeMore, lib/adult/rollout.ts; the design kit's MakeMore): everything that makes more
+   in one menu, each item with its price. What opens inside it (the video's choice, the 📷 menu) opens in place. */
+.ad-make-more {
+  position: relative;
+  display: inline-flex;
+}
+.ad-make-items {
+  display: none;
+}
+.ad-make-more.open .ad-make-items {
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  right: 0;
+  z-index: 8;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-2);
+  width: max-content;
+  max-width: min(24rem, calc(100vw - 2rem));
+  padding: var(--space-2);
+  border: 1px solid var(--night-line);
+  border-radius: var(--radius-md);
+  background: var(--night-card);
+  box-shadow: var(--shadow);
+}
+.ad-make-items button,
+.ad-make-items .button-ghost {
+  justify-content: flex-start;
+  margin: 0;
+  text-align: left;
+  white-space: normal;
+}
+.ad-make-items .ad-video-choice-panel,
+.ad-make-items .ad-capture-menu {
+  position: static;
+  margin-top: var(--space-1);
+  box-shadow: none;
+}
+
+/* The phone's ⋯ sheet (phoneSheet): the top bar keeps 📖, ⋯ and Exit; every other tool is in one sheet from the bottom.
+   Only the theater sets .ad-sheet-mode, and only at phone width (a matchMedia in AfterDarkTheater.tsx). */
+.theater-tools.ad-sheet-mode .ad-tools-more.open .ad-tools-items {
+  position: fixed;
+  top: auto;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 40;
+  width: auto;
+  max-width: none;
+  max-height: 75vh;
+  overflow-y: auto;
+  flex-wrap: nowrap;
+  padding: var(--space-3) var(--space-3) calc(var(--space-3) + env(safe-area-inset-bottom));
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  border-bottom: 0;
+  background: var(--night-card);
+}
+.theater-tools.ad-sheet-mode .ad-tools-items > *,
+.theater-tools.ad-sheet-mode .ad-tools-items button {
+  white-space: normal;
+}
+.ad-sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 0 var(--space-1);
+}
+/* In the sheet the tools say their words again: the row hid them to fit a phone. */
+.theater-tools.ad-sheet-mode .ad-tools-items .ad-tool-word {
+  display: inline;
+}
+.theater-tools.ad-sheet-mode .ad-make-more,
+.theater-tools.ad-sheet-mode .ad-video-choice {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+.theater-tools.ad-sheet-mode .ad-make-more.open .ad-make-items {
+  position: static;
+  max-width: none;
+  margin-top: var(--space-2);
+  box-shadow: none;
+}
