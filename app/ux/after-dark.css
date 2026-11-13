@@ -2616,10 +2616,10 @@ button.ad-studio-fold-head:active:not(:disabled) {
   place-items: center;
   width: 3.5rem;
   height: 3.5rem;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   border: 1px solid var(--night-line);
   color: var(--night-accent-text);
-  font-size: 1.5rem;
+  font-size: var(--text-xl);
 }
 .threshold--show .threshold-mark {
   border-color: var(--line);
@@ -2628,7 +2628,7 @@ button.ad-studio-fold-head:active:not(:disabled) {
 .threshold-title {
   margin: 0;
   font-family: var(--font-display, inherit);
-  font-size: clamp(2rem, 6vw, 3.25rem);
+  font-size: var(--text-display);
   line-height: 1.05;
 }
 .threshold-note {
