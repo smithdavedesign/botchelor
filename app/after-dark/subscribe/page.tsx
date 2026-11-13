@@ -35,9 +35,14 @@ type SearchParams = Promise<Record<string, string | string[] | undefined>>;
  */
 export default async function AfterDarkSubscribe({ searchParams }: { searchParams: SearchParams }) {
   const db = await getDb();
-  const auth = authFromCookieStore(await cookies());
-  if ((await canAfterDark(db, auth)).ok) redirect("/after-dark");
+  const signedIn = authFromCookieStore(await cookies());
+  const entitled = await canAfterDark(db, signedIn);
   const params = await searchParams;
+  // An admin previews the landing the public door leads to (lib/adult/door.ts; the Not open yet settings link here):
+  // ?preview=visitor as someone signed out, ?preview=signed-in as someone signed in who isn't in yet.
+  const preview = entitled.ok && entitled.why === "admin" && (params.preview === "visitor" || params.preview === "signed-in") ? params.preview : null;
+  if (entitled.ok && !preview) redirect("/after-dark");
+  const auth = preview === "visitor" ? null : signedIn;
   const processors = configuredProcessors();
   // Shorts to point at, only when there are some (the link to an empty page was the only taste there was).
   const shorts = Number((await db.query<{ n: number }>(`select count(*)::int as n from adult_shorts`).catch(() => ({ rows: [{ n: 0 }] }))).rows[0]?.n ?? 0);
@@ -50,6 +55,7 @@ export default async function AfterDarkSubscribe({ searchParams }: { searchParam
             <Icon name="moon" /> After Dark
           </p>
           <h1>The private side of the season</h1>
+          {preview && <PreviewNote as={preview} />}
           <AgeResult age={params.age} />
           <p>
             After Dark is where this season&apos;s cast (and your own characters, if you choose) carry on after the cameras stop: private, adults
@@ -96,6 +102,7 @@ export default async function AfterDarkSubscribe({ searchParams }: { searchParam
           <Icon name="moon" /> After Dark
         </p>
         <h1>The private side of the season</h1>
+        {preview && <PreviewNote as={preview} />}
         <AgeResult age={params.age} />
         {params.done === "1" && (
           <p className="notice" data-subscribe-done>
@@ -165,6 +172,16 @@ export default async function AfterDarkSubscribe({ searchParams }: { searchParam
         </p>
       </article>
     </div>
+  );
+}
+
+/** An admin's preview of the landing, saying so (nothing sent from it is real for a visitor). */
+function PreviewNote({ as }: { as: "visitor" | "signed-in" }) {
+  return (
+    <p className="notice" data-preview={as}>
+      🛠 Admin preview: this is the page {as === "visitor" ? "a signed-out visitor" : "a signed-in visitor who isn't in yet"} lands on once the public door
+      is open (<Link href="/admin/after-dark/settings?tab=rollout">Not open yet</Link>).
+    </p>
   );
 }
 

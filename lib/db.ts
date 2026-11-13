@@ -2872,6 +2872,7 @@ create table if not exists media_teasers (
 -- Who writes the scenes (lib/adult/writer-config.ts; David, 2026-10-24): the writers a person can pick and the default,
 -- as JSON; and each person's own pick (adult_prefs.writer_model, null: the default), which goes with their account.
 alter table adult_settings add column if not exists writer jsonb;
+alter table adult_settings add column if not exists rollout jsonb;
 create table if not exists adult_prefs (
   user_id text primary key,
   writer_model text,

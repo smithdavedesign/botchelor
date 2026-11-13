@@ -64,6 +64,7 @@ export const AdultSettingsInput = z.object({
   studio: z.record(z.string().max(40), z.unknown()).optional(),
   // The scene writers people can pick, and the default (lib/adult/writer-config.ts validates on save).
   writer: z.record(z.string().max(40), z.unknown()).optional(),
+  rollout: z.record(z.string().max(40), z.unknown()).optional(),
   // Which checker checks (lib/adult/moderation-config.ts validates on save), and the alternatives' keys ("" removes one).
   moderation: z.record(z.string().max(40), z.unknown()).optional(),
   sightengine_key: z.string().max(400).optional(),

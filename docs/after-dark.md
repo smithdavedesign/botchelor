@@ -34,6 +34,23 @@ after-dark routes 404 again (the #280 isolation already does the 404; wire it to
 Admin test mode (the `x-frontier-key` path) stays as a separate bypass so you can tune quality without a
 subscription. Keep the two paths distinct.
 
+## Not open yet: the public door and the design review's last pieces (2026-11-13)
+
+David: "until we get a payment system we cannot open it to public. so keep it admin only but build it anyway and we can
+switch it from admin only later." Each piece is built and switched by `adult_settings.rollout` (`lib/adult/rollout.ts`;
+settings → **Not open yet**, or the admin MCP's settings tool): `admins` (the default: admins see it everywhere it
+applies, on production) or `everyone`. `rolloutOn(cfg, piece, admin)` is the one check.
+
+- **`public_door`** (`lib/adult/door.ts`, the design review's A3). Open to everyone, the header's door shows to every
+  adult where After Dark isn't blocked (`afterDarkDoor`: a visitor's place from `accessFor`, no database read for a
+  signed-out visitor; the switch is read through the shared cache), `/after-dark` sends someone it isn't open to yet to
+  `/after-dark/subscribe` (the taste, the invite request, the waitlist) instead of not-found, and the arrival screen
+  (`app/Threshold.tsx`: "Lights low. Doors locked." on the way in, "Back to the show" on the way back, once a session
+  each way) shows. On admins only, only the arrival screen shows (to admins), and an admin previews the landing with
+  `/after-dark/subscribe?preview=visitor` or `?preview=signed-in`. Payments go live first.
+- **`make_more`**, **`phone_sheet`**, **`reader`**: the night page's one priced "Make more" menu, the phone's ⋯ sheet in
+  the theater, and the chapter reader (`?view=reader`); see their PRs.
+
 ## #1 Output moderation — the most urgent hole (do before any image ships)
 
 #280 filters our **prompts** but not the **images fal returns**. For NSFW generation that is the highest-risk

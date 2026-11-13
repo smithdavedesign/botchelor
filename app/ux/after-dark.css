@@ -2583,3 +2583,68 @@ button.ad-studio-fold-head:active:not(:disabled) {
 .ad-home-actions > .button-ghost {
   margin-top: 0;
 }
+
+/* The crossing between the show and After Dark (app/Threshold.tsx, the design kit's Threshold): opaque, edge to edge,
+   so the place left behind is gone for a beat. Night on the way in, the show's paper on the way back. */
+.threshold {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 0.6rem;
+  padding: 1.5rem;
+  text-align: center;
+  background: var(--night-bg);
+  color: var(--night-ink);
+  animation: threshold-in 220ms ease-out;
+}
+.threshold--show {
+  background: var(--paper);
+  color: var(--ink);
+}
+.threshold .kicker {
+  margin: 0;
+  color: var(--night-muted);
+}
+.threshold--show .kicker {
+  color: var(--muted);
+}
+.threshold-mark {
+  display: grid;
+  place-items: center;
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--night-line);
+  color: var(--night-accent-text);
+  font-size: var(--text-xl);
+}
+.threshold--show .threshold-mark {
+  border-color: var(--line);
+  color: var(--accent);
+}
+.threshold-title {
+  margin: 0;
+  font-family: var(--font-display, inherit);
+  font-size: var(--text-display);
+  line-height: 1.05;
+}
+.threshold-note {
+  margin: 0 0 0.75rem;
+  color: var(--night-muted);
+}
+.threshold--show .threshold-note {
+  color: var(--muted);
+}
+@keyframes threshold-in {
+  from {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .threshold {
+    animation: none;
+  }
+}

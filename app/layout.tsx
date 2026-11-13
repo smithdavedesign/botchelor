@@ -5,7 +5,7 @@ import { Suspense, type ReactNode } from "react";
 import NavProgress from "./NavProgress";
 import { episodeAllowance, freshAllowance } from "@/lib/allowance";
 import { adTokenBalance, adTokensOn } from "@/lib/adult/tokens";
-import { afterDarkOnly } from "@/lib/after-dark-host";
+import { afterDarkOnly, afterDarkOrigin } from "@/lib/after-dark-host";
 import { analyticsConsent, CONSENT_COOKIE, consentDefaultScript } from "@/lib/consent";
 import { companionOpen } from "@/lib/companion-shared";
 import { getDb } from "@/lib/db";
@@ -14,7 +14,8 @@ import { contactEmail, TRADING_AS } from "@/lib/legal-entity";
 import { gaGuardScript } from "@/lib/ga-guard";
 import { unreadCount } from "@/lib/notifications";
 import { authFromCookieStore, userIdFromCookieStore } from "@/lib/http";
-import { accessHere } from "@/lib/adult/place";
+import { afterDarkDoor } from "@/lib/adult/door";
+import Threshold from "./Threshold";
 import { touchOwner } from "@/lib/activity";
 import { APP_NAME, APPLE_TOUCH_ICON, PAPER_DARK, PAPER_LIGHT } from "@/lib/pwa";
 import { placeFromEdge } from "@/lib/place";
@@ -131,12 +132,13 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   // never on After Dark's host. The support address closes the footer once CONTACT_EMAIL is set.
   const socials = socialLinks(process.env, adHost);
   const support = contactEmail();
-  const [, afterDark, dates, unread, texts, hasCharacter, adTokens, seasonDef] = await Promise.all([
+  const [, door, dates, unread, texts, hasCharacter, adTokens, seasonDef] = await Promise.all([
     // They're here (lib/activity.ts): their characters' likes wait for them rather than answering themselves. Throttled.
     db && viewerId ? touchOwner(db, viewerId).catch(() => {}) : null,
-    // After Dark's link shows only to someone it's open to (lib/adult/entitlement.ts), and only where it's offered
-    // (lib/jurisdiction.ts); everyone else never sees it.
-    db ? accessHere(db, authFromCookieStore(cookieStore)).then((h) => h.entitled.ok && h.mode !== "blocked", () => false) : false,
+    // After Dark's link shows to someone it's open to (lib/adult/entitlement.ts), only where it's offered
+    // (lib/jurisdiction.ts); once its public door is opened (lib/adult/door.ts, admins only until payments), to every
+    // adult where it isn't blocked.
+    afterDarkDoor(db, authFromCookieStore(cookieStore), await headers()).catch(() => ({ door: false, threshold: false })),
     db && viewerId ? episodeAllowance(db, viewerId) : freshAllowance(),
     // The bell's unread count (lib/notifications.ts): what happened between dates.
     db && viewerId ? unreadCount(db, viewerId).catch(() => 0) : 0,
@@ -150,6 +152,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
     // The season's format for the arc under the header (app/SeasonStrip.tsx): one shared copy for every visitor.
     adHost ? null : shared("watch:season-format", async () => seasonFormatNow(await getDb())).catch(() => null),
   ]);
+  const afterDark = door.door;
   // Google tags wait for consent in the EEA/UK/CH (Consent Mode v2); Vercel sets the visitor's country header.
   const google = Boolean(TRACKING.gaId || TRACKING.gtmId);
   const consent = analyticsConsent(cookieStore.get(CONSENT_COOKIE)?.value, placeFromEdge(await headers())?.country);
@@ -173,6 +176,8 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         </Suspense>
         {/* The show, its app and its price (lib/seo.ts), on every page; After Dark's own host isn't the show. */}
         {!adHost && <JsonLd data={siteJsonLd()} />}
+        {/* Coming back from After Dark's host: "Back to the show", once a session (app/Threshold.tsx). */}
+        {!adHost && door.threshold && <Threshold side="show" from={afterDarkOrigin()} />}
         <a href="#main" className="skip-link">
           Skip to content
         </a>

@@ -33,6 +33,7 @@ export const POST = handle(async (req: Request) => {
   } catch (err) {
     if (input.studio !== undefined) return json({ error: "invalid_settings", message: `Studio: ${err instanceof Error ? err.message.slice(0, 300) : "invalid"}` }, 422);
     if (input.writer !== undefined) return json({ error: "invalid_settings", message: `Writer: ${err instanceof Error ? err.message.slice(0, 300) : "invalid"}` }, 422);
+    if (input.rollout !== undefined) return json({ error: "invalid_settings", message: `Not open yet: ${err instanceof Error ? err.message.slice(0, 300) : "invalid"}` }, 422);
     if (input.moderation !== undefined) return json({ error: "invalid_settings", message: `Checks: ${err instanceof Error ? err.message.slice(0, 300) : "invalid"}` }, 422);
     throw err;
   }
