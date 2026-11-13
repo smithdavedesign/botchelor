@@ -1,6 +1,7 @@
 import { getDb } from "@/lib/db";
 import { collectFaceKits, faceKitOf } from "@/lib/face-kit";
 import { handle, json } from "@/lib/http";
+import { collectLiveFaces } from "@/lib/live-face";
 import { requestBase } from "@/lib/site";
 
 export const dynamic = "force-dynamic";
@@ -16,5 +17,7 @@ export const GET = handle(async (req: Request) => {
   if (!character || character.length > 120) return json({ error: "invalid_request" }, 400);
   const db = await getDb();
   await collectFaceKits(db, character).catch(() => 0);
+  // A live face building at the renderer (lib/live-face) is followed here too, as the call polls.
+  await collectLiveFaces(db, process.env, character).catch(() => 0);
   return json({ kit: await faceKitOf(db, character, requestBase(req)) });
 });
