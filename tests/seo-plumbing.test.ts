@@ -2,7 +2,6 @@
 // worth indexing, aired dates come as RSS, episodes are TV episodes, and the PG tool pages open to a search visitor.
 import { readFileSync } from "node:fs";
 import { NextRequest } from "next/server";
-import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { GET as feed } from "@/app/feed.xml/route";
@@ -58,8 +57,9 @@ describe("episodes are TV episodes, and the seasons have a page", () => {
   });
 
   it("lists every closed season and points at the Reunion for the one running", async () => {
+    // The index reads the database for the running cast's faces and the finales' golden couples (tests/season-pages.test.ts).
     const { default: SeasonsPage } = await import("@/app/seasons/page");
-    const html = renderToStaticMarkup(createElement(SeasonsPage));
+    const html = renderToStaticMarkup(await SeasonsPage());
     expect(html).toContain("<h1>Seasons</h1>");
     expect(html).toContain('href="/reunion"');
     expect(html).toContain('"@type":"ItemList"');
