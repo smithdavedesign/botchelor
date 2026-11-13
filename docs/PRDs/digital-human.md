@@ -113,14 +113,41 @@ Kindroid's and Character.AI's sense of presence comes from layering, not from on
 
 ## Tier 1: a real-time renderer (next)
 
-1. **Spend:** a Simli plan, capped, created by David; the free 50 minutes cover the spike. Key
-   `vault/botchelor/SIMLI_API_KEY` via `~/ai-stack/bin/secrets add --cap`.
-2. **Spike (a day):** three characters (photoreal, a different look, anime) as Trinity faces from the kit's portrait;
-   feed recorded Aura audio; judge identity, idle behaviour, time to first video, background options; read the terms
-   for an adult-themed platform. The same three on Anam's free tier. Results go in this file as the decision record.
+What Simli's own pages say (read 2026-11-13; simli.com/pricing, /legal/terms-of-service, docs.simli.com):
+
+- **Plans:** Free $0 (50 min/month, 1 session, template faces only, no custom face); Hobby $10 (1,000 min, 2 sessions,
+  **1 custom face a month**); Pro $49 (5,500 min, 10 sessions, **5 custom faces a month**); Scale $249 (27,500 min, 50
+  sessions, 25 faces). So the free tier can't try our faces, and a three-character spike needs Pro for one month
+  (or Hobby for three months).
+- **A custom face** (Trinity-2, `POST /faces/trinity/preprocess` then `/faces/trinity`, poll `generation_status`):
+  JPEG/PNG/WebP under 5 MB, at least 512×512, facing the camera, head at least 15% of the height; framed waist-up
+  with the torso and hands. **It takes about four hours to build**, builds on one account start at least ten minutes
+  apart, and a failed build uses no credit. New accounts get Trinity-2 only.
+- **A session:** the server mints a token with `POST /compose/token` (header `x-simli-api-key`; `faceId`,
+  `maxSessionLength` 3600 s, `maxIdleTime` 300 s, `handleSilence`, `audioInputFormat` pcm16, a `background_id`,
+  streaming size from 512 px); the token lives five minutes and is all the browser gets. `FACE_NOT_ALLOWED` for a face
+  another account owns.
+- **Terms:** no ban on an 18+ platform and nothing on dating or companion apps. "Don't build tools that may be
+  inappropriate for minors: sexually explicit or suggestive content" rules out After Dark, not plainly dressed PG
+  faces. Facial recognition is barred (we do none). **Simli takes a perpetual, royalty-free licence to uploaded content
+  "for training of AI Models"**: fine for the show's own characters; a creator's own character goes up only with
+  their yes (a sentence on the kit's button). Users must be 18+. Cancelling ends access to the faces made.
+
+The plan, with those in:
+
+1. **Spend:** Simli **Pro, $49 for one month** (five faces, 5,500 minutes), created by David, capped at the plan
+   price; key `vault/botchelor/SIMLI_API_KEY` via `~/ai-stack/bin/secrets add --cap "$49/month"`. Down to Hobby ($10,
+   one new face a month, 1,000 minutes) once the cast's faces exist, or off if the spike fails.
+2. **Spike (two days, because a face takes four hours):** three characters (photoreal, a different look, anime) as
+   Trinity-2 faces from the kit's own portrait (which already fits the specs: facing the camera, head large, 512 px);
+   feed recorded Aura audio through `simli-client`; judge identity, idle behaviour, time to first video, the round
+   frame over a plain `background_id`; the same three on Anam's free tier for comparison. Results go in this file as
+   the decision record.
 3. **Adapter:** `lib/live-face/provider.ts` (`capabilities`, `createFace`, `mintSession`, `endSession`,
    `verifyWebhook`), `lib/live-face/simli.ts`, chosen by `LIVE_FACE_PROVIDER` (`off` by default). The server mints the
-   session token; the browser gets only that. The provider's face id and version live on `face_kits`.
+   five-minute session token at call start (and again on a reconnect); the browser gets only that. The provider's face
+   id, its build state and version live on `face_kits` (a face is built once per kit portrait, hours before any call
+   can use it; until then the call is Tier 0).
 4. **Client:** when a session carries a provider token, `LiveFace` mounts the Simli client over the same round frame,
    resamples Aura's 24 kHz PCM to 16 kHz PCM16 (`toPcm16`), sends each clause, clears the buffer on a barge-in (which
    `liveStep` already signals), and drops back to Tier 0 on any error within 3 s.
