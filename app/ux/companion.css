@@ -32,17 +32,153 @@
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
 }
+/* The thread as an app screen (2026-11-13 design lift: it was a 720px box in a page of white, the footer under it). On
+   a wide screen a panel beside it says who they are; behind the thread their portrait, blurred to a wash; the site's
+   footer stays away; on a phone the whole screen is the chat, like the swipe deck and a message thread. */
+main:has(> .companion-fullscreen) {
+  max-width: 72rem;
+  padding-bottom: var(--space-4);
+}
+body:has(.companion-fullscreen) .site-footer {
+  display: none;
+}
 .companion-chat {
-  max-width: 720px;
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  height: calc(100dvh - 8.5rem);
+  min-height: 32rem;
   margin: 0 auto;
-  display: flex;
-  flex-direction: column;
-  height: calc(100dvh - 140px);
-  min-height: 420px;
   border: 1px solid var(--line);
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
   background: var(--card);
   overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+.companion-main {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+/* Their portrait as the room's light: large, blurred and faint, under everything in the column. */
+.companion-main::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: var(--companion-portrait, none) center 20% / cover no-repeat;
+  filter: blur(44px) saturate(1.2);
+  opacity: 0.16;
+  transform: scale(1.25);
+  pointer-events: none;
+}
+.companion-main > * {
+  position: relative;
+  z-index: 1;
+}
+.companion-head,
+.companion-composer,
+.companion-out,
+.companion-pause,
+.companion-week {
+  background: color-mix(in srgb, var(--card) 88%, transparent);
+}
+.companion-side {
+  display: none;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-3);
+  border-right: 1px solid var(--line);
+  background: color-mix(in srgb, var(--accent) 5%, var(--card));
+  overflow-y: auto;
+}
+.companion-side-portrait {
+  display: block;
+  width: 100%;
+  max-width: 13rem;
+  height: auto;
+  aspect-ratio: 1;
+  object-fit: cover;
+  margin: 0 auto var(--space-1);
+  border-radius: var(--radius-lg);
+  background: var(--photo-bg);
+  box-shadow: var(--shadow);
+}
+.companion-side > .avatar {
+  margin: 0 auto var(--space-1);
+}
+.companion-side-name {
+  margin: 0;
+  font-size: var(--text-xl);
+  line-height: 1.15;
+  text-align: center;
+}
+.companion-side-meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  margin: 0;
+}
+.companion-side-job {
+  margin: var(--space-1) 0 0;
+  text-align: center;
+  font-weight: 600;
+}
+.companion-side-hook {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--muted);
+  text-align: center;
+}
+.companion-side-week {
+  display: grid;
+  gap: 0.15rem;
+  margin: var(--space-2) 0 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--line));
+  border-radius: var(--radius-md);
+  background: var(--card);
+  font-size: var(--text-sm);
+}
+.companion-side-week strong {
+  font-size: var(--text-2xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent-text);
+}
+.companion-side-links {
+  margin: auto 0 0;
+  padding-top: var(--space-3);
+  text-align: center;
+}
+/* Their week, one line under the header where the panel is away (a phone, a narrow window). */
+.companion-week {
+  display: none;
+  margin: 0;
+  padding: var(--space-1) var(--space-3);
+  border-bottom: 1px solid var(--line);
+  font-size: var(--text-xs);
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+@media (min-width: 900px) {
+  .companion-chat {
+    grid-template-columns: 17rem minmax(0, 1fr);
+  }
+  .companion-side {
+    display: flex;
+  }
+}
+@media (max-width: 899px) {
+  .companion-week {
+    display: block;
+  }
 }
 .companion-head {
   display: flex;
@@ -110,7 +246,7 @@
 }
 /* A run of the character's messages shows its face once, beside the last (as a phone's messages app does). */
 .companion-avatar-gap {
-  flex: 0 0 28px;
+  flex: 0 0 36px;
 }
 .companion-thread .chat-note {
   margin-top: var(--space-3);
@@ -132,20 +268,24 @@
     opacity: 0.6;
   }
 }
-/* A voice note (P3): always shown, with its price before anything is made; Report stays quiet until hovered. */
+/* A voice note (P3): always shown, with its price before anything is made, as a small pill (2026-11-13: it was an
+   underlined link); Report stays quiet until hovered. */
 .companion-foot {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
+  align-items: center;
   gap: 0.25rem 0.75rem;
 }
 .companion-foot .companion-voice-note {
-  opacity: 0.85;
+  --control-h: 1.75rem;
+  margin: 0;
+  padding-inline: 0.65rem;
   font-size: var(--text-2xs);
+  font-weight: 600;
+  line-height: 1.2;
 }
 .companion-foot .companion-voice-note[aria-pressed="true"] {
-  opacity: 1;
-  font-weight: 600;
+  background: var(--soft);
 }
 .companion-report {
   display: flex;
@@ -470,9 +610,34 @@
   padding-bottom: 0.3rem;
   font-size: var(--text-sm);
 }
+@media (max-width: 720px) {
+  /* The chat is the whole screen (the swipe deck's and a message thread's rule, app/globals.css): no site header or
+     footer, the thread's own ← goes back. */
+  body:has(.companion-fullscreen) .site-header {
+    display: none;
+  }
+  body:has(.companion-fullscreen) {
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+  .companion-fullscreen {
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    height: auto;
+    min-height: 0;
+    max-width: none;
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
 @media (max-width: 380px) {
-  /* The narrowest phones: the site's menu and the browser's back stand in for ←, so "AI character" is never covered. */
-  .companion-head > .button-ghost:first-child {
+  /* The narrowest phones: "AI character" gives way before ← does. */
+  .companion-head .companion-ai {
     display: none;
   }
 }
