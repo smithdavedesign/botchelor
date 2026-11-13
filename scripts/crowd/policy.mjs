@@ -15,7 +15,8 @@ export function clientFor(name) {
 /* ---------------------------------------------- caps and hours ---------------------------------------------- */
 
 /** What one bot may do in a day (UTC) and in one run, so the crowd reads as people, not a firehose. */
-export const DAILY = { likes: 12, agent_likes: 4, answers: 20, openers: 4, texts: 30 };
+// like_backs (#1523): a like back makes a match someone asked for, so it has its own, roomier cap.
+export const DAILY = { likes: 12, agent_likes: 4, like_backs: 40, answers: 20, openers: 4, texts: 30 };
 export const PER_RUN = { likes: 3, texts: 6 };
 /** Bot-vs-bot dates a night, across the crowd (each puts one short recap on the show's model). */
 export const NIGHTLY_DATES = 2;

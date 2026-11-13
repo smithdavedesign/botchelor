@@ -3660,6 +3660,14 @@ create table if not exists newsletter_deliveries (
 create index if not exists newsletter_deliveries_sent_idx on newsletter_deliveries (sent_at);
 -- Why an address left: 'unsubscribed' (the person), or 'bounced', 'complained' or 'suppressed' (from Resend).
 alter table newsletter_subscribers add column if not exists left_reason text;
+-- #1518: a job create_character's check dealt to one agent (or anonymous sheet), held for it for 30 minutes so no other
+-- agent is dealt the same one meanwhile (lib/originality.ts dealJobs). Rows past a day are deleted on the next deal.
+create table if not exists job_deals (
+  job text primary key,
+  holder text not null,
+  dealt_at timestamptz not null default now()
+);
+create index if not exists job_deals_dealt_idx on job_deals (dealt_at);
 `;
 
 /** Idempotent: creates the tables and upserts the house characters, free and premium. */

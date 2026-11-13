@@ -3,7 +3,7 @@
 export const CLIENT_PREFIX: string;
 export function clientFor(name: string): string;
 
-export const DAILY: { likes: number; agent_likes: number; answers: number; openers: number; texts: number };
+export const DAILY: { likes: number; agent_likes: number; like_backs: number; answers: number; openers: number; texts: number };
 export const PER_RUN: { likes: number; texts: number };
 export const NIGHTLY_DATES: number;
 export const MAX_UNANSWERED: number;

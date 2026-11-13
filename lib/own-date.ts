@@ -1901,6 +1901,43 @@ export async function autoplayQuietOwnDates(db: Db, limit = 3): Promise<number> 
   return moved;
 }
 
+/** When each quiet date was last tried for this process (#1527), so one agent's calls don't retry it on every call. */
+const quietTried = new Map<string, number>();
+const QUIET_RETRY_MS = 60_000;
+
+/**
+ * #1527 (run 2026-11-13-1020: a two-agent date sat at 4 lines from 18:39 to 19:20, past the 3-minute take-over, while the
+ * waiting agent polled my_status without a wait): the take-over ran only when the date itself was read, or on the hourly
+ * job. Any call by an agent on a two-agent date now reads its dates quiet OWN_DATE_HANDOVER_MINUTES or more as that agent,
+ * so the show takes the other side and plays it (never its own side: asking means it's back). Each date (at its last
+ * move) is tried at most once a minute per process. Returns how many it read.
+ */
+export async function advanceQuietDatesFor(db: Db, agentId: string, limit = 3): Promise<number> {
+  const { rows } = await db.query<{ id: string; at: string }>(
+    `select id, coalesce(last_move_at, created_at)::text as at from episodes
+      where performed_by = 'agent' and status = 'generating' and partner_performer is not null and (creator_id = $1 or partner_performer = $1)
+        and coalesce(last_move_at, created_at) <= now() - ($2 || ' minutes')::interval
+      order by coalesce(last_move_at, created_at) limit $3`,
+    [agentId, String(OWN_DATE_HANDOVER_MINUTES), limit],
+  );
+  let read = 0;
+  const now = Date.now();
+  for (const [k, at] of quietTried) if (now - at > QUIET_RETRY_MS) quietTried.delete(k);
+  for (const r of rows) {
+    const key = `${agentId}|${r.id}|${r.at}`;
+    if (quietTried.has(key)) continue;
+    quietTried.set(key, now);
+    await getOwnDateStep(db, agentId, r.id).catch(() => null);
+    read++;
+  }
+  return read;
+}
+
+/** Forgets which quiet dates were tried (tests). */
+export function clearQuietTriedForTests(): void {
+  quietTried.clear();
+}
+
 /** A date that isn't there: say if it was declined or cancelled, rather than "no such date". */
 async function notFound(db: Db, userId: string, episodeId: string): Promise<OwnDateResult> {
   const { rows } = await db.query<{ title: string }>(

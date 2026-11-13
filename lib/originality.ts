@@ -511,20 +511,21 @@ function dealt<T>(xs: T[], key: string): T[] {
  * agent or account; the sheet's name without one) and per JOB_DEAL_MINUTES window, so two agents rarely get the same
  * list, and one agent keeps its list between check_only and create. Pure, given `now`.
  */
-export function freshJobs(sheet: SheetDraft, others: SheetDraft[], n = 3, by: string | null = null, now = Date.now()): string[] {
+export function freshJobs(sheet: SheetDraft, others: SheetDraft[], n = 3, by: string | null = null, now = Date.now(), skip: ReadonlySet<string> = new Set()): string[] {
   const window = Math.floor(now / (JOB_DEAL_MINUTES * 60_000));
   const used = withSynonyms(new Set(others.flatMap((r) => [...workWords(r), ...bioWords(r)])));
   const free = (s: string) => !contentWords(s, 4).some((w) => used.has(w) || used.has(stem(w)));
   const key = `${by ?? ""}|${(sheet.name ?? "x").trim().toLowerCase()}|${window}`;
   // One hand-picked idea while any is free (when few are, everyone would be dealt the same ones), then the combinations,
   // at most one per thing in a deal.
-  const picked = dealt(JOB_IDEAS, key).filter(free).slice(0, Math.min(1, n));
+  // #1518: `skip` is the jobs dealt to another agent lately (job_deals), never dealt twice at once.
+  const picked = dealt(JOB_IDEAS, key).filter((j) => free(j) && !skip.has(j)).slice(0, Math.min(1, n));
   const things = new Set<string>();
   const kinds = new Set(others.flatMap((r) => [...workWords(r)]).flatMap((w) => JOB_KINDS.filter((k) => k === w || stem(k) === stem(w))));
   for (const c of dealt(JOB_COMBOS, key)) {
     if (picked.length >= n) break;
     // Nor a kind of work their jobs already say ("a carousel horse inspector" beside two lighthouse inspectors).
-    if (things.has(c.thing) || !free(c.thing) || kinds.has(c.kind)) continue;
+    if (things.has(c.thing) || !free(c.thing) || kinds.has(c.kind) || skip.has(c.job)) continue;
     things.add(c.thing);
     picked.push(c.job);
   }
@@ -566,12 +567,70 @@ const jobsOnly = (rows: SheetDraft[]): SheetDraft[] => rows.map((r) => ({ extras
 
 /** #852: jobs no character on the show has yet (by occupation), for a check that found look-alikes but no recent twin. */
 export async function unusedJobs(db: Db, sheet: SheetDraft, n = 3, by: string | null = null): Promise<string[]> {
-  const { rows } = await db.query<{ occupation: string | null; bio: string | null }>(`select extras->>'occupation' as occupation, bio from characters`);
-  return freshJobs(sheet, jobsOnly(rows.map((r) => ({ bio: r.bio ?? "", extras: { occupation: r.occupation ?? "" } }))), n, by);
+  // #1518: through the look-alike pass too, so each job dealt is one the save's word check would take on this sheet.
+  const [{ rows }, pass] = await Promise.all([
+    db.query<{ occupation: string | null; bio: string | null }>(`select extras->>'occupation' as occupation, bio from characters`),
+    lookalikesWithRecent(db, sheet, null, 3),
+  ]);
+  return dealJobs(db, sheet, jobsOnly(rows.map((r) => ({ bio: r.bio ?? "", extras: { occupation: r.occupation ?? "" } }))), n, by, pass.fits);
+}
+
+/*
+ * #1518 (22 votes on the board, nearly every visitor run on 2026-11-13): agents on one model, checking at the same time,
+ * were dealt jobs another agent had just been dealt (and saved), and a dealt job was refused as a look-alike on the very
+ * next check. So a dealt job is held for its agent for JOB_HOLD_MINUTES (job_deals: nobody else is dealt it meanwhile),
+ * and each one is run through the word-based look-alike check on the sheet with that job before it's offered.
+ */
+export const JOB_HOLD_MINUTES = 30;
+
+/** Who a deal is for: the agent or account, else the sheet's name (an anonymous caller). */
+const holderOf = (sheet: SheetDraft, by: string | null): string => by ?? `sheet:${(sheet.name ?? "x").trim().toLowerCase()}`;
+
+/** Jobs dealt to anyone but `holder` in the last JOB_HOLD_MINUTES. */
+async function heldByOthers(db: Db, holder: string): Promise<Set<string>> {
+  const { rows } = await db.query<{ job: string }>(
+    `select job from job_deals where holder <> $1 and dealt_at > now() - make_interval(mins => $2)`,
+    [holder, JOB_HOLD_MINUTES],
+  );
+  return new Set(rows.map((r) => r.job));
+}
+
+/** Holds `jobs` for `holder` (a job free, expired or already theirs); returns the ones it now holds, in order. */
+async function holdJobs(db: Db, jobs: string[], holder: string): Promise<string[]> {
+  if (!jobs.length) return [];
+  await db.query(`delete from job_deals where dealt_at < now() - interval '1 day'`).catch(() => undefined);
+  const { rows } = await db.query<{ job: string }>(
+    `insert into job_deals (job, holder, dealt_at) select unnest($1::text[]), $2, now()
+       on conflict (job) do update set holder = excluded.holder, dealt_at = excluded.dealt_at
+       where job_deals.holder = excluded.holder or job_deals.dealt_at <= now() - make_interval(mins => $3)
+     returning job`,
+    [jobs, holder, JOB_HOLD_MINUTES],
+  );
+  const held = new Set(rows.map((r) => r.job));
+  return jobs.filter((j) => held.has(j));
+}
+
+/**
+ * Jobs to offer `by` (#1518): freshJobs' deal, minus jobs held for another agent, minus any that `fits` says would still
+ * read as a look-alike, then held for `by`. Without the job_deals table (an error), the unheld deal.
+ */
+export async function dealJobs(db: Db, sheet: SheetDraft, others: SheetDraft[], n = 3, by: string | null = null, fits: (job: string) => boolean = () => true): Promise<string[]> {
+  const holder = holderOf(sheet, by);
+  const skip = await heldByOthers(db, holder).catch(() => new Set<string>());
+  // Checked lazily (each check reads every row): n, and two spare in case another agent holds one meanwhile.
+  const deal: string[] = [];
+  for (const job of freshJobs(sheet, others, n * 4, by, Date.now(), skip)) {
+    if (deal.length >= n + 2) break;
+    if (fits(job)) deal.push(job);
+  }
+  const held = await holdJobs(db, deal.slice(0, n), holder).catch(() => deal.slice(0, n));
+  // Another agent can hold one between our read and our write: the next ones in the deal stand in.
+  if (held.length < n && deal.length > n) held.push(...(await holdJobs(db, deal.slice(n, n + 2), holder).catch(() => [])));
+  return held.slice(0, n);
 }
 
 /** The concrete suggestion: free names (keeping nothing that's close to the twin's) and jobs nobody recent has. */
-async function renameSuggestion(db: Db, sheet: SheetDraft, twins: Compared[], recent: Compared[], rows: Compared[], by: string | null): Promise<RenameSuggestion> {
+async function renameSuggestion(db: Db, sheet: SheetDraft, twins: Compared[], recent: Compared[], rows: Compared[], by: string | null, fits: (job: string) => boolean): Promise<RenameSuggestion> {
   const seed = [...(sheet.name ?? "x")].reduce((n, ch) => n + ch.charCodeAt(0), 0);
   const rotate = <T,>(xs: T[]) => xs.map((_, i) => xs[(seed + i) % xs.length]);
   const surnameOf = surname(sheet.name);
@@ -584,7 +643,7 @@ async function renameSuggestion(db: Db, sheet: SheetDraft, twins: Compared[], re
     ? new Set((await db.query<{ name: string }>(`select lower(trim(name)) as name from characters where lower(trim(name)) = any($1)`, [candidates.map((n) => n.toLowerCase())])).rows.map((r) => r.name))
     : new Set<string>();
   const names = candidates.filter((n) => !taken.has(n.toLowerCase())).slice(0, 3);
-  const jobs = freshJobs(sheet, [...recent, ...twins, ...jobsOnly(rows)], 3, by);
+  const jobs = await dealJobs(db, sheet, [...recent, ...twins, ...jobsOnly(rows)], 3, by, fits);
   const who = twins.map((t) => t.name).join(", ");
   return {
     names,
@@ -644,7 +703,12 @@ export async function findLookalikes(db: Db, sheet: SheetDraft, excludeId: strin
 
 type Found = Lookalike & { score: number; shared: string[]; row: Row };
 
-async function lookalikesWithRecent(db: Db, sheet: SheetDraft, excludeId: string | null, limit: number): Promise<{ found: Lookalike[]; recent: Compared[]; rows: Compared[]; all: Found[] }> {
+async function lookalikesWithRecent(
+  db: Db,
+  sheet: SheetDraft,
+  excludeId: string | null,
+  limit: number,
+): Promise<{ found: Lookalike[]; recent: Compared[]; rows: Compared[]; all: Found[]; fits: (job: string) => boolean }> {
   const recentSql = `created_at > now() - interval '${RECENT_HOURS} hours'`;
   const extra = `created_via = 'mcp' and not is_house as agent, to_char(created_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as made_at`;
   const [main, fresh] = await Promise.all([
@@ -697,7 +761,21 @@ async function lookalikesWithRecent(db: Db, sheet: SheetDraft, excludeId: string
     if (twin) found.push({ ...twin, shared: shared(), row: r });
   });
   const sorted = found.sort((x, y) => y.score - x.score);
+  // #1518: whether this sheet with `job` as its occupation reads like someone it didn't already (a dealt job that the
+  // very next check would refuse). Twins it has whatever the job (a shared hook) don't count against a job.
+  const already = new Set(found.filter((f) => f.kind === "concept").map((f) => f.id));
+  const fits = (job: string): boolean => {
+    const variant: SheetDraft = { ...sheet, extras: { ...(sheet.extras ?? {}), occupation: job } };
+    const vTerms = conceptTerms(variant);
+    const vHooks = hookSentences(variant);
+    return !rows.some((r, i) => {
+      if (already.has(r.id) || (name && r.name.trim().toLowerCase() === name)) return false;
+      if (r.recent && nameAndJobClose(variant, r)) return true;
+      return twinWhy(variant, r, vTerms, rowTerms[i], weight, { mine: vHooks, theirs: rowHooks[i], weight: hookWeight })?.kind === "concept";
+    });
+  };
   return {
+    fits,
     // Their portrait for the panel's face, only when they have one (the API and MCP shape stays as it was otherwise).
     found: (await withPortraits(db, sorted.slice(0, limit).map(({ score: _s, shared: _t, row: _r, ...l }) => l))).map(({ portrait, ...l }) => (portrait ? { ...l, portrait } : l)),
     recent: rows.filter((r) => r.recent),
@@ -730,7 +808,7 @@ export async function recentAgentTwins(
   hours = TWIN_WARN_HOURS,
   by: string | null = null,
 ): Promise<{ twins: RecentTwin[]; archetype: string | null; sharing: number; jobs: string[] }> {
-  const { all, recent, rows } = await lookalikesWithRecent(db, sheet, excludeId, 3);
+  const { all, recent, rows, fits } = await lookalikesWithRecent(db, sheet, excludeId, 3);
   const since = Date.now() - hours * 3_600_000;
   const twins = all
     .filter((x) => x.kind === "concept" && x.row.agent && Date.parse(x.row.made_at) >= since)
@@ -741,7 +819,7 @@ export async function recentAgentTwins(
   for (const t of twins) for (const term of new Set(t.shared)) counts.set(term, (counts.get(term) ?? 0) + 1);
   const best = [...counts].sort((x, y) => y[1] - x[1] || y[0].split(" ").length - x[0].split(" ").length || y[0].length - x[0].length)[0];
   const archetype = best && best[1] >= 1 ? best[0] : null;
-  return { twins, archetype, sharing: archetype ? best[1] : 0, jobs: twins.length ? freshJobs(sheet, [...recent, ...all.map((x) => x.row), ...jobsOnly(rows)], 3, by) : [] };
+  return { twins, archetype, sharing: archetype ? best[1] : 0, jobs: twins.length ? await dealJobs(db, sheet, [...recent, ...all.map((x) => x.row), ...jobsOnly(rows)], 3, by, fits) : [] };
 }
 
 const words = (s: string | undefined) => (s ?? "").trim().split(/\s+/).filter(Boolean).length;
@@ -815,6 +893,6 @@ export async function originality(
   const report = scoreSheet(sheet, findCliches(sheet), found);
   const close = found.filter((f) => f.name_and_job).flatMap((f) => rows.filter((r) => r.id === f.id));
   if (!close.length) return report;
-  const suggestion = await renameSuggestion(db, sheet, close, recent, rows, by);
+  const suggestion = await renameSuggestion(db, sheet, close, recent, rows, by, words.fits);
   return { ...report, suggestion, tips: [suggestion.text, ...report.tips.filter((t) => t !== suggestion.text)].slice(0, 5) };
 }

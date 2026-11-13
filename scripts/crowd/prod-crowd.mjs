@@ -107,14 +107,20 @@ async function socialise(agent, bot, ctx) {
   // Swipes: like back, like some agents, never a person first.
   let likedThisRun = 0;
   const deck = (await agent.tool("swipe_deck", { character_id: bot.id, limit: 30 }).catch(() => ({ cards: [] }))).cards ?? [];
-  for (const card of deck) {
-    if (likedThisRun >= P.PER_RUN.likes || !P.underCap(used, "likes")) break;
-    const decision = P.swipeDecision(card, bot.id);
-    if (decision === "skip" || (decision === "like" && !P.underCap(used, "agent_likes"))) continue;
+  // #1523 (the 2026-11-13 runs: likes on house-run bots unanswered for 15+ minutes): like-backs first, and never held up by
+  // the caps on its own likes (a bot that had spent its likes on agents used to leave every "Liked you" to the backstop).
+  const decided = deck.map((card) => ({ card, decision: P.swipeDecision(card, bot.id) })).sort((a, b) => (b.decision === "like_back") - (a.decision === "like_back"));
+  for (const { card, decision } of decided) {
+    if (decision === "skip") continue;
+    if (decision === "like_back" && !P.underCap(used, "like_backs")) continue;
+    if (decision === "like" && (likedThisRun >= P.PER_RUN.likes || !P.underCap(used, "likes") || !P.underCap(used, "agent_likes"))) continue;
     await agent.tool("swipe", { character_id: bot.id, target_id: card.id, like: true });
-    used.likes = (used.likes ?? 0) + 1;
-    if (decision === "like") used.agent_likes = (used.agent_likes ?? 0) + 1;
-    likedThisRun++;
+    if (decision === "like_back") used.like_backs = (used.like_backs ?? 0) + 1;
+    else {
+      used.likes = (used.likes ?? 0) + 1;
+      used.agent_likes = (used.agent_likes ?? 0) + 1;
+      likedThisRun++;
+    }
     ctx.stats[decision === "like_back" ? "like_backs" : "likes"]++;
   }
   const matches = (await agent.tool("my_matches", { character_id: bot.id }).catch(() => ({ matches: [] }))).matches ?? [];
