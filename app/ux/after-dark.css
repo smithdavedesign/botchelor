@@ -2734,3 +2734,57 @@ button.ad-studio-fold-head:active:not(:disabled) {
   margin-top: var(--space-2);
   box-shadow: none;
 }
+
+/* The chapter reader (app/after-dark/[a]/[b]/Reader.tsx, the design kit's NightReader): the chapters down the side, the one
+   picked at reading size. One column on a phone, the list first. */
+.ad-reader-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 16rem) minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+.ad-reader-chapters h2 {
+  font-size: var(--text-md);
+  margin: 0 0 var(--space-2);
+}
+.ad-reader-chapters ol {
+  list-style: none;
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  display: grid;
+  gap: var(--space-1);
+}
+.ad-reader-chapters a {
+  display: block;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+}
+.ad-reader-chapters a[aria-current="page"] {
+  background: var(--night-control);
+  color: var(--night-accent-text);
+}
+.ad-reader {
+  font-size: var(--text-lg);
+  line-height: 1.7;
+}
+.ad-reader-line {
+  margin: 0 0 var(--space-3);
+}
+.ad-reader-action {
+  color: var(--night-muted);
+}
+.ad-reader-back,
+.ad-reader-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+@media (max-width: 640px) {
+  .ad-reader-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ad-reader {
+    font-size: var(--text-md);
+  }
+}

@@ -56,7 +56,12 @@ applies, on production) or `everyone`. `rolloutOn(cfg, piece, admin)` is the one
 - **`phone_sheet`** (`phoneSheet`): at 600px and under (a matchMedia, so the server renders the row as before), the top
   bar keeps 📖, ⋯ and Exit, ▶ and Listen stay bottom right, and every other tool is in one sheet from the bottom
   (`.ad-sheet-mode`), with its words back.
-- **`reader`**: the chapter reader (`?view=reader`); see its PR.
+- **`reader`** (`app/after-dark/[a]/[b]/Reader.tsx`): "📖 Read it" on the night page opens `?view=reader` in place of
+  the theater: every chapter of the pair's nights down the side, grouped by night (newest night first, `groupNights` +
+  `nightNumbers`, as the Nights tab counts them, with tonight's chapter so far as `chapter=now`), and the picked one
+  (`&chapter=<id|now>`, else the newest) at reading size, each line's speaker by first name and its `*actions*` as quiet
+  stage directions. Nothing is written or spent there: ▶ Carry on in the theater and 🖼 Their gallery are links back.
+  Off for the viewer, `?view=reader` is just the theater.
 
 ## #1 Output moderation — the most urgent hole (do before any image ships)
 
