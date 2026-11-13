@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import Link from "next/link";
+import Avatar from "@/app/Avatar";
+import Icon from "@/app/Icon";
 import { AUDITION_MIN_DATES, castingBoard } from "@/lib/auditions";
 import { getDb } from "@/lib/db";
+import { listMyCharacters } from "@/lib/game";
 import { userIdFromCookieStore } from "@/lib/http";
-import { HOUSE_MIN, SURVIVORS, seasonCastSize } from "@/lib/season-cast";
+import { HOUSE_MIN, SURVIVORS, seasonCastCards, seasonCastSize, type CastCard } from "@/lib/season-cast";
 import { pageMetadata } from "@/lib/seo";
 import CastingBoard from "./CastingBoard";
 
@@ -17,14 +20,71 @@ export const metadata: Metadata = pageMetadata({ title: "Casting: who's on next 
 const day = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month: "long", day: "numeric", timeZone: "UTC" });
 
 /**
+ * No auditions yet: the places as slots, so the empty board still shows what's being cast for (the lift, 2026-11-13: one
+ * plain box over a blank column). This month's cast in the taken slots, the open places as dashed empty ones, and the
+ * one step: make a character to audition, or go to your own when you have one.
+ */
+function CastingSlots({ label, cast, size, open, hasOwn }: { label: string; cast: CastCard[]; size: number; open: number; hasOwn: boolean }) {
+  return (
+    <section className="card casting-empty" aria-labelledby="casting-empty-title">
+      <h2 id="casting-empty-title">No auditions yet for {label}</h2>
+      <p className="muted">
+        Be the first: open one of your characters and press <em>Audition</em>. Next month has {size} places; the {SURVIVORS} most loved of this
+        month&apos;s cast stay on, and {open} {open === 1 ? "place is" : "places are"} open to people&apos;s characters.
+      </p>
+      <ul className="casting-slots" aria-label="This month's cast, and next month's open places">
+        {cast.slice(0, size).map((c) => (
+          <li key={c.id} className="casting-slot is-taken tap-card">
+            <Avatar seed={c.id} name={c.name} hue={c.hue} house={!c.fan} portraitSrc={c.portrait} size={56} decorative />
+            <span className="casting-slot-text">
+              <Link className="stretch" href={`/characters/${c.id}`}>
+                <strong>{c.name}</strong>
+              </Link>
+              <span className="muted small">{c.archetype} · on this month&apos;s cast</span>
+            </span>
+          </li>
+        ))}
+        {Array.from({ length: open }, (_, i) => (
+          <li key={`open-${i}`} className="casting-slot is-open">
+            <span className="casting-slot-face" aria-hidden="true">
+              <Icon name="plus" />
+            </span>
+            <span className="casting-slot-text">
+              <strong>Open</strong>
+              <span className="muted small">your character?</span>
+            </span>
+          </li>
+        ))}
+      </ul>
+      <p className="cta-row">
+        {hasOwn ? (
+          <Link href="/account" className="button" data-track="casting-empty-yours">
+            Your characters
+          </Link>
+        ) : (
+          <Link href="/create" className="button" data-track="casting-empty-create">
+            Make a character to audition
+          </Link>
+        )}
+      </p>
+    </section>
+  );
+}
+
+/**
  * Casting (/casting): next month's auditions (lib/auditions.ts), most votes first. People's characters only: the
  * shortlisted ones with the most votes take the open places on the cast when the month starts.
  */
 export default async function CastingPage() {
   const viewer = userIdFromCookieStore(await cookies());
-  const board = await castingBoard(await getDb(), viewer);
+  const db = await getDb();
+  const board = await castingBoard(db, viewer);
   const size = seasonCastSize();
   const open = Math.max(0, size - HOUSE_MIN);
+  // Only an empty board draws the slots, so a board with auditions costs nothing more.
+  const [cast, own] = board.auditions.length
+    ? [[], []]
+    : await Promise.all([seasonCastCards(db).catch(() => [] as CastCard[]), viewer ? listMyCharacters(db, viewer, 1).catch(() => []) : Promise.resolve([])]);
   // The page as the design system draws it (all-screens board, 2026-11-11): the auditions, and beside them how a
   // character gets in and how to put one up. The rules are lib/season-cast.ts pickCast's, in words.
   return (
@@ -39,7 +99,7 @@ export default async function CastingPage() {
       </header>
       <div className="casting-layout">
         <div className="casting-main">
-          <CastingBoard board={board} viewer={viewer} />
+          {board.auditions.length ? <CastingBoard board={board} viewer={viewer} /> : <CastingSlots label={board.label} cast={cast} size={size} open={open} hasOwn={own.length > 0} />}
         </div>
         <aside className="casting-rail" aria-label="How casting works">
           <section className="card casting-rules">

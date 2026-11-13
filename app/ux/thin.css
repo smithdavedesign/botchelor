@@ -1,0 +1,237 @@
+/* ---------------- the thin pages' lift (2026-11-13; docs/brand.md): an AI agent's public profile (app/agents/[handle])
+   and the calls page (app/calls). Both had been a heading and a sentence over a blank column; both now carry faces,
+   places and one next step. Tokens only (tests/css-tokens.test.ts). ---------------- */
+
+/* ---------------- an agent's profile: a lead with its numbers as chips, the characters as tiles, the dates as rows ---------------- */
+.agent-lead .kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+}
+.agent-lead .lede {
+  margin-top: var(--space-2);
+}
+.agent-numbers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 0;
+}
+.agent-lead .cta-row {
+  margin-top: var(--space-4);
+}
+.agent-section {
+  margin-top: var(--space-5);
+}
+.agent-section h2 {
+  margin-bottom: var(--space-3);
+}
+/* The characters as tiles: the face beside the name and its one-line hook, the whole tile a tap. */
+.agent-cast {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-3);
+}
+.agent-cast-tile {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-3);
+}
+.agent-cast-tile .avatar {
+  flex: none;
+}
+.agent-cast-text {
+  min-width: 0;
+}
+.agent-cast-text .stretch {
+  color: inherit;
+  text-decoration: none;
+}
+.agent-cast-hook {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin: var(--space-1) 0 0;
+}
+/* A private character stays a name (the directory's rule), with a lock, under the tiles. */
+.agent-private {
+  list-style: none;
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-1);
+}
+.agent-private li {
+  display: flex;
+  align-items: center;
+  gap: 0.35em;
+}
+/* One row a date, as the couple page draws theirs (.couple-date): the place's photo with the two faces on it, who,
+   where (and the episode's title once it has one), and how it ended. Two to a row on a wide screen. */
+.agent-dates {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.agent-date {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3) var(--space-2) var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--card);
+}
+.agent-date-photo {
+  flex: none;
+  width: 5.5rem;
+  height: 4rem;
+  border-radius: var(--radius-sm);
+}
+.agent-date-photo .pair-faces {
+  position: absolute;
+  left: 50%;
+  bottom: var(--space-2);
+  z-index: 1;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+.agent-date-photo .avatar {
+  box-shadow: 0 0 0 2px var(--on-photo);
+}
+.agent-date-text {
+  min-width: 0;
+}
+.agent-date-text > p {
+  margin: 0;
+}
+.agent-date-names .stretch {
+  color: inherit;
+  text-decoration: none;
+}
+.agent-date-venue {
+  font-family: "Fraunces", Georgia, serif;
+  font-style: italic;
+  color: var(--accent-text);
+  overflow-wrap: anywhere;
+}
+.agent-date-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  margin-top: var(--space-1);
+}
+.agent-date-tags .badge {
+  margin: 0;
+}
+@media (min-width: 900px) {
+  .agent-dates {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* ---------------- the calls page: tonight's open calls under the invitation, as couple cards ---------------- */
+.calls-share-page .cta-row {
+  align-items: center;
+}
+.open-calls-record {
+  font-weight: 600;
+}
+.open-calls {
+  margin-top: var(--space-5);
+}
+.open-calls h2 {
+  margin-bottom: var(--space-3);
+}
+.open-calls-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+.open-call {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-2);
+}
+.open-call-photo {
+  flex: none;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--radius-sm);
+}
+.open-call-photo .pair-faces {
+  position: absolute;
+  left: var(--space-3);
+  bottom: var(--space-3);
+  z-index: 1;
+  pointer-events: none;
+}
+.open-call-photo .avatar {
+  box-shadow: 0 0 0 2px var(--on-photo);
+}
+/* When it airs sits where the faces aren't: the top corner (the .photo-chip's own place). */
+.open-call-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  padding: 0 var(--space-1) var(--space-1);
+}
+.open-call-names {
+  color: inherit;
+  text-decoration: none;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+.open-call-call {
+  font-weight: 700;
+  font-size: var(--text-sm);
+  color: var(--accent-text);
+}
+.open-calls-none {
+  margin: 0;
+}
+/* A phone: one card a row, the picture beside the words, so four calls stay one screen. */
+@media (max-width: 560px) {
+  .open-calls-list {
+    grid-template-columns: 1fr;
+    gap: var(--space-2);
+  }
+  .open-call {
+    flex-direction: row;
+    align-items: center;
+  }
+  .open-call-photo {
+    width: 7.5rem;
+    min-height: 4.75rem;
+    aspect-ratio: auto;
+    align-self: stretch;
+  }
+  .open-call-photo .pair-faces {
+    left: 50%;
+    bottom: var(--space-2);
+    transform: translateX(-50%);
+  }
+  .open-call-photo .photo-chip {
+    top: var(--space-1);
+    right: auto;
+    left: 50%;
+    transform: translateX(-50%);
+    white-space: nowrap;
+  }
+  .open-call-body {
+    padding: 0;
+  }
+}
