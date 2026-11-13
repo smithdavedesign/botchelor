@@ -2,10 +2,11 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import Icon from "@/app/Icon";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { listSwitchable } from "@/lib/adult/characters";
 import { afterDarkTitle } from "@/lib/adult/discreet";
 import { canAfterDark } from "@/lib/adult/entitlement";
+import { publicDoorOpen } from "@/lib/adult/door";
 import { adultAvailable } from "@/lib/adult/mode";
 import { lockedForCookies } from "@/lib/adult/privacy";
 import { listCastPairs, type CastPair } from "@/lib/adult/scenes";
@@ -36,7 +37,12 @@ export default async function AfterDarkPage({ searchParams }: { searchParams?: P
   const store = await cookies();
   const auth = authFromCookieStore(store);
   const entitled = await canAfterDark(db, auth);
-  if (!entitled.ok) notFound();
+  // Once the public door is open (lib/adult/door.ts), someone it isn't open to yet lands on the subscribe page (the taste,
+  // the invite request, the waitlist); until then, the same not-found as anywhere else.
+  if (!entitled.ok) {
+    if (await publicDoorOpen()) redirect("/after-dark/subscribe");
+    notFound();
+  }
   // A device that hasn't entered this account's PIN gets nothing from here: the layout shows the PIN prompt instead.
   if (await lockedForCookies(db, auth!.userId, store)) notFound();
   const admin = entitled.why === "admin";

@@ -15,6 +15,7 @@ import SettingsForm from "./SettingsForm";
 import SettingsTabs from "./SettingsTabs";
 import StatusStrip from "./StatusStrip";
 import StudioSettings from "./StudioSettings";
+import RolloutSettings from "./RolloutSettings";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "After Dark settings · Botchelor", robots: { index: false, follow: false } };
@@ -73,6 +74,7 @@ export default async function AfterDarkSettingsPage({ searchParams }: { searchPa
             { key: "checks", label: "Safety checks", panel: <ModerationSettings /> },
             { key: "prices", label: "Prices & caps", panel: <PricesCaps /> },
             { key: "studio", label: "Studio", panel: <StudioSettings /> },
+            { key: "rollout", label: "Not open yet", panel: <RolloutSettings /> },
             {
               key: "requests",
               label: `Agent requests (${requests.length})`,

@@ -10,6 +10,9 @@ import { ageCheckOffer } from "@/lib/adult/age-check";
 import Unavailable from "./Unavailable";
 import VerifyAge from "./VerifyAge";
 import { currentHere, currentView } from "./view";
+import Threshold from "@/app/Threshold";
+import { adRollout } from "@/lib/adult/door";
+import { rolloutOn } from "@/lib/adult/rollout";
 import "./discreet.css";
 
 /**
@@ -38,8 +41,11 @@ export default async function AfterDarkLayout({ children }: { children: ReactNod
   }
   // A free taste (lib/adult/taste.ts) says what's left of it on every page, and where to carry on.
   const taste = here.entitled.ok && here.entitled.why === "taste" && here.userId ? await tasteLeft(await getDb(), here.userId) : null;
+  // The arrival screen, once a session (app/Threshold.tsx): admins while the public door is on admins only, then everyone.
+  const threshold = rolloutOn(await adRollout(), "public_door", here.admin);
   return (
     <AfterDarkFrame view={await currentView()}>
+      {threshold && <Threshold side="after-dark" />}
       {taste && (
         <p className="muted small ad-text-only" data-taste-notice>
           Free taste: {taste.steps} scene step{taste.steps === 1 ? "" : "s"} left, until{" "}
