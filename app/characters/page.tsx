@@ -92,7 +92,7 @@ function Entry({ e, badge, origin = true, talk = false }: { e: DirectoryEntry; b
           {origin && <OriginBadge origin={e.origin} />}
           {badge && <span className="badge">{badge}</span>}
           {e.reviews > 0 && (
-            <span className="muted small">
+            <span className="muted small dir-stars">
               {" "}
               {e.stars?.toFixed(1)} ★ · {e.reviews}
             </span>
