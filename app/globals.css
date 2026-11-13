@@ -516,7 +516,8 @@ h2,
 h3.section,
 .ending,
 .bestline,
-.logo {
+.logo,
+.threshold-title {
   font-family: "Fraunces", Georgia, serif;
 }
 

@@ -736,6 +736,7 @@ export default function AfterDarkTheater({
           onPicture={live && onPictureNow ? () => setPicturing({ line: Math.max(0, shown.length - 1) }) : null}
           canPicture={shown.length > 0}
           match={live ? sceneMedia.match : null}
+          worded={makeMore}
         />
       )}
     </>
