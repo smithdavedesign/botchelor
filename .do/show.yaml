@@ -244,9 +244,18 @@ services:
       - key: DEEPGRAM_PROJECT_ID
         value: "de51aca4-c207-438e-8274-b8b91086918b"
         scope: RUN_TIME
-      # A live face on calls (lib/live-face; docs/PRDs/digital-human.md Tier 1): Simli, admins only while it's proved.
+      # A live face on calls (lib/live-face; docs/PRDs/digital-human.md Tier 1), admins only while it's proved:
+      # "simli[:admins]" with SIMLI_API_KEY, or "musetalk[:admins]" (our worker on Runpod, workers/live-face) with
+      # RUNPOD_API_KEY (the app's key, Serverless endpoints only) and LIVE_FACE_ENDPOINT (the worker's endpoint id).
       - key: LIVE_FACE_PROVIDER
-        value: "simli:admins"
+        value: "musetalk:admins"
+        scope: RUN_TIME
+      - key: LIVE_FACE_ENDPOINT
+        value: "CHANGE_ME"
+        scope: RUN_TIME
+      - key: RUNPOD_API_KEY
+        type: SECRET
+        value: "CHANGE_ME"
         scope: RUN_TIME
       - key: SIMLI_API_KEY
         type: SECRET

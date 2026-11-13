@@ -7,7 +7,7 @@ import { extraPrice, type CompanionCharacterRef, type CompanionExtraState, type 
 import { heardSoFar, LIVE_START, liveStep, type Heard, type LiveEvent, type LiveState } from "@/lib/companion-live-shared";
 import { sseData } from "@/lib/sse";
 import { kitComplete, type FaceKit } from "@/lib/face-kit-shared";
-import { voiceForLiveFace, type LiveFaceSession } from "@/lib/live-face-shared";
+import { CLIP_HOLD_MS, voiceForLiveFace, type LiveFaceSession } from "@/lib/live-face-shared";
 import { TRANSCRIPT_START, transcriptStep, type Transcript, type TranscriptEvent } from "@/lib/companion-call-transcript";
 import CallTranscript from "./CallTranscript";
 import LiveFace, { type LiveFaceHandle } from "./LiveFace";
@@ -508,6 +508,8 @@ export default function CompanionCall({
       // Through the call's analyser, so the face moves with a voice played from a file too.
       player.current?.attach(a);
       void a.play().catch(() => {});
+      // And the face's own element, so a live face's clips may play with sound later (phones).
+      face.current?.unlock(SILENCE);
     } catch {
       // No audio element: the device's voice.
     }
@@ -751,6 +753,24 @@ export default function CompanionCall({
       begin();
       device = device.then(() => (current() ? props.current.speech.speakAll(t, who) : undefined));
     };
+    // A live face that comes as clips (lib/live-face/musetalk.ts): each piece's voice is held for its clip, and played
+    // the plain way (the kit's face moving to it) if the clip doesn't come: CLIP_HOLD_MS after its voice ends, when the
+    // server says it failed, or when the stream ends without it.
+    const held = new Map<number, { pcm: string; rate: number }[]>();
+    const clipped = new Set<number>();
+    const fallen = new Set<number>();
+    const holds = new Map<number, number>();
+    const release = (i: number) => {
+      window.clearTimeout(holds.get(i));
+      holds.delete(i);
+      const pieces = held.get(i);
+      held.delete(i);
+      if (!pieces || clipped.has(i) || fallen.has(i) || !current()) return;
+      fallen.add(i);
+      if (!player.current) return;
+      begin();
+      for (const p of pieces) player.current.push(p.pcm, p.rate);
+    };
     try {
       for await (const raw of sseData(res.body)) {
         if (!current()) break;
@@ -770,6 +790,11 @@ export default function CompanionCall({
         } else if (ev.type === "audio") {
           if (voiceOff.current) {
             // Nothing: the device says the words.
+          } else if (face.current?.clips()) {
+            // Held for the piece's clip, which says it with the voice in it.
+            const pieces = held.get(ev.i) ?? [];
+            pieces.push({ pcm: ev.pcm, rate: ev.rate });
+            held.set(ev.i, pieces);
           } else if (face.current?.live()) {
             // The live face says it, lips and all; its own audio plays the voice.
             begin();
@@ -780,6 +805,18 @@ export default function CompanionCall({
           }
         } else if (ev.type === "audio_end") {
           voiced.add(ev.i);
+          if (held.has(ev.i) && !holds.has(ev.i)) holds.set(ev.i, window.setTimeout(() => release(ev.i), CLIP_HOLD_MS));
+        } else if (ev.type === "video") {
+          if (!fallen.has(ev.i) && !voiceOff.current && face.current?.clips()) {
+            clipped.add(ev.i);
+            window.clearTimeout(holds.get(ev.i));
+            holds.delete(ev.i);
+            held.delete(ev.i);
+            begin();
+            face.current.clip(ev.i, Uint8Array.from(atob(ev.mp4), (c) => c.charCodeAt(0)));
+          }
+        } else if (ev.type === "video_fail") {
+          release(ev.i);
         } else if (ev.type === "voice_off") {
           voiceOff.current = true;
           setNote(`${first}'s voice dropped out, so it's your device's voice for now.`);
@@ -795,6 +832,9 @@ export default function CompanionCall({
     } catch {
       // Dropped (a barge-in aborts it): nothing more to say.
     }
+    // Pieces whose clip never came play the plain way (nothing when the turn was dropped: release checks).
+    for (const i of Array.from(held.keys())) release(i);
+    holds.forEach((t) => window.clearTimeout(t));
     if (!current()) return;
     if (failed) {
       log({ kind: "done" });
