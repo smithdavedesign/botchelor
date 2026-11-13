@@ -103,7 +103,20 @@ describe("Characters", () => {
     expect(html).toContain(`href="/after-dark/studio/${ines}"`);
     expect(html).not.toContain("of yours is Out");
   });
+
+  it("says what to do when there's nobody to switch", async () => {
+    const id = randomUUID();
+    await claimAdmin(t.db, id);
+    const c = signedInCookie(id);
+    jar.cookies.set(c.slice(0, c.indexOf("=")), c.slice(c.indexOf("=") + 1));
+    setSeasonCastForTests([]);
+    const html = renderToStaticMarkup(await AfterDarkCharacters());
+    expect(html).toContain("data-whos-in-empty");
+    expect(html).toContain('href="/create"');
+  });
 });
+
+
 
 describe("Account", () => {
   it("has the subscription and tokens, privacy (the theater's #privacy link lands on it), the writer, and the show's Account", async () => {

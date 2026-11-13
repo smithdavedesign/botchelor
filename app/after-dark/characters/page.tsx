@@ -66,9 +66,19 @@ export default async function AfterDarkCharactersPage() {
             </nav>
           </section>
         )}
-        <div data-whos-in>
-          <Switches key={onKey} initial={switchable} />
-        </div>
+        {switchable.length ? (
+          <div data-whos-in>
+            <Switches key={onKey} initial={switchable} />
+          </div>
+        ) : (
+          <p className="card muted" data-whos-in-empty>
+            Nobody to switch yet. This season&apos;s cast is in by itself; a character of your own shows up here once you&apos;ve{" "}
+            <Link prefetch={false} href="/create">
+              made one on the show
+            </Link>
+            .
+          </p>
+        )}
         <p className="muted small">
           To start a night with any of them, <Link href="/after-dark">pick a pair on Scenes</Link>.
         </p>
