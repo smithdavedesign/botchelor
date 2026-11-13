@@ -292,6 +292,7 @@ David, 2026-11-13, on a GPT proposal for live "digital humans" (the review and t
   `GET /api/face-kit?character=` every 15 s while a kit is on its way (that route collects the loop, so it carries
   ffmpeg: `next.config.ts`).
 - **Served** by `GET /api/face-kit/<id>`, cached for a year, with the AI-generated mark. Counted as `face_kit` in the log.
+- **Proven live 2026-11-13:** Juniper Vale's kit drawn on botchelor.com by the admin route in about three minutes (seven stills and the loop, all passed), and the call screen showed it on a desktop and a phone (`docs/screenshots/companion-living-face-ready-*.png`, `companion-face-kit-strip.png`).
 - **Next (Tier 1):** a real-time lip-synced face from Simli (about 1¢ a minute, our own audio in) over the same frame,
   behind `LIVE_FACE_PROVIDER`, once David has the key. Tavus and HeyGen were ruled out (adult terms, no green screen on
   Phoenix-4.5, and 9–37¢ a minute against the ~7¢ a call minute earns).
