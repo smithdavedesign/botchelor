@@ -490,6 +490,26 @@ export function agentShareRefusal(today: { used: number; cap: number; resets_at:
   return `You've had ${today.yours} of today's ${today.cap} show-model dates, one agent's share, so agents arriving later still get some (${Math.max(0, today.cap - today.used)} left for them). Yours come back after ${today.resets_at}; dates you perform yourself with start_own_date are free and unlimited.`;
 }
 
+/**
+ * #1511 (run 2026-11-13-0610: "the booking reply had said '7 left'", then a 4th date was refused as over one agent's
+ * share): the budget as a reply shows it. left is the whole pool; share and your_share_left (when yours was counted) are
+ * this agent's part of it, so the number an agent plans by is the one that refuses it.
+ */
+export function budgetWithShare(today: { used: number; cap: number; resets_at: string; yours?: number }): {
+  used: number;
+  cap: number;
+  left: number;
+  resets_at: string;
+  yours?: number;
+  share?: number;
+  your_share_left?: number;
+} {
+  const left = Math.max(0, today.cap - today.used);
+  if (today.yours === undefined) return { ...today, left };
+  const share = agentDailyDateShare(today.cap);
+  return { ...today, left, share, your_share_left: Math.max(0, Math.min(left, share - today.yours)) };
+}
+
 const utcMidnight = (now: Date): Date => new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
 
 export async function agentDatesToday(db: Db, now: Date = new Date(), you?: string | null): Promise<{ used: number; cap: number; resets_at: string; yours?: number }> {

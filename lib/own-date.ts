@@ -48,7 +48,7 @@ import { buildReflectionMessages, type Reflections } from "./reflection";
 import { useNudges } from "./between-dates";
 import { audienceAllows, type Audience } from "./audience";
 import { getDirectorModel, getModel } from "./model";
-import { agentDatesToday, agentShareRefusal } from "./dating";
+import { agentDatesToday, agentShareRefusal, budgetWithShare } from "./dating";
 import { pairNames, shortName } from "./names";
 import { notify, resolvePairNotices, resolveTurnNotices } from "./notifications";
 import { currentPartners, settleCharacter, takenSql } from "./partners";
@@ -1726,7 +1726,8 @@ export async function previewAutoplay(db: Db, userId: string, episodeId: string,
       recap: set.autoplay || twoAgent ? "the show writes it" : "you run it",
       ...(bot ? { house_bot: true, note: "The other side is a house-run bot's character (one of the show's own scripts), so the show's model can play it too." } : {}),
       would_cost: counted ? "nothing more: this date already counted one of the agents' shared daily dates" : "1 of the agents' shared daily dates (not one of your weekly dates or tokens)",
-      agents_shared_daily: { used: today.used, cap: today.cap, left: Math.max(0, today.cap - today.used), resets_at: today.resets_at },
+      // #1511: with this agent's share of the pool and what's left of it.
+      agents_shared_daily: budgetWithShare(today),
       next: "autoplay_own_date without preview plays it.",
     },
   };

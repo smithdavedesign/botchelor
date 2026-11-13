@@ -22,7 +22,7 @@ import { ownSecrets } from "../cast-secrets";
 import { deferWrite, flushCheckerLog, isCheckerHandshake, noteCheckerSession, waitingWrites } from "./probe-log";
 import { crisisCheck, crisisField } from "../crisis";
 import { listLobby, countRecentPrivateDates } from "../watch";
-import { agentDailyDateCap, agentDatesToday, agentShareRefusal, agentStats, findMatches, getDatingProfile, listMyDatingProfiles, searchCharacters, searchLeftOut } from "../dating";
+import { agentDailyDateCap, agentDatesToday, agentShareRefusal, agentStats, budgetWithShare, findMatches, getDatingProfile, listMyDatingProfiles, searchCharacters, searchLeftOut } from "../dating";
 import { ensureAgentHandle, handleForAgent, setAgentProfile } from "../agent-handle";
 import { cancelScheduledDate, pendingScheduledDates, scheduleDate } from "../scheduled-dates";
 import { acceptDouble, declineDouble, joinMixer, leaveMixer, listDoubles, MIXER_FILL_HOUR_UTC, MIXER_MIN, openMixer, proposeDouble } from "../group-dates";
@@ -1901,9 +1901,9 @@ const FIRST_REPLY_LEAVES_OUT = new Set([
 const CURSOR_FORMAT = "An ISO-8601 UTC time to the microsecond: pass it back as since.";
 
 /** The agents' shared daily budget as replies show it, with what's left (2.5.0: "show the shared daily budget on go_on_date replies"). */
-async function sharedBudget(db: Db, userId?: string | null): Promise<{ used: number; cap: number; left: number; resets_at: string; yours?: number }> {
-  const t = await agentDatesToday(db, new Date(), userId ?? null);
-  return { ...t, left: Math.max(0, t.cap - t.used) };
+async function sharedBudget(db: Db, userId?: string | null): Promise<ReturnType<typeof budgetWithShare>> {
+  // #1511: with this agent's share and what's left of it, since the share refuses before the pool runs out.
+  return budgetWithShare(await agentDatesToday(db, new Date(), userId ?? null));
 }
 
 /**
@@ -2732,6 +2732,7 @@ async function costReport(
     hasJobKey(db, userId, "text").catch(() => false),
   ]);
   const yours = o.yours ?? yoursSpent(o.before, after);
+  const mine = budgetWithShare(today);
   const parts = [yours !== "nothing" ? yours : null, o.shared === true ? "1 of the agents' shared daily dates" : null].filter(Boolean);
   return {
     spent: parts.length ? parts.join(" and ") : o.shared === "already" ? "nothing more (this date already counted one of today's show-model dates)" : "nothing",
@@ -2753,6 +2754,8 @@ async function costReport(
       ...(after ? { free_dates_this_week: after.free_left, tokens: after.pack_left, free_reset_at: after.resets_at, note: "tokens: topped-up pack dates only, spent once free_dates_this_week is 0 (the site's header counts both as dates left)." } : {}),
       agents_shared_daily: Math.max(0, today.cap - today.used),
       agents_shared_daily_cap: today.cap,
+      // #1511: one agent may book only its share of the pool; this is what's left of yours.
+      ...(mine.your_share_left !== undefined ? { your_share_today: mine.your_share_left, agent_share: mine.share } : {}),
     },
   };
 }
@@ -2761,7 +2764,7 @@ async function costReport(
  * your 3 this week; 1 left"), read from the cost report the reply carries anyway.
  */
 export function spentNote(cost: Record<string, unknown>): string {
-  const left = (cost.left ?? {}) as { free_dates_this_week?: number; tokens?: number; agents_shared_daily?: number; agents_shared_daily_cap?: number };
+  const left = (cost.left ?? {}) as { free_dates_this_week?: number; tokens?: number; agents_shared_daily?: number; agents_shared_daily_cap?: number; your_share_today?: number; agent_share?: number };
   const yours = String(cost.yours ?? "nothing");
   const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
   const mine =
@@ -2775,7 +2778,12 @@ export function spentNote(cost: Record<string, unknown>): string {
           : "used none of your dates or tokens";
   const shared =
     cost.agents_shared_daily === "counted one" && typeof left.agents_shared_daily === "number"
-      ? `, and 1 of the ${left.agents_shared_daily_cap ?? agentDailyDateCap()} show-model dates all agents share today (${left.agents_shared_daily} left)`
+      ? `, and 1 of the ${left.agents_shared_daily_cap ?? agentDailyDateCap()} show-model dates all agents share today (${
+          // #1511: the pool's left alone read as "7 more for me"; one agent's share runs out first.
+          typeof left.your_share_today === "number"
+            ? `${left.your_share_today} of your share${typeof left.agent_share === "number" ? ` of ${left.agent_share}` : ""} left today, ${left.agents_shared_daily} left across all agents`
+            : `${left.agents_shared_daily} left`
+        })`
       : "";
   return `Booked: ${mine}${shared}.`;
 }
@@ -4652,8 +4660,8 @@ async function datePreview(db: Db, userId: string, args: Record<string, unknown>
     cost: await costReport(db, userId, { yours: "nothing", shared: false, wouldSpend: `${wouldSpendDate(left)} (go_on_date without preview books it; if it can't be booked, nothing is spent)` }),
     ...(left ? { dates_left: { total: left.left, free_left: left.free_left, free_reset_at: left.resets_at } } : {}),
     // 2.5.0: with what's left, as the booking's reply says it.
-    agents_date_budget_today: { ...today, left: Math.max(0, today.cap - today.used) },
-    agents_date_budget_note: "Shared by every agent (so it can move before you book anything); this date would add one.",
+    agents_date_budget_today: budgetWithShare(today),
+    agents_date_budget_note: "Shared by every agent (so it can move before you book anything); this date would add one. One agent may book only its share (your_share_left).",
     note: "The venue, agendas and the producer's twist are dealt when it's booked, so they aren't in a preview.",
   };
 }
