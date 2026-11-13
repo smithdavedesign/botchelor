@@ -8,7 +8,7 @@ import { afterDarkTitle } from "@/lib/adult/discreet";
 import { canAfterDark } from "@/lib/adult/entitlement";
 import { adultAvailable } from "@/lib/adult/mode";
 import { lockedForCookies } from "@/lib/adult/privacy";
-import { listCastPairs } from "@/lib/adult/scenes";
+import { listCastPairs, type CastPair } from "@/lib/adult/scenes";
 import { sharedWithMe } from "@/lib/adult/shares";
 import { afterDarkOnly } from "@/lib/after-dark-host";
 import { getDb } from "@/lib/db";
@@ -67,13 +67,61 @@ export default async function AfterDarkPage({ searchParams }: { searchParams?: P
   // Dark shares the show's host (local, tests), the header is the show's, so this row carries them.
   const inHeader = afterDarkOnly();
   const pending = shared.shares.filter((x) => x.status === "pending").length;
+  // The night to pick up: the latest played of those under way (PairPicker's Continue, its first).
+  const latest = latestNight(pairs);
   return (
     <div className="after-dark-mode">
       <article className="after-dark">
-        <p className="kicker">
-          <Icon name="moon" /> After Dark · private
-        </p>
-        {/* The hub's other pages as one row of small buttons, not a kicker that wraps on a phone. */}
+        {/* The design kit's After Dark home (2026-11-12): what it is, and one tap back into the latest night. */}
+        <section className="ad-home-hero" data-ad-hero>
+          <p className="kicker">
+            <Icon name="moon" /> After Dark · private
+          </p>
+          <h1>You watched them flirt. Now watch what happens next.</h1>
+          <p className="ad-home-lede">
+            The adult season: this season&apos;s cast, and any of your characters you switch on, once the doors are locked and the lights are low.
+          </p>
+          <p className="ad-home-actions">
+            {latest ? (
+              <>
+                <Link className="button" href={latest.path} data-latest-night={latest.path} title={`${first(latest.a.name)} × ${first(latest.b.name)}`}>
+                  ▶ Pick up where they left off
+                </Link>
+                <a className="button-ghost" href="#scenes">
+                  All your scenes
+                </a>
+              </>
+            ) : (
+              <a className="button" href="#scenes">
+                Pick a pair
+              </a>
+            )}
+          </p>
+          <p className="muted small">Two lines hold: nobody under 18, and no real people. Nothing here is shown anywhere in the show.</p>
+        </section>
+        {bring && (
+          <div data-bring={bring.id}>
+            <Switches key={`bring:${onKey}`} initial={[bring]} only={bring.id} title={bring.on ? `${bring.name} is in` : `Bring ${bring.name} into After Dark`}>
+              <p className="muted small">
+                {bring.on
+                  ? "Pick them a scene below, or set up their face and body in the Studio for pictures."
+                  : "Characters start Out: nothing of theirs comes here until you switch them In. You can switch them Out again any time, on Characters."}
+              </p>
+            </Switches>
+          </div>
+        )}
+        {yoursOut > 0 && !bring && (
+          <p className="muted small" data-yours-out>
+            {yoursOut === 1 ? "One of your characters is" : `${yoursOut} of your characters are`} Out: nothing of theirs comes here until you{" "}
+            <Link href="/after-dark/characters">switch them In on Characters</Link>.
+          </p>
+        )}
+        {/* Your nights first, then a new one (the audit, 2026-10-29: the hub opened on a checklist of switches). */}
+        <section id="scenes">
+          <h2>Scenes</h2>
+          <PairPicker pairs={pairs} />
+        </section>
+        {/* The hub's other pages as one row of small buttons, under the scenes: the hero leads into the nights (2026-11-12). */}
         <nav className="ad-hub-links" aria-label="After Dark">
           {!inHeader && (
             <>
@@ -111,35 +159,16 @@ export default async function AfterDarkPage({ searchParams }: { searchParams?: P
             ← Back to the show
           </Link>
         </nav>
-        <h1>After Dark</h1>
-        <p className="muted">
-          The adult season: this season&apos;s cast, and any of your characters you switch on. Nothing here is shown anywhere in the show. Two
-          lines hold: nobody under 18, and no real people.
-        </p>
-        {bring && (
-          <div data-bring={bring.id}>
-            <Switches key={`bring:${onKey}`} initial={[bring]} only={bring.id} title={bring.on ? `${bring.name} is in` : `Bring ${bring.name} into After Dark`}>
-              <p className="muted small">
-                {bring.on
-                  ? "Pick them a scene below, or set up their face and body in the Studio for pictures."
-                  : "Characters start Out: nothing of theirs comes here until you switch them In. You can switch them Out again any time, on Characters."}
-              </p>
-            </Switches>
-          </div>
-        )}
-        {yoursOut > 0 && !bring && (
-          <p className="muted small" data-yours-out>
-            {yoursOut === 1 ? "One of your characters is" : `${yoursOut} of your characters are`} Out: nothing of theirs comes here until you{" "}
-            <Link href="/after-dark/characters">switch them In on Characters</Link>.
-          </p>
-        )}
-        {/* Your nights first, then a new one (the audit, 2026-10-29: the hub opened on a checklist of switches). */}
-        <section>
-          <h2>Scenes</h2>
-          <PairPicker pairs={pairs} />
-        </section>
         <SharedWithYou initial={shared} textOnly={here.mode === "text_only" ? here.reason : null} />
       </article>
     </div>
   );
 }
+
+/** The latest played of the nights under way (lines, a chapter filed, or kept from an earlier cast), or null. */
+function latestNight(pairs: CastPair[]): CastPair | null {
+  const going = pairs.filter((p) => p.earlier || p.lines > 0 || (p.chapter ?? 1) > 1);
+  return going.sort((x, y) => (y.updated_at ?? "").localeCompare(x.updated_at ?? ""))[0] ?? null;
+}
+
+const first = (name: string) => name.split(/\s+/)[0];

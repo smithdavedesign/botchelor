@@ -7936,6 +7936,11 @@ body.ad-host {
 .after-dark-mode a {
   color: var(--ad-accent);
 }
+/* …but a solid link-button keeps its own ink (2026-11-12: "▶ Pick up where they left off" was accent on the accent
+   gradient); the secondary and ghost ones are meant to be accent text. */
+.after-dark-mode a.button:not(.secondary) {
+  color: var(--accent-ink);
+}
 /* After Dark's teaser in the show: the length, under a blur, and the way to unlock it. The text is filler. */
 .ad-teaser {
   background: var(--night-card);

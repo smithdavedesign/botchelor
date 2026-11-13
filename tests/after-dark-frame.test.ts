@@ -151,3 +151,41 @@ describe("the hub", () => {
     expect(row).not.toContain('href="/after-dark/account"');
   });
 });
+
+// The kit's After Dark home: a hero that says what it is, and one tap back into the latest night.
+describe("the home's hero", () => {
+  const home = async () => renderToStaticMarkup(await AfterDarkHome({ searchParams: Promise.resolve({}) }));
+
+  it("with no night under way, asks for a pair, and shows no latest night", async () => {
+    await admin();
+    const html = await home();
+    expect(html).toContain("data-ad-hero");
+    expect(html).toContain('<a class="button" href="#scenes">Pick a pair</a>');
+    expect(html).not.toContain("data-latest-night");
+    expect(html).toContain('<section id="scenes"><h2>Scenes</h2>');
+  });
+
+  it("picks up the latest played night, and leads into the scenes", async () => {
+    const { id } = await admin();
+    const [A, B, C] = HOUSE_CHARACTERS;
+    const scene = (sid: string, a: string, b: string, text: string, at: string) =>
+      t.db.query(`insert into adult_scenes (id, owner_id, character_a, character_b, lines, updated_at) values ($1, $2, $3, $4, $5::jsonb, $6)`, [
+        sid,
+        id,
+        a,
+        b,
+        JSON.stringify([{ who: "a", text: "Hello." }, { who: "b", text }]),
+        at,
+      ]);
+    await scene("older", A.id, C.id, "An older night.", "2026-11-01T00:00:00Z");
+    // A pair's scene is keyed by its two ids in order (this season's pair: the two in the cast).
+    const [x, y] = [A.id, B.id].sort();
+    await scene("newer", x, y, "Stay a while.", "2026-11-10T00:00:00Z");
+    const html = await home();
+    const path = `/after-dark/${x}/${y}`;
+    expect(html).toMatch(new RegExp(`<a class="button" data-latest-night="${path}" title="[^"]+" href="${path}">▶ Pick up where they left off</a>`));
+    // The hero leads into the scenes, the row of other pages under them.
+    expect(html.indexOf("data-ad-hero")).toBeLessThan(html.indexOf('<section id="scenes">'));
+    expect(html.indexOf('<section id="scenes">')).toBeLessThan(html.indexOf('class="ad-hub-links"'));
+  });
+});
