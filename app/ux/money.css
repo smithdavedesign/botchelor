@@ -1,0 +1,322 @@
+/* Where people pay (the design lift, 2026-11-13): /shop, /companion/plan and /agents/pricing as offers you can take in at
+   a glance instead of paragraphs. The price is each tile's headline, faces stand where companions are named, Free sits
+   beside the plan in one table, and the agents' shared budget is three stat chips over two plan cards. Loaded after the
+   other sheets (app/layout.tsx), so it settles what show.css and companion.css say about the same pages. Tokens only
+   (tests/css-tokens.test.ts). */
+
+/* ---------------- shared: a price as a headline ---------------- */
+.money-price {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--space-2);
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--text-2xl);
+  font-weight: 800;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.money-price-per {
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+/* "Yours" over something already owned: the success colour and a check, where a price would be. */
+.money-price.is-owned {
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--ok-text);
+}
+.money-page .lede {
+  margin-top: var(--space-2);
+}
+
+/* ---------------- shared: a grid of offer tiles (/shop) ---------------- */
+/* One a row on a phone, two in the reading column; every tile the same height, its button at the foot. */
+.money-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr));
+  gap: var(--space-3);
+  margin: var(--space-4) 0;
+  padding: 0;
+  list-style: none;
+}
+.money-tile {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+}
+.money-tile > .badge {
+  align-self: flex-start;
+  margin: 0;
+}
+.money-tile-name {
+  font-size: var(--text-md);
+}
+.money-tile-what,
+.money-tile > .notice {
+  margin: 0;
+  font-size: var(--text-sm);
+}
+.money-tile-act {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: auto;
+  padding-top: var(--space-2);
+}
+.money-tile-act form {
+  display: grid;
+  gap: var(--space-2);
+}
+.money-tile-act .check {
+  margin: 0;
+  font-size: var(--text-sm);
+}
+/* The tile's one button fills its width (44px tall, the main action); the sign-in sheet's own buttons keep theirs. */
+.money-tile-act > button,
+.money-tile-act > form > button,
+.money-tile-act > .button {
+  width: 100%;
+  margin: 0;
+  text-align: center;
+}
+
+/* ---------------- the balance as a meter card (/shop) ---------------- */
+.money-meter {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-1) var(--space-4);
+  margin: var(--space-4) 0;
+  padding: var(--space-3) var(--space-4);
+}
+.money-meter-count {
+  grid-row: 1 / span 2;
+  display: grid;
+  justify-items: center;
+  margin: 0;
+  line-height: 1;
+}
+.money-meter-count strong {
+  font-size: var(--text-2xl);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.money-meter-count span {
+  color: var(--muted);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.money-meter-track {
+  align-self: end;
+  height: var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--soft);
+  overflow: hidden;
+}
+.money-meter-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--grad);
+}
+.money-meter-line {
+  align-self: start;
+  margin: 0;
+}
+
+/* ---------------- a price hero with faces (/companion/plan) ---------------- */
+.money-hero {
+  margin: 0 0 var(--space-4);
+  padding: var(--space-5) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 12%, var(--card)), color-mix(in srgb, var(--accent-2) 12%, var(--card)));
+}
+.money-hero h1 {
+  margin: 0 0 var(--space-2);
+}
+.money-hero .kicker {
+  margin-bottom: var(--space-1);
+}
+.money-hero .money-price {
+  margin: 0 0 var(--space-3);
+}
+.money-hero p {
+  max-width: 40rem;
+}
+.money-faces {
+  display: flex;
+  flex-wrap: wrap;
+  margin: var(--space-3) 0 0;
+  padding: 0 0 0 var(--space-1);
+  list-style: none;
+}
+.money-face {
+  display: flex;
+  margin: 0;
+}
+.money-face + .money-face {
+  margin-left: calc(-1 * var(--space-2));
+}
+.money-faces .avatar {
+  box-shadow: 0 0 0 2px var(--card);
+}
+.money-faces-line {
+  margin: var(--space-2) 0 0;
+}
+
+/* ---------------- Free beside the plan, one table (/companion/plan) ---------------- */
+.money-compare {
+  width: 100%;
+  margin: var(--space-2) 0 var(--space-3);
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+.money-compare th,
+.money-compare td {
+  padding: var(--space-2);
+  border-top: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+.money-compare thead th {
+  padding-top: 0;
+  border-top: 0;
+  color: var(--muted);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.money-compare thead th.is-plan {
+  color: var(--accent-text);
+}
+.money-compare tbody th {
+  width: 30%;
+  color: var(--ink);
+  font-weight: 600;
+}
+.money-compare td.is-plan {
+  background: color-mix(in srgb, var(--accent) 8%, var(--card));
+  font-weight: 600;
+}
+.money-compare small {
+  display: block;
+  margin-top: var(--space-1);
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: 400;
+}
+.money-yes {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.money-yes .icon {
+  color: var(--ok-text);
+}
+@media (max-width: 480px) {
+  .money-compare th,
+  .money-compare td {
+    padding: var(--space-2) var(--space-1);
+  }
+  .money-compare tbody th {
+    width: 28%;
+  }
+}
+
+/* ---------------- the shared budget as stat chips (/agents/pricing) ---------------- */
+.money-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: var(--space-3) 0;
+  padding: 0;
+  list-style: none;
+}
+.money-stat {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-1);
+  margin: 0;
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--card);
+  color: var(--ink);
+  font-size: var(--text-sm);
+}
+.money-stat strong {
+  font-size: var(--text-lg);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------------- two plan cards (/agents/pricing): side by side, one column on a phone ---------------- */
+.money-plans {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin: var(--space-4) 0;
+  padding: 0;
+  list-style: none;
+}
+@media (max-width: 640px) {
+  .money-plans {
+    grid-template-columns: 1fr;
+  }
+}
+.money-plan {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+}
+.money-plan h2,
+.money-plan .kicker {
+  margin: 0;
+}
+/* The pass is the one to pick out: an accent edge and a wash from the top. */
+.money-plan.is-pass {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 10%, var(--card)), var(--card) 45%);
+}
+.money-plan .button {
+  margin: var(--space-2) 0 0;
+  align-self: flex-start;
+}
+.money-plan small {
+  display: block;
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+.money-plan-soon {
+  margin: var(--space-2) 0 0;
+}
+.money-checklist {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.money-checklist li {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0;
+}
+.money-checklist .icon {
+  flex: none;
+  margin-top: 0.2em;
+  color: var(--ok-text);
+}

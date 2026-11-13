@@ -283,7 +283,8 @@
   scroll-margin-top: 5rem;
 }
 @media (max-width: 520px) {
-  .legal-page ul:not(.legal-toc ul) {
+  /* Not the stack page's rows of cards and jump links (app/about/page.tsx): they're flush with the headings. */
+  .legal-page ul:not(.legal-toc ul, .about-stack-toc, .about-stack-grid) {
     padding-left: 1.1rem;
   }
 }
@@ -468,32 +469,96 @@
 }
 
 /* ---------------- /account ---------------- */
-/* Your dates: a line between rows, and the faces at the top of a row that wraps to two lines on a phone. */
+/* Your dates (app/account/YourDates.tsx DateRow, 2026-11-13 design lift): one line a date, the two faces, the title, and
+   who sees it as a chip; a legend over the list says what the three words mean. */
 .account-dates {
   gap: 0;
 }
-.account-dates li {
-  align-items: flex-start;
-  padding: var(--space-3) 0;
+.account-dates .account-date {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-2) 0;
   border-top: 1px solid var(--line);
 }
-.account-dates li:first-child {
+.account-dates .account-date:first-child {
   border-top: 0;
 }
-@media (min-width: 561px) {
-  .account-dates li {
-    align-items: center;
+.account-dates-legend {
+  margin: 0 0 var(--space-2);
+}
+.account-date-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+.account-date-chip {
+  text-transform: capitalize;
+}
+.visibility-chip {
+  --control-h: 2rem;
+  width: auto;
+  margin: 0;
+  padding-block: 0;
+  padding-left: 0.7rem;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  border-radius: var(--radius-pill);
+}
+@media (max-width: 560px) {
+  .account-date-title {
+    white-space: normal;
   }
 }
-/* Your characters: the quick links sit on the name's line, centred with its face. */
+/* Your characters (AccountCharacterTile): tiles, the face, the name over quiet links, and the one thing to do. */
+.account-characters {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 19rem), 1fr));
+  gap: var(--space-2);
+}
 .account-character {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas:
+    "face body"
+    "face go";
   align-items: center;
+  column-gap: var(--space-3);
+  row-gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--line);
+}
+.account-character-face {
+  grid-area: face;
+  align-self: start;
+  line-height: 0;
+}
+.account-character-body {
+  grid-area: body;
+  min-width: 0;
+}
+.account-character-name {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.account-character-links {
+  font-size: var(--text-xs);
 }
 .account-character-links a {
   display: inline-flex;
   align-items: center;
   gap: 0.25em;
   min-height: 32px;
+}
+.account-character-go {
+  grid-area: go;
+  justify-self: start;
+  margin: 0;
 }
 @media (pointer: coarse) {
   .account-character-links a {
@@ -982,7 +1047,19 @@ button.chip-toggle.is-on {
 .swipe-intro h1 {
   text-wrap: balance;
 }
-/* The cue on a long card's fade: there's more below (app/swipe/SwipeDeck.tsx Card). */
+/* The cue on a long card's fade: there's more below (app/swipe/SwipeDeck.tsx Card). The fade is the card's own, laid
+   over the foot of the profile while there's more, so the words under the button are faded, not covered. */
+.swipe-card.swipe-has-more::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  height: 4.5rem;
+  background: linear-gradient(to bottom, transparent, var(--card) 72%);
+  pointer-events: none;
+}
 .swipe-more {
   position: absolute;
   left: 50%;

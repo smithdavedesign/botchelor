@@ -21,7 +21,8 @@ import { LIVE_AUDIO_RATE, type LiveEvent } from "@/lib/companion-live-shared";
 import { companionAllowance, giveBackReply, takeReply } from "@/lib/companion-plan";
 import { getDb } from "@/lib/db";
 import { ensureFaceKit } from "@/lib/face-kit";
-import { liveFaceSession } from "@/lib/live-face";
+import { liveFaceClips, liveFaceSession } from "@/lib/live-face";
+import { speakClip } from "@/lib/live-face/musetalk";
 import { handle, json, parseBody, readJson, session } from "@/lib/http";
 import { overLimit } from "@/lib/limits";
 import { inBackground } from "@/lib/sets";
@@ -53,7 +54,7 @@ const Action = z.discriminatedUnion("action", [
     barge_ins: z.number().int().min(0).max(10_000).optional(),
     voice_off: z.boolean().optional(),
     // The live face (lib/live-face): which renderer showed it and for how many seconds, for the spend view.
-    face: z.enum(["simli"]).optional(),
+    face: z.enum(["simli", "musetalk"]).optional(),
     face_seconds: z.number().int().min(0).max(24 * 3600).optional(),
   }),
 ]);
@@ -160,6 +161,8 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
     return json(body, status, sess);
   }
   const voice = auraVoiceFor(took.turn.character);
+  // A live face that comes as clips (lib/live-face/musetalk.ts), when it's on for this person and the character's is ready.
+  const clips = await liveFaceClips(db, took.turn.character.id, requestBase(req), { admin });
   const stop = new AbortController();
   req.signal?.addEventListener("abort", () => stop.abort());
   const encoder = new TextEncoder();
@@ -180,6 +183,24 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
       let written = false;
       let voiceOn = true;
       let chars = 0;
+      // Each voiced piece as a clip of the face saying it, one after another so the idle motion carries on from piece
+      // to piece (start_frame); the browser holds the piece's voice for it and plays the voice alone if it fails.
+      let cursor = 0;
+      let clipChain: Promise<void> = Promise.resolve();
+      const clipFor = (i: number, pcm: Buffer) => {
+        if (!clips || !pcm.length) return;
+        clipChain = clipChain.then(async () => {
+          if (stop.signal.aborted) return;
+          try {
+            const out = await speakClip(clips.runpod, { bundle_key: clips.bundle_key, pcm, rate: LIVE_AUDIO_RATE, start_frame: cursor }, { signal: stop.signal });
+            cursor = out.next_frame;
+            send({ type: "video", i, mp4: out.video_b64, frames: out.frames });
+          } catch (err) {
+            if (!stop.signal.aborted) console.error(`[companion-live] clip ${i}: ${err instanceof Error ? err.message.slice(0, 160) : "unknown"}`);
+            send({ type: "video_fail", i });
+          }
+        });
+      };
       const voicing = (async () => {
         for (;;) {
           while (!queue.length) {
@@ -192,8 +213,13 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
           try {
             const body = await speakAura(piece.text, voice, { signal: stop.signal });
             chars += piece.text.length;
-            await pump(body, (pcm) => send({ type: "audio", i: piece.i, pcm, rate: LIVE_AUDIO_RATE }));
+            const heard: Buffer[] = [];
+            await pump(body, (pcm) => {
+              if (clips) heard.push(Buffer.from(pcm, "base64"));
+              send({ type: "audio", i: piece.i, pcm, rate: LIVE_AUDIO_RATE });
+            });
             send({ type: "audio_end", i: piece.i });
+            clipFor(piece.i, Buffer.concat(heard));
           } catch (err) {
             if (stop.signal.aborted) return;
             voiceOn = false;
@@ -218,6 +244,7 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
       written = true;
       waiting.wake?.();
       await voicing;
+      await clipChain;
       if (!r.ok || !r.id) await giveBackReply(db, sess.userId, ticket);
       if (r.ok) {
         await countLiveTurn(db, call.id, chars);

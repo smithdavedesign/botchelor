@@ -315,6 +315,24 @@ David, 2026-11-13, on a GPT proposal for live "digital humans" (the review and t
   - **Ruled out:** Tavus and HeyGen (adult terms, no green screen on Phoenix-4.5, and 9–37¢ a minute against the ~7¢
     a call minute earns). Simli's terms take a training licence on uploaded faces: the show's own characters only
     until a creator says yes for theirs.
+- **Tier 1b, our own renderer: MuseTalk on Runpod Serverless (built 2026-11-13, admins only until it's proved):**
+  David asked for a pay-as-you-go way when Simli's faces turned out to need a plan; the review, the spike and the
+  numbers are in [PRDs/digital-human.md](PRDs/digital-human.md#tier-1b-our-own-renderer-musetalk-on-runpod-serverless).
+  - **On** with `LIVE_FACE_PROVIDER=musetalk` (everyone) or `musetalk:admins`, `RUNPOD_API_KEY` (the app's key,
+    Serverless endpoints only) and `LIVE_FACE_ENDPOINT` (the worker's endpoint id). One provider at a time.
+  - **A face** is a bundle the worker (`workers/live-face/`) builds once from the kit's idle loop, by an admin
+    (`POST /api/admin/live-face {character_id}`, a minute or two; the kit route's poll collects it) and keeps in the
+    show's object store under `live-face/<character>/`. The `live_faces` row holds the Runpod job while it builds and
+    the bundle's key once ready.
+  - **On a call** nothing streams from the browser to a vendor: the turn route sends each piece's voice to the worker
+    after its `audio_end` and streams the clip back as a `video` event (an MP4 with the voice in it, from the idle
+    cycle's `start_frame` so pieces run on from one another); `video_fail` when the worker can't. The browser holds a
+    piece's voice up to `CLIP_HOLD_MS` (4 s) after it finished arriving, plays the clip over the kit's face in the
+    same round frame, and plays the voice the plain way (kit mouth moving) for a piece whose clip fails or is late.
+    The idle loop keeps playing under and between clips; a barge-in drops them; the first tap unlocks the face's
+    element so phones play the clips with sound. `face_provider` is `musetalk` and `face_seconds` the clips' play time.
+  - **Costs** a 24 GB worker's seconds while a call runs (~$0.0125 a minute, ~$0.022 on a 4090) plus a 30-s idle
+    timeout, nothing between calls; a bundle is ~3.5 MB. Runpod's terms keep it to PG calls; After Dark stays Tier 0.
 
 ## Live calls (P6, built 2026-11-10; on once the Deepgram key is set)
 

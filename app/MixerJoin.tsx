@@ -78,7 +78,7 @@ export default function MixerJoin({ characterId, first }: { characterId: string;
         <span className="muted small">
           {m
             ? `${m.venue} · ${m.singles}/${status.max} singles in · ${m.singles >= status.min ? "runs within the hour" : `runs once ${status.min} are in, or at ${status.fill_hour ?? 20}:20 UTC with the house topping it up`}`
-            : `None open yet: putting ${first} in opens tonight's`}
+            : `None open yet: putting ${first} in opens tonight's room`}
         </span>
         <span className="muted small">One room, a bell between rounds: six lines with each of two singles, for one of your dates. They&apos;ll remember everyone there.</span>
         {last && (

@@ -389,7 +389,7 @@ function Card({ card, className, style, children, ...pointer }: CardProps) {
     return () => ro.disconnect();
   }, [measure, card.id]);
   return (
-    <article className={className} style={style} aria-label={`${card.name}, ${card.age}`} {...pointer}>
+    <article className={more ? `${className ?? ""} swipe-has-more`.trim() : className} style={style} aria-label={`${card.name}, ${card.age}`} {...pointer}>
       {children}
       {more && (
         <button

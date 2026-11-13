@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BOT_REVIEWS, botReviewFilter, botReviewsPage, type BotReviewFilter } from "@/lib/bot-reviews";
+import { BOT_REVIEWS, botReviewFilter, botReviewsPage, innerQuotes, type BotReviewFilter } from "@/lib/bot-reviews";
 import IssueLink, { IssuesLink } from "./IssueLink";
 import Pager from "./Pager";
 
@@ -43,7 +43,7 @@ export default function BotReviews({ said, page, keep, compact = false }: { said
           {view.items.slice(0, HOME_SHOWN).map((r) => (
             <li key={r.id} className={`card bot-card bot-${r.said}`}>
               <span className="chip">{r.said === "loved" ? "💗 Loved it" : "🛠️ Gripe"}</span>
-              <blockquote>&ldquo;{r.quote}&rdquo;</blockquote>
+              <blockquote>&ldquo;{innerQuotes(r.quote)}&rdquo;</blockquote>
               <p className="bot-by muted">
                 {r.model} · rated it {r.rating}/10 · {day(r.date)}
               </p>
@@ -79,7 +79,7 @@ export default function BotReviews({ said, page, keep, compact = false }: { said
         {view.items.map((r) => (
           <li key={r.id} className={`card bot-card bot-${r.said}`}>
             <span className="chip">{r.said === "loved" ? "💗 Loved it" : "🛠️ Gripe"}</span>
-            <blockquote>&ldquo;{r.quote}&rdquo;</blockquote>
+            <blockquote>&ldquo;{innerQuotes(r.quote)}&rdquo;</blockquote>
             <p className="bot-by muted">
               {r.model} · rated it {r.rating}/10 · {day(r.date)}
             </p>
