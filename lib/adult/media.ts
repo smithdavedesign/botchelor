@@ -667,6 +667,23 @@ export async function ensureBaseline(db: Db, ownerId: string, c: Character, edit
 }
 
 /**
+ * A baseline drawn somewhere else, free, from the show portrait (David, 2026-11-12: "generate a baseline nude for every
+ * character on botchelor agent made … use the AI stack on the machine so it's free"): the admin's Mac inpaints below the
+ * chin of the portrait with a local model (~/.botchelor-nude), so the face is the portrait's own pixels. It is held to
+ * exactly what a baseline from the portrait is (baselineFromPortrait: the lines, the cap, the gate and the output check
+ * with its age question), with the prompt a portrait baseline has, so it's read as nude (lib/adult/attire.ts). Null when
+ * they have a baseline already.
+ */
+export async function baselineFromLocal(db: Db, ownerId: string, c: Character, file: { bytes: Buffer; mime: string; model: string }): Promise<Media | null> {
+  const have = (await db.query<{ id: string }>(`select id from adult_images where character_id = $1 and character_b is null and kind = 'baseline' and status = 'ready' limit 1`, [c.id])).rows[0];
+  if (have) return null;
+  const portrait = await showPortrait(db, c);
+  if (!portrait) throw new Error("They have no show portrait to start from.");
+  const local: PortraitEdit = async () => ({ bytes: file.bytes, mime: file.mime, provider: "local", fell_back: false, model: file.model });
+  return (await withRequestLog(() => baselineFromPortrait(db, ownerId, c, new URL(portrait, siteUrl()).toString(), local))).value;
+}
+
+/**
  * The character's nude baseline, for undressed moments (lib/adult/attire.ts), made the first time it's needed: the same
  * look and framing as their baseline, without the outfit. A character who wears nothing has one already, their baseline.
  */
