@@ -10,7 +10,9 @@ import ForgotPassword from "./ForgotPassword";
 import MlConsent from "./MlConsent";
 import PasswordSettings from "./PasswordSettings";
 import YourDates from "./YourDates";
+import Avatar from "../Avatar";
 import CharacterName from "../CharacterName";
+import Icon from "../Icon";
 
 type Account = { handle: string | null; has_password: boolean; has_google: boolean };
 type Me = {
@@ -21,6 +23,37 @@ type Me = {
   google_available: boolean;
 };
 type Character = { id: string; name: string; hue?: number | null; portrait?: string | null };
+
+/**
+ * One of your characters as a tile (2026-11-13 design lift: each was a row of four identical underlined links): the face,
+ * the name, one main thing to do (send them on a date) and the rest as quiet links. Your own: its page is open to you
+ * even when it's private, so everything links.
+ */
+export function AccountCharacterTile({ c }: { c: Character }) {
+  const id = encodeURIComponent(c.id);
+  return (
+    <li className="account-character card">
+      <Link href={`/characters/${c.id}`} className="account-character-face" aria-label={`${c.name}'s page`}>
+        <Avatar seed={c.id} name={c.name} hue={c.hue ?? null} portraitSrc={c.portrait ?? null} size={56} decorative />
+      </Link>
+      <div className="account-character-body">
+        <CharacterName character={c} avatar={false} strong className="account-character-name" />
+        <span className="account-character-links">
+          <Link href={`/matches?character=${id}`}>
+            <Icon name="chat" /> Matches
+          </Link>
+          <Link href={`/swipe?character=${id}`}>
+            <Icon name="heart" /> Swipe
+          </Link>
+          <Link href={`/characters/${c.id}/edit`}>Edit</Link>
+        </span>
+      </div>
+      <Link href={`/create?character=${id}`} className="button small account-character-go">
+        Send on a date
+      </Link>
+    </li>
+  );
+}
 
 /**
  * Which tab the sign-in card opens on: the last one used in this browser, so someone coming back lands on Sign in
@@ -231,7 +264,7 @@ export default function AccountPanel({ next = null, emailConfirmed = null }: { n
       {authCard}
 
       {/* With no characters there are no dates either: one line, not two empty cards (2026-10-31 UX audit). */}
-      <section className="card">
+      <section className="card" id="your-characters">
         <h2>Your characters</h2>
         {characters.length === 0 ? (
           <p className="muted">
@@ -239,21 +272,9 @@ export default function AccountPanel({ next = null, emailConfirmed = null }: { n
           </p>
         ) : (
           <ul className="account-characters">
-            {characters.map((c) => {
-              const id = encodeURIComponent(c.id);
-              return (
-                <li key={c.id} className="account-character">
-                  {/* Your own: its page is open to you even when it's private, so it links. */}
-                  <CharacterName character={c} className="account-character-name" size={26} />
-                  <span className="account-character-links">
-                    <Link href={`/matches?character=${id}`}>💬 Matches</Link>
-                    <Link href={`/swipe?character=${id}`}>Swipe</Link>
-                    <Link href={`/create?character=${id}`}>Send on a date</Link>
-                    <Link href={`/characters/${c.id}/edit`}>Edit</Link>
-                  </span>
-                </li>
-              );
-            })}
+            {characters.map((c) => (
+              <AccountCharacterTile key={c.id} c={c} />
+            ))}
           </ul>
         )}
       </section>

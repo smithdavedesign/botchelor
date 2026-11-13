@@ -25,9 +25,45 @@ const FILTERS: { id: Visibility | null; label: string }[] = [
   { id: "private", label: "Private" },
 ];
 
+/** What each choice means, said once over the list (the chips themselves say one word). */
+const VISIBILITY: { id: Visibility; label: string; means: string }[] = [
+  { id: "public", label: "Public", means: "in the feed" },
+  { id: "unlisted", label: "Unlisted", means: "link only" },
+  { id: "private", label: "Private", means: "only you" },
+];
+
+/**
+ * One date as a compact row (2026-11-13 design lift: each row carried a full-width "Public — in the feed" dropdown and
+ * ran to four lines on a phone): the two faces, the title, and who sees it as a small chip, a select when you host it.
+ */
+export function DateRow({ e, onVisibility }: { e: EpisodeCard; onVisibility: (episodeId: string, visibility: string) => void }) {
+  return (
+    <li className="account-date">
+      <span className="pair-faces" aria-hidden="true">
+        <Avatar seed={e.a.id} name={e.a.name} hue={e.a.hue} house={e.a.house} portraitSrc={e.a.portrait} size={32} decorative />
+        <Avatar seed={e.b.id} name={e.b.name} hue={e.b.hue} house={e.b.house} portraitSrc={e.b.portrait} size={32} decorative />
+      </span>
+      <Link href={e.share_path} className="account-date-title">
+        {e.title}
+      </Link>
+      {e.is_host ? (
+        <select className="visibility-chip" aria-label={`Who sees ${e.title}`} value={e.visibility} onChange={(ev) => onVisibility(e.episode_id, ev.target.value)}>
+          {VISIBILITY.map((v) => (
+            <option key={v.id} value={v.id}>
+              {v.label}
+            </option>
+          ))}
+        </select>
+      ) : (
+        <span className="chip account-date-chip">{e.visibility}</span>
+      )}
+    </li>
+  );
+}
+
 /**
  * The account page's "Your dates": every date the user hosts or whose characters they own, 10 a page, filtered by
- * who sees it. Each row carries both characters' avatars, one on each side, so a date reads at a glance.
+ * who sees it. Each row carries both characters' faces, the title and who sees it (DateRow).
  */
 export default function YourDates() {
   const [filter, setFilter] = useState<Visibility | null>(null);
@@ -62,6 +98,11 @@ export default function YourDates() {
     <section className="card" id="your-dates">
       <h2>Your dates</h2>
       {data && all > 0 && (
+        <p className="muted small account-dates-legend">
+          Who sees each one: {VISIBILITY.map((v, i) => `${i ? " · " : ""}${v.label}, ${v.means}`).join("")}.
+        </p>
+      )}
+      {data && all > 0 && (
         <div className="segmented" role="group" aria-label="Filter by who sees it">
           {FILTERS.map((f) => (
             <button
@@ -88,25 +129,7 @@ export default function YourDates() {
       ) : (
         <ul className="account-dates">
           {data.episodes.map((e) => (
-            <li key={e.episode_id}>
-              <Avatar seed={e.a.id} name={e.a.name} hue={e.a.hue} house={e.a.house} portraitSrc={e.a.portrait} size={36} />
-              <div className="account-date-main">
-                <Link href={e.share_path}>{e.title}</Link>
-                {e.is_host ? (
-                  <label className="visibility-pick">
-                    <span className="muted small">who sees it</span>
-                    <select value={e.visibility} onChange={(ev) => setVisibility(e.episode_id, ev.target.value)}>
-                      <option value="public">Public — in the feed</option>
-                      <option value="unlisted">Unlisted — link only</option>
-                      <option value="private">Private — only me</option>
-                    </select>
-                  </label>
-                ) : (
-                  <span className="badge">{e.visibility}</span>
-                )}
-              </div>
-              <Avatar seed={e.b.id} name={e.b.name} hue={e.b.hue} house={e.b.house} portraitSrc={e.b.portrait} size={36} />
-            </li>
+            <DateRow key={e.episode_id} e={e} onVisibility={(id, v) => void setVisibility(id, v)} />
           ))}
         </ul>
       )}
