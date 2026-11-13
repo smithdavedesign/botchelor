@@ -1,0 +1,18 @@
+# MuseTalk 1.5's own pins, minus what its inference never imports (tensorflow, tensorboard, gradio, spaces, moviepy),
+# plus the worker's own needs. torch comes from the Dockerfile (2.0.1 + CUDA 11.8, the pairing MuseTalk's README uses).
+diffusers==0.30.2
+accelerate==0.28.0
+numpy==1.23.5
+opencv-python-headless==4.9.0.80
+soundfile==0.12.1
+transformers==4.39.2
+huggingface_hub==0.30.2
+librosa==0.11.0
+einops==0.8.1
+omegaconf
+imageio
+pillow
+scipy
+tqdm
+runpod>=2.2.1
+boto3>=1.34
