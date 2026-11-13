@@ -682,6 +682,30 @@
 .companion-live-loop.fading {
   opacity: 0;
 }
+/* The renderer's stream (a live face, lib/live-face): over the kit once its first frame is there, gone the moment it fails. */
+.companion-live-stream {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 30%;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+.companion-live-stream.is-on {
+  opacity: 1;
+}
+.companion-live-fallback {
+  display: block;
+}
+.companion-live-face.bare {
+  overflow: visible;
+  background: none;
+}
+.companion-live-face.bare.streaming {
+  overflow: hidden;
+}
 .companion-live-face.talking {
   animation: companion-live-talk 1.3s ease-in-out infinite;
 }

@@ -293,9 +293,28 @@ David, 2026-11-13, on a GPT proposal for live "digital humans" (the review and t
   ffmpeg: `next.config.ts`).
 - **Served** by `GET /api/face-kit/<id>`, cached for a year, with the AI-generated mark. Counted as `face_kit` in the log.
 - **Proven live 2026-11-13:** Juniper Vale's kit drawn on botchelor.com by the admin route in about three minutes (seven stills and the loop, all passed), and the call screen showed it on a desktop and a phone (`docs/screenshots/companion-living-face-ready-*.png`, `companion-face-kit-strip.png`).
-- **Next (Tier 1):** a real-time lip-synced face from Simli (about 1¢ a minute, our own audio in) over the same frame,
-  behind `LIVE_FACE_PROVIDER`, once David has the key. Tavus and HeyGen were ruled out (adult terms, no green screen on
-  Phoenix-4.5, and 9–37¢ a minute against the ~7¢ a call minute earns).
+- **Tier 1, a live face from Simli (built 2026-11-13, admins only until it's proved):** `lib/live-face/` (the registry
+  and `simli.ts`, the only code that talks to Simli), table `live_faces`.
+  - **On** with `LIVE_FACE_PROVIDER=simli` (everyone) or `simli:admins`, and `SIMLI_API_KEY` on the show app. Unset,
+    a call is exactly Tier 0.
+  - **A face** is built once per kit portrait by an admin (`POST /api/admin/live-face {character_id}`; `GET ?character=`
+    follows it): Simli's Trinity-2 from the kit's own portrait (plain top, mouth closed, facing the camera), about four
+    hours, one of the plan's monthly generations each (Pro: five a month), so never on a call. `action: "drop"`
+    forgets it here and there. The kit route's poll collects a finished face too.
+  - **A session** is minted at a live call's start (and on a reconnect) when the face is ready and it's on for the
+    person: `POST /compose/token`, five minutes to open, square 512 px, our own PCM in. The browser gets only the
+    token (`face` in the start response).
+  - **In the browser** (`LiveFace.tsx`): the Simli client opens its WebRTC stream in the same round frame over the kit;
+    once the first frame is there the companion's voice goes to it (24 kHz Aura resampled to 16 kHz 16-bit, pieces of
+    ~6 KB, `lib/live-face-shared.ts`) and Simli's own audio element plays it lip-synced; a barge-in clears its buffer;
+    its `speaking`/`silent` events (with a clock as backstop) tell the call when the reply has been said. Any failure
+    (no first frame in 8 s, an error, the stream stopping) drops the call back to the kit's face and the call's own
+    player, mid-call if need be.
+  - **Counted:** `companion_live_calls.face_provider` and `face_seconds` (the browser reports them at the end), and
+    `companion_call` carries `face` and `face_seconds`. Simli bills by the minute connected (~1¢).
+  - **Ruled out:** Tavus and HeyGen (adult terms, no green screen on Phoenix-4.5, and 9–37¢ a minute against the ~7¢
+    a call minute earns). Simli's terms take a training licence on uploaded faces: the show's own characters only
+    until a creator says yes for theirs.
 
 ## Live calls (P6, built 2026-11-10; on once the Deepgram key is set)
 

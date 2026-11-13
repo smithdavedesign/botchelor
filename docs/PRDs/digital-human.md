@@ -1,7 +1,8 @@
 # Digital humans: bringing a character's face to life on a call
 
-**Status:** Tier 0 built (PR "Living face", 2026-11-13). Tier 1 (a hosted real-time renderer) is a spike next, with
-David's go on the spend. The GPT-written proposal this answers is `Botchelor_Digital_Human_Engine_PRD.docx` beside this
+**Status:** Tier 0 built and live (#1529, 2026-11-13). Tier 1's Simli adapter is built and off by default
+(`LIVE_FACE_PROVIDER`), with David's Simli account made the same day; the first faces build once the plan has
+generations (Pro), and the admins-only proof comes after. The GPT-written proposal this answers is `Botchelor_Digital_Human_Engine_PRD.docx` beside this
 file; this page is the review of it and what we're doing instead, in order of value per dollar.
 
 ## What the proposal asked for
@@ -132,6 +133,12 @@ What Simli's own pages say (read 2026-11-13; simli.com/pricing, /legal/terms-of-
   faces. Facial recognition is barred (we do none). **Simli takes a perpetual, royalty-free licence to uploaded content
   "for training of AI Models"**: fine for the show's own characters; a creator's own character goes up only with
   their yes (a sentence on the kit's button). Users must be 18+. Cancelling ends access to the faces made.
+
+What's built (same day): `lib/live-face/simli.ts` (faces, status, sessions, nothing else), `lib/live-face/index.ts`
+(the registry: `live_faces`, build by an admin, collect on the kit route's poll, a session at a live call's start when
+on for the person), `lib/live-face-shared.ts` (our 24 kHz PCM to the renderer's 16 kHz pieces), `LiveFace.tsx` (the
+stream over the kit's face, the voice fed to it, Tier 0 back the moment it fails), `companion_live_calls.face_*` for
+the spend view, `/api/admin/live-face`. Tests: `tests/live-face.test.ts`, `tests/live-face-shared.test.ts`.
 
 The plan, with those in:
 
