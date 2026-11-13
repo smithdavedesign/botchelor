@@ -30,6 +30,7 @@ import {
 } from "@/lib/companion-shared";
 import type { CharacterRef } from "@/lib/game";
 import { venueName, type VenueId } from "@/lib/venues";
+import type { FaceKit } from "@/lib/face-kit-shared";
 import CompanionCall, { callSupported, liveSupported, type CallStats, type CallTurn, type CallVoice } from "./CompanionCall";
 
 type Extras = Record<CompanionExtraKind, CompanionExtraState> | null;
@@ -69,6 +70,7 @@ export default function CompanionChat({
   signedIn = false,
   liveCalls = false,
   callVoice = false,
+  faceKit = null,
 }: {
   initial: CompanionThreadView;
   initialCrisis: CrisisResources | null;
@@ -81,6 +83,8 @@ export default function CompanionChat({
   liveCalls?: boolean;
   /** A taking-turns call's replies are said in the character's own Aura voice (lib/companion-call-voice.ts); off, the device's. */
   callVoice?: boolean;
+  /** The character's face kit (lib/face-kit.ts), when they have one: their face comes to life on a call. */
+  faceKit?: FaceKit | null;
 }) {
   const router = useRouter();
   const [view, setView] = useState(initial);
@@ -757,6 +761,7 @@ export default function CompanionChat({
           speakUrl={callVoice ? `/api/companion/${view.id}/speak` : null}
           onRefused={callRefusal}
           onKept={() => void refreshThread()}
+          kit={faceKit}
         />
       )}
     </article>

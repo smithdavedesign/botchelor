@@ -1,8 +1,10 @@
 import { z } from "zod";
 import { getDb } from "@/lib/db";
+import { ensureFaceKit } from "@/lib/face-kit";
 import { handle, json, parseBody, readJson, session } from "@/lib/http";
 import { overLimit, visitorKey } from "@/lib/limits";
 import { inBackground } from "@/lib/sets";
+import { requestBase } from "@/lib/site";
 import { track } from "@/lib/analytics";
 import {
   carryOn,
@@ -118,6 +120,10 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
     }
     // `stage`, not `event`: that's the analytics event's own name.
     track("companion_call", { stage: input.event, seconds: input.seconds, turns: input.turns, voice: input.voice, guest: !sess.authenticated || undefined });
+    // A call starting on the plan (or an admin's): their face for it (lib/face-kit.ts), drawn once if they have none.
+    if (input.event === "start" && sess.authenticated && (await companionAllowance(db, sess.userId, new Date(), process.env)).unlimited) {
+      inBackground(() => ensureFaceKit(db, t.view.character.id, requestBase(req)));
+    }
     return json({ ok: true }, 200, sess);
   }
   const talks = input.action === "send" || input.action === "regenerate" || input.action === "edit" || (input.action === "scene" && input.place !== null);

@@ -44,7 +44,7 @@ What Venice, After Dark's provider, already offers (its model list and quotes, 2
 | 7 | Living expressions | A loop per expression, not only the still one, so a laugh moves | seven clips per face | 🧭 after 1 and 2 are watched |
 | 8 | The phone's stage | The living face in the phone's thread and header, not only on the desktop stage | — | 🧭 |
 | 9 | Talk back | Say a steer or whisper out loud (speech to text) | per steer | 🧭 |
-| 10 | A live call | Real-time lip-synced video both ways (Kindroid's) | our own GPU; hosted services ban adult | ⏸ |
+| 10 | A live call | Real-time lip-synced video both ways (Kindroid's) | our own GPU; hosted services ban adult. **PG companion calls** have a face that moves with the voice since 2026-11-13 (nothing a minute; [digital-human.md](digital-human.md)), with a hosted renderer (Simli, ~1¢/min) next; After Dark stays parked | ⏸ (AD) / ✅ Tier 0 (PG calls) |
 
 Already there and worth more use: slow camera moves over stills (#2546's camera moves), first-person framing (#930),
 texts between nights, the reel storyboard.

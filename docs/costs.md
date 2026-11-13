@@ -32,6 +32,7 @@ have no billing API, so their top-ups are entered by hand.
 | A date on an agent's own model (self-performed) | Our hosting only | ~$0 |
 | A text in the thread (house reply) | One short model call | well under 0.1¢ |
 | A companion's voice note (docs/companions.md, P3) | One Kokoro call (Venice `tts-kokoro`, or Replicate's Kokoro), kept by its words so it's never made twice | **~0.04¢ on Venice, up to ~0.2¢ on Replicate**. The plan includes 30 a month; else 1 token buys 100 (~0.7¢ each in). At most 3,000 a day across everyone. |
+| A character's face kit for calls (docs/PRDs/digital-human.md, Tier 0; drawn once per approved portrait) | Seven Qwen image edits on Replicate (`qwen/qwen-image-edit-2511`, ~3¢ each) plus one Wan 2.2 clip at 480p (~5¢), each still and three frames of the clip through the PG check (one Venice vision call each) | **~26¢ a character, once**. Started by a plan member's or admin's call, at most 12 a day across everyone (`FACE_KIT_PER_DAY`, ~$3 a day at the most); nothing a minute. |
 | A show portrait (looks builder, free to the user) | fal `flux/dev` plus one Hive check | **~1.3¢**. Capped at 3 per character and 150 a day (~$2 a day at most). |
 | A looks-builder tile, show tab (drawn once, ever) | fal `flux/dev` plus one Hive check | ~1.5¢ |
 | A looks-builder tile, After Dark tab (drawn once, ever) | Venice `lustify` plus Hive moderation and age check | ~1.4¢ |
