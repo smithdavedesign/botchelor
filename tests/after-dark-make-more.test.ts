@@ -40,6 +40,8 @@ describe("Make more on a night", () => {
     expect(html).not.toContain("data-make-more");
     expect(html).toContain("Video of the night");
     expect(between(html, "ad-tools-items", "Exit")).toContain("Bring them to life");
+    // The row's 📷 stays an icon.
+    expect(html).not.toContain("A picture or clip of this moment");
   });
 
   it("on: one menu holds the video, bringing them to life, a new place at its price, their Studio, and Keep going / Fix", () => {
@@ -48,6 +50,7 @@ describe("Make more on a night", () => {
     expect(menu).toContain("Make more");
     expect(menu).toContain("Video of the night");
     expect(menu).toContain("Bring them to life");
+    expect(menu).toContain("A picture or clip of this moment");
     expect(menu).toMatch(/📍 Take them somewhere else · (<!-- -->)?<span class="token-price">/);
     expect(menu).toContain('href="/after-dark/studio/a"');
     expect(menu).toContain("Ada&#x27;s Studio");

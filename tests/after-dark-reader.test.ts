@@ -69,6 +69,11 @@ describe("the reader", () => {
     expect(html).toContain("<strong>Bo</strong> <em class=\"ad-reader-action\">laughs</em> Always.");
     expect(html).toMatch(/aria-current="page"[^>]*>|href="[^"]*n2c1" aria-current="page"/);
     expect(read({ saved, pick: "someone-else" })).toContain('aria-label="Chapter 2, night 2"');
+    // Chapter by chapter: back to the night before's, on to this night's next.
+    expect(html).toContain(`href="${base}?view=reader&amp;chapter=n1">← Night 1 · Chapter 1</a>`);
+    expect(html).toContain(`href="${base}?view=reader&amp;chapter=n2c2">Chapter 2 →</a>`);
+    // The list says how long each chapter is, not where (that's in the chapter's own heading).
+    expect(html).not.toMatch(/lines · the (bar|roof)/);
   });
 
   it("says so when there's nothing written yet, and keeps the way back to the theater", () => {

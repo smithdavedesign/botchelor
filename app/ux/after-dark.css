@@ -2627,7 +2627,6 @@ button.ad-studio-fold-head:active:not(:disabled) {
 }
 .threshold-title {
   margin: 0;
-  font-family: var(--font-display, inherit);
   font-size: var(--text-display);
   line-height: 1.05;
 }
@@ -2682,6 +2681,31 @@ button.ad-studio-fold-head:active:not(:disabled) {
   text-align: left;
   white-space: normal;
 }
+.ad-make-items > *,
+.ad-make-items .ad-video-choice,
+.ad-make-items .ad-capture {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+}
+.ad-make-items .ad-video-choice > button,
+.ad-make-items .ad-capture > .theater-icon,
+.ad-make-items > button,
+.ad-make-items > a {
+  width: 100%;
+  min-height: var(--tool-h);
+  height: auto;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  justify-content: flex-start;
+  gap: var(--space-2);
+}
+.ad-make-items .theater-icon-word,
+.ad-make-items .ad-tool-word {
+  display: inline;
+  font-size: var(--text-sm);
+}
 .ad-make-items .ad-video-choice-panel,
 .ad-make-items .ad-capture-menu {
   position: static;
@@ -2708,15 +2732,29 @@ button.ad-studio-fold-head:active:not(:disabled) {
   border-bottom: 0;
   background: var(--night-card);
 }
+.theater-tools.ad-sheet-mode .ad-tools-more.open .ad-tools-items {
+  align-items: stretch;
+  justify-content: flex-start;
+  box-shadow: 0 0 0 100vmax color-mix(in srgb, var(--night-bg) 65%, transparent);
+}
 .theater-tools.ad-sheet-mode .ad-tools-items > *,
 .theater-tools.ad-sheet-mode .ad-tools-items button {
   white-space: normal;
+}
+.theater-tools.ad-sheet-mode .ad-tools-items > button,
+.theater-tools.ad-sheet-mode .ad-tools-items > .ad-writer-logo,
+.theater-tools.ad-sheet-mode .ad-tools-items > .ad-writer-logo button,
+.theater-tools.ad-sheet-mode .ad-make-more > .ad-make-toggle {
+  width: 100%;
+  justify-content: flex-start;
 }
 .ad-sheet-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  width: 100%;
   margin: 0 0 var(--space-1);
+  font-size: var(--text-md);
 }
 /* In the sheet the tools say their words again: the row hid them to fit a phone. */
 .theater-tools.ad-sheet-mode .ad-tools-items .ad-tool-word {
@@ -2736,7 +2774,7 @@ button.ad-studio-fold-head:active:not(:disabled) {
 }
 
 /* The chapter reader (app/after-dark/[a]/[b]/Reader.tsx, the design kit's NightReader): the chapters down the side, the one
-   picked at reading size. One column on a phone, the list first. */
+   picked at reading size. One column on a phone, the chapter first and the list after it. */
 .ad-reader-grid {
   display: grid;
   grid-template-columns: minmax(0, 16rem) minmax(0, 1fr);
@@ -2755,14 +2793,47 @@ button.ad-studio-fold-head:active:not(:disabled) {
   gap: var(--space-1);
 }
 .ad-reader-chapters a {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
   padding: var(--space-1) var(--space-2);
   border-radius: var(--radius-sm);
+  color: var(--night-ink);
   text-decoration: none;
 }
+.ad-reader-chapters a:hover {
+  background: color-mix(in srgb, var(--night-line) 60%, transparent);
+}
 .ad-reader-chapters a[aria-current="page"] {
-  background: var(--night-control);
-  color: var(--night-accent-text);
+  background: var(--night-line);
+  color: var(--night-ink-on);
+}
+.ad-reader-n {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 1px solid var(--night-line);
+  border-radius: var(--radius-pill);
+  color: var(--night-muted);
+  font-size: var(--text-xs);
+}
+.ad-reader-chapters a[aria-current="page"] .ad-reader-n {
+  border-color: var(--night-accent);
+  background: var(--night-accent);
+  color: var(--night-bg);
+}
+.ad-reader-step {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-sm);
+}
+.ad-reader-step:last-child {
+  margin: var(--space-4) 0 0;
 }
 .ad-reader {
   font-size: var(--text-lg);
@@ -2783,6 +2854,9 @@ button.ad-studio-fold-head:active:not(:disabled) {
 @media (max-width: 640px) {
   .ad-reader-grid {
     grid-template-columns: minmax(0, 1fr);
+  }
+  .ad-reader-chapters {
+    order: 2;
   }
   .ad-reader {
     font-size: var(--text-md);

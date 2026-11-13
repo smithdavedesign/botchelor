@@ -60,7 +60,8 @@ applies, on production) or `everyone`. `rolloutOn(cfg, piece, admin)` is the one
   the theater: every chapter of the pair's nights down the side, grouped by night (newest night first, `groupNights` +
   `nightNumbers`, as the Nights tab counts them, with tonight's chapter so far as `chapter=now`), and the picked one
   (`&chapter=<id|now>`, else the newest) at reading size, each line's speaker by first name and its `*actions*` as quiet
-  stage directions. Nothing is written or spent there: ▶ Carry on in the theater and 🖼 Their gallery are links back.
+  stage directions, with ← / → to the chapter before and after (across nights). On a phone the chapter comes first and
+  the list after it. Nothing is written or spent there: ▶ Carry on in the theater and 🖼 Their gallery are links back.
   Off for the viewer, `?view=reader` is just the theater.
 
 ## #1 Output moderation — the most urgent hole (do before any image ships)

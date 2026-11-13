@@ -20,6 +20,7 @@ export default function CaptureMenu({
   onPicture,
   canPicture,
   match,
+  worded = false,
 }: {
   a: string;
   b: string;
@@ -31,6 +32,8 @@ export default function CaptureMenu({
   /** There's a line on screen to picture. */
   canPicture: boolean;
   match: { image_id: string } | null;
+  /** Its words beside the 📷, as an item in Make more (the design review: every item there says what it is). */
+  worded?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
@@ -50,7 +53,7 @@ export default function CaptureMenu({
   return (
     <div className="ad-capture" ref={box}>
       <button type="button" className={`theater-icon${open ? " on" : ""}`} aria-expanded={open} aria-haspopup="menu" aria-label="Pictures and clips" title="Pictures & clips" onClick={() => setOpen((v) => !v)}>
-        📷
+        📷{worded && <span className="theater-icon-word"> A picture or clip of this moment</span>}
       </button>
       {open && (
         <div className="ad-capture-menu" role="menu" aria-label="Pictures and clips">

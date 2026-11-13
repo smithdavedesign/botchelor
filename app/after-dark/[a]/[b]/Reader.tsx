@@ -43,6 +43,17 @@ export default function Reader({
   const first = (who: "a" | "b") => shortName(who === "a" ? names.a : names.b);
   const href = (key: string) => `${base}?view=reader&chapter=${encodeURIComponent(key)}`;
   const title = (c: Chapter) => (c.chapter ? `Chapter ${c.chapter}` : "A night");
+  // Chapter by chapter, in the order they were written (the next one may be the next night's first).
+  const at = shown ? chapters.indexOf(shown) : -1;
+  const [prev, next] = [chapters[at - 1] ?? null, at >= 0 ? (chapters[at + 1] ?? null) : null];
+  const stepLabel = (c: Chapter) => (shown && c.night !== shown.night ? `Night ${c.night} · ${title(c)}` : title(c));
+  const step = (where: string) =>
+    prev || next ? (
+      <nav className="ad-reader-step" aria-label={`Chapter by chapter (${where})`}>
+        {prev ? <Link href={href(prev.key)}>← {stepLabel(prev)}</Link> : <span />}
+        {next && <Link href={href(next.key)}>{stepLabel(next)} →</Link>}
+      </nav>
+    ) : null;
   return (
     <section className="ad-reader-page" data-reader>
       <p className="ad-reader-back">
@@ -63,11 +74,11 @@ export default function Reader({
                     .map((c) => (
                       <li key={c.key}>
                         <Link href={href(c.key)} aria-current={shown?.key === c.key ? "page" : undefined}>
-                          <strong>{title(c)}</strong>
-                          <span className="muted small">
-                            {" "}
-                            · {c.now ? "now · " : ""}
-                            {c.lines.length} lines{c.place ? ` · ${c.place}` : ""}
+                          <span className="ad-reader-n" aria-hidden="true">
+                            {c.chapter ?? "·"}
+                          </span>
+                          <span>
+                            <strong>{title(c)}</strong> <span className="muted small">{c.now ? `so far · ${c.lines.length} lines` : `${c.lines.length} lines`}</span>
                           </span>
                         </Link>
                       </li>
@@ -86,12 +97,14 @@ export default function Reader({
                 Night {shown.night} · {title(shown)}
                 {shown.place ? ` · ${shown.place}` : ""}
               </p>
+              {step("top")}
               {shown.lines.map((l, i) => (
                 <p key={i} className="ad-reader-line">
                   <strong>{first(l.who)}</strong> {withActions(l.text)}
                 </p>
               ))}
               {shown.now && <p className="muted small">The rest of this chapter is written in the theater, as it plays.</p>}
+              {step("end")}
             </>
           ) : (
             <p className="muted">No chapter to read yet.</p>
