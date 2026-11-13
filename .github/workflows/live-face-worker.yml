@@ -3,12 +3,17 @@
 # caches per host). About 15 minutes; the image is ~11 GB with the weights baked in.
 name: live-face worker image
 on:
+  # By hand with a tag once the workflow is on main; until then, and for the worker's own branches, every push that
+  # touches the worker builds `dev` (a dispatch can only start a workflow that exists on the default branch).
   workflow_dispatch:
     inputs:
       tag:
         description: "Image tag (e.g. v1)"
         required: true
         default: "v1"
+  push:
+    branches: ["live-face-*"]
+    paths: ["workers/live-face/**", ".github/workflows/live-face-worker.yml"]
 permissions:
   contents: read
   packages: write
@@ -35,8 +40,8 @@ jobs:
           context: workers/live-face
           platforms: linux/amd64
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/botchelor-live-face:${{ inputs.tag }}
+          tags: ghcr.io/${{ github.repository_owner }}/botchelor-live-face:${{ inputs.tag || 'dev' }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Image
-        run: echo "ghcr.io/${{ github.repository_owner }}/botchelor-live-face:${{ inputs.tag }}"
+        run: echo "ghcr.io/${{ github.repository_owner }}/botchelor-live-face:${{ inputs.tag || 'dev' }}"
