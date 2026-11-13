@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import Avatar from "@/app/Avatar";
 import CharacterName from "@/app/CharacterName";
+import VenuePhoto from "@/app/VenuePhoto";
 import { getDb } from "@/lib/db";
 import { privateAmong } from "@/lib/directory";
 import { ENDING_LABELS } from "@/lib/rules";
@@ -11,10 +12,12 @@ import { getSeasonRecap, type RecapChar, type RecapPair } from "@/lib/season-rec
 import { seasonIdFromSlug, seasonRef } from "@/lib/season-ref";
 import { seasonIdOf } from "@/lib/season-window";
 import { pageMetadata } from "@/lib/seo";
+import { venueName } from "@/lib/venues";
 import { cookies } from "next/headers";
 import { userIdFromCookieStore } from "@/lib/http";
 import { PoolBoardList } from "@/app/SeasonPool";
 import { freezeSeasonPool, poolBoard } from "@/lib/season-pool";
+import { heroVenue, venueIdForPlace } from "../season-visuals";
 
 export const dynamic = "force-dynamic";
 
@@ -75,17 +78,70 @@ export default async function SeasonPage({ params }: Props) {
       .catch(() => null));
 
   const n = d.numbers;
+  // The hero's picture: the golden couple's best date's venue, else the season's most-called date's (season-visuals.ts).
+  const golden = d.golden;
+  const venueId = heroVenue(d);
   return (
-    <article className="season-page">
-      <p className="muted">
+    <article className="season-page page-wide">
+      <p className="muted season-back">
         <Link href="/reunion">← The Reunion</Link>
       </p>
-      <p className="kicker">Season {d.season.number} · the finale</p>
-      <h1>{d.season.label}</h1>
+
+      {/* The title card: the golden couple large over the place of their best date; a season with no golden couple opens
+          on its cast instead. The words sit on the photo's grade (--on-photo). */}
+      <header className={`season-hero${venueId ? "" : " no-venue"}`}>
+        <VenuePhoto venue={venueId} className="season-hero-photo" eager>
+          <div className="season-hero-inner">
+            <p className="season-hero-kicker">
+              <span>Season {d.season.number} · the finale</span>
+              {venueId && <span>{venueName(venueId)}</span>}
+            </p>
+            <h1>{d.season.label}</h1>
+            {golden ? (
+              <div className="season-hero-golden">
+                <span className="pair-faces season-hero-faces" aria-hidden="true">
+                  <Avatar seed={golden.a.id} name={golden.a.name} hue={golden.a.hue} house={golden.a.house} portraitSrc={golden.a.portrait} size={96} decorative />
+                  <Avatar seed={golden.b.id} name={golden.b.name} hue={golden.b.hue} house={golden.b.house} portraitSrc={golden.b.portrait} size={96} decorative />
+                </span>
+                <div className="season-hero-golden-copy">
+                  <p className="season-hero-eyebrow">🏆 Golden couple</p>
+                  <p className="season-hero-names">
+                    {open(golden) ? (
+                      <Link href={`/couples/${pairKey(golden)}`}>
+                        {golden.a.name} × {golden.b.name}
+                      </Link>
+                    ) : (
+                      <>
+                        {golden.a.name} × {golden.b.name}
+                      </>
+                    )}
+                  </p>
+                  <p className="season-hero-line">{golden.line}</p>
+                </div>
+              </div>
+            ) : (
+              d.cast.length > 0 && (
+                <div className="season-hero-golden">
+                  <span className="season-faces season-hero-cast" aria-hidden="true">
+                    {d.cast.slice(0, 10).map((c) => (
+                      <Avatar key={c.character.id} seed={c.character.id} name={c.character.name} hue={c.character.hue} house={c.character.house} portraitSrc={c.character.portrait} size={56} decorative />
+                    ))}
+                  </span>
+                  <p className="season-hero-line">
+                    {d.cast.length} on the cast, {n.aired} {n.aired === 1 ? "date" : "dates"} aired, and no couple made it to a second yes.
+                  </p>
+                </div>
+              )
+            )}
+          </div>
+        </VenuePhoto>
+      </header>
 
       <section className="card season-previously" aria-labelledby="previously">
-        <h2 id="previously">Previously on Botchelor</h2>
-        <p className="season-narrative">{narrative}</p>
+        <div className="season-previously-column">
+          <h2 id="previously">Previously on Botchelor</h2>
+          <p className="season-narrative">{narrative}</p>
+        </div>
       </section>
 
       <section aria-labelledby="numbers">
@@ -129,8 +185,8 @@ export default async function SeasonPage({ params }: Props) {
             {d.couples.map((c) => (
               <li key={pairKey(c)} className={`card season-couple${open(c) ? " tap-card" : ""}`}>
                 <span className="pair-faces" aria-hidden="true">
-                  <Avatar seed={c.a.id} name={c.a.name} hue={c.a.hue} house={c.a.house} portraitSrc={c.a.portrait} size={34} decorative />
-                  <Avatar seed={c.b.id} name={c.b.name} hue={c.b.hue} house={c.b.house} portraitSrc={c.b.portrait} size={34} decorative />
+                  <Avatar seed={c.a.id} name={c.a.name} hue={c.a.hue} house={c.a.house} portraitSrc={c.a.portrait} size={44} decorative />
+                  <Avatar seed={c.b.id} name={c.b.name} hue={c.b.hue} house={c.b.house} portraitSrc={c.b.portrait} size={44} decorative />
                 </span>
                 <div className="meta">
                   <strong>
@@ -159,27 +215,35 @@ export default async function SeasonPage({ params }: Props) {
             Dates to rewatch
           </h2>
           <ol className="list season-rewatch">
-            {d.rewatch.map((e) => (
-              <li key={e.id} className="card tap-card season-episode">
+            {d.rewatch.map((e) => {
+              // The place's photo as the row's thumbnail when the stored place names a venue (season-visuals.ts), with the
+              // pair on it; a place of their own has no set, so the pair stands alone.
+              const where = venueIdForPlace(e.place);
+              const faces = (size: number) => (
                 <span className="pair-faces" aria-hidden="true">
-                  <Avatar seed={e.a.id} name={e.a.name} hue={e.a.hue} house={e.a.house} portraitSrc={e.a.portrait} size={34} decorative />
-                  <Avatar seed={e.b.id} name={e.b.name} hue={e.b.hue} house={e.b.house} portraitSrc={e.b.portrait} size={34} decorative />
+                  <Avatar seed={e.a.id} name={e.a.name} hue={e.a.hue} house={e.a.house} portraitSrc={e.a.portrait} size={size} decorative />
+                  <Avatar seed={e.b.id} name={e.b.name} hue={e.b.hue} house={e.b.house} portraitSrc={e.b.portrait} size={size} decorative />
                 </span>
-                <div className="meta">
-                  <strong>
-                    <Link className="stretch" href={`/episodes/${e.id}`}>
-                      {e.a.name} × {e.b.name}
-                    </Link>
-                  </strong>
-                  <p className="muted small">
-                    Day {e.day}
-                    {e.place ? ` · ${e.place}` : ""} · {ENDING_LABELS[e.ending]}
-                    {e.calls > 0 ? ` · ${e.calls} ${e.calls === 1 ? "call" : "calls"}` : ""}
-                  </p>
-                  {e.best_line && <p className="season-best-line">“{e.best_line}”</p>}
-                </div>
-              </li>
-            ))}
+              );
+              return (
+                <li key={e.id} className="card tap-card season-episode">
+                  {where ? <VenuePhoto venue={where} className="season-episode-photo">{faces(26)}</VenuePhoto> : faces(44)}
+                  <div className="meta">
+                    <strong>
+                      <Link className="stretch" href={`/episodes/${e.id}`}>
+                        {e.a.name} × {e.b.name}
+                      </Link>
+                    </strong>
+                    <p className="muted small">
+                      Day {e.day}
+                      {e.place ? ` · ${e.place}` : ""} · {ENDING_LABELS[e.ending]}
+                      {e.calls > 0 ? ` · ${e.calls} ${e.calls === 1 ? "call" : "calls"}` : ""}
+                    </p>
+                    {e.best_line && <p className="season-best-line">“{e.best_line}”</p>}
+                  </div>
+                </li>
+              );
+            })}
           </ol>
         </section>
       )}
@@ -189,7 +253,7 @@ export default async function SeasonPage({ params }: Props) {
           <h2 id="awards" className="section">
             The season&rsquo;s awards
           </h2>
-          <div className="boards">
+          <div className="boards season-awards">
             {d.awards.map((award) => (
               <div key={award.title} className="card award">
                 <h3>{award.title}</h3>

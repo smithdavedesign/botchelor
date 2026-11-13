@@ -28,17 +28,154 @@
   white-space: nowrap;
 }
 
-.season-page h1 {
-  margin-top: 0;
+/* The design lift (2026-11-13): the finale is a wide page (.page-wide) led by a title card, the golden couple large over the
+   place of their best date. The words sit on the photo's grade, so they're --on-photo like every picture's. */
+.season-back {
+  margin: 0 0 var(--space-3);
 }
-/* The finale's cold open (docs/show-style.md): the narrator's card goes dark in both themes, like the title cards. */
+.season-hero {
+  margin: 0 0 var(--space-5);
+}
+.season-hero-photo {
+  display: flex;
+  align-items: flex-end;
+  min-height: clamp(20rem, 52vh, 30rem);
+  border-radius: var(--radius-lg);
+  background-image: var(--grad-dark);
+  color: var(--on-photo);
+  box-shadow: var(--shadow);
+}
+/* A deeper grade than a tile's: the title card carries a heading, two faces and a line, down to the bottom edge. */
+.season-hero-photo::after {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--photo-bg) 18%, transparent) 0%,
+    color-mix(in srgb, var(--photo-bg) 55%, transparent) 45%,
+    color-mix(in srgb, var(--photo-bg) 92%, transparent) 100%
+  );
+}
+.season-hero-inner {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: 100%;
+  max-width: 46rem;
+  padding: var(--space-6) var(--space-4) var(--space-5);
+}
+.season-hero-kicker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.9rem;
+  margin: 0;
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--on-photo) 85%, transparent);
+}
+.season-hero-kicker span + span::before {
+  content: "·";
+  margin-right: 0.9rem;
+  opacity: 0.7;
+}
+.season-hero h1 {
+  margin: 0;
+  color: var(--on-photo);
+  line-height: 1.05;
+  text-wrap: balance;
+  text-shadow: 0 2px 18px color-mix(in srgb, black 45%, transparent);
+}
+.season-hero-golden {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-4);
+  margin-top: var(--space-2);
+}
+.season-hero-faces > * + * {
+  margin-left: -22px;
+}
+.season-hero-faces .avatar,
+.season-hero-cast .avatar {
+  box-shadow:
+    0 0 0 3px var(--on-photo),
+    0 10px 24px color-mix(in srgb, black 45%, transparent);
+}
+.season-hero-golden-copy {
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+.season-hero-eyebrow {
+  margin: 0;
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--on-photo) 85%, transparent);
+}
+.season-hero-names {
+  margin: 0.1rem 0 0;
+  font-family: "Fraunces", Georgia, serif;
+  font-weight: 700;
+  font-size: var(--text-2xl);
+  line-height: 1.1;
+  text-wrap: balance;
+  text-shadow: 0 2px 14px color-mix(in srgb, black 40%, transparent);
+}
+.season-hero-names a {
+  color: inherit;
+  text-decoration: none;
+}
+.season-hero-names a:hover {
+  text-decoration: underline;
+}
+.season-hero-line {
+  margin: var(--space-2) 0 0;
+  max-width: 60ch;
+  font-size: var(--text-md);
+  color: color-mix(in srgb, var(--on-photo) 90%, transparent);
+}
+@media (min-width: 761px) {
+  .season-hero-inner {
+    padding: 3rem 3rem 2.5rem;
+  }
+}
+/* A row of a season's faces, overlapping (the index's running cast, a finale with no golden couple). */
+.season-faces {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.season-faces > * + * {
+  margin-left: -10px;
+}
+.season-faces .avatar {
+  box-shadow: 0 0 0 2px var(--card);
+}
+.season-faces a {
+  display: inline-flex;
+  border-radius: var(--radius-pill);
+}
+
+/* The finale's cold open (docs/show-style.md): the narrator's card goes dark in both themes, like the title cards. On the
+   wide page the words keep a reading column (60ch) in the middle of it. */
 .season-previously {
-  margin: var(--space-3) 0 var(--space-4);
+  margin: 0 0 var(--space-5);
+  padding: var(--space-5) var(--space-4);
   border-color: transparent;
   background:
-    radial-gradient(120% 160% at 85% -30%, rgba(229, 53, 107, 0.22), transparent 60%),
+    radial-gradient(120% 160% at 85% -30%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 60%),
     var(--grad-dark);
-  color: rgba(255, 255, 255, 0.94);
+  color: var(--on-photo);
+}
+.season-previously-column {
+  max-width: 60ch;
+  margin: 0 auto;
 }
 .season-previously h2 {
   margin: 0 0 var(--space-2);
@@ -47,7 +184,7 @@
   font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.65);
+  color: color-mix(in srgb, var(--on-photo) 65%, transparent);
 }
 .season-narrative {
   margin: 0;
@@ -55,33 +192,71 @@
   font-size: var(--text-md);
   line-height: 1.7;
 }
+@media (min-width: 761px) {
+  .season-narrative {
+    font-size: var(--text-lg);
+  }
+}
+/* The six numbers in one row (three by two on a phone). The number sits on the first row of every tile and the label on
+   the second, two lines tall whether it wraps or not, so the numbers' baselines line up across the row. */
 .season-numbers {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--space-2);
   margin: 0;
 }
 .season-numbers > div {
-  display: flex;
-  flex-direction: column-reverse;
+  display: grid;
+  grid-template-rows: auto auto;
+  align-content: start;
+  min-width: 0;
   padding: var(--space-3);
   border: 1px solid var(--line);
-  border-radius: var(--radius, 14px);
+  border-radius: var(--radius);
   background: var(--card);
 }
 .season-numbers dt {
+  grid-row: 2;
+  min-height: 2.5em;
   color: var(--muted);
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
+  line-height: 1.25;
 }
 .season-numbers dd {
-  margin: 0;
+  grid-row: 1;
+  margin: 0 0 var(--space-1);
   font-weight: 800;
-  font-size: var(--text-xl, 1.6rem);
+  font-size: var(--text-xl);
+  line-height: 1.1;
   font-variant-numeric: lining-nums tabular-nums;
+}
+@media (min-width: 761px) {
+  .season-numbers {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: var(--space-3);
+  }
+  .season-numbers dt {
+    font-size: var(--text-sm);
+  }
+}
+/* Couples as compact rows, two to a row from 900px; the dates to rewatch the same, with the place's photo as a thumbnail. */
+.season-couples,
+.season-rewatch {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+}
+.season-couples > .card,
+.season-rewatch > .card {
+  margin: 0;
+  padding: var(--space-3);
 }
 .season-couple,
 .season-episode {
+  display: flex;
   align-items: flex-start;
+  gap: var(--space-3);
 }
 .season-couple .meta,
 .season-episode .meta {
@@ -100,11 +275,63 @@
 .season-couple .badge {
   margin-left: var(--space-1);
 }
-.season-rewatch {
-  padding-left: 0;
+.season-episode-photo {
+  flex: none;
+  width: 4rem;
+  height: 4rem;
+  border-radius: var(--radius-sm);
+}
+.season-episode-photo .pair-faces {
+  position: absolute;
+  left: 50%;
+  bottom: var(--space-1);
+  z-index: 1;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+.season-episode-photo .pair-faces > * + * {
+  margin-left: -8px;
+}
+.season-episode-photo .avatar {
+  box-shadow: 0 0 0 2px var(--on-photo);
+}
+@media (min-width: 900px) {
+  .season-couples,
+  .season-rewatch {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-3);
+  }
 }
 .season-best-line {
   font-style: italic;
+  overflow-wrap: anywhere;
+}
+/* The awards: the faces overlap in a row, and the name and detail take the rest of the card, so a name never wraps four
+   deep beside three faces. */
+.season-awards {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 19rem), 1fr));
+}
+.season-awards .award {
+  margin: 0;
+}
+.season-awards .award-body {
+  align-items: center;
+}
+.season-awards .reunion-faces {
+  gap: 0;
+}
+.season-awards .reunion-faces > * + * {
+  margin-left: -12px;
+}
+.season-awards .reunion-faces .avatar {
+  box-shadow: 0 0 0 2px var(--card);
+}
+.season-awards .award-body > div {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.season-awards .award-name,
+.season-awards .award-body p {
   overflow-wrap: anywhere;
 }
 .season-cast {
@@ -183,14 +410,160 @@
   .season-banner {
     padding: var(--space-3);
   }
-  .season-numbers {
-    grid-template-columns: 1fr 1fr;
-  }
   .season-cast {
     grid-template-columns: 1fr;
   }
   .season-next-cast {
     grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* ---------------- the seasons index (app/seasons/page.tsx) ---------------- */
+.seasons-page .lede {
+  margin-top: 0;
+}
+/* The running season leads as a title card, dark in both themes like the finale's cold open: its cast's faces, the month
+   clock, and the way to the Reunion and to tonight. */
+.season-now {
+  margin: var(--space-4) 0 var(--space-5);
+  padding: var(--space-5) var(--space-4);
+  border-color: transparent;
+  border-radius: var(--radius-lg);
+  background:
+    radial-gradient(120% 160% at 85% -30%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 60%),
+    var(--grad-dark);
+  color: var(--on-photo);
+}
+.season-now .kicker {
+  margin: 0;
+  color: color-mix(in srgb, var(--on-photo) 80%, transparent);
+}
+.season-now h2 {
+  margin: 0;
+  color: var(--on-photo);
+}
+.season-now-clock {
+  margin: var(--space-1) 0 0;
+  font-family: "Fraunces", Georgia, serif;
+  font-style: italic;
+  font-size: var(--text-lg);
+  color: color-mix(in srgb, var(--on-photo) 90%, transparent);
+}
+.season-now-faces {
+  margin-top: var(--space-4);
+}
+.season-now-faces .avatar {
+  box-shadow: 0 0 0 2px var(--card-dark);
+}
+.season-now-note {
+  max-width: 60ch;
+  margin: var(--space-3) 0 0;
+  color: color-mix(in srgb, var(--on-photo) 85%, transparent);
+}
+.season-now .cta-row {
+  margin-top: var(--space-4);
+}
+.season-now .button-ghost {
+  color: var(--on-photo);
+  border-color: color-mix(in srgb, var(--on-photo) 55%, transparent);
+}
+.season-now .button-ghost:hover {
+  background: color-mix(in srgb, var(--on-photo) 12%, transparent);
+}
+@media (min-width: 761px) {
+  .season-now {
+    padding: var(--space-6);
+  }
+}
+/* Each closed season is a card that opens its finale: the golden couple's faces and their line, then three numbers. */
+.season-index {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.season-index > .card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+}
+.season-index-card .kicker {
+  margin: 0;
+}
+.season-index-card h3 {
+  margin: 0;
+}
+.season-index-card h3 .stretch {
+  color: inherit;
+  text-decoration: none;
+}
+.season-index-golden {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  margin-top: var(--space-1);
+}
+.season-index-golden-copy {
+  min-width: 0;
+}
+.season-index-eyebrow {
+  margin: 0;
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent-text);
+}
+.season-index-names {
+  margin: 0;
+  font-weight: 700;
+}
+.season-index-line {
+  margin: 0.15rem 0 0;
+}
+.season-mini-numbers {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin: var(--space-2) 0 0;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+}
+.season-mini-numbers > div {
+  display: grid;
+  grid-template-rows: auto auto;
+  align-content: start;
+  min-width: 0;
+}
+.season-mini-numbers dd {
+  grid-row: 1;
+  margin: 0;
+  font-weight: 800;
+  font-size: var(--text-lg);
+  line-height: 1.1;
+  font-variant-numeric: lining-nums tabular-nums;
+}
+.season-mini-numbers dt {
+  grid-row: 2;
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+.season-index-cta {
+  margin: auto 0 0;
+  color: var(--accent-text);
+  font-weight: 700;
+}
+@media (min-width: 761px) {
+  .season-index {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-4);
+  }
+}
+@media (min-width: 1100px) {
+  .season-index {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
