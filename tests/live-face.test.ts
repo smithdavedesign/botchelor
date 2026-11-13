@@ -8,7 +8,8 @@ import { saveAdultSettings } from "@/lib/adult/settings";
 import { claimAdmin } from "@/lib/admins";
 import { setDeepgramFetchForTests } from "@/lib/companion-live";
 import { makeFaceKit } from "@/lib/face-kit";
-import { buildLiveFace, collectLiveFaces, liveFaceMode, liveFaceOn, liveFaceSession, liveFaceState } from "@/lib/live-face";
+import { buildLiveFace, collectLiveFaces, liveFaceClips, liveFaceMode, liveFaceOn, liveFaceProvider, liveFaceSession, liveFaceState } from "@/lib/live-face";
+import { jobStatus, RUNPOD_API, setRunpodFetchForTests, speakClip, startPrepare } from "@/lib/live-face/musetalk";
 import { createSimliFace, mintSimliSession, setSimliFetchForTests, SIMLI_API, simliFaceStatus } from "@/lib/live-face/simli";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import { grantPlan } from "@/lib/paid-plans";
@@ -46,6 +47,7 @@ afterEach(() => {
   setReplicateFetchForTests(null);
   setModerationFetchForTests(null);
   setSimliFetchForTests(null);
+  setRunpodFetchForTests(null);
   setDeepgramFetchForTests(null);
   setReplicatePausesForTests(true);
 });
@@ -231,5 +233,168 @@ describe("live faces", () => {
     expect(await liveFaceState(t.db, id, BASE_URL)).toBeNull();
     fakeSimli({ outOfFaces: true });
     expect((await post(admin, { character_id: id })).status).toBe(402);
+  });
+});
+
+/** Runpod, faked: /run queues a job, /status goes as scripted, /runsync answers a clip. What was asked is kept. */
+function fakeRunpod(script: { status?: string[]; clip?: "sync" | "later" | "failed" | "never"; prepareError?: string } = {}) {
+  const asked: { url: string; method: string; auth: string | null; body?: { input?: Record<string, unknown> } }[] = [];
+  const statuses = [...(script.status ?? ["IN_PROGRESS", "COMPLETED"])];
+  const clipOut = { video_b64: "AAAA", mime: "video/mp4", frames: 50, next_frame: 177, width: 624, height: 624, bytes: 3, ms: { total: 900 } };
+  let clipPolls = 0;
+  setRunpodFetchForTests(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    const headers = new Headers(init?.headers);
+    const body = typeof init?.body === "string" ? (JSON.parse(init.body) as { input?: Record<string, unknown> }) : undefined;
+    asked.push({ url, method: init?.method ?? "GET", auth: headers.get("authorization"), body });
+    if (headers.get("authorization") !== "Bearer placeholder-runpod") return Response.json({ error: "Unauthorized" }, { status: 401 });
+    if (!url.startsWith(`${RUNPOD_API}/ep-1/`)) return Response.json({ error: "no such endpoint" }, { status: 404 });
+    const path = url.slice(`${RUNPOD_API}/ep-1/`.length);
+    if (path === "run") return Response.json({ id: body?.input?.op === "warm" ? "job-warm" : "job-1", status: "IN_QUEUE" });
+    if (path.startsWith("status/job-1")) {
+      const status = statuses.length > 1 ? statuses.shift()! : statuses[0];
+      if (status === "COMPLETED") return Response.json({ id: "job-1", status, output: { bundle_key: "live-face/x/abc123.tar.gz", frames: 127, width: 624, height: 624, fps: 25, bytes: 3_500_000, ms: { prepare: 37_000 } } });
+      if (status === "FAILED") return Response.json({ id: "job-1", status, error: script.prepareError ?? "no face found in one of the loop's frames" });
+      return Response.json({ id: "job-1", status });
+    }
+    if (path.startsWith("status/job-2")) {
+      clipPolls++;
+      if (script.clip === "never") return Response.json({ id: "job-2", status: "IN_PROGRESS" });
+      return Response.json(clipPolls < 2 ? { id: "job-2", status: "IN_PROGRESS" } : { id: "job-2", status: "COMPLETED", output: clipOut });
+    }
+    if (path.startsWith("runsync")) {
+      if (script.clip === "failed") return Response.json({ id: "job-2", status: "FAILED", error: "clause longer than 30s" });
+      if (script.clip === "later" || script.clip === "never") return Response.json({ id: "job-2", status: "IN_PROGRESS" });
+      return Response.json({ id: "job-2", status: "COMPLETED", output: clipOut, executionTime: 900 });
+    }
+    if (path.startsWith("cancel/")) return Response.json({ id: path.slice(7), status: "CANCELLED" });
+    return Response.json({ error: "unknown" }, { status: 404 });
+  });
+  return asked;
+}
+
+/** A kit's idle loop, kept and ready, for the character's kit source (withKit's portrait asset). */
+async function withLoop(id: string): Promise<Buffer> {
+  const loop = Buffer.from("not an mp4, but the renderer is faked");
+  // The kit's loop row is there, queued at Replicate (faked, never collected): it's made ready with these bytes.
+  await t.db.query(
+    `insert into face_kits (id, character_id, source_id, part, status, mime, data) values ($1, $2, $3, 'loop', 'ready', 'video/mp4', $4)
+     on conflict (character_id, source_id, part) do update set status = 'ready', mime = excluded.mime, data = excluded.data, queue_id = null, error = null, updated_at = now()`,
+    [`loop-${id}`, id, `asset-${id}`, loop],
+  );
+  return loop;
+}
+
+describe("live faces on MuseTalk (our worker on Runpod)", () => {
+  const RUNPOD = { LIVE_FACE_PROVIDER: "musetalk", RUNPOD_API_KEY: "k", LIVE_FACE_ENDPOINT: "ep-1" };
+  beforeEach(() => {
+    vi.stubEnv("LIVE_FACE_PROVIDER", "musetalk");
+    vi.stubEnv("RUNPOD_API_KEY", "placeholder-runpod");
+    vi.stubEnv("LIVE_FACE_ENDPOINT", "ep-1");
+  });
+
+  it("are on with the app's Runpod key and the endpoint, admins alone with musetalk:admins, off without either", () => {
+    expect(liveFaceMode({ LIVE_FACE_PROVIDER: "musetalk" })).toBe("off");
+    expect(liveFaceMode({ LIVE_FACE_PROVIDER: "musetalk", RUNPOD_API_KEY: "k" })).toBe("off");
+    expect(liveFaceMode(RUNPOD)).toBe("on");
+    expect(liveFaceProvider(RUNPOD)).toBe("musetalk");
+    expect(liveFaceMode({ ...RUNPOD, LIVE_FACE_PROVIDER: "musetalk:admins" })).toBe("admins");
+    expect(liveFaceOn({ ...RUNPOD, LIVE_FACE_PROVIDER: "musetalk:admins" }, { admin: false })).toBe(false);
+    expect(liveFaceOn({ ...RUNPOD, LIVE_FACE_PROVIDER: "musetalk:admins" }, { admin: true })).toBe(true);
+    // Simli's key doesn't turn MuseTalk on, nor the other way round.
+    expect(liveFaceMode({ LIVE_FACE_PROVIDER: "musetalk", SIMLI_API_KEY: "k" })).toBe("off");
+    expect(liveFaceMode({ LIVE_FACE_PROVIDER: "simli", RUNPOD_API_KEY: "k", LIVE_FACE_ENDPOINT: "ep-1" })).toBe("off");
+  });
+
+  it("talks to the worker through Runpod's job API: prepare queued and followed, a clause rendered with runsync, a slow one cancelled", async () => {
+    const asked = fakeRunpod({ clip: "later" });
+    const cfg = { key: "placeholder-runpod", endpoint: "ep-1" };
+    expect(await startPrepare(cfg, { id: "c1", loop: Buffer.from("mp4") })).toEqual({ job_id: "job-1" });
+    expect(asked[0]).toMatchObject({ url: `${RUNPOD_API}/ep-1/run`, method: "POST", auth: "Bearer placeholder-runpod", body: { input: { op: "prepare", id: "c1", loop_b64: Buffer.from("mp4").toString("base64"), bbox_shift: 0 } } });
+    expect((await jobStatus(cfg, "job-1")).status).toBe("IN_PROGRESS");
+    expect((await jobStatus(cfg, "job-1")).status).toBe("COMPLETED");
+    // A clause: runsync says it's still going, the status is polled until the clip is there.
+    const clip = await speakClip(cfg, { bundle_key: "live-face/x/abc123.tar.gz", pcm: Buffer.alloc(4800), rate: 24_000, start_frame: 127 });
+    expect(clip).toMatchObject({ video_b64: "AAAA", frames: 50, next_frame: 177 });
+    const sync = asked.find((a) => a.url.includes("/runsync"))!;
+    expect(sync.body?.input).toMatchObject({ op: "speak", bundle_key: "live-face/x/abc123.tar.gz", audio_format: "pcm16", rate: 24_000, start_frame: 127, fps: 25 });
+    expect(asked.filter((a) => a.url.includes("/status/job-2")).length).toBe(2);
+    // The worker's own failure, and a clip that never comes (cancelled at the deadline).
+    fakeRunpod({ clip: "failed" });
+    await expect(speakClip(cfg, { bundle_key: "k", pcm: Buffer.alloc(2), rate: 24_000 })).rejects.toThrow(/clause longer/);
+    const slow = fakeRunpod({ clip: "never" });
+    await expect(speakClip(cfg, { bundle_key: "k", pcm: Buffer.alloc(2), rate: 24_000 }, { timeoutMs: 5 })).rejects.toThrow(/no clip within/);
+    expect(slow.some((a) => a.url.includes("/cancel/job-2"))).toBe(true);
+    await expect(startPrepare({ key: "wrong", endpoint: "ep-1" }, { id: "c1", loop: Buffer.from("x") })).rejects.toThrow(/401/);
+  });
+
+  it("is built from the kit's idle loop, followed until the bundle is there, and then tells a call clips will come", async () => {
+    const id = await withKit();
+    fakeRunpod();
+    // No loop yet: nothing to build from.
+    expect(await buildLiveFace(t.db, id, BASE_URL)).toMatchObject({ ok: false, status: 409, error: "no_kit" });
+    const loop = await withLoop(id);
+    const asked = fakeRunpod();
+    expect(await buildLiveFace(t.db, id, BASE_URL)).toEqual({ ok: true, face_id: "job-1", status: "making" });
+    expect(asked[0].body?.input).toMatchObject({ op: "prepare", id, loop_b64: loop.toString("base64") });
+    expect(await liveFaceState(t.db, id, BASE_URL)).toMatchObject({ provider: "musetalk", provider_face_id: "job:job-1", status: "making" });
+    expect(await buildLiveFace(t.db, id, BASE_URL)).toEqual({ ok: true, face_id: "job:job-1", status: "making" });
+    expect(await liveFaceSession(t.db, id, BASE_URL, { admin: true })).toBeNull();
+    expect(await liveFaceClips(t.db, id, BASE_URL, { admin: true })).toBeNull();
+    // Followed: in progress, then done, and the bundle's key takes the job's place.
+    expect(await collectLiveFaces(t.db, process.env, id)).toBe(0);
+    await agePoll();
+    expect(await collectLiveFaces(t.db, process.env, id)).toBe(0);
+    await agePoll();
+    expect(await collectLiveFaces(t.db, process.env, id)).toBe(1);
+    expect(await liveFaceState(t.db, id, BASE_URL)).toMatchObject({ status: "ready", provider_face_id: "live-face/x/abc123.tar.gz" });
+    const before = asked.length;
+    expect(await liveFaceSession(t.db, id, BASE_URL, { admin: false })).toEqual({ provider: "musetalk", px: 624 });
+    // A session warms a worker up, and a turn gets what it needs to ask for clips.
+    expect(asked.slice(before).some((a) => a.body?.input?.op === "warm")).toBe(true);
+    expect(await liveFaceClips(t.db, id, BASE_URL, { admin: false })).toEqual({ runpod: { key: "placeholder-runpod", endpoint: "ep-1" }, bundle_key: "live-face/x/abc123.tar.gz" });
+    vi.stubEnv("LIVE_FACE_PROVIDER", "musetalk:admins");
+    expect(await liveFaceClips(t.db, id, BASE_URL, { admin: false })).toBeNull();
+    expect(await liveFaceClips(t.db, id, BASE_URL, { admin: true })).not.toBeNull();
+    // Simli's face for the same character is another row: switching the provider back shows none built there.
+    vi.stubEnv("LIVE_FACE_PROVIDER", "simli");
+    expect(await liveFaceState(t.db, id, BASE_URL)).toBeNull();
+  });
+
+  it("says why it can't: the worker found no face, or the setting lacks its key or endpoint", async () => {
+    const id = await withKit();
+    await withLoop(id);
+    fakeRunpod({ status: ["FAILED"] });
+    expect(await buildLiveFace(t.db, id, BASE_URL)).toMatchObject({ ok: true, status: "making" });
+    await agePoll();
+    expect(await collectLiveFaces(t.db, process.env, id)).toBe(0);
+    expect(await liveFaceState(t.db, id, BASE_URL)).toMatchObject({ status: "failed", error: expect.stringMatching(/couldn't build it: no face found/) });
+    // A failed one can be asked for again.
+    fakeRunpod();
+    expect(await buildLiveFace(t.db, id, BASE_URL)).toMatchObject({ ok: true, status: "making" });
+    vi.stubEnv("LIVE_FACE_ENDPOINT", "");
+    expect(await buildLiveFace(t.db, id, BASE_URL)).toMatchObject({ ok: false, status: 409, error: "not_set_up", message: expect.stringMatching(/RUNPOD_API_KEY and LIVE_FACE_ENDPOINT/) });
+    expect(await collectLiveFaces(t.db, process.env)).toBe(0);
+  });
+
+  it("gives a live call's start the word that clips will come, and the end keeps the face's seconds under musetalk", async () => {
+    const raw = newUserCookie();
+    const me = userIdOf(raw);
+    const id = await withKit(raw);
+    await withLoop(id);
+    fakeRunpod({ status: ["COMPLETED"] });
+    setDeepgramFetchForTests(async () => Response.json({ access_token: "dg-token", expires_in: 30 }));
+    const cookie = `${signedInCookie(me)}; bz_adult=1`;
+    await grantPlan(t.db, me, "companion", "initial", { subscriptionId: "sub_live_face_mt" });
+    const opened = (await (await openRoute(new Request(`${BASE_URL}/api/companion`, { method: "POST", headers: { "content-type": "application/json", cookie }, body: JSON.stringify({ character_id: id }) }))).json()) as { thread_id: string };
+    const live = (body: unknown) => liveRoute(new Request(`${BASE_URL}/api/companion/${opened.thread_id}/live`, { method: "POST", headers: { "content-type": "application/json", cookie }, body: JSON.stringify(body) }), { params: Promise.resolve({ id: opened.thread_id }) });
+    expect(await buildLiveFace(t.db, id, BASE_URL)).toMatchObject({ ok: true });
+    await agePoll();
+    expect(await collectLiveFaces(t.db, process.env, id)).toBe(1);
+    const r = (await (await live({ action: "start" })).json()) as { call: { id: string }; face: unknown };
+    expect(r.face).toEqual({ provider: "musetalk", px: 624 });
+    const end = await live({ action: "end", call_id: r.call.id, seconds: 60, face: "musetalk", face_seconds: 41 });
+    expect(end.status).toBe(200);
+    expect((await t.db.query<{ face_provider: string; face_seconds: number }>(`select face_provider, face_seconds from companion_live_calls where id = $1`, [r.call.id])).rows[0]).toEqual({ face_provider: "musetalk", face_seconds: 41 });
   });
 });

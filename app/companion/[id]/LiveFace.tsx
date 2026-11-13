@@ -13,15 +13,21 @@ export type FacePhase = "ready" | "connecting" | "listening" | "thinking" | "spe
 
 /** What the call can do with a live face once it's streaming: feed it the voice, cut it off, hang it up. */
 export type LiveFaceHandle = {
-  /** The face is streaming: the voice should go here, not to the call's own player. */
+  /** The face is streaming (Simli): the voice should go here, not to the call's own player. */
   live: () => boolean;
-  /** A piece of the companion's voice, 16 kHz 16-bit mono. */
+  /** The face comes as clips (MuseTalk): the call holds each piece's voice for its clip instead of playing it. */
+  clips: () => boolean;
+  /** A piece of the companion's voice, 16 kHz 16-bit mono (Simli). */
   sendAudio: (bytes: Uint8Array) => void;
+  /** Piece i of the reply as a clip with the voice in it (MuseTalk): played in order, over the kit's face. */
+  clip: (i: number, mp4: Uint8Array) => void;
+  /** From a tap: lets the clips' element play with sound later (phones). */
+  unlock: (silence: string) => void;
   /** Drops whatever it hasn't said yet (a barge-in). */
   clear: () => void;
   /** Resolves once it has said everything sent (or at once when it isn't live). */
   idle: () => Promise<void>;
-  /** Seconds the stream was up this call. */
+  /** Seconds the stream was up, or clips played, this call. */
   seconds: () => number;
   /** Hangs up the stream. */
   stop: () => void;
@@ -37,9 +43,11 @@ type SimliModule = typeof import("simli-client");
  * changed, stacked and faded in and out, so nothing ever jumps. With no kit (or one that can't talk yet) it's the
  * `fallback`: the round Avatar as before. The loop stays off with reduced motion.
  *
- * With a `session` (lib/live-face, Tier 1) it opens the renderer's stream in the same round frame, over the kit, and
- * the call feeds it the voice through the handle; the kit's face is what shows until the first frame, and again the
- * moment the stream fails. The renderer's own audio element plays the voice then.
+ * With a `session` (lib/live-face, Tier 1) the renderer's picture lands in the same round frame, over the kit:
+ *  - Simli: the browser opens the stream and the call feeds it the voice through the handle; the kit's face is what
+ *    shows until the first frame, and again the moment the stream fails. The renderer's own audio plays the voice.
+ *  - MuseTalk: the server sends a clip per piece of the reply (the loop with the mouth saying it, voice included);
+ *    they play here in order, and between them, and whenever a clip doesn't come, the kit's face carries on.
  */
 const LiveFace = forwardRef<LiveFaceHandle, { kit: FaceKit | null; phase: FacePhase; level: () => number; said: string | null; name: string; size: number; fallback: ReactNode; session?: LiveFaceSession | null; onLive?: (live: boolean) => void }>(
   function LiveFace({ kit, phase, level, said, name, size, fallback, session = null, onLive }, ref) {
@@ -55,6 +63,9 @@ const LiveFace = forwardRef<LiveFaceHandle, { kit: FaceKit | null; phase: FacePh
     const liveAudio = useRef<HTMLAudioElement>(null);
     const mouthNow = useRef<Mouth>("closed");
     const talking = phase === "speaking";
+    const clipMode = session?.provider === "musetalk";
+    const clipModeNow = useRef(clipMode);
+    clipModeNow.current = clipMode;
 
     // The renderer's client, and what's owed to it: when its voice ends (it says "silent"; a clock stands in).
     const client = useRef<InstanceType<SimliModule["SimliClient"]> | null>(null);
@@ -66,6 +77,9 @@ const LiveFace = forwardRef<LiveFaceHandle, { kit: FaceKit | null; phase: FacePh
     const idleWaiters = useRef<(() => void)[]>([]);
     const onLiveNow = useRef(onLive);
     onLiveNow.current = onLive;
+    // Clips waiting their turn (MuseTalk), and the one playing.
+    const clipQueue = useRef<{ i: number; url: string }[]>([]);
+    const clipUp = useRef<string | null>(null);
 
     const settle = () => {
       const w = idleWaiters.current;
@@ -91,10 +105,47 @@ const LiveFace = forwardRef<LiveFaceHandle, { kit: FaceKit | null; phase: FacePh
       if (c) void c.stop().catch(() => {});
     };
 
+    // The next clip, or nothing: then the kit's face is back until another comes.
+    const playNextClip = () => {
+      const v = liveVideo.current;
+      if (clipUp.current) {
+        URL.revokeObjectURL(clipUp.current);
+        clipUp.current = null;
+      }
+      const next = clipQueue.current.shift();
+      if (!next || !v) {
+        if (v) v.removeAttribute("src");
+        setLive(false);
+        return;
+      }
+      clipUp.current = next.url;
+      v.src = next.url;
+      v.muted = false;
+      v.play()
+        .then(() => setLive(true))
+        .catch(() => {
+          // Refused (the page never got a tap, or the clip is broken): this piece's voice is lost; the next may play.
+          playNextClip();
+        });
+    };
+    const dropClips = () => {
+      for (const c of clipQueue.current) URL.revokeObjectURL(c.url);
+      clipQueue.current = [];
+      const v = liveVideo.current;
+      if (v && clipUp.current) {
+        v.pause();
+        v.removeAttribute("src");
+        URL.revokeObjectURL(clipUp.current);
+        clipUp.current = null;
+      }
+      setLive(false);
+    };
+
     useImperativeHandle(
       ref,
       () => ({
-        live: () => isLive.current,
+        live: () => isLive.current && !clipModeNow.current,
+        clips: () => clipModeNow.current && Boolean(liveVideo.current),
         sendAudio: (bytes) => {
           const c = client.current;
           if (!c || !isLive.current || !bytes.length) return;
@@ -102,13 +153,37 @@ const LiveFace = forwardRef<LiveFaceHandle, { kit: FaceKit | null; phase: FacePh
           const now = performance.now();
           saidUntil.current = Math.max(saidUntil.current, now) + secondsOfFaceAudio(bytes.length) * 1000;
         },
+        clip: (i, mp4) => {
+          if (!clipModeNow.current || !mp4.length) return;
+          const url = URL.createObjectURL(new Blob([mp4 as BlobPart], { type: "video/mp4" }));
+          clipQueue.current.push({ i, url });
+          clipQueue.current.sort((a, b) => a.i - b.i);
+          if (!clipUp.current) playNextClip();
+        },
+        unlock: (silence) => {
+          // Before the session is known (the tap comes first), so the element is always there (see `live` below).
+          const v = liveVideo.current;
+          if (!v || client.current || clipUp.current) return;
+          try {
+            v.src = silence;
+            v.muted = false;
+            void v.play().catch(() => {});
+          } catch {
+            // No play from here: the clips may play muted on this phone.
+          }
+        },
         clear: () => {
+          if (clipModeNow.current) dropClips();
           client.current?.ClearBuffer();
           saidUntil.current = 0;
           speaking.current = false;
           settle();
         },
         idle: () => {
+          if (clipModeNow.current) {
+            if (!clipUp.current && !clipQueue.current.length) return Promise.resolve();
+            return new Promise<void>((ok) => idleWaiters.current.push(ok));
+          }
           if (!isLive.current) return Promise.resolve();
           const left = saidUntil.current - performance.now();
           if (left <= 0 && !speaking.current) return Promise.resolve();
@@ -121,14 +196,17 @@ const LiveFace = forwardRef<LiveFaceHandle, { kit: FaceKit | null; phase: FacePh
           });
         },
         seconds: () => Math.round(liveTotal.current + (liveFrom.current ? (performance.now() - liveFrom.current) / 1000 : 0)),
-        stop: hangUp,
+        stop: () => {
+          dropClips();
+          hangUp();
+        },
       }),
       [],
     );
 
-    // Opens the renderer's stream for a session (once per token); hangs it up when the session goes.
+    // Opens Simli's stream for a session (once per token); hangs it up when the session goes. Clips need no opening.
     useEffect(() => {
-      if (!session) {
+      if (!session || session.provider !== "simli") {
         hangUp();
         return;
       }
@@ -187,7 +265,13 @@ const LiveFace = forwardRef<LiveFaceHandle, { kit: FaceKit | null; phase: FacePh
       };
       // One stream per token.
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [session?.token]);
+    }, [session?.provider === "simli" ? session.token : null]);
+
+    // Clips are dropped with their session.
+    useEffect(() => {
+      if (!clipMode) dropClips();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [clipMode]);
 
     // Still until it's known it can move: the server's markup has no video, and reduced motion keeps the loop off.
     useEffect(() => {
@@ -223,8 +307,10 @@ const LiveFace = forwardRef<LiveFaceHandle, { kit: FaceKit | null; phase: FacePh
       return () => cancelAnimationFrame(frame);
     }, [talking, streaming, level]);
 
+    // The loop plays while they listen (and, with clips, under and between the clips too, so the motion never stops);
+    // it stops when the kit's stills must show the mouth: Tier 0 talking, or a clipped piece that fell back to the voice.
+    const loopPlaying = Boolean(kit?.loop && !still && !broken.has(kit.loop) && (clipMode ? !(talking && !streaming) : !talking && phase !== "thinking" && !streaming));
     // A blink now and then, while the loop isn't doing the blinking.
-    const loopPlaying = Boolean(kit?.loop && !still && !talking && phase !== "thinking" && !broken.has(kit.loop) && !streaming);
     useEffect(() => {
       if (loopPlaying || streaming || !kit?.stills.blink) return;
       let open = 0;
@@ -264,10 +350,11 @@ const LiveFace = forwardRef<LiveFaceHandle, { kit: FaceKit | null; phase: FacePh
       }
     };
 
-    // The renderer's elements are there whenever a session might come, so the stream has somewhere to land.
+    // The renderer's elements are always there: a tap unlocks them before any session is known, and the stream (or the
+    // clips) has somewhere to land.
     const live = (
       <>
-        <video ref={liveVideo} className={`companion-live-stream${streaming ? " is-on" : ""}`} autoPlay playsInline muted={false} aria-hidden="true" />
+        <video ref={liveVideo} className={`companion-live-stream${streaming ? " is-on" : ""}`} autoPlay={!clipMode} playsInline muted={false} aria-hidden="true" onEnded={clipMode ? playNextClip : undefined} onError={clipMode ? playNextClip : undefined} />
         <audio ref={liveAudio} autoPlay aria-hidden="true" />
       </>
     );
@@ -276,7 +363,7 @@ const LiveFace = forwardRef<LiveFaceHandle, { kit: FaceKit | null; phase: FacePh
       return (
         <span className={`companion-live-face is-${phase}${streaming ? " streaming" : " bare"}`} style={{ width: size, height: size }} role="img" aria-label={`${name}'s face`}>
           <span className="companion-live-fallback">{fallback}</span>
-          {session && live}
+          {live}
         </span>
       );
     }
@@ -306,7 +393,7 @@ const LiveFace = forwardRef<LiveFaceHandle, { kit: FaceKit | null; phase: FacePh
             aria-hidden="true"
           />
         )}
-        {session && live}
+        {live}
       </span>
     );
   },

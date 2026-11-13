@@ -202,6 +202,11 @@ export type LiveEvent =
   | { type: "say"; i: number; text: string }
   | { type: "audio"; i: number; pcm: string; rate: number }
   | { type: "audio_end"; i: number }
+  // The character saying piece i, lips and all (lib/live-face/musetalk.ts): an MP4 with the voice in it, base64. Comes
+  // after the piece's audio; the browser holds the voice for it (CLIP_HOLD_MS) and plays the clip instead.
+  | { type: "video"; i: number; mp4: string; frames: number }
+  // Piece i has no clip (the renderer failed or was slow): play the held voice the plain way.
+  | { type: "video_fail"; i: number }
   | { type: "voice_off"; message: string }
   | { type: "done"; id: string | null; text: string; left: number | null }
   | { type: "fail"; status: number; error: string; message: string };

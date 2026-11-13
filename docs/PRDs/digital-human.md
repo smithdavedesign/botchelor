@@ -1,8 +1,10 @@
 # Digital humans: bringing a character's face to life on a call
 
-**Status:** Tier 0 built and live (#1529, 2026-11-13). Tier 1's Simli adapter is built and off by default
-(`LIVE_FACE_PROVIDER`), with David's Simli account made the same day; the first faces build once the plan has
-generations (Pro), and the admins-only proof comes after. The GPT-written proposal this answers is `Botchelor_Digital_Human_Engine_PRD.docx` beside this
+**Status:** Tier 0 built and live (#1529, 2026-11-13). Tier 1 has two renderers behind `LIVE_FACE_PROVIDER`, both
+off by default: Simli's adapter (built 2026-11-13; its faces need a paid plan, which David hasn't taken) and **our own
+renderer, MuseTalk on Runpod** ([Tier 1b](#tier-1b-our-own-renderer-musetalk-on-runpod-serverless), built the same
+day after David asked for a pay-as-you-go way and proved on a rented GPU with Juniper's loop), admins only until its
+live proof. The GPT-written proposal this answers is `Botchelor_Digital_Human_Engine_PRD.docx` beside this
 file; this page is the review of it and what we're doing instead, in order of value per dollar.
 
 ## What the proposal asked for
@@ -163,11 +165,66 @@ The plan, with those in:
    `COMPANION_LIVE` (admins first).
 6. **Proof:** Playwright screenshots of a live call with a moving face, desktop and phone, in `docs/screenshots/`.
 
+## Tier 1b: our own renderer (MuseTalk on Runpod Serverless)
+
+David, 2026-11-13, when Simli's faces turned out to need a $49 plan: "is there other solutions that are pay as you go?"
+and then "can we try self-hosted MuseTalk on RunPod serverless?". What the market looked like that day (vendor pages,
+read 2026-11-13): no hosted live-face vendor sells true pay-as-you-go at the low end; every one is a subscription with
+overage on top. Simli Hobby $10/month (one face a month, 1,000 min); bitHuman $20/month plus $1 per 100 credits (2 a
+minute self-rendered, $5 a face, no bring-your-own-audio web SDK); Anam ($12 + 16¢/min) and Beyond Presence (€49) ban
+"adult entertainment" and promoting "dating services"; HeyGen LiveAvatar $99; D-ID ~35¢/min; LemonSlice from $8 but
+14–22¢/min with idle billed. The only metered option is a GPU rented by the second with an open model on it.
+
+**The spike (2026-11-13, pod `bz-musetalk-dev`, RTX 4090 secure at $0.89/h, under $2 in all):** MuseTalk 1.5 (MIT,
+weights free for commercial use; `TMElyralab/MuseTalk@0a89dec`) with Juniper's face-kit idle loop as its only
+reference and one Aura clause. The lips followed the words, the teeth looked like hers, the pasted mouth region had no
+visible edge at 624 px; the loop's own blinks and head motion carried through (the proof page, private:
+https://claude.ai/artifact/W3Zcfg52W3RWEN3fiGJ4jj). Numbers from the worker's own self-test on the pod: models load in
+9 s; a bundle (landmarks, crops, VAE latents, blend masks for 127 frames) in 37 s; a warm 5.6-s clause in 3.7 s
+(audio features 10 ms, render 2.7 s ≈ 52 fps, encode 0.9 s); the first clause on a cold worker paid 4.7 s of Whisper
+warm-up, which the worker now does at start. Setting up the environment cost three tries (new setuptools dropped
+`pkg_resources`, which `mim` imports; `chumpy` needs pip at build time; MuseTalk's `download_weights.sh` calls
+`huggingface-cli` and `gdown --id`, both gone), all folded into the image.
+
+**What's built (same day):**
+
+- `workers/live-face/` (handler.py, Dockerfile, weights.py, README): a dual-mode image (Runpod's golden path 09):
+  `pod` runs a self-test, `serverless` serves `prepare` (loop → bundle in the show's object store, asked with `/run`),
+  `speak` (one clause's PCM → MP4 with the voice in it, `/runsync`, from `start_frame` so clause after clause continues
+  the idle cycle) and `warm`. CUDA 11.8 + torch 2.0.1 + the OpenMMLab stack, weights baked in (~11 GB), built by
+  `.github/workflows/live-face-worker.yml` to `ghcr.io/smithdavedesign/botchelor-live-face:<tag>`.
+- `lib/live-face/musetalk.ts` (the only code that talks to Runpod: `RUNPOD_API_KEY`, the app's key with Serverless
+  endpoints only, and `LIVE_FACE_ENDPOINT`), `lib/live-face/index.ts` now a registry of two (`LIVE_FACE_PROVIDER` =
+  `simli[:admins]` | `musetalk[:admins]`; a MuseTalk face is a `live_faces` row whose `provider_face_id` is the
+  Runpod job while building and the bundle's key once ready; `liveFaceClips` for a turn), `liveFaceSession` answers
+  `{provider: "musetalk", px: 624}` and warms a worker.
+- The turn stream: after each piece's `audio_end` the server asks the worker for the clip and sends it as a `video`
+  event (`video_fail` when it can't), one after another; `done` waits for them.
+- The browser (`LiveFace.tsx`, `CompanionCall.tsx`): with a MuseTalk session each piece's voice is held for its clip
+  (`CLIP_HOLD_MS`, 4 s after the voice finished arriving) and the clip plays over the kit's face in the same round
+  frame, voice included; a piece whose clip fails or is late plays the plain way with the kit's mouth moving to it;
+  the idle loop keeps playing under and between clips. A barge-in drops the clips. The face's element is unlocked by
+  the call's first tap so phones let the clips play with sound.
+- Runpod: the account holds the two object-store secrets (`MEDIA_S3_ACCESS_KEY_ID`, `MEDIA_S3_SECRET_ACCESS_KEY`) the
+  template references; the endpoint has no network volume and no data-center pin.
+
+**Cost:** a 24 GB worker bills about $0.0125 a minute while it runs (the 4090 tier $0.022), only during a call plus
+the idle timeout (30 s); a bundle is 3.5 MB in the bucket; nothing while nobody calls. Against ~7¢ a minute earned.
+
+**Scope:** Runpod's terms of service list "pornography or graphic adult content" as unauthorized, so this serves PG
+companion calls only; After Dark keeps Tier 0. Anime faces will likely fail MuseTalk's face detector and stay on
+Tier 0 too (the build says so: `no face found`).
+
+**Latency:** a clause's clip arrives roughly two seconds after its voice (render ≈ frames at 50 fps + encode); the
+browser holds the voice for it. Simli is nearer one second end to end. If the hold reads as a pause, the next steps
+are rendering in shorter pieces, `ultrafast` x264 or a smaller clip, and Runpod's WebSocket load-balancing endpoint
+for a continuous stream (golden path 17).
+
 ## Not doing
 
-Tavus, HeyGen, D-ID or LemonSlice as the first provider (cost and terms above); an After Dark live face (provider
-terms); our own GPU fleet; rendering on the Mac; a WebSocket or WebRTC server on DigitalOcean; browser segmentation of
-a provider's stream in v1.
+Tavus, HeyGen, D-ID or LemonSlice as the first provider (cost and terms above); an After Dark live face (every
+provider's terms, Runpod's included); our own GPU fleet (a worker rented by the second is not one); rendering on the
+Mac (16 GB, no CUDA); a WebSocket or WebRTC server on DigitalOcean; browser segmentation of a provider's stream in v1.
 
 ## Open with David
 

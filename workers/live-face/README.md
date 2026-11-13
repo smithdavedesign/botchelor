@@ -1,0 +1,50 @@
+# Live-face worker (MuseTalk on Runpod Serverless)
+
+The show's own lip-sync renderer for companion calls (docs/PRDs/digital-human.md, Tier 1b; the server side is
+`lib/live-face/musetalk.ts`). A character's face-kit idle loop (lib/face-kit.ts) is turned once into an avatar bundle;
+on a call each clause of the companion's Aura voice comes back as a short MP4 of that loop with the mouth saying it.
+MuseTalk 1.5 is MIT-licensed with weights free for commercial use; the GPU is rented by the second, so there is no
+monthly plan. Runpod's terms exclude adult content, so this serves PG calls only.
+
+## Jobs
+
+| op | input | output |
+|---|---|---|
+| `prepare` | `id`, `loop_url` or `loop_b64` (MP4, 25 fps, a face in every frame), `bbox_shift` | `bundle_key` (in the show's object store under `live-face/<id>/`), `frames`, `width`, `height`, `fps`, `ms` |
+| `speak` | `bundle_key`, `audio_b64` (`audio_format` `pcm16` at `rate`, or `wav`), `fps`, `start_frame` | `video_b64` (MP4, H.264 + AAC), `frames`, `next_frame`, `ms` |
+| `warm` | | `ok` |
+
+`prepare` is asked with `/run` and followed with `/status` (a minute or two: landmarks, crops, VAE latents and blend
+masks for every frame of the loop). `speak` is `/runsync` (a second or two warm). `start_frame` lets a run of clauses
+continue the idle motion: pass the previous clip's `next_frame`.
+
+## Environment
+
+- `MEDIA_S3_ENDPOINT`, `MEDIA_S3_BUCKET`, `MEDIA_S3_REGION`, `MEDIA_S3_ACCESS_KEY_ID`, `MEDIA_S3_SECRET_ACCESS_KEY`:
+  the show's bucket (lib/object-store.ts), where bundles live. On Runpod these come from account secrets
+  (`{{ RUNPOD_SECRET_… }}` in the template), never from the image.
+- `MODE_TO_RUN`: `serverless` (the image's default) serves jobs; `pod` runs a self-test on `SAMPLE_DIR/loop.mp4` and
+  `clause.wav` and writes to `SAMPLE_OUT` (how the handler is developed on a GPU pod, Runpod's golden path 09).
+- `MUSETALK_DIR` (`/app/MuseTalk`), `BUNDLE_CACHE` (`/tmp/live-face-bundles`), `BATCH_SIZE` (20), `MAX_AUDIO_SECONDS` (30).
+
+## Build and deploy
+
+1. Actions → "live-face worker image" → run with a tag (`v1`). It pushes `ghcr.io/smithdavedesign/botchelor-live-face:<tag>`
+   (~11 GB: torch, the OpenMMLab stack and the weights). Make the package public once, or give Runpod a registry
+   credential that can read it.
+2. Runpod (the setup key, `vault/botchelor/RUNPOD_ADMIN_KEY`; runpodctl lives in `~/.claude/botchelor-bin`):
+   ```sh
+   runpodctl template create --name live-face-v1 --serverless --image ghcr.io/smithdavedesign/botchelor-live-face:v1 \
+     --container-disk-in-gb 20 --env '{"MODE_TO_RUN":"serverless","MEDIA_S3_ENDPOINT":"…","MEDIA_S3_BUCKET":"…","MEDIA_S3_REGION":"…","MEDIA_S3_ACCESS_KEY_ID":"{{ RUNPOD_SECRET_MEDIA_S3_ACCESS_KEY_ID }}","MEDIA_S3_SECRET_ACCESS_KEY":"{{ RUNPOD_SECRET_MEDIA_S3_SECRET_ACCESS_KEY }}"}'
+   runpodctl serverless create --name live-face --template-id <template> --gpu-id "NVIDIA GeForce RTX 4090" \
+     --min-cuda-version 12.8 --workers-min 0 --workers-max 2 --idle-timeout 30 --execution-timeout 120
+   ```
+   No data-center pin and no network volume: the weights are in the image.
+3. The show app: `LIVE_FACE_PROVIDER=musetalk:admins`, `LIVE_FACE_ENDPOINT=<endpoint id>`, `RUNPOD_API_KEY` (the app's
+   key, `vault/botchelor/RUNPOD_API_KEY`, Serverless endpoints only).
+
+## Cost
+
+A 24 GB worker bills about $0.0125 a minute while it runs (the 4090 tier about $0.022), only during a call plus the
+idle timeout; a bundle is a few MB in the bucket; nothing while nobody calls. The spike that proved it (2026-11-13,
+Juniper's loop on a rented 4090) cost under $2.
