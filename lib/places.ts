@@ -12,7 +12,7 @@
  */
 import { shortName } from "./names";
 import { checkShowText } from "./safety";
-import { PLACE_LABEL_MAX, type PlaceId, type VenueId } from "./venues";
+import { PLACE_LABEL_MAX, type PlaceId, type VenueId, venueIdFor } from "./venues";
 
 /** The specific places first (2026-10-18), so "surfing" isn't just the beach and "a pub quiz" isn't the rooftop. */
 const SPECIFIC: [RegExp, VenueId][] = [
@@ -209,6 +209,9 @@ export function movePlace(say: string, from: string, to: string): PlaceId | null
   if (/^(?:yours|your (?:place|flat|apartment|house|home))$/i.test(text)) return `home@${shortName(to)}'s place`;
   if (MY_HOME.test(text)) return `home@${shortName(from)}'s place`;
   if (YOUR_HOME.test(text)) return `home@${shortName(to)}'s place`;
+  // #1535: a venue named by its id ("late_bookshop") or its name is that venue, under its own name.
+  const byId = venueIdFor(text);
+  if (byId && byId !== "elsewhere" && byId !== "home") return byId;
   // "Dex Okafor's place" (a 2026-10-18 move): one of their homes by name, which waits for the end of the night like any.
   const owner = /^(.+?)['’]s (?:place|flat|apartment|house|home|kitchen|balcony)$/i.exec(text.replace(/^(?:to|at|back to)\s+/i, ""))?.[1].toLowerCase();
   if (owner) {

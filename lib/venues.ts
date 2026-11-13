@@ -109,6 +109,18 @@ export const PLACE_LABEL_MAX = 40;
 
 const ALL_VENUES: readonly Venue[] = [...DATE_VENUES, ...EXTRA_VENUES];
 
+/**
+ * #1535 (the 2026-11-13-1112 run: place "late_bookshop" came back as "Late_bookshop"): a venue's own id, its id with spaces
+ * for underscores, or its name, typed as a place, is that venue. Null for anything else.
+ */
+export function venueIdFor(text: string): AnyVenueId | null {
+  const t = text.trim().toLowerCase().replace(/[\s-]+/g, "_");
+  if (!t) return null;
+  const bare = (s: string) => s.toLowerCase().replace(/^(the|a|an)\s+/, "").replace(/[\s-]+/g, "_");
+  const hit = ALL_VENUES.find((v) => v.id === t || bare(v.name) === bare(text.trim()));
+  return hit ? (hit.id as AnyVenueId) : null;
+}
+
 /** The same place however it's written: "The Observatory", "the observatory" and "an observatory" count together. */
 export const normalizeScene = (label: string): string =>
   label

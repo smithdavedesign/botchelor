@@ -399,6 +399,11 @@ export type ReflectStep = {
  * date's last line is in (lib/wishes.ts).
  */
 export type KeptWish = { side: "a" | "b"; character: string; see_again: boolean; last_line: boolean };
+/**
+ * #1526: a side's last line that carried no see_again: its turn, whose it is, the step's see_again sentence (it says what
+ * stands in), and the see_again an earlier line of the side's sent (null: none, so the interest_signal stands in).
+ */
+export type WishDefaulted = { turn_number: number; character: string; stand_in: string; earlier: boolean | null };
 
 export type OwnDateResult =
   | {
@@ -416,6 +421,10 @@ export type OwnDateResult =
       move_ignored?: string;
       /** 2.10.1 (#672): a see_again sent with something that carries none (the recap), and why. */
       wish_ignored?: string;
+      /** #1526: a side's last line went in without see_again: what stands in. */
+      wish_defaulted?: WishDefaulted;
+      /** #1522: a character_id sent with the recap, which no character speaks: ignored, and said. */
+      speaker_ignored?: string;
       /** #1205: start_own_date set a roleplay, so its reply can say the roleplay sets the story, not the place. */
       roleplay?: string;
       /** #1362: the turn an accepted line went to, and whose line it is now. */
@@ -1985,7 +1994,10 @@ export async function submitOwnDateStep(db: Db, userId: string, episodeId: strin
   // #432: a refused step goes back as this agent sees it, so a two-agent date's retry doesn't show the ending either.
   const refuse = (rejected: string): OwnDateResult => ({ ok: true, step: forViewer(current, userId, performersOf(row), twoAgent, lastMove(row), botSide(row, userId)), rejected });
   // #1362: a line pinned to its character goes in as that character's or not at all (past the last line, not at all).
-  if (opts.speaker !== undefined) {
+  // #1522 (the 2026-11-13-0929 run: a recap with character_id was refused as wrong_speaker, and nothing said to leave it out):
+  // the recap is the narrator's, so a character pinned to it is ignored, and the reply says so.
+  const speakerIgnored = opts.speaker !== undefined && current.stage === "recap" && !twoAgent ? "character_id ignored: the recap is the narrator's, no character's; leave it out." : null;
+  if (opts.speaker !== undefined && !speakerIgnored) {
     const side = pinnedSide(opts.speaker, [row.a_id, row.b_id], [built.characters[0].name, built.characters[1].name]);
     if (current.stage !== "turn" || side !== current.side) {
       const name = side ? built.characters[side === "a" ? 0 : 1].name : null;
@@ -2069,6 +2081,9 @@ export async function submitOwnDateStep(db: Db, userId: string, episodeId: strin
       // #1362: every accepted line says whose it went in as, so a line that landed on a later turn than meant shows.
       filled: { turn_number: current.turn_number, who: speaker.name },
       ...(typeof parsed.wish === "boolean" ? { wish: { side: current.side, character: speaker.name, see_again: parsed.wish, last_line: Boolean(current.see_again) } } : {}),
+      ...(typeof parsed.wish !== "boolean" && current.see_again
+        ? { wish_defaulted: { turn_number: current.turn_number, character: speaker.name, stand_in: current.see_again, earlier: typeof row.wishes?.[current.side] === "boolean" ? (row.wishes[current.side] as boolean) : null } }
+        : {}),
       ...(movedTo ? { moved: { to: venueName(movedTo), of: shapeFor(built, formatId, next).total, was_of: shape.total } } : {}),
       ...(moveIgnored ? { move_ignored: moveIgnored } : {}),
     };
@@ -2134,6 +2149,7 @@ export async function submitOwnDateStep(db: Db, userId: string, episodeId: strin
       step: { stage: "done", episode_id: episodeId, episode: await getEpisodeView(db, episodeId, userId), ...(wishes ? { wishes } : {}), ...(reflect ? { reflect } : {}), ...(lines ? { lines } : {}) },
       ...(sentWish ? { wish_ignored: "the recap carries no wish: see_again goes with a character's line, and the lines were all in (wishes says how theirs counted)" } : {}),
       ...(settingNote ? { setting_note: settingNote } : {}),
+      ...(speakerIgnored ? { speaker_ignored: speakerIgnored } : {}),
     };
   }
   return { ok: true, step: current };
