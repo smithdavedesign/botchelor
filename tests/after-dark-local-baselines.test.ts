@@ -1,5 +1,8 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { POST as baselinePost } from "@/app/api/admin/after-dark/agent-cast/baseline/route";
+import { POST as castPost } from "@/app/api/admin/after-dark/agent-cast/route";
+import { baselineFromEditor, type PortraitEdit } from "@/lib/adult/media";
+import { loadCharacter } from "@/lib/character";
 import { POST as settingsPost } from "@/app/api/admin/after-dark/settings/route";
 import { HIVE_VLM, setCheckFetchForTests } from "@/lib/adult/check";
 import { faceReferenceId } from "@/lib/adult/steering";
@@ -133,6 +136,42 @@ describe("a local baseline for the agent cast", () => {
     expect((await send(a.cookie, { character_id: c, owner_id: crypto.randomUUID() })).status).toBe(400);
     expect((await send(a.cookie, { character_id: closed, owner_id: a.id })).status).toBe(404);
     expect((await send(a.cookie, { character_id: c, owner_id: a.id }, PNG, "text/plain")).status).toBe(415);
+    expect((await t.db.query(`select 1 from adult_images`)).rows).toHaveLength(0);
+  });
+});
+
+// The local ones looked like a head pasted on a body (David, 2026-11-12), so the cast is redrawn with the Studio's editor:
+// one coherent edit of the portrait, through the same checks, replacing a local one only once it's kept.
+describe("an editor-drawn baseline for the agent cast", () => {
+  const edit: PortraitEdit = async () => ({ bytes: Buffer.from(PNG), mime: "image/png", provider: "venice", fell_back: false, model: "qwen-edit-uncensored" });
+
+  it("replaces a local one once kept, never another, and isn't stored when refused", async () => {
+    const a = await admin();
+    const id = await castMember(a.id);
+    const c = (await loadCharacter(t.db, id))!;
+    verdict(0.01, "ADULTS");
+    const local = ((await (await send(a.cookie, { character_id: id, owner_id: a.id })).json()) as { id: string }).id;
+    verdict(0.97, "MINOR");
+    await expect(baselineFromEditor(t.db, a.id, c, edit)).rejects.toThrow(/discarded/);
+    expect((await t.db.query(`select status from adult_images where id = $1`, [local])).rows[0].status).toBe("ready");
+    verdict(0.01, "ADULTS");
+    const made = (await baselineFromEditor(t.db, a.id, c, edit))!;
+    const row = (await t.db.query(`select attire, provider, model from adult_images where id = $1`, [made.id])).rows[0];
+    expect(row).toMatchObject({ attire: "nude", provider: "venice", model: "qwen-edit-uncensored" });
+    expect((await t.db.query(`select status from adult_images where id = $1`, [local])).rows[0].status).toBe("failed");
+    expect(await faceReferenceId(t.db, crypto.randomUUID(), id)).toBe(made.id);
+    expect(await baselineFromEditor(t.db, a.id, c, edit)).toBeNull();
+  });
+
+  it("is only for admins, an admin owner and the open agent cast", async () => {
+    const a = await admin();
+    const id = await castMember(a.id);
+    const closed = await castMember(a.id, false);
+    const post = (cookie: string | null, body: object) =>
+      castPost(new Request(`${BASE_URL}/api/admin/after-dark/agent-cast`, { method: "POST", headers: { "content-type": "application/json", ...(cookie ? { cookie } : {}) }, body: JSON.stringify({ action: "draw_baseline", ...body }) }));
+    expect((await post(null, { character_id: id, owner_id: a.id })).status).toBe(403);
+    expect((await post(a.cookie, { character_id: id, owner_id: crypto.randomUUID() })).status).toBe(400);
+    expect((await post(a.cookie, { character_id: closed, owner_id: a.id })).status).toBe(404);
     expect((await t.db.query(`select 1 from adult_images`)).rows).toHaveLength(0);
   });
 });

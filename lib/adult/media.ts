@@ -690,6 +690,26 @@ export async function baselineFromLocal(db: Db, ownerId: string, c: Character, f
 }
 
 /**
+ * An agent-cast character's baseline drawn by the editor the Studio uses (David, 2026-11-12: the free local ones looked
+ * like a head pasted on a body; "go for it", ~$0.04 each on Venice's qwen-edit-uncensored, or Replicate's Qwen edit): one
+ * coherent edit of the show portrait, held to everything baselineFromPortrait holds a baseline to. Never drawn from words
+ * (a stranger) when the edit fails: it throws instead. A baseline from the admin's Mac (provider 'local') is set aside
+ * once this one is kept; any other ready baseline means null.
+ */
+export async function baselineFromEditor(db: Db, ownerId: string, c: Character, edit?: PortraitEdit | null): Promise<Media | null> {
+  const have = (await db.query<{ id: string }>(`select id from adult_images where character_id = $1 and character_b is null and kind = 'baseline' and status = 'ready' and coalesce(provider, '') <> 'local' limit 1`, [c.id])).rows[0];
+  if (have) return null;
+  const portrait = await showPortrait(db, c);
+  if (!portrait) throw new Error("They have no show portrait to start from.");
+  const editor = edit ?? (await defaultPortraitEdit(db));
+  if (!editor) throw new Error("No picture editor is set up (a Venice or Replicate key).");
+  const made = (await withRequestLog(() => baselineFromPortrait(db, ownerId, c, new URL(portrait, siteUrl()).toString(), editor))).value;
+  // A refused edit threw above (discarded), so the local one stays until this is kept.
+  await db.query(`update adult_images set status = 'failed' where character_id = $1 and character_b is null and kind = 'baseline' and provider = 'local' and status = 'ready' and id <> $2`, [c.id, made.id]);
+  return made;
+}
+
+/**
  * The character's nude baseline, for undressed moments (lib/adult/attire.ts), made the first time it's needed: the same
  * look and framing as their baseline, without the outfit. A character who wears nothing has one already, their baseline.
  */
