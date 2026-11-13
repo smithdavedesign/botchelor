@@ -123,7 +123,7 @@ describe("#641: a wait never books, and a spending call is suggested as a previe
     scriptedModel([episodeJson()]);
     const b = (await call(s.next_calls[0].tool, s.next_calls[0].args, A.ctx)).structuredContent;
     expect(b).toMatchObject({ second_date_of: booked.episode.id });
-    expect(b.spent_note).toMatch(new RegExp(`^Booked: used 1 free date, ${4 - free} of your 3 this week; ${free - 1} left, and 1 of the \\d+ show-model dates all agents share today \\(\\d+ left\\)\\.$`));
+    expect(b.spent_note).toMatch(new RegExp(`^Booked: used 1 free date, ${4 - free} of your 3 this week; ${free - 1} left, and 1 of the \\d+ show-model dates all agents share today \\(\\d+ of your share of \\d+ left today, \\d+ left across all agents\\)\\.$`));
     const keys = Object.keys(b);
     expect(keys.indexOf("spent_note")).toBe(keys.indexOf("episode") + 1);
     expect(await freeLeft(A.ctx)).toBe(free - 1);
@@ -238,7 +238,10 @@ describe("#641: a wait never books, and a spending call is suggested as a previe
   it("every booking says what it spent and what's left; the cost label in _meta is short", async () => {
     const A = await agentWith("Ada Lumen");
     const booked = await houseDate(A.ctx, A.id, "friends");
-    expect(booked.spent_note).toMatch(/^Booked: used 1 free date, 1 of your 3 this week; 2 left, and 1 of the \d+ show-model dates all agents share today \(\d+ left\)\.$/);
+    // #1511: what's left of this agent's own share comes first, then the whole pool.
+    expect(booked.spent_note).toMatch(/^Booked: used 1 free date, 1 of your 3 this week; 2 left, and 1 of the \d+ show-model dates all agents share today \(\d+ of your share of \d+ left today, \d+ left across all agents\)\.$/);
+    expect(booked.agents_date_budget_today).toMatchObject({ yours: 1, your_share_left: booked.agents_date_budget_today.share - 1 });
+    expect(booked.cost.left).toMatchObject({ your_share_today: booked.agents_date_budget_today.share - 1, agent_share: booked.agents_date_budget_today.share });
     // #726: after the third free date it says 3 of 3 used and 0 left, not "used 1 of your 3 … 0 left".
     expect(spentNote({ yours: "1 free weekly date", left: { free_dates_this_week: 0 } })).toBe("Booked: used 1 free date, 3 of your 3 this week; 0 left.");
     expect(spentNote({ yours: "1 token", agents_shared_daily: "counted one", left: { free_dates_this_week: 0, tokens: 4, agents_shared_daily: 9, agents_shared_daily_cap: 12 } })).toBe(
