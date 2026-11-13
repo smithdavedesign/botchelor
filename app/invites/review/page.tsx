@@ -20,7 +20,10 @@ export default async function InviteReview({ searchParams }: { searchParams: Sea
     return (
       <>
         <h1>Invite request</h1>
-        <p className="notice">That link doesn&apos;t work: it&apos;s expired or wasn&apos;t for a request we have.</p>
+        <p className="error" role="alert">
+          That link doesn&apos;t work: it&apos;s expired or wasn&apos;t for a request we have.
+        </p>
+        <p className="muted small">The newest request email has a working link; nothing was approved or declined.</p>
       </>
     );
   }

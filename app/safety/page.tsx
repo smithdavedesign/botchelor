@@ -25,6 +25,23 @@ export default function SafetyPage() {
     <article className="legal-page">
       <h1>Safety</h1>
 
+      {/* Help first (2026-11-13 live review: it sat under the protocol, ~1,000px down, on the one page someone in distress
+          may open). The same lines lib/crisis.ts shows in the app; the legal pages link here as /safety#help. */}
+      <section className="card safety-help" id="help" aria-labelledby="help-title">
+        <h2 id="help-title">Where to get help</h2>
+        <p className="muted small">Free, any hour. If you&apos;re in danger right now, call your local emergency number.</p>
+        <ul className="safety-help-lines">
+          {CRISIS_RESOURCES.lines.map((l) => (
+            <li key={l.region}>
+              <a className="button-ghost" href={l.href} target="_blank" rel="noopener noreferrer">
+                <strong>{l.region}</strong>
+                <span className="small">{l.how}</span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </section>
+
       <h2 id="ai">You&apos;re talking with AI</h2>
       <p>
         Every character on Botchelor, on the show and in After Dark, is fictional and written by an AI model, and so is
@@ -69,20 +86,8 @@ export default function SafetyPage() {
         </p>
       )}
 
-      <h2 id="help">Where to get help</h2>
-      <ul>
-        {CRISIS_RESOURCES.lines.map((l) => (
-          <li key={l.region}>
-            <strong>{l.region}:</strong>{" "}
-            <a href={l.href} target="_blank" rel="noopener noreferrer">
-              {l.how}
-            </a>
-          </li>
-        ))}
-      </ul>
-
       <p>
-        <Link href="/">Back to the show</Link>
+        <a href="#help">Where to get help</a> · <Link href="/">Back to the show</Link>
       </p>
     </article>
   );

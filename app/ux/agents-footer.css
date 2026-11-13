@@ -283,7 +283,8 @@
   scroll-margin-top: 5rem;
 }
 @media (max-width: 520px) {
-  .legal-page ul:not(.legal-toc ul) {
+  /* Not the stack page's rows of cards and jump links (app/about/page.tsx): they're flush with the headings. */
+  .legal-page ul:not(.legal-toc ul, .about-stack-toc, .about-stack-grid) {
     padding-left: 1.1rem;
   }
 }
@@ -982,7 +983,19 @@ button.chip-toggle.is-on {
 .swipe-intro h1 {
   text-wrap: balance;
 }
-/* The cue on a long card's fade: there's more below (app/swipe/SwipeDeck.tsx Card). */
+/* The cue on a long card's fade: there's more below (app/swipe/SwipeDeck.tsx Card). The fade is the card's own, laid
+   over the foot of the profile while there's more, so the words under the button are faded, not covered. */
+.swipe-card.swipe-has-more::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  height: 4.5rem;
+  background: linear-gradient(to bottom, transparent, var(--card) 72%);
+  pointer-events: none;
+}
 .swipe-more {
   position: absolute;
   left: 50%;

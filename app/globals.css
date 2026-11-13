@@ -1498,6 +1498,10 @@ button.chosen {
   display: block;
   line-height: 1.2;
 }
+/* "4.2 ★ · 26" is one thing: on a narrow card it moves to its own line whole, never "4.2 ★ ·" / "26". */
+.char .meta .dir-stars {
+  white-space: nowrap;
+}
 
 .matchup {
   display: flex;
@@ -1830,6 +1834,35 @@ button.chosen {
 .crisis {
   font-size: var(--text-sm);
   color: var(--muted);
+}
+/* /safety: where to get help comes first, as a card under the title, its lines as buttons (2026-11-13 live review: it
+   sat under two long paragraphs, ~1,000px down). */
+.safety-help {
+  margin: var(--space-3) 0 var(--space-4);
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
+  background: color-mix(in srgb, var(--accent) 6%, var(--card));
+}
+.safety-help h2 {
+  margin-top: 0;
+}
+.safety-help-lines {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.safety-help-lines a {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.1rem;
+  min-height: 44px;
+  text-decoration: none;
+}
+.safety-help-lines a strong {
+  color: var(--accent-text);
 }
 
 .choices label {
@@ -5062,6 +5095,9 @@ details.recap-toggle[open] > summary {
   .account-date-main .visibility-pick {
     min-width: 0;
   }
+  .account-date-main > .badge {
+    align-self: flex-start;
+  }
   .account-date-main .visibility-pick > span {
     display: none;
   }
@@ -5961,6 +5997,11 @@ body:has(.feedback-fab) .site-footer {
 body:has(.beta-toast) .install-hint {
   display: none;
 }
+/* While the hint is up it floats over the foot of the page, so the page gets that much more foot: the last row's
+   controls (a date's visibility, a thread's Send) can scroll clear of it (2026-11-13 live review). */
+body:has(.install-hint) main {
+  padding-bottom: 8rem;
+}
 
 /*
  * Where the floating button, the beta prompt and the install hint would cover the show's own controls, they step aside. The one list
@@ -5973,6 +6014,7 @@ body:has(.beta-toast) .install-hint {
  *   .swipe-fullscreen              the swipe deck, the whole screen on a phone (app/swipe/page.tsx)
  *   .swipe-match-overlay           the "It's a match!" screen (app/swipe/SwipeDeck.tsx)
  *   .messages-fullscreen           a message thread, full screen on a phone: its compose bar and Send sit bottom right
+ *   .companion-fullscreen          a companion chat (app/companion/[id]/CompanionChat.tsx): its composer is at the foot
  *   .phone-stage.is-full           the texts phone opened full screen (app/couples/[a]/[b]/TextPhone.tsx)
  *   .wizard, .send-phase           building a character and sending them (app/create/CreateWizard.tsx): its bar is at the foot
  *   .after-dark-form               After Dark's sticky Nudge/Direct steer bar at the foot of the page
@@ -5990,6 +6032,7 @@ body:has(.beta-toast) .install-hint {
         .swipe-fullscreen,
         .swipe-match-overlay,
         .messages-fullscreen,
+        .companion-fullscreen,
         .phone-stage.is-full,
         .wizard,
         .send-phase,

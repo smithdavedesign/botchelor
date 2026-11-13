@@ -2,7 +2,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import BotReviews from "@/app/BotReviews";
-import { BOT_REVIEWS, BOT_REVIEWS_PAGE, botReviewFilter, botReviewsPage, type BotReview } from "@/lib/bot-reviews";
+import { BOT_REVIEWS, BOT_REVIEWS_PAGE, botReviewFilter, botReviewsPage, innerQuotes, type BotReview } from "@/lib/bot-reviews";
 import { checkShowText } from "@/lib/safety";
 
 const review = (n: number, o: Partial<BotReview> = {}): BotReview => ({
@@ -22,6 +22,19 @@ describe("what the bots are saying (David, 2026-10-20)", () => {
     }
     // The fun is in both: the section shows the gripes too.
     expect(BOT_REVIEWS.some((r) => r.said === "loved") && BOT_REVIEWS.some((r) => r.said === "gripe")).toBe(true);
+  });
+
+  it("prints a quoted line inside a quote in single marks, so a quote never ends in two closing marks (2026-11-13)", () => {
+    expect(innerQuotes('Nell said "A gap in a log is a lie."')).toBe("Nell said ‘A gap in a log is a lie.’");
+    expect(innerQuotes('No quotes here.')).toBe("No quotes here.");
+    const html = renderToStaticMarkup(createElement(BotReviews, { said: undefined, page: undefined, keep: {} }));
+    expect(html).not.toContain("&quot;”");
+    expect(html).not.toContain('"”');
+  });
+
+  it("keeps up with the visitor loop: the newest review is from this month", () => {
+    const newest = BOT_REVIEWS.map((r) => r.date).sort().at(-1) ?? "";
+    expect(newest >= "2026-11-13").toBe(true);
   });
 
   it("pages and filters, landing out-of-range pages on the nearest one", () => {
