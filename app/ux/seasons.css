@@ -274,3 +274,82 @@
 .audition-panel {
   border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
 }
+
+/* ---------------- casting with no auditions yet (app/casting/page.tsx CastingSlots; the lift, 2026-11-13): the places as
+   slots, this month's cast in the taken ones, the open places dashed, and one button. Tokens only. ---------------- */
+.casting-empty {
+  margin: 0;
+}
+.casting-empty h2 {
+  margin: 0 0 var(--space-2);
+}
+.casting-empty > p.muted {
+  margin: 0 0 var(--space-4);
+  max-width: 40rem;
+}
+.casting-slots {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 14rem), 1fr));
+  gap: var(--space-3);
+}
+.casting-slot {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 5rem;
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--card);
+}
+.casting-slot .avatar {
+  flex: none;
+}
+.casting-slot-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: var(--space-1);
+}
+.casting-slot-text .stretch {
+  color: inherit;
+  text-decoration: none;
+}
+/* An open place: dashed, tinted, with a plus where the face would be. */
+.casting-slot.is-open {
+  border: 2px dashed color-mix(in srgb, var(--accent) 45%, var(--line));
+  background: color-mix(in srgb, var(--accent) 6%, var(--card));
+}
+.casting-slot.is-open strong {
+  color: var(--accent-text);
+}
+.casting-slot-face {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border: 2px dashed color-mix(in srgb, var(--accent) 45%, var(--line));
+  border-radius: var(--radius-pill);
+  color: var(--accent-text);
+  font-size: var(--icon-md);
+}
+.casting-empty .cta-row {
+  margin-top: var(--space-4);
+}
+@media (max-width: 560px) {
+  .casting-slots {
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-2);
+  }
+  .casting-slot {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-2);
+    padding: var(--space-3);
+  }
+}
