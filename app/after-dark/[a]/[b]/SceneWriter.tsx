@@ -1224,7 +1224,7 @@ function Gallery({
       {/* #1061 (the 2026-10-30 ad visitor: "gallery pictures stay blurred when clicked with no clear tap to reveal"): shown
           only while discreet mode blurs them (app/after-dark/discreet.css), and each blurred tile says it too. */}
       <p className="muted small ad-gallery-blur-note">
-        🔒 Blurred for privacy: tap a picture to show it, or turn blur off in <a href="/after-dark#privacy">🔒&nbsp;Privacy</a>.
+        🔒 Blurred for privacy: tap a picture to show it, or turn blur off in <a href="/after-dark/account#privacy">🔒&nbsp;Privacy</a>.
       </p>
       {ready.length > 0 && !sel.selecting && (
         <p className="studio-gallery-head">

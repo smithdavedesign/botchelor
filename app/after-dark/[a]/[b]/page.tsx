@@ -84,7 +84,7 @@ export default async function AfterDarkScenePage({ params }: Props) {
             </p>
           ))}
           {absent.off.map((c) => (
-            <p key={c.id}>{c.name} is switched out of your After Dark. Switch them in under Your settings to play this pair.</p>
+            <p key={c.id}>{c.name} is switched out of your After Dark. Switch them in on <Link href="/after-dark/characters">Characters</Link> to play this pair.</p>
           ))}
           <p>
             <Link className="button primary" href="/after-dark">

@@ -24,6 +24,8 @@ import AfterDarkGraphPage from "@/app/admin/after-dark/graph/page";
 import AfterDarkScenePage from "@/app/after-dark/[a]/[b]/page";
 import AfterDarkLayout, { generateMetadata as layoutMetadata } from "@/app/after-dark/layout";
 import AfterDarkHome, { generateMetadata as homeMetadata } from "@/app/after-dark/page";
+import AfterDarkAccount from "@/app/after-dark/account/page";
+import AfterDarkCharacters from "@/app/after-dark/characters/page";
 import { GET as clipGET } from "@/app/api/admin/after-dark/clip/route";
 import { GET as mediaGET } from "@/app/api/admin/after-dark/media/[id]/route";
 import { GET as resetGET, POST as resetPOST } from "@/app/api/admin/after-dark/pin-reset/route";
@@ -479,11 +481,13 @@ describe("the After Dark pages", () => {
     }
     const notFound = /NEXT_HTTP_ERROR_FALLBACK;404|NEXT_NOT_FOUND/;
     await expect(AfterDarkHome()).rejects.toThrow(notFound);
+    await expect(AfterDarkAccount()).rejects.toThrow(notFound);
+    await expect(AfterDarkCharacters()).rejects.toThrow(notFound);
     await expect(AfterDarkScenePage({ params: Promise.resolve({ a: CAST_A, b: CAST_B }), searchParams: Promise.resolve({}) })).rejects.toThrow(notFound);
     await expect(AfterDarkGraphPage({ searchParams: Promise.resolve({}) })).rejects.toThrow(notFound);
   });
 
-  it("an unlocked device gets the pages, inside the blur hook, with the privacy card on the home page", async () => {
+  it("an unlocked device gets the pages, inside the blur hook, with the privacy card on After Dark's Account", async () => {
     const o = await owner();
     const unlock = await withPin(o);
     viewAs(cookies(o.session, unlock));
@@ -491,8 +495,10 @@ describe("the After Dark pages", () => {
     expect(html).toContain("THE PAGE ITSELF");
     expect(html).toContain('data-ad-discreet="blur"');
     expect(html).not.toContain("Enter your PIN");
-    const home = renderToStaticMarkup(await AfterDarkHome());
-    expect(home).toContain("Privacy: blur on · neutral title · PIN on");
+    await expect(AfterDarkHome()).resolves.toBeTruthy();
+    const account = renderToStaticMarkup(await AfterDarkAccount());
+    expect(account).toContain("Privacy: blur on · neutral title · PIN on");
+    expect(account).toContain('id="privacy"');
     await expect(AfterDarkScenePage({ params: Promise.resolve({ a: CAST_A, b: CAST_B }), searchParams: Promise.resolve({}) })).resolves.toBeTruthy();
   });
 

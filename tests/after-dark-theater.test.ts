@@ -111,7 +111,7 @@ describe("#1029: discreet mode says why the pictures are blurred", () => {
   it("renders the hint hidden (it shows once, client-side, only while blur is on), pointing at Privacy", () => {
     const html = render({});
     expect(html).toMatch(/<p class="ad-blur-hint" role="status" hidden="">/);
-    expect(html).toContain('href="/after-dark#privacy"');
+    expect(html).toContain('href="/after-dark/account#privacy"');
   });
 });
 

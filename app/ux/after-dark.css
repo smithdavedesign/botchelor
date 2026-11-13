@@ -1913,24 +1913,6 @@ input.ad-next-words {
   font-size: 0.72em;
   vertical-align: 0.1em;
 }
-/* The hub's settings (who's in, the writer): one card, closed until wanted; the cards inside sit flat in it. */
-.ad-hub-settings > summary {
-  cursor: pointer;
-  min-height: 2.75rem;
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-.ad-hub-settings[open] > summary {
-  margin-bottom: var(--space-2);
-}
-.ad-hub-settings .card {
-  border: 0;
-  box-shadow: none;
-  padding-left: 0;
-  padding-right: 0;
-  background: transparent;
-}
 /* The subscribe page's preview (app/after-dark/subscribe/WhatsInside.tsx): the cast, a few places, the roleplays, what you get. */
 .ad-inside {
   margin-top: var(--space-5);

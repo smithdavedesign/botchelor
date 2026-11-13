@@ -165,7 +165,8 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
       )}
       {TRACKING.gtmId && <GoogleTagManager gtmId={TRACKING.gtmId} />}
       {TRACKING.gaId && <GoogleAnalytics gaId={TRACKING.gaId} />}
-      <body>
+      {/* After Dark's own host is night from edge to edge (the design kit's After Dark frame): app/ux/after-dark.css body.ad-host. */}
+      <body className={adHost ? "ad-host" : undefined}>
         {/* Search params need a Suspense boundary, or a static page would render on the client only. */}
         <Suspense fallback={null}>
           <NavProgress />
@@ -177,7 +178,8 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         </a>
         <header className="site-header">
           {/* Not prefetched on After Dark's host either: "/" there hops to the show and back, so the prefetch never settled. */}
-          <Link prefetch={showPrefetch} href="/" className="logo">
+          {/* On After Dark's own host the wordmark is its home: "/" there only hopped to the show and back. */}
+          <Link prefetch={showPrefetch} href={adHost ? "/after-dark" : "/"} className="logo">
             Botchelor
           </Link>
           {/* The header holds five kinds of thing (docs/brand.md, Header): the wordmark, the After Dark door, the meter,

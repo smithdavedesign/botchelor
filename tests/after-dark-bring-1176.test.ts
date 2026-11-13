@@ -80,10 +80,10 @@ describe("#1176: bringing a new character into After Dark", () => {
     expect(await home({ bring: HOUSE_CHARACTERS[0].id })).not.toContain("data-bring=");
   });
 
-  it("the settings open while one of theirs is Out, and stay folded once all are in", async () => {
+  it("a line points to Characters while one of theirs is Out, and goes once all are in", async () => {
     const { id, ines } = await me();
-    expect(await home()).toMatch(/<details class="card ad-hub-settings" open="">/);
+    expect(await home()).toMatch(/data-yours-out[\s\S]*href="\/after-dark\/characters"/);
     await setAdultSwitch(t.db, id, ines, true);
-    expect(await home()).toMatch(/<details class="card ad-hub-settings">/);
+    expect(await home()).not.toContain("data-yours-out");
   });
 });
