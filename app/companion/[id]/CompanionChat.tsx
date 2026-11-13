@@ -3,7 +3,8 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import Avatar from "@/app/Avatar";
+import Avatar, { sized } from "@/app/Avatar";
+import { characterPortrait } from "@/lib/portraits";
 import { crisisFrom } from "@/app/CrisisNotice";
 import Scene from "@/app/Scene";
 import CrisisPause from "@/app/stage/CrisisPause";
@@ -34,6 +35,8 @@ import type { FaceKit } from "@/lib/face-kit-shared";
 import CompanionCall, { callSupported, liveSupported, type CallStats, type CallTurn, type CallVoice } from "./CompanionCall";
 
 type Extras = Record<CompanionExtraKind, CompanionExtraState> | null;
+/** Who they are, for the panel beside the thread (the page reads it): their job, the first line of their bio, their week on the show. */
+export type CompanionAbout = { job: string | null; hook: string | null; week: string | null };
 type Reply = { view?: CompanionThreadView; message?: string; allowance?: CompanionAllowance; extras?: Extras; voice?: { message_id: string; url: string } };
 
 /** "in 5 hours", "in 40 minutes": until the free count starts again. */
@@ -71,8 +74,11 @@ export default function CompanionChat({
   liveCalls = false,
   callVoice = false,
   faceKit = null,
+  about = null,
 }: {
   initial: CompanionThreadView;
+  /** Who they are, beside the thread; null renders the thread alone (older callers, tests). */
+  about?: CompanionAbout | null;
   initialCrisis: CrisisResources | null;
   initialAllowance: CompanionAllowance;
   /** What the extras (voice notes) cost this person; null for a guest, who's asked to sign in first. */
@@ -366,8 +372,49 @@ export default function CompanionChat({
   const outOfReplies = !allowance.unlimited && allowance.left === 0;
   const typing = busy && (pending !== null || waitingOnThem || opening);
 
+  // Their portrait, large: the panel's picture and, blurred, the wash behind the thread (the house cast's reviewed file,
+  // or a made portrait at panel size; none means the plain card).
+  const portrait = characterPortrait(c.id) ?? sized(c.portrait, 320);
+
   return (
-    <article className={`companion-chat${view.scene ? " companion-in-scene" : ""}`}>
+    <article
+      className={`companion-chat companion-fullscreen${view.scene ? " companion-in-scene" : ""}`}
+      style={portrait ? ({ "--companion-portrait": `url("${portrait}")` } as React.CSSProperties) : undefined}
+      data-companion-chat
+    >
+      {/* Who you're talking with, beside the thread on a wide screen (2026-11-13 design lift: the chat was a bare box in a
+          page of white). The same links the Settings menu has, so nothing is only here. */}
+      <aside className="companion-side" aria-label={`About ${first}`}>
+        {portrait ? (
+          // eslint-disable-next-line @next/next/no-img-element -- their own portrait, already sized by the asset route
+          <img className="companion-side-portrait" src={portrait} alt={`${c.name} portrait`} width={320} height={320} />
+        ) : (
+          <Avatar seed={c.id} name={c.name} hue={c.hue} house={c.house} portraitSrc={c.portrait} size={120} />
+        )}
+        <h2 className="companion-side-name">{c.name}</h2>
+        <p className="companion-side-meta">
+          <span className="chip companion-ai">🤖 AI character</span>
+          {c.pronouns && <span className="muted small">{c.pronouns}</span>}
+        </p>
+        {about?.job && <p className="companion-side-job">{about.job}</p>}
+        {about?.hook && <p className="companion-side-hook">{about.hook}</p>}
+        {about?.week && (
+          <p className="companion-side-week">
+            <strong>This week on the show</strong>
+            <span>{about.week}</span>
+          </p>
+        )}
+        <p className="companion-side-links small">
+          <Link href={`/companion/${view.id}/memory`}>What {first} knows about you ({view.facts})</Link>
+          {!c.yours && (
+            <>
+              {" · "}
+              <Link href={`/characters/${c.id}`}>Profile</Link>
+            </>
+          )}
+        </p>
+      </aside>
+      <div className="companion-main">
       <header className="companion-head">
         <Link href="/companion" className="button-ghost small" aria-label="All companions">
           ←
@@ -451,6 +498,12 @@ export default function CompanionChat({
         </details>
       </header>
 
+      {about?.week && !view.scene && (
+        <p className="companion-week" title={about.week}>
+          🗓️ <strong>This week:</strong> {about.week}
+        </p>
+      )}
+
       {picking && !view.scene && !placed && (
         <PlacePicker places={SCENE_PLACES} current={view.scene} onPick={setPlaced} onClose={closePicker} busy={busy} title={`Where are you and ${first}?`} />
       )}
@@ -533,7 +586,7 @@ export default function CompanionChat({
                     (shown[i + 1]?.role === "character" ? (
                       <span className="companion-avatar-gap" aria-hidden />
                     ) : (
-                      <Avatar seed={c.id} name={c.name} hue={c.hue} house={c.house} portraitSrc={c.portrait} size={28} />
+                      <Avatar seed={c.id} name={c.name} hue={c.hue} house={c.house} portraitSrc={c.portrait} size={36} />
                     ))}
                   <div className="chat-col">
                     {m.action && <span className="companion-action">{m.action}</span>}
@@ -548,14 +601,14 @@ export default function CompanionChat({
                     {m.role === "character" && (
                       <div className="companion-foot">
                         {m.voice ? (
-                          <button type="button" className="linklike small companion-voice-note" onClick={() => play(m.id, m.voice!)} aria-pressed={playing === m.id} data-track="companion-voice-play">
+                          <button type="button" className="button-ghost small companion-voice-note" onClick={() => play(m.id, m.voice!)} aria-pressed={playing === m.id} data-track="companion-voice-play">
                             {playing === m.id ? "⏸ Playing" : "▶ Voice note"}
                           </button>
                         ) : extras ? (
                           !paused && (
                             <button
                               type="button"
-                              className="linklike small muted companion-voice-note"
+                              className="button-ghost small companion-voice-note"
                               onClick={() => void voice(m)}
                               disabled={voicing !== null}
                               title={voicePrice ? `Voice notes: ${voicePrice}. Taken only if it's made.` : `Hear ${first} say it`}
@@ -567,7 +620,7 @@ export default function CompanionChat({
                         ) : (
                           // A guest: asked once, on the newest reply, to sign in for them.
                           newest?.id === m.id && (
-                            <Link className="small muted companion-voice-note" href={`/account?next=${encodeURIComponent(`/companion/${view.id}`)}`} title="Voice notes come with a free account" data-track="companion-voice-signin">
+                            <Link className="button-ghost small companion-voice-note" href={`/account?next=${encodeURIComponent(`/companion/${view.id}`)}`} title="Voice notes come with a free account" data-track="companion-voice-signin">
                               🔊 Voice notes with a free account
                             </Link>
                           )
@@ -609,7 +662,7 @@ export default function CompanionChat({
           {typing && (
             <li className="chat-item" aria-label={`${first} is typing`}>
               <div className="chat-row chat-row-a">
-                <Avatar seed={c.id} name={c.name} hue={c.hue} house={c.house} portraitSrc={c.portrait} size={28} />
+                <Avatar seed={c.id} name={c.name} hue={c.hue} house={c.house} portraitSrc={c.portrait} size={36} />
                 <div className="chat-col">
                   <p className="chat-bubble chat-typing" aria-hidden>
                     <span />
@@ -748,6 +801,7 @@ export default function CompanionChat({
           {note}
         </p>
       )}
+      </div>
       {calling && (
         <CompanionCall
           character={c}
