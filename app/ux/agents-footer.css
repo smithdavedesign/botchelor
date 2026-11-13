@@ -1190,3 +1190,173 @@ button.chip-toggle.is-on {
   overflow-wrap: anywhere;
   line-height: 1.25;
 }
+
+/* ---------------- /agents as a wide page (the 2026-11-13 lift) ----------------
+   The front door for agents had been a 580px column on a 1280px screen: now .page-wide, with a two-column first screen
+   (the connect box; a line the bots loved and the live numbers), the tool groups as a grid of cards with short titles,
+   and the tab strip fading at the edge it scrolls toward. Tokens only (tests/css-tokens.test.ts). */
+.agents-page .lede,
+.agents-page .agents-measure,
+.agents-page section > p {
+  max-width: 46rem;
+}
+.agents-top {
+  display: grid;
+  gap: var(--space-4);
+  margin: var(--space-4) 0;
+}
+.agents-top > .card {
+  margin: 0;
+}
+@media (min-width: 960px) {
+  .agents-top {
+    grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+    align-items: start;
+  }
+}
+.agents-connect h2 {
+  margin-top: 0;
+}
+.agents-connect > p:last-child {
+  margin-bottom: 0;
+}
+/* The show's side: the quote in the title-card face, then the numbers as one line. */
+.agents-proof {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.agents-proof .kicker {
+  margin: 0;
+}
+.agents-quote {
+  margin: 0;
+}
+.agents-quote blockquote {
+  margin: 0 0 var(--space-2);
+  padding: 0 0 0 var(--space-3);
+  border-left: 3px solid var(--accent);
+  font-family: "Fraunces", Georgia, serif;
+  font-size: var(--text-lg);
+  line-height: 1.35;
+}
+.agents-numbers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+  padding: var(--space-3) 0 0;
+  border-top: 1px solid var(--line);
+  list-style: none;
+  font-size: var(--text-sm);
+}
+.agents-numbers li {
+  margin: 0;
+  white-space: nowrap;
+}
+.agents-numbers strong {
+  font-family: "Fraunces", Georgia, serif;
+  font-size: var(--text-lg);
+}
+.agents-proof-more {
+  margin: auto 0 0;
+}
+
+/* The tool groups: cards in a grid, 2 across from 720px, 3 from 1100px; each opens in place (align start keeps the
+   neighbours still). The tools inside keep their one-line rows (above). */
+.agents-cards {
+  display: grid;
+  gap: var(--space-3);
+  margin: var(--space-3) 0;
+  padding: 0;
+  list-style: none;
+}
+@media (min-width: 720px) {
+  .agents-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+}
+@media (min-width: 1100px) {
+  .agents-cards {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+.agents-cards > li.card {
+  margin: 0;
+  min-width: 0;
+}
+.agents-card h3 {
+  margin: 0;
+}
+.agents-card-caveat {
+  margin: var(--space-1) 0 0;
+  line-height: 1.45;
+}
+.agents-card-tools {
+  margin-top: var(--space-2);
+  border-top: 1px solid var(--line);
+}
+.agents-card-tools > summary {
+  flex-wrap: nowrap;
+}
+.agents-card-count {
+  flex: none;
+  color: var(--accent-text);
+  font-weight: 700;
+}
+/* A peek at the names while the card is folded: one line, ellipsized, gone once it's open. */
+.agents-card-tools > summary .fold-status {
+  flex: 1 1 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-weight: 400;
+  color: var(--muted);
+}
+.agents-card-tools[open] > summary .fold-status {
+  display: none;
+}
+.agents-card .agents-tools li:first-child {
+  border-top: 0;
+}
+.agents-fair .steps {
+  max-width: 46rem;
+}
+
+/* The transport tabs (URL · Claude Code · Cursor & others · stdio) overflow a phone: the row scrolls inside itself and
+   fades at the edge it scrolls toward, so a tab past the edge shows there's more (the .filter-pills approach,
+   app/ux/filters.css: a mask, moved along by the scroll where the browser can). */
+@keyframes connect-tabs-fade {
+  0% {
+    --tabs-fade-l: 0px;
+    --tabs-fade-r: 3rem;
+  }
+  15%,
+  85% {
+    --tabs-fade-l: 3rem;
+    --tabs-fade-r: 3rem;
+  }
+  100% {
+    --tabs-fade-l: 3rem;
+    --tabs-fade-r: 0px;
+  }
+}
+.connect-tabs .tabs {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+  scroll-snap-type: x proximity;
+  mask-image: linear-gradient(to right, black calc(100% - 3rem), transparent);
+}
+.connect-tabs .tabs::-webkit-scrollbar {
+  display: none;
+}
+.connect-tabs .tabs button[role="tab"] {
+  scroll-snap-align: start;
+}
+@supports (animation-timeline: scroll()) {
+  .connect-tabs .tabs {
+    mask-image: linear-gradient(to right, transparent, black var(--tabs-fade-l), black calc(100% - var(--tabs-fade-r)), transparent);
+    animation: connect-tabs-fade linear both;
+    animation-timeline: scroll(self inline);
+  }
+}

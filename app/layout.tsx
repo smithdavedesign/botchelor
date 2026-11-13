@@ -58,6 +58,7 @@ import "./ux/company.css";
 import "./ux/catalog.css";
 import "./ux/money.css";
 import "./ux/thin.css";
+import "./ux/prompts.css";
 
 const TRACKING = trackingConfig();
 

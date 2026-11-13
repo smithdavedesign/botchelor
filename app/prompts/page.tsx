@@ -15,13 +15,13 @@ import {
   parseQuery,
   parseSource,
   parseTag,
-  sourceOf,
   tagCounts,
   visibleTags,
 } from "@/lib/prompts-library";
 import { SHARE_IMAGE } from "@/lib/seo";
 import CopyPrompt from "./CopyPrompt";
 import MyPrompts from "./MyPrompts";
+import PromptCard from "./PromptCard";
 import SavePrompt from "./SavePrompt";
 
 const PATH = "/prompts";
@@ -42,8 +42,10 @@ type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 /**
  * The prompts library (lib/prompts-library.ts): a server-rendered search over the seed, PROMPTS_PER_PAGE at a time,
  * so the search, the dataset and tag filters, the tag chips and the pager are plain links and a GET form that work
- * without JavaScript. Only the copy buttons are client code. NSFW tags (the Studio's options past dressed) show only to
- * a viewer After Dark is open to (adultViewerFromCookies), and the page only asks when the seed has one.
+ * without JavaScript. Only the copy and save buttons and a long prompt's "more" are client code. NSFW tags (the Studio's
+ * options past dressed) show only to a viewer After Dark is open to (adultViewerFromCookies), and the page only asks when
+ * the seed has one. A wide page (the 2026-11-13 lift): the prompts are a grid of compact cards (app/prompts/PromptCard.tsx),
+ * three across on a desktop, where one a row had made the page 7,200px tall.
  */
 async function showsNsfw(): Promise<boolean> {
   if (!HAS_NSFW_TAGS) return false;
@@ -68,7 +70,7 @@ export default async function PromptsPage({ searchParams }: { searchParams: Sear
   const groups = [...new Set(tags.map((t) => t.group))];
 
   return (
-    <>
+    <article className="page-wide prompts-page">
       <section className="card prompts-intro">
         <p className="kicker">A free library for drawing your character</p>
         <h1>{TITLE}</h1>
@@ -128,31 +130,22 @@ export default async function PromptsPage({ searchParams }: { searchParams: Sear
           )}
         </p>
         {list.items.length > 0 && (
-          <ul className="prompts-list">
+          <ul className="prompts-grid">
             {list.items.map((p) => (
-              <li key={p.prompt} className="prompt-item">
-                <p className="prompt-text">{p.prompt}</p>
-                {visibleTags(p, showNsfw).length > 0 && (
-                  <ul className="prompt-tags" aria-label="Tags">
-                    {visibleTags(p, showNsfw).map((t) => (
-                      <li key={t.id}>
-                        <Link
-                          className={`prompt-tag${t.studio ? "" : " is-facet"}${t.nsfw ? " is-nsfw" : ""}`}
-                          href={pageHref(PATH, { ...keep, tag: t.id }, "page", 1, "prompts")}
-                          aria-current={t.id === tag ? "true" : undefined}
-                        >
-                          {t.label}
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                <div className="prompt-meta">
-                  <span className="muted small">{`${sourceOf(p).name} · ${sourceOf(p).license}`}</span>
-                  <CopyPrompt text={p.prompt} />
-                  <SavePrompt text={p.prompt} />
-                </div>
-              </li>
+              <PromptCard
+                key={p.prompt}
+                prompt={p}
+                tags={visibleTags(p, showNsfw)}
+                tagHref={(id) => pageHref(PATH, { ...keep, tag: id }, "page", 1, "prompts")}
+                currentTag={tag}
+                clamp
+                actions={
+                  <>
+                    <CopyPrompt text={p.prompt} />
+                    <SavePrompt text={p.prompt} />
+                  </>
+                }
+              />
             ))}
           </ul>
         )}
@@ -194,6 +187,6 @@ export default async function PromptsPage({ searchParams }: { searchParams: Sear
           Make your character
         </Link>
       </section>
-    </>
+    </article>
   );
 }

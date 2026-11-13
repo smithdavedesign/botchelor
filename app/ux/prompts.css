@@ -1,0 +1,158 @@
+/* The prompts library (/prompts and /prompts/tag/…, app/prompts/PromptCard.tsx), the 2026-11-13 lift: a wide page with
+   the prompts as a grid of compact cards (three across from 1100px, two from 720px, one on a phone), each with a swatch in
+   its tags' tone, four lines of text with "more", its tags and one button row. One a row, each a card in a card, the
+   page had been 7,200px on a desktop and 11,250px on a phone. Loaded after globals.css (app/layout.tsx); tokens only
+   (tests/css-tokens.test.ts). */
+
+/* Running text keeps a readable measure on the wide page. */
+.prompts-page .lede,
+.prompts-page .prompts-credits p,
+.prompts-page .ship-cta p {
+  max-width: 44rem;
+}
+
+/* The dataset and tag selects: wide enough for their longest option, the words clear of the chevron, an ellipsis if not. */
+.prompts-search {
+  grid-template-columns: minmax(0, 2fr) minmax(11rem, 1fr) minmax(11rem, 1fr) auto;
+}
+.prompts-field select {
+  min-width: 0;
+  padding-right: calc(var(--control-px) + 1.5rem);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The grid. */
+.prompts-grid {
+  display: grid;
+  gap: var(--space-3);
+  margin: var(--space-3) 0 var(--space-4);
+  padding: 0;
+  list-style: none;
+}
+@media (min-width: 720px) {
+  .prompts-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (min-width: 1100px) {
+  .prompts-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+/* A card: the swatch and dataset on top, the text, the tags, the buttons pinned to the bottom right. */
+.prompts-grid > .prompt-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  box-shadow: var(--shadow-sm);
+}
+.prompt-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  margin: 0;
+}
+.prompt-source {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The swatch: no prompt carries a picture, so each card wears a tile in the tone of its first tag, mixed from the brand's
+   two accents (and the ink or the paper for depth); nothing is drawn. */
+.prompt-swatch {
+  --swatch: color-mix(in srgb, var(--accent) 50%, var(--accent-2));
+  --swatch-2: color-mix(in srgb, var(--swatch) 70%, var(--paper-2));
+  flex: none;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(135deg, var(--swatch), var(--swatch-2));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 12%, transparent);
+}
+.prompt-item[data-tone="photo"] .prompt-swatch {
+  --swatch: color-mix(in srgb, var(--accent-2) 65%, var(--ink));
+}
+.prompt-item[data-tone="painting"] .prompt-swatch {
+  --swatch: var(--accent);
+}
+.prompt-item[data-tone="illustration"] .prompt-swatch {
+  --swatch: var(--accent-2);
+}
+.prompt-item[data-tone="3d"] .prompt-swatch {
+  --swatch: color-mix(in srgb, var(--accent) 35%, var(--accent-2));
+}
+.prompt-item[data-tone="light"] .prompt-swatch {
+  --swatch: color-mix(in srgb, var(--accent) 70%, var(--paper-2));
+}
+.prompt-item:is([data-tone="framing"], [data-tone="angle"], [data-tone="pov"]) .prompt-swatch {
+  --swatch: color-mix(in srgb, var(--accent-2) 60%, var(--paper-2));
+}
+.prompt-item:is([data-tone="wardrobe"], [data-tone="accessories"]) .prompt-swatch {
+  --swatch: color-mix(in srgb, var(--accent) 75%, var(--ink));
+}
+.prompt-item[data-tone="place"] .prompt-swatch {
+  --swatch: color-mix(in srgb, var(--accent-2) 75%, var(--ink));
+}
+.prompt-item:is([data-tone="expression"], [data-tone="pose"]) .prompt-swatch {
+  --swatch: color-mix(in srgb, var(--accent) 60%, var(--soft));
+}
+.prompt-item:is([data-tone="subject"], [data-tone="plain"]) .prompt-swatch {
+  --swatch: var(--soft);
+  --swatch-2: var(--paper-2);
+}
+
+/* Four lines, then "more" (app/prompts/PromptText.tsx); open, the whole text and "less". */
+.prompt-text-wrap {
+  display: grid;
+  gap: var(--space-1);
+}
+.prompts-grid .prompt-text {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+.prompt-text.is-clamped {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+  overflow: hidden;
+}
+.prompt-more {
+  justify-self: start;
+  font-size: var(--text-sm);
+}
+.prompts-grid .prompt-tags {
+  margin-top: auto;
+}
+
+/* One row of quiet small buttons, never wrapping, on the right; Save's note takes the room to their left. */
+.prompt-actions {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}
+.prompt-actions > button {
+  flex: none;
+  margin: 0;
+}
+.prompt-actions .prompt-save-note {
+  order: -1;
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+.prompts-grid .prompt-copy {
+  min-width: 0;
+}
