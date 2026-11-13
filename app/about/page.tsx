@@ -14,8 +14,8 @@ type Group = { id: string; title: string; intro: string; items: Item[] };
 /**
  * The stack, in plain words (David, 2026-10-30: "an about page that showcases every tech, infra, integration, models used
  * for the site"). Facts come from the code and the hosting docs (docs/hosting.md, docs/after-dark-hosting.md,
- * lib/model.ts, lib/connections-shared.ts; 2026-11-10: Didit, Deepgram, Kokoro, speech-to-video); update this page when one of
- * them changes. No keys, plans or limits here.
+ * lib/model.ts, lib/connections-shared.ts; 2026-11-10: Didit, Deepgram, Kokoro, speech-to-video; 2026-11-13: faces that move on
+ * calls, lib/face-kit.ts); update this page when one of them changes. No keys, plans or limits here.
  */
 const GROUPS: Group[] = [
   {
@@ -57,8 +57,8 @@ const GROUPS: Group[] = [
       { name: "Gemini 3.5 Flash and Flash-Lite", what: "The free stand-in writer and the director that plans scenes.", href: "https://ai.google.dev" },
       { name: "Gemini Embedding", what: "Spots characters that are near-copies of each other.", href: "https://ai.google.dev" },
       { name: "FLUX.1 [dev] and [schnell]", what: "Portraits, looks and the date venues' backdrops, on fal.", href: "https://fal.ai" },
-      { name: "Qwen-Image and Qwen-Image-Edit", what: "Pictures that keep a character's face from shot to shot.", href: "https://replicate.com" },
-      { name: "Wan", what: "Turns a still into a short video clip, on fal and Replicate. Its speech-to-video model moves their lips to a line they say.", href: "https://replicate.com" },
+      { name: "Qwen-Image and Qwen-Image-Edit", what: "Pictures that keep a character's face from shot to shot, and the seven stills of a companion's face for calls: the same portrait with the mouth parted, open or rounded, a blink, a smile, a gasp.", href: "https://replicate.com" },
+      { name: "Wan", what: "Turns a still into a short video clip, on fal and Replicate: a companion's living loop for calls, and the showcase's living portraits. Its speech-to-video model moves their lips to a line they say.", href: "https://replicate.com" },
       { name: "Kokoro", what: "Each character's own voice: voice notes, nights and videos. Stock voices only, never a clone of a real person.", href: "https://huggingface.co/hexgrad/Kokoro-82M" },
       { name: "DeepSeek V3.1 and GLM-4.6", what: "Write After Dark's scenes, through OpenRouter.", href: "https://openrouter.ai" },
       { name: "Venice", what: "After Dark's pictures and video.", href: "https://venice.ai" },
@@ -95,6 +95,11 @@ const GROUPS: Group[] = [
       { name: "Google sign-in", what: "Optional accounts (a handle and password works too).", href: "/account" },
       { name: "Resend", what: "Email: confirmations, second-date news and the daily digest.", href: "https://resend.com" },
       { name: "Deepgram", what: "Live voice calls with companions: it hears you as you talk and speaks their replies as they are written, so you can just talk, and cut in.", href: "https://deepgram.com" },
+      {
+        name: "A face that moves on calls",
+        what: "On a call, a companion's face comes to life in your browser: a short loop of them while they listen, and while they talk the mouth that fits how loud their voice is right now, read off the audio as it plays (Web Audio), with a blink now and then and a smile or a gasp when the line has one. The face is a handful of stills of one portrait and one loop, drawn once and checked like every picture; nothing is streamed from a face service, and nothing costs anything per minute.",
+        href: "/companion",
+      },
       {
         name: "Your browser's speech",
         what: "Companion calls can also use your browser's own speech recognition and voices (Chrome sends what you say to Google, Safari to Apple).",
