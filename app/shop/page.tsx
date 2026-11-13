@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import Link from "next/link";
+import Icon from "@/app/Icon";
 import { episodeAllowance, freshAllowance } from "@/lib/allowance";
 import { googleConfigured, sessionsSignable } from "@/lib/auth";
 import { CATALOG, formatPrice, frameClass, ON_SALE, PACK_5, type ItemKind } from "@/lib/catalog";
@@ -37,8 +38,30 @@ const OWNED_NOTES: Record<ItemKind, string> = {
   episode_pack: "Bought before. Buy again whenever you like; the dates add up.",
 };
 
+/** "$9.99 a month" as a headline: the amount big, the rest beside it. A label with no leading amount is shown whole. */
+function priceParts(label: string): { amount: string; per: string } {
+  const m = /^(\$\s?[\d.,]+)\s*(.*)$/.exec(label.trim());
+  return m ? { amount: m[1], per: m[2] } : { amount: label, per: "" };
+}
+
+/** The price as a tile's headline (app/ux/money.css .money-price). */
+function Price({ amount, per }: { amount: string; per: string }) {
+  return (
+    <p className="money-price">
+      <span className="money-price-amount">{amount}</span>
+      {per && <span className="money-price-per">{per}</span>}
+    </p>
+  );
+}
+
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
+/**
+ * The shop as offer tiles (the design lift, 2026-11-13): your balance as a meter card, then every offer in a grid with its
+ * price as the headline, and the small print folded under them. Every behaviour from before stays: Buy or Sign in to buy,
+ * the price label from Stripe's env, the thanks after checkout, "purchases open soon" while no link is set, the Companion
+ * Plan's card while companions are open, the After Dark tokens note, and the owned notes.
+ */
 export default async function ShopPage({ searchParams }: { searchParams: SearchParams }) {
   const { checkout } = await searchParams;
   const viewer = authFromCookieStore(await cookies());
@@ -57,20 +80,39 @@ export default async function ShopPage({ searchParams }: { searchParams: SearchP
   // After Dark exists: the show never shows it).
   const afterDarkToo = db && viewer?.authenticated ? (await canAfterDark(db, viewer).catch(() => ({ ok: false }))).ok : false;
   const units = `${unit}s`;
+  // The Companion Plan sells on its own page (app/companion/plan): its tile here, so the shop lists everything on sale
+  // (2026-11-07 audit, item 20: on a phone the shop never mentioned it). Only while companions are open and the plan has
+  // its link; never on After Dark's host, which has its own tokens.
+  const planTile = unit === "date" && companionOpen() && planLink("companion") !== null;
+  const plan = priceParts(planPrice("companion"));
+  // The meter shows this week's free ones; topped-up ones are said in the line (they never run out on a day).
+  const freePct = dates.free_per_season > 0 ? Math.round((Math.min(dates.free_left, dates.free_per_season) / dates.free_per_season) * 100) : 0;
 
   return (
-    <>
-      <h1>{unit === "token" ? "Tokens" : "More dates"}</h1>
-      {/* The product first (UX audit 2026-10-23: ~430px of explanation sat above the only thing to buy); the small print
-          follows it. */}
-      <p>
-        Top up when your free {units} run out. <strong>Each one sends a character on one date.</strong>
-      </p>
-      <p className="muted token-balance">
-        You have <strong>{dates.left}</strong> {dates.left === 1 ? unit : units} left: {dates.free_left} of{" "}
-        {dates.free_per_season} free this week
-        {dates.pack_left > 0 && `, plus ${dates.pack_left} topped up`}. Free {units} come back Monday 00:00 UTC.
-      </p>
+    <article className="money-page shop-page">
+      <header>
+        <p className="kicker">The shop</p>
+        <h1>{unit === "token" ? "Tokens" : "More dates"}</h1>
+        {/* The product first (UX audit 2026-10-23: ~430px of explanation sat above the only thing to buy); the small print
+            follows it. */}
+        <p className="lede">
+          Top up when your free {units} run out. <strong>Each one sends a character on one date.</strong>
+        </p>
+      </header>
+
+      <section className="card money-meter token-balance" aria-labelledby="shop-balance">
+        <p className="money-meter-count">
+          <strong>{dates.left}</strong>
+          <span>{dates.left === 1 ? unit : units} left</span>
+        </p>
+        <div className="money-meter-track" role="img" aria-label={`${dates.free_left} of ${dates.free_per_season} free ${units} left this week`}>
+          <span className="money-meter-fill" style={{ width: `${freePct}%` }} />
+        </div>
+        <p id="shop-balance" className="money-meter-line muted small">
+          {dates.free_left} of {dates.free_per_season} free this week
+          {dates.pack_left > 0 && `, plus ${dates.pack_left} topped up`}. Free {units} come back Monday 00:00 UTC.
+        </p>
+      </section>
       {afterDarkToo && unit === "date" && (
         <p className="muted small" data-ad-tokens-note>
           In After Dark, each date you buy here is one token (the free weekly ones stay with the show).{" "}
@@ -85,47 +127,47 @@ export default async function ShopPage({ searchParams }: { searchParams: SearchP
       )}
       {!open && <p className="notice">Purchases open soon. Everything else on Botchelor is free.</p>}
 
-      <ul className="list">
+      <ul className="money-tiles">
         {ON_SALE.map((item) => (
-          <li key={item.sku} className="card shop-item">
-            <div className="shop-item-head">
-              <strong>{item.name}</strong>
-              <span className="shop-item-price">{formatPrice(item.price_cents)}</span>
-            </div>
+          <li key={item.sku} className="card money-tile shop-item">
+            <Price amount={formatPrice(item.price_cents)} per="once" />
+            <strong className="money-tile-name">{item.name}</strong>
             {/* A pack's name already says what it is ("5 more dates"). */}
             {item.kind !== "episode_pack" && <span className="badge">{KIND_LABELS[item.kind]}</span>}
-            <p>{item.description}</p>
+            <p className="money-tile-what muted">{item.description}</p>
             {owned.includes(item.sku) && <p className="notice">{OWNED_NOTES[item.kind]}</p>}
-            {signInToBuy ? (
-              <SignInToBuy sku={item.sku} label={`Buy ${item.name} · ${formatPrice(item.price_cents)}`} google={googleConfigured()} />
-            ) : (
-              <BuyButton
-                sku={item.sku}
-                label={priceLabelFromEnv(process.env, `Buy ${item.name} for ${formatPrice(item.price_cents)}`)}
-                disabled={!open}
-              />
-            )}
+            <div className="money-tile-act">
+              {signInToBuy ? (
+                <SignInToBuy sku={item.sku} label={`Buy ${item.name} · ${formatPrice(item.price_cents)}`} google={googleConfigured()} />
+              ) : (
+                <BuyButton
+                  sku={item.sku}
+                  label={priceLabelFromEnv(process.env, `Buy ${item.name} for ${formatPrice(item.price_cents)}`)}
+                  disabled={!open}
+                />
+              )}
+            </div>
           </li>
         ))}
-        {/* The Companion Plan sells on its own page (app/companion/plan): its card here, so the shop lists everything on
-            sale (2026-11-07 audit, item 20: on a phone the shop never mentioned it). Only while companions are open and the
-            plan has its link; never on After Dark's host, which has its own tokens. */}
-        {unit === "date" && companionOpen() && planLink("companion") && (
-          <li className="card shop-item shop-plan" data-shop-plan="companion">
-            <div className="shop-item-head">
-              <strong>{PLANS.companion.name}</strong>
-              <span className="shop-item-price">{planPrice("companion")}</span>
-            </div>
+        {planTile && (
+          <li className="card money-tile shop-item shop-plan" data-shop-plan="companion">
+            <Price amount={plan.amount} per={plan.per} />
+            <strong className="money-tile-name">{PLANS.companion.name}</strong>
             <span className="badge">Subscription</span>
-            <p>Talk with any companion as much as you like: no daily limit on replies. Cancel any time.</p>
-            <Link className="button" href="/companion/plan" data-track="shop-companion-plan">
-              See the Companion Plan
-            </Link>
+            <p className="money-tile-what muted">Talk with any companion as much as you like: no daily limit on replies. Cancel any time.</p>
+            <div className="money-tile-act">
+              <Link className="button" href="/companion/plan" data-track="shop-companion-plan">
+                See the Companion Plan
+              </Link>
+            </div>
           </li>
         )}
         {ownedOffSale.map((item) => (
-          <li key={item.sku} className="card">
-            <strong className={item.kind === "frame" ? frameClass(item.sku) : undefined}>{item.name}</strong>{" "}
+          <li key={item.sku} className="card money-tile shop-item is-owned">
+            <p className="money-price is-owned">
+              <Icon name="check" /> Yours
+            </p>
+            <strong className={item.kind === "frame" ? `money-tile-name ${frameClass(item.sku)}` : "money-tile-name"}>{item.name}</strong>
             <span className="badge">{KIND_LABELS[item.kind]}</span>
             <p className="notice">{OWNED_NOTES[item.kind]}</p>
           </li>
@@ -147,6 +189,6 @@ export default async function ShopPage({ searchParams }: { searchParams: SearchP
           your own Google key (Veo). A clip Google can&apos;t make gives the {unit} back.
         </p>
       </details>
-    </>
+    </article>
   );
 }
