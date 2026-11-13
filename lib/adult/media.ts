@@ -672,15 +672,21 @@ export async function ensureBaseline(db: Db, ownerId: string, c: Character, edit
  * chin of the portrait with a local model (~/.botchelor-nude), so the face is the portrait's own pixels. It is held to
  * exactly what a baseline from the portrait is (baselineFromPortrait: the lines, the cap, the gate and the output check
  * with its age question), with the prompt a portrait baseline has, so it's read as nude (lib/adult/attire.ts). Null when
- * they have a baseline already.
+ * they have a baseline already. `replace`: a better local one for a bad local one; only earlier local baselines are set
+ * aside (status 'failed'), and only once the new one is kept; a baseline from anywhere else still means null.
  */
-export async function baselineFromLocal(db: Db, ownerId: string, c: Character, file: { bytes: Buffer; mime: string; model: string }): Promise<Media | null> {
-  const have = (await db.query<{ id: string }>(`select id from adult_images where character_id = $1 and character_b is null and kind = 'baseline' and status = 'ready' limit 1`, [c.id])).rows[0];
+export async function baselineFromLocal(db: Db, ownerId: string, c: Character, file: { bytes: Buffer; mime: string; model: string; replace?: boolean }): Promise<Media | null> {
+  const others = file.replace ? ` and coalesce(provider, '') <> 'local'` : "";
+  const have = (await db.query<{ id: string }>(`select id from adult_images where character_id = $1 and character_b is null and kind = 'baseline' and status = 'ready'${others} limit 1`, [c.id])).rows[0];
   if (have) return null;
   const portrait = await showPortrait(db, c);
   if (!portrait) throw new Error("They have no show portrait to start from.");
   const local: PortraitEdit = async () => ({ bytes: file.bytes, mime: file.mime, provider: "local", fell_back: false, model: file.model });
-  return (await withRequestLog(() => baselineFromPortrait(db, ownerId, c, new URL(portrait, siteUrl()).toString(), local))).value;
+  const made = (await withRequestLog(() => baselineFromPortrait(db, ownerId, c, new URL(portrait, siteUrl()).toString(), local))).value;
+  if (file.replace) {
+    await db.query(`update adult_images set status = 'failed' where character_id = $1 and character_b is null and kind = 'baseline' and provider = 'local' and status = 'ready' and id <> $2`, [c.id, made.id]);
+  }
+  return made;
 }
 
 /**

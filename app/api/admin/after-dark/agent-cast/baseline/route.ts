@@ -16,7 +16,7 @@ const MIMES = new Set(["image/jpeg", "image/png", "image/webp"]);
  * Admin only: an agent-cast character's After Dark baseline drawn on the admin's Mac, free (lib/adult/media.ts
  * baselineFromLocal; the batch is ~/.botchelor-nude). The body is the image's bytes; `character_id`, `owner_id` (an admin:
  * the picture is theirs, as the admins' baselines are everyone's default face) and `model` ride in the query. It passes
- * the same checks as any baseline from a portrait, or is discarded (422).
+ * the same checks as any baseline from a portrait, or is discarded (422). `replace=1` swaps an earlier local one.
  */
 export const POST = handle(async (req: Request) => {
   if (!(await adminAuthorized(req))) return json(NOT_AUTHORIZED, 403);
@@ -24,6 +24,7 @@ export const POST = handle(async (req: Request) => {
   const characterId = q.get("character_id") ?? "";
   const ownerId = q.get("owner_id") ?? "";
   const model = (q.get("model") ?? "local").slice(0, 120);
+  const replace = q.get("replace") === "1";
   const mime = (req.headers.get("content-type") ?? "").split(";")[0].trim();
   if (!characterId || !ownerId) return json({ error: "invalid_request", message: "character_id and owner_id are needed." }, 400);
   if (!MIMES.has(mime)) return json({ error: "invalid_request", message: "Send a JPEG, PNG or WebP." }, 415);
@@ -37,7 +38,7 @@ export const POST = handle(async (req: Request) => {
   const c = await loadCharacter(db, characterId);
   if (!c) return json({ error: "not_found" }, 404);
   try {
-    const made = await baselineFromLocal(db, ownerId, c, { bytes, mime, model });
+    const made = await baselineFromLocal(db, ownerId, c, { bytes, mime, model, replace });
     return made ? json({ id: made.id }, 201) : json({ exists: true }, 200);
   } catch (e) {
     return json({ error: "not_kept", message: e instanceof Error ? e.message : String(e) }, 422);

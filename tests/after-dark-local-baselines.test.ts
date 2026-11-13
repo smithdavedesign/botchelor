@@ -96,6 +96,25 @@ describe("a local baseline for the agent cast", () => {
     expect(await again.json()).toEqual({ exists: true });
   });
 
+  it("replaces only an earlier local one, and only once the new one is kept", async () => {
+    const a = await admin();
+    const c = await castMember(a.id);
+    verdict(0.01, "ADULTS");
+    const first = ((await (await send(a.cookie, { character_id: c, owner_id: a.id })).json()) as { id: string }).id;
+    verdict(0.97, "MINOR");
+    expect((await send(a.cookie, { character_id: c, owner_id: a.id, replace: "1" })).status).toBe(422);
+    expect((await t.db.query(`select status from adult_images where id = $1`, [first])).rows[0].status).toBe("ready");
+    verdict(0.01, "ADULTS");
+    const res = await send(a.cookie, { character_id: c, owner_id: a.id, replace: "1" });
+    expect(res.status).toBe(201);
+    const second = ((await res.json()) as { id: string }).id;
+    expect((await t.db.query(`select status from adult_images where id = $1`, [first])).rows[0].status).toBe("failed");
+    expect(await faceReferenceId(t.db, crypto.randomUUID(), c)).toBe(second);
+    // A baseline from anywhere else is never replaced.
+    await t.db.query(`update adult_images set provider = 'replicate' where id = $1`, [second]);
+    expect(await (await send(a.cookie, { character_id: c, owner_id: a.id, replace: "1" })).json()).toEqual({ exists: true });
+  });
+
   it("is discarded when the check refuses it", async () => {
     const a = await admin();
     const c = await castMember(a.id);
