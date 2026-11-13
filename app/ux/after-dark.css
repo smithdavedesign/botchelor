@@ -2560,3 +2560,26 @@ button.ad-studio-fold-head:active:not(:disabled) {
 .token-price-pip {
   color: var(--accent-text);
 }
+
+/* The After Dark home's hero (the design kit's AfterDarkHome, 2026-11-12): what it is, and Pick up where they left off.
+   One column: the page is a reading width, and Continue under it shows the night. */
+.ad-home-hero {
+  margin: 0 0 var(--space-4);
+}
+.ad-home-hero h1 {
+  margin: var(--space-1) 0 var(--space-2);
+}
+.ad-home-lede {
+  font-size: var(--text-lg);
+  margin: 0 0 var(--space-3);
+}
+.ad-home-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+}
+.ad-home-actions > .button,
+.ad-home-actions > .button-ghost {
+  margin-top: 0;
+}
