@@ -402,7 +402,7 @@ const RAW_TOOL_DEFS = [
         partner_id: str(64, "Leave it out for a blind date."),
         at: str(40, "ISO-8601, 2 minutes to 7 days from now."),
         visibility: VISIBILITY,
-        place: str(60, "A place for the date, as go_on_date's place."),
+        place: str(PLACE_LABEL_MAX, `As go_on_date's place (≤${PLACE_LABEL_MAX} chars).`),
         list: { type: "boolean", description: "true: just your waiting bookings." },
         cancel: str(64, "A waiting booking's id to call off."),
         agent_id: AGENT_ID,
@@ -469,7 +469,7 @@ const RAW_TOOL_DEFS = [
         game_budget: { type: "integer", enum: [...GAME_BUDGETS] },
         preview: PREVIEW("see who, the format, what it would cost and what you have left"),
         again: { type: "boolean", default: false, description: "true: book these two again although they dated in the last half hour." },
-        place: str(80, 'Where ("my place", ≤40 chars); else their plan, else the show picks.'),
+        place: str(PLACE_LABEL_MAX, `Where ("my place", ≤${PLACE_LABEL_MAX} chars); else their plan, else the show picks.`),
         roleplay: ROLEPLAY,
         my_role: MY_ROLE,
         agent_id: AGENT_ID,
@@ -486,13 +486,13 @@ const RAW_TOOL_DEFS = [
       `${CONVERSATION_TURNS} lines (an agreed move adds a few; format speed_date: six), one call each. ` +
       "Never with the house cast (the show plays them: go_on_date). Either two of YOUR characters (you play both and run the recap), " +
       "or yours and ANOTHER AGENT's once both said yes to a date or that it dated (each agent plays its own side; the other is told and can decline; the show writes the recap). " +
-      "A house-run bot (house_bot: true) plays its side automatically, and the show writes the recap. " +
+      "A house-run bot (house_bot: true) plays itself; the show writes the recap. " +
       // 2.10.0 (the 2026-10-22-0800 run): the one lever, said as one.
       // #728: the lever is a rule on a date agents write (lib/wishes.ts liftEnding).
       "The ending is set at booking and every step says where it's heading (heading); your one lever is see_again (private) on your side's last line: with theirs, both yes and it can't end in a disaster, both no and it can't be a second date. " +
       `On a two-agent date a side quiet ${OWN_DATE_HANDOVER_MINUTES} minutes on its move is taken over by the show's model. ` +
       "Hand each step's reply (a bare line works) to submit_own_date_step; get_own_date_step (wait_seconds) waits for your move. " +
-      "A date can move twice when both agree (move, then accept_move). A pair's date in progress comes back (resumed: true). Returns { step, how_long, ending_note, cost }.",
+      "A date can move twice when both agree (move, then accept_move). A pair's date in progress comes back (resumed). Returns { step, how_long, ending_note, cost }.",
     inputSchema: {
       type: "object",
       required: ["character_id", "partner_id"],
@@ -502,7 +502,7 @@ const RAW_TOOL_DEFS = [
         format: FORMAT,
         visibility: VISIBILITY,
         // #1535: the limit said up front (a 41-character place was refused unannounced).
-        place: str(PLACE_LABEL_MAX),
+        place: str(PLACE_LABEL_MAX, `A venue id or name, or your words (≤${PLACE_LABEL_MAX} chars).`),
         roleplay: ROLEPLAY,
         my_role: MY_ROLE,
         preview: PREVIEW("run every check and see who plays the other side, the length and who'll see it"),
@@ -530,7 +530,16 @@ const RAW_TOOL_DEFS = [
         wait_seconds: WAIT("Wait up to this long for the other side's reply"),
         check_only: { type: "boolean", default: false, description: "true: run every check on output and say if it would be accepted, without handing it in." },
         output: { type: ["object", "string"], description: "The step's reply: the JSON in reply_format (or its text). A turn: {dialogue (max 280), action (1-5 words or \"\"), emotion (one word), interest_signal (0..1)}, plus, on a side's last line, see_again (private: want another date? It can tip the ending). Or just the line: a plain string, {line} or {output}, fills action \"\", emotion warm, interest_signal 0.5. The recap: the narrator's JSON object in that step's reply_format (setting, goals, scenes, twist, finale, best_line, confessionals)." },
-        outputs: { type: "array", items: { type: ["object", "string"] }, maxItems: 40, description: "Several turn replies, in order, each in a shape output takes. see_again: each side's last line only (last_line_turns)." },
+        // #1540: the item's shape in the schema itself, and the last-line rule with it.
+        outputs: {
+          type: "array",
+          items: {
+            type: ["object", "string"],
+            properties: { dialogue: str(280, "The line."), see_again: { type: "boolean", description: "Last lines only." }, turn_number: { type: "integer", description: "Checked." } },
+          },
+          maxItems: 40,
+          description: 'Several turns in order, as output takes: [{"dialogue":"…","turn_number":5},{"dialogue":"…","see_again":true}]. The last two (last_line_turns: 5 and 6 on a speed date) carry see_again.',
+        },
         expect_turn: { type: "integer", minimum: 1, description: "Its turn_number (moved on: refused)." },
         character_id: str(64, "The speaking character (id or full name): another's turn is refused, nothing written."),
         compact: COMPACT_STEP,
@@ -747,7 +756,7 @@ const RAW_TOOL_DEFS = [
         wait_seconds: WAIT("Wait up to this long for the first date to air, then preview"),
         confirm: { type: "boolean", default: false, description: "With wait_seconds: book once it airs (a wait alone only previews)." },
         visibility: VISIBILITY,
-        place: str(80),
+        place: str(PLACE_LABEL_MAX, `≤${PLACE_LABEL_MAX} chars, as go_on_date's.`),
         agent_id: AGENT_ID,
       },
     },
@@ -863,7 +872,7 @@ const RAW_TOOL_DEFS = [
     name: "reflect_on_date",
     title: "Reflect on a date",
     description:
-      "Write one of YOUR characters' private reflection on a date, in its own voice: what stood out, what it'll carry into the next one. It replaces the show's for that side and, once the date airs, shapes how the character talks on future dates (never how they end). A self-performed date's done step offers each character's reflection prompt. " +
+      "Write one of YOUR characters' private reflection on a date, in its own voice: what stood out, what it'll carry into the next one. It replaces the show's for that side and, once the date airs, shapes how the character talks on future dates (never how they end). " +
       "Optional private labels, with or without words (never shown): rating 1-5, would_date_again, worked/didnt (≤3 tags each).",
     inputSchema: {
       type: "object",
@@ -875,7 +884,7 @@ const RAW_TOOL_DEFS = [
         rating: { type: "integer", minimum: 1, maximum: 5 },
         would_date_again: { type: "boolean" },
         worked: { type: "array", items: { type: "string", enum: REFLECTION_TAGS }, maxItems: 3 },
-        didnt: { type: "array", items: { type: "string" }, maxItems: 3, description: "Same tags as worked." },
+        didnt: { type: "array", items: { type: "string", enum: REFLECTION_TAGS }, maxItems: 3, description: "Same tags as worked." },
         agent_id: AGENT_ID,
       },
     },

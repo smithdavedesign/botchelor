@@ -252,7 +252,10 @@ export const MCP_PROTOCOL_VERSION = "2025-06-18";
 // side's last line; a last line without see_again says what stood in (wish_defaulted); a recap ignores character_id
 // (speaker_ignored); set_profile with nothing to set is an error; companion takes message for text and send by default;
 // browse_episodes takes status (open, aired); a place typed as a venue id is that venue: new fields and arguments only.
-export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.28.0" } as const;
+// 2.29.0 (the 2026-11-13 runs, #1539/#1540/#1541): every place argument's maxLength is the real 40; outputs[] items and
+// reflect_on_date's didnt carry their shape and tags in the schema; a batch's replies past the end lead the reply (warning,
+// unused_outputs), and every turn step says lines_left: new fields only.
+export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.29.0" } as const;
 
 /** Where every tool is listed: the default list is the core (2026-10-20: 53 tools were ~14k tokens in every agent's context). */
 export const ALL_TOOLS_HINT = "/api/mcp?tools=all";
@@ -752,6 +755,7 @@ export const ENUM_SOURCES: Record<string, readonly unknown[]> = {
   "sliding_doors.change": SLIDING_DOOR_IDS,
   "my_status.include": MY_STATUS_INCLUDES,
   "reflect_on_date.worked": REFLECTION_TAGS,
+  "reflect_on_date.didnt": REFLECTION_TAGS,
   "companion.action": COMPANION_ACTIONS,
   "companion.length": REPLY_LENGTHS,
   "companion.reason": COMPANION_REPORT_REASONS,
@@ -3830,16 +3834,18 @@ export function stepTop(step: OwnDateStep): Record<string, unknown> {
     ...((step.stage === "turn" || step.stage === "waiting") && step.heading ? { heading: step.heading.says } : {}),
   };
   if (step.stage === "turn") {
+    // #1541: how many lines to the end, this one included, so a batch can be sized to end exactly on the last line.
+    const left = { lines_left: step.of - step.turn_number + 1 };
     // 2.10.0 (the 2026-10-22-0800 run: none of the three visitors sent see_again): a side's last line leads with it.
     if (step.see_again) {
       return {
-        ...base, turn_number: step.turn_number, of: step.of, your_move: true, whose_move: step.speaker.name, ...clock,
+        ...base, turn_number: step.turn_number, of: step.of, ...left, your_move: true, whose_move: step.speaker.name, ...clock,
         summary: `${seeAgainLead(step.see_again)} Your move: turn ${step.turn_number} of ${step.of}, ${step.speaker.name} speaks: hand submit_own_date_step {"dialogue": "…", "see_again": true or false} (a bare string can't carry see_again).`,
         last_line: true,
       };
     }
     return {
-      ...base, turn_number: step.turn_number, of: step.of, your_move: true, whose_move: step.speaker.name, ...clock,
+      ...base, turn_number: step.turn_number, of: step.of, ...left, your_move: true, whose_move: step.speaker.name, ...clock,
       summary: `Your move: turn ${step.turn_number} of ${step.of}, ${step.speaker.name} speaks. Write ${step.speaker.name}'s line (a bare line of dialogue works) or run step.messages in ${step.speaker.name}'s own process, and hand it to submit_own_date_step.`,
     };
   }
@@ -3885,8 +3891,9 @@ function withStepTop(data: Record<string, unknown>): Record<string, unknown> {
   const top = stepTop(step);
   // 2.8.0 (#649): something that needs you now (a wait's heads_up) still leads, ahead of the step's own fields.
   if (data.accepted !== false) {
-    const { heads_up: h, heads_up_note: hn, ...rest } = data;
-    return { ...(h ? { heads_up: h } : {}), ...(hn ? { heads_up_note: hn } : {}), ...top, ...rest };
+    // #1541: a reply's own warning (a batch's unused replies, a misplaced see_again) leads, ahead of the step's fields.
+    const { heads_up: h, heads_up_note: hn, warning: w, ...rest } = data;
+    return { ...(w ? { warning: w } : {}), ...(h ? { heads_up: h } : {}), ...(hn ? { heads_up_note: hn } : {}), ...top, ...rest };
   }
   const { accepted, ok, rejected, message, ...rest } = data;
   const why = String(message ?? rejected ?? "it broke a rule").replace(/^Not handed in: /, "").replace(/\s*Send a corrected reply for the same step\.$/, "").replace(NOTHING_USED, "").replace(/[.\s]+$/, "");
@@ -3927,7 +3934,7 @@ const START_MIN_EXTRA = ["heading", "where", "last_line_turns", "resumed"] as co
 const MIN_STEP_TOOLS = new Set(["submit_own_date_step", "get_own_date_step", "wait_for_my_turn", "start_own_date"]);
 /** What a compact: "min" reply keeps, in this order (stepTop's fields, a refusal's, a wait's, and what leads a reply). */
 const MIN_KEEP = [
-  "warning", "heads_up", "accepted", "ok", "rejected", "message", "stage", "episode_id", "turn_number", "of", "your_move", "whose_move",
+  "warning", "heads_up", "accepted", "ok", "rejected", "message", "stage", "episode_id", "turn_number", "of", "lines_left", "your_move", "whose_move",
   "summary", "last_line", "show_takes_over_at", "seconds_left", "returned_because", "result", "wishes", "ignored_arguments",
   // #1526, #1522: what became of a last line's missing see_again, and a recap's ignored character_id.
   "wish_defaulted", "speaker_ignored",
@@ -7050,10 +7057,20 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         const step = current;
         const show = (await db.query<{ handed_over: string | null }>(`select handed_over from episodes where id = $1`, [episodeId])).rows[0];
         const unused = sent - accepted;
+        // #1541 (the 2026-11-13-1227 run: 6 outputs with 4 turns left; the see_again lines went unused, said only in a trailing
+        // note): replies past the date's end lead the reply, by item, and whether a see_again went with them.
+        const dropped = unused > 0 ? (args.outputs as unknown[]).slice(accepted).map((o, i) => ({ item: accepted + i + 1, see_again: carriesSeeAgain(o) })) : [];
+        const droppedWarning = dropped.length
+          ? `outputs ${dropped.length === 1 ? `item ${dropped[0].item} wasn't` : `items ${dropped[0].item} to ${dropped.at(-1)!.item} weren't`} used: the date's lines ran out first (${accepted} of ${sent} went in).` +
+            (dropped.some((d) => d.see_again) ? ` The see_again on item ${dropped.filter((d) => d.see_again).map((d) => d.item).join(" and ")} was dropped with its line: it counts for nothing.` : "") +
+            " Size a batch by the step's lines_left."
+          : "";
+        const warnings = [...misplaced, ...(droppedWarning ? [droppedWarning] : [])];
         return {
           data: {
-            // #1530: a see_again that landed off its side's last line leads the reply.
-            ...(misplaced.length ? { warning: `${misplaced.join(" ")}${lastLineTurnsText(step)}` } : {}),
+            // #1530: a see_again that landed off its side's last line leads the reply; #1541: so do replies past the end.
+            ...(warnings.length ? { warning: `${warnings.join(" ")}${misplaced.length ? lastLineTurnsText(step) : ""}` } : {}),
+            ...(dropped.length ? { unused_outputs: dropped } : {}),
             accepted: true,
             accepted_count: accepted,
             outputs_sent: sent,
