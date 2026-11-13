@@ -9,6 +9,7 @@ import { companionAllowance } from "@/lib/companion-plan";
 import { extrasState } from "@/lib/companion-extras";
 import { liveCallsOn } from "@/lib/companion-live";
 import { callVoiceOn } from "@/lib/companion-call-voice";
+import { faceKitOf } from "@/lib/face-kit";
 import { isAdmin } from "@/lib/admins";
 import { CRISIS_RESOURCES } from "@/lib/crisis";
 import CompanionChat from "./CompanionChat";
@@ -25,11 +26,13 @@ export default async function CompanionThreadPage({ params }: { params: Promise<
   if (!access) notFound();
   const r = await getThread(db, access.userId, id);
   if (!r.ok) notFound();
-  const [allowance, extras, admin] = await Promise.all([
+  const [allowance, extras, admin, faceKit] = await Promise.all([
     companionAllowance(db, access.userId, new Date(), process.env, { guest: access.guest }),
     // What voice notes cost this person (lib/companion-extras.ts); a guest gets none and is asked to sign in.
     access.guest ? null : extrasState(db, access.userId),
     access.guest ? false : isAdmin(db, access.userId),
+    // Their face for a call (lib/face-kit.ts), when they have one.
+    faceKitOf(db, r.view.character.id),
   ]);
   // Live calls (P6, lib/companion-live.ts): on with a Deepgram key, for accounts; otherwise a call takes turns (v1).
   const live = liveCallsOn(process.env, { admin, guest: access.guest });
@@ -42,6 +45,7 @@ export default async function CompanionThreadPage({ params }: { params: Promise<
       signedIn={!access.guest}
       liveCalls={live}
       callVoice={callVoiceOn(process.env)}
+      faceKit={faceKit}
     />
   );
 }

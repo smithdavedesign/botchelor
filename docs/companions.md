@@ -272,6 +272,30 @@ nothing new; live calls (P6, below) are the always-listening version.
   models), plus their voice starting. That's at once on the device; with their own voice it's after the voice note is
   made (a few seconds). Fine for a first version; live calls (P6, below) are the fix.
 
+## Their face on a call (built 2026-11-13)
+
+David, 2026-11-13, on a GPT proposal for live "digital humans" (the review and the plan: [PRDs/digital-human.md](PRDs/digital-human.md)):
+"yes I approve, I trust your judgment on payment gates". The first tier costs nothing a minute and is built:
+- **A face kit per character** (`lib/face-kit.ts`, table `face_kits`): from their approved safe portrait, the kit's
+  own portrait (collarbones up, mouth closed) and six stills edited from it (lips parted, mouth open, lips rounded,
+  eyes closed, a smile, a gasp) on Replicate's Qwen image edit with its safety checker on, each through the PG check
+  before it's kept; and a five-second loop of them still and natural (Wan 2.2 at 480p), kept once three of its frames
+  pass. About 26¢ a character, once.
+- **On the call** (`app/companion/[id]/LiveFace.tsx`): the loop plays while they listen; while they talk, the mouth
+  follows how loud their voice is right now, read off the same audio the call plays (`PcmPlayer.level()`; a
+  taking-turns call's voice file is routed through the same analyser; the device's own voice can't be measured, so
+  made-up syllables move the mouth); a blink every few seconds; a smile or a gasp for 1.8 s when the line has one. The
+  loop stays off with reduced motion. No kit yet: the round portrait as before.
+- **Who starts a kit:** an account with the plan, or an admin, starting a call (live or taking turns) with a character
+  that has none, at most `FACE_KIT_PER_DAY` (12) a day across everyone; a failed kit waits a day. An admin draws or
+  redraws one with `POST /api/admin/face-kit {character_id}`. Guests' calls draw nothing. The page polls
+  `GET /api/face-kit?character=` every 15 s while a kit is on its way (that route collects the loop, so it carries
+  ffmpeg: `next.config.ts`).
+- **Served** by `GET /api/face-kit/<id>`, cached for a year, with the AI-generated mark. Counted as `face_kit` in the log.
+- **Next (Tier 1):** a real-time lip-synced face from Simli (about 1¢ a minute, our own audio in) over the same frame,
+  behind `LIVE_FACE_PROVIDER`, once David has the key. Tavus and HeyGen were ruled out (adult terms, no green screen on
+  Phoenix-4.5, and 9–37¢ a minute against the ~7¢ a call minute earns).
+
 ## Live calls (P6, built 2026-11-10; on once the Deepgram key is set)
 
 David, 2026-11-10: approved the spend for a Deepgram key. A live call is a phone call: the line stays open, either of

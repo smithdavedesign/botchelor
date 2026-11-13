@@ -19,9 +19,11 @@ import {
 import { LIVE_AUDIO_RATE, type LiveEvent } from "@/lib/companion-live-shared";
 import { companionAllowance, giveBackReply, takeReply } from "@/lib/companion-plan";
 import { getDb } from "@/lib/db";
+import { ensureFaceKit } from "@/lib/face-kit";
 import { handle, json, parseBody, readJson, session } from "@/lib/http";
 import { overLimit } from "@/lib/limits";
 import { inBackground } from "@/lib/sets";
+import { requestBase } from "@/lib/site";
 import { companionRefusal } from "../../access";
 
 // Streams (a turn's reply), so never cached and always on Node.
@@ -92,6 +94,8 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
       return json({ error: "live_down", message: "Live calls aren't working right now." }, 503, sess);
     }
     track("companion_call", { stage: "start", live: true });
+    // Their face for the call (lib/face-kit.ts), drawn once if they have none: the call doesn't wait for it.
+    inBackground(() => ensureFaceKit(db, view.view.character.id, requestBase(req)));
     return json({ call: { id: started.call.id, minutes: started.call.minutes }, stt: { url: sttUrl(process.env, input.lang), ...token }, extras: await extras() }, 200, sess);
   }
 

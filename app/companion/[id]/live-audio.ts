@@ -62,13 +62,58 @@ export class Mic {
   }
 }
 
-/** Their voice: pieces of PCM played back to back as they come; stop() silences it at once (a barge-in). */
+/**
+ * Their voice: pieces of PCM played back to back as they come; stop() silences it at once (a barge-in). Everything
+ * plays through one analyser, so the face (./LiveFace.tsx) can read how loud they are right now (level()); a taking-turns
+ * call's <audio> can be routed through it too (attach()).
+ */
 export class PcmPlayer {
   private next = 0;
   private playing = new Set<AudioBufferSourceNode>();
   private waiters: (() => void)[] = [];
+  private out: GainNode;
+  private analyser: AnalyserNode;
+  private samples: Float32Array<ArrayBuffer>;
+  private attached: { el: HTMLMediaElement; node: MediaElementAudioSourceNode } | null = null;
 
-  constructor(private ctx: AudioContext) {}
+  constructor(private ctx: AudioContext) {
+    this.out = ctx.createGain();
+    this.analyser = ctx.createAnalyser();
+    this.analyser.fftSize = 512;
+    this.analyser.smoothingTimeConstant = 0.6;
+    this.out.connect(this.analyser);
+    this.analyser.connect(ctx.destination);
+    this.samples = new Float32Array(this.analyser.fftSize);
+  }
+
+  /** How loud their voice is right now, 0 to about 1 (the RMS of what's playing), or -1 when nothing of theirs is playing here. */
+  level(): number {
+    const playing = this.playing.size > 0 || (this.attached !== null && !this.attached.el.paused && !this.attached.el.ended);
+    if (!playing) return -1;
+    try {
+      this.analyser.getFloatTimeDomainData(this.samples);
+    } catch {
+      return -1;
+    }
+    let sum = 0;
+    for (let i = 0; i < this.samples.length; i++) sum += this.samples[i] * this.samples[i];
+    // Speech sits around 0.05 to 0.3 RMS: scaled so a normal voice opens the mouth without clipping at one.
+    return Math.min(1, Math.sqrt(sum / this.samples.length) * 3);
+  }
+
+  /** A media element (a voice note, their call voice as a file) played through the same analyser, so the face hears it too. */
+  attach(el: HTMLMediaElement): void {
+    if (this.attached?.el === el) return;
+    try {
+      this.attached?.node.disconnect();
+      const node = this.ctx.createMediaElementSource(el);
+      node.connect(this.out);
+      this.attached = { el, node };
+    } catch {
+      // Already attached elsewhere, or not allowed: the element plays on its own and the face guesses.
+      this.attached = null;
+    }
+  }
 
   push(b64: string, rate: number): void {
     const samples = pcmSamples(b64);
@@ -77,7 +122,7 @@ export class PcmPlayer {
     buffer.getChannelData(0).set(samples);
     const src = this.ctx.createBufferSource();
     src.buffer = buffer;
-    src.connect(this.ctx.destination);
+    src.connect(this.out);
     const at = Math.max(this.ctx.currentTime + 0.02, this.next);
     src.start(at);
     this.next = at + buffer.duration;

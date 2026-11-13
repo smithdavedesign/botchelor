@@ -1174,6 +1174,25 @@ create table if not exists companion_live_calls (
 );
 create index if not exists companion_live_calls_user_idx on companion_live_calls (user_id, started_at desc);
 create index if not exists companion_messages_voice_idx on companion_messages (voice_key) where voice_key is not null;
+-- A character's face kit (lib/face-kit.ts; docs/PRDs/digital-human.md Tier 0): the stills and the loop a companion call's
+-- face is played from, one row a part, made from one approved safe portrait (source_id: the asset, or a house file's path).
+-- PG-checked before it's kept; bytes in the companion area of the object store (data stays null there).
+create table if not exists face_kits (
+  id text primary key,
+  character_id text not null references characters (id) on delete cascade,
+  source_id text not null,
+  part text not null check (part in ('portrait', 'mouth_small', 'mouth_open', 'mouth_round', 'blink', 'smile', 'surprised', 'loop')),
+  status text not null check (status in ('making', 'ready', 'failed')),
+  model text,
+  queue_id text,
+  mime text,
+  data bytea,
+  object_key text,
+  error text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create unique index if not exists face_kits_one on face_kits (character_id, source_id, part);
 -- Subscription plans sold on a Stripe Payment Link (lib/paid-plans.ts): one row per person and plan.
 create table if not exists plan_entitlements (
   user_id text not null,

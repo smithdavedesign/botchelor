@@ -1,13 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Avatar from "@/app/Avatar";
 import { useSpeech } from "@/app/stage/useSpeech";
 import { extraPrice, type CompanionCharacterRef, type CompanionExtraState, type CompanionMessageView } from "@/lib/companion-shared";
 import { heardSoFar, LIVE_START, liveStep, type Heard, type LiveEvent, type LiveState } from "@/lib/companion-live-shared";
 import { sseData } from "@/lib/sse";
+import { kitComplete, type FaceKit } from "@/lib/face-kit-shared";
 import { TRANSCRIPT_START, transcriptStep, type Transcript, type TranscriptEvent } from "@/lib/companion-call-transcript";
 import CallTranscript from "./CallTranscript";
+import LiveFace from "./LiveFace";
 import { listen as listenLive, liveSupported, Mic, newAudioContext, PcmPlayer, type Listening } from "./live-audio";
 
 export type CallVoice = "device" | "own";
@@ -137,6 +139,7 @@ export default function CompanionCall({
   speakUrl = null,
   onRefused,
   onKept,
+  kit = null,
 }: {
   character: CompanionCharacterRef;
   /** Free replies left (null: no limit). */
@@ -159,6 +162,8 @@ export default function CompanionCall({
   onRefused?: (status: number, data: Record<string, unknown> | null) => Extract<CallTurn, { ok: false }>;
   /** A live turn was kept: the chat shows it. */
   onKept?: () => void;
+  /** Their face kit (lib/face-kit.ts), when they have one: the still portrait comes to life on the call (./LiveFace.tsx). */
+  kit?: FaceKit | null;
 }) {
   const first = character.name.split(/\s+/)[0] || character.name;
   const who = { id: character.id, pronouns: character.pronouns ?? null };
@@ -181,6 +186,8 @@ export default function CompanionCall({
   // What's been said on this call (lib/companion-call-transcript.ts), and whether the 💬 Transcript is open.
   const [script, setScript] = useState<Transcript>(TRANSCRIPT_START);
   const [showScript, setShowScript] = useState(false);
+  // Their face for the call, and what's come of it since the page loaded (a kit being drawn arrives part by part).
+  const [faceKit, setFaceKit] = useState<FaceKit | null>(kit);
 
   // What the callbacks below read (they outlive renders): the phase now, how the call is going, the latest props.
   const phaseNow = useRef<Phase>("ready");
@@ -454,13 +461,15 @@ export default function CompanionCall({
 
   function start() {
     store(SEEN_KEY, "1");
+    // From the tap, so the browser lets it play their voice (Safari) and speak if it must fall back; and one player for
+    // both ways of calling, so their face (LiveFace) can read how loud their voice is.
+    ctx.current ??= newAudioContext();
+    if (ctx.current) player.current ??= new PcmPlayer(ctx.current);
     // From the tap, so a phone lets the call play a voice later (taking turns: their own, or their call voice).
     unlockAudio();
     if (canLive) store(MODE_KEY, mode);
     if (canLive && mode === "live") {
       modeNow.current = "live";
-      // From the tap, so the browser lets it play their voice (Safari) and speak if it must fall back.
-      ctx.current = newAudioContext();
       props.current.speech.unlock();
       startedAt.current = Date.now();
       lastAt.current = Date.now();
@@ -491,6 +500,8 @@ export default function CompanionCall({
     try {
       const a = new Audio(SILENCE);
       spare.current = a;
+      // Through the call's analyser, so the face moves with a voice played from a file too.
+      player.current?.attach(a);
       void a.play().catch(() => {});
     } catch {
       // No audio element: the device's voice.
@@ -792,6 +803,31 @@ export default function CompanionCall({
     pause(o.message);
   }
 
+  /** How loud their voice is right now, for the face; -1 when nothing of theirs is playing (the device's voice, say). */
+  const faceLevel = useCallback(() => player.current?.level() ?? -1, []);
+
+  // Their kit, if it's still being drawn (a first call draws it): asked for every so often while the call is on.
+  useEffect(() => {
+    if (phase === "ready" || kitComplete(faceKit)) return;
+    let tries = 0;
+    const t = setInterval(() => {
+      if (++tries > 40) return clearInterval(t);
+      fetch(`/api/face-kit?character=${encodeURIComponent(character.id)}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data: { kit?: FaceKit | null } | null) => {
+          if (!data) return;
+          setFaceKit(data.kit ?? null);
+          // Nothing on its way and nothing more will come: stop asking.
+          if (data.kit && !data.kit.making && (data.kit.failed || kitComplete(data.kit))) clearInterval(t);
+          if (!data.kit) clearInterval(t);
+        })
+        .catch(() => {});
+    }, 15_000);
+    return () => clearInterval(t);
+    // Asked again when the call starts, or a kit stops being complete (it can't).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase === "ready", kitComplete(faceKit), character.id]);
+
   // Once it's started, the keyboard is on End call (the button that started it has gone).
   useEffect(() => {
     if (phase !== "ready") endButton.current?.focus();
@@ -876,7 +912,15 @@ export default function CompanionCall({
           {phase !== "ready" && <span className="companion-call-clock">{clock(seconds)}</span>}
         </p>
         <div className="companion-call-face">
-          <Avatar seed={character.id} name={character.name} hue={character.hue} house={character.house} portraitSrc={character.portrait} size={scriptOpen ? 72 : 136} round />
+          <LiveFace
+            kit={faceKit}
+            phase={phase}
+            level={faceLevel}
+            said={them}
+            name={first}
+            size={scriptOpen ? 72 : 136}
+            fallback={<Avatar seed={character.id} name={character.name} hue={character.hue} house={character.house} portraitSrc={character.portrait} size={scriptOpen ? 72 : 136} round />}
+          />
         </div>
         <h2 className="companion-call-name">{character.name}</h2>
         <p className="companion-call-status" role="status">
