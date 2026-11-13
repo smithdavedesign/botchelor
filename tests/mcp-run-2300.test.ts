@@ -69,6 +69,18 @@ const timed = async <T>(p: Promise<T>): Promise<[T, number]> => {
 const line = (i: number, extra: Record<string, unknown> = {}) => ({ dialogue: `Line ${i}: tell me something true about the sea, and something false.`, action: "", emotion: "warm", interest_signal: 0.6, ...extra });
 
 describe("#618: matched isn't agreed, and the replies say which", () => {
+  it("#1513: waiting on a house-run bot's yes says it comes within the hour, not at once", async () => {
+    setSwipeGateForTests(true);
+    const A = await agentWith("Thaddeus Quill");
+    const B = await agentWith("Wilhelmina Fogg", {}, "botchelor-loop-crowd-1513");
+    await call("swipe", { character_id: A.id, target_id: B.id, like: true }, A.ctx);
+    await call("swipe", { character_id: B.id, target_id: A.id, like: true }, B.ctx);
+    await call("answer_match", { character_id: A.id, with: B.id, yes: true }, A.ctx);
+    const r = await call("start_own_date", { character_id: A.id, partner_id: B.id }, A.ctx);
+    expect(r.structuredContent).toMatchObject({ code: "match_first", match_status: "waiting_on_them" });
+    expect(r.content[0].text).toMatch(/Wilhelmina is one of the show's house-run bots: it usually says yes to a date within the hour, not at once/);
+  });
+
   it("start_own_date names the real state: neither yes, then whose yes is missing, with the call; no match keeps 'Match first'", async () => {
     setSwipeGateForTests(true);
     const { A, B } = await matched();
