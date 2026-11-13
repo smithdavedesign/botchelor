@@ -330,14 +330,15 @@ export async function listCastPairs(db: Db, adminId: string): Promise<CastPair[]
       )
     ).rows.map((r) => [`${r.character_a}/${r.character_b}`, r]),
   );
-  // The face each keeps for this person (adult_face_refs), for the pairs under way.
+  // The face each keeps for this person (adult_face_refs), for the pairs under way: at a list's size (?w=320, a WebP made
+  // once and kept, lib/thumbs.ts). The full picture is 864-1,136px, and the hub's 40px faces sat blank while a dozen loaded.
   const faces = new Map(
     (
       await db.query<{ character_id: string; image_id: string }>(
         `select f.character_id, f.image_id from adult_face_refs f join adult_images i on i.id = f.image_id and i.status = 'ready' where f.owner_id = $1 and f.character_id = any($2)`,
         [adminId, everyone],
       )
-    ).rows.map((r) => [r.character_id, `/api/admin/after-dark/media/${encodeURIComponent(r.image_id)}`]),
+    ).rows.map((r) => [r.character_id, `/api/admin/after-dark/media/${encodeURIComponent(r.image_id)}?w=320`]),
   );
   const pairOf = (a: string, b: string, earlier?: string): CastPair => {
     const row = scenes.get(`${a}/${b}`);

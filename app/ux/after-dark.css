@@ -2681,7 +2681,6 @@ button.ad-studio-fold-head:active:not(:disabled) {
   text-align: left;
   white-space: normal;
 }
-.ad-make-items > *,
 .ad-make-items .ad-video-choice,
 .ad-make-items .ad-capture {
   display: flex;
@@ -2699,7 +2698,13 @@ button.ad-studio-fold-head:active:not(:disabled) {
   padding: var(--space-1) var(--space-3);
   border-radius: var(--radius-pill);
   justify-content: flex-start;
-  gap: var(--space-2);
+  gap: var(--space-1);
+  text-align: left;
+}
+/* The emoji and the word apart, in the row and the sheet. */
+.theater-tools .ad-set-scene,
+.theater-tools .ad-make-toggle {
+  gap: var(--space-1);
 }
 .ad-make-items .theater-icon-word,
 .ad-make-items .ad-tool-word {
@@ -2742,11 +2747,11 @@ button.ad-studio-fold-head:active:not(:disabled) {
   white-space: normal;
 }
 .theater-tools.ad-sheet-mode .ad-tools-items > button,
-.theater-tools.ad-sheet-mode .ad-tools-items > .ad-writer-logo,
-.theater-tools.ad-sheet-mode .ad-tools-items > .ad-writer-logo button,
+.theater-tools.ad-sheet-mode .ad-tools-items .ad-writer-logo button.ad-writer-logo-button,
 .theater-tools.ad-sheet-mode .ad-make-more > .ad-make-toggle {
   width: 100%;
   justify-content: flex-start;
+  text-align: left;
 }
 .ad-sheet-head {
   display: flex;
