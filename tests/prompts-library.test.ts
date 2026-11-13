@@ -151,7 +151,7 @@ describe("the page: /prompts", () => {
     const html = await render();
     expect(html).toMatch(/<h1[^>]*>Prompts library<\/h1>/);
     expect(items(html)).toBe(PROMPTS_PER_PAGE);
-    expect(html.match(/class="secondary prompt-copy"/g)).toHaveLength(PROMPTS_PER_PAGE);
+    expect(html.match(/class="button-ghost small prompt-copy"/g)).toHaveLength(PROMPTS_PER_PAGE);
     expect(html).toContain('aria-label="Prompt pages"');
     expect(html).toMatch(/<form[^>]*action="\/prompts"[^>]*method="get"/);
     expect(html).toContain('name="q"');

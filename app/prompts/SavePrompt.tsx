@@ -13,7 +13,7 @@ export default function SavePrompt({ text }: { text: string }) {
     <>
       <button
         type="button"
-        className="button-ghost prompt-save"
+        className="button-ghost small prompt-save"
         disabled={state === "saving" || state === "saved"}
         onClick={async () => {
           setState("saving");

@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import JsonLd from "@/app/JsonLd";
-import { findPrompts, indexablePromptTags, promptTagPath, sourceOf, tagById, visibleTags } from "@/lib/prompts-library";
+import { findPrompts, indexablePromptTags, promptTagPath, tagById, visibleTags } from "@/lib/prompts-library";
 import { breadcrumbJsonLd, pageMetadata } from "@/lib/seo";
+import PromptCard from "../../PromptCard";
 
 /** How many prompts a tag page shows; the full, paged list is the library filtered by the tag. */
 export const TAG_PAGE_PROMPTS = 60;
@@ -29,7 +30,8 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 /**
  * One tag of the prompt library as a page of its own (the 2026-11-11 growth plan: 2,000 prompts sat on one address, so
  * search saw one page). PG tags with enough prompts only (lib/prompts-library.ts indexablePromptTags); the rest are 404,
- * so a typed address makes no thin page. Plain links, no script: the copy and save buttons live in the library itself.
+ * so a typed address makes no thin page. Plain links, no script: the copy and save buttons live in the library itself, and
+ * the cards (app/prompts/PromptCard.tsx) show their whole text here, in the library's grid.
  */
 export default async function PromptTagPage({ params }: { params: Promise<{ id: string }> }) {
   const tag = pageTag((await params).id);
@@ -37,8 +39,11 @@ export default async function PromptTagPage({ params }: { params: Promise<{ id: 
   const prompts = findPrompts({ tag: tag.id, showNsfw: false });
   const shown = prompts.slice(0, TAG_PAGE_PROMPTS);
   const library = `/prompts?tag=${encodeURIComponent(tag.id)}`;
+  // A tag with a page of its own links there; the rest filter the library (the set once, not a pass over the seed a chip).
+  const paged = new Set(indexablePromptTags().map((x) => x.id));
+  const tagHref = (id: string) => (tagById(id) && paged.has(id) ? promptTagPath(id) : `/prompts?tag=${encodeURIComponent(id)}`);
   return (
-    <article className="page-read prompts-page">
+    <article className="page-wide prompts-page">
       <JsonLd
         data={breadcrumbJsonLd([
           { name: "Botchelor", path: "/" },
@@ -54,27 +59,9 @@ export default async function PromptTagPage({ params }: { params: Promise<{ id: 
       <p className="lede">
         {prompts.length.toLocaleString("en-US")} prompts from openly licensed datasets, each keeping its licence. Copy one into the Studio, or start a character from the look.
       </p>
-      <ul className="prompts-list">
+      <ul className="prompts-grid">
         {shown.map((p) => (
-          <li key={p.prompt} className="prompt-item">
-            <p className="prompt-text">{p.prompt}</p>
-            {visibleTags(p, false).length > 0 && (
-              <ul className="prompt-tags" aria-label="Tags">
-                {visibleTags(p, false).map((t) => {
-                  const own = tagById(t.id);
-                  const page = own && indexablePromptTags().some((x) => x.id === t.id);
-                  return (
-                    <li key={t.id}>
-                      <Link className={`prompt-tag${t.studio ? "" : " is-facet"}`} href={page ? promptTagPath(t.id) : `/prompts?tag=${encodeURIComponent(t.id)}`} aria-current={t.id === tag.id ? "true" : undefined}>
-                        {t.label}
-                      </Link>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-            <p className="prompt-meta muted small">{`${sourceOf(p).name} · ${sourceOf(p).license}`}</p>
-          </li>
+          <PromptCard key={p.prompt} prompt={p} tags={visibleTags(p, false)} tagHref={tagHref} currentTag={tag.id} />
         ))}
       </ul>
       {prompts.length > shown.length && (

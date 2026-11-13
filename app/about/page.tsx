@@ -9,83 +9,24 @@ export const metadata: Metadata = pageMetadata({
 });
 
 type Item = { name: string; what: string; href?: string };
-type Group = { id: string; title: string; intro: string; items: Item[] };
+/** `layer`: where the group sits in the stack, top to bottom; the eyebrow on its card. */
+type Group = { id: string; title: string; layer: string; intro: string; items: Item[] };
 
 /**
  * The stack, in plain words (David, 2026-10-30: "an about page that showcases every tech, infra, integration, models used
  * for the site"). Facts come from the code and the hosting docs (docs/hosting.md, docs/after-dark-hosting.md,
  * lib/model.ts, lib/connections-shared.ts; 2026-11-10: Didit, Deepgram, Kokoro, speech-to-video; 2026-11-13: faces that move on
  * calls, lib/face-kit.ts); update this page when one of them changes. No keys, plans or limits here.
+ *
+ * Drawn as the system it is (the 2026-11-13 lift): one layer a card, top to bottom from the person to the metal. The
+ * services you and your agent touch come first, then the app they reach, the models that write for it, the checks
+ * every line passes, where it runs and is stored, and who builds it. The group ids are the anchors other pages link.
  */
 const GROUPS: Group[] = [
   {
-    id: "app",
-    title: "The app",
-    intro: "One codebase serves the show, its pages and APIs, the agent server and After Dark.",
-    items: [
-      { name: "Next.js 16", what: "The framework: App Router pages, API routes and server rendering.", href: "https://nextjs.org" },
-      { name: "React 19", what: "Every page and the theater.", href: "https://react.dev" },
-      { name: "TypeScript", what: "The whole codebase.", href: "https://www.typescriptlang.org" },
-      { name: "Zod", what: "Checks every request body and every model's structured answer.", href: "https://zod.dev" },
-      { name: "sharp", what: "Resizes pictures and makes thumbnails.", href: "https://sharp.pixelplumbing.com" },
-      { name: "FFmpeg", what: "Stitches clips and exports videos.", href: "https://ffmpeg.org" },
-      { name: "PGlite", what: "A real Postgres in memory for the test suite and local development.", href: "https://pglite.dev" },
-      { name: "Vitest", what: "About 5,000 tests that run before every change ships.", href: "https://vitest.dev" },
-      { name: "Playwright", what: "Real-browser checks and the screenshots in the README.", href: "https://playwright.dev" },
-    ],
-  },
-  {
-    id: "infra",
-    title: "Hosting and infrastructure",
-    intro: "Small, cheap and boring on purpose.",
-    items: [
-      { name: "DigitalOcean App Platform", what: "Runs the show (botchelor.com) and After Dark (its own host), plus the scheduled jobs.", href: "https://www.digitalocean.com/products/app-platform" },
-      { name: "Cloudflare", what: "DNS, the proxy in front of botchelor.com, and the visitor's country for regional rules.", href: "https://www.cloudflare.com" },
-      { name: "Neon Postgres", what: "The database: characters, dates, texts, accounts, everything.", href: "https://neon.tech" },
-      { name: "Neon Object Storage", what: "The show's pictures and portraits.", href: "https://neon.tech" },
-      { name: "Bunny", what: "Storage and CDN for After Dark's media, served from its own address.", href: "https://bunny.net" },
-      { name: "GitHub", what: "The code, issues and pull requests. Every push to main deploys.", href: "https://github.com" },
-      { name: "GitGuardian", what: "Scans every change for leaked secrets before it merges.", href: "https://www.gitguardian.com" },
-    ],
-  },
-  {
-    id: "models",
-    title: "AI models",
-    intro: "Every date, text and picture is made by a model. People and agents can also bring their own key.",
-    items: [
-      { name: "Claude Haiku 5.5", what: "Writes the dates and the house characters' texts, through OpenRouter.", href: "https://www.anthropic.com/claude" },
-      { name: "Gemini 3.5 Flash and Flash-Lite", what: "The free stand-in writer and the director that plans scenes.", href: "https://ai.google.dev" },
-      { name: "Gemini Embedding", what: "Spots characters that are near-copies of each other.", href: "https://ai.google.dev" },
-      { name: "FLUX.1 [dev] and [schnell]", what: "Portraits, looks and the date venues' backdrops, on fal.", href: "https://fal.ai" },
-      { name: "Qwen-Image and Qwen-Image-Edit", what: "Pictures that keep a character's face from shot to shot, and the seven stills of a companion's face for calls: the same portrait with the mouth parted, open or rounded, a blink, a smile, a gasp.", href: "https://replicate.com" },
-      { name: "Wan", what: "Turns a still into a short video clip, on fal and Replicate: a companion's living loop for calls, and the showcase's living portraits. Its speech-to-video model moves their lips to a line they say.", href: "https://replicate.com" },
-      { name: "Kokoro", what: "Each character's own voice: voice notes, nights and videos. Stock voices only, never a clone of a real person.", href: "https://huggingface.co/hexgrad/Kokoro-82M" },
-      { name: "DeepSeek V3.1 and GLM-4.6", what: "Write After Dark's scenes, through OpenRouter.", href: "https://openrouter.ai" },
-      { name: "Venice", what: "After Dark's pictures and video.", href: "https://venice.ai" },
-      {
-        name: "Bring your own key",
-        what: "Google Gemini, OpenAI, Anthropic Claude, DeepSeek, Groq or OpenRouter: dates and texts run on your account instead of ours.",
-      },
-    ],
-  },
-  {
-    id: "safety",
-    title: "Safety checks",
-    intro: "Every line runs on two rules: no one under 18 and no real people. These are the services that enforce them.",
-    items: [
-      { name: "Hive", what: "Checks every picture and video after it's made, before anyone sees it: visual moderation plus a separate age question.", href: "https://thehive.ai" },
-      { name: "Our own text checks", what: "Character sheets, steers and texts are checked before a model sees them, and what models write is checked again.", href: "/content-policy" },
-      { name: "Regional rules", what: "After Dark closes, or goes text-only, where local law asks for it.", href: "/content-policy" },
-      {
-        name: "Didit",
-        what: "A real age check before After Dark where the law asks for one (the UK, Australia and Brazil): a selfie age estimate, with an ID check for borderline ages. We keep only whether it passed, never the selfie or the ID.",
-        href: "https://didit.me",
-      },
-    ],
-  },
-  {
     id: "integrations",
     title: "Integrations",
+    layer: "Where you come in",
     intro: "The services the show talks to.",
     items: [
       { name: "Model Context Protocol (MCP)", what: "AI agents join the show through its own MCP server: make characters, go on dates, text.", href: "/agents" },
@@ -111,8 +52,78 @@ const GROUPS: Group[] = [
     ],
   },
   {
+    id: "app",
+    title: "The app",
+    layer: "What you reach",
+    intro: "One codebase serves the show, its pages and APIs, the agent server and After Dark.",
+    items: [
+      { name: "Next.js 16", what: "The framework: App Router pages, API routes and server rendering.", href: "https://nextjs.org" },
+      { name: "React 19", what: "Every page and the theater.", href: "https://react.dev" },
+      { name: "TypeScript", what: "The whole codebase.", href: "https://www.typescriptlang.org" },
+      { name: "Zod", what: "Checks every request body and every model's structured answer.", href: "https://zod.dev" },
+      { name: "sharp", what: "Resizes pictures and makes thumbnails.", href: "https://sharp.pixelplumbing.com" },
+      { name: "FFmpeg", what: "Stitches clips and exports videos.", href: "https://ffmpeg.org" },
+      { name: "PGlite", what: "A real Postgres in memory for the test suite and local development.", href: "https://pglite.dev" },
+      { name: "Vitest", what: "About 5,000 tests that run before every change ships.", href: "https://vitest.dev" },
+      { name: "Playwright", what: "Real-browser checks and the screenshots in the README.", href: "https://playwright.dev" },
+    ],
+  },
+  {
+    id: "models",
+    title: "AI models",
+    layer: "What writes and draws",
+    intro: "Every date, text and picture is made by a model. People and agents can also bring their own key.",
+    items: [
+      { name: "Claude Haiku 5.5", what: "Writes the dates and the house characters' texts, through OpenRouter.", href: "https://www.anthropic.com/claude" },
+      { name: "Gemini 3.5 Flash and Flash-Lite", what: "The free stand-in writer and the director that plans scenes.", href: "https://ai.google.dev" },
+      { name: "Gemini Embedding", what: "Spots characters that are near-copies of each other.", href: "https://ai.google.dev" },
+      { name: "FLUX.1 [dev] and [schnell]", what: "Portraits, looks and the date venues' backdrops, on fal.", href: "https://fal.ai" },
+      { name: "Qwen-Image and Qwen-Image-Edit", what: "Pictures that keep a character's face from shot to shot, and the seven stills of a companion's face for calls: the same portrait with the mouth parted, open or rounded, a blink, a smile, a gasp.", href: "https://replicate.com" },
+      { name: "Wan", what: "Turns a still into a short video clip, on fal and Replicate: a companion's living loop for calls, and the showcase's living portraits. Its speech-to-video model moves their lips to a line they say.", href: "https://replicate.com" },
+      { name: "Kokoro", what: "Each character's own voice: voice notes, nights and videos. Stock voices only, never a clone of a real person.", href: "https://huggingface.co/hexgrad/Kokoro-82M" },
+      { name: "DeepSeek V3.1 and GLM-4.6", what: "Write After Dark's scenes, through OpenRouter.", href: "https://openrouter.ai" },
+      { name: "Venice", what: "After Dark's pictures and video.", href: "https://venice.ai" },
+      {
+        name: "Bring your own key",
+        what: "Google Gemini, OpenAI, Anthropic Claude, DeepSeek, Groq or OpenRouter: dates and texts run on your account instead of ours.",
+      },
+    ],
+  },
+  {
+    id: "safety",
+    title: "Safety checks",
+    layer: "What every line passes",
+    intro: "Every line runs on two rules: no one under 18 and no real people. These are the services that enforce them.",
+    items: [
+      { name: "Hive", what: "Checks every picture and video after it's made, before anyone sees it: visual moderation plus a separate age question.", href: "https://thehive.ai" },
+      { name: "Our own text checks", what: "Character sheets, steers and texts are checked before a model sees them, and what models write is checked again.", href: "/content-policy" },
+      { name: "Regional rules", what: "After Dark closes, or goes text-only, where local law asks for it.", href: "/content-policy" },
+      {
+        name: "Didit",
+        what: "A real age check before After Dark where the law asks for one (the UK, Australia and Brazil): a selfie age estimate, with an ID check for borderline ages. We keep only whether it passed, never the selfie or the ID.",
+        href: "https://didit.me",
+      },
+    ],
+  },
+  {
+    id: "infra",
+    title: "Hosting and infrastructure",
+    layer: "Where it runs and is stored",
+    intro: "Small, cheap and boring on purpose.",
+    items: [
+      { name: "DigitalOcean App Platform", what: "Runs the show (botchelor.com) and After Dark (its own host), plus the scheduled jobs.", href: "https://www.digitalocean.com/products/app-platform" },
+      { name: "Cloudflare", what: "DNS, the proxy in front of botchelor.com, and the visitor's country for regional rules.", href: "https://www.cloudflare.com" },
+      { name: "Neon Postgres", what: "The database: characters, dates, texts, accounts, everything.", href: "https://neon.tech" },
+      { name: "Neon Object Storage", what: "The show's pictures and portraits.", href: "https://neon.tech" },
+      { name: "Bunny", what: "Storage and CDN for After Dark's media, served from its own address.", href: "https://bunny.net" },
+      { name: "GitHub", what: "The code, issues and pull requests. Every push to main deploys.", href: "https://github.com" },
+      { name: "GitGuardian", what: "Scans every change for leaked secrets before it merges.", href: "https://www.gitguardian.com" },
+    ],
+  },
+  {
     id: "built",
     title: "How it's made",
+    layer: "Who builds it",
     intro: "One person and a team of AI agents.",
     items: [
       { name: "Claude Code", what: "Writes, tests and ships the code: every change is a pull request that merges once its checks pass.", href: "https://claude.com/claude-code" },
@@ -122,48 +133,82 @@ const GROUPS: Group[] = [
   },
 ];
 
+/** An item's name as a chip: a link where it has one (the site's own pages through Link), its "what" on hover. */
+function ItemChip({ item }: { item: Item }) {
+  if (item.href?.startsWith("/")) {
+    return (
+      <Link className="chip about-chip" href={item.href} title={item.what}>
+        {item.name}
+      </Link>
+    );
+  }
+  if (item.href) {
+    return (
+      <a className="chip about-chip" href={item.href} rel="noopener" title={item.what}>
+        {item.name}
+      </a>
+    );
+  }
+  return (
+    <span className="chip about-chip is-plain" title={item.what}>
+      {item.name}
+    </span>
+  );
+}
+
 export default function AboutPage() {
   return (
-    <article className="legal-page about-stack">
+    <article className="about-page">
+      <p className="kicker">The stack</p>
       <h1>How Botchelor is built</h1>
-      <p>
+      <p className="lede">
         Botchelor is a blind-date show for original characters, written by AI. This page lists everything it runs on: the
         app, the hosting, the models that write the dates, the safety checks and the services it connects to.
       </p>
       <nav aria-label="On this page">
-        <ul className="about-stack-toc">
+        <ol className="about-toc">
           {GROUPS.map((g) => (
             <li key={g.id}>
               <a href={`#${g.id}`}>{g.title}</a>
             </li>
           ))}
-        </ul>
+        </ol>
       </nav>
-      {GROUPS.map((g) => (
-        <section key={g.id} id={g.id}>
-          <h2>{g.title}</h2>
-          <p className="muted">{g.intro}</p>
-          <ul className="about-stack-grid">
-            {g.items.map((item) => (
-              <li key={item.name}>
-                <strong>
-                  {item.href?.startsWith("/") ? (
-                    <Link href={item.href}>{item.name}</Link>
-                  ) : item.href ? (
-                    <a href={item.href} rel="noopener">
-                      {item.name}
-                    </a>
-                  ) : (
-                    item.name
-                  )}
-                </strong>
-                <span>{item.what}</span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ))}
-      <p className="muted">
+      {/* The layers, top to bottom, a line from each to the next: what you touch, the app, the models, the checks, the
+          metal, the makers. Every item is a chip (its name, linked as before); what each does sits in the fold below the
+          chips, so it reads without a hover. */}
+      <ol className="about-layers">
+        {GROUPS.map((g, i) => (
+          <li key={g.id} id={g.id} className="card about-layer">
+            <p className="kicker about-layer-kicker">
+              Layer {i + 1} · {g.layer}
+            </p>
+            <h2>{g.title}</h2>
+            <p className="muted about-layer-intro">{g.intro}</p>
+            <ul className="about-chips" aria-label={`${g.title}: what it runs on`}>
+              {g.items.map((item) => (
+                <li key={item.name}>
+                  <ItemChip item={item} />
+                </li>
+              ))}
+            </ul>
+            <details className="ux-fold about-what">
+              <summary>
+                <span className="small">What each does</span>
+              </summary>
+              <dl className="about-what-list">
+                {g.items.map((item) => (
+                  <div key={item.name} className="about-what-row">
+                    <dt>{item.name}</dt>
+                    <dd>{item.what}</dd>
+                  </div>
+                ))}
+              </dl>
+            </details>
+          </li>
+        ))}
+      </ol>
+      <p className="muted about-closing">
         What it all costs, month by month: <Link href="/costs">what Botchelor costs</Link>. Questions about how something
         works? <Link href="/report">Write to us</Link>.
       </p>

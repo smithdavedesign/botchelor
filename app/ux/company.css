@@ -292,3 +292,175 @@
   color: var(--accent-text);
   text-decoration: underline;
 }
+
+/* ---------------- /about: the stack as layers (the 2026-11-13 lift) ----------------
+   Six cards top to bottom, from the services you touch to who builds it, a line from each to the next; every item a chip
+   (its name, linked as before, its "what" on hover) and "What each does" folded under the chips. It had been ~40 one-line
+   cards, 5,000px on a desktop and 7,500px on a phone. Tokens only (tests/css-tokens.test.ts). */
+.about-page .lede {
+  max-width: 44rem;
+}
+.about-toc {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 var(--space-5);
+  padding: 0;
+  list-style: none;
+  counter-reset: about-toc;
+}
+.about-toc li {
+  margin: 0;
+  counter-increment: about-toc;
+}
+.about-toc a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  min-height: 32px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--card);
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  text-decoration: none;
+}
+.about-toc a::before {
+  content: counter(about-toc);
+  color: var(--accent-text);
+  font-weight: 800;
+}
+.about-toc a:hover {
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+@media (pointer: coarse) {
+  .about-toc a {
+    min-height: 44px;
+  }
+}
+
+.about-layers {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.about-layers > li.card {
+  position: relative;
+  margin: 0;
+}
+/* The line from one layer to the next: pink to purple, an arrowhead on the card below. */
+.about-layers > li + li {
+  margin-top: var(--space-6);
+}
+.about-layers > li + li::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: calc(-1 * var(--space-6));
+  width: 2px;
+  height: var(--space-6);
+  background: linear-gradient(var(--accent), var(--accent-2));
+  transform: translateX(-50%);
+}
+.about-layers > li + li::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: -7px;
+  border: 6px solid transparent;
+  border-top-color: var(--accent-2);
+  border-bottom: 0;
+  transform: translateX(-50%);
+}
+/* A jump from the list lands the card below the sticky header, not under it. */
+.about-layer {
+  scroll-margin-top: 5rem;
+}
+.about-layer-kicker {
+  margin: 0 0 var(--space-1);
+  color: var(--accent-text);
+}
+.about-layer h2 {
+  margin: 0 0 var(--space-1);
+}
+.about-layer-intro {
+  max-width: 44rem;
+  margin: 0 0 var(--space-3);
+}
+.about-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.about-chips li {
+  margin: 0;
+}
+/* The chips: quiet outlines, the accent for a link, the ink for a plain name; a 32px target. */
+.about-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--accent-text);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  text-decoration: none;
+}
+.about-chip.is-plain {
+  color: var(--ink);
+}
+a.about-chip:hover {
+  border-color: var(--accent);
+  background: var(--soft);
+}
+a.about-chip:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+@media (pointer: coarse) {
+  .about-chip {
+    min-height: 40px;
+  }
+}
+/* What each does, under the chips: the name, then its line, in two columns where there's room. */
+.about-what {
+  margin-top: var(--space-3);
+  border-top: 1px solid var(--line);
+}
+.about-what > summary {
+  color: var(--accent-text);
+}
+.about-what-list {
+  display: grid;
+  gap: var(--space-2) var(--space-4);
+  margin: 0 0 var(--space-2);
+}
+@media (min-width: 761px) {
+  .about-what-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.about-what-row {
+  min-width: 0;
+}
+.about-what-row dt {
+  font-weight: 700;
+}
+.about-what-row dd {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+.about-closing {
+  max-width: 44rem;
+  margin-top: var(--space-6);
+}
