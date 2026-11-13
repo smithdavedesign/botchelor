@@ -7879,17 +7879,16 @@ a.phone-head-btn {
 }
 
 /* After Dark's own look (David, 2026-10-18: never unsure which mode you're in): night colours and a moon badge, in
-   both themes, on every after-dark page. */
-.after-dark-mode {
+   both themes, on every after-dark page. On After Dark's own host the whole page wears it, the header and footer too
+   (body.ad-host, app/layout.tsx; the design kit's After Dark frame, 2026-11-12), so nothing there is the show's paper. */
+.after-dark-mode,
+body.ad-host {
   --ad-bg: var(--night-bg);
   --ad-card: var(--night-card);
   --ad-ink: var(--night-ink);
   --ad-muted: var(--night-muted);
   --ad-line: var(--night-line);
   --ad-accent: var(--night-accent);
-  padding: var(--space-5) var(--space-4);
-  min-height: 70vh;
-  border-radius: var(--radius);
   background: var(--ad-bg);
   color: var(--ad-ink);
   color-scheme: dark;
@@ -7910,6 +7909,16 @@ a.phone-head-btn {
   --focus: var(--ad-accent);
   --bad-text: #ffadc0;
   --ok-text: #a6ecbc;
+}
+.after-dark-mode {
+  padding: var(--space-5) var(--space-4);
+  min-height: 70vh;
+  border-radius: var(--radius);
+}
+/* The page behind the body (overscroll, a short page) is night too on After Dark's own host. */
+:root:has(> body.ad-host) {
+  background: var(--night-bg);
+  color-scheme: dark;
 }
 .after-dark-mode .card,
 .after-dark-mode .after-dark-line {

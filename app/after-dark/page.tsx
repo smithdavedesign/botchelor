@@ -7,18 +7,15 @@ import { listSwitchable } from "@/lib/adult/characters";
 import { afterDarkTitle } from "@/lib/adult/discreet";
 import { canAfterDark } from "@/lib/adult/entitlement";
 import { adultAvailable } from "@/lib/adult/mode";
-import { getPrivacy, lockedForCookies } from "@/lib/adult/privacy";
+import { lockedForCookies } from "@/lib/adult/privacy";
 import { listCastPairs } from "@/lib/adult/scenes";
-import { getAdultSettings } from "@/lib/adult/settings";
 import { sharedWithMe } from "@/lib/adult/shares";
-import { writerOptions } from "@/lib/adult/writer";
+import { afterDarkOnly } from "@/lib/after-dark-host";
 import { getDb } from "@/lib/db";
 import { authFromCookieStore } from "@/lib/http";
-import PrivacyCard from "./PrivacyCard";
 import Switches from "./Switches";
 import PairPicker from "./PairPicker";
 import SharedWithYou from "./SharedWithYou";
-import WriterPicker from "./WriterPicker";
 import { currentHere, currentView } from "./view";
 
 export const dynamic = "force-dynamic";
@@ -28,7 +25,11 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: afterDarkTitle((await currentView()).neutralTitle, "After Dark · Botchelor"), robots: { index: false, follow: false } };
 }
 
-/** After Dark (lib/adult): who's in it, and every pair's scene. Not found for anyone it isn't open to. */
+/**
+ * After Dark (lib/adult): Scenes, every pair's night. Not found for anyone it isn't open to. Who's in and the Studio are on
+ * Characters (/after-dark/characters), the writer and privacy on Account (/after-dark/account), since the design kit's
+ * After Dark header (2026-11-12) gave them their own pages.
+ */
 export default async function AfterDarkPage({ searchParams }: { searchParams?: Promise<Record<string, string | string[] | undefined>> } = {}) {
   const db = await getDb();
   const store = await cookies();
@@ -54,24 +55,18 @@ export default async function AfterDarkPage({ searchParams }: { searchParams?: P
     );
   }
   const owner = auth!.userId;
-  const [pairs, switchable, privacy, adSettings, shared, here, writer] = await Promise.all([
-    listCastPairs(db, owner),
-    listSwitchable(db, owner),
-    getPrivacy(db, owner),
-    getAdultSettings(db),
-    sharedWithMe(db, owner),
-    currentHere(),
-    writerOptions(db, owner),
-  ]);
+  const [pairs, switchable, shared, here] = await Promise.all([listCastPairs(db, owner), listSwitchable(db, owner), sharedWithMe(db, owner), currentHere()]);
   // #1176: one of theirs just made on the show (its finish screen's "Bring … into After Dark"), its switch first.
   const bringId = (await searchParams)?.bring;
   const bring = typeof bringId === "string" ? switchable.find((c) => c.id === bringId && !c.house) : undefined;
-  // Their own that are Out: the settings open, so the switch isn't behind a fold (#1176: "buried … which is collapsed").
+  // Their own that are Out: a line here says so, so the switch isn't a page away unannounced (#1176: "buried").
   const yoursOut = switchable.filter((c) => !c.house && !c.on).length;
-  // Switches keeps what it was given, so a switch flipped in one list remounts the other with the new state.
+  // Switches keeps what it was given, so it remounts with the new state after a switch.
   const onKey = switchable.filter((c) => c.on).map((c) => c.id).join(",");
-  // The Studio (lib/adult/studio.ts): their own characters that are in, and for an admin the house cast that's in too.
-  const studio = adSettings.studio.open_to === "entitled" || admin ? switchable.filter((c) => c.on && (!c.house || admin)) : [];
+  // On After Dark's own host the header has Scenes, Shorts, Gallery, Characters and Account (app/Nav.tsx). Where After
+  // Dark shares the show's host (local, tests), the header is the show's, so this row carries them.
+  const inHeader = afterDarkOnly();
+  const pending = shared.shares.filter((x) => x.status === "pending").length;
   return (
     <div className="after-dark-mode">
       <article className="after-dark">
@@ -80,17 +75,24 @@ export default async function AfterDarkPage({ searchParams }: { searchParams?: P
         </p>
         {/* The hub's other pages as one row of small buttons, not a kicker that wraps on a phone. */}
         <nav className="ad-hub-links" aria-label="After Dark">
-          <Link className="button-ghost" href="/after-dark/shorts">
-            📺 Shorts
-          </Link>
-          <Link className="button-ghost" href="/after-dark/gallery">
-            🖼 Gallery
-          </Link>
+          {!inHeader && (
+            <>
+              <Link className="button-ghost" href="/after-dark/shorts">
+                📺 Shorts
+              </Link>
+              <Link className="button-ghost" href="/after-dark/gallery">
+                🖼 Gallery
+              </Link>
+              <Link className="button-ghost" href="/after-dark/characters">
+                🎭 Characters
+              </Link>
+              <Link className="button-ghost" href="/after-dark/account">
+                🔒 Account
+              </Link>
+            </>
+          )}
           <a className="button-ghost" href="#shared">
-            💌 Shared{shared.shares.some((x) => x.status === "pending") ? ` (${shared.shares.filter((x) => x.status === "pending").length})` : ""}
-          </a>
-          <a className="button-ghost" href="#privacy">
-            🔒 Privacy
+            💌 Shared{pending ? ` (${pending})` : ""}
           </a>
           {admin && (
             <>
@@ -120,43 +122,23 @@ export default async function AfterDarkPage({ searchParams }: { searchParams?: P
               <p className="muted small">
                 {bring.on
                   ? "Pick them a scene below, or set up their face and body in the Studio for pictures."
-                  : "Characters start Out: nothing of theirs comes here until you switch them In. You can switch them Out again any time, under Your settings."}
+                  : "Characters start Out: nothing of theirs comes here until you switch them In. You can switch them Out again any time, on Characters."}
               </p>
             </Switches>
           </div>
+        )}
+        {yoursOut > 0 && !bring && (
+          <p className="muted small" data-yours-out>
+            {yoursOut === 1 ? "One of your characters is" : `${yoursOut} of your characters are`} Out: nothing of theirs comes here until you{" "}
+            <Link href="/after-dark/characters">switch them In on Characters</Link>.
+          </p>
         )}
         {/* Your nights first, then a new one (the audit, 2026-10-29: the hub opened on a checklist of switches). */}
         <section>
           <h2>Scenes</h2>
           <PairPicker pairs={pairs} />
         </section>
-        {studio.length > 0 && (
-          <section className="card">
-            <h2>🎨 Studio</h2>
-            <p className="muted small">A private photo shoot of one of them: the face and body every picture keeps, and pictures you compose from menus.</p>
-            <nav className="ad-studio-links" aria-label="Studio">
-              {studio.map((c) => (
-                <Link key={c.id} className="button-ghost" href={`/after-dark/studio/${c.id}`}>
-                  {c.name}
-                </Link>
-              ))}
-            </nav>
-          </section>
-        )}
-        {/* Set once, changed rarely: who's in, and who writes. */}
-        <details className="card ad-hub-settings" open={yoursOut > 0 && !bring}>
-          <summary>
-            <strong>Your settings</strong> <span className="muted small">
-              · who&apos;s in{switchable.some((c) => c.on) ? ` (${switchable.filter((c) => c.on).length})` : ""} · the writer
-            </span>
-          </summary>
-          <Switches key={onKey} initial={switchable} />
-          <WriterPicker initial={writer} />
-        </details>
         <SharedWithYou initial={shared} textOnly={here.mode === "text_only" ? here.reason : null} />
-        <div id="privacy">
-          <PrivacyCard initial={privacy} />
-        </div>
       </article>
     </div>
   );

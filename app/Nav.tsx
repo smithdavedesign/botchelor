@@ -30,18 +30,35 @@ const NEWCOMER_LINKS: readonly NavLink[] = [
 ];
 
 /**
+ * After Dark's own host has its own five doors (the design kit's After Dark header, 2026-11-12; David approved Watch and
+ * Dating leaving it, "Back to the show" staying): its scenes, Shorts, the Gallery, its Characters (who's in, the Studio)
+ * and its Account (privacy, the writer, the subscription and tokens). The show's links there only hopped back to the show.
+ */
+const AD_LINKS: readonly NavLink[] = [
+  { href: "/after-dark", label: "Scenes" },
+  { href: "/after-dark/shorts", label: "Shorts" },
+  { href: "/after-dark/gallery", label: "Gallery" },
+  { href: "/after-dark/characters", label: "Characters", also: ["/after-dark/studio"] },
+  { href: "/after-dark/account", label: "Account", also: ["/after-dark/tokens", "/after-dark/subscribe"] },
+];
+
+/**
  * The links for this viewer. Companions is no door of its own (the audit, 2026-11-11, Part 4: a second product behind a
  * fifth door): every character card carries Talk, and the directory is Characters' fourth tab (app/characters/
  * CharactersTabs.tsx), so Characters stays current there. The phone menu also lists it under Characters (David,
  * 2026-11-11: the directory had become a footer link).
  */
-function navLinks(hasCharacter: boolean): readonly NavLink[] {
+function navLinks(hasCharacter: boolean, adHost = false): readonly NavLink[] {
+  if (adHost) return AD_LINKS;
   return hasCharacter ? OWNER_LINKS : NEWCOMER_LINKS;
 }
 
 /** Whether this link is where the viewer is, counting its sibling routes (`also`: /swipe and /messages are Dating). */
-const atLink = (l: NavLink, pathname: string): boolean =>
-  [l.href, ...(l.also ?? [])].some((h) => pathname === h || pathname.startsWith(`${h}/`));
+const atLink = (l: NavLink, pathname: string): boolean => {
+  // After Dark's Scenes is its home and every night under it (/after-dark/<a>/<b>), not its other doors' pages.
+  if (l.href === "/after-dark") return pathname === l.href || (pathname.startsWith("/after-dark/") && !AD_LINKS.slice(1).some((o) => atLink(o, pathname)));
+  return [l.href, ...(l.also ?? [])].some((h) => pathname === h || pathname.startsWith(`${h}/`));
+};
 
 /**
  * The site nav: a token meter that's always visible, a hamburger that collapses the links on phones, and
@@ -195,21 +212,22 @@ export default function Nav({
         onClick={() => setOpen((v) => !v)}
       >
         <span className="nav-toggle-bars" aria-hidden="true" data-open={open} />
-        {unread + texts > 0 && !open && <span className="nav-dot" aria-label={`${unread + texts} unread`} />}
+        {unread + texts > 0 && !open && !adHost && <span className="nav-dot" aria-label={`${unread + texts} unread`} />}
       </button>
       {/* A tap anywhere outside the open menu closes it. In <body>, not here: the header's backdrop-filter would
           clip a fixed layer to the header itself. */}
       {open &&
         createPortal(<button type="button" className="nav-backdrop" aria-label="Close menu" tabIndex={-1} onClick={() => setOpen(false)} />, document.body)}
       <div id="nav-menu" className="nav-links" data-open={open}>
-        {!hasCharacter && (
+        {!hasCharacter && !adHost && (
           <Link prefetch={pf} href="/create" className="button nav-create" aria-current={pathname === "/create" ? "page" : undefined}>
             Make your character
           </Link>
         )}
-        {navLinks(hasCharacter).map((l) => (
+        {navLinks(hasCharacter, adHost).map((l) => (
           <Fragment key={l.href}>
-            <Link prefetch={pf} href={l.href} aria-current={atLink(l, pathname) ? "page" : undefined}>
+            {/* After Dark's own links are on its own host, so they prefetch; the show's there only hop back. */}
+            <Link prefetch={adHost ? undefined : pf} href={l.href} aria-current={atLink(l, pathname) ? "page" : undefined}>
               {l.label}
               {l.href === "/matches" && texts > 0 && (
                 <span className="nav-count" aria-label={`${texts} unread texts`}>
@@ -226,7 +244,8 @@ export default function Nav({
           </Fragment>
         ))}
         {/* A first visit has nothing to be told yet (the audit, 2026-11-11, 2.6): the bell waits for a viewer of their own. */}
-        {(personal || unread > 0) && (
+        {/* The bell is the show's (its notifications are the show's page), so not on After Dark's own host. */}
+        {(personal || unread > 0) && !adHost && (
           <Link prefetch={pf} href="/notifications" aria-current={pathname === "/notifications" ? "page" : undefined} className="nav-bell">
             <Icon name="bell" className="nav-bell-icon" />
             <span className="nav-bell-label">Notifications</span>

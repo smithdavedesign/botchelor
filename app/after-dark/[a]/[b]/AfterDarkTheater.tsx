@@ -183,7 +183,7 @@ function BlurHint() {
   return (
     <p ref={ref} className="ad-blur-hint" role="status" hidden={!show}>
       <span>
-        🔒 Pictures are blurred for privacy: tap one to show it, or turn blur off in <a href="/after-dark#privacy">🔒&nbsp;Privacy</a>.
+        🔒 Pictures are blurred for privacy: tap one to show it, or turn blur off in <a href="/after-dark/account#privacy">🔒&nbsp;Privacy</a>.
       </span>
       <button type="button" className="ad-blur-hint-close" aria-label="Dismiss" onClick={() => setShow(false)}>
         ✕

@@ -425,6 +425,9 @@ async function main() {
       { name: "after-dark-shorts", path: "/after-dark/shorts", as: "adult-admin" },
       // Every picture and video of theirs in one place (the design kit's Gallery, 2026-11-12).
       { name: "after-dark-gallery", path: "/after-dark/gallery", as: "adult-admin" },
+      // Who's in and each one's Studio; the writer, privacy and the subscription (the kit's After Dark header, 2026-11-12).
+      { name: "after-dark-characters", path: "/after-dark/characters", as: "adult-admin" },
+      { name: "after-dark-account", path: "/after-dark/account", as: "adult-admin" },
       // Signed in but not subscribed: an admin is sent on to the hub (and /admin/after-dark is only a redirect there).
       { name: "after-dark-subscribe", path: "/after-dark/subscribe", as: "member" },
       { name: "admin-after-dark-settings", path: "/admin/after-dark/settings", as: "adult-admin" },
