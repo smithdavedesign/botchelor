@@ -11,6 +11,7 @@ import { detectBot } from "@/lib/bots";
 import { getDb } from "@/lib/db";
 import { authFromCookieStore } from "@/lib/http";
 import { shortName } from "@/lib/names";
+import { showHome } from "@/lib/site";
 import { currentHere } from "../view";
 import { ShortTeaserCard, SubscribeToUnlock } from "./ShortTeaser";
 import styles from "./shorts.module.css";
@@ -51,7 +52,7 @@ export default async function ShortsPage() {
       <div className="after-dark-mode ad-shorts-page">
         <article className="after-dark">
           <p className="kicker">
-            <Icon name="moon" /> After Dark · <Link href="/">Back to the show</Link>
+            <Icon name="moon" /> After Dark · <Link href={showHome()}>Back to the show</Link>
           </p>
           <h1>Shorts</h1>
           <p>This season&apos;s house cast, after the cameras stop: whole nights between two of them, as episodes to read and watch.</p>

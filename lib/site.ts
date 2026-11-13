@@ -16,6 +16,13 @@ export function siteUrl(env: Record<string, string | undefined> = process.env): 
 }
 
 /**
+ * Where "Back to the show" goes: "/" on the show, the show's own address on After Dark's host (whose "/" is After Dark).
+ */
+export function showHome(env: Record<string, string | undefined> = process.env): string {
+  return afterDarkOnly(env) ? siteUrl(env) : "/";
+}
+
+/**
  * The site's other addresses: the old one and www. Their pages move to the canonical domain (middleware.ts), and a
  * player's identity is carried across (app/api/auth/carry), which only ever sends a browser back to one of these.
  */

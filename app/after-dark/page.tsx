@@ -12,6 +12,7 @@ import { listCastPairs, type CastPair } from "@/lib/adult/scenes";
 import { sharedWithMe } from "@/lib/adult/shares";
 import { afterDarkOnly } from "@/lib/after-dark-host";
 import { getDb } from "@/lib/db";
+import { showHome } from "@/lib/site";
 import { authFromCookieStore } from "@/lib/http";
 import Switches from "./Switches";
 import PairPicker from "./PairPicker";
@@ -155,7 +156,7 @@ export default async function AfterDarkPage({ searchParams }: { searchParams?: P
               </Link>
             </>
           )}
-          <Link className="button-ghost" href="/">
+          <Link className="button-ghost" href={showHome()}>
             ← Back to the show
           </Link>
         </nav>
