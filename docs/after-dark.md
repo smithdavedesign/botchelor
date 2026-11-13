@@ -1909,6 +1909,16 @@ under `~/ai-stack/bin/media-gen`'s lock and memory rules, and sends each picture
 cap, the gate and the output check with its age question all apply, and a refused picture is discarded (422). A
 character that already has a baseline is left alone (200 `{"exists":true}`).
 
+**Redrawn with the Studio's editor (2026-11-12, same night).** The local ones kept the portrait's own head pixels over an
+inpainted body, and it showed: different light and skin on the head than the body, a neck that didn't join (David: "the
+head doesn't look like it's on the body like using the studio gets better results"). Redrawing the whole picture locally
+(differential diffusion) lost the face; colour-matching the body to the face can't fix the geometry. So, with David's OK
+(~$0.04 a picture, about $5.50 for the cast): `POST /api/admin/after-dark/agent-cast {action: "draw_baseline",
+character_id, owner_id}` runs `baselineFromEditor` — `baselineFromPortrait` with the configured keyframe editor (Venice
+`qwen-edit-uncensored`, or Replicate's Qwen edit), never words. It sets a local baseline aside only once the new one is
+kept; any other ready baseline means `{exists: true}`. The Mac batch (`~/.botchelor-nude/venice.py`) calls it one character
+at a time.
+
 ## Hive's daily limit (2026-10-23)
 
 *The 30-minute pause described here is now a circuit breaker: see "Hive's circuit breaker" below.*
