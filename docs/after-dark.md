@@ -1897,6 +1897,18 @@ Admin route `/api/admin/after-dark/agent-cast`: GET where it stands (waiting, pa
 POST `{"action":"check_sheets","dry_run"?,"recheck_failed"?,"limit"?}`, `{"action":"check_portraits","max"?}`,
 `{"action":"close","character_id"}` (takes one out again; its checks stay on record).
 
+**Their baselines, drawn free on the admin's Mac (2026-11-12).** David: "generate a baseline nude for every character
+… use the AI stack on the machine so it's free." The agent cast wears no outfit, so its baseline is the nude, waist-up
+one, and it's every viewer's default face (an admin's baseline, `faceReferenceId` step 3). Instead of the paid portrait
+edit on first need, `~/.botchelor-nude` (outside the repo, like `~/.botchelor-cast`) draws it on the Mac: macOS Vision
+finds the face in the approved show portrait, RealVisXL V5 in the local ComfyUI inpaints everything below the chin, and
+the portrait's own head is pasted back over it, so the face is the portrait's pixels. It runs one picture at a time
+under `~/ai-stack/bin/media-gen`'s lock and memory rules, and sends each picture to
+`POST /api/admin/after-dark/agent-cast/baseline?character_id=…&owner_id=<admin>&model=…` (body: the JPEG). That route is
+`lib/adult/media.ts` `baselineFromLocal`: exactly `baselineFromPortrait` with the bytes as the edit, so the lines, the
+cap, the gate and the output check with its age question all apply, and a refused picture is discarded (422). A
+character that already has a baseline is left alone (200 `{"exists":true}`).
+
 ## Hive's daily limit (2026-10-23)
 
 *The 30-minute pause described here is now a circuit breaker: see "Hive's circuit breaker" below.*
