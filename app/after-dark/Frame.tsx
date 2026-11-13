@@ -3,6 +3,7 @@ import { AI_FICTION_AFTER_DARK, AiFiction } from "@/app/AiLabel";
 import { DISCREET_ATTR, discreetValue } from "@/lib/adult/discreet";
 import type { AfterDarkView } from "@/lib/adult/privacy";
 import DiscreetMedia from "./DiscreetMedia";
+import { showHome } from "@/lib/site";
 import PinGate from "./PinGate";
 
 /**
@@ -13,7 +14,7 @@ import PinGate from "./PinGate";
  * (app/after-dark/discreet.css).
  */
 export default function AfterDarkFrame({ view, children }: { view: AfterDarkView; children: ReactNode }) {
-  if (view.locked) return <PinGate reset={view.reset ?? { email: null, password: false }} />;
+  if (view.locked) return <PinGate reset={view.reset ?? { email: null, password: false }} showHref={showHome()} />;
   const hook = { [DISCREET_ATTR]: discreetValue(view.blur) };
   return (
     <div className="ad-discreet" {...hook}>

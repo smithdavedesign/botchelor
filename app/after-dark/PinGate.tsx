@@ -14,7 +14,7 @@ type Note = { text: string; error: boolean } | null;
  * Neutral words: nothing on it says what's behind it. Forgetting the PIN goes through the account: a code to its
  * confirmed email, or its password when it has no email.
  */
-export default function PinGate({ reset }: { reset: Ways }) {
+export default function PinGate({ reset, showHref = "/" }: { reset: Ways; showHref?: string }) {
   const router = useRouter();
   const [pin, setPin] = useState("");
   const [busy, setBusy] = useState(false);
@@ -69,7 +69,7 @@ export default function PinGate({ reset }: { reset: Ways }) {
         </p>
         {forgot && <ForgotPin reset={reset} onReset={() => router.refresh()} />}
         <p className="muted small">
-          <Link href="/">Back to the show</Link>
+          <Link href={showHref}>Back to the show</Link>
         </p>
       </section>
     </div>

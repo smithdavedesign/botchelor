@@ -19,7 +19,7 @@ import { touchOwner } from "@/lib/activity";
 import { APP_NAME, APPLE_TOUCH_ICON, PAPER_DARK, PAPER_LIGHT } from "@/lib/pwa";
 import { placeFromEdge } from "@/lib/place";
 import { SITE_DESCRIPTION, SITE_TITLE, siteJsonLd } from "@/lib/seo";
-import { siteUrl } from "@/lib/site";
+import { showHome, siteUrl } from "@/lib/site";
 import { trackingConfig } from "@/lib/tracking";
 import { GoogleAnalytics, GoogleTagManager } from "@next/third-parties/google";
 import ConsentBanner from "./ConsentBanner";
@@ -191,7 +191,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
               <span>After Dark</span>
             </span>
           )}
-          <Nav tokens={adHost && viewerId ? (adTokens ?? dates.pack_left) : dates.left} meter={adHost ? (viewerId && afterDark ? "tokens" : "none") : "dates"} personal={Boolean(viewerId)} unread={unread} texts={texts} afterDark={afterDark} adHost={adHost} hasCharacter={hasCharacter} prefetchShow={!adHost} companions={companionOpen()} />
+          <Nav tokens={adHost && viewerId ? (adTokens ?? dates.pack_left) : dates.left} meter={adHost ? (viewerId && afterDark ? "tokens" : "none") : "dates"} personal={Boolean(viewerId)} unread={unread} texts={texts} afterDark={afterDark} adHost={adHost} showHref={showHome()} hasCharacter={hasCharacter} prefetchShow={!adHost} companions={companionOpen()} />
         </header>
         {/* The season's arc runs under the header on the show's spectator pages (the design system's all-screens board). */}
         {!adHost && (

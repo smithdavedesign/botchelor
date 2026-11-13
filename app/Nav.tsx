@@ -79,6 +79,7 @@ export default function Nav({
   adHost = false,
   hasCharacter = true,
   prefetchShow = true,
+  showHref = "/",
   companions = false,
 }: {
   tokens: number;
@@ -97,6 +98,8 @@ export default function Nav({
   adHost?: boolean;
   /** Companions are open (lib/companion-shared.ts companionOpen): the phone menu lists the directory under Characters. */
   companions?: boolean;
+  /** Where "Back to the show" goes (lib/site.ts showHome): the show's address on After Dark's host. */
+  showHref?: string;
   /** False on After Dark's own host: the show's links there only redirect, so they aren't prefetched (app/layout.tsx). */
   prefetchShow?: boolean;
 }) {
@@ -154,7 +157,7 @@ export default function Nav({
           on that host), the meter, and the newcomer's one call to action. The links follow. */}
       <div className="nav-tools">
         {adHost ? (
-          <Link prefetch={false} href="/" className="nav-ad-link nav-ad-link--back">
+          <Link prefetch={false} href={showHref} className="nav-ad-link nav-ad-link--back">
             <Icon name="chevronLeft" />
             <span>Back to the show</span>
           </Link>
