@@ -275,6 +275,47 @@ proof calls on botchelor.com with the stream and the face logged):**
 
 What's left is MuseTalk's own mouth (small, soft) and the model's time to its first words (1.1–1.3 s of the total).
 
+## Renderer compare and BYOK (2026-11-14, David: "build a bunch of top models out and allow the user to BYOK… admin for now, then compare")
+
+One interface, `ClipRenderer` (lib/live-face/renderers.ts): prepare nothing (the kit's portrait and loop are the face), speak a
+clause (the Aura audio in; an MP4 out, with the time it took and an estimated cost). Behind it:
+
+| Renderer | Kind | Runs on | What it does |
+|---|---|---|---|
+| `musetalk` | live | our Runpod worker | what calls use today |
+| `fal:sync-lipsync-2`, `fal:latentsync`, `fal:kling-lipsync` | batch | fal.ai | a mouth onto the kit's own loop: the like-for-like comparison with ours |
+| `fal:infinitalk`, `fal:omnihuman` | batch | fal.ai | whole head from the portrait: the ceiling |
+| `replicate:wan-2.2-s2v` | batch | Replicate | the reels' talking-shot model, from the portrait |
+| `did:talks` | batch | D-ID | from the portrait, on a D-ID key |
+| `simli` | stream | Simli | listed for completeness; a stream, not a clip |
+
+**The compare** (lib/live-face/compare.ts, `/admin/live-face`): pick a character with a kit and a line; the line is voiced
+once in their Aura voice, the WAV kept and served to the providers at `/api/live-face/audio/<uuid>.wav`; every chosen renderer
+gets the same kit and audio; the clips land as they finish (the page polls), each with its render time, its estimated cost and
+a 1–5 rating that accumulates per renderer across compares. Keys: the admin's own Connection for a provider when they have one,
+else the house key (fal and Replicate from the After Dark provider keys; D-ID has no house key).
+
+**BYOK** (lib/connections-shared.ts): a new job, `live_face`, with fal.ai and D-ID as new providers and Replicate joining it;
+the renderers are the job's "models". fal's key check is a cancel of a request that doesn't exist (404 with a good key, 401 with
+a bad one, nothing spent); D-ID's is its credits endpoint. Nobody but admins sees the compare; the job card shows on
+/account/keys like the others.
+
+**A person's renderer for their own calls** (`user_live_face`, `/api/me/live-face`, the "Your calls" box on the compare page):
+auto (the server's), MuseTalk clips, or the Simli stream, honoured by `liveFaceSession` and `liveFaceClips` when that
+renderer has a ready face for the character and a key. A Simli face on a person's own key is the next step (faces are per
+account at Simli).
+
+**Vendors read for an 18+ platform (2026-11-14, scratchpad `vendor-terms.md`):** LemonSlice is the one real-time vendor whose
+terms fit (no adult, dating or 18+ clause; avatars "of a person or character"; your own PCM in over WebSocket, video into your
+LiveKit/Daily room; $8/month for 41 min then 22¢/min, concurrency 3, idle billed; no alpha). HeyGen LiveAvatar fits technically
+(your PCM in, ~9¢/min) but its terms bar third parties from using a customer's key and its moderation policy reserves sole
+discretion over anything sexual. D-ID's terms refuse "pornography publishers"; a fallback at best. Hedra's real-time avatar was
+shut down in April 2026. Tavus, Anam and Soul Machines are out (consent video of a real person, a dating/adult ban, enterprise).
+None gives alpha; the round frame makes that moot.
+
+**Ditto** (Ant Group's real-time single-image talking head, Apache-2.0) is the open equivalent of what those vendors run and the
+candidate most likely to beat MuseTalk at the same cost; its spike runs beside this.
+
 **Latency:** a clause's clip arrives roughly two seconds after its voice (render ≈ frames at 50 fps + encode); the
 browser holds the voice for it (measured above: the first clip and the first words start together). Simli is nearer one second end to end. If the hold reads as a pause, the next steps
 are rendering in shorter pieces, `ultrafast` x264 or a smaller clip, and Runpod's WebSocket load-balancing endpoint

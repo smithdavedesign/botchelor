@@ -6,7 +6,7 @@
  */
 
 /** What a key can be used for. Each job has at most one key (one connection) at a time. */
-export const JOBS = ["text", "image", "video", "after_dark", "after_dark_video"] as const;
+export const JOBS = ["text", "image", "video", "live_face", "after_dark", "after_dark_video"] as const;
 export type Job = (typeof JOBS)[number];
 export const isJob = (v: unknown): v is Job => typeof v === "string" && (JOBS as readonly string[]).includes(v);
 
@@ -43,6 +43,15 @@ export const JOB_INFO: Record<Job, JobInfo> = {
     free: null,
     anchor: "clips",
     costHint: "about 20¢ a clip on your Google bill",
+  },
+  // A companion's live face on a call rendered by a hosted model instead of the show's own (lib/live-face/renderers.ts;
+  // the admin compare picks among them, 2026-11-14). Admins only until the compare says which is worth it.
+  live_face: {
+    title: "Live face clips",
+    what: "The lip-synced face on companion calls, rendered by a hosted model on your own key instead of the show's own renderer.",
+    free: "Botchelor's own renderer (MuseTalk)",
+    anchor: "live-face",
+    costHint: "the model's price, cents to tens of cents a clause on your bill",
   },
   // The After Dark Studio's pictures (lib/adult/studio.ts; David, 2026-10-24): shown only to someone After Dark is open to.
   after_dark: {
@@ -140,7 +149,7 @@ export type TextProvider = keyof typeof TEXT_PROVIDERS;
 export const isTextProvider = (p: string): p is TextProvider => p in TEXT_PROVIDERS;
 
 /** The providers a person can connect, in the order the connect flow offers them. */
-export const USER_PROVIDERS = ["openrouter", "openai", "google", "anthropic", "deepseek", "groq", "venice", "replicate"] as const;
+export const USER_PROVIDERS = ["openrouter", "openai", "google", "anthropic", "deepseek", "groq", "venice", "replicate", "fal", "did"] as const;
 export type UserProvider = (typeof USER_PROVIDERS)[number];
 export const isUserProvider = (p: unknown): p is UserProvider => typeof p === "string" && (USER_PROVIDERS as readonly string[]).includes(p);
 
@@ -217,7 +226,7 @@ export const PROVIDER_INFO: Record<UserProvider, ProviderInfo> = {
   replicate: {
     label: "Replicate",
     mark: "RE",
-    jobs: ["after_dark", "after_dark_video"],
+    jobs: ["after_dark", "after_dark_video", "live_face"],
     blurb: "After Dark pictures and videos on Replicate's open models; you pay Replicate directly.",
     keyHint: "Starts with r8_",
     keysUrl: "https://replicate.com/account/api-tokens",
@@ -231,6 +240,24 @@ export const PROVIDER_INFO: Record<UserProvider, ProviderInfo> = {
     keyHint: "Starts with gsk_",
     keysUrl: "https://console.groq.com/keys",
     billingUrl: "https://console.groq.com/settings/billing",
+  },
+  fal: {
+    label: "fal.ai",
+    mark: "FA",
+    jobs: ["live_face"],
+    blurb: "Hosted lip-sync and talking-head models (Sync lipsync-2, LatentSync, Kling, InfiniteTalk, OmniHuman); you pay fal directly.",
+    keyHint: "A long key with a colon in the middle",
+    keysUrl: "https://fal.ai/dashboard/keys",
+    billingUrl: "https://fal.ai/dashboard/billing",
+  },
+  did: {
+    label: "D-ID",
+    mark: "DI",
+    jobs: ["live_face"],
+    blurb: "D-ID's talking-head Talks from a portrait; you pay D-ID directly.",
+    keyHint: "The API key from D-ID's studio, as given",
+    keysUrl: "https://studio.d-id.com/account-settings",
+    billingUrl: "https://studio.d-id.com/pricing",
   },
 };
 
@@ -281,6 +308,19 @@ export const AFTER_DARK_VIDEO_MODELS: Partial<Record<string, ModelChoice[]>> = {
 };
 
 /** The curated models a job can run on a provider, the recommended one first. Empty: the provider can't do the job. */
+/** The live-face renderers a provider's key can run (lib/live-face/renderers.ts ids are `provider:model`). */
+export const LIVE_FACE_MODELS: Partial<Record<string, ModelChoice[]>> = {
+  fal: [
+    { id: "fal:sync-lipsync-2", note: "Sync Labs' lipsync-2 over the kit's own loop", recommended: true },
+    { id: "fal:latentsync", note: "LatentSync over the kit's loop" },
+    { id: "fal:kling-lipsync", note: "Kling's lipsync over the kit's loop" },
+    { id: "fal:infinitalk", note: "InfiniteTalk from the portrait, whole head moving" },
+    { id: "fal:omnihuman", note: "OmniHuman from the portrait, the strongest and the dearest" },
+  ],
+  replicate: [{ id: "replicate:wan-2.2-s2v", note: "Wan 2.2 S2V from the portrait, about 2¢ a second", recommended: true }],
+  did: [{ id: "did:talks", note: "D-ID Talks from the portrait", recommended: true }],
+};
+
 export function curatedModels(provider: string, job: Job): ModelChoice[] {
   if (job === "text") {
     if (!isTextProvider(provider)) return [];
@@ -288,6 +328,7 @@ export function curatedModels(provider: string, job: Job): ModelChoice[] {
     return p.models.map((m) => ({ id: m.id, note: m.note, ...(m.id === p.defaultModel ? { recommended: true } : {}) }));
   }
   if (job === "image") return provider === "openai" ? [{ id: IMAGE_MODEL, note: "OpenAI's current image model", recommended: true }] : [];
+  if (job === "live_face") return LIVE_FACE_MODELS[provider] ?? [];
   if (job === "after_dark") return AFTER_DARK_MODELS[provider] ?? [];
   if (job === "after_dark_video") return AFTER_DARK_VIDEO_MODELS[provider] ?? [];
   return provider === "google" ? [{ id: VIDEO_MODEL, note: "Veo 3.1 Lite: 4 s at 720p, about $0.20 a clip", recommended: true }] : [];
@@ -419,6 +460,7 @@ const UNSET_STATUS: Record<Job, string> = {
   text: "Using: Botchelor's free model",
   image: "Not set up: portraits need your own OpenAI key.",
   video: "Not set up: clips need your own Google key, with billing on.",
+  live_face: "Using: Botchelor's own renderer",
   after_dark: "Using: Botchelor's models, for tokens",
   after_dark_video: "Using: Botchelor's models, for tokens",
 };
@@ -437,7 +479,7 @@ export function keyMeta(c: Pick<ConnectionSummary, "last4" | "verified_at" | "la
 }
 
 /** What waits at the cap for each job, when it isn't the free model standing in. */
-const WAITS: Record<Job, string> = { text: "your dates wait", image: "portraits wait", video: "clips wait", after_dark: "Studio pictures on your key wait", after_dark_video: "videos on your key wait" };
+const WAITS: Record<Job, string> = { text: "your dates wait", image: "portraits wait", video: "clips wait", live_face: "the face on your calls goes back to ours", after_dark: "Studio pictures on your key wait", after_dark_video: "videos on your key wait" };
 
 /** Every job's card, from a person's connections, assignments and this month's spend. Pure: the page and the tests share it. */
 export function jobCards(

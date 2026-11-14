@@ -1208,6 +1208,44 @@ create table if not exists live_faces (
   updated_at timestamptz not null default now()
 );
 create unique index if not exists live_faces_one on live_faces (character_id, source_id, provider);
+-- The renderer compare (lib/live-face/compare.ts): an admin's line voiced once and rendered by several renderers side by
+-- side, with a 1–5 rating per render that accumulates per renderer. The audio and the clips live in the object store
+-- (or the row, without one), like face_kits.
+create table if not exists live_face_compares (
+  id text primary key,
+  user_id text not null,
+  character_id text not null references characters (id) on delete cascade,
+  line text not null,
+  voice text not null,
+  audio_seconds real,
+  audio_key text,
+  audio_data bytea,
+  created_at timestamptz not null default now()
+);
+create table if not exists live_face_renders (
+  id text primary key,
+  compare_id text not null references live_face_compares (id) on delete cascade,
+  renderer text not null,
+  provider text not null,
+  model text not null,
+  status text not null check (status in ('queued', 'running', 'done', 'failed')),
+  ms integer,
+  cost_usd real,
+  error text,
+  rating smallint check (rating between 1 and 5),
+  note text,
+  mp4_key text,
+  mp4_data bytea,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists live_face_renders_compare on live_face_renders (compare_id);
+-- A person's renderer for their own calls (auto = the server's setting): musetalk clips or the Simli stream.
+create table if not exists user_live_face (
+  user_id text primary key,
+  renderer text not null,
+  updated_at timestamptz not null default now()
+);
 alter table companion_live_calls add column if not exists face_provider text;
 alter table companion_live_calls add column if not exists face_seconds integer not null default 0;
 -- Subscription plans sold on a Stripe Payment Link (lib/paid-plans.ts): one row per person and plan.

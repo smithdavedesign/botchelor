@@ -64,6 +64,9 @@ type ProviderApi = {
   /** The free check: a key-info or model-list endpoint, and how to send the key to it. */
   check: string;
   headers: (key: string) => Record<string, string>;
+  /** The check's method and the statuses that mean "the key is good" besides 2xx (fal's cancel of an unknown request: 404). */
+  method?: "GET" | "PUT";
+  okStatus?: readonly number[];
 };
 
 /**
@@ -88,6 +91,10 @@ const API: Record<UserProvider, ProviderApi> = {
   // After Dark pictures only (no chat): the key's own rate-limit page and the account page cost nothing.
   venice: { chat: null, check: "https://api.venice.ai/api/v1/api_keys/rate_limits", headers: bearer },
   replicate: { chat: null, check: "https://api.replicate.com/v1/account", headers: bearer },
+  // Live-face renderers (lib/live-face/renderers.ts). fal has no key-info endpoint: cancelling a request that doesn't
+  // exist answers 404 with a good key and 401 with a bad one, and costs nothing. D-ID's credits endpoint is free.
+  fal: { chat: null, check: "https://queue.fal.run/fal-ai/infinitalk/requests/00000000-0000-0000-0000-000000000000/cancel", headers: (key) => ({ Authorization: `Key ${key}` }), method: "PUT", okStatus: [404] },
+  did: { chat: null, check: "https://api.d-id.com/credits", headers: (key) => ({ Authorization: `Basic ${key}`, accept: "application/json" }) },
 };
 
 /**
@@ -207,12 +214,12 @@ export async function checkKey(provider: string, apiKey: string, opts: { fetchIm
   const started = Date.now();
   let res: Response;
   try {
-    res = await doFetch(at(provider, api.check, env), { headers: api.headers(apiKey), signal: AbortSignal.timeout(opts.timeoutMs ?? CHECK_TIMEOUT_MS) });
+    res = await doFetch(at(provider, api.check, env), { method: api.method ?? "GET", headers: api.headers(apiKey), signal: AbortSignal.timeout(opts.timeoutMs ?? CHECK_TIMEOUT_MS) });
   } catch (err) {
     return { ok: false, provider, status: null, error: plainError(provider, unanswered(err)) };
   }
   const latency_ms = Date.now() - started;
-  if (!res.ok) {
+  if (!res.ok && !(api.okStatus ?? []).includes(res.status)) {
     const body = (await res.text().catch(() => "")).slice(0, BODY_PEEK);
     return { ok: false, provider, status: res.status, error: plainError(provider, classifyRefusal(res.status, body)) };
   }
