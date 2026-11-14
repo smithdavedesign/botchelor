@@ -28,8 +28,8 @@ export const LIBRARY_KINDS: readonly LibraryKind[] = ["idle", "nod", "tilt"];
 /** Each clip: its length of silence, the pose motion on top, and the frames easing in from and out to the still. */
 export const LIBRARY_SPEC: Record<LibraryKind, { seconds: number; motion: { kind: "sway" | "nod" | "tilt"; amount: number; period_s?: number; at_s?: number }; fade_in: number; fade_out: number }> = {
   idle: { seconds: 8, motion: { kind: "sway", amount: 1, period_s: 4.2 }, fade_in: 10, fade_out: 10 },
-  nod: { seconds: 1.4, motion: { kind: "nod", amount: 1, at_s: 0.25 }, fade_in: 4, fade_out: 8 },
-  tilt: { seconds: 1.8, motion: { kind: "tilt", amount: 1 }, fade_in: 6, fade_out: 8 },
+  nod: { seconds: 1.4, motion: { kind: "nod", amount: 1.4, at_s: 0.25 }, fade_in: 4, fade_out: 8 },
+  tilt: { seconds: 1.8, motion: { kind: "tilt", amount: 1.3 }, fade_in: 6, fade_out: 8 },
 };
 
 /** A clip still "making" after this long is asked for again; a failed one after this long too. */
