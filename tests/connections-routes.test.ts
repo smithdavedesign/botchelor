@@ -157,6 +157,8 @@ describe("connecting a key (PUT)", () => {
       ["text", "connected"],
       ["image", "connected"],
       ["video", "unset"],
+      // The live-face job (2026-11-14) is its own card; a shared OpenAI key never reaches it (fal / D-ID / Replicate only).
+      ["live_face", "unset"],
     ]);
   });
 

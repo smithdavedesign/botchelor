@@ -101,13 +101,14 @@ describe("the Organization in every page's JSON-LD", () => {
 });
 
 describe("the company pages", () => {
-  it("are in the sitemap, and the 18+ gate lets a person through to each (and still stops them on /watch)", () => {
+  it("are in the sitemap, and the 18+ gate lets a person through to each (and still stops them on /swipe)", () => {
     for (const path of COMPANY_PAGES) expect(PUBLIC_PATHS).toContain(path);
     const visit = (path: string) => middleware(new NextRequest(`${BASE_URL}${path}`, { headers: { "user-agent": BROWSER } }));
     for (const path of COMPANY_PAGES) expect(visit(path).headers.get("location"), path).toBeNull();
     // How it's built and what it costs, which the press kit and the footer's Company group link to.
     for (const path of ["/about", "/costs"]) expect(visit(path).headers.get("location"), path).toBeNull();
-    expect(visit("/watch").headers.get("location")).toMatch(/\/gate/);
+    // /watch is open since 2026-11-14 (the PG show pages); a dating surface still meets the gate.
+    expect(visit("/swipe").headers.get("location")).toMatch(/\/gate/);
   });
 
   it("render per request, so an address or a price set after the build shows", () => {
