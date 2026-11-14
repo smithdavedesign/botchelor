@@ -1,4 +1,7 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { sendAfterDateText } from "@/lib/after-date-text";
+import { setNudge } from "@/lib/between-dates";
+import { sendMessage, setCompanionModelForTests } from "@/lib/companion";
 import { listMyCharacters } from "@/lib/game";
 import { notify } from "@/lib/notifications";
 import { ENDING_LABELS } from "@/lib/rules";
@@ -14,6 +17,10 @@ afterAll(async () => {
 });
 beforeEach(async () => {
   await t.reset();
+});
+afterEach(() => {
+  setCompanionModelForTests(null);
+  vi.unstubAllEnvs();
 });
 
 const since = async (cookie: string) => {
@@ -69,5 +76,58 @@ describe("Since you were here (J4)", () => {
     const { creator, character } = await setupEpisode("friends");
     await notify(t.db, userIdOf(creator), { kind: "matched", title: "💘 A match", link: `/messages/${character.id}/${HOUSE_PARTNER_ID}` });
     expect((await since(creator))[0]).toMatchObject({ news: "1 new match", action: "See who" });
+  });
+});
+
+describe("Since you were here: your own character's texts (the 2026-11-14 core plan, PR5)", () => {
+  it("'{name} texted you' while the text is unread, then 'waiting on your advice' until a reply or a nudge, then the date again", async () => {
+    vi.stubEnv("SESSION_SECRET", "test-secret-for-since");
+    setCompanionModelForTests({
+      async complete(messages) {
+        if (String(messages[0]?.content ?? "").startsWith("You check one message")) return '{"risk": false}';
+        return JSON.stringify({ messages: ["Noted."] });
+      },
+    });
+    const { creator, character, episode } = await setupEpisode("second_date");
+    const me = userIdOf(creator);
+    await t.db.query(`update episodes set revealed_at = now() where id = $1`, [episode.id]);
+    const first = character.name.split(" ")[0];
+    // Hear from them: the text lands and its notice is unread.
+    const heard = await sendAfterDateText(t.db, { userId: me, episodeId: episode.id });
+    if (!heard.ok) throw new Error(heard.error);
+    expect((await since(creator))[0]).toMatchObject({ news: `${first} texted you`, action: "Read", href: `/companion/${heard.thread_id}`, at: expect.any(String) });
+    // Read (the notice cleared), no answer yet: the character is waiting.
+    await t.db.query(`update notifications set read_at = now() where user_id = $1 and kind = 'character_texted_you'`, [me]);
+    expect((await since(creator))[0]).toMatchObject({ news: `${first} is waiting on your advice`, action: "Reply", href: `/companion/${heard.thread_id}` });
+    // A nudge for the next date answers it: back to the date's news.
+    const nudged = await setNudge(t.db, me, character.id, HOUSE_PARTNER_ID, "Ask about the radios.");
+    expect(nudged.ok).toBe(true);
+    expect((await since(creator))[0].news).toBe(`Last date, with ${await partnerName()}: ${ENDING_LABELS.second_date}`);
+  });
+
+  it("a reply in the thread also counts as answering, and a text older than the wait drops the line", async () => {
+    vi.stubEnv("SESSION_SECRET", "test-secret-for-since");
+    setCompanionModelForTests({
+      async complete(messages) {
+        if (String(messages[0]?.content ?? "").startsWith("You check one message")) return '{"risk": false}';
+        return JSON.stringify({ messages: ["Noted."] });
+      },
+    });
+    const { creator, character, episode } = await setupEpisode("friends");
+    const me = userIdOf(creator);
+    await t.db.query(`update episodes set revealed_at = now() where id = $1`, [episode.id]);
+    const first = character.name.split(" ")[0];
+    const heard = await sendAfterDateText(t.db, { userId: me, episodeId: episode.id, now: new Date(Date.now() - 60_000) });
+    if (!heard.ok) throw new Error(heard.error);
+    await t.db.query(`update notifications set read_at = now() where user_id = $1`, [me]);
+    expect((await since(creator))[0].news).toBe(`${first} is waiting on your advice`);
+    const replied = await sendMessage(t.db, me, heard.thread_id, "Go for it.");
+    expect(replied.ok).toBe(true);
+    expect((await since(creator))[0].news).toBe(`Last date, with ${await partnerName()}: ${ENDING_LABELS.friends}`);
+    // A text from last week nobody answered is not nagged about.
+    await t.db.query(`delete from companion_messages where thread_id = $1 and role = 'user'`, [heard.thread_id]);
+    expect((await since(creator))[0].news).toBe(`${first} is waiting on your advice`);
+    await t.db.query(`update companion_messages set created_at = now() - interval '8 days' where thread_id = $1`, [heard.thread_id]);
+    expect((await since(creator))[0].news).toBe(`Last date, with ${await partnerName()}: ${ENDING_LABELS.friends}`);
   });
 });

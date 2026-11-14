@@ -2,6 +2,7 @@ import { postFromCharacter, threadIdFor } from "./companion";
 import { dateNumberSql } from "./date-number";
 import type { Db } from "./db";
 import type { SideOutcome } from "./engine";
+import { loadOurIds } from "./our-traffic";
 import type { Reflections } from "./reflection";
 import type { Ending } from "./rules";
 import { venuePhrase } from "./venues";
@@ -13,6 +14,10 @@ import { venuePhrase } from "./venues";
  * character never asks for anything or guilts anyone; it ends on a question to the person, and when the ending allows a
  * second date, that question is whether to see them again. Nothing the person answers reaches a date (docs/companions.md,
  * "One way only"): their advice is the thread's, not the engine's.
+ *
+ * PR5 of the same plan adds the two texts a character sends on its own, both only to a thread whose person tapped
+ * "Hear from" once (companion_threads.muted_proactive = false, the opt-in) and both event-driven, never on silence:
+ * the tease when a date airs (teaseAfterAir, from lib/air.ts) and the day-after text (dayAfterTexts, from the daily job).
  */
 
 /** What the text is built from: a row of `episodes` with the two names, or an episode view's fields. */
@@ -136,4 +141,148 @@ export async function sendAfterDateText(db: Db, args: { userId: string; episodeI
   const existing = await threadIdFor(db, args.userId, characterId);
   if (existing) return { ok: true, thread_id: existing, character_id: characterId, message_id: null, sent: false };
   return fail(409, "not_now", `${firstNameOf(side === "a" ? r.a_name : r.b_name)} can't text right now. Try again in a moment.`);
+}
+
+/* ------------------------------------------------- the day after ------------------------------------------------- */
+
+/** What the day-after text is built from (pure): the afterglow's verdict and whether the next date is booked. */
+export type DayAfterState = {
+  ending: Ending;
+  /** The partner's name (first name used). */
+  partner: string;
+  /** Whether this side wanted to see them again, and whether the other did (episodes.sides wants_another); null unknown. */
+  mine_wants: boolean | null;
+  theirs_wants: boolean | null;
+  /** A next date between them is booked already (an episode with followup_of = this one, lib/second-date.ts). */
+  booked: boolean;
+};
+
+/**
+ * The next day's text, in the character's words (pure): still thinking about them, where it stands (by the afterglow's
+ * verdict and whether a next date is booked), and one question to the person. It never says the person was quiet or
+ * missed, and it never asks for anything but their view.
+ */
+export function dayAfterLines(s: DayAfterState): string[] {
+  const them = firstNameOf(s.partner);
+  const lines = [`Still thinking about ${them}.`];
+  if (s.booked) {
+    lines.push("We're seeing each other again, and I'm a little nervous about it, honestly.");
+    lines.push("Anything I should keep in mind this time?");
+  } else if (s.ending === "second_date") {
+    lines.push(`${them} said they'd like to see me again, and I think I would too.`);
+    lines.push(`Want me to see ${them} again?`);
+  } else if (s.ending === "disaster") {
+    lines.push("That one's done. I'm not going back for more of that.");
+    lines.push("Want me to try someone new?");
+  } else if (s.theirs_wants && !s.mine_wants) {
+    lines.push(`${them} would see me again, I think. I'm not sure I would.`);
+    lines.push(`Want me to try someone new, or give ${them} another shot?`);
+  } else if (s.mine_wants && !s.theirs_wants) {
+    lines.push(`I'd have said yes to another one. ${them} would rather leave it as friends.`);
+    lines.push("Want me to try someone new?");
+  } else {
+    lines.push("We left it as friends, and that feels right.");
+    lines.push("Want me to try someone new?");
+  }
+  return lines;
+}
+
+/** The day-after window: a date is texted about from 20 hours after it was booked until 48. */
+export const DAY_AFTER_FROM_HOURS = 20;
+export const DAY_AFTER_UNTIL_HOURS = 48;
+
+type OptedInSide = {
+  episode_id: string;
+  ending: Ending;
+  sides: [SideOutcome, SideOutcome] | null;
+  thread_id: string;
+  user_id: string;
+  character_id: string;
+  /** Whether the thread's character is side a of the date. */
+  is_a: boolean;
+  partner: string;
+  booked: boolean;
+};
+
+/**
+ * The threads a date may be texted about in: for each non-house side whose owner has a companion thread with that very
+ * character, opted in (muted_proactive = false, the "Hear from" tap) and not paused, without the tag yet. One side's
+ * owner may be both sides' owner (two threads, one text each). After Dark dates stay on their own host.
+ */
+const OPTED_IN_SIDES_SQL = (where: string) => `
+  select e.id as episode_id, e.ending, e.sides, t.id as thread_id, t.user_id, t.character_id,
+         t.character_id = e.character_a as is_a,
+         case when t.character_id = e.character_a then b.name else a.name end as partner,
+         exists (select 1 from episodes f where f.followup_of = e.id) as booked
+    from episodes e
+    join characters a on a.id = e.character_a
+    join characters b on b.id = e.character_b
+    join companion_threads t
+      on t.character_id in (e.character_a, e.character_b)
+     and t.user_id = case when t.character_id = e.character_a then a.owner_id else b.owner_id end
+   where e.status = 'ready'
+     and coalesce((e.setup->>'after_dark')::boolean, false) = false
+     and not (case when t.character_id = e.character_a then a.is_house else b.is_house end)
+     and t.muted_proactive = false and t.paused_at is null
+     and not exists (select 1 from companion_messages m where m.thread_id = t.id and m.action = $1 || e.id)
+     ${where}`;
+
+/**
+ * The day after a date (the daily job's people part): each opted-in owner's character texts them once about where it
+ * stands, between DAY_AFTER_FROM_HOURS and DAY_AFTER_UNTIL_HOURS after the date was booked (the job runs once a day, so
+ * the window is wider than a day; the tag `day_after:<episode id>` keeps it to one text). Never for our own identities
+ * (lib/our-traffic.ts loadOurIds: admins, the loop's agents, test characters), only read when there is a candidate.
+ * Returns how many texts went out.
+ */
+export async function dayAfterTexts(db: Db, now = new Date(), limit = 50): Promise<number> {
+  const { rows } = await db.query<OptedInSide>(
+    OPTED_IN_SIDES_SQL(`and e.created_at between $2::timestamptz - make_interval(hours => $4::int) and $2::timestamptz - make_interval(hours => $3::int)
+   order by e.created_at, e.id limit $5`),
+    ["day_after:", now.toISOString(), DAY_AFTER_FROM_HOURS, DAY_AFTER_UNTIL_HOURS, limit],
+  );
+  if (!rows.length) return 0;
+  const ours = new Set(await loadOurIds(db).catch(() => [] as string[]));
+  let sent = 0;
+  for (const r of rows) {
+    // The thread's owner is who is ours or not; the booker is not (a mixer's host is the show itself, lib/our-traffic.ts SYSTEM_ID).
+    if (ours.has(r.user_id)) continue;
+    const me = r.is_a ? 0 : 1;
+    const lines = dayAfterLines({
+      ending: r.ending,
+      partner: r.partner,
+      mine_wants: r.sides?.[me]?.wants_another ?? null,
+      theirs_wants: r.sides?.[me === 0 ? 1 : 0]?.wants_another ?? null,
+      booked: r.booked,
+    });
+    const posted = await postFromCharacter(db, { userId: r.user_id, characterId: r.character_id, lines, now, kind: "day_after", dedupeKey: `day_after:${r.episode_id}` }).catch(() => null);
+    if (posted) sent++;
+  }
+  return sent;
+}
+
+/* ------------------------------------------------- the tease on air ------------------------------------------------ */
+
+/** The spoiler-free line when a date airs (pure): where they went, never how it ended. */
+export const teaseLines = (partner: string): string[] => [`Back from the date with ${firstNameOf(partner)}.`, "Come see how it went."];
+
+/**
+ * When a date airs (lib/air.ts airEpisode, fire-and-forget): each opted-in owner's character tells them it's back, without
+ * the ending, tagged `tease:<episode id>`. Not to whoever aired it (`skip`: they are looking at it), and not to a thread
+ * that already heard from the character about this date (`after_date:<id>`: the Hear-from tap means they watched). There
+ * is no per-date watched record, so anyone else is assumed not to have seen it yet. Returns how many texts went out.
+ */
+export async function teaseAfterAir(db: Db, episodeId: string, opts: { now?: Date; skip?: readonly (string | null | undefined)[] } = {}): Promise<number> {
+  const skip = new Set((opts.skip ?? []).filter((u): u is string => Boolean(u)));
+  const { rows } = await db.query<OptedInSide>(
+    OPTED_IN_SIDES_SQL(`and e.id = $2 and e.revealed_at is not null
+     and not exists (select 1 from companion_messages h where h.thread_id = t.id and h.action = 'after_date:' || e.id)`),
+    ["tease:", episodeId],
+  );
+  let sent = 0;
+  for (const r of rows) {
+    if (skip.has(r.user_id)) continue;
+    const posted = await postFromCharacter(db, { userId: r.user_id, characterId: r.character_id, lines: teaseLines(r.partner), now: opts.now, kind: "tease", dedupeKey: `tease:${r.episode_id}` }).catch(() => null);
+    if (posted) sent++;
+  }
+  return sent;
 }

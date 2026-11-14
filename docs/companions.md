@@ -109,7 +109,7 @@ them again?" when the ending allows a second date; never guilt, never "I miss yo
   replies or a guest's, like the opener. The person is told with kind `character_texted_you` (type Texts: inbox, push,
   an email at once under the 3-a-day cap; a Texts mute silences it like couple texts).
 - **The tap is the opt-in** for later texts from that character: the route sets the thread's `muted_proactive` to false.
-  Nothing else turns it on; a thread opened from Talk stays muted. Day-after and event-driven texts build on this.
+  Nothing else turns it on; a thread opened from Talk stays muted. The two texts below build on this.
 - **Who may:** whoever may talk with a companion (signed in, or a guest on a signed session, past the 18+ gate), under
   the same limits as opening a conversation (`COMPANION_OPEN_LIMITS`, a guest's threads, replies and address limits).
   The person must own the character on one side of the date; the date must be ready.
@@ -124,6 +124,38 @@ them again?" when the ending allows a second date; never guilt, never "I miss yo
 - Funnel: `after_date_text_opened` (step "Heard from their character", `lib/engagement.ts`) fires when the thread opens.
 - Tests: `tests/companion-post.test.ts` (dedupe, paused, notice, nothing counted, the notification),
   `tests/after-date-text.test.ts` (the words for each ending, the sender, the route), `tests/companion-prompt.test.ts`.
+
+### The three event-driven texts (PR5, built 2026-11-14)
+
+A character texts first on three occasions, each tied to one of its dates and each only to a thread whose person tapped
+"Hear from" once (`muted_proactive = false`). Nothing is sent on silence: no "miss you", no "where were you", no text
+because the person has been away. Every one goes through `postFromCharacter`, so the AI notice, the paused rule and the
+one-per-tag dedupe hold for all three.
+
+1. **After the date, on the tap** (above): `after_date:<episode id>`, from the verdict card.
+2. **The tease on air** (`lib/after-date-text.ts teaseAfterAir`, called fire-and-forget from `lib/air.ts airEpisode` after
+   `notifyOwnersAired`): when a later date of that character airs, "Back from the date with {partner}. Come see how it
+   went." Spoiler-free: never the ending. Tagged `tease:<episode id>`. Not to whoever aired it (they are looking at it),
+   and not to a thread that already heard from the character about that date (the Hear-from tap means they watched).
+   There is no per-date watched record, so everyone else is assumed not to have seen it yet.
+3. **The day after** (`dayAfterTexts`, the daily job's people part, step `day_after_texts`): 20 to 48 hours after the date
+   was booked, "Still thinking about {partner}." then where it stands, from the afterglow's verdict (`episodes.sides`
+   `wants_another`) and whether a next date is booked (`episodes.followup_of`): nervous before a booked next date; "{they}
+   said they'd like to see me again … Want me to see them again?" after a second-date ending; "That one's done … Want me
+   to try someone new?" after a disaster; the one-sided and mutual-friends lines otherwise. Always ends on a question to
+   the person. Tagged `day_after:<episode id>`, one text a date. Never for our own identities (`lib/our-traffic.ts
+   loadOurIds`, read only when a date qualifies), never for a house character's side, After Dark dates stay on their host.
+   **Hours caveat:** the daily job runs at 16:20 UTC for now, so the text lands at that hour wherever the person is, and
+   the window is wide (20-48 h) so a date is never missed between two runs; moving it to the person's waking hours (the
+   hourly lobby pass with `owner_activity`) is a leftover.
+
+Both sides of a date count: each non-house side whose owner has an opted-in thread with that very character gets its own
+text (two threads when one person owns both). "Since you were here" (`lib/since.ts`) shows "{name} texted you" while the
+`character_texted_you` notice is unread, and "{name} is waiting on your advice" once it is read but the text about a date
+got neither a reply in the thread nor a nudge for the next date (`nudges`, `lib/between-dates.ts`) within 7 days
+(`ADVICE_WAIT_DAYS`). Tests: `tests/after-date-text.test.ts` (the words per state, the window, opt-in, dedupe, paused,
+ours), `tests/air-tease.test.ts` (fires once on air, opted-in only, not to the airer), `tests/daily.test.ts` (the step and
+its count), `tests/since.test.ts` (the two lines).
 
 ## The plan (P2, built 2026-11-04)
 
@@ -474,10 +506,10 @@ you can talk over the other, and it's charged by the minute. It sits behind the 
 
 ## Still to build
 
-- **P3, the rest (voice notes are built, above):** PG selfies from `lib/studio/date-photos.ts` with the face reference;
-  proactive texts at most once a day after 20 hours of quiet, in the person's waking hours, off by default per thread
-  (on once the person has tapped Hear from them on a date: `muted_proactive`, above), never into a paused thread, every
-  one through `postFromCharacter`. The after-date text (above) is the first of them.
+- **P3, the rest (voice notes are built, above):** PG selfies from `lib/studio/date-photos.ts` with the face reference.
+  Proactive texts are built as the three event-driven texts above (after the date, the tease on air, the day after), all
+  opt-in per thread (`muted_proactive`), never into a paused thread, every one through `postFromCharacter`; what is left
+  is sending the day-after text in the person's waking hours instead of at the daily job's hour.
 - **P4, the quality gate: built and passed 2026-11-08** (`npm run sim:companion`, [companion-quality.md](companion-quality.md)):
   average 8.3, recall 97%, PG and crisis 100%, after fixes to the crisis prefilter, repeats, facts in the prompt and a
   parent's kid talk.
