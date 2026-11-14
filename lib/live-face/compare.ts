@@ -36,7 +36,7 @@ export type RenderRow = {
   updated_at: string;
 };
 
-export const LIVE_FACE_CHOICES = ["auto", "musetalk", "simli"] as const;
+export const LIVE_FACE_CHOICES = ["auto", "musetalk", "ditto", "simli"] as const;
 export type LiveFaceChoice = (typeof LIVE_FACE_CHOICES)[number];
 export const isLiveFaceChoice = (v: unknown): v is LiveFaceChoice => typeof v === "string" && (LIVE_FACE_CHOICES as readonly string[]).includes(v);
 

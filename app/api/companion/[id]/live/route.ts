@@ -22,6 +22,7 @@ import { companionAllowance, giveBackReply, takeReply } from "@/lib/companion-pl
 import { getDb } from "@/lib/db";
 import { ensureFaceKit } from "@/lib/face-kit";
 import { liveFaceClips, liveFaceSession } from "@/lib/live-face";
+import { DittoChain } from "@/lib/live-face/ditto";
 import { speakClip } from "@/lib/live-face/musetalk";
 import { clausesOf, framesOfPcm, SHORT_FIRST_PIECE, SHORT_FIRST_WAIT_MS } from "@/lib/live-face-shared";
 import { handle, json, parseBody, readJson, session } from "@/lib/http";
@@ -55,7 +56,7 @@ const Action = z.discriminatedUnion("action", [
     barge_ins: z.number().int().min(0).max(10_000).optional(),
     voice_off: z.boolean().optional(),
     // The live face (lib/live-face): which renderer showed it and for how many seconds, for the spend view.
-    face: z.enum(["simli", "musetalk"]).optional(),
+    face: z.enum(["simli", "musetalk", "ditto"]).optional(),
     face_seconds: z.number().int().min(0).max(24 * 3600).optional(),
   }),
 ]);
@@ -162,7 +163,8 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
     return json(body, status, sess);
   }
   const voice = auraVoiceFor(took.turn.character);
-  // A live face that comes as clips (lib/live-face/musetalk.ts), when it's on for this person and the character's is ready.
+  // A live face that comes as clips (lib/live-face: MuseTalk from the bundle, Ditto from the portrait), when it's on
+  // for this person and the character's is ready.
   const clips = await liveFaceClips(db, took.turn.character.id, requestBase(req), { admin, userId: sess.userId });
   const stop = new AbortController();
   req.signal?.addEventListener("abort", () => stop.abort());
@@ -184,15 +186,38 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
       let written = false;
       let voiceOn = true;
       let chars = 0;
-      // Each voiced piece as a clip of the face saying it, all rendering at once from the moment each piece's voice is
-      // in (a clip takes about half its length to render; one after another fell behind the voice). The idle motion
-      // carries on from piece to piece: each starts where the one before ends, known ahead from the voice's length
-      // (framesOfPcm counts as the worker does). The browser holds each piece's voice for its clip and settles on clips
-      // or the plain voice for the whole reply by the first piece's; `video_fail` lets it play that piece plain.
+      // Each voiced piece as a clip of the face saying it. MuseTalk: all rendering at once from the moment each piece's
+      // voice is in (a clip takes about half its length to render; one after another fell behind the voice), the idle
+      // motion carrying on from piece to piece: each starts where the one before ends, known ahead from the voice's
+      // length (framesOfPcm counts as the worker does). Ditto: one chain, each clause continuing the motion of the one
+      // before (lib/live-face/ditto.ts DittoChain), the last easing back to the portrait (`end_frame` 0: the loop's
+      // first frame). The browser holds each piece's voice for its clip and settles on clips or the plain voice for the
+      // whole reply by the first piece's; `video_fail` lets it play that piece plain.
       let cursor = 0;
       const clipJobs: Promise<void>[] = [];
+      const chain =
+        clips?.provider === "ditto"
+          ? new DittoChain(
+              clips.runpod,
+              clips.source_url,
+              LIVE_AUDIO_RATE,
+              {
+                clip: (c) => send({ type: "video", i: c.i, mp4: c.mp4, frames: c.frames, end_frame: 0 }),
+                fail: (i, err) => {
+                  if (!stop.signal.aborted) console.error(`[companion-live] ditto clip ${i}: ${err instanceof Error ? err.message.slice(0, 160) : "unknown"}`);
+                  send({ type: "video_fail", i });
+                },
+              },
+              { signal: stop.signal },
+            )
+          : null;
       const clipFor = (i: number, pcm: Buffer) => {
         if (!clips || !pcm.length || stop.signal.aborted) return;
+        if (chain) {
+          chain.add(i, pcm);
+          return;
+        }
+        if (clips.provider !== "musetalk") return;
         const start = cursor;
         cursor += framesOfPcm(pcm.length, LIVE_AUDIO_RATE);
         clipJobs.push(
@@ -245,6 +270,7 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
         for (const part of parts) {
           const i = n++;
           send({ type: "say", i, text: part });
+          chain?.expect(i);
           queue.push({ i, text: part });
         }
         waiting.wake?.();
@@ -280,7 +306,9 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
       written = true;
       waiting.wake?.();
       await voicing;
+      chain?.finish();
       await Promise.allSettled(clipJobs);
+      await chain?.done();
       if (!r.ok || !r.id) await giveBackReply(db, sess.userId, ticket);
       if (r.ok) {
         await countLiveTurn(db, call.id, chars);

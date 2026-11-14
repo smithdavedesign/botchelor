@@ -757,7 +757,7 @@ export default function CompanionCall({
       begin();
       device = device.then(() => (current() ? props.current.speech.speakAll(t, who) : undefined));
     };
-    // A live face that comes as clips (lib/live-face/musetalk.ts): one mouth per reply, never both. Each piece's voice
+    // A live face that comes as clips (lib/live-face: MuseTalk, Ditto): one mouth per reply, never both. Each piece's voice
     // is held for its clip, and the first piece decides. Its clip in time (CLIP_HOLD_MS after its voice ended) makes
     // this a clip reply: every piece waits for its own clip (CLIP_LATE_MS at most) and plays through the face, in
     // order. Late or failed, and it's a plain reply: every piece plays the plain way (the kit's mouth moving to it) as
@@ -826,6 +826,7 @@ export default function CompanionCall({
         }
         if (ev.type === "say") {
           texts[ev.i] = ev.text;
+          if (face.current?.clips()) face.current.expect(ev.i);
           said = `${said} ${ev.text}`.trim();
           setThem(said);
           log({ kind: "piece", text: ev.text });

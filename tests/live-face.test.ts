@@ -236,6 +236,99 @@ describe("live faces", () => {
   });
 });
 
+describe("live faces on Ditto (our second worker on Runpod)", () => {
+  const DITTO = { LIVE_FACE_PROVIDER: "ditto", RUNPOD_API_KEY: "k", LIVE_FACE_DITTO_ENDPOINT: "ep-d" };
+  beforeEach(() => {
+    vi.stubEnv("LIVE_FACE_PROVIDER", "ditto");
+    vi.stubEnv("RUNPOD_API_KEY", "placeholder-runpod");
+    vi.stubEnv("LIVE_FACE_DITTO_ENDPOINT", "ep-d");
+    vi.stubEnv("LIVE_FACE_ENDPOINT", "");
+  });
+
+  it("is on with the app's Runpod key and its own endpoint, admins alone with ditto:admins, off without either", () => {
+    expect(liveFaceMode({ LIVE_FACE_PROVIDER: "ditto", RUNPOD_API_KEY: "k" })).toBe("off");
+    // MuseTalk's endpoint doesn't turn Ditto on.
+    expect(liveFaceMode({ LIVE_FACE_PROVIDER: "ditto", RUNPOD_API_KEY: "k", LIVE_FACE_ENDPOINT: "ep-1" })).toBe("off");
+    expect(liveFaceMode(DITTO)).toBe("on");
+    expect(liveFaceProvider(DITTO)).toBe("ditto");
+    expect(liveFaceMode({ ...DITTO, LIVE_FACE_PROVIDER: "ditto:admins" })).toBe("admins");
+    expect(liveFaceOn({ ...DITTO, LIVE_FACE_PROVIDER: "ditto:admins" }, { admin: false })).toBe(false);
+    expect(liveFaceOn({ ...DITTO, LIVE_FACE_PROVIDER: "ditto:admins" }, { admin: true })).toBe(true);
+  });
+
+  it("needs nothing built: a character with a kit portrait has a ready face, a call gets the session and its turns the chain's source", async () => {
+    const id = await withKit();
+    const asked = fakeDitto();
+    expect(await liveFaceState(t.db, id, BASE_URL)).toMatchObject({ provider: "ditto", status: "ready", provider_face_id: expect.stringContaining(`${BASE_URL}/api/face-kit/`) });
+    expect(await buildLiveFace(t.db, id, BASE_URL)).toEqual({ ok: true, face_id: "portrait", status: "ready" });
+    expect(await liveFaceSession(t.db, id, BASE_URL, { admin: false })).toEqual({ provider: "ditto", px: 512 });
+    // A session warms a Ditto worker, at Ditto's endpoint.
+    expect(asked.some((a) => a.url === `${RUNPOD_API}/ep-d/run` && a.body?.input?.op === "warm")).toBe(true);
+    expect(await liveFaceClips(t.db, id, BASE_URL, { admin: false })).toEqual({ provider: "ditto", runpod: { key: "placeholder-runpod", endpoint: "ep-d" }, source_url: expect.stringContaining(`${BASE_URL}/api/face-kit/`) });
+    // A character with no kit has no Ditto face.
+    const bare = (await (await api.createCharacter(validCharacter({ name: "Bare Face" }), newUserCookie())).json()).id as string;
+    expect(await liveFaceState(t.db, bare, BASE_URL)).toBeNull();
+    expect(await buildLiveFace(t.db, bare, BASE_URL)).toMatchObject({ ok: false, status: 409 });
+    expect(await liveFaceSession(t.db, bare, BASE_URL, { admin: true })).toBeNull();
+    expect(await liveFaceClips(t.db, bare, BASE_URL, { admin: true })).toBeNull();
+    // Without its endpoint it's off, and says which it needs.
+    vi.stubEnv("LIVE_FACE_DITTO_ENDPOINT", "");
+    expect(await buildLiveFace(t.db, id, BASE_URL)).toMatchObject({ ok: false, error: "not_set_up", message: expect.stringMatching(/LIVE_FACE_DITTO_ENDPOINT/) });
+    expect(await liveFaceClips(t.db, id, BASE_URL, { admin: true })).toBeNull();
+    expect(await liveFaceSession(t.db, id, BASE_URL, { admin: true })).toBeNull();
+  });
+
+  it("is a person's own pick too: under the server's musetalk setting, choosing ditto gives their turns the chain", async () => {
+    const raw = newUserCookie();
+    const me = userIdOf(raw);
+    const id = await withKit(raw);
+    vi.stubEnv("LIVE_FACE_PROVIDER", "musetalk");
+    vi.stubEnv("LIVE_FACE_ENDPOINT", "ep-1");
+    fakeDitto();
+    // No MuseTalk bundle built: auto gives nothing; their own pick of Ditto does.
+    expect(await liveFaceClips(t.db, id, BASE_URL, { admin: false, userId: me })).toBeNull();
+    await t.db.query(`insert into user_live_face (user_id, renderer) values ($1, 'ditto')`, [me]);
+    expect(await liveFaceClips(t.db, id, BASE_URL, { admin: false, userId: me })).toMatchObject({ provider: "ditto" });
+    expect(await liveFaceSession(t.db, id, BASE_URL, { admin: false, userId: me })).toEqual({ provider: "ditto", px: 512 });
+  });
+
+  it("gives a live call's start the word that clips will come, and the end keeps the face's seconds under ditto", async () => {
+    const raw = newUserCookie();
+    const me = userIdOf(raw);
+    const id = await withKit(raw);
+    fakeDitto();
+    setDeepgramFetchForTests(async () => Response.json({ access_token: "dg-token", expires_in: 30 }));
+    const cookie = `${signedInCookie(me)}; bz_adult=1`;
+    await grantPlan(t.db, me, "companion", "initial", { subscriptionId: "sub_live_face_dt" });
+    const opened = (await (await openRoute(new Request(`${BASE_URL}/api/companion`, { method: "POST", headers: { "content-type": "application/json", cookie }, body: JSON.stringify({ character_id: id }) }))).json()) as { thread_id: string };
+    const live = (body: unknown) => liveRoute(new Request(`${BASE_URL}/api/companion/${opened.thread_id}/live`, { method: "POST", headers: { "content-type": "application/json", cookie }, body: JSON.stringify(body) }), { params: Promise.resolve({ id: opened.thread_id }) });
+    const r = (await (await live({ action: "start" })).json()) as { call: { id: string }; face: unknown };
+    expect(r.face).toEqual({ provider: "ditto", px: 512 });
+    const end = await live({ action: "end", call_id: r.call.id, seconds: 60, face: "ditto", face_seconds: 41 });
+    expect(end.status).toBe(200);
+    expect((await t.db.query<{ face_provider: string; face_seconds: number }>(`select face_provider, face_seconds from companion_live_calls where id = $1`, [r.call.id])).rows[0]).toEqual({ face_provider: "ditto", face_seconds: 41 });
+  });
+});
+
+/** Ditto's endpoint, faked: /run takes a warm job, /runsync answers a clip (with a state when asked). What was asked is kept. */
+function fakeDitto() {
+  const asked: { url: string; body?: { input?: Record<string, unknown> } }[] = [];
+  setRunpodFetchForTests(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    const body = typeof init?.body === "string" ? (JSON.parse(init.body) as { input?: Record<string, unknown> }) : undefined;
+    asked.push({ url, body });
+    if (new Headers(init?.headers).get("authorization") !== "Bearer placeholder-runpod") return Response.json({ error: "Unauthorized" }, { status: 401 });
+    if (!url.startsWith(`${RUNPOD_API}/ep-d/`)) return Response.json({ error: "no such endpoint" }, { status: 404 });
+    const path = url.slice(`${RUNPOD_API}/ep-d/`.length);
+    if (path === "run") return Response.json({ id: "job-warm", status: "IN_QUEUE" });
+    if (path.startsWith("runsync")) {
+      return Response.json({ id: "job-d", status: "COMPLETED", output: { video_b64: "AAAA", mime: "video/mp4", frames: 50, fps: 25, width: 512, height: 512, bytes: 3, handler: "chain-1", ms: { total: 900 }, ...(body?.input?.want_state ? { state_b64: "c3RhdGU=" } : {}) } });
+    }
+    return Response.json({ error: "unknown" }, { status: 404 });
+  });
+  return asked;
+}
+
 /** Runpod, faked: /run queues a job, /status goes as scripted, /runsync answers a clip. What was asked is kept. */
 function fakeRunpod(script: { status?: string[]; clip?: "sync" | "later" | "failed" | "never"; prepareError?: string } = {}) {
   const asked: { url: string; method: string; auth: string | null; body?: { input?: Record<string, unknown> } }[] = [];
@@ -352,7 +445,7 @@ describe("live faces on MuseTalk (our worker on Runpod)", () => {
     expect(await liveFaceSession(t.db, id, BASE_URL, { admin: false })).toEqual({ provider: "musetalk", px: 624 });
     // A session warms a worker up, and a turn gets what it needs to ask for clips.
     expect(asked.slice(before).some((a) => a.body?.input?.op === "warm")).toBe(true);
-    expect(await liveFaceClips(t.db, id, BASE_URL, { admin: false })).toEqual({ runpod: { key: "placeholder-runpod", endpoint: "ep-1" }, bundle_key: "live-face/x/abc123.tar.gz" });
+    expect(await liveFaceClips(t.db, id, BASE_URL, { admin: false })).toEqual({ provider: "musetalk", runpod: { key: "placeholder-runpod", endpoint: "ep-1" }, bundle_key: "live-face/x/abc123.tar.gz" });
     vi.stubEnv("LIVE_FACE_PROVIDER", "musetalk:admins");
     expect(await liveFaceClips(t.db, id, BASE_URL, { admin: false })).toBeNull();
     expect(await liveFaceClips(t.db, id, BASE_URL, { admin: true })).not.toBeNull();

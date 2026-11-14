@@ -10,8 +10,10 @@
  *    `LIVE_FACE_ENDPOINT`. A face is a bundle built from the kit's idle loop (a minute or two, pay-per-second: still an
  *    admin's call for now); on a call the server turns each clause of the voice into a clip (liveFaceClips) and streams
  *    it to the browser, which needs no token.
- *  - **Ditto** (./ditto.ts, our second worker on Runpod, `LIVE_FACE_DITTO_ENDPOINT`): the whole head from the kit's
- *    portrait, on the compare page today; not a call renderer until its clause-to-clause continuity is built.
+ *  - **Ditto** (./ditto.ts, our second worker on Runpod): `ditto` or `ditto:admins`, with `RUNPOD_API_KEY` and
+ *    `LIVE_FACE_DITTO_ENDPOINT`. The whole head from the kit's portrait, nothing to build (the worker registers the
+ *    still in a moment), so a character with a kit has a Ditto face at once; on a call the server renders a reply's
+ *    clauses as one chain of clips (DittoChain), the same `video` events the browser plays for MuseTalk.
  *  - Unset, nothing here does anything and a call is exactly Tier 0 (lib/face-kit.ts).
  *  - **A face** lives in live_faces: one per character per kit source (`source_id`) per provider. A new kit means a
  *    new face; the old plays until then. The kit route's poll collects faces being built (collectLiveFaces).
@@ -21,6 +23,7 @@
 import type { Db } from "../db";
 import { faceKitBytes, faceKitFile, faceKitOf, faceSource } from "../face-kit";
 import { type LiveFaceProvider, type LiveFaceSession } from "../live-face-shared";
+import { DITTO_PX, dittoConfig } from "./ditto";
 import { jobError, jobStatus, MUSETALK_STREAM_PX, type PrepareOutput, runpodConfig, type RunpodConfig, startPrepare, warmWorker } from "./musetalk";
 import { createSimliFace, deleteSimliFace, listSimliFaces, mintSimliSession, outOfFaces, simliFaceStatus, SIMLI_STREAM_PX, SimliError } from "./simli";
 
@@ -35,16 +38,22 @@ function setting(env: Env): { provider: LiveFaceProvider; who: string | undefine
   const v = (env.LIVE_FACE_PROVIDER ?? "").trim().toLowerCase();
   if (!v || v === "off" || v === "0") return null;
   const [provider, who] = v.split(":");
-  if (provider !== "simli" && provider !== "musetalk") return null;
+  if (provider !== "simli" && provider !== "musetalk" && provider !== "ditto") return null;
   return { provider, who };
+}
+
+/** Whether a renderer has what it needs here: its key (Simli) or the app's Runpod key and its endpoint (ours). */
+function configured(provider: LiveFaceProvider, env: Env): boolean {
+  if (provider === "simli") return Boolean(simliKey(env));
+  if (provider === "ditto") return Boolean(dittoConfig(env));
+  return Boolean(runpodConfig(env));
 }
 
 /** The renderer that's set and has what it needs (its key, its endpoint), or null: then live faces are off. */
 export function liveFaceProvider(env: Env = process.env): LiveFaceProvider | null {
   const s = setting(env);
   if (!s) return null;
-  if (s.provider === "simli") return simliKey(env) ? "simli" : null;
-  return runpodConfig(env) ? "musetalk" : null;
+  return configured(s.provider, env) ? s.provider : null;
 }
 
 /** Whether live faces are on, and for whom: the provider setting, and its key. */
@@ -75,23 +84,38 @@ async function rowFor(db: Db, characterId: string, sourceId: string, provider: L
   return rows[0] ?? null;
 }
 
+/**
+ * Ditto's face is the kit's portrait itself: nothing is built or stored, so its "row" is made up from the kit (ready
+ * when the kit has a portrait, else none). `provider_face_id` is the portrait's absolute URL, what the worker fetches.
+ */
+async function dittoRow(db: Db, characterId: string, baseUrl: string): Promise<LiveFaceRow | null> {
+  const source = await faceSource(db, characterId, baseUrl);
+  if (!source) return null;
+  const kit = await faceKitOf(db, characterId, baseUrl);
+  if (!kit?.stills.portrait) return null;
+  const now = new Date().toISOString();
+  return { id: `ditto:${characterId}`, character_id: characterId, source_id: source.id, provider: "ditto", provider_face_id: new URL(kit.stills.portrait, baseUrl).toString(), status: "ready", error: null, created_at: now, updated_at: now };
+}
+
 /** The character's live face at a given renderer, for the kit they have now (the compare and a person's own choice ask by provider). */
 export async function liveFaceRowFor(db: Db, characterId: string, baseUrl: string, provider: LiveFaceProvider, _env: Env = process.env): Promise<LiveFaceRow | null> {
+  if (provider === "ditto") return dittoRow(db, characterId, baseUrl);
   const source = await faceSource(db, characterId, baseUrl);
   return source ? rowFor(db, characterId, source.id, provider) : null;
 }
 
 /** A person's own pick of renderer for their calls (lib/live-face/compare.ts user_live_face), or "auto" for the server's. */
-async function choiceOf(db: Db, who: { userId?: string | null }): Promise<"auto" | "musetalk" | "simli"> {
+async function choiceOf(db: Db, who: { userId?: string | null }): Promise<"auto" | LiveFaceProvider> {
   if (!who.userId) return "auto";
   const row = (await db.query<{ renderer: string }>(`select renderer from user_live_face where user_id = $1`, [who.userId]).catch(() => ({ rows: [] as { renderer: string }[] }))).rows[0];
-  return row?.renderer === "musetalk" || row?.renderer === "simli" ? row.renderer : "auto";
+  return row?.renderer === "musetalk" || row?.renderer === "simli" || row?.renderer === "ditto" ? row.renderer : "auto";
 }
 
 /** The character's live face at the renderer that's set, for the kit they have now: its state, or null when none was ever asked for. */
 export async function liveFaceState(db: Db, characterId: string, baseUrl: string, env: Env = process.env): Promise<LiveFaceRow | null> {
   const provider = liveFaceProvider(env) ?? setting(env)?.provider;
   if (!provider) return null;
+  if (provider === "ditto") return dittoRow(db, characterId, baseUrl);
   const source = await faceSource(db, characterId, baseUrl);
   return source ? rowFor(db, characterId, source.id, provider) : null;
 }
@@ -115,10 +139,18 @@ const idOfKitUrl = (url: string) => url.split("?")[0].split("/").pop() || null;
 export async function buildLiveFace(db: Db, characterId: string, baseUrl: string, env: Env = process.env): Promise<{ ok: true; face_id: string; status: LiveFaceRow["status"] } | LiveFaceBlocked> {
   const fail = (status: number, error: string, message: string): LiveFaceBlocked => ({ ok: false, status, error, message });
   const provider = liveFaceProvider(env);
-  if (!provider) return fail(409, "not_set_up", setting(env)?.provider === "musetalk" ? "Live faces need RUNPOD_API_KEY and LIVE_FACE_ENDPOINT on the server." : "Live faces need SIMLI_API_KEY on the server.");
+  if (!provider) {
+    const want = setting(env)?.provider;
+    return fail(409, "not_set_up", want === "musetalk" ? "Live faces need RUNPOD_API_KEY and LIVE_FACE_ENDPOINT on the server." : want === "ditto" ? "Live faces need RUNPOD_API_KEY and LIVE_FACE_DITTO_ENDPOINT on the server." : "Live faces need SIMLI_API_KEY on the server.");
+  }
   const source = await faceSource(db, characterId, baseUrl);
   if (!source) return fail(409, "no_portrait", "They have no approved safe portrait, so no face kit and no live face.");
   const kit = await faceKitOf(db, characterId, baseUrl);
+  if (provider === "ditto") {
+    // Nothing to build: the worker works from the kit's portrait as it is.
+    if (!kit?.stills.portrait) return fail(409, "no_kit", "Draw their face kit first: Ditto works from its portrait.");
+    return { ok: true, face_id: "portrait", status: "ready" };
+  }
   const have = await rowFor(db, characterId, source.id, provider);
   if (have && have.status !== "failed" && have.provider_face_id) return { ok: true, face_id: have.provider_face_id, status: have.status };
   const name = (await db.query<{ name: string }>(`select name from characters where id = $1`, [characterId])).rows[0]?.name ?? characterId;
@@ -236,12 +268,16 @@ export async function liveFaceSession(db: Db, characterId: string, baseUrl: stri
   // Their own pick first (when that renderer has a ready face for this character and its key), else the server's.
   const choice = await choiceOf(db, who);
   const picked = choice === "auto" ? null : await liveFaceRowFor(db, characterId, baseUrl, choice, env);
-  const usable = picked && picked.status === "ready" && picked.provider_face_id && (choice === "simli" ? Boolean(simliKey(env)) : Boolean(runpodConfig(env)));
+  const usable = picked && picked.status === "ready" && picked.provider_face_id && configured(picked.provider, env);
   const face = usable ? picked : await liveFaceState(db, characterId, baseUrl, env);
   if (!face || face.status !== "ready" || !face.provider_face_id) return null;
   if (face.provider === "musetalk") {
     void warmWorker(runpodConfig(env)!);
     return { provider: "musetalk", px: MUSETALK_STREAM_PX };
+  }
+  if (face.provider === "ditto") {
+    void warmWorker(dittoConfig(env)!);
+    return { provider: "ditto", px: DITTO_PX };
   }
   try {
     const s = await mintSimliSession(simliKey(env)!, face.provider_face_id, { maxSeconds: opts.maxSeconds, idleSeconds: opts.idleSeconds, background: env.SIMLI_BACKGROUND_ID?.trim() || null });
@@ -252,15 +288,27 @@ export async function liveFaceSession(db: Db, characterId: string, baseUrl: stri
   }
 }
 
-/** What a turn needs to render MuseTalk clips for this character, when that's on for this person and the bundle is ready; else null. */
-export async function liveFaceClips(db: Db, characterId: string, baseUrl: string, who: { admin: boolean; userId?: string | null }, env: Env = process.env): Promise<{ runpod: RunpodConfig; bundle_key: string } | null> {
-  if (!liveFaceOn(env, who) || !runpodConfig(env)) return null;
+/** What a turn renders a reply's clips with: MuseTalk from the character's bundle, or Ditto from the kit's portrait. */
+export type LiveFaceClipPlan = { provider: "musetalk"; runpod: RunpodConfig; bundle_key: string } | { provider: "ditto"; runpod: RunpodConfig; source_url: string };
+
+/**
+ * What a turn needs to render clips for this character, when a clip renderer is on for this person (their own pick,
+ * else the server's) and the character's face at it is ready; else null (Simli streams; Tier 0 needs nothing).
+ */
+export async function liveFaceClips(db: Db, characterId: string, baseUrl: string, who: { admin: boolean; userId?: string | null }, env: Env = process.env): Promise<LiveFaceClipPlan | null> {
+  if (!liveFaceOn(env, who)) return null;
   const choice = await choiceOf(db, who);
   if (choice === "simli") return null;
-  if (choice !== "musetalk" && liveFaceProvider(env) !== "musetalk") return null;
+  const want = choice === "auto" ? liveFaceProvider(env) : choice;
+  if (want === "ditto") {
+    const cfg = dittoConfig(env);
+    const face = cfg ? await dittoRow(db, characterId, baseUrl) : null;
+    return cfg && face?.provider_face_id ? { provider: "ditto", runpod: cfg, source_url: face.provider_face_id } : null;
+  }
+  if (want !== "musetalk" || !runpodConfig(env)) return null;
   const face = await liveFaceRowFor(db, characterId, baseUrl, "musetalk", env);
   if (!face || face.provider !== "musetalk" || face.status !== "ready" || !face.provider_face_id || face.provider_face_id.startsWith(JOB)) return null;
-  return { runpod: runpodConfig(env)!, bundle_key: face.provider_face_id };
+  return { provider: "musetalk", runpod: runpodConfig(env)!, bundle_key: face.provider_face_id };
 }
 
 /** Forgets a character's live faces here and at Simli (a new portrait, or taking it down). A MuseTalk bundle stays in the bucket, unused. */

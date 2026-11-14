@@ -7,7 +7,8 @@ import { saveConnection } from "@/lib/connections";
 import { curatedModels, PROVIDER_INFO, providersFor } from "@/lib/connections-shared";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import { liveFaceClips } from "@/lib/live-face";
-import { compareState, keysFor, pcmOfWav, rateRender, rendererListing, setUserLiveFaceChoice, userLiveFaceChoice } from "@/lib/live-face/compare";
+import { compareState, keysFor, LIVE_FACE_CHOICES, pcmOfWav, rateRender, rendererListing, setUserLiveFaceChoice, userLiveFaceChoice } from "@/lib/live-face/compare";
+import { CHAIN_FADE_IN, CHAIN_FADE_OUT, CHAIN_TAIL_SILENCE_MS, type ChainClip, DittoChain } from "@/lib/live-face/ditto";
 import { RUNPOD_API, setRunpodFetchForTests } from "@/lib/live-face/musetalk";
 import { DID_API, didTalk, FAL_QUEUE, falRun, falVideo, RENDERERS, rendererById, runnableRenderers, setRendererFetchForTests } from "@/lib/live-face/renderers";
 import { BASE_URL, newUserCookie, signedInCookie, startTestDb, TEST_SESSION_SECRET, userIdOf } from "./helpers";
@@ -181,6 +182,99 @@ describe("Ditto, our second worker", () => {
     setRunpodFetchForTests(async () => Response.json({ id: "job-d", status: "FAILED", error: "the clause is empty" }));
     await expect(ditto.speak(input, { apiKey: null, env })).rejects.toThrow(/the clause is empty/);
   });
+
+  /** Ditto's endpoint, faked for a chain: every speak answers a clip named by its turn and, when asked, a state named the same; a clause of "bad" fails. */
+  function fakeChainEndpoint() {
+    const asked: Record<string, unknown>[] = [];
+    let n = 0;
+    setRunpodFetchForTests(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      const body = typeof init?.body === "string" ? (JSON.parse(init.body) as { input?: Record<string, unknown> }).input : undefined;
+      if (!url.startsWith(`${RUNPOD_API}/ep-d/runsync`) || !body) return Response.json({ error: "no such endpoint" }, { status: 404 });
+      asked.push(body);
+      n++;
+      if (body.audio_b64 === Buffer.from("bad").toString("base64")) return Response.json({ id: `job-${n}`, status: "FAILED", error: "the clause is empty" });
+      return Response.json({ id: `job-${n}`, status: "COMPLETED", output: { video_b64: `clip${n}`, mime: "video/mp4", frames: 40, fps: 25, width: 512, height: 512, bytes: 5, handler: "chain-1", ms: { total: 500 }, ...(body.want_state ? { state_b64: `state${n}` } : {}) } });
+    });
+    return asked;
+  }
+  const CFG = { key: "placeholder-runpod", endpoint: "ep-d" };
+  const PORTRAIT = "https://botchelor.com/api/face-kit/p.webp";
+
+  it("renders a reply as one chain: the first clause eases in from the still, each next takes the state the one before answered, the last gets silence and the fade out", async () => {
+    const asked = fakeChainEndpoint();
+    const clips: ChainClip[] = [];
+    const failed: number[] = [];
+    const chain = new DittoChain(CFG, PORTRAIT, 24_000, { clip: (c) => clips.push(c), fail: (i) => failed.push(i) }, { decideMs: 30 });
+    chain.expect(0);
+    chain.expect(1);
+    chain.expect(2);
+    chain.add(0, Buffer.from("one"));
+    chain.add(1, Buffer.from("two"));
+    chain.add(2, Buffer.from("three"));
+    chain.finish();
+    await chain.done();
+    expect(clips.map((c) => [c.i, c.mp4, c.last])).toEqual([
+      [0, "clip1", false],
+      [1, "clip2", false],
+      [2, "clip3", true],
+    ]);
+    expect(asked[0]).toMatchObject({ op: "speak", source_url: PORTRAIT, audio_format: "pcm16", rate: 24_000, fade_in: CHAIN_FADE_IN, want_state: true });
+    expect(asked[0]).not.toHaveProperty("state_b64");
+    expect(asked[0]).not.toHaveProperty("fade_out");
+    expect(asked[1]).toMatchObject({ state_b64: "state1", want_state: true });
+    expect(asked[1]).not.toHaveProperty("fade_in");
+    expect(asked[2]).toMatchObject({ state_b64: "state2", fade_out: CHAIN_FADE_OUT, tail_silence_ms: CHAIN_TAIL_SILENCE_MS });
+    expect(asked[2]).not.toHaveProperty("want_state");
+    expect(failed).toEqual([]);
+    expect(chain.stats).toEqual({ clips: 3, failed: 0 });
+  });
+
+  it("waits a moment for a clause whose place isn't known, breaks the chain at a failed clause and starts again from the still", async () => {
+    const asked = fakeChainEndpoint();
+    const clips: ChainClip[] = [];
+    const failed: number[] = [];
+    const chain = new DittoChain(CFG, PORTRAIT, 24_000, { clip: (c) => clips.push(c), fail: (i) => failed.push(i) }, { decideMs: 30 });
+    chain.expect(0);
+    chain.add(0, Buffer.from("one"));
+    // Nothing named after it and the reply not over: it waits, then renders as not the last.
+    await new Promise((ok) => setTimeout(ok, 10));
+    expect(asked.length).toBe(0);
+    await new Promise((ok) => setTimeout(ok, 60));
+    expect(asked.length).toBe(1);
+    expect(asked[0]).toMatchObject({ want_state: true });
+    expect(asked[0]).not.toHaveProperty("fade_out");
+    chain.expect(1);
+    chain.expect(2);
+    chain.add(1, Buffer.from("bad"));
+    chain.add(2, Buffer.from("three"));
+    chain.finish();
+    await chain.done();
+    expect(failed).toEqual([1]);
+    expect(clips.map((c) => [c.i, c.last])).toEqual([
+      [0, false],
+      [2, true],
+    ]);
+    // After the break: a chain again from the still (no state, the fade in), and the last.
+    expect(asked[2]).toMatchObject({ fade_in: CHAIN_FADE_IN, fade_out: CHAIN_FADE_OUT });
+    expect(asked[2]).not.toHaveProperty("state_b64");
+    expect(chain.stats).toEqual({ clips: 2, failed: 1 });
+  });
+
+  it("stops with the turn: once aborted nothing more is asked for and done() resolves", async () => {
+    const asked = fakeChainEndpoint();
+    const ctl = new AbortController();
+    const chain = new DittoChain(CFG, PORTRAIT, 24_000, { clip: () => {}, fail: () => {} }, { decideMs: 30, signal: ctl.signal });
+    chain.expect(0);
+    chain.expect(1);
+    chain.add(0, Buffer.from("one"));
+    await new Promise((ok) => setTimeout(ok, 10));
+    ctl.abort();
+    chain.add(1, Buffer.from("two"));
+    chain.finish();
+    await chain.done();
+    expect(asked.length).toBe(1);
+  });
 });
 
 describe("a compare's renders and ratings", () => {
@@ -208,7 +302,10 @@ describe("a compare's renders and ratings", () => {
 describe("a person's renderer for their own calls", () => {
   it("defaults to auto, is set through /api/me/live-face, and Simli means no clips for them", async () => {
     const { userId, cookie } = someone();
+    expect(LIVE_FACE_CHOICES).toEqual(["auto", "musetalk", "ditto", "simli"]);
     expect(await userLiveFaceChoice(t.db, userId)).toBe("auto");
+    expect(await (await call(minePost, "/api/me/live-face", { cookie, body: { renderer: "ditto" } })).json()).toEqual({ renderer: "ditto" });
+    expect(await userLiveFaceChoice(t.db, userId)).toBe("ditto");
     const set = await call(minePost, "/api/me/live-face", { cookie, body: { renderer: "simli" } });
     expect(await set.json()).toEqual({ renderer: "simli" });
     expect(((await (await call(mineGet, "/api/me/live-face", { cookie })).json()) as { renderer: string }).renderer).toBe("simli");

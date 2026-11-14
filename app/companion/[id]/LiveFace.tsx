@@ -2,7 +2,7 @@
 
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type ReactNode } from "react";
 import { BLINK_MS, canTalk, FACE_STILLS, LOOK_MS, lookFor, MOUTH_STILL, mouthFor, nextBlinkIn, syntheticLevel, type FaceKit, type FaceStill, type Look, type Mouth } from "@/lib/face-kit-shared";
-import { audioPieces, loopTimeAtCycleFrame, secondsOfFaceAudio, type LiveFaceSession } from "@/lib/live-face-shared";
+import { audioPieces, isClipProvider, loopTimeAtCycleFrame, secondsOfFaceAudio, type LiveFaceSession } from "@/lib/live-face-shared";
 
 /** How long before the loop's end it fades back into the portrait (the loop starts from the portrait, so the restart can't show). */
 const FADE_S = 0.45;
@@ -10,6 +10,8 @@ const FADE_S = 0.45;
 const LIVE_START_MS = 8_000;
 /** A clip whose turn hasn't come (the piece before it never arrived) waits this long, then the order moves on. */
 const STALL_MS = 2_500;
+/** A clip that ended with the next piece named but its clip still on its way keeps its last frame this long (a pause), then the loop takes over. */
+const HOLD_MS = 2_500;
 
 export type FacePhase = "ready" | "connecting" | "listening" | "thinking" | "speaking" | "paused";
 
@@ -21,8 +23,10 @@ export type LiveFaceHandle = {
   clips: () => boolean;
   /** A piece of the companion's voice, 16 kHz 16-bit mono (Simli). */
   sendAudio: (bytes: Uint8Array) => void;
-  /** Piece i of the reply as a clip with the voice in it (MuseTalk): played in order, over the kit's face. `end` is where in the idle cycle it leaves off. */
+  /** Piece i of the reply as a clip with the voice in it (MuseTalk, Ditto): played in order, over the kit's face. `end` is where in the idle cycle it leaves off (0: its first frame, the portrait). */
   clip: (i: number, mp4: Uint8Array, end: number | null) => void;
+  /** The reply has named piece i: a clip for it is due, so a clip that ends before it lands holds its last frame rather than drop to the loop. */
+  expect: (i: number) => void;
   /** Piece i plays the plain way instead (its clip failed): `play` runs in its turn among the clips and resolves when the voice is done. */
   plain: (i: number, play: () => Promise<void>) => void;
   /** A new reply: the order starts over at piece 0, and clips left from the last one go. */
@@ -52,8 +56,10 @@ type SimliModule = typeof import("simli-client");
  * With a `session` (lib/live-face, Tier 1) the renderer's picture lands in the same round frame, over the kit:
  *  - Simli: the browser opens the stream and the call feeds it the voice through the handle; the kit's face is what
  *    shows until the first frame, and again the moment the stream fails. The renderer's own audio plays the voice.
- *  - MuseTalk: the server sends a clip per piece of the reply (the loop with the mouth saying it, voice included);
- *    they play here in order, and between them, and whenever a clip doesn't come, the kit's face carries on.
+ *  - MuseTalk, Ditto: the server sends a clip per piece of the reply (MuseTalk the loop with the mouth saying it,
+ *    Ditto the whole head from the portrait, voice included); they play here in order, and between them, and whenever
+ *    a clip doesn't come, the kit's face carries on. A Ditto reply ends back at the portrait, so the loop restarts
+ *    from its first frame (`end` 0) and nothing jumps.
  */
 const LiveFace = forwardRef<LiveFaceHandle, { kit: FaceKit | null; phase: FacePhase; level: () => number; said: string | null; name: string; size: number | string; fallback: ReactNode; session?: LiveFaceSession | null; onLive?: (live: boolean) => void }>(
   function LiveFace({ kit, phase, level, said, name, size, fallback, session = null, onLive }, ref) {
@@ -71,7 +77,7 @@ const LiveFace = forwardRef<LiveFaceHandle, { kit: FaceKit | null; phase: FacePh
     const liveAudio = useRef<HTMLAudioElement>(null);
     const mouthNow = useRef<Mouth>("closed");
     const talking = phase === "speaking";
-    const clipMode = session?.provider === "musetalk";
+    const clipMode = isClipProvider(session?.provider);
     const clipModeNow = useRef(clipMode);
     clipModeNow.current = clipMode;
 
@@ -96,6 +102,9 @@ const LiveFace = forwardRef<LiveFaceHandle, { kit: FaceKit | null; phase: FacePh
     const loaded = useRef<{ slot: 0 | 1; url: string } | null>(null);
     const busy = useRef(false);
     const stall = useRef(0);
+    // The highest piece the reply has named so far, and the hold on a clip that ended before the next one's clip came.
+    const announced = useRef(-1);
+    const holding = useRef(0);
 
     const settle = () => {
       const w = idleWaiters.current;
@@ -130,6 +139,8 @@ const LiveFace = forwardRef<LiveFaceHandle, { kit: FaceKit | null; phase: FacePh
       setPlainUp(on);
     };
     const finishClips = () => {
+      window.clearTimeout(holding.current);
+      holding.current = 0;
       clipUp.current = null;
       setBusy(false);
       setOnSlot(null);
@@ -156,8 +167,20 @@ const LiveFace = forwardRef<LiveFaceHandle, { kit: FaceKit | null; phase: FacePh
     };
     const playNextClip = () => {
       window.clearTimeout(stall.current);
+      window.clearTimeout(holding.current);
+      holding.current = 0;
       const next = clipQueue.current[0];
       if (!next) {
+        if (clipUp.current && announced.current >= expected.current) {
+          // The next piece is named but its clip isn't here yet: keep this clip's last frame a moment (a pause in the
+          // talk) rather than drop to the loop; the clip plays the moment it lands (clip/plain call back here).
+          holding.current = window.setTimeout(() => {
+            holding.current = 0;
+            if (clipQueue.current.length) playNextClip();
+            else finishClips();
+          }, HOLD_MS);
+          return;
+        }
         finishClips();
         return;
       }
@@ -218,6 +241,8 @@ const LiveFace = forwardRef<LiveFaceHandle, { kit: FaceKit | null; phase: FacePh
     };
     const dropClips = () => {
       window.clearTimeout(stall.current);
+      window.clearTimeout(holding.current);
+      holding.current = 0;
       for (const c of clipQueue.current) if ("url" in c) URL.revokeObjectURL(c.url);
       clipQueue.current = [];
       loaded.current = null;
@@ -252,8 +277,11 @@ const LiveFace = forwardRef<LiveFaceHandle, { kit: FaceKit | null; phase: FacePh
           const url = URL.createObjectURL(new Blob([mp4 as BlobPart], { type: "video/mp4" }));
           clipQueue.current.push({ i, url, end });
           clipQueue.current.sort((a, b) => a.i - b.i);
-          if (!clipUp.current && !busy.current) playNextClip();
+          if ((!clipUp.current && !busy.current) || holding.current) playNextClip();
           else preloadNext();
+        },
+        expect: (i) => {
+          announced.current = Math.max(announced.current, i);
         },
         plain: (i, play) => {
           if (!clipModeNow.current) {
@@ -262,13 +290,14 @@ const LiveFace = forwardRef<LiveFaceHandle, { kit: FaceKit | null; phase: FacePh
           }
           clipQueue.current.push({ i, play });
           clipQueue.current.sort((a, b) => a.i - b.i);
-          if (!clipUp.current && !busy.current) playNextClip();
+          if ((!clipUp.current && !busy.current) || holding.current) playNextClip();
         },
         turn: () => {
           if (!clipModeNow.current) return;
           dropClips();
           expected.current = 0;
           lastEnd.current = null;
+          announced.current = -1;
         },
         unlock: (silence) => {
           // Before the session is known (the tap comes first), so the elements are always there (see `live` below).

@@ -369,16 +369,82 @@ Proved on a 4090 pod from the image: engines in 2.7 s, Juniper's 5.6-s clause in
 `-march=native` on first import, so the binary built on GitHub's runner hit an illegal instruction on Runpod's EPYC hosts
 and every worker came up unhealthy; the image now builds it for a portable target (`build-blend.py`).
 
-**What moving calls onto it takes (next):** Ditto has no idle cycle to index, so continuity between a reply's clauses is
-motion state, not MuseTalk's `start_frame`: carry the last clause's pose into the next (`ctrl_info`, `fade_in`/`fade_out`),
-and render the between-clip loop with Ditto too (a silent clause) so the renderer never visibly changes. Feed the 624-px
-loop frame rather than the 512-px portrait so clips match the round frame without upscaling. Then `LIVE_FACE_PROVIDER=ditto:admins`
-through the same `liveFaceClips` path. Both renderers resident on one 24-GB card would fit; they are two images today.
+**Calls on Ditto (built the same evening):** Ditto has no idle cycle to index, so continuity between a reply's clauses is
+motion state, not MuseTalk's `start_frame`. The worker now carries it through the job (`state_b64`: the last ten motion
+frames, the conditioning frame before them, the 0.4 s of audio under them and the chain's reference frame, about 35 KB), seeds
+its own window overlap with it and eases the first five frames from the last rendered one; the first clause of a reply
+starts at the still and eases in, the last gets 0.4 s of silence (the lips close on it) and eases pose and expression
+back to the still. The server renders a reply as one chain (`lib/live-face/ditto.ts` DittoChain: one clause at a time,
+each in about 0.6× its length plus the round trip; a clause whose place isn't known yet waits up to 2.5 s for the next
+piece or the reply's end; a failed clause breaks the chain and the next starts afresh), the browser plays the clips as
+MuseTalk's, holds a clip's last frame for up to 2.5 s when the next is a beat late instead of dropping to the loop
+mid-motion, and restarts the loop at its first frame (the portrait) after a reply (`end_frame` 0), so the only visible
+join is between two pictures of the same still. Nothing is built per character: a kit portrait is the face
+(`liveFaceClips` → `{ provider: "ditto", source_url }`), `LIVE_FACE_PROVIDER=ditto` or `ditto:admins`, and a person can
+pick Ditto for their own calls on the compare page. The loop between replies is still the kit's Wan loop (a
+Ditto-rendered idle is the next step if the switch between them shows); the 512-px portrait is the source (the round
+frame shows 136 px, so the 624-px loop frame gained nothing). Both renderers resident on one 24-GB card would fit;
+they are two images today.
 
 **Latency:** a clause's clip arrives roughly two seconds after its voice (render ≈ frames at 50 fps + encode); the
 browser holds the voice for it (measured above: the first clip and the first words start together). Simli is nearer one second end to end. If the hold reads as a pause, the next steps
 are rendering in shorter pieces, `ultrafast` x264 or a smaller clip, and Runpod's WebSocket load-balancing endpoint
 for a continuous stream (golden path 17).
+
+## The road from here (2026-11-14, David: "do 1–5, test along the way"; and what better hardware unlocks)
+
+A deep-research write-up David brought the same day (generative video humans vs neural 3D vs rigged 3D; Tavus Phoenix
+4.5, Anam Cara 4.1, HeyGen LiveAvatar; AVTR-1, SoulX-FlashHead, EchoMimicV3-Flash, LiveAvatar, LongCat-Video-Avatar
+1.5, StreamAvatar, ICo3D; LAM and NVIDIA Audio2Face-3D; a local Qwen speech stack) agrees with the shape we have (own
+the character, memory, voice orchestration and animation state; keep the renderer swappable) and names the gap
+(listening behaviour). Its numbers are vendor- or benchmark-reported, not ours. What we take from it, in order:
+
+### Next five
+
+1. **Ditto-rendered idle and listening reactions (the gap).** Between replies Juniper is a Wan loop, not a character
+   reacting to you. Render the idle with Ditto too (silence through the chain with a slow pose sway from its per-frame
+   pose controls, fading in and out at the still, 6 s, cached per kit portrait in the object store, ~0.13¢ once), so
+   idle and talking share one renderer and every join is still-to-still; a small library of reaction clips per
+   character (a nod, a tilt, a brow raise, each from the still back to the still) rendered once and played on
+   browser events (the person's sentence ended, the reply is being thought about); and the clause's mood steering
+   Ditto's expression bank (`emo` 0–7) from the line's text, a writer cue when there is one. Tests: unit for the
+   cue→emo mapping and the reaction scheduler; a chain on the endpoint with mixed `emo`; strips of the joins.
+2. **A streaming worker: Ditto's online mode over a WebSocket.** The chain still pays a job round trip per clause
+   (~0.9 s on top of 0.6× the clause). Ditto's `online_mode` was built for audio in, frames out, continuously; a
+   Runpod load-balancing endpoint with a WebSocket server in the worker (golden path 17), the call's server piping
+   Aura's PCM in as it arrives and fragmented MP4 back to the browser (MediaSource), one session per call. Removes the
+   per-clause wait and the hold; keeps the same `LiveFace` frame. Two to three days; the clip path stays as the
+   fallback.
+3. **AVTR-1: read, don't build.** The most relevant open model in the list (153 M parameters, BOTH sides' audio in so
+   the face reacts while listening, 25 fps on a 4060 Ti), but its renderer and streaming backend are non-commercial
+   and it depends on InsightFace (also non-commercial). The paper's listening ideas feed item 1; the repository is not
+   a dependency unless the licence changes.
+4. **LAM spike for the theater stage.** Alibaba's one-shot Gaussian head (LAM, Audio2Expression, a WebGL renderer in
+   OpenAvatarChat): the browser renders, so no per-frame GPU, native transparency and a camera. Head only and a
+   "3D avatar" look, so not for the call frame, but a day's spike for the show's theater (two faces on a stage) and
+   as a zero-cost tier above the face kit. Check the weights' licence first.
+5. **Replay renderers on the compare page: EchoMimicV3-Flash and SoulX-FlashHead.** The slow lane (replays, reels,
+   video replies), not calls: EchoMimicV3-Flash measured 33.7 GB in an independent run (a 48 GB Runpod card), SoulX
+   FlashHead Lite 5.8 GB at a softer quality. Hosted first where a provider has them (a `ClipRenderer` each), our own
+   worker only if none does; licences checked before either joins the registry.
+
+### With our own hardware (when users pick up; David moves the system then)
+
+Everything that renders is portable: the two worker images are plain Docker + CUDA 12 with a Python handler, and the
+app only knows a queue URL and a key (`RUNPOD_API_KEY`, `LIVE_FACE_ENDPOINT`, `LIVE_FACE_DITTO_ENDPOINT`). A move is
+the same images on a box behind a small job API (Runpod's worker SDK runs locally too) and those three env vars.
+
+| Machine | What it runs live | What stays out |
+|---|---|---|
+| The Mac (M1 Pro, 16 GB, shared with Ollama and OpenClaw) | nothing live; kit stills and loops keep coming from Replicate | every CUDA model |
+| A 5090 box (32 GB GDDR7, 128 GB RAM) | Ditto (2.8 GB) and MuseTalk (~6 GB) resident with no cold start, the idle and reaction libraries, Ditto's streaming mode for several calls at once, an AVTR-1-class dual-audio model (if ever licensable) or SoulX-FlashHead Lite, Qwen3-TTS voice cloning for consistent character voices, a local 8–14 B LLM | EchoMimicV3-Flash at its measured 34 GB, LongCat (47 GB), LiveAvatar (5× H800) |
+| An RTX PRO 6000 Blackwell (96 GB, ~$14k) | all of the above plus EchoMimicV3-Flash and LongCat for replays, batch and live side by side | LiveAvatar-class multi-GPU models |
+
+The crossover is far off in money and near in latency. A Runpod 4090 costs about $0.022 a render minute and a call
+minute needs about 0.6 of one (~1.3¢), so a $2,500 5090 box breaks even after roughly 190,000 call minutes, which at
+twenty minutes a person a month is about 9,500 user-months, before power. What the box buys sooner is no cold start,
+no per-job round trip, renderers resident together, and the freedom to keep an idle library warm. Until then: rent by
+the second, scale to zero, and keep the images portable. Not on any list: training our own video model.
 
 ## Not doing
 

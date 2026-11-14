@@ -4,15 +4,22 @@
  * brows, blinks, a mouth with teeth) where MuseTalk paints a mouth onto the frames of the idle loop. Same speed as
  * MuseTalk on a 4090 (a 2-s clause in about 1.3 s), same pay-per-second GPU, its own endpoint: the two images don't
  * share a CUDA base. The job API is Runpod's, the same as ./musetalk.ts; `speak` takes a still by URL (the kit's
- * portrait, or a frame of its loop) and the clause's audio, and answers a clip of the still's own size.
+ * portrait) and the clause's audio, and answers a clip of the still's own size.
  *
- * Today the compare page runs it (lib/live-face/renderers.ts, `ditto`). Calls keep MuseTalk until Ditto's continuity
- * between clauses is built: it has no idle cycle to index, so a run of clauses carries motion state, not a frame.
+ * On a call a reply is a CHAIN of clauses (DittoChain). Ditto has no idle cycle to index (MuseTalk's `start_frame`),
+ * so continuity is motion state the worker hands back with each clip and takes with the next (`state_b64`, opaque
+ * here): the first clause of a reply starts at the still and eases in, each next one continues the motion, and the
+ * last gets a little silence appended and eases pose and expression back to the still, so the browser hands over to
+ * the kit's loop at its first frame (the portrait) with no jump. The clauses render one after another (each needs the
+ * one before's state), each in about half its length, so a chain keeps ahead of its own playback; a clause whose
+ * place isn't known yet (is it the reply's last?) waits a moment for the next piece or the reply's end.
  */
 import { jobError, type RunpodConfig, RunpodError, runsync } from "./musetalk";
 
 /** The env var that names Ditto's endpoint; the key is the same `RUNPOD_API_KEY`. */
 export const DITTO_ENDPOINT_VAR = "LIVE_FACE_DITTO_ENDPOINT";
+/** Clips are the kit portrait's own size; the round frame shows them at 136 px. */
+export const DITTO_PX = 512;
 
 /** The app's Runpod key and Ditto's endpoint id, or null when either is missing (then Ditto is off). */
 export function dittoConfig(env: Record<string, string | undefined> = process.env): RunpodConfig | null {
@@ -21,13 +28,41 @@ export function dittoConfig(env: Record<string, string | undefined> = process.en
   return key && endpoint ? { key, endpoint } : null;
 }
 
-export type DittoOutput = { video_b64: string; mime: string; frames: number; fps: number; width: number; height: number; bytes: number; registrations?: number; ms: Record<string, number> };
+export type DittoOutput = {
+  video_b64: string;
+  mime: string;
+  frames: number;
+  fps: number;
+  width: number;
+  height: number;
+  bytes: number;
+  registrations?: number;
+  /** The chain's state for the next clause (asked with `want_state`). Opaque: the worker's own. */
+  state_b64?: string;
+  chain?: { in: boolean; skip: number; fade_in: number; fade_out: number; silence_ms: number; state: boolean };
+  handler?: string;
+  ms: Record<string, number>;
+};
 
-/**
- * One clause (our Aura PCM, 16-bit mono at `rate`) as a clip of the still saying it. `fade_in`/`fade_out` (frames)
- * ease the motion at the clip's ends. Throws on any failure or past `timeoutMs` (the job is cancelled then).
- */
-export async function speakDitto(cfg: RunpodConfig, input: { source_url: string; pcm: Buffer; rate: number; fade_in?: number; fade_out?: number; sampling_timesteps?: number }, opts: { signal?: AbortSignal; timeoutMs?: number } = {}): Promise<DittoOutput> {
+export type DittoSpeakInput = {
+  source_url: string;
+  /** The clause: our Aura PCM, 16-bit mono at `rate`. */
+  pcm: Buffer;
+  rate: number;
+  /** Frames easing the motion in from the still (a chain's first clause) and out to it (the last). */
+  fade_in?: number;
+  fade_out?: number;
+  /** Silence appended to the clause (the last of a chain: the lips close on it under the fade out). */
+  tail_silence_ms?: number;
+  /** The state the clause before answered with, to continue its motion; none starts a chain. */
+  state?: string | null;
+  /** Whether to answer with the state for a clause after this one. */
+  want_state?: boolean;
+  sampling_timesteps?: number;
+};
+
+/** One clause as a clip of the still saying it. Throws on any failure or past `timeoutMs` (the job is cancelled then). */
+export async function speakDitto(cfg: RunpodConfig, input: DittoSpeakInput, opts: { signal?: AbortSignal; timeoutMs?: number } = {}): Promise<DittoOutput> {
   const job = await runsync<DittoOutput>(
     cfg,
     {
@@ -36,12 +71,150 @@ export async function speakDitto(cfg: RunpodConfig, input: { source_url: string;
       audio_b64: input.pcm.toString("base64"),
       audio_format: "pcm16",
       rate: input.rate,
-      ...(input.fade_in !== undefined ? { fade_in: input.fade_in } : {}),
-      ...(input.fade_out !== undefined ? { fade_out: input.fade_out } : {}),
+      ...(input.fade_in ? { fade_in: input.fade_in } : {}),
+      ...(input.fade_out ? { fade_out: input.fade_out } : {}),
+      ...(input.tail_silence_ms ? { tail_silence_ms: input.tail_silence_ms } : {}),
+      ...(input.state ? { state_b64: input.state } : {}),
+      ...(input.want_state ? { want_state: true } : {}),
       ...(input.sampling_timesteps !== undefined ? { sampling_timesteps: input.sampling_timesteps } : {}),
     },
     { ...opts, what: "ditto speak" },
   );
   if (job.status !== "COMPLETED" || !job.output?.video_b64) throw new RunpodError(`Runpod ditto: ${jobError(job)}`, 502);
   return job.output;
+}
+
+/* ------------------------------------------------------------- the chain ------------------------------------------------------------- */
+
+/** A chain's first clause eases in from the still over this many frames (240 ms). */
+export const CHAIN_FADE_IN = 6;
+/** Its last clause: the silence appended (the lips close on it) and the frames over which pose and expression return to the still. */
+export const CHAIN_TAIL_SILENCE_MS = 400;
+export const CHAIN_FADE_OUT = 13;
+/** A clause whose place isn't known yet (nothing after it named, the reply not ended) waits this long before rendering as not the last. */
+export const CHAIN_DECIDE_MS = 2500;
+/** A clause's clip not back in this long breaks the chain there: that piece plays plain and the next starts from the still. */
+export const CHAIN_SPEAK_TIMEOUT_MS = 20_000;
+
+export type ChainClip = { i: number; mp4: string; frames: number; last: boolean; ms: number; handler?: string };
+
+/**
+ * A reply's clauses rendered by Ditto in order, each continuing the motion of the one before. The route feeds it:
+ * `expect(i)` when the reply names piece i (so a clause knows one comes after it), `add(i, pcm)` when piece i's voice
+ * is in, `finish()` when nothing more will come; `done()` resolves when every clause added has a clip or failed. A
+ * failure breaks the chain at that clause (`fail`); the next starts a chain again from the still.
+ */
+export class DittoChain {
+  private pending: { i: number; pcm: Buffer }[] = [];
+  private state: string | null = null;
+  private fresh = true;
+  private announced = 0;
+  private finished = false;
+  private running = false;
+  private decide: ReturnType<typeof setTimeout> | null = null;
+  private jobs: Promise<void>[] = [];
+  private waiters: (() => void)[] = [];
+  /** How many clauses ran and how many broke the chain. */
+  readonly stats = { clips: 0, failed: 0 };
+
+  constructor(
+    private readonly cfg: RunpodConfig,
+    private readonly sourceUrl: string,
+    private readonly rate: number,
+    private readonly on: { clip: (c: ChainClip) => void; fail: (i: number, err: unknown) => void },
+    private readonly opts: { signal?: AbortSignal; decideMs?: number; timeoutMs?: number } = {},
+  ) {}
+
+  /** The reply has named piece i (its text; the voice may still be coming): the clause before it isn't the last. */
+  expect(i: number): void {
+    this.announced = Math.max(this.announced, i + 1);
+    this.drain();
+  }
+
+  /** Piece i's voice is in. */
+  add(i: number, pcm: Buffer): void {
+    if (!pcm.length) return;
+    this.pending.push({ i, pcm });
+    this.pending.sort((a, b) => a.i - b.i);
+    this.drain();
+  }
+
+  /** No more pieces will come: the one waiting is the last and gets the fade out. */
+  finish(): void {
+    this.finished = true;
+    this.drain();
+  }
+
+  /** Resolves once every clause added has been rendered or has failed (call after finish()), or at once when stopped. */
+  async done(): Promise<void> {
+    while (!this.opts.signal?.aborted && (this.pending.length || this.running)) {
+      await new Promise<void>((ok) => this.waiters.push(ok));
+    }
+    await Promise.allSettled(this.jobs);
+  }
+
+  private wake(): void {
+    const w = this.waiters;
+    this.waiters = [];
+    w.forEach((ok) => ok());
+  }
+
+  private drain(): void {
+    if (this.opts.signal?.aborted) {
+      this.pending = [];
+      if (this.decide) clearTimeout(this.decide);
+      this.decide = null;
+      this.wake();
+      return;
+    }
+    if (this.running || !this.pending.length) return;
+    const head = this.pending[0];
+    const last = this.finished && this.pending.length === 1;
+    const later = !last && (this.pending.length > 1 || this.announced > head.i + 1);
+    if (!last && !later) {
+      // Whether this is the reply's last clause isn't known yet: wait for the next piece or the end, a while.
+      if (!this.decide) {
+        this.decide = setTimeout(() => {
+          this.decide = null;
+          if (!this.running && this.pending[0] === head) this.render(head, false);
+        }, this.opts.decideMs ?? CHAIN_DECIDE_MS);
+      }
+      return;
+    }
+    if (this.decide) clearTimeout(this.decide);
+    this.decide = null;
+    this.render(head, last);
+  }
+
+  private render(c: { i: number; pcm: Buffer }, last: boolean): void {
+    this.pending.shift();
+    this.running = true;
+    const first = this.fresh;
+    const state = this.state;
+    const job = (async () => {
+      const t0 = Date.now();
+      try {
+        const out = await speakDitto(
+          this.cfg,
+          { source_url: this.sourceUrl, pcm: c.pcm, rate: this.rate, state, want_state: !last, fade_in: first ? CHAIN_FADE_IN : 0, fade_out: last ? CHAIN_FADE_OUT : 0, tail_silence_ms: last ? CHAIN_TAIL_SILENCE_MS : 0 },
+          { signal: this.opts.signal, timeoutMs: this.opts.timeoutMs ?? CHAIN_SPEAK_TIMEOUT_MS },
+        );
+        this.state = last ? null : (out.state_b64 ?? null);
+        // No state back (an older worker, or the last): the next clause starts a chain again.
+        this.fresh = last || !out.state_b64;
+        this.stats.clips++;
+        this.on.clip({ i: c.i, mp4: out.video_b64, frames: out.frames, last, ms: Date.now() - t0, handler: out.handler });
+      } catch (err) {
+        this.state = null;
+        this.fresh = true;
+        this.stats.failed++;
+        this.on.fail(c.i, err);
+      } finally {
+        this.running = false;
+        this.drain();
+        this.wake();
+      }
+    })();
+    this.jobs.push(job);
+  }
 }
