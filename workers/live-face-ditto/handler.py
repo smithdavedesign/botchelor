@@ -67,7 +67,7 @@ import threading
 import time
 import urllib.request
 
-HANDLER_VERSION = "stream-1"
+HANDLER_VERSION = "stream-2"
 DITTO_DIR = os.environ.get("DITTO_DIR", "/app/ditto")
 DATA_ROOT = os.environ.get("DITTO_DATA_ROOT", os.path.join(DITTO_DIR, "checkpoints/ditto_trt_Ampere_Plus"))
 CFG_PKL = os.environ.get("DITTO_CFG_PKL", os.path.join(DITTO_DIR, "checkpoints/ditto_cfg/v0.4_hubert_cfg_trt.pkl"))
@@ -235,7 +235,7 @@ class FragWriter:
             "-g", str(fps), "-keyint_min", str(fps), "-sc_threshold", "0",
             "-c:a", "aac", "-b:a", "96k",
             "-movflags", "frag_keyframe+empty_moov+default_base_moof", "-frag_duration", str(frag_ms * 1000),
-            "-f", "mp4", "pipe:1",
+            "-flush_packets", "1", "-f", "mp4", "pipe:1",
         ]
         self.proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         self.pieces: queue.Queue = queue.Queue()
@@ -246,9 +246,10 @@ class FragWriter:
         threading.Thread(target=self._stderr, name="frag-err", daemon=True).start()
 
     def _read(self) -> None:
+        fd = self.proc.stdout.fileno()
         try:
             while True:
-                chunk = self.proc.stdout.read(32768)
+                chunk = os.read(fd, 65536)  # whatever is there now (a file read would wait for the whole 64 KB)
                 if not chunk:
                     break
                 self.bytes += len(chunk)
