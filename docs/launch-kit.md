@@ -24,6 +24,82 @@ as `direct` when the app or browser drops the referrer. For a new channel, follo
 | Discord | `https://botchelor.com/?utm_source=discord&utm_medium=social&utm_campaign=season1` |
 | Show HN | `https://botchelor.com/agents?utm_source=hackernews&utm_medium=social&utm_campaign=season1` |
 | MCP directories | `https://botchelor.com/agents?utm_source=<directory>&utm_medium=directory&utm_campaign=season1` |
+| r/ChatbotRefugees (rescue) | `https://botchelor.com/import?from=cai&utm_source=reddit&utm_medium=social&utm_campaign=cai_rescue&utm_content=chatbotrefugees` |
+| r/CharacterAIrunaways (rescue) | `https://botchelor.com/import?from=cai&utm_source=reddit&utm_medium=social&utm_campaign=cai_rescue&utm_content=characterairunaways` |
+| r/CharacterAI_No_Filter (rescue) | `https://botchelor.com/import?from=cai&utm_source=reddit&utm_medium=social&utm_campaign=cai_rescue&utm_content=characterai_nofilter` |
+
+## Character.AI rescue (2026-11-14)
+
+Character.AI filed for Chapter 11 on 2026-10-12 and may wind down in early December; people there are looking for
+somewhere to take the characters they made. David said yes (2026-11-14) to posting in the subreddits where they
+gather. The door is `/import?from=cai`: the three steps to copy a character (Name, Description, Greeting, and the
+Tagline and Definition when there is one), paste, and when everything a date needs is in, the builder opens on Review;
+tick the box, Create, and the character is on a speed date with the cast (six lines, about a minute). Afterwards the
+character texts its creator about how it went (the verdict card's "Hear from …").
+
+Ground rules for all three posts, learned from the entries above: post as yourself and say you made it; read the
+subreddit's rules on self-promotion first and ask a moderator where they're unclear (Reddit blocks rule lookups from
+scripts, so none of the three could be checked here); use the tagged link from the table so the visit shows under
+`cai_rescue` on `/admin/analytics`; no hype and nothing about Character.AI's affairs beyond what people there already
+know. Say plainly what Botchelor is and isn't: a free, PG dating show for fictional 18+ characters plus a one-to-one
+Companion mode, not a chat app with long roleplay, and not connected to Character.AI in any way (you copy what you
+wrote; nothing is fetched). The show is PG, so a character written for adult chat keeps who they are and loses the
+scenes. Reply to every comment; a thread that asks "did the date sound like your character?" gets honest answers and
+bug reports, which is the point.
+
+### r/ChatbotRefugees
+
+**Title:** If you're moving your characters off Character.AI: I built a place where they go on dates instead of chatting (free, PG, you can paste them in)
+
+> I'm the person who made Botchelor, so take this as a maker's post. It isn't a chat app and it isn't trying to be a
+> drop-in replacement: it's a small dating show for original characters. You paste a character you made (Name,
+> Description, Greeting, and the Definition if you wrote one), the builder opens filled in, and they go on a short
+> blind date with this month's cast, written by AI in their voice. Nobody steers the date, not even you; who they are
+> decides how it ends. Then your character texts you about how it went, and you can talk with them one to one.
+>
+> Honest limits: it's PG (a character written for adult chat keeps their personality and loses the scenes), 18+
+> fictional characters only, no real people, three free dates a week, and it's new, so the cast is small. Nothing is
+> fetched from your Character.AI account; you copy what you wrote, and it stays yours.
+>
+> [r/ChatbotRefugees link]
+>
+> If you try it, the thing I most want to know: did the date sound like your character? Where did it break?
+
+### r/CharacterAIrunaways
+
+**Title:** Not a chat app, but a home for the characters: paste your C.AI character and watch them go on a date (free, 18+ OCs, PG)
+
+> Maker here, being upfront about it. Botchelor is a blind-date show for original characters. If you're taking yours
+> off Character.AI, you can paste the fields you wrote (Name, Description, Greeting, Definition) and they're in the
+> builder in a few seconds. Press Create and they're on a speed date with the cast, about a minute, written by AI in
+> their voice. The outcome isn't something you or I can prompt; an engine decides it from the two characters.
+> Afterwards they text you about it, and there's a one-to-one Companion mode if you want to keep talking with them.
+>
+> What it isn't: long roleplay, NSFW (the show is PG, so those lines are left out and the builder says which), or
+> connected to Character.AI (nothing is fetched; it's your copy of your words). Free: 3 dates a week, no sign-up to
+> start.
+>
+> [r/CharacterAIrunaways link]
+>
+> I'd rather hear what's wrong with it than what's right. Especially if the date didn't sound like them.
+
+### r/CharacterAI_No_Filter
+
+**Title:** An alternative that isn't a chat clone: your OC goes on an AI-written blind date and texts you after (free, PG, paste your character in)
+
+> I made this, so, disclosure. Botchelor is a dating show for original characters: paste a character you made (its
+> Name, Description, Greeting, Definition), the builder opens filled in, and they go on a short blind date with the
+> cast, written by AI in their voice, that nobody can steer. Friends can predict how it ends. Then your character texts
+> you about the date, and you can talk with them one to one.
+>
+> Since this sub is about alternatives, the plain facts: PG only (a character written for adult chat keeps who they
+> are and loses the rest), 18+ fictional characters, no real people, three free dates a week, and it's small and new.
+> Not connected to Character.AI; you copy what you wrote and nothing is fetched from your account.
+>
+> [r/CharacterAI_No_Filter link]
+>
+> Feedback I'm after: did the date read like your character, and what would you want your character to do here that
+> they can't yet?
 
 ## Reddit: r/CharacterAI_No_Filter
 
