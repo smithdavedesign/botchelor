@@ -500,7 +500,7 @@ keep: three explicit clips that the old looser check had let onto the showcase a
 - **A Cloudflare cache rule for `/api/assets/*`:** your dashboard. The responses are already `public, immutable`; the edge
   just needs a cache rule. I have no Cloudflare token in this session.
 - **Alerting that reaches a phone:** DigitalOcean's only alerts on both apps are `DEPLOYMENT_FAILED` and `DOMAIN_FAILED`,
-  emailing 1426dave@gmail.com, no Slack — and neither would have caught the outage (the pods stayed healthy while the
+  emailing the owner's other Gmail, no Slack — and neither would have caught the outage (the pods stayed healthy while the
   gateway 504'd). You need a DigitalOcean uptime check with a phone/Slack alert (the API token this session holds is not
   authorized for uptime checks) or the RepoHQ probe paging you.
 - **Ask DigitalOcean** why the app's health stayed green while its gateway returned 504 (a support question).

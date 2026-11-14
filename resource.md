@@ -21,7 +21,7 @@ Every dashboard, console and listing used for this project. Links only, no secre
 - [DigitalOcean API tokens](https://cloud.digitalocean.com/account/api/tokens?i=bcb315)
 - [Bunny dashboard (billing)](https://dash.bunny.net/auth/login?returnUrl=%2Faccount%2Fbilling)
 - [Bunny login](https://dash.bunny.net/auth/login)
-- [Cloudflare API tokens](https://dash.cloudflare.com/157f90dfa6ce729a7575aaedc25d8fc8/api-tokens)
+- [Cloudflare API tokens](https://dash.cloudflare.com/)
 - [Tailscale machines](https://login.tailscale.com/login?next_url=https%3A%2F%2Fconsole.tailscale.com%2Fadmin%2Fmachines)
 - [Deploy portal](https://portal.deploy.com/organization/1648386094/dashboard)
 
@@ -38,7 +38,7 @@ Every dashboard, console and listing used for this project. Links only, no secre
 - [Google AI Studio billing](https://aistudio.google.com/billing?billing=011B5F-2D20A4-B63801)
 
 ## Email and payments
-- support@botchelor.com: forwards to 1426davejobs@gmail.com ([Cloudflare Email Routing](https://dash.cloudflare.com/157f90dfa6ce729a7575aaedc25d8fc8/botchelor.com/email/routing/routes)); the site's `CONTACT_EMAIL` on both DigitalOcean apps
+- support@botchelor.com: forwards to the owner's Gmail ([Cloudflare Email Routing](https://dash.cloudflare.com/)); the site's `CONTACT_EMAIL` on both DigitalOcean apps
 - [Resend](https://resend.com/login)
 - [Stripe dashboard (payments)](https://dashboard.stripe.com/login?redirect=%2Facct_1UR4AVAFlr4wKG3U%2Fpayments)
 
@@ -63,7 +63,7 @@ Checked live 2026-11-08.
 - [mcpservers.org listing](https://mcpservers.org/servers/botchelor-com-agents) (approved 2026-11-09)
 - [MCP Rush listing](https://mcprush.com/to/botchelor-mcp?ref=badge) (`botchelor-mcp`; claim file `public/.well-known/mcprush.com-claim.txt`, keep until they email their decision)
 
-Submitted 2026-11-08, waiting for review (each emails 1426davejobs@gmail.com when live):
+Submitted 2026-11-08, waiting for review (each emails the owner's Gmail when live):
 - [MCP Market](https://mcpmarket.com/search?q=botchelor): free queue, resubmitted 2026-11-09 with the public repo (about 4 to 6 weeks; email goes to support@botchelor.com). The paid route is now $29, listed within 24 hours.
 - [LobeHub](https://lobehub.com/mcp/botchelor-mcp): `botchelor-mcp@2.26.0`, published 2026-11-09 from the public repo with the `lhm` CLI (validation is automatic once the repo is enriched). The older `botchelor` listing is stuck on `not_validated`, because it's tied to this private repo and its identifier can't be moved. To update: `lhm plugin init --url https://botchelor.com/api/mcp`, set `identifier` to `botchelor-mcp`, then `lhm plugin update`.
 - [awesome-remote-mcp-servers PR #4221](https://github.com/punkpeye/awesome-remote-mcp-servers/pull/4221): Gaming section, waiting for a maintainer to merge
