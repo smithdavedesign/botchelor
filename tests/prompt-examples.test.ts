@@ -1,6 +1,6 @@
 import { prerender } from "react-dom/static";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { EXAMPLES_PER_TAG, examplesForTag, pictureTags, resetPromptExamplesForTests } from "@/lib/prompt-examples";
+import { EXAMPLES_PER_TAG, examplesForTag, pickVaried, pictureTags, resetPromptExamplesForTests, type PromptExample } from "@/lib/prompt-examples";
 import { api, named, newUserCookie, startTestDb, userIdOf, validCharacter } from "./helpers";
 
 let t: Awaited<ReturnType<typeof startTestDb>>;
@@ -50,6 +50,14 @@ describe("a tag's example pictures", () => {
     expect(close[0].alt).toContain("a picture made in the Studio");
     // A tag the prompt doesn't carry has none.
     expect(await examplesForTag(t.db, "framing.wide")).toEqual([]);
+  });
+
+  it("shows one of each character before a second of any, newest first within (pickVaried)", () => {
+    const ex = (post_id: string, character: string): PromptExample => ({ post_id, character, href: "", src: "", alt: "" });
+    const cands = [ex("l1", "Lexi"), ex("l2", "Lexi"), ex("n1", "Nell"), ex("l3", "Lexi"), ex("s1", "Sable"), ex("l4", "Lexi")];
+    expect(pickVaried(cands, 4).map((c) => c.post_id)).toEqual(["l1", "l2", "n1", "s1"]);
+    expect(pickVaried(cands, 2).map((c) => c.post_id)).toEqual(["l1", "n1"]);
+    expect(pickVaried(cands.slice(0, 2), 4).map((c) => c.post_id)).toEqual(["l1", "l2"]);
   });
 
   it("a picture's picked Studio options count as its tags too (the Studio's own words don't always say them)", async () => {

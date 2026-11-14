@@ -65,11 +65,10 @@ export async function promptExamples(db: Db): Promise<Map<string, PromptExample[
       limit $1`,
     [EXAMPLES_SCAN],
   );
-  const byTag = new Map<string, PromptExample[]>();
+  const candidates = new Map<string, PromptExample[]>();
   for (const r of rows) {
     for (const tag of pictureTags(r.prompt, r.tags, r.choices)) {
-      const list = byTag.get(tag) ?? [];
-      if (list.length >= EXAMPLES_PER_TAG) continue;
+      const list = candidates.get(tag) ?? [];
       list.push({
         post_id: r.id,
         href: `/showcase/reels?start=${encodeURIComponent(r.id)}`,
@@ -77,11 +76,31 @@ export async function promptExamples(db: Db): Promise<Map<string, PromptExample[
         character: r.name,
         alt: `${r.name}, a picture made in the Studio`,
       });
-      byTag.set(tag, list);
+      candidates.set(tag, list);
     }
   }
+  const byTag = new Map([...candidates].map(([tag, list]) => [tag, pickVaried(list, EXAMPLES_PER_TAG)]));
   cache = { at: Date.now(), byTag };
   return byTag;
+}
+
+/**
+ * Up to `n` of a tag's candidates (newest first): one of each character before a second of any, so four pictures of
+ * one shoot don't fill the strip when others exist; the order within is kept. Pure, so it's tested on its own.
+ */
+export function pickVaried(candidates: readonly PromptExample[], n: number): PromptExample[] {
+  const seen = new Set<string>();
+  const first = candidates.filter((c) => (seen.has(c.character) ? false : (seen.add(c.character), true)));
+  const picked = first.slice(0, n);
+  if (picked.length < n) {
+    const chosen = new Set(picked.map((c) => c.post_id));
+    for (const c of candidates) {
+      if (picked.length >= n) break;
+      if (!chosen.has(c.post_id)) picked.push(c);
+    }
+    picked.sort((a, b) => candidates.indexOf(a) - candidates.indexOf(b));
+  }
+  return picked;
 }
 
 /** One tag's examples, newest first; empty when there are none or the database can't be read (a build, an outage). */
