@@ -89,6 +89,15 @@ export type GenerateOptions = {
   engineVersion?: number | null;
   /** Critic-rejected drafts, as they're replaced (lib/conversation.ts onDraft; stored as turn_drafts by the job). */
   onDraft?: (d: { turn_index: number; side: "a" | "b"; reason: string; rejected: string }) => void;
+  /**
+   * The early verdict (the 2026-11-14 core plan, PR3): called once, with the ending as it will stand, the moment the two
+   * characters' own answers have weighed in (after applyChoices) and before the recap, afterglow and reflections are
+   * written. The creator's filming stage shows the verdict card from this (lib/jobs.ts writes it while the date is still
+   * 'generating'), 30-60 s before the date is ready. Never from the booking-time roll: under engine v5 the characters'
+   * answers can move that ending (lib/choices.ts), so the booked one isn't final. Best effort: a failure here is logged
+   * and the date goes on.
+   */
+  onOutcome?: (outcome: Outcome, transcript: Turn[]) => void | Promise<void>;
 };
 
 export type GeneratedDate = {
@@ -244,6 +253,15 @@ export async function generateDate(
       const read = resolveWishes(null, transcript);
       outcome = applyWishes(decided, read, built.seed);
       wishes = settledWishes(read, decided.ending);
+    }
+  }
+
+  // The ending is now final: everything written from here follows it, so the creator can be told before it's all written.
+  if (opts.onOutcome) {
+    try {
+      await opts.onOutcome(outcome, transcript);
+    } catch (err) {
+      console.warn("[pipeline] early verdict not saved:", err instanceof Error ? err.message : err);
     }
   }
 
