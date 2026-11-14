@@ -23,7 +23,7 @@ import { getDb } from "@/lib/db";
 import { ensureFaceKit } from "@/lib/face-kit";
 import { liveFaceClips, liveFaceSession } from "@/lib/live-face";
 import { speakClip } from "@/lib/live-face/musetalk";
-import { framesOfPcm, SHORT_FIRST_PIECE, SHORT_FIRST_WAIT_MS, splitFirstPiece } from "@/lib/live-face-shared";
+import { clausesOf, framesOfPcm, SHORT_FIRST_PIECE, SHORT_FIRST_WAIT_MS } from "@/lib/live-face-shared";
 import { handle, json, parseBody, readJson, session } from "@/lib/http";
 import { overLimit } from "@/lib/limits";
 import { inBackground } from "@/lib/sets";
@@ -235,13 +235,13 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
         }
       })();
       let n = 0;
-      // With clips, the first piece is shaped for the first clip: a very short one ("Hey.") waits a moment for the
-      // next and goes with it (its clip would be over before the next was ready: a pause right after the first word),
-      // and a long one goes as two pieces split at a clause, so the first clip is ready sooner (nothing plays until it
-      // is, and a clip can't render until its whole voice is in): lib/live-face-shared splitFirstPiece.
+      // With clips the pieces are shaped for the clips: a long piece goes as its clauses (a clip can't render until its
+      // whole voice is in and takes about half its length, so a long sentence after a short one left the face waiting
+      // for it), and a very short first piece ("Hey.") waits a moment for the next and goes with it (its clip would be
+      // over before the next was ready: a pause right after the first word): lib/live-face-shared clausesOf.
       let shortFirst: { text: string; timer: ReturnType<typeof setTimeout> } | null = null;
       const sayPiece = (text: string) => {
-        const parts = clips && n === 0 ? (splitFirstPiece(text) ?? [text]) : [text];
+        const parts = clips ? clausesOf(text) : [text];
         for (const part of parts) {
           const i = n++;
           send({ type: "say", i, text: part });

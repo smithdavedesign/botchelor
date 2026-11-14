@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CLIP_FPS, framesOfPcm, loopTimeAtCycleFrame, splitFirstPiece } from "@/lib/live-face-shared";
+import { CLIP_FPS, clausesOf, framesOfPcm, loopTimeAtCycleFrame, splitFirstPiece } from "@/lib/live-face-shared";
 
 describe("a reply's first piece, split at a clause for a sooner first clip", () => {
   it("leaves a short piece alone", () => {
@@ -56,5 +56,20 @@ describe("where the loop takes over after a clip", () => {
   it("never lands past the fade at the loop's end", () => {
     expect(loopTimeAtCycleFrame(123, loop)).toBeLessThan(loop);
     expect(loopTimeAtCycleFrame(123, loop)).toBeCloseTo(loop - 1.5 / 25, 5);
+  });
+});
+
+describe("a piece as the clauses its clips are rendered from", () => {
+  it("leaves a short piece whole and splits a long one, again while a part is still long", () => {
+    expect(clausesOf("Almost.")).toEqual(["Almost."]);
+    expect(clausesOf("Spent the morning at the studio — almost finished a new set of mugs without any cracks, which never happens, so I'm taking the win.")).toEqual([
+      "Spent the morning at the studio",
+      "almost finished a new set of mugs without any cracks,",
+      "which never happens, so I'm taking the win.",
+    ]);
+  });
+  it("keeps a long piece with no clause boundary whole", () => {
+    const run = "Thirtysevenletterswithoutasinglebreakinthemanywhereatallreallytruly honestly";
+    expect(clausesOf(run)).toEqual([run]);
   });
 });
