@@ -1,6 +1,6 @@
 import { prerender } from "react-dom/static";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { EXAMPLES_PER_TAG, examplesForTag, resetPromptExamplesForTests } from "@/lib/prompt-examples";
+import { EXAMPLES_PER_TAG, examplesForTag, pictureTags, resetPromptExamplesForTests } from "@/lib/prompt-examples";
 import { api, named, newUserCookie, startTestDb, userIdOf, validCharacter } from "./helpers";
 
 let t: Awaited<ReturnType<typeof startTestDb>>;
@@ -19,7 +19,7 @@ beforeEach(async () => {
 const CLOSE = "a close-up headshot of a woman with red hair, oil painting, soft light";
 
 /** A creator with a public character and one PG Studio picture of it on the showcase. */
-async function publish(opts: { prompt?: string; rating?: "pg" | "nsfw"; hidden?: boolean; visibility?: "public" | "private"; status?: "live" | "removed" } = {}) {
+async function publish(opts: { prompt?: string; rating?: "pg" | "nsfw"; hidden?: boolean; visibility?: "public" | "private"; status?: "live" | "removed"; tags?: { kind: string; value: string }[] } = {}) {
   const cookie = newUserCookie();
   const owner = userIdOf(cookie);
   await named(cookie, `Creator ${owner.slice(0, 6)}`);
@@ -28,8 +28,8 @@ async function publish(opts: { prompt?: string; rating?: "pg" | "nsfw"; hidden?:
   await t.db.query("insert into creator_profiles (user_id, handle, display_name, hidden) values ($1, $2, $3, $4)", [owner, `h${owner.slice(0, 8)}`, "A creator", opts.hidden ?? false]);
   const picture = crypto.randomUUID();
   await t.db.query(
-    "insert into studio_pg_pictures (id, owner_id, character_id, prompt, mime, content_rating) values ($1, $2, $3, $4, 'image/webp', $5)",
-    [picture, owner, character, opts.prompt ?? CLOSE, opts.rating ?? "pg"],
+    "insert into studio_pg_pictures (id, owner_id, character_id, prompt, mime, content_rating, tags) values ($1, $2, $3, $4, 'image/webp', $5, $6::jsonb)",
+    [picture, owner, character, opts.prompt ?? CLOSE, opts.rating ?? "pg", JSON.stringify(opts.tags ?? [{ kind: "made", value: "shoot" }])],
   );
   const post = crypto.randomUUID();
   await t.db.query(
@@ -50,6 +50,13 @@ describe("a tag's example pictures", () => {
     expect(close[0].alt).toContain("a picture made in the Studio");
     // A tag the prompt doesn't carry has none.
     expect(await examplesForTag(t.db, "framing.wide")).toEqual([]);
+  });
+
+  it("a picture's picked Studio options count as its tags too (the Studio's own words don't always say them)", async () => {
+    expect(pictureTags("a quiet moment", [{ kind: "made", value: "shoot" }, { kind: "light", value: "candle" }, { kind: "framing", value: "close" }, { kind: "nonsense", value: "x" }]).sort()).toEqual(["framing.close", "light.candle"]);
+    const { post } = await publish({ prompt: "a quiet moment at home", tags: [{ kind: "made", value: "shoot" }, { kind: "light", value: "candle" }] });
+    expect((await examplesForTag(t.db, "light.candle")).map((e) => e.post_id)).toEqual([post]);
+    expect(await examplesForTag(t.db, "framing.close")).toEqual([]);
   });
 
   it("never shows a picture the showcase wouldn't: not PG, a hidden creator, a private character, a removed post", async () => {
