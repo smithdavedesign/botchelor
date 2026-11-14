@@ -51,11 +51,13 @@ continue the idle motion: pass the previous clip's `next_frame`.
    curl -X POST https://api.runpod.io/v2/serverless -H "Authorization: Bearer $RUNPOD_API_KEY" -H 'Content-Type: application/json' -d '{
      "name": "live-face", "type": "QUEUE", "templateId": "<template>",
      "gpu": {"pools": ["ADA_24", "AMPERE_24"], "count": 1},
-     "workers": {"min": 0, "max": 2, "idleTimeout": 30}, "timeout": 180000,
-     "flashboot": "FLASHBOOT", "scaling": {"type": "QUEUE_DELAY", "queueDelay": 4}}'
+     "workers": {"min": 0, "max": 3, "idleTimeout": 60}, "timeout": 180000,
+     "flashboot": "FLASHBOOT", "scaling": {"type": "QUEUE_DELAY", "queueDelay": 1}}'
    ```
    Pools are the catalog's (`GET /v2/catalog/gpus`, field `pool`): `ADA_24` is the 4090, `AMPERE_24` the 3090, A5000
-   and L4. No data-center pin and no network volume: the weights are in the image. The first endpoint, 2026-11-13:
+   and L4. A reply's clauses render in parallel, so the endpoint wakes a worker after one second of queue, up to
+   three, and keeps them a minute across a call's turns (2026-11-14; request-count scaling would have been the fit,
+   but Runpod gives it no idle timeout). No data-center pin and no network volume: the weights are in the image. The first endpoint, 2026-11-13:
    `rstlknto5x90ad`, created from template `59ipbcal95`. The endpoint keeps its own copy of the template's container
    settings (its `templateId` reads back empty), so a new build goes live by patching the endpoint itself, which makes a
    new release and every worker pull it (2026-11-14: `dev` → `dev-4` this way, old workers marked stale at once):

@@ -78,7 +78,7 @@ export function framesOfPcm(bytes: number, rate: number, fps = CLIP_FPS): number
  * A reply's first piece split at a clause, so its first clip is ready sooner: a clip can't start rendering until the
  * whole piece's voice is in and takes about half the piece's length, and nothing plays until the first clip is there.
  * Splits only where the voice would pause anyway (after a comma, semicolon or colon, at a dash, before a clause word:
- * and/but/so/because/which/while/then/until/when/after/before/where/unless/though), nearest to two fifths of the way
+ * and/but/so/because/which/while/then/until/when/after/before/where/unless/though/who/whose/whom), nearest to two fifths of the way
  * in, with at least `min` characters each side; null when the piece is short or has no such place.
  */
 export function splitFirstPiece(text: string, opts: { min?: number; long?: number } = {}): [string, string] | null {
@@ -86,7 +86,7 @@ export function splitFirstPiece(text: string, opts: { min?: number; long?: numbe
   const long = opts.long ?? 40;
   const t = text.trim();
   if (t.length < long) return null;
-  const re = /([,;:]\s+)|(\s+[—–-]\s+)|(\s+(?=(?:and|but|so|because|which|while|then|until|when|after|before|where|unless|though)\s))/g;
+  const re = /([,;:]\s+)|(\s+[—–-]\s+)|(\s+(?=(?:and|but|so|because|which|while|then|until|when|after|before|where|unless|though|who|whose|whom)\s))/g;
   const want = t.length * 0.4;
   let best: { head: string; tail: string; off: number } | null = null;
   for (const m of t.matchAll(re)) {

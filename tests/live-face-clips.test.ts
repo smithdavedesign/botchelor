@@ -16,6 +16,9 @@ describe("a reply's first piece, split at a clause for a sooner first clip", () 
       "until I promised it a story about the phantom seal.",
     ]);
   });
+  it("splits before a relative who", () => {
+    expect(splitFirstPiece("Recorded an episode about the keeper who talked to the fog every night.")).toEqual(["Recorded an episode about the keeper", "who talked to the fog every night."]);
+  });
   it("splits before a conjunction when there is no punctuation", () => {
     const [a, b] = splitFirstPiece("I spent the whole morning on the roof and the gulls were louder than usual up there.")!;
     expect(a).toBe("I spent the whole morning on the roof");
