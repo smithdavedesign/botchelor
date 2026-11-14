@@ -55,7 +55,7 @@ import threading
 import time
 import urllib.request
 
-HANDLER_VERSION = "chain-1"
+HANDLER_VERSION = "chain-2"
 DITTO_DIR = os.environ.get("DITTO_DIR", "/app/ditto")
 DATA_ROOT = os.environ.get("DITTO_DATA_ROOT", os.path.join(DITTO_DIR, "checkpoints/ditto_trt_Ampere_Plus"))
 CFG_PKL = os.environ.get("DITTO_CFG_PKL", os.path.join(DITTO_DIR, "checkpoints/ditto_cfg/v0.4_hubert_cfg_trt.pkl"))
@@ -133,9 +133,6 @@ def _chain_audio2motion_offline(self) -> None:
     restarting it, and those frames are not output again. The first JOIN_BLEND output frames ease from the tail's last
     frame (the last one the clause before rendered). The whole sequence is kept on `self.chain_out` for the state the
     next clause gets."""
-    chain = getattr(self, "chain", None) or {}
-    tail = chain.get("tail")
-    skip = int(tail.shape[1]) if tail is not None else 0
     while not self.stop_event.is_set():
         try:
             item = self.audio2motion_queue.get(timeout=1)
@@ -144,6 +141,11 @@ def _chain_audio2motion_offline(self) -> None:
         if item is None:
             break
         aud_feat = item
+        # Read once the clause's audio is in: this thread starts inside SDK.setup, so the state is set before setup
+        # and read here, never between (chain-1 read it at thread start and missed it: the tail frames were output).
+        chain = getattr(self, "chain", None) or {}
+        tail = chain.get("tail")
+        skip = int(tail.shape[1]) if tail is not None else 0
         aud_cond_all = self.condition_handler(aud_feat, 0)
         seq_frames = self.audio2motion.seq_frames
         valid_clip_len = self.audio2motion.valid_clip_len
@@ -379,9 +381,10 @@ def render(source_path: str, wav_path: str, opts: dict) -> tuple[bytes, int, dic
     with tempfile.TemporaryDirectory(dir=SOURCE_CACHE) as d:
         out_path = os.path.join(d, "clause.mp4")
         with GPU_LOCK:
-            SDK.setup(source_path, out_path, **setup_kwargs)
+            # The chain's state goes on before setup (setup starts the motion thread, which reads it with the audio).
             SDK.chain = {"kp_cond": state_in["kp_cond"], "tail": state_in["tail"]} if state_in else {}
             SDK.chain_out = None
+            SDK.setup(source_path, out_path, **setup_kwargs)
             if state_in and state_in.get("d0") is not None:
                 # The chain's reference frame: every clause moves relative to the same still, not to its own first frame.
                 SDK.motion_stitch.d0 = SDK.audio2motion.cvt_fmt(state_in["d0"].reshape(1, 1, -1))[0]
@@ -395,6 +398,8 @@ def render(source_path: str, wav_path: str, opts: dict) -> tuple[bytes, int, dic
             out = SDK.chain_out
             SDK.chain = {}
             t_render = time.time()
+            if out is None or out.get("skip") != skip or frames != num_out:
+                raise RuntimeError(f"the chain's state wasn't applied (skip {out and out.get('skip')} of {skip}, {frames} frames of {num_out})")
         state_out = export_state(out["seq"], joint, state_in) if want_state and out else None
         if silence_ms:
             mux_wav = with_silence(wav_path, silence_ms)
