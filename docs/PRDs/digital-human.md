@@ -557,6 +557,19 @@ twenty minutes a person a month is about 9,500 user-months, before power. What t
 no per-job round trip, renderers resident together, and the freedom to keep an idle library warm. Until then: rent by
 the second, scale to zero, and keep the images portable. Not on any list: training our own video model.
 
+## Cast video intros (2026-11-14, OmniHuman where it pays)
+
+David's ratings on the compare: MuseTalk 4 and LatentSync 4 (a mouth onto the kit's loop), Ditto from the still 1 (then
+about 3 with the call's fades and expression, as were Ditto on the loop and MuseTalk in the three-way render), and
+"OmniHuman was good". OmniHuman on fal is 14¢ a second of output and two minutes a clause, so it is a replay renderer:
+his yes was "the cast on the show only, as a demo". `lib/cast-intros.ts`: for everyone on this season's show, a line
+from their bio (`introLineFor`, their name and the bio's first sentences, at most 150 characters ≈ 9 s), voiced by Aura
+in their call voice, rendered once by `fal:omnihuman` from their approved portrait on the house fal key, kept in
+`character_intros` and the object store, shown on their contestant card under the header (`.intro-card`, muted
+autoplay with controls, labelled AI-generated), served by `/api/cast-intro/<id>/intro.mp4` (the voiced line at
+`audio.wav` for fal). Admin: `POST /api/admin/cast-intros` (one character, or the show's cast that lacks one), `GET`
+lists them. About $1.30 a character, once.
+
 ## Not doing
 
 Tavus, HeyGen, D-ID or LemonSlice as the first provider (cost and terms above); an After Dark live face (every

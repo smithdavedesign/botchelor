@@ -2269,6 +2269,22 @@ button.swatch.chosen {
   margin: 0;
 }
 
+/* A cast intro (lib/cast-intros.ts): a square clip under the contestant header, the portrait's size on a phone. */
+.intro-card {
+  margin: 0.9rem 0 0;
+  max-width: 320px;
+  display: grid;
+  gap: 0.35rem;
+}
+.intro-card video {
+  width: 100%;
+  aspect-ratio: 1;
+  display: block;
+  border-radius: 14px;
+  background: #000;
+  object-fit: cover;
+}
+
 /* ---------------- landing page (conversion) ---------------- */
 .hero {
   display: grid;
