@@ -59,6 +59,29 @@ describe("a tag's example pictures", () => {
     expect(await examplesForTag(t.db, "framing.close")).toEqual([]);
   });
 
+  it("After Dark pictures whose PG twin the showcase shows count too, with the original shoot's picked options", async () => {
+    const cookie = newUserCookie();
+    const owner = userIdOf(cookie);
+    await named(cookie, `Creator ${owner.slice(0, 6)}`);
+    const { id: character } = (await (await api.createCharacter(validCharacter({ name: "Pictured in After Dark" }), cookie)).json()) as { id: string };
+    await t.db.query("insert into creator_profiles (user_id, handle, display_name) values ($1, $2, $3)", [owner, `h${owner.slice(0, 8)}`, "A creator"]);
+    const shoot = crypto.randomUUID();
+    await t.db.query("insert into adult_studio_shoots (id, owner_id, character_id, kind, choices) values ($1, $2, $3, 'picture', $4::jsonb)", [shoot, owner, character, JSON.stringify({ place: "rooftop", light: ["golden"], request: { sent: true } })]);
+    const original = crypto.randomUUID();
+    await t.db.query("insert into adult_images (id, owner_id, character_id, kind, prompt, mime, status, content_rating, shoot_id) values ($1, $2, $3, 'scene', 'on a rooftop at golden hour', 'image/webp', 'ready', 'nsfw', $4)", [original, owner, character, shoot]);
+    const twin = crypto.randomUUID();
+    await t.db.query("insert into adult_images (id, owner_id, character_id, kind, prompt, mime, status, content_rating, twin_of) values ($1, $2, $3, 'scene', 'on a rooftop at golden hour, dressed', 'image/webp', 'ready', 'pg', $4)", [twin, owner, character, original]);
+    const post = crypto.randomUUID();
+    await t.db.query("insert into showcase_posts (id, owner_id, source, media_id, character_id, rating, medium, status, published_at) values ($1, $2, 'after_dark', $3, $4, 'pg', 'picture', 'live', now())", [post, owner, twin, character]);
+    expect((await examplesForTag(t.db, "place.rooftop")).map((e) => e.post_id)).toEqual([post]);
+    expect((await examplesForTag(t.db, "light.golden")).map((e) => e.post_id)).toEqual([post]);
+    // The original (not PG) is never an example itself: only the twin the showcase shows.
+    const nsfwPost = crypto.randomUUID();
+    await t.db.query("insert into showcase_posts (id, owner_id, source, media_id, character_id, rating, medium, status, published_at) values ($1, $2, 'after_dark', $3, $4, 'nsfw', 'picture', 'live', now())", [nsfwPost, owner, original, character]);
+    resetPromptExamplesForTests();
+    expect((await examplesForTag(t.db, "place.rooftop")).map((e) => e.post_id)).toEqual([post]);
+  });
+
   it("never shows a picture the showcase wouldn't: not PG, a hidden creator, a private character, a removed post", async () => {
     await publish({ rating: "nsfw" });
     await publish({ hidden: true });
