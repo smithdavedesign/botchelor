@@ -459,6 +459,34 @@ the character, memory, voice orchestration and animation state; keep the rendere
    - **Proof:** a 2-minute call with mixed clause lengths: frames behind audio ≤ 400 ms steady, no hold, no visible
      join; GPU seconds per call minute (the LB worker bills while the session is open, so an idle call costs: hence the
      90-s idle close and silence-feeding only while the tab is visible).
+
+   **Measured 2026-11-14 (worker op `stream_probe`, image `ditto-8`, a warm 4090, Juniper's 5.64-s clause fed through
+   Ditto's online loop at a call's pace): the continuous design above does NOT hold on this GPU.** Ditto's motion
+   model predicts 80-frame windows and keeps `80 − overlap_v2` new frames per step, so streaming with small steps runs
+   the full diffusion many more times than the chain does (the chain: three steps for 141 frames).
+
+   | Setting | Compute ÷ audio | First frame | Lag behind the audio (p50 / p90 / max) |
+   |---|---|---|---|
+   | overlap 60, 50 steps, all at once | 1.57× | 1.4 s | 1.7 / 3.0 / 3.1 s |
+   | overlap 60, 50 steps, paced | 1.75× | 2.3 s | 3.2 / 3.7 / 3.9 s |
+   | overlap 60, 25 steps, paced | 1.37× | 2.0 s | 2.0 / 2.5 / 2.7 s |
+   | overlap 70, 25 steps, paced | 1.36× | 1.2 s | 1.7 / 2.0 / 2.1 s |
+   | overlap 50, 25 steps, paced | 1.30× | 2.8 s | 2.4 / 2.7 / 2.9 s |
+   | overlap 70, 50 steps, paced | 2.07× | 1.8 s | 4.2 / 5.8 / 6.1 s |
+
+   Nothing under 1.3× real time, and the lag grows through the clause; the LMDM's window structure, not the renderer,
+   is the floor (the chain renders the same clause at 0.59×). So item 2 becomes **streamed clauses**: the chain exactly
+   as it runs today (motion for the whole clause in three steps, state carried clause to clause) with each clause's
+   frames sent out while they render, which cuts a clause's time to first frame from "the whole clip" to the motion
+   step plus a few frames. Design: the worker's `speak` as a Runpod generator job (`/run` + `/stream/<id>`, the queue
+   endpoint we have; no load balancer, no WebSocket): it yields the chain `state_b64` the moment the motion step is done
+   (so the next clause's job is queued before this one's frames finish, and the clause-to-clause gap goes), then
+   fragmented MP4 pieces with the voice muxed in (ffmpeg on a frame pipe: `frag_keyframe+empty_moov+default_base_moof`,
+   200-ms fragments) as the renderer writes frames; the server relays them as `video_frag` SSE events; `LiveFace` plays
+   them through a MediaSource buffer (any append boundary is fine; Safari needs Managed Media Source on iOS 17.1+, else
+   the clip path). Expected: first frame of a clause ≈ 0.4 s motion + 0.2 s fragment + the round trip, about 0.8–1.0 s
+   after its voice is in, against 1.6–3.2 s today; the same GPU cost. A true continuous idle stays a "better hardware"
+   item (a 5090 or a model with a smaller window).
 3. **AVTR-1: read, don't build.** The most relevant open model in the list (153 M parameters, BOTH sides' audio in so
    the face reacts while listening, 25 fps on a 4060 Ti), but its renderer and streaming backend are non-commercial
    and it depends on InsightFace (also non-commercial). *Checked 2026-11-14 (LICENSE.md, Goodsize Inc., 2026-05-20):*
@@ -504,7 +532,7 @@ the same images on a box behind a small job API (Runpod's worker SDK runs locall
 | Machine | What it runs live | What stays out |
 |---|---|---|
 | The Mac (M1 Pro, 16 GB, shared with Ollama and OpenClaw) | nothing live; kit stills and loops keep coming from Replicate | every CUDA model |
-| A 5090 box (32 GB GDDR7, 128 GB RAM) | Ditto (2.8 GB) and MuseTalk (~6 GB) resident with no cold start, the idle and reaction libraries, Ditto's streaming mode for several calls at once, an AVTR-1-class dual-audio model (if ever licensable) or SoulX-FlashHead Lite, Qwen3-TTS voice cloning for consistent character voices, a local 8–14 B LLM | EchoMimicV3-Flash at its measured 34 GB, LongCat (47 GB), LiveAvatar (5× H800) |
+| A 5090 box (32 GB GDDR7, 128 GB RAM) | Ditto (2.8 GB) and MuseTalk (~6 GB) resident with no cold start, the idle and reaction libraries, Ditto's continuous online mode (1.3–1.6× real time on a 4090, measured 2026-11-14; a 5090 is roughly 1.6× a 4090, so about even, one call per card), an AVTR-1-class dual-audio model (if ever licensable) or SoulX-FlashHead Lite, Qwen3-TTS voice cloning for consistent character voices, a local 8–14 B LLM | EchoMimicV3-Flash at its measured 34 GB, LongCat (47 GB), LiveAvatar (5× H800) |
 | An RTX PRO 6000 Blackwell (96 GB, ~$14k) | all of the above plus EchoMimicV3-Flash and LongCat for replays, batch and live side by side | LiveAvatar-class multi-GPU models |
 
 The crossover is far off in money and near in latency. A Runpod 4090 costs about $0.022 a render minute and a call
