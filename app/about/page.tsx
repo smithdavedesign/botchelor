@@ -16,7 +16,8 @@ type Group = { id: string; title: string; layer: string; intro: string; items: I
  * The stack, in plain words (David, 2026-10-30: "an about page that showcases every tech, infra, integration, models used
  * for the site"). Facts come from the code and the hosting docs (docs/hosting.md, docs/after-dark-hosting.md,
  * lib/model.ts, lib/connections-shared.ts; 2026-11-10: Didit, Deepgram, Kokoro, speech-to-video; 2026-11-13: faces that move on
- * calls, lib/face-kit.ts); update this page when one of them changes. No keys, plans or limits here.
+ * calls, lib/face-kit.ts; 2026-11-14: lip-synced clips from our own renderer on Runpod, lib/live-face, and the renderer
+ * compare); update this page when one of them changes. No keys, plans or limits here.
  *
  * Drawn as the system it is (the 2026-11-13 lift): one layer a card, top to bottom from the person to the metal. The
  * services you and your agent touch come first, then the app they reach, the models that write for it, the checks
@@ -38,7 +39,7 @@ const GROUPS: Group[] = [
       { name: "Deepgram", what: "Live voice calls with companions: it hears you as you talk and speaks their replies as they are written, so you can just talk, and cut in.", href: "https://deepgram.com" },
       {
         name: "A face that moves on calls",
-        what: "On a call, a companion's face comes to life in your browser: a short loop of them while they listen, and while they talk the mouth that fits how loud their voice is right now, read off the audio as it plays (Web Audio), with a blink now and then and a smile or a gasp when the line has one. The face is a handful of stills of one portrait and one loop, drawn once and checked like every picture; nothing is streamed from a face service, and nothing costs anything per minute.",
+        what: "On a call, a companion's face comes to life in your browser: a short loop of them while they listen, and while they talk their lips say the words. Each clause of a reply comes back as a short clip of their own face rendered on our own GPU worker (MuseTalk, below); where a clip is late the mouth follows the voice's loudness instead, read off the audio as it plays, and the loop carries on between. Everything stays in the round frame; nothing of yours goes to a face vendor.",
         href: "/companion",
       },
       {
@@ -81,11 +82,22 @@ const GROUPS: Group[] = [
       { name: "Qwen-Image and Qwen-Image-Edit", what: "Pictures that keep a character's face from shot to shot, and the seven stills of a companion's face for calls: the same portrait with the mouth parted, open or rounded, a blink, a smile, a gasp.", href: "https://replicate.com" },
       { name: "Wan", what: "Turns a still into a short video clip, on fal and Replicate: a companion's living loop for calls, and the showcase's living portraits. Its speech-to-video model moves their lips to a line they say.", href: "https://replicate.com" },
       { name: "Kokoro", what: "Each character's own voice: voice notes, nights and videos. Stock voices only, never a clone of a real person.", href: "https://huggingface.co/hexgrad/Kokoro-82M" },
+      {
+        name: "MuseTalk",
+        what: "Lip-sync on live calls: an open model (MIT) that paints the mouth onto each frame of a companion's loop as they speak, on a GPU we rent by the second (Runpod, below). Their loop is re-timed to real 25 fps first so the head moves on every frame the mouth does.",
+        href: "https://github.com/TMElyralab/MuseTalk",
+      },
+      {
+        name: "Lip-sync and talking-head models, compared",
+        what: "Sync Labs' lipsync-2, LatentSync, Kling's lipsync, InfiniteTalk and OmniHuman on fal, and Wan 2.2 speech-to-video on Replicate, run side by side on the same line and the same face so we can see which mouth is worth paying for. Admin-only while we compare; on your own key when it opens.",
+        href: "https://fal.ai",
+      },
       { name: "DeepSeek V3.1 and GLM-4.6", what: "Write After Dark's scenes, through OpenRouter.", href: "https://openrouter.ai" },
       { name: "Venice", what: "After Dark's pictures and video.", href: "https://venice.ai" },
       {
         name: "Bring your own key",
-        what: "Google Gemini, OpenAI, Anthropic Claude, DeepSeek, Groq or OpenRouter: dates and texts run on your account instead of ours.",
+        what: "Google Gemini, OpenAI, Anthropic Claude, DeepSeek, Groq or OpenRouter for dates and texts; Replicate, fal.ai or D-ID for the face on your calls; Venice or Replicate for After Dark: it runs on your account instead of ours, your key sealed and used only for your own jobs.",
+        href: "/account/keys",
       },
     ],
   },
@@ -116,6 +128,12 @@ const GROUPS: Group[] = [
       { name: "Neon Postgres", what: "The database: characters, dates, texts, accounts, everything.", href: "https://neon.tech" },
       { name: "Neon Object Storage", what: "The show's pictures and portraits.", href: "https://neon.tech" },
       { name: "Bunny", what: "Storage and CDN for After Dark's media, served from its own address.", href: "https://bunny.net" },
+      {
+        name: "Runpod Serverless",
+        what: "The GPU behind live-call lip-sync: our own worker image boots on a rented card when a call needs clips and scales to nothing between calls, billed by the second. Runpod's terms keep it to PG faces, so After Dark never touches it.",
+        href: "https://www.runpod.io",
+      },
+      { name: "GitHub Container Registry", what: "Where the GPU worker's image is built (by Actions) and pulled from.", href: "https://github.com/features/packages" },
       { name: "GitHub", what: "The code, issues and pull requests. Every push to main deploys.", href: "https://github.com" },
       { name: "GitGuardian", what: "Scans every change for leaked secrets before it merges.", href: "https://www.gitguardian.com" },
     ],

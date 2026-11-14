@@ -153,6 +153,15 @@ your own key, portraits and clips have no free model, so at the cap they wait. A
 house providers there, read-only (nobody's own key reaches After Dark), and their live status on
 `/admin/after-dark/providers`.
 
+### The page's shape (2026-11-14)
+
+`/account/keys` groups the job cards by surface: **The show** (dates and texts, portraits, intro clips), **Companion calls**
+(the live face on calls: `live_face`, with fal.ai, Replicate or D-ID keys; the show's own MuseTalk renderer is the free
+default, lib/live-face/renderers.ts) and **After Dark** (Studio pictures and videos, only for someone After Dark is open
+to, with the house's own card beside them for admins). "Your keys" (one line per stored key, replace or remove) sits above
+the groups, since one key can serve several jobs; "How it works" is folded. A job with no key shows its glyph on the tile
+instead of a blank one.
+
 ### Privacy is the whole design
 A user's key is only ever used for calls whose prompt contains **no other user's private soul**:
 

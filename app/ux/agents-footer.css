@@ -1360,3 +1360,52 @@ button.chip-toggle.is-on {
     animation-timeline: scroll(self inline);
   }
 }
+
+/* The Connections page's groups (The show, Companion calls, After Dark): a heading and a line over each grid. */
+.connection-group {
+  margin-top: var(--space-5);
+}
+.connection-group-title {
+  margin: 0;
+  font-size: var(--text-xl);
+}
+.connection-group-intro {
+  margin: var(--space-1) 0 0;
+}
+.connection-group .connection-grid {
+  margin-top: var(--space-3);
+}
+.connection-titles h3 {
+  margin: 0;
+  font-size: var(--text-lg);
+}
+/* How it works, folded: a long list most people have read once. */
+.connection-how > summary {
+  cursor: pointer;
+  list-style: none;
+}
+.connection-how > summary::-webkit-details-marker {
+  display: none;
+}
+.connection-how > summary h2 {
+  display: inline;
+  margin: 0;
+}
+.connection-how > summary::after {
+  content: " ▸";
+  color: var(--muted);
+}
+.connection-how[open] > summary::after {
+  content: " ▾";
+}
+/* A job's glyph on the tile while it has no key: the soft tile, the glyph in ink. */
+.provider-mark.is-glyph .provider-mark-tile {
+  fill: var(--soft);
+}
+.provider-mark.is-glyph .provider-mark-text {
+  fill: var(--ink);
+  font-weight: 500;
+}
+.provider-mark[data-provider="did"] {
+  --mark: #0f172a;
+}
