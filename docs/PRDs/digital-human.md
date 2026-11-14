@@ -262,6 +262,19 @@ turn streams):
    step past it is a different model (LatentSync or a Wan talking-head pass per clause, both slower) if the first
    two fixes don't carry it.
 
+**Realism pass, measured after it all landed (2026-11-14 06:00–06:40 UTC, #1572 #1574 #1575 #1576 #1577 #1578 #1579;
+proof calls on botchelor.com with the stream and the face logged):**
+
+| | before (02:50 UTC) | after |
+|---|---|---|
+| First clip after the visitor's line | 4.0–4.5 s, or none (both clips of a two-piece reply missed the 4-s hold) | 3.5–5.3 s on six calls, always together with the first words; 1.8–3.2 s after the first piece's voice ended |
+| Clip to clip | one after another: 2-s gaps between sentences | handovers frame to frame; 0.3–0.7-s gaps when a 4- or 5-piece reply outran the two warm workers (the endpoint now wakes a worker after a second of queue, up to three, kept a minute) |
+| Two mouths in one reply | yes, at random | never: a reply is clips or the plain mouth; with the clips hidden from the page (`DROP_VIDEO=1` in the proof) Dex's reply played plain at 4 s with the kit's five stills cycling and the loop stepped aside |
+| Head under the mouth | 16-Hz stutter under a 25-Hz mouth; 1.56× too fast in clips (the kit loops are native 16 fps, 81 frames) | 124 even frames at 25 fps for both the clips and the kit's loop, at the loop's own speed |
+| Pieces | the writer's sentences, whole | clauses of about two seconds (`clausesOf`, 44 characters); a very short opener folded into the next piece |
+
+What's left is MuseTalk's own mouth (small, soft) and the model's time to its first words (1.1–1.3 s of the total).
+
 **Latency:** a clause's clip arrives roughly two seconds after its voice (render ≈ frames at 50 fps + encode); the
 browser holds the voice for it (measured above: the first clip and the first words start together). Simli is nearer one second end to end. If the hold reads as a pause, the next steps
 are rendering in shorter pieces, `ultrafast` x264 or a smaller clip, and Runpod's WebSocket load-balancing endpoint
