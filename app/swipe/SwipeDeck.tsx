@@ -432,6 +432,12 @@ function Card({ card, className, style, children, ...pointer }: CardProps) {
             {card.replies_note}
           </p>
         )}
+        {/* #426 on the web: said before the profile, where it's read before a swipe (it sat under the fade at the card's foot). */}
+        {card.reads_like_yours && (
+          <p className="swipe-twin" title={card.reads_like_yours}>
+            👯 Reads a lot like your own character: {card.reads_like_yours}
+          </p>
+        )}
         <p className="swipe-bio">{card.bio}</p>
         {card.prompts.map((p) => (
           <div key={p.prompt} className="swipe-prompt">
@@ -459,11 +465,6 @@ function Card({ card, className, style, children, ...pointer }: CardProps) {
         <p className="swipe-looking">
           <strong>Looking for:</strong> {card.looking_for}
         </p>
-        {card.reads_like_yours && (
-          <p className="swipe-twin" title={card.reads_like_yours}>
-            👯 Reads a lot like your own character: {card.reads_like_yours}
-          </p>
-        )}
         {card.why.length > 0 && <p className="swipe-why">💡 {card.why.slice(0, 2).join(" · ")}</p>}
       </div>
     </article>
