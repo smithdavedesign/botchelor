@@ -41,7 +41,8 @@ export type LiveFaceChoice = (typeof LIVE_FACE_CHOICES)[number];
 export const isLiveFaceChoice = (v: unknown): v is LiveFaceChoice => typeof v === "string" && (LIVE_FACE_CHOICES as readonly string[]).includes(v);
 
 const LINE_MAX = 240;
-const RENDER_TIMEOUT_MS = 10 * 60_000;
+/** The hosted models queue and take minutes (OmniHuman ten or more at busy times); a render gets a quarter of an hour. */
+const RENDER_TIMEOUT_MS = 15 * 60_000;
 
 /** Which key each provider's renderers run on for this person: theirs, the house's, or none. */
 export async function keysFor(db: Db, userId: string, env: Env = process.env): Promise<Record<RendererProvider, { apiKey: string | null; from: "yours" | "house" | null }>> {
@@ -170,7 +171,7 @@ async function runRender(db: Db, renderId: string, r: ClipRenderer, input: Rende
       stored.data,
     ]);
   } catch (err) {
-    const why = stop.signal.aborted ? "took longer than ten minutes" : err instanceof Error ? err.message.slice(0, 300) : "error";
+    const why = stop.signal.aborted ? "took longer than fifteen minutes" : err instanceof Error ? err.message.slice(0, 300) : "error";
     await db.query(`update live_face_renders set status = 'failed', error = $2, updated_at = now() where id = $1`, [renderId, why]).catch(() => {});
   } finally {
     clearTimeout(timer);
