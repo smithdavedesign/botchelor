@@ -145,6 +145,12 @@
     margin: 0;
     border-radius: 999px;
   }
+  /* A second, ghost door beside the main one (home, 2026-11-14): the button's text size and a little less side padding,
+     so two short labels sit on one line each from 360px. */
+  .phone-action-bar .button-ghost {
+    font-size: var(--text-btn);
+    padding-inline: var(--space-3);
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .phone-action-bar {

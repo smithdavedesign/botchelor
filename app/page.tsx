@@ -267,10 +267,11 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
           )
         )}
       </section>
+      {/* Two doors in thumb reach, so both labels are short: measured one line each at 360px and up (2026-11-14). */}
       {myCharacters.length === 0 && (
         <PhoneActionBar watch="hero-cta">
-          <Link className="button" href="/create">
-            Make your character
+          <Link className="button" href="/create" aria-label="Make your character">
+            Make yours
           </Link>
           <Link className="button-ghost" href={IMPORT_CAI_PATH} data-track="hero-import" aria-label="Leaving Character.AI? Bring your character">
             Bring yours
