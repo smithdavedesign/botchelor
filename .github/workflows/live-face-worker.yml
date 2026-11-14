@@ -3,8 +3,9 @@
 # caches per host). About 15 minutes; the image is ~11 GB with the weights baked in.
 name: live-face worker image
 on:
-  # By hand with a tag once the workflow is on main; until then, and for the worker's own branches, every push that
-  # touches the worker builds `dev` (a dispatch can only start a workflow that exists on the default branch).
+  # By hand with a tag (from main); for the worker's own branches, every push that touches the worker builds
+  # `dev-<run number>`: a fresh tag each time, because Runpod caches an image per tag on each host and would keep
+  # serving the old build under a reused one.
   workflow_dispatch:
     inputs:
       tag:
@@ -40,8 +41,9 @@ jobs:
           context: workers/live-face
           platforms: linux/amd64
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/botchelor-live-face:${{ inputs.tag || 'dev' }}
+          tags: ghcr.io/${{ github.repository_owner }}/botchelor-live-face:${{ inputs.tag || format('dev-{0}', github.run_number) }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Image
-        run: echo "ghcr.io/${{ github.repository_owner }}/botchelor-live-face:${{ inputs.tag || 'dev' }}"
+        run: |
+          echo "ghcr.io/${{ github.repository_owner }}/botchelor-live-face:${{ inputs.tag || format('dev-{0}', github.run_number) }}" | tee -a "$GITHUB_STEP_SUMMARY"

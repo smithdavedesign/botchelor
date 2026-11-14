@@ -1,0 +1,14 @@
+# Dependabot: the live-face worker image (workers/live-face) is pinned to what MuseTalk 1.5 was written against
+# (diffusers 0.30.2, transformers 4.39.2, huggingface_hub 0.30.2, numpy 1.23.5) and its only inputs are the show's own
+# loops and voice audio. On 2026-11-13 two security bumps (#1550 diffusers 0.38, #1551 transformers 5.10) were
+# auto-merged and made the image unbuildable; every pin there is deliberate, so Dependabot leaves that directory alone.
+# The rest of the repository (npm at the root) keeps GitHub's default security updates, which need no entry here.
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /workers/live-face
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 0
+    ignore:
+      - dependency-name: "*"
