@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import Scene from "@/app/Scene";
 import ChatThread from "@/app/ChatThread";
 import { useReplay } from "@/app/useReplay";
-import { DATE_ACTS, endingLabel, type Ending } from "@/lib/rules";
+import { DATE_ACTS, endingLabel, WRITE_TIME, type Ending } from "@/lib/rules";
 import type { Turn } from "@/lib/conversation";
 import type { CharacterRef } from "@/lib/game";
 import { placeAt, type PlaceId } from "@/lib/venues";
@@ -19,7 +19,7 @@ import PushToggle from "@/app/notifications/PushToggle";
 
 /** No new line for this long while it's filmed: say it's slower than usual (lines land seconds apart). */
 export const SLOW_LINE_MS = 60_000;
-/** Still filming this long after the page opened: offer "Tell me when it's ready" (a date usually takes about two minutes). */
+/** Still filming this long after the page opened: offer "Tell me when it's ready" (a date takes WRITE_TIME, lib/rules.ts). */
 export const OFFER_NOTIFY_MS = 120_000;
 
 /** "4 of about 12 lines filmed", or just the count once a date runs past its usual length (a move adds lines). */
@@ -46,7 +46,7 @@ function SlowNote({ episodeId, slow, offerNotify, pushKey, creator, bare = false
       <p className="muted small">
         {slow
           ? "This one's taking longer than usual. If the writer stalled, the show restarts it by itself."
-          : "Still filming. A date usually takes about two minutes."}
+          : `Still filming. A date takes ${WRITE_TIME}.`}
       </p>
       {offerNotify && creator && (
         <>
@@ -384,7 +384,7 @@ export default function GeneratingPoller({
           {!shown.length && !verdictShowing && (
             <div className="theater-verdict" role="status" aria-live="polite">
               <p className="ending">Filming the date…</p>
-              <p className="muted">The first lines appear here as they&apos;re filmed, usually within a minute; the whole date takes about two.</p>
+              <p className="muted">The first lines appear here as they&apos;re filmed, usually within a minute; the whole date takes {WRITE_TIME}.</p>
             </div>
           )}
           {verdictShowing &&
@@ -420,7 +420,7 @@ export default function GeneratingPoller({
     <section className="card watch-preshow" aria-live="polite">
       <h2>🎬 Filming the date…</h2>
       <p className="muted">
-        The two characters are on their date right now. It usually takes about two minutes, and this page updates itself
+        The two characters are on their date right now. It takes {WRITE_TIME}, and this page updates itself
         the moment it&apos;s ready.
       </p>
       {creator && (

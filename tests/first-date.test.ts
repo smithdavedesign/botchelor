@@ -84,7 +84,7 @@ describe("a newcomer's first date, straight away", () => {
     // PR1 (2026-11-14): the first date is a speed date (6 lines, about a minute) and the card says so; every other way to
     // date (the blind date, swipes, the house cast by name) folds under "More ways to date", closed.
     expect(card).toContain('data-first-format="speed_date"');
-    expect(card).toContain("for a speed date: 6 lines, about a minute");
+    expect(card).toContain("for a speed date: 6 lines, about two minutes");
     const fold = first.indexOf("<details class=\"ux-fold send-more-ways\"");
     expect(fold).toBeGreaterThan(first.indexOf("data-first-date"));
     expect(fold).toBeLessThan(first.indexOf("send-blind"));

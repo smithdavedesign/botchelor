@@ -538,8 +538,9 @@ export const WRITE_TIME = "about 2 minutes, rarely more than 3";
 /**
  * A speed date (lib/formats.ts, 6 lines in place of 12): half the turn calls, so about half the time. The plan, recap,
  * morning after and reflections stay, which is why it isn't a quarter. Said on the first-date card (lib/first-date.ts).
+ * Measured 2026-11-14 (14 days of jobs): speed dates p50 112 s, p90 126 s; classic p50 155 s, p90 188 s (WRITE_TIME).
  */
-export const WRITE_TIME_SPEED = "about a minute";
+export const WRITE_TIME_SPEED = "about two minutes";
 export const WRITE_USUAL_MAX_SECONDS = 180;
 export const WRITE_OVERDUE_SECONDS = 300;
 
