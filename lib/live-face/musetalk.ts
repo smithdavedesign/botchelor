@@ -115,6 +115,38 @@ export async function runsync<T>(cfg: RunpodConfig, input: Record<string, unknow
 }
 
 /**
+ * One job through `/run`, its yielded outputs read from `/stream/<id>` as they come (the worker's handler is a
+ * generator), until the job ends; cancelled past `timeoutMs`. `onItem` gets every output in order. Resolves with the
+ * job's final state (its outcome is the caller's to judge). Ditto's streamed clauses go this way (./ditto.ts).
+ */
+export async function runStream(cfg: RunpodConfig, input: Record<string, unknown>, onItem: (output: unknown) => void, opts: { signal?: AbortSignal; timeoutMs?: number; what?: string; everyMs?: number } = {}): Promise<RunpodJob> {
+  const timeoutMs = opts.timeoutMs ?? SPEAK_TIMEOUT_MS;
+  const what = opts.what ?? "stream";
+  const started = Date.now();
+  const ctl = new AbortController();
+  const onAbort = () => ctl.abort();
+  opts.signal?.addEventListener("abort", onAbort);
+  const timer = setTimeout(() => ctl.abort(), timeoutMs);
+  try {
+    const job = await call<RunpodJob>(cfg, "run", { json: { input }, signal: ctl.signal });
+    if (!job.id) throw new RunpodError(`Runpod ${what}: no job id`, 502);
+    for (;;) {
+      const s = await call<RunpodJob & { stream?: { output: unknown }[] }>(cfg, `stream/${encodeURIComponent(job.id)}`, { signal: ctl.signal });
+      for (const it of s.stream ?? []) onItem(it.output);
+      if (s.status !== "IN_QUEUE" && s.status !== "IN_PROGRESS") return s;
+      if (Date.now() - started > timeoutMs) {
+        await call(cfg, `cancel/${encodeURIComponent(job.id)}`, { method: "POST" }).catch(() => {});
+        throw new RunpodError(`Runpod ${what}: not done within ${timeoutMs} ms`, 504);
+      }
+      await new Promise((r) => setTimeout(r, fetchForTests ? 0 : (opts.everyMs ?? 150)));
+    }
+  } finally {
+    clearTimeout(timer);
+    opts.signal?.removeEventListener("abort", onAbort);
+  }
+}
+
+/**
  * One clause of the companion's voice (our Aura PCM, 16-bit mono at `rate`) as a clip of the character saying it. The
  * worker renders from `start_frame` of the idle cycle so clause after clause continues the same motion. Waits
  * `timeoutMs` at most (the job is cancelled then), and throws on any failure: the call goes on without the face.

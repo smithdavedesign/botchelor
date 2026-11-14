@@ -9,7 +9,7 @@ import { HOUSE_CHARACTERS } from "@/lib/house";
 import { GET as clipGet } from "@/app/api/live-face/clip/[id]/route";
 import { liveFaceClips, liveFaceSession } from "@/lib/live-face";
 import { compareState, keysFor, LIVE_FACE_CHOICES, pcmOfWav, rateRender, rendererListing, setUserLiveFaceChoice, userLiveFaceChoice } from "@/lib/live-face/compare";
-import { CHAIN_FADE_IN, CHAIN_FADE_OUT, CHAIN_TAIL_SILENCE_MS, type ChainClip, DittoChain } from "@/lib/live-face/ditto";
+import { CHAIN_FADE_IN, CHAIN_FADE_OUT, CHAIN_TAIL_SILENCE_MS, type ChainClip, DittoChain, speakDittoStream } from "@/lib/live-face/ditto";
 import { dittoLibrary, ensureDittoLibrary, LIBRARY_SPEC, libraryClipFile } from "@/lib/live-face/ditto-clips";
 import { DITTO_EMO, emoFor } from "@/lib/live-face-shared";
 import { RUNPOD_API, setRunpodFetchForTests } from "@/lib/live-face/musetalk";
@@ -334,6 +334,84 @@ describe("Ditto, our second worker", () => {
     expect(clips).toEqual([]);
     expect(failed).toEqual([0, 1, 2]);
     expect(chain.stats).toEqual({ clips: 0, failed: 1 });
+  });
+
+  /** Ditto's endpoint, faked for streams: /run queues a job, /stream yields its items two a poll (start, the state when asked, two pieces, end; "bad" fails). */
+  function fakeStreamEndpoint() {
+    const asked: Record<string, unknown>[] = [];
+    const runs: string[] = [];
+    const firstCursorAtRun: number[] = [];
+    const jobs = new Map<string, { items: unknown[]; cursor: number }>();
+    let n = 0;
+    setRunpodFetchForTests(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      const body = typeof init?.body === "string" ? (JSON.parse(init.body) as { input?: Record<string, unknown> }).input : undefined;
+      if (url.endsWith("/ep-d/run") && body) {
+        n++;
+        const id = `job-${n}`;
+        asked.push(body);
+        runs.push(id);
+        firstCursorAtRun.push(jobs.get("job-1")?.cursor ?? -1);
+        const bad = body.audio_b64 === Buffer.from("bad").toString("base64");
+        const items = bad
+          ? [{ error: "the clause is empty" }]
+          : [
+              { kind: "start", frames: 40, fps: 25, width: 512, height: 512 },
+              ...(body.want_state ? [{ kind: "state", state_b64: `state${n}` }] : []),
+              { kind: "frag", i: 0, b64: Buffer.from(`init${n}`).toString("base64") },
+              { kind: "frag", i: 1, b64: Buffer.from(`moof${n}`).toString("base64") },
+              { kind: "end", frames: 40, pieces: 2, bytes: 10, first_piece_ms: 300, ms: { total: 900 } },
+            ];
+        jobs.set(id, { items, cursor: 0 });
+        return Response.json({ id, status: "IN_QUEUE" });
+      }
+      const m = url.match(/\/ep-d\/stream\/(job-\d+)$/);
+      if (m) {
+        const j = jobs.get(m[1])!;
+        const take = j.items.slice(j.cursor, j.cursor + 2);
+        j.cursor += take.length;
+        const done = j.cursor >= j.items.length;
+        const failed = done && j.items.some((it) => Boolean((it as { error?: string }).error));
+        return Response.json({ id: m[1], status: done ? (failed ? "FAILED" : "COMPLETED") : "IN_PROGRESS", stream: take.map((output) => ({ output })) });
+      }
+      if (url.includes("/cancel/")) return Response.json({ status: "CANCELLED" });
+      return Response.json({ error: "no such endpoint" }, { status: 404 });
+    });
+    return { asked, runs, firstCursorAtRun };
+  }
+
+  it("streams a clause: start, the state before the frames, the pieces in order, the end; a worker failure is the error", async () => {
+    const { asked } = fakeStreamEndpoint();
+    const got: string[] = [];
+    const end = await speakDittoStream(CFG, { source_url: PORTRAIT, pcm: Buffer.from("one"), rate: 24_000, want_state: true, fade_in: 6 }, { start: (i) => got.push(`start:${i.frames}`), state: (s) => got.push(`state:${s}`), frag: (i, b) => got.push(`frag${i}:${b.toString()}`) });
+    expect(got).toEqual(["start:40", "state:state1", "frag0:init1", "frag1:moof1"]);
+    expect(end).toMatchObject({ frames: 40, pieces: 2 });
+    expect(asked[0]).toMatchObject({ op: "speak", stream: true, want_state: true, fade_in: 6, source_url: PORTRAIT });
+    await expect(speakDittoStream(CFG, { source_url: PORTRAIT, pcm: Buffer.from("bad"), rate: 24_000 }, { frag: () => {} })).rejects.toThrow(/the clause is empty/);
+  });
+
+  it("streamed, the chain queues the next clause the moment the state lands (before the previous frames are done), and hands the pieces on per clause in order", async () => {
+    const { asked, runs, firstCursorAtRun } = fakeStreamEndpoint();
+    const events: string[] = [];
+    const chain = new DittoChain(CFG, PORTRAIT, 24_000, { start: (i) => events.push(`start${i}`), frag: (i, seq, b) => events.push(`frag${i}.${seq}=${b.toString()}`), end: (i, info) => events.push(`end${i}${info.last ? ":last" : ""}`), fail: (i) => events.push(`fail${i}`) }, { decideMs: 30 });
+    expect(chain.streams).toBe(true);
+    chain.expect(0);
+    chain.expect(1);
+    chain.expect(2);
+    chain.add(0, Buffer.from("one"));
+    chain.add(1, Buffer.from("two"));
+    chain.add(2, Buffer.from("three"));
+    chain.finish();
+    await chain.done();
+    expect(runs).toEqual(["job-1", "job-2", "job-3"]);
+    // The second job was queued once the first's state was in (two items read), not after its end (five).
+    expect(firstCursorAtRun[1]).toBe(2);
+    expect(asked[1]).toMatchObject({ state_b64: "state1", stream: true });
+    expect(asked[2]).toMatchObject({ state_b64: "state2", fade_out: CHAIN_FADE_OUT, tail_silence_ms: CHAIN_TAIL_SILENCE_MS });
+    expect(events.filter((e) => e.startsWith("frag0."))).toEqual(["frag0.0=init1", "frag0.1=moof1"]);
+    expect(events).toContain("end2:last");
+    expect(events.some((e) => e.startsWith("fail"))).toBe(false);
+    expect(chain.stats).toEqual({ clips: 3, failed: 0 });
   });
 
   it("stops with the turn: once aborted nothing more is asked for and done() resolves", async () => {

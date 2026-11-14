@@ -2,7 +2,7 @@
 
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type ReactNode } from "react";
 import { BLINK_MS, canTalk, FACE_STILLS, LOOK_MS, lookFor, MOUTH_STILL, mouthFor, nextBlinkIn, syntheticLevel, type FaceKit, type FaceStill, type Look, type Mouth } from "@/lib/face-kit-shared";
-import { audioPieces, isClipProvider, loopTimeAtCycleFrame, type ReactionKind, secondsOfFaceAudio, type LiveFaceSession } from "@/lib/live-face-shared";
+import { audioPieces, FRAG_CODECS, FRAG_STALL_MS, isClipProvider, loopTimeAtCycleFrame, type ReactionKind, secondsOfFaceAudio, type LiveFaceSession } from "@/lib/live-face-shared";
 
 /** How long before the loop's end it fades back into the portrait (the loop starts from the portrait, so the restart can't show). */
 const FADE_S = 0.45;
@@ -29,6 +29,16 @@ export type LiveFaceHandle = {
   expect: (i: number) => void;
   /** A reaction between replies (Ditto: a nod, a tilt), when the character has the clip and nothing is playing; otherwise nothing. */
   react: (kind: ReactionKind) => void;
+  /** Whether this browser can play streamed clauses (MediaSource with the worker's codecs) under a clip session. */
+  frags: () => boolean;
+  /** Piece i streams: its first piece is on its way (the reply's MediaSource opens on the first). */
+  fragStart: (i: number) => void;
+  /** A piece of piece i's fragmented MP4, appended in clause order. */
+  frag: (i: number, seq: number, bytes: Uint8Array) => void;
+  /** Piece i's last piece is in. */
+  fragEnd: (i: number) => void;
+  /** The reply is over (nothing more will be named): the stream ends once everything appended has played. */
+  fragDone: () => void;
   /** Piece i plays the plain way instead (its clip failed): `play` runs in its turn among the clips and resolves when the voice is done. */
   plain: (i: number, play: () => Promise<void>) => void;
   /** A new reply: the order starts over at piece 0, and clips left from the last one go. */
@@ -114,6 +124,15 @@ const LiveFace = forwardRef<LiveFaceHandle, { kit: FaceKit | null; phase: FacePh
     // The highest piece the reply has named so far, and the hold on a clip that ended before the next one's clip came.
     const announced = useRef(-1);
     const holding = useRef(0);
+    // Streamed clauses (lib/live-face/ditto.ts speakDittoStream): one MediaSource per reply on a slot element, the
+    // pieces of each clause appended in clause order (sequence mode: one continuous timeline); the element holds its
+    // last frame while the next piece is on its way and ends when the reply's last piece has played.
+    type FragPiece = { parts: Uint8Array[]; ended: boolean; play?: () => Promise<void>; played?: boolean };
+    const mse = useRef<{ ms: MediaSource; sb: SourceBuffer | null; url: string; slot: 0 | 1; started: boolean } | null>(null);
+    const fragPieces = useRef<Map<number, FragPiece>>(new Map());
+    const fragAt = useRef(0);
+    const fragOver = useRef(false);
+    const fragStall = useRef(0);
 
     const settle = () => {
       const w = idleWaiters.current;
@@ -147,9 +166,94 @@ const LiveFace = forwardRef<LiveFaceHandle, { kit: FaceKit | null; phase: FacePh
       busy.current = on;
       setPlainUp(on);
     };
+    // Which MediaSource this browser has for the worker's fragments (Safari's managed one first), if any.
+    const msCtor = (): typeof MediaSource | null => {
+      if (typeof window === "undefined") return null;
+      const w = window as unknown as { ManagedMediaSource?: typeof MediaSource; MediaSource?: typeof MediaSource };
+      const C = w.ManagedMediaSource ?? w.MediaSource ?? null;
+      try {
+        return C && typeof C.isTypeSupported === "function" && C.isTypeSupported(FRAG_CODECS) ? C : null;
+      } catch {
+        return null;
+      }
+    };
+    const fragTeardown = () => {
+      window.clearTimeout(fragStall.current);
+      const m = mse.current;
+      mse.current = null;
+      fragPieces.current = new Map();
+      fragAt.current = 0;
+      fragOver.current = false;
+      if (!m) return;
+      const el = slotEl(m.slot);
+      try {
+        if (m.ms.readyState === "open") m.ms.endOfStream();
+      } catch {
+        // Already closed.
+      }
+      if (el) {
+        el.pause();
+        el.removeAttribute("src");
+        el.load();
+      }
+      URL.revokeObjectURL(m.url);
+    };
+    const fragFinish = () => {
+      // Everything appended: the element plays out and its `ended` lands in finishClips (onSlotEnded).
+      const m = mse.current;
+      if (!m || !m.sb || m.sb.updating) return;
+      try {
+        if (m.ms.readyState === "open") m.ms.endOfStream();
+      } catch {
+        // Already ended.
+      }
+    };
+    const armFragStall = () => {
+      window.clearTimeout(fragStall.current);
+      fragStall.current = window.setTimeout(() => {
+        if (mse.current) fragFinish();
+      }, FRAG_STALL_MS);
+    };
+    const fragPump = () => {
+      const m = mse.current;
+      if (!m || !m.sb || m.sb.updating) return;
+      const piece = fragPieces.current.get(fragAt.current);
+      if (!piece) {
+        if (fragOver.current && fragAt.current > announced.current) fragFinish();
+        return;
+      }
+      if (piece.play) {
+        // A piece that fell back to the plain voice takes its turn here; the element waits at its buffer's end meanwhile.
+        if (!piece.played) {
+          piece.played = true;
+          setBusy(true);
+          piece.play().finally(() => {
+            setBusy(false);
+            fragAt.current += 1;
+            fragPump();
+          });
+        }
+        return;
+      }
+      const part = piece.parts.shift();
+      if (part) {
+        try {
+          m.sb.appendBuffer(part as BufferSource);
+        } catch {
+          fragTeardown();
+          finishClips();
+        }
+        return;
+      }
+      if (piece.ended) {
+        fragAt.current += 1;
+        fragPump();
+      }
+    };
     const finishClips = () => {
       window.clearTimeout(holding.current);
       holding.current = 0;
+      window.clearTimeout(fragStall.current);
       clipUp.current = null;
       setBusy(false);
       setOnSlot(null);
@@ -252,6 +356,7 @@ const LiveFace = forwardRef<LiveFaceHandle, { kit: FaceKit | null; phase: FacePh
       window.clearTimeout(stall.current);
       window.clearTimeout(holding.current);
       holding.current = 0;
+      fragTeardown();
       for (const c of clipQueue.current) if ("url" in c) URL.revokeObjectURL(c.url);
       clipQueue.current = [];
       loaded.current = null;
@@ -292,6 +397,72 @@ const LiveFace = forwardRef<LiveFaceHandle, { kit: FaceKit | null; phase: FacePh
         expect: (i) => {
           announced.current = Math.max(announced.current, i);
         },
+        frags: () => clipModeNow.current && Boolean(msCtor()),
+        fragStart: (i) => {
+          if (!clipModeNow.current) return;
+          if (!mse.current) {
+            const C = msCtor();
+            const s = slot.current;
+            const el = slotEl(s);
+            if (!C || !el) return;
+            const ms = new C();
+            const url = URL.createObjectURL(ms);
+            mse.current = { ms, sb: null, url, slot: s, started: false };
+            slot.current = s === 0 ? 1 : 0;
+            ms.addEventListener("sourceopen", () => {
+              const m = mse.current;
+              if (!m || m.ms !== ms) return;
+              try {
+                m.sb = ms.addSourceBuffer(FRAG_CODECS);
+              } catch {
+                fragTeardown();
+                return;
+              }
+              m.sb.mode = "sequence";
+              m.sb.addEventListener("updateend", () => {
+                const mm = mse.current;
+                if (!mm || mm.ms !== ms) return;
+                if (!mm.started) {
+                  mm.started = true;
+                  const e = slotEl(mm.slot);
+                  e?.play()
+                    .then(() => {
+                      setOnSlot(mm.slot);
+                      setLive(true);
+                      video.current?.pause();
+                    })
+                    .catch(() => {});
+                }
+                fragPump();
+              });
+              fragPump();
+            });
+            if ("disableRemotePlayback" in el) (el as HTMLVideoElement & { disableRemotePlayback: boolean }).disableRemotePlayback = true;
+            el.muted = false;
+            el.src = url;
+            clipUp.current = url;
+            lastEnd.current = 0;
+          }
+          if (!fragPieces.current.has(i)) fragPieces.current.set(i, { parts: [], ended: false });
+          armFragStall();
+        },
+        frag: (i, _seq, bytes) => {
+          if (!mse.current) return;
+          const p = fragPieces.current.get(i) ?? { parts: [], ended: false };
+          fragPieces.current.set(i, p);
+          p.parts.push(bytes);
+          fragPump();
+          armFragStall();
+        },
+        fragEnd: (i) => {
+          const p = fragPieces.current.get(i);
+          if (p) p.ended = true;
+          fragPump();
+        },
+        fragDone: () => {
+          fragOver.current = true;
+          fragPump();
+        },
         react: (kind) => {
           const s = sessionNow.current;
           const url = s?.provider === "ditto" ? s.reactions?.[kind] : undefined;
@@ -318,6 +489,12 @@ const LiveFace = forwardRef<LiveFaceHandle, { kit: FaceKit | null; phase: FacePh
         plain: (i, play) => {
           if (!clipModeNow.current) {
             void play();
+            return;
+          }
+          if (mse.current) {
+            // In a streamed reply the plain piece takes its turn in the same order.
+            fragPieces.current.set(i, { parts: [], ended: true, play });
+            fragPump();
             return;
           }
           clipQueue.current.push({ i, play });
@@ -526,12 +703,21 @@ const LiveFace = forwardRef<LiveFaceHandle, { kit: FaceKit | null; phase: FacePh
       }
     };
 
+    // A slot's clip (or a streamed reply) ended: the next clip, or the loop again.
+    const onSlotEnded = () => {
+      if (mse.current) {
+        fragTeardown();
+        finishClips();
+        return;
+      }
+      playNextClip();
+    };
     // The renderer's elements are always there: a tap unlocks them before any session is known, and the stream (or the
     // clips) has somewhere to land.
     const live = (
       <>
-        <video ref={liveVideo} className={`companion-live-stream${(clipMode ? onSlot === 0 : streaming) ? " is-on" : ""}`} autoPlay={!clipMode} playsInline muted={false} aria-hidden="true" onEnded={clipMode ? playNextClip : undefined} />
-        <video ref={clipB} className={`companion-live-stream${onSlot === 1 ? " is-on" : ""}`} playsInline muted={false} aria-hidden="true" onEnded={clipMode ? playNextClip : undefined} preload="auto" />
+        <video ref={liveVideo} className={`companion-live-stream${(clipMode ? onSlot === 0 : streaming) ? " is-on" : ""}`} autoPlay={!clipMode} playsInline muted={false} aria-hidden="true" onEnded={clipMode ? onSlotEnded : undefined} />
+        <video ref={clipB} className={`companion-live-stream${onSlot === 1 ? " is-on" : ""}`} playsInline muted={false} aria-hidden="true" onEnded={clipMode ? onSlotEnded : undefined} preload="auto" />
         <audio ref={liveAudio} autoPlay aria-hidden="true" />
       </>
     );

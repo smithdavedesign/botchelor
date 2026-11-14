@@ -14,7 +14,7 @@
  * one before's state), each in about half its length, so a chain keeps ahead of its own playback; a clause whose
  * place isn't known yet (is it the reply's last?) waits a moment for the next piece or the reply's end.
  */
-import { jobError, type RunpodConfig, RunpodError, runsync } from "./musetalk";
+import { jobError, type RunpodConfig, RunpodError, runStream, runsync } from "./musetalk";
 
 /** The env var that names Ditto's endpoint; the key is the same `RUNPOD_API_KEY`. */
 export const DITTO_ENDPOINT_VAR = "LIVE_FACE_DITTO_ENDPOINT";
@@ -65,9 +65,60 @@ export type DittoSpeakInput = {
   sampling_timesteps?: number;
 };
 
+/** The worker's handler is a generator and Runpod aggregates its outputs: a plain op's result is the first (and only) item. */
+const firstOutput = <T>(output: T | T[] | undefined): T | undefined => (Array.isArray(output) ? output[0] : output);
+
+function speakInput(input: DittoSpeakInput): Record<string, unknown> {
+  return {
+    op: "speak",
+    source_url: input.source_url,
+    audio_b64: input.pcm.toString("base64"),
+    audio_format: "pcm16",
+    rate: input.rate,
+    ...(input.fade_in ? { fade_in: input.fade_in } : {}),
+    ...(input.fade_out ? { fade_out: input.fade_out } : {}),
+    ...(input.tail_silence_ms ? { tail_silence_ms: input.tail_silence_ms } : {}),
+    ...(input.state ? { state_b64: input.state } : {}),
+    ...(input.want_state ? { want_state: true } : {}),
+    ...(input.emo !== undefined ? { emo: input.emo } : {}),
+    ...(input.motion ? { motion: input.motion } : {}),
+    ...(input.sampling_timesteps !== undefined ? { sampling_timesteps: input.sampling_timesteps } : {}),
+  };
+}
+
+export type DittoStreamStart = { frames: number; fps: number; width: number; height: number; handler?: string };
+export type DittoStreamEnd = { frames: number; pieces: number; bytes: number; first_piece_ms: number | null; ms: Record<string, number>; handler?: string };
+
+/**
+ * One clause streamed (workers/live-face-ditto speak_stream): `start` with the clip's shape, the chain's `state` the
+ * moment the motion step is done (before the frames), then the pieces of a fragmented MP4 with the voice in it as the
+ * renderer writes frames, then `end`. Throws on any failure or past `timeoutMs`.
+ */
+export async function speakDittoStream(cfg: RunpodConfig, input: DittoSpeakInput, on: { start?: (info: DittoStreamStart) => void; state?: (state: string) => void; frag: (i: number, bytes: Buffer) => void }, opts: { signal?: AbortSignal; timeoutMs?: number } = {}): Promise<DittoStreamEnd> {
+  let end: DittoStreamEnd | null = null;
+  let error: string | null = null;
+  const job = await runStream(
+    cfg,
+    { ...speakInput(input), stream: true },
+    (output) => {
+      const o = output as { kind?: string; error?: string } & Record<string, unknown>;
+      if (!o || typeof o !== "object") return;
+      if (o.error) error = String(o.error);
+      else if (o.kind === "start") on.start?.(o as unknown as DittoStreamStart);
+      else if (o.kind === "state" && typeof o.state_b64 === "string") on.state?.(o.state_b64);
+      else if (o.kind === "frag" && typeof o.b64 === "string") on.frag(Number(o.i ?? 0), Buffer.from(o.b64, "base64"));
+      else if (o.kind === "end") end = o as unknown as DittoStreamEnd;
+    },
+    { ...opts, what: "ditto stream" },
+  );
+  if (error) throw new RunpodError(`Runpod ditto: ${error}`, 502);
+  if (job.status !== "COMPLETED" || !end) throw new RunpodError(`Runpod ditto: ${jobError(job)}`, 502);
+  return end;
+}
+
 /** One clause as a clip of the still saying it. Throws on any failure or past `timeoutMs` (the job is cancelled then). */
 export async function speakDitto(cfg: RunpodConfig, input: DittoSpeakInput, opts: { signal?: AbortSignal; timeoutMs?: number } = {}): Promise<DittoOutput> {
-  const job = await runsync<DittoOutput>(
+  const job = await runsync<DittoOutput | DittoOutput[]>(
     cfg,
     {
       op: "speak",
@@ -86,8 +137,9 @@ export async function speakDitto(cfg: RunpodConfig, input: DittoSpeakInput, opts
     },
     { ...opts, what: "ditto speak" },
   );
-  if (job.status !== "COMPLETED" || !job.output?.video_b64) throw new RunpodError(`Runpod ditto: ${jobError(job)}`, 502);
-  return job.output;
+  const out = firstOutput(job.output);
+  if (job.status !== "COMPLETED" || !out?.video_b64) throw new RunpodError(`Runpod ditto: ${jobError(job)}`, 502);
+  return out;
 }
 
 /* ------------------------------------------------------------- the chain ------------------------------------------------------------- */
@@ -103,12 +155,22 @@ export const CHAIN_DECIDE_MS = 2500;
 export const CHAIN_SPEAK_TIMEOUT_MS = 20_000;
 
 export type ChainClip = { i: number; mp4: string; frames: number; last: boolean; ms: number; handler?: string; emo?: number };
+export type ChainHandlers = {
+  /** Whole clips (the browser plays MP4s): one per clause. */
+  clip?: (c: ChainClip) => void;
+  /** Streamed clauses (the browser plays fragments through MediaSource): the clip's shape, its pieces as they render, its end. When `frag` is set the chain streams. */
+  start?: (i: number, info: DittoStreamStart) => void;
+  frag?: (i: number, seq: number, bytes: Buffer) => void;
+  end?: (i: number, info: DittoStreamEnd & { last: boolean }) => void;
+  fail: (i: number, err: unknown) => void;
+};
 
 /**
  * A reply's clauses rendered by Ditto in order, each continuing the motion of the one before. The route feeds it:
  * `expect(i)` when the reply names piece i (so a clause knows one comes after it), `add(i, pcm)` when piece i's voice
  * is in, `finish()` when nothing more will come; `done()` resolves when every clause added has a clip or failed. A
- * failure breaks the chain at that clause (`fail`); the next starts a chain again from the still.
+ * failure breaks the chain at that clause (`fail`); the next starts a chain again from the still. Streamed (handlers
+ * with `frag`), the next clause's job is queued the moment this one's state arrives, while its frames still render.
  */
 export class DittoChain {
   private pending: { i: number; pcm: Buffer; emo?: number }[] = [];
@@ -128,9 +190,14 @@ export class DittoChain {
     private readonly cfg: RunpodConfig,
     private readonly sourceUrl: string,
     private readonly rate: number,
-    private readonly on: { clip: (c: ChainClip) => void; fail: (i: number, err: unknown) => void },
+    private readonly on: ChainHandlers,
     private readonly opts: { signal?: AbortSignal; decideMs?: number; timeoutMs?: number } = {},
   ) {}
+
+  /** Whether clauses stream (fragments) rather than come as whole clips. */
+  get streams(): boolean {
+    return typeof this.on.frag === "function";
+  }
 
   /** The reply has named piece i (its text; the voice may still be coming): the clause before it isn't the last. */
   expect(i: number): void {
@@ -204,19 +271,51 @@ export class DittoChain {
     this.running = true;
     const first = this.fresh;
     const state = this.state;
+    const input: DittoSpeakInput = { source_url: this.sourceUrl, pcm: c.pcm, rate: this.rate, state, want_state: !last, fade_in: first ? CHAIN_FADE_IN : 0, fade_out: last ? CHAIN_FADE_OUT : 0, tail_silence_ms: last ? CHAIN_TAIL_SILENCE_MS : 0, ...(c.emo !== undefined ? { emo: c.emo } : {}) };
+    const jobOpts = { signal: this.opts.signal, timeoutMs: this.opts.timeoutMs ?? CHAIN_SPEAK_TIMEOUT_MS };
+    // The next clause may start once this one's state is known: with a whole clip that's when the clip is back; streamed, the moment the motion step is done.
+    let released = false;
+    const release = () => {
+      if (released) return;
+      released = true;
+      this.running = false;
+      this.drain();
+      this.wake();
+    };
     const job = (async () => {
       const t0 = Date.now();
       try {
-        const out = await speakDitto(
-          this.cfg,
-          { source_url: this.sourceUrl, pcm: c.pcm, rate: this.rate, state, want_state: !last, fade_in: first ? CHAIN_FADE_IN : 0, fade_out: last ? CHAIN_FADE_OUT : 0, tail_silence_ms: last ? CHAIN_TAIL_SILENCE_MS : 0, ...(c.emo !== undefined ? { emo: c.emo } : {}) },
-          { signal: this.opts.signal, timeoutMs: this.opts.timeoutMs ?? CHAIN_SPEAK_TIMEOUT_MS },
-        );
-        this.state = last ? null : (out.state_b64 ?? null);
-        // No state back (an older worker, or the last): the next clause starts a chain again.
-        this.fresh = last || !out.state_b64;
-        this.stats.clips++;
-        this.on.clip({ i: c.i, mp4: out.video_b64, frames: out.frames, last, ms: Date.now() - t0, handler: out.handler, emo: c.emo });
+        if (this.streams) {
+          let gotState = false;
+          const end = await speakDittoStream(
+            this.cfg,
+            input,
+            {
+              start: (info) => this.on.start?.(c.i, info),
+              state: (s) => {
+                gotState = true;
+                this.state = last ? null : s;
+                this.fresh = last;
+                release();
+              },
+              frag: (seq, bytes) => this.on.frag!(c.i, seq, bytes),
+            },
+            jobOpts,
+          );
+          if (!gotState) {
+            this.state = null;
+            this.fresh = true;
+          }
+          this.stats.clips++;
+          this.on.end?.(c.i, { ...end, last });
+        } else {
+          const out = await speakDitto(this.cfg, input, jobOpts);
+          this.state = last ? null : (out.state_b64 ?? null);
+          // No state back (an older worker, or the last): the next clause starts a chain again.
+          this.fresh = last || !out.state_b64;
+          this.stats.clips++;
+          this.on.clip?.({ i: c.i, mp4: out.video_b64, frames: out.frames, last, ms: Date.now() - t0, handler: out.handler, emo: c.emo });
+        }
       } catch (err) {
         this.state = null;
         this.fresh = true;
@@ -229,9 +328,7 @@ export class DittoChain {
           for (const p of rest) this.on.fail(p.i, new Error("the reply's first clause failed"));
         }
       } finally {
-        this.running = false;
-        this.drain();
-        this.wake();
+        release();
       }
     })();
     this.jobs.push(job);

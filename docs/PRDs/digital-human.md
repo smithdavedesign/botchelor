@@ -486,7 +486,15 @@ the character, memory, voice orchestration and animation state; keep the rendere
    them through a MediaSource buffer (any append boundary is fine; Safari needs Managed Media Source on iOS 17.1+, else
    the clip path). Expected: first frame of a clause ≈ 0.4 s motion + 0.2 s fragment + the round trip, about 0.8–1.0 s
    after its voice is in, against 1.6–3.2 s today; the same GPU cost. A true continuous idle stays a "better hardware"
-   item (a 5090 or a model with a smaller window).
+   item (a 5090 or a model with a smaller window). **Built the same night (image `stream-1`):** worker `speak` with
+   `stream: true` (a generator handler; `FragWriter` pipes raw frames into ffmpeg, which muxes the voice and writes
+   fragmented MP4 to a pipe read by a thread; the chain loop signals the moment the motion step is done and the state
+   goes out first), `lib/live-face/musetalk.ts` `runStream` (`/run` + `/stream/<id>`), `lib/live-face/ditto.ts`
+   `speakDittoStream` and the chain's streaming mode (the next clause's job is queued on the state, not the end),
+   the route's `video_start` / `video_frag` / `video_end` events when the browser sends `frags: true` on the turn
+   (`LIVE_FACE_FRAGS=0` turns it off), and `LiveFace`'s MediaSource path (one MediaSource per reply in sequence mode,
+   pieces appended per clause in order, Safari's ManagedMediaSource first, whole clips where neither exists; a plain
+   piece takes its turn in the same order; a 4-s stall ends the reply where it is).
 3. **AVTR-1: read, don't build.** The most relevant open model in the list (153 M parameters, BOTH sides' audio in so
    the face reacts while listening, 25 fps on a 4060 Ti), but its renderer and streaming backend are non-commercial
    and it depends on InsightFace (also non-commercial). *Checked 2026-11-14 (LICENSE.md, Goodsize Inc., 2026-05-20):*

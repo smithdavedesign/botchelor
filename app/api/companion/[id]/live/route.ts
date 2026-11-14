@@ -45,8 +45,9 @@ const Action = z.discriminatedUnion("action", [
   z.object({ action: z.literal("token"), call_id: CallId, lang: z.string().max(35).optional() }),
   // The minutes that have started are taken (every half minute, and to buy more once the price was shown).
   z.object({ action: z.literal("tick"), call_id: CallId, buy: z.boolean().optional() }),
-  // What they said: the reply comes back as a stream (text/event-stream of LiveEvent).
-  z.object({ action: z.literal("turn"), call_id: CallId, text: z.string().max(2000) }),
+  // What they said: the reply comes back as a stream (text/event-stream of LiveEvent). `frags`: the browser can play
+  // streamed clauses (MediaSource), so Ditto's clips may come as fragments while they render.
+  z.object({ action: z.literal("turn"), call_id: CallId, text: z.string().max(2000), frags: z.boolean().optional() }),
   // The call ended: counted (never the words).
   z.object({
     action: z.literal("end"),
@@ -195,19 +196,30 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
       // whole reply by the first piece's; `video_fail` lets it play that piece plain.
       let cursor = 0;
       const clipJobs: Promise<void>[] = [];
+      // Streamed when the browser can play fragments (and LIVE_FACE_FRAGS isn't 0): a clause's first frames reach the
+      // browser while the rest render, and the next clause's job is queued the moment this one's motion is done.
+      const streamed = input.action === "turn" && input.frags === true && process.env.LIVE_FACE_FRAGS !== "0";
+      const chainFail = (i: number, err: unknown) => {
+        if (!stop.signal.aborted) console.error(`[companion-live] ditto clip ${i}: ${err instanceof Error ? err.message.slice(0, 160) : "unknown"}`);
+        send({ type: "video_fail", i });
+      };
       const chain =
         clips?.provider === "ditto"
           ? new DittoChain(
               clips.runpod,
               clips.source_url,
               LIVE_AUDIO_RATE,
-              {
-                clip: (c) => send({ type: "video", i: c.i, mp4: c.mp4, frames: c.frames, end_frame: 0 }),
-                fail: (i, err) => {
-                  if (!stop.signal.aborted) console.error(`[companion-live] ditto clip ${i}: ${err instanceof Error ? err.message.slice(0, 160) : "unknown"}`);
-                  send({ type: "video_fail", i });
-                },
-              },
+              streamed
+                ? {
+                    start: (i, info) => send({ type: "video_start", i, frames: info.frames, width: info.width, height: info.height }),
+                    frag: (i, seq, bytes) => send({ type: "video_frag", i, seq, b64: bytes.toString("base64") }),
+                    end: (i, info) => send({ type: "video_end", i, frames: info.frames }),
+                    fail: chainFail,
+                  }
+                : {
+                    clip: (c) => send({ type: "video", i: c.i, mp4: c.mp4, frames: c.frames, end_frame: 0 }),
+                    fail: chainFail,
+                  },
               { signal: stop.signal },
             )
           : null;
