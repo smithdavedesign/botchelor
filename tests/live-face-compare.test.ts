@@ -60,6 +60,7 @@ describe("the renderer registry", () => {
     expect(runnableRenderers().map((r) => r.id)).not.toContain("simli");
     expect(rendererById("fal:sync-lipsync-2")?.model).toBe("fal-ai/sync-lipsync/v2");
     expect(rendererById("fal:echomimic-v3")).toMatchObject({ provider: "fal", kind: "batch", model: "fal-ai/echomimic-v3" });
+    expect(rendererById("fal:omnihuman-1.5")).toMatchObject({ provider: "fal", kind: "batch", model: "fal-ai/bytedance/omnihuman/v1.5" });
     expect(rendererById("nope")).toBeNull();
   });
   it("is what the Connections offer for the live-face job: fal, Replicate and D-ID keys, with the renderers as the models", () => {
@@ -176,9 +177,10 @@ describe("Ditto, our second worker", () => {
     const input = { characterId: RAFE, portraitUrl: "https://botchelor.com/api/face-kit/x/portrait.webp", loopUrl: "https://botchelor.com/api/face-kit/x/loop.mp4", audio: { pcm, wav: pcm, rate: 24_000, seconds: 2, url: "https://botchelor.com/api/live-face/audio/a.wav" }, bundleKey: null };
     const out = await ditto.speak(input, { apiKey: null, env });
     expect(out.mp4.equals(MP4)).toBe(true);
-    expect(out).toMatchObject({ frames: 50, note: "512px, 50 frames, from the portrait" });
+    expect(out).toMatchObject({ frames: 50, note: "512px, 50 frames, from the portrait, as a call renders it" });
     expect(out.cost_usd).toBeGreaterThan(0);
-    expect(asked[0].body).toMatchObject({ op: "speak", source_url: input.portraitUrl, audio_format: "pcm16", rate: 24_000 });
+    // As a call renders a clause: eased in and out at the portrait, the line's expression (none here: a plain line).
+    expect(asked[0].body).toMatchObject({ op: "speak", source_url: input.portraitUrl, audio_format: "pcm16", rate: 24_000, fade_in: CHAIN_FADE_IN, fade_out: CHAIN_FADE_OUT, tail_silence_ms: CHAIN_TAIL_SILENCE_MS });
     expect(asked[0].body?.audio_b64).toBe(pcm.toString("base64"));
     // Without its endpoint it says so instead of calling MuseTalk's
     await expect(ditto.speak(input, { apiKey: null, env: { RUNPOD_API_KEY: "placeholder-runpod", LIVE_FACE_ENDPOINT: "ep-1" } })).rejects.toThrow(/LIVE_FACE_DITTO_ENDPOINT/);
