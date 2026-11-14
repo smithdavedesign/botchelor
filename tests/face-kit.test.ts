@@ -132,6 +132,30 @@ describe("a face kit", () => {
     expect(FACE_KIT_USD).toBeCloseTo(0.26, 2);
   });
 
+  it("draws a character made in anime in anime, never as a photograph, and replaces a kit drawn as a photograph before", async () => {
+    const id = await withPortrait("Tsuki Anime");
+    const { asked } = fakeReplicate();
+    verdict("CLOTHED");
+    // A kit made while they were drawn as photographs (before their style was anime, or before this fix).
+    expect(await makeFaceKit(t.db, id, BASE_URL)).toMatchObject({ ok: true, made: 7 });
+    expect(asked.every((a) => /Photorealistic/.test(String(a.input.prompt)))).toBe(true);
+    await t.db.query(`update characters set extras = jsonb_set(extras, '{looks}', '{"style":"anime"}'::jsonb) where id = $1`, [id]);
+    // That kit isn't theirs any more: none is shown, and the next call draws one.
+    expect(await faceKitOf(t.db, id, BASE_URL)).toBeNull();
+    asked.length = 0;
+    expect(await ensureFaceKit(t.db, id, BASE_URL)).toMatchObject({ ok: true, made: 7, queued: true });
+    expect(asked).toHaveLength(8);
+    for (const a of asked) {
+      expect(String(a.input.prompt)).not.toMatch(/photograph|Photorealistic/i);
+      expect(String(a.input.prompt)).toMatch(/anime/);
+      expect(String(a.input.prompt)).toMatch(/adult/);
+    }
+    expect(Object.keys((await faceKitOf(t.db, id, BASE_URL))!.stills).sort()).toEqual([...FACE_STILLS].sort());
+    // The photograph kit is gone, not just hidden.
+    const { rows } = await t.db.query<{ n: string }>(`select count(*) as n from face_kits where character_id = $1 and source_id not like '%#anime'`, [id]);
+    expect(Number(rows[0].n)).toBe(0);
+  });
+
   it("works for a house character from their reviewed file, and not at all for one with no safe portrait", async () => {
     fakeReplicate();
     verdict("CLOTHED");

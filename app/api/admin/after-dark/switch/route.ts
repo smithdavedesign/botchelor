@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { listSwitchable, setAdultSwitch } from "@/lib/adult/characters";
+import { ANIME_OUT_MESSAGE, isAnimeCharacter, listSwitchable, setAdultSwitch } from "@/lib/adult/characters";
 import { adultViewer } from "@/lib/adult/mode";
 import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson } from "@/lib/http";
@@ -12,6 +12,7 @@ export const POST = handle(async (req: Request) => {
   const admin = await adultViewer(db, req);
   if (!admin) return json({ error: "not_found" }, 404);
   const input = parseBody(Input, await readJson(req), "invalid_request");
+  if (input.on && (await isAnimeCharacter(db, input.character_id))) return json({ error: "anime", message: ANIME_OUT_MESSAGE }, 409);
   if (!(await setAdultSwitch(db, admin, input.character_id, input.on))) {
     return json({ error: "not_yours", message: "Only your own characters, and house characters, can be switched on." }, 403);
   }

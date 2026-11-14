@@ -4,12 +4,26 @@
  * that person has switched on. Each person switches only their own characters and the house characters they bring
  * along; never another person's character, which would put it in explicit scenes without its owner. One person's
  * switches never change anyone else's after dark.
+ *
+ * Never a character drawn in anime (lib/looks.ts isAnime): After Dark draws photographs, and one made in anime on purpose
+ * is never drawn as a real-looking person (David, 2026-11-13). Their switch stays off and says why.
  */
 import type { Db } from "../db";
 import { portraitPathSql } from "../portrait-sql";
 import { lastSeasonOn, seasonCastIds, seasonMonth } from "../season-cast";
 
-export type Switchable = { id: string; name: string; house: boolean; portrait: string | null; on: boolean; season: boolean };
+export type Switchable = { id: string; name: string; house: boolean; portrait: string | null; on: boolean; season: boolean; anime: boolean };
+
+/** SQL on `alias`: the character isn't drawn in anime (lib/looks.ts isAnime), so After Dark may draw them. */
+export const notAnimeSql = (alias: string): string => `coalesce(${alias}.extras->'looks'->>'style', '') <> 'anime'`;
+
+/** Why an anime character's switch stays off, said wherever someone tries it. */
+export const ANIME_OUT_MESSAGE = "They're drawn in anime, and After Dark only draws photographs, so they stay out rather than be drawn as a real-looking person.";
+
+/** Whether this character is drawn in anime, so After Dark leaves them out. */
+export async function isAnimeCharacter(db: Db, characterId: string): Promise<boolean> {
+  return (await db.query(`select 1 from characters c where c.id = $1 and not ${notAnimeSql("c")}`, [characterId])).rows.length > 0;
+}
 
 /** The show's own: a house character, or one of the agent cast After Dark opened (lib/adult/agent-cast.ts). SQL on `alias`. */
 export const showsOwnSql = (alias: string): string => `(${alias}.is_house or ${alias}.after_dark_open)`;
@@ -22,8 +36,8 @@ export async function isShowsOwn(db: Db, characterId: string): Promise<boolean> 
 /** Everyone who can be in this person's scenes: the season's cast, the agent cast that's open, and the characters they've switched on. */
 export async function eligibleIds(db: Db, ownerId: string): Promise<Set<string>> {
   const { rows } = await db.query<{ id: string }>(
-    `select character_id as id from adult_switches where owner_id = $1
-     union select id from characters where after_dark_open and visibility <> 'private'`,
+    `select a.character_id as id from adult_switches a join characters c on c.id = a.character_id where a.owner_id = $1 and ${notAnimeSql("c")}
+     union select c.id from characters c where c.after_dark_open and c.visibility <> 'private' and ${notAnimeSql("c")}`,
     [ownerId],
   );
   return new Set([...seasonCastIds(), ...rows.map((r) => r.id)]);
@@ -123,6 +137,7 @@ async function mayFlip(db: Db, ownerId: string, characterId: string): Promise<bo
 
 export async function setAdultSwitch(db: Db, ownerId: string, characterId: string, on: boolean): Promise<boolean> {
   if (!(await mayFlip(db, ownerId, characterId))) return false;
+  if (on && (await isAnimeCharacter(db, characterId))) return false;
   if (on) await db.query(`insert into adult_switches (owner_id, character_id) values ($1, $2) on conflict do nothing`, [ownerId, characterId]);
   else await db.query(`delete from adult_switches where owner_id = $1 and character_id = $2`, [ownerId, characterId]);
   return true;
@@ -131,18 +146,19 @@ export async function setAdultSwitch(db: Db, ownerId: string, characterId: strin
 /** The person's own characters and the house characters they've dated, with each switch. */
 export async function listSwitchable(db: Db, ownerId: string): Promise<Switchable[]> {
   const season = new Set(seasonCastIds());
-  const { rows } = await db.query<{ id: string; name: string; is_house: boolean; portrait: string | null; on: boolean }>(
+  const { rows } = await db.query<{ id: string; name: string; is_house: boolean; portrait: string | null; on: boolean; anime: boolean }>(
     `with mine as (select id from characters where owner_id = $1),
           dated as (
             select case when e.character_a in (select id from mine) then e.character_b else e.character_a end as id
               from episodes e
              where e.status = 'ready' and (e.character_a in (select id from mine) or e.character_b in (select id from mine))
           )
-     select c.id, c.name, c.is_house, ${portraitPathSql("c")} as portrait, exists (select 1 from adult_switches a where a.owner_id = $1 and a.character_id = c.id) as on
+     select c.id, c.name, c.is_house, ${portraitPathSql("c")} as portrait, exists (select 1 from adult_switches a where a.owner_id = $1 and a.character_id = c.id) as on,
+            not ${notAnimeSql("c")} as anime
        from characters c
       where c.id in (select id from mine) or (c.is_house and c.id in (select id from dated))
       order by c.is_house, c.name`,
     [ownerId],
   );
-  return rows.map((r) => ({ id: r.id, name: r.name, house: r.is_house, portrait: r.portrait, on: r.on || season.has(r.id), season: season.has(r.id) }));
+  return rows.map((r) => ({ id: r.id, name: r.name, house: r.is_house, portrait: r.portrait, on: !r.anime && (r.on || season.has(r.id)), season: season.has(r.id), anime: r.anime }));
 }
