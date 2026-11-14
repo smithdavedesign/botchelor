@@ -8,6 +8,7 @@ import { curatedModels, PROVIDER_INFO, providersFor } from "@/lib/connections-sh
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import { liveFaceClips } from "@/lib/live-face";
 import { compareState, keysFor, pcmOfWav, rateRender, rendererListing, setUserLiveFaceChoice, userLiveFaceChoice } from "@/lib/live-face/compare";
+import { RUNPOD_API, setRunpodFetchForTests } from "@/lib/live-face/musetalk";
 import { DID_API, didTalk, FAL_QUEUE, falRun, falVideo, RENDERERS, rendererById, runnableRenderers, setRendererFetchForTests } from "@/lib/live-face/renderers";
 import { BASE_URL, newUserCookie, signedInCookie, startTestDb, TEST_SESSION_SECRET, userIdOf } from "./helpers";
 
@@ -41,6 +42,7 @@ afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllEnvs();
   setRendererFetchForTests(null);
+  setRunpodFetchForTests(null);
 });
 
 const RAFE = HOUSE_CHARACTERS[0].id;
@@ -49,6 +51,7 @@ const MP4 = Buffer.from("ftypisom-not-really-an-mp4");
 describe("the renderer registry", () => {
   it("lists ours first, the hosted batch models, D-ID and Simli, and knows which can render a clip", () => {
     expect(RENDERERS[0].id).toBe("musetalk");
+    expect(RENDERERS[1]).toMatchObject({ id: "ditto", provider: "house", kind: "live", runs: true });
     expect(RENDERERS.map((r) => r.provider)).toEqual(expect.arrayContaining(["house", "fal", "replicate", "did", "simli"]));
     expect(runnableRenderers().map((r) => r.id)).not.toContain("simli");
     expect(rendererById("fal:sync-lipsync-2")?.model).toBe("fal-ai/sync-lipsync/v2");
@@ -141,9 +144,42 @@ describe("whose key a renderer runs on", () => {
     expect(after.fal).toEqual({ apiKey: "my-fal-key", from: "yours" });
     const listing = await rendererListing(t.db, userId, { ...process.env, RUNPOD_API_KEY: "k", LIVE_FACE_ENDPOINT: "ep", SIMLI_API_KEY: undefined });
     expect(listing.find((r) => r.id === "musetalk")).toMatchObject({ ready: true, key: "house" });
+    expect(listing.find((r) => r.id === "ditto")).toMatchObject({ ready: false, key: "house" }); // its own endpoint isn't set
+    const withDitto = await rendererListing(t.db, userId, { ...process.env, RUNPOD_API_KEY: "k", LIVE_FACE_ENDPOINT: undefined, LIVE_FACE_DITTO_ENDPOINT: "ep-d" });
+    expect(withDitto.find((r) => r.id === "ditto")?.ready).toBe(true);
+    expect(withDitto.find((r) => r.id === "musetalk")?.ready).toBe(false);
     expect(listing.find((r) => r.id === "fal:omnihuman")).toMatchObject({ ready: true, key: "yours" });
     expect(listing.find((r) => r.id === "replicate:wan-2.2-s2v")?.ready).toBe(false);
     expect(listing.find((r) => r.id === "simli")?.ready).toBe(false);
+  });
+});
+
+describe("Ditto, our second worker", () => {
+  it("sends the kit's portrait and the clause to its own endpoint as a speak job and reads the clip back", async () => {
+    const asked: { url: string; body: Record<string, unknown> | undefined }[] = [];
+    setRunpodFetchForTests(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      const body = typeof init?.body === "string" ? (JSON.parse(init.body) as { input?: Record<string, unknown> }).input : undefined;
+      asked.push({ url, body });
+      if (new Headers(init?.headers).get("authorization") !== "Bearer placeholder-runpod") return Response.json({ error: "Unauthorized" }, { status: 401 });
+      if (!url.startsWith(`${RUNPOD_API}/ep-d/runsync`)) return Response.json({ error: "no such endpoint" }, { status: 404 });
+      return Response.json({ id: "job-d", status: "COMPLETED", output: { video_b64: MP4.toString("base64"), mime: "video/mp4", frames: 50, fps: 25, width: 512, height: 512, bytes: MP4.length, ms: { source: 40, setup: 300, audio: 60, render: 900, encode: 30, total: 1330 } } });
+    });
+    const ditto = rendererById("ditto")!;
+    const env = { RUNPOD_API_KEY: "placeholder-runpod", LIVE_FACE_DITTO_ENDPOINT: "ep-d" };
+    const pcm = Buffer.alloc(96_000); // two seconds at 24 kHz
+    const input = { characterId: RAFE, portraitUrl: "https://botchelor.com/api/face-kit/x/portrait.webp", loopUrl: "https://botchelor.com/api/face-kit/x/loop.mp4", audio: { pcm, wav: pcm, rate: 24_000, seconds: 2, url: "https://botchelor.com/api/live-face/audio/a.wav" }, bundleKey: null };
+    const out = await ditto.speak(input, { apiKey: null, env });
+    expect(out.mp4.equals(MP4)).toBe(true);
+    expect(out).toMatchObject({ frames: 50, note: "512px, 50 frames, from the portrait" });
+    expect(out.cost_usd).toBeGreaterThan(0);
+    expect(asked[0].body).toMatchObject({ op: "speak", source_url: input.portraitUrl, audio_format: "pcm16", rate: 24_000 });
+    expect(asked[0].body?.audio_b64).toBe(pcm.toString("base64"));
+    // Without its endpoint it says so instead of calling MuseTalk's
+    await expect(ditto.speak(input, { apiKey: null, env: { RUNPOD_API_KEY: "placeholder-runpod", LIVE_FACE_ENDPOINT: "ep-1" } })).rejects.toThrow(/LIVE_FACE_DITTO_ENDPOINT/);
+    // A worker failure is the renderer's error, not a clip
+    setRunpodFetchForTests(async () => Response.json({ id: "job-d", status: "FAILED", error: "the clause is empty" }));
+    await expect(ditto.speak(input, { apiKey: null, env })).rejects.toThrow(/the clause is empty/);
   });
 });
 

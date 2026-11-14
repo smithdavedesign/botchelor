@@ -88,6 +88,11 @@ const GROUPS: Group[] = [
         href: "https://github.com/TMElyralab/MuseTalk",
       },
       {
+        name: "Ditto",
+        what: "A second renderer of our own, compared beside MuseTalk: an open talking-head model (Apache-2.0, Ant Group) that animates the whole head from one portrait, turns, blinks and teeth included, on the same rented GPU and in real time on TensorRT. On the admin compare now; calls when it proves out.",
+        href: "https://github.com/antgroup/ditto-talkinghead",
+      },
+      {
         name: "Lip-sync and talking-head models, compared",
         what: "Sync Labs' lipsync-2, LatentSync, Kling's lipsync, InfiniteTalk and OmniHuman on fal, and Wan 2.2 speech-to-video on Replicate, run side by side on the same line and the same face so we can see which mouth is worth paying for. Admin-only while we compare; on your own key when it opens.",
         href: "https://fal.ai",

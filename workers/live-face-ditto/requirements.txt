@@ -1,0 +1,20 @@
+# Ditto's own pip list (README "Pip" + environment.yaml, 2026-11-14) for the TensorRT path, plus the worker's needs.
+# torch and TensorRT come from the Dockerfile (torch 2.5.1 + CUDA 12.1, TensorRT 8.6.1 from pypi.nvidia.com).
+# Do not bump numpy here: the config pickles are numpy-2 pickles and numba 0.60 is the last release that takes numpy
+# 2.0; constraints.txt repeats the pins so no pip step, and no automated dependency bump, can move them.
+cuda-python==12.6.2.post1
+numpy==2.0.1
+numba==0.60.0
+llvmlite==0.43.0
+librosa==0.10.2.post1
+soundfile==0.13.0
+scipy==1.15.0
+scikit-image==0.25.0
+opencv-python-headless==4.10.0.84
+imageio==2.36.1
+imageio-ffmpeg==0.5.1
+filetype==1.2.0
+cython==3.0.11
+tqdm
+huggingface_hub[hf_transfer]
+runpod>=2.2.1

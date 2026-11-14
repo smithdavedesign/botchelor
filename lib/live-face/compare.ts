@@ -63,11 +63,11 @@ export async function keysFor(db: Db, userId: string, env: Env = process.env): P
 }
 
 /** The renderers for the page: each with whether it can run for this person and on whose key. */
-export async function rendererListing(db: Db, userId: string, env: Env = process.env): Promise<(Omit<ClipRenderer, "speak"> & { key: "yours" | "house" | null; ready: boolean })[]> {
+export async function rendererListing(db: Db, userId: string, env: Env = process.env): Promise<(Omit<ClipRenderer, "speak" | "ready"> & { key: "yours" | "house" | null; ready: boolean })[]> {
   const keys = await keysFor(db, userId, env);
-  return RENDERERS.map(({ speak: _speak, ...r }) => {
+  return RENDERERS.map(({ speak: _speak, ready: isReady, ...r }) => {
     const k = keys[r.provider];
-    const ready = r.runs && (r.provider === "house" ? Boolean(env.RUNPOD_API_KEY && env.LIVE_FACE_ENDPOINT) : Boolean(k.apiKey));
+    const ready = r.runs && (isReady ? isReady(env) : Boolean(k.apiKey));
     return { ...r, key: k.from, ready };
   });
 }

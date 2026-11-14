@@ -334,8 +334,44 @@ David's point (2026-11-14): "might be a case for using a more slow model if we a
 latency matters" is exactly that split, and the `ClipRenderer` interface is what lets a replay call a slow one while calls
 keep the fast one. fal's per-clause prices weren't on its OpenAPI; the bill says.
 
-**Ditto** (Ant Group's real-time single-image talking head, Apache-2.0) is the open equivalent of what those vendors run and the
-candidate most likely to beat MuseTalk at the same cost; its spike runs beside this.
+### Ditto (2026-11-14): the spike and the second worker
+
+Ant Group's Ditto (github.com/antgroup/ditto-talkinghead, Apache-2.0; weights digital-avatar/ditto-talkinghead) is the open
+equivalent of what the hosted real-time vendors run: a diffusion motion model drives a LivePortrait-style warp of ONE still,
+so the whole head moves. Spiked on a rented 4090 (Juniper's portrait, Aura clauses of 2 s and 5.6 s; full report with the
+install recipes in `workers/live-face-ditto/SPIKE.md`).
+
+**Verdict: clearly better than MuseTalk, and real time on TensorRT.** From the portrait it turns and tilts the head, moves
+the brows, blinks, lets a smile form and fade, and the mouth opens wide on vowels, closes on consonants and shows teeth;
+MuseTalk's same clause is a small soft mouth on a fixed head. Identity holds; slight diffusion smoothing; a few frames with
+smeared teeth; no edge artefacts at 512 px.
+
+| Path | 2-s clause | 5.6-s clause | GPU memory | Load |
+|---|---|---|---|---|
+| PyTorch, steady state | 4.1 s (2.1× real time) | 10.9–12.2 s | 4.7 GB | 5.3 s |
+| TensorRT, shipped Ampere+ engines, warm | 1.30–1.33 s (0.65×) | 3.56 s (0.63×) | 2.8 GB | 2.7 s, first call +13 s |
+
+TensorRT's output is visually the same as PyTorch's, and 0.65× real time is MuseTalk's own render speed (0.57×): a 2-s
+clause ≈ 1.3 s render + our ~1 s of overhead ≈ 2.3 s to the first clip, inside the 4-s hold. Ditto's online (streaming) mode
+as shipped is not usable (it wrote 85 of 141 frames and 0 for the short clause; it needs its own flush handling). Gotchas
+that cost the spike time: PyPI's `onnxruntime-gpu` is a CUDA-13 build (HuBERT silently ran on CPU: first call 98 s), TensorRT
+8.6.1 needs Python ≤ 3.11 and cuDNN 8 beside torch's cuDNN 9, uv's build isolation breaks `tensorrt_libs`. The pod ran
+2.4 h at $0.89/h ≈ $2.14 and was deleted the same day.
+
+**Built the same day:** `workers/live-face-ditto/` (CUDA 12.1 + cuDNN 8 base, Python 3.10, torch 2.5.1, TensorRT 8.6.1,
+numpy 2.0.1, the twelve engines baked in; jobs `speak` and `warm`, registrations cached per still; pushed as a `ditto-<n>` tag
+of the same public GHCR package; endpoint `k6mzbe6h1jgc19`), `lib/live-face/ditto.ts` (`LIVE_FACE_DITTO_ENDPOINT`, same `RUNPOD_API_KEY`) and the
+`ditto` renderer on the compare page, so it sits in the same table as the seven above on the same line and face.
+Proved on a 4090 pod from the image: engines in 2.7 s, Juniper's 5.6-s clause in 3.16 s (0.55× real time; registration
+44 ms, then a 6-ms cache hit), 141 frames at 512². One trap on the way: Ditto's Cython blend step compiles with
+`-march=native` on first import, so the binary built on GitHub's runner hit an illegal instruction on Runpod's EPYC hosts
+and every worker came up unhealthy; the image now builds it for a portable target (`build-blend.py`).
+
+**What moving calls onto it takes (next):** Ditto has no idle cycle to index, so continuity between a reply's clauses is
+motion state, not MuseTalk's `start_frame`: carry the last clause's pose into the next (`ctrl_info`, `fade_in`/`fade_out`),
+and render the between-clip loop with Ditto too (a silent clause) so the renderer never visibly changes. Feed the 624-px
+loop frame rather than the 512-px portrait so clips match the round frame without upscaling. Then `LIVE_FACE_PROVIDER=ditto:admins`
+through the same `liveFaceClips` path. Both renderers resident on one 24-GB card would fit; they are two images today.
 
 **Latency:** a clause's clip arrives roughly two seconds after its voice (render ≈ frames at 50 fps + encode); the
 browser holds the voice for it (measured above: the first clip and the first words start together). Simli is nearer one second end to end. If the hold reads as a pause, the next steps

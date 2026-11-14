@@ -85,32 +85,42 @@ export async function warmWorker(cfg: RunpodConfig): Promise<void> {
 }
 
 /**
- * One clause of the companion's voice (our Aura PCM, 16-bit mono at `rate`) as a clip of the character saying it. The
- * worker renders from `start_frame` of the idle cycle so clause after clause continues the same motion. Waits
- * `timeoutMs` at most (the job is cancelled then), and throws on any failure: the call goes on without the face.
+ * One job through `/runsync`, followed on `/status` until it ends, cancelled past `timeoutMs`. Both our workers'
+ * `speak` jobs go this way (MuseTalk here, Ditto in ./ditto.ts). Throws on a transport error or the deadline; the
+ * job's own outcome (FAILED, or COMPLETED without a clip) is the caller's to judge.
  */
-export async function speakClip(cfg: RunpodConfig, input: { bundle_key: string; pcm: Buffer; rate: number; start_frame?: number; fps?: number }, opts: { signal?: AbortSignal; timeoutMs?: number } = {}): Promise<SpeakOutput> {
+export async function runsync<T>(cfg: RunpodConfig, input: Record<string, unknown>, opts: { signal?: AbortSignal; timeoutMs?: number; what?: string } = {}): Promise<RunpodJob<T>> {
   const timeoutMs = opts.timeoutMs ?? SPEAK_TIMEOUT_MS;
+  const what = opts.what ?? "speak";
   const started = Date.now();
   const ctl = new AbortController();
   const onAbort = () => ctl.abort();
   opts.signal?.addEventListener("abort", onAbort);
   const timer = setTimeout(() => ctl.abort(), timeoutMs);
   try {
-    const body = { input: { op: "speak", bundle_key: input.bundle_key, audio_b64: input.pcm.toString("base64"), audio_format: "pcm16", rate: input.rate, start_frame: input.start_frame ?? 0, fps: input.fps ?? 25 } };
-    let job = await call<RunpodJob<SpeakOutput>>(cfg, `runsync?wait=${Math.min(90_000, timeoutMs)}`, { json: body, signal: ctl.signal });
+    let job = await call<RunpodJob<T>>(cfg, `runsync?wait=${Math.min(90_000, timeoutMs)}`, { json: { input }, signal: ctl.signal });
     while (job.status === "IN_QUEUE" || job.status === "IN_PROGRESS") {
       if (Date.now() - started > timeoutMs) {
         await call(cfg, `cancel/${encodeURIComponent(job.id)}`, { method: "POST" }).catch(() => {});
-        throw new RunpodError(`Runpod speak: no clip within ${timeoutMs} ms`, 504);
+        throw new RunpodError(`Runpod ${what}: no clip within ${timeoutMs} ms`, 504);
       }
       await new Promise((r) => setTimeout(r, fetchForTests ? 0 : 250));
-      job = await jobStatus<SpeakOutput>(cfg, job.id);
+      job = await jobStatus<T>(cfg, job.id);
     }
-    if (job.status !== "COMPLETED" || !job.output?.video_b64) throw new RunpodError(`Runpod speak: ${jobError(job)}`, 502);
-    return job.output;
+    return job;
   } finally {
     clearTimeout(timer);
     opts.signal?.removeEventListener("abort", onAbort);
   }
+}
+
+/**
+ * One clause of the companion's voice (our Aura PCM, 16-bit mono at `rate`) as a clip of the character saying it. The
+ * worker renders from `start_frame` of the idle cycle so clause after clause continues the same motion. Waits
+ * `timeoutMs` at most (the job is cancelled then), and throws on any failure: the call goes on without the face.
+ */
+export async function speakClip(cfg: RunpodConfig, input: { bundle_key: string; pcm: Buffer; rate: number; start_frame?: number; fps?: number }, opts: { signal?: AbortSignal; timeoutMs?: number } = {}): Promise<SpeakOutput> {
+  const job = await runsync<SpeakOutput>(cfg, { op: "speak", bundle_key: input.bundle_key, audio_b64: input.pcm.toString("base64"), audio_format: "pcm16", rate: input.rate, start_frame: input.start_frame ?? 0, fps: input.fps ?? 25 }, opts);
+  if (job.status !== "COMPLETED" || !job.output?.video_b64) throw new RunpodError(`Runpod speak: ${jobError(job)}`, 502);
+  return job.output;
 }
