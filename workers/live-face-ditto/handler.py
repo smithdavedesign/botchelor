@@ -231,7 +231,7 @@ class FragWriter:
             "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{width}x{height}", "-r", str(fps), "-i", "pipe:0",
             "-i", wav_path,
             "-map", "0:v:0", "-map", "1:a:0",
-            "-c:v", "libx264", "-preset", "veryfast", "-tune", "zerolatency", "-pix_fmt", "yuv420p", "-crf", "20",
+            "-c:v", "libx264", "-preset", "veryfast", "-tune", "zerolatency", "-pix_fmt", "yuv420p", "-crf", "20", "-profile:v", "main", "-level", "3.1",
             "-g", str(fps), "-keyint_min", str(fps), "-sc_threshold", "0",
             "-c:a", "aac", "-b:a", "96k",
             "-movflags", "frag_keyframe+empty_moov+default_base_moof", "-frag_duration", str(frag_ms * 1000),
