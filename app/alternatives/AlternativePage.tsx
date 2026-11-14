@@ -35,8 +35,9 @@ export default function AlternativePage({ alt }: { alt: Alternative }) {
         <p className="kicker">Moving your characters?</p>
         <h1>A new home for the characters you made</h1>
         <p className="lede">{alt.lede} Paste them in, and they get a life here: dates on a show, and one-to-one talks.</p>
+        {alt.now && <p>{alt.now}</p>}
         <p>
-          <Link className="button" href={IMPORT_PATH}>
+          <Link className="button" href={alt.importHref ?? IMPORT_PATH} data-track="alternative-import">
             Bring your character
           </Link>
         </p>

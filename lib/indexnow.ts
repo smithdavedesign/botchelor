@@ -24,8 +24,25 @@ export function indexNowKey(env: Record<string, string | undefined> = process.en
 }
 
 /**
+ * Static pages that were rewritten, and when: the daily job's window (the last 26 hours) covers each date once, so
+ * the engines hear about the new words once, the day after they ship, and never again. Add a line when a landing
+ * page changes enough to be worth a re-crawl; the date is the day after the merge (the job runs at 16:20 UTC).
+ */
+export const LANDING_CHANGES: readonly { path: string; changedAt: string }[] = [
+  // The Character.AI rescue door (2026-11-14): /import's ?from=cai copy and the landing's new words.
+  { path: "/import", changedAt: "2026-11-15T00:00:00Z" },
+  { path: "/alternatives/character-ai", changedAt: "2026-11-15T00:00:00Z" },
+];
+
+/** The landing pages whose words changed inside the window (LANDING_CHANGES), as full URLs. */
+export function changedLandingUrls(since: Date, base: string = siteUrl(), now = new Date(), changes = LANDING_CHANGES): string[] {
+  return changes.filter((c) => new Date(c.changedAt) >= since && new Date(c.changedAt) <= now).map((c) => `${base}${c.path}`);
+}
+
+/**
  * Public pages that became indexable since `since`: aired public episodes, characters newly open to dates, couples
- * whose latest public date aired since (their /couples page changed), and a season whose finale closed since.
+ * whose latest public date aired since (their /couples page changed), a season whose finale closed since, and a
+ * landing page rewritten since (LANDING_CHANGES).
  */
 export async function recentPublicUrls(db: Db, since: Date, base: string = siteUrl(), now = new Date()): Promise<string[]> {
   const seasons = closedSeasons(now).filter((s) => seasonWindow(new Date(`${s.id}T00:00:00Z`)).end >= since);
@@ -45,6 +62,7 @@ export async function recentPublicUrls(db: Db, since: Date, base: string = siteU
     ...characters.rows.map((r) => `${base}/characters/${r.id}`),
     ...couples.rows.map((r) => `${base}/couples/${r.a}/${r.b}`),
     ...seasons.map((s) => `${base}${s.path}`),
+    ...changedLandingUrls(since, base, now),
   ];
 }
 

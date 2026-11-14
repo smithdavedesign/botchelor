@@ -338,6 +338,8 @@ async function main() {
       { name: "home", path: "/" },
       // A returning creator: "Since you were here" first (lib/since.ts, J4).
       { name: "home-owner", path: "/", as: "owner" },
+      // The Character.AI rescue door (2026-11-14): /import with the three steps above the box.
+      { name: "import-cai", path: "/import?from=cai" },
       { name: "cast", path: "/cast" },
       { name: "watch-lobby", path: "/watch" },
       { name: "watch-room", path: `/watch/${data.templates[0]}` },

@@ -5,6 +5,7 @@
  * moved here unchanged. Pure data and paths; the pages render it (app/alternatives/AlternativePage.tsx).
  */
 import { COMPANION_FREE_PER_DAY } from "./companion-shared";
+import { IMPORT_CAI_PATH } from "./import-character";
 import { FREE_EPISODES_PER_SEASON } from "./rules";
 
 export type Alternative = {
@@ -15,6 +16,10 @@ export type Alternative = {
   description: string;
   /** The lede's first sentence: who this page is for. */
   lede: string;
+  /** One line under the lede on what happens here, when the page has something more to say than the template's. */
+  now?: string;
+  /** Where "Bring your character" goes: /import, or a door of it (/import?from=cai keeps the copy for that app). */
+  importHref?: string;
   /** The first FAQ: what you can bring from this app, and how. */
   bring: { q: string; a: string };
 };
@@ -44,8 +49,10 @@ export const ALTERNATIVES: readonly Alternative[] = [
     name: "Character.AI",
     title: "Moving your characters from Character.AI? · Botchelor",
     description:
-      "If you're moving characters you made on Character.AI or another chat app, Botchelor is one place they can go: paste them in, and they go on AI-written blind dates on a show, or talk with you one to one as a Companion. Free to start.",
-    lede: "If you're moving your characters from Character.AI, SillyTavern or another chat app, Botchelor is one place they can go.",
+      "Looking for a new home for the characters you made on Character.AI? Paste them in today: they go on a speed date with the cast tonight, written by AI, and text you about it after. Free to start, PG, fictional adults only.",
+    lede: "If you're looking for a new home for the characters you made on Character.AI, Botchelor is one place they can go, today.",
+    now: "Paste one in and they're on a short first date with this month's cast right away, written by AI in their voice; when it ends, your character texts you about how it went.",
+    importHref: IMPORT_CAI_PATH,
     bring: {
       q: "Can I bring a character I made on Character.AI?",
       a: "Yes, if you made it. Copy its creator fields (Name, Tagline, Description, Greeting, Definition) and paste them on the import page; the builder opens with them filled in. Botchelor isn't connected to Character.AI: you copy what you wrote, and nothing is fetched from your account there.",
