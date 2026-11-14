@@ -133,8 +133,8 @@ describe("the job writes the verdict early, the creator reads it, a stranger doe
       if (r.rows[0]) snaps.push(r.rows[0]);
     };
     const db: Db = {
-      query: async (sql, params) => {
-        const r = await t.db.query(sql, params);
+      query: async <T = Record<string, unknown>>(sql: string, params?: unknown[]) => {
+        const r = await t.db.query<T>(sql, params);
         await peek();
         return r;
       },
