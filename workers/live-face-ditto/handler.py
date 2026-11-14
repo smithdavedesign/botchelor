@@ -98,8 +98,15 @@ SDK.avatar_registrar = CachedRegistrar(SDK.avatar_registrar)
 
 # ------------------------------------------------------------------ helpers
 def fetch_bytes(url: str) -> bytes:
-    with urllib.request.urlopen(url, timeout=60) as r:  # noqa: S310 (the show's own store or site)
-        return r.read()
+    """The still from the show's own site or store. Named as what it is (not Python's default agent, which edge
+    protection may challenge with a page instead of the file), and checked to be an image or a video."""
+    req = urllib.request.Request(url, headers={"User-Agent": "botchelor-live-face/1 (+https://botchelor.com/about)", "Accept": "image/*,video/*;q=0.9,*/*;q=0.1"})
+    with urllib.request.urlopen(req, timeout=60) as r:  # noqa: S310 (the show's own store or site)
+        kind = (r.headers.get("content-type") or "").split(";")[0].strip()
+        data = r.read()
+    if kind and not (kind.startswith("image/") or kind.startswith("video/") or kind == "application/octet-stream"):
+        raise ValueError(f"the source URL answered {kind}, not an image")
+    return data
 
 
 def source_path_for(data: bytes) -> tuple[str, int, int]:
