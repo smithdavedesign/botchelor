@@ -78,19 +78,29 @@ describe("fal.ai's queue, as its docs say", () => {
       asked.push(`${init?.method ?? "GET"} ${url}`);
       if (url === "https://cdn.fal/out.mp4") return new Response(new Uint8Array(MP4)); // the CDN: no key
       if (new Headers(init?.headers).get("authorization") !== "Key fal-k") return Response.json({ detail: "Authentication is required" }, { status: 401 });
-      if (url === `${FAL_QUEUE}/fal-ai/infinitalk` && init?.method === "POST") {
+      if (url === `${FAL_QUEUE}/fal-ai/kling-video/lipsync/audio-to-video` && init?.method === "POST") {
         expect(JSON.parse(String(init.body))).toEqual({ image_url: "https://x/p.png", audio_url: "https://x/a.wav" });
-        return Response.json({ request_id: "req-1", status_url: `${FAL_QUEUE}/fal-ai/infinitalk/requests/req-1/status` });
+        // A nested model: the job's URLs sit under the app id, not the model's path.
+        return Response.json({ request_id: "req-1", status_url: `${FAL_QUEUE}/fal-ai/kling-video/requests/req-1/status`, response_url: `${FAL_QUEUE}/fal-ai/kling-video/requests/req-1` });
       }
-      if (url.endsWith("/requests/req-1/status")) return Response.json({ status: ++polls < 2 ? "IN_PROGRESS" : "COMPLETED" });
-      if (url.endsWith("/requests/req-1")) return Response.json({ video: { url: "https://cdn.fal/out.mp4" }, seed: 1 });
+      if (url === `${FAL_QUEUE}/fal-ai/kling-video/requests/req-1/status`) return Response.json({ status: ++polls < 2 ? "IN_PROGRESS" : "COMPLETED" });
+      if (url === `${FAL_QUEUE}/fal-ai/kling-video/requests/req-1`) return Response.json({ video: { url: "https://cdn.fal/out.mp4" }, seed: 1 });
       if (url === "https://cdn.fal/out.mp4") return new Response(new Uint8Array(MP4));
       return Response.json({ error: "unknown" }, { status: 404 });
     });
-    const { output } = await falRun("fal-k", "fal-ai/infinitalk", { image_url: "https://x/p.png", audio_url: "https://x/a.wav" }, { everyMs: 1 });
+    const { output } = await falRun("fal-k", "fal-ai/kling-video/lipsync/audio-to-video", { image_url: "https://x/p.png", audio_url: "https://x/a.wav" }, { everyMs: 1 });
     expect(await falVideo(output)).toEqual(MP4);
-    expect(asked[0]).toBe(`POST ${FAL_QUEUE}/fal-ai/infinitalk`);
+    expect(asked[0]).toBe(`POST ${FAL_QUEUE}/fal-ai/kling-video/lipsync/audio-to-video`);
     expect(asked.filter((a) => a.endsWith("/status")).length).toBe(2);
+  });
+  it("gives up on a status URL that never answers instead of waiting out the clock", async () => {
+    setRendererFetchForTests(async (input, init) => {
+      const url = String(input);
+      if (init?.method === "POST") return Response.json({ request_id: "req-9", status_url: `${FAL_QUEUE}/fal-ai/nope/requests/req-9/status` });
+      if (url.endsWith("/status")) return Response.json({ detail: "Not Found" }, { status: 404 });
+      return Response.json({}, { status: 404 });
+    });
+    await expect(falRun("fal-k", "fal-ai/nope", {}, { everyMs: 1, timeoutMs: 60_000 })).rejects.toThrow(/status 404/);
   });
   it("says so when the key is refused, and when the job answers no video", async () => {
     setRendererFetchForTests(async () => Response.json({ detail: "Authentication is required" }, { status: 401 }));

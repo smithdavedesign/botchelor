@@ -106,24 +106,35 @@ export async function falRun(apiKey: string, model: string, input: Record<string
   const submitted = await doFetch(`${FAL_QUEUE}/${model}`, { method: "POST", headers, body: JSON.stringify(input), signal: opts.signal });
   if (!submitted.ok) throw new RendererError(`fal.ai ${submitted.status}: ${(await submitted.text().catch(() => "")).slice(0, 200)}`);
   const q = (await submitted.json()) as FalQueued;
-  const base = `${FAL_QUEUE}/${model}/requests/${q.request_id}`;
+  // The status and response URLs come back with the job, and they are NOT the model's path: for a nested model
+  // (fal-ai/kling-video/lipsync/audio-to-video, fal-ai/sync-lipsync/v2, fal-ai/bytedance/omnihuman) they sit under
+  // the app id (fal-ai/kling-video/requests/…). Building them from the model path answered 404 until the clock ran out
+  // while fal kept rendering (the first compare, 2026-11-14).
+  const statusUrl = q.status_url ?? `${FAL_QUEUE}/${model}/requests/${q.request_id}/status`;
+  const responseUrl = q.response_url ?? statusUrl.replace(/\/status$/, "");
+  const cancelUrl = statusUrl.replace(/\/status$/, "/cancel");
   const deadline = t0 + (opts.timeoutMs ?? FAL_TIMEOUT_MS);
+  let misses = 0;
   for (;;) {
     if (opts.signal?.aborted) throw new RendererError("stopped");
-    const st = await doFetch(`${base}/status`, { headers, signal: opts.signal });
+    const st = await doFetch(statusUrl, { headers, signal: opts.signal });
     if (st.ok) {
+      misses = 0;
       const s = (await st.json()) as FalStatus;
       if (s.status === "COMPLETED") break;
-    } else if (st.status !== 404 && st.status !== 405) {
+    } else if (st.status === 404 || st.status === 405) {
+      // A job not yet listed answers 404 for a moment; a URL that never answers is a bug, not a queue.
+      if (++misses > 10) throw new RendererError(`fal.ai status ${st.status} at ${statusUrl}`);
+    } else {
       throw new RendererError(`fal.ai status ${st.status}`);
     }
     if (Date.now() > deadline) {
-      await doFetch(`${base}/cancel`, { method: "PUT", headers }).catch(() => null);
+      await doFetch(cancelUrl, { method: "PUT", headers }).catch(() => null);
       throw new RendererError(`fal.ai took longer than ${Math.round((opts.timeoutMs ?? FAL_TIMEOUT_MS) / 1000)} s`);
     }
     await new Promise((ok) => setTimeout(ok, opts.everyMs ?? 2000));
   }
-  const res = await doFetch(base, { headers, signal: opts.signal });
+  const res = await doFetch(responseUrl, { headers, signal: opts.signal });
   if (!res.ok) throw new RendererError(`fal.ai result ${res.status}: ${(await res.text().catch(() => "")).slice(0, 200)}`);
   return { output: (await res.json()) as Record<string, unknown>, ms: Date.now() - t0 };
 }
