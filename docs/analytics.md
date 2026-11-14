@@ -191,6 +191,11 @@ Every page in the browser sends, in batches of up to 25 every few seconds and wh
   (`app/episodes/[id]/VerdictCard.tsx`, docs/companions.md "Texts from your own character"). `date_watched` itself now
   carries `skipped` (they skipped to the end) and, for the creator's just-filmed date, `ms_since_start` (milliseconds
   since the wizard sent it, `lib/engagement-keys.ts`; absent when the stamp isn't in that tab).
+- **The early verdict** (2026-11-14, PR3): the creator's filming stage shows the verdict card as soon as the job has
+  decided the ending (`ending_final`) and every line has played, before the date is ready. That fires `date_watched`
+  with `via: "stage"` and `live: 1` (plus `skipped`, `ms_since_start`); the theater then skips its own `date_watched`
+  for that date in the same tab (`lib/engagement-keys.ts` DATE_WATCHED_LIVE_KEY), so one ending counts once. The
+  median `ms_since_start` of speed dates (target under 90 s) and the share with `skipped` are read off these props.
 - **"Turned on texts"** (`push_opted`): visitors with a `push_subscribed` event, after "Heard from their character".
 - Kept 400 days (`lib/retention.ts`); deleting an account deletes its rows and its browsers' rows.
 

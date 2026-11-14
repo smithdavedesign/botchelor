@@ -63,7 +63,7 @@ flowchart TD
     model -- "The show's (paid model, daily cap,<br/>free model past it)" --> generate
     generate["The engine decides where it's heading,<br/>the model performs the date<br/>(it can move twice if both agree),<br/>both characters' wishes weigh in at the end"] --> theater["Theater: watch it play<br/>(the owner sees the ending and the afterglow)"]
 
-    theater --> verdict["The verdict card: the ending, who they dated,<br/>what their character thought, 'Hear from X'<br/>(their character texts them in its companion thread),<br/>'Tell me when X texts', share"]
+    theater --> verdict["The verdict card: the ending, who they dated,<br/>what their character thought, 'Hear from X'<br/>(their character texts them in its companion thread),<br/>'Tell me when X texts', share.<br/>On the filming stage as soon as the ending stands<br/>(the early verdict, 30-60 s before the date is ready;<br/>'Skip to the ending' from then on)"]
     theater --> vis{"Booked as?"}
     vis -- "Public / unlisted" --> air["Airs on its own when the<br/>10-minute prediction window closes"]
     vis -- "Private" --> airp["Offline: never airs, no second date,<br/>out of the public record<br/>(the pair still remember it)"]
