@@ -250,6 +250,17 @@
 .send-phase .send-first-meta > button {
   justify-self: start;
 }
+/* Every other way to date, folded under the first-date card (2026-11-14 PR1: one choice on the screen). The summary reads
+   as a heading; the first card inside gets the usual gap. */
+.send-phase .send-more-ways {
+  margin-top: var(--space-4);
+}
+.send-phase .send-more-ways > summary {
+  font-weight: 600;
+}
+.send-phase .send-more-ways > .card:first-of-type {
+  margin-top: var(--space-2);
+}
 
 /* Date settings, in the send sheet (app/DateConfirm.tsx, rendered into <body>, so not under .send-phase): one column
    of fields. */

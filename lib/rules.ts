@@ -535,6 +535,11 @@ export const OWN_DATE_NUDGE_MINUTES = 2;
  * WRITE_OVERDUE_SECONDS it's late and retried automatically. Airing (lib/air.ts airsWhen) is a separate, later time.
  */
 export const WRITE_TIME = "about 2 minutes, rarely more than 3";
+/**
+ * A speed date (lib/formats.ts, 6 lines in place of 12): half the turn calls, so about half the time. The plan, recap,
+ * morning after and reflections stay, which is why it isn't a quarter. Said on the first-date card (lib/first-date.ts).
+ */
+export const WRITE_TIME_SPEED = "about a minute";
 export const WRITE_USUAL_MAX_SECONDS = 180;
 export const WRITE_OVERDUE_SECONDS = 300;
 

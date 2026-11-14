@@ -6,6 +6,7 @@ import { episodeAllowance, freshAllowance } from "@/lib/allowance";
 import { formatPrice, PACK_5 } from "@/lib/catalog";
 import { createPairHref, readChemistry } from "@/lib/chemistry-test";
 import { listOpenCharacters } from "@/lib/dating";
+import { firstDateFormat } from "@/lib/first-date";
 import { getDb } from "@/lib/db";
 import { listMyCharacters } from "@/lib/game";
 import { PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
@@ -103,6 +104,8 @@ export default async function CreatePage({ searchParams }: { searchParams: Searc
       startPair={pair.ok ? { a: pair.a, b: pair.b, otherHref: createPairHref(pair.b, pair.a) } : null}
       startImported={sp.imported === "1"}
       startMeet={typeof sp.meet === "string" ? sp.meet.slice(0, 64) : null}
+      // A first character's instant first date plays in this format (the speed date unless FIRST_DATE_FORMAT says otherwise).
+      firstFormat={firstDateFormat(process.env)}
       lookTiles={looks.tiles}
       afterDark={looks.afterDark}
       afterDarkOpen={afterDarkOpen}
