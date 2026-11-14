@@ -59,6 +59,11 @@ ignore it.
   (`DISCORD_WEBHOOK_URL`, `DISCORD_WEBHOOK_DROPS`, `DISCORD_WEBHOOK_VOTES`, `DISCORD_WEBHOOK_BOARD`,
   `DISCORD_INVITE_URL`) goes on the show's app, `botchelor-show`: the hourly job is scheduled from After Dark's app,
   but it calls `botchelor.com/api/jobs/lobby`, which the show serves ([discord.md](discord.md)).
+- **`FIRST_DATE_FORMAT`** (the show's app, not a secret; default `speed_date`): the format a newcomer's instant first
+  date plays in (`lib/first-date.ts` `firstDateFormat`). The builder's "Start the date now" card sends it with the
+  booking, so the first verdict comes in about a minute (6 lines) instead of the classic date's two-plus. Set it to
+  another free format's id (`classic`, `meet_the_parents`, `ex_returns`) to change the first date without a deploy; a
+  premium or unknown id falls back to `speed_date`. Commented in `.do/show.yaml` beside the other switches.
 - **Logs:** each app's Runtime Logs in the dashboard (Apps → the app → Runtime Logs). Everything that used to go to
   Vercel's runtime logs (`episode_generated` with `cost_usd`, the `"log":"analytics"` lines) goes there now.
 

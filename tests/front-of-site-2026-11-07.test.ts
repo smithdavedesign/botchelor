@@ -207,7 +207,8 @@ describe("an episode page (item 4)", () => {
 describe("/create (item 5)", () => {
   it("names every step of the rail for a screen reader", async () => {
     const { default: CreateWizard } = await import("@/app/create/CreateWizard");
-    const html = renderToStaticMarkup(createElement(CreateWizard, {}));
+    // A creator's next character: the four-step quick track (a first character takes three, tests/creator-quick-track.test.ts).
+    const html = renderToStaticMarkup(createElement(CreateWizard, { myCharacters: [{ id: "c-1", name: "Mira Quell" }] }));
     expect(html).toContain('aria-label="Step 1: Identity (this step)"');
     // The quick track (2026-11-11 audit, 2.2): four steps for a new character (look included); depth is opted into from the review.
     expect(html).toContain('aria-label="Step 2: Look"');

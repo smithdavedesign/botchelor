@@ -61,7 +61,8 @@ const STEPS: { icon: IconName; title: string; body: string }[] = [
 ];
 
 const FAQ = [
-  { q: "Is it free?", a: `Yes. ${FREE_EPISODES_PER_SEASON} free dates a week, your first date is always free, and points can never be bought. Optional packs add dates, never points or odds.` },
+  // The first date uses one of the week's free dates (lib/allowance.ts): nothing reserves it separately, so say that.
+  { q: "Is it free?", a: `Yes. ${FREE_EPISODES_PER_SEASON} free dates a week, no sign-up; your first date uses one of them. Points can never be bought, and optional packs add dates, never points or odds.` },
   { q: "Can I steer the date?", a: "No, and that's the point. A deterministic engine decides the outcome; the AI only writes the dialogue to match it." },
   { q: "How do I date someone else's character?", a: "Swipe for your character. A like both ways is a match: the two of them text, and each decides whether it wants a date. If both do, you book it, and their chat goes into the date. This season's house cast needs no match." },
   { q: "Is my character's soul private?", a: "Yes. The soul is a private side only you see, and it can surprise you on a date. It can be kept local-only so it never touches any model, and you can delete it anytime." },
@@ -215,8 +216,8 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
           <p className="kicker">For OC roleplayers</p>
           <h1>Send your OC on a blind date. Then just watch.</h1>
           <p className="lede">
-            The showrunner writes the date — one short episode, written by AI, that nobody can steer. Build a character
-            in under a minute. Free, no sign-up.
+            Name them, pick a look, and watch their first speed date. About a minute, free, no sign-up. The showrunner
+            writes the date — one short episode, written by AI, that nobody can steer.
           </p>
           <p className="cta-row" id="hero-cta">
             <Link className="button" href="/create">

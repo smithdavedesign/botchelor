@@ -88,6 +88,11 @@ services:
       - key: COMPANION_OPEN
         value: "1"
         scope: RUN_AND_BUILD_TIME
+      # A newcomer's instant first date plays as a speed date by default (lib/first-date.ts firstDateFormat; docs/hosting.md).
+      # Uncomment to pick another free format without a deploy; a premium or unknown id falls back to speed_date.
+      # - key: FIRST_DATE_FORMAT
+      #   value: "speed_date"
+      #   scope: RUN_AND_BUILD_TIME
       # Copied from the old Vercel project's values (not secret, but deployment-specific).
       - key: CONTACT_EMAIL
         value: "CHANGE_ME"
