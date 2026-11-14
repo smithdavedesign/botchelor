@@ -351,7 +351,7 @@ export default function SwipeDeck({ character, initial, serveId, undoMinutes, pu
               </button>
             </p>
             {/* J3: the peak is when someone wants to hear what happens next; gone once notifications are on. */}
-            {pushKey && <PushToggle publicKey={pushKey} prompt emailFallback title="Tell me when they text" body="A note the moment they text or agree to a date, even with the site closed." />}
+            {pushKey && <PushToggle publicKey={pushKey} prompt emailFallback place="match" title="Tell me when they text" body="A note the moment they text or agree to a date, even with the site closed." />}
           </div>
         </div>
       )}

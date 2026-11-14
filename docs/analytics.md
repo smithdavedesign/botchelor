@@ -148,6 +148,8 @@ Every page in the browser sends, in batches of up to 25 every few seconds and wh
 | *a `data-track` name* | A control marked `data-track="name"`; its `data-track-*` attributes become props | as marked, `area` |
 | `form_submit` | A form is sent | `form` (its data-track, name or id), `area` |
 | `create_opened` | /create opens | — |
+| `import_opened` | /import opens (the Character.AI rescue door; 2026-11-14) | — |
+| `push_subscribed` | Browser notifications turned on and the subscription saved (`app/notifications/PushToggle.tsx`; 2026-11-14) | `place` (`settings`, `prompt`, `episode`, `match`) |
 | the conversions | `character_created`, `date_started`, `prediction_made`, `character_rated`, `reel_cta`, `sign_up`, `begin_checkout`, `purchase`, `ad_invite_requested` (`app/conversion.ts`, which still sends them to GA4 too) | as before |
 
 - **Never-shown loads are left out** (2026-11-11): a visitor whose only rows ever are `page_view`s never had the page on
@@ -171,9 +173,18 @@ Every page in the browser sends, in batches of up to 25 every few seconds and wh
 - **Our own traffic:** rows signed in as anyone `loadOurIds` names, and every row from those browsers, are left out
   unless "Include our own traffic" is on.
 - **The tab:** visitors (new ones), visits, page views, time per visit and the one-page-no-click share, against the
-  previous period; a daily chart; the first-visit funnel (visited → clicked → opened Make your character → made a
-  character → started a date → account → Buy → bought); sources, tagged links and landing pages; pages with time and
-  scroll; events, clicks and links out; devices and countries. Both sites, or one (`?host=`).
+  previous period; a daily chart; the first-visit funnel (visited → past the 18+ gate → clicked → opened Make your
+  character → made a character → started a date → watched it end → turned on texts → account → Buy → bought); sources,
+  tagged links and landing pages; pages with time and scroll; events, clicks and links out; devices and countries. Both
+  sites, or one (`?host=`).
+- **"Past the 18+ gate"** (2026-11-14, `entered`): visitors with a `page_view` on any page but `/gate`. A step may
+  exclude a page (`ENGAGEMENT_FUNNEL` `not_path`, `funnelStepFilter`). The gate's loss was invisible before; the same
+  day the PG show pages (home, Watch, episodes, seasons, couples, characters, creators, the builder, /import, /agents)
+  opened without the gate (`middleware.ts`), which now fronts the dating, chat and money pages only, and the builder's
+  18+ box sets the gate's cookie when a character is saved. So from that day `entered/visited` reads as the share who
+  saw the site itself rather than only the interstitial; a visitor who lands on a gated link and leaves counts as
+  visited, not entered.
+- **"Turned on texts"** (`push_opted`): visitors with a `push_subscribed` event, after "Watched it end".
 - Kept 400 days (`lib/retention.ts`); deleting an account deletes its rows and its browsers' rows.
 
 ## Not tracked here

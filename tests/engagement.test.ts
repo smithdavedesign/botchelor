@@ -45,6 +45,15 @@ const send = (body: unknown, opts: { ua?: string; cookie?: string } = {}) =>
 const rows = async () => (await t.db.query(`select * from web_events order by id`)).rows;
 const today = new Date().toISOString().slice(0, 10);
 
+describe("the funnel's step filters", () => {
+  it("counts a step's events, minus the gate's own page for the 'entered' step", async () => {
+    const { ENGAGEMENT_FUNNEL, funnelStepFilter } = await import("@/lib/engagement");
+    const entered = ENGAGEMENT_FUNNEL.find((s) => s.key === "entered")!;
+    expect(funnelStepFilter(entered)).toBe("event in ('page_view') and path <> '/gate'");
+    expect(funnelStepFilter({ key: "x", label: "x", events: ["a", "b"] })).toBe("event in ('a', 'b')");
+  });
+});
+
 describe("what the beacon keeps", () => {
   it("replaces ids in paths, drops queries, and hides ship names", () => {
     expect(normalizePath("/characters/3f2a9c1e-1b2c-4d5e-8f90-1234567890ab?x=1#y")).toBe("/characters/:id");
@@ -155,6 +164,8 @@ describe("the Engagement tab", () => {
 
   it("counts visitors, visits, pages, time, sources, clicks and the funnel, our own traffic left out", async () => {
     await visit(V1, S1, { ref_host: "www.google.com" }, [
+      // They were headed for the swipe deck and met the gate first: that view alone never counts as "past the gate".
+      { e: "page_view", path: "/gate" },
       { e: "page_view", path: "/" },
       { e: "link_click", path: "/", props: { to: "/create", area: "nav" } },
       { e: "page_leave", path: "/", props: { seconds: 20, scroll: 50 } },
@@ -163,6 +174,7 @@ describe("the Engagement tab", () => {
       { e: "character_created", path: "/create", props: { open_to_dates: true } },
       { e: "date_started", path: "/create", props: { mode: "blind" } },
       { e: "date_watched", path: "/episodes/_", props: { just_filmed: true } },
+      { e: "push_subscribed", path: "/episodes/_", props: { place: "episode" } },
       { e: "page_leave", path: "/create", props: { seconds: 100, scroll: 90 } },
     ]);
     // A bounce from a tagged link, on a phone.
@@ -176,23 +188,33 @@ describe("the Engagement tab", () => {
     await visit("33333333-3333-4333-8333-333333333333", "cccccccc-cccc-4ccc-8ccc-cccccccccccc", {}, [{ e: "page_view", path: "/admin" }], MAC, signedInCookie(admin));
 
     const e = await loadEngagement(t.db, { from: today, to: today, includeOurs: false, host: "all" });
-    expect(e.totals).toMatchObject({ visitors: 2, new_visitors: 2, sessions: 2, page_views: 3, pages_per_session: 1.5, avg_session_seconds: 62, bounce_rate: 50 });
+    expect(e.totals).toMatchObject({ visitors: 2, new_visitors: 2, sessions: 2, page_views: 4, pages_per_session: 2, avg_session_seconds: 62, bounce_rate: 50 });
     expect(e.pages.find((p) => p.path === "/create")).toMatchObject({ views: 1, visitors: 1, avg_seconds: 100, avg_scroll: 90 });
     // Each source says how far its people got: the Google visitor made a character, started a date and watched it end.
     expect(e.sources.map((s) => [s.source, s.sessions, s.created, s.started, s.watched])).toEqual(expect.arrayContaining([["google", 1, 1, 1, 1], ["reddit", 1, 0, 0, 0]]));
     expect(e.campaigns).toEqual([{ key: "reddit / social / launch / sillytavern", count: 1, visitors: 1 }]);
     expect(e.clicks).toEqual([{ key: "/create · nav", count: 1, visitors: 1 }]);
-    expect(e.landing.map((l) => l.key).sort()).toEqual(["/", "/watch"]);
+    expect(e.landing.map((l) => l.key).sort()).toEqual(["/gate", "/watch"]);
     expect(e.devices.map((d) => d.key).sort()).toEqual(["desktop", "phone"]);
-    expect(Object.fromEntries(e.funnel.map((f) => [f.key, f.visitors]))).toMatchObject({ visited: 2, engaged: 1, create_opened: 1, character_created: 1, date_started: 1, date_watched: 1, sign_up: 0 });
+    expect(Object.fromEntries(e.funnel.map((f) => [f.key, f.visitors]))).toMatchObject({ visited: 2, entered: 2, engaged: 1, create_opened: 1, character_created: 1, date_started: 1, date_watched: 1, push_opted: 1, sign_up: 0 });
+    expect(e.funnel.map((f) => f.key)).toEqual(["visited", "entered", "engaged", "create_opened", "character_created", "date_started", "date_watched", "push_opted", "sign_up", "begin_checkout", "purchase"]);
     expect(e.funnel.find((f) => f.key === "date_started")?.of_first).toBe(50);
-    expect(e.daily.find((d) => d.day === today)).toMatchObject({ visitors: 2, page_views: 3 });
+    expect(e.events).toEqual(expect.arrayContaining([{ key: "push_subscribed", count: 1, visitors: 1 }]));
+    expect(e.daily.find((d) => d.day === today)).toMatchObject({ visitors: 2, page_views: 4 });
     // Nobody has a row on a later day yet.
     expect(e.returning).toEqual({ new_visitors: 2, returned: 0, rate: 0 });
 
     const withOurs = await loadEngagement(t.db, { from: today, to: today, includeOurs: true, host: "all" });
     // The admin's lone page_view is also a never-shown load, so it is left out either way and counted as unseen.
     expect(withOurs.totals).toMatchObject({ visitors: 2, unseen_visitors: 1 });
+  });
+
+  it("counts a visitor who only saw the 18+ gate as visited, not entered (2026-11-14, the gate step)", async () => {
+    await visit(V1, S1, {}, [{ e: "page_view", path: "/gate" }, { e: "page_leave", path: "/gate", props: { seconds: 8, scroll: 0 } }]);
+    await visit(V2, S2, {}, [{ e: "page_view", path: "/gate" }, { e: "page_view", path: "/swipe" }, { e: "page_leave", path: "/swipe", props: { seconds: 3, scroll: 0 } }], IPHONE);
+    const e = await loadEngagement(t.db, { from: today, to: today, includeOurs: false, host: "all" });
+    const by = Object.fromEntries(e.funnel.map((f) => [f.key, f]));
+    expect([by.visited.visitors, by.entered.visitors, by.entered.of_first]).toEqual([2, 1, 50]);
   });
 
   it("leaves out page loads that were never on screen (prerender, scripts), and says how many (2026-11-11 bounce review)", async () => {
