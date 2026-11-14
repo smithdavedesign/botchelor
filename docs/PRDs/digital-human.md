@@ -426,16 +426,29 @@ the character, memory, voice orchestration and animation state; keep the rendere
    fallback.
 3. **AVTR-1: read, don't build.** The most relevant open model in the list (153 M parameters, BOTH sides' audio in so
    the face reacts while listening, 25 fps on a 4060 Ti), but its renderer and streaming backend are non-commercial
-   and it depends on InsightFace (also non-commercial). The paper's listening ideas feed item 1; the repository is not
-   a dependency unless the licence changes.
-4. **LAM spike for the theater stage.** Alibaba's one-shot Gaussian head (LAM, Audio2Expression, a WebGL renderer in
-   OpenAvatarChat): the browser renders, so no per-frame GPU, native transparency and a camera. Head only and a
-   "3D avatar" look, so not for the call frame, but a day's spike for the show's theater (two faces on a stage) and
-   as a zero-cost tier above the face kit. Check the weights' licence first.
-5. **Replay renderers on the compare page: EchoMimicV3-Flash and SoulX-FlashHead.** The slow lane (replays, reels,
-   video replies), not calls: EchoMimicV3-Flash measured 33.7 GB in an independent run (a 48 GB Runpod card), SoulX
-   FlashHead Lite 5.8 GB at a softer quality. Hosted first where a provider has them (a `ClipRenderer` each), our own
-   worker only if none does; licences checked before either joins the registry. *Checked 2026-11-14:* EchoMimicV3 is
+   and it depends on InsightFace (also non-commercial). *Checked 2026-11-14 (LICENSE.md, Goodsize Inc., 2026-05-20):*
+   the weights' Community License allows commercial use under $10 M revenue, but the renderer and the streamer are
+   PolyForm Noncommercial 1.0.0, the streamer carries a patent notice that excludes re-implementing its scheduler and
+   dual-stream coordination, and InsightFace's SCRFD/2D106 models are non-commercial; their own words: most commercial
+   deployments need all three, by agreement (hello@avaturn.me). Not a dependency. **What the paper gives us** (arXiv
+   2609.22913), as rules for our own renderer: two audio channels (the person's and the character's) with a VAD on
+   each, never mixed, a gate weighting them; react on 200-ms windows with a 3-s energy history and ~200 ms of
+   look-ahead; listening is small pitch/yaw/roll and expression weights with head position fixed, every offset
+   hard-clamped, new targets smoothed against the last 3 s; both silent → micro-motion and blinks only; the person
+   speaking → reactions within 0–4 s of what they said (their R-DGG analysis). Item 1's nod-on-sentence and
+   tilt-on-thinking are the first two of these; the next are a brow or small nod on the person's emphasis and pauses
+   while they speak (the browser has their VAD and level already), then the same from the streaming worker (item 2).
+4. **LAM spike for the theater stage: cancelled on licence (2026-11-14).** Alibaba's one-shot Gaussian head would
+   have given the browser a face to render for free with real transparency and a camera, but the weights in the repo
+   are CC BY-NC 4.0 (`LICENSE_WEIGHT`; the HF card contradicts it and a June question about commercial use has no
+   answer), the FLAME head model it loads is research-only or, in its Open form, bars pornographic use (we are an 18+
+   site even on the PG side), and the WebGL renderer is a 4 MB built bundle with no source. Head only, flat
+   background, export needs Blender and the FBX SDK. Revisit only if Alibaba relicenses the weights; a day saved.
+5. **Replay renderers on the compare page: EchoMimicV3-Flash and SoulX-FlashHead (done 2026-11-14: one in, one out).**
+   The slow lane (replays, reels, video replies), not calls: EchoMimicV3-Flash measured 33.7 GB in an independent run
+   (a 48 GB Runpod card), SoulX FlashHead Lite 5.8 GB at a softer quality. Hosted first where a provider has them (a
+   `ClipRenderer` each), our own worker only if none does; licences checked before either joins the registry.
+   *Checked 2026-11-14:* EchoMimicV3 is
    Apache-2.0 end to end (code, weights under `BadToBest/EchoMimicV3`, the Wan 2.1 Fun base) and fal hosts it as
    `fal-ai/echomimic-v3` at $0.20 per generated second (image + audio + prompt, 49–161 frames a window; probably the
    non-Flash build); it is on the compare page as `fal:echomimic-v3`. Self-hosting the Flash build is 12 GB but slow
