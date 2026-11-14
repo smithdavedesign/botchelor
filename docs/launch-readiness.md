@@ -55,7 +55,9 @@ The AI Gateway is prepaid, so its balance is the hard ceiling. Keep auto top-up 
 
 ## Live end-to-end check (`npm run e2e:live`)
 
-`scripts/e2e-live.mjs` drives the deployed site (SITE, default https://botchelor.com) like a person: the 18+ gate, a
+`scripts/e2e-live.mjs` drives the deployed site (SITE, default https://botchelor.com) like a person: the 18+ gate (in
+front of `/shop` and the other dating, chat and money pages; the PG show pages open without it since 2026-11-14, and the
+builder's 18+ box attests for a creator: `middleware.ts`, `lib/age.ts`), a
 Stripe test purchase granted by the webhook, a character and a real private date, a swipe (a like on a house character
 is a match, and its opening chat comes in on the free model), a prediction and a rating (undone), a password account,
 the MCP endpoint, the public pages (`/swipe` among them), and a phone pass. The test character keeps a dating profile

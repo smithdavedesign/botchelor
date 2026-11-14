@@ -765,6 +765,7 @@ export default async function EpisodePage({
               publicKey={push.publicKey}
               prompt
               emailFallback
+              place="episode"
               title={episode.revealed ? "Tell me when they text" : "Tell me when it airs"}
               body={
                 episode.revealed

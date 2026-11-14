@@ -152,6 +152,8 @@ export function pageView(): void {
   leavePage();
   page = { path, started: Date.now(), visibleMs: 0, visibleSince: document.visibilityState === "visible" ? Date.now() : null, scroll: scrollPercent() };
   if (path === "/create") queueEvent("create_opened", {}, path);
+  // The Character.AI rescue door (2026-11-14): how many open the import, against how many go on to create.
+  if (path === "/import") queueEvent("import_opened", {}, path);
   queueEvent("page_view", {}, path);
 }
 

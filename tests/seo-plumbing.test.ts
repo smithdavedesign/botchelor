@@ -16,12 +16,12 @@ const CHROME = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.
 const page = (path: string) => middleware(new NextRequest(`https://botchelor.com${path}`, { headers: { "user-agent": CHROME } }));
 
 describe("the PG tool pages open to a search visitor", () => {
-  it("lets /tools, /ship and /alternatives through without the 18+ cookie; a date still meets the gate", () => {
-    expect([...UNGATED_PREFIXES]).toEqual(["/tools/", "/ship/", "/alternatives/"]);
-    for (const p of ["/tools/ship-name-generator", "/tools/oc-chemistry-test", "/ship/juniper/dex", "/alternatives/character-ai", "/tools"]) {
+  it("lets /tools, /ship and /alternatives through without the 18+ cookie, and since 2026-11-14 the PG show too; dating and money still meet the gate", () => {
+    expect([...UNGATED_PREFIXES]).toEqual(["/tools/", "/ship/", "/alternatives/", "/episodes/", "/seasons/", "/couples/", "/characters/", "/creators/", "/agents/"]);
+    for (const p of ["/tools/ship-name-generator", "/tools/oc-chemistry-test", "/ship/juniper/dex", "/alternatives/character-ai", "/tools", "/create", "/episodes/abc", "/characters/abc", "/watch"]) {
       expect(page(p).headers.get("location"), p).toBeNull();
     }
-    for (const p of ["/create", "/episodes/abc", "/characters/abc", "/watch"]) {
+    for (const p of ["/swipe", "/matches", "/shop", "/after-dark"]) {
       expect(page(p).headers.get("location"), p).toContain("/gate?from=");
     }
   });

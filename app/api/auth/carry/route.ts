@@ -1,11 +1,10 @@
 import { afterDarkElsewhere, afterDarkOnly } from "@/lib/after-dark-host";
-import { ADULT_COOKIE, safeFrom } from "@/lib/age";
+import { ADULT_COOKIE, adultCookie, safeFrom } from "@/lib/age";
 import { isCarryNonce, newCarryNonce, signCarry, verifyCarry } from "@/lib/auth";
 import { authFromRequest, handle, safeEqual, sessionCookies } from "@/lib/http";
 import { placeCookie, requestPlace, signAdult, signPlace, verifyAdult, verifyPlace, PLACE_TRIED_COOKIE } from "@/lib/place";
 import { OLD_HOSTS, requestHost, siteUrl } from "@/lib/site";
 
-const ONE_YEAR = 60 * 60 * 24 * 365;
 /** The receiving browser's nonce: on the receiving host only, this route only, gone in five minutes or once used. */
 const NONCE_COOKIE = "bz_carry";
 const NONCE_TTL = 5 * 60;
@@ -66,7 +65,7 @@ export const GET = handle(async (req: Request) => {
   // Dark doesn't ask again what the show just asked (2026-11-07 audit, item 21).
   const adultFrom = (mine: string | undefined): string[] =>
     afterDarkHost && isCarryNonce(mine) && verifyAdult(url.searchParams.get("a"), process.env, Date.now(), mine)
-      ? [`${ADULT_COOKIE}=1; Path=/; Max-Age=${ONE_YEAR}; HttpOnly; SameSite=Lax${secure()}`]
+      ? [adultCookie(secure() !== "")]
       : [];
 
   const token = url.searchParams.get("t");
@@ -77,7 +76,7 @@ export const GET = handle(async (req: Request) => {
     // botchelor.com never replaces an identity it has; After Dark's host takes the show's, which is the one that counts.
     if (claims && isCarryNonce(mine) && safeEqual(claims.nonce, mine) && (afterDarkHost || !authFromRequest(req))) {
       cookies.push(...sessionCookies({ userId: claims.uid, authenticated: claims.authenticated }));
-      if (claims.adult) cookies.push(`${ADULT_COOKIE}=1; Path=/; Max-Age=${ONE_YEAR}; HttpOnly; SameSite=Lax${secure()}`);
+      if (claims.adult) cookies.push(adultCookie(secure() !== ""));
     }
     return redirect(to, cookies);
   }

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { queueEvent } from "@/app/engagement";
 import { installSteps, platformOf } from "@/lib/pwa";
 
 /** The VAPID public key (base64url) as the bytes a browser's PushManager wants. */
@@ -35,6 +36,7 @@ export default function PushToggle({
   title = "Hear it as it happens",
   body = "When they text, or a second date is booked, even with the site closed.",
   emailFallback = false,
+  place,
 }: {
   publicKey: string;
   prompt?: boolean;
@@ -42,6 +44,8 @@ export default function PushToggle({
   body?: string;
   /** In the prompt: where push can't work here (unsupported, blocked, or an iPhone outside the Home Screen app), email. */
   emailFallback?: boolean;
+  /** Where this toggle sits, for the `push_subscribed` event (the funnel's "Turned on texts"): "settings" or "prompt" unless named. */
+  place?: string;
 }) {
   const [state, setState] = useState<State>("busy");
   const [error, setError] = useState<string | null>(null);
@@ -69,6 +73,7 @@ export default function PushToggle({
       const res = await fetch("/api/push", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(sub.toJSON()) });
       if (!res.ok) throw new Error("save failed");
       setState("on");
+      queueEvent("push_subscribed", { place: place ?? (prompt ? "prompt" : "settings") });
     } catch {
       setError("Couldn't turn them on in this browser.");
       setState("off");

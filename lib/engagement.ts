@@ -217,22 +217,36 @@ export async function recordBeacon(
 
 /* ------------------------------------------------------ the dashboard ------------------------------------------------------ */
 
+/** One funnel step: the events that count, and (optionally) a page whose rows don't. */
+export type FunnelStep = { key: string; label: string; events: readonly string[]; not_path?: string };
+
 /**
  * The funnel a first visitor walks, each step a share of the visitors who began a session in the range. A step counts
  * a visitor who did it any time in the range, in any order (most visits are one sitting).
  */
 export const ENGAGEMENT_FUNNEL = [
   { key: "visited", label: "Visited", events: ["page_view"] },
+  // A page of the site itself, not just the 18+ gate (2026-11-14, Phase 0 of the core plan: the gate's loss was invisible,
+  // and the gate is now in front of the dating, chat and money pages only, so this is the share that got past it).
+  { key: "entered", label: "Past the 18+ gate", events: ["page_view"], not_path: "/gate" },
   { key: "engaged", label: "Clicked something", events: ["link_click", "button_click", "outbound_click"] },
   { key: "create_opened", label: "Opened Make your character", events: ["create_opened"] },
   { key: "character_created", label: "Made a character", events: ["character_created"] },
   { key: "date_started", label: "Started a date", events: ["date_started"] },
   // The aha moment (the 2026-11-07 product review, item 5): the theater's replay reached the ending.
   { key: "date_watched", label: "Watched it end", events: ["date_watched"] },
+  // Turned on browser notifications (app/notifications/PushToggle.tsx): the one channel that brings a visitor back.
+  { key: "push_opted", label: "Turned on texts", events: ["push_subscribed"] },
   { key: "sign_up", label: "Made an account", events: ["sign_up"] },
   { key: "begin_checkout", label: "Clicked Buy", events: ["begin_checkout"] },
   { key: "purchase", label: "Bought", events: ["purchase"] },
-] as const;
+] as const satisfies readonly FunnelStep[];
+
+/** The SQL filter for one step's visitors: its events, minus its excluded page when it has one. */
+export function funnelStepFilter(s: FunnelStep): string {
+  const events = s.events.map((e) => `'${e}'`).join(", ");
+  return s.not_path ? `event in (${events}) and path <> '${s.not_path}'` : `event in (${events})`;
+}
 
 export type EngagementQuery = { from: string; to: string; includeOurs: boolean; host: "all" | "show" | "after_dark" };
 export type CountRow = { key: string; count: number; visitors: number };
@@ -389,9 +403,7 @@ export async function loadEngagement(db: Db, q: EngagementQuery, now = new Date(
      from web_events where ${scope} group by 1 order by visitors desc limit 30`,
   );
   const stepCounts = await rows<Record<string, number>>(
-    `select ${ENGAGEMENT_FUNNEL.map(
-      (s) => `count(distinct visitor) filter (where event in (${s.events.map((e) => `'${e}'`).join(", ")}))::int as ${s.key}`,
-    ).join(", ")}
+    `select ${ENGAGEMENT_FUNNEL.map((s: FunnelStep) => `count(distinct visitor) filter (where ${funnelStepFilter(s)})::int as ${s.key}`).join(", ")}
      from web_events where ${scope}`,
   );
   const first = n(stepCounts[0]?.visited);

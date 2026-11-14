@@ -333,7 +333,8 @@ async function main() {
 
     // Each route: who opens it, and an optional walk through its states (each state is audited separately).
     const routes = [
-      { name: "gate", path: "/watch", as: "visitor" },
+      // The swipe deck: the PG show pages open without the gate since 2026-11-14 (middleware.ts), the deck still meets it.
+      { name: "gate", path: "/swipe", as: "visitor" },
       { name: "home", path: "/" },
       // A returning creator: "Since you were here" first (lib/since.ts, J4).
       { name: "home-owner", path: "/", as: "owner" },
