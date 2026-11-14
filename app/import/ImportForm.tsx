@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { queueEvent } from "@/app/engagement";
 import {
   cardJsonFromPng,
   freeTextFallback,
@@ -12,6 +13,7 @@ import {
   type ImportResult,
   type SourceFields,
 } from "@/lib/import-character";
+import { importedEvent, importFailedEvent, type ImportFailure, type ReadBy } from "@/lib/import-events";
 
 /** A small card to try it with (an original sample, written for this page). */
 const EXAMPLE = JSON.stringify(
@@ -44,12 +46,20 @@ async function readFreeText(text: string): Promise<{ fields: SourceFields } | { 
   }
 }
 
-export default function ImportForm() {
+/** `from`: the door the page was opened through (?from=cai), kept on the events so the rescue thread can be read apart. */
+export default function ImportForm({ from = null }: { from?: string | null }) {
   const router = useRouter();
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fileNote, setFileNote] = useState<string | null>(null);
+
+  /** A refusal, said on the page and counted (import_failed) so the funnel shows where pastes stop. */
+  function refuse(message: string, reason: ImportFailure) {
+    setError(message);
+    const ev = importFailedEvent(reason, from);
+    queueEvent(ev.name, ev.props);
+  }
 
   async function readFile(file: File | undefined) {
     if (!file) return;
@@ -79,12 +89,12 @@ export default function ImportForm() {
     setBusy(true);
     try {
       let result: ImportResult;
-      let readBy: "model" | "fallback" | null = null;
+      let readBy: ReadBy = null;
       const first = importCharacter(text);
       if (first.ok === "free_text") {
         const read = await readFreeText(first.text);
         if (read && "refused" in read) {
-          setError(read.refused);
+          refuse(read.refused, "minor");
           return;
         }
         readBy = read ? "model" : "fallback";
@@ -93,15 +103,18 @@ export default function ImportForm() {
         result = first;
       }
       if (!result.ok) {
-        setError(result.message);
+        refuse(result.message, result.reason);
         return;
       }
       try {
         localStorage.setItem(IMPORT_STORAGE_KEY, JSON.stringify({ ...result, readBy }));
       } catch {
-        setError("This browser won't let the page hand your character to the builder (private mode?). Copy the fields into the builder by hand.");
+        refuse("This browser won't let the page hand your character to the builder (private mode?). Copy the fields into the builder by hand.", "storage");
         return;
       }
+      // Counted before the move, so the event rides this page's visit (the beacon flushes when the page is hidden).
+      const ev = importedEvent(result.format, readBy, result.readyToDate, from);
+      queueEvent(ev.name, ev.props);
       router.push("/create?imported=1");
     } finally {
       setBusy(false);

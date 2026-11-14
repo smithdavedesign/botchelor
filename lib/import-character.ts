@@ -24,6 +24,12 @@ import { checkFields, sheetPgIssue, CHARACTER_REJECTION_MESSAGES } from "./safet
 export const IMPORT_PATH = "/import";
 /** The landing page for people moving their characters from a chat app (app/alternatives/character-ai). */
 export const CHARACTER_AI_ALTERNATIVE_PATH = "/alternatives/character-ai";
+/**
+ * The Character.AI rescue door (2026-11-14): /import opened from the home hero, the landing page or a post, with the
+ * three steps to copy a Character.AI character above the box. The same page and parser; only the copy changes.
+ */
+export const CAI_SOURCE = "cai";
+export const IMPORT_CAI_PATH = `${IMPORT_PATH}?from=${CAI_SOURCE}`;
 /** Where /import leaves the draft for /create?imported=1 (this browser only; read once, then removed). */
 export const IMPORT_STORAGE_KEY = "botchelor:import:v1";
 /** The longest paste or file the page reads (a big SillyTavern card with a lorebook is ~100 KB). */
@@ -82,8 +88,12 @@ export type ImportResult =
       draft: ImportedDraft;
       /** What came in, in words ("name", "bio", "3 traits"…). */
       filled: string[];
-      /** What the builder still needs before they can be created. */
+      /** What the builder still needs before they can be created (the Identity step: stillMissing). */
       missing: string[];
+      /** What a fuller character would have but a first date doesn't need (the dating profile; optionalMissing). */
+      optional: string[];
+      /** Nothing in `missing`: the builder can open on Review and the character can date tonight. */
+      readyToDate: boolean;
       /** Fields left out, and why. */
       dropped: { field: string; why: string }[];
     }
@@ -560,7 +570,11 @@ export function screenDraft(draft: ImportedDraft, sourceText: string): { ok: tru
   return { ok: true, draft: out, dropped };
 }
 
-/** What the builder still needs once the import is in (its first step, and the dating profile's minimum). */
+/**
+ * What the builder still needs once the import is in: its first step, which is also everything POST /api/characters
+ * requires (app/api/characters/route.ts). The dating profile is not here: a first character's is written from the
+ * sheet at Create (lib/profile-fill.ts, 2026-11-14), so an import with these six is ready to date.
+ */
 export function stillMissing(d: ImportedDraft): string[] {
   const age = Number(d.sheet.age);
   return [
@@ -570,10 +584,16 @@ export function stillMissing(d: ImportedDraft): string[] {
     d.traits.some((t) => !t) && "three traits",
     !d.sheet.want && "what they want",
     !d.sheet.dealbreaker && "a dealbreaker",
-    "two dating-profile answers",
-    (d.extras.hobbies?.length ?? 0) < 2 && "two interests",
   ].filter((x): x is string => typeof x === "string");
 }
+
+/** What would make them fuller but a first date doesn't need: the dating profile's minimum (no import fills the prompts). */
+export function optionalMissing(d: ImportedDraft): string[] {
+  return ["two dating-profile answers", (d.extras.hobbies?.length ?? 0) < 2 && "two interests"].filter((x): x is string => typeof x === "string");
+}
+
+/** Name, an adult age, bio, three traits, want and dealbreaker all in: Create works as it is, and the first date can start. */
+export const readyToDate = (d: ImportedDraft): boolean => stillMissing(d).length === 0;
 
 /** Every step at once: read, map, screen. For a source that's free text, `fields` are what the model read out of it. */
 export function importFromFields(format: ImportFormat, fields: SourceFields, sourceText: string): ImportResult {
@@ -587,6 +607,8 @@ export function importFromFields(format: ImportFormat, fields: SourceFields, sou
     draft: screened.draft,
     filled: filledFields(screened.draft),
     missing: stillMissing(screened.draft),
+    optional: optionalMissing(screened.draft),
+    readyToDate: readyToDate(screened.draft),
     dropped: screened.dropped,
   };
 }

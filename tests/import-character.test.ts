@@ -5,8 +5,10 @@ import {
   freeTextFallback,
   importCharacter,
   importFromFields,
+  optionalMissing,
   readAttributes,
   readSource,
+  readyToDate,
   statedAge,
   traitsFrom,
 } from "@/lib/import-character";
@@ -51,7 +53,10 @@ describe("import: SillyTavern chara_card_v2", () => {
     expect(d.voice).toBe('Talks like this: "A radio that only picks up the weather. Like me."');
     // The scenario is roleplay setup: never in the sheet.
     expect(JSON.stringify(d)).not.toMatch(/washes up/);
-    expect(r.missing).toEqual(["what they want", "two dating-profile answers"]);
+    // The dating profile is optional since 2026-11-14 (a first character's is written from the sheet at Create).
+    expect(r.missing).toEqual(["what they want"]);
+    expect(r.optional).toEqual(["two dating-profile answers"]);
+    expect(r.readyToDate).toBe(false);
   });
 
   it("reads the v1 TavernAI shape and a v3 card the same way", () => {
@@ -133,6 +138,23 @@ Wants: someone who'll split the last croissant
     expect(r.draft.sheet.want).toBe("someone who'll split the last croissant");
     expect(r.draft.extras.hobbies).toEqual(["sourdough starters", "crossword puzzles"]);
     expect(r.draft.extras.lines?.hello).toBe("Oh, hi. You're early. The rye isn't ready, but the gossip is.");
+  });
+
+  it("is ready to date once the six things Create needs are in; the dating profile stays optional", () => {
+    const short = importCharacter(PASTE);
+    expect(short.ok).toBe(true);
+    if (short.ok !== true) return;
+    expect(short.missing).toEqual(["a dealbreaker"]);
+    expect(short.readyToDate).toBe(false);
+    const full = importCharacter(`${PASTE}\nDislikes: people who poke the dough`);
+    expect(full.ok).toBe(true);
+    if (full.ok !== true) return;
+    expect(full.draft.sheet.dealbreaker).toBe("people who poke the dough");
+    expect(full.missing).toEqual([]);
+    expect(full.optional).toEqual(["two dating-profile answers"]);
+    expect(full.readyToDate).toBe(true);
+    expect(readyToDate(full.draft)).toBe(true);
+    expect(optionalMissing({ ...full.draft, extras: {} })).toEqual(["two dating-profile answers", "two interests"]);
   });
 
   it("takes labels on their own line, as copying the creator form gives", () => {

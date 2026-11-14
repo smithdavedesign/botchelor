@@ -83,8 +83,8 @@ describe("the import and landing pages", () => {
     expect(urls).toContain("https://botchelor.com/alternatives/character-ai");
   });
 
-  it("/import names the formats it reads, with no claim of affiliation", () => {
-    const html = renderToStaticMarkup(ImportPage());
+  it("/import names the formats it reads, with no claim of affiliation", async () => {
+    const html = renderToStaticMarkup(await ImportPage({ searchParams: Promise.resolve({}) }));
     expect(html).toMatch(/Character\.AI, SillyTavern or other apps/);
     expect(html).toMatch(/first_mes/);
     expect(html).not.toMatch(/official|partner|affiliated|endorsed/i);
