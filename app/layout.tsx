@@ -55,10 +55,10 @@ import "./ux/companion.css";
 import "./ux/filters.css";
 import "./ux/front.css";
 import "./ux/company.css";
-import "./ux/catalog.css";
 import "./ux/money.css";
 import "./ux/thin.css";
 import "./ux/prompts.css";
+import "./ux/catalog.css";
 
 const TRACKING = trackingConfig();
 
