@@ -153,8 +153,8 @@ function Tile({ c, signIn }: { c: CompanionListItem; signIn: boolean }) {
 
 /**
  * The companions list (app/companion/page.tsx), filterable on the page: a search, who they are (on the show now, house
- * cast, agent-made, a creator's, yours), pronouns, how they're drawn (realistic or anime), and a sort. Your conversations stay on top, unfiltered unless you
- * search. Everything is client-side: the page sends at most ~170 people.
+ * cast, agent-made, a creator's, yours), pronouns, how they're drawn (realistic or anime), and a sort. Your conversations stay on top, above the filters, and the filters never touch them.
+ * Everything is client-side: the page sends at most ~170 people.
  */
 export type CompanionFilters = { q?: string; who?: string; pronouns?: string; style?: string; sort?: string };
 
@@ -201,7 +201,6 @@ export default function CompanionBrowser({
     [others, who, pronouns, style, q, sort],
   );
   const anyAnime = useMemo(() => others.some((c) => c.style === "anime"), [others]);
-  const shownThreads = useMemo(() => threads.filter((c) => matchesQuery(c, q)), [threads, q]);
   const filtered = q.trim() !== "" || who !== "all" || pronouns !== "any" || style !== "any";
   const clear = () => {
     setQ("");
@@ -212,6 +211,17 @@ export default function CompanionBrowser({
 
   return (
     <>
+      {threads.length > 0 && (
+        <section aria-labelledby="companion-threads">
+          <h2 id="companion-threads">Your conversations</h2>
+          <ul className="companion-list">
+            {threads.map((c) => (
+              <ThreadRow key={c.id} c={c} />
+            ))}
+          </ul>
+        </section>
+      )}
+
       <div className="companion-filters" role="search">
         <label className="companion-search">
           <span className="sr-only">Search companions</span>
@@ -264,17 +274,6 @@ export default function CompanionBrowser({
           )}
         </div>
       </div>
-
-      {shownThreads.length > 0 && (
-        <section aria-labelledby="companion-threads">
-          <h2 id="companion-threads">Your conversations</h2>
-          <ul className="companion-list">
-            {shownThreads.map((c) => (
-              <ThreadRow key={c.id} c={c} />
-            ))}
-          </ul>
-        </section>
-      )}
 
       <section aria-labelledby="companion-cast">
         <h2 id="companion-cast">{threads.length ? "Someone new" : "Who you could talk with"}</h2>

@@ -26,6 +26,8 @@ export type DirectoryEntry = {
   pronouns: string | null;
   occupation: string | null;
   hometown: string | null;
+  /** Anyone may talk with them (lib/companion.ts companionEligible): the house cast (not premium) or companion_open. */
+  companion: boolean;
 };
 
 /** Cards per page on a long tab. */
@@ -36,11 +38,12 @@ const SELECT = `select c.id, c.name, c.traits, c.avatar_hue as hue, c.is_house a
                       ${portraitPathSql("c")} as portrait, c.visibility = 'private' as private,
                       (select count(*) from character_reviews r where r.character_id = c.id)::int as reviews,
                       (select round(avg(stars)::numeric, 1)::float from character_reviews r where r.character_id = c.id) as stars,
-                      c.age, c.pronouns, nullif(c.extras->>'occupation', '') as occupation, nullif(c.extras->>'hometown', '') as hometown
+                      c.age, c.pronouns, nullif(c.extras->>'occupation', '') as occupation, nullif(c.extras->>'hometown', '') as hometown,
+                      ((c.is_house and c.premium_sku is null) or c.companion_open) and c.visibility <> 'private' as companion
                  from characters c`;
 
 /** A private character keeps only its name (and its id, for a stable avatar tile). */
-const shown = (e: DirectoryEntry): DirectoryEntry => (e.private ? { ...e, traits: [], portrait: null, reviews: 0, stars: null, age: null, pronouns: null, occupation: null, hometown: null } : e);
+const shown = (e: DirectoryEntry): DirectoryEntry => (e.private ? { ...e, traits: [], portrait: null, reviews: 0, stars: null, age: null, pronouns: null, occupation: null, hometown: null, companion: false } : e);
 
 /** These characters, in this order (a season's cast, its candidates); a private one by name only. */
 export async function directoryEntries(db: Db, ids: string[]): Promise<DirectoryEntry[]> {

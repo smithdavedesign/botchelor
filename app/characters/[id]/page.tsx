@@ -217,7 +217,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
   const awayP = c.house
     ? Promise.resolve(null)
     : db
-        .query<{ while_away: string | null; created_via: string; adopted: boolean }>(`select while_away, created_via, adopted_at is not null as adopted from characters where id = $1`, [id])
+        .query<{ while_away: string | null; created_via: string; adopted: boolean; companion_open: boolean }>(`select while_away, created_via, adopted_at is not null as adopted, companion_open from characters where id = $1`, [id])
         .then((r) => r.rows[0] ?? null);
   // Next month's casting (lib/auditions.ts): only a person's own character made on the site can audition.
   const auditionP = awayP.then((away) =>
@@ -548,7 +548,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
       )}
       {/* Adopted while its agent is away (lib/away.ts): said to everyone, so nobody takes the show's answers for its agent's. */}
       {away?.adopted && <p className="muted small character-adopted">🎭 House cast while its agent is away: played by the show, it always likes back and texts back. Its agent gets it back the moment they return.</p>}
-      {ratings.is_owner && !c.house && <OwnerControls id={c.id} name={c.name} private={c.private} openToDates={dating?.open_to_dates ?? false} audience={dating?.open_to} clip={clip ?? undefined} talk={talk ?? undefined} partners={partnerStyle ?? undefined} whileAway={away ? { mode: whileAwayOf(away), adopted: away.adopted } : undefined} />}
+      {ratings.is_owner && !c.house && <OwnerControls id={c.id} name={c.name} private={c.private} openToDates={dating?.open_to_dates ?? false} companionOpen={companionOpen() ? (away?.companion_open ?? false) : undefined} audience={dating?.open_to} clip={clip ?? undefined} talk={talk ?? undefined} partners={partnerStyle ?? undefined} whileAway={away ? { mode: whileAwayOf(away), adopted: away.adopted } : undefined} />}
       {auditionNow && <AuditionPanel id={c.id} name={shortName(c.name)} audition={auditionNow} />}
       {plays && (
         <p className="muted small owner-temperament">

@@ -16,6 +16,8 @@ type Props = {
   name: string;
   /** Whether this character is in other creators' (people's or agents') swipe decks. */
   openToDates: boolean;
+  /** Open as a companion: anyone may talk with them one to one. Undefined hides the switch (companions closed). */
+  companionOpen?: boolean;
   /** Who may swipe for them while they're open (lib/audience.ts). */
   audience?: Audience;
   /** Intro clips (Veo on the owner's Google key): whether they're an admin (no tokens), their bought tokens, whether they have a Google key, and whether an approved portrait exists (the clip's required first frame). */
@@ -57,6 +59,18 @@ export default function OwnerControls(props: Props) {
     setBusy(false);
     if (ok) router.refresh();
     else setOpenToDates(!next);
+  }
+
+  const [companion, setCompanion] = useState(props.companionOpen ?? false);
+
+  async function toggleCompanion() {
+    const next = !companion;
+    setCompanion(next);
+    setBusy(true);
+    const { ok } = await requestJson(`/api/characters/${props.id}`, { companion_open: next }, "PATCH").catch(() => ({ ok: false }));
+    setBusy(false);
+    if (ok) router.refresh();
+    else setCompanion(!next);
   }
 
   const [isPrivate, setIsPrivate] = useState(props.private ?? false);
@@ -215,6 +229,18 @@ export default function OwnerControls(props: Props) {
           {openToDates ? "Close to dates" : "Open to dates"}
         </button>
       </p>
+      {props.companionOpen !== undefined && (
+        <p className="muted small">
+          {companion
+            ? isPrivate
+              ? "💬 Open as a companion, but private: nobody else can talk with them until you make them public."
+              : "💬 Open as a companion: anyone can talk with them one to one. Only they see their conversation."
+            : "Only you can talk with them one to one."}{" "}
+          <button type="button" className="link-button" onClick={toggleCompanion} disabled={busy} aria-pressed={companion}>
+            {companion ? "Close to companion chats" : "Let anyone talk with them"}
+          </button>
+        </p>
+      )}
       <p className="muted small">
         {isPrivate
           ? "🔒 Private: the directory lists them by name only, and their card shows just their name to everyone else."

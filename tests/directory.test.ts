@@ -80,6 +80,18 @@ describe("the Characters hub's tabs", () => {
     expect([...origins.values()].map(tabOf).sort()).toEqual(["agents", "agents", "agents", "cast", "people"]);
   });
 
+  it("a person's character is a companion only once its owner opens it, and a private one never (Talk follows)", async () => {
+    const c = await made("Talky Type");
+    const companion = async () => (await listTab(t.db, "people")).entries.find((e) => e.id === c.id)?.companion;
+    expect(await companion()).toBe(false);
+    expect((await api.editCharacter(c.id, { companion_open: true }, c.cookie)).status).toBe(200);
+    expect(await companion()).toBe(true);
+    expect((await api.editCharacter(c.id, { visibility: "private" }, c.cookie)).status).toBe(200);
+    expect(await companion()).toBe(false);
+    const [house] = await directoryEntries(t.db, [HOUSE_CHARACTERS[0].id]);
+    expect(house.companion).toBe(true);
+  });
+
   it("each cast card has the basics: age and pronouns, what they do and where they're from", async () => {
     setSeasonCastForTests(["house-juniper"]);
     const html = await render({ tab: "cast" });
