@@ -16,7 +16,8 @@
  * as such; the person's own bill is the truth.
  */
 import { runModel } from "../adult/replicate";
-import { dittoConfig, speakDitto } from "./ditto";
+import { emoFor } from "../live-face-shared";
+import { CHAIN_FADE_IN, CHAIN_FADE_OUT, CHAIN_TAIL_SILENCE_MS, dittoConfig, speakDitto } from "./ditto";
 import { MUSETALK_STREAM_PX, runpodConfig, speakClip } from "./musetalk";
 
 type Env = Record<string, string | undefined>;
@@ -40,6 +41,8 @@ export type RenderInput = {
   audio: { pcm: Buffer; wav: Buffer; rate: number; seconds: number; url: string };
   /** For ours: the character's ready bundle (lib/live-face/index.ts), or null when there is none. */
   bundleKey: string | null;
+  /** The line's words (the compare's line), for renderers that pick an expression from them. */
+  line?: string;
 };
 export type RenderContext = { apiKey: string | null; env: Env; signal?: AbortSignal };
 export type RenderResult = { mp4: Buffer; ms: number; cost_usd: number | null; frames?: number; note?: string };
@@ -107,9 +110,15 @@ const ditto: ClipRenderer = {
     if (!cfg) throw new RendererError("RUNPOD_API_KEY and LIVE_FACE_DITTO_ENDPOINT aren't set");
     if (!input.portraitUrl) throw new RendererError("no portrait: draw the character's face kit first");
     const t0 = Date.now();
-    const out = await speakDitto(cfg, { source_url: input.portraitUrl, pcm: input.audio.pcm, rate: input.audio.rate }, { signal: ctx.signal, timeoutMs: 120_000 });
+    // Rendered as a call renders a one-clause reply: eased in from the portrait, spoken in the expression the line's
+    // words pick, eased back to the portrait over appended silence (lib/live-face/ditto.ts DittoChain's settings).
+    const out = await speakDitto(
+      cfg,
+      { source_url: input.portraitUrl, pcm: input.audio.pcm, rate: input.audio.rate, fade_in: CHAIN_FADE_IN, fade_out: CHAIN_FADE_OUT, tail_silence_ms: CHAIN_TAIL_SILENCE_MS, emo: input.line ? emoFor(input.line) : undefined },
+      { signal: ctx.signal, timeoutMs: 120_000 },
+    );
     const ms = Date.now() - t0;
-    return { mp4: Buffer.from(out.video_b64, "base64"), ms, cost_usd: round((out.ms?.total ?? ms) / 1000 * RUNPOD_USD_PER_SECOND), frames: out.frames, note: `${out.width}px, ${out.frames} frames, from the portrait` };
+    return { mp4: Buffer.from(out.video_b64, "base64"), ms, cost_usd: round((out.ms?.total ?? ms) / 1000 * RUNPOD_USD_PER_SECOND), frames: out.frames, note: `${out.width}px, ${out.frames} frames, from the portrait, as a call renders it` };
   },
 };
 
@@ -209,9 +218,18 @@ const falOmnihuman = falRenderer({
   id: "fal:omnihuman",
   label: "OmniHuman (fal.ai)",
   model: "fal-ai/bytedance/omnihuman",
-  about: "ByteDance's OmniHuman from the portrait: the strongest whole-face realism published; slow and dear.",
-  costHint: "fal's per-second price for the model; see your fal bill",
-  usdPerSecond: null,
+  about: "ByteDance's OmniHuman from the portrait: the strongest whole-face realism published; slow and dear. David's pick on the 2026-11-14 compare.",
+  costHint: "14¢ a second of clip on your fal bill (a 6-s clause ≈ 84¢)",
+  usdPerSecond: 0.14,
+  input: (i) => (i.portraitUrl ? { image_url: i.portraitUrl, audio_url: i.audio.url } : null),
+});
+const falOmnihuman15 = falRenderer({
+  id: "fal:omnihuman-1.5",
+  label: "OmniHuman 1.5 (fal.ai)",
+  model: "fal-ai/bytedance/omnihuman/v1.5",
+  about: "ByteDance's OmniHuman 1.5 from the portrait, the newer model at the same price; a replay renderer, minutes a clause.",
+  costHint: "14¢ a second of clip on your fal bill (a 6-s clause ≈ 84¢)",
+  usdPerSecond: 0.14,
   input: (i) => (i.portraitUrl ? { image_url: i.portraitUrl, audio_url: i.audio.url } : null),
 });
 /** EchoMimicV3's frames per generation window: 49–161 (fal's schema), about the clause's length at 25 fps plus one. */
@@ -335,7 +353,7 @@ const simli: ClipRenderer = {
 
 /* ----------------------------------------------------------- the registry ----------------------------------------------------------- */
 
-export const RENDERERS: readonly ClipRenderer[] = [musetalk, ditto, falSync, falLatentsync, falKling, falInfinitalk, falOmnihuman, falEchomimic, replicateWanS2v, didTalks, simli];
+export const RENDERERS: readonly ClipRenderer[] = [musetalk, ditto, falSync, falLatentsync, falKling, falInfinitalk, falOmnihuman, falOmnihuman15, falEchomimic, replicateWanS2v, didTalks, simli];
 
 export const rendererById = (id: string): ClipRenderer | null => RENDERERS.find((r) => r.id === id) ?? null;
 

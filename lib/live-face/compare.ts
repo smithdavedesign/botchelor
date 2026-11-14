@@ -148,6 +148,7 @@ export async function startCompare(db: Db, who: { userId: string }, input: { cha
     portraitUrl: new URL(kit.stills.portrait, baseUrl).toString(),
     loopUrl: new URL(kit.loop, baseUrl).toString(),
     audio: { pcm, wav, rate: LIVE_AUDIO_RATE, seconds, url: `${baseUrl.replace(/\/$/, "")}/api/live-face/audio/${id}.wav` },
+    line,
     bundleKey: bundle && bundle.status === "ready" && bundle.provider_face_id && !bundle.provider_face_id.startsWith(JOB) ? bundle.provider_face_id : null,
   };
   const keys = await keysFor(db, who.userId, env);
