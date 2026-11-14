@@ -315,6 +315,26 @@ describe("Ditto, our second worker", () => {
     expect(session).toMatchObject({ provider: "ditto", px: 512, idle: lib.idle, reactions: lib.reactions });
   });
 
+  it("gives a reply up when its first clause fails: the clauses waiting and any added after are failed at once, nothing more is rendered", async () => {
+    const asked = fakeChainEndpoint();
+    const clips: ChainClip[] = [];
+    const failed: number[] = [];
+    const chain = new DittoChain(CFG, PORTRAIT, 24_000, { clip: (c) => clips.push(c), fail: (i) => failed.push(i) }, { decideMs: 30 });
+    chain.expect(0);
+    chain.expect(1);
+    chain.expect(2);
+    chain.add(0, Buffer.from("bad"));
+    chain.add(1, Buffer.from("two"));
+    await new Promise((ok) => setTimeout(ok, 20));
+    chain.add(2, Buffer.from("three"));
+    chain.finish();
+    await chain.done();
+    expect(asked.length).toBe(1);
+    expect(clips).toEqual([]);
+    expect(failed).toEqual([0, 1, 2]);
+    expect(chain.stats).toEqual({ clips: 0, failed: 1 });
+  });
+
   it("stops with the turn: once aborted nothing more is asked for and done() resolves", async () => {
     const asked = fakeChainEndpoint();
     const ctl = new AbortController();

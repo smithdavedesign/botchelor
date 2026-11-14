@@ -120,6 +120,7 @@ export class DittoChain {
   private decide: ReturnType<typeof setTimeout> | null = null;
   private jobs: Promise<void>[] = [];
   private waiters: (() => void)[] = [];
+  private abandoned = false;
   /** How many clauses ran and how many broke the chain. */
   readonly stats = { clips: 0, failed: 0 };
 
@@ -140,6 +141,12 @@ export class DittoChain {
   /** Piece i's voice is in; `emo` is the expression bank it's spoken in (lib/live-face-shared.ts emoFor). */
   add(i: number, pcm: Buffer, opts: { emo?: number } = {}): void {
     if (!pcm.length) return;
+    if (this.abandoned) {
+      // The reply's first clause failed (a cold worker, say): the browser went plain for the whole reply at its
+      // hold, so the rest would render for nothing. Said so at once instead.
+      this.on.fail(i, new Error("the reply's first clause failed"));
+      return;
+    }
     this.pending.push({ i, pcm, emo: opts.emo });
     this.pending.sort((a, b) => a.i - b.i);
     this.drain();
@@ -215,6 +222,12 @@ export class DittoChain {
         this.fresh = true;
         this.stats.failed++;
         this.on.fail(c.i, err);
+        if (this.stats.clips === 0) {
+          // Nothing of this reply has shown yet, so nothing of it will: the clauses waiting are let go.
+          this.abandoned = true;
+          const rest = this.pending.splice(0);
+          for (const p of rest) this.on.fail(p.i, new Error("the reply's first clause failed"));
+        }
       } finally {
         this.running = false;
         this.drain();
