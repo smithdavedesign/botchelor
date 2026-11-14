@@ -439,7 +439,13 @@ the character, memory, voice orchestration and animation state; keep the rendere
    Apache-2.0 end to end (code, weights under `BadToBest/EchoMimicV3`, the Wan 2.1 Fun base) and fal hosts it as
    `fal-ai/echomimic-v3` at $0.20 per generated second (image + audio + prompt, 49–161 frames a window; probably the
    non-Flash build); it is on the compare page as `fal:echomimic-v3`. Self-hosting the Flash build is 12 GB but slow
-   (one independent A40 run: ~2.4 min per output second), so hosted it stays. Replicate has no V3.
+   (one independent A40 run: ~2.4 min per output second), so hosted it stays. Replicate has no V3. **SoulX-FlashHead is
+   not joining:** its code and the Pro variant are Apache-2.0, but the fast Lite variant ships Lightricks' LTX 0.9
+   VAE under a research-only RAIL licence (no commercial use), the clean Pro variant runs 10.8 fps on a 4090 (Ditto's
+   own paper table has Ditto at 45) and needs two 5090s for real time, the one independent benchmark (Tight Studio,
+   2026-08-23) called it "the least convincing result" (tight crop, softer identity, weaker mouth), it has no listening
+   mode and no network API, fal's `fal-ai/flashhead` 404s (delisted mid-2026) and the only live host is WaveSpeed,
+   which we don't hold. Nothing it does that Ditto doesn't do better for us.
 
 ### With our own hardware (when users pick up; David moves the system then)
 
