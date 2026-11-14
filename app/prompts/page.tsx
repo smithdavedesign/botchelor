@@ -25,6 +25,7 @@ import CopyPrompt from "./CopyPrompt";
 import MyPrompts from "./MyPrompts";
 import PromptCard from "./PromptCard";
 import PromptExamples from "./PromptExamples";
+import { examplesFor } from "@/lib/prompt-examples";
 import SavePrompt from "./SavePrompt";
 
 const PATH = "/prompts";
@@ -131,7 +132,7 @@ export default async function PromptsPage({ searchParams }: { searchParams: Sear
       <MyPrompts />
 
       {/* A tag picked: pictures people made in the Studio with it (lib/prompt-examples.ts), over the prompts. */}
-      {tag && tagById(tag) && <PromptExamples tag={tagById(tag)!} />}
+      {tag && tagById(tag) && <PromptExamples tag={tagById(tag)!} examples={await examplesFor(tag)} />}
 
       <section className="card" id="prompts" aria-labelledby="prompts-count">
         <p className="muted small" id="prompts-count" aria-live="polite">
