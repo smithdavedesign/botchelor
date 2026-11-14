@@ -51,7 +51,8 @@ start, in `warm`, on Ditto's sample portrait.
    `gpu.minCudaVersion` 12.4 because cuda-python 12.6's runtime wants a recent driver. The endpoint keeps its own copy
    of the template's container settings, so a new build goes live by patching the endpoint's `image`
    (`PATCH /v2/serverless/<id> {"image": …}`); a stale idle worker on the old image still takes jobs until it idles
-   out, so scale `workers.max` to 0 and back to retire it.
+   out, so scale `workers.max` to 0 and back to retire it. The first endpoint, 2026-11-14: `k6mzbe6h1jgc19`, from
+   template `6xcn8wmxzq` (image `ditto-1`); the show app points at it.
 3. The show app: `LIVE_FACE_DITTO_ENDPOINT=<endpoint id>` beside `RUNPOD_API_KEY` and `LIVE_FACE_ENDPOINT`. The
    compare page (`/admin/live-face`) then lists `ditto`; calls keep MuseTalk until Ditto is wired into
    `liveFaceClips` (its continuity is motion state, not a frame index, and the between-clip loop should be

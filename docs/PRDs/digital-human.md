@@ -360,7 +360,7 @@ that cost the spike time: PyPI's `onnxruntime-gpu` is a CUDA-13 build (HuBERT si
 
 **Built the same day:** `workers/live-face-ditto/` (CUDA 12.1 + cuDNN 8 base, Python 3.10, torch 2.5.1, TensorRT 8.6.1,
 numpy 2.0.1, the twelve engines baked in; jobs `speak` and `warm`, registrations cached per still; pushed as a `ditto-<n>` tag
-of the same public GHCR package), `lib/live-face/ditto.ts` (`LIVE_FACE_DITTO_ENDPOINT`, same `RUNPOD_API_KEY`) and the
+of the same public GHCR package; endpoint `k6mzbe6h1jgc19`), `lib/live-face/ditto.ts` (`LIVE_FACE_DITTO_ENDPOINT`, same `RUNPOD_API_KEY`) and the
 `ditto` renderer on the compare page, so it sits in the same table as the seven above on the same line and face.
 
 **What moving calls onto it takes (next):** Ditto has no idle cycle to index, so continuity between a reply's clauses is
