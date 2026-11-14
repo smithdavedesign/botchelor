@@ -435,7 +435,11 @@ the character, memory, voice orchestration and animation state; keep the rendere
 5. **Replay renderers on the compare page: EchoMimicV3-Flash and SoulX-FlashHead.** The slow lane (replays, reels,
    video replies), not calls: EchoMimicV3-Flash measured 33.7 GB in an independent run (a 48 GB Runpod card), SoulX
    FlashHead Lite 5.8 GB at a softer quality. Hosted first where a provider has them (a `ClipRenderer` each), our own
-   worker only if none does; licences checked before either joins the registry.
+   worker only if none does; licences checked before either joins the registry. *Checked 2026-11-14:* EchoMimicV3 is
+   Apache-2.0 end to end (code, weights under `BadToBest/EchoMimicV3`, the Wan 2.1 Fun base) and fal hosts it as
+   `fal-ai/echomimic-v3` at $0.20 per generated second (image + audio + prompt, 49–161 frames a window; probably the
+   non-Flash build); it is on the compare page as `fal:echomimic-v3`. Self-hosting the Flash build is 12 GB but slow
+   (one independent A40 run: ~2.4 min per output second), so hosted it stays. Replicate has no V3.
 
 ### With our own hardware (when users pick up; David moves the system then)
 

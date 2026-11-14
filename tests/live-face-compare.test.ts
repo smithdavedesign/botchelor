@@ -59,6 +59,7 @@ describe("the renderer registry", () => {
     expect(RENDERERS.map((r) => r.provider)).toEqual(expect.arrayContaining(["house", "fal", "replicate", "did", "simli"]));
     expect(runnableRenderers().map((r) => r.id)).not.toContain("simli");
     expect(rendererById("fal:sync-lipsync-2")?.model).toBe("fal-ai/sync-lipsync/v2");
+    expect(rendererById("fal:echomimic-v3")).toMatchObject({ provider: "fal", kind: "batch", model: "fal-ai/echomimic-v3" });
     expect(rendererById("nope")).toBeNull();
   });
   it("is what the Connections offer for the live-face job: fal, Replicate and D-ID keys, with the renderers as the models", () => {

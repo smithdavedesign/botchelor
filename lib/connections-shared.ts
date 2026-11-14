@@ -319,6 +319,7 @@ export const LIVE_FACE_MODELS: Partial<Record<string, ModelChoice[]>> = {
     { id: "fal:kling-lipsync", note: "Kling's lipsync over the kit's loop" },
     { id: "fal:infinitalk", note: "InfiniteTalk from the portrait, whole head moving" },
     { id: "fal:omnihuman", note: "OmniHuman from the portrait, the strongest and the dearest" },
+    { id: "fal:echomimic-v3", note: "EchoMimicV3 from the portrait, head and shoulders at 768 px; 20¢ a second" },
   ],
   replicate: [{ id: "replicate:wan-2.2-s2v", note: "Wan 2.2 S2V from the portrait, about 2¢ a second", recommended: true }],
   did: [{ id: "did:talks", note: "D-ID Talks from the portrait", recommended: true }],
