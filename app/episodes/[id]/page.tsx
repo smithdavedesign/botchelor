@@ -39,7 +39,7 @@ import Avatar from "@/app/Avatar";
 import CharacterName from "@/app/CharacterName";
 import Afterglow, { SecondDate } from "./Afterglow";
 import EndingSeen from "./EndingSeen";
-import EpisodeTheater from "./EpisodeTheater";
+import EpisodeTheater, { type TheaterVerdict } from "./EpisodeTheater";
 import ShareEnding from "./ShareEnding";
 import ChatThread from "@/app/ChatThread";
 import BoxScore from "./BoxScore";
@@ -248,6 +248,7 @@ export default async function EpisodePage({
     sibling,
     mixerTable,
     prev,
+    creatorSide,
   ] = await Promise.all([
     // 🌙 on a date that carried an After Dark memory, only for someone After Dark is open to (never a hint to anyone else).
     episode.after_dark
@@ -290,6 +291,24 @@ export default async function EpisodePage({
     ready ? mixerNightOf(db, episode.id).catch(() => null) : null,
     // The cold open, for a pair with history: their last aired date, told in one line (lib/previously-on.ts).
     ready && (dateNumberOf(episode) ?? 0) > 1 ? previouslyOn(db, episode.id).catch(() => null) : null,
+    // The creator arriving from sending the date (?play=1): which side is theirs, that side's reflection (the preview of
+    // the first text on the verdict card, VerdictCard.tsx) and whether this is that character's first date.
+    play && episode.is_creator && viewerId
+      ? db
+          .query<{ side: 0 | 1 | null; reflection: string | null; dates: number }>(
+            `select case when a.owner_id = $2 then 0 when b.owner_id = $2 then 1 end as side,
+                    case when a.owner_id = $2 then e.reflections->>'a' when b.owner_id = $2 then e.reflections->>'b' end as reflection,
+                    coalesce((select count(*)::int from episodes x where x.character_a = m.id or x.character_b = m.id), 0) as dates
+               from episodes e
+               join characters a on a.id = e.character_a
+               join characters b on b.id = e.character_b
+               left join characters m on m.id = case when a.owner_id = $2 then a.id when b.owner_id = $2 then b.id end
+              where e.id = $1`,
+            [id, viewerId],
+          )
+          .then((r) => r.rows[0] ?? null)
+          .catch(() => null)
+      : null,
   ]);
   const talk = await talkP;
   const performer = performerRows.rows[0];
@@ -362,6 +381,13 @@ export default async function EpisodePage({
   const push = pushKeys();
   // The theater can play it (the ending is known and there are lines), so the written recap folds behind a toggle.
   const hasTheater = Boolean(episode.ending && episode.transcript && episode.transcript.length > 0);
+  // The verdict card at the end of the creator's just-filmed date (VerdictCard.tsx): their character, its reflection, push.
+  const verdict: TheaterVerdict | null =
+    play && episode.is_creator && creatorSide && creatorSide.side !== null
+      ? { mine: creatorSide.side, reflection: creatorSide.reflection?.trim() || null, pushKey: push?.publicKey ?? null }
+      : null;
+  // A creator's first date, just filmed: the page under the theater stays clear of the games (the card is the next step).
+  const firstDateJustFilmed = play && episode.is_creator && (creatorSide?.dates ?? 0) <= 1;
   // Which date this is for the couple: a happy ending on their third date reads "A fourth date", never "A second date".
   const dateNo = dateNumberOf(episode);
   // Which monthly season the date aired in (lib/season-ref.ts), for the TVEpisode markup; none before the seasons began.
@@ -436,6 +462,7 @@ export default async function EpisodePage({
               justFilmed={play && episode.is_creator}
               startAt={play && episode.is_creator ? from : 0}
               roleplay={episode.roleplay ?? null}
+              verdict={verdict}
             />
           ) : (
             episode.transcript &&
@@ -699,7 +726,7 @@ export default async function EpisodePage({
         </section>
       )}
 
-      {episode.is_creator && episode.box_score && <SlidingDoors episodeId={episode.id} dateNumber={dateNo} />}
+      {episode.is_creator && episode.box_score && !firstDateJustFilmed && <SlidingDoors episodeId={episode.id} dateNumber={dateNo} />}
 
       {quiz && (
         <DealbreakerQuiz

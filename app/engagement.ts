@@ -22,7 +22,8 @@ const FLUSH_MS = 4_000;
 const MAX_QUEUE = 25;
 const LABEL_MAX = 40;
 
-type Props = Record<string, string | number | boolean>;
+/** A null says "not known" on the wire (the theater's ms_since_start); the server keeps only strings, numbers and booleans. */
+type Props = Record<string, string | number | boolean | null>;
 type Queued = { e: string; path: string; props?: Props; t: number };
 type Source = { ref_host?: string | null; utm_source?: string | null; utm_medium?: string | null; utm_campaign?: string | null; utm_content?: string | null; ref?: string | null };
 type SessionState = { id: string; last: number; src: Source };

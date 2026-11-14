@@ -235,6 +235,8 @@ export const ENGAGEMENT_FUNNEL = [
   { key: "date_started", label: "Started a date", events: ["date_started"] },
   // The aha moment (the 2026-11-07 product review, item 5): the theater's replay reached the ending.
   { key: "date_watched", label: "Watched it end", events: ["date_watched"] },
+  // The verdict card's "Hear from {first}" opened their own character's text about the date (app/episodes/[id]/VerdictCard.tsx).
+  { key: "after_date_text", label: "Heard from their character", events: ["after_date_text_opened"] },
   // Turned on browser notifications (app/notifications/PushToggle.tsx): the one channel that brings a visitor back.
   { key: "push_opted", label: "Turned on texts", events: ["push_subscribed"] },
   { key: "sign_up", label: "Made an account", events: ["sign_up"] },

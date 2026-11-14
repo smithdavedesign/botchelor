@@ -4516,6 +4516,70 @@ button.rating-chip:hover {
 .theater-verdict .muted {
   color: rgba(255, 255, 255, 0.72);
 }
+/* The creator's verdict card (app/episodes/[id]/VerdictCard.tsx): the ending with a next step, so it stacks, and scrolls
+   inside the stage when a short screen can't hold all of it. */
+.verdict-card {
+  display: grid;
+  gap: var(--space-2);
+  justify-items: center;
+  max-height: calc(100% - 7rem);
+  overflow-y: auto;
+}
+.verdict-pair {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.verdict-x {
+  color: var(--on-photo);
+  opacity: 0.7;
+  font-size: var(--text-lg);
+}
+.verdict-names,
+.verdict-will-text,
+.verdict-preview,
+.verdict-actions,
+.verdict-again {
+  margin: 0;
+}
+.verdict-names,
+.verdict-will-text {
+  color: var(--on-photo);
+}
+.verdict-preview {
+  color: var(--on-photo);
+  opacity: 0.88;
+  font-style: italic;
+  font-size: var(--text-sm);
+}
+.verdict-preview-who {
+  display: block;
+  font-style: normal;
+  opacity: 0.7;
+  font-size: var(--text-2xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.verdict-actions,
+.verdict-actions .primary {
+  width: 100%;
+}
+/* The push row (PushToggle's prompt) on the dark stage: a quiet translucent card in the stage's own colours. */
+.verdict-card .push-prompt {
+  width: 100%;
+  margin: 0;
+  text-align: left;
+  color: var(--on-photo);
+  background: color-mix(in srgb, var(--on-photo) 8%, transparent);
+  border-color: color-mix(in srgb, var(--on-photo) 18%, transparent);
+  box-shadow: none;
+}
+.verdict-card .push-prompt strong {
+  color: var(--on-photo);
+}
+.verdict-card .share-ending {
+  margin: 0;
+}
 
 /* The date as a messaging thread (app/ChatThread.tsx): one character left, the other right, a bubble per line,
    act dividers and the producer's challenge as centred notes, a typing bubble for the next speaker. "light" on
@@ -4824,6 +4888,14 @@ button.chat-vote[aria-pressed="true"] .chat-vote-face {
   }
   .theater-stage.with-convo .theater-verdict {
     left: 50%;
+  }
+  /* The verdict card sits at the foot of the phone's screen, over the thread, clear of the short scene banner. */
+  .theater-stage .verdict-card {
+    top: auto;
+    bottom: calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
+    transform: translateX(-50%);
+    width: min(30rem, calc(100% - 2 * var(--gutter)));
+    max-height: calc(100% - 5rem);
   }
   .theater-panel {
     flex: 0 0 auto;

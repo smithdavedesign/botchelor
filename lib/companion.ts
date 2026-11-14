@@ -6,7 +6,7 @@ import { track } from "./analytics";
 import { portraitPathSql } from "./assets";
 import { loadCharacter, type Character } from "./character";
 import { ClauseSplitter, spokenClause } from "./companion-live-shared";
-import { AVOID_LINES, companionMessages, RECENT_TURNS, repeatsEarlier, replyBubbles, sceneReply, type PromptRoleplay, type PromptScene, type PromptTurn } from "./companion-prompt";
+import { AVOID_LINES, BUBBLE_MAX, companionMessages, MAX_BUBBLES, RECENT_TURNS, repeatsEarlier, replyBubbles, sceneReply, type PromptRoleplay, type PromptScene, type PromptTurn } from "./companion-prompt";
 import { factsForPrompt, updateFacts, updateSummary } from "./companion-memory";
 import { forgetUnusedVoices, voiceUrl } from "./companion-voice";
 import {
@@ -16,6 +16,7 @@ import {
   companionNotice,
   companionOpen,
   isScenePlace,
+  isTextTag,
   type CompanionCharacterRef,
   type CompanionMessageView,
   type CompanionReportReason,
@@ -26,7 +27,9 @@ import {
 import { CRISIS_RESOURCES, crisisIntent, type CrisisResources } from "./crisis";
 import { resolveTerms, type TermsInput } from "./date-roleplays";
 import type { Db } from "./db";
+import { lastDateOf } from "./last-date";
 import { fallbackModel, getModel, openAICompatibleModel, type Model, type Usage } from "./model";
+import { notify } from "./notifications";
 import { loadOurIds } from "./our-traffic";
 import { recordServerError } from "./errors";
 import { premiseForYou, rolesOf, type RoleplayTerms } from "./roleplays";
@@ -248,9 +251,16 @@ const TEXTING_CUE = "(The scene's over and you're both back to texting. Pick the
 
 /**
  * Starts (or finds) this person's thread with a character. A new one opens with the AI notice and the character's
- * first message (left out if the model is down: the person can say hi first).
+ * first message (left out if the model is down: the person can say hi first). `opener: false` (postFromCharacter):
+ * the notice only, since the character's first words are about to be written without the model.
  */
-export async function openThread(db: Db, userId: string, characterId: string, now: Date = new Date()): Promise<{ ok: true; thread_id: string; resumed: boolean } | CompanionFail> {
+export async function openThread(
+  db: Db,
+  userId: string,
+  characterId: string,
+  now: Date = new Date(),
+  opts: { opener?: boolean } = {},
+): Promise<{ ok: true; thread_id: string; resumed: boolean } | CompanionFail> {
   if (!(await companionEligible(db, userId, characterId))) return NOT_FOUND;
   const existing = (await db.query<{ id: string }>(`select id from companion_threads where user_id = $1 and character_id = $2`, [userId, characterId])).rows[0];
   if (existing) return { ok: true, thread_id: existing.id, resumed: true };
@@ -268,8 +278,68 @@ export async function openThread(db: Db, userId: string, characterId: string, no
   }
   const t = (await ownThread(db, userId, id))!;
   await putNotice(db, t, character.name, now);
-  await speak(db, t, character, tick(now, 1), { cue: OPENER_CUE }).catch(() => null);
+  if (opts.opener !== false) await speak(db, t, character, tick(now, 1), { cue: OPENER_CUE }).catch(() => null);
   return { ok: true, thread_id: id, resumed: false };
+}
+
+/** This person's thread with a character, if they have one. */
+export async function threadIdFor(db: Db, userId: string, characterId: string): Promise<string | null> {
+  const { rows } = await db.query<{ id: string }>(`select id from companion_threads where user_id = $1 and character_id = $2`, [userId, characterId]);
+  return rows[0]?.id ?? null;
+}
+
+export type PostFromCharacterArgs = {
+  userId: string;
+  characterId: string;
+  /** What the character says, in its own voice, already written (no model call): one to MAX_BUBBLES bubbles. */
+  lines: readonly string[];
+  now?: Date;
+  /** What kind of text this is (`after_date`, …): analytics and the tag's prefix. */
+  kind: string;
+  /** The tag kept on the message (lib/companion-shared.ts TEXT_TAG, e.g. `after_date:<episode id>`): a thread gets it once. */
+  dedupeKey: string;
+};
+
+/**
+ * The one way a character texts its person first, safe to call from a job or a route (docs/companions.md, "Texts from
+ * your own character"): the person must be able to talk with the character (companionEligible); the thread is found or
+ * started without the model's opener; a paused thread (the crisis resources are up) is never written into; the AI
+ * notice goes in first when due (New York GBL Art. 47 / SB 243 are evaluated here, not only on the person's input); the
+ * lines are kept as the character's, each under the PG line and the crisis list, tagged with `dedupeKey`, and the
+ * person is told (kind character_texted_you: inbox, push, an email at once). Free: nothing counts against the free
+ * replies or a guest's, like the opener. Returns what was written, or null when nothing was: not eligible, paused, a
+ * line failed, or the thread already has this tag.
+ */
+export async function postFromCharacter(db: Db, args: PostFromCharacterArgs): Promise<{ threadId: string; messageId: string } | null> {
+  const now = args.now ?? new Date();
+  if (!isTextTag(args.dedupeKey)) throw new Error(`postFromCharacter: dedupeKey must read <kind>:<ref>, got ${JSON.stringify(args.dedupeKey)}`);
+  const lines = args.lines
+    .map((l) => clean(l).slice(0, BUBBLE_MAX))
+    .filter(Boolean)
+    .slice(0, MAX_BUBBLES);
+  if (!lines.length || !lines.every((l) => checkFamilyTalk(l).ok && !crisisIntent(l))) return null;
+  if (!(await companionEligible(db, args.userId, args.characterId))) return null;
+  const character = await loadCharacter(db, args.characterId);
+  if (!character) return null;
+  const opened = await openThread(db, args.userId, args.characterId, now, { opener: false });
+  if (!opened.ok) return null;
+  const t = await ownThread(db, args.userId, opened.thread_id);
+  if (!t || t.paused_at) return null;
+  const dup = await db.query(`select 1 from companion_messages where thread_id = $1 and action = $2 limit 1`, [t.id, args.dedupeKey]);
+  if (dup.rows.length) return null;
+  if (noticeDue(t, now)) await putNotice(db, t, character.name, now);
+  const ids: string[] = [];
+  // Texting lines, whatever the thread is doing: a text arrives between scenes, never inside one.
+  for (const [i, text] of lines.entries()) ids.push(await addMessage(db, t.id, "character", text, tick(now, i + 1), { action: args.dedupeKey }));
+  await db.query(`update companion_threads set last_at = $2 where id = $1`, [t.id, tick(now, lines.length + 1).toISOString()]);
+  await notify(db, args.userId, {
+    kind: "character_texted_you",
+    title: `💬 ${firstNameOf(character.name)} texted you`,
+    body: lines[0],
+    link: `/companion/${t.id}`,
+  });
+  track("companion_text", { kind: args.kind, bubbles: lines.length });
+  return { threadId: t.id, messageId: ids[0] };
 }
 
 /** The thread as its page shows it: the messages (a redrawn reply's earlier draw left out) and its settings. */
@@ -297,7 +367,8 @@ export async function getThread(db: Db, userId: string, threadId: string): Promi
         at: new Date(m.created_at).toISOString(),
         reported: Boolean(m.reported),
         scene: isScenePlace(m.scene) ? m.scene : null,
-        action: m.action,
+        // A text's tag (postFromCharacter) is bookkeeping, not what they did.
+        action: isTextTag(m.action) ? null : m.action,
         marker: m.marker,
         roleplay: m.roleplay,
         voice: m.voice_key ? voiceUrl(t.id, m.id) : null,
@@ -446,7 +517,10 @@ async function recentTurns(db: Db, threadId: string, exclude: readonly string[] 
       order by created_at desc, id desc limit $2`,
     [threadId, RECENT_TURNS + AVOID_LINES, exclude],
   );
-  const recent = rows.slice(0, RECENT_TURNS).reverse();
+  const recent = rows
+    .slice(0, RECENT_TURNS)
+    .reverse()
+    .map((r) => (isTextTag(r.action) ? { ...r, action: null } : r));
   const avoid = rows
     .slice(RECENT_TURNS)
     .filter((r) => r.role === "character")
@@ -495,6 +569,10 @@ async function speak(
   const scene = promptScene(t, character.name);
   const call = opts.call === true && !scene;
   const said = await earlierLines(db, t.id);
+  // Their own character (lib/companion-prompt.ts, the "yours" branch): talking with the person who made them, who may
+  // hear how their last date really went (a private date included: it's this owner's).
+  const yours = character.ownerId !== null && character.ownerId === t.user_id;
+  const lastDate = yours ? await lastDateOf(db, character.id).catch(() => null) : null;
   // A safe draw that only says something again: used when the redraw doesn't come back better (never a deflection).
   let safeRepeat: { bubbles: string[]; action: string | null } | null = null;
   const again = (x: string) => `${x.slice(0, 300)} (you've said this before: say something new)`;
@@ -503,7 +581,7 @@ async function speak(
     let raw: string;
     try {
       raw = await model.complete(
-        companionMessages({ character, turns, facts, summary: t.summary, length: t.reply_length, avoid, now, insteadOf, cue: opts.cue, scene, call }),
+        companionMessages({ character, turns, facts, summary: t.summary, length: t.reply_length, avoid, now, insteadOf, cue: opts.cue, scene, call, yours, lastDate }),
         {
           temperature: 0.9,
           frequencyPenalty: 0.3,
@@ -706,6 +784,8 @@ export async function liveReply(db: Db, turn: LiveTurn, sink: LiveSink): Promise
   const { turns, avoid } = await recentTurns(db, t.id);
   const lastUser = [...turns].reverse().find((x) => x.role === "user")?.text ?? "";
   const [facts, earlier] = await Promise.all([factsForPrompt(db, t.id, lastUser, now), earlierLines(db, t.id)]);
+  const yours = character.ownerId !== null && character.ownerId === t.user_id;
+  const lastDate = yours ? await lastDateOf(db, character.id).catch(() => null) : null;
   const usage: Usage[] = [];
   let served = null as string | null;
   const parts: string[] = [];
@@ -734,7 +814,7 @@ export async function liveReply(db: Db, turn: LiveTurn, sink: LiveSink): Promise
   };
   try {
     const stream = model.stream(
-      companionMessages({ character, turns, facts, summary: t.summary, length: t.reply_length, avoid, now, call: true, live: true }),
+      companionMessages({ character, turns, facts, summary: t.summary, length: t.reply_length, avoid, now, call: true, live: true, yours, lastDate }),
       { temperature: 0.9, frequencyPenalty: 0.3, maxTokens: 250, onUsage: (u) => usage.push(u), onModel: (id) => (served = id), signal },
     );
     reading: for await (const piece of stream) {

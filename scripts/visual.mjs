@@ -343,6 +343,16 @@ async function main() {
       { name: "watch-room", path: `/watch/${data.templates[0]}` },
       { name: "episode-aired", path: `/episodes/${aired}` },
       { name: "episode-unaired", path: `/episodes/${unaired}` },
+      // The creator's just-filmed date (?play=1): the theater, then skipped to the verdict card (VerdictCard.tsx).
+      {
+        name: "episode-theater-verdict",
+        path: `/episodes/${aired}?play=1`,
+        as: "owner",
+        walk: async (page) => {
+          await page.getByRole("button", { name: "Skip to the end" }).click();
+          await page.locator(".theater-verdict .ending").waitFor({ timeout: 20_000 });
+        },
+      },
       { name: "character", path: `/characters/${data.chars[4].id}` },
       { name: "league", path: `/leagues/${data.league.id}` },
       { name: "shop", path: "/shop" },
