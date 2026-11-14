@@ -72,6 +72,9 @@ export const JOB_INFO: Record<Job, JobInfo> = {
   },
 };
 
+/** The mark on a job's card while it has no key (the tile used to be blank, which read as a missing icon). */
+export const JOB_GLYPH: Record<Job, string> = { text: "💬", image: "🖼", video: "🎬", live_face: "📞", after_dark: "🌙", after_dark_video: "🎥" };
+
 /** The jobs only someone After Dark is open to sees (the Connections page leaves them out for everyone else). */
 export const ADULT_JOBS: readonly Job[] = ["after_dark", "after_dark_video"];
 
