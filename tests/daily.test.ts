@@ -386,6 +386,11 @@ describe("GET /api/jobs/daily", () => {
     expect(growth).toHaveProperty("embeddings");
     expect(growth).not.toHaveProperty("texts");
 
+    // The people part runs the day-after texts (lib/after-date-text.ts dayAfterTexts) as one light step and counts them.
+    const people = await (await part("people")).json();
+    expect(people.load.steps.map((s: { step: string }) => s.step)).toEqual(expect.arrayContaining(["texts", "went_well", "day_after_texts", "matchmaker"]));
+    expect(people.day_after_texts).toBe(0);
+
     const kept = (await t.db.query<{ part: string }>(`select part from job_runs where job = 'daily' order by at`)).rows;
     expect(kept.map((r) => r.part)).toEqual(expect.arrayContaining(["upkeep", "growth"]));
     const latest = await latestJobRuns(t.db, "daily");

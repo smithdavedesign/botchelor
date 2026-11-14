@@ -1,3 +1,4 @@
+import { dayAfterTexts } from "@/lib/after-date-text";
 import { notifyWentWell } from "@/lib/air";
 import { track } from "@/lib/analytics";
 import { nudgeQuietWeek } from "@/lib/reengage";
@@ -119,6 +120,9 @@ async function people({ db, step, t0 }: Ctx): Promise<PartResult> {
   const digests = await step("digests", () => sendDigests(db).catch(() => 0));
   // The day after a date that went well: its owners hear so, with the share a tap away (lib/air.ts).
   const wentWell = await step("went_well", () => notifyWentWell(db).catch(() => 0));
+  // The day after a date, the owner's own character texts them where it stands (lib/after-date-text.ts): only to threads
+  // whose owner tapped "Hear from" once, one text a date. One cheap query when nobody qualifies.
+  const dayAfter = await step("day_after_texts", () => dayAfterTexts(db).catch(() => 0));
   // After Dark subscribers' yearly renewal reminder on each anniversary (California's automatic renewal law;
   // lib/adult/billing.ts). Nothing while no payment processor is configured.
   const renewalReminders = await step("renewal_reminders", () => sendRenewalReminders(db).catch(() => 0));
@@ -133,12 +137,13 @@ async function people({ db, step, t0 }: Ctx): Promise<PartResult> {
   // The house matchmaker (lib/house-matchmaker.ts): a few deterministic pair picks a day, both owners told why.
   const matchmaker = await step("matchmaker", () => dailyMatchmakerPicks(db).catch(() => 0));
   return {
-    body: { texts },
+    body: { texts, day_after_texts: dayAfter },
     counts: {
       texted_couples: texts.couples,
       texts_failed: texts.failed,
       email_digests: digests,
       went_well: wentWell,
+      day_after_texts: dayAfter,
       week_best: weekBest,
       ad_renewal_reminders: renewalReminders,
       plan_reminders: planReminders,
