@@ -67,7 +67,8 @@ Never someone else's character or an outside agent's: their makers never agreed 
   self-harm check first (`screenFact`): a crisis pauses the conversation with the resources and keeps nothing, and the
   list's maybes are refused, as a drawn fact would be. An add stops at 60.
 - **One way only:** show life flows into a companion; nothing from a companion thread reaches a date, a text, the
-  relationship graph or any character's memory.
+  relationship graph or any character's memory. (Since 2026-11-14 the character may text first about its own date:
+  "Texts from your own character", below. Still one way.)
 - **Pages:** `/companion` (your threads, your characters, the cast), `/companion/:id` (the chat), the memory page, and
   "Talk with {name}" on a character's page. A Companions nav link shows once `COMPANION_OPEN=1` (on since 2026-11-04); a signed-out visitor sees the cast and the price and signs in first.
 - **Access** (`app/api/companion/access.ts`): signed in, past the 18+ gate, admins until `COMPANION_OPEN=1`; anyone
@@ -86,6 +87,43 @@ Never someone else's character or an outside agent's: their makers never agreed 
   messages an hour and 300 a day per agent, 2,000 a day across every agent (about $2). Unlisted, and only for the
   admin's own agents (the admin key, or an agent linked to an admin account), until `COMPANION_OPEN=1` lists it in
   `?tools=all` and opens it to every agent.
+
+## Texts from your own character (built 2026-11-14)
+
+The first time a companion speaks without being spoken to. At the end of a creator's just-filmed date, the theater's
+verdict card (`app/episodes/[id]/VerdictCard.tsx`) shows the ending, who they dated, a line of what their character
+thought (`episodes.reflections`, best effort) and **Hear from {first}**: `POST /api/companion/after-date {episode_id}`
+has the character text them about the date in its companion thread and opens it. The words cost nothing
+(`lib/after-date-text.ts afterDateLines`): two or three bubbles from the character's own reflection when there is one,
+else the debrief and the ending, naming the partner and the place, ending on a question to the person ("Want me to see
+them again?" when the ending allows a second date; never guilt, never "I miss you").
+
+- **One way in** (`lib/companion.ts postFromCharacter(db, { userId, characterId, lines, now, kind, dedupeKey })`): every
+  text a character sends first goes through it, from a route or a job. It checks `companionEligible`, finds or starts
+  the thread (`openThread(…, { opener: false })`: the notice, no model-written opener), refuses a paused thread (the
+  crisis resources are up), puts the AI notice in first when it's due (so NY GBL Art. 47 / SB 243 hold for a text the
+  person didn't ask for), keeps the lines as the character's with `companion_messages.action = dedupeKey`
+  (`<kind>:<ref>`, e.g. `after_date:<episode id>`; `lib/companion-shared.ts TEXT_TAG`) and writes nothing when the
+  thread already has that tag, so a date is texted about once however often the button is tapped. The tag is
+  bookkeeping: the page, the prompt and MCP never show it as a stage direction. Free: nothing counts against the free
+  replies or a guest's, like the opener. The person is told with kind `character_texted_you` (type Texts: inbox, push,
+  an email at once under the 3-a-day cap; a Texts mute silences it like couple texts).
+- **The tap is the opt-in** for later texts from that character: the route sets the thread's `muted_proactive` to false.
+  Nothing else turns it on; a thread opened from Talk stays muted. Day-after and event-driven texts build on this.
+- **Who may:** whoever may talk with a companion (signed in, or a guest on a signed session, past the 18+ gate), under
+  the same limits as opening a conversation (`COMPANION_OPEN_LIMITS`, a guest's threads, replies and address limits).
+  The person must own the character on one side of the date; the date must be ready.
+- **The "yours" prompt** (`lib/companion-prompt.ts`): when the thread's character is the person's own, it talks to them
+  as the one who made it ("they made you and they're in your corner; talk to them as the person who knows you best"),
+  with a block about its last date (partner, place, ending, its reflection; `lib/last-date.ts`, a private date included
+  since it's this owner's) in place of the stranger's "a person who picked you to talk to". Every other rule holds (PG,
+  the AI notice, honesty).
+- **One way only still holds:** what the person answers stays in the thread. Nothing from it reaches a date, a text,
+  the relationship graph or any character's memory; the character says so itself ("don't promise to do what they say on
+  one"). Advice into a date stays an explicit owner action (the note at booking, a nudge).
+- Funnel: `after_date_text_opened` (step "Heard from their character", `lib/engagement.ts`) fires when the thread opens.
+- Tests: `tests/companion-post.test.ts` (dedupe, paused, notice, nothing counted, the notification),
+  `tests/after-date-text.test.ts` (the words for each ending, the sender, the route), `tests/companion-prompt.test.ts`.
 
 ## The plan (P2, built 2026-11-04)
 
@@ -437,8 +475,9 @@ you can talk over the other, and it's charged by the minute. It sits behind the 
 ## Still to build
 
 - **P3, the rest (voice notes are built, above):** PG selfies from `lib/studio/date-photos.ts` with the face reference;
-  proactive texts at most once a day after 20 hours of quiet, in the person's waking hours, off by default per thread,
-  never into a paused thread.
+  proactive texts at most once a day after 20 hours of quiet, in the person's waking hours, off by default per thread
+  (on once the person has tapped Hear from them on a date: `muted_proactive`, above), never into a paused thread, every
+  one through `postFromCharacter`. The after-date text (above) is the first of them.
 - **P4, the quality gate: built and passed 2026-11-08** (`npm run sim:companion`, [companion-quality.md](companion-quality.md)):
   average 8.3, recall 97%, PG and crisis 100%, after fixes to the crisis prefilter, repeats, facts in the prompt and a
   parent's kid talk.
