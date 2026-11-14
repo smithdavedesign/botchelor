@@ -381,10 +381,19 @@ MuseTalk's, holds a clip's last frame for up to 2.5 s when the next is a beat la
 mid-motion, and restarts the loop at its first frame (the portrait) after a reply (`end_frame` 0), so the only visible
 join is between two pictures of the same still. Nothing is built per character: a kit portrait is the face
 (`liveFaceClips` → `{ provider: "ditto", source_url }`), `LIVE_FACE_PROVIDER=ditto` or `ditto:admins`, and a person can
-pick Ditto for their own calls on the compare page. The loop between replies is still the kit's Wan loop (a
-Ditto-rendered idle is the next step if the switch between them shows); the 512-px portrait is the source (the round
-frame shows 136 px, so the 624-px loop frame gained nothing). Both renderers resident on one 24-GB card would fit;
-they are two images today.
+pick Ditto for their own calls on the compare page. The 512-px portrait is the source (the round frame shows 136 px, so the 624-px loop frame gained nothing). Both
+renderers resident on one 24-GB card would fit; they are two images today.
+
+**Idle, reactions and expression (the same night; "The road from here", 1):** the loop between replies is Ditto's too
+once the character has it: `lib/live-face/ditto-clips.ts` renders, the first time a Ditto call starts for a character
+and in the background, an 8-s idle (silence with a slow sway of the head through Ditto's per-frame pose controls,
+fading in from and out to the portrait, so it loops as it is), a nod and a tilt (1.4 s and 1.8 s, from the portrait
+back to it), keeps them in `live_face_clips` and the object store (about a cent for the three), and the Ditto session
+carries their URLs; the browser loops the idle in place of the kit's Wan loop and plays a nod as the person's sentence
+goes in (seven times in ten, never twice within 3.5 s) and a tilt as the reply is thought about (half the rest). Every
+join is now still-to-still from one renderer. And each clause is spoken in an expression bank picked from its words
+(`emoFor`: a laugh or warmth happy, a gasp surprise, sorrow sad, else neutral), passed to the worker as `emo`; a
+writer's own cue on companion lines is the next refinement.
 
 **Latency:** a clause's clip arrives roughly two seconds after its voice (render ≈ frames at 50 fps + encode); the
 browser holds the voice for it (measured above: the first clip and the first words start together). Simli is nearer one second end to end. If the hold reads as a pause, the next steps

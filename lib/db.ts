@@ -1248,6 +1248,23 @@ create table if not exists user_live_face (
 );
 alter table companion_live_calls add column if not exists face_provider text;
 alter table companion_live_calls add column if not exists face_seconds integer not null default 0;
+-- Ditto's clip library per character (lib/live-face/ditto-clips.ts): the idle and the reactions a call shows between and
+-- around replies, rendered once from the kit's portrait; bytes in the object store (or the row, without one).
+create table if not exists live_face_clips (
+  id text primary key,
+  character_id text not null references characters (id) on delete cascade,
+  source_id text not null,
+  kind text not null,
+  status text not null check (status in ('making', 'ready', 'failed')),
+  mime text,
+  object_key text,
+  data bytea,
+  frames integer,
+  error text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create unique index if not exists live_face_clips_one on live_face_clips (character_id, source_id, kind);
 -- Subscription plans sold on a Stripe Payment Link (lib/paid-plans.ts): one row per person and plan.
 create table if not exists plan_entitlements (
   user_id text not null,

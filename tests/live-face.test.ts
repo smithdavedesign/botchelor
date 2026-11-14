@@ -261,7 +261,8 @@ describe("live faces on Ditto (our second worker on Runpod)", () => {
     const asked = fakeDitto();
     expect(await liveFaceState(t.db, id, BASE_URL)).toMatchObject({ provider: "ditto", status: "ready", provider_face_id: expect.stringContaining(`${BASE_URL}/api/face-kit/`) });
     expect(await buildLiveFace(t.db, id, BASE_URL)).toEqual({ ok: true, face_id: "portrait", status: "ready" });
-    expect(await liveFaceSession(t.db, id, BASE_URL, { admin: false })).toEqual({ provider: "ditto", px: 512 });
+    // No idle or reactions yet: the session says so (they render in the background from here; lib/live-face/ditto-clips.ts).
+    expect(await liveFaceSession(t.db, id, BASE_URL, { admin: false })).toEqual({ provider: "ditto", px: 512, idle: null, reactions: {} });
     // A session warms a Ditto worker, at Ditto's endpoint.
     expect(asked.some((a) => a.url === `${RUNPOD_API}/ep-d/run` && a.body?.input?.op === "warm")).toBe(true);
     expect(await liveFaceClips(t.db, id, BASE_URL, { admin: false })).toEqual({ provider: "ditto", runpod: { key: "placeholder-runpod", endpoint: "ep-d" }, source_url: expect.stringContaining(`${BASE_URL}/api/face-kit/`) });
@@ -289,7 +290,7 @@ describe("live faces on Ditto (our second worker on Runpod)", () => {
     expect(await liveFaceClips(t.db, id, BASE_URL, { admin: false, userId: me })).toBeNull();
     await t.db.query(`insert into user_live_face (user_id, renderer) values ($1, 'ditto')`, [me]);
     expect(await liveFaceClips(t.db, id, BASE_URL, { admin: false, userId: me })).toMatchObject({ provider: "ditto" });
-    expect(await liveFaceSession(t.db, id, BASE_URL, { admin: false, userId: me })).toEqual({ provider: "ditto", px: 512 });
+    expect(await liveFaceSession(t.db, id, BASE_URL, { admin: false, userId: me })).toMatchObject({ provider: "ditto", px: 512 });
   });
 
   it("gives a live call's start the word that clips will come, and the end keeps the face's seconds under ditto", async () => {
@@ -303,7 +304,7 @@ describe("live faces on Ditto (our second worker on Runpod)", () => {
     const opened = (await (await openRoute(new Request(`${BASE_URL}/api/companion`, { method: "POST", headers: { "content-type": "application/json", cookie }, body: JSON.stringify({ character_id: id }) }))).json()) as { thread_id: string };
     const live = (body: unknown) => liveRoute(new Request(`${BASE_URL}/api/companion/${opened.thread_id}/live`, { method: "POST", headers: { "content-type": "application/json", cookie }, body: JSON.stringify(body) }), { params: Promise.resolve({ id: opened.thread_id }) });
     const r = (await (await live({ action: "start" })).json()) as { call: { id: string }; face: unknown };
-    expect(r.face).toEqual({ provider: "ditto", px: 512 });
+    expect(r.face).toMatchObject({ provider: "ditto", px: 512 });
     const end = await live({ action: "end", call_id: r.call.id, seconds: 60, face: "ditto", face_seconds: 41 });
     expect(end.status).toBe(200);
     expect((await t.db.query<{ face_provider: string; face_seconds: number }>(`select face_provider, face_seconds from companion_live_calls where id = $1`, [r.call.id])).rows[0]).toEqual({ face_provider: "ditto", face_seconds: 41 });

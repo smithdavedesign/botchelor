@@ -7,7 +7,7 @@ import { extraPrice, type CompanionCharacterRef, type CompanionExtraState, type 
 import { heardSoFar, LIVE_START, liveStep, type Heard, type LiveEvent, type LiveState } from "@/lib/companion-live-shared";
 import { sseData } from "@/lib/sse";
 import { kitComplete, type FaceKit } from "@/lib/face-kit-shared";
-import { CLIP_HOLD_MS, CLIP_LATE_MS, voiceForLiveFace, type LiveFaceSession } from "@/lib/live-face-shared";
+import { CLIP_HOLD_MS, CLIP_LATE_MS, REACTION_GAP_MS, type ReactionKind, voiceForLiveFace, type LiveFaceSession } from "@/lib/live-face-shared";
 import { TRANSCRIPT_START, transcriptStep, type Transcript, type TranscriptEvent } from "@/lib/companion-call-transcript";
 import CallTranscript from "./CallTranscript";
 import LiveFace, { type LiveFaceHandle } from "./LiveFace";
@@ -685,6 +685,15 @@ export default function CompanionCall({
     listen();
   }
 
+  // A reaction between replies (LiveFace.react: Ditto's nod or tilt), not every time and not too often, so it reads
+  // as listening rather than a tic: a nod as what they said goes in, a tilt as the reply is thought about.
+  const lastReaction = useRef(0);
+  function maybeReact(kind: ReactionKind, odds: number) {
+    if (Date.now() - lastReaction.current < REACTION_GAP_MS || Math.random() >= odds) return;
+    lastReaction.current = Date.now();
+    face.current?.react(kind);
+  }
+
   /** What Deepgram heard: the turn-taking (lib/companion-live-shared.ts liveStep) decides what it means. */
   function onHeard(e: Heard) {
     if (ended.current || modeNow.current !== "live") return;
@@ -700,7 +709,10 @@ export default function CompanionCall({
         stopReply();
         props.current.speech.stop();
         go("listening");
-      } else void liveTurn(fx.text);
+      } else {
+        maybeReact("nod", 0.7);
+        void liveTurn(fx.text);
+      }
     }
     // After a barge-in's cut, so what they've started saying follows the reply it cut off.
     if (state.phase === "listening") hear(heardSoFar(state));
@@ -716,6 +728,7 @@ export default function CompanionCall({
     const abort = new AbortController();
     turnAbort.current = abort;
     go("thinking");
+    maybeReact("tilt", 0.5);
     setYou(text);
     log({ kind: "you", text });
     setHeard("");

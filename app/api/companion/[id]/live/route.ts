@@ -24,7 +24,7 @@ import { ensureFaceKit } from "@/lib/face-kit";
 import { liveFaceClips, liveFaceSession } from "@/lib/live-face";
 import { DittoChain } from "@/lib/live-face/ditto";
 import { speakClip } from "@/lib/live-face/musetalk";
-import { clausesOf, framesOfPcm, SHORT_FIRST_PIECE, SHORT_FIRST_WAIT_MS } from "@/lib/live-face-shared";
+import { clausesOf, emoFor, framesOfPcm, SHORT_FIRST_PIECE, SHORT_FIRST_WAIT_MS } from "@/lib/live-face-shared";
 import { handle, json, parseBody, readJson, session } from "@/lib/http";
 import { overLimit } from "@/lib/limits";
 import { inBackground } from "@/lib/sets";
@@ -211,10 +211,11 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
               { signal: stop.signal },
             )
           : null;
-      const clipFor = (i: number, pcm: Buffer) => {
+      const clipFor = (i: number, pcm: Buffer, text: string) => {
         if (!clips || !pcm.length || stop.signal.aborted) return;
         if (chain) {
-          chain.add(i, pcm);
+          // The clause's words pick the expression it's spoken in (a laugh, a gasp, sorrow; else neutral).
+          chain.add(i, pcm, { emo: emoFor(text) });
           return;
         }
         if (clips.provider !== "musetalk") return;
@@ -250,7 +251,7 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
               send({ type: "audio", i: piece.i, pcm, rate: LIVE_AUDIO_RATE });
             });
             send({ type: "audio_end", i: piece.i });
-            clipFor(piece.i, Buffer.concat(heard));
+            clipFor(piece.i, Buffer.concat(heard), piece.text);
           } catch (err) {
             if (stop.signal.aborted) return;
             voiceOn = false;
