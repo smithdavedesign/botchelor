@@ -2,12 +2,14 @@
 
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type ReactNode } from "react";
 import { BLINK_MS, canTalk, FACE_STILLS, LOOK_MS, lookFor, MOUTH_STILL, mouthFor, nextBlinkIn, syntheticLevel, type FaceKit, type FaceStill, type Look, type Mouth } from "@/lib/face-kit-shared";
-import { audioPieces, secondsOfFaceAudio, type LiveFaceSession } from "@/lib/live-face-shared";
+import { audioPieces, loopTimeAtCycleFrame, secondsOfFaceAudio, type LiveFaceSession } from "@/lib/live-face-shared";
 
 /** How long before the loop's end it fades back into the portrait (the loop starts from the portrait, so the restart can't show). */
 const FADE_S = 0.45;
 /** A live stream that hasn't shown a frame by then is given up, and the kit's face stays. */
 const LIVE_START_MS = 8_000;
+/** A clip whose turn hasn't come (the piece before it never arrived) waits this long, then the order moves on. */
+const STALL_MS = 2_500;
 
 export type FacePhase = "ready" | "connecting" | "listening" | "thinking" | "speaking" | "paused";
 
@@ -19,8 +21,12 @@ export type LiveFaceHandle = {
   clips: () => boolean;
   /** A piece of the companion's voice, 16 kHz 16-bit mono (Simli). */
   sendAudio: (bytes: Uint8Array) => void;
-  /** Piece i of the reply as a clip with the voice in it (MuseTalk): played in order, over the kit's face. */
-  clip: (i: number, mp4: Uint8Array) => void;
+  /** Piece i of the reply as a clip with the voice in it (MuseTalk): played in order, over the kit's face. `end` is where in the idle cycle it leaves off. */
+  clip: (i: number, mp4: Uint8Array, end: number | null) => void;
+  /** Piece i plays the plain way instead (its clip failed): `play` runs in its turn among the clips and resolves when the voice is done. */
+  plain: (i: number, play: () => Promise<void>) => void;
+  /** A new reply: the order starts over at piece 0, and clips left from the last one go. */
+  turn: () => void;
   /** From a tap: lets the clips' element play with sound later (phones). */
   unlock: (silence: string) => void;
   /** Drops whatever it hasn't said yet (a barge-in). */
@@ -58,6 +64,8 @@ const LiveFace = forwardRef<LiveFaceHandle, { kit: FaceKit | null; phase: FacePh
     const [still, setStill] = useState(true);
     const [broken, setBroken] = useState<ReadonlySet<string>>(new Set());
     const [streaming, setStreaming] = useState(false);
+    const [onSlot, setOnSlot] = useState<0 | 1 | null>(null);
+    const [plainUp, setPlainUp] = useState(false);
     const video = useRef<HTMLVideoElement>(null);
     const liveVideo = useRef<HTMLVideoElement>(null);
     const liveAudio = useRef<HTMLAudioElement>(null);
@@ -78,8 +86,16 @@ const LiveFace = forwardRef<LiveFaceHandle, { kit: FaceKit | null; phase: FacePh
     const onLiveNow = useRef(onLive);
     onLiveNow.current = onLive;
     // Clips waiting their turn (MuseTalk), and the one playing.
-    const clipQueue = useRef<{ i: number; url: string }[]>([]);
+    type Entry = { i: number; url: string; end: number | null } | { i: number; play: () => Promise<void> };
+    const clipQueue = useRef<Entry[]>([]);
     const clipUp = useRef<string | null>(null);
+    const clipB = useRef<HTMLVideoElement>(null);
+    const slot = useRef<0 | 1>(0);
+    const expected = useRef(0);
+    const lastEnd = useRef<number | null>(null);
+    const loaded = useRef<{ slot: 0 | 1; url: string } | null>(null);
+    const busy = useRef(false);
+    const stall = useRef(0);
 
     const settle = () => {
       const w = idleWaiters.current;
@@ -105,40 +121,118 @@ const LiveFace = forwardRef<LiveFaceHandle, { kit: FaceKit | null; phase: FacePh
       if (c) void c.stop().catch(() => {});
     };
 
-    // The next clip, or nothing: then the kit's face is back until another comes.
-    const playNextClip = () => {
-      const v = liveVideo.current;
-      if (clipUp.current) {
-        URL.revokeObjectURL(clipUp.current);
-        clipUp.current = null;
+    // The clips, in the order of the reply's pieces, through two elements: the next loads while one plays, so the
+    // switch is a frame, not a gap. A piece that plays plain (its clip failed) takes its turn in the same order. The
+    // kit's loop pauses under a clip and takes over where the last clip left off (loopTimeAtCycleFrame).
+    const slotEl = (s: 0 | 1) => (s === 0 ? liveVideo.current : clipB.current);
+    const setBusy = (on: boolean) => {
+      busy.current = on;
+      setPlainUp(on);
+    };
+    const finishClips = () => {
+      clipUp.current = null;
+      setBusy(false);
+      setOnSlot(null);
+      setLive(false);
+      settle();
+      const v = video.current;
+      if (v && lastEnd.current !== null && Number.isFinite(v.duration) && v.duration > 0) {
+        try {
+          v.currentTime = loopTimeAtCycleFrame(lastEnd.current, v.duration);
+        } catch {
+          // Not seekable yet: it plays on from where it is.
+        }
       }
-      const next = clipQueue.current.shift();
-      if (!next || !v) {
-        if (v) v.removeAttribute("src");
-        setLive(false);
+      void v?.play().catch(() => {});
+    };
+    const preloadNext = () => {
+      const next = clipQueue.current[0];
+      if (!next || !("url" in next) || next.i !== expected.current) return;
+      const el = slotEl(slot.current);
+      if (!el || loaded.current?.url === next.url) return;
+      el.src = next.url;
+      el.load();
+      loaded.current = { slot: slot.current, url: next.url };
+    };
+    const playNextClip = () => {
+      window.clearTimeout(stall.current);
+      const next = clipQueue.current[0];
+      if (!next) {
+        finishClips();
         return;
       }
+      if (next.i !== expected.current) {
+        // Not its turn: the piece before it is still on its way. Not for long, though.
+        stall.current = window.setTimeout(() => {
+          expected.current = next.i;
+          playNextClip();
+        }, STALL_MS);
+        return;
+      }
+      clipQueue.current.shift();
+      expected.current = next.i + 1;
+      if ("play" in next) {
+        // The plain way: the kit's face shows, its mouth moving to the voice, until this piece is done.
+        clipUp.current = null;
+        setOnSlot(null);
+        setLive(false);
+        setBusy(true);
+        next.play().finally(() => {
+          setBusy(false);
+          playNextClip();
+        });
+        return;
+      }
+      const s = slot.current;
+      const el = slotEl(s);
+      if (!el) {
+        URL.revokeObjectURL(next.url);
+        playNextClip();
+        return;
+      }
+      if (loaded.current?.slot !== s || loaded.current.url !== next.url) el.src = next.url;
+      loaded.current = null;
+      el.muted = false;
+      const prev = clipUp.current;
       clipUp.current = next.url;
-      v.src = next.url;
-      v.muted = false;
-      v.play()
-        .then(() => setLive(true))
+      lastEnd.current = next.end;
+      slot.current = s === 0 ? 1 : 0;
+      el.play()
+        .then(() => {
+          setOnSlot(s);
+          setLive(true);
+          video.current?.pause();
+          if (prev) {
+            slotEl(s === 0 ? 1 : 0)?.removeAttribute("src");
+            URL.revokeObjectURL(prev);
+          }
+          preloadNext();
+        })
         .catch(() => {
           // Refused (the page never got a tap, or the clip is broken): this piece's voice is lost; the next may play.
+          URL.revokeObjectURL(next.url);
+          if (prev) URL.revokeObjectURL(prev);
+          clipUp.current = null;
           playNextClip();
         });
     };
     const dropClips = () => {
-      for (const c of clipQueue.current) URL.revokeObjectURL(c.url);
+      window.clearTimeout(stall.current);
+      for (const c of clipQueue.current) if ("url" in c) URL.revokeObjectURL(c.url);
       clipQueue.current = [];
-      const v = liveVideo.current;
-      if (v && clipUp.current) {
-        v.pause();
-        v.removeAttribute("src");
-        URL.revokeObjectURL(clipUp.current);
-        clipUp.current = null;
+      loaded.current = null;
+      for (const s of [0, 1] as const) {
+        const el = slotEl(s);
+        if (!el) continue;
+        el.pause();
+        el.removeAttribute("src");
       }
+      if (clipUp.current) URL.revokeObjectURL(clipUp.current);
+      clipUp.current = null;
+      setBusy(false);
+      setOnSlot(null);
       setLive(false);
+      void video.current?.play().catch(() => {});
     };
 
     useImperativeHandle(
@@ -153,23 +247,41 @@ const LiveFace = forwardRef<LiveFaceHandle, { kit: FaceKit | null; phase: FacePh
           const now = performance.now();
           saidUntil.current = Math.max(saidUntil.current, now) + secondsOfFaceAudio(bytes.length) * 1000;
         },
-        clip: (i, mp4) => {
+        clip: (i, mp4, end) => {
           if (!clipModeNow.current || !mp4.length) return;
           const url = URL.createObjectURL(new Blob([mp4 as BlobPart], { type: "video/mp4" }));
-          clipQueue.current.push({ i, url });
+          clipQueue.current.push({ i, url, end });
           clipQueue.current.sort((a, b) => a.i - b.i);
-          if (!clipUp.current) playNextClip();
+          if (!clipUp.current && !busy.current) playNextClip();
+          else preloadNext();
+        },
+        plain: (i, play) => {
+          if (!clipModeNow.current) {
+            void play();
+            return;
+          }
+          clipQueue.current.push({ i, play });
+          clipQueue.current.sort((a, b) => a.i - b.i);
+          if (!clipUp.current && !busy.current) playNextClip();
+        },
+        turn: () => {
+          if (!clipModeNow.current) return;
+          dropClips();
+          expected.current = 0;
+          lastEnd.current = null;
         },
         unlock: (silence) => {
-          // Before the session is known (the tap comes first), so the element is always there (see `live` below).
-          const v = liveVideo.current;
-          if (!v || client.current || clipUp.current) return;
-          try {
-            v.src = silence;
-            v.muted = false;
-            void v.play().catch(() => {});
-          } catch {
-            // No play from here: the clips may play muted on this phone.
+          // Before the session is known (the tap comes first), so the elements are always there (see `live` below).
+          if (client.current || clipUp.current) return;
+          for (const el of [liveVideo.current, clipB.current]) {
+            if (!el) continue;
+            try {
+              el.src = silence;
+              el.muted = false;
+              void el.play().catch(() => {});
+            } catch {
+              // No play from here: the clips may play muted on this phone.
+            }
           }
         },
         clear: () => {
@@ -181,7 +293,7 @@ const LiveFace = forwardRef<LiveFaceHandle, { kit: FaceKit | null; phase: FacePh
         },
         idle: () => {
           if (clipModeNow.current) {
-            if (!clipUp.current && !clipQueue.current.length) return Promise.resolve();
+            if (!clipUp.current && !busy.current && !clipQueue.current.length) return Promise.resolve();
             return new Promise<void>((ok) => idleWaiters.current.push(ok));
           }
           if (!isLive.current) return Promise.resolve();
@@ -283,9 +395,12 @@ const LiveFace = forwardRef<LiveFaceHandle, { kit: FaceKit | null; phase: FacePh
       return () => q.removeEventListener?.("change", on);
     }, []);
 
+    // The kit's mouth moves while they talk the plain way: not under a stream or a clip, and with clips only for a
+    // piece that plays plain (between clips the loop carries on; nothing is being said).
+    const mouthOn = talking && !streaming && (!clipMode || plainUp);
     // The mouth follows the voice while they talk: measured when it can be, made up when it can't.
     useEffect(() => {
-      if (!talking || streaming) {
+      if (!mouthOn) {
         mouthNow.current = "closed";
         setMouth("closed");
         return;
@@ -305,11 +420,11 @@ const LiveFace = forwardRef<LiveFaceHandle, { kit: FaceKit | null; phase: FacePh
       };
       frame = requestAnimationFrame(tick);
       return () => cancelAnimationFrame(frame);
-    }, [talking, streaming, level]);
+    }, [mouthOn, level]);
 
     // The loop plays while they listen (and, with clips, under and between the clips too, so the motion never stops);
     // it stops when the kit's stills must show the mouth: Tier 0 talking, or a clipped piece that fell back to the voice.
-    const loopPlaying = Boolean(kit?.loop && !still && !broken.has(kit.loop) && (clipMode ? !(talking && !streaming) : !talking && phase !== "thinking" && !streaming));
+    const loopPlaying = Boolean(kit?.loop && !still && !broken.has(kit.loop) && (clipMode ? !(plainUp && !streaming) : !talking && phase !== "thinking" && !streaming));
     // A blink now and then, while the loop isn't doing the blinking.
     useEffect(() => {
       if (loopPlaying || streaming || !kit?.stills.blink) return;
@@ -354,7 +469,8 @@ const LiveFace = forwardRef<LiveFaceHandle, { kit: FaceKit | null; phase: FacePh
     // clips) has somewhere to land.
     const live = (
       <>
-        <video ref={liveVideo} className={`companion-live-stream${streaming ? " is-on" : ""}`} autoPlay={!clipMode} playsInline muted={false} aria-hidden="true" onEnded={clipMode ? playNextClip : undefined} onError={clipMode ? playNextClip : undefined} />
+        <video ref={liveVideo} className={`companion-live-stream${(clipMode ? onSlot === 0 : streaming) ? " is-on" : ""}`} autoPlay={!clipMode} playsInline muted={false} aria-hidden="true" onEnded={clipMode ? playNextClip : undefined} />
+        <video ref={clipB} className={`companion-live-stream${onSlot === 1 ? " is-on" : ""}`} playsInline muted={false} aria-hidden="true" onEnded={clipMode ? playNextClip : undefined} preload="auto" />
         <audio ref={liveAudio} autoPlay aria-hidden="true" />
       </>
     );
@@ -372,7 +488,7 @@ const LiveFace = forwardRef<LiveFaceHandle, { kit: FaceKit | null; phase: FacePh
     const shown = kit.stills[top] && !broken.has(kit.stills[top]!) ? top : "portrait";
     const parts = FACE_STILLS.filter((p): p is FaceStill => Boolean(kit.stills[p]) && !broken.has(kit.stills[p]!));
     return (
-      <span className={`companion-live-face is-${phase}${talking && !streaming ? " talking" : ""}${streaming ? " streaming" : ""}`} style={{ width: size, height: size }} role="img" aria-label={`${name}'s face`}>
+      <span className={`companion-live-face is-${phase}${mouthOn ? " talking" : ""}${streaming ? " streaming" : ""}`} style={{ width: size, height: size }} role="img" aria-label={`${name}'s face`}>
         {parts.map((p) => (
           // eslint-disable-next-line @next/next/no-img-element -- the kit's own files, served by our route
           <img key={p} src={kit.stills[p]} alt="" className={`companion-live-still${p === shown ? " is-on" : ""}${p === "portrait" ? " is-base" : ""}`} draggable={false} onError={() => setBroken((b) => new Set([...b, kit.stills[p]!]))} />

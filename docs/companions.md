@@ -329,8 +329,12 @@ David, 2026-11-13, on a GPT proposal for live "digital humans" (the review and t
     cycle's `start_frame` so pieces run on from one another); `video_fail` when the worker can't. The browser holds a
     piece's voice up to `CLIP_HOLD_MS` (4 s) after it finished arriving, plays the clip over the kit's face in the
     same round frame, and plays the voice the plain way (kit mouth moving) for a piece whose clip fails or is late.
-    The idle loop keeps playing under and between clips; a barge-in drops them; the first tap unlocks the face's
-    element so phones play the clips with sound. `face_provider` is `musetalk` and `face_seconds` the clips' play time.
+    The idle loop pauses under a clip and takes over where the last clip left off; a barge-in drops them; the first
+    tap unlocks the clips' elements so phones play them with sound. `face_provider` is `musetalk` and `face_seconds`
+    the clips' play time. One mouth per reply (2026-11-14): the first piece's clip in time makes it a clip reply, in
+    which every piece waits for its clip and plays in order; late or failed, the whole reply plays the plain way.
+    The server renders all of a reply's clips at once and splits a long first sentence at a clause so the first is
+    ready sooner (details and numbers: the PRD's realism pass).
   - **Costs** a 24 GB worker's seconds while a call runs (~$0.0125 a minute, ~$0.022 on a 4090) plus a 30-s idle
     timeout, nothing between calls; a bundle is ~3.5 MB. Runpod's terms keep it to PG calls; After Dark stays Tier 0.
 

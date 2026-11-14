@@ -88,6 +88,15 @@ export type LiveFaceBlocked = { ok: false; status: number; error: string; messag
  * loop. Refused without the renderer's key, a kit, or (Simli) a monthly generation left; one that's building or ready
  * isn't built again. Returns at once with the renderer's id; collectLiveFaces follows the build.
  */
+/** MuseTalk's mouth-box shift for new faces (`LIVE_FACE_BBOX_SHIFT`, -17..16 for a 624-px loop; 0 = as detected). The 2026-11-14 A/B on Juniper found no visible gain at 8 or 14, so 0 stays. */
+function bboxShift(env: Env): number {
+  const n = Number.parseInt(env.LIVE_FACE_BBOX_SHIFT ?? "", 10);
+  return Number.isFinite(n) ? Math.max(-30, Math.min(30, n)) : 0;
+}
+
+/** The face_kits row id in a kit file URL (lib/face-kit.ts faceKitUrl; the loop's carries a `?v=` so caches let go when its file changes). */
+const idOfKitUrl = (url: string) => url.split("?")[0].split("/").pop() || null;
+
 export async function buildLiveFace(db: Db, characterId: string, baseUrl: string, env: Env = process.env): Promise<{ ok: true; face_id: string; status: LiveFaceRow["status"] } | LiveFaceBlocked> {
   const fail = (status: number, error: string, message: string): LiveFaceBlocked => ({ ok: false, status, error, message });
   const provider = liveFaceProvider(env);
@@ -100,13 +109,13 @@ export async function buildLiveFace(db: Db, characterId: string, baseUrl: string
   const name = (await db.query<{ name: string }>(`select name from characters where id = $1`, [characterId])).rows[0]?.name ?? characterId;
 
   if (provider === "musetalk") {
-    const loopId = kit?.loop?.split("/").pop();
+    const loopId = kit?.loop ? idOfKitUrl(kit.loop) : null;
     if (!loopId) return fail(409, "no_kit", "Draw their face kit first: the live face is built from its idle loop.");
     const file = await faceKitFile(db, loopId);
     const bytes = file ? await faceKitBytes(file) : null;
     if (!file || !bytes) return fail(409, "no_kit", "The kit's idle loop couldn't be read.");
     try {
-      const job = await startPrepare(runpodConfig(env)!, { id: characterId, loop: bytes });
+      const job = await startPrepare(runpodConfig(env)!, { id: characterId, loop: bytes, bbox_shift: bboxShift(env) });
       await upsert(db, { character: characterId, source: source.id, provider, face: `${JOB}${job.job_id}`, status: "making", error: null });
       return { ok: true, face_id: job.job_id, status: "making" };
     } catch (err) {
@@ -117,7 +126,7 @@ export async function buildLiveFace(db: Db, characterId: string, baseUrl: string
   }
 
   const key = simliKey(env)!;
-  const portraitId = kit?.stills.portrait?.split("/").pop();
+  const portraitId = kit?.stills.portrait ? idOfKitUrl(kit.stills.portrait) : null;
   if (!portraitId) return fail(409, "no_kit", "Draw their face kit first: the live face is built from its portrait.");
   const file = await faceKitFile(db, portraitId);
   const bytes = file ? await faceKitBytes(file) : null;
@@ -162,6 +171,13 @@ export async function collectLiveFaces(db: Db, env: Env = process.env, character
         const job = await jobStatus<PrepareOutput>(runpod, r.provider_face_id.slice(JOB.length));
         if (job.status === "COMPLETED" && job.output?.bundle_key) {
           await set("ready", null, job.output.bundle_key);
+          // The worker re-timed a pulled-down loop to real 25 fps and stored it: the kit shows that one from now on
+          // (same row, new file, so the kit's URL changes with its updated_at and caches let go).
+          if (job.output.loop_key) {
+            await db
+              .query(`update face_kits set object_key = $3, data = null, mime = 'video/mp4', updated_at = now() where character_id = $1 and source_id = $2 and part = 'loop' and status = 'ready'`, [r.character_id, r.source_id, job.output.loop_key])
+              .catch((err: unknown) => console.error(`[live-face] ${r.character_id}: the re-timed loop couldn't replace the kit's: ${err instanceof Error ? err.message.slice(0, 120) : "error"}`));
+          }
           ready++;
         } else if (job.status === "FAILED" || job.status === "CANCELLED" || job.status === "TIMED_OUT") await set("failed", `the renderer couldn't build it: ${jobError(job)}`);
         else if (Date.now() - new Date(r.created_at).getTime() > FACE_GIVE_UP_MS) await set("failed", "the renderer lost it");

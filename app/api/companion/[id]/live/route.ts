@@ -23,6 +23,7 @@ import { getDb } from "@/lib/db";
 import { ensureFaceKit } from "@/lib/face-kit";
 import { liveFaceClips, liveFaceSession } from "@/lib/live-face";
 import { speakClip } from "@/lib/live-face/musetalk";
+import { framesOfPcm, splitFirstPiece } from "@/lib/live-face-shared";
 import { handle, json, parseBody, readJson, session } from "@/lib/http";
 import { overLimit } from "@/lib/limits";
 import { inBackground } from "@/lib/sets";
@@ -183,23 +184,28 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
       let written = false;
       let voiceOn = true;
       let chars = 0;
-      // Each voiced piece as a clip of the face saying it, one after another so the idle motion carries on from piece
-      // to piece (start_frame); the browser holds the piece's voice for it and plays the voice alone if it fails.
+      // Each voiced piece as a clip of the face saying it, all rendering at once from the moment each piece's voice is
+      // in (a clip takes about half its length to render; one after another fell behind the voice). The idle motion
+      // carries on from piece to piece: each starts where the one before ends, known ahead from the voice's length
+      // (framesOfPcm counts as the worker does). The browser holds each piece's voice for its clip and settles on clips
+      // or the plain voice for the whole reply by the first piece's; `video_fail` lets it play that piece plain.
       let cursor = 0;
-      let clipChain: Promise<void> = Promise.resolve();
+      const clipJobs: Promise<void>[] = [];
       const clipFor = (i: number, pcm: Buffer) => {
-        if (!clips || !pcm.length) return;
-        clipChain = clipChain.then(async () => {
-          if (stop.signal.aborted) return;
-          try {
-            const out = await speakClip(clips.runpod, { bundle_key: clips.bundle_key, pcm, rate: LIVE_AUDIO_RATE, start_frame: cursor }, { signal: stop.signal });
-            cursor = out.next_frame;
-            send({ type: "video", i, mp4: out.video_b64, frames: out.frames });
-          } catch (err) {
-            if (!stop.signal.aborted) console.error(`[companion-live] clip ${i}: ${err instanceof Error ? err.message.slice(0, 160) : "unknown"}`);
-            send({ type: "video_fail", i });
-          }
-        });
+        if (!clips || !pcm.length || stop.signal.aborted) return;
+        const start = cursor;
+        cursor += framesOfPcm(pcm.length, LIVE_AUDIO_RATE);
+        clipJobs.push(
+          (async () => {
+            try {
+              const out = await speakClip(clips.runpod, { bundle_key: clips.bundle_key, pcm, rate: LIVE_AUDIO_RATE, start_frame: start }, { signal: stop.signal });
+              send({ type: "video", i, mp4: out.video_b64, frames: out.frames, end_frame: out.next_frame, cycle: out.cycle });
+            } catch (err) {
+              if (!stop.signal.aborted) console.error(`[companion-live] clip ${i}: ${err instanceof Error ? err.message.slice(0, 160) : "unknown"}`);
+              send({ type: "video_fail", i });
+            }
+          })(),
+        );
       };
       const voicing = (async () => {
         for (;;) {
@@ -231,9 +237,14 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
       let n = 0;
       const r = await liveReply(db, took.turn, {
         say: (text) => {
-          const i = n++;
-          send({ type: "say", i, text });
-          queue.push({ i, text });
+          // With clips, a long first sentence goes as two pieces split at a clause: its clip can't render until the
+          // whole voice is in, and nothing plays until that first clip is there (lib/live-face-shared splitFirstPiece).
+          const parts = clips && n === 0 ? (splitFirstPiece(text) ?? [text]) : [text];
+          for (const part of parts) {
+            const i = n++;
+            send({ type: "say", i, text: part });
+            queue.push({ i, text: part });
+          }
           waiting.wake?.();
         },
         signal: stop.signal,
@@ -244,7 +255,7 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
       written = true;
       waiting.wake?.();
       await voicing;
-      await clipChain;
+      await Promise.allSettled(clipJobs);
       if (!r.ok || !r.id) await giveBackReply(db, sess.userId, ticket);
       if (r.ok) {
         await countLiveTurn(db, call.id, chars);

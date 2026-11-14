@@ -58,8 +58,8 @@ async function call<T>(cfg: RunpodConfig, path: string, init: RequestInit & { js
   return (await res.json()) as T;
 }
 
-export type PrepareOutput = { bundle_key: string; frames: number; width: number; height: number; fps: number; bytes: number; ms: Record<string, number> };
-export type SpeakOutput = { video_b64: string; mime: string; frames: number; next_frame: number; width: number; height: number; bytes: number; ms: Record<string, number> };
+export type PrepareOutput = { bundle_key: string; loop_key?: string | null; loop?: { smoothed: boolean; frames?: number; unique?: number; from_fps?: number }; frames: number; width: number; height: number; fps: number; bytes: number; ms: Record<string, number> };
+export type SpeakOutput = { video_b64: string; mime: string; frames: number; next_frame: number; cycle?: number; width: number; height: number; bytes: number; ms: Record<string, number> };
 
 /** Asks the worker to build a character's bundle from their idle loop (MP4 bytes). Returns the job to follow. */
 export async function startPrepare(cfg: RunpodConfig, input: { id: string; loop: Buffer; bbox_shift?: number }): Promise<{ job_id: string }> {

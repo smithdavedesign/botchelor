@@ -109,7 +109,9 @@ function kitOf(rows: Row[]): FaceKit | null {
   for (const r of rows) {
     if (r.status === "making") kit.making = true;
     if (r.status !== "ready") continue;
-    if (r.part === "loop") kit.loop = faceKitUrl(r.id);
+    // The loop's file can change under the same row (lib/live-face: the renderer's re-timed copy replaces it), and the
+    // file route caches for a year, so its URL carries the row's updated_at.
+    if (r.part === "loop") kit.loop = `${faceKitUrl(r.id)}?v=${Math.floor(new Date(r.updated_at).getTime() / 1000) || 0}`;
     else kit.stills[r.part] = faceKitUrl(r.id);
   }
   const failed = rows.filter((r) => r.status === "failed").sort((x, y) => Number(y.part === "portrait") - Number(x.part === "portrait"))[0];

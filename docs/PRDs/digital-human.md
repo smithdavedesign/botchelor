@@ -233,6 +233,35 @@ call (Playwright driving Chrome, the microphone and Deepgram's socket faked, eve
 started 0.2 s after the reply's first words on desktop, 4.0 s after the visitor's line; on the phone 4.5 s after the
 line, before the transcript line had rendered, and the second clip followed 2 s after the first ended.
 
+**Realism pass (2026-11-14, David: "the mouth is super unnatural in the live call with Juniper. What's going on?"):**
+three things, measured on a captured turn (scratchpad `capture-turn.mjs` keeps the clips and voice pieces a real
+turn streams):
+
+1. *Two mouths in one reply.* The browser held each piece's voice 4 s for its clip; the clips of a two-piece reply
+   came 4.2 s and 5.4 s after their voice ended (the server asked for a clip only once a whole piece's voice was in,
+   and rendered the pieces one after another), so pieces fell back to the kit's still-mouth at random, after a
+   four-second silence, with the head jumping at every clip edge because the idle loop underneath played on
+   regardless. Now the server renders every piece's clip the moment its voice is in, all at once, each starting in
+   the idle cycle where the one before ends (the frame count is known from the voice's length: `framesOfPcm`), and a
+   long first sentence goes as two pieces split at a clause (`splitFirstPiece`) so the first clip is ready sooner.
+   The browser decides once per reply: the first piece's clip within `CLIP_HOLD_MS` (4 s) makes it a clip reply, in
+   which every piece waits for its clip (`CLIP_LATE_MS`, 8 s) and plays in order through two video elements that
+   hand over frame to frame; late or failed, and the whole reply plays the plain way and its clips are dropped. The
+   kit's loop pauses under a clip and takes over where the last clip left off (`loopTimeAtCycleFrame`: the cycle runs
+   the loop forward then back, so the handover is at worst a turn, never a jump).
+2. *A 16-fps head under a 25-fps mouth.* The kit's loop is a Wan render at 16 fps in a 25-fps file: 38% of its
+   frames repeat the one before, so the head stuttered at 16 Hz while MuseTalk drew a new mouth on all 25. The
+   worker now re-times such a loop before building the bundle (mpdecimate finds exactly the repeats, 127 → 79;
+   minterpolate fills real frames between them, 124 even frames for the same five seconds) and stores the re-timed
+   loop, which becomes the kit's loop too (`collectLiveFaces`), so the living face is smooth as well. Kit loop URLs
+   now carry `?v=<updated_at>` because the file route caches for a year.
+3. *MuseTalk's own mouth.* Small movements, little jaw, a soft pasted region. Its one knob, the mouth-box shift,
+   made no visible difference on Juniper at +8, +14 or -6 (openness range 21–28 on the same clause), so it stays 0
+   (`LIVE_FACE_BBOX_SHIFT` sets it for new faces). The clip's audio and length are exact (a 2.72-s piece is 2.72 s
+   of video with its own waveform), so sync is not the issue; what's left is the renderer's ceiling, and the next
+   step past it is a different model (LatentSync or a Wan talking-head pass per clause, both slower) if the first
+   two fixes don't carry it.
+
 **Latency:** a clause's clip arrives roughly two seconds after its voice (render ≈ frames at 50 fps + encode); the
 browser holds the voice for it (measured above: the first clip and the first words start together). Simli is nearer one second end to end. If the hold reads as a pause, the next steps
 are rendering in shorter pieces, `ultrafast` x264 or a smaller clip, and Runpod's WebSocket load-balancing endpoint

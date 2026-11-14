@@ -10,12 +10,18 @@ monthly plan. Runpod's terms exclude adult content, so this serves PG calls only
 
 | op | input | output |
 |---|---|---|
-| `prepare` | `id`, `loop_url` or `loop_b64` (MP4, 25 fps, a face in every frame), `bbox_shift` | `bundle_key` (in the show's object store under `live-face/<id>/`), `frames`, `width`, `height`, `fps`, `ms` |
-| `speak` | `bundle_key`, `audio_b64` (`audio_format` `pcm16` at `rate`, or `wav`), `fps`, `start_frame` | `video_b64` (MP4, H.264 + AAC), `frames`, `next_frame`, `ms` |
+| `prepare` | `id`, `loop_url` or `loop_b64` (MP4, 25 fps, a face in every frame), `bbox_shift` | `bundle_key` (in the show's object store under `live-face/<id>/`), `frames`, `width`, `height`, `fps`, `ms`, `loop` (what the re-timing did), `loop_key` (the re-timed loop in the store, or null) |
+| `speak` | `bundle_key`, `audio_b64` (`audio_format` `pcm16` at `rate`, or `wav`), `fps`, `start_frame` | `video_b64` (MP4, H.264 + AAC), `frames`, `next_frame`, `cycle` (the idle cycle's length: the loop forward and back), `ms` |
 | `warm` | | `ok` |
 
 `prepare` is asked with `/run` and followed with `/status` (a minute or two: landmarks, crops, VAE latents and blend
-masks for every frame of the loop). `speak` is `/runsync` (a second or two warm). `start_frame` lets a run of clauses
+masks for every frame of the loop). It first re-times a loop whose motion is slower than its frame rate: the kit's
+loops are Wan renders at 16 fps in a 25-fps file (38% of Juniper's frames repeated the one before), and a mouth drawn
+fresh on all 25 over a head that moved on 16 read as wrong. mpdecimate's defaults find exactly those repeats; the real
+frames are spread at their own rate and `minterpolate` (mci, aobmc, bidir) fills the frames between: 127 → 124 frames,
+all different, for the same five seconds, in about eight seconds of CPU. The re-timed loop goes to the store as
+`loop_key`, and the show makes it the kit's loop too (lib/live-face collectLiveFaces). A loop without that pattern
+passes through untouched (`SMOOTH_MIN_DUP`, 20% repeats). `speak` is `/runsync` (a second or two warm). `start_frame` lets a run of clauses
 continue the idle motion: pass the previous clip's `next_frame`.
 
 ## Environment

@@ -16,3 +16,6 @@ next-env.d.ts
 .claude/settings.local.json
 .claude/scheduled_tasks.lock
 .claude/worktrees/
+
+# Python byte-code (workers/live-face is edited and py_compile-checked from here)
+__pycache__/
