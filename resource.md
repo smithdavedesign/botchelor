@@ -54,7 +54,7 @@ Every dashboard, console and listing used for this project. Links only, no secre
 ## MCP listings
 Checked live 2026-11-08.
 - [Public MCP repo smithdavedesign/botchelor-mcp](https://github.com/smithdavedesign/botchelor-mcp): README, server.json and MIT license only (no app code), so that directories that need a public GitHub repo can list us
-- [Official MCP Registry entry](https://registry.modelcontextprotocol.io/v0/servers?search=botchelor) (`io.github.smithdavedesign/botchelor`, latest 2.26.0; source `registry/server.json`)
+- [Official MCP Registry entry](https://registry.modelcontextprotocol.io/v0/servers?search=botchelor) (`io.github.smithdavedesign/botchelor`; source `registry/server.json`, kept at the live server's version by `tests/mcp-registry-version.test.ts`, and copied into the public MCP repo)
 - [mcp.so listing](https://mcp.so/servers/botchelor) (Verified, Featured)
 - [mcp.so submission edit](https://mcp.so/sign-in?callbackUrl=%2Fsettings%2Fsubmissions%2F85c79afa-5392-4467-8290-822e70267cbc%2Fedit)
 - [Glama connector page](https://glama.ai/mcp/connectors/com.botchelor/botcherlor)
