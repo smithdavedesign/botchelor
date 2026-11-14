@@ -1265,6 +1265,28 @@ create table if not exists live_face_clips (
   updated_at timestamptz not null default now()
 );
 create unique index if not exists live_face_clips_one on live_face_clips (character_id, source_id, kind);
+-- Cast video intros (lib/cast-intros.ts): a short OmniHuman clip of a show character saying hello in their own voice,
+-- rendered once from their portrait (David, 2026-11-14: the show's cast only, as a demo); the voice and the clip in
+-- the object store (or the row, without one).
+create table if not exists character_intros (
+  id text primary key,
+  character_id text not null references characters (id) on delete cascade,
+  line text not null,
+  voice text not null,
+  renderer text not null,
+  status text not null check (status in ('making', 'ready', 'failed')),
+  audio_key text,
+  audio_data bytea,
+  seconds real,
+  mime text,
+  object_key text,
+  data bytea,
+  cost_usd real,
+  error text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create unique index if not exists character_intros_one on character_intros (character_id);
 -- Subscription plans sold on a Stripe Payment Link (lib/paid-plans.ts): one row per person and plan.
 create table if not exists plan_entitlements (
   user_id text not null,

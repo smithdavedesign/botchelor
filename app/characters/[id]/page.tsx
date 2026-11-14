@@ -8,6 +8,7 @@ import { notFound } from "next/navigation";
 import Avatar from "@/app/Avatar";
 import { AiFiction, AiTag } from "@/app/AiLabel";
 import CharacterName from "@/app/CharacterName";
+import { introOf } from "@/lib/cast-intros";
 import { characterPortrait } from "@/lib/portraits";
 import Pager from "@/app/Pager";
 import { pageHref, pageOf as pageSlice, parsePage } from "@/lib/paging";
@@ -352,6 +353,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
         }
       : null;
 
+  const intro = await introOf(db, c.id);
   return (
     <article>
       <JsonLd
@@ -414,6 +416,15 @@ export default async function CharacterPage({ params, searchParams }: Props) {
           )}
         </div>
       </div>
+      {intro && (
+        <figure className="intro-card">
+          {/* Their hello (lib/cast-intros.ts): a short OmniHuman clip in their own voice, rendered once; muted until played, like the reels. */}
+          <video src={intro.url} poster={c.portrait_asset_id ? `/api/assets/${c.portrait_asset_id}` : (characterPortrait(c.id) ?? undefined)} muted autoPlay loop playsInline controls preload="metadata" />
+          <figcaption className="muted small">
+            {c.name} says hello{intro.seconds ? ` · ${Math.round(intro.seconds)} s` : ""} · <AiTag label="AI-generated video" />
+          </figcaption>
+        </figure>
+      )}
       {/* Share them: the phone's share sheet, else the link copied (it was a whole card at the bottom, a cut-off URL field
           on a phone). */}
       {!c.private && (
