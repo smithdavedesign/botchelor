@@ -779,8 +779,9 @@ export default function CompanionCall({
         for (const p of pieces) player.current.push(p.pcm, p.rate);
         return player.current.idle();
       };
-      // In a clip reply it takes its turn among the clips; otherwise it plays now.
-      if (mode === "clips" && face.current) face.current.plain(i, play);
+      // Under a clip session every plain piece goes through the face, in order, so the kit's mouth moves to it and the
+      // loop steps aside (LiveFace.plain); with no clip session it plays now.
+      if (face.current?.clips()) face.current.plain(i, play);
       else void play();
     };
     const goPlain = () => {
@@ -829,8 +830,9 @@ export default function CompanionCall({
         } else if (ev.type === "audio") {
           if (voiceOff.current) {
             // Nothing: the device says the words.
-          } else if (mode !== "plain" && face.current?.clips()) {
-            // Held for the piece's clip, which says it with the voice in it.
+          } else if (face.current?.clips()) {
+            // Held for the piece's clip, which says it with the voice in it (or, in a plain reply, for its turn as a
+            // whole piece through the face).
             const pieces = held.get(ev.i) ?? [];
             pieces.push({ pcm: ev.pcm, rate: ev.rate });
             held.set(ev.i, pieces);
@@ -844,7 +846,10 @@ export default function CompanionCall({
           }
         } else if (ev.type === "audio_end") {
           voiced.add(ev.i);
-          if (held.has(ev.i)) arm(ev.i);
+          if (held.has(ev.i)) {
+            if (mode === "plain") playPlain(ev.i);
+            else arm(ev.i);
+          }
         } else if (ev.type === "video") {
           const end = ev.end_frame ?? null;
           if (mode === "plain" || fallen.has(ev.i) || voiceOff.current || !face.current?.clips()) {
