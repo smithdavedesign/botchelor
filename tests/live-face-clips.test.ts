@@ -10,6 +10,12 @@ describe("a reply's first piece, split at a clause for a sooner first clip", () 
     expect(a).toBe("Spent the morning untangling the weathervane from a fishing net,");
     expect(b).toBe("which the sea left like a calling card.");
   });
+  it("splits before a clause word such as until", () => {
+    expect(splitFirstPiece("The stove refused to light until I promised it a story about the phantom seal.")).toEqual([
+      "The stove refused to light",
+      "until I promised it a story about the phantom seal.",
+    ]);
+  });
   it("splits before a conjunction when there is no punctuation", () => {
     const [a, b] = splitFirstPiece("I spent the whole morning on the roof and the gulls were louder than usual up there.")!;
     expect(a).toBe("I spent the whole morning on the roof");

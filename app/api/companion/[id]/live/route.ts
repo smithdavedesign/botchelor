@@ -23,7 +23,7 @@ import { getDb } from "@/lib/db";
 import { ensureFaceKit } from "@/lib/face-kit";
 import { liveFaceClips, liveFaceSession } from "@/lib/live-face";
 import { speakClip } from "@/lib/live-face/musetalk";
-import { framesOfPcm, splitFirstPiece } from "@/lib/live-face-shared";
+import { framesOfPcm, SHORT_FIRST_PIECE, SHORT_FIRST_WAIT_MS, splitFirstPiece } from "@/lib/live-face-shared";
 import { handle, json, parseBody, readJson, session } from "@/lib/http";
 import { overLimit } from "@/lib/limits";
 import { inBackground } from "@/lib/sets";
@@ -235,23 +235,48 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
         }
       })();
       let n = 0;
+      // With clips, the first piece is shaped for the first clip: a very short one ("Hey.") waits a moment for the
+      // next and goes with it (its clip would be over before the next was ready: a pause right after the first word),
+      // and a long one goes as two pieces split at a clause, so the first clip is ready sooner (nothing plays until it
+      // is, and a clip can't render until its whole voice is in): lib/live-face-shared splitFirstPiece.
+      let shortFirst: { text: string; timer: ReturnType<typeof setTimeout> } | null = null;
+      const sayPiece = (text: string) => {
+        const parts = clips && n === 0 ? (splitFirstPiece(text) ?? [text]) : [text];
+        for (const part of parts) {
+          const i = n++;
+          send({ type: "say", i, text: part });
+          queue.push({ i, text: part });
+        }
+        waiting.wake?.();
+      };
+      const flushShortFirst = () => {
+        if (!shortFirst) return;
+        clearTimeout(shortFirst.timer);
+        const t = shortFirst.text;
+        shortFirst = null;
+        sayPiece(t);
+      };
       const r = await liveReply(db, took.turn, {
         say: (text) => {
-          // With clips, a long first sentence goes as two pieces split at a clause: its clip can't render until the
-          // whole voice is in, and nothing plays until that first clip is there (lib/live-face-shared splitFirstPiece).
-          const parts = clips && n === 0 ? (splitFirstPiece(text) ?? [text]) : [text];
-          for (const part of parts) {
-            const i = n++;
-            send({ type: "say", i, text: part });
-            queue.push({ i, text: part });
+          if (clips && n === 0 && !shortFirst && text.trim().length < SHORT_FIRST_PIECE) {
+            shortFirst = { text, timer: setTimeout(flushShortFirst, SHORT_FIRST_WAIT_MS) };
+            return;
           }
-          waiting.wake?.();
+          if (shortFirst) {
+            clearTimeout(shortFirst.timer);
+            const head = shortFirst.text;
+            shortFirst = null;
+            sayPiece(`${head} ${text}`);
+            return;
+          }
+          sayPiece(text);
         },
         signal: stop.signal,
       }).catch((err: unknown): Awaited<ReturnType<typeof liveReply>> => {
         console.error(`[companion-live] reply failed: ${err instanceof Error ? err.message.slice(0, 160) : "unknown"}`);
         return { ok: false, status: 500, error: "internal_error", message: "That didn't work. Try again in a moment." };
       });
+      flushShortFirst();
       written = true;
       waiting.wake?.();
       await voicing;
