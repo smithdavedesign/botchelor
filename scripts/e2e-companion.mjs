@@ -691,7 +691,7 @@ async function main() {
         assert(await p.locator(".companion-stage .scene-act", { hasText: phonePlace }).isVisible(), "the banner should name the place");
         assert(((await p.locator(".companion-thread .companion-action").last().textContent()) ?? "").includes("looks around, smiling"), "their opener should say what they do");
         const textButton = await p.getByRole("button", { name: "📱 Text" }).boundingBox();
-        for (const part of [".companion-head-name strong", ".companion-ai"]) {
+        for (const part of [".companion-head-name strong", ".companion-ai[title]"]) {
           const box = await p.locator(part).boundingBox();
           assert(box && textButton && box.x + box.width <= textButton.x, `${part} should end before the header's buttons`);
         }
@@ -730,14 +730,17 @@ async function main() {
         await p.goto(`${base}${threadPath}`);
         const callButton = p.locator('[data-track="companion-call"]');
         await callButton.waitFor({ timeout: 15_000 });
-        // The name and "AI character" (the disclosure) end before 📞, here and on the narrowest phones (where ← gives way).
+        // The name and "AI character" (the disclosure) end before 📞, here and on the narrowest phones, where the header's
+        // chip gives way (app/ux/companion.css, ≤380px) but the disclosure must still show somewhere on the screen.
         for (const width of [390, 360]) {
           await p.setViewportSize({ width, height: 844 });
           const at = await callButton.boundingBox();
-          for (const part of [".companion-head-name strong", ".companion-ai"]) {
+          for (const part of [".companion-head-name strong", ".companion-ai[title]"]) {
             const box = await p.locator(part).boundingBox();
-            assert(box && at && box.x + box.width <= at.x, `${part} should end before the header's buttons at ${width}px`);
+            assert(!box || (at && box.x + box.width <= at.x), `${part} should end before the header's buttons at ${width}px`);
           }
+          const shown = await p.locator(".companion-ai").evaluateAll((els) => els.filter((e) => e.getClientRects().length > 0).length);
+          assert(shown >= 1, `the AI disclosure should be visible at ${width}px`);
         }
         await p.setViewportSize({ width: 390, height: 844 });
         await callButton.tap();

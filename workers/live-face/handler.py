@@ -233,10 +233,11 @@ def encode_mp4(frames: list[np.ndarray], fps: int, wav: bytes) -> bytes:
 
 # ------------------------------------------------------------------ prepare: loop → bundle
 def smooth_loop(data: bytes) -> tuple[bytes, dict]:
-    """A loop whose motion is slower than its frame rate (Wan renders at 16 fps; the kit's file says 25, so 38% of
-    Juniper's frames were repeats of the one before) has the repeats dropped, the real frames spread at their own rate
-    and the frames between them made by motion interpolation (ffmpeg's minterpolate), so the head moves on every frame
-    the mouth is drawn on. A loop without that pattern passes through untouched. Returns the loop and what was done."""
+    """The loop at real 25 fps, the rate the clips are drawn at. The kit's loops are Wan renders at 16 fps (81 frames);
+    a copy pulled down to 25 by repeating frames (38% of the spike's) has the repeats dropped and the real frames spread
+    at their own rate first. Then motion interpolation (ffmpeg's minterpolate) makes the frames between, so the head
+    moves on every frame the mouth is drawn on, at its own speed. A 25-fps loop without repeats passes through
+    untouched. Returns the loop and what was done."""
     work = tempfile.mkdtemp(prefix="smooth-")
     try:
         src = os.path.join(work, "in.mp4")
@@ -254,18 +255,23 @@ def smooth_loop(data: bytes) -> tuple[bytes, dict]:
         counts = re.findall(r"frame=\s*(\d+)", p.stderr)
         unique = int(counts[-1]) if counts else total
         dup = (total - unique) / total
-        if dup < SMOOTH_MIN_DUP:
-            return data, {"smoothed": False, "frames": total, "unique": unique, "dup": round(dup, 3)}
-        src_fps = unique / (total / fps)
+        pulled_down = dup >= SMOOTH_MIN_DUP
+        # The kit's loops come straight from Wan at 16 fps (81 frames, no repeats); a loop like Juniper's spike copy was
+        # that same motion pulled down to 25 by repeating frames. Either way the clips are drawn at 25 fps, so a cycle
+        # at any other rate would run the head too fast or too slow: both get real 25-fps frames by interpolation.
+        if not pulled_down and abs(fps - 25.0) < 0.5:
+            return data, {"smoothed": False, "frames": total, "unique": unique, "dup": round(dup, 3), "fps": round(fps, 2)}
+        src_fps = unique / (total / fps) if pulled_down else fps
         out = os.path.join(work, "out.mp4")
-        vf = f"mpdecimate,setpts=N/({src_fps:.4f}*TB),minterpolate=fps=25:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1:scd=none"
+        head = f"mpdecimate,setpts=N/({src_fps:.4f}*TB)," if pulled_down else ""
+        vf = f"{head}minterpolate=fps=25:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1:scd=none"
         subprocess.run(
             [FFMPEG, "-v", "error", "-y", "-i", src, "-vf", vf, "-an", "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p", "-movflags", "+faststart", out],
             check=True, capture_output=True, timeout=900,
         )
         with open(out, "rb") as f:
             smooth = f.read()
-        return smooth, {"smoothed": True, "frames": total, "unique": unique, "dup": round(dup, 3), "from_fps": round(src_fps, 2)}
+        return smooth, {"smoothed": True, "frames": total, "unique": unique, "dup": round(dup, 3), "from_fps": round(src_fps, 2), "pulled_down": pulled_down}
     finally:
         shutil.rmtree(work, ignore_errors=True)
 

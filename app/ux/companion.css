@@ -641,9 +641,19 @@ body:has(.companion-fullscreen) .site-footer {
   }
 }
 @media (max-width: 380px) {
-  /* The narrowest phones: "AI character" gives way before ← does. */
+  /* The narrowest phones: the chip keeps its 🤖 (the disclosure stays on screen, with its title) and the words go to
+     screen readers only, so the name still ends before ← has to give way. */
   .companion-head .companion-ai {
-    display: none;
+    padding-inline: 0.35rem;
+  }
+  .companion-head .companion-ai-words {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
   }
 }
 @media (max-width: 720px) {
