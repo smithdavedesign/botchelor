@@ -362,6 +362,10 @@ that cost the spike time: PyPI's `onnxruntime-gpu` is a CUDA-13 build (HuBERT si
 numpy 2.0.1, the twelve engines baked in; jobs `speak` and `warm`, registrations cached per still; pushed as a `ditto-<n>` tag
 of the same public GHCR package; endpoint `k6mzbe6h1jgc19`), `lib/live-face/ditto.ts` (`LIVE_FACE_DITTO_ENDPOINT`, same `RUNPOD_API_KEY`) and the
 `ditto` renderer on the compare page, so it sits in the same table as the seven above on the same line and face.
+Proved on a 4090 pod from the image: engines in 2.7 s, Juniper's 5.6-s clause in 3.16 s (0.55× real time; registration
+44 ms, then a 6-ms cache hit), 141 frames at 512². One trap on the way: Ditto's Cython blend step compiles with
+`-march=native` on first import, so the binary built on GitHub's runner hit an illegal instruction on Runpod's EPYC hosts
+and every worker came up unhealthy; the image now builds it for a portable target (`build-blend.py`).
 
 **What moving calls onto it takes (next):** Ditto has no idle cycle to index, so continuity between a reply's clauses is
 motion state, not MuseTalk's `start_frame`: carry the last clause's pose into the next (`ctrl_info`, `fade_in`/`fade_out`),

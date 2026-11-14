@@ -44,7 +44,11 @@ start, in `warm`, on Ditto's sample portrait.
    2.0), and the twelve `ditto_trt_Ampere_Plus` engines (2.0 GB; HuBERT alone 1.4 GB). `constraints.txt` pins what
    every pip step must keep; the Dockerfile compiles Ditto's Cython blend step and imports the pipeline at build, so a
    broken stack fails the build, not the first job. Ditto's ONNX detectors and mediapipe are not needed on the
-   TensorRT path (every model in `v0.4_hubert_cfg_trt.pkl` is an engine).
+   TensorRT path (every model in `v0.4_hubert_cfg_trt.pkl` is an engine). Ditto's Cython blend step is built in place
+   by `build-blend.py` for x86-64-v2: its own `blend.pyxbld` compiles with `-march=native` on first import, and the
+   binary pyximport built on GitHub's runner died with "Illegal instruction" on Runpod's EPYC hosts (every `ditto-3`
+   worker unhealthy; traced on a pod with `python -X faulthandler`). The build check asserts the prebuilt module is
+   the one imported.
 2. Runpod (the setup key, `vault/botchelor/RUNPOD_ADMIN_KEY`): a template for the image (`MODE_TO_RUN=serverless`
    is baked in; no secrets needed) and a QUEUE endpoint on the same pools and scaling as the MuseTalk one
    (`ADA_24` + `AMPERE_24`, 0–3 workers, idle 60 s, QUEUE_DELAY 1, FlashBoot, 180-s timeout), with
@@ -57,6 +61,14 @@ start, in `warm`, on Ditto's sample portrait.
    compare page (`/admin/live-face`) then lists `ditto`; calls keep MuseTalk until Ditto is wired into
    `liveFaceClips` (its continuity is motion state, not a frame index, and the between-clip loop should be
    Ditto-rendered too).
+
+## Measured
+
+On a secure 4090 pod from the image (2026-11-14), Juniper's kit portrait (512², WebP) and the sample Aura clause
+(5.64 s): engines loaded in 2.7 s; the warm-up clause (1 s of silence on Ditto's sample portrait) 2.2 s, of which
+1.2 s was the first registration; then the clause → 141 frames in 3.16 s (registration 44 ms, HuBERT 149 ms, motion +
+render 2.85 s, mux 94 ms; 303 KB), and the same clause again in 3.10 s with the registration a 6-ms cache hit. That is
+0.55× real time, MuseTalk's speed, with the whole head moving.
 
 ## Cost
 
