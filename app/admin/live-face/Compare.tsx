@@ -38,7 +38,22 @@ export default function Compare() {
   useEffect(() => {
     void load();
     void fetch("/api/me/live-face").then(async (r) => r.ok && setMine(((await r.json()) as { renderer: string }).renderer));
+    // A link to one compare (?compare=<id>) opens it: the page is shareable per compare.
+    const wanted = new URLSearchParams(window.location.search).get("compare");
+    if (wanted) {
+      void fetch(`/api/admin/live-face/compare?id=${encodeURIComponent(wanted)}`).then(async (res) => {
+        if (res.ok) setOpen((await res.json()) as { compare: CompareRow; renders: RenderRow[] });
+      });
+    }
   }, [load]);
+
+  // The address follows the compare shown, so copying it links here.
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (open) url.searchParams.set("compare", open.compare.id);
+    else url.searchParams.delete("compare");
+    window.history.replaceState(null, "", url);
+  }, [open?.compare.id]);
 
   // While a compare has renders still going, ask after it every few seconds.
   useEffect(() => {
