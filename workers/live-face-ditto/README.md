@@ -25,7 +25,9 @@ The handler is a generator (Runpod streams every job) started with `return_aggre
 The streamed form is what calls use when the browser can play fragments (it says so with `frags: true` on the turn;
 `LIVE_FACE_FRAGS=0` on the show app turns it off): the chain's next clause is queued the moment this one's state is
 out, so the clause-to-clause gap goes, and a clause's first frames leave the worker ~0.4 s after its voice is in
-instead of after the whole clip. There is no `prepare`: Ditto registers a still in a fraction of a second (face detection,
+instead of after the whole clip. Measured on the endpoint (2026-11-14, warm): the 5.64-s clause's state at 1.6 s from
+submission, first fragment at 2.1 s, end at 4.6 s (19 pieces); 1.88-s clauses state ≈ 0.9 s, first fragment ≈ 1.4 s.
+On production in Chrome: a clause's start 0.26 s after its voice ended, its first fragment 1.4 s after. There is no `prepare`: Ditto registers a still in a fraction of a second (face detection,
 landmarks, appearance and motion features), and the worker keeps the last `REGISTRATIONS` (16) registrations in
 memory and a still fetched by URL for `URL_CACHE_S` (15 min), so a call's clauses after the first skip both. The
 first clause on a fresh worker pays TensorRT's first run (about 13 s); the worker does that itself at start, in

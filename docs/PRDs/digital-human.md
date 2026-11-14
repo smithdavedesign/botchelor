@@ -494,7 +494,15 @@ the character, memory, voice orchestration and animation state; keep the rendere
    the route's `video_start` / `video_frag` / `video_end` events when the browser sends `frags: true` on the turn
    (`LIVE_FACE_FRAGS=0` turns it off), and `LiveFace`'s MediaSource path (one MediaSource per reply in sequence mode,
    pieces appended per clause in order, Safari's ManagedMediaSource first, whole clips where neither exists; a plain
-   piece takes its turn in the same order; a 4-s stall ends the reply where it is).
+   piece takes its turn in the same order; a 4-s stall ends the reply where it is). **Live 2026-11-14 ~19:35 UTC**
+   (PR #1598; the Ditto endpoint on image `ditto-11`). Production proof, real admin calls in Chrome on desktop and a
+   390-px phone (the microphone and Deepgram's socket faked, the model, the voice and the frames real): a clause's
+   `video_start` 0.26 s after its voice ended, its first fragment 1.4 s after, the next clause's job already queued
+   on the state before this one's frames began (its start item arrives before them, which the browser orders per
+   clause); 135 fragments over nine clauses with no failure; the first picture 0.8 s after the reply's first words
+   and 3.7–3.8 s after the visitor's line, against 5.2–6.2 s with whole clips the same afternoon. A run on a worker
+   that had just restarted showed the other path: the first clause timed out, the chain gave the reply up and all
+   three clauses were failed at once, and the reply played plain over the idle.
 3. **AVTR-1: read, don't build.** The most relevant open model in the list (153 M parameters, BOTH sides' audio in so
    the face reacts while listening, 25 fps on a 4060 Ti), but its renderer and streaming backend are non-commercial
    and it depends on InsightFace (also non-commercial). *Checked 2026-11-14 (LICENSE.md, Goodsize Inc., 2026-05-20):*
