@@ -275,11 +275,22 @@ def handler(job: dict) -> dict:
 
 
 _WARM = False
-try:
-    warmup()
-    _WARM = True
-except Exception as e:  # a cold first clause is the only cost of a failed warm-up
-    log(f"warm-up skipped: {e!r}")
+
+
+def warm_in_background() -> None:
+    """The warm-up clause after the worker has registered with Runpod, not at import: a worker that spends its first
+    half minute rendering before it says hello reads as unhealthy. A real job that lands first simply pays the first
+    run itself (GPU_LOCK serialises them)."""
+
+    def run() -> None:
+        global _WARM
+        try:
+            warmup()
+            _WARM = True
+        except Exception as e:  # a cold first clause is the only cost of a failed warm-up
+            log(f"warm-up skipped: {e!r}")
+
+    threading.Thread(target=run, name="warm", daemon=True).start()
 
 
 def self_test() -> None:
@@ -309,6 +320,8 @@ if __name__ == "__main__":
     if MODE == "serverless":
         import runpod
 
+        warm_in_background()
         runpod.serverless.start({"handler": handler})
     else:
+        warmup()
         self_test()

@@ -35,9 +35,15 @@ RUN python -m pip install --upgrade pip wheel "setuptools<81" \
     && python -m pip install --no-build-isolation tensorrt==8.6.1 --extra-index-url https://pypi.nvidia.com \
     && python -m pip install -r /app/requirements.txt
 
-# Fail the build, not the first job, if the stack is inconsistent: numpy 2.0.1, TensorRT importable, the Cython blend
-# compiled, and the pipeline module importable (it pulls in every component).
-RUN python -c "import numpy, cv2, torch, tensorrt, librosa, soundfile, imageio_ffmpeg; from cuda import cudart; assert numpy.__version__ == '2.0.1', numpy.__version__; assert tensorrt.__version__.startswith('8.6.1'), tensorrt.__version__; import sys; sys.path.insert(0, '/app/ditto'); from core.utils.blend import blend_images_cy; import stream_pipeline_offline; print('stack ok: numpy', numpy.__version__, 'torch', torch.__version__, 'tensorrt', tensorrt.__version__, 'cv2', cv2.__version__)"
+# Ditto's blend step is Cython that pyximport would compile on first import with `-march=native`: built on the CI
+# runner, that binary died with "Illegal instruction" on Runpod's EPYC hosts (2026-11-14). It's built here instead,
+# in place and for a portable x86-64-v2 target, so the import finds the module and pyximport never compiles anything.
+COPY build-blend.py /app/build-blend.py
+RUN cd /app/ditto/core/utils/blend && python /app/build-blend.py && ls -la blend*.so && rm -rf build /root/.pyxbld
+
+# Fail the build, not the first job, if the stack is inconsistent: numpy 2.0.1, TensorRT importable, the blend module
+# the prebuilt one (no pyximport build directory appears), and the pipeline module importable (it pulls in every component).
+RUN python -c "import numpy, cv2, torch, tensorrt, librosa, soundfile, imageio_ffmpeg; from cuda import cudart; assert numpy.__version__ == '2.0.1', numpy.__version__; assert tensorrt.__version__.startswith('8.6.1'), tensorrt.__version__; import sys, os; sys.path.insert(0, '/app/ditto'); from core.utils.blend import blend; assert blend.__file__.startswith('/app/ditto/core/utils/blend/'), blend.__file__; assert not os.path.exists('/root/.pyxbld'), 'pyximport compiled the blend'; import stream_pipeline_offline; print('stack ok: numpy', numpy.__version__, 'torch', torch.__version__, 'tensorrt', tensorrt.__version__, 'cv2', cv2.__version__, 'blend', blend.__file__)"
 
 # Weights: the config pickles and the TensorRT engines built for Ampere and newer (workers/live-face-ditto/weights.py)
 COPY weights.py /app/weights.py
