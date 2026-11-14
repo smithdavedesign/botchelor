@@ -33,7 +33,7 @@ import { shortName } from "./names";
 import { AGENDA_IDS, DATE_VARIABLES, DEFAULT_GAME_BUDGET, DEFAULT_STRATEGY, type AgendaId, type DateVariable, type Ending } from "./rules";
 import { CHARACTER_REJECTION_MESSAGES, checkFields, type RejectReason } from "./safety";
 import { sheetSignals } from "./temperament";
-import { DEALBREAKER_MAX, NAME_MAX, TRAIT_MAX, WANT_MAX } from "./field-limits";
+import { DEALBREAKER_MAX, NAME_MAX, NAME_MAX_WORDS, nameWords, TRAIT_MAX, WANT_MAX } from "./field-limits";
 
 export const CHEMISTRY_TEST_PATH = "/tools/oc-chemistry-test";
 export const CHEMISTRY_RESULT_PATH = `${CHEMISTRY_TEST_PATH}/result`;
@@ -51,8 +51,8 @@ export type ChemistryForm = Partial<Record<FieldParam, string>>;
 
 /** The longest each field may be: what /create's builder (app/create/CreateWizard.tsx) and its save take. */
 export const SHEET_LIMITS: Record<SheetField, number> = { name: NAME_MAX, trait1: TRAIT_MAX, trait2: TRAIT_MAX, trait3: TRAIT_MAX, want: WANT_MAX, dealbreaker: DEALBREAKER_MAX };
-/** The most words a name may have, as on /create (POST /api/characters). */
-export const NAME_MAX_WORDS = 5;
+/** The most words a name may have, as on /create (POST /api/characters): lib/field-limits.ts. */
+export { NAME_MAX_WORDS };
 
 /** Each ending's share of 0–100: the score says how clearly a pair lands where it does. */
 export const SCORE_BANDS: Record<Ending, readonly [number, number]> = { disaster: [0, 39], friends: [40, 64], second_date: [65, 100] };
@@ -107,7 +107,7 @@ export type ChemistryRead =
 function shapeError(field: SheetField, value: string): string | null {
   if (!value) return "Required.";
   if (value.length > SHEET_LIMITS[field]) return `At most ${SHEET_LIMITS[field]} characters.`;
-  if (field === "name" && value.split(/\s+/).length > NAME_MAX_WORDS) return `At most ${NAME_MAX_WORDS} words.`;
+  if (field === "name" && nameWords(value) > NAME_MAX_WORDS) return `At most ${NAME_MAX_WORDS} words.`;
   return null;
 }
 

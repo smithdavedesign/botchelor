@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { trackConversion } from "@/app/conversion";
 import DateConfirm from "@/app/DateConfirm";
-import { requestJson } from "@/app/request";
+import { requestJson, watchLinkOf } from "@/app/request";
 import RoleplayPicker, { choiceReady, roleplayFields, type RoleplayChoice } from "@/app/RoleplayPicker";
 import type { DateCta } from "@/lib/date-cta";
 import { shortName } from "@/lib/names";
@@ -37,7 +37,7 @@ export default function DateThisCharacter({
   // One that's free to go first (a taken one, with someone else and wanting only them, is listed but can't go).
   const [pick, setPick] = useState((mine.find((m) => !m.taken) ?? mine[0])?.id ?? "");
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<{ text: string; shop?: boolean } | null>(null);
+  const [message, setMessage] = useState<{ text: string; shop?: boolean; link?: { href: string; label: string } } | null>(null);
   // David, 2026-10-23: the booker may say where the date happens (else a texted plan, else the show picks).
   const [place, setPlace] = useState("");
   const [roleplay, setRoleplay] = useState<RoleplayChoice | null>(null);
@@ -75,7 +75,7 @@ export default function DateThisCharacter({
       trackConversion("date_started", { mode: "partner" });
       return router.push(`/episodes/${res.data.id}?play=1`);
     }
-    setMessage({ text: res.message, shop: res.status === 402 || res.status === 429 });
+    setMessage({ text: res.message, shop: res.status === 402 || res.status === 429, link: watchLinkOf(res.data) });
   }
 
   return (

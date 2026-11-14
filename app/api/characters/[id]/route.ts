@@ -1,5 +1,5 @@
 import { AUDIENCES } from "@/lib/audience";
-import { APPEARANCE_MAX, BIO_MAX, DEALBREAKER_MAX, NAME_MAX, TRAIT_MAX, WANT_MAX } from "@/lib/field-limits";
+import { APPEARANCE_MAX, BIO_MAX, DEALBREAKER_MAX, NAME_MAX, NAME_MAX_WORDS, nameWords, TRAIT_MAX, WANT_MAX } from "@/lib/field-limits";
 import { nameCheck } from "@/lib/name-check";
 import { z } from "zod";
 import { TALK_LEVELS } from "@/lib/talk";
@@ -28,7 +28,6 @@ type Ctx = { params: Promise<{ id: string }> };
 
 const MIN_AGE = 18;
 const MAX_AGE = 1000;
-const MAX_NAME_WORDS = 5;
 const text = (max: number) => z.string().trim().min(1, "Required.").max(max, `At most ${max} characters.`);
 
 /**
@@ -39,7 +38,7 @@ const text = (max: number) => z.string().trim().min(1, "Required.").max(max, `At
  */
 const CharacterPatch = z
   .object({
-    name: text(NAME_MAX).refine((s) => s.split(/\s+/).length <= MAX_NAME_WORDS, `At most ${MAX_NAME_WORDS} words.`).optional(),
+    name: text(NAME_MAX).refine((s) => nameWords(s) <= NAME_MAX_WORDS, `At most ${NAME_MAX_WORDS} words.`).optional(),
     age: z.number().int().min(MIN_AGE, "Characters must be adults (18+).").max(MAX_AGE, `At most ${MAX_AGE}.`).optional(),
     bio: text(BIO_MAX).optional(),
     traits: z.array(text(TRAIT_MAX)).length(3, "Give exactly three traits.").optional(),
