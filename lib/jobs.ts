@@ -276,6 +276,30 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
       wishes: true,
       engineVersion: row.setup?.engine_version ?? 1,
       onDraft: (d) => void drafts.push(d),
+      // The early verdict (the 2026-11-14 core plan, PR3): the ending as it will stand, saved the moment the characters'
+      // answers weighed in, so the creator's stage shows the verdict card while the recap, afterglow and reflections are
+      // still being written. setup.ending_final tells the stage this ending is the real one (the booked ending on the row
+      // was only the engine's first word). The finished date's write below still wins; a failed date is still deleted.
+      onOutcome: (outcome, lines) =>
+        db
+          .query(
+            `update episodes
+                set ending = $2, drama_question = $3, drama_answer = $4, sides = $5::jsonb,
+                    transcript = coalesce($6::jsonb, transcript), turn_meta = coalesce($7::jsonb, turn_meta),
+                    setup = coalesce(setup, '{}'::jsonb) || '{"ending_final":true}'::jsonb
+              where id = $1 and status = 'generating'`,
+            [
+              episodeId,
+              outcome.ending,
+              outcome.drama_question,
+              outcome.drama_answer,
+              JSON.stringify(outcome.sides),
+              // A conversation that failed has no lines here: the ones onTurn saved (and the backfill finishes from) stay.
+              lines.length ? JSON.stringify(lines) : null,
+              lines.length ? JSON.stringify(metaOf(lines, new Date().toISOString())) : null,
+            ],
+          )
+          .then(() => {}),
       // The creator's theater plays the date while it's filmed: each line is saved as it's written (only the
       // creator sees a transcript before it airs, lib/game.ts), and the finished date overwrites it below.
       onTurn: (lines) => {

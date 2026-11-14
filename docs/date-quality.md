@@ -119,6 +119,17 @@ Each step is best-effort except the recap: a failed plan falls back to the deter
 conversation leaves the episode with its recap. Only a recap that fails on every model fails the episode
 (and the async job then refunds the date).
 
+**The early verdict** (2026-11-14, the core plan's PR3). Between steps 2 and 3, once both characters have answered
+"see them again?" and `applyChoices` has settled the ending, `generateDate` calls `onOutcome(outcome, transcript)` once.
+The async job (`lib/jobs.ts`) uses it to write `ending`, `drama_question`, `drama_answer`, `sides` and the transcript
+to the row while it is still `generating`, with `setup.ending_final = true`; the creator's filming stage
+(`app/episodes/[id]/GeneratingPoller.tsx`) reads `ending_final` from the view (creator only, `lib/game.ts`) and shows
+the verdict card the moment every line has played, 30-60 s before the recap, afterglow and reflections make the date
+ready, with a "Skip to the ending" from the moment the ending stands. It is never written from the booking-time roll:
+the row's booked `ending` is the engine's first word, and under engine v5 the characters' answers can move it one
+step, so only the post-choices ending is told. The finished date's write still replaces everything (same ending);
+a failed recap still deletes the date as before.
+
 Models: the **actor** (`LLM_MODEL`, default `gemini-3.5-flash-lite`) speaks every line. The **director**
 (`LLM_DIRECTOR_MODEL`, default: the actor's model) plans and narrates. Temperatures: turns 0.9, afterglow 0.9,
 plan 0.7, recap 0.7, judge 0.2.

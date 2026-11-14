@@ -92,6 +92,13 @@ export type DateSetup = {
    */
   /** They carried an After Dark memory into this date (lib/adult/memory.ts); only its PG note, never the scene. */
   after_dark?: boolean;
+  /**
+   * The early verdict (lib/jobs.ts onOutcome): the job set this, with the ending beside it, once the characters' own
+   * answers weighed in and before the recap was written. While the date is still 'generating', the booked ending on the
+   * row is only the engine's first word (engine v5 can move it); this says the one there now will stand. Stays set once
+   * the date is ready, where every ending is final.
+   */
+  ending_final?: boolean;
   venue?: PlaceId;
   /**
    * The venues the dealer stepped past: where either person's character had its last dates (lib/venues.ts
@@ -291,6 +298,11 @@ export type EpisodeJson = {
   twist?: string;
   finale?: string;
   ending?: Ending;
+  /**
+   * A date still 'generating', seen by its creator: `ending` is decided and will stand (the early verdict, lib/jobs.ts).
+   * Without it, a generating date's `ending` is only the booking's first word, which the characters' answers can still move.
+   */
+  ending_final?: true;
   /** More endings: which kind of `ending` it was (lib/rules.ts ENDING_DETAILS), with its label, once the ending is shown. */
   ending_detail?: EndingDetail;
   ending_detail_label?: string;
@@ -439,6 +451,8 @@ export function toEpisodeJson(ep: StoredEpisode, opts: EpisodeJsonOpts): Episode
     json.twist = ep.twist;
     json.finale = ep.finale;
     json.ending = ep.ending;
+    // The early verdict: only the creator reads a generating date in full, so only they learn the ending stands early.
+    if (ep.status === "generating" && ep.setup?.ending_final === true) json.ending_final = true;
     const kind = endingDetailOf(ep.ending_detail, ep.ending);
     if (kind) {
       json.ending_detail = kind;

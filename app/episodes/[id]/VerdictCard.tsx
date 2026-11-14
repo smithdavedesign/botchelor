@@ -21,6 +21,11 @@ export type VerdictCardProps = {
   /** The site's VAPID public key, when push is set up (lib/push.ts): the "Tell me when they text" row. */
   pushKey: string | null;
   onRestart: () => void;
+  /**
+   * The early verdict (GeneratingPoller.tsx): the ending is decided but the date is still being finished (recap, texts,
+   * reflections), so "Hear from" waits (POST /api/companion/after-date needs the date ready) and says so.
+   */
+  pending?: boolean;
 };
 
 const firstNameOf = (name: string) => name.trim().split(/\s+/)[0] || name;
@@ -33,7 +38,7 @@ const firstNameOf = (name: string) => name.trim().split(/\s+/)[0] || name;
  * every viewer gets, and Watch again. Keeps `.theater-verdict` and `.ending`: scripts/clips/daily-clip.mjs records up to
  * them.
  */
-export default function VerdictCard({ episodeId, endingLabel, you, partner, preview, pushKey, onRestart }: VerdictCardProps) {
+export default function VerdictCard({ episodeId, endingLabel, you, partner, preview, pushKey, onRestart, pending = false }: VerdictCardProps) {
   const router = useRouter();
   const first = firstNameOf(you.name);
   const [busy, setBusy] = useState(false);
@@ -79,10 +84,15 @@ export default function VerdictCard({ episodeId, endingLabel, you, partner, prev
         <p className="verdict-will-text">{first} will text you about it.</p>
       )}
       <p className="verdict-actions">
-        <button type="button" className="primary" onClick={() => void hear()} disabled={busy} data-track="hear-from">
+        <button type="button" className="primary" onClick={() => void hear()} disabled={busy || pending} data-track="hear-from" aria-describedby={pending ? "verdict-pending" : undefined}>
           {busy ? "Opening…" : `Hear from ${first}`}
         </button>
       </p>
+      {pending && (
+        <p className="muted small verdict-pending" id="verdict-pending" role="status">
+          Wrapping up the date; {first} can text you in a moment.
+        </p>
+      )}
       {error && (
         <p className="error small">
           {error}

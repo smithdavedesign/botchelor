@@ -4539,6 +4539,7 @@ button.rating-chip:hover {
 .verdict-will-text,
 .verdict-preview,
 .verdict-actions,
+.verdict-pending,
 .verdict-again {
   margin: 0;
 }
