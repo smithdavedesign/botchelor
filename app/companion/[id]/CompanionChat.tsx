@@ -423,7 +423,7 @@ export default function CompanionChat({
         <div className="companion-head-name">
           <strong>{c.name}</strong>
           <span className="chip companion-ai" title={`${first} is an AI character, not a real person.`}>
-            🤖 AI character
+            🤖<span className="companion-ai-words"> AI character</span>
           </span>
         </div>
         {!paused && !view.scene && canCall && !outOfReplies && (
