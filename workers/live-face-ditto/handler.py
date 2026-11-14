@@ -41,6 +41,15 @@ Jobs ("input" of a Runpod job):
   {"op": "warm"} → {"ok": true}
     Spins a worker up, loads the engines and renders one short clause, so a call's first clause doesn't pay for
     TensorRT's first run (about 13 s on a fresh worker).
+  {"op": "stream_probe", "source_url"|"source_b64", "audio_b64", "audio_format", "rate", "overlap_v2": 60,
+   "sampling_timesteps": 50, "paced": true, "emo": 4}
+      → {"frames", "expected", "first_frame_ms", "lag_ms": {p50, p90, max, last}, "fed_s", "total_s", "audio_s",
+         "realtime_ratio", "video_b64", ...}
+    The experiment behind the streaming worker (docs/PRDs/digital-human.md, "The road from here", 2): the clause
+    through Ditto's ONLINE loop (audio in as 200-ms chunks, frames out as they come), fed at the pace a call would
+    (each chunk when its audio would have arrived), the wall time of every frame against the time its audio ended.
+    `overlap_v2` sets how often the motion model runs (a step every 80 − overlap frames); `sampling_timesteps` its
+    diffusion steps. `paced: false` feeds everything at once for the pure compute ratio.
 """
 from __future__ import annotations
 
@@ -58,7 +67,7 @@ import threading
 import time
 import urllib.request
 
-HANDLER_VERSION = "chain-3"
+HANDLER_VERSION = "chain-4"
 DITTO_DIR = os.environ.get("DITTO_DIR", "/app/ditto")
 DATA_ROOT = os.environ.get("DITTO_DATA_ROOT", os.path.join(DITTO_DIR, "checkpoints/ditto_trt_Ampere_Plus"))
 CFG_PKL = os.environ.get("DITTO_CFG_PKL", os.path.join(DITTO_DIR, "checkpoints/ditto_cfg/v0.4_hubert_cfg_trt.pkl"))
@@ -189,6 +198,38 @@ def _chain_audio2motion_offline(self) -> None:
 
 
 SDK._audio2motion_offline = _chain_audio2motion_offline.__get__(SDK, StreamSDK)
+
+
+def _audio2motion_dispatch(self) -> None:
+    """The motion thread's entry (setup starts it): Ditto's streaming loop when `stream_mode` is on, else the chain's
+    offline loop. Same error handling as Ditto's own audio2motion_worker."""
+    try:
+        if getattr(self, "stream_mode", False):
+            self._audio2motion_worker()
+        else:
+            self._audio2motion_offline()
+    except Exception as e:  # noqa: BLE001 (Ditto's own pattern: the error surfaces from close())
+        self.worker_exception = e
+        self.stop_event.set()
+
+
+SDK.audio2motion_worker = _audio2motion_dispatch.__get__(SDK, StreamSDK)
+SDK.stream_mode = False
+
+
+class TimedWriter:
+    """Ditto's writer with the wall time each frame lands, for the probe's lag numbers."""
+
+    def __init__(self, inner):
+        self.inner = inner
+        self.times: list[float] = []
+
+    def __call__(self, img, fmt="bgr"):
+        self.times.append(time.time())
+        self.inner(img, fmt)
+
+    def close(self):
+        self.inner.close()
 
 
 def _b64_arr(a, dtype: str) -> str:
@@ -460,6 +501,95 @@ def render(source_path: str, wav_path: str, opts: dict) -> tuple[bytes, int, dic
     }, state_out, chain
 
 
+# ------------------------------------------------------------------ stream probe: the online loop, fed as a call would
+def stream_probe(inp: dict) -> dict:
+    t_start = time.time()
+    if not inp.get("audio_b64"):
+        raise ValueError("audio_b64 is required")
+    if inp.get("source_b64"):
+        source_path, width, height = source_path_for(base64.b64decode(inp["source_b64"]))
+    elif inp.get("source_url"):
+        source_path, width, height = source_for_url(str(inp["source_url"]))
+    else:
+        raise ValueError("source_url or source_b64 is required")
+    rate = int(inp.get("rate") or SR)
+    wav = wav_bytes(inp["audio_b64"], str(inp.get("audio_format") or "pcm16"), rate)
+    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False, dir=SOURCE_CACHE) as f:
+        f.write(wav)
+        wav_path = f.name
+    try:
+        audio, _ = librosa.load(wav_path, sr=SR)
+        seconds = len(audio) / SR
+        if seconds > MAX_AUDIO_SECONDS or seconds < 0.5:
+            raise ValueError("a clause between 0.5 s and the limit, please")
+        num_f = math.ceil(seconds * FPS)
+        overlap = int(inp.get("overlap_v2") or 60)
+        steps = int(inp.get("sampling_timesteps") or 50)
+        paced = inp.get("paced", True) is not False
+        chunksize = (3, 5, 2)
+        split_len = int(sum(chunksize) * 0.04 * SR) + 80  # 6480
+        stride = chunksize[1] * (SR // FPS)  # 3200: five frames
+        padded = np.concatenate([np.zeros((chunksize[0] * (SR // FPS),), dtype=np.float32), audio.astype(np.float32)])
+        setup_kwargs = {"online_mode": True, "overlap_v2": overlap, "sampling_timesteps": steps}
+        if inp.get("emo") is not None:
+            setup_kwargs["emo"] = int(inp["emo"])
+        with tempfile.TemporaryDirectory(dir=SOURCE_CACHE) as d:
+            out_path = os.path.join(d, "probe.mp4")
+            with GPU_LOCK:
+                SDK.chain = {}
+                SDK.chain_out = None
+                SDK.stream_mode = True
+                try:
+                    SDK.setup(source_path, out_path, **setup_kwargs)
+                    SDK.writer = TimedWriter(SDK.writer)
+                    SDK.setup_Nd(N_d=-1, fade_in=-1, fade_out=-1, ctrl_info={})
+                    t0 = time.time()
+                    fed = []
+                    for i in range(0, len(padded), stride):
+                        chunk = padded[i : i + split_len]
+                        if len(chunk) < split_len:
+                            chunk = np.pad(chunk, (0, split_len - len(chunk)), mode="constant")
+                        if paced:
+                            # This window's last real sample is at (i + split_len - 3*640) of the clause: wait until a call would have it.
+                            at = t0 + (i + split_len - chunksize[0] * (SR // FPS)) / SR
+                            while time.time() < at:
+                                time.sleep(0.005)
+                        SDK.run_chunk(chunk, chunksize)
+                        fed.append(time.time() - t0)
+                    t_fed = time.time()
+                    SDK.close()
+                    t_end = time.time()
+                    times = list(SDK.writer.times)
+                finally:
+                    SDK.stream_mode = False
+            frames = len(times)
+            lags = [(times[n] - t0 - (n + 1) / FPS) * 1000 for n in range(frames)]
+            srt = sorted(lags)
+            pct = lambda q: (srt[min(len(srt) - 1, int(q * len(srt)))] if srt else None)  # noqa: E731
+            mp4 = mux(SDK.tmp_output_path, wav_path, out_path) if frames else b""
+    finally:
+        os.unlink(wav_path)
+    return {
+        "video_b64": base64.b64encode(mp4).decode(),
+        "mime": "video/mp4",
+        "frames": frames,
+        "expected": num_f,
+        "width": width,
+        "height": height,
+        "overlap_v2": overlap,
+        "sampling_timesteps": steps,
+        "paced": paced,
+        "first_frame_ms": int((times[0] - t0) * 1000) if frames else None,
+        "lag_ms": {"p50": pct(0.5), "p90": pct(0.9), "max": (srt[-1] if srt else None), "last": (lags[-1] if lags else None)},
+        "fed_s": round(t_fed - t0, 3),
+        "total_s": round(t_end - t0, 3),
+        "audio_s": round(seconds, 3),
+        "realtime_ratio": round((t_end - t0) / seconds, 3),
+        "handler": HANDLER_VERSION,
+        "ms": {"total": int((time.time() - t_start) * 1000)},
+    }
+
+
 # ------------------------------------------------------------------ speak: still + audio → clip
 def speak(inp: dict) -> dict:
     t0 = time.time()
@@ -522,6 +652,8 @@ def handler(job: dict) -> dict:
             return {**(warmup() if not _WARM else {"ok": True, "warm": "already", "handler": HANDLER_VERSION}), "registrations": len(SDK.avatar_registrar.cache)}
         if op == "speak":
             return speak(inp)
+        if op == "stream_probe":
+            return stream_probe(inp)
         return {"error": f"unknown op {op}"}
     except Exception as e:  # the SDK marks the job FAILED when "error" is set
         log(f"{op} failed: {e!r}")
