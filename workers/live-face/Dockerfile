@@ -17,13 +17,19 @@ RUN git clone https://github.com/TMElyralab/MuseTalk /app/MuseTalk \
     && cd /app/MuseTalk && git checkout ${MUSETALK_COMMIT} && rm -rf .git
 
 WORKDIR /app/MuseTalk
-COPY requirements.txt /app/requirements.txt
+COPY requirements.txt constraints.txt /app/
+# constraints.txt holds the pins every step below must keep (numpy 1.x above all: see the file).
+ENV PIP_CONSTRAINT=/app/constraints.txt
 RUN python -m pip install --upgrade pip wheel "setuptools<81" \
     && python -m pip install torch==2.0.1 torchvision==0.15.2 torchaudio==2.0.2 --index-url https://download.pytorch.org/whl/cu118 \
     && python -m pip install -r /app/requirements.txt \
     && python -m pip install mmengine "mmcv==2.0.1" --find-links https://download.openmmlab.com/mmcv/dist/cu118/torch2.0/index.html \
     && python -m pip install --no-build-isolation "chumpy==0.70" \
     && python -m pip install "mmdet==3.1.0" "mmpose==1.1.0" gdown
+
+# Fail the build, not the first job, if the stack is inconsistent: numpy must be the 1.x the compiled wheels expect, and
+# the preprocessing path (mmpose + xtcocotools + cv2) must import.
+RUN python -c "import numpy, cv2, torch; assert numpy.__version__ == '1.23.5', numpy.__version__; import xtcocotools._mask; from mmpose.apis import init_model; print('stack ok: numpy', numpy.__version__, 'cv2', cv2.__version__, 'torch', torch.__version__)"
 
 # Weights: MuseTalk 1.5 UNet, SD VAE, Whisper tiny, DWPose, face parsing (what workers/live-face/weights.py lists)
 COPY weights.py /app/weights.py

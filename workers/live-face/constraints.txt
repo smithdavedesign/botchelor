@@ -1,0 +1,12 @@
+# Pins every pip step in the Dockerfile must respect (PIP_CONSTRAINT). The 2026-11-13 image shipped numpy 2.2.6 because
+# mmpose depends on opencv-python, whose current wheels need numpy>=2; xtcocotools (mmpose's COCO tools) is compiled
+# against numpy 1.x and fails to import ("numpy.dtype size changed"), which broke every `prepare` job. Torch is here so
+# no later step can swap the CUDA 11.8 build either.
+numpy==1.23.5
+opencv-python==4.9.0.80
+opencv-python-headless==4.9.0.80
+numba==0.60.0
+llvmlite==0.43.0
+torch==2.0.1
+torchvision==0.15.2
+torchaudio==2.0.2

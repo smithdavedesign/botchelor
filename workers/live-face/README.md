@@ -30,8 +30,12 @@ continue the idle motion: pass the previous clip's `next_frame`.
 ## Build and deploy
 
 1. Actions → "live-face worker image" → run with a tag (`v1`). It pushes `ghcr.io/smithdavedesign/botchelor-live-face:<tag>`
-   (~11 GB: torch, the OpenMMLab stack and the weights). Make the package public once, or give Runpod a registry
-   credential that can read it.
+   (~11 GB: torch, the OpenMMLab stack and the weights). A push to a `live-face-*` branch that touches the worker
+   builds `dev-<run number>` instead: a fresh tag every build, because Runpod caches an image per tag on each host.
+   The package is public (made so 2026-11-13); a private one needs a Runpod registry credential on the template.
+   `constraints.txt` pins what every pip step must keep (numpy 1.23.5 above all: mmpose depends on `opencv-python`,
+   whose current wheels want numpy 2, and xtcocotools can't load under it); the Dockerfile fails the build if the stack
+   doesn't import.
 2. Runpod (the setup key, `vault/botchelor/RUNPOD_ADMIN_KEY`; runpodctl lives in `~/.claude/botchelor-bin`). The
    template through runpodctl; the endpoint through REST v2, because runpodctl's `serverless create` still goes
    through GraphQL, which that key doesn't have (2026-11-13: a 401):
@@ -46,7 +50,15 @@ continue the idle motion: pass the previous clip's `next_frame`.
    ```
    Pools are the catalog's (`GET /v2/catalog/gpus`, field `pool`): `ADA_24` is the 4090, `AMPERE_24` the 3090, A5000
    and L4. No data-center pin and no network volume: the weights are in the image. The first endpoint, 2026-11-13:
-   `rstlknto5x90ad` on template `59ipbcal95` (image tag `dev`).
+   `rstlknto5x90ad` on template `59ipbcal95`. A new build goes live by repointing the template, which gives the
+   endpoint a new release and makes every worker pull it:
+   ```sh
+   curl -X PATCH https://api.runpod.io/v2/templates/59ipbcal95 -H "Authorization: Bearer $RUNPOD_API_KEY" \
+     -H 'Content-Type: application/json' -d '{"image": "ghcr.io/smithdavedesign/botchelor-live-face:<tag>"}'
+   ```
+   Worker logs need a key with more than the Serverless scope (`/v2/serverless/<id>/workers/<worker>/logs` answered
+   403 to the setup key); to see a failing image's traceback, run it on a pod with `cmd` set to an sshd (the
+   2026-11-13 debugging route, `scratchpad` scripts `pod-ssh.sh`) and start `handler.py` by hand in `MODE_TO_RUN=pod`.
 3. The show app: `LIVE_FACE_PROVIDER=musetalk:admins`, `LIVE_FACE_ENDPOINT=<endpoint id>`, `RUNPOD_API_KEY` (the app's
    key, `vault/botchelor/RUNPOD_API_KEY`, Serverless endpoints only).
 
