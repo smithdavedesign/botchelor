@@ -11,7 +11,7 @@ import { unreadTexts } from "@/lib/inbox";
 import { takenWith } from "@/lib/partners";
 import { deckFor, UNDO_MINUTES } from "@/lib/swipes";
 import { withOrigins } from "@/lib/origin";
-import { twinsOfCharacter } from "@/lib/twins";
+import { twinsLast, twinsOfCharacter } from "@/lib/twins";
 import SwipeDeck from "./SwipeDeck";
 import { pushKeys } from "@/lib/push";
 import Avatar from "@/app/Avatar";
@@ -32,10 +32,13 @@ type Props = { searchParams: Promise<{ character?: string }> };
  * 2026-10-18): no site header or footer, a slim bar with ✕, whose deck it is and 💬 Matches. To switch whose deck it
  * is: your characters as a row of faces, as on /matches (David, 2026-10-22), a taken one dimmed and tagged 💍 Taken.
  */
-/** The cards that read like the swiper's own character say so (#426, lib/twins.ts): the card's own line, never a filter. */
+/**
+ * The cards that read like the swiper's own character (#426, lib/twins.ts) say so on the card and go to the end of the
+ * page, in their order (2026-11-14: a card worded like the swiper's own sat second in the deck). Never a filter: they are
+ * someone else's characters all the same, and the agents' deck keeps them where the ranking put them.
+ */
 async function withTwins<T extends { id: string }>(db: Awaited<ReturnType<typeof getDb>>, characterId: string, cards: T[]): Promise<(T & { reads_like_yours?: string | null })[]> {
-  const twins = await twinsOfCharacter(db, characterId).catch(() => new Map<string, string>());
-  return twins.size ? cards.map((c) => (twins.has(c.id) ? { ...c, reads_like_yours: twins.get(c.id) ?? null } : c)) : cards;
+  return twinsLast(cards, await twinsOfCharacter(db, characterId).catch(() => new Map<string, string>()));
 }
 
 export default async function SwipePage({ searchParams }: Props) {

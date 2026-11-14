@@ -13,6 +13,7 @@ vi.mock("next/navigation", async (original) => ({
 import { renderToStaticMarkup } from "react-dom/server";
 import MatchesPage from "@/app/matches/page";
 import SwipePage from "@/app/swipe/page";
+import { twinsLast } from "@/lib/twins";
 import { setSeasonCastForTests } from "@/lib/season-cast";
 import { api, HOUSE_PARTNER_ID, newUserCookie, startTestDb, userIdOf, validCharacter } from "./helpers";
 
@@ -95,29 +96,22 @@ describe("the swipe page: whose deck, as faces", () => {
     expect(html).not.toContain("can&#x27;t swipe right now");
   });
 
-  it("a card that reads like your own character says so on the web too (#426 on the web, 2026-11-13)", async () => {
+  it("a card that reads like your own character says so on the web too, and twins go to the end of the page (#426 on the web)", async () => {
     const owner = newUserCookie();
     const mine = await make("Ambrose Fenn", owner, { bio: "Runs a 24-hour library for insomniac poets. Knows which books are sleeping." });
-    // Someone else's character made from the same words.
+    // Someone else's character made from the same words; the house cast member is the only other card, so both render.
     await make("Seraphina Fenn", newUserCookie(), { bio: "Runs a 24-hour library for insomniac poets. Knows which books are sleeping." });
-    // Someone else again, with a sheet of their own (the detector weighs traits, wants and prompts, not only the bio).
-    await make("Dex Marlow", newUserCookie(), {
-      bio: "Keeps bees on a roof and names every one of them.",
-      traits: ["blunt", "loyal", "restless"],
-      want: "Someone who laughs at bees",
-      dealbreaker: "People who flinch at honey",
-      extras: { prompts: [{ id: "simple_pleasures", answer: "The hum of the hive at dusk." }, { id: "geek_out", answer: "Queen genetics and rooftop drainage." }], hobbies: ["Beekeeping", "Chess"] },
-    });
     jar.cookies.clear();
     jar.cookies.set(owner.split("=")[0], owner.split("=")[1]);
     const html = await swipePage(mine);
     expect(html).toContain("Seraphina Fenn");
     expect(html).toContain("Reads a lot like your own character");
     expect(html).toContain('class="swipe-twin"');
-    // Dex's card carries no such line (his own article, not what follows it).
-    const dex = html.match(/<article[^>]*aria-label="Dex Marlow, 27"[^>]*>.*?<\/article>/s)?.[0] ?? "";
-    expect(dex).toContain("Keeps bees on a roof");
-    expect(dex).not.toContain("swipe-twin");
+    // The order is the pure rule's (lib/twins.ts twinsLast): twins after everyone else, their line on them.
+    const cards = [{ id: "a" }, { id: "twin" }, { id: "b" }, { id: "twin2" }];
+    const twins = new Map([["twin", "the same bio"], ["twin2", "the same prompts"]]);
+    expect(twinsLast(cards, twins).map((c) => `${c.id}${c.reads_like_yours ? "*" : ""}`)).toEqual(["a", "b", "twin*", "twin2*"]);
+    expect(twinsLast(cards, new Map()).map((c) => c.id)).toEqual(["a", "twin", "b", "twin2"]);
   });
 
   it("a taken one stays a choice: picking it shows why it can't swipe", async () => {
