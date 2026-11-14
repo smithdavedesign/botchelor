@@ -1952,7 +1952,7 @@ export function SendPhase({ character, partners, openCharacters, swipeGate, toke
 
       {instant && (
         // The first date, straight away (lib/first-date.ts): the default settings, a house cast member, the theater next.
-        // It plays in the first-date format (the speed date: 6 lines, about a minute), so the verdict comes while they're
+        // It plays in the first-date format (the speed date: 6 lines, about two minutes to write), so the verdict comes while they're
         // still watching; the classic date's 12 lines took as long again, and nobody stayed for the ending.
         <div className="card send-first" data-first-date data-first-format={firstFormat}>
           <Avatar seed={instant.id} name={instant.name} hue={instant.hue ?? null} house size={56} />
