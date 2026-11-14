@@ -11,7 +11,7 @@ import { ROLEPLAY_IDS } from "./roleplays";
 import { SCENARIOS } from "./scenarios";
 import { AdultSettingsInput, SETTINGS_KEY_FIELDS } from "./settings-input";
 import type { Db } from "../db";
-import { listSwitchable, playableIds, setAdultSwitch } from "./characters";
+import { ANIME_OUT_MESSAGE, isAnimeCharacter, listSwitchable, playableIds, setAdultSwitch } from "./characters";
 import { hiveState, mediaPauses } from "./hive-limit";
 import { baselinePrompt, listMedia, makePicture } from "./media";
 import { loadCharacter } from "../character";
@@ -473,6 +473,7 @@ export async function runAdultTool(db: Db, name: string, args: Record<string, un
       return r.ok ? { data: { beat: r.beat, note: "Drawing: it lands in the gallery once it's checked (after_dark_scene)." } } : { error: r.message };
     }
     case "after_dark_switch": {
+      if (args.on === true && (await isAnimeCharacter(db, String(args.character_id ?? "")))) return { error: ANIME_OUT_MESSAGE };
       const ok = await setAdultSwitch(db, owner, String(args.character_id ?? ""), args.on === true);
       return ok ? { data: { characters: await listSwitchable(db, owner) } } : { error: "Only the admin's own characters, and house characters, can be switched on." };
     }

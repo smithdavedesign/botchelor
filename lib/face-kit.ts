@@ -18,10 +18,15 @@
  * Who pays: nobody per use. A kit is drawn when an account with the plan (or an admin) starts a call with a character
  * that has none (ensureFaceKit), a few a day at most (FACE_KIT_PER_DAY, about 30¢ each on Replicate), or by an admin
  * (/api/admin/face-kit). A new approved portrait means a new kit; the old one stays until it's made.
+ *
+ * A character drawn in anime (lib/looks.ts isAnime) gets an anime kit (animeFace): the same edits, kept in their
+ * drawing style, never turned into a photograph of a real-looking person (David, 2026-11-13). The style is part of the
+ * kit's key (faceSource), so a kit drawn in the other style is never shown and is replaced on the next call.
  */
 import { track } from "./analytics";
 import type { Db } from "./db";
 import { keepBytes, readBytes } from "./object-store";
+import { isAnime } from "./looks";
 import { characterPortrait } from "./portraits";
 import { overLimit } from "./limits";
 import { checkRating } from "./adult/moderation";
@@ -57,6 +62,17 @@ export const FACE_LOOP_PROMPT =
   "The person in the picture stays still and natural, as if listening: they breathe, blink, and glance at the camera with a small natural smile. " +
   "The camera doesn't move. No talking, no gestures, nobody else comes in, the same clothes, place and light. They end as they began. Fully clothed, safe for work. Photorealistic. An adult.";
 
+/** How an anime character's face is drawn: in their own style, said to be a grown adult (anime reads young, and every
+ * still goes through the PG check's age question). */
+const ANIME_FINISH = "Clean modern anime illustration in the same drawing style as Picture 1: cel shading, clean linework, a clearly grown adult with mature adult proportions.";
+
+/** A face prompt for a character drawn in anime: an illustration of them in their style, not a photograph. */
+export const animeFace = (prompt: string): string =>
+  prompt
+    .replace(/Make one photograph of the person in Picture 1/g, "Make one anime illustration of the character in Picture 1")
+    .replace(/The person in the picture/g, "The anime character in the picture")
+    .replace(/Photorealistic\./g, ANIME_FINISH);
+
 /** What one kit costs, about: seven Qwen edits and one Wan 2.2 clip at 480p (docs/costs.md). */
 export const FACE_STILL_USD = 0.03;
 export const FACE_LOOP_USD = 0.05;
@@ -85,17 +101,29 @@ export const faceKitUrl = (id: string) => `/api/face-kit/${encodeURIComponent(id
 
 type Row = { id: string; part: FacePart; status: "making" | "ready" | "failed"; error: string | null; queue_id: string | null; updated_at: Date | string; created_at: Date | string };
 
-/** The portrait a character's kit is made from: its newest approved safe portrait (the ledger's), or a house character's reviewed file. */
-export async function faceSource(db: Db, characterId: string, baseUrl: string): Promise<{ id: string; url: string } | null> {
-  const { rows } = await db.query<{ id: string; url: string }>(
-    `select id, url from character_assets where character_id = $1 and kind = 'portrait' and review_status = 'approved' and content_rating = 'pg' and url is not null
-      order by created_at desc limit 1`,
-    [characterId],
-  );
+/** Marks a kit drawn in anime in its key (faceSource's id), so one drawn as a photograph never stands in for it. */
+const ANIME_KEY = "#anime";
+
+/**
+ * The portrait a character's kit is made from: its newest approved safe portrait (the ledger's), or a house character's
+ * reviewed file. `id` keys the kit (and the live face built from it): the portrait's, plus ANIME_KEY when they're drawn
+ * in anime, so the kit follows the style as it follows the portrait.
+ */
+export async function faceSource(db: Db, characterId: string, baseUrl: string): Promise<{ id: string; url: string; anime: boolean } | null> {
+  const [{ rows }, who] = await Promise.all([
+    db.query<{ id: string; url: string }>(
+      `select id, url from character_assets where character_id = $1 and kind = 'portrait' and review_status = 'approved' and content_rating = 'pg' and url is not null
+        order by created_at desc limit 1`,
+      [characterId],
+    ),
+    db.query<{ extras: { looks?: { style?: string } } | null }>(`select extras from characters where id = $1`, [characterId]),
+  ]);
+  const anime = isAnime(who.rows[0]);
+  const keyed = (id: string) => (anime ? `${id}${ANIME_KEY}` : id);
   const a = rows[0];
-  if (a) return { id: a.id, url: new URL(a.url.startsWith("/") ? a.url : `/api/assets/${a.id}`, baseUrl).toString() };
+  if (a) return { id: keyed(a.id), url: new URL(a.url.startsWith("/") ? a.url : `/api/assets/${a.id}`, baseUrl).toString(), anime };
   const house = characterPortrait(characterId);
-  return house ? { id: `static:${house}`, url: new URL(house, baseUrl).toString() } : null;
+  return house ? { id: keyed(`static:${house}`), url: new URL(house, baseUrl).toString(), anime } : null;
 }
 
 async function rowsFor(db: Db, characterId: string, sourceId: string): Promise<Row[]> {
@@ -149,6 +177,7 @@ export async function makeFaceKit(db: Db, characterId: string, baseUrl: string, 
   const source = (await faceSource(db, characterId, baseUrl))!;
   const [keys, settings] = await Promise.all([adultKeys(db), getAdultSettings(db)]);
   const token = keys.replicate!;
+  const styled = (prompt: string) => (source.anime ? animeFace(prompt) : prompt);
   const editModel = settings.replicate_keyframe_model;
   let have = await rowsFor(db, characterId, source.id);
   const done = (part: FacePart) => have.some((r) => r.part === part && r.status !== "failed");
@@ -185,13 +214,13 @@ export async function makeFaceKit(db: Db, characterId: string, baseUrl: string, 
   let portrait = have.find((r) => r.part === "portrait" && r.status === "ready")?.id ?? null;
   if (!portrait) {
     await upsert(db, { character: characterId, source: source.id, part: "portrait", status: "making", model: editModel });
-    portrait = await still("portrait", FACE_PORTRAIT_PROMPT, source.url);
+    portrait = await still("portrait", styled(FACE_PORTRAIT_PROMPT), source.url);
     if (!portrait) {
       track("face_kit", { character_id: characterId, made: 0, failed: failed.length, ms: Date.now() - startedAt });
       return { ok: true, made: 0, queued: false, failed };
     }
-    // A new portrait: whatever was made from an older one isn't this face.
-    await db.query(`delete from face_kits where character_id = $1 and source_id = $2 and id <> $3`, [characterId, source.id, portrait]);
+    // A new portrait: whatever was made from an older one (or in the other style) isn't this face.
+    await db.query(`delete from face_kits where character_id = $1 and id <> $2`, [characterId, portrait]);
     have = [];
   }
   const base = new URL(faceKitUrl(portrait), baseUrl).toString();
@@ -201,7 +230,7 @@ export async function makeFaceKit(db: Db, characterId: string, baseUrl: string, 
   if (!done("loop")) {
     const model = settings.replicate_video_model;
     try {
-      const p = await createPrediction(token, model, { prompt: FACE_LOOP_PROMPT, image: base, num_frames: 81, resolution: "480p", frames_per_second: 16, go_fast: true }, { cancelAfter: "20m" });
+      const p = await createPrediction(token, model, { prompt: styled(FACE_LOOP_PROMPT), image: base, num_frames: 81, resolution: "480p", frames_per_second: 16, go_fast: true }, { cancelAfter: "20m" });
       await upsert(db, { character: characterId, source: source.id, part: "loop", status: "making", model, queue: p.id });
       queued = true;
     } catch (err) {
@@ -214,7 +243,7 @@ export async function makeFaceKit(db: Db, characterId: string, baseUrl: string, 
   // The stills, a few at a time, each marked making first so the page knows to wait.
   const todo = FACE_STILLS.filter((p): p is Exclude<FaceStill, "portrait"> => p !== "portrait" && !done(p));
   for (const part of todo) await upsert(db, { character: characterId, source: source.id, part, status: "making", model: editModel });
-  for (let i = 0; i < todo.length; i += AT_ONCE) await Promise.all(todo.slice(i, i + AT_ONCE).map((part) => still(part, FACE_PROMPTS[part], base)));
+  for (let i = 0; i < todo.length; i += AT_ONCE) await Promise.all(todo.slice(i, i + AT_ONCE).map((part) => still(part, styled(FACE_PROMPTS[part]), base)));
   track("face_kit", { character_id: characterId, made, queued, failed: failed.length, usd: Math.round((made * FACE_STILL_USD + (queued ? FACE_LOOP_USD : 0)) * 100) / 100, ms: Date.now() - startedAt });
   return { ok: true, made, queued, failed };
 }
@@ -308,7 +337,8 @@ export const faceKitBytes = (f: { object_key: string | null; data: Buffer | null
 
 /** Every prompt here holds to the show's own PG word check (tests). */
 export function facePromptsPass(): boolean {
-  return [FACE_PORTRAIT_PROMPT, FACE_LOOP_PROMPT, ...Object.values(FACE_PROMPTS)].every((prompt) => checkPgPictureText({ prompt }).ok);
+  const all = [FACE_PORTRAIT_PROMPT, FACE_LOOP_PROMPT, ...Object.values(FACE_PROMPTS)];
+  return [...all, ...all.map(animeFace)].every((prompt) => checkPgPictureText({ prompt }).ok);
 }
 
 async function upsert(db: Db, p: { character: string; source: string; part: FacePart; status: Row["status"]; model?: string; queue?: string; error?: string; file?: { bytes: Buffer; mime: string } }): Promise<string> {

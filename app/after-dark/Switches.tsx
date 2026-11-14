@@ -9,6 +9,7 @@ import CharacterName from "@/app/CharacterName";
 /**
  * Your characters and the house characters they date: a switch each (this season's cast is always in). `only`: just
  * that one character's switch, under its own heading (#1176: one made on the show, brought in from its finish screen).
+ * One drawn in anime stays out, its switch off and saying so (After Dark only draws photographs).
  */
 export default function Switches({ initial, only, title = "Who's in", children }: { initial: Switchable[]; only?: string; title?: string; children?: ReactNode }) {
   const router = useRouter();
@@ -43,10 +44,10 @@ export default function Switches({ initial, only, title = "Who's in", children }
                 type="checkbox"
                 id={`ad-switch-${c.id}`}
                 checked={c.on}
-                disabled={c.season || busy === c.id}
+                disabled={c.season || c.anime || busy === c.id}
                 onChange={(e) => void flip(c.id, e.target.checked)}
               />{" "}
-              {c.season ? "In (this season's cast)" : c.on ? "In" : "Out"}
+              {c.anime ? "Out (drawn in anime)" : c.season ? "In (this season's cast)" : c.on ? "In" : "Out"}
             </label>
           </li>
         ))}
