@@ -202,7 +202,6 @@ type OptedInSide = {
   is_a: boolean;
   partner: string;
   booked: boolean;
-  creator_id: string;
 };
 
 /**
@@ -211,7 +210,7 @@ type OptedInSide = {
  * owner may be both sides' owner (two threads, one text each). After Dark dates stay on their own host.
  */
 const OPTED_IN_SIDES_SQL = (where: string) => `
-  select e.id as episode_id, e.ending, e.sides, e.creator_id, t.id as thread_id, t.user_id, t.character_id,
+  select e.id as episode_id, e.ending, e.sides, t.id as thread_id, t.user_id, t.character_id,
          t.character_id = e.character_a as is_a,
          case when t.character_id = e.character_a then b.name else a.name end as partner,
          exists (select 1 from episodes f where f.followup_of = e.id) as booked
@@ -245,7 +244,8 @@ export async function dayAfterTexts(db: Db, now = new Date(), limit = 50): Promi
   const ours = new Set(await loadOurIds(db).catch(() => [] as string[]));
   let sent = 0;
   for (const r of rows) {
-    if (ours.has(r.user_id) || ours.has(r.creator_id)) continue;
+    // The thread's owner is who is ours or not; the booker is not (a mixer's host is the show itself, lib/our-traffic.ts SYSTEM_ID).
+    if (ours.has(r.user_id)) continue;
     const me = r.is_a ? 0 : 1;
     const lines = dayAfterLines({
       ending: r.ending,
