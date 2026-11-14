@@ -39,7 +39,10 @@ export type DittoOutput = {
   registrations?: number;
   /** The chain's state for the next clause (asked with `want_state`). Opaque: the worker's own. */
   state_b64?: string;
-  chain?: { in: boolean; skip: number; fade_in: number; fade_out: number; silence_ms: number; state: boolean };
+  chain?: { in: boolean; skip: number; fade_in: number; fade_out: number; silence_ms: number; state: boolean; video?: boolean };
+  /** With a video source: the cycle index after this clip's last frame, and the source's frame count. */
+  next_frame?: number;
+  source_frames?: number;
   handler?: string;
   ms: Record<string, number>;
 };
@@ -62,6 +65,8 @@ export type DittoSpeakInput = {
   emo?: number;
   /** A pose on top of what the audio drives (the worker's `sway`, `nod`, `tilt`), for the idle and the reactions. */
   motion?: { kind: "sway" | "nod" | "tilt"; amount?: number; period_s?: number; at_s?: number };
+  /** With a video source (the kit's loop): where in its cycle this clause starts, so clause follows clause through the loop. */
+  start_frame?: number;
   sampling_timesteps?: number;
 };
 
@@ -82,6 +87,7 @@ function speakInput(input: DittoSpeakInput): Record<string, unknown> {
     ...(input.want_state ? { want_state: true } : {}),
     ...(input.emo !== undefined ? { emo: input.emo } : {}),
     ...(input.motion ? { motion: input.motion } : {}),
+    ...(input.start_frame ? { start_frame: input.start_frame } : {}),
     ...(input.sampling_timesteps !== undefined ? { sampling_timesteps: input.sampling_timesteps } : {}),
   };
 }

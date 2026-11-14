@@ -5,6 +5,7 @@
  *
  *  - `musetalk` (ours, Runpod; lib/live-face/musetalk.ts): live, about half the clause's length to render.
  *  - `ditto` (ours, Runpod; lib/live-face/ditto.ts): live, the same speed, the whole head from the kit's portrait.
+ *  - `ditto:loop` (ours): Ditto driving the kit's loop instead (the loop's body and head motion, Ditto's mouth).
  *  - fal.ai hosted models and Replicate's Wan 2.2 S2V: batch, 20 s to a few minutes a clause, the ceiling of what the
  *    mouth can look like today (OmniHuman, InfiniTalk, Sync lipsync-2, LatentSync, Kling lipsync). A still (the kit's
  *    portrait) or the kit's loop plus the audio in, a video out.
@@ -119,6 +120,31 @@ const ditto: ClipRenderer = {
     );
     const ms = Date.now() - t0;
     return { mp4: Buffer.from(out.video_b64, "base64"), ms, cost_usd: round((out.ms?.total ?? ms) / 1000 * RUNPOD_USD_PER_SECOND), frames: out.frames, note: `${out.width}px, ${out.frames} frames, from the portrait, as a call renders it` };
+  },
+};
+
+const dittoLoop: ClipRenderer = {
+  id: "ditto:loop",
+  label: "Ditto on the loop (ours, Runpod)",
+  kind: "live",
+  provider: "house",
+  model: "antgroup/ditto-talkinghead (TensorRT), the kit's loop as the source",
+  about: "Ditto driving the kit's idle loop instead of the portrait: head, hair and shoulders move with the loop, the mouth and eyes follow the voice. MuseTalk's recipe with Ditto's mouth, in real time.",
+  costHint: "about 1.3–2.2¢ a call minute while it renders",
+  runs: true,
+  ready: (env) => Boolean(dittoConfig(env)),
+  async speak(input, ctx) {
+    const cfg = dittoConfig(ctx.env);
+    if (!cfg) throw new RendererError("RUNPOD_API_KEY and LIVE_FACE_DITTO_ENDPOINT aren't set");
+    if (!input.loopUrl) throw new RendererError("no loop: draw the character's face kit first");
+    const t0 = Date.now();
+    const out = await speakDitto(
+      cfg,
+      { source_url: input.loopUrl, pcm: input.audio.pcm, rate: input.audio.rate, start_frame: 0, fade_in: CHAIN_FADE_IN, fade_out: CHAIN_FADE_OUT, tail_silence_ms: CHAIN_TAIL_SILENCE_MS, emo: input.line ? emoFor(input.line) : undefined },
+      { signal: ctx.signal, timeoutMs: 180_000 },
+    );
+    const ms = Date.now() - t0;
+    return { mp4: Buffer.from(out.video_b64, "base64"), ms, cost_usd: round((out.ms?.total ?? ms) / 1000 * RUNPOD_USD_PER_SECOND), frames: out.frames, note: `${out.width}px, ${out.frames} frames, on the loop (${out.source_frames ?? "?"} frames) from frame 0` };
   },
 };
 
@@ -353,7 +379,7 @@ const simli: ClipRenderer = {
 
 /* ----------------------------------------------------------- the registry ----------------------------------------------------------- */
 
-export const RENDERERS: readonly ClipRenderer[] = [musetalk, ditto, falSync, falLatentsync, falKling, falInfinitalk, falOmnihuman, falOmnihuman15, falEchomimic, replicateWanS2v, didTalks, simli];
+export const RENDERERS: readonly ClipRenderer[] = [musetalk, ditto, dittoLoop, falSync, falLatentsync, falKling, falInfinitalk, falOmnihuman, falOmnihuman15, falEchomimic, replicateWanS2v, didTalks, simli];
 
 export const rendererById = (id: string): ClipRenderer | null => RENDERERS.find((r) => r.id === id) ?? null;
 
