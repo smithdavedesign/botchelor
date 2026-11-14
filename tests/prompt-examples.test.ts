@@ -1,0 +1,79 @@
+import { prerender } from "react-dom/static";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { EXAMPLES_PER_TAG, examplesForTag, resetPromptExamplesForTests } from "@/lib/prompt-examples";
+import { api, named, newUserCookie, startTestDb, userIdOf, validCharacter } from "./helpers";
+
+let t: Awaited<ReturnType<typeof startTestDb>>;
+beforeAll(async () => {
+  t = await startTestDb();
+});
+afterAll(async () => {
+  await t.close();
+});
+beforeEach(async () => {
+  await t.reset();
+  resetPromptExamplesForTests();
+  vi.spyOn(console, "log").mockImplementation(() => {});
+});
+
+const CLOSE = "a close-up headshot of a woman with red hair, oil painting, soft light";
+
+/** A creator with a public character and one PG Studio picture of it on the showcase. */
+async function publish(opts: { prompt?: string; rating?: "pg" | "nsfw"; hidden?: boolean; visibility?: "public" | "private"; status?: "live" | "removed" } = {}) {
+  const cookie = newUserCookie();
+  const owner = userIdOf(cookie);
+  await named(cookie, `Creator ${owner.slice(0, 6)}`);
+  const { id: character } = (await (await api.createCharacter(validCharacter({ name: `Pictured ${owner.slice(0, 4)}` }), cookie)).json()) as { id: string };
+  if (opts.visibility === "private") await t.db.query("update characters set visibility = 'private' where id = $1", [character]);
+  await t.db.query("insert into creator_profiles (user_id, handle, display_name, hidden) values ($1, $2, $3, $4)", [owner, `h${owner.slice(0, 8)}`, "A creator", opts.hidden ?? false]);
+  const picture = crypto.randomUUID();
+  await t.db.query(
+    "insert into studio_pg_pictures (id, owner_id, character_id, prompt, mime, content_rating) values ($1, $2, $3, $4, 'image/webp', $5)",
+    [picture, owner, character, opts.prompt ?? CLOSE, opts.rating ?? "pg"],
+  );
+  const post = crypto.randomUUID();
+  await t.db.query(
+    "insert into showcase_posts (id, owner_id, source, media_id, character_id, rating, medium, status, published_at) values ($1, $2, 'pg', $3, $4, $5, 'picture', $6, now())",
+    [post, owner, picture, character, opts.rating ?? "pg", opts.status ?? "live"],
+  );
+  return { post, character };
+}
+
+/** Example pictures for a tag, from the show's own published Studio pictures (lib/prompt-examples.ts). */
+describe("a tag's example pictures", () => {
+  it("are the live PG showcase pictures whose own prompt carries the tag, newest first, four at most", async () => {
+    const made = [];
+    for (let i = 0; i < EXAMPLES_PER_TAG + 1; i++) made.push(await publish());
+    const close = await examplesForTag(t.db, "framing.close");
+    expect(close.length).toBe(EXAMPLES_PER_TAG);
+    expect(close[0]).toMatchObject({ post_id: made.at(-1)!.post, href: `/showcase/reels?start=${made.at(-1)!.post}`, src: `/api/showcase/${made.at(-1)!.post}/media?size=tile` });
+    expect(close[0].alt).toContain("a picture made in the Studio");
+    // A tag the prompt doesn't carry has none.
+    expect(await examplesForTag(t.db, "framing.wide")).toEqual([]);
+  });
+
+  it("never shows a picture the showcase wouldn't: not PG, a hidden creator, a private character, a removed post", async () => {
+    await publish({ rating: "nsfw" });
+    await publish({ hidden: true });
+    await publish({ visibility: "private" });
+    await publish({ status: "removed" });
+    expect(await examplesForTag(t.db, "framing.close")).toEqual([]);
+    const kept = await publish();
+    resetPromptExamplesForTests();
+    expect((await examplesForTag(t.db, "framing.close")).map((e) => e.post_id)).toEqual([kept.post]);
+  });
+
+  it("the tag page and the filtered library show them; a tag with none shows no box", async () => {
+    await publish();
+    const { default: TagPage } = await import("@/app/prompts/tag/[id]/page");
+    const html = await new Response((await prerender(await TagPage({ params: Promise.resolve({ id: "framing.close" }) }))).prelude).text();
+    expect(html).toContain('data-prompt-examples="framing.close"');
+    expect(html).toContain("Pictures made with");
+    expect(html).toContain("/media?size=tile");
+    const { default: PromptsPage } = await import("@/app/prompts/page");
+    const lib = await new Response((await prerender(await PromptsPage({ searchParams: Promise.resolve({ tag: "framing.close" }) }))).prelude).text();
+    expect(lib).toContain('data-prompt-examples="framing.close"');
+    const none = await new Response((await prerender(await PromptsPage({ searchParams: Promise.resolve({ tag: "framing.wide" }) }))).prelude).text();
+    expect(none).not.toContain("data-prompt-examples");
+  });
+});
