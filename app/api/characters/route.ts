@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { adultCookie, hasAdultCookie } from "@/lib/age";
 import { AUDIENCES } from "@/lib/audience";
 import { getDb } from "@/lib/db";
 import { handle, isMcpCall, json, parseBody, readJson, session } from "@/lib/http";
@@ -179,9 +180,14 @@ export const POST = handle(async (req) => {
   if (!isMcpCall(req)) await scheduleWelcome(db, id);
 
   const { attest: _attest, keep_name: _keep, check_only: _check, soul: _soul, image_signals: _sig, temperament: _temp, extras: _extras, this_week: _week, hiding: _hiding, ...character } = input;
-  return json(
+  const res = json(
     { id, ...character, extras, ...(hiding.length ? { hiding } : {}), this_week: thisWeek(id, input.this_week?.trim() ? stampThisWeek(input.this_week) : null), house: false, has_soul: hasSoul, hue, image_trained: Boolean(signals), ...(soulKeys.unknown.length ? { ignored_soul_keys: soulKeys.unknown } : {}) },
     201,
     sess,
   );
+  // The builder's "I'm 18+ and this is my own character" box is the 18+ attestation for a creator (2026-11-14: the PG
+  // show pages open without the gate, middleware.ts): a saved character remembers it with the gate's own cookie, so
+  // /swipe and the chat open afterwards without asking again. A person's browser only; an agent's call carries no cookies.
+  if (!isMcpCall(req) && !hasAdultCookie(req.headers.get("cookie"))) res.headers.append("set-cookie", adultCookie(new URL(req.url).protocol === "https:"));
+  return res;
 });

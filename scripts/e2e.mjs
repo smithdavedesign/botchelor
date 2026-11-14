@@ -108,16 +108,20 @@ async function main() {
   };
 
   try {
-    await step("the 18+ gate blocks the site until you confirm you're an adult", async () => {
-      // No cookie: must hit the gate. An ordinary browser's user agent: known bots (HeadlessChrome among them) skip the
-      // gate on purpose (lib/bots.ts), so a headless test browser would never see it.
+    await step("the PG show opens without the 18+ gate; the swipe deck still meets it until you confirm you're an adult", async () => {
+      // No cookie: the show's pages open (2026-11-14), the dating pages hit the gate. An ordinary browser's user agent:
+      // known bots (HeadlessChrome among them) skip the gate on purpose (lib/bots.ts), so a headless test browser would
+      // never see it.
       const visitor = await browser.newContext({ userAgent: HUMAN_UA });
       const gatePage = await visitor.newPage();
-      await gatePage.goto(`${base}/watch`); // any page redirects to the gate (goto follows it)
+      await gatePage.goto(`${base}/watch`);
+      assert(new URL(gatePage.url()).pathname === "/watch", `expected /watch to open without the gate, got ${gatePage.url()}`);
+      assert((await gatePage.getByText("Are you 18 or older?").count()) === 0, "the gate showed on a PG page");
+      await gatePage.goto(`${base}/swipe`); // a dating page redirects to the gate (goto follows it)
       assert(new URL(gatePage.url()).pathname === "/gate", `expected the gate, got ${gatePage.url()}`);
       assert((await gatePage.getByText("Are you 18 or older?").count()) > 0, "age gate did not show");
-      assert((await gatePage.getByRole("heading", { name: "Watch a date" }).count()) === 0, "page content leaked behind the gate");
-      const back = gatePage.waitForURL((url) => url.pathname === "/watch");
+      assert((await gatePage.getByRole("heading", { name: "Match before you date" }).count()) === 0, "page content leaked behind the gate");
+      const back = gatePage.waitForURL((url) => url.pathname === "/swipe");
       await gatePage.getByRole("button", { name: /I.m 18 or older/ }).click();
       await back; // confirming drops us back where we were headed, and remembers it
       assert((await gatePage.getByText("Are you 18 or older?").count()) === 0, "gate still blocking after confirming");

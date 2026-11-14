@@ -54,7 +54,8 @@ const TODAY: [string, Record<string, string>, string][] = [
   ["https://botchelor.com/after-dark", { "user-agent": GOOGLEBOT }, "200 - next -"],
   ["https://botchelor.com/after-darkness", { cookie: "bz_adult=1" }, "200 - next -"],
   ["https://botchelor.com/watch", { cookie: "bz_adult=1" }, "200 - next -"],
-  ["https://botchelor.com/", {}, "307 https://botchelor.com/gate?from=%2F - -"],
+  ["https://botchelor.com/", {}, "200 - next -"], // the PG show opens without the gate since 2026-11-14 (middleware.ts)
+  ["https://botchelor.com/shop", {}, "307 https://botchelor.com/gate?from=%2Fshop - -"],
   ["https://botchelor.com/gate?from=/after-dark", {}, "200 - next -"],
   ["https://botchelor.com/llms.txt", {}, "200 - next -"],
   ["https://botchelor.com/robots.txt", {}, "200 - next -"],
@@ -62,7 +63,8 @@ const TODAY: [string, Record<string, string>, string][] = [
   ["https://botchelor.vercel.app/after-dark", {}, "308 https://botchelor.com/after-dark - -"],
   ["https://botchelor.vercel.app/after-dark?x=1", { cookie: `bz_uid=${UID}` }, "307 https://botchelor.vercel.app/api/auth/carry?to=%2Fafter-dark%3Fx%3D1 - -"],
   ["https://ad.botchelor.com/after-dark", { cookie: "bz_adult=1" }, "200 - next -"],
-  ["https://ad.botchelor.com/watch", {}, "307 https://ad.botchelor.com/gate?from=%2Fwatch - -"],
+  ["https://ad.botchelor.com/watch", {}, "200 - next -"],
+  ["https://ad.botchelor.com/shop", {}, "307 https://ad.botchelor.com/gate?from=%2Fshop - -"],
 ];
 
 /** The carry route's answers today for the requests the After Dark hop adds meaning to. */

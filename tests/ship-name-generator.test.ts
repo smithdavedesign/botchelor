@@ -97,7 +97,7 @@ describe("1. the tool page: /tools/ship-name-generator", () => {
     expect(toolMetadata.robots).toBeUndefined(); // indexable, like the site
   });
 
-  it("answers crawlers and people directly: a PG tool page is open without the 18+ cookie (David, 2026-11-11), a date from it still gated", () => {
+  it("answers crawlers and people directly: a PG tool page is open without the 18+ cookie (David, 2026-11-11), the swipe deck from it still gated", () => {
     const googlebot = middleware(new NextRequest(`http://localhost:3000${TOOL}`, { headers: { "user-agent": "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)" } }));
     expect(googlebot.headers.get("x-middleware-next")).toBe("1");
     const chrome = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36";
@@ -106,8 +106,9 @@ describe("1. the tool page: /tools/ship-name-generator", () => {
     const fresh = middleware(new NextRequest(`http://localhost:3000${TOOL}`, { headers: { "user-agent": chrome } }));
     expect(fresh.headers.get("x-middleware-next")).toBe("1");
     expect(fresh.headers.get("location")).toBeNull();
-    const date = middleware(new NextRequest("http://localhost:3000/create", { headers: { "user-agent": chrome } }));
-    expect(new URL(date.headers.get("location")!).searchParams.get("from")).toBe("/create");
+    // The builder opened too on 2026-11-14 (its own 18+ box attests); the swipe deck is where the gate still stands.
+    const date = middleware(new NextRequest("http://localhost:3000/swipe", { headers: { "user-agent": chrome } }));
+    expect(new URL(date.headers.get("location")!).searchParams.get("from")).toBe("/swipe");
   });
 
   it("links an example result, so crawlers find a ship page from the tool", () => {

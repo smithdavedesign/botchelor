@@ -1,9 +1,7 @@
 "use client";
 
 import type { FormEvent } from "react";
-import { safeFrom } from "@/lib/age";
-
-const ONE_YEAR = 60 * 60 * 24 * 365;
+import { ADULT_COOKIE, ADULT_COOKIE_MAX_AGE, safeFrom } from "@/lib/age";
 
 /**
  * The 18+ entry lock: a full-screen overlay covering the page until the visitor confirms they're an adult.
@@ -30,7 +28,8 @@ export default function AgeGate({
   function confirm(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const secure = window.location.protocol === "https:" ? "; Secure" : "";
-    document.cookie = `bz_adult=1; Path=/; Max-Age=${ONE_YEAR}; SameSite=Lax${secure}`;
+    // The same name and life as the server's (lib/age.ts adultCookie); a script can't set HttpOnly, which is the one difference.
+    document.cookie = `${ADULT_COOKIE}=1; Path=/; Max-Age=${ADULT_COOKIE_MAX_AGE}; SameSite=Lax${secure}`;
     window.location.assign(dest);
   }
 

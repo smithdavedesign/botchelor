@@ -95,14 +95,34 @@ const DOC_SOURCES = new Set(["llms.txt", "llms-full.txt", "mcp.json", "agents"])
  * words only.
  */
 /**
- * PG pages with no date, character or chat on them, open to a person from a search result (David, 2026-11-11; GROWTH.md
- * named this the next experiment after every Google visitor of the month met the gate first): the ship-name generator
- * and the chemistry test, the ship pages they make, and the /alternatives search landings. Anything they link to (a
- * date, a character, the builder) still meets the gate.
+ * The PG show, open without the gate (David, 2026-11-14, reversing the 2026-10-16 "whole site gated" call): the pages a
+ * spectator reads or a creator builds on hold no chat, no dating and no money. First the search landings (David,
+ * 2026-11-11: the ship-name generator and the chemistry test, the ship pages they make, /alternatives), then the show
+ * itself: aired dates, seasons, couples, characters and creators, the agents' pages, and the builder. A prefix ending
+ * in "/" covers the page itself and everything under it.
+ *
+ * What still meets the gate is everything that isn't on this list: the swipe deck, matches, messages and companions
+ * (dating and chat), step-in, the shop, accounts, notifications, mixers, the double-date links, and every After Dark
+ * page (/after-dark/, /admin/after-dark/, lib/after-dark-host.ts: the same rule on its own host). A link from an open
+ * page into one of those still meets the gate. A creator attests in the builder instead: saving a character with its
+ * 18+ box ticked sets this same cookie (app/api/characters/route.ts), so the gate never asks them again.
  */
-export const UNGATED_PREFIXES: readonly string[] = ["/tools/", "/ship/", "/alternatives/"];
+export const UNGATED_PREFIXES: readonly string[] = ["/tools/", "/ship/", "/alternatives/", "/episodes/", "/seasons/", "/couples/", "/characters/", "/creators/", "/agents/"];
 
 const UNGATED_PAGES: ReadonlySet<string> = new Set([
+  // The PG show (2026-11-14): the front door, the feed and its tabs, the cast, the reunion, casting, the vote, calls,
+  // the import and the builder (the builder's own 18+ box is the attestation).
+  "/",
+  "/watch",
+  "/characters",
+  "/reunion",
+  "/casting",
+  "/vote",
+  "/calls",
+  "/import",
+  "/create",
+  "/agents",
+  // The policy and company pages.
   "/terms",
   "/privacy",
   "/legal",
@@ -121,10 +141,10 @@ const UNGATED_PAGES: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * Botchelor is a fictional 18+ show, so the first thing a visitor meets is an age lock: every page redirects
- * to /gate until they confirm they're 18 or older, and the choice is remembered for a year. API routes,
- * Next internals, static files (anything with a dot) and the link-preview image routes are never gated, so
- * agents and social unfurls always work; the agent docs above are matched only to be counted.
+ * Botchelor is a fictional 18+ show. Its PG pages (the lists above) open to anyone; every other page redirects
+ * to /gate until the visitor confirms they're 18 or older, and the choice is remembered for a year (lib/age.ts).
+ * API routes, Next internals, static files (anything with a dot) and the link-preview image routes are never
+ * gated, so agents and social unfurls always work; the agent docs above are matched only to be counted.
  *
  * Crawlers and AI agents (lib/bots.ts) go straight through: they can't tick a box, and the gate exists for
  * people. Each pass is logged as a `bot_visit` so we can see who's reading the show.
@@ -208,24 +228,26 @@ function route(req: NextRequest): NextResponse {
   }
 
   // The gate itself, unsubscribing from email (lib/email.ts), the Sunday letter's confirm and unsubscribe links
-  // (lib/newsletter.ts), and the policy pages (terms, privacy, reporting, cancelling): leaving, complaining or reading
-  // the rules must never take a hurdle, and they hold nothing adult.
-  if (
+  // (lib/newsletter.ts), the PG show and the policy pages (UNGATED_PAGES, UNGATED_PREFIXES): watching, reading the
+  // rules, leaving or complaining never takes a hurdle, and none of them holds anything adult.
+  const open =
     pathname === "/gate" ||
     pathname.startsWith("/email/") ||
     pathname.startsWith("/newsletter/") ||
     UNGATED_PAGES.has(pathname) ||
-    UNGATED_PREFIXES.some((p) => pathname === p.slice(0, -1) || pathname.startsWith(p)) ||
-    req.cookies.get(ADULT_COOKIE)?.value === "1"
-  ) {
-    return NextResponse.next();
-  }
+    UNGATED_PREFIXES.some((p) => pathname === p.slice(0, -1) || pathname.startsWith(p));
+  const adult = req.cookies.get(ADULT_COOKIE)?.value === "1";
 
-  const bot = detectBot(req.headers.get("user-agent"), req.headers.get("signature-agent"));
-  if (bot) {
-    track("bot_visit", { bot: bot.name, kind: bot.kind, path: pathname });
-    return NextResponse.next();
+  // A crawler or agent carries no cookie: it passes everywhere, and each page it reads is counted (the agent funnel in
+  // app/admin/analytics reads these), open pages included now that the show's are open.
+  if (!adult) {
+    const bot = detectBot(req.headers.get("user-agent"), req.headers.get("signature-agent"));
+    if (bot) {
+      track("bot_visit", { bot: bot.name, kind: bot.kind, path: pathname });
+      return NextResponse.next();
+    }
   }
+  if (open || adult) return NextResponse.next();
 
   const url = req.nextUrl.clone();
   url.pathname = "/gate";

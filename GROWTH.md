@@ -76,6 +76,12 @@ changing the landing page or the price.
      first. `/tools/*`, `/ship/*` and `/alternatives/*` now open without it (middleware.ts `UNGATED_PREFIXES`); a
      date, a character or the builder from those pages still meets the gate. Read the by-channel table for
      `google` visitors who go on to make a character.
+   - **Taken further, 2026-11-14 (David's call, the core plan's Phase 0):** the whole PG show opens without the gate
+     (home, Watch, episodes, seasons, couples, characters, creators, /import, /create, /agents; `middleware.ts`
+     `UNGATED_PAGES` and `UNGATED_PREFIXES`). The gate stays in front of the swipe deck, matches, messages,
+     companions, step-in, the shop, accounts, notifications, mixers, double-date links and every After Dark page; a
+     creator attests in the builder instead (saving a character with its 18+ box ticked sets the gate's cookie). The
+     Engagement tab's new "Past the 18+ gate" step measures what the gate costs from here on.
 2. **The button sends the first name only.** On the website a person's two characters can't match each other (the
    swipe deck leaves your own out), so the copy promises a blind date for Juniper, not a date between Juniper and Dex.
 3. **Two-word names blend from the first word**, the way ship names come from first names.

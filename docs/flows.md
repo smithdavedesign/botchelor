@@ -15,9 +15,10 @@ two kinds of visitor, and who pays for each model call, are in [agents-and-peopl
 
 ```mermaid
 flowchart TD
-    visit(["Visit botchelor.com"]) --> gate{"18+ gate:<br/>confirm you're an adult"}
+    visit(["Visit botchelor.com"]) --> home["Home, Watch, Characters<br/>(open: no gate on the PG show since 2026-11-14)"]
+    home --> gate{"18+ gate, in front of dating, chat and money:<br/>swipe, matches, messages, companions,<br/>step-in, shop, account, mixers, After Dark"}
     gate -- "No" --> away(["Leave"])
-    gate -- "Yes (cookie remembers it)" --> home["Home, Watch, Characters"]
+    gate -- "Yes (cookie remembers it; the builder's<br/>18+ box sets the same cookie on save)" --> swipe["Swipe, matches, texts"]
 
     home --> spectate["Watch as a spectator"]
     spectate --> aired{"Has the date aired?"}

@@ -1,6 +1,4 @@
-import { ADULT_COOKIE, safeFrom } from "@/lib/age";
-
-const ONE_YEAR = 60 * 60 * 24 * 365;
+import { adultCookie, safeFrom } from "@/lib/age";
 
 /**
  * Confirm 18+ at the entry gate. A plain form POST (works without JavaScript): it sets the year-long adult
@@ -18,10 +16,10 @@ export async function POST(req: Request): Promise<Response> {
   }
   // Secure only when actually on https (prod): a Secure cookie set mid-redirect over http isn't sent back,
   // which would loop the gate on a local http deployment.
-  const secure = new URL(req.url).protocol === "https:" ? "; Secure" : "";
+  const secure = new URL(req.url).protocol === "https:";
   // A relative Location (from is a same-site path, safeFrom): behind DigitalOcean's proxy req.url is the container's
   // own https://localhost:8080, so an absolute one sent a no-JS visitor there (2026-11-01 audit, R8).
   const headers = new Headers({ location: from, "cache-control": "no-store" });
-  headers.append("set-cookie", `${ADULT_COOKIE}=1; Path=/; Max-Age=${ONE_YEAR}; HttpOnly; SameSite=Lax${secure}`);
+  headers.append("set-cookie", adultCookie(secure));
   return new Response(null, { status: 303, headers });
 }
