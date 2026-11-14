@@ -14223,3 +14223,9 @@ button.thread-menu-item:hover:not(:disabled) {
   to { opacity: 1; transform: none; }
 }
 
+/* A ghost button that's pressed (aria-pressed): the compare page's 1–5 ratings. */
+.button-ghost[aria-pressed="true"] {
+  background: var(--soft);
+  border-color: var(--accent);
+  color: var(--fg);
+}

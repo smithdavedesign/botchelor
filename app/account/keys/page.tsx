@@ -36,6 +36,7 @@ const ALSO_NOTE: Record<Job, string> = {
   text: "your characters' lines on dates and texts",
   image: "only when you make a portrait",
   video: "only when you make a clip, on your Google bill",
+  live_face: "only the face on your live calls, a clause at a time, on your bill",
   after_dark: "only Studio pictures you ask for, on your bill",
   after_dark_video: "only videos you make in After Dark, on your bill",
 };

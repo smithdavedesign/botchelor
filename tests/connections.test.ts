@@ -234,7 +234,8 @@ describe("the shared pieces the page uses", () => {
   });
 
   it("offers each job only the providers that can do it, with a recommended model", () => {
-    expect(providersFor("text")).toEqual(USER_PROVIDERS.filter((p) => p !== "venice" && p !== "replicate"));
+    expect(providersFor("text")).toEqual(USER_PROVIDERS.filter((p) => p !== "venice" && p !== "replicate" && p !== "fal" && p !== "did"));
+    expect(providersFor("live_face")).toEqual(["replicate", "fal", "did"]);
     expect(providersFor("after_dark")).toEqual(["venice", "replicate"]);
     expect(defaultModelFor("venice", "after_dark")).toBe("qwen-edit-uncensored");
     expect(providersFor("image")).toEqual(["openai"]);
@@ -253,6 +254,7 @@ describe("the shared pieces the page uses", () => {
       ["text", "unset", "Free model", "Using: Botchelor's free model"],
       ["image", "unset", "Not set up", "Not set up: portraits need your own OpenAI key."],
       ["video", "unset", "Not set up", "Not set up: clips need your own Google key, with billing on."],
+      ["live_face", "unset", "Free model", "Using: Botchelor's own renderer"],
       ["after_dark", "unset", "For tokens", "Using: Botchelor's models, for tokens"],
       ["after_dark_video", "unset", "For tokens", "Using: Botchelor's models, for tokens"],
     ]);

@@ -105,7 +105,7 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
     // Their face for the call (lib/face-kit.ts), drawn once if they have none: the call doesn't wait for it.
     inBackground(() => ensureFaceKit(db, view.view.character.id, base));
     // A live face (lib/live-face), when it's on for this person and the character has one: a token to open the stream.
-    const face = await liveFaceSession(db, view.view.character.id, base, { admin }, { maxSeconds: liveMaxMinutes(process.env) * 60 });
+    const face = await liveFaceSession(db, view.view.character.id, base, { admin, userId: sess.userId }, { maxSeconds: liveMaxMinutes(process.env) * 60 });
     return json({ call: { id: started.call.id, minutes: started.call.minutes }, stt: { url: sttUrl(process.env, input.lang), ...token }, face, extras: await extras() }, 200, sess);
   }
 
@@ -163,7 +163,7 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
   }
   const voice = auraVoiceFor(took.turn.character);
   // A live face that comes as clips (lib/live-face/musetalk.ts), when it's on for this person and the character's is ready.
-  const clips = await liveFaceClips(db, took.turn.character.id, requestBase(req), { admin });
+  const clips = await liveFaceClips(db, took.turn.character.id, requestBase(req), { admin, userId: sess.userId });
   const stop = new AbortController();
   req.signal?.addEventListener("abort", () => stop.abort());
   const encoder = new TextEncoder();

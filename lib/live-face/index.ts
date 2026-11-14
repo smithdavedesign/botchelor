@@ -61,7 +61,7 @@ const FACE_GIVE_UP_MS = 12 * 60 * 60 * 1000;
 /** A face's status isn't asked for more than this often (a bundle takes a minute or two; a Simli face hours). */
 const POLL_EVERY_MS = 20 * 1000;
 /** A MuseTalk face being built keeps its Runpod job id here until the bundle's key takes its place. */
-const JOB = "job:";
+export const JOB = "job:";
 
 export type LiveFaceRow = { id: string; character_id: string; source_id: string; provider: LiveFaceProvider; provider_face_id: string | null; status: "making" | "ready" | "failed"; error: string | null; created_at: string; updated_at: string };
 
@@ -71,6 +71,19 @@ async function rowFor(db: Db, characterId: string, sourceId: string, provider: L
     [characterId, sourceId, provider],
   );
   return rows[0] ?? null;
+}
+
+/** The character's live face at a given renderer, for the kit they have now (the compare and a person's own choice ask by provider). */
+export async function liveFaceRowFor(db: Db, characterId: string, baseUrl: string, provider: LiveFaceProvider, _env: Env = process.env): Promise<LiveFaceRow | null> {
+  const source = await faceSource(db, characterId, baseUrl);
+  return source ? rowFor(db, characterId, source.id, provider) : null;
+}
+
+/** A person's own pick of renderer for their calls (lib/live-face/compare.ts user_live_face), or "auto" for the server's. */
+async function choiceOf(db: Db, who: { userId?: string | null }): Promise<"auto" | "musetalk" | "simli"> {
+  if (!who.userId) return "auto";
+  const row = (await db.query<{ renderer: string }>(`select renderer from user_live_face where user_id = $1`, [who.userId]).catch(() => ({ rows: [] as { renderer: string }[] }))).rows[0];
+  return row?.renderer === "musetalk" || row?.renderer === "simli" ? row.renderer : "auto";
 }
 
 /** The character's live face at the renderer that's set, for the kit they have now: its state, or null when none was ever asked for. */
@@ -215,10 +228,14 @@ export async function collectLiveFaces(db: Db, env: Env = process.env, character
  * the token the browser opens the stream with; for MuseTalk the word that clips will come (and a worker warming up).
  * Null for any other reason, quietly: the call goes on as Tier 0.
  */
-export async function liveFaceSession(db: Db, characterId: string, baseUrl: string, who: { admin: boolean }, opts: { maxSeconds?: number; idleSeconds?: number; env?: Env } = {}): Promise<LiveFaceSession | null> {
+export async function liveFaceSession(db: Db, characterId: string, baseUrl: string, who: { admin: boolean; userId?: string | null }, opts: { maxSeconds?: number; idleSeconds?: number; env?: Env } = {}): Promise<LiveFaceSession | null> {
   const env = opts.env ?? process.env;
   if (!liveFaceOn(env, who)) return null;
-  const face = await liveFaceState(db, characterId, baseUrl, env);
+  // Their own pick first (when that renderer has a ready face for this character and its key), else the server's.
+  const choice = await choiceOf(db, who);
+  const picked = choice === "auto" ? null : await liveFaceRowFor(db, characterId, baseUrl, choice, env);
+  const usable = picked && picked.status === "ready" && picked.provider_face_id && (choice === "simli" ? Boolean(simliKey(env)) : Boolean(runpodConfig(env)));
+  const face = usable ? picked : await liveFaceState(db, characterId, baseUrl, env);
   if (!face || face.status !== "ready" || !face.provider_face_id) return null;
   if (face.provider === "musetalk") {
     void warmWorker(runpodConfig(env)!);
@@ -234,9 +251,12 @@ export async function liveFaceSession(db: Db, characterId: string, baseUrl: stri
 }
 
 /** What a turn needs to render MuseTalk clips for this character, when that's on for this person and the bundle is ready; else null. */
-export async function liveFaceClips(db: Db, characterId: string, baseUrl: string, who: { admin: boolean }, env: Env = process.env): Promise<{ runpod: RunpodConfig; bundle_key: string } | null> {
-  if (liveFaceProvider(env) !== "musetalk" || !liveFaceOn(env, who)) return null;
-  const face = await liveFaceState(db, characterId, baseUrl, env);
+export async function liveFaceClips(db: Db, characterId: string, baseUrl: string, who: { admin: boolean; userId?: string | null }, env: Env = process.env): Promise<{ runpod: RunpodConfig; bundle_key: string } | null> {
+  if (!liveFaceOn(env, who) || !runpodConfig(env)) return null;
+  const choice = await choiceOf(db, who);
+  if (choice === "simli") return null;
+  if (choice !== "musetalk" && liveFaceProvider(env) !== "musetalk") return null;
+  const face = await liveFaceRowFor(db, characterId, baseUrl, "musetalk", env);
   if (!face || face.provider !== "musetalk" || face.status !== "ready" || !face.provider_face_id || face.provider_face_id.startsWith(JOB)) return null;
   return { runpod: runpodConfig(env)!, bundle_key: face.provider_face_id };
 }
