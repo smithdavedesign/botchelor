@@ -369,11 +369,22 @@ Proved on a 4090 pod from the image: engines in 2.7 s, Juniper's 5.6-s clause in
 `-march=native` on first import, so the binary built on GitHub's runner hit an illegal instruction on Runpod's EPYC hosts
 and every worker came up unhealthy; the image now builds it for a portable target (`build-blend.py`).
 
-**What moving calls onto it takes (next):** Ditto has no idle cycle to index, so continuity between a reply's clauses is
-motion state, not MuseTalk's `start_frame`: carry the last clause's pose into the next (`ctrl_info`, `fade_in`/`fade_out`),
-and render the between-clip loop with Ditto too (a silent clause) so the renderer never visibly changes. Feed the 624-px
-loop frame rather than the 512-px portrait so clips match the round frame without upscaling. Then `LIVE_FACE_PROVIDER=ditto:admins`
-through the same `liveFaceClips` path. Both renderers resident on one 24-GB card would fit; they are two images today.
+**Calls on Ditto (built the same evening):** Ditto has no idle cycle to index, so continuity between a reply's clauses is
+motion state, not MuseTalk's `start_frame`. The worker now carries it through the job (`state_b64`: the last ten motion
+frames, the conditioning frame before them, the 0.4 s of audio under them and the chain's reference frame, about 35 KB), seeds
+its own window overlap with it and eases the first five frames from the last rendered one; the first clause of a reply
+starts at the still and eases in, the last gets 0.4 s of silence (the lips close on it) and eases pose and expression
+back to the still. The server renders a reply as one chain (`lib/live-face/ditto.ts` DittoChain: one clause at a time,
+each in about 0.6× its length plus the round trip; a clause whose place isn't known yet waits up to 2.5 s for the next
+piece or the reply's end; a failed clause breaks the chain and the next starts afresh), the browser plays the clips as
+MuseTalk's, holds a clip's last frame for up to 2.5 s when the next is a beat late instead of dropping to the loop
+mid-motion, and restarts the loop at its first frame (the portrait) after a reply (`end_frame` 0), so the only visible
+join is between two pictures of the same still. Nothing is built per character: a kit portrait is the face
+(`liveFaceClips` → `{ provider: "ditto", source_url }`), `LIVE_FACE_PROVIDER=ditto` or `ditto:admins`, and a person can
+pick Ditto for their own calls on the compare page. The loop between replies is still the kit's Wan loop (a
+Ditto-rendered idle is the next step if the switch between them shows); the 512-px portrait is the source (the round
+frame shows 136 px, so the 624-px loop frame gained nothing). Both renderers resident on one 24-GB card would fit;
+they are two images today.
 
 **Latency:** a clause's clip arrives roughly two seconds after its voice (render ≈ frames at 50 fps + encode); the
 browser holds the voice for it (measured above: the first clip and the first words start together). Simli is nearer one second end to end. If the hold reads as a pause, the next steps

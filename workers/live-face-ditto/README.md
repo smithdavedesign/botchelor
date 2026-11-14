@@ -14,15 +14,34 @@ Runpod's terms exclude adult content, so this serves PG calls only.
 
 | op | input | output |
 |---|---|---|
-| `speak` | `source_url` or `source_b64` (a still: the kit's portrait or a frame of its loop; a video works but restarts at its first frame each clause), `audio_b64` (`audio_format` `pcm16` at `rate`, or `wav`), optional `fade_in`/`fade_out` (frames), `sampling_timesteps` (Ditto's default 50), `emo` (default 4) | `video_b64` (MP4, H.264 + AAC, the still's own size), `frames`, `fps` 25, `width`, `height`, `bytes`, `registrations` (cache hits), `ms` (`source`, `setup`, `audio`, `render`, `encode`, `total`) |
+| `speak` | `source_url` or `source_b64` (a still: the kit's portrait or a frame of its loop; a video works but restarts at its first frame each clause), `audio_b64` (`audio_format` `pcm16` at `rate`, or `wav`); the chain's `state_b64` (from the clause before), `want_state`, `fade_in`/`fade_out` (frames), `tail_silence_ms`; `sampling_timesteps` (Ditto's default 50), `emo` (default 4) | `video_b64` (MP4, H.264 + AAC, the still's own size), `frames`, `fps` 25, `width`, `height`, `bytes`, `state_b64` (when asked), `chain` (what the chain did), `handler` (the handler's version), `registrations` (cache hits), `ms` (`source`, `setup`, `audio`, `render`, `encode`, `total`) |
 | `warm` | | `ok`, `ms` of the warm-up clause |
 
 `speak` is `/runsync`. There is no `prepare`: Ditto registers a still in a fraction of a second (face detection,
 landmarks, appearance and motion features), and the worker keeps the last `REGISTRATIONS` (16) registrations in
-memory, so a call's clauses after the first skip it. Continuity between clauses is not a frame index as with
-MuseTalk's `start_frame`: each clause starts from the still's pose and `fade_in`/`fade_out` ease the motion at the
-ends. The first clause on a fresh worker pays TensorRT's first run (about 13 s); the worker does that itself at
-start, in `warm`, on Ditto's sample portrait.
+memory and a still fetched by URL for `URL_CACHE_S` (15 min), so a call's clauses after the first skip both. The
+first clause on a fresh worker pays TensorRT's first run (about 13 s); the worker does that itself at start, in
+`warm`, on Ditto's sample portrait.
+
+**The chain.** Continuity between a reply's clauses is not a frame index as with MuseTalk's `start_frame` (there is no
+idle cycle); it is motion state carried through the job, because a chain's clauses may land on different workers
+(`lib/live-face/ditto.ts` DittoChain drives it):
+
+- the first clause starts at the still (Ditto's relative motion makes frame 0 the still itself) and `fade_in` (6)
+  frames ease the motion in;
+- a clause asked with `want_state` answers `state_b64`: its last `TAIL_FRAMES` (10, Ditto's own window overlap)
+  motion frames, the conditioning frame before them, the 0.4 s of audio under them (int16) and the chain's reference
+  frame `d0`, about 35 KB;
+- the next clause sends it back: the motion tail seeds Ditto's window `_fuse` (the model continues the motion rather
+  than restarting it), the audio tail is prepended so HuBERT has its context (those 10 frames are generated again and
+  not output), `d0` keeps the whole chain relative to the same still (else each clause would re-zero to its own first
+  frame: a jump), and the first `JOIN_BLEND` (5) output frames ease from the clause before's last rendered frame;
+- the last clause gets `tail_silence_ms` (400) of silence appended, which the lips close on, and `fade_out` (13) frames
+  (`fade_type` "s" over pose and expression) that bring it back to the still, so the browser hands over to the kit's
+  loop at its first frame, the portrait, with no jump.
+
+The chain's loop is `_chain_audio2motion_offline`, Ditto's own `_audio2motion_offline` at the pinned commit with the
+state around it, bound onto the SDK instance at import.
 
 ## Environment
 
@@ -58,9 +77,12 @@ start, in `warm`, on Ditto's sample portrait.
    out, so scale `workers.max` to 0 and back to retire it. The first endpoint, 2026-11-14: `k6mzbe6h1jgc19`, from
    template `6xcn8wmxzq` (image `ditto-1`); the show app points at it.
 3. The show app: `LIVE_FACE_DITTO_ENDPOINT=<endpoint id>` beside `RUNPOD_API_KEY` and `LIVE_FACE_ENDPOINT`. The
-   compare page (`/admin/live-face`) then lists `ditto`; calls keep MuseTalk until Ditto is wired into
-   `liveFaceClips` (its continuity is motion state, not a frame index, and the between-clip loop should be
-   Ditto-rendered too).
+   compare page (`/admin/live-face`) then lists `ditto`, and `LIVE_FACE_PROVIDER=ditto` (or `ditto:admins`) puts
+   calls on it: a character with a face kit has a Ditto face at once (nothing to build), a reply renders as one
+   chain of clips (above), and a person can pick it for their own calls on the compare page whatever the server's
+   setting (`user_live_face`). The browser (app/companion/[id]/LiveFace.tsx) plays the clips as it does MuseTalk's,
+   holds a clip's last frame for a moment when the next piece's clip is a beat late (rather than drop to the loop
+   mid-motion), and restarts the loop at its first frame after a reply (`end_frame` 0).
 
 ## Measured
 
@@ -69,6 +91,13 @@ On a secure 4090 pod from the image (2026-11-14), Juniper's kit portrait (512²,
 1.2 s was the first registration; then the clause → 141 frames in 3.16 s (registration 44 ms, HuBERT 149 ms, motion +
 render 2.85 s, mux 94 ms; 303 KB), and the same clause again in 3.10 s with the registration a 6-ms cache hit. That is
 0.55× real time, MuseTalk's speed, with the whole head moving.
+
+On the endpoint (`k6mzbe6h1jgc19`, 2026-11-14 16:43 UTC, a warm worker): a job is picked up in 23–30 ms and the same
+5.64-s clause takes 3.6–3.75 s on the worker (render 3.3 s, 0.59×), 4–5 s wall from a laptop with the 300 KB clip; a
+fresh worker's warm-up is 12.8 s (the first TensorRT run) and shows as "initializing" to the endpoint, not as a
+failed job. A chain renders one clause after another (each needs the one before's state), each in about 0.6× its
+length plus the job round trip, so it keeps ahead of its own playback when clauses are a couple of seconds long
+(lib/live-face-shared.ts `clausesOf` keeps them so).
 
 ## Cost
 
