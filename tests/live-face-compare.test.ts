@@ -56,6 +56,7 @@ describe("the renderer registry", () => {
   it("lists ours first, the hosted batch models, D-ID and Simli, and knows which can render a clip", () => {
     expect(RENDERERS[0].id).toBe("musetalk");
     expect(RENDERERS[1]).toMatchObject({ id: "ditto", provider: "house", kind: "live", runs: true });
+    expect(RENDERERS[2]).toMatchObject({ id: "ditto:loop", provider: "house", kind: "live", runs: true });
     expect(RENDERERS.map((r) => r.provider)).toEqual(expect.arrayContaining(["house", "fal", "replicate", "did", "simli"]));
     expect(runnableRenderers().map((r) => r.id)).not.toContain("simli");
     expect(rendererById("fal:sync-lipsync-2")?.model).toBe("fal-ai/sync-lipsync/v2");
@@ -182,6 +183,11 @@ describe("Ditto, our second worker", () => {
     // As a call renders a clause: eased in and out at the portrait, the line's expression (none here: a plain line).
     expect(asked[0].body).toMatchObject({ op: "speak", source_url: input.portraitUrl, audio_format: "pcm16", rate: 24_000, fade_in: CHAIN_FADE_IN, fade_out: CHAIN_FADE_OUT, tail_silence_ms: CHAIN_TAIL_SILENCE_MS });
     expect(asked[0].body?.audio_b64).toBe(pcm.toString("base64"));
+    // Ditto on the loop: the same job with the kit's loop as the source, from the cycle's first frame, expression-only fades on the worker's side.
+    const onLoop = await rendererById("ditto:loop")!.speak(input, { apiKey: null, env });
+    expect(onLoop.mp4.equals(MP4)).toBe(true);
+    expect(asked[asked.length - 1].body).toMatchObject({ op: "speak", source_url: input.loopUrl, audio_format: "pcm16", fade_in: CHAIN_FADE_IN, fade_out: CHAIN_FADE_OUT });
+    expect(asked[asked.length - 1].body).not.toHaveProperty("start_frame");
     // Without its endpoint it says so instead of calling MuseTalk's
     await expect(ditto.speak(input, { apiKey: null, env: { RUNPOD_API_KEY: "placeholder-runpod", LIVE_FACE_ENDPOINT: "ep-1" } })).rejects.toThrow(/LIVE_FACE_DITTO_ENDPOINT/);
     // A worker failure is the renderer's error, not a clip
