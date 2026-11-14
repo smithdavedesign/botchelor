@@ -77,16 +77,16 @@ export function framesOfPcm(bytes: number, rate: number, fps = CLIP_FPS): number
 /**
  * A reply's first piece split at a clause, so its first clip is ready sooner: a clip can't start rendering until the
  * whole piece's voice is in and takes about half the piece's length, and nothing plays until the first clip is there.
- * Splits only where the voice would pause anyway (after a comma, semicolon or colon, at a dash, before and/but/so/
- * because/which/while/then), nearest to two fifths of the way in, with at least `min` characters each side; null when
- * the piece is short or has no such place.
+ * Splits only where the voice would pause anyway (after a comma, semicolon or colon, at a dash, before a clause word:
+ * and/but/so/because/which/while/then/until/when/after/before/where/unless/though), nearest to two fifths of the way
+ * in, with at least `min` characters each side; null when the piece is short or has no such place.
  */
 export function splitFirstPiece(text: string, opts: { min?: number; long?: number } = {}): [string, string] | null {
   const min = opts.min ?? 18;
   const long = opts.long ?? 48;
   const t = text.trim();
   if (t.length < long) return null;
-  const re = /([,;:]\s+)|(\s+[—–-]\s+)|(\s+(?=(?:and|but|so|because|which|while|then)\s))/g;
+  const re = /([,;:]\s+)|(\s+[—–-]\s+)|(\s+(?=(?:and|but|so|because|which|while|then|until|when|after|before|where|unless|though)\s))/g;
   const want = t.length * 0.4;
   let best: { head: string; tail: string; off: number } | null = null;
   for (const m of t.matchAll(re)) {
@@ -99,3 +99,8 @@ export function splitFirstPiece(text: string, opts: { min?: number; long?: numbe
   }
   return best ? [best.head, best.tail] : null;
 }
+
+/** A first piece this short ("Hey.") is folded into the one after it: its clip would be over before the next was ready, a pause right after the first word. */
+export const SHORT_FIRST_PIECE = 16;
+/** How long the server waits for the next piece before voicing a short first piece on its own. */
+export const SHORT_FIRST_WAIT_MS = 400;
