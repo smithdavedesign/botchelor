@@ -6,7 +6,11 @@ Models load once at import; every job reuses them.
 
 Jobs ("input" of a Runpod job):
   {"op": "prepare", "id": "<character>", "loop_url": "https://…mp4" | "loop_b64": "…", "bbox_shift": 0}
-      → {"bundle_key": "live-face/<id>/<sha>.tar.gz", "frames": N, "width": W, "height": H, "fps": 25, "ms": {…}}
+      → {"bundle_key": "live-face/<id>/<sha>.tar.gz", "frames": N, "width": W, "height": H, "fps": 25, "ms": {…},
+         "loop": {"smoothed": bool, …}, "loop_key": "live-face/<id>/loop-<sha>.mp4" | null}
+      A loop that is a slower render pulled down to 25 fps by repeating frames (Wan's 16 fps) is re-timed first: the
+      repeats dropped and the frames between the real ones made by motion interpolation, so the head moves on every
+      frame the mouth does. The re-timed loop is stored beside the bundle (`loop_key`) for the kit to show too.
     Builds the character's avatar bundle from their idle loop (landmarks, crops, VAE latents, blend masks) and puts it
     in the show's object store (MEDIA_S3_*). A bundle is a few MB; the loop's frames are kept as the loop itself.
   {"op": "speak", "bundle_key": "…", "audio_b64": "…", "audio_format": "pcm16" | "wav", "rate": 24000,
@@ -25,6 +29,7 @@ import hashlib
 import io
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -41,6 +46,8 @@ VERSION = "v15"
 EXTRA_MARGIN = 10          # MuseTalk v1.5's default, added below the face box
 PARSING_MODE = "jaw"       # v1.5's default blend mask
 BATCH_SIZE = int(os.environ.get("BATCH_SIZE", "20"))
+FFMPEG = os.environ.get("FFMPEG", "ffmpeg")
+SMOOTH_MIN_DUP = float(os.environ.get("SMOOTH_MIN_DUP", "0.2"))  # share of repeated frames that marks a pulled-down loop
 MAX_AUDIO_SECONDS = float(os.environ.get("MAX_AUDIO_SECONDS", "30"))
 
 os.chdir(MUSETALK_DIR)
@@ -225,6 +232,44 @@ def encode_mp4(frames: list[np.ndarray], fps: int, wav: bytes) -> bytes:
 
 
 # ------------------------------------------------------------------ prepare: loop → bundle
+def smooth_loop(data: bytes) -> tuple[bytes, dict]:
+    """A loop whose motion is slower than its frame rate (Wan renders at 16 fps; the kit's file says 25, so 38% of
+    Juniper's frames were repeats of the one before) has the repeats dropped, the real frames spread at their own rate
+    and the frames between them made by motion interpolation (ffmpeg's minterpolate), so the head moves on every frame
+    the mouth is drawn on. A loop without that pattern passes through untouched. Returns the loop and what was done."""
+    work = tempfile.mkdtemp(prefix="smooth-")
+    try:
+        src = os.path.join(work, "in.mp4")
+        with open(src, "wb") as f:
+            f.write(data)
+        cap = cv2.VideoCapture(src)
+        total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
+        fps = float(cap.get(cv2.CAP_PROP_FPS) or 25.0)
+        cap.release()
+        if total < 10:
+            return data, {"smoothed": False, "why": "too short"}
+        # Pass 1: how many frames mpdecimate keeps (its default thresholds drop the repeats and keep subtle real motion:
+        # Juniper's 127 → 79, the same 48 the plain frame difference calls repeats).
+        p = subprocess.run([FFMPEG, "-v", "info", "-i", src, "-vf", "mpdecimate", "-an", "-f", "null", "-"], capture_output=True, text=True, timeout=180)
+        counts = re.findall(r"frame=\s*(\d+)", p.stderr)
+        unique = int(counts[-1]) if counts else total
+        dup = (total - unique) / total
+        if dup < SMOOTH_MIN_DUP:
+            return data, {"smoothed": False, "frames": total, "unique": unique, "dup": round(dup, 3)}
+        src_fps = unique / (total / fps)
+        out = os.path.join(work, "out.mp4")
+        vf = f"mpdecimate,setpts=N/({src_fps:.4f}*TB),minterpolate=fps=25:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1:scd=none"
+        subprocess.run(
+            [FFMPEG, "-v", "error", "-y", "-i", src, "-vf", vf, "-an", "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p", "-movflags", "+faststart", out],
+            check=True, capture_output=True, timeout=900,
+        )
+        with open(out, "rb") as f:
+            smooth = f.read()
+        return smooth, {"smoothed": True, "frames": total, "unique": unique, "dup": round(dup, 3), "from_fps": round(src_fps, 2)}
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+
+
 def prepare(inp: dict) -> dict:
     t0 = time.time()
     char_id = str(inp.get("id") or "").strip()
@@ -237,6 +282,9 @@ def prepare(inp: dict) -> dict:
     else:
         raise ValueError("loop_url or loop_b64 is required")
     bbox_shift = int(inp.get("bbox_shift") or 0)
+    loop, smooth = smooth_loop(loop)
+    t_smooth = time.time()
+    log(f"prepare {char_id}: loop {json.dumps(smooth)}")
 
     # Landmarks + face boxes need image files (MuseTalk reads paths) and load dwpose on first use.
     from musetalk.utils.preprocessing import get_landmark_and_bbox
@@ -268,7 +316,7 @@ def prepare(inp: dict) -> dict:
         shutil.rmtree(work, ignore_errors=True)
     t_prep = time.time()
 
-    info = {"id": char_id, "version": 1, "musetalk": VERSION, "fps": int(round(fps)), "width": w, "height": h, "frames": len(frames), "bbox_shift": bbox_shift, "extra_margin": EXTRA_MARGIN, "parsing_mode": PARSING_MODE}
+    info = {"id": char_id, "version": 1, "musetalk": VERSION, "fps": int(round(fps)), "width": w, "height": h, "frames": len(frames), "bbox_shift": bbox_shift, "extra_margin": EXTRA_MARGIN, "loop": smooth, "parsing_mode": PARSING_MODE}
     buf = io.BytesIO()
     with tarfile.open(fileobj=buf, mode="w:gz") as tar:
         def add(name: str, data: bytes) -> None:
@@ -295,7 +343,12 @@ def prepare(inp: dict) -> dict:
     else:
         store_put(key, bundle, "application/gzip")
     _cache_put(key, bundle)
-    return {"bundle_key": key, "frames": len(frames), "width": w, "height": h, "fps": info["fps"], "bytes": len(bundle), "ms": {"prepare": int((t_prep - t0) * 1000), "pack": int((time.time() - t_prep) * 1000)}}
+    loop_key = None
+    if smooth.get("smoothed"):
+        loop_key = f"live-face/{char_id}/loop-{hashlib.sha256(loop).hexdigest()[:16]}.mp4"
+        if not inp.get("local_path"):
+            store_put(loop_key, loop, "video/mp4")
+    return {"bundle_key": key, "loop_key": loop_key, "loop": smooth, "frames": len(frames), "width": w, "height": h, "fps": info["fps"], "bytes": len(bundle), "ms": {"smooth": int((t_smooth - t0) * 1000), "prepare": int((t_prep - t_smooth) * 1000), "pack": int((time.time() - t_prep) * 1000)}}
 
 
 # ------------------------------------------------------------------ bundles in memory
@@ -393,6 +446,7 @@ def speak(inp: dict) -> dict:
         "mime": "video/mp4",
         "frames": len(out_frames),
         "next_frame": (start + len(out_frames)) % n_cycle,
+        "cycle": n_cycle,
         "width": b["info"]["width"],
         "height": b["info"]["height"],
         "bytes": len(mp4),
