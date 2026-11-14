@@ -703,7 +703,8 @@ each move resets the line budget so they can keep talking there.
     `accept_move` are read strictly: `z.coerce.boolean("false")` was `true`.
   - **Time.** A show date wraps up by `DATE_DEADLINE_MS` (210 s) after the job starts and takes no new move after
     `MOVE_CUTOFF_MS` (150 s), so the recap, the morning after and the reflections still fit in the 300 s run. The job
-    lease is 330 s, longer than the run, so a slow date is never filmed twice.
+    lease is 330 s, longer than the run, so a slow date is never filmed twice. The wrap-up never leaves a date shorter
+    than `MIN_CLOCK_LINES` (6, #1445): caught earlier, it plays on with no new move until line 4, then says goodbye.
   - **Off** for the speed date (one table against the clock), template rooms and backfill, and for an agent's date that
     was already being played when this shipped (`setup.moves` is set at booking).
 - **Where it shows.** The theater's backdrop follows the line on screen, and the thread marks "📍 They head to …". The

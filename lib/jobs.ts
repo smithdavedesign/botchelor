@@ -80,7 +80,8 @@ export const JOB_LEASE_SECONDS = 330;
 /**
  * A date has to finish inside one function run (maxDuration 300s) with time left for the recap, the morning after and
  * the reflections: its conversation wraps up by DATE_DEADLINE_MS after the job starts, and no new move is proposed after
- * MOVE_CUTOFF_MS (a move adds up to a dozen lines). The lease outlasts the run, so a slow date is never run twice.
+ * MOVE_CUTOFF_MS (a move adds up to a dozen lines). The lease outlasts the run, so a slow date is never run twice. A date
+ * the deadline catches early still plays MIN_CLOCK_LINES (lib/conversation.ts, #1445) before it wraps up.
  */
 export const DATE_DEADLINE_MS = 210_000;
 export const MOVE_CUTOFF_MS = 150_000;
