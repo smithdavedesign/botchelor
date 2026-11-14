@@ -472,7 +472,7 @@ export default function CreateWizard({
       const raw = localStorage.getItem(IMPORT_STORAGE_KEY);
       if (!raw) return false;
       localStorage.removeItem(IMPORT_STORAGE_KEY);
-      const r = JSON.parse(raw) as Partial<ImportNote> & { draft?: ImportedDraft };
+      const r = JSON.parse(raw) as Partial<ImportNote> & { draft?: ImportedDraft; readyToDate?: unknown };
       const d = r.draft;
       if (!d || typeof d !== "object" || !d.sheet) return false;
       const s = (v: unknown) => (typeof v === "string" ? v : "");
@@ -486,12 +486,22 @@ export default function CreateWizard({
       setSoul(EMPTY_SOUL);
       setHiding([]);
       const list = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
+      const ready = r.readyToDate === true && list(r.missing).length === 0;
       setImported({
         filled: list(r.filled),
         missing: list(r.missing),
+        optional: list(r.optional),
+        ready,
         dropped: Array.isArray(r.dropped) ? r.dropped.filter((x) => x && typeof x.field === "string" && typeof x.why === "string") : [],
         readBy: r.readBy === "model" || r.readBy === "fallback" ? r.readBy : null,
       });
+      // Everything Create needs came in: straight to Review, as a sample goes (the Character.AI rescue door, 2026-11-14:
+      // paste, tick the box, Create, and the first date starts). Anything short of that starts on Identity with the list.
+      if (ready) {
+        setTriedNext(false);
+        setMaxStep(last);
+        setStep(S.review);
+      }
       return true;
     } catch {
       return false;
@@ -1239,6 +1249,15 @@ export default function CreateWizard({
                 the Edit links below.
               </p>
             )}
+            {imported?.ready && !edit && (
+              <p className="notice wizard-sample-note" data-track="import-ready">
+                <strong>{sheet.name ? `Check ${shortName(sheet.name)}, tick the box, create.` : "Check them, tick the box, create."}</strong>{" "}
+                {imported.readBy === "model"
+                  ? "The show's model read your description, so look over each line below; the Edit links change anything."
+                  : "Everything a first date needs came in; the Edit links change anything."}
+                {firstCharacter ? " Their dating profile is written from their sheet." : ""}
+              </p>
+            )}
             {/* Grouped by the step each answer came from, each a line that opens (2026-10-31 UX audit, B7: a full
                 read-back was ~3 phone screens to Create), with a way straight back to that step. */}
             {(() => {
@@ -1425,7 +1444,16 @@ export default function CreateWizard({
  * creator's characters never date each other, so this says so rather than promising the two a date together.
  */
 /** What /import brought in, said once on the first step: what came in, what's still needed, what was left out and why. */
-type ImportNote = { filled: string[]; missing: string[]; dropped: { field: string; why: string }[]; readBy: "model" | "fallback" | null };
+type ImportNote = {
+  filled: string[];
+  missing: string[];
+  /** Worth adding some time, not needed for Create (the dating profile; lib/import-character.ts optionalMissing). */
+  optional: string[];
+  /** Nothing missing: the builder opened on Review (lib/import-character.ts readyToDate). */
+  ready: boolean;
+  dropped: { field: string; why: string }[];
+  readBy: "model" | "fallback" | null;
+};
 
 function ImportPrefill({ note }: { note: ImportNote }) {
   return (
@@ -1439,6 +1467,7 @@ function ImportPrefill({ note }: { note: ImportNote }) {
             : "Check every field: it's all yours to change."}
       </p>
       {note.missing.length > 0 && <p className="small">{`Still to add: ${listWords(note.missing)}.`}</p>}
+      {note.optional.length > 0 && <p className="muted small">{`Optional, now or after their first date: ${listWords(note.optional)}.`}</p>}
       {note.dropped.length > 0 && <p className="muted small">{`Left out: ${listWords(note.dropped.map((d) => `the ${d.field} (${d.why})`))}.`}</p>}
     </section>
   );
