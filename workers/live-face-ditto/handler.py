@@ -125,7 +125,11 @@ def source_path_for(data: bytes) -> tuple[str, int, int]:
         h, w = img.shape[:2]
     path = os.path.join(SOURCE_CACHE, f"src-{sha}.png")
     if not os.path.exists(path):
-        cv2.imwrite(path + ".part", img)
+        ok, png = cv2.imencode(".png", img)  # encoded in memory: imwrite picks its encoder from the extension, and .part has none
+        if not ok:
+            raise ValueError("couldn't encode the still")
+        with open(path + ".part", "wb") as f:
+            f.write(png.tobytes())
         os.replace(path + ".part", path)
     return path, w, h
 
