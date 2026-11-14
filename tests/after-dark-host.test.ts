@@ -93,12 +93,12 @@ describe("with the switch off (no AFTER_DARK_ORIGIN): exactly today's behaviour"
     vi.resetModules();
     const { default: config } = await import("@/next.config");
     // Plus the "AI-generated" headers on the shipped cast pictures (lib/ai-mark.ts), which don't depend on the switch.
-    // And ffmpeg (lib/media-tools/ffmpeg.ts), only in the three routes that run it, which don't depend on the switch either.
+    // And ffmpeg (lib/media-tools/ffmpeg.ts), only in the routes that run it (the face kit's stills too, 299f395), which don't depend on the switch either.
     const ffmpeg = ["./node_modules/ffmpeg-static/ffmpeg", "./node_modules/ffmpeg-static/index.js", "./node_modules/ffmpeg-static/package.json"];
     expect(config).toEqual({
       serverExternalPackages: ["@electric-sql/pglite", "ffmpeg-static"],
       outputFileTracingExcludes: { "/**": ["./public/**/*"] },
-      outputFileTracingIncludes: { "/api/admin/after-dark/moments": ffmpeg, "/api/admin/after-dark/export": ffmpeg, "/api/admin/showcase/animate": ffmpeg, "/api/jobs/showcase-check": ffmpeg },
+      outputFileTracingIncludes: { "/api/admin/after-dark/moments": ffmpeg, "/api/admin/after-dark/export": ffmpeg, "/api/admin/showcase/animate": ffmpeg, "/api/jobs/showcase-check": ffmpeg, "/api/face-kit": ffmpeg },
       headers: expect.any(Function),
       // No X-Powered-By (2026-11-10 company pass), with or without the switch.
       poweredByHeader: false,

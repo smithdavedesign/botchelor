@@ -6,6 +6,7 @@
  * a page gets PROMPTS_PER_PAGE prompts.
  */
 import { STUDIO_GROUPS } from "./adult/studio-catalog";
+import { namesArtist } from "./prompt-artists";
 import { FACET_RULES, STUDIO_TAG_RULES, YOUNG } from "./prompt-library-rules";
 import LIBRARY from "./prompts-library.json";
 
@@ -126,16 +127,18 @@ export function sourceOf(p: LibraryPrompt) {
   return PROMPT_SOURCES.find((s) => (s.match as readonly string[]).includes(p.source)) ?? PROMPT_SOURCES[0];
 }
 
-export type PromptFilter = { query?: string; source?: PromptSourceId | null; tag?: string | null; showNsfw?: boolean };
+export type PromptFilter = { query?: string; source?: PromptSourceId | null; tag?: string | null; showNsfw?: boolean; artists?: "hide" | null };
 
 /**
  * The prompts that hold every word of the search (any order, any case) in their text or in a tag they show, from one
  * dataset or all of them, carrying one tag or any.
  */
-export function findPrompts({ query = "", source = null, tag = null, showNsfw = false }: PromptFilter, all: readonly LibraryPrompt[] = ALL_PROMPTS): LibraryPrompt[] {
+export function findPrompts({ query = "", source = null, tag = null, showNsfw = false, artists = null }: PromptFilter, all: readonly LibraryPrompt[] = ALL_PROMPTS): LibraryPrompt[] {
   const words = query.toLowerCase().split(" ").filter(Boolean);
   return all.filter((p) => {
     if (source && sourceOf(p).id !== source) return false;
+    // Prompts that name a real artist (lib/prompt-artists.ts) can be left out; the texts themselves are never changed.
+    if (artists === "hide" && namesArtist(p.prompt)) return false;
     const tags = visibleTags(p, showNsfw);
     if (tag && !tags.some((t) => t.id === tag)) return false;
     const text = `${p.prompt} ${tags.map((t) => t.label).join(" ")}`.toLowerCase();

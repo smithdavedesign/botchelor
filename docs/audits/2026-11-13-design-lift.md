@@ -34,18 +34,21 @@ full visual audit (`npm run e2e:visual`, 284 page states): clean apart from the 
 main too, and the account select's height and phone text size, fixed in #1554. The visual audit runs `next build`,
 which is stricter than `tsc`: a page file may export only Next's own fields (#1553).
 
-## Left for David
+## The three data and content items
 
-- **Clementine Brack's portrait** (`/api/assets/055f1fa4-28f3-4907-ac63-8c60fcff98b2`) is an approved PG portrait asset
-  that is literally a blurred picture; it shows as a brown blur on the safe side. A data fix: mark it not PG or redraw
-  her portrait. Worth checking whether other PG Studio portraits were saved blurred.
-- **Seraphina Fenn duplicates Ambrose Fenn's profile text** word for word (bio, prompts, tags, looking for): a cloned
-  character in the swipe deck. Data, not layout.
-- **The prompts library's texts** are scraped as-is: typos and real artists' names (761 of the 2,000 prompts name one:
-  greg rutkowski 249, artgerm 176, alphonse mucha 124, wlop 88; 951 carry a "by …" clause). The layout is lifted; the
-  content is his call (strip the names, or keep the library as a record).
-- **Reviews' dates** now run to 2026-11-13; the page still says "every night", so the visitor loop's best lines should
-  keep landing in `lib/bot-reviews.ts`.
+- **Clementine Brack's portrait**: her approved PG portrait asset (`055f1fa4-28f3-4907-ac63-8c60fcff98b2`) is literally
+  a blurred picture. There was no admin way to take one asset back, so `POST /api/admin/assets` (`{id, status, note}`,
+  admin password or admin account) now does: rejecting a portrait takes it off every page at once and the character
+  shows the previous approved PG portrait, else their initials. Used on that asset once the route was live.
+- **Seraphina Fenn duplicating Ambrose Fenn's profile text**: the agents' deck has said "reads like yours" since #426;
+  the web deck never did. The same detector (`lib/twins.ts`, no model call) now marks the web card too: "Reads a lot like
+  your own character: …" on the card, and nothing else changes (the card stays; the characters are untouched). A
+  rank-last rule was tried first and dropped: people's characters made from the same sample share words, and hiding or
+  reordering them emptied decks.
+- **The prompts' artist names**: the texts stay as the datasets had them (766 of 2,000 name a real artist, checked
+  against the names those datasets repeat: `lib/prompt-artists.ts`). Each such card says "names an artist", and a box
+  over the list leaves them out (`?artists=hide`), kept across pages and tags. The choice is the reader's; flipping the
+  default is one line if David wants the library to hide them from the start.
 
 ## Live
 

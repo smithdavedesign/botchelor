@@ -459,6 +459,11 @@ function Card({ card, className, style, children, ...pointer }: CardProps) {
         <p className="swipe-looking">
           <strong>Looking for:</strong> {card.looking_for}
         </p>
+        {card.reads_like_yours && (
+          <p className="swipe-twin" title={card.reads_like_yours}>
+            👯 Reads a lot like your own character: {card.reads_like_yours}
+          </p>
+        )}
         {card.why.length > 0 && <p className="swipe-why">💡 {card.why.slice(0, 2).join(" · ")}</p>}
       </div>
     </article>

@@ -11,6 +11,7 @@ import { prerender } from "react-dom/static";
 import { CLAMP_GUESS } from "@/app/prompts/PromptText";
 import { promptTone } from "@/app/prompts/PromptCard";
 import { pageCount } from "@/lib/paging";
+import { namesArtist } from "@/lib/prompt-artists";
 import { ALL_PROMPTS, findPrompts, indexablePromptTags, PROMPTS_PER_PAGE, type PromptTag } from "@/lib/prompts-library";
 import { startTestDb } from "./helpers";
 
@@ -55,6 +56,26 @@ describe("/prompts", () => {
     expect(html.match(/<div class="prompt-actions"><button type="button" class="button-ghost small prompt-copy"[\s\S]*?<\/button><button type="button" class="button-ghost small prompt-save"/g)).toHaveLength(PROMPTS_PER_PAGE);
     // The dataset picker still offers every set, "All datasets" first.
     expect(html).toMatch(/<option value=""[^>]*>All datasets<\/option>/);
+  });
+
+  it("marks prompts that name a real artist and can leave them out (?artists=hide), texts untouched", async () => {
+    const all = await render();
+    expect(all).toContain('name="artists"');
+    expect(all).not.toContain('name="artists" checked=""');
+    expect(all).toContain("Leave out prompts that name a real artist");
+    expect(all).toContain("of these do");
+    const hidden = await render({ artists: "hide" });
+    expect(hidden).toContain('name="artists" checked=""');
+    expect(hidden).toContain("left out");
+    expect(hidden).not.toContain("names an artist");
+    expect(items(hidden)).toBe(PROMPTS_PER_PAGE);
+    // The chip shows on a card that names one, somewhere in the first pages.
+    const naming = findPrompts({}).findIndex((p) => namesArtist(p.prompt));
+    expect(naming).toBeGreaterThan(-1);
+    const page = await render({ page: String(Math.floor(naming / PROMPTS_PER_PAGE) + 1) });
+    expect(page).toContain("names an artist");
+    // Paging keeps the choice.
+    expect(hidden).toContain("artists=hide");
   });
 
   it("pages every prompt, 24 at a time, with the one pager", async () => {
