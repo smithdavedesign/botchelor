@@ -55,7 +55,7 @@ type SimliModule = typeof import("simli-client");
  *  - MuseTalk: the server sends a clip per piece of the reply (the loop with the mouth saying it, voice included);
  *    they play here in order, and between them, and whenever a clip doesn't come, the kit's face carries on.
  */
-const LiveFace = forwardRef<LiveFaceHandle, { kit: FaceKit | null; phase: FacePhase; level: () => number; said: string | null; name: string; size: number; fallback: ReactNode; session?: LiveFaceSession | null; onLive?: (live: boolean) => void }>(
+const LiveFace = forwardRef<LiveFaceHandle, { kit: FaceKit | null; phase: FacePhase; level: () => number; said: string | null; name: string; size: number | string; fallback: ReactNode; session?: LiveFaceSession | null; onLive?: (live: boolean) => void }>(
   function LiveFace({ kit, phase, level, said, name, size, fallback, session = null, onLive }, ref) {
     const [mouth, setMouth] = useState<Mouth>("closed");
     const [blink, setBlink] = useState(false);

@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import Avatar from "@/app/Avatar";
+import Avatar, { sized } from "@/app/Avatar";
+import { characterPortrait } from "@/lib/portraits";
 import { useSpeech } from "@/app/stage/useSpeech";
 import { extraPrice, type CompanionCharacterRef, type CompanionExtraState, type CompanionMessageView } from "@/lib/companion-shared";
 import { heardSoFar, LIVE_START, liveStep, type Heard, type LiveEvent, type LiveState } from "@/lib/companion-live-shared";
@@ -30,6 +31,9 @@ export type CallTurn =
 export type CallStats = { seconds: number; turns: number; voice: CallVoice };
 
 type Phase = "ready" | "connecting" | "listening" | "thinking" | "speaking" | "paused";
+
+/** The most the face draws at on a call (the tile's height is capped in companion.css), for the portrait's size. */
+const BIG_FACE = 768;
 
 /** How the call goes: live (P6: Deepgram hears you as you talk, either of you can talk over the other) or taking turns (v1). */
 export type CallMode = "live" | "classic";
@@ -994,6 +998,12 @@ export default function CompanionCall({
 
   // Once the call is on: before it, there's nothing said to show.
   const scriptOpen = showScript && phase !== "ready";
+  // Once the call is on, their face grows from the small circle into a tile 80% of the screen wide (David 2026-11-14:
+  // "it's small on desktop"). The kit's stills are 512 px, so the face stays a square as tall as the tile and a blurred
+  // copy of their portrait fills the sides, instead of stretching it to the full width (blurry, with the head cut off).
+  const big = phase !== "ready";
+  const portrait = characterPortrait(character.id) ?? sized(character.portrait, BIG_FACE);
+  const backdrop = faceKit?.stills.portrait ?? portrait;
 
   const status =
     phase === "connecting"
@@ -1025,6 +1035,10 @@ export default function CompanionCall({
           {phase !== "ready" && <span className="companion-call-clock">{clock(seconds)}</span>}
         </p>
         <div className="companion-call-face">
+          {big && backdrop && (
+            // eslint-disable-next-line @next/next/no-img-element -- the face's own portrait, blurred behind it
+            <img src={backdrop} alt="" className="companion-call-backdrop" aria-hidden="true" draggable={false} />
+          )}
           <LiveFace
             ref={face}
             kit={faceKit}
@@ -1032,12 +1046,20 @@ export default function CompanionCall({
             level={faceLevel}
             said={them}
             name={first}
-            size={scriptOpen ? 72 : 136}
+            // On the call the tile is a size container (companion.css): a square as tall as the tile.
+            size={big ? "100cqh" : 136}
             session={faceSession}
             onLive={(on) => {
               if (on) faceWas.current = faceSession?.provider ?? "simli";
             }}
-            fallback={<Avatar seed={character.id} name={character.name} hue={character.hue} house={character.house} portraitSrc={character.portrait} size={scriptOpen ? 72 : 136} round />}
+            fallback={
+              big && portrait ? (
+                // eslint-disable-next-line @next/next/no-img-element -- their portrait at the tile's size (Avatar draws a fixed one)
+                <img src={portrait} alt="" className="companion-call-portrait" draggable={false} />
+              ) : (
+                <Avatar seed={character.id} name={character.name} hue={character.hue} house={character.house} portraitSrc={character.portrait} size={big ? 200 : 136} round />
+              )
+            }
           />
         </div>
         <h2 className="companion-call-name">{character.name}</h2>
