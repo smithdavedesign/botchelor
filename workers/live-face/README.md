@@ -50,10 +50,11 @@ continue the idle motion: pass the previous clip's `next_frame`.
    ```
    Pools are the catalog's (`GET /v2/catalog/gpus`, field `pool`): `ADA_24` is the 4090, `AMPERE_24` the 3090, A5000
    and L4. No data-center pin and no network volume: the weights are in the image. The first endpoint, 2026-11-13:
-   `rstlknto5x90ad` on template `59ipbcal95`. A new build goes live by repointing the template, which gives the
-   endpoint a new release and makes every worker pull it:
+   `rstlknto5x90ad`, created from template `59ipbcal95`. The endpoint keeps its own copy of the template's container
+   settings (its `templateId` reads back empty), so a new build goes live by patching the endpoint itself, which makes a
+   new release and every worker pull it (2026-11-14: `dev` → `dev-4` this way, old workers marked stale at once):
    ```sh
-   curl -X PATCH https://api.runpod.io/v2/templates/59ipbcal95 -H "Authorization: Bearer $RUNPOD_API_KEY" \
+   curl -X PATCH https://api.runpod.io/v2/serverless/rstlknto5x90ad -H "Authorization: Bearer $RUNPOD_API_KEY" \
      -H 'Content-Type: application/json' -d '{"image": "ghcr.io/smithdavedesign/botchelor-live-face:<tag>"}'
    ```
    Worker logs need a key with more than the Serverless scope (`/v2/serverless/<id>/workers/<worker>/logs` answered

@@ -14,7 +14,7 @@ on:
         default: "v1"
   push:
     branches: ["live-face-*"]
-    paths: ["workers/live-face/**", ".github/workflows/live-face-worker.yml"]
+    paths: ["workers/live-face/**", "!workers/live-face/*.md", ".github/workflows/live-face-worker.yml"]
 permissions:
   contents: read
   packages: write
