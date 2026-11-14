@@ -3945,6 +3945,16 @@ html.phone-open body {
   font-size: var(--text-xs);
   color: var(--muted);
 }
+/* #426 on the web: a card that reads like the swiper's own character says so (app/swipe/page.tsx withTwins). */
+.swipe-twin {
+  margin: 0.4rem 0 0;
+  padding: 0.35rem 0.6rem;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--accent) 10%, var(--card));
+  font-size: var(--text-xs);
+  color: var(--accent-text);
+  font-weight: 600;
+}
 /* "Like" and "Nope" fade in as the card leans that way. */
 .swipe-stamp {
   position: absolute;

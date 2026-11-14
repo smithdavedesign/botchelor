@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { namesArtist } from "@/lib/prompt-artists";
 import { type LibraryPrompt, type PromptTag, sourceOf } from "@/lib/prompts-library";
 import PromptText from "./PromptText";
 
@@ -42,6 +43,13 @@ export default function PromptCard({ prompt, tags, tagHref, currentTag = null, c
       <p className="prompt-head muted small">
         <span className="prompt-swatch" aria-hidden="true" />
         <span className="prompt-source">{`${source.name} · ${source.license}`}</span>
+        {/* The datasets' prompts often ask for a living artist's style (lib/prompt-artists.ts): said on the card, and the
+            library can leave these out. */}
+        {namesArtist(prompt.prompt) && (
+          <span className="chip prompt-artist" title="This prompt asks for a real artist's style. The library can hide these: tick the box above the list.">
+            names an artist
+          </span>
+        )}
       </p>
       {clamp ? <PromptText text={prompt.prompt} /> : <p className="prompt-text">{prompt.prompt}</p>}
       {tags.length > 0 && (

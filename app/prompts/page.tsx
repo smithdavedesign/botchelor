@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import Link from "next/link";
 import Pager from "@/app/Pager";
 import { adultViewerFromCookies } from "@/lib/adult/mode";
+import { artistsNamed, parseArtists } from "@/lib/prompt-artists";
 import { getDb } from "@/lib/db";
 import { pageHref, pageOf, parsePage } from "@/lib/paging";
 import {
@@ -62,10 +63,13 @@ export default async function PromptsPage({ searchParams }: { searchParams: Sear
   const q = parseQuery(sp.q);
   const source = parseSource(sp.source);
   const tag = parseTag(sp.tag, showNsfw);
-  const found = findPrompts({ query: q, source, tag, showNsfw });
+  const artists = parseArtists(sp.artists);
+  const found = findPrompts({ query: q, source, tag, showNsfw, artists });
+  // How many of the prompts that match name a real artist (lib/prompt-artists.ts): said beside the box that hides them.
+  const naming = artists ? findPrompts({ query: q, source, tag, showNsfw }).length - found.length : found.filter((p) => artistsNamed(p.prompt).length > 0).length;
   const list = pageOf(found, parsePage(sp.page), PROMPTS_PER_PAGE);
-  const keep = { q: q || undefined, source: source ?? undefined, tag: tag ?? undefined };
-  const filtered = Boolean(q || source || tag);
+  const keep = { q: q || undefined, source: source ?? undefined, tag: tag ?? undefined, artists: artists ?? undefined };
+  const filtered = Boolean(q || source || tag || artists);
   const tags = tagCounts(showNsfw);
   const groups = [...new Set(tags.map((t) => t.group))];
 
@@ -112,6 +116,13 @@ export default async function PromptsPage({ searchParams }: { searchParams: Sear
             </select>
           </label>
           <button type="submit">Search</button>
+          <label className="check prompts-artists">
+            <input type="checkbox" name="artists" value="hide" defaultChecked={artists === "hide"} />
+            <span>
+              Leave out prompts that name a real artist{" "}
+              <span className="muted">({naming.toLocaleString("en-US")} {artists ? "left out" : "of these do"})</span>
+            </span>
+          </label>
         </form>
       </section>
 
@@ -175,8 +186,8 @@ export default async function PromptsPage({ searchParams }: { searchParams: Sear
           ))}
         </ul>
         <p className="muted small">
-          Prompts often name an artist&apos;s style; the pictures you make are still covered by the{" "}
-          <Link href="/content-policy">content policy</Link>.
+          Prompts often ask for a real artist&apos;s style, as the datasets had them: those cards say so, and the box above the
+          list leaves them out. The pictures you make are covered by the <Link href="/content-policy">content policy</Link>.
         </p>
       </section>
 

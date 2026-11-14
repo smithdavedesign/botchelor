@@ -93,6 +93,8 @@ export type DeckCard = {
    */
   replies: Replies;
   replies_note: string;
+  /** #426 on the web (2026-11-13): why this card reads like the swiper's own character, when it does (lib/twins.ts). */
+  reads_like_yours?: string | null;
 };
 
 type Refusal = { ok: false; status: number; error: string; message: string; missing?: string[] };

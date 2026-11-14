@@ -86,6 +86,7 @@ import { listThreads, markPairNoticesRead, markTextsRead, sweepAnsweredTexts, un
 import { rescueStuckJob } from "../jobs";
 import { findLookalikes, type Lookalike, lookAlikeGateOn, recentAgentTwins, type SheetDraft, TWIN_WARN_HOURS, unusedJobs } from "../originality";
 import { originalityWithConcepts } from "../originality-concept";
+import { twinsOfCharacter as twinsOf } from "../twins";
 import { pairNames, shortName } from "../names";
 import { nameCheck } from "../name-check";
 import { currentPartners, partnerLabel, partnerStyleOf, settleCharacter, styleSql, takenSql } from "../partners";
@@ -1265,14 +1266,6 @@ async function lookAlikeRefusal(
       keep_look_alike_note: KEEP_LOOK_ALIKE_NOTE,
     },
   };
-}
-
-/** Which characters on the show read a lot like this one of yours (#426), by id, with why. No model call. */
-async function twinsOf(db: Db, characterId: string): Promise<Map<string, string>> {
-  const c = await loadCharacter(db, characterId);
-  if (!c) return new Map();
-  const found = await findLookalikes(db, { name: c.name, bio: c.bio, traits: c.persona.traits, want: c.persona.want, dealbreaker: c.dealbreaker, voice: c.voice, extras: c.extras }, characterId, 10).catch(() => []);
-  return new Map(found.filter((x) => x.kind === "concept").map((x) => [x.id, x.why]));
 }
 
 /** Whether the other owner has read your newest text to them (#448): true, false, or null when nothing's been sent (or they're the house). */
