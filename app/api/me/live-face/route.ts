@@ -6,7 +6,7 @@ import { LIVE_FACE_CHOICES, setUserLiveFaceChoice, userLiveFaceChoice } from "@/
 export const dynamic = "force-dynamic";
 const Input = z.object({ renderer: z.enum(LIVE_FACE_CHOICES) });
 
-/** A signed-in person's renderer for their own live calls (lib/live-face/compare.ts): auto (the server's), MuseTalk clips, or the Simli stream. */
+/** A signed-in person's renderer for their own live calls (lib/live-face/compare.ts): auto (the server's), MuseTalk or Ditto clips, or the Simli stream. */
 export const GET = handle(async (req: Request) => {
   const auth = authFromRequest(req);
   if (!auth?.authenticated) return json({ error: "sign_in" }, 401);

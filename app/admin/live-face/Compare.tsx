@@ -173,12 +173,13 @@ export default function Compare() {
 
       <section className="card" style={{ display: "grid", gap: "0.5rem" }}>
         <h2 style={{ margin: 0 }}>Your calls</h2>
-        <p className="muted small" style={{ margin: 0 }}>Which renderer your own live calls use when the character has a face at it. Auto is the server's setting.</p>
+        <p className="muted small" style={{ margin: 0 }}>Which renderer your own live calls use when the character has a face at it (Ditto needs only their face kit). Auto is the server's setting.</p>
         <label>
           Renderer
           <select value={mine} onChange={(e) => void chooseMine(e.target.value)}>
             <option value="auto">Auto (the server's)</option>
             <option value="musetalk">MuseTalk clips (ours)</option>
+            <option value="ditto">Ditto clips (ours): the whole head</option>
             <option value="simli">Simli stream</option>
           </select>
         </label>

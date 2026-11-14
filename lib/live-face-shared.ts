@@ -5,11 +5,15 @@
  *  - `simli`: the browser opens Simli's stream with a five-minute token and sends it the voice (lib/live-face/simli.ts).
  *  - `musetalk`: our own renderer on Runpod (lib/live-face/musetalk.ts): the server turns each clause of the voice into a
  *    clip and streams it to the browser as a `video` event; the browser needs no token, only to expect clips.
+ *  - `ditto`: our second renderer (lib/live-face/ditto.ts), clips the same way; the whole head from the kit's portrait,
+ *    a reply's clauses continuing one motion, the last easing back to the portrait (`end_frame` 0: the loop's first frame).
  */
 import { pcmSamples, toPcm16 } from "./companion-live-shared";
 
-export type LiveFaceProvider = "simli" | "musetalk";
-export const LIVE_FACE_PROVIDERS: readonly LiveFaceProvider[] = ["simli", "musetalk"];
+export type LiveFaceProvider = "simli" | "musetalk" | "ditto";
+export const LIVE_FACE_PROVIDERS: readonly LiveFaceProvider[] = ["simli", "musetalk", "ditto"];
+/** The renderers whose face comes as clips the browser plays in order (the others stream). */
+export const isClipProvider = (p: LiveFaceProvider | null | undefined): boolean => p === "musetalk" || p === "ditto";
 
 /** What the call gets when the character has a live face and it's on for this person: enough to open it, nothing more. */
 export type LiveFaceSession =
@@ -23,6 +27,11 @@ export type LiveFaceSession =
   | {
       provider: "musetalk";
       /** The clips' size in pixels (the idle loop's). */
+      px: number;
+    }
+  | {
+      provider: "ditto";
+      /** The clips' size in pixels (the kit portrait's). */
       px: number;
     };
 
