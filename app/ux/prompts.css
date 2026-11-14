@@ -160,3 +160,41 @@
 .prompts-grid .prompt-copy {
   min-width: 0;
 }
+
+/* A tag's example pictures (app/prompts/PromptExamples.tsx): four square tiles from the showcase, two across on a phone. */
+.prompt-examples-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.prompt-examples-grid a {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+.prompt-examples-grid img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: var(--radius-md);
+  background: var(--photo-bg);
+}
+.prompt-examples-grid span {
+  display: block;
+  margin-top: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (max-width: 560px) {
+  .prompt-examples-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
