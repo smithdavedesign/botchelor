@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { buildTurnMessages, parseTurnResult, simulateConversation, type Turn } from "@/lib/conversation";
+import { buildTurnMessages, MIN_CLOCK_LINES, parseTurnResult, simulateConversation, type Turn } from "@/lib/conversation";
 import { fixedEngine } from "@/lib/engine";
 import { handleMcpMessage, type McpContext } from "@/lib/mcp";
 import type { ChatMessage, Model } from "@/lib/model";
@@ -258,32 +258,63 @@ describe("simulateConversation: a date that moves", () => {
   });
 
   it("past the deadline it wraps up in two lines, with no new moves", async () => {
-    const m = fake(() => ({ move: "the beach" }));
-    const t = await simulateConversation(m.model, built.input, outcome, built.characters, built.setup.producer, START, "classic", 12, {}, undefined, undefined, undefined, { moves: true, deadline: 0 });
-    expect(t).toHaveLength(2);
-    expect(t.every((l) => !l.move && !l.moved_to)).toBe(true);
-    expect(m.data(0)).toMatchObject({ the_night_is_ending: expect.any(String), how_you_say_goodbye: expect.any(String) });
-    expect(t[1].time_up).toBe(true);
+    let clock = 1_000;
+    const now = vi.spyOn(Date, "now").mockImplementation(() => clock);
+    try {
+      const m = fake((i) => {
+        if (i === 6) clock = 5_000; // the deadline passes during line 7
+        return i >= 7 ? { move: "the beach" } : {};
+      });
+      const t = await simulateConversation(m.model, built.input, outcome, built.characters, built.setup.producer, START, "classic", 12, {}, undefined, undefined, undefined, { moves: true, deadline: 2_000 });
+      expect(t).toHaveLength(9);
+      expect(t.every((l) => !l.move && !l.moved_to)).toBe(true);
+      const asked = (n: number) => m.calls.map((c) => JSON.parse(c[1].content.replace(/^[^\n]*\n/, ""))).find((d) => d.conversation_so_far.length === n);
+      expect(asked(7)).toMatchObject({ the_night_is_ending: expect.any(String), how_you_say_goodbye: expect.any(String) });
+      expect(t.map((l) => l.time_up ?? null)).toEqual([null, null, null, null, null, null, null, null, true]);
+    } finally {
+      now.mockRestore();
+    }
   });
 
-  it("a date the deadline cuts short after one line says the time ran out, not that someone said goodbye (#1253)", async () => {
+  it(`a date the deadline catches before it starts still plays ${MIN_CLOCK_LINES} lines, then says goodbye (#1445)`, async () => {
+    // A visitor's free date ended after 2 lines (time_up): the clock now waits until line 4 to start the wrap-up.
+    const m = fake((i) => ({ move: "the beach", ...(i === 1 ? { done: true } : {}) }));
+    const t = await simulateConversation(m.model, built.input, outcome, built.characters, built.setup.producer, START, "classic", 12, {}, undefined, undefined, undefined, { moves: true, deadline: 0 });
+    expect(t).toHaveLength(MIN_CLOCK_LINES);
+    expect(t.every((l) => !l.move && !l.moved_to)).toBe(true); // past the deadline, no new move even before the wrap-up
+    const asked = (n: number) => m.calls.map((c) => JSON.parse(c[1].content.replace(/^[^\n]*\n/, ""))).find((d) => d.conversation_so_far.length === n);
+    // The first four play as planned (act one, no goodbye yet, an early "done" ignored), the last two are the goodbye.
+    for (const n of [0, 1, 2, 3]) {
+      expect(asked(n)).toMatchObject({ staying_here: expect.any(String) });
+      expect(asked(n).how_you_say_goodbye).toBeUndefined();
+      expect(t[n].act).toBe(0);
+    }
+    for (const n of [4, 5]) expect(asked(n)).toMatchObject({ the_night_is_ending: expect.any(String), how_you_say_goodbye: expect.any(String) });
+    expect(t.map((l) => l.time_up ?? null)).toEqual([null, null, null, null, null, true]);
+    // A date planned shorter than that still ends at its plan, and nothing says time ran out.
+    const short = await simulateConversation(fake().model, built.input, outcome, built.characters, built.setup.producer, START, "classic", 4, {}, undefined, undefined, undefined, { moves: true, deadline: 0 });
+    expect(short).toHaveLength(4);
+    expect(short.some((l) => l.time_up)).toBe(false);
+  });
+
+  it("a date the deadline catches early says the time ran out, not that someone said goodbye (#1253)", async () => {
     let clock = 1_000;
     const now = vi.spyOn(Date, "now").mockImplementation(() => clock);
     try {
       const m = fake((i) => {
         if (i === 0) clock = 5_000; // the first line took past the deadline (a slow model)
-        return i === 2 ? { done: true } : {};
+        return i === 5 ? { done: true } : {};
       });
       const t = await simulateConversation(m.model, built.input, outcome, built.characters, built.setup.producer, START, "classic", 12, {}, undefined, undefined, undefined, { moves: true, deadline: 2_000 });
-      expect(t).toHaveLength(3);
-      expect(t.map((l) => l.time_up)).toEqual([undefined, undefined, true]);
+      expect(t).toHaveLength(MIN_CLOCK_LINES); // #1445: not 3 any more
+      expect(t.map((l) => l.time_up ?? null)).toEqual([null, null, null, null, null, true]);
       const lines = dateLines({ format: "classic", venue: START, moves: true, transcript: t, names: ["Chud the crusher", "Nell Abiodun"], finished: true });
-      expect(lines.ended_early).toMatchObject({ at_line: 3, by: "the show", why: expect.stringMatching(/ran out of time/) });
-      expect(lines.note).toMatch(/12 lines planned .*it ended at line 3: the show ran out of time/);
+      expect(lines.ended_early).toMatchObject({ at_line: 6, by: "the show", why: expect.stringMatching(/ran out of time/) });
+      expect(lines.note).toMatch(/12 lines planned .*it ended at line 6: the show ran out of time/);
       expect(lines.ended_early?.why).not.toMatch(/goodbye/);
       // The recap is told the date was that short, so it doesn't write the rest of the plan.
       const data = JSON.parse(buildMessages(built.input, outcome, built.characters, built.setup.producer, START, "classic", {}, { transcript: t, plan: null })[1].content.replace(/^[^\n]*\n/, ""));
-      expect(data.cut_short).toMatch(/after these 3 lines/);
+      expect(data.cut_short).toMatch(/after these 6 lines/);
     } finally {
       now.mockRestore();
     }

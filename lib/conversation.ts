@@ -100,6 +100,12 @@ export const TURN_ATTEMPTS = 3;
  * inside Gemini's.
  */
 export const TURN_TEMPERATURE = 1.0;
+/**
+ * The fewest lines a date the show's clock catches early still plays (#1445, David 2026-11-13): its two-line wrap-up
+ * starts no sooner than two lines before this, so a slow model can't leave a free date at two lines. A date planned
+ * shorter still ends at its plan. App Platform has no run limit (docs/hosting.md), so the extra lines can't be cut off.
+ */
+export const MIN_CLOCK_LINES = 6;
 const ACTION_MAX = 80;
 const EMOTION_MAX = 40;
 
@@ -579,7 +585,10 @@ export type ConversationOptions = {
   moves?: boolean;
   /** Epoch ms: past it, no new move is proposed (a pending one can still be answered). */
   moveCutoff?: number;
-  /** Epoch ms: past it, the date wraps up within two lines, with a goodbye (the recap and the texts still need time). */
+  /**
+   * Epoch ms: past it, no new move is proposed and the date wraps up within two lines, with a goodbye (the recap and the
+   * texts still need time), but never before MIN_CLOCK_LINES lines (#1445).
+   */
   deadline?: number;
   /**
    * Set the scene (lib/scene-suggestions.ts): a place the creator paid to suggest, read before each line that could
@@ -649,11 +658,15 @@ export async function simulateConversation(
   // Bounded however the date moves: the base length, a fresh stretch per move, and the two-line wrap-up.
   for (let guard = 0; guard < 500; guard++) {
     const now = Date.now();
-    if (opts.deadline !== undefined && !clockEnd && now >= opts.deadline) {
+    const pastDeadline = opts.deadline !== undefined && now >= opts.deadline;
+    // #1445: caught before line MIN_CLOCK_LINES - 2, the date plays on as planned (no new move) until then, and only
+    // then starts its two-line goodbye, so the clock never leaves it shorter than MIN_CLOCK_LINES.
+    if (pastDeadline && !clockEnd && transcript.length >= MIN_CLOCK_LINES - 2) {
       endBy = Math.min(endBy ?? Infinity, transcript.length + 2);
       clockEnd = true;
     }
-    const shape = dateShape(transcript, venueId, turns, { moves, noNewMoves: opts.moveCutoff !== undefined && now >= opts.moveCutoff, endBy });
+    const noNewMoves = pastDeadline || (opts.moveCutoff !== undefined && now >= opts.moveCutoff);
+    const shape = dateShape(transcript, venueId, turns, { moves, noNewMoves, endBy });
     const i = transcript.length;
     if (i >= shape.total) break;
     if (opts.stopAfter !== undefined && i - startedAt >= opts.stopAfter) break;
@@ -745,7 +758,7 @@ export async function simulateConversation(
     // happen only when the actor says so, where the ending is being landed. settleLine drops it on a move.
     if (turn.done && shape.closing) break;
   }
-  // #1253: the time wrap-up cut the date short of its plan (a slow model can leave a 12-line date at 3): its last line
+  // #1253: the time wrap-up cut the date short of its plan (a slow model can leave a 12-line date at 6, #1445): its last line
   // says so, so the finished date doesn't read as a goodbye nobody wrote. A walk-out ended it, not the clock.
   const last = transcript.at(-1);
   if (clockEnd && last && !last.walked_out && transcript.length < dateShape(transcript, venueId, turns, { moves }).total) {
