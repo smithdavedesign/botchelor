@@ -43,7 +43,7 @@ import {
 } from "@/lib/extras";
 import { archetypeLabel, goalLabel, kindLabel, kindName } from "@/lib/kinds";
 import { LOOK_GALLERY, type ResolvedLook } from "@/lib/presets";
-import { DEFAULT_FORMAT, FORMATS, type FormatId } from "@/lib/formats";
+import { DEFAULT_FORMAT, FORMATS, format as showFormat, type FormatId } from "@/lib/formats";
 import { trackConversion } from "@/app/conversion";
 import type { OcSheet } from "@/lib/chemistry-test";
 import {
@@ -51,11 +51,13 @@ import {
   AUTONOMY_BLURBS,
   AUTONOMY_LABELS,
   AUTONOMY_LEVELS,
+  CONVERSATION_TURNS,
   ENDING_LABELS,
   ENDINGS,
   GAME_BUDGETS,
   STRATEGIES,
   STRATEGY_LABELS,
+  WRITE_TIME_SPEED,
   formatGameBudget,
   type Autonomy,
   type Ending,
@@ -67,7 +69,8 @@ import CharacterName from "@/app/CharacterName";
 import { APPEARANCE_MAX, DEALBREAKER_MAX, TRAIT_MAX, WANT_MAX } from "@/lib/field-limits";
 import { THIS_WEEK_MAX } from "@/lib/life";
 import { IMPORT_PATH, IMPORT_STORAGE_KEY, type ImportedDraft } from "@/lib/import-character";
-import { offerFirstDate, pickFirstPartner } from "@/lib/first-date";
+import { DEFAULT_FIRST_DATE_FORMAT, FIRST_DATE_STEPS, offerFirstDate, pickFirstPartner } from "@/lib/first-date";
+import { fillProfile } from "@/lib/profile-fill";
 
 export type Partner = {
   id: string;
@@ -172,7 +175,13 @@ const OPTIONAL_STEPS: readonly number[] = [S.voice, S.facts, S.deeper, S.soul];
  * The look stays on the quick track (David, 2026-11-11: "it's important"): their free portrait is drawn from the picks.
  */
 const ALL_STEPS: readonly number[] = [S.identity, S.voice, S.look, S.details, S.facts, S.deeper, S.soul, S.review];
-const QUICK_TRACK: readonly number[] = [S.identity, S.look, S.details, S.review];
+/**
+ * A first character takes three steps (lib/first-date.ts FIRST_DATE_STEPS): the dating profile stood between a newcomer
+ * and their first date, so it's filled from the sheet at Create (lib/profile-fill.ts) and stays on the depth track. A
+ * creator's next character keeps the four-step quick track, profile included: by then they know what the deck is for.
+ */
+const quickTrack = (firstCharacter: boolean): readonly number[] =>
+  firstCharacter ? FIRST_DATE_STEPS.map((name) => S[name]) : [S.identity, S.look, S.details, S.review];
 
 /** The build steps, shown as a tappable progress rail. The ones that can be skipped say so (2026-10-31 UX audit). */
 function Stepper({
@@ -244,6 +253,7 @@ export default function CreateWizard({
   startPair = null,
   startImported = false,
   startMeet = null,
+  firstFormat = DEFAULT_FIRST_DATE_FORMAT,
   lookTiles = [],
   afterDark = false,
   afterDarkOpen = false,
@@ -269,6 +279,8 @@ export default function CreateWizard({
   startImported?: boolean;
   /** A house cast member a post named (/create?meet=<id>): a first character's first date is with them. */
   startMeet?: string | null;
+  /** The format a first character's instant first date plays in (lib/first-date.ts firstDateFormat, FIRST_DATE_FORMAT). */
+  firstFormat?: FormatId;
   /** The looks builder's tiles that have a picture (lib/looks-draw.ts readyTiles). */
   lookTiles?: readonly string[];
   /** This viewer can open After Dark, so its looks tab is unlocked (lib/adult/entitlement.ts). */
@@ -292,7 +304,9 @@ export default function CreateWizard({
   const [maxStep, setMaxStep] = useState(edit ? last : 0); // the furthest step reached; editing opens them all
   // Depth: the five optional steps in the rail. On for an edit; a new character opts in from the review.
   const [depth, setDepth] = useState(Boolean(edit));
-  const track = depth ? ALL_STEPS : QUICK_TRACK;
+  // Their first character (none before this page): three steps, and the date step leads with a date that plays at once.
+  const firstCharacter = !edit && myCharacters.length === 0;
+  const track = depth ? ALL_STEPS : quickTrack(firstCharacter);
   const [sheet, setSheet] = useState<Sheet>(
     init
       ? { name: init.name, age: String(init.age), bio: init.bio, want: init.want, dealbreaker: init.dealbreaker }
@@ -534,8 +548,9 @@ export default function CreateWizard({
     traits.every((t) => t.trim().length > 0) &&
     sheet.want.trim().length > 0 &&
     sheet.dealbreaker.trim().length > 0;
-  // A new character needs its dating profile to be created (the swipe deck shows it); an edit can save without one.
-  const profileOk = edit ? true : profileComplete(normaliseExtras(extras));
+  // A new character needs its dating profile to be created (the swipe deck shows it); an edit can save without one, and a
+  // first character's is filled from the sheet at Create when it's empty (lib/profile-fill.ts), so it never blocks.
+  const profileOk = edit || firstCharacter ? true : profileComplete(normaliseExtras(extras));
   const canAdvance = step === S.identity ? identityOk : step === S.details ? profileOk : true;
   // Why Create is greyed out (#1109: an unticked box near the bottom, and nothing pointed to it).
   const createWhy = !identityOk ? "identity" : !profileOk ? "profile" : !attest ? "attest" : null;
@@ -620,6 +635,11 @@ export default function CreateWizard({
     const soulPayload = soulEntries.length ? { ...Object.fromEntries(soulEntries), local_only: soul.local_only } : undefined;
     setBusy("character");
     setError(null);
+    // A first character skips the Dating profile step: an empty profile is filled from the sheet, so the swipe deck and
+    // later dates with other creators' characters still have one. Anything they did write (the depth track) stays.
+    const sent = firstCharacter
+      ? fillProfile(normaliseExtras(extras), { traits: traits.map((t) => t.trim()), want: sheet.want.trim() })
+      : normaliseExtras(extras);
     try {
       const { status, data, message } = await requestJson("/api/characters", {
         name: sheet.name.trim(),
@@ -635,7 +655,7 @@ export default function CreateWizard({
         ...(imageSignals ? { image_signals: imageSignals } : {}),
         ...(soulPayload ? { soul: soulPayload } : {}),
         ...(openToDates ? { open_to_dates: true } : {}),
-        ...(hasExtras(normaliseExtras(extras)) ? { extras: normaliseExtras(extras) } : {}),
+        ...(hasExtras(sent) ? { extras: sent } : {}),
         ...(week.trim() ? { this_week: week.trim() } : {}),
         ...(hidingList(hiding).length ? { hiding: hidingList(hiding) } : {}),
         attest,
@@ -808,7 +828,8 @@ export default function CreateWizard({
         signedIn={signedIn}
         afterDarkOpen={afterDarkOpen}
         // Their first character (none before this page): the date step leads with a date that plays at once (lib/first-date.ts).
-        firstCharacter={!edit && myCharacters.length === 0}
+        firstCharacter={firstCharacter}
+        firstFormat={firstFormat}
         meet={startMeet}
         // The chemistry test's other character, until they have one by that name.
         buildNext={
@@ -855,7 +876,9 @@ export default function CreateWizard({
             <p className="muted wizard-intro">
               {depth
                 ? "An original fictional adult. Only who they are and a short dating profile are needed; the rest is optional."
-                : "An original fictional adult, in four steps. Their voice and inner life can wait until after their first date."}
+                : firstCharacter
+                  ? "An original fictional adult, in three steps. Their dating profile, voice and inner life can wait until after their first date."
+                  : "An original fictional adult, in four steps. Their voice and inner life can wait until after their first date."}
             </p>
           )}
         </>
@@ -869,7 +892,8 @@ export default function CreateWizard({
         max={track.reduce((far, real, i) => (real <= maxStep ? i : far), 0)}
         onJump={(i) => jump(track[i] ?? i)}
         labels={track.map((i) => labels[i])}
-        optional={edit || !depth ? [] : OPTIONAL_STEPS}
+        // On the depth track a first character's dating profile is optional too: an empty one is filled at Create.
+        optional={edit || !depth ? [] : firstCharacter ? [...OPTIONAL_STEPS, S.details] : OPTIONAL_STEPS}
       />
       {livePreview}
       {edit && (
@@ -1198,8 +1222,10 @@ export default function CreateWizard({
             {!edit && !depth && (
               <div className="notice wizard-depth">
                 <p>
-                  <strong>Add depth?</strong> Their voice, more about them, what makes them deeper, their inner life: four short
-                  optional steps, now or any time from their page.
+                  <strong>Add depth?</strong>{" "}
+                  {firstCharacter
+                    ? "Their dating profile, voice, more about them, what makes them deeper, their inner life: five short optional steps, now or any time from their page. Skip them and the profile is written from their sheet."
+                    : "Their voice, more about them, what makes them deeper, their inner life: four short optional steps, now or any time from their page."}
                 </p>
                 <button type="button" className="secondary small" onClick={addDepth} data-track="create-add-depth">
                   Add depth now
@@ -1584,9 +1610,11 @@ type SendProps = {
   firstCharacter?: boolean;
   /** /create?meet=<id>: the house cast member that first date is with, when they're on this season's cast. */
   meet?: string | null;
+  /** The format that first date plays in (lib/first-date.ts firstDateFormat): the speed date unless FIRST_DATE_FORMAT says otherwise. */
+  firstFormat?: FormatId;
 };
 
-export function SendPhase({ character, partners, openCharacters, swipeGate, tokens, offer, autonomy: startAutonomy, busy, setBusy, error, setError, outOfTokens, setOutOfTokens, onSend, returnTo, buildNext, signedIn, afterDarkOpen = false, firstCharacter = false, meet = null }: SendProps) {
+export function SendPhase({ character, partners, openCharacters, swipeGate, tokens, offer, autonomy: startAutonomy, busy, setBusy, error, setError, outOfTokens, setOutOfTokens, onSend, returnTo, buildNext, signedIn, afterDarkOpen = false, firstCharacter = false, meet = null, firstFormat = DEFAULT_FIRST_DATE_FORMAT }: SendProps) {
   const [format, setFormat] = useState<FormatId>(DEFAULT_FORMAT);
   // How much of a mind of its own, per date (B6): it rides on each send, so it's set here, not on the character.
   const [autonomy, setAutonomy] = useState<Autonomy>(startAutonomy);
@@ -1610,15 +1638,17 @@ export function SendPhase({ character, partners, openCharacters, swipeGate, toke
     setOutOfTokens(false);
     setPending({ partnerId, house, name });
   };
-  async function sendOnDate(partnerId: string | null, house = false) {
+  /** `opts.format` overrides the sheet's format pick: the instant first date plays in the configured first-date format. */
+  async function sendOnDate(partnerId: string | null, house = false, opts: { format?: FormatId } = {}) {
     if (house && roleplay && !choiceReady(roleplay)) return setError("Finish your roleplay first (a title and a premise of a sentence or more), or take it off.");
     setBusy("episode");
     setError(null);
+    const chosenFormat = opts.format ?? format;
     const dateFields = {
       autonomy,
       strategy,
       game_budget: budget,
-      ...(format !== DEFAULT_FORMAT ? { format } : {}),
+      ...(chosenFormat !== DEFAULT_FORMAT ? { format: chosenFormat } : {}),
       ...(agenda ? { agenda } : {}),
       ...(note.trim() ? { note: note.trim() } : {}),
       ...(selfPick ? { self_pick: selfPick as Ending } : {}),
@@ -1634,7 +1664,7 @@ export function SendPhase({ character, partners, openCharacters, swipeGate, toke
       const help = crisisFrom(data);
       if (help) setCrisis(help);
       if (status === 200) {
-        trackConversion("date_started", { mode: partnerId ? "partner" : "blind" });
+        trackConversion("date_started", { mode: partnerId ? "partner" : "blind", format: chosenFormat });
         if (help) {
           setDatePath(`${String(data.share_path)}?play=1`);
           setPending(null);
@@ -1659,6 +1689,8 @@ export function SendPhase({ character, partners, openCharacters, swipeGate, toke
   // A first character's first date, one tap and straight into the theater (2026-11-11 bounce review): no menu, no sheet.
   const firstPartner = pickFirstPartner(partners, character.id, meet);
   const instant = offerFirstDate({ firstCharacter, taken: Boolean(taken), datesLeft: tokens.left, partner: firstPartner }) ? firstPartner : null;
+  // How many lines that first date has: the format's own length (a speed date is 6), else the classic 12.
+  const firstLines = showFormat(firstFormat).turns ?? CONVERSATION_TURNS;
   const closed = (id: string) => Boolean(taken) && id !== taken?.id;
   const closedWhy = `${first} only dates ${partnerFirst} for now`;
   /** On a row: their partner's tag, or nothing. */
@@ -1737,6 +1769,65 @@ export function SendPhase({ character, partners, openCharacters, swipeGate, toke
     );
   }
 
+  // Every other way to date: a blind date, swipes (or the open characters), and this season's house cast by name. Shown
+  // open to everyone but a first character, whose screen folds them under the instant first date.
+  const otherWays = (
+    <>
+      {/* The one primary action on this screen (unless they're with someone: then it's the date with them, above, or a first date: then it's that). */}
+      <div className={taken ? "card send-blind is-closed" : "card send-blind"}>
+        <strong>A blind date</strong>
+        <p>
+          {swipeGate ? (
+            <>
+              The show picks one of {shortName(character.name)}&apos;s matches where both said yes to a date, or one of this
+              season&apos;s house cast.
+            </>
+          ) : (
+            <>The show picks another creator&apos;s character (or a house character if nobody&apos;s around).</>
+          )}{" "}
+          You stay anonymous to each other unless you both agree to reveal yourselves.
+        </p>
+        {taken && <p className="muted small">Not while {closedWhy}.</p>}
+        <button type="button" className={instant ? "secondary" : undefined} disabled={busy !== null || Boolean(taken)} title={taken ? closedWhy : undefined} onClick={() => ask(null, null)}>
+          Send {character.name} on a blind date
+        </button>
+      </div>
+
+      {swipeGate && (
+        <div className="card">
+          <strong>💘 Swipe to meet someone new</strong>
+          <p>
+            A first date with another creator&apos;s character (a person&apos;s or an AI agent&apos;s) starts with a match.
+            Swipe for {shortName(character.name)}: a like both ways is a match, the two of them text, and each decides
+            whether they want a date. If both do, you book it.
+          </p>
+          <Link className="button-ghost" href={`/swipe?character=${character.id}`}>
+            Swipe for {shortName(character.name)}
+          </Link>
+        </div>
+      )}
+
+      {!swipeGate && openCharacters.length > 0 && (
+        <>
+          <h2>Open to dates</h2>
+          <p className="muted">
+            Characters whose creators — people and AI agents — said yes to being asked out. Their creators stay anonymous,
+            like on a blind date.
+          </p>
+          {compactList(openCharacters, openRow, "Open to dates")}
+        </>
+      )}
+
+      <p className="muted">
+        {swipeGate
+          ? "Or date one of this season's house cast now, no match needed: a handful the show fields each month. Either way, you can't steer the date."
+          : "Or one of this season's house cast — a handful the show fields each month. Either way, you can't steer the date."}
+      </p>
+      {compactList(partners, houseRow, "This season's house cast")}
+
+    </>
+  );
+
   return (
     <article className="send-phase">
       <p className="kicker">{character.name} is ready</p>
@@ -1788,16 +1879,20 @@ export function SendPhase({ character, partners, openCharacters, swipeGate, toke
 
       {instant && (
         // The first date, straight away (lib/first-date.ts): the default settings, a house cast member, the theater next.
-        <div className="card send-first" data-first-date>
+        // It plays in the first-date format (the speed date: 6 lines, about a minute), so the verdict comes while they're
+        // still watching; the classic date's 12 lines took as long again, and nobody stayed for the ending.
+        <div className="card send-first" data-first-date data-first-format={firstFormat}>
           <Avatar seed={instant.id} name={instant.name} hue={instant.hue ?? null} house size={56} />
           <div className="send-first-meta">
             <strong>{`${first}'s first date can start right now`}</strong>
             <p>
               {`${first} meets ${shortName(instant.name)}`}
               {instant.archetype ? `, ${instant.archetype.toLowerCase()} from this season's cast` : ", from this season's cast"}
-              {". It plays as you watch, and nobody can steer how it ends."}
+              {firstFormat === "speed_date"
+                ? `, for a speed date: ${firstLines} lines, ${WRITE_TIME_SPEED}. It plays as you watch, and nobody can steer how it ends.`
+                : `, for a ${showFormat(firstFormat).label.toLowerCase()}: ${firstLines} lines. It plays as you watch, and nobody can steer how it ends.`}
             </p>
-            <button type="button" className="primary" data-track="first_date_now" disabled={busy !== null} onClick={() => void sendOnDate(instant.id, true)}>
+            <button type="button" className="primary" data-track="first_date_now" disabled={busy !== null} onClick={() => void sendOnDate(instant.id, true, { format: firstFormat })}>
               {busy === "episode" ? "Starting the date…" : "▶ Start the date now"}
             </button>
             {busy === "episode" && <p className="muted small">The engine is deciding the outcome and the showrunner is writing it…</p>}
@@ -1806,30 +1901,21 @@ export function SendPhase({ character, partners, openCharacters, swipeGate, toke
                 {error} {outOfTokens && offer && <Link href="/shop">{offer}</Link>}
               </p>
             )}
-            <p className="muted small">Or choose who they meet below. Uses 1 of your {tokens.left} free {tokens.left === 1 ? "date" : "dates"}.</p>
+            <p className="muted small">Uses 1 of your {tokens.left} free {tokens.left === 1 ? "date" : "dates"}. More ways to date are below.</p>
           </div>
         </div>
       )}
 
-      {/* The one primary action on this screen (unless they're with someone: then it's the date with them, above, or a first date: then it's that). */}
-      <div className={taken ? "card send-blind is-closed" : "card send-blind"}>
-        <strong>A blind date</strong>
-        <p>
-          {swipeGate ? (
-            <>
-              The show picks one of {shortName(character.name)}&apos;s matches where both said yes to a date, or one of this
-              season&apos;s house cast.
-            </>
-          ) : (
-            <>The show picks another creator&apos;s character (or a house character if nobody&apos;s around).</>
-          )}{" "}
-          You stay anonymous to each other unless you both agree to reveal yourselves.
-        </p>
-        {taken && <p className="muted small">Not while {closedWhy}.</p>}
-        <button type="button" className={instant ? "secondary" : undefined} disabled={busy !== null || Boolean(taken)} title={taken ? closedWhy : undefined} onClick={() => ask(null, null)}>
-          Send {character.name} on a blind date
-        </button>
-      </div>
+      {/* With a first date on offer, every other way to date folds away under it: one choice on the screen (the plan's
+          "one button"), the rest a tap away. Everyone else sees them open, as before. */}
+      {instant ? (
+        <details className="ux-fold send-more-ways" data-more-ways>
+          <summary>More ways to date</summary>
+          {otherWays}
+        </details>
+      ) : (
+        otherWays
+      )}
 
       <DateConfirm
         open={pending !== null}
@@ -1948,38 +2034,6 @@ export function SendPhase({ character, partners, openCharacters, swipeGate, toke
           </a>
         </p>
       )}
-
-      {swipeGate && (
-        <div className="card">
-          <strong>💘 Swipe to meet someone new</strong>
-          <p>
-            A first date with another creator&apos;s character (a person&apos;s or an AI agent&apos;s) starts with a match.
-            Swipe for {shortName(character.name)}: a like both ways is a match, the two of them text, and each decides
-            whether they want a date. If both do, you book it.
-          </p>
-          <Link className="button-ghost" href={`/swipe?character=${character.id}`}>
-            Swipe for {shortName(character.name)}
-          </Link>
-        </div>
-      )}
-
-      {!swipeGate && openCharacters.length > 0 && (
-        <>
-          <h2>Open to dates</h2>
-          <p className="muted">
-            Characters whose creators — people and AI agents — said yes to being asked out. Their creators stay anonymous,
-            like on a blind date.
-          </p>
-          {compactList(openCharacters, openRow, "Open to dates")}
-        </>
-      )}
-
-      <p className="muted">
-        {swipeGate
-          ? "Or date one of this season's house cast now, no match needed: a handful the show fields each month. Either way, you can't steer the date."
-          : "Or one of this season's house cast — a handful the show fields each month. Either way, you can't steer the date."}
-      </p>
-      {compactList(partners, houseRow, "This season's house cast")}
 
       {/* Their picture in a line, last (2026-10-31 UX audit: a "✨ Pro Portrait" card here contradicted the free portrait
           being drawn). The portrait on your own key stays on their edit page. */}
