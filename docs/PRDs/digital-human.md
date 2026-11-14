@@ -3,9 +3,11 @@
 **Status:** Tier 0 built and live (#1529, 2026-11-13). Tier 1 has two renderers behind `LIVE_FACE_PROVIDER`, both
 off by default: Simli's adapter (built 2026-11-13; its faces need a paid plan, which David hasn't taken) and **our own
 renderer, MuseTalk on Runpod** ([Tier 1b](#tier-1b-our-own-renderer-musetalk-on-runpod-serverless), built the same
-day after David asked for a pay-as-you-go way and proved on a rented GPU with Juniper's loop), admins only until its
-live proof. The GPT-written proposal this answers is `Botchelor_Digital_Human_Engine_PRD.docx` beside this
-file; this page is the review of it and what we're doing instead, in order of value per dollar.
+day after David asked for a pay-as-you-go way and proved on a rented GPU with Juniper's loop), **live on botchelor.com
+for admins since 2026-11-14** (#1544, #1566; a real admin call with Juniper returned lip-synced clips on desktop and
+phone, screenshots at the top of the README). The GPT-written proposal this answers is
+`Botchelor_Digital_Human_Engine_PRD.docx` beside this file; this page is the review of it and what we're doing
+instead, in order of value per dollar.
 
 ## What the proposal asked for
 
@@ -215,8 +217,24 @@ the idle timeout (30 s); a bundle is 3.5 MB in the bucket; nothing while nobody 
 companion calls only; After Dark keeps Tier 0. Anime faces will likely fail MuseTalk's face detector and stay on
 Tier 0 too (the build says so: `no face found`).
 
+**Live proof (2026-11-14 UTC, endpoint `rstlknto5x90ad`, image `dev-4`):** once the package was public the first
+worker booted, `warm` passed and every `prepare` failed: the image had numpy 2.2.6, not the pinned 1.23.5, because
+mmpose depends on `opencv-python`, whose current wheels need numpy 2, and xtcocotools (mmpose's COCO tools) is
+compiled against 1.x ("numpy.dtype size changed"); `warm` never imports mmpose, which is why it passed. Found by
+running the same image on a pod with an sshd as its command (the endpoint's worker logs answer 403 to both of our
+keys) and fixed with `workers/live-face/constraints.txt` on every pip step plus a build-time import check (#1566).
+The same night two Dependabot security bumps (diffusers 0.38, transformers 5.10) had been auto-merged into the
+worker's pins and made the image unbuildable; pins restored, `.github/dependabot.yml` leaves that directory alone.
+Numbers from the live endpoint: a worker that has the image starts in 22–32 s (a host that doesn't pulls 9.3 GB
+first, ~9 min, once); `warm` 44 ms; Juniper's bundle (127 frames) 22.3 s, 3.5 MB; a 5.6-s clause 4.6 s (features
+23 ms, bundle load 196 ms, render 3.2 s, encode 1.0 s) with 22 ms of queue when warm; the clip is 624² H.264 at
+25 fps with the voice in AAC, 866 KB. On production the admin route built Juniper's face in 31 s, and in the proof
+call (Playwright driving Chrome, the microphone and Deepgram's socket faked, everything else real) the first clip
+started 0.2 s after the reply's first words on desktop, 4.0 s after the visitor's line; on the phone 4.5 s after the
+line, before the transcript line had rendered, and the second clip followed 2 s after the first ended.
+
 **Latency:** a clause's clip arrives roughly two seconds after its voice (render ≈ frames at 50 fps + encode); the
-browser holds the voice for it. Simli is nearer one second end to end. If the hold reads as a pause, the next steps
+browser holds the voice for it (measured above: the first clip and the first words start together). Simli is nearer one second end to end. If the hold reads as a pause, the next steps
 are rendering in shorter pieces, `ultrafast` x264 or a smaller clip, and Runpod's WebSocket load-balancing endpoint
 for a continuous stream (golden path 17).
 

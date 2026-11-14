@@ -315,7 +315,7 @@ David, 2026-11-13, on a GPT proposal for live "digital humans" (the review and t
   - **Ruled out:** Tavus and HeyGen (adult terms, no green screen on Phoenix-4.5, and 9–37¢ a minute against the ~7¢
     a call minute earns). Simli's terms take a training licence on uploaded faces: the show's own characters only
     until a creator says yes for theirs.
-- **Tier 1b, our own renderer: MuseTalk on Runpod Serverless (built 2026-11-13, admins only until it's proved):**
+- **Tier 1b, our own renderer: MuseTalk on Runpod Serverless (built 2026-11-13, live for admins 2026-11-14 after the proof call; everyone once David opens it):**
   David asked for a pay-as-you-go way when Simli's faces turned out to need a plan; the review, the spike and the
   numbers are in [PRDs/digital-human.md](PRDs/digital-human.md#tier-1b-our-own-renderer-musetalk-on-runpod-serverless).
   - **On** with `LIVE_FACE_PROVIDER=musetalk` (everyone) or `musetalk:admins`, `RUNPOD_API_KEY` (the app's key,
