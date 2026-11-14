@@ -423,7 +423,36 @@ the character, memory, voice orchestration and animation state; keep the rendere
    Runpod load-balancing endpoint with a WebSocket server in the worker (golden path 17), the call's server piping
    Aura's PCM in as it arrives and fragmented MP4 back to the browser (MediaSource), one session per call. Removes the
    per-clause wait and the hold; keeps the same `LiveFace` frame. Two to three days; the clip path stays as the
-   fallback.
+   fallback. *Design (2026-11-14, to build next):*
+   - **Worker:** the same image with a second entry point (`MODE_TO_RUN=stream`): an HTTP server on port 8000 for
+     Runpod's load balancer (`/ping` health) with a WebSocket route `/session`. A session = one `StreamSDK.setup` with
+     `online_mode=True` on the kit portrait (registration cached as today), then `run_chunk` per 6,480-sample HuBERT
+     chunk (Ditto's `(3, 5, 2)` window: 3 past, 5 valid, 2 future frames of 40 ms) as PCM arrives; the pipeline's
+     threads already run motion → warp → decode → put-back → writer concurrently, so frames come out ~200 ms behind
+     the audio plus render time (0.6×). The writer is replaced by an ffmpeg process emitting fragmented MP4
+     (`-movflags frag_keyframe+empty_moov+default_base_moof`, one fragment per 5 frames) read back and sent as binary
+     WebSocket frames with a running frame index; the audio stays on the server side (the browser already has the
+     voice) and is NOT muxed, so the browser aligns by index. Silence is fed when the character isn't talking, so the
+     idle is Ditto's live motion rather than a looped clip, and the `ctrl_info` pose controls become a live channel
+     (a nod now, a tilt now, a sway while listening). The 2026-11-14 spike's "online mode wrote 85 of 141 frames"
+     was the offline flush, not the mode: the session never closes mid-call, and a final zero chunk flushes at the end.
+   - **Endpoint:** a LOAD_BALANCER endpoint (`type: "LB"`) on the same pools, `workers.min` 0, scale by requests;
+     `wss://<endpoint>.api.runpod.ai/session` with the app's key as a bearer (the key never reaches the browser, so the
+     call's server holds the socket). One worker takes several sessions (Ditto is 2.8 GB; the GPU lock serialises
+     render steps, so about three concurrent calls per 4090 before frames fall behind).
+   - **Server:** `lib/live-face/ditto-stream.ts`: `openStream(cfg, source_url)` → a session object the live route
+     feeds (`push(pcm)` per Aura chunk as it arrives, `pose(kind)` for reactions, `close()`); fragments come back as
+     `video_frag` SSE events (`{ i: fragment, from_frame, b64 }`) on the same turn stream, the first within ~0.5 s of
+     the first audio. The session lives for the call (opened at `start`, kept across turns in a per-call map with the
+     SSE stream of the current turn attached), closed at `end` or after 90 s idle.
+   - **Browser:** `LiveFace` gains a MediaSource path: one `<video>` fed by a `SourceBuffer` (`video/mp4;
+     codecs="avc1.42E01E"`), fragments appended as they come, playback held ~2 fragments behind the append point; the
+     voice plays through the existing `PcmPlayer` with a matching 200-ms delay so lips and sound stay together; a stall
+     (no fragment for 1.5 s) falls back to the clip path for that reply, then to Tier 0. Safari needs Managed Media
+     Source on iOS 17.1+ (feature-detect; else clips).
+   - **Proof:** a 2-minute call with mixed clause lengths: frames behind audio ≤ 400 ms steady, no hold, no visible
+     join; GPU seconds per call minute (the LB worker bills while the session is open, so an idle call costs: hence the
+     90-s idle close and silence-feeding only while the tab is visible).
 3. **AVTR-1: read, don't build.** The most relevant open model in the list (153 M parameters, BOTH sides' audio in so
    the face reacts while listening, 25 fps on a 4060 Ti), but its renderer and streaming backend are non-commercial
    and it depends on InsightFace (also non-commercial). *Checked 2026-11-14 (LICENSE.md, Goodsize Inc., 2026-05-20):*
