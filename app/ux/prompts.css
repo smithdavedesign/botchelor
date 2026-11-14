@@ -12,8 +12,12 @@
 }
 
 /* The dataset and tag selects: wide enough for their longest option, the words clear of the chevron, an ellipsis if not. */
-.prompts-search {
-  grid-template-columns: minmax(0, 2fr) minmax(11rem, 1fr) minmax(11rem, 1fr) auto;
+/* Wide only: the sheet loads after globals.css, so an unscoped rule here would also undo its phone breakpoints
+   (2026-11-14: the four columns stayed on a 390px phone and the labels sat on the selects). */
+@media (min-width: 901px) {
+  .prompts-search {
+    grid-template-columns: minmax(0, 2fr) minmax(11rem, 1fr) minmax(11rem, 1fr) auto;
+  }
 }
 .prompts-field select {
   min-width: 0;
