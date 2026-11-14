@@ -1,0 +1,14 @@
+# What every pip step in the Dockerfile must keep (ENV PIP_CONSTRAINT). Ditto's shipped TensorRT engines were built
+# with TensorRT 8.6.1 (an engine runs only on the TensorRT it was built with); its config pickles are numpy-2 pickles;
+# numba 0.60 / llvmlite 0.43 are the last that take numpy 2.0; cuda-python 12.6.2.post1 is what Ditto's own
+# environment names. torch 2.5.1 + cu121 is the pairing Ditto's environment.yaml uses.
+numpy==2.0.1
+numba==0.60.0
+llvmlite==0.43.0
+torch==2.5.1
+torchvision==0.20.1
+tensorrt==8.6.1
+tensorrt-libs==8.6.1
+tensorrt-bindings==8.6.1
+cuda-python==12.6.2.post1
+opencv-python-headless==4.10.0.84
