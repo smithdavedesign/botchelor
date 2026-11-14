@@ -124,7 +124,7 @@ function Entry({ e, badge, origin = true, talk = false }: { e: DirectoryEntry; b
       </ul>
       {/* Talk, on the card (the audit, 2026-11-11, Part 4): the companion is a way to meet a character, not a door of
           its own. The thread opens with the first reply (app/companion/TalkButton.tsx). */}
-      {talk && (
+      {talk && e.companion && (
         <p className="dir-talk">
           <TalkButton characterId={e.id} name={e.name} label="Talk" className="button secondary small" />
         </p>

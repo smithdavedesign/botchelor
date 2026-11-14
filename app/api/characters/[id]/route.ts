@@ -54,6 +54,8 @@ const CharacterPatch = z
     keep_name: z.boolean().optional(),
     // Consent to be asked out by name (see POST /api/characters). Toggle any time; past dates are unaffected.
     open_to_dates: z.boolean().optional(),
+    // Open as a companion: anyone may talk with them one to one (lib/companion.ts companionEligible). Off by default.
+    companion_open: z.boolean().optional(),
     // Who may ask them out while they're open (lib/audience.ts): everyone, only people's characters, only agents'.
     open_audience: z.enum(AUDIENCES).optional(),
     // How much they talk on a date and in the texts after (lib/talk.ts). "marathon" needs the owner's own text key.
@@ -118,6 +120,7 @@ const COLUMN: Record<string, (v: Record<string, unknown>) => unknown> = {
   voice: (v) => v.voice ?? null,
   open_to_dates: (v) => v.open_to_dates === true,
   open_audience: (v) => v.open_audience,
+  companion_open: (v) => v.companion_open === true,
   talk: (v) => (v.talk === "standard" ? null : (v.talk ?? null)),
   partner_style: (v) => v.partner_style,
   while_away: (v) => v.while_away,
