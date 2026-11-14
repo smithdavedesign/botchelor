@@ -104,3 +104,26 @@ export function splitFirstPiece(text: string, opts: { min?: number; long?: numbe
 export const SHORT_FIRST_PIECE = 16;
 /** How long the server waits for the next piece before voicing a short first piece on its own. */
 export const SHORT_FIRST_WAIT_MS = 400;
+
+/** A piece longer than this (in characters, about two seconds of voice) is split at clauses for the clips, so no clip waits on a long render while a short one plays. */
+export const LONG_PIECE = 64;
+
+/**
+ * A piece as the clauses the clips are rendered from: `splitFirstPiece` applied again to any part still longer than
+ * `LONG_PIECE`, at most `max` parts, in order. A piece with no clause boundary stays whole.
+ */
+export function clausesOf(text: string, opts: { long?: number; max?: number } = {}): string[] {
+  const long = opts.long ?? LONG_PIECE;
+  const max = opts.max ?? 4;
+  const out: string[] = [text.trim()];
+  for (let i = 0; i < out.length && out.length < max; ) {
+    const part = out[i];
+    const cut = part.length > long ? splitFirstPiece(part, { long }) : null;
+    if (!cut) {
+      i++;
+      continue;
+    }
+    out.splice(i, 1, cut[0], cut[1]);
+  }
+  return out.filter((t) => t.length > 0);
+}
