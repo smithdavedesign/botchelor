@@ -326,8 +326,10 @@ nested models off, #1584 #1585):**
 | OmniHuman (fal) | 2.0 min | fal's price | 1088² 25 fps, from the portrait | the strongest whole face: expressive, identity held, sharp |
 | InfiniteTalk (fal) | 10.7 min | fal's price | 640² 25 fps, from the portrait | lively head and eyes, strong articulation; slow |
 | Wan 2.2 S2V (Replicate) | 3.4 min | 9¢ | 512² 16 fps, from the portrait | very expressive, but 16 fps and a different crop |
+| **Ditto (ours, 2026-11-14 11:30 UTC, same line)** | **5.9 s warm** (3.4 s of it the render) | ≈0.17¢ | 512² 25 fps, from the portrait | the whole head: turns, blinks, open vowels with teeth; the one that is both live-fast and alive (MuseTalk in the same compare: 33.7 s on a cold worker) |
 
-What it says: for a call, nothing hosted is within an order of magnitude of the two-second budget; for anything rendered
+What it says: for a call, nothing hosted is within an order of magnitude of the two-second budget, and Ditto is (the second
+compare, `2d383d5a…`, has the two house renderers side by side for rating); for anything rendered
 ahead of time (a date replay in the theater, a showcase reel, a video reply), OmniHuman and Kling-over-our-loop are the two
 to put behind the pre-rendered surfaces, Kling when the loop's framing must stay, OmniHuman when the whole face may move.
 David's point (2026-11-14): "might be a case for using a more slow model if we are replaying a date, but for live chat
