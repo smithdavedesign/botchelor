@@ -61,7 +61,7 @@ export default function VerdictCard({ episodeId, endingLabel, you, partner, prev
   }
 
   return (
-    <div className="theater-verdict verdict-card" role="status" aria-live="polite">
+    <div className="theater-verdict verdict-card">
       <p className="ending">{endingLabel}</p>
       <div className="verdict-pair" aria-hidden="true">
         <Avatar seed={you.id} name={you.name} hue={you.hue} house={you.house} portraitSrc={you.portrait} size={44} round />
