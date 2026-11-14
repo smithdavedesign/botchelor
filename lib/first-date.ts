@@ -8,7 +8,32 @@
  * which plays in the theater at once. Every other choice stays below it.
  */
 
+import { FORMATS, type FormatId } from "./formats";
+
 export type FirstDatePartner = { id: string; name: string; premium?: boolean };
+
+/**
+ * The format a first character's instant first date plays in (2026-11-14 first-session plan, PR1). The classic date is
+ * 12 lines: about 2 minutes to write and as long again to watch, and in the month before nobody watched one end. The
+ * speed date is 6 lines (lib/formats.ts), free, one table with no moves, so the first verdict comes in about a minute.
+ * FIRST_DATE_FORMAT names another format when the speed date's verdicts turn out thin (no deploy to change it back);
+ * it has to be a format we have and a free one (premiumSku null): a newcomer owns no packs, and a locked format would
+ * refuse the one date the whole front door leads to. Anything else falls back to the speed date.
+ */
+export const DEFAULT_FIRST_DATE_FORMAT: FormatId = "speed_date";
+
+export function firstDateFormat(env: Record<string, string | undefined> = {}): FormatId {
+  const want = env.FIRST_DATE_FORMAT?.trim();
+  const found = want ? FORMATS.find((f) => f.id === want) : undefined;
+  return found && found.premiumSku === null ? found.id : DEFAULT_FIRST_DATE_FORMAT;
+}
+
+/**
+ * The builder's steps for a first character, by name: identity, look, review. The Dating profile step (two answered
+ * prompts, two interests) stays on the depth track and in edit; at Create an empty profile is filled from the sheet
+ * (lib/profile-fill.ts), so the swipe deck and later dates still have one.
+ */
+export const FIRST_DATE_STEPS = ["identity", "look", "review"] as const;
 
 /**
  * The house character a first date is with (pure): one of this season's cast, never a premium one (those are the
