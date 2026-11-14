@@ -691,7 +691,7 @@ async function main() {
         assert(await p.locator(".companion-stage .scene-act", { hasText: phonePlace }).isVisible(), "the banner should name the place");
         assert(((await p.locator(".companion-thread .companion-action").last().textContent()) ?? "").includes("looks around, smiling"), "their opener should say what they do");
         const textButton = await p.getByRole("button", { name: "📱 Text" }).boundingBox();
-        for (const part of [".companion-head-name strong", ".companion-ai"]) {
+        for (const part of [".companion-head-name strong", ".companion-ai[title]"]) {
           const box = await p.locator(part).boundingBox();
           assert(box && textButton && box.x + box.width <= textButton.x, `${part} should end before the header's buttons`);
         }
@@ -734,7 +734,7 @@ async function main() {
         for (const width of [390, 360]) {
           await p.setViewportSize({ width, height: 844 });
           const at = await callButton.boundingBox();
-          for (const part of [".companion-head-name strong", ".companion-ai"]) {
+          for (const part of [".companion-head-name strong", ".companion-ai[title]"]) {
             const box = await p.locator(part).boundingBox();
             assert(box && at && box.x + box.width <= at.x, `${part} should end before the header's buttons at ${width}px`);
           }
