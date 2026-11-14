@@ -149,6 +149,8 @@ Every page in the browser sends, in batches of up to 25 every few seconds and wh
 | `form_submit` | A form is sent | `form` (its data-track, name or id), `area` |
 | `create_opened` | /create opens | — |
 | `import_opened` | /import opens (the Character.AI rescue door; 2026-11-14) | — |
+| `imported` | /import read a paste or card and handed it to the builder (`app/import/ImportForm.tsx`, `lib/import-events.ts`; 2026-11-14) | `format` (`labelled`, `chara_card_v2`, `free_text`…), `read_by` (`parser`, `model`, `fallback`), `ready` (true when the builder opened on Review), `from` (`cai` through the rescue door; absent otherwise) |
+| `import_failed` | /import refused a paste or couldn't hand it over | `reason` (`empty`, `minor`, `real_person`, `unreadable`, `storage`), `from` |
 | `push_subscribed` | Browser notifications turned on and the subscription saved (`app/notifications/PushToggle.tsx`; 2026-11-14) | `place` (`settings`, `prompt`, `episode`, `match`) |
 | the conversions | `character_created`, `date_started`, `prediction_made`, `character_rated`, `reel_cta`, `sign_up`, `begin_checkout`, `purchase`, `ad_invite_requested` (`app/conversion.ts`, which still sends them to GA4 too) | as before |
 

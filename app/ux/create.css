@@ -496,6 +496,13 @@
 .import-form > button[type="submit"] {
   margin-top: var(--space-3);
 }
+@media (max-width: 640px) {
+  /* The global phone rule for fields (globals.css) loses to this class's selector: body size here too, so iOS Safari
+     doesn't zoom the page when the box opens (the visual audit's control-ios-zoom rule). */
+  .import-form textarea {
+    font-size: var(--text-base);
+  }
+}
 .import-actions {
   display: flex;
   flex-wrap: wrap;

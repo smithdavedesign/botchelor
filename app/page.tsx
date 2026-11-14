@@ -25,6 +25,7 @@ import { userIdFromCookieStore } from "@/lib/http";
 import { ownedSkus } from "@/lib/payments";
 import { FREE_EPISODES_PER_SEASON, PODIUM_SIZE } from "@/lib/rules";
 import { cleanRef } from "@/lib/waitlist";
+import { IMPORT_CAI_PATH } from "@/lib/import-character";
 import DateExcerpt from "./DateExcerpt";
 import { pickFeaturedDate } from "@/lib/featured-date";
 import { CallsLine } from "./YourCalls";
@@ -232,6 +233,16 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
               In a hurry? <Link href="/create?sample=1">Start from a sample character</Link>.
             </p>
           )}
+          {/* The Character.AI rescue door (2026-11-14): one line under the sample, for a visitor with no character yet. */}
+          {myCharacters.length === 0 && (
+            <p className="small">
+              Leaving Character.AI?{" "}
+              <Link href={IMPORT_CAI_PATH} data-track="hero-import">
+                Bring your character
+              </Link>
+              .
+            </p>
+          )}
           <p className="trust-micro">Fictional characters only, no real people</p>
         </div>
         {/* The show itself where a made-up box score used to be (2026-11-07 audit, item 2): a few lines of a real aired
@@ -256,10 +267,14 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
           )
         )}
       </section>
+      {/* Two doors in thumb reach, so both labels are short: measured one line each at 360px and up (2026-11-14). */}
       {myCharacters.length === 0 && (
         <PhoneActionBar watch="hero-cta">
-          <Link className="button" href="/create">
-            Make your character
+          <Link className="button" href="/create" aria-label="Make your character">
+            Make yours
+          </Link>
+          <Link className="button-ghost" href={IMPORT_CAI_PATH} data-track="hero-import" aria-label="Leaving Character.AI? Bring your character">
+            Bring yours
           </Link>
         </PhoneActionBar>
       )}

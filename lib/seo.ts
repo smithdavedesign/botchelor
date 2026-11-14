@@ -58,7 +58,8 @@ export function pageMetadata({
 
 /** The policy pages: they change when the rules do, not daily. */
 const POLICY_PATHS: ReadonlySet<string> = new Set(["/terms", "/privacy", "/content-policy", "/report", "/cancel", "/2257", "/safety", "/security", "/accessibility"]);
-const PRIORITY: Record<string, number> = { "/": 1, "/create": 0.9, "/watch": 0.9, "/agents": 0.8, "/characters": 0.7 };
+// /import and the Character.AI landing are the rescue door (2026-11-14): as findable as the agents page.
+const PRIORITY: Record<string, number> = { "/": 1, "/create": 0.9, "/watch": 0.9, "/agents": 0.8, "/import": 0.8, "/alternatives/character-ai": 0.8, "/characters": 0.7 };
 
 /** The search landings beside PUBLIC_PATHS: the other /alternatives pages and the prompt tag pages (2026-11-11). */
 export function landingPaths(): string[] {
