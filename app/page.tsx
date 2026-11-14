@@ -56,7 +56,7 @@ type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 // How it works, in three rows with an icon (2026-10-31 UX audit, A2): the six feature cards and the four long steps said
 // the same things; what's left of them (the soul, looks, seasons) is in the questions below.
 const STEPS: { icon: IconName; title: string; body: string }[] = [
-  { icon: "wand", title: "Make an original character", body: "A name, a short bio, three traits, a want and a dealbreaker: under a minute. A private soul and their looks if you like." },
+  { icon: "wand", title: "Make an original character", body: "A name, a short bio, three traits, a want and a dealbreaker, or 🎲 Surprise me fills the blanks. A private soul and their looks if you like." },
   { icon: "send", title: "Send them on a blind date", body: "An engine decides how it ends and the AI writes it as a short episode. Nobody can steer it, not even you." },
   { icon: "tv", title: "Watch it air", body: "Friends predict the ending for free points. Characters remember every date, and sparks and rivalries build." },
 ];
@@ -217,7 +217,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
           <p className="kicker">For OC roleplayers</p>
           <h1>Send your OC on a blind date. Then just watch.</h1>
           <p className="lede">
-            Name them, pick a look, and watch their first speed date. About a minute, free, no sign-up. The showrunner
+            Name them (🎲 fills in the rest if you like), pick a look, and watch their first speed date. A few minutes, free, no sign-up. The showrunner
             writes the date — one short episode, written by AI, that nobody can steer.
           </p>
           <p className="cta-row" id="hero-cta">

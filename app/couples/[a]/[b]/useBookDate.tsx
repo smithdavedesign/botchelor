@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import DateConfirm from "@/app/DateConfirm";
-import { requestJson } from "@/app/request";
+import { requestJson, watchLinkOf } from "@/app/request";
 import { shortName } from "@/lib/names";
 
 /**
@@ -15,7 +15,7 @@ export function useBookDate(mine: { id: string; name: string }, them: { id: stri
   const router = useRouter();
   const [asking, setAsking] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<{ text: string; shop?: boolean } | null>(null);
+  const [message, setMessage] = useState<{ text: string; shop?: boolean; link?: { href: string; label: string } } | null>(null);
   async function book() {
     setBusy(true);
     setMessage(null);
@@ -23,7 +23,7 @@ export function useBookDate(mine: { id: string; name: string }, them: { id: stri
     setBusy(false);
     if (!res) return setMessage({ text: "Network error. Try again." });
     if (res.ok && typeof res.data.id === "string") return router.push(`/episodes/${res.data.id}?play=1`);
-    setMessage({ text: res.message, shop: res.status === 402 || res.status === 429 });
+    setMessage({ text: res.message, shop: res.status === 402 || res.status === 429, link: watchLinkOf(res.data) });
   }
   const a = shortName(mine.name);
   const b = shortName(them.name);

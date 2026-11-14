@@ -17,16 +17,15 @@ import { checkFieldsAnyLanguage } from "@/lib/language-check";
 import { nameCheck } from "@/lib/name-check";
 import { assertSafeSoul, isEmptySoul, normaliseSoul, saveSoul, SoulInput, unknownSoulKeys } from "@/lib/souls";
 import { WHILE_AWAY_MODES } from "@/lib/activity";
-import { APPEARANCE_MAX, DEALBREAKER_MAX, TRAIT_MAX, WANT_MAX } from "@/lib/field-limits";
+import { APPEARANCE_MAX, DEALBREAKER_MAX, NAME_MAX_WORDS, nameWords, TRAIT_MAX, WANT_MAX } from "@/lib/field-limits";
 
 const MIN_AGE = 18;
 const MAX_AGE = 1000; // immortal OCs are common; anything older is a typo
-const MAX_NAME_WORDS = 5;
 
 const text = (max: number) => z.string().trim().min(1, "Required.").max(max, `At most ${max} characters.`);
 
 const CharacterInput = z.object({
-  name: text(40).refine((s) => s.split(/\s+/).length <= MAX_NAME_WORDS, `At most ${MAX_NAME_WORDS} words.`),
+  name: text(40).refine((s) => nameWords(s) <= NAME_MAX_WORDS, `At most ${NAME_MAX_WORDS} words.`),
   age: z
     .number("Age must be a number.")
     .int("Age must be a whole number.")

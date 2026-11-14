@@ -29,8 +29,8 @@ import { getDealbreakerQuiz, getSurprise } from "@/lib/mechanics";
 import { getProfileName } from "@/lib/people";
 import { seasonRef } from "@/lib/season-ref";
 import { seasonIdOf } from "@/lib/season-window";
-import { DATE_ACTS, dateLabel, dateNumberOf, DRAMA_QUESTION_LABELS, dramaAnswerLabel, endingLabel, endingWithDetail, HIDDEN_EPISODE_MESSAGE } from "@/lib/rules";
-import { formatLabel } from "@/lib/formats";
+import { CONVERSATION_TURNS, DATE_ACTS, dateLabel, dateNumberOf, DRAMA_QUESTION_LABELS, dramaAnswerLabel, endingLabel, endingWithDetail, HIDDEN_EPISODE_MESSAGE } from "@/lib/rules";
+import { DEFAULT_FORMAT, format as showFormat, formatLabel } from "@/lib/formats";
 import { venuePhrase, venueBackdropCss, venueName } from "@/lib/venues";
 import { episodeCode, templateEpisodeTitle } from "@/lib/episode-title";
 import { previouslyOn } from "@/lib/previously-on";
@@ -110,7 +110,7 @@ function MakeYourOwn() {
     <section className="make-your-own card">
       <div>
         <h2>Send your own character on a date</h2>
-        <p className="muted">Make an original character in a minute and the show writes their blind date. Free to start, no sign-up.</p>
+        <p className="muted">Make an original character in a few minutes and the show writes their blind date. Free to start, no sign-up.</p>
       </div>
       <Link className="button" href="/create">
         Make your character
@@ -362,6 +362,11 @@ export default async function EpisodePage({
           )}
           <GeneratingPoller
             episodeId={episode.id}
+            characters={episode.characters}
+            // About how long it runs (the format's length): the wait says "4 of about 12 lines filmed".
+            totalLines={showFormat(episode.format ?? DEFAULT_FORMAT).turns ?? CONVERSATION_TURNS}
+            creator={episode.is_creator}
+            pushKey={pushKeys()?.publicKey ?? null}
             stage={
               play && episode.is_creator
                 ? {

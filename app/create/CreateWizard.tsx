@@ -10,7 +10,7 @@ import Avatar from "../Avatar";
 import DateConfirm from "../DateConfirm";
 import ModalSheet from "../Sheet";
 import CrisisNotice, { crisisFrom } from "../CrisisNotice";
-import { requestJson } from "../request";
+import { requestJson, watchLinkOf } from "../request";
 import RoleplayPicker, { choiceReady, roleplayFields, type RoleplayChoice } from "../RoleplayPicker";
 import type { CrisisResources } from "@/lib/crisis";
 import DetailsStep, { DetailField } from "./DetailsStep";
@@ -66,7 +66,7 @@ import {
 } from "@/lib/rules";
 import ChoosePicture from "@/app/studio/ChoosePicture";
 import CharacterName from "@/app/CharacterName";
-import { APPEARANCE_MAX, DEALBREAKER_MAX, TRAIT_MAX, WANT_MAX } from "@/lib/field-limits";
+import { APPEARANCE_MAX, DEALBREAKER_MAX, NAME_MAX_WORDS, nameWords, TRAIT_MAX, WANT_MAX } from "@/lib/field-limits";
 import { THIS_WEEK_MAX } from "@/lib/life";
 import { IMPORT_PATH, IMPORT_STORAGE_KEY, type ImportedDraft } from "@/lib/import-character";
 import { stampDateStarted } from "@/lib/engagement-keys";
@@ -306,7 +306,9 @@ export default function CreateWizard({
   // Depth: the five optional steps in the rail. On for an edit; a new character opts in from the review.
   const [depth, setDepth] = useState(Boolean(edit));
   // Their first character (none before this page): three steps, and the date step leads with a date that plays at once.
-  const firstCharacter = !edit && myCharacters.length === 0;
+  // Latched when the page opens (2026-11-14 feedback): creating the character refreshes the page, after which they have
+  // one, and the instant first date's card unmounted ~2 s after it showed ("3 dates left" in the nav was the refresh).
+  const [firstCharacter] = useState(() => !edit && myCharacters.length === 0);
   const track = depth ? ALL_STEPS : quickTrack(firstCharacter);
   const [sheet, setSheet] = useState<Sheet>(
     init
@@ -466,6 +468,29 @@ export default function CreateWizard({
     setStep(S.review);
   }
 
+  /**
+   * 🎲 on step 1 (2026-11-14 feedback: the hero's minute wasn't doable with a dozen blanks to fill): fills only what's
+   * still blank on "Who are they?" from a sample, keeping anything they typed (their name above all). Unlike the sample
+   * character it stays on this step, so they can change any of it.
+   */
+  async function surpriseIdentity() {
+    const t = SAMPLES[Math.floor(Math.random() * SAMPLES.length)];
+    let name = sheet.name;
+    if (!name.trim()) {
+      const check = await checkName(t.name);
+      name = check?.taken && check.free[0] ? check.free[0] : t.name;
+    }
+    setSheet((p) => ({
+      name: p.name.trim() ? p.name : name,
+      age: p.age.trim() ? p.age : t.age,
+      bio: p.bio.trim() ? p.bio : t.bio,
+      want: p.want.trim() ? p.want : t.want,
+      dealbreaker: p.dealbreaker.trim() ? p.dealbreaker : t.dealbreaker,
+    }));
+    setTraits((prev) => prev.map((x, i) => (x.trim() ? x : (t.traits[i] ?? x))));
+    setTriedNext(false);
+  }
+
   /** The draft /import left in this browser (lib/import-character.ts), read once and removed. False when there isn't one. */
   function applyImport(): boolean {
     try {
@@ -550,8 +575,11 @@ export default function CreateWizard({
 
   // Which steps are complete enough to advance.
   const ageNum = Number(sheet.age);
+  // The save takes at most NAME_MAX_WORDS words (2026-11-14 feedback: a long name was only refused at Create, step 4).
+  const nameTooLong = nameWords(sheet.name) > NAME_MAX_WORDS;
   const identityOk =
     sheet.name.trim().length > 0 &&
+    !nameTooLong &&
     !nameClash &&
     Number.isFinite(ageNum) &&
     ageNum >= 18 &&
@@ -572,7 +600,7 @@ export default function CreateWizard({
     if (step === S.identity) {
       const firstBlankTrait = traits.findIndex((t) => !t.trim());
       return [
-        !sheet.name.trim() ? { what: "a name", field: '[name="name"]' } : nameClash ? { what: "a name nobody on the show has", field: '[name="name"]' } : null,
+        !sheet.name.trim() ? { what: "a name", field: '[name="name"]' } : nameTooLong ? { what: `a name of ${NAME_MAX_WORDS} words or fewer`, field: '[name="name"]' } : nameClash ? { what: "a name nobody on the show has", field: '[name="name"]' } : null,
         !(Number.isFinite(ageNum) && ageNum >= 18) ? { what: "an adult age (18 or over)", field: '[name="age"]' } : null,
         words(sheet.bio) < 1 ? { what: "a bio", field: '[name="bio"]' } : null,
         firstBlankTrait >= 0 ? { what: "three traits", field: `[name="trait${firstBlankTrait + 1}"]` } : null,
@@ -949,6 +977,9 @@ export default function CreateWizard({
             {!edit && (
               <p className="muted sample-row">
                 In a hurry?{" "}
+                <button type="button" className="secondary small" data-track="surprise_identity" onClick={() => void surpriseIdentity()}>
+                  🎲 Surprise me — fill the blanks
+                </button>{" "}
                 <button type="button" className="secondary small" onClick={() => void applySample()}>
                   Use a sample character
                 </button>
@@ -968,11 +999,17 @@ export default function CreateWizard({
                 required
                 maxLength={40}
                 value={sheet.name}
-                aria-invalid={nameClash || undefined}
-                aria-describedby={nameClash ? "name-taken" : undefined}
+                aria-invalid={nameClash || nameTooLong || undefined}
+                aria-describedby={[nameClash ? "name-taken" : "", "name-words"].filter(Boolean).join(" ")}
                 onChange={(e) => setField("name", e.target.value)}
               />
             </label>
+            {/* Counted as they type (roleplay names run long): the save takes NAME_MAX_WORDS words. */}
+            <p id="name-words" className={nameTooLong ? "error small name-words" : "muted small name-words"} aria-live="polite">
+              {nameTooLong
+                ? `${nameWords(sheet.name)} words: a name can have at most ${NAME_MAX_WORDS}. Shorten it here (a nickname works).`
+                : `${nameWords(sheet.name)}/${NAME_MAX_WORDS} words`}
+            </p>
             {nameClash && (
               <div id="name-taken" className="name-taken" role="status">
                 <p className="error">
@@ -1663,8 +1700,11 @@ export function SendPhase({ character, partners, openCharacters, swipeGate, toke
   // Every Date button asks first (2026-10-31 UX audit, B5): this sheet says who they'll meet and what it uses, holds the
   // date's settings (which used to sit under the blind date but went with any send) and has the one Send.
   const [pending, setPending] = useState<null | { partnerId: string | null; house: boolean; name: string | null }>(null);
+  // A refusal that has a date to watch (date_in_progress: the pair's date is still being filmed): its link, by the error.
+  const [watchLink, setWatchLink] = useState<string | null>(null);
   const ask = (partnerId: string | null, name: string | null, house = false) => {
     setError(null);
+    setWatchLink(null);
     setOutOfTokens(false);
     setPending({ partnerId, house, name });
   };
@@ -1707,6 +1747,7 @@ export function SendPhase({ character, partners, openCharacters, swipeGate, toke
         return;
       }
       setOutOfTokens(data.error === "episode_limit_reached");
+      setWatchLink(watchLinkOf(data)?.href ?? null);
       setError(message);
     } catch {
       setError("Network error. Try again.");
@@ -1931,6 +1972,7 @@ export function SendPhase({ character, partners, openCharacters, swipeGate, toke
             {error && !pending && (
               <p className="error small" role="alert">
                 {error} {outOfTokens && offer && <Link href="/shop">{offer}</Link>}
+                {watchLink && <Link href={watchLink}>Watch it</Link>}
               </p>
             )}
             <p className="muted small">Uses 1 of your {tokens.left} free {tokens.left === 1 ? "date" : "dates"}. More ways to date are below.</p>
@@ -1970,7 +2012,7 @@ export function SendPhase({ character, partners, openCharacters, swipeGate, toke
         busyLabel="Sending…"
         busy={busy === "episode"}
         disabled={Boolean(pending?.house && roleplay && !choiceReady(roleplay))}
-        error={error ? { text: error, shop: outOfTokens } : null}
+        error={error ? { text: error, shop: outOfTokens, link: watchLink ? { href: watchLink, label: "Watch it" } : undefined } : null}
         onSend={() => pending && void sendOnDate(pending.partnerId, pending.house)}
       >
         <details className="ux-fold send-settings-fold">

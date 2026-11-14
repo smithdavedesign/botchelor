@@ -15,6 +15,59 @@ import { queueEvent } from "@/app/engagement";
 import { markDateWatchedLive, msSinceDateStarted } from "@/lib/engagement-keys";
 import type { TheaterVerdict } from "./EpisodeTheater";
 import VerdictCard from "./VerdictCard";
+import PushToggle from "@/app/notifications/PushToggle";
+
+/** No new line for this long while it's filmed: say it's slower than usual (lines land seconds apart). */
+export const SLOW_LINE_MS = 60_000;
+/** Still filming this long after the page opened: offer "Tell me when it's ready" (a date usually takes about two minutes). */
+export const OFFER_NOTIFY_MS = 120_000;
+
+/** "4 of about 12 lines filmed", or just the count once a date runs past its usual length (a move adds lines). */
+export function filmedLabel(filmed: number, total: number | null | undefined): string {
+  if (!total || filmed > total) return `${filmed} ${filmed === 1 ? "line" : "lines"} filmed`;
+  return `${filmed} of about ${total} lines filmed`;
+}
+
+/**
+ * 2026-11-14 feedback ("stalled at 3 lines and still said Filming live 5+ minutes later"): what the wait says. Lines
+ * stopped coming for a minute: slower than usual, and the show restarts a writer that died (the episode poll rescues it,
+ * lib/jobs.ts). Two minutes in and still filming: offer to tell them when it's ready.
+ */
+function SlowNote({ episodeId, slow, offerNotify, pushKey, creator, bare = false }: { episodeId: string; slow: boolean; offerNotify: boolean; pushKey?: string | null; creator: boolean; bare?: boolean }) {
+  const [asked, setAsked] = useState<"no" | "busy" | "yes" | "failed">("no");
+  if (!slow && !offerNotify) return null;
+  async function ask() {
+    setAsked("busy");
+    const res = await fetch(`/api/episodes/${episodeId}/notify-ready`, { method: "POST" }).catch(() => null);
+    setAsked(res?.ok ? "yes" : "failed");
+  }
+  return (
+    <div className={bare ? "filming-slow" : "card filming-slow"} role="status" aria-live="polite">
+      <p className="muted small">
+        {slow
+          ? "This one's taking longer than usual. If the writer stalled, the show restarts it by itself."
+          : "Still filming. A date usually takes about two minutes."}
+      </p>
+      {offerNotify && creator && (
+        <>
+          {asked === "yes" ? (
+            <p className="small">🔔 Done: you&apos;ll get a notification the moment it&apos;s filmed, so you can leave this page.</p>
+          ) : (
+            <p>
+              <button type="button" className="secondary small" data-track="notify_when_filmed" disabled={asked === "busy"} onClick={() => void ask()}>
+                🔔 Tell me when it&apos;s ready
+              </button>
+              {asked === "failed" && <span className="error small"> That didn&apos;t go through. Try again.</span>}
+            </p>
+          )}
+          {asked === "yes" && pushKey && (
+            <PushToggle publicKey={pushKey} prompt emailFallback place="filming" title="Get it as a push" body="So it reaches you with the site closed. Otherwise it waits under the bell." />
+          )}
+        </>
+      )}
+    </div>
+  );
+}
 
 function lastLine(turns: Turn[], side: "a" | "b"): string | null {
   for (let i = turns.length - 1; i >= 0; i--) if (turns[i].side === side) return turns[i].dialogue;
@@ -101,7 +154,24 @@ function SetSceneBar({ episodeId }: { episodeId: string }) {
  */
 type Poll = { status?: string; transcript?: Turn[]; ending?: Ending; ending_final?: true };
 
-export default function GeneratingPoller({ episodeId, stage }: { episodeId: string; stage?: Stage }) {
+export default function GeneratingPoller({
+  episodeId,
+  stage,
+  characters,
+  totalLines,
+  creator = false,
+  pushKey = null,
+}: {
+  episodeId: string;
+  stage?: Stage;
+  /** The pair, for the filmed-so-far lines on the plain page (its creator only: nobody else gets lines before it airs). */
+  characters?: [CharacterRef, CharacterRef];
+  /** About how many lines the date runs (its format's length; a move or the talk setting can change it). */
+  totalLines?: number | null;
+  /** The viewer made this date: they get the lines so far, and the offer to hear when it's ready. */
+  creator?: boolean;
+  pushKey?: string | null;
+}) {
   const router = useRouter();
   const [failed, setFailed] = useState(false);
   const [lines, setLines] = useState<Turn[]>([]);
@@ -111,6 +181,19 @@ export default function GeneratingPoller({ episodeId, stage }: { episodeId: stri
   const [ready, setReady] = useState(false);
   const [exited, setExited] = useState(false);
   const replay = useReplay(lines, true, { live: true });
+  const replayRef = useRef(replay);
+  const linesLen = useRef(0);
+  replayRef.current = replay;
+  // When the page opened and when the last new line came, against a clock that ticks while they wait.
+  const [openedAt] = useState(() => Date.now());
+  const [lastLineAt, setLastLineAt] = useState(() => Date.now());
+  const [now, setNow] = useState(() => Date.now());
+  // A writer that died was restarted from the top (lib/jobs.ts rescueStuckJob): its first lines replace the old ones.
+  const [restarted, setRestarted] = useState(false);
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 5000);
+    return () => clearInterval(t);
+  }, []);
   // The poll reads how far playback got when the date finishes, without re-arming on every line.
   const reached = useRef(0);
   reached.current = replay.shown.length;
@@ -133,9 +216,18 @@ export default function GeneratingPoller({ episodeId, stage }: { episodeId: stri
         if (res.ok) {
           const data = (await res.json()) as Poll;
           if (!active) return;
-          if (stage && Array.isArray(data.transcript)) {
+          if (Array.isArray(data.transcript)) {
             const next = data.transcript;
-            setLines((prev) => (next.length === prev.length ? prev : next));
+            const had = linesLen.current;
+            if (next.length !== had) {
+              linesLen.current = next.length;
+              setLines(next);
+              setLastLineAt(Date.now());
+              if (next.length < had) {
+                setRestarted(true);
+                replayRef.current.restart();
+              }
+            }
           }
           // Only an ending the job marked final counts: the booked one can still move until then (lib/choices.ts).
           if (stage && data.ending_final && data.ending) setFinal(data.ending);
@@ -167,6 +259,9 @@ export default function GeneratingPoller({ episodeId, stage }: { episodeId: stri
     };
   }, [episodeId, router, failed, ready, stage]);
 
+  const decidedNow = final !== null;
+  const slow = !decidedNow && now - lastLineAt > SLOW_LINE_MS;
+  const offerNotify = !decidedNow && now - openedAt > OFFER_NOTIFY_MS;
   const shown = replay.shown;
   const caughtUp = shown.length >= lines.length;
   const decided = final !== null;
@@ -266,7 +361,7 @@ export default function GeneratingPoller({ episodeId, stage }: { episodeId: stri
               <strong>
                 <CharacterName character={a} /> <span className="vs">×</span> <CharacterName character={b} />
               </strong>
-              <span className="chip">{ready ? "Just filmed" : verdictShowing ? "Wrapping up" : "🔴 Filming live"}</span>
+              <span className="chip">{ready ? "Just filmed" : verdictShowing ? "Wrapping up" : `🔴 Filming live · ${filmedLabel(lines.length, totalLines)}`}</span>
             </div>
             <div className="theater-tools">
               {decided && !caughtUp && (
@@ -280,10 +375,16 @@ export default function GeneratingPoller({ episodeId, stage }: { episodeId: stri
             </div>
           </header>
           {stage.canSetScene && !decided && <SetSceneBar episodeId={episodeId} />}
+          {!ready && !verdictShowing && (
+            <div className="ad-theater-bar">
+              {restarted && <p className="ad-theater-note">The filming hit a snag and restarted from the top. Same date, same ending.</p>}
+              <SlowNote episodeId={episodeId} slow={slow} offerNotify={offerNotify} pushKey={stage.verdict?.pushKey ?? pushKey} creator bare />
+            </div>
+          )}
           {!shown.length && !verdictShowing && (
             <div className="theater-verdict" role="status" aria-live="polite">
               <p className="ending">Filming the date…</p>
-              <p className="muted">The first lines appear here as they&apos;re filmed, usually within a minute.</p>
+              <p className="muted">The first lines appear here as they&apos;re filmed, usually within a minute; the whole date takes about two.</p>
             </div>
           )}
           {verdictShowing &&
@@ -314,13 +415,25 @@ export default function GeneratingPoller({ episodeId, stage }: { episodeId: stri
     );
   }
 
+  // The plain page (no ?play=1): what's filmed so far, for its creator, and the way onto the stage.
   return (
     <section className="card watch-preshow" aria-live="polite">
       <h2>🎬 Filming the date…</h2>
       <p className="muted">
-        The two characters are on their date right now. This usually takes under a minute — the page will
-        update itself the moment it&apos;s ready.
+        The two characters are on their date right now. It usually takes about two minutes, and this page updates itself
+        the moment it&apos;s ready.
       </p>
+      {creator && (
+        <p>
+          {lines.length > 0 && <strong>{filmedLabel(lines.length, totalLines)}. </strong>}
+          <Link className="button secondary small" href={`/episodes/${episodeId}?play=1`} data-track="watch_filming">
+            ▶ Watch it being filmed
+          </Link>
+        </p>
+      )}
+      {restarted && <p className="muted small">The filming hit a snag and restarted from the top. Same date, same ending.</p>}
+      {creator && characters && lines.length > 0 && <ChatThread characters={characters} turns={lines} />}
+      <SlowNote episodeId={episodeId} slow={slow && lines.length > 0} offerNotify={offerNotify} pushKey={pushKey} creator={creator} />
     </section>
   );
 }

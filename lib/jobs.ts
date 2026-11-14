@@ -22,6 +22,8 @@ import { ensureHotTakes } from "./hot-takes";
 import { recordSlips } from "./cast-secrets";
 import type { Db } from "./db";
 import { safeEqual } from "./http";
+import { pairNames } from "./names";
+import { notify } from "./notifications";
 
 /** Each side's owner (null for a house character) and talk setting (lib/talk.ts), in side order. */
 async function sideSettings(
@@ -84,6 +86,23 @@ export const JOB_LEASE_SECONDS = 330;
  * the deadline catches early still plays MIN_CLOCK_LINES (lib/conversation.ts, #1445) before it wraps up.
  */
 export const DATE_DEADLINE_MS = 210_000;
+/**
+ * The heartbeat (2026-11-14 feedback: a date stalled at 3 lines for 11 minutes). A worker that dies mid-date (a deploy
+ * restarting the server) held its job for the whole JOB_LEASE_SECONDS, and only the cron then picked it up. Once lines
+ * are coming, each saved line renews the lease for this long instead (turns land seconds apart, a retried one well
+ * inside this), so a dead writer is retaken a couple of minutes after its last line. Once the ending is decided, the
+ * recap, texts and reflections that follow get the longer AFTER_OUTCOME_LEASE_SECONDS.
+ */
+export const TURN_LEASE_SECONDS = 150;
+export const AFTER_OUTCOME_LEASE_SECONDS = 240;
+
+/** Renew this run's lease (only while this attempt still holds the job, so a retaken job's lease is left alone). */
+export async function renewLease(db: Db, episodeId: string, attempt: number, seconds: number, now: Date = new Date()): Promise<void> {
+  await db.query(
+    `update generation_jobs set leased_until = $3 where episode_id = $1 and status = 'running' and attempts = $2`,
+    [episodeId, attempt, new Date(now.getTime() + seconds * 1000).toISOString()],
+  );
+}
 export const MOVE_CUTOFF_MS = 150_000;
 /** How many times a failed job is retried before it is marked failed for good. */
 export const MAX_JOB_ATTEMPTS = 3;
@@ -251,6 +270,8 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
     void ensureSet(db, built.setup.venue);
     // When each line was written (episodes.turn_meta), stamped as the theater saves it.
     const lineAt: string[] = [];
+    // Set once the ending stands (onOutcome): the lease then covers the recap and texts still to come.
+    let endingStands = false;
     // Per line, aligned with the transcript: when, and whether the show's model or an owner's own key spoke it. Every
     // write of the transcript writes this beside it, so the two are always the same length.
     const metaOf = (lines: readonly { side?: string }[], at: string) =>
@@ -280,8 +301,10 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
       // answers weighed in, so the creator's stage shows the verdict card while the recap, afterglow and reflections are
       // still being written. setup.ending_final tells the stage this ending is the real one (the booked ending on the row
       // was only the engine's first word). The finished date's write below still wins; a failed date is still deleted.
-      onOutcome: (outcome, lines) =>
-        db
+      onOutcome: (outcome, lines) => {
+        endingStands = true;
+        void renewLease(db, episodeId, row!.attempts, AFTER_OUTCOME_LEASE_SECONDS).catch(() => {});
+        return db
           .query(
             `update episodes
                 set ending = $2, drama_question = $3, drama_answer = $4, sides = $5::jsonb,
@@ -299,7 +322,8 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
               lines.length ? JSON.stringify(metaOf(lines, new Date().toISOString())) : null,
             ],
           )
-          .then(() => {}),
+          .then(() => {});
+      },
       // The creator's theater plays the date while it's filmed: each line is saved as it's written (only the
       // creator sees a transcript before it airs, lib/game.ts), and the finished date overwrites it below.
       onTurn: (lines) => {
@@ -307,6 +331,8 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
         // A move somewhere new: start drawing its set now, so it's there by the time they arrive (lib/sets.ts).
         const to = lines[lines.length - 1]?.move?.to;
         if (to) void ensureSet(db, to);
+        // The heartbeat: this line renews the lease (a dead writer is retaken soon after its last line).
+        void renewLease(db, episodeId, row!.attempts, endingStands ? AFTER_OUTCOME_LEASE_SECONDS : TURN_LEASE_SECONDS).catch(() => {});
         return db
           .query(`update episodes set transcript = $2::jsonb, turn_meta = $3::jsonb where id = $1 and status = 'generating'`, [
             episodeId,
@@ -379,6 +405,7 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
       // M14: learned memory is recomputed when a date AIRS (the reveal route / the watch room), not here —
       // a generated date is not yet revealed, and its arc is public, so counting it would spoil predictions.
       await db.query(`update generation_jobs set status = 'succeeded', error = null, updated_at = now() where episode_id = $1`, [episodeId]);
+      await notifyIfAsked(db, episodeId, row.a_name, row.b_name).catch(() => {});
       trackEpisodeCost({
         episode_id: episodeId,
         where: "job",
@@ -405,6 +432,22 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
     await settleSuggestions(db, episodeId, []);
     await db.query(`delete from episodes where id = $1 and status = 'generating'`, [episodeId]);
   }
+}
+
+/**
+ * The creator asked to hear when it's filmed (POST /api/episodes/[id]/notify-ready, offered when a date runs long):
+ * one notification, kind date_filmed, linking the theater. Only when they asked: most creators are watching it live.
+ */
+export async function notifyIfAsked(db: Db, episodeId: string, aName: string, bName: string): Promise<boolean> {
+  const { rows } = await db.query<{ creator_id: string | null }>(
+    `select creator_id from episodes where id = $1 and status = 'ready' and coalesce((setup->>'notify_ready')::boolean, false)`,
+    [episodeId],
+  );
+  const creator = rows[0]?.creator_id;
+  if (!creator) return false;
+  const [a, b] = pairNames(aName, bName);
+  await notify(db, creator, { kind: "date_filmed", title: `${a} and ${b}'s date is filmed`, body: "It's ready to watch, ending and all.", link: `/episodes/${episodeId}?play=1` });
+  return true;
 }
 
 /** The cron backstop: claim and run up to `limit` stuck jobs (queued, or running past their lease). */

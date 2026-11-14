@@ -150,6 +150,14 @@ const toRef = (c: CharacterRow): CharacterRef => ({ id: c.id, name: c.name, hous
 const forDate = (c: CharacterRow): CharacterForDate => ({ id: c.id, sheet: toSheet(c) });
 
 /**
+ * SQL: `c` is on a date with `own` that's still being made (2026-11-14 feedback: a blind date sent while the first was
+ * still filming drew the same house character, and was refused with "one date at a time"). A blind date skips them.
+ */
+const filmingWithSql = (c: string, own: string) =>
+  `exists (select 1 from episodes ip where ip.status = 'generating' and ip.varies_episode_id is null
+            and ((ip.character_a = ${own} and ip.character_b = ${c}.id) or (ip.character_b = ${own} and ip.character_a = ${c}.id)))`;
+
+/**
  * Blind date: a random OC from another creator, skipping any pair where either creator blocked the
  * other, any character whose creator deleted their account and any this one unmatched (lib/unmatch.ts); a random
  * free house character when there is nobody (yet). Never premium; undefined only if it unmatched every one of those.
@@ -162,6 +170,7 @@ async function blindMatch(db: Db, userId: string, ownId: string): Promise<Charac
       await db.query<CharacterRow>(
         `select ${CHARACTER_COLUMNS} from characters c
           where not c.is_house and c.owner_id <> $1 and c.owner_id <> $3 and ${agreedMatchSql("c", "$2")} and not ${takenSql("c", "$2")}
+            and not ${filmingWithSql("c", "$2")}
             and not exists (
               select 1 from blocks bl
                where (bl.blocker_id = $1 and bl.blocked_id = c.owner_id)
@@ -173,7 +182,8 @@ async function blindMatch(db: Db, userId: string, ownId: string): Promise<Charac
     if (matched) return matched;
     const { rows } = await db.query<CharacterRow>(
       `select ${CHARACTER_COLUMNS} from characters c
-        where c.is_house and c.premium_sku is null and c.id = any($1) and not ${unmatchedSql("c.id", "$2::text")} order by random() limit 1`,
+        where c.is_house and c.premium_sku is null and c.id = any($1) and not ${unmatchedSql("c.id", "$2::text")}
+          and not ${filmingWithSql("c", "$2::text")} order by random() limit 1`,
       [seasonCastIds(), ownId],
     );
     return rows[0];
@@ -183,7 +193,7 @@ async function blindMatch(db: Db, userId: string, ownId: string): Promise<Charac
       `select ${CHARACTER_COLUMNS}
          from characters c
         where not c.is_house and c.owner_id <> $1 and c.owner_id <> $2
-          and not ${takenSql("c")} and not ${unmatchedSql("c.id", "$3::text")}
+          and not ${takenSql("c")} and not ${unmatchedSql("c.id", "$3::text")} and not ${filmingWithSql("c", "$3::text")}
           and ${audienceAllowsSql("c", "(select o.created_via from characters o where o.id = $3)")}
           and not exists (
             select 1 from blocks bl
@@ -199,6 +209,7 @@ async function blindMatch(db: Db, userId: string, ownId: string): Promise<Charac
   const { rows } = await db.query<CharacterRow>(
     `select ${CHARACTER_COLUMNS} from characters c
       where c.is_house and c.premium_sku is null and c.id = any($1) and not ${unmatchedSql("c.id", "$2::text")}
+        and not ${filmingWithSql("c", "$2::text")}
       order by random() limit 1`,
     [seasonCastIds(), ownId],
   );
@@ -378,7 +389,15 @@ export const POST = crisisAware("date_note", (body) => [str(body.note)], handle(
     const performing = await ownDateInProgress(db, own.id, partner.id);
     if (performing) {
       return json(
-        { error: "date_in_progress", episode_id: performing.id, message: ownDateInProgressMessage(pairNames(own.name, partner.name).join(" and "), performing.id, performing.by) },
+        {
+          error: "date_in_progress",
+          episode_id: performing.id,
+          // The site says it in its own words, with a link (app/request.ts describeError); agents read `message`.
+          watch_path: `/episodes/${performing.id}?play=1`,
+          character_name: shortName(own.name),
+          partner_name: shortName(partner.name),
+          message: ownDateInProgressMessage(pairNames(own.name, partner.name).join(" and "), performing.id, performing.by),
+        },
         409,
         sess,
       );

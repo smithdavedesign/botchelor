@@ -5,6 +5,10 @@
  * appearance 140 → 180, profile prompt answers 160 → 200 (this week, lib/life.ts THIS_WEEK_MAX: 100 → 140).
  */
 export const NAME_MAX = 40;
+/** The most words a name may have (2026-11-14 feedback: /create said so only at the last step; now step 1 counts them). */
+export const NAME_MAX_WORDS = 5;
+/** A name's words as the save counts them: trimmed, split on whitespace. */
+export const nameWords = (name: string): number => name.trim().split(/\s+/).filter(Boolean).length;
 export const BIO_MAX = 500;
 export const TRAIT_MAX = 50;
 export const WANT_MAX = 180;

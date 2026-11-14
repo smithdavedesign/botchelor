@@ -34,7 +34,8 @@ export default function DateConfirm({
   busy: boolean;
   /** The settings aren't ready yet (a roleplay half picked). */
   disabled?: boolean;
-  error?: { text: string; shop?: boolean } | null;
+  /** `link`: where the refusal points (a date still being filmed: "Watch it"). */
+  error?: { text: string; shop?: boolean; link?: { href: string; label: string } } | null;
   /** The date's optional settings, folded where there are several. */
   children?: ReactNode;
 }) {
@@ -64,6 +65,12 @@ export default function DateConfirm({
       {error && (
         <p className="sheet-error" role="alert">
           {error.text}
+          {error.link && (
+            <>
+              {" "}
+              <Link href={error.link.href}>{error.link.label}</Link>
+            </>
+          )}
           {error.shop && (
             <>
               {" "}
