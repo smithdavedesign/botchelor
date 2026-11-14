@@ -90,6 +90,8 @@ const musetalk: ClipRenderer = {
 /* ----------------------------------------------------------- fal.ai ----------------------------------------------------------- */
 
 export const FAL_QUEUE = "https://queue.fal.run";
+/** How long a fal.ai job may queue and run: the first compare (2026-11-14) lost four of five to a five-minute wait while LatentSync alone took 4.5 min. */
+export const FAL_TIMEOUT_MS = 14 * 60_000;
 
 type FalQueued = { request_id: string; status_url?: string; response_url?: string };
 type FalStatus = { status: "IN_QUEUE" | "IN_PROGRESS" | "COMPLETED"; queue_position?: number; logs?: unknown };
@@ -105,7 +107,7 @@ export async function falRun(apiKey: string, model: string, input: Record<string
   if (!submitted.ok) throw new RendererError(`fal.ai ${submitted.status}: ${(await submitted.text().catch(() => "")).slice(0, 200)}`);
   const q = (await submitted.json()) as FalQueued;
   const base = `${FAL_QUEUE}/${model}/requests/${q.request_id}`;
-  const deadline = t0 + (opts.timeoutMs ?? 300_000);
+  const deadline = t0 + (opts.timeoutMs ?? FAL_TIMEOUT_MS);
   for (;;) {
     if (opts.signal?.aborted) throw new RendererError("stopped");
     const st = await doFetch(`${base}/status`, { headers, signal: opts.signal });
@@ -117,7 +119,7 @@ export async function falRun(apiKey: string, model: string, input: Record<string
     }
     if (Date.now() > deadline) {
       await doFetch(`${base}/cancel`, { method: "PUT", headers }).catch(() => null);
-      throw new RendererError(`fal.ai took longer than ${Math.round((opts.timeoutMs ?? 300_000) / 1000)} s`);
+      throw new RendererError(`fal.ai took longer than ${Math.round((opts.timeoutMs ?? FAL_TIMEOUT_MS) / 1000)} s`);
     }
     await new Promise((ok) => setTimeout(ok, opts.everyMs ?? 2000));
   }
@@ -237,7 +239,7 @@ export async function didTalk(apiKey: string, sourceUrl: string, audioUrl: strin
   const created = await doFetch(`${DID_API}/talks`, { method: "POST", headers, body: JSON.stringify({ source_url: sourceUrl, script: { type: "audio", audio_url: audioUrl }, config: { stitch: true } }), signal: opts.signal });
   if (!created.ok) throw new RendererError(`D-ID ${created.status}: ${(await created.text().catch(() => "")).slice(0, 200)}`);
   const { id } = (await created.json()) as { id: string };
-  const deadline = t0 + (opts.timeoutMs ?? 300_000);
+  const deadline = t0 + (opts.timeoutMs ?? FAL_TIMEOUT_MS);
   for (;;) {
     await new Promise((ok) => setTimeout(ok, opts.everyMs ?? 2000));
     if (opts.signal?.aborted) throw new RendererError("stopped");
