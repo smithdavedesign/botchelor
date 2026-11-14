@@ -1,5 +1,6 @@
 import { getDb, type Db } from "./db";
 import { tagPrompt } from "./prompt-library-rules";
+import { tagById } from "./prompts-library";
 import { mediaHref } from "./showcase";
 
 /**
@@ -16,7 +17,16 @@ export const EXAMPLES_SCAN = 400;
 export const EXAMPLES_PER_TAG = 4;
 const TTL_MS = 10 * 60 * 1000;
 
-type Row = { id: string; source: "pg" | "after_dark"; rating: "pg" | "suggestive" | "nsfw"; name: string; prompt: string };
+type Row = { id: string; source: "pg" | "after_dark"; rating: "pg" | "suggestive" | "nsfw"; name: string; prompt: string; tags: { kind?: string; value?: string }[] | null };
+
+/**
+ * The tags a Studio picture carries: the options its creator picked (lib/studio/pg-catalog.ts pgTagsOf stores them as
+ * {kind: group, value: option}, the library's own "<group>.<option>" ids), and whatever its prompt's words say.
+ */
+export function pictureTags(prompt: string, tags: Row["tags"]): string[] {
+  const picked = (tags ?? []).map((t) => (t.kind && t.value && t.kind !== "made" ? `${t.kind}.${t.value}` : "")).filter((id) => id && tagById(id));
+  return [...new Set([...picked, ...tagPrompt(prompt)])];
+}
 
 let cache: { at: number; byTag: Map<string, PromptExample[]> } | null = null;
 
@@ -24,7 +34,7 @@ let cache: { at: number; byTag: Map<string, PromptExample[]> } | null = null;
 export async function promptExamples(db: Db): Promise<Map<string, PromptExample[]>> {
   if (cache && Date.now() - cache.at < TTL_MS) return cache.byTag;
   const { rows } = await db.query<Row>(
-    `select p.id, p.source, p.rating, c.name, g.prompt
+    `select p.id, p.source, p.rating, c.name, g.prompt, g.tags
        from showcase_posts p
        join creator_profiles cp on cp.user_id = p.owner_id
        join characters c on c.id = p.character_id
@@ -37,7 +47,7 @@ export async function promptExamples(db: Db): Promise<Map<string, PromptExample[
   );
   const byTag = new Map<string, PromptExample[]>();
   for (const r of rows) {
-    for (const tag of tagPrompt(r.prompt)) {
+    for (const tag of pictureTags(r.prompt, r.tags)) {
       const list = byTag.get(tag) ?? [];
       if (list.length >= EXAMPLES_PER_TAG) continue;
       list.push({
