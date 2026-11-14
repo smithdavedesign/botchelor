@@ -7,6 +7,10 @@ opencv-python==4.9.0.80
 opencv-python-headless==4.9.0.80
 numba==0.60.0
 llvmlite==0.43.0
+diffusers==0.30.2
+transformers==4.39.2
+huggingface_hub==0.30.2
+accelerate==0.28.0
 torch==2.0.1
 torchvision==0.15.2
 torchaudio==2.0.2

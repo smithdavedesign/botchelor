@@ -1,11 +1,14 @@
 # MuseTalk 1.5's own pins, minus what its inference never imports (tensorflow, tensorboard, gradio, spaces, moviepy),
 # plus the worker's own needs. torch comes from the Dockerfile (2.0.1 + CUDA 11.8, the pairing MuseTalk's README uses).
-diffusers==0.38.0
+# Do not bump diffusers/transformers/huggingface_hub/numpy here: MuseTalk's code and weights are written against these
+# versions (a 2026-11-13 bump to diffusers 0.38 + transformers 5.10 made the image unbuildable); constraints.txt repeats
+# them so no pip step, and no automated dependency bump, can move them.
+diffusers==0.30.2
 accelerate==0.28.0
 numpy==1.23.5
 opencv-python-headless==4.9.0.80
 soundfile==0.12.1
-transformers==5.10.1
+transformers==4.39.2
 huggingface_hub==0.30.2
 librosa==0.11.0
 einops==0.8.1
