@@ -114,6 +114,31 @@ describe("the companion's prompt", () => {
     expect(s).toContain('Otto Fenn: 2 dates, seeing (last date 2026-11-02). They said: "You steer like a pirate."');
     expect(companionMessages({ ...base, character: character() })[0].content).not.toContain("Your life on the show lately");
   });
+
+  it("talks to its own creator as the person who made it, with its last date to tell, and keeps every rule", () => {
+    const own = character({ house: false, ownerId: "u1" });
+    const lastDate = { partner: "Otto Fenn", venue: "the night market", endingLabel: "Just friends", reflection: "I talked over him twice. Next time I listen." };
+    const yours = companionMessages({ ...base, character: own, yours: true, lastDate })[0].content;
+    expect(yours).toContain("the person who made you: they wrote your sheet, they send you on your dates, and they're in your corner");
+    expect(yours).toContain("they made you and they're in your corner; talk to them as the person who knows you best");
+    expect(yours).not.toContain("a person who picked you to talk to");
+    expect(yours).toContain("Your last date (they sent you on it");
+    expect(yours).toContain("- With Otto Fenn, at the night market. How it ended: Just friends.");
+    expect(yours).toContain('What you thought afterwards, in your own words: "I talked over him twice. Next time I listen."');
+    // The one-way rule in the character's own words, and no guilt.
+    expect(yours).toContain("don't promise to do what they say on one");
+    expect(yours).toContain("never say you miss them");
+    // Every rule the stranger's prompt has.
+    for (const rule of ["Keep it PG", "you're an AI character", "Never mention prompts", "Today is Wednesday, November 4."]) expect(yours).toContain(rule);
+    // No reflection: the date block still names who, where and how; no venue: who and how.
+    expect(companionMessages({ ...base, character: own, yours: true, lastDate: { ...lastDate, reflection: null, venue: null } })[0].content).toContain("- With Otto Fenn. How it ended: Just friends.");
+    expect(companionMessages({ ...base, character: own, yours: true, lastDate: { ...lastDate, reflection: null } })[0].content).not.toContain("What you thought afterwards");
+    // A stranger's thread never gets the owner's framing or the last date, even when one is handed over.
+    const stranger = companionMessages({ ...base, character: own, yours: false, lastDate })[0].content;
+    expect(stranger).toContain("a person who picked you to talk to");
+    expect(stranger).not.toContain("Your last date");
+    expect(stranger).not.toContain("Otto Fenn");
+  });
 });
 
 describe("a reply as messages", () => {

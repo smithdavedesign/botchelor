@@ -28,6 +28,14 @@ export function companionGuestsOpen(env: Record<string, string | undefined> = pr
   return companionOpen(env) && companionGuestReplies(env) > 0;
 }
 
+/**
+ * A text the character sent first (lib/companion.ts postFromCharacter) carries its tag in companion_messages.action:
+ * `<kind>:<ref>`, e.g. `after_date:<episode id>`, and a thread gets each tag once (the dedupe). It's a tag, not a
+ * stage direction: the page, the prompt and MCP never show it as what the character did.
+ */
+export const TEXT_TAG = /^[a-z][a-z0-9_]*:[A-Za-z0-9_.:-]+$/;
+export const isTextTag = (action: string | null | undefined): boolean => Boolean(action && TEXT_TAG.test(action));
+
 export const REPLY_LENGTHS = ["short", "normal", "long"] as const;
 export type ReplyLength = (typeof REPLY_LENGTHS)[number];
 export const REPLY_LENGTH_LABELS: Record<ReplyLength, string> = { short: "Short", normal: "Normal", long: "Long" };

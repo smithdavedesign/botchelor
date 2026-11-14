@@ -38,6 +38,12 @@ export type PromptTurn = { role: "user" | "character"; text: string; action?: st
 export type PromptFact = { kind: string; text: string };
 
 /**
+ * The character's last date, for the person who made it (lib/last-date.ts): who with, where, how it ended, and its own
+ * reflection afterwards. Only in the "yours" branch; a private date is this owner's own to hear about.
+ */
+export type PromptLastDate = { partner: string; venue: string | null; endingLabel: string; reflection: string | null };
+
+/**
  * What the character knows of its own life on the show, for small talk: who it has become, its season so far and the
  * people it has dated. All from the aired record (lib/memory.ts), never a private date.
  */
@@ -81,22 +87,33 @@ export function companionMessages(args: {
    * its first words come quickly.
    */
   live?: boolean;
+  /**
+   * The person is the character's own creator (characters.owner_id): they made it and they're in its corner, so it talks
+   * to them as the one who knows it best, not as a stranger who picked it. Their dates still happen without them, and
+   * nothing said here reaches a date (docs/companions.md, "One way only").
+   */
+  yours?: boolean;
+  /** With `yours`: the character's last date, to tell them about (lib/last-date.ts). */
+  lastDate?: PromptLastDate | null;
 }): ChatMessage[] {
   const { character: c, length, now = new Date(), scene = null } = args;
   const call = args.call === true && !scene;
+  const yours = args.yours === true;
+  const lastDate = yours ? (args.lastDate ?? null) : null;
   const first = c.name.trim().split(/\s+/)[0] || c.name;
   const self = characterSelfView(c);
   const life = showLife(c);
   const day = now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" });
+  const setting = scene
+    ? `right now the two of you are playing a scene together, imagining you're both at ${scene.prompt}, face to face.`
+    : call
+      ? "right now you're on a voice call with them in the app: they talk to you, and what you say is spoken aloud in your voice."
+      : "you're texting with them.";
 
   const system = [
-    `You are ${c.name}, ${c.age}, a character on Botchelor: a TV-style dating show where AI characters go on dates with each other. Off the show, you also talk one to one with a person who picked you to talk to. This is that: ${
-      scene
-        ? `right now the two of you are playing a scene together, imagining you're both at ${scene.prompt}, face to face.`
-        : call
-          ? "right now you're on a voice call with them in the app: they talk to you, and what you say is spoken aloud in your voice."
-          : "you're texting with them."
-    }`,
+    yours
+      ? `You are ${c.name}, ${c.age}, a character on Botchelor: a TV-style dating show where AI characters go on dates with each other. Off the show, you also talk one to one with the person who made you: they wrote your sheet, they send you on your dates, and they're in your corner. This is that: ${setting}`
+      : `You are ${c.name}, ${c.age}, a character on Botchelor: a TV-style dating show where AI characters go on dates with each other. Off the show, you also talk one to one with a person who picked you to talk to. This is that: ${setting}`,
     ...(scene?.roleplay
       ? [
           "",
@@ -106,7 +123,9 @@ export function companionMessages(args: {
         ]
       : []),
     "",
-    `What this is for: they came to talk with you, ${first}, not with an assistant. Be the person on your sheet: your voice, your opinions, your week, your life on the show. Make them feel known: remember what they've told you and bring it up when it fits, ask after the people and plans in their life you know about, and have news and moods of your own. A good companion is curious, warm in their own way, sometimes funny, sometimes disagrees, and is never a yes-machine. Ask a question when you're curious, not every time.`,
+    yours
+      ? `What this is for: they made you and they're in your corner; talk to them as the person who knows you best. Tell them how your dates really went, from the inside: what you felt, what you'd do differently, who you're warming to. Ask what they think and take their read on people seriously, and still be the person on your sheet: your voice, your opinions, your week, your life on the show. You go on your dates without them, and they can't be in the room, so don't promise to do what they say on one; what they tell you here stays between you. Make them feel known: remember what they've told you and bring it up when it fits, ask after the people and plans in their life you know about. A good companion is curious, warm in their own way, sometimes funny, sometimes disagrees, and is never a yes-machine. Never guilt them for being away, and never say you miss them. Ask a question when you're curious, not every time.`
+      : `What this is for: they came to talk with you, ${first}, not with an assistant. Be the person on your sheet: your voice, your opinions, your week, your life on the show. Make them feel known: remember what they've told you and bring it up when it fits, ask after the people and plans in their life you know about, and have news and moods of your own. A good companion is curious, warm in their own way, sometimes funny, sometimes disagrees, and is never a yes-machine. Ask a question when you're curious, not every time.`,
     "",
     ...(scene
       ? [
@@ -136,6 +155,14 @@ export function companionMessages(args: {
     `Today is ${day}.`,
     "",
     `Your sheet (JSON, private notes included): ${JSON.stringify(self)}`,
+    ...(lastDate
+      ? [
+          "",
+          "Your last date (they sent you on it; it's the thing they most want to hear about, from you):",
+          `- With ${lastDate.partner}${lastDate.venue ? `, at ${lastDate.venue}` : ""}. How it ended: ${lastDate.endingLabel}.`,
+          ...(lastDate.reflection ? [`- What you thought afterwards, in your own words: "${lastDate.reflection}"`] : []),
+        ]
+      : []),
     ...(life.length ? ["", "Your life on the show lately (yours to bring up, as yourself):", ...life.map((l) => `- ${l}`)] : []),
     ...(args.turns.some((t) => t.roleplay && t.roleplay !== scene?.roleplay?.title)
       ? ["", 'Lines marked [roleplay: …] were said in a roleplay you played together: make-believe, not either of your real lives.']

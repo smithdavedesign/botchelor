@@ -184,7 +184,12 @@ Every page in the browser sends, in batches of up to 25 every few seconds and wh
   18+ box sets the gate's cookie when a character is saved. So from that day `entered/visited` reads as the share who
   saw the site itself rather than only the interstitial; a visitor who lands on a gated link and leaves counts as
   visited, not entered.
-- **"Turned on texts"** (`push_opted`): visitors with a `push_subscribed` event, after "Watched it end".
+- **"Heard from their character"** (2026-11-14, `after_date_text`): visitors with an `after_date_text_opened` event, right
+  after "Watched it end": the verdict card's "Hear from {first}" opened their own character's text about the date
+  (`app/episodes/[id]/VerdictCard.tsx`, docs/companions.md "Texts from your own character"). `date_watched` itself now
+  carries `skipped` (they skipped to the end) and, for the creator's just-filmed date, `ms_since_start` (milliseconds
+  since the wizard sent it, `lib/engagement-keys.ts`; absent when the stamp isn't in that tab).
+- **"Turned on texts"** (`push_opted`): visitors with a `push_subscribed` event, after "Heard from their character".
 - Kept 400 days (`lib/retention.ts`); deleting an account deletes its rows and its browsers' rows.
 
 ## Not tracked here

@@ -12,7 +12,18 @@ import type { Turn } from "@/lib/conversation";
 import type { CharacterRef } from "@/lib/game";
 import { placeAt, type PlaceId } from "@/lib/venues";
 import CharacterName from "@/app/CharacterName";
+import { msSinceDateStarted } from "@/lib/engagement-keys";
 import ShareEnding from "./ShareEnding";
+import VerdictCard from "./VerdictCard";
+
+/** What the verdict card needs beyond the theater's own props (app/episodes/[id]/page.tsx hands it over for a creator). */
+export type TheaterVerdict = {
+  /** Which of the two is the creator's own (the one that texts): 0 or 1. */
+  mine: 0 | 1;
+  /** Its reflection on the date, when one was produced. */
+  reflection: string | null;
+  pushKey: string | null;
+};
 
 type Props = {
   /** For the 👍/👎 on each line (lib/line-feedback.ts): line i is transcript[i], and playback shows them from the top. */
@@ -29,6 +40,8 @@ type Props = {
   startAt?: number;
   /** The roleplay the two played (lib/date-roleplays.ts): a chip in the header, so the lines read as their roles'. */
   roleplay?: { icon: string; title: string } | null;
+  /** With `justFilmed`: the verdict card in place of the bare ending (VerdictCard.tsx). */
+  verdict?: TheaterVerdict | null;
 };
 
 function lastOf(turns: Turn[], side: "a" | "b"): string | null {
@@ -64,16 +77,28 @@ export default function EpisodeTheater(props: Props) {
   );
 }
 
-function Playback({ episodeId, characters, venue, transcript, endingLabel, justFilmed, startAt, roleplay, onExit }: Props & { onExit: () => void }) {
+function Playback({ episodeId, characters, venue, transcript, endingLabel, justFilmed, startAt, roleplay, verdict, onExit }: Props & { onExit: () => void }) {
   const replay = useReplay(transcript, true, { startAt });
   const [convo, setConvo] = useState(true);
   // The aha moment (2026-11-07 product review, item 5): the replay reached the ending. Once per mount, never on exit.
+  // Honest about how (the 2026-11-14 core plan): whether they skipped to it, and for the creator's own just-filmed date how
+  // long since they sent it (lib/engagement-keys.ts; null when the stamp isn't in this tab).
   const watched = useRef(false);
+  const skipped = useRef(false);
   useEffect(() => {
     if (!replay.done || watched.current) return;
     watched.current = true;
-    queueEvent("date_watched", { via: "theater", just_filmed: Boolean(justFilmed) });
+    queueEvent("date_watched", {
+      via: "theater",
+      just_filmed: Boolean(justFilmed),
+      skipped: skipped.current,
+      ms_since_start: justFilmed ? msSinceDateStarted() : null,
+    });
   }, [replay.done, justFilmed]);
+  const skip = () => {
+    skipped.current = true;
+    replay.skip();
+  };
   const shown = replay.shown;
   const [a, b] = characters;
   const actLabel = shown.length ? DATE_ACTS[shown[shown.length - 1].act] ?? null : null;
@@ -114,7 +139,7 @@ function Playback({ episodeId, characters, venue, transcript, endingLabel, justF
             <button type="button" className="theater-icon" onClick={replay.restart} aria-label="Restart" title="Restart">
               ↻
             </button>
-            <button type="button" className="theater-icon" onClick={replay.skip} aria-label="Skip to the end" title="Skip to the end">
+            <button type="button" className="theater-icon" onClick={skip} aria-label="Skip to the end" title="Skip to the end">
               ⏭
             </button>
             <button
@@ -133,19 +158,31 @@ function Playback({ episodeId, characters, venue, transcript, endingLabel, justF
           </div>
         </header>
 
-        {replay.done && (
-          <div className="theater-verdict">
-            <p className="ending">{endingLabel}</p>
-            <p className="muted">
-              That&apos;s how it ended.{" "}
-              <button type="button" className="linklike" onClick={replay.restart}>
-                Watch again
-              </button>
-            </p>
-            {/* The share where the feeling is (2026-11-11 growth plan): spoiler-free, like every viewer's share. */}
-            <ShareEnding episodeId={episodeId} names={[a.name, b.name]} kind="viewer" />
-          </div>
-        )}
+        {replay.done &&
+          (justFilmed && verdict ? (
+            // The creator's own date, just filmed: the ending with a next step (their character texts them).
+            <VerdictCard
+              episodeId={episodeId}
+              endingLabel={endingLabel}
+              you={characters[verdict.mine]}
+              partner={characters[verdict.mine === 0 ? 1 : 0]}
+              preview={verdict.reflection}
+              pushKey={verdict.pushKey}
+              onRestart={replay.restart}
+            />
+          ) : (
+            <div className="theater-verdict">
+              <p className="ending">{endingLabel}</p>
+              <p className="muted">
+                That&apos;s how it ended.{" "}
+                <button type="button" className="linklike" onClick={replay.restart}>
+                  Watch again
+                </button>
+              </p>
+              {/* The share where the feeling is (2026-11-11 growth plan): spoiler-free, like every viewer's share. */}
+              <ShareEnding episodeId={episodeId} names={[a.name, b.name]} kind="viewer" />
+            </div>
+          ))}
       </div>
     </div>
   );

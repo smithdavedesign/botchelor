@@ -67,6 +67,7 @@ import CharacterName from "@/app/CharacterName";
 import { APPEARANCE_MAX, DEALBREAKER_MAX, TRAIT_MAX, WANT_MAX } from "@/lib/field-limits";
 import { THIS_WEEK_MAX } from "@/lib/life";
 import { IMPORT_PATH, IMPORT_STORAGE_KEY, type ImportedDraft } from "@/lib/import-character";
+import { stampDateStarted } from "@/lib/engagement-keys";
 import { offerFirstDate, pickFirstPartner } from "@/lib/first-date";
 
 export type Partner = {
@@ -1635,6 +1636,8 @@ export function SendPhase({ character, partners, openCharacters, swipeGate, toke
       if (help) setCrisis(help);
       if (status === 200) {
         trackConversion("date_started", { mode: partnerId ? "partner" : "blind" });
+        // The theater reads it back as date_watched's ms_since_start (lib/engagement-keys.ts).
+        stampDateStarted();
         if (help) {
           setDatePath(`${String(data.share_path)}?play=1`);
           setPending(null);

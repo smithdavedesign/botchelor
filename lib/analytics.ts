@@ -53,6 +53,7 @@ export type AnalyticsEvent =
   | "companion_reply" // a companion answered (lib/companion.ts): the model, its cost and how long; never the words
   | "companion_report" // a person reported a companion's reply: the reason only
   | "companion_scene" // a companion thread started a scene at a place, or went back to texting: the place only
+  | "companion_text" // a character texted its person first (lib/companion.ts postFromCharacter): the kind of text and how many bubbles; never the words
   | "companion_voice" // a companion reply recorded as a voice note (lib/companion-voice.ts): how long, its length, what paid; never the words
   | "companion_call" // a voice call with a companion started or ended (stage; app/companion/[id]/CompanionCall.tsx): how long, how many turns, which voice, and for a live call (live: P6) its minutes, first-audio ms and barge-ins; never the words
   | "face_kit" // a character's face kit was drawn for calls (lib/face-kit.ts): how many stills, whether the loop was queued, failures, the cost estimate; never a picture

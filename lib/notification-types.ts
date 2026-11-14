@@ -31,6 +31,7 @@ export const NOTIFICATION_TYPE_EMOJI: Record<NotificationType, string> = {
 
 const TYPE_OF: Record<NotificationKind, NotificationType> = {
   texted: "texts",
+  character_texted_you: "texts",
   matched: "dates",
   matchmaker_pick: "dates",
   scheduled_date: "dates",

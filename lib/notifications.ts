@@ -13,6 +13,7 @@ import { pushToUser } from "./push";
 
 export type NotificationKind =
   | "texted" // a couple's text: the show's daily one, or one they sent themselves (one unread per couple)
+  | "character_texted_you" // your own character texted you first, off the show (lib/companion.ts postFromCharacter): after a date, for now
   | "matched" // your character matched someone in the swipe deck (lib/swipes.ts)
   | "matchmaker_pick" // the house matchmaker proposed a pair with your character (lib/house-matchmaker.ts)
   | "scheduled_date" // a date booked for later ran: booked, or why not (lib/scheduled-dates.ts)

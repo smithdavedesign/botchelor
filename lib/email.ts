@@ -26,8 +26,10 @@ type Env = Record<string, string | undefined>;
 // (the same news when the booker plays their own side), go at once as well.
 // Connections (M3): your own key nearing its cap, at it, or failing goes at once too: it's your money, and waiting for the
 // digest could cost more of it.
+// Your own character texting you (2026-11-14): a message is waiting, and the moment is now; the 3-a-day cap still holds.
 export const IMMEDIATE_KINDS: ReadonlySet<NotificationKind> = new Set([
   "likes_waiting",
+  "character_texted_you",
   "second_date_yes",
   "second_date_booked",
   "date_proposal",
