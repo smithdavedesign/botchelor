@@ -67,7 +67,7 @@ import threading
 import time
 import urllib.request
 
-HANDLER_VERSION = "chain-4"
+HANDLER_VERSION = "stream-1"
 DITTO_DIR = os.environ.get("DITTO_DIR", "/app/ditto")
 DATA_ROOT = os.environ.get("DITTO_DATA_ROOT", os.path.join(DITTO_DIR, "checkpoints/ditto_trt_Ampere_Plus"))
 CFG_PKL = os.environ.get("DITTO_CFG_PKL", os.path.join(DITTO_DIR, "checkpoints/ditto_cfg/v0.4_hubert_cfg_trt.pkl"))
@@ -181,6 +181,9 @@ def _chain_audio2motion_offline(self) -> None:
                 b = (i + 1) / (JOIN_BLEND + 1)
                 res_kp_seq[:, skip + i] = last * (1 - b) + res_kp_seq[:, skip + i] * b
         self.chain_out = {"seq": res_kp_seq.copy(), "skip": skip}
+        ev = getattr(self, "chain_event", None)
+        if ev is not None:
+            ev.set()  # the state for the next clause is known now; the frames follow
         x_d_info_list = self.audio2motion.cvt_fmt(res_kp_seq[:, skip:])
         gen_frame_idx = 0
         for x_d_info in x_d_info_list:
@@ -215,6 +218,58 @@ def _audio2motion_dispatch(self) -> None:
 
 SDK.audio2motion_worker = _audio2motion_dispatch.__get__(SDK, StreamSDK)
 SDK.stream_mode = False
+
+
+class FragWriter:
+    """In place of Ditto's writer for a streamed clause: raw RGB frames into ffmpeg, which muxes the clause's voice and
+    writes fragmented MP4 (an init segment, then a fragment every FRAG_MS or keyframe) to a pipe; a reader thread
+    queues the bytes as they come, so a clause's first frames leave the worker while the rest still render."""
+
+    def __init__(self, width: int, height: int, wav_path: str, fps: int = FPS, frag_ms: int = 200):
+        cmd = [
+            "ffmpeg", "-hide_banner", "-loglevel", "error", "-nostdin",
+            "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{width}x{height}", "-r", str(fps), "-i", "pipe:0",
+            "-i", wav_path,
+            "-map", "0:v:0", "-map", "1:a:0",
+            "-c:v", "libx264", "-preset", "veryfast", "-tune", "zerolatency", "-pix_fmt", "yuv420p", "-crf", "20",
+            "-g", str(fps), "-keyint_min", str(fps), "-sc_threshold", "0",
+            "-c:a", "aac", "-b:a", "96k",
+            "-movflags", "frag_keyframe+empty_moov+default_base_moof", "-frag_duration", str(frag_ms * 1000),
+            "-f", "mp4", "pipe:1",
+        ]
+        self.proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        self.pieces: queue.Queue = queue.Queue()
+        self.frames = 0
+        self.bytes = 0
+        self.err = b""
+        threading.Thread(target=self._read, name="frag-read", daemon=True).start()
+        threading.Thread(target=self._stderr, name="frag-err", daemon=True).start()
+
+    def _read(self) -> None:
+        try:
+            while True:
+                chunk = self.proc.stdout.read(32768)
+                if not chunk:
+                    break
+                self.bytes += len(chunk)
+                self.pieces.put(chunk)
+        finally:
+            self.pieces.put(None)
+
+    def _stderr(self) -> None:
+        self.err = self.proc.stderr.read() or b""
+
+    def __call__(self, img, fmt="bgr"):
+        frame = img[..., ::-1] if fmt == "bgr" else img
+        self.proc.stdin.write(np.ascontiguousarray(frame, dtype=np.uint8).tobytes())
+        self.frames += 1
+
+    def close(self):
+        try:
+            self.proc.stdin.close()
+        except Exception:  # noqa: BLE001
+            pass
+        self.proc.wait(timeout=60)
 
 
 class TimedWriter:
@@ -590,6 +645,125 @@ def stream_probe(inp: dict) -> dict:
     }
 
 
+# ------------------------------------------------------------------ speak, streamed: state first, then fragments as frames render
+def speak_stream(inp: dict):
+    """The chain's `speak` as a stream (docs/PRDs/digital-human.md "streamed clauses"): the same inputs; yields
+    `{"kind": "start"}`, then `{"kind": "state", "state_b64"}` the moment the motion step is done (so the next clause's
+    job can be queued while this one's frames render), then `{"kind": "frag", "i", "b64"}` pieces of a fragmented MP4
+    with the voice muxed in as ffmpeg produces them, then `{"kind": "end", "frames", "bytes", "ms"}`."""
+    t0 = time.time()
+    if not inp.get("audio_b64"):
+        raise ValueError("audio_b64 is required")
+    if inp.get("source_b64"):
+        source_path, width, height = source_path_for(base64.b64decode(inp["source_b64"]))
+    elif inp.get("source_url"):
+        source_path, width, height = source_for_url(str(inp["source_url"]))
+    else:
+        raise ValueError("source_url or source_b64 is required")
+    if not width:
+        raise ValueError("a streamed clause needs a still, not a video")
+    rate = int(inp.get("rate") or SR)
+    wav = wav_bytes(inp["audio_b64"], str(inp.get("audio_format") or "pcm16"), rate)
+    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False, dir=SOURCE_CACHE) as f:
+        f.write(wav)
+        wav_path = f.name
+    mux_wav = wav_path
+    try:
+        audio, _ = librosa.load(wav_path, sr=SR)
+        seconds = len(audio) / SR
+        if seconds > MAX_AUDIO_SECONDS:
+            raise ValueError(f"clause longer than {MAX_AUDIO_SECONDS}s")
+        if seconds < 0.08:
+            raise ValueError("the clause is empty")
+        state_in = unpack_state(str(inp["state_b64"])) if inp.get("state_b64") else None
+        silence_ms = max(0, min(2000, int(inp.get("tail_silence_ms") or 0)))
+        fade_in = int(inp.get("fade_in") or 0)
+        fade_out = int(inp.get("fade_out") or 0)
+        want_state = bool(inp.get("want_state"))
+        parts = []
+        if state_in and state_in.get("tail") is not None and state_in.get("audio_tail") is not None:
+            parts.append(state_in["audio_tail"])
+        parts.append(audio.astype(np.float32))
+        if silence_ms:
+            parts.append(np.zeros(int(SR * silence_ms / 1000), dtype=np.float32))
+        joint = np.concatenate(parts)
+        skip = int(state_in["tail"].shape[1]) if state_in and state_in.get("tail") is not None else 0
+        num_joint = math.ceil(len(joint) / SR * FPS)
+        num_out = num_joint - skip
+        fade_in = min(fade_in, max(0, num_out - 2))
+        fade_out = min(fade_out, max(0, num_out - 2))
+        setup_kwargs = {}
+        if inp.get("sampling_timesteps"):
+            setup_kwargs["sampling_timesteps"] = int(inp["sampling_timesteps"])
+        if inp.get("emo") is not None:
+            setup_kwargs["emo"] = int(inp["emo"])
+        if fade_in > 0 or fade_out > 0:
+            setup_kwargs["fade_type"] = "s"
+            setup_kwargs["fade_out_keys"] = ("exp", "pitch", "yaw", "roll", "t")
+        if silence_ms:
+            mux_wav = with_silence(wav_path, silence_ms)
+        yield {"kind": "start", "frames": num_out, "fps": FPS, "width": width, "height": height, "handler": HANDLER_VERSION, "chain": {"in": bool(state_in), "skip": skip, "fade_in": fade_in, "fade_out": fade_out, "silence_ms": silence_ms, "emo": inp.get("emo")}}
+        with tempfile.TemporaryDirectory(dir=SOURCE_CACHE) as d:
+            out_path = os.path.join(d, "clause.mp4")
+            with GPU_LOCK:
+                SDK.chain = {"kp_cond": state_in["kp_cond"], "tail": state_in["tail"]} if state_in else {}
+                SDK.chain_out = None
+                motion_done = threading.Event()
+                SDK.chain_event = motion_done
+                writer = None
+                try:
+                    SDK.setup(source_path, out_path, **setup_kwargs)
+                    writer = FragWriter(width, height, mux_wav, FPS)
+                    SDK.writer = writer
+                    if state_in and state_in.get("d0") is not None:
+                        SDK.motion_stitch.d0 = SDK.audio2motion.cvt_fmt(state_in["d0"].reshape(1, 1, -1))[0]
+                    SDK.setup_Nd(N_d=num_out, fade_in=fade_in if fade_in > 0 else -1, fade_out=fade_out if fade_out > 0 else -1, ctrl_info=motion_ctrl(inp.get("motion"), num_out))
+                    t_setup = time.time()
+                    aud_feat = SDK.wav2feat.wav2feat(joint, sr=SR)
+                    SDK.audio2motion_queue.put(aud_feat)
+                    # The motion for the whole clause is one pass; the frames take longer. The state goes out first.
+                    closer = threading.Thread(target=SDK.close, name="closer", daemon=True)
+                    closer.start()
+                    if not motion_done.wait(timeout=90):
+                        raise RuntimeError("the motion step didn't finish")
+                    t_motion = time.time()
+                    out = SDK.chain_out
+                    if out is None or out.get("skip") != skip:
+                        raise RuntimeError("the chain's state wasn't applied")
+                    if want_state:
+                        yield {"kind": "state", "state_b64": export_state(out["seq"], joint, state_in), "ms": {"setup": int((t_setup - t0) * 1000), "motion": int((t_motion - t_setup) * 1000)}}
+                    n = 0
+                    t_first = None
+                    while True:
+                        piece = writer.pieces.get(timeout=120)
+                        if piece is None:
+                            break
+                        if t_first is None:
+                            t_first = time.time()
+                        yield {"kind": "frag", "i": n, "b64": base64.b64encode(piece).decode()}
+                        n += 1
+                    closer.join(timeout=60)
+                    if SDK.worker_exception is not None:
+                        raise SDK.worker_exception
+                    frames = writer.frames
+                    if frames != num_out:
+                        raise RuntimeError(f"{frames} frames of {num_out}")
+                    if writer.proc.returncode not in (0, None):
+                        raise RuntimeError(f"ffmpeg failed: {writer.err.decode(errors='replace')[-300:]}")
+                finally:
+                    SDK.chain = {}
+                    SDK.chain_event = None
+                    SDK.stream_mode = False
+            yield {"kind": "end", "frames": frames, "pieces": n, "bytes": writer.bytes, "first_piece_ms": int((t_first - t0) * 1000) if t_first else None, "ms": {"setup": int((t_setup - t0) * 1000), "motion": int((t_motion - t_setup) * 1000), "total": int((time.time() - t0) * 1000)}, "handler": HANDLER_VERSION}
+    finally:
+        os.unlink(wav_path)
+        if mux_wav != wav_path:
+            try:
+                os.unlink(mux_wav)
+            except OSError:
+                pass
+
+
 # ------------------------------------------------------------------ speak: still + audio → clip
 def speak(inp: dict) -> dict:
     t0 = time.time()
@@ -644,20 +818,30 @@ def warmup() -> dict:
 
 
 # ------------------------------------------------------------------ dispatch
-def handler(job: dict) -> dict:
+def handler(job: dict):
+    """A generator for Runpod (every job streams; `return_aggregate_stream` keeps /runsync and /status whole): the
+    plain ops yield their one result, `speak` with `stream: true` yields the stream (speak_stream)."""
     inp = job.get("input") or {}
     op = str(inp.get("op") or "speak")
     try:
         if op == "warm":
-            return {**(warmup() if not _WARM else {"ok": True, "warm": "already", "handler": HANDLER_VERSION}), "registrations": len(SDK.avatar_registrar.cache)}
-        if op == "speak":
-            return speak(inp)
-        if op == "stream_probe":
-            return stream_probe(inp)
-        return {"error": f"unknown op {op}"}
+            yield {**(warmup() if not _WARM else {"ok": True, "warm": "already", "handler": HANDLER_VERSION}), "registrations": len(SDK.avatar_registrar.cache)}
+        elif op == "speak" and inp.get("stream"):
+            yield from speak_stream(inp)
+        elif op == "speak":
+            yield speak(inp)
+        elif op == "stream_probe":
+            yield stream_probe(inp)
+        else:
+            yield {"error": f"unknown op {op}"}
     except Exception as e:  # the SDK marks the job FAILED when "error" is set
         log(f"{op} failed: {e!r}")
-        return {"error": str(e)[:500]}
+        yield {"error": str(e)[:500]}
+
+
+def handle_once(job: dict) -> dict:
+    """The first item of a job's stream (pod mode and the self-test call plain ops this way)."""
+    return next(handler(job))
 
 
 _WARM = False
@@ -692,7 +876,7 @@ def self_test() -> None:
         src_b64 = base64.b64encode(f.read()).decode()
     with open(os.path.join(sample, "clause.wav"), "rb") as f:
         wav_b64 = base64.b64encode(f.read()).decode()
-    s = handler({"input": {"op": "speak", "source_b64": src_b64, "audio_b64": wav_b64, "audio_format": "wav"}})
+    s = handle_once({"input": {"op": "speak", "source_b64": src_b64, "audio_b64": wav_b64, "audio_format": "wav"}})
     if "error" in s:
         log(f"speak failed: {s['error']}")
         sys.exit(1)
@@ -712,7 +896,7 @@ def self_test() -> None:
         inp = {"op": "speak", "source_b64": src_b64, "audio_b64": base64.b64encode(buf.getvalue()).decode(), "audio_format": "wav", "want_state": not last, "fade_in": 6 if n == 0 else 0, "fade_out": 13 if last else 0, "tail_silence_ms": 400 if last else 0}
         if state:
             inp["state_b64"] = state
-        s = handler({"input": inp})
+        s = handle_once({"input": inp})
         if "error" in s:
             log(f"chain {n} failed: {s['error']}")
             sys.exit(1)
@@ -728,7 +912,7 @@ if __name__ == "__main__":
         import runpod
 
         warm_in_background()
-        runpod.serverless.start({"handler": handler})
+        runpod.serverless.start({"handler": handler, "return_aggregate_stream": True})
     else:
         warmup()
         self_test()
