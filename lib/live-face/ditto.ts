@@ -58,6 +58,10 @@ export type DittoSpeakInput = {
   state?: string | null;
   /** Whether to answer with the state for a clause after this one. */
   want_state?: boolean;
+  /** Ditto's expression bank for the clause (lib/live-face-shared.ts DITTO_EMO; the worker's default is neutral). */
+  emo?: number;
+  /** A pose on top of what the audio drives (the worker's `sway`, `nod`, `tilt`), for the idle and the reactions. */
+  motion?: { kind: "sway" | "nod" | "tilt"; amount?: number; period_s?: number; at_s?: number };
   sampling_timesteps?: number;
 };
 
@@ -76,6 +80,8 @@ export async function speakDitto(cfg: RunpodConfig, input: DittoSpeakInput, opts
       ...(input.tail_silence_ms ? { tail_silence_ms: input.tail_silence_ms } : {}),
       ...(input.state ? { state_b64: input.state } : {}),
       ...(input.want_state ? { want_state: true } : {}),
+      ...(input.emo !== undefined ? { emo: input.emo } : {}),
+      ...(input.motion ? { motion: input.motion } : {}),
       ...(input.sampling_timesteps !== undefined ? { sampling_timesteps: input.sampling_timesteps } : {}),
     },
     { ...opts, what: "ditto speak" },
@@ -96,7 +102,7 @@ export const CHAIN_DECIDE_MS = 2500;
 /** A clause's clip not back in this long breaks the chain there: that piece plays plain and the next starts from the still. */
 export const CHAIN_SPEAK_TIMEOUT_MS = 20_000;
 
-export type ChainClip = { i: number; mp4: string; frames: number; last: boolean; ms: number; handler?: string };
+export type ChainClip = { i: number; mp4: string; frames: number; last: boolean; ms: number; handler?: string; emo?: number };
 
 /**
  * A reply's clauses rendered by Ditto in order, each continuing the motion of the one before. The route feeds it:
@@ -105,7 +111,7 @@ export type ChainClip = { i: number; mp4: string; frames: number; last: boolean;
  * failure breaks the chain at that clause (`fail`); the next starts a chain again from the still.
  */
 export class DittoChain {
-  private pending: { i: number; pcm: Buffer }[] = [];
+  private pending: { i: number; pcm: Buffer; emo?: number }[] = [];
   private state: string | null = null;
   private fresh = true;
   private announced = 0;
@@ -114,6 +120,7 @@ export class DittoChain {
   private decide: ReturnType<typeof setTimeout> | null = null;
   private jobs: Promise<void>[] = [];
   private waiters: (() => void)[] = [];
+  private abandoned = false;
   /** How many clauses ran and how many broke the chain. */
   readonly stats = { clips: 0, failed: 0 };
 
@@ -131,10 +138,16 @@ export class DittoChain {
     this.drain();
   }
 
-  /** Piece i's voice is in. */
-  add(i: number, pcm: Buffer): void {
+  /** Piece i's voice is in; `emo` is the expression bank it's spoken in (lib/live-face-shared.ts emoFor). */
+  add(i: number, pcm: Buffer, opts: { emo?: number } = {}): void {
     if (!pcm.length) return;
-    this.pending.push({ i, pcm });
+    if (this.abandoned) {
+      // The reply's first clause failed (a cold worker, say): the browser went plain for the whole reply at its
+      // hold, so the rest would render for nothing. Said so at once instead.
+      this.on.fail(i, new Error("the reply's first clause failed"));
+      return;
+    }
+    this.pending.push({ i, pcm, emo: opts.emo });
     this.pending.sort((a, b) => a.i - b.i);
     this.drain();
   }
@@ -186,7 +199,7 @@ export class DittoChain {
     this.render(head, last);
   }
 
-  private render(c: { i: number; pcm: Buffer }, last: boolean): void {
+  private render(c: { i: number; pcm: Buffer; emo?: number }, last: boolean): void {
     this.pending.shift();
     this.running = true;
     const first = this.fresh;
@@ -196,19 +209,25 @@ export class DittoChain {
       try {
         const out = await speakDitto(
           this.cfg,
-          { source_url: this.sourceUrl, pcm: c.pcm, rate: this.rate, state, want_state: !last, fade_in: first ? CHAIN_FADE_IN : 0, fade_out: last ? CHAIN_FADE_OUT : 0, tail_silence_ms: last ? CHAIN_TAIL_SILENCE_MS : 0 },
+          { source_url: this.sourceUrl, pcm: c.pcm, rate: this.rate, state, want_state: !last, fade_in: first ? CHAIN_FADE_IN : 0, fade_out: last ? CHAIN_FADE_OUT : 0, tail_silence_ms: last ? CHAIN_TAIL_SILENCE_MS : 0, ...(c.emo !== undefined ? { emo: c.emo } : {}) },
           { signal: this.opts.signal, timeoutMs: this.opts.timeoutMs ?? CHAIN_SPEAK_TIMEOUT_MS },
         );
         this.state = last ? null : (out.state_b64 ?? null);
         // No state back (an older worker, or the last): the next clause starts a chain again.
         this.fresh = last || !out.state_b64;
         this.stats.clips++;
-        this.on.clip({ i: c.i, mp4: out.video_b64, frames: out.frames, last, ms: Date.now() - t0, handler: out.handler });
+        this.on.clip({ i: c.i, mp4: out.video_b64, frames: out.frames, last, ms: Date.now() - t0, handler: out.handler, emo: c.emo });
       } catch (err) {
         this.state = null;
         this.fresh = true;
         this.stats.failed++;
         this.on.fail(c.i, err);
+        if (this.stats.clips === 0) {
+          // Nothing of this reply has shown yet, so nothing of it will: the clauses waiting are let go.
+          this.abandoned = true;
+          const rest = this.pending.splice(0);
+          for (const p of rest) this.on.fail(p.i, new Error("the reply's first clause failed"));
+        }
       } finally {
         this.running = false;
         this.drain();

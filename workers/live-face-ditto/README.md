@@ -14,7 +14,7 @@ Runpod's terms exclude adult content, so this serves PG calls only.
 
 | op | input | output |
 |---|---|---|
-| `speak` | `source_url` or `source_b64` (a still: the kit's portrait or a frame of its loop; a video works but restarts at its first frame each clause), `audio_b64` (`audio_format` `pcm16` at `rate`, or `wav`); the chain's `state_b64` (from the clause before), `want_state`, `fade_in`/`fade_out` (frames), `tail_silence_ms`; `sampling_timesteps` (Ditto's default 50), `emo` (default 4) | `video_b64` (MP4, H.264 + AAC, the still's own size), `frames`, `fps` 25, `width`, `height`, `bytes`, `state_b64` (when asked), `chain` (what the chain did), `handler` (the handler's version), `registrations` (cache hits), `ms` (`source`, `setup`, `audio`, `render`, `encode`, `total`) |
+| `speak` | `source_url` or `source_b64` (a still: the kit's portrait or a frame of its loop; a video works but restarts at its first frame each clause), `audio_b64` (`audio_format` `pcm16` at `rate`, or `wav`); the chain's `state_b64` (from the clause before), `want_state`, `fade_in`/`fade_out` (frames), `tail_silence_ms`; `emo` (Ditto's expression bank: 0 angry, 1 disgust, 2 fear, 3 happy, 4 neutral, 5 sad, 6 surprise, 7 contempt), `motion` (`{"kind": "sway"|"nod"|"tilt", "amount", "period_s", "at_s"}`: a pose on top of the audio, through Ditto's per-frame pose controls), `sampling_timesteps` (Ditto's default 50) | `video_b64` (MP4, H.264 + AAC, the still's own size), `frames`, `fps` 25, `width`, `height`, `bytes`, `state_b64` (when asked), `chain` (what the chain did), `handler` (the handler's version), `registrations` (cache hits), `ms` (`source`, `setup`, `audio`, `render`, `encode`, `total`) |
 | `warm` | | `ok`, `ms` of the warm-up clause |
 
 `speak` is `/runsync`. There is no `prepare`: Ditto registers a still in a fraction of a second (face detection,
@@ -42,6 +42,12 @@ idle cycle); it is motion state carried through the job, because a chain's claus
 
 The chain's loop is `_chain_audio2motion_offline`, Ditto's own `_audio2motion_offline` at the pinned commit with the
 state around it, bound onto the SDK instance at import.
+
+**The library.** The same `speak` renders a character's idle and reactions once (lib/live-face/ditto-clips.ts): silence
+as the audio, a `motion` on top (`sway`: a slow small drift of pitch, yaw and roll for an 8-s idle; `nod`: one pitch
+pulse of 4.5° over 0.6 s; `tilt`: a 4° roll with a little yaw, ramped and held), fading in from and out to the still
+so each clip loops or cuts against the portrait, `emo` neutral. On a call a clause's `emo` comes from its words
+(lib/live-face-shared.ts `emoFor`): a laugh or warmth is spoken in the happy bank, a gasp in surprise, sorrow in sad.
 
 ## Environment
 

@@ -13,7 +13,7 @@ Jobs ("input" of a Runpod job):
   {"op": "speak", "source_url": "https://…png" | "source_b64": "…", "audio_b64": "…",
    "audio_format": "pcm16" | "wav", "rate": 24000,
    "fade_in": 0, "fade_out": 0, "tail_silence_ms": 0, "state_b64": null, "want_state": false,
-   "sampling_timesteps": 50, "emo": 4}
+   "sampling_timesteps": 50, "emo": 4, "motion": {"kind": "sway" | "nod" | "tilt", "amount": 1.0, "period_s": 4.0, "at_s": 0.2}}
       → {"video_b64": "<mp4>", "mime": "video/mp4", "frames": N, "fps": 25, "width": W, "height": H,
          "bytes": n, "state_b64": "…" (when asked), "chain": {...}, "ms": {source, setup, audio, render, encode, total}}
     Renders one clause from the still (the kit's portrait, or a frame of its loop: the clip is the still's own size,
@@ -34,7 +34,10 @@ Jobs ("input" of a Runpod job):
         bring pose and expression back to the still, so the browser can hand over to the kit's loop at its first
         frame (the portrait) with no jump.
     `sampling_timesteps` is the motion model's diffusion steps (Ditto's default 50; fewer is faster and flatter);
-    `emo` picks the expression bank (Ditto's default 4, neutral).
+    `emo` picks the expression bank (Ditto's: 0 angry, 1 disgust, 2 fear, 3 happy, 4 neutral, 5 sad, 6 surprise,
+    7 contempt); `motion` adds a pose on top of what the audio drives, through Ditto's per-frame pose controls
+    (degrees): `sway` (a slow, small drift of pitch and yaw for an idle), `nod` (a pitch pulse at `at_s`), `tilt`
+    (a roll held through the clip). The clip's fades still bring the ends back to the still.
   {"op": "warm"} → {"ok": true}
     Spins a worker up, loads the engines and renders one short clause, so a call's first clause doesn't pay for
     TensorRT's first run (about 13 s on a fresh worker).
@@ -55,7 +58,7 @@ import threading
 import time
 import urllib.request
 
-HANDLER_VERSION = "chain-2"
+HANDLER_VERSION = "chain-3"
 DITTO_DIR = os.environ.get("DITTO_DIR", "/app/ditto")
 DATA_ROOT = os.environ.get("DITTO_DATA_ROOT", os.path.join(DITTO_DIR, "checkpoints/ditto_trt_Ampere_Plus"))
 CFG_PKL = os.environ.get("DITTO_CFG_PKL", os.path.join(DITTO_DIR, "checkpoints/ditto_cfg/v0.4_hubert_cfg_trt.pkl"))
@@ -338,6 +341,44 @@ def mux(video_path: str, wav_path: str, out_path: str) -> bytes:
         return f.read()
 
 
+def motion_ctrl(motion: dict | None, frames: int) -> dict:
+    """Per-frame pose offsets (degrees) for Ditto's ctrl_info from a named motion: `sway` drifts pitch and yaw slowly
+    (an idle that breathes), `nod` pulses pitch once at `at_s` for 0.6 s, `tilt` rolls the head and holds it. `amount`
+    scales each (1.0 = the default size). Frames outside a motion get no entry; the clip's fades still end at the
+    still."""
+    if not motion or motion.get("kind") in (None, "", "none") or frames <= 0:
+        return {}
+    kind = str(motion.get("kind"))
+    amount = float(motion.get("amount") or 1.0)
+    ctrl: dict = {}
+    if kind == "sway":
+        period = max(1.5, float(motion.get("period_s") or 4.0))
+        for i in range(frames):
+            t = i / FPS
+            ctrl[i] = {
+                "delta_pitch": 0.8 * amount * math.sin(2 * math.pi * t / period),
+                "delta_yaw": 1.4 * amount * math.sin(2 * math.pi * t / (1.37 * period) + 0.9),
+                "delta_roll": 0.35 * amount * math.sin(2 * math.pi * t / (2.1 * period) + 2.0),
+            }
+    elif kind == "nod":
+        at = float(motion.get("at_s") or 0.2)
+        dur = max(0.3, float(motion.get("duration_s") or 0.6))
+        for i in range(frames):
+            t = i / FPS - at
+            if 0 <= t <= dur:
+                ctrl[i] = {"delta_pitch": 4.5 * amount * math.sin(math.pi * t / dur)}
+    elif kind == "tilt":
+        ramp = 0.4
+        total = frames / FPS
+        for i in range(frames):
+            t = i / FPS
+            k = min(1.0, t / ramp, max(0.0, (total - t) / ramp))
+            ctrl[i] = {"delta_roll": 4.0 * amount * k, "delta_yaw": 1.5 * amount * k}
+    else:
+        raise ValueError(f"unknown motion {kind}")
+    return ctrl
+
+
 def render(source_path: str, wav_path: str, opts: dict) -> tuple[bytes, int, dict, str | None, dict]:
     """One clause through Ditto: register (cached), audio features, motion (seeded by the chain's state when there
     is one), warp, decode, put back, write; then mux. Returns the MP4, its frame count, the timings, the state for the
@@ -388,7 +429,7 @@ def render(source_path: str, wav_path: str, opts: dict) -> tuple[bytes, int, dic
             if state_in and state_in.get("d0") is not None:
                 # The chain's reference frame: every clause moves relative to the same still, not to its own first frame.
                 SDK.motion_stitch.d0 = SDK.audio2motion.cvt_fmt(state_in["d0"].reshape(1, 1, -1))[0]
-            SDK.setup_Nd(N_d=num_out, fade_in=fade_in if fade_in > 0 else -1, fade_out=fade_out if fade_out > 0 else -1, ctrl_info={})
+            SDK.setup_Nd(N_d=num_out, fade_in=fade_in if fade_in > 0 else -1, fade_out=fade_out if fade_out > 0 else -1, ctrl_info=motion_ctrl(opts.get("motion"), num_out))
             t_setup = time.time()
             aud_feat = SDK.wav2feat.wav2feat(joint, sr=SR)
             t_audio = time.time()
@@ -409,7 +450,7 @@ def render(source_path: str, wav_path: str, opts: dict) -> tuple[bytes, int, dic
             if mux_wav != wav_path:
                 os.unlink(mux_wav)
         t_enc = time.time()
-    chain = {"in": bool(state_in), "skip": skip, "fade_in": fade_in, "fade_out": fade_out, "silence_ms": silence_ms, "state": bool(state_out)}
+    chain = {"in": bool(state_in), "skip": skip, "fade_in": fade_in, "fade_out": fade_out, "silence_ms": silence_ms, "state": bool(state_out), "motion": (opts.get("motion") or {}).get("kind") or None, "emo": opts.get("emo")}
     return mp4, frames, {
         "setup": int((t_setup - t0) * 1000),
         "audio": int((t_audio - t_setup) * 1000),

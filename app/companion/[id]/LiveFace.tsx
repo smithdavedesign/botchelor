@@ -2,7 +2,7 @@
 
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type ReactNode } from "react";
 import { BLINK_MS, canTalk, FACE_STILLS, LOOK_MS, lookFor, MOUTH_STILL, mouthFor, nextBlinkIn, syntheticLevel, type FaceKit, type FaceStill, type Look, type Mouth } from "@/lib/face-kit-shared";
-import { audioPieces, isClipProvider, loopTimeAtCycleFrame, secondsOfFaceAudio, type LiveFaceSession } from "@/lib/live-face-shared";
+import { audioPieces, isClipProvider, loopTimeAtCycleFrame, type ReactionKind, secondsOfFaceAudio, type LiveFaceSession } from "@/lib/live-face-shared";
 
 /** How long before the loop's end it fades back into the portrait (the loop starts from the portrait, so the restart can't show). */
 const FADE_S = 0.45;
@@ -27,6 +27,8 @@ export type LiveFaceHandle = {
   clip: (i: number, mp4: Uint8Array, end: number | null) => void;
   /** The reply has named piece i: a clip for it is due, so a clip that ends before it lands holds its last frame rather than drop to the loop. */
   expect: (i: number) => void;
+  /** A reaction between replies (Ditto: a nod, a tilt), when the character has the clip and nothing is playing; otherwise nothing. */
+  react: (kind: ReactionKind) => void;
   /** Piece i plays the plain way instead (its clip failed): `play` runs in its turn among the clips and resolves when the voice is done. */
   plain: (i: number, play: () => Promise<void>) => void;
   /** A new reply: the order starts over at piece 0, and clips left from the last one go. */
@@ -59,7 +61,9 @@ type SimliModule = typeof import("simli-client");
  *  - MuseTalk, Ditto: the server sends a clip per piece of the reply (MuseTalk the loop with the mouth saying it,
  *    Ditto the whole head from the portrait, voice included); they play here in order, and between them, and whenever
  *    a clip doesn't come, the kit's face carries on. A Ditto reply ends back at the portrait, so the loop restarts
- *    from its first frame (`end` 0) and nothing jumps.
+ *    from its first frame (`end` 0) and nothing jumps. With Ditto the loop itself is the character's Ditto idle when
+ *    it's been rendered (lib/live-face/ditto-clips.ts), so idle and talking share one renderer, and the call can ask
+ *    for a reaction clip (a nod, a tilt) between replies.
  */
 const LiveFace = forwardRef<LiveFaceHandle, { kit: FaceKit | null; phase: FacePhase; level: () => number; said: string | null; name: string; size: number | string; fallback: ReactNode; session?: LiveFaceSession | null; onLive?: (live: boolean) => void }>(
   function LiveFace({ kit, phase, level, said, name, size, fallback, session = null, onLive }, ref) {
@@ -80,6 +84,11 @@ const LiveFace = forwardRef<LiveFaceHandle, { kit: FaceKit | null; phase: FacePh
     const clipMode = isClipProvider(session?.provider);
     const clipModeNow = useRef(clipMode);
     clipModeNow.current = clipMode;
+    const sessionNow = useRef(session);
+    sessionNow.current = session;
+    // Ditto's idle, in place of the kit's loop, once the character has one: it begins and ends at the portrait, so it loops as it is.
+    const dittoIdle = session?.provider === "ditto" ? (session.idle ?? null) : null;
+    const loopSrc = dittoIdle ?? kit?.loop ?? null;
 
     // The renderer's client, and what's owed to it: when its voice ends (it says "silent"; a clock stands in).
     const client = useRef<InstanceType<SimliModule["SimliClient"]> | null>(null);
@@ -283,6 +292,29 @@ const LiveFace = forwardRef<LiveFaceHandle, { kit: FaceKit | null; phase: FacePh
         expect: (i) => {
           announced.current = Math.max(announced.current, i);
         },
+        react: (kind) => {
+          const s = sessionNow.current;
+          const url = s?.provider === "ditto" ? s.reactions?.[kind] : undefined;
+          if (!url || !clipModeNow.current || clipUp.current || busy.current || holding.current || clipQueue.current.length) return;
+          const sl = slot.current;
+          const el = slotEl(sl);
+          if (!el) return;
+          // Played like a clip (from the portrait back to it, silent), over the paused idle; its end resumes the idle at its start.
+          el.src = url;
+          el.muted = true;
+          clipUp.current = url;
+          lastEnd.current = 0;
+          slot.current = sl === 0 ? 1 : 0;
+          el.play()
+            .then(() => {
+              setOnSlot(sl);
+              video.current?.pause();
+            })
+            .catch(() => {
+              clipUp.current = null;
+              el.removeAttribute("src");
+            });
+        },
         plain: (i, play) => {
           if (!clipModeNow.current) {
             void play();
@@ -453,7 +485,7 @@ const LiveFace = forwardRef<LiveFaceHandle, { kit: FaceKit | null; phase: FacePh
 
     // The loop plays while they listen (and, with clips, under and between the clips too, so the motion never stops);
     // it stops when the kit's stills must show the mouth: Tier 0 talking, or a clipped piece that fell back to the voice.
-    const loopPlaying = Boolean(kit?.loop && !still && !broken.has(kit.loop) && (clipMode ? !(plainUp && !streaming) : !talking && phase !== "thinking" && !streaming));
+    const loopPlaying = Boolean(loopSrc && !still && !broken.has(loopSrc) && (clipMode ? !(plainUp && !streaming) : !talking && phase !== "thinking" && !streaming));
     // A blink now and then, while the loop isn't doing the blinking.
     useEffect(() => {
       if (loopPlaying || streaming || !kit?.stills.blink) return;
@@ -526,15 +558,15 @@ const LiveFace = forwardRef<LiveFaceHandle, { kit: FaceKit | null; phase: FacePh
           <video
             ref={video}
             className={`companion-live-loop${fading ? " fading" : ""}`}
-            src={kit.loop!}
+            src={loopSrc!}
             poster={kit.stills.portrait}
             muted
             playsInline
             autoPlay
-            loop={false}
+            loop={Boolean(dittoIdle)}
             preload="auto"
-            onTimeUpdate={onTime}
-            onError={() => setBroken((b) => new Set([...b, kit.loop!]))}
+            onTimeUpdate={dittoIdle ? undefined : onTime}
+            onError={() => setBroken((b) => new Set([...b, loopSrc!]))}
             aria-hidden="true"
           />
         )}

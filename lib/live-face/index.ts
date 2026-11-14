@@ -23,7 +23,9 @@
 import type { Db } from "../db";
 import { faceKitBytes, faceKitFile, faceKitOf, faceSource } from "../face-kit";
 import { type LiveFaceProvider, type LiveFaceSession } from "../live-face-shared";
+import { inBackground } from "../sets";
 import { DITTO_PX, dittoConfig } from "./ditto";
+import { dittoLibrary, dropDittoLibrary, ensureDittoLibrary } from "./ditto-clips";
 import { jobError, jobStatus, MUSETALK_STREAM_PX, type PrepareOutput, runpodConfig, type RunpodConfig, startPrepare, warmWorker } from "./musetalk";
 import { createSimliFace, deleteSimliFace, listSimliFaces, mintSimliSession, outOfFaces, simliFaceStatus, SIMLI_STREAM_PX, SimliError } from "./simli";
 
@@ -277,7 +279,11 @@ export async function liveFaceSession(db: Db, characterId: string, baseUrl: stri
   }
   if (face.provider === "ditto") {
     void warmWorker(dittoConfig(env)!);
-    return { provider: "ditto", px: DITTO_PX };
+    // Their idle and reactions (lib/live-face/ditto-clips.ts): what's rendered goes with the session; the rest is
+    // rendered now in the background, so the next call has it.
+    const library = await dittoLibrary(db, characterId, baseUrl).catch(() => ({ idle: null, reactions: {}, complete: false }));
+    if (!library.complete) inBackground(() => ensureDittoLibrary(db, characterId, baseUrl, env));
+    return { provider: "ditto", px: DITTO_PX, idle: library.idle, reactions: library.reactions };
   }
   try {
     const s = await mintSimliSession(simliKey(env)!, face.provider_face_id, { maxSeconds: opts.maxSeconds, idleSeconds: opts.idleSeconds, background: env.SIMLI_BACKGROUND_ID?.trim() || null });
@@ -319,7 +325,8 @@ export async function dropLiveFace(db: Db, characterId: string, env: Env = proce
     if (key && r.provider === "simli" && r.provider_face_id) await deleteSimliFace(key, r.provider_face_id).catch(() => {});
     await db.query(`delete from live_faces where id = $1`, [r.id]);
   }
-  return rows.length;
+  const clips = await dropDittoLibrary(db, characterId).catch(() => 0);
+  return rows.length + clips;
 }
 
 async function upsert(db: Db, p: { character: string; source: string; provider: LiveFaceProvider; face: string | null; status: LiveFaceRow["status"]; error: string | null }): Promise<void> {

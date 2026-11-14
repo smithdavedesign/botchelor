@@ -381,10 +381,19 @@ MuseTalk's, holds a clip's last frame for up to 2.5 s when the next is a beat la
 mid-motion, and restarts the loop at its first frame (the portrait) after a reply (`end_frame` 0), so the only visible
 join is between two pictures of the same still. Nothing is built per character: a kit portrait is the face
 (`liveFaceClips` → `{ provider: "ditto", source_url }`), `LIVE_FACE_PROVIDER=ditto` or `ditto:admins`, and a person can
-pick Ditto for their own calls on the compare page. The loop between replies is still the kit's Wan loop (a
-Ditto-rendered idle is the next step if the switch between them shows); the 512-px portrait is the source (the round
-frame shows 136 px, so the 624-px loop frame gained nothing). Both renderers resident on one 24-GB card would fit;
-they are two images today.
+pick Ditto for their own calls on the compare page. The 512-px portrait is the source (the round frame shows 136 px, so the 624-px loop frame gained nothing). Both
+renderers resident on one 24-GB card would fit; they are two images today.
+
+**Idle, reactions and expression (the same night; "The road from here", 1):** the loop between replies is Ditto's too
+once the character has it: `lib/live-face/ditto-clips.ts` renders, the first time a Ditto call starts for a character
+and in the background, an 8-s idle (silence with a slow sway of the head through Ditto's per-frame pose controls,
+fading in from and out to the portrait, so it loops as it is), a nod and a tilt (1.4 s and 1.8 s, from the portrait
+back to it), keeps them in `live_face_clips` and the object store (about a cent for the three), and the Ditto session
+carries their URLs; the browser loops the idle in place of the kit's Wan loop and plays a nod as the person's sentence
+goes in (seven times in ten, never twice within 3.5 s) and a tilt as the reply is thought about (half the rest). Every
+join is now still-to-still from one renderer. And each clause is spoken in an expression bank picked from its words
+(`emoFor`: a laugh or warmth happy, a gasp surprise, sorrow sad, else neutral), passed to the worker as `emo`; a
+writer's own cue on companion lines is the next refinement.
 
 **Latency:** a clause's clip arrives roughly two seconds after its voice (render ≈ frames at 50 fps + encode); the
 browser holds the voice for it (measured above: the first clip and the first words start together). Simli is nearer one second end to end. If the hold reads as a pause, the next steps
@@ -414,19 +423,71 @@ the character, memory, voice orchestration and animation state; keep the rendere
    Runpod load-balancing endpoint with a WebSocket server in the worker (golden path 17), the call's server piping
    Aura's PCM in as it arrives and fragmented MP4 back to the browser (MediaSource), one session per call. Removes the
    per-clause wait and the hold; keeps the same `LiveFace` frame. Two to three days; the clip path stays as the
-   fallback.
+   fallback. *Design (2026-11-14, to build next):*
+   - **Worker:** the same image with a second entry point (`MODE_TO_RUN=stream`): an HTTP server on port 8000 for
+     Runpod's load balancer (`/ping` health) with a WebSocket route `/session`. A session = one `StreamSDK.setup` with
+     `online_mode=True` on the kit portrait (registration cached as today), then `run_chunk` per 6,480-sample HuBERT
+     chunk (Ditto's `(3, 5, 2)` window: 3 past, 5 valid, 2 future frames of 40 ms) as PCM arrives; the pipeline's
+     threads already run motion → warp → decode → put-back → writer concurrently, so frames come out ~200 ms behind
+     the audio plus render time (0.6×). The writer is replaced by an ffmpeg process emitting fragmented MP4
+     (`-movflags frag_keyframe+empty_moov+default_base_moof`, one fragment per 5 frames) read back and sent as binary
+     WebSocket frames with a running frame index; the audio stays on the server side (the browser already has the
+     voice) and is NOT muxed, so the browser aligns by index. Silence is fed when the character isn't talking, so the
+     idle is Ditto's live motion rather than a looped clip, and the `ctrl_info` pose controls become a live channel
+     (a nod now, a tilt now, a sway while listening). The 2026-11-14 spike's "online mode wrote 85 of 141 frames"
+     was the offline flush, not the mode: the session never closes mid-call, and a final zero chunk flushes at the end.
+   - **Endpoint:** a LOAD_BALANCER endpoint (`type: "LB"`) on the same pools, `workers.min` 0, scale by requests;
+     `wss://<endpoint>.api.runpod.ai/session` with the app's key as a bearer (the key never reaches the browser, so the
+     call's server holds the socket). One worker takes several sessions (Ditto is 2.8 GB; the GPU lock serialises
+     render steps, so about three concurrent calls per 4090 before frames fall behind).
+   - **Server:** `lib/live-face/ditto-stream.ts`: `openStream(cfg, source_url)` → a session object the live route
+     feeds (`push(pcm)` per Aura chunk as it arrives, `pose(kind)` for reactions, `close()`); fragments come back as
+     `video_frag` SSE events (`{ i: fragment, from_frame, b64 }`) on the same turn stream, the first within ~0.5 s of
+     the first audio. The session lives for the call (opened at `start`, kept across turns in a per-call map with the
+     SSE stream of the current turn attached), closed at `end` or after 90 s idle.
+   - **Browser:** `LiveFace` gains a MediaSource path: one `<video>` fed by a `SourceBuffer` (`video/mp4;
+     codecs="avc1.42E01E"`), fragments appended as they come, playback held ~2 fragments behind the append point; the
+     voice plays through the existing `PcmPlayer` with a matching 200-ms delay so lips and sound stay together; a stall
+     (no fragment for 1.5 s) falls back to the clip path for that reply, then to Tier 0. Safari needs Managed Media
+     Source on iOS 17.1+ (feature-detect; else clips).
+   - **Proof:** a 2-minute call with mixed clause lengths: frames behind audio ≤ 400 ms steady, no hold, no visible
+     join; GPU seconds per call minute (the LB worker bills while the session is open, so an idle call costs: hence the
+     90-s idle close and silence-feeding only while the tab is visible).
 3. **AVTR-1: read, don't build.** The most relevant open model in the list (153 M parameters, BOTH sides' audio in so
    the face reacts while listening, 25 fps on a 4060 Ti), but its renderer and streaming backend are non-commercial
-   and it depends on InsightFace (also non-commercial). The paper's listening ideas feed item 1; the repository is not
-   a dependency unless the licence changes.
-4. **LAM spike for the theater stage.** Alibaba's one-shot Gaussian head (LAM, Audio2Expression, a WebGL renderer in
-   OpenAvatarChat): the browser renders, so no per-frame GPU, native transparency and a camera. Head only and a
-   "3D avatar" look, so not for the call frame, but a day's spike for the show's theater (two faces on a stage) and
-   as a zero-cost tier above the face kit. Check the weights' licence first.
-5. **Replay renderers on the compare page: EchoMimicV3-Flash and SoulX-FlashHead.** The slow lane (replays, reels,
-   video replies), not calls: EchoMimicV3-Flash measured 33.7 GB in an independent run (a 48 GB Runpod card), SoulX
-   FlashHead Lite 5.8 GB at a softer quality. Hosted first where a provider has them (a `ClipRenderer` each), our own
-   worker only if none does; licences checked before either joins the registry.
+   and it depends on InsightFace (also non-commercial). *Checked 2026-11-14 (LICENSE.md, Goodsize Inc., 2026-05-20):*
+   the weights' Community License allows commercial use under $10 M revenue, but the renderer and the streamer are
+   PolyForm Noncommercial 1.0.0, the streamer carries a patent notice that excludes re-implementing its scheduler and
+   dual-stream coordination, and InsightFace's SCRFD/2D106 models are non-commercial; their own words: most commercial
+   deployments need all three, by agreement (hello@avaturn.me). Not a dependency. **What the paper gives us** (arXiv
+   2609.22913), as rules for our own renderer: two audio channels (the person's and the character's) with a VAD on
+   each, never mixed, a gate weighting them; react on 200-ms windows with a 3-s energy history and ~200 ms of
+   look-ahead; listening is small pitch/yaw/roll and expression weights with head position fixed, every offset
+   hard-clamped, new targets smoothed against the last 3 s; both silent → micro-motion and blinks only; the person
+   speaking → reactions within 0–4 s of what they said (their R-DGG analysis). Item 1's nod-on-sentence and
+   tilt-on-thinking are the first two of these; the next are a brow or small nod on the person's emphasis and pauses
+   while they speak (the browser has their VAD and level already), then the same from the streaming worker (item 2).
+4. **LAM spike for the theater stage: cancelled on licence (2026-11-14).** Alibaba's one-shot Gaussian head would
+   have given the browser a face to render for free with real transparency and a camera, but the weights in the repo
+   are CC BY-NC 4.0 (`LICENSE_WEIGHT`; the HF card contradicts it and a June question about commercial use has no
+   answer), the FLAME head model it loads is research-only or, in its Open form, bars pornographic use (we are an 18+
+   site even on the PG side), and the WebGL renderer is a 4 MB built bundle with no source. Head only, flat
+   background, export needs Blender and the FBX SDK. Revisit only if Alibaba relicenses the weights; a day saved.
+5. **Replay renderers on the compare page: EchoMimicV3-Flash and SoulX-FlashHead (done 2026-11-14: one in, one out).**
+   The slow lane (replays, reels, video replies), not calls: EchoMimicV3-Flash measured 33.7 GB in an independent run
+   (a 48 GB Runpod card), SoulX FlashHead Lite 5.8 GB at a softer quality. Hosted first where a provider has them (a
+   `ClipRenderer` each), our own worker only if none does; licences checked before either joins the registry.
+   *Checked 2026-11-14:* EchoMimicV3 is
+   Apache-2.0 end to end (code, weights under `BadToBest/EchoMimicV3`, the Wan 2.1 Fun base) and fal hosts it as
+   `fal-ai/echomimic-v3` at $0.20 per generated second (image + audio + prompt, 49–161 frames a window; probably the
+   non-Flash build); it is on the compare page as `fal:echomimic-v3`. Self-hosting the Flash build is 12 GB but slow
+   (one independent A40 run: ~2.4 min per output second), so hosted it stays. Replicate has no V3. **SoulX-FlashHead is
+   not joining:** its code and the Pro variant are Apache-2.0, but the fast Lite variant ships Lightricks' LTX 0.9
+   VAE under a research-only RAIL licence (no commercial use), the clean Pro variant runs 10.8 fps on a 4090 (Ditto's
+   own paper table has Ditto at 45) and needs two 5090s for real time, the one independent benchmark (Tight Studio,
+   2026-08-23) called it "the least convincing result" (tight crop, softer identity, weaker mouth), it has no listening
+   mode and no network API, fal's `fal-ai/flashhead` 404s (delisted mid-2026) and the only live host is WaveSpeed,
+   which we don't hold. Nothing it does that Ditto doesn't do better for us.
 
 ### With our own hardware (when users pick up; David moves the system then)
 

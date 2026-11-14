@@ -341,9 +341,11 @@ David, 2026-11-13, on a GPT proposal for live "digital humans" (the review and t
     `lib/live-face/ditto.ts`, its own endpoint (`LIVE_FACE_DITTO_ENDPOINT`, same `RUNPOD_API_KEY`). Ant Group's talking
     head on TensorRT animates the whole head from the kit's portrait at MuseTalk's speed (a 2-s clause in ~1.3 s),
     with nothing to build per character. `LIVE_FACE_PROVIDER=ditto` or `ditto:admins`; a reply renders as one chain
-    of clips (each clause continues the last one's motion, the last eases back to the portrait so the loop takes
-    over at its first frame), the browser holds a frame when the next clip is a beat late, and a person can pick
-    Ditto or MuseTalk for their own calls on `/admin/live-face`. The spike, the chain and the numbers are in
+    of clips (each clause continues the last one's motion and is spoken in an expression bank picked from its words,
+    the last eases back to the portrait so the loop takes over at its first frame), the browser holds a frame when
+    the next clip is a beat late, the idle between replies and a nod and a tilt are Ditto's own clips rendered once
+    per character (`lib/live-face/ditto-clips.ts`), and a person can pick Ditto or MuseTalk for their own calls on
+    `/admin/live-face`. The spike, the chain and the numbers are in
     [PRDs/digital-human.md](PRDs/digital-human.md#ditto-2026-11-14-the-spike-and-the-second-worker).
 
 ## Live calls (P6, built 2026-11-10; on once the Deepgram key is set)

@@ -214,6 +214,17 @@ const falOmnihuman = falRenderer({
   usdPerSecond: null,
   input: (i) => (i.portraitUrl ? { image_url: i.portraitUrl, audio_url: i.audio.url } : null),
 });
+/** EchoMimicV3's frames per generation window: 49–161 (fal's schema), about the clause's length at 25 fps plus one. */
+const echomimicFrames = (seconds: number): number => Math.min(161, Math.max(49, Math.round(seconds * 25) + 1));
+const falEchomimic = falRenderer({
+  id: "fal:echomimic-v3",
+  label: "EchoMimicV3 (fal.ai)",
+  model: "fal-ai/echomimic-v3",
+  about: "Ant Group's EchoMimicV3 (Apache-2.0, a 1.3 B Wan-based animator) from the portrait: whole head and shoulders, 768 px; a replay renderer, minutes a clause.",
+  costHint: "about 20¢ a second of clip on your fal bill (a 6-s clause ≈ $1.20)",
+  usdPerSecond: 0.2,
+  input: (i) => (i.portraitUrl ? { image_url: i.portraitUrl, audio_url: i.audio.url, prompt: PROMPT, num_frames_per_generation: echomimicFrames(i.audio.seconds) } : null),
+});
 const falSync = falRenderer({
   id: "fal:sync-lipsync-2",
   label: "Sync lipsync-2 (fal.ai)",
@@ -324,7 +335,7 @@ const simli: ClipRenderer = {
 
 /* ----------------------------------------------------------- the registry ----------------------------------------------------------- */
 
-export const RENDERERS: readonly ClipRenderer[] = [musetalk, ditto, falSync, falLatentsync, falKling, falInfinitalk, falOmnihuman, replicateWanS2v, didTalks, simli];
+export const RENDERERS: readonly ClipRenderer[] = [musetalk, ditto, falSync, falLatentsync, falKling, falInfinitalk, falOmnihuman, falEchomimic, replicateWanS2v, didTalks, simli];
 
 export const rendererById = (id: string): ClipRenderer | null => RENDERERS.find((r) => r.id === id) ?? null;
 

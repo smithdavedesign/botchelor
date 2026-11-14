@@ -12,6 +12,34 @@ import { pcmSamples, toPcm16 } from "./companion-live-shared";
 
 export type LiveFaceProvider = "simli" | "musetalk" | "ditto";
 export const LIVE_FACE_PROVIDERS: readonly LiveFaceProvider[] = ["simli", "musetalk", "ditto"];
+
+/** The reactions a Ditto face can show between replies (lib/live-face/ditto-clips.ts renders them once per character). */
+export type ReactionKind = "nod" | "tilt";
+export const REACTION_KINDS: readonly ReactionKind[] = ["nod", "tilt"];
+/** A reaction isn't shown more often than this. */
+export const REACTION_GAP_MS = 3_500;
+
+/** Ditto's expression banks, by index (workers/live-face-ditto: `emo`). */
+export const DITTO_EMO = { angry: 0, disgust: 1, fear: 2, happy: 3, neutral: 4, sad: 5, surprise: 6, contempt: 7 } as const;
+
+const LAUGHS = /\b(ha(ha)+|hehe+|lol|lmao)\b|😂|😄|😁|🤣|\*(laughs?|giggles?|chuckles?)\*|\((laughs?|giggles?)\)/i;
+const GASPS = /\b(oh my|no way|wait,? what|you did what|seriously\?)|[!?]\?|\?!|😮|😲|\*gasps?\*/i;
+const SORROW = /\b(i'?m (so )?sorry|i miss|that'?s (so )?hard|rough (day|week|one)|heartbreaking|lonely|crying|cried|grieving?)\b|😢|😔|💔/i;
+const WARMTH = /\b(love (it|that|this|you)|so glad|so happy|wonderful|yay|amazing|can'?t wait|the best|proud of you|made my day)\b|❤️|🥰|😊/i;
+
+/**
+ * Which of Ditto's expression banks a clause is spoken in, from its text: a laugh or warmth → happy, a gasp → surprise,
+ * sorrow → sad, else neutral. A writer's own cue wins when there is one (`[face: …]` isn't on companion lines yet).
+ */
+export function emoFor(text: string): number {
+  const t = text.trim();
+  if (!t) return DITTO_EMO.neutral;
+  if (LAUGHS.test(t)) return DITTO_EMO.happy;
+  if (GASPS.test(t)) return DITTO_EMO.surprise;
+  if (SORROW.test(t)) return DITTO_EMO.sad;
+  if (WARMTH.test(t)) return DITTO_EMO.happy;
+  return DITTO_EMO.neutral;
+}
 /** The renderers whose face comes as clips the browser plays in order (the others stream). */
 export const isClipProvider = (p: LiveFaceProvider | null | undefined): boolean => p === "musetalk" || p === "ditto";
 
@@ -33,6 +61,10 @@ export type LiveFaceSession =
       provider: "ditto";
       /** The clips' size in pixels (the kit portrait's). */
       px: number;
+      /** The character's Ditto idle (lib/live-face/ditto-clips.ts) to loop in place of the kit's, when it's been rendered. */
+      idle?: string | null;
+      /** Their reaction clips, by kind, when rendered. */
+      reactions?: Partial<Record<ReactionKind, string>>;
     };
 
 /** The renderer hears 16 kHz 16-bit mono; its client likes pieces of about this many bytes (Simli's docs: "about 6000"). */

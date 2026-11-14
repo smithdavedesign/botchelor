@@ -6,9 +6,12 @@ import { registerAccount } from "@/lib/auth";
 import { saveConnection } from "@/lib/connections";
 import { curatedModels, PROVIDER_INFO, providersFor } from "@/lib/connections-shared";
 import { HOUSE_CHARACTERS } from "@/lib/house";
-import { liveFaceClips } from "@/lib/live-face";
+import { GET as clipGet } from "@/app/api/live-face/clip/[id]/route";
+import { liveFaceClips, liveFaceSession } from "@/lib/live-face";
 import { compareState, keysFor, LIVE_FACE_CHOICES, pcmOfWav, rateRender, rendererListing, setUserLiveFaceChoice, userLiveFaceChoice } from "@/lib/live-face/compare";
 import { CHAIN_FADE_IN, CHAIN_FADE_OUT, CHAIN_TAIL_SILENCE_MS, type ChainClip, DittoChain } from "@/lib/live-face/ditto";
+import { dittoLibrary, ensureDittoLibrary, LIBRARY_SPEC, libraryClipFile } from "@/lib/live-face/ditto-clips";
+import { DITTO_EMO, emoFor } from "@/lib/live-face-shared";
 import { RUNPOD_API, setRunpodFetchForTests } from "@/lib/live-face/musetalk";
 import { DID_API, didTalk, FAL_QUEUE, falRun, falVideo, RENDERERS, rendererById, runnableRenderers, setRendererFetchForTests } from "@/lib/live-face/renderers";
 import { BASE_URL, newUserCookie, signedInCookie, startTestDb, TEST_SESSION_SECRET, userIdOf } from "./helpers";
@@ -56,6 +59,7 @@ describe("the renderer registry", () => {
     expect(RENDERERS.map((r) => r.provider)).toEqual(expect.arrayContaining(["house", "fal", "replicate", "did", "simli"]));
     expect(runnableRenderers().map((r) => r.id)).not.toContain("simli");
     expect(rendererById("fal:sync-lipsync-2")?.model).toBe("fal-ai/sync-lipsync/v2");
+    expect(rendererById("fal:echomimic-v3")).toMatchObject({ provider: "fal", kind: "batch", model: "fal-ai/echomimic-v3" });
     expect(rendererById("nope")).toBeNull();
   });
   it("is what the Connections offer for the live-face job: fal, Replicate and D-ID keys, with the renderers as the models", () => {
@@ -209,9 +213,9 @@ describe("Ditto, our second worker", () => {
     chain.expect(0);
     chain.expect(1);
     chain.expect(2);
-    chain.add(0, Buffer.from("one"));
+    chain.add(0, Buffer.from("one"), { emo: DITTO_EMO.happy });
     chain.add(1, Buffer.from("two"));
-    chain.add(2, Buffer.from("three"));
+    chain.add(2, Buffer.from("three"), { emo: DITTO_EMO.surprise });
     chain.finish();
     await chain.done();
     expect(clips.map((c) => [c.i, c.mp4, c.last])).toEqual([
@@ -219,7 +223,10 @@ describe("Ditto, our second worker", () => {
       [1, "clip2", false],
       [2, "clip3", true],
     ]);
-    expect(asked[0]).toMatchObject({ op: "speak", source_url: PORTRAIT, audio_format: "pcm16", rate: 24_000, fade_in: CHAIN_FADE_IN, want_state: true });
+    // The clause's expression bank goes with it; none means the worker's neutral.
+    expect(asked[0]).toMatchObject({ op: "speak", source_url: PORTRAIT, audio_format: "pcm16", rate: 24_000, fade_in: CHAIN_FADE_IN, want_state: true, emo: DITTO_EMO.happy });
+    expect(asked[1]).not.toHaveProperty("emo");
+    expect(asked[2]).toMatchObject({ emo: DITTO_EMO.surprise });
     expect(asked[0]).not.toHaveProperty("state_b64");
     expect(asked[0]).not.toHaveProperty("fade_out");
     expect(asked[1]).toMatchObject({ state_b64: "state1", want_state: true });
@@ -259,6 +266,74 @@ describe("Ditto, our second worker", () => {
     expect(asked[2]).toMatchObject({ fade_in: CHAIN_FADE_IN, fade_out: CHAIN_FADE_OUT });
     expect(asked[2]).not.toHaveProperty("state_b64");
     expect(chain.stats).toEqual({ clips: 2, failed: 1 });
+  });
+
+  it("reads a clause's expression from its words: laughs and warmth are happy, gasps surprise, sorrow sad, the rest neutral", () => {
+    expect(emoFor("Hahaha, you did not.")).toBe(DITTO_EMO.happy);
+    expect(emoFor("*laughs* okay, okay")).toBe(DITTO_EMO.happy);
+    expect(emoFor("I love that you remembered.")).toBe(DITTO_EMO.happy);
+    expect(emoFor("Wait, what? You did what?")).toBe(DITTO_EMO.surprise);
+    expect(emoFor("No way!")).toBe(DITTO_EMO.surprise);
+    expect(emoFor("I'm so sorry. That's hard.")).toBe(DITTO_EMO.sad);
+    expect(emoFor("Found a new draft in the lantern room. It hums.")).toBe(DITTO_EMO.neutral);
+    expect(emoFor("Watch out!")).toBe(DITTO_EMO.neutral);
+    expect(emoFor("")).toBe(DITTO_EMO.neutral);
+  });
+
+  it("renders a character's idle and reactions once (silence with a pose motion, fading in and out at the still), keeps them, serves them, and gives a Ditto session their URLs", async () => {
+    const { userId } = someone();
+    await t.db.query(`insert into character_assets (id, character_id, kind, source_type, source_model, url, review_status, content_rating) values ($1, $2, 'portrait', 'generated', 'm', $3, 'approved', 'pg')`, [`asset-${RAFE}`, RAFE, "/cast/house-juniper-v3.webp"]);
+    await t.db.query(`insert into face_kits (id, character_id, source_id, part, status, mime, data) values ($1, $2, $3, 'portrait', 'ready', 'image/webp', $4)`, [`kit-portrait-${RAFE}`, RAFE, `asset-${RAFE}`, Buffer.from("webp")]);
+    const asked = fakeChainEndpoint();
+    const env = { RUNPOD_API_KEY: "placeholder-runpod", LIVE_FACE_DITTO_ENDPOINT: "ep-d", LIVE_FACE_PROVIDER: "ditto" };
+    expect(await dittoLibrary(t.db, RAFE, "http://test")).toEqual({ idle: null, reactions: {}, complete: false });
+    expect(await ensureDittoLibrary(t.db, RAFE, "http://test", env)).toBe(3);
+    expect(asked.map((a) => [(a.motion as { kind: string }).kind, a.fade_in, a.fade_out, (a.audio_b64 as string).length > 0, a.emo])).toEqual([
+      ["sway", LIBRARY_SPEC.idle.fade_in, LIBRARY_SPEC.idle.fade_out, true, 4],
+      ["nod", LIBRARY_SPEC.nod.fade_in, LIBRARY_SPEC.nod.fade_out, true, 4],
+      ["tilt", LIBRARY_SPEC.tilt.fade_in, LIBRARY_SPEC.tilt.fade_out, true, 4],
+    ]);
+    // Eight seconds of silence at 24 kHz, 16-bit mono, for the idle.
+    expect(Buffer.from(asked[0].audio_b64 as string, "base64").length).toBe(8 * 24_000 * 2);
+    expect(asked[0]).not.toHaveProperty("want_state");
+    const lib = await dittoLibrary(t.db, RAFE, "http://test");
+    expect(lib.complete).toBe(true);
+    expect(lib.idle).toMatch(/^\/api\/live-face\/clip\//);
+    expect(Object.keys(lib.reactions).sort()).toEqual(["nod", "tilt"]);
+    // Kept and served; asking again renders nothing more.
+    const id = lib.idle!.split("/").pop()!;
+    expect((await libraryClipFile(t.db, id))?.bytes.equals(Buffer.from("clip1", "base64"))).toBe(true);
+    const served = await clipGet(new Request(`${BASE_URL}/api/live-face/clip/${id}`), { params: Promise.resolve({ id }) });
+    expect(served.status).toBe(200);
+    expect(served.headers.get("content-type")).toBe("video/mp4");
+    expect((await clipGet(new Request(`${BASE_URL}/api/live-face/clip/nope`), { params: Promise.resolve({ id: "nope" }) })).status).toBe(404);
+    expect(await ensureDittoLibrary(t.db, RAFE, "http://test", env)).toBe(0);
+    expect(asked.length).toBe(3);
+    // A Ditto session carries them (the clips route's tests cover the session's making in lib/live-face).
+    vi.stubEnv("LIVE_FACE_PROVIDER", "ditto");
+    vi.stubEnv("LIVE_FACE_DITTO_ENDPOINT", "ep-d");
+    const session = await liveFaceSession(t.db, RAFE, "http://test", { admin: true, userId });
+    expect(session).toMatchObject({ provider: "ditto", px: 512, idle: lib.idle, reactions: lib.reactions });
+  });
+
+  it("gives a reply up when its first clause fails: the clauses waiting and any added after are failed at once, nothing more is rendered", async () => {
+    const asked = fakeChainEndpoint();
+    const clips: ChainClip[] = [];
+    const failed: number[] = [];
+    const chain = new DittoChain(CFG, PORTRAIT, 24_000, { clip: (c) => clips.push(c), fail: (i) => failed.push(i) }, { decideMs: 30 });
+    chain.expect(0);
+    chain.expect(1);
+    chain.expect(2);
+    chain.add(0, Buffer.from("bad"));
+    chain.add(1, Buffer.from("two"));
+    await new Promise((ok) => setTimeout(ok, 20));
+    chain.add(2, Buffer.from("three"));
+    chain.finish();
+    await chain.done();
+    expect(asked.length).toBe(1);
+    expect(clips).toEqual([]);
+    expect(failed).toEqual([0, 1, 2]);
+    expect(chain.stats).toEqual({ clips: 0, failed: 1 });
   });
 
   it("stops with the turn: once aborted nothing more is asked for and done() resolves", async () => {
