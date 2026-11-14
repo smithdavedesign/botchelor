@@ -122,7 +122,9 @@ describe("a face kit", () => {
     expect(still.headers.get("content-type")).toMatch(/^image\//);
     expect(still.headers.get("cache-control")).toMatch(/immutable/);
     expect(still.headers.get("x-ai-generated") ?? still.headers.get("X-AI-Generated") ?? "yes").toBeTruthy();
-    const loop = await fileGet(new Request(`${BASE_URL}${got.kit.loop}`), { params: Promise.resolve({ id: got.kit.loop!.split("/").pop()! }) });
+    // The loop's link carries ?v=<updated_at> since the realism pass (a rebuilt loop busts the cache); the route's id is the path part.
+    const loopId = got.kit.loop!.split("/").pop()!.split("?")[0];
+    const loop = await fileGet(new Request(`${BASE_URL}${got.kit.loop}`), { params: Promise.resolve({ id: loopId }) });
     expect(loop.headers.get("content-type")).toBe("video/mp4");
     // Complete: a call starting with them draws nothing more.
     const before = asked.length;
