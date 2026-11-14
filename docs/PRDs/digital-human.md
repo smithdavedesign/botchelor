@@ -313,6 +313,27 @@ discretion over anything sexual. D-ID's terms refuse "pornography publishers"; a
 shut down in April 2026. Tavus, Anam and Soul Machines are out (consent video of a real person, a dating/adult ban, enterprise).
 None gives alpha; the round frame makes that moot.
 
+**First compare, Juniper, "Found a new draft in the lantern room. It hums. I think it's trying to tell me something."
+(4.5 s of voice; botchelor.com, 2026-11-14 07:00–07:45 UTC, house keys; three runs because the fal client first cut the
+nested models off, #1584 #1585):**
+
+| Renderer | Time to the clip | Cost of the clause | Output | My read of the frames (ratings are David's) |
+|---|---|---|---|---|
+| MuseTalk (ours) | 2–3 s warm, 33 s with a cold worker | ≈0.15¢ | 624² 25 fps, our loop | the mouth is small and soft; the only one a call can use today |
+| Sync lipsync-2 (fal) | 82 s | fal's price | 624² 25 fps, our loop | quiet, closed-ish lips, little more than ours |
+| LatentSync (fal) | 4.5 min | fal's price | 624² 25 fps, our loop | a slightly crisper MuseTalk: teeth show more often |
+| Kling lipsync (fal) | 2.4 min | fal's price | 624² 30 fps, our loop | the best mouth onto our own loop: round vowels, open shapes, our head motion kept |
+| OmniHuman (fal) | 2.0 min | fal's price | 1088² 25 fps, from the portrait | the strongest whole face: expressive, identity held, sharp |
+| InfiniteTalk (fal) | 10.7 min | fal's price | 640² 25 fps, from the portrait | lively head and eyes, strong articulation; slow |
+| Wan 2.2 S2V (Replicate) | 3.4 min | 9¢ | 512² 16 fps, from the portrait | very expressive, but 16 fps and a different crop |
+
+What it says: for a call, nothing hosted is within an order of magnitude of the two-second budget; for anything rendered
+ahead of time (a date replay in the theater, a showcase reel, a video reply), OmniHuman and Kling-over-our-loop are the two
+to put behind the pre-rendered surfaces, Kling when the loop's framing must stay, OmniHuman when the whole face may move.
+David's point (2026-11-14): "might be a case for using a more slow model if we are replaying a date, but for live chat
+latency matters" is exactly that split, and the `ClipRenderer` interface is what lets a replay call a slow one while calls
+keep the fast one. fal's per-clause prices weren't on its OpenAPI; the bill says.
+
 **Ditto** (Ant Group's real-time single-image talking head, Apache-2.0) is the open equivalent of what those vendors run and the
 candidate most likely to beat MuseTalk at the same cost; its spike runs beside this.
 
