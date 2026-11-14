@@ -103,7 +103,12 @@ On the endpoint (`k6mzbe6h1jgc19`, 2026-11-14 16:43 UTC, a warm worker): a job i
 fresh worker's warm-up is 12.8 s (the first TensorRT run) and shows as "initializing" to the endpoint, not as a
 failed job. A chain renders one clause after another (each needs the one before's state), each in about 0.6× its
 length plus the job round trip, so it keeps ahead of its own playback when clauses are a couple of seconds long
-(lib/live-face-shared.ts `clausesOf` keeps them so).
+(lib/live-face-shared.ts `clausesOf` keeps them so). On production (2026-11-14 evening, warm worker): the first clip of
+a reply 1.6–3.2 s after its clause's voice ended, the next before the first finished. A cold worker takes 22–32 s to
+boot, so the first reply of a cold call plays plain (the browser's 4-s hold) and the next gets clips; the endpoint's
+idle timeout is 180 s so a call's pauses don't cool it. The library (image `ditto-7`, `motion`): the 8-s idle 200
+frames in 4.2 s, the nod 1.0 s, the tilt 1.2 s; the first call for a character shares the worker with its library
+render, so that one reply's clips ran about a second late.
 
 ## Cost
 

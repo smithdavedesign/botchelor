@@ -380,8 +380,14 @@ piece or the reply's end; a failed clause breaks the chain and the next starts a
 MuseTalk's, holds a clip's last frame for up to 2.5 s when the next is a beat late instead of dropping to the loop
 mid-motion, and restarts the loop at its first frame (the portrait) after a reply (`end_frame` 0), so the only visible
 join is between two pictures of the same still. Nothing is built per character: a kit portrait is the face
-(`liveFaceClips` → `{ provider: "ditto", source_url }`), `LIVE_FACE_PROVIDER=ditto` or `ditto:admins`, and a person can
-pick Ditto for their own calls on the compare page. The 512-px portrait is the source (the round frame shows 136 px, so the 624-px loop frame gained nothing). Both
+(`liveFaceClips` → `{ provider: "ditto", source_url }`), `LIVE_FACE_PROVIDER=ditto` or `ditto:admins` (set on production
+2026-11-14 17:27 UTC), and a person can pick Ditto for their own calls on the compare page. **Production, the same
+evening:** on a warm worker the first clip of a reply 1.6–3.2 s after its clause's voice ended and the next before the
+first finished; a cold worker takes 22–32 s to boot, so the first reply of a cold call plays plain at the browser's 4-s
+hold and the next gets clips (the endpoint keeps a worker 180 s after its last job; the chain gives a reply up once its
+first clause fails, since the rest would render for nothing); the first call for a character renders its idle and
+reactions on the same worker, so that one reply's clips ran about a second late, and the second call's session carried
+all three (`idle`, `reactions.nod`, `reactions.tilt`, served by `/api/live-face/clip/<id>`). The 512-px portrait is the source (the round frame shows 136 px, so the 624-px loop frame gained nothing). Both
 renderers resident on one 24-GB card would fit; they are two images today.
 
 **Idle, reactions and expression (the same night; "The road from here", 1):** the loop between replies is Ditto's too

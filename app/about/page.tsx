@@ -89,7 +89,7 @@ const GROUPS: Group[] = [
       },
       {
         name: "Ditto",
-        what: "A second renderer of our own, compared beside MuseTalk: an open talking-head model (Apache-2.0, Ant Group) that animates the whole head from one portrait, turns, blinks and teeth included, on the same rented GPU and in real time on TensorRT. On the admin compare now; calls when it proves out.",
+        what: "The renderer behind live calls since 14 November 2026 (admins first), beside MuseTalk on the compare: an open talking-head model (Apache-2.0, Ant Group) that animates the whole head from one portrait, turns, blinks and teeth included, on the same rented GPU and in real time on TensorRT. A reply is one chain of clips, each clause continuing the last one's motion; the idle between replies, a nod and a tilt are its clips too, rendered once per character.",
         href: "https://github.com/antgroup/ditto-talkinghead",
       },
       {
