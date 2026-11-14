@@ -82,8 +82,8 @@ export function framesOfPcm(bytes: number, rate: number, fps = CLIP_FPS): number
  * in, with at least `min` characters each side; null when the piece is short or has no such place.
  */
 export function splitFirstPiece(text: string, opts: { min?: number; long?: number } = {}): [string, string] | null {
-  const min = opts.min ?? 18;
-  const long = opts.long ?? 48;
+  const min = opts.min ?? 14;
+  const long = opts.long ?? 40;
   const t = text.trim();
   if (t.length < long) return null;
   const re = /([,;:]\s+)|(\s+[—–-]\s+)|(\s+(?=(?:and|but|so|because|which|while|then|until|when|after|before|where|unless|though)\s))/g;
@@ -105,8 +105,12 @@ export const SHORT_FIRST_PIECE = 16;
 /** How long the server waits for the next piece before voicing a short first piece on its own. */
 export const SHORT_FIRST_WAIT_MS = 400;
 
-/** A piece longer than this (in characters, about two seconds of voice) is split at clauses for the clips, so no clip waits on a long render while a short one plays. */
-export const LONG_PIECE = 64;
+/**
+ * A piece longer than this is split at clauses for the clips, so no clip waits on a long render while a short one
+ * plays. Characters, about two and a half seconds of a slow voice: Dex's "Hey. Quiet day — just me, the wheel, and a
+ * stubborn glaze." (58) was 4.9 s of voice, 4.5 s to render, and missed the hold.
+ */
+export const LONG_PIECE = 44;
 
 /**
  * A piece as the clauses the clips are rendered from: `splitFirstPiece` applied again to any part still longer than

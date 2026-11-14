@@ -64,9 +64,10 @@ describe("a piece as the clauses its clips are rendered from", () => {
     expect(clausesOf("Almost.")).toEqual(["Almost."]);
     expect(clausesOf("Spent the morning at the studio — almost finished a new set of mugs without any cracks, which never happens, so I'm taking the win.")).toEqual([
       "Spent the morning at the studio",
-      "almost finished a new set of mugs without any cracks,",
+      "almost finished a new set of mugs without any cracks,", // no clause word in it: stays whole
       "which never happens, so I'm taking the win.",
     ]);
+    expect(clausesOf("Hey. Quiet day — just me, the wheel, and a stubborn glaze.")).toEqual(["Hey. Quiet day", "just me, the wheel, and a stubborn glaze."]);
   });
   it("keeps a long piece with no clause boundary whole", () => {
     const run = "Thirtysevenletterswithoutasinglebreakinthemanywhereatallreallytruly honestly";
