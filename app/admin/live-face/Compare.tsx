@@ -214,7 +214,7 @@ export default function Compare() {
           <ul style={{ margin: 0, paddingLeft: "1.1rem" }}>
             {listing.compares.map((c) => (
               <li key={c.compare.id}>
-                <button type="button" className="link" onClick={() => show(c)}>
+                <button type="button" className="link-button" onClick={() => show(c)}>
                   {c.compare.character_name ?? c.compare.character_id}: “{c.compare.line.slice(0, 60)}{c.compare.line.length > 60 ? "…" : ""}”
                 </button>{" "}
                 <span className="muted small">
