@@ -27,6 +27,30 @@ export function stampDateStarted(now: number = Date.now(), storage: Storage | nu
   }
 }
 
+/**
+ * The early verdict (PR3): the filming stage fired `date_watched` for this date when its verdict card showed. When the
+ * finished date then opens in the theater (`?play=1&from=N`) in the same tab, the theater reads this and doesn't count
+ * the same ending twice. Per episode, so another date in the tab still counts.
+ */
+export const DATE_WATCHED_LIVE_KEY = "bz_date_watched_live";
+
+export function markDateWatchedLive(episodeId: string, storage: Storage | null = store()): void {
+  try {
+    storage?.setItem(DATE_WATCHED_LIVE_KEY, episodeId);
+  } catch {
+    /* a private window, or storage turned off */
+  }
+}
+
+/** Whether the stage already counted this date's ending in this tab. */
+export function dateWatchedLive(episodeId: string, storage: Storage | null = store()): boolean {
+  try {
+    return storage?.getItem(DATE_WATCHED_LIVE_KEY) === episodeId;
+  } catch {
+    return false;
+  }
+}
+
 /** Milliseconds since the stamp, or null without one (or one from the future, or unreadable storage). */
 export function msSinceDateStarted(now: number = Date.now(), storage: Storage | null = store()): number | null {
   try {

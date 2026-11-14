@@ -362,7 +362,19 @@ export default async function EpisodePage({
           )}
           <GeneratingPoller
             episodeId={episode.id}
-            stage={play && episode.is_creator ? { characters: episode.characters, venue: episode.venue ?? null, canSetScene: !selfPerformed && !steppedIn } : undefined}
+            stage={
+              play && episode.is_creator
+                ? {
+                    characters: episode.characters,
+                    venue: episode.venue ?? null,
+                    canSetScene: !selfPerformed && !steppedIn,
+                    // The early verdict (GeneratingPoller.tsx): the card the theater would show, as soon as the ending stands.
+                    // No reflection yet (it's written after the ending), so the card says the character will text them.
+                    dateNumber: dateNumberOf(episode),
+                    verdict: creatorSide && creatorSide.side !== null ? { mine: creatorSide.side, reflection: null, pushKey: pushKeys()?.publicKey ?? null } : null,
+                  }
+                : undefined
+            }
           />
           {!episode.is_creator && <MakeYourOwn />}
           <footer className="episode-foot">

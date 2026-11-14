@@ -12,7 +12,7 @@ import type { Turn } from "@/lib/conversation";
 import type { CharacterRef } from "@/lib/game";
 import { placeAt, type PlaceId } from "@/lib/venues";
 import CharacterName from "@/app/CharacterName";
-import { msSinceDateStarted } from "@/lib/engagement-keys";
+import { dateWatchedLive, msSinceDateStarted } from "@/lib/engagement-keys";
 import ShareEnding from "./ShareEnding";
 import VerdictCard from "./VerdictCard";
 
@@ -88,13 +88,15 @@ function Playback({ episodeId, characters, venue, transcript, endingLabel, justF
   useEffect(() => {
     if (!replay.done || watched.current) return;
     watched.current = true;
+    // The filming stage already counted this ending in this tab (its early verdict card, GeneratingPoller.tsx): once.
+    if (justFilmed && dateWatchedLive(episodeId)) return;
     queueEvent("date_watched", {
       via: "theater",
       just_filmed: Boolean(justFilmed),
       skipped: skipped.current,
       ms_since_start: justFilmed ? msSinceDateStarted() : null,
     });
-  }, [replay.done, justFilmed]);
+  }, [replay.done, justFilmed, episodeId]);
   const skip = () => {
     skipped.current = true;
     replay.skip();

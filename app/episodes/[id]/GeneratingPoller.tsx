@@ -6,11 +6,15 @@ import { useRouter } from "next/navigation";
 import Scene from "@/app/Scene";
 import ChatThread from "@/app/ChatThread";
 import { useReplay } from "@/app/useReplay";
-import { DATE_ACTS } from "@/lib/rules";
+import { DATE_ACTS, endingLabel, type Ending } from "@/lib/rules";
 import type { Turn } from "@/lib/conversation";
 import type { CharacterRef } from "@/lib/game";
 import { placeAt, type PlaceId } from "@/lib/venues";
 import CharacterName from "@/app/CharacterName";
+import { queueEvent } from "@/app/engagement";
+import { markDateWatchedLive, msSinceDateStarted } from "@/lib/engagement-keys";
+import type { TheaterVerdict } from "./EpisodeTheater";
+import VerdictCard from "./VerdictCard";
 
 function lastLine(turns: Turn[], side: "a" | "b"): string | null {
   for (let i = turns.length - 1; i >= 0; i--) if (turns[i].side === side) return turns[i].dialogue;
@@ -18,7 +22,15 @@ function lastLine(turns: Turn[], side: "a" | "b"): string | null {
 }
 
 /** The creator who just sent the date: wait on the theater stage itself, and play the date the moment it's filmed. */
-type Stage = { characters: [CharacterRef, CharacterRef]; venue: PlaceId | null; canSetScene?: boolean };
+type Stage = {
+  characters: [CharacterRef, CharacterRef];
+  venue: PlaceId | null;
+  canSetScene?: boolean;
+  /** Which date it is for the pair (lib/rules.ts endingLabel: "A third date", never "A second date" on a second). */
+  dateNumber?: number | null;
+  /** What the verdict card needs for the creator (EpisodeTheater.tsx TheaterVerdict); null when their side isn't known. */
+  verdict?: TheaterVerdict | null;
+};
 
 /**
  * Set the scene while it's filmed (lib/scene-suggestions.ts): any place, 1 token. The next line suggests it and the
@@ -79,18 +91,36 @@ function SetSceneBar({ episodeId }: { episodeId: string }) {
  * On the stage (the creator who just sent it), the date plays while it's filmed: the worker saves each line
  * as it's written (lib/jobs.ts), the poll brings them in, and they play on the scene at the replay's pace. When
  * it's done, the finished date picks up from the line they'd reached instead of starting over.
+ *
+ * The early verdict (the 2026-11-14 core plan, PR3): the job saves the ending the moment the characters' own answers
+ * weighed in, with `ending_final` on the view (lib/game.ts), 30-60 s before the recap, texts and reflections make the
+ * date ready. Once the stage has played every saved line it shows the same verdict card the theater does
+ * (VerdictCard.tsx) and counts `date_watched` with `live: 1`; a "Skip to the ending" control appears as soon as the ending
+ * is decided. "Hear from" on the card waits until the date is ready. Exit folds the stage without leaving `?play=1`, so
+ * the finished date still opens in the theater (and counts) for a creator who stepped out early.
  */
+type Poll = { status?: string; transcript?: Turn[]; ending?: Ending; ending_final?: true };
+
 export default function GeneratingPoller({ episodeId, stage }: { episodeId: string; stage?: Stage }) {
   const router = useRouter();
   const [failed, setFailed] = useState(false);
   const [lines, setLines] = useState<Turn[]>([]);
+  // The ending as it will stand (the early verdict), once the poll has carried it; null while the date is still open.
+  const [final, setFinal] = useState<Ending | null>(null);
+  // The job finished while the verdict card was up: the card stays (no jump to the theater) and "Hear from" can go.
+  const [ready, setReady] = useState(false);
+  const [exited, setExited] = useState(false);
   const replay = useReplay(lines, true, { live: true });
   // The poll reads how far playback got when the date finishes, without re-arming on every line.
   const reached = useRef(0);
   reached.current = replay.shown.length;
+  // Whether the stage already showed the verdict (and counted it), and whether they stepped out: read by the poll.
+  const watched = useRef(false);
+  const exitedRef = useRef(false);
+  const skipped = useRef(false);
 
   useEffect(() => {
-    if (failed) return;
+    if (failed || ready) return;
     let active = true;
     let timer: ReturnType<typeof setTimeout>;
     const tick = async () => {
@@ -101,16 +131,28 @@ export default function GeneratingPoller({ episodeId, stage }: { episodeId: stri
           return;
         }
         if (res.ok) {
-          const data = (await res.json()) as { status?: string; transcript?: Turn[] };
-          if (data.status && data.status !== "generating") {
-            // On the stage, go straight into the playback (from the line they'd reached); otherwise show the finished episode.
-            if (stage) router.replace(`/episodes/${episodeId}?play=1${reached.current ? `&from=${reached.current}` : ""}`);
-            else router.refresh();
-            return;
-          }
+          const data = (await res.json()) as Poll;
+          if (!active) return;
           if (stage && Array.isArray(data.transcript)) {
             const next = data.transcript;
             setLines((prev) => (next.length === prev.length ? prev : next));
+          }
+          // Only an ending the job marked final counts: the booked one can still move until then (lib/choices.ts).
+          if (stage && data.ending_final && data.ending) setFinal(data.ending);
+          if (data.status && data.status !== "generating") {
+            if (!stage) {
+              router.refresh();
+              return;
+            }
+            if (watched.current) {
+              // They saw the verdict here already: the finished page if they stepped out, else the card stays as it is.
+              if (exitedRef.current) router.replace(`/episodes/${episodeId}`);
+              else setReady(true);
+              return;
+            }
+            // Straight into the playback (from the line they'd reached): the theater shows the ending and counts it.
+            router.replace(`/episodes/${episodeId}?play=1${reached.current ? `&from=${reached.current}` : ""}`);
+            return;
           }
         }
       } catch {
@@ -123,7 +165,21 @@ export default function GeneratingPoller({ episodeId, stage }: { episodeId: stri
       active = false;
       clearTimeout(timer);
     };
-  }, [episodeId, router, failed, stage]);
+  }, [episodeId, router, failed, ready, stage]);
+
+  const shown = replay.shown;
+  const caughtUp = shown.length >= lines.length;
+  const decided = final !== null;
+  // Every saved line has played and the ending stands: the verdict. (A date whose lines never came out shows it too.)
+  const verdictShowing = Boolean(stage) && decided && caughtUp;
+
+  // The aha moment, counted once here (lib/engagement-keys.ts tells the theater not to count it again in this tab).
+  useEffect(() => {
+    if (!verdictShowing || watched.current) return;
+    watched.current = true;
+    markDateWatchedLive(episodeId);
+    queueEvent("date_watched", { via: "stage", live: 1, just_filmed: true, skipped: skipped.current, ms_since_start: msSinceDateStarted() });
+  }, [verdictShowing, episodeId]);
 
   if (failed) {
     return (
@@ -140,14 +196,49 @@ export default function GeneratingPoller({ episodeId, stage }: { episodeId: stri
     );
   }
 
+  if (stage && exited) {
+    return (
+      <section className="card watch-preshow" aria-live="polite">
+        <h2>🎬 Filming the date…</h2>
+        <p className="muted">
+          The two characters are on their date right now. It opens in the theater the moment it&apos;s ready, from the line
+          you&apos;d reached.
+        </p>
+        <p>
+          <button
+            type="button"
+            className="secondary small"
+            onClick={() => {
+              exitedRef.current = false;
+              setExited(false);
+            }}
+          >
+            Back to the stage
+          </button>
+        </p>
+      </section>
+    );
+  }
+
   if (stage) {
     const [a, b] = stage.characters;
-    const shown = replay.shown;
-    const caughtUp = shown.length >= lines.length;
-    // Caught up with the writing: whoever speaks next is "typing" (sides alternate; Act 1 opens on a).
+    // Caught up with the writing: whoever speaks next is "typing" (sides alternate; Act 1 opens on a); nobody once it's decided.
     const last = shown[shown.length - 1];
-    const typing = caughtUp ? (lines.length ? (last?.side === "a" ? "b" : "a") : null) : replay.typing;
+    const typing = caughtUp ? (lines.length && !decided ? (last?.side === "a" ? "b" : "a") : null) : replay.typing;
     const actLabel = last ? DATE_ACTS[last.act] ?? null : null;
+    const label = final ? endingLabel(final, stage.dateNumber) : "";
+    const skipToEnding = () => {
+      skipped.current = true;
+      replay.skip();
+    };
+    const exit = () => {
+      if (ready) {
+        router.replace(`/episodes/${episodeId}`);
+        return;
+      }
+      exitedRef.current = true;
+      setExited(true);
+    };
     return (
       <div className="theater theater-clean theater-filming">
         <div className="theater-stage with-convo">
@@ -175,21 +266,49 @@ export default function GeneratingPoller({ episodeId, stage }: { episodeId: stri
               <strong>
                 <CharacterName character={a} /> <span className="vs">×</span> <CharacterName character={b} />
               </strong>
-              <span className="chip">🔴 Filming live</span>
+              <span className="chip">{ready ? "Just filmed" : verdictShowing ? "Wrapping up" : "🔴 Filming live"}</span>
             </div>
             <div className="theater-tools">
-              <Link href={`/episodes/${episodeId}`} className="button secondary small">
+              {decided && !caughtUp && (
+                <button type="button" className="secondary small" onClick={skipToEnding} data-track="skip-to-ending">
+                  Skip to the ending
+                </button>
+              )}
+              <button type="button" className="secondary small" onClick={exit}>
                 Exit
-              </Link>
+              </button>
             </div>
           </header>
-          {stage.canSetScene && <SetSceneBar episodeId={episodeId} />}
-          {!shown.length && (
+          {stage.canSetScene && !decided && <SetSceneBar episodeId={episodeId} />}
+          {!shown.length && !verdictShowing && (
             <div className="theater-verdict" role="status" aria-live="polite">
               <p className="ending">Filming the date…</p>
               <p className="muted">The first lines appear here as they&apos;re filmed, usually within a minute.</p>
             </div>
           )}
+          {verdictShowing &&
+            (stage.verdict ? (
+              <VerdictCard
+                episodeId={episodeId}
+                endingLabel={label}
+                you={stage.characters[stage.verdict.mine]}
+                partner={stage.characters[stage.verdict.mine === 0 ? 1 : 0]}
+                preview={stage.verdict.reflection}
+                pushKey={stage.verdict.pushKey}
+                onRestart={replay.restart}
+                pending={!ready}
+              />
+            ) : (
+              <div className="theater-verdict">
+                <p className="ending">{label}</p>
+                <p className="muted">
+                  That&apos;s how it ended.{" "}
+                  <button type="button" className="linklike" onClick={replay.restart}>
+                    Watch again
+                  </button>
+                </p>
+              </div>
+            ))}
         </div>
       </div>
     );
