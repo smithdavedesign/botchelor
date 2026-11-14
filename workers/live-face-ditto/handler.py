@@ -67,7 +67,7 @@ import threading
 import time
 import urllib.request
 
-HANDLER_VERSION = "stream-2"
+HANDLER_VERSION = "stream-3"
 DITTO_DIR = os.environ.get("DITTO_DIR", "/app/ditto")
 DATA_ROOT = os.environ.get("DITTO_DATA_ROOT", os.path.join(DITTO_DIR, "checkpoints/ditto_trt_Ampere_Plus"))
 CFG_PKL = os.environ.get("DITTO_CFG_PKL", os.path.join(DITTO_DIR, "checkpoints/ditto_cfg/v0.4_hubert_cfg_trt.pkl"))
@@ -77,7 +77,8 @@ FPS = 25
 SR = 16000
 MAX_AUDIO_SECONDS = float(os.environ.get("MAX_AUDIO_SECONDS", "30"))
 MAX_SOURCE_PX = int(os.environ.get("MAX_SOURCE_PX", "1024"))  # a kit portrait is 512², a loop frame 624²
-REGISTRATIONS = int(os.environ.get("REGISTRATIONS", "16"))     # registered stills kept in memory per worker
+REGISTRATIONS = int(os.environ.get("REGISTRATIONS", "16"))     # registered sources kept in memory per worker
+REGISTERED_FRAMES = int(os.environ.get("REGISTERED_FRAMES", "600"))  # and at most this many frames among them (a loop is ~125, ~1 GB of features)
 URL_CACHE_S = int(os.environ.get("URL_CACHE_S", "900"))        # a still fetched by URL is kept this long
 # The chain: Ditto's own window overlap is 10 frames (overlap_v2), so a clause hands the next its last 10 motion
 # frames and the 0.4 s of audio under them; the next clause's first JOIN_BLEND frames ease from the last rendered one.
@@ -120,14 +121,20 @@ class CachedRegistrar:
         self.cache: dict[str, dict] = {}
         self.hits = 0
 
+    @staticmethod
+    def frames_of(info) -> int:
+        return len(info.get("x_s_info_lst") or [])
+
     def __call__(self, source_path, **kwargs):
         key = json.dumps([source_path, sorted(kwargs.items())], default=str)
         info = self.cache.get(key)
         if info is not None:
             self.hits += 1
+            self.cache[key] = self.cache.pop(key)  # most recent last
             return info
         info = self.inner(source_path, **kwargs)
-        if len(self.cache) >= REGISTRATIONS:
+        # Room: by count, and by frames (a video source, the kit's loop, carries every frame's appearance features).
+        while self.cache and (len(self.cache) >= REGISTRATIONS or sum(self.frames_of(v) for v in self.cache.values()) + self.frames_of(info) > REGISTERED_FRAMES):
             self.cache.pop(next(iter(self.cache)))
         self.cache[key] = info
         return info
@@ -158,6 +165,9 @@ def _chain_audio2motion_offline(self) -> None:
         chain = getattr(self, "chain", None) or {}
         tail = chain.get("tail")
         skip = int(tail.shape[1]) if tail is not None else 0
+        # A video source (the kit's loop): its frames cycle forward and back under the output; `start_frame` is where
+        # in that cycle this clause begins, so clause follows clause through the loop's motion (MuseTalk's recipe).
+        start = int(chain.get("start_frame") or 0)
         aud_cond_all = self.condition_handler(aud_feat, 0)
         seq_frames = self.audio2motion.seq_frames
         valid_clip_len = self.audio2motion.valid_clip_len
@@ -187,7 +197,7 @@ def _chain_audio2motion_offline(self) -> None:
         x_d_info_list = self.audio2motion.cvt_fmt(res_kp_seq[:, skip:])
         gen_frame_idx = 0
         for x_d_info in x_d_info_list:
-            frame_idx = _mirror_index(gen_frame_idx, self.source_info_frames)
+            frame_idx = _mirror_index(start + gen_frame_idx, self.source_info_frames)
             ctrl_kwargs = self._get_ctrl_info(gen_frame_idx)
             while not self.stop_event.is_set():
                 try:
@@ -376,12 +386,18 @@ def source_path_for(data: bytes) -> tuple[str, int, int]:
     arr = np.frombuffer(data, dtype=np.uint8)
     img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
     if img is None:
-        # not an image: let Ditto treat it as a video source
+        # not an image: let Ditto treat it as a video source (the kit's loop)
         path = os.path.join(SOURCE_CACHE, f"src-{sha}.mp4")
         if not os.path.exists(path):
-            with open(path, "wb") as f:
+            with open(path + ".part", "wb") as f:
                 f.write(data)
-        return path, 0, 0
+            os.replace(path + ".part", path)
+        cap = cv2.VideoCapture(path)
+        w, h = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) or 0), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) or 0)
+        cap.release()
+        if not w or not h:
+            raise ValueError("the source is neither an image nor a readable video")
+        return path, w, h
     h, w = img.shape[:2]
     if max(h, w) > MAX_SOURCE_PX:
         s = MAX_SOURCE_PX / max(h, w)
@@ -511,18 +527,22 @@ def render(source_path: str, wav_path: str, opts: dict) -> tuple[bytes, int, dic
         setup_kwargs["sampling_timesteps"] = int(opts["sampling_timesteps"])
     if opts.get("emo") is not None:
         setup_kwargs["emo"] = int(opts["emo"])
+    is_video = source_path.endswith(".mp4")
+    start_frame = max(0, int(opts.get("start_frame") or 0))
     if fade_in > 0 or fade_out > 0:
-        # Ditto fades nothing unless told what to fade towards: "s" is the still itself, all of pose and expression.
+        # Ditto fades nothing unless told what to fade towards: "s" is the source frame itself. From a still that is
+        # all of pose and expression; on a video the pose is the loop's already, so only the expression eases.
         setup_kwargs["fade_type"] = "s"
-        setup_kwargs["fade_out_keys"] = ("exp", "pitch", "yaw", "roll", "t")
+        setup_kwargs["fade_out_keys"] = ("exp",) if is_video else ("exp", "pitch", "yaw", "roll", "t")
     mux_wav = wav_path
     with tempfile.TemporaryDirectory(dir=SOURCE_CACHE) as d:
         out_path = os.path.join(d, "clause.mp4")
         with GPU_LOCK:
             # The chain's state goes on before setup (setup starts the motion thread, which reads it with the audio).
-            SDK.chain = {"kp_cond": state_in["kp_cond"], "tail": state_in["tail"]} if state_in else {}
+            SDK.chain = {"kp_cond": state_in["kp_cond"] if state_in else None, "tail": state_in["tail"] if state_in else None, "start_frame": start_frame}
             SDK.chain_out = None
             SDK.setup(source_path, out_path, **setup_kwargs)
+            source_frames = int(getattr(SDK, "source_info_frames", 1) or 1)
             if state_in and state_in.get("d0") is not None:
                 # The chain's reference frame: every clause moves relative to the same still, not to its own first frame.
                 SDK.motion_stitch.d0 = SDK.audio2motion.cvt_fmt(state_in["d0"].reshape(1, 1, -1))[0]
@@ -547,7 +567,7 @@ def render(source_path: str, wav_path: str, opts: dict) -> tuple[bytes, int, dic
             if mux_wav != wav_path:
                 os.unlink(mux_wav)
         t_enc = time.time()
-    chain = {"in": bool(state_in), "skip": skip, "fade_in": fade_in, "fade_out": fade_out, "silence_ms": silence_ms, "state": bool(state_out), "motion": (opts.get("motion") or {}).get("kind") or None, "emo": opts.get("emo")}
+    chain = {"in": bool(state_in), "skip": skip, "fade_in": fade_in, "fade_out": fade_out, "silence_ms": silence_ms, "state": bool(state_out), "motion": (opts.get("motion") or {}).get("kind") or None, "emo": opts.get("emo"), "video": is_video, "start_frame": start_frame, "next_frame": start_frame + frames, "source_frames": source_frames}
     return mp4, frames, {
         "setup": int((t_setup - t0) * 1000),
         "audio": int((t_audio - t_setup) * 1000),
@@ -661,8 +681,6 @@ def speak_stream(inp: dict):
         source_path, width, height = source_for_url(str(inp["source_url"]))
     else:
         raise ValueError("source_url or source_b64 is required")
-    if not width:
-        raise ValueError("a streamed clause needs a still, not a video")
     rate = int(inp.get("rate") or SR)
     wav = wav_bytes(inp["audio_b64"], str(inp.get("audio_format") or "pcm16"), rate)
     with tempfile.NamedTemporaryFile(suffix=".wav", delete=False, dir=SOURCE_CACHE) as f:
@@ -698,16 +716,18 @@ def speak_stream(inp: dict):
             setup_kwargs["sampling_timesteps"] = int(inp["sampling_timesteps"])
         if inp.get("emo") is not None:
             setup_kwargs["emo"] = int(inp["emo"])
+        is_video = source_path.endswith(".mp4")
+        start_frame = max(0, int(inp.get("start_frame") or 0))
         if fade_in > 0 or fade_out > 0:
             setup_kwargs["fade_type"] = "s"
-            setup_kwargs["fade_out_keys"] = ("exp", "pitch", "yaw", "roll", "t")
+            setup_kwargs["fade_out_keys"] = ("exp",) if is_video else ("exp", "pitch", "yaw", "roll", "t")
         if silence_ms:
             mux_wav = with_silence(wav_path, silence_ms)
-        yield {"kind": "start", "frames": num_out, "fps": FPS, "width": width, "height": height, "handler": HANDLER_VERSION, "chain": {"in": bool(state_in), "skip": skip, "fade_in": fade_in, "fade_out": fade_out, "silence_ms": silence_ms, "emo": inp.get("emo")}}
+        yield {"kind": "start", "frames": num_out, "fps": FPS, "width": width, "height": height, "handler": HANDLER_VERSION, "start_frame": start_frame, "next_frame": start_frame + num_out, "chain": {"in": bool(state_in), "skip": skip, "fade_in": fade_in, "fade_out": fade_out, "silence_ms": silence_ms, "emo": inp.get("emo"), "video": is_video}}
         with tempfile.TemporaryDirectory(dir=SOURCE_CACHE) as d:
             out_path = os.path.join(d, "clause.mp4")
             with GPU_LOCK:
-                SDK.chain = {"kp_cond": state_in["kp_cond"], "tail": state_in["tail"]} if state_in else {}
+                SDK.chain = {"kp_cond": state_in["kp_cond"] if state_in else None, "tail": state_in["tail"] if state_in else None, "start_frame": start_frame}
                 SDK.chain_out = None
                 motion_done = threading.Event()
                 SDK.chain_event = motion_done
@@ -798,6 +818,8 @@ def speak(inp: dict) -> dict:
         "bytes": len(mp4),
         "registrations": SDK.avatar_registrar.hits,
         "chain": chain,
+        "next_frame": chain["next_frame"],
+        "source_frames": chain["source_frames"],
         "handler": HANDLER_VERSION,
         "ms": ms,
     }
@@ -806,16 +828,27 @@ def speak(inp: dict) -> dict:
     return out
 
 
-def warmup() -> dict:
+def warmup(source_url: str | None = None) -> dict:
     """One short clause on the sample portrait: TensorRT's first run (about 13 s on a fresh worker) happens here,
-    not on a call's first clause."""
+    not on a call's first clause. With a `source_url`, that source (the kit's loop: every frame registered, ~5 s)
+    is registered too, so the call's first clause finds it in the cache."""
     t = time.time()
     sample = os.path.join(DITTO_DIR, "example/image.png")
     buf = io.BytesIO()
     sf.write(buf, np.zeros(SR, dtype=np.int16), SR, subtype="PCM_16", format="WAV")
     out = speak({"source_b64": base64.b64encode(open(sample, "rb").read()).decode(), "audio_b64": base64.b64encode(buf.getvalue()).decode(), "audio_format": "wav"})
-    log(f"warm in {time.time() - t:.1f}s: {out['frames']} frames, ms={json.dumps(out['ms'])}")
-    return {"ok": True, "ms": out["ms"], "handler": HANDLER_VERSION}
+    registered = None
+    if source_url:
+        t2 = time.time()
+        half = io.BytesIO()
+        sf.write(half, np.zeros(SR // 2, dtype=np.int16), SR, subtype="PCM_16", format="WAV")
+        try:
+            speak({"source_url": source_url, "audio_b64": base64.b64encode(half.getvalue()).decode(), "audio_format": "wav"})
+            registered = int((time.time() - t2) * 1000)
+        except Exception as e:  # noqa: BLE001
+            log(f"warm: couldn't register {source_url[:80]}: {e!r}")
+    log(f"warm in {time.time() - t:.1f}s: {out['frames']} frames, ms={json.dumps(out['ms'])}, source registered in {registered} ms")
+    return {"ok": True, "ms": out["ms"], "registered_ms": registered, "handler": HANDLER_VERSION}
 
 
 # ------------------------------------------------------------------ dispatch
@@ -826,7 +859,7 @@ def handler(job: dict):
     op = str(inp.get("op") or "speak")
     try:
         if op == "warm":
-            yield {**(warmup() if not _WARM else {"ok": True, "warm": "already", "handler": HANDLER_VERSION}), "registrations": len(SDK.avatar_registrar.cache)}
+            yield {**(warmup(inp.get("source_url")) if (not _WARM or inp.get("source_url")) else {"ok": True, "warm": "already", "handler": HANDLER_VERSION}), "registrations": len(SDK.avatar_registrar.cache)}
         elif op == "speak" and inp.get("stream"):
             yield from speak_stream(inp)
         elif op == "speak":
