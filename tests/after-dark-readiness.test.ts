@@ -14,8 +14,9 @@ import { setSeasonCastForTests } from "@/lib/season-cast";
 import { BASE_URL, newUserCookie, startTestDb, userIdOf } from "./helpers";
 
 // David, 2026-10-25: "force the user to go to the studio and set up the baseline face and body images, so when we go
-// after dark it is not guessing for new characters … creation → image bases → after dark". Sweet thang (18, anime, no
-// face or body set) is the case: none of her pictures came out.
+// after dark it is not guessing for new characters … creation → image bases → after dark". Sweet thang (18, no face or
+// body set) is the case: none of her pictures came out. (She was drawn in anime then; anime characters have since been
+// kept out of After Dark altogether, tests/after-dark-anime-out.test.ts, so here she's photoreal.)
 let t: Awaited<ReturnType<typeof startTestDb>>;
 beforeAll(async () => {
   t = await startTestDb();
@@ -62,7 +63,7 @@ async function setup() {
   await t.db.query(
     `insert into characters (id, owner_id, is_house, name, age, bio, traits, want, dealbreaker, pronouns, extras)
      values ($1, $2, false, 'Sweet thang', 18, 'One of the hottest women in the world.', '["bold"]'::jsonb, 'x', 'x', 'she/her', $3::jsonb)`,
-    [SWEET, id, JSON.stringify({ looks: { gender: "woman", age: 18, style: "anime", body: "average", hair_color: "brunette" } })],
+    [SWEET, id, JSON.stringify({ looks: { gender: "woman", age: 18, style: "photoreal", body: "average", hair_color: "brunette" } })],
   );
   await t.db.query(`insert into adult_switches (owner_id, character_id) values ($1, $2)`, [id, SWEET]);
   await t.db.query(`insert into adult_images (id, owner_id, character_id, kind, prompt, mime, data) values ('base-rafe', $1, $2, 'baseline', 'p', 'image/png', $3)`, [id, RAFE, Buffer.from(PNG)]);
