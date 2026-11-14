@@ -78,6 +78,11 @@ body:has(.companion-fullscreen) .site-footer {
   position: relative;
   z-index: 1;
 }
+/* The header (and the ⚙️ menu that drops from it over the thread) sits above its later siblings, which would
+   otherwise paint over the menu at the same z-index. */
+.companion-main > .companion-head {
+  z-index: 2;
+}
 .companion-head,
 .companion-composer,
 .companion-out,
