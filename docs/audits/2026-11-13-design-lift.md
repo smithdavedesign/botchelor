@@ -45,6 +45,13 @@ which is stricter than `tsc`: a page file may export only Next's own fields (#15
   your own character: …" on the card, and nothing else changes (the card stays; the characters are untouched). A
   rank-last rule was tried first and dropped: people's characters made from the same sample share words, and hiding or
   reordering them emptied decks.
+- **The prompts' "no example picture anywhere"**: the prompt records carry no pictures and making some would cost
+  money, so the examples come from pictures people already made in the PG Studio and published on the showcase (live,
+  PG, a public character, a creator who isn't hidden). Each picture's own prompt is tagged by the library's word rules;
+  a tag page, or the library filtered by a tag, shows up to four above the prompts, each opening in the showcase
+  (`lib/prompt-examples.ts`, `app/prompts/PromptExamples.tsx`). Nothing is generated; a tag with no such pictures shows
+  no box. Real per-prompt pictures remain a spend decision (about $6–10 for all 2,000 on FLUX schnell, under $1 for one
+  per tag).
 - **The prompts' artist names**: the texts stay as the datasets had them (766 of 2,000 name a real artist, checked
   against the names those datasets repeat: `lib/prompt-artists.ts`). Each such card says "names an artist", and a box
   over the list leaves them out (`?artists=hide`), kept across pages and tags. The choice is the reader's; flipping the

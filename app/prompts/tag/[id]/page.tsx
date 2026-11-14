@@ -5,6 +5,7 @@ import JsonLd from "@/app/JsonLd";
 import { findPrompts, indexablePromptTags, promptTagPath, tagById, visibleTags } from "@/lib/prompts-library";
 import { breadcrumbJsonLd, pageMetadata } from "@/lib/seo";
 import PromptCard from "../../PromptCard";
+import PromptExamples from "../../PromptExamples";
 
 /** How many prompts a tag page shows; the full, paged list is the library filtered by the tag. */
 export const TAG_PAGE_PROMPTS = 60;
@@ -14,6 +15,8 @@ export function generateStaticParams() {
 }
 
 export const dynamicParams = false;
+/** The pages are built ahead; the example pictures (lib/prompt-examples.ts) are read again every hour. */
+export const revalidate = 3600;
 
 const pageTag = (id: string) => indexablePromptTags().find((t) => t.id === decodeURIComponent(id)) ?? null;
 
@@ -59,6 +62,7 @@ export default async function PromptTagPage({ params }: { params: Promise<{ id: 
       <p className="lede">
         {prompts.length.toLocaleString("en-US")} prompts from openly licensed datasets, each keeping its licence. Copy one into the Studio, or start a character from the look.
       </p>
+      <PromptExamples tag={tag} />
       <ul className="prompts-grid">
         {shown.map((p) => (
           <PromptCard key={p.prompt} prompt={p} tags={visibleTags(p, false)} tagHref={tagHref} currentTag={tag.id} />
