@@ -4,6 +4,7 @@
  * can run the same line through all of them side by side, and a call can pick one:
  *
  *  - `musetalk` (ours, Runpod; lib/live-face/musetalk.ts): live, about half the clause's length to render.
+ *  - `ditto` (ours, Runpod; lib/live-face/ditto.ts): live, the same speed, the whole head from the kit's portrait.
  *  - fal.ai hosted models and Replicate's Wan 2.2 S2V: batch, 20 s to a few minutes a clause, the ceiling of what the
  *    mouth can look like today (OmniHuman, InfiniTalk, Sync lipsync-2, LatentSync, Kling lipsync). A still (the kit's
  *    portrait) or the kit's loop plus the audio in, a video out.
@@ -15,6 +16,7 @@
  * as such; the person's own bill is the truth.
  */
 import { runModel } from "../adult/replicate";
+import { dittoConfig, speakDitto } from "./ditto";
 import { MUSETALK_STREAM_PX, runpodConfig, speakClip } from "./musetalk";
 
 type Env = Record<string, string | undefined>;
@@ -55,6 +57,8 @@ export type ClipRenderer = {
   costHint: string | null;
   /** Whether the compare can run it to an MP4 (a stream can't). */
   runs: boolean;
+  /** Whether it's set up on this server (ours: the endpoint and the key). A hosted renderer is ready when there is a key. */
+  ready?: (env: Env) => boolean;
   speak: (input: RenderInput, ctx: RenderContext) => Promise<RenderResult>;
 };
 
@@ -76,6 +80,7 @@ const musetalk: ClipRenderer = {
   about: "The show's own renderer: the kit's idle loop with the mouth painted per frame, on a GPU rented by the second. What calls use today.",
   costHint: "about 1.3–2.2¢ a call minute while it renders",
   runs: true,
+  ready: (env) => Boolean(runpodConfig(env)),
   async speak(input, ctx) {
     const cfg = runpodConfig(ctx.env);
     if (!cfg) throw new RendererError("RUNPOD_API_KEY and LIVE_FACE_ENDPOINT aren't set");
@@ -84,6 +89,27 @@ const musetalk: ClipRenderer = {
     const out = await speakClip(cfg, { bundle_key: input.bundleKey, pcm: input.audio.pcm, rate: input.audio.rate, start_frame: 0 }, { signal: ctx.signal, timeoutMs: 120_000 });
     const ms = Date.now() - t0;
     return { mp4: Buffer.from(out.video_b64, "base64"), ms, cost_usd: round((out.ms?.total ?? ms) / 1000 * RUNPOD_USD_PER_SECOND), frames: out.frames, note: `${MUSETALK_STREAM_PX}px, ${out.frames} frames` };
+  },
+};
+
+const ditto: ClipRenderer = {
+  id: "ditto",
+  label: "Ditto (ours, Runpod)",
+  kind: "live",
+  provider: "house",
+  model: "antgroup/ditto-talkinghead (TensorRT)",
+  about: "Our second renderer: the whole head animated from the kit's portrait (turns, brows, blinks, a mouth with teeth) on the same rented GPU, real time on TensorRT. The candidate to take over calls.",
+  costHint: "about 1.3–2.2¢ a call minute while it renders",
+  runs: true,
+  ready: (env) => Boolean(dittoConfig(env)),
+  async speak(input, ctx) {
+    const cfg = dittoConfig(ctx.env);
+    if (!cfg) throw new RendererError("RUNPOD_API_KEY and LIVE_FACE_DITTO_ENDPOINT aren't set");
+    if (!input.portraitUrl) throw new RendererError("no portrait: draw the character's face kit first");
+    const t0 = Date.now();
+    const out = await speakDitto(cfg, { source_url: input.portraitUrl, pcm: input.audio.pcm, rate: input.audio.rate }, { signal: ctx.signal, timeoutMs: 120_000 });
+    const ms = Date.now() - t0;
+    return { mp4: Buffer.from(out.video_b64, "base64"), ms, cost_usd: round((out.ms?.total ?? ms) / 1000 * RUNPOD_USD_PER_SECOND), frames: out.frames, note: `${out.width}px, ${out.frames} frames, from the portrait` };
   },
 };
 
@@ -298,7 +324,7 @@ const simli: ClipRenderer = {
 
 /* ----------------------------------------------------------- the registry ----------------------------------------------------------- */
 
-export const RENDERERS: readonly ClipRenderer[] = [musetalk, falSync, falLatentsync, falKling, falInfinitalk, falOmnihuman, replicateWanS2v, didTalks, simli];
+export const RENDERERS: readonly ClipRenderer[] = [musetalk, ditto, falSync, falLatentsync, falKling, falInfinitalk, falOmnihuman, replicateWanS2v, didTalks, simli];
 
 export const rendererById = (id: string): ClipRenderer | null => RENDERERS.find((r) => r.id === id) ?? null;
 

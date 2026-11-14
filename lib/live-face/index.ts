@@ -10,6 +10,8 @@
  *    `LIVE_FACE_ENDPOINT`. A face is a bundle built from the kit's idle loop (a minute or two, pay-per-second: still an
  *    admin's call for now); on a call the server turns each clause of the voice into a clip (liveFaceClips) and streams
  *    it to the browser, which needs no token.
+ *  - **Ditto** (./ditto.ts, our second worker on Runpod, `LIVE_FACE_DITTO_ENDPOINT`): the whole head from the kit's
+ *    portrait, on the compare page today; not a call renderer until its clause-to-clause continuity is built.
  *  - Unset, nothing here does anything and a call is exactly Tier 0 (lib/face-kit.ts).
  *  - **A face** lives in live_faces: one per character per kit source (`source_id`) per provider. A new kit means a
  *    new face; the old plays until then. The kit route's poll collects faces being built (collectLiveFaces).
