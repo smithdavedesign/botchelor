@@ -15,12 +15,13 @@ function markOf(provider: string | null): string {
  * A provider's tile: its letters on its colour (app/ux/agents-footer.css sets each provider's --mark), drawn inline, so
  * there's no logo file to host or license. Decorative: the provider's name is always written beside it.
  */
-export default function ProviderMark({ provider, size = 36 }: { provider: string | null; size?: number }) {
-  const mark = markOf(provider);
+export default function ProviderMark({ provider, size = 36, glyph = null }: { provider: string | null; size?: number; glyph?: string | null }) {
+  const mark = markOf(provider) || glyph || "";
+  const plain = !provider && Boolean(glyph);
   return (
-    <svg className="provider-mark" data-provider={provider ?? "none"} width={size} height={size} viewBox="0 0 36 36" aria-hidden="true" focusable="false">
-      <rect className="provider-mark-tile" x="0.75" y="0.75" width="34.5" height="34.5" rx="9" strokeDasharray={provider ? undefined : "4 3"} />
-      <text className="provider-mark-text" x="18" y="18" dy="0.36em" textAnchor="middle" fontSize={mark.length > 2 ? 11 : mark.length === 2 ? 13 : 17}>
+    <svg className={`provider-mark${plain ? " is-glyph" : ""}`} data-provider={provider ?? "none"} width={size} height={size} viewBox="0 0 36 36" aria-hidden="true" focusable="false">
+      <rect className="provider-mark-tile" x="0.75" y="0.75" width="34.5" height="34.5" rx="9" strokeDasharray={provider || plain ? undefined : "4 3"} />
+      <text className="provider-mark-text" x="18" y="18" dy="0.36em" textAnchor="middle" fontSize={plain ? 17 : mark.length > 2 ? 11 : mark.length === 2 ? 13 : 17}>
         {mark}
       </text>
     </svg>

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { requestJson } from "@/app/request";
-import { JOB_INFO, type JobCard as JobCardView, type PlainError } from "@/lib/connections-shared";
+import { JOB_GLYPH, JOB_INFO, type JobCard as JobCardView, type PlainError } from "@/lib/connections-shared";
 import ConnectionCard, { type CardTone } from "./ConnectionCard";
 import KeyForm, { type AlsoJob, type FlowProvider } from "./KeyForm";
 
@@ -72,6 +72,8 @@ export default function JobCard({ card, providers, also }: { card: JobCardView; 
       title={card.title}
       subtitle={card.what}
       provider={card.provider}
+      glyph={JOB_GLYPH[card.job]}
+      level={3}
       tone={checking ? "checking" : localOnly ? "error" : card.state === "connected" && card.usage?.level === "warn" ? "warn" : TONE[card.state]}
       pill={checking ? "Checking…" : localOnly ? "Needs attention" : card.pill}
       status={statusUnderPill(card)}

@@ -31,6 +31,13 @@ import YourKeys from "./YourKeys";
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Connections · Botchelor", robots: { index: false, follow: false } };
 
+/** The page's three surfaces, each its own group of jobs (2026-11-14: one key can serve several; the groups say where it goes). */
+const GROUPS: { id: string; title: string; intro: string; jobs: Job[] }[] = [
+  { id: "show", title: "The show", intro: "Your own characters' dates, texts, portraits and intro clips.", jobs: ["text", "image", "video"] },
+  { id: "calls", title: "Companion calls", intro: "The face that talks on your live calls. The show's own renderer is free; a hosted model runs on your key.", jobs: ["live_face"] },
+  { id: "after-dark", title: "After Dark", intro: "Studio pictures and videos of your own characters, free of tokens on your key. Everything is still checked before it's kept.", jobs: ["after_dark", "after_dark_video"] },
+];
+
 /** Why you'd tick "Also use this key for …" on a job that has no key yet. */
 const ALSO_NOTE: Record<Job, string> = {
   text: "your characters' lines on dates and texts",
@@ -138,43 +145,55 @@ export default async function KeysPage() {
       </p>
       <h1>Connections</h1>
       <p className="muted">
-        Bring your own model key for any of the jobs below. Your key runs only your own characters&apos; lines (and a house partner&apos;s), never
-        another player&apos;s private character, and the show still decides every ending: a stronger model changes the words, not the result.
+        Bring your own model key for any of the jobs below: the show, your companion calls, and After Dark where it&apos;s open to you. One key can
+        serve several jobs. Your key runs only your own characters&apos; lines (and a house partner&apos;s), never another player&apos;s private
+        character, and the show still decides every ending: a stronger model changes the words, not the result.
       </p>
-
-      <div className="connection-grid">
-        {cards
-          .filter((card) => shown(card.job))
-          .map((card) => (
-            <JobCard key={card.job} card={card} providers={flowProviders(card.job)} also={alsoFor(card.job)} />
-          ))}
-        {house && (
-          <ConnectionCard
-            id="after-dark"
-            title={
-              <>
-                <Icon name="moon" /> After Dark
-              </>
-            }
-            subtitle="Text, pictures, video and voice on the house's providers. Studio pictures can also run on your own key (After Dark pictures)."
-            provider="after-dark"
-            tone={housePaused ? "paused" : "ok"}
-            pill={housePaused ? "Something's paused" : "House keys"}
-            status={houseLine(house)}
-          >
-            <div className="connection-actions">
-              <Link className="button-ghost" href={afterDarkHref("/admin/after-dark/providers")}>
-                Provider status
-              </Link>
-            </div>
-          </ConnectionCard>
-        )}
-      </div>
 
       {connections.length > 0 && <YourKeys connections={connections} />}
 
-      <section className="card">
-        <h2>How it works</h2>
+      {GROUPS.filter((g) => g.jobs.some(shown)).map((g) => (
+        <section key={g.id} className="connection-group" id={`group-${g.id}`} aria-labelledby={`group-${g.id}-title`}>
+          <h2 id={`group-${g.id}-title`} className="connection-group-title">
+            {g.title}
+          </h2>
+          <p className="muted small connection-group-intro">{g.intro}</p>
+          <div className="connection-grid">
+            {cards
+              .filter((card) => g.jobs.includes(card.job) && shown(card.job))
+              .map((card) => (
+                <JobCard key={card.job} card={card} providers={flowProviders(card.job)} also={alsoFor(card.job)} />
+              ))}
+            {g.id === "after-dark" && house && (
+              <ConnectionCard
+                id="after-dark"
+                level={3}
+                title={
+                  <>
+                    <Icon name="moon" /> After Dark&apos;s own
+                  </>
+                }
+                subtitle="Text, pictures, video and voice run on the house's providers; your own key takes over only the two jobs above."
+                provider="after-dark"
+                tone={housePaused ? "paused" : "ok"}
+                pill={housePaused ? "Something's paused" : "House keys"}
+                status={houseLine(house)}
+              >
+                <div className="connection-actions">
+                  <Link className="button-ghost" href={afterDarkHref("/admin/after-dark/providers")}>
+                    Provider status
+                  </Link>
+                </div>
+              </ConnectionCard>
+            )}
+          </div>
+        </section>
+      ))}
+
+      <details className="card connection-how">
+        <summary>
+          <h2>How it works</h2>
+        </summary>
         <ul>
           <li>
             <strong>Checked live, for free.</strong> Test asks the provider whether it takes the key (its key or model list, not a model call), so
@@ -202,7 +221,7 @@ export default async function KeysPage() {
             <code>clear_model</code> (<Link href="/agents">/agents</Link>).
           </li>
         </ul>
-      </section>
+      </details>
     </article>
   );
 }

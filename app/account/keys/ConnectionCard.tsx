@@ -25,9 +25,15 @@ export default function ConnectionCard({
   meta = [],
   error = null,
   meter = null,
+  glyph = null,
+  level = 2,
   children,
 }: {
   id: string;
+  /** What the tile shows while there's no provider: the job's glyph (lib/connections-shared JOB_GLYPH). */
+  glyph?: string | null;
+  /** The card title's heading level: 3 under the Connections page's group headings, 2 on its own. */
+  level?: 2 | 3;
   /** The card's heading; a node so the house's After Dark card can wear the moon icon. */
   title: ReactNode;
   subtitle?: ReactNode;
@@ -44,9 +50,9 @@ export default function ConnectionCard({
   return (
     <section className={`card connection-card tone-${tone}`} id={id} aria-labelledby={`${id}-title`}>
       <header className="connection-head">
-        <ProviderMark provider={provider} />
+        <ProviderMark provider={provider} glyph={glyph} />
         <div className="connection-titles">
-          <h2 id={`${id}-title`}>{title}</h2>
+          {level === 3 ? <h3 id={`${id}-title`}>{title}</h3> : <h2 id={`${id}-title`}>{title}</h2>}
           {subtitle ? <p className="muted small">{subtitle}</p> : null}
         </div>
         <span className={`connection-pill tone-${tone}`}>{pill}</span>
