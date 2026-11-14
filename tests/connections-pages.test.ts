@@ -85,9 +85,12 @@ describe("/account/keys: Connections", () => {
     expect(html).toContain("Portraits need your own OpenAI key.");
     expect(html).toContain("Clips need your own Google key, with billing on.");
     expect(html).not.toContain("Not set up: portraits");
-    expect(html.match(/>Connect</g)).toHaveLength(3);
+    // Four cards: dates & texts, portraits, clips, and the live-face card under Companion calls (2026-11-14).
+    expect(html.match(/>Connect</g)).toHaveLength(4);
     expect(html).not.toContain('id="your-keys"');
-    expect(html).not.toMatch(/after dark/i);
+    // The intro names After Dark as a surface since 2026-11-14; no After Dark group or card shows to a person it isn't open to.
+    expect(html).not.toContain('id="group-after-dark"');
+    expect(html).not.toContain("After Dark pictures");
   });
 
   it("a working key: its card says so with the model, its last four and when it was checked; the key itself never appears", async () => {
@@ -127,8 +130,10 @@ describe("/account/keys: Connections", () => {
     await t.db.query(`insert into adult_media_cooldowns (provider, until, status) values ('hive', now() + interval '2 hours', 429)`);
     const html = await page();
     // The card's heading wears the moon icon, not the emoji (the design system, 2026-11-11: chrome uses drawn icons).
-    expect(html).toMatch(/<h2 id="after-dark-title"><svg class="icon"[^>]*>[\s\S]*?<\/svg> After Dark<\/h2>/);
-    expect(html).toContain("Studio pictures can also run on your own key");
+    // Grouped by surface since 2026-11-14: the After Dark group's h2, and the house's own card as an h3 under it.
+    expect(html).toMatch(/<h2 id="group-after-dark-title"[^>]*>\s*After Dark\s*<\/h2>/);
+    expect(html).toMatch(/<h3 id="after-dark-title"><svg class="icon"[^>]*>[\s\S]*?<\/svg> After Dark(&#x27;|')s own<\/h3>/);
+    expect(html).toContain("Studio pictures and videos of your own characters, free of tokens on your key");
     // After Dark is open to an admin: its own job's card too.
     expect(html).toContain("After Dark pictures");
     expect(html).toContain("Something&#x27;s paused");
@@ -137,7 +142,11 @@ describe("/account/keys: Connections", () => {
     expect(html).not.toContain(fakeKey("house"));
     // Not on a device that hasn't entered the After Dark PIN.
     await t.db.query(`insert into adult_privacy (user_id, pin_hash, pin_version) values ($1, 'a-pin-hash', 1)`, [U]);
-    expect(await page()).not.toMatch(/after dark/i);
+    // The intro still names the surface; the group, the house card and its job card are gone.
+    const locked = await page();
+    expect(locked).not.toContain('id="group-after-dark"');
+    expect(locked).not.toContain("After Dark pictures");
+    expect(locked).not.toContain('href="/admin/after-dark/providers"');
   });
 });
 

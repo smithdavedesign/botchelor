@@ -357,12 +357,11 @@ describe("5. a shared link's visit is counted as ref=share, and invites the visi
     ]);
   });
 
-  it("a logged-out visitor meets the 18+ gate first: the gate keeps ?ref=share, and the gate's visit counts it", () => {
+  it("a logged-out visitor opens the shared episode straight away (the PG show is open since 2026-11-14), and the visit counts ref=share", () => {
     const fresh = middleware(new NextRequest(`${BASE_URL}/episodes/ep-123?ref=share`, { headers: { "user-agent": CHROME } }));
-    const from = new URL(fresh.headers.get("location")!).searchParams.get("from");
-    expect(from).toBe("/episodes/ep-123?ref=share");
+    expect(fresh.headers.get("location")).toBeNull();
 
-    const { sent } = browserAt(`${SITE}/gate?from=${encodeURIComponent(from!)}`, "https://discord.com/");
+    const { sent } = browserAt(`${SITE}/episodes/ep-123?ref=share`, "https://discord.com/");
     sendFunnel("visit");
     expect(sent()[0].body).toMatchObject({ kind: "visit", path: "/episodes/ep-123", ref: "share" });
   });
