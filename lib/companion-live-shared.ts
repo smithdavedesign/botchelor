@@ -207,6 +207,11 @@ export type LiveEvent =
   | { type: "video"; i: number; mp4: string; frames: number; end_frame?: number; cycle?: number }
   // Piece i has no clip (the renderer failed or was slow): play the held voice the plain way.
   | { type: "video_fail"; i: number }
+  // Piece i streamed (Ditto, when the browser asked for fragments): its shape, then pieces of a fragmented MP4 with the
+  // voice in it as they render (base64, appended in order to a MediaSource), then its end.
+  | { type: "video_start"; i: number; frames: number; width: number; height: number }
+  | { type: "video_frag"; i: number; seq: number; b64: string }
+  | { type: "video_end"; i: number; frames: number }
   | { type: "voice_off"; message: string }
   | { type: "done"; id: string | null; text: string; left: number | null }
   | { type: "fail"; status: number; error: string; message: string };

@@ -15,9 +15,17 @@ Runpod's terms exclude adult content, so this serves PG calls only.
 | op | input | output |
 |---|---|---|
 | `speak` | `source_url` or `source_b64` (a still: the kit's portrait or a frame of its loop; a video works but restarts at its first frame each clause), `audio_b64` (`audio_format` `pcm16` at `rate`, or `wav`); the chain's `state_b64` (from the clause before), `want_state`, `fade_in`/`fade_out` (frames), `tail_silence_ms`; `emo` (Ditto's expression bank: 0 angry, 1 disgust, 2 fear, 3 happy, 4 neutral, 5 sad, 6 surprise, 7 contempt), `motion` (`{"kind": "sway"|"nod"|"tilt", "amount", "period_s", "at_s"}`: a pose on top of the audio, through Ditto's per-frame pose controls), `sampling_timesteps` (Ditto's default 50) | `video_b64` (MP4, H.264 + AAC, the still's own size), `frames`, `fps` 25, `width`, `height`, `bytes`, `state_b64` (when asked), `chain` (what the chain did), `handler` (the handler's version), `registrations` (cache hits), `ms` (`source`, `setup`, `audio`, `render`, `encode`, `total`) |
+| `speak` with `stream: true` | the same inputs | a stream (`/run` + `/stream/<id>`): `{kind: "start", frames, width, height}`, `{kind: "state", state_b64}` the moment the motion step is done, `{kind: "frag", i, b64}` pieces of a fragmented MP4 (H.264 Main 3.1 + AAC, the voice muxed in, a piece every 200 ms or keyframe) as the frames render, `{kind: "end", frames, pieces, bytes, first_piece_ms, ms}` |
+| `stream_probe` | a clause + `overlap_v2`, `sampling_timesteps`, `paced` | Ditto's ONLINE loop fed at a call's pace, per-frame lag (the experiment that showed continuous mode doesn't keep up on a 4090: 1.3–2.1× real time) |
 | `warm` | | `ok`, `ms` of the warm-up clause |
 
-`speak` is `/runsync`. There is no `prepare`: Ditto registers a still in a fraction of a second (face detection,
+The handler is a generator (Runpod streams every job) started with `return_aggregate_stream`, so `/runsync` and
+`/status` answer the plain ops' one result as a one-item list; `lib/live-face/ditto.ts` reads either shape. `speak` is
+`/runsync`; streamed `speak` is `/run` then `/stream/<id>` polled every 150 ms (`runStream` in lib/live-face/musetalk.ts).
+The streamed form is what calls use when the browser can play fragments (it says so with `frags: true` on the turn;
+`LIVE_FACE_FRAGS=0` on the show app turns it off): the chain's next clause is queued the moment this one's state is
+out, so the clause-to-clause gap goes, and a clause's first frames leave the worker ~0.4 s after its voice is in
+instead of after the whole clip. There is no `prepare`: Ditto registers a still in a fraction of a second (face detection,
 landmarks, appearance and motion features), and the worker keeps the last `REGISTRATIONS` (16) registrations in
 memory and a still fetched by URL for `URL_CACHE_S` (15 min), so a call's clauses after the first skip both. The
 first clause on a fresh worker pays TensorRT's first run (about 13 s); the worker does that itself at start, in

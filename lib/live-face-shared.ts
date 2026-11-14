@@ -13,6 +13,14 @@ import { pcmSamples, toPcm16 } from "./companion-live-shared";
 export type LiveFaceProvider = "simli" | "musetalk" | "ditto";
 export const LIVE_FACE_PROVIDERS: readonly LiveFaceProvider[] = ["simli", "musetalk", "ditto"];
 
+/**
+ * Streamed clauses (Ditto): the worker's fragmented MP4 is H.264 Main 3.1 with AAC-LC, so this is the MediaSource type
+ * the browser checks and opens; a browser without it (or without MediaSource) gets whole clips instead.
+ */
+export const FRAG_CODECS = 'video/mp4; codecs="avc1.4d401f, mp4a.40.2"';
+/** A streamed reply with no new piece for this long ends where it is (the loop takes over). */
+export const FRAG_STALL_MS = 4_000;
+
 /** The reactions a Ditto face can show between replies (lib/live-face/ditto-clips.ts renders them once per character). */
 export type ReactionKind = "nod" | "tilt";
 export const REACTION_KINDS: readonly ReactionKind[] = ["nod", "tilt"];

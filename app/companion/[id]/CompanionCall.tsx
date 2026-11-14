@@ -744,7 +744,8 @@ export default function CompanionCall({
     const current = () => mine === turnSeq.current && !ended.current;
     let res: Response;
     try {
-      res = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "turn", call_id: id, text }), signal: abort.signal });
+      // `frags`: this browser can play streamed clauses (LiveFace.frags), so Ditto's clips may come as fragments while they render.
+      res = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "turn", call_id: id, text, frags: face.current?.frags() === true }), signal: abort.signal });
     } catch {
       if (current()) pause("The connection dropped. Tap to talk to try again.");
       return;
@@ -828,6 +829,23 @@ export default function CompanionCall({
       begin();
       face.current?.clip(i, Uint8Array.from(atob(mp4), (c) => c.charCodeAt(0)), end);
     };
+    // Streamed pieces (video_start / video_frag / video_end): a piece's start counts as its clip arriving; what came
+    // for later pieces before the first piece's start waits and replays once the reply is a clip reply.
+    const earlyFrags: LiveEvent[] = [];
+    const takeFrag = (ev: LiveEvent) => {
+      if (ev.type === "video_start") {
+        clipped.add(ev.i);
+        window.clearTimeout(holds.get(ev.i));
+        holds.delete(ev.i);
+        held.delete(ev.i);
+        begin();
+        face.current?.fragStart(ev.i);
+      } else if (ev.type === "video_frag") {
+        face.current?.frag(ev.i, ev.seq, Uint8Array.from(atob(ev.b64), (c) => c.charCodeAt(0)));
+      } else if (ev.type === "video_end") {
+        face.current?.fragEnd(ev.i);
+      }
+    };
     try {
       for await (const raw of sseData(res.body)) {
         if (!current()) break;
@@ -883,6 +901,20 @@ export default function CompanionCall({
           } else {
             early.set(ev.i, { mp4: ev.mp4, end });
           }
+        } else if (ev.type === "video_start" || ev.type === "video_frag" || ev.type === "video_end") {
+          if (mode === "plain" || fallen.has(ev.i) || voiceOff.current || !face.current?.clips()) {
+            // Dropped: this reply plays plain (or this piece already did).
+          } else if (mode === "clips") {
+            takeFrag(ev);
+          } else if (ev.type === "video_start" && ev.i === 0) {
+            mode = "clips";
+            takeFrag(ev);
+            for (const e of earlyFrags) takeFrag(e);
+            earlyFrags.length = 0;
+            for (const i of Array.from(holds.keys())) arm(i, true);
+          } else {
+            earlyFrags.push(ev);
+          }
         } else if (ev.type === "video_fail") {
           if (mode === "undecided" && ev.i === 0) goPlain();
           else if (mode === "clips") playPlain(ev.i);
@@ -893,6 +925,7 @@ export default function CompanionCall({
             if (t && !voiced.has(i)) sayOnDevice(t);
           });
         } else if (ev.type === "done") {
+          face.current?.fragDone();
           props.current.onKept?.();
         } else if (ev.type === "fail") {
           failed = { status: ev.status, data: { error: ev.error, message: ev.message } };
