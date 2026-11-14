@@ -19,7 +19,9 @@ describe("watched it end, for readers too", () => {
     expect(seen).toContain("IntersectionObserver");
     expect(seen).toContain('queueEvent("date_watched", { via: "page" })');
     expect(seen).toContain("threshold: 0.5");
-    expect(src("app/episodes/[id]/EpisodeTheater.tsx")).toContain('queueEvent("date_watched", { via: "theater"');
+    const theater = src("app/episodes/[id]/EpisodeTheater.tsx");
+    expect(theater).toContain('queueEvent("date_watched", {');
+    expect(theater).toContain('via: "theater"');
   });
 });
 

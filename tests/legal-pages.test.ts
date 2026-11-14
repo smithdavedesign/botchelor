@@ -213,7 +213,8 @@ describe("the new policy pages", () => {
   it("the 18+ gate lets a person through to the policy pages, and still stops them elsewhere", () => {
     const visit = (path: string) => middleware(new NextRequest(`${BASE_URL}${path}`, { headers: { "user-agent": BROWSER } }));
     for (const path of ["/terms", "/privacy", "/content-policy", "/2257", "/report", "/cancel"]) expect(visit(path).headers.get("location")).toBeNull();
-    expect(visit("/watch").headers.get("location")).toMatch(/\/gate/);
+    // /watch is open since 2026-11-14 (the PG show pages); a dating surface still meets the gate.
+    expect(visit("/swipe").headers.get("location")).toMatch(/\/gate/);
   });
 });
 

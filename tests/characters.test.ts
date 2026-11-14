@@ -158,9 +158,13 @@ describe("POST /api/characters: input handling", () => {
     expect(body).not.toHaveProperty("user_id");
   });
 
-  it("keeps the existing session cookie instead of issuing a new one", async () => {
+  it("keeps the existing session cookie instead of issuing a new one (only the 18+ attestation cookie may be set)", async () => {
     const res = await api.createCharacter(validCharacter(), newUserCookie());
-    expect(res.headers.get("set-cookie")).toBeNull();
+    // Since 2026-11-14 the wizard's attest box is the 18+ attestation: a save from a browser with no bz_adult cookie sets
+    // that one (lib/age.ts adultCookie); it never issues a second session cookie.
+    const setCookie = res.headers.get("set-cookie") ?? "";
+    expect(setCookie).not.toContain(`${USER_COOKIE}=`);
+    expect(setCookie).toMatch(/^bz_adult=1;/);
   });
 });
 
