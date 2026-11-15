@@ -319,7 +319,11 @@ prune reads an index on its time column (`lib/db.ts`).
 `character_lessons` (their characters' lessons: the lines, the dates behind them, when), `episode_variations`
 (the runs on dates they booked or their characters were on, without `alt_trace`, whose numbers average both characters),
 and `plus_interest` (their taps on the Plus tile: place, whether an email was left, when). `matches` carries the answer
-sources.
+sources. Since 2026-11-15 it also has `companion_conversations` (each thread with a companion: the character, every
+message with who said it, when and whether it was said on a call, the facts and running notes the companion keeps, and
+the blank markers of deleted texts) and `companion_calls` (a live call's times, minutes and turns; there are no words
+or sound to export): the fields are listed in [companions.md](companions.md), "Deleting one message, and the export".
+Companion conversations stay out of every dataset; After Dark stays out of the export.
 
 **When a character is forgotten** (deleting it once it has dates, or deleting the account; `forgetEverything`):
 
