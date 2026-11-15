@@ -61,6 +61,7 @@ describe("#1541: replies past a batch's end lead the reply; every turn says line
     expect(Object.keys(r)[0]).toBe("warning");
     expect(r.warning).toMatch(/^outputs items 5 to 6 weren't used: the date's lines ran out first \(4 of 6 went in\)\. The see_again on item 6 was dropped with its line/);
     expect(r.unused_outputs).toEqual([{ item: 5, see_again: false }, { item: 6, see_again: true }]);
-    expect(MCP_SERVER_INFO.version).toBe("2.29.0");
+    // 2.29.0 or later (the registry entry is held to the live version by tests/mcp-registry-version.test.ts).
+    expect(MCP_SERVER_INFO.version.localeCompare("2.29.0", undefined, { numeric: true })).toBeGreaterThanOrEqual(0);
   });
 });
