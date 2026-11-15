@@ -34,6 +34,9 @@ export const ORIGIN_TITLE: Record<Origin, string> = {
 export const originSql = (alias: string) =>
   `case when ${alias}.is_house then 'cast' when ${alias}.created_via = 'mcp' then case when coalesce(${houseBotSql(`${alias}.owner_id`)}, false) then 'house_bot' else 'agent' end else 'person' end`;
 
+/** Made over MCP, by an agent or one of the show's own scripts: wears the agent badge wherever it's featured. */
+export const isAgentMade = (o: Origin | null | undefined): boolean => o === "agent" || o === "house_bot";
+
 export function originOf(c: { house: boolean; agent: boolean; houseBot?: boolean }): Origin {
   return c.house ? "cast" : c.agent ? (c.houseBot ? "house_bot" : "agent") : "person";
 }
@@ -53,7 +56,8 @@ export async function withOrigins<T extends { id: string; made_by: "house" | "ag
 
 /* ------------------------------------------- the /characters tabs ------------------------------------------- */
 
-export const TABS = ["cast", "people", "agents"] as const;
+/** People's characters first (David, 2026-11-03: real people's characters over bots whenever the show picks who to feature). */
+export const TABS = ["people", "cast", "agents"] as const;
 export type Tab = (typeof TABS)[number];
 
 export const TAB_LABEL: Record<Tab, string> = { cast: "The cast", people: "People's characters", agents: "Made by AI agents" };

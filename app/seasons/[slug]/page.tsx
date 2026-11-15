@@ -3,7 +3,9 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import Avatar from "@/app/Avatar";
 import CharacterName from "@/app/CharacterName";
+import { AgentMark } from "@/app/ReunionPanel";
 import VenuePhoto from "@/app/VenuePhoto";
+import { isInsider } from "@/lib/crowd-threshold";
 import { getDb } from "@/lib/db";
 import { privateAmong } from "@/lib/directory";
 import { ENDING_LABELS } from "@/lib/rules";
@@ -264,7 +266,9 @@ export default async function SeasonPage({ params }: Props) {
                     ))}
                   </div>
                   <div>
-                    <p className="award-name">{award.name}</p>
+                    <p className="award-name">
+                      {award.name} <AgentMark chars={award.chars} />
+                    </p>
                     <p className="muted">{award.detail}</p>
                   </div>
                 </div>
@@ -310,7 +314,7 @@ export default async function SeasonPage({ params }: Props) {
             One score for the whole season: every right call and drama pick, dealbreaker guess, arc, dare, and the cast member each player
             backed. Revealed when the season closed.
           </p>
-          <PoolBoardList board={pool} link={false} />
+          <PoolBoardList board={pool} link={false} insider={await isInsider(db, viewerId)} />
         </section>
       )}
 
