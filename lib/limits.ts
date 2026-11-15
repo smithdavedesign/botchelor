@@ -34,15 +34,16 @@ export const EXPRESS_DRAFT_LIMITS = { perHour: 5, perDay: 10 };
 export const EXPRESS_DRAFT_IP_LIMITS = { perHour: 10, perDay: 30 };
 export const EXPRESS_DRAFT_ALL_LIMITS = { perHour: 60, perDay: 300 };
 /**
- * "Bring their history" (POST /api/characters/import/history, lib/import-history.ts): one call on the show's free model
- * each, up to about 5,000 tokens in and 700 out, so $0 on the free tier and about a third of a cent at
- * gemini-3.5-flash-lite's list price. Capped the three ways one-sentence create is: per visitor, per address and across
- * everyone (a flood still stops near 40 cents a day, and the live show keeps its quota). Past any of them the character
- * comes in without its history, as before.
+ * "Bring their history" (POST /api/characters/import/history, lib/import-history.ts): one call each on the show's PAID
+ * model (a private chat log never goes to a free tier; the route's historyReader), up to about 5,000 tokens in and 700
+ * out: somewhere under a cent a reading. Capped the three ways one-sentence create is: per visitor, per address and
+ * across everyone, and the across-everyone cap is what bounds the spend: 60 a day keeps a flood to roughly the 40 cents
+ * a day the owner agreed to (2026-11-15); the key's own monthly cap at the provider is the hard limit. Past any of them
+ * the character comes in without its history, as before.
  */
 export const IMPORT_HISTORY_LIMITS = { perHour: 4, perDay: 10 };
 export const IMPORT_HISTORY_IP_LIMITS = { perHour: 8, perDay: 24 };
-export const IMPORT_HISTORY_ALL_LIMITS = { perHour: 30, perDay: 120 };
+export const IMPORT_HISTORY_ALL_LIMITS = { perHour: 15, perDay: 60 };
 /** Paid-model dates a day unless FRONTIER_DAILY_DATE_CAP says otherwise: about $4–11 at Haiku's 4–11¢ a date. */
 export const DEFAULT_PAID_DATES_PER_DAY = 100;
 /** How long a rate-limit row is kept (the longest window plus a margin). */

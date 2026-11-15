@@ -254,6 +254,8 @@ export function appEnv(showrunnerPort, dataDir) {
     NODE_ENV: "production",
     PGLITE_DIR: dataDir,
     LLM_BASE_URL: `http://127.0.0.1:${showrunnerPort}/v1`,
+    // A pasted history is read by the paid model in production (app/api/characters/import/history); the harness has none.
+    IMPORT_HISTORY_MODEL: "free",
     LLM_API_KEY: "local-stub-showrunner",
     LLM_MODEL: "stub-showrunner",
     STRIPE_PAYMENT_LINK: SAMPLE_PAYMENT_LINK,

@@ -14,7 +14,7 @@ import {
   type HistoryFailure,
 } from "@/lib/import-history";
 import { IMPORT_HISTORY_ALL_LIMITS, IMPORT_HISTORY_IP_LIMITS, IMPORT_HISTORY_LIMITS, overLimit, visitorKey } from "@/lib/limits";
-import { getModel } from "@/lib/model";
+import { getFrontierModel, getModel, type Model } from "@/lib/model";
 
 const Body = z.object({
   text: z.string().trim().min(HISTORY_MIN, "Paste a little more of their history first.").max(HISTORY_READ_MAX),
@@ -40,6 +40,18 @@ async function readHistoryBody(req: Request): Promise<unknown> {
   }
 }
 
+/**
+ * Who reads a history (the owner's call, 2026-11-15): the show's PAID model, and nothing when there is none. A history
+ * is someone's private chat log, and a free tier's terms may let its provider use what it is sent; the paid model's do
+ * not. So there is no quiet fall back to the free model: without a paid model the reading fails the way an outage
+ * does, and the character comes in without its history. IMPORT_HISTORY_MODEL=free puts it back on the free model
+ * (a local setup with no paid key, the visual harness).
+ */
+export function historyReader(env: Record<string, string | undefined> = process.env): Model | null {
+  if (env.IMPORT_HISTORY_MODEL === "free") return getModel("low", false);
+  return getFrontierModel();
+}
+
 /** The model's answer, "timeout" after HISTORY_TIMEOUT_MS (its own timeout and retries can run to a minute), or null when it failed. */
 async function ask(name: string, text: string): Promise<string | "timeout" | null> {
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -47,8 +59,9 @@ async function ask(name: string, text: string): Promise<string | "timeout" | nul
     timer = setTimeout(() => done("timeout"), HISTORY_TIMEOUT_MS);
   });
   try {
-    // The show's FREE model only (allowPaid false), as /import's reader and one-sentence create: never the frontier model.
-    const call = getModel("low", false).complete(
+    const reader = historyReader();
+    if (!reader) return null;
+    const call = reader.complete(
       [
         { role: "system", content: historyPrompt(name) },
         { role: "user", content: text },
@@ -70,7 +83,7 @@ async function ask(name: string, text: string): Promise<string | "timeout" | nul
  * at most eight one-sentence lines, each typed by where it would go (the character's facts, the companion memory, the
  * voice) and already past that place's check; `dropped` is how many the reader offered that weren't (a count).
  *
- * The text is read once, here, by the show's free model, and nothing of it is kept: no table, no log line, no analytics
+ * The text is read once, here, by the show's paid model (historyReader), and nothing of it is kept: no table, no log line, no analytics
  * prop (the page's events carry counts). The page has already cut it to HISTORY_READ_MAX. Nothing is saved by this route
  * at all: the person edits the list, and what they keep rides the character's own save and the memory write.
  *

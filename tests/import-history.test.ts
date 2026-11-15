@@ -52,7 +52,7 @@ import {
 } from "@/lib/import-history";
 import { drawImportOpener, rememberImported, screenUsLines } from "@/lib/import-history-server";
 import { IMPORT_HISTORY_LIMITS } from "@/lib/limits";
-import { setFrontierModelForTests, setModelForTests, type ChatMessage } from "@/lib/model";
+import { getModel, setFrontierModelForTests, setModelForTests, type ChatMessage } from "@/lib/model";
 import { api, BASE_URL, jsonRequest, newUserCookie, scriptedModel, signedInCookie, startTestDb, TEST_SESSION_SECRET, validCharacter } from "./helpers";
 
 let t: Awaited<ReturnType<typeof startTestDb>>;
@@ -407,9 +407,16 @@ describe("the events", () => {
   });
 });
 
+/** The scripted model, standing in the PAID model's place: a history is read by that one and by no other. */
+function paidReader(replies: Parameters<typeof scriptedModel>[0]) {
+  const scripted = scriptedModel(replies);
+  setFrontierModelForTests(getModel());
+  return scripted;
+}
+
 describe("POST /api/characters/import/history", () => {
   it("returns the screened list from one call on the show's model", async () => {
-    const { calls } = scriptedModel([GOOD_REPLY]);
+    const { calls } = paidReader([GOOD_REPLY]);
     const res = await read({ text: PASTE, name: "Marisol Vane" });
     expect(res.status).toBe(200);
     const body = (await res.json()) as { items: HistoryItem[]; dropped: number };
@@ -425,7 +432,7 @@ describe("POST /api/characters/import/history", () => {
   it("stores nothing of the paste and logs nothing of it, whether the reading works or not", async () => {
     const logged: string[] = [];
     for (const level of ["log", "info", "warn", "error", "debug"] as const) vi.spyOn(console, level).mockImplementation((...args: unknown[]) => void logged.push(args.map(String).join(" ")));
-    scriptedModel([GOOD_REPLY, new Error(`upstream said: ${MARKER}`), `not json ${MARKER}`, JSON.stringify({ items: [{ about: "us", text: `They said ${MARKER} once.` }] })]);
+    paidReader([GOOD_REPLY, new Error(`upstream said: ${MARKER}`), `not json ${MARKER}`, JSON.stringify({ items: [{ about: "us", text: `They said ${MARKER} once.` }] })]);
     const cookie = newUserCookie();
     expect((await read({ text: PASTE, name: "Marisol Vane" }, cookie)).status).toBe(200);
     // The model failed, then answered something unreadable: said plainly, and still nothing kept.
@@ -454,7 +461,7 @@ describe("POST /api/characters/import/history", () => {
   });
 
   it("is limited per visitor, and a limit never touches the model", async () => {
-    const { calls } = scriptedModel(Array.from({ length: IMPORT_HISTORY_LIMITS.perHour }, () => GOOD_REPLY));
+    const { calls } = paidReader(Array.from({ length: IMPORT_HISTORY_LIMITS.perHour }, () => GOOD_REPLY));
     const cookie = newUserCookie();
     for (let i = 0; i < IMPORT_HISTORY_LIMITS.perHour; i++) expect((await read({ text: PASTE }, cookie)).status).toBe(200);
     const over = await read({ text: PASTE }, cookie);
@@ -462,26 +469,37 @@ describe("POST /api/characters/import/history", () => {
     expect(await over.json()).toMatchObject({ reason: "limited", message: historyFailureLine("limited") });
     expect(calls).toHaveLength(IMPORT_HISTORY_LIMITS.perHour);
     // Someone else still reads theirs.
-    scriptedModel([GOOD_REPLY]);
+    paidReader([GOOD_REPLY]);
     expect((await read({ text: PASTE })).status).toBe(200);
   });
 
-  it("never uses the paid model, even when it's the show's default", async () => {
-    vi.stubEnv("FRONTIER_DEFAULT", "1");
-    vi.stubEnv("FRONTIER_LLM_BASE_URL", "https://example.invalid/v1");
-    vi.stubEnv("FRONTIER_LLM_API_KEY", "test-frontier");
-    vi.stubEnv("FRONTIER_LLM_MODEL", "paid-model");
-    vi.stubEnv("LLM_API_KEY", "");
-    vi.stubEnv("GOOGLE_API_KEY", "");
+  it("is read by the paid model and never by the free one: a private chat log doesn't go to a free tier", async () => {
+    const free = scriptedModel([GOOD_REPLY]);
     const paid = vi.fn(async () => GOOD_REPLY);
     setFrontierModelForTests({ complete: paid });
     const res = await read({ text: PASTE });
+    expect(res.status).toBe(200);
+    expect(paid).toHaveBeenCalledTimes(1);
+    expect(free.calls).toHaveLength(0);
+  });
+
+  it("with no paid model it fails like an outage, without falling back to the free one", async () => {
+    const free = scriptedModel([GOOD_REPLY]);
+    const res = await read({ text: PASTE });
     expect(res.status).toBe(503);
-    expect(paid).not.toHaveBeenCalled();
+    expect(await res.json()).toMatchObject({ reason: "model" });
+    expect(free.calls).toHaveLength(0);
+  });
+
+  it("IMPORT_HISTORY_MODEL=free puts the reading on the free model (a local setup with no paid key)", async () => {
+    vi.stubEnv("IMPORT_HISTORY_MODEL", "free");
+    const free = scriptedModel([GOOD_REPLY]);
+    expect((await read({ text: PASTE })).status).toBe(200);
+    expect(free.calls).toHaveLength(1);
   });
 
   it("answers an empty reading with an empty list, and too little with a refusal", async () => {
-    scriptedModel(['{"items":[]}']);
+    paidReader(['{"items":[]}']);
     const empty = await read({ text: PASTE });
     expect(empty.status).toBe(200);
     expect(await empty.json()).toEqual({ items: [], dropped: 0 });
@@ -494,7 +512,7 @@ describe("POST /api/characters/import/history", () => {
     expect(importMemoriesOn({ IMPORT_MEMORIES: "1" })).toBe(true);
     expect(importMemoriesOn({ IMPORT_MEMORIES: "0" })).toBe(false);
     vi.stubEnv("IMPORT_MEMORIES", "0");
-    const { calls } = scriptedModel([GOOD_REPLY]);
+    const { calls } = paidReader([GOOD_REPLY]);
     const res = await read({ text: PASTE });
     expect(res.status).toBe(404);
     expect(await res.json()).toMatchObject({ reason: "off" });
