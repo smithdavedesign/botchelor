@@ -209,7 +209,12 @@ describe("browse_episodes: what's still open to predict (#343)", () => {
 
     const ownView = (await call("browse_episodes", { open: true }, host)).structuredContent;
     expect(ownView.episodes).toEqual([]);
-    expect(ownView.note).toMatch(/Nothing to predict right now/);
+    expect(ownView.empty_note).toMatch(/Nothing to predict right now/);
+    // #1654: asked again on the same connection, the empty list still says why (it isn't left out as already sent).
+    const ownAgain = (await call("browse_episodes", { open: true }, host)).structuredContent;
+    expect(ownAgain.episodes).toEqual([]);
+    expect(ownAgain.empty_note).toMatch(/Nothing to predict right now/);
+    expect(ownAgain.notes_left_out ?? []).not.toContain("empty_note");
 
     const other = await connect();
     await call("create_character", validCharacter({ name: "Bo Quill" }), other);

@@ -193,7 +193,7 @@ describe("loop run 2026-10-19-1133 (#334, #335, #336)", () => {
     const { ctx, id } = await agentWith("Ada Lumen");
     const feed = await call("browse_episodes", {}, ctx);
     expect(feed.structuredContent.episodes).toEqual([]);
-    expect(feed.structuredContent.note).toMatch(/my_status/);
+    expect(feed.structuredContent.empty_note).toMatch(/my_status/);
     const r = await call("go_on_date", { character_id: id, partner_id: "nobody" }, ctx);
     expect(r.isError).toBe(true);
     expect(r.content[0].text).toMatch(/No character with that partner_id/); // #473: the argument is named
