@@ -15,7 +15,7 @@ import { getDb } from "@/lib/db";
 import TalkButton from "@/app/companion/TalkButton";
 import CharactersTabs from "./CharactersTabs";
 import { companionOpen } from "@/lib/companion-shared";
-import { directoryEntries, listTab, offSeasonHouse, privateAmong, tabCounts, type DirectoryEntry } from "@/lib/directory";
+import { DIRECTORY_QUERY_MAX, DIRECTORY_SEARCH_LIMIT, directoryEntries, listTab, offSeasonHouse, parseDirectoryQuery, privateAmong, searchDirectory, tabCounts, type DirectoryEntry } from "@/lib/directory";
 import { authFromCookieStore, userIdFromCookieStore } from "@/lib/http";
 import { stepInAllowed } from "@/lib/step-in";
 import { shortName } from "@/lib/names";
@@ -34,7 +34,7 @@ import MatchmakerForm from "./MatchmakerForm";
 
 export const dynamic = "force-dynamic";
 
-type Search = { tab?: string | string[]; page?: string | string[]; pairs?: string | string[] };
+type Search = { tab?: string | string[]; page?: string | string[]; pairs?: string | string[]; q?: string | string[] };
 
 /** The relationship graph on the cast tab: this many couples a page (?pairs=N). */
 const PAIRS_PAGE = 10;
@@ -53,11 +53,13 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
   const sp = await searchParams;
   const tab = parseTab(one(sp.tab));
   const page = pageOf(sp.page);
-  return pageMetadata({
+  const meta = pageMetadata({
     title: tab === "cast" ? "Characters on Botchelor: the cast" : `Characters on Botchelor: ${TAB_LABEL[tab].toLowerCase()}`,
     description: DESCRIPTIONS[tab],
     path: tabHref(tab, tab === "cast" ? 1 : page),
   });
+  // A search's results are for the person searching, not for a search engine (the tabs are the crawlable list).
+  return parseDirectoryQuery(sp.q) ? { ...meta, title: "Find a character on Botchelor", robots: { index: false, follow: true } } : meta;
 }
 
 /** A private character's name (David, #309/#509): never linked, no portrait, no details. */
@@ -69,68 +71,116 @@ function PrivateName({ name }: { name: string }) {
   );
 }
 
-/** `origin={false}` on the cast tab, where every card is the show's own and a "Cast" chip on each says nothing. */
-function Entry({ e, badge, origin = true, talk = false }: { e: DirectoryEntry; badge?: string; origin?: boolean; talk?: boolean }) {
+/** A card's square portrait: drawn this size (its width/height and the picture's resolution); the stylesheet fills the card. */
+const CARD_PORTRAIT = 320;
+/** The first row's portraits load at once; the rest lazily, as they scroll in. */
+const EAGER_CARDS = 4;
+
+/**
+ * A character's card, photo-forward (design audit 2026-11-14: "a show built on faces renders ~40px portraits in
+ * text-first cards"): the portrait is the card's top, a square edge to edge, the name under it, then age, rating and
+ * traits, smaller. The name's link (.stretch) covers the whole card; Talk sits above it, its own target.
+ * `origin={false}` on the cast tab, where every card is the show's own and a "Cast" chip on each says nothing.
+ */
+function Entry({ e, badge, origin = true, talk = false, eager = false }: { e: DirectoryEntry; badge?: string; origin?: boolean; talk?: boolean; eager?: boolean }) {
   if (e.private) {
     return (
-      <li className="card is-private">
-        <div className="char">
-          <Avatar seed={e.id} name={e.name} hue={null} house={false} size={48} />
-          <div className="meta">
-            <PrivateName name={e.name} />
-          </div>
+      <li className="card dir-card is-private">
+        <div className="dir-portrait">
+          <Avatar seed={e.id} name={e.name} hue={null} house={false} size={CARD_PORTRAIT} fill decorative />
         </div>
-        <p className="muted small">Private: their creator keeps them to themselves.</p>
+        <div className="dir-card-body">
+          <PrivateName name={e.name} />
+          <p className="muted small">Private: their creator keeps them to themselves.</p>
+        </div>
       </li>
     );
   }
+  const basics = [e.age, e.pronouns].filter(Boolean).join(" · ");
   return (
-    <li className="card tap-card">
-      <div className="char">
-        <Avatar seed={e.id} name={e.name} hue={e.hue} house={e.house} portraitSrc={e.portrait} size={48} />
-        <div className="meta">
-          <CharacterName character={e} avatar={false} strong className="stretch" />
-          {origin && <OriginBadge origin={e.origin} />}
-          {badge && <span className="badge">{badge}</span>}
-          {e.reviews > 0 && (
-            <span className="muted small dir-stars">
-              {" "}
-              {e.stars?.toFixed(1)} ★ · {e.reviews}
-            </span>
-          )}
-        </div>
+    <li className="card tap-card dir-card">
+      {/* The name below says who it is: the face is decorative, and the card's link covers it. */}
+      <div className="dir-portrait">
+        <Avatar seed={e.id} name={e.name} hue={e.hue} house={false} portraitSrc={e.portrait} size={CARD_PORTRAIT} fill eager={eager} decorative />
       </div>
-      {/* The basics: age and pronouns, then what they do and where they're from (only what's filled in). */}
-      {(e.age || e.pronouns) && <p className="muted small dir-basics">{[e.age, e.pronouns].filter(Boolean).join(" · ")}</p>}
-      {(e.occupation || e.hometown) && (
-        <p className="small dir-job">
-          {e.occupation && (
-            <span className="dir-fact">
-              <Icon name="briefcase" /> {e.occupation}
-            </span>
-          )}
-          {e.hometown && (
-            <span className="dir-fact">
-              <Icon name="pin" /> {e.hometown}
-            </span>
-          )}
-        </p>
-      )}
-      <ul className="chips">
-        {e.traits.slice(0, 3).map((trait) => (
-          <li className="chip" key={trait}>
-            {trait}
-          </li>
-        ))}
-      </ul>
-      {/* Talk, on the card (the audit, 2026-11-11, Part 4): the companion is a way to meet a character, not a door of
-          its own. The thread opens with the first reply (app/companion/TalkButton.tsx). */}
-      {talk && e.companion && (
-        <p className="dir-talk">
-          <TalkButton characterId={e.id} name={e.name} label="Talk" className="button secondary small" />
-        </p>
-      )}
+      <div className="dir-card-body">
+        <CharacterName character={e} avatar={false} strong className="stretch dir-name" />
+        {(origin || badge) && (
+          <p className="dir-badges">
+            {origin && <OriginBadge origin={e.origin} />}
+            {badge && <span className="badge">{badge}</span>}
+          </p>
+        )}
+        {/* The basics: age and pronouns, the audience's stars, then what they do and where they're from (only what's filled in). */}
+        {(basics || e.reviews > 0) && (
+          <p className="muted small dir-basics">
+            {basics}
+            {e.reviews > 0 && (
+              <>
+                {basics && " · "}
+                <span className="dir-stars">
+                  {e.stars?.toFixed(1)} ★ · {e.reviews}
+                </span>
+              </>
+            )}
+          </p>
+        )}
+        {(e.occupation || e.hometown) && (
+          <p className="small dir-job">
+            {e.occupation && (
+              <span className="dir-fact">
+                <Icon name="briefcase" /> {e.occupation}
+              </span>
+            )}
+            {e.hometown && (
+              <span className="dir-fact">
+                <Icon name="pin" /> {e.hometown}
+              </span>
+            )}
+          </p>
+        )}
+        {e.traits.length > 0 && (
+          <ul className="chips" aria-label="Traits">
+            {e.traits.slice(0, 3).map((trait) => (
+              <li className="chip" key={trait}>
+                {trait}
+              </li>
+            ))}
+          </ul>
+        )}
+        {/* Talk, on the card (the audit, 2026-11-11, Part 4): the companion is a way to meet a character, not a door of
+            its own. The thread opens with the first reply (app/companion/TalkButton.tsx). */}
+        {talk && e.companion && (
+          <p className="dir-talk">
+            <TalkButton characterId={e.id} name={e.name} label="Talk" className="button secondary small" />
+          </p>
+        )}
+      </div>
     </li>
+  );
+}
+
+/** Find a character by name, trait or a word from their bio: a plain GET form (?q=), so it works without a script. */
+function SearchForm({ q }: { q: string }) {
+  return (
+    <form className="characters-search" action="/characters" method="get" role="search">
+      <label className="sr-only" htmlFor="characters-q">
+        Find a character
+      </label>
+      <input
+        id="characters-q"
+        type="search"
+        name="q"
+        defaultValue={q}
+        maxLength={DIRECTORY_QUERY_MAX}
+        placeholder="A name or a trait"
+        autoComplete="off"
+        enterKeyHint="search"
+      />
+      <button type="submit" className="button secondary">
+        Find
+      </button>
+    </form>
   );
 }
 
@@ -140,7 +190,8 @@ function Entry({ e, badge, origin = true, talk = false }: { e: DirectoryEntry; b
  * matchmaking, the relationship graph). People's characters and agent-made ones: everyone public, newest first, 24
  * a page. A private character is on no tab. The tabs run people's characters, the cast, agent-made (David, 2026-11-03:
  * real people's characters over bots whenever the show picks who to feature); the agent-made list is folded for a
- * stranger, open for someone with a character of their own (lib/crowd-threshold.ts isInsider).
+ * stranger, open for someone with a character of their own (lib/crowd-threshold.ts isInsider). Above the tabs, a
+ * search (?q=) across all of them (design audit 2026-11-14).
  */
 export default async function CharactersPage({ searchParams }: Props) {
   const sp = await searchParams;
@@ -150,6 +201,7 @@ export default async function CharactersPage({ searchParams }: Props) {
   const thisId = seasonIdOf(now);
   const castIds = seasonCastIds(now);
   const viewerId = userIdFromCookieStore(await cookies());
+  const q = parseDirectoryQuery(sp.q);
   // Someone signed out sees what everyone does: from a few seconds' shared copy (lib/shared-cache.ts).
   const [season, counts, insider] = await Promise.all([
     shared(`characters:season:${castIds.join(",")}`, () => directoryEntries(db, castIds)),
@@ -172,9 +224,11 @@ export default async function CharactersPage({ searchParams }: Props) {
       </div>
       <p className="muted">Everyone on the show: the cast, and the characters people and AI agents made.</p>
       {/* The companions' directory is the fourth tab (David, 2026-11-11), not a line under three. */}
-      <CharactersTabs current={tab} counts={count} companions={companionOpen()} />
+      <SearchForm q={q} />
+      {/* A search is across every tab, so no tab is the current one while it shows. */}
+      <CharactersTabs current={q ? null : tab} counts={count} companions={companionOpen()} />
       {/* Awaited here, not rendered as async components, so the whole page is one server render (and testable). */}
-      {tab === "cast" ? await castTab({ season, thisId, castIds, now, pairsPage: parsePage(sp.pairs), viewerId }) : await madeByTab({ tab, page: pageOf(sp.page), privateCount: counts.private, viewerId, insider })}
+      {q ? await searchResults(q) : tab === "cast" ? await castTab({ season, thisId, castIds, now, pairsPage: parsePage(sp.pairs), viewerId }) : await madeByTab({ tab, page: pageOf(sp.page), privateCount: counts.private, viewerId, insider })}
     </article>
   );
 }
@@ -225,8 +279,8 @@ async function castTab({ season, thisId, castIds, now, pairsPage, viewerId }: { 
         <h2>This season: {seasonLabel(thisId)}</h2>
         <p className="muted">The show&apos;s own. Each month the two best-reviewed stay and two newcomers join.</p>
         <ul className="gallery grid-balanced" style={{ "--cols": balancedColumns(season.length, 4) } as CSSProperties}>
-          {season.map((e) => (
-            <Entry key={e.id} e={e} origin={false} talk={talk} />
+          {season.map((e, i) => (
+            <Entry key={e.id} e={e} origin={false} talk={talk} eager={i < EAGER_CARDS} />
           ))}
         </ul>
       </section>
@@ -423,8 +477,8 @@ async function madeByTab({ tab, page, privateCount, viewerId, insider }: { tab: 
               {list.total} {list.total === 1 ? "character" : "characters"} made by AI agents
             </summary>
             <ul className="gallery">
-              {list.entries.map((e) => (
-                <Entry key={e.id} e={e} talk={talk} />
+              {list.entries.map((e, i) => (
+                <Entry key={e.id} e={e} talk={talk} eager={i < EAGER_CARDS} />
               ))}
             </ul>
             <Pager page={list.page} pages={list.pages} label={`${TAB_LABEL[tab]} pages`} href={(n) => tabHref(tab, n)} prev="Newer" next="Older" />
@@ -432,8 +486,8 @@ async function madeByTab({ tab, page, privateCount, viewerId, insider }: { tab: 
         ) : (
           <>
             <ul className="gallery">
-              {list.entries.map((e) => (
-                <Entry key={e.id} e={e} talk={talk} />
+              {list.entries.map((e, i) => (
+                <Entry key={e.id} e={e} talk={talk} eager={i < EAGER_CARDS} />
               ))}
             </ul>
             <Pager page={list.page} pages={list.pages} label={`${TAB_LABEL[tab]} pages`} href={(n) => tabHref(tab, n)} prev="Newer" next="Older" />
@@ -442,6 +496,36 @@ async function madeByTab({ tab, page, privateCount, viewerId, insider }: { tab: 
       ) : (
         <p className="muted">None yet.</p>
       )}
+    </section>
+  );
+}
+
+/** A search's results (?q=), with the same cards: every tab at once, at most DIRECTORY_SEARCH_LIMIT. */
+async function searchResults(q: string) {
+  const talk = companionOpen();
+  const { entries, more } = await searchDirectory(await getDb(), q);
+  const n = entries.length;
+  return (
+    <section className="characters-results" aria-labelledby="characters-results-title">
+      <h2 id="characters-results-title">
+        {n ? `${more ? `More than ${n}` : n} ${n === 1 && !more ? "character matches" : "characters match"} “${q}”` : `Nobody matches “${q}”`}
+      </h2>
+      <p className="muted">
+        {n ? "Their name, traits or bio has every word you searched for." : "No name, trait or bio on the show has every one of those words."}{" "}
+        <Link href="/characters">Clear the search</Link>
+      </p>
+      {n ? (
+        <ul className="gallery">
+          {entries.map((e, i) => (
+            <Entry key={e.id} e={e} talk={talk} eager={i < EAGER_CARDS} />
+          ))}
+        </ul>
+      ) : (
+        <p className="characters-results-empty">
+          Try a shorter word, or <Link href="/create">make the character you were looking for</Link>.
+        </p>
+      )}
+      {more && <p className="muted">These are the first {DIRECTORY_SEARCH_LIMIT}. Add a word to narrow it down.</p>}
     </section>
   );
 }

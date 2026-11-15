@@ -217,3 +217,78 @@ describe("/create (item 5)", () => {
     expect(html).not.toContain("Step 8");
   });
 });
+
+// Design audit 2026-11-14: the date itself is on the episode page, its first exchange showing, the rest one tap away;
+// the written recap (the ending) stays folded; a spectator before the finale airs gets no lines at all.
+describe("an episode page shows the date's first exchange (design audit 2026-11-14)", () => {
+  const renderEpisode = async (id: string) => {
+    const EpisodePage = (await import("@/app/episodes/[id]/page")).default;
+    return renderToStaticMarkup(await EpisodePage({ params: Promise.resolve({ id }), searchParams: Promise.resolve({}) }));
+  };
+
+  it("puts the line-by-line read on the page, open, with a fold for the rest and the recap still closed", async () => {
+    const { id } = await airedDate();
+    as(newUserCookie());
+    const html = await renderEpisode(id);
+    // A section, not a closed <details>: the date's opening lines are on the page from the start.
+    expect(html).toContain('<section class="card transcript episode-read has-more" id="the-date" aria-labelledby="the-date-title"><h2 id="the-date-title">Read it line by line</h2>');
+    const read = html.slice(html.indexOf('id="the-date"'), html.indexOf("</section>", html.indexOf('id="the-date"')));
+    expect(read).toContain("So you&#x27;re the one who reviews fountains?");
+    // Six lines: four show, "Read the whole date (2 more lines)" opens the rest, closed to begin with.
+    expect(read).toContain('<details class="episode-read-more"><summary><span class="episode-read-more-show">Read the whole date (2 more lines)</span>');
+    expect(read).not.toMatch(/<details class="episode-read-more"[^>]*\sopen/);
+    // The ending stays behind its own warning, closed.
+    expect(html).toContain('<details class="recap-toggle"><summary><span class="recap-toggle-show">Show the written recap (it gives away the ending)</span>');
+    expect(html).not.toMatch(/<details class="recap-toggle"[^>]*\sopen/);
+    // The read comes before the recap and the diary cam.
+    expect(html.indexOf('id="the-date"')).toBeLessThan(html.indexOf('class="recap-toggle"'));
+  });
+
+  it("shows a spectator no lines before the finale airs (nothing to read, nothing spoiled)", async () => {
+    const owner = newUserCookie();
+    const character = (await (await api.createCharacter(validCharacter({ name: "Pell Ardent" }), owner)).json()).id;
+    scriptOutcome({ ending: "second_date" });
+    scriptedModel([episodeJson()]);
+    const ep = await (await api.createEpisode({ character_id: character, partner_id: HOUSE_CHARACTERS[0].id }, owner)).json();
+    await t.db.query(`update episodes set transcript = $2::jsonb, visibility = 'public' where id = $1`, [ep.id, JSON.stringify(LINES)]);
+    as(newUserCookie());
+    const html = await renderEpisode(ep.id);
+    expect(html).not.toContain('id="the-date"');
+    expect(html).not.toContain("Read it line by line");
+    expect(html).not.toContain("reviews fountains");
+    expect(html).not.toContain("Read the whole date");
+    // Its creator, who may read it before it airs, gets the same opening on the page.
+    as(owner);
+    expect(await renderEpisode(ep.id)).toContain("So you&#x27;re the one who reviews fountains?");
+  });
+});
+
+describe("the read's fold (app/episodes/[id]/TranscriptRead.tsx)", () => {
+  it("folds what's past the first exchange, and a walk-out wherever it is; a short date shows whole", async () => {
+    const { default: TranscriptRead, readNeedsMore, TRANSCRIPT_PREVIEW_LINES } = await import("@/app/episodes/[id]/TranscriptRead");
+    expect(TRANSCRIPT_PREVIEW_LINES).toBe(4);
+    expect(readNeedsMore(LINES)).toBe(true);
+    expect(readNeedsMore(LINES.slice(0, 4))).toBe(false);
+    const walkout: Turn[] = [...LINES.slice(0, 2), { ...LINES[2], walked_out: true }];
+    expect(readNeedsMore(walkout)).toBe(true);
+    const characters: [CharacterRef, CharacterRef] = [
+      { id: "a1", name: "Ada One", house: true, hue: 10, portrait: null },
+      { id: "b1", name: "Bo Two", house: true, hue: 20, portrait: null },
+    ];
+    const short = renderToStaticMarkup(createElement(TranscriptRead, { episodeId: "e1", characters, turns: LINES.slice(0, 3) }));
+    expect(short).toContain('class="card transcript episode-read"');
+    expect(short).not.toContain("episode-read-more");
+    // A walk-out is the ending: even a short date keeps it behind the fold (no "N more lines" when there are none).
+    const out = renderToStaticMarkup(createElement(TranscriptRead, { episodeId: "e1", characters, turns: walkout }));
+    expect(out).toContain('class="card transcript episode-read has-more"');
+    expect(out).toContain('<span class="episode-read-more-show">Read the whole date</span>');
+    expect(out).toContain('class="chat-note chat-move chat-walkout"');
+  });
+
+  it("the stylesheet hides past line four and the walk-out only while the fold is closed", async () => {
+    const { readFileSync } = await import("node:fs");
+    const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+    expect(css).toContain(".episode-read.has-more:has(> .episode-read-more:not([open])) .chat-thread > .chat-item:nth-child(n + 5),");
+    expect(css).toContain(".episode-read.has-more:has(> .episode-read-more:not([open])) .chat-walkout {");
+  });
+});

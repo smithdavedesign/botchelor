@@ -41,7 +41,6 @@ import Afterglow, { SecondDate } from "./Afterglow";
 import EndingSeen from "./EndingSeen";
 import EpisodeTheater, { type TheaterVerdict } from "./EpisodeTheater";
 import ShareEnding from "./ShareEnding";
-import ChatThread from "@/app/ChatThread";
 import BoxScore from "./BoxScore";
 import DiaryCam from "./DiaryCam";
 import ConfessionalShare from "./ConfessionalShare";
@@ -51,6 +50,7 @@ import EpisodeActions from "./EpisodeActions";
 import DatePhotos from "./DatePhotos";
 import { DATE_PHOTO_STYLES, datePhotoState } from "@/lib/studio/date-photos";
 import RecapToggle from "./RecapToggle";
+import TranscriptRead from "./TranscriptRead";
 import { airIfDue, airWindowMinutes } from "@/lib/air";
 import { endingsLately } from "@/lib/endings-lately";
 import SafetyActions from "./SafetyActions";
@@ -586,15 +586,9 @@ export default async function EpisodePage({
         </div>
 
         {episode.transcript && episode.transcript.length > 0 && (
-          // The theater is the way to watch; the line-by-line read folds away under it (open when there's no theater).
-          <details className="card transcript episode-read" id="the-date" open={!hasTheater}>
-            <summary>
-              <h2>Read it line by line</h2>
-              <span className="muted">The two characters played this out turn by turn: nobody scripted the lines in advance.</span>
-            </summary>
-            {episode.inner?.thoughts.some(Boolean) && <p className="muted small chat-thought-hint">💭 Tap a thought bubble to see what they were thinking.</p>}
-            <ChatThread characters={episode.characters} turns={episode.transcript} feedback={{ kind: "episode", refId: episode.id }} thoughts={episode.inner?.thoughts} />
-          </details>
+          // The date itself, on the page (design audit 2026-11-14): its first exchange shows, the rest one tap away
+          // ("Read the whole date"). Only the lines this viewer already gets (none before the finale airs, for a spectator).
+          <TranscriptRead episodeId={episode.id} characters={episode.characters} turns={episode.transcript} thoughts={episode.inner?.thoughts} />
         )}
 
       {/* The recap, the box score and the other ending reveals: folded away behind one toggle when the theater can

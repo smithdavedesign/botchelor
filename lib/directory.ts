@@ -103,3 +103,45 @@ export async function tabCounts(db: Db): Promise<{ people: number; agents: numbe
   );
   return rows[0] ?? { people: 0, agents: 0, private: 0 };
 }
+
+/** The most one search on /characters shows; a word more narrows it. */
+export const DIRECTORY_SEARCH_LIMIT = 48;
+/** The longest search /characters reads (anything past it is cut). */
+export const DIRECTORY_QUERY_MAX = 60;
+/** The most words a search matches on: each one must be in the character somewhere. */
+const SEARCH_WORDS_MAX = 6;
+
+/** ?q= as /characters reads it: one value, spaces squashed, trimmed, at most DIRECTORY_QUERY_MAX characters. */
+export function parseDirectoryQuery(raw: string | string[] | undefined): string {
+  const v = Array.isArray(raw) ? raw[0] : raw;
+  return (typeof v === "string" ? v : "").replace(/\s+/g, " ").trim().slice(0, DIRECTORY_QUERY_MAX);
+}
+
+/** A LIKE pattern that finds `word` anywhere, literally: its %, _ and \ are escaped (\ is Postgres' default escape). */
+export function likeWord(word: string): string {
+  return `%${word.toLowerCase().replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+}
+
+/** What a search on /characters looks in: the name, the bio, the traits, what they do and where they're from. Needs `c`. */
+const SEARCHABLE = `lower(concat_ws(' ', c.name, c.bio, c.traits::text, c.extras->>'occupation', c.extras->>'hometown'))`;
+
+/**
+ * Find a character on /characters (design audit 2026-11-14: "294 characters and no way to find one"): every word must
+ * be in its name, bio, traits, job or hometown. The directory's own rules, stricter where a search could leak: never a
+ * deleted account's character (LISTED), and never a private one, not even by name (its bio and traits would answer the
+ * search). House characters of every season are in, as the cast tab lists them. Whole-name matches first, then the
+ * cast, then by name. At most `limit`; `more` says there were others.
+ */
+export async function searchDirectory(db: Db, query: string, limit = DIRECTORY_SEARCH_LIMIT): Promise<{ entries: DirectoryEntry[]; more: boolean }> {
+  const q = parseDirectoryQuery(query).toLowerCase();
+  const words = [...new Set(q.split(" ").filter(Boolean))].slice(0, SEARCH_WORDS_MAX);
+  if (!words.length) return { entries: [], more: false };
+  const { rows } = await db.query<DirectoryEntry>(
+    `${SELECT}
+      where ${LISTED} and c.visibility <> 'private' and ${SEARCHABLE} like all($2::text[])
+      order by lower(c.name) like $3 desc, c.is_house desc, lower(c.name), c.id
+      limit $4`,
+    [DELETED_OWNER, words.map(likeWord), likeWord(q), limit + 1],
+  );
+  return { entries: rows.slice(0, limit).map(shown), more: rows.length > limit };
+}
