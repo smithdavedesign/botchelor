@@ -9,6 +9,9 @@ import EpisodeNotices from "@/app/Notices";
 import { siteUrl } from "@/lib/site";
 import { getDb } from "@/lib/db";
 import { viewerBridge } from "@/lib/adult/bridge-viewer";
+import { viewerContinue } from "@/lib/adult/overnight";
+import { isOvernight } from "@/lib/overnight";
+import { OVERNIGHT_COPY, overnightClose, overnightDatesOn, overnightEndingLabel } from "@/lib/overnight-shared";
 import { adultViewerFromCookies } from "@/lib/adult/mode";
 import { ADULT_COOKIE } from "@/lib/age";
 import { afterDarkHref } from "@/lib/after-dark-host";
@@ -252,6 +255,8 @@ export default async function EpisodePage({
     prev,
     creatorSide,
     adBridge,
+    overnight,
+    continueNight,
   ] = await Promise.all([
     // 🌙 on a date that carried an After Dark memory, only for someone After Dark is open to (never a hint to anyone else).
     episode.after_dark
@@ -317,6 +322,16 @@ export default async function EpisodePage({
     play && episode.is_creator
       ? headers()
           .then((h) => viewerBridge(db, auth, h, cookieStore.get(ADULT_COOKIE)?.value === "1"))
+          .catch(() => null)
+      : null,
+    // An overnight date (lib/overnight.ts): its ending is told as leaving together, from templates. Off, it reads as any date.
+    overnightDatesOn() ? isOvernight(db, id).catch(() => false) : false,
+    // "Continue the night in After Dark" (lib/adult/overnight.ts): only for a viewer After Dark already admits who owns
+    // one of the two, on an overnight date that aired and ended in leaving together. Asked only of a signed-in owner
+    // who has said they're 18+; null for everyone else, who sees nothing new.
+    ready && episode.revealed && episode.is_creator && auth?.authenticated
+      ? headers()
+          .then((h) => viewerContinue(db, auth, h, cookieStore, cookieStore.get(ADULT_COOKIE)?.value === "1", id))
           .catch(() => null)
       : null,
   ]);
@@ -386,6 +401,7 @@ export default async function EpisodePage({
                     // The early verdict (GeneratingPoller.tsx): the card the theater would show, as soon as the ending stands.
                     // No reflection yet (it's written after the ending), so the card says the character will text them.
                     dateNumber: dateNumberOf(episode),
+                    overnight,
                     verdict: creatorSide && creatorSide.side !== null ? { mine: creatorSide.side, reflection: null, pushKey: pushKeys()?.publicKey ?? null, afterDark: adBridge } : null,
                   }
                 : undefined
@@ -430,6 +446,10 @@ export default async function EpisodePage({
   // stored title, so the $0 template stands in; an unaired episode shows none (the setting is the tease).
   const code = episodeCode(episode.aired_at);
   const displayTitle = episode.title ?? (episode.revealed ? templateEpisodeTitle({ venue: episode.venue ?? null, dateNumber: dateNo ?? null }) : null);
+  // How the ending is told: an overnight date that ended in another date fades to black on them leaving together
+  // (lib/overnight-shared.ts, templates); any other date, and any other ending, keeps its own label.
+  const endingUsual = episode.ending ? endingWithDetail(episode.ending, dateNo, episode.ending_detail) : "";
+  const endingTold = overnight ? overnightEndingLabel(episode.ending, endingUsual) : endingUsual;
   const lastAct = episode.scenes?.length ? episode.scenes.length - 1 : -1;
   const finaleRepeats =
     lastAct >= 0 && Boolean(episode.finale) && squash(withoutActLabel(episode.scenes![lastAct], DATE_ACTS[lastAct])) === squash(episode.finale);
@@ -473,6 +493,7 @@ export default async function EpisodePage({
         chips={[
           "AI-generated",
           episode.followup_of ? dateLabel(episode.date_number ?? 2) : null,
+          overnight ? OVERNIGHT_COPY.chip : null,
           episode.format ? formatLabel(episode.format) : null,
           episode.roleplay ? `${episode.roleplay.icon} Roleplay: ${episode.roleplay.title}` : null,
           a.house && b.house ? "House cast" : a.house || b.house ? "With a house character" : null,
@@ -490,7 +511,7 @@ export default async function EpisodePage({
               characters={episode.characters}
               venue={episode.venue ?? null}
               transcript={episode.transcript}
-              endingLabel={endingWithDetail(episode.ending, dateNo, episode.ending_detail)}
+              endingLabel={endingTold}
               autoOpen={play}
               justFilmed={play && episode.is_creator}
               startAt={play && episode.is_creator ? from : 0}
@@ -558,6 +579,14 @@ export default async function EpisodePage({
         {afterDarkLink && (
           <p className="after-dark-marker">
             <Link href={afterDarkLink}>🌙 They spent the night together before this date. See their night</Link>
+          </p>
+        )}
+        {continueNight && (
+          // Only someone After Dark already admits, who owns one of the two, ever gets this (lib/adult/overnight.ts).
+          <p className="after-dark-marker" data-overnight-continue>
+            <a href={continueNight.href} data-track="overnight-continue">
+              🌙 {OVERNIGHT_COPY.continueButton}
+            </a>
           </p>
         )}
 
@@ -630,6 +659,12 @@ export default async function EpisodePage({
             )}
             <div className="ending-beat">
               <p className="ending">Ending: {endingWithDetail(episode.ending, dateNo, episode.ending_detail)}</p>
+              {/* An overnight date closes on its card (lib/overnight-shared.ts): the fade to black, or the night called. */}
+              {overnight && (
+                <p className="overnight-close" data-overnight-close={episode.ending === "second_date" ? "left" : "night"}>
+                  {overnightClose(episode.ending)}
+                </p>
+              )}
               {/* A reader who scrolled this far saw how it ended: the funnel's "Watched it end" (EndingSeen.tsx). */}
               {episode.revealed && <EndingSeen />}
             </div>

@@ -64,6 +64,7 @@ import {
   type WatchPoll,
 } from "./rules";
 import { PUBLIC_ONLY } from "./relationships";
+import { overnightClose, overnightDatesOn } from "./overnight-shared";
 import { refreshAndAnnounce } from "./relationship-events";
 import { buildDate, chaosReplay, DEFAULT_DATE_REQUEST, rememberDate, type CharacterForDate, type DateRequest } from "./simulation";
 import { updateCharacterMemory } from "./memory";
@@ -270,6 +271,8 @@ export type RoomState = {
   show_ending: boolean;
   ending: Ending | null;
   ending_label: string | null;
+  /** An overnight date's closing card (lib/overnight-shared.ts overnightClose), shown with the ending; null on any other date. */
+  overnight_close: string | null;
   finale: string | null;
   best_line: string | null;
   drama_question: string | null;
@@ -538,6 +541,7 @@ export async function getRoomState(
     show_ending: showEnding,
     ending: showEnding ? row.ending : null,
     ending_label: showEnding ? endingLabel(row.ending, row.date_number) : null,
+    overnight_close: showEnding && row.setup?.overnight === true && overnightDatesOn() ? overnightClose(row.ending) : null,
     finale: showEnding ? row.finale : null,
     best_line: showEnding ? row.best_line : null,
     drama_question: row.drama_question ? DRAMA_QUESTION_LABELS[row.drama_question] : null,

@@ -469,6 +469,7 @@ function Theater({
         {showVerdict && (
           <div className="theater-verdict">
             <p className="ending">{state.ending_label}</p>
+            {state.overnight_close && <p className="overnight-close">{state.overnight_close}</p>}
             {leadingChemistry && (
               <p className="muted">
                 The room said {stripEmoji(leadingChemistry.label)}; the characters chose {state.ending_label}.
@@ -628,6 +629,7 @@ function Stage({ state, onPredict, preshowLeft, onStart }: { state: RoomState; o
           <h2>The decision</h2>
           {state.finale && <p>{state.finale}</p>}
           <p className="ending">Ending: {state.ending_label}</p>
+          {state.overnight_close && <p className="overnight-close">{state.overnight_close}</p>}
           {state.drama_question && state.drama_answer && (
             <p className="muted">
               {state.drama_question} <strong>{state.drama_answer}</strong>
