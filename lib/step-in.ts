@@ -38,6 +38,7 @@ import type { CharacterRef, StepInSetup } from "./game";
 import { invalidateGraph } from "./graph-cache";
 import { innerOf, outerLine, type LineInner, type StoredInner } from "./inner-life";
 import { isLogistics, updateCharacterMemory } from "./memory";
+import { afterAired } from "./story-state";
 import { countingModel, PROMPT_VERSION, qualityContext } from "./pipeline";
 import { getDirectorModel, getModel, type Model } from "./model";
 import { summarizeUsage, type DateUsage } from "./pricing";
@@ -872,6 +873,8 @@ export async function airStepIn(db: Db, userId: string, episodeId: string): Prom
     await refreshEpisodePair(db, episodeId).catch(() => {});
     invalidateGraph();
     await Promise.all([updateCharacterMemory(db, row.a_id), updateCharacterMemory(db, row.b_id)]).catch(() => {});
+    // The story state follows the public record too (a no-op until the date has aired; lib/air.ts runs it then).
+    await afterAired(db, episodeId).catch(() => null);
     track("step_in_aired", { episode_id: episodeId });
   }
   return getStepIn(db, userId, episodeId);

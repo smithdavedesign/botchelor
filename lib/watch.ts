@@ -67,6 +67,7 @@ import { PUBLIC_ONLY } from "./relationships";
 import { refreshAndAnnounce } from "./relationship-events";
 import { buildDate, chaosReplay, DEFAULT_DATE_REQUEST, rememberDate, type CharacterForDate, type DateRequest } from "./simulation";
 import { updateCharacterMemory } from "./memory";
+import { afterAired } from "./story-state";
 import { titleEpisodeOnAir } from "./episode-title";
 import { mixerQuietUsers, notifyNightAired, siblingCharacters } from "./group-dates";
 import { notifyOwnersAired, notifyPredictors } from "./air";
@@ -621,6 +622,8 @@ export async function syncRoom(
       await updateCharacterMemory(db, aired.character_b).catch(() => {});
       // A double date's other table (lib/group-dates.ts): they met this couple too.
       for (const across of await siblingCharacters(db, exists.episode_id).catch(() => [])) await updateCharacterMemory(db, across).catch(() => {});
+      // The story state (lib/story-state.ts): what each now thinks of the other, and what the cast saw air.
+      await afterAired(db, exists.episode_id).catch(() => null);
       // The night's last date aired: ask its people who they liked (once a night).
       await notifyNightAired(db, exists.episode_id).catch(() => 0);
       // A mixer's house fillers (lib/mixer-fill.ts) hear nothing of the night: no step up, no aired.

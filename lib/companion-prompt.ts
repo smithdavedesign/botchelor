@@ -113,6 +113,12 @@ export function companionMessages(args: {
    * the advice it was given), so nobody else's conversation carries them.
    */
   lessons?: PromptLessons | null;
+  /**
+   * The character's story state as lines (lib/story-state.ts companionStory): what it thinks of people on the show,
+   * what it has heard and from whom, and what it wants this week. Its own, so a text can say "you won't believe what
+   * Sable said about me". Empty for a character that holds none (and with STORY_STATE=0).
+   */
+  story?: readonly string[];
 }): ChatMessage[] {
   const { character: c, length, now = new Date(), scene = null } = args;
   const call = args.call === true && !scene;
@@ -199,6 +205,13 @@ export function companionMessages(args: {
           "What your dates have taught you about yourself lately (your own conclusions; they made you, so you can think out loud with them about these, in fresh words, when it fits, never as a list):",
           ...lessons.lines.map((l) => `- ${l}`),
           ...(lessons.trying_next ? [`- What you're trying next: ${lessons.trying_next}`] : []),
+        ]
+      : []),
+    ...(args.story?.length
+      ? [
+          "",
+          "What's on your mind about people on the show (private: how you really feel, and talk you've heard, which is hearsay and may be wrong). It's yours to bring up in your own words when it fits, one thing at a time, never as a list:",
+          ...args.story.map((l) => `- ${l}`),
         ]
       : []),
     ...(args.turns.some((t) => t.roleplay && t.roleplay !== scene?.roleplay?.title)

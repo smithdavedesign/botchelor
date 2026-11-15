@@ -120,6 +120,7 @@ import { checkFields } from "../safety";
 import { kindLabel } from "../kinds";
 import { FORGET_KINDS } from "../memory";
 import { loadLessons } from "../character-lessons";
+import { STORY_FORGET_KINDS, storyView } from "../story-state";
 import { CROWD_CLIENT_PREFIX, crowdMinutesToWake, HOUSE_BOT_CLIENT_PREFIX, houseBotRefusal } from "../house-bots";
 import { siteUrl } from "../site";
 import { profilePhotos } from "../studio/profile-photos";
@@ -137,6 +138,7 @@ import { PATCH as patchVisibility } from "@/app/api/episodes/[id]/visibility/rou
 import { POST as postReveal } from "@/app/api/episodes/[id]/reveal/route";
 import { POST as postOriginality } from "@/app/api/characters/originality/route";
 import { DELETE as deleteForget, POST as postForget } from "@/app/api/characters/[id]/memory/forget/route";
+import { DELETE as deleteStoryForget, POST as postStoryForget } from "@/app/api/characters/[id]/story/route";
 
 /** The temperament axes as plays_as names them (2.13.0, #754). */
 const AXIS_WORDS = { warmth: "warmth", openness: "openness", guardedness: "guard", humor: "humour" } as const;
@@ -757,7 +759,7 @@ export const ENUM_SOURCES: Record<string, readonly unknown[]> = {
   "feedback_board.kind": FEEDBACK_KINDS,
   "feedback_board.sort": FEEDBACK_SORTS,
   "vote_feedback.vote": FEEDBACK_VOTES,
-  "forget_memory.kind": FORGET_KINDS,
+  "forget_memory.kind": [...FORGET_KINDS, ...STORY_FORGET_KINDS],
   "check_originality.pronouns": PRONOUNS,
   "check_originality.open_audience": AUDIENCES,
   "sliding_doors.change": SLIDING_DOOR_IDS,
@@ -8763,6 +8765,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           identity: who,
         };
       }
+      const story = await storyView(db, id).catch(() => null);
       return {
         data: {
           character_id: id,
@@ -8787,7 +8790,18 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           })),
           story: (m.chapters ?? []).map((ch) => `${ch.label}: ${ch.line}`),
           milestones: (m.milestones ?? []).map((x) => x.label),
-          forgotten: await loadForgets(db, id).then((fs) => fs.map(({ kind, item }) => ({ kind, item }))),
+          forgotten: [
+            ...(await loadForgets(db, id).then((fs) => fs.map(({ kind, item }) => ({ kind, item })))),
+            ...(story?.forgotten ?? []).map(({ kind, item }) => ({ kind, item })),
+          ],
+          // Its story state (lib/story-state.ts): private like the rest, read by its own dates and texts, never the engine.
+          ...(story?.thinks.length
+            ? { what_it_thinks_of_people: story.thinks.map((o) => ({ about: o.about_id, name: o.about_name, trust: o.trust_label, ...(o.attraction_label ? { attraction: o.attraction_label } : {}), take: o.take, basis: o.basis, ...(o.source ? { from: o.source } : {}) })) }
+            : {}),
+          ...(story?.heard.length
+            ? { what_it_has_heard: story.heard.map((h) => ({ id: h.id, claim: h.claim, told_by: h.told_by_name ?? "watched it air", ...(h.used_at ? { brought_up: true } : {}), from: h.source })) }
+            : {}),
+          ...(story?.want ? { this_week_it_wants: story.want.want } : {}),
           note: "Learned from aired dates; you can't write it, only tell it to forget something (forget_memory). It feeds how the character plays future dates, never how they end.",
         },
         identity: who,
@@ -8796,14 +8810,17 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
     case "forget_memory": {
       const who = resolveIdentity(args, session, false);
       if (!who) return { error: NEEDS_IDENTITY };
-      const r = await callRoute((args.remember_again === true ? deleteForget : postForget) as unknown as RouteHandler, {
+      // Its story state (lib/story-state.ts) is forgotten on its own rows: an opinion by their id, a heard thing by its id.
+      const storyKind = (STORY_FORGET_KINDS as readonly string[]).includes(String(args.kind));
+      const [forget, remember] = storyKind ? [postStoryForget, deleteStoryForget] : [postForget, deleteForget];
+      const r = await callRoute((args.remember_again === true ? remember : forget) as unknown as RouteHandler, {
         method: args.remember_again === true ? "DELETE" : "POST",
         agentId: who.id,
         body: pick(args, ["kind", "item"]),
         params: { id: String(args.character_id ?? "") },
       });
       if (!r.ok) return { error: errorOf(r) };
-      const { memory: _m, ...rest } = r.data;
+      const { memory: _m, story: _s, ...rest } = r.data;
       return { data: { ...rest, note: "Done. my_character_memory shows what it remembers now." }, identity: who };
     }
     case "check_originality": {

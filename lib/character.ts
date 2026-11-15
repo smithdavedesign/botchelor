@@ -16,6 +16,7 @@
  * belongs to one date, so the builders wrap the self view with it. The deterministic engine (lib/engine.ts)
  * is untouched: it still decides from the sheet + signals; this object just gathers and presents them.
  */
+import type { StoryState } from "./story-state";
 import type { Db } from "./db";
 import { deriveSoulSignals, NEUTRAL_SIGNALS, type CharacterSheet, type DateSignals, type SoulSignals } from "./engine";
 import { loadSoul, soulText, type StoredSoul } from "./souls";
@@ -116,6 +117,11 @@ export type Character = {
    * other side's prompt, never the engine.
    */
   lessons?: PromptLessons | null;
+  /**
+   * Set only on a date's characters: its story state about the person it's meeting (lib/story-state.ts stateFor): what it
+   * thinks of them, what it has heard about them, and what it wants this week. Private: only its own prompts carry it.
+   */
+  story?: StoryState | null;
 };
 
 /** A character's lessons as a prompt carries them: up to three first-person lines, and what it's trying next. */

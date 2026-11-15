@@ -17,6 +17,7 @@ import { lifeTextAfterAir } from "./character-life";
 import type { Db } from "./db";
 import type { DramaAnswer, Ending } from "./rules";
 import { updateCharacterMemory } from "./memory";
+import { afterAired } from "./story-state";
 import { mixerQuietUsers, notifyNightAired, siblingCharacters } from "./group-dates";
 import { refreshAndAnnounce } from "./relationship-events";
 import { markResourceUpdated } from "./mcp-subscriptions";
@@ -77,6 +78,8 @@ export async function airEpisode(db: Db, id: string, hostId: string, opts: { air
   await updateCharacterMemory(db, revealed.character_b).catch(() => {});
   // A double date's other table (lib/group-dates.ts): they met this couple too, so their memories learn it now.
   for (const across of await siblingCharacters(db, id).catch(() => [])) await updateCharacterMemory(db, across).catch(() => {});
+  // The story state (lib/story-state.ts): what each now thinks of the other, and what the cast saw air ($0, best-effort).
+  await afterAired(db, id).catch(() => null);
   // The night's last date aired: ask its people who they liked (once a night).
   await notifyNightAired(db, id).catch(() => 0);
   // ...and into the pair's edge: an aired public date joins the public layer of the relationship graph.
