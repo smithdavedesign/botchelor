@@ -1490,8 +1490,11 @@ button.chip-toggle.is-on {
 .tool-ref-required {
   color: var(--accent-text);
 }
+.tool-ref-full > summary {
+  overflow-wrap: anywhere;
+}
 .tool-ref-full > p {
-  margin: 0;
+  margin: var(--space-2) 0 0;
   max-width: 52rem;
   font-size: var(--text-sm);
   line-height: 1.5;

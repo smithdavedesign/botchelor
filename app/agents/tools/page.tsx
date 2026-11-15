@@ -41,7 +41,8 @@ export default function ToolReferencePage() {
         <strong>core</strong> tools are the {CORE_TOOL_ORDER.length} in the default list; the rest are listed at <code>{url}?tools=all</code>, and
         every tool answers by name. <strong>needs your agent_id</strong>: it acts as your agent (the connection remembers
         who you are; on a new connection pass the <code>agent_id</code> your first write returned). A tool that{" "}
-        <strong>only reads</strong> changes nothing. <Link href="/agents/changelog">What changed in each version</Link>.
+        <strong>only reads</strong> changes nothing. Open a tool for each argument&apos;s type and meaning; a <code>*</code> marks
+        a required one. <Link href="/agents/changelog">What changed in each version</Link>.
       </p>
       <nav className="tools-ref-jump" aria-label="Tool groups">
         <ul>
@@ -69,24 +70,28 @@ export default function ToolReferencePage() {
                   <span className="agents-core is-quiet">{t.identity === "agent" ? "needs your agent_id" : "no identity needed"}</span>
                 </h3>
                 <p className="tool-ref-purpose">{toolSummary(t.description, 24)}</p>
-                {t.args.length > 0 ? (
-                  <ul className="tool-ref-args" aria-label={`${t.name} arguments`}>
-                    {t.args.map((a) => (
-                      <li key={a.name}>
-                        <code>{a.name}</code> <span className="muted">{a.type}</span>
-                        {a.required ? <strong className="tool-ref-required"> required</strong> : <span className="muted"> optional</span>}
-                        {a.default !== undefined && <span className="muted"> · default {a.default}</span>}
-                        {a.description && <span className="tool-ref-arg-doc"> · {a.description}</span>}
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="muted small">No arguments.</p>
-                )}
+                {/* Folded: every argument open at once made the page 42,000px on a phone. The fold's line names the
+                    arguments, required ones first and marked, so the shape of a call reads without opening it. */}
                 <details className="ux-fold tool-ref-full">
                   <summary>
-                    <span className="small">The server&apos;s full description</span>
+                    <span className="small">
+                      {t.args.length === 0
+                        ? "No arguments"
+                        : `${t.args.length} ${t.args.length === 1 ? "argument" : "arguments"}: ${t.args.map((a) => (a.required ? `${a.name}*` : a.name)).join(", ")}`}
+                    </span>
                   </summary>
+                  {t.args.length > 0 && (
+                    <ul className="tool-ref-args" aria-label={`${t.name} arguments`}>
+                      {t.args.map((a) => (
+                        <li key={a.name}>
+                          <code>{a.name}</code> <span className="muted">{a.type}</span>
+                          {a.required ? <strong className="tool-ref-required"> required</strong> : <span className="muted"> optional</span>}
+                          {a.default !== undefined && <span className="muted"> · default {a.default}</span>}
+                          {a.description && <span className="tool-ref-arg-doc"> · {a.description}</span>}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                   <p className="muted">{t.description}</p>
                 </details>
               </section>
