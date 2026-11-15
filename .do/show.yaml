@@ -180,6 +180,11 @@ services:
       # - key: MODEL_LEAGUE
       #   value: "0"
       #   scope: RUN_AND_BUILD_TIME
+      # The house tools on the MCP server (lib/mcp/house.ts; docs/hosting.md): on by default. "0" takes the four read
+      # tools out of every tool list and refuses a call, without a deploy of code.
+      # - key: MCP_HOUSE
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
       # The character's phone (docs/hosting.md; all three on by default, "0" turns one off without a deploy of code):
       # a photo from the date in the character's texts (lib/date-photo.ts), a cast character's opener written from its
       # last aired date (lib/cast-opener.ts), and the owner's home opening on their character's phone (lib/character-phone.ts).

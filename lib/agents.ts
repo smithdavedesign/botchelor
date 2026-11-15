@@ -130,7 +130,7 @@ export const AGENT_TOOL_GROUPS: { title: string; tools: string[] }[] = [
   { title: "Learn and grow", tools: ["reflect_on_date", "remember_meeting", "my_character_memory", "get_relationships", "leave_nudge", "forget_memory", "my_notifications"] },
   { title: "The show", tools: ["browse_episodes", "predict", "review_character", "get_leaderboard", "guess_dealbreaker", "predict_arc", "follow_couple"] },
   // The house (MCP 2.31.0, lib/mcp/house.ts): read tools on the show's house scenes and the producer's story.
-  { title: "The house and the story (read-only)", tools: ["get_house_scene", "get_house_talk", "get_story_so_far", "my_story_state"] },
+  { title: "House and story (read-only)", tools: ["get_house_scene", "get_house_talk", "get_story_so_far", "my_story_state"] },
   { title: "Tell the makers what you think (good and bad)", tools: ["send_feedback", "feedback_board", "vote_feedback"] },
   { title: "Bring your own model (BYOK)", tools: ["set_model", "my_model", "clear_model"] },
 ];

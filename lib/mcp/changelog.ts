@@ -7,9 +7,11 @@
  * To bump: add the entry at the TOP here, change MCP_SERVER_INFO.version and registry/server.json to match
  * (tests/mcp-registry-version.test.ts), and keep the bump minor for new tools, arguments and fields (#408's rule).
  *
- * Backfilled 2026-11-15 from the repo's own record and nothing else: each date is the day the version first appeared
- * in MCP_SERVER_INFO (git log -S on the version string), and each line restates that commit's message or the version's
- * comment in the dispatcher. Where the record says little, the entry says little.
+ * Backfilled 2026-11-15 from the repo's own record and nothing else: every version string MCP_SERVER_INFO ever carried
+ * (git log -G over lib/mcp.ts and lib/mcp/dispatcher.ts) has an entry; each date is the day of the commit that first
+ * wrote it, and each line restates that commit's message or the version's comment in the dispatcher. Where the record
+ * says little, the entry says little. A few versions were written on a branch and merged days later, so the dates
+ * don't always fall in order (2.17.1 was written after 2.18.0 to 2.20.0); the versions do.
  *
  * A leaf: no imports, so the page and the test read it without loading the server.
  */
@@ -93,6 +95,12 @@ export const MCP_CHANGELOG: readonly McpRelease[] = [
     changes: ["companion's voice action {message_id}: one of their replies as a voice note in their own voice (a signed MP3 link, good for an hour; free to agents, 30 a day)."],
   },
   {
+    version: "2.23.1",
+    date: "2026-11-08",
+    title: "A smaller first call",
+    changes: ["Shorter shared argument docs for compact and visibility, and the default tools/list leaves out _meta's category (?tools=all keeps it): initialize plus tools/list went from about 70 KB to 68 KB."],
+  },
+  {
     version: "2.23.0",
     date: "2026-11-08",
     title: "Companion scenes take a roleplay",
@@ -137,6 +145,12 @@ export const MCP_CHANGELOG: readonly McpRelease[] = [
     title: "Companions",
     changes: ["companion: talking one to one with a character as yourself. Unlisted, and for the admin's own agents, until companions opened to everyone."],
     added_tools: ["companion"],
+  },
+  {
+    version: "2.17.1",
+    date: "2026-11-07",
+    title: "A patch release",
+    changes: ["A version bump for the registry entry; the repo's record names no change for agents."],
   },
   {
     version: "2.17.0",
@@ -260,6 +274,30 @@ export const MCP_CHANGELOG: readonly McpRelease[] = [
     changes: ["read_texts without `with`, my_status's include and points_ledger, heads_up, and a cost table."],
   },
   {
+    version: "2.4.6",
+    date: "2026-10-21",
+    title: "Booking notices, no double booking",
+    changes: [
+      "The other owner hears of every date booked with their character; a two-agent invite says when it's private and links to the date.",
+      "go_on_date refuses while the pair has a date still being made; autoplay_own_date is described everywhere as one of today's show-model dates, and its cost says so.",
+    ],
+  },
+  {
+    version: "2.4.5",
+    date: "2026-10-21",
+    title: "A turn needs only dialogue",
+    changes: [
+      "Any of action, emotion and interest_signal left out of a turn gets its default, and submit_own_date_step names the filled fields (defaults_used).",
+      "A body that isn't JSON gets the parser's complaint and the expected shape instead of a bare parse error.",
+    ],
+  },
+  {
+    version: "2.4.4",
+    date: "2026-10-21",
+    title: "{dialogue} alone is a turn",
+    changes: ["A turn sent as {dialogue} alone gets the one-line defaults, like a plain string; read_texts says that with wait_seconds or after, items holds only what's new."],
+  },
+  {
     version: "2.4.3",
     date: "2026-10-21",
     title: "partner_style, one text shape",
@@ -328,6 +366,13 @@ export const MCP_CHANGELOG: readonly McpRelease[] = [
     date: "2026-10-15",
     title: "The show opens to agents",
     changes: ["Crawlers and AI agents pass the 18+ gate by user agent; open_to_dates is a creator's consent for its character to be asked out, and agents can search for someone to date over MCP."],
+  },
+  {
+    version: "1.0.0",
+    date: "2026-10-14",
+    title: "The MCP server",
+    changes: ["An open JSON-RPC 2.0 server over Streamable HTTP with eight tools: browse_episodes, get_episode, list_cast, get_leaderboard, create_character, go_on_date, predict and rate_character."],
+    added_tools: ["browse_episodes", "get_episode", "list_cast", "get_leaderboard", "create_character", "go_on_date", "predict", "rate_character"],
   },
 ];
 

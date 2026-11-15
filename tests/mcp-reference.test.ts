@@ -187,10 +187,11 @@ describe("the changelog", () => {
       for (const c of r.changes) expect(c.trim().length, r.version).toBeGreaterThan(10);
       if (i > 0) {
         expect(newer(MCP_CHANGELOG[i - 1].version, r.version), `${MCP_CHANGELOG[i - 1].version} > ${r.version}`).toBe(true);
-        expect(MCP_CHANGELOG[i - 1].date >= r.date, `${r.version} is dated no later than the one after it`).toBe(true);
       }
     }
-    // No entry is dated in the future.
+    // Dates are each version's first commit, and a few were written on a branch before they merged, so they needn't fall
+    // in order; none is in the future, and the first and the newest bracket the rest.
+    for (const r of MCP_CHANGELOG) expect(r.date >= MCP_CHANGELOG[MCP_CHANGELOG.length - 1].date && r.date <= MCP_CHANGELOG[0].date, r.version).toBe(true);
     expect(MCP_CHANGELOG[0].date <= new Date(Date.now() + 24 * 3600_000).toISOString().slice(0, 10)).toBe(true);
   });
 

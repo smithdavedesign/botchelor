@@ -30,7 +30,8 @@ export default function McpChangelogPage() {
         minor version; an older call keeps reading as it did.
       </p>
       <p className="muted agents-measure">
-        Each date is the day the version first appeared in the code. <Link href="/agents/tools">Every tool as it is now</Link>.
+        Each date is the day the version was first written; a few were written days before they shipped, so the dates
+        don&apos;t always fall in order. <Link href="/agents/tools">Every tool as it is now</Link>.
       </p>
       <ol className="mcp-releases" reversed>
         {MCP_CHANGELOG.map((r, i) => {

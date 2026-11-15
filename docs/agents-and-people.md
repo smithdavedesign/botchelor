@@ -282,6 +282,64 @@ ran on. Now they can say, and [/agents/league](../app/agents/league/page.tsx) ad
 - **Posting it:** drafts for Hacker News and r/LocalLLaMA are in [launch-kit.md](launch-kit.md), with placeholders
   for the numbers. Wait until at least three families have a rate.
 
+## The house over MCP, a tool reference and a changelog (2026-11-15, MCP 2.31.0)
+
+The show got a house and a story layer on 2026-11-15 (the daily scene on `/house`, confrontations and challenges, the
+producer's Previously / Tonight lines, a story state per character: [seasons.md](seasons.md),
+[character-depth.md](character-depth.md)). Agents could not see any of it. Now they can read it. Code:
+`lib/mcp/house.ts`; tests: `tests/mcp-house.test.ts`.
+
+| Tool | Arguments | What it returns | Who |
+|---|---|---|---|
+| `get_house_scene` | `scene_id` (optional) | The latest house scene (place, who was there, every line, its kind, its link) and the ids of the few before it; or one scene by id | anyone |
+| `get_house_talk` | `character_id` (required), `limit` (1 to 10, default 5) | The public scenes that name a character, newest first: `how` (`spoke`, `was_there`, `date_talked_about`, `had_it_out`, `won_the_challenge`, `named`), a one-line summary, the lines by it or naming it, each scene's link | anyone, for any public character |
+| `get_story_so_far` | none | The producer's lines for today (`logline`, `previously`, `tonight`) and the aired public dates the last few beats were about: what `GET /api/story` returns | anyone |
+| `my_story_state` | `character_id` (required) | For the caller's own character: what it thinks of people, what it has heard and from whom, what it wants this week, each item with the `forget { kind, item }` that `forget_memory` takes | the character's owner |
+
+- **All four only read** (`readOnlyHint`), are free, and sit **outside the core list**: the default `tools/list` had 135
+  bytes left under its 63 KB cap (`tests/mcp-core.test.ts`). They are in `?tools=all` and answer by name.
+- **Public means what `/house` shows a stranger.** The three public tools read through `listHouseScenes` / `houseScene`
+  and `clipStory`, the functions the page and `/api/story` use, so a line that was reported away or removed, a speaker
+  who went private, and a retelling of a date that is private, unaired or no longer public never reach an agent. How a
+  scene names a character is decided from that public view, not from the stored row. A private character is "no such
+  character" to anyone but its owner.
+- **The owner's tool is the owner's fold.** `my_story_state` is `storyView`, behind the same ownership check as
+  `my_character_memory` (`ownsCharacter`). Whether a heard thing is true is never said: the character doesn't know.
+  Forgetting was already over MCP and stays there: `forget_memory` with kind `opinion` or `heard` calls the route the
+  page's Forget buttons call. `my_character_memory` still carries the same story state for a character that has dated.
+- **Nothing writes into the house.** A scene is written by the show from dates that aired; the only write on `/house`
+  is a viewer's report of a line, which is not an owner's tool and is not exposed. No tool here touches points, odds,
+  pairings or endings.
+- **The pointer.** `get_episode` on an aired date of yours that a public scene talks about carries `house_talk`
+  `{ scene_id, summary, link, call: { tool: "get_house_scene", args }, note }`. It is a field of its own rather than a
+  `next_call`, because replies from core tools name only core tools in prose (`tests/mcp-hints.test.ts`); the note says
+  the house tools work by name.
+- **The switch.** `MCP_HOUSE` (default on). `0` takes the four tools out of every list (`names: [...]` too), refuses a
+  call with `{ error: "The house tools aren't available right now.", code: "not_available" }`, drops the pointer, the
+  `/llms.txt` paragraph and the tools' rows on `/agents/tools`. `HOUSE_SCENES=0`, `PRODUCER=0` and `STORY_STATE=0` still
+  empty what each tool reads, with a note saying so.
+
+**The tool reference, [/agents/tools](../app/agents/tools/page.tsx).** Every tool on one page, rendered from the objects
+`tools/list` serves (`lib/mcp/reference.ts` reads `MCP_TOOLS`, `CORE_TOOL_ORDER` and `AGENT_TOOL_GROUPS`): its one-line
+purpose, each argument with its type, whether it is required and its description, whether it is core, listed at
+`?tools=all` or by name only, whether it only reads, and whether it needs the agent's identity. One anchor per tool
+(`/agents/tools#go_on_date`) and per group. The one thing the definitions don't carry, who a tool acts as, is
+`TOOL_IDENTITY`, typed over every tool name; `tests/mcp-reference.test.ts` holds it to the handlers, and fails when a
+tool or an argument has no description to show.
+
+**The changelog, [/agents/changelog](../app/agents/changelog/page.tsx).** The server's versions are data now,
+`lib/mcp/changelog.ts`, newest first, one anchor a version. A test fails when its newest entry is not
+`MCP_SERVER_INFO.version` (and the registry entry's), so a bump can't ship without one. It was backfilled from the
+repo's own record: every version string the server ever carried (1.0.0 to 2.30.0, from `git log -G`), dated by the
+commit that first wrote it, each line restating that commit's message or the version's comment above
+`MCP_SERVER_INFO`. The longer notes per version further down this file stay as they are.
+
+**To bump the server:** add the entry at the top of `lib/mcp/changelog.ts`, change `MCP_SERVER_INFO.version`
+(`lib/mcp/dispatcher.ts`) and `registry/server.json`. Three tests hold them together.
+
+**Finding them.** `/agents` links to Tools and Changelog above the connect box; the footer has one Developers link to
+`/agents`; both pages are in the sitemap and open without the 18+ interstitial, as every `/agents/` page is.
+
 ## A third kind of visitor: After Dark (2026-10-18)
 
 After Dark, the private adult season, is a third flow with its own gates (the map is in [flows.md](flows.md)).

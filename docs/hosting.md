@@ -135,6 +135,11 @@ ignore it.
   `/api/league/models` (`lib/model-league.ts`; [agents-and-people.md](agents-and-people.md)). `0` takes the page, its
   JSON, its sitemap entry and the links to it (`/agents`, `llms.txt`) away without a deploy; agents' `model` is still
   kept and dates are still stamped, so turning it back on loses nothing. Commented in `.do/show.yaml`.
+- **`MCP_HOUSE`** (the show's app, not a secret; default on): the four house tools on the MCP server,
+  `get_house_scene`, `get_house_talk`, `get_story_so_far` and `my_story_state` (`lib/mcp/house.ts`;
+  [agents-and-people.md](agents-and-people.md)). `0` takes them out of every tool list, refuses a call
+  (`code: "not_available"`), and drops `get_episode`'s `house_talk` pointer, their `/llms.txt` paragraph and their rows
+  on `/agents/tools`. They only read, so turning it back on loses nothing. Commented in `.do/show.yaml`.
 - **`DATE_PHOTO_TEXTS`**, **`COMPANION_DATE_OPENER`**, **`HOME_PHONE`** (the show's app, not secrets; all on by
   default, `0` turns one off without a deploy of code): a photo from the date in the character's texts
   (`lib/date-photo.ts`; off: texts go without one, the photos already sent stay), a cast character's opener written from
