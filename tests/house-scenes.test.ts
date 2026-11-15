@@ -6,6 +6,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { GET as adminReports, POST as adminReview } from "@/app/api/admin/reports/route";
+import { POST as adminWrite } from "@/app/api/admin/house-scene/route";
 import { POST as reportRoute } from "@/app/api/house/[id]/report/route";
 import { textLink } from "@/lib/companion-shared";
 import { getThread } from "@/lib/companion";
@@ -89,6 +90,7 @@ beforeEach(async () => {
   setSeasonCastForTests(CAST.map((c) => c.id));
 });
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllEnvs();
   setSeasonCastForTests(null);
 });
@@ -277,6 +279,9 @@ describe("the checks on a line (checkSceneLines)", () => {
       expect(wrong(`${first(TEO)} left early.`)).toEqual([]); // not about the date's people
       expect(wrong(`${R} said they both want a second date.`)).toEqual([]); // gets the ending itself wrong
       expect(wrong("He left early.")).toEqual([]); // names nobody
+      // A line the writer owns up to as wrong never survives as a plain line: no fact named, or a claim that fails.
+      expect(keep([{ from: first(MARISOL), text: "And then they parted as friends right by the mats.", retells: 1, faithful: false, claim: `${R} and ${J} parted as friends right by the mats.` }])).toEqual([]);
+      expect(keep([{ from: first(MARISOL), text: "I made all of that up.", retells: null, faithful: false }])).toEqual([]);
       expect(wrong(`${R} left before the second drink.`)).toHaveLength(1);
       expect(harmlessWrong(`${J} didn't laugh once the whole night.`, f.dates[0], f)).toBe(`${J} didn't laugh once the whole night.`);
       expect(harmlessWrong(42, f.dates[0], f)).toBeNull();
@@ -387,7 +392,7 @@ describe("what the writer may know (sceneFacts)", () => {
     expect(prompt).not.toContain(shortName(OFF_CAST.name));
   });
 
-  it("gives a speaker only its own state: a house character's own opinions, a person's character only what it has heard, never a hidden secret", async () => {
+  it("gives a speaker only its own state: a house character's own stance, a person's character only what it has heard, never a take or a hidden secret", async () => {
     await episode(RAFE, JUNIPER, { ending: "friends" });
     for (const [idx, secret] of [HIDDEN, "Has never seen the sea.", "Can't whistle."].entries()) {
       await t.db.query(`insert into cast_secrets (character_id, season_id, idx, secret, source) values ($1, '2026-11-01', $2, $3, 'model')`, [DEX, idx, secret]);
@@ -402,10 +407,13 @@ describe("what the writer may know (sceneFacts)", () => {
     const f = (await sceneFacts(t.db, NOW))!;
     expect(f.speakers.map((s) => s.id).sort()).toEqual([DEX, fan].sort());
     const prompt = scenePrompt(f);
-    // Dex (house): his own take is his note. Lexi (a person's character): what she heard, never her private opinion.
-    expect(f.notes[DEX].join(" ")).toContain("rematch at darts");
-    expect(f.notes[fan].join(" ")).toContain("sang at a wedding");
-    expect(prompt).not.toContain("sawing");
+    // Dex (house): where he stands on Rafe is his note, in the scale's words, never his private take word for word.
+    // Lexi (a person's character): only what she heard, never her private opinion.
+    expect(f.notes[DEX]).toContain(`${R}: trusts them`);
+    expect(f.notes[fan]).toEqual([`${J} told them: Rafe once sang at a wedding uninvited.`]);
+    expect(prompt).toContain(`- ${first(DEX)}: ${R}: trusts them`);
+    expect(prompt).not.toMatch(/sawing|rematch at darts|wary/);
+    expect(f.takes[DEX]).toEqual(["Rafe owes me a rematch at darts and knows it."]);
     expect(f.takes[fan]).toEqual(["Rafe performs sincerity like a magician performs sawing."]);
     expect(prompt).not.toMatch(/night light/i);
   });
@@ -519,6 +527,21 @@ describe("the daily scene (ensureHouseScene)", () => {
     // And the date it already told is never the topic twice, even inside the window.
     await t.db.query(`delete from house_scenes where day = $1`, ["2026-11-13"]);
     expect(await ensureHouseScene(t.db, new Date(NOW.getTime() + 20 * HOURS + 24 * HOURS - 20 * HOURS), { model: few.model })).toEqual({ skipped: "quiet" });
+  });
+
+  it("an admin can ask for today's scene before its hour; nobody else can", async () => {
+    await episode(RAFE, JUNIPER);
+    vi.stubEnv("FRONTIER_PASSWORD", "owner-pass");
+    // Mid-morning, hours before the scene's own hour.
+    vi.useFakeTimers({ now: new Date("2026-11-12T16:00:00Z"), toFake: ["Date"] });
+    expect((await adminWrite(new Request(`${BASE_URL}/api/admin/house-scene`, { method: "POST" }))).status).toBe(403);
+    const res = await adminWrite(new Request(`${BASE_URL}/api/admin/house-scene`, { method: "POST", headers: { "x-frontier-key": "owner-pass" } }));
+    expect(res.status).toBe(200);
+    // The harness turns the model off: the template's scene, written whatever the hour, once a day.
+    expect((await res.json()).house_scene).toMatchObject({ source: "template" });
+    const again = await adminWrite(new Request(`${BASE_URL}/api/admin/house-scene`, { method: "POST", headers: { "x-frontier-key": "owner-pass" } }));
+    expect((await again.json()).house_scene).toEqual({ skipped: "already" });
+    vi.useRealTimers();
   });
 
   it("takes over a claim that was left pending by a pass that died", async () => {

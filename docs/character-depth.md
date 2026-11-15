@@ -246,9 +246,15 @@ read them.
 - **Watched it air.** When a public date airs, every member of this season's cast (`showCastIds`) who wasn't on it gets
   one heard row in the words anyone could retell it (`airedClaim`: who, which date, where, how it ended). Only while it
   is news (3 days), and unused ones are pruned after 30.
-- **Told by someone** (`hear`): the daily house scene (part 2 of the wave) writes these, and may mark a retelling
-  untrue. A character told something about a person it has no opinion of gets a `heard` opinion built on the claim;
-  hearsay never replaces a firsthand one. A character who was there needs no row, so a claim about the holder isn't stored.
+- **Told by someone** (`hear`): the daily house scene (`lib/house-scenes.ts`; [seasons.md](seasons.md) "The house")
+  writes these. Two or three cast members who weren't on a date talk about it in the show's house; each aired fact a
+  line retells reaches the others in the room, from that speaker, with its own source (`scene:<id>#<line>`). A faithful
+  retelling is stored in the public record's words; at most one a scene is wrong (`is_true` false), and only about who
+  left first, who said what, or an exaggeration of how it went. A reported-away line, or a date that stops being
+  public, takes what it told with it. A character told something about a person it has no opinion of gets a `heard`
+  opinion built on the claim; hearsay never replaces a firsthand one. A character who was there needs no row, so a
+  claim about the holder isn't stored (its owner hears instead: a notification, and the character's own text when they
+  opted in).
 - **Wants** come from rules (`wantFromRules`), the first that applies: it knows someone said something about it
   (settle the score); a suitor on a Botchelor season (win the lead's rose) and the lead (its favourite suitor, else
   protect its heart); bad blood (settle the score); an ex or someone who turned it down (win them back); someone it is

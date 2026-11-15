@@ -11,7 +11,8 @@
  *    on its first pass at or after HOUSE_SCENE_HOUR_UTC (18), about the public dates that aired since the scene before
  *    it (a day back at most). Stored (house_scenes), so a page view never calls a model. One call on the show's free
  *    model (getModel(…, false)), a template scene from the same facts when the call fails or too few lines pass.
- *    Measured: see docs/seasons.md "The house" (about 0.1 cents a day at paid flash-lite list prices; $0 on the free tier).
+ *    Measured 2026-11-15 on gemini-3.5-flash-lite with minimal thinking (three real calls): about 750 tokens in and
+ *    190 out, no thinking tokens, 1.2 s: $0.0007 a scene at paid list prices (0.07 cents a day; $0 on the free tier).
  *  - What the writer may know: exactly the cast chat's rule (public aired dates between public characters, not reported
  *    away; nothing unaired, nothing private, never a hidden secret), plus each speaker's own story state for flavour: a
  *    house character's own opinions and what it has heard; a person's character on the cast, only what it has heard
@@ -53,7 +54,7 @@ import { dateLabel, REPORT_HIDE_THRESHOLD, REPORT_REASONS, type Ending } from ".
 import { checkSheetText, checkShowText } from "./safety";
 import { showCastIds } from "./season-cast";
 import { seasonIdOf } from "./season-window";
-import { airedClaim, CLAIM_MAX, hear, stateFor, storyLines, tensions, type Tension } from "./story-state";
+import { airedClaim, ATTRACTION_LABELS, CLAIM_MAX, hear, stateFor, tensions, TRUST_LABELS, type Tension } from "./story-state";
 import { venueName, venuePhrase } from "./venues";
 
 /* ------------------------------------------------ the switch ------------------------------------------------ */
@@ -260,7 +261,9 @@ export async function sceneFacts(
   const room = pickRoom(day, cast, dates, beats);
   if (!room) return null;
 
-  // Each speaker's own state about the people on the dates: flavour for its own lines, never anyone else's.
+  // Each speaker's own state about the people on the dates: flavour for its own lines, never anyone else's. A note
+  // says where the speaker stands (the two scales in words), never its private take word for word: the take stays the
+  // holder's, and a line that voices one is dropped (checkSceneLines).
   const notes: Record<string, string[]> = {};
   const takes: Record<string, string[]> = {};
   const told = new Set(room.dates.map((d) => d.episode_id));
@@ -270,13 +273,16 @@ export async function sceneFacts(
     for (const about of [...new Set(room.dates.flatMap((d) => [d.a, d.b]))]) {
       const state = await stateFor(db, s.id, { withId: about, now }).catch(() => null);
       if (!state) continue;
-      // The date itself is the fact on the table: what the speaker "watched air" of it is not a private note.
-      const heard = state.heard.filter((h) => !told.has(h.source));
       mine.push(...state.opinions.map((o) => o.take));
       // A person's character on the cast speaks only from what it has heard: its opinions and want stay its owner's.
-      lines.push(...storyLines(s.house ? { ...state, heard } : { ...state, heard, opinions: [], want: null }));
+      if (s.house) {
+        for (const o of state.opinions) lines.push(`${first(o.about_name)}: ${TRUST_LABELS[o.trust]}${o.attraction !== null ? `, ${ATTRACTION_LABELS[o.attraction]}` : ""}`);
+        if (state.want) lines.push(`wants this week: ${state.want.want}`);
+      }
+      // The date itself is the fact on the table: what the speaker "watched air" of it is not a private note.
+      for (const h of state.heard) if (!told.has(h.source) && h.told_by_name) lines.push(`${first(h.told_by_name)} told them: ${h.claim}`);
     }
-    notes[s.id] = [...new Set(lines)].slice(0, 3).map((l) => (l.length > 220 ? `${l.slice(0, 219)}…` : l));
+    notes[s.id] = [...new Set(lines)].slice(0, 3).map((l) => (l.length > 200 ? `${l.slice(0, 199)}…` : l));
     takes[s.id] = [...new Set(mine)];
   }
   return {
@@ -428,23 +434,30 @@ export function checkSceneLines(raw: readonly unknown[], f: SceneFacts, hidden: 
     const k = typeof r.retells === "number" && Number.isInteger(r.retells) ? r.retells : typeof r.retells === "string" && /^\d+$/.test(r.retells.trim()) ? Number(r.retells) : null;
     const d = k !== null ? f.dates[k - 1] : undefined;
     const line: SceneLine = { character_id: speaker.id, text };
-    if (!d || !namesPair(text, d)) {
-      // Not a retelling we can tie to a fact. It still may not contradict the one date it plainly talks about.
-      const about = f.dates.filter((o) => namesPair(text, o));
-      if (about.length === 1 && checkEnding(text, about[0]) !== "ok") continue;
-      out.push(line);
-      continue;
-    }
-    const ending = checkEnding(text, d);
-    if (ending === "contradicts" || wrongPlace(text, d, f.dates)) continue;
-    if (r.faithful === false || ending === "exaggerated") {
-      // The scene's one wrong retelling: the writer's own plain sentence, else (an exaggeration we caught) the line.
-      const claim = harmlessWrong(r.faithful === false ? r.claim : text, d, f);
+    if (r.faithful === false) {
+      // The writer says this line is the wrong one: it stands only as the scene's one harmless wrong retelling of a
+      // fact it names, in the writer's own plain sentence. Anything else is dropped whole, never kept as a plain line.
+      if (!d || checkEnding(text, d) === "contradicts" || wrongPlace(text, d, f.dates)) continue;
+      const claim = harmlessWrong(r.claim, d, f);
       if (!claim || wrong >= 1) continue;
       wrong++;
       line.tell = { episode_id: d.episode_id, about: d.a, about_b: d.b, claim, is_true: false };
+    } else if (!d || !namesPair(text, d)) {
+      // Not a retelling we can tie to a fact. It still may not contradict the one date it plainly talks about.
+      const about = f.dates.filter((o) => namesPair(text, o));
+      if (about.length === 1 && checkEnding(text, about[0]) !== "ok") continue;
     } else {
-      line.tell = { episode_id: d.episode_id, about: d.a, about_b: d.b, claim: factClaim(d), is_true: true };
+      const ending = checkEnding(text, d);
+      if (ending === "contradicts" || wrongPlace(text, d, f.dates)) continue;
+      if (ending === "exaggerated") {
+        // An exaggeration the writer didn't own up to: it counts as the scene's wrong retelling, in the line's own words.
+        const claim = harmlessWrong(text, d, f);
+        if (!claim || wrong >= 1) continue;
+        wrong++;
+        line.tell = { episode_id: d.episode_id, about: d.a, about_b: d.b, claim, is_true: false };
+      } else {
+        line.tell = { episode_id: d.episode_id, about: d.a, about_b: d.b, claim: factClaim(d), is_true: true };
+      }
     }
     out.push(line);
   }
@@ -457,21 +470,35 @@ export const isScene = (lines: readonly SceneLine[]): boolean =>
 
 /* ------------------------------------------------ the writer ------------------------------------------------ */
 
-const SYSTEM =
-  "You write one short scene for Botchelor, an AI reality-dating show the audience watches. " +
-  "It is evening in the show's house: a few of this season's cast talk about a date that aired today. They were NOT on it; they watched it air, like everyone else. " +
-  `Write ${SCENE_LINES_MIN} to ${SCENE_LINES_MAX} spoken lines (each under 130 characters) from the people listed as in the scene, every one of them speaking at least once. ` +
-  "It is gossip said out loud, not a recap: they retell what happened, take sides, tease, doubt each other, answer back. Each person sounds like themselves (use the bio for voice, not as a topic). Dry and playful, never cruel. " +
-  "PG, adults, no real people or brands. Plain, specific words, no internet memes. " +
-  "Use ONLY the aired facts given: never invent another date, never predict what happens next, never mention anyone's secret, and nobody talks as if they had been on the date. " +
-  "Nothing about crime, health, money or sex, about anyone. " +
-  "A person's private notes colour only that person's own lines; nobody else knows them or says them. " +
-  'For each line say which aired fact it retells ("retells": the fact\'s number, or null for a reaction) and whether it retells it faithfully ("faithful": true or false). A line that retells a fact names at least one of the two people on that date. ' +
-  "Never get the ending itself, the two people or the place wrong. ";
-const WRONG_ONE =
-  'Tonight exactly ONE line gets a small detail wrong, the way gossip does, and only in one of these harmless ways: who left first, who said what, or an exaggeration of how it went. For that line set "faithful": false and add "claim": the wrong version as one plain sentence that names the person ("Dex left before the food came."). Every other retelling is faithful. ';
-const WRONG_NONE = "Tonight everyone has their facts straight: every retelling is faithful. ";
-const REPLY = 'Reply with JSON only: {"lines": [{"from": "<first name>", "text": "...", "retells": 1, "faithful": true}]}';
+/** The writer thinks as little as it can: a handful of short lines needs none, and thinking bills as output. */
+const WRITER_REASONING = "minimal" as const;
+/** Room for the JSON (about 350 tokens) with slack for a model that thinks anyway. */
+const WRITER_MAX_TOKENS = 2000;
+
+const SYSTEM = [
+  "You write one short scene for Botchelor, an AI reality-dating show the audience watches.",
+  "Evening in the show's house. A few of this season's cast talk over a date that aired today. None of them was on it: they watched it air, like everyone else.",
+  "",
+  "Write exactly 5 spoken lines, each under 120 characters. They take turns, and everyone listed speaks.",
+  "- It is gossip said out loud, not a recap: the first line retells what happened, the others react, tease, doubt, answer back.",
+  "- Each person sounds like themselves (the bio is for voice, not a topic). Dry and playful, never cruel. PG. No real people, no brands, no internet memes.",
+  "- Use ONLY the aired facts. Never invent another date, never predict what happens next, never mention a secret, and nobody talks as if they had been on the date.",
+  "- Nothing about crime, health, money or sex, about anyone.",
+  "- Undercurrents are what a person privately brings into the room. They shape that person's tone only: never said out loud, never quoted, never explained.",
+  '- For each line: "retells" is the number of the aired fact the line retells, or null for a reaction. A line that retells a fact names at least one of the two people on that date.',
+  "- Never get the ending itself, the two people or the place wrong.",
+].join("\n");
+const WRONG_ONE = [
+  '- Tonight exactly ONE line passes on a small detail that is not true, the way gossip does. Only one of these harmless kinds: who left first, who said what, or an exaggeration of how it went. For that line set "faithful": false and add "claim": the untrue detail as one plain sentence that names the person. Every other line has "faithful": true.',
+].join("\n");
+const WRONG_NONE = '- Tonight everyone has their facts straight: every line has "faithful": true.';
+const REPLY = [
+  "",
+  "The shape and the tone, with other people and another date (never copy its words):",
+  '{"lines": [{"from": "Ana", "text": "Kit and Jo at the aquarium. Friends, apparently. After all that staring at the jellyfish.", "retells": 1, "faithful": true}, {"from": "Sol", "text": "I heard Kit was out of the door before the penguins were fed.", "retells": 1, "faithful": false, "claim": "Kit left before the penguin feeding."}, {"from": "Ana", "text": "Heard from whom?", "retells": null, "faithful": true}, {"from": "Sol", "text": "A source close to the penguins.", "retells": null, "faithful": true}, {"from": "Ana", "text": "Then the penguins are lying to you.", "retells": null, "faithful": true}]}',
+  "Reply with JSON only, in that shape.",
+].join("\n");
+const systemFor = (f: Pick<SceneFacts, "askWrong">): string => `${SYSTEM}\n${f.askWrong ? WRONG_ONE : WRONG_NONE}\n${REPLY}`;
 
 /** How an aired date reads as a numbered fact (the public record's own words). */
 export const factLine = (d: SceneDate): string => factClaim(d);
@@ -485,12 +512,15 @@ export function scenePrompt(f: SceneFacts): string {
   f.dates.forEach((d, i) => lines.push(`${i + 1}. ${factLine(d)}`));
   const noted = f.speakers.filter((c) => f.notes[c.id]?.length);
   if (noted.length) {
-    lines.push("Private notes (each colours only that person's own lines):");
+    lines.push("Undercurrents (unspoken):");
     for (const c of noted) lines.push(`- ${first(c.name)}: ${f.notes[c.id].join(" | ")}`);
   }
   lines.push("Write the scene.");
   return lines.join("\n");
 }
+
+/** The scene's writer: the show's free model (never the paid upgrade), thinking as little as it can. */
+export const houseWriter = (): Model => getModel(WRITER_REASONING, false);
 
 /** The model's scene, checked line by line; null when the call fails or what passes isn't a scene. */
 export async function writeScene(model: Model, f: SceneFacts, hidden: readonly string[], onUsage?: (u: Usage) => void): Promise<SceneLine[] | null> {
@@ -498,10 +528,10 @@ export async function writeScene(model: Model, f: SceneFacts, hidden: readonly s
   try {
     raw = await model.complete(
       [
-        { role: "system", content: SYSTEM + (f.askWrong ? WRONG_ONE : WRONG_NONE) + REPLY },
+        { role: "system", content: systemFor(f) },
         { role: "user", content: scenePrompt(f) },
       ],
-      { temperature: 0.9, maxTokens: 1200, onUsage },
+      { temperature: 0.9, maxTokens: WRITER_MAX_TOKENS, onUsage },
     );
   } catch {
     return null;
@@ -755,10 +785,14 @@ async function beatFor(db: Db, day: string): Promise<Pick<Tension, "kind" | "a" 
  * the day's row first (two passes can't both call the model), then fills it; a quiet day keeps an empty row so the job
  * doesn't ask again. Then the state (applyTold) and the owners (tellOwners).
  */
-export async function ensureHouseScene(db: Db, now: Date = new Date(), opts: { model?: Model; env?: Record<string, string | undefined> } = {}): Promise<HouseSceneWritten> {
+export async function ensureHouseScene(
+  db: Db,
+  now: Date = new Date(),
+  opts: { model?: Model; env?: Record<string, string | undefined>; /** An admin asked for it now (POST /api/admin/house-scene): don't wait for the hour. */ anyHour?: boolean } = {},
+): Promise<HouseSceneWritten> {
   const env = opts.env ?? process.env;
   if (!houseScenesOn(env)) return { skipped: "off" };
-  if (now.getUTCHours() < houseSceneHourUtc(env)) return { skipped: "early" };
+  if (!opts.anyHour && now.getUTCHours() < houseSceneHourUtc(env)) return { skipped: "early" };
   const day = now.toISOString().slice(0, 10);
   const id = sceneIdOf(day);
   const claimed = await db.query(
@@ -783,7 +817,7 @@ export async function ensureHouseScene(db: Db, now: Date = new Date(), opts: { m
   if (!facts) return quiet(showCastIds(now).length < 2 ? "no_cast" : "quiet");
 
   const hidden = (await Promise.all(showCastIds(now).map((c) => hiddenCastSecrets(db, c, now).catch(() => [] as string[])))).flat();
-  const model = opts.model ?? (voiceEnabled ? getModel(undefined, false) : null);
+  const model = opts.model ?? (voiceEnabled ? houseWriter() : null);
   const usage: Usage[] = [];
   const written = model ? await writeScene(model, facts, hidden, (u) => usage.push(u)) : null;
   const lines = written ?? templateScene(facts).filter((l) => !hidden.some((s) => slipped(l.text, s)));
