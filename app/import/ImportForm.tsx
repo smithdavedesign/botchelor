@@ -242,7 +242,6 @@ export default function ImportForm({ from = null, history = false }: { from?: st
     setError(null);
     try {
       const { result, readBy } = review;
-      setReview(null);
       if (!(await openReview(result, readBy))) handOver(result, readBy, null);
     } finally {
       setBusy(false);
@@ -307,8 +306,8 @@ export default function ImportForm({ from = null, history = false }: { from?: st
           </label>
           <p className="muted small" id="import-history-help">
             A chat log, a lorebook, a scenario, example dialogue: whatever holds what the two of you built. The show&apos;s reader
-            turns it into at most eight short lines, and you choose which to keep. Your paste is read once and never stored
-            or logged; only the lines you keep are saved.
+            turns it into at most eight short lines, and you choose which to keep. Your paste is sent once to the show&apos;s AI
+            model to be read; we never store or log it, and only the lines you keep are saved.
           </p>
           <textarea
             id="import-history"

@@ -80,8 +80,8 @@ export default function AlternativePage({ alt }: { alt: Alternative }) {
         {importMemoriesOn() ? (
           <p className="muted small">
             Your chat history can come too, as what matters in it rather than a transcript: paste it in the second box
-            and keep up to {HISTORY_ITEMS_MAX} short lines, as their own facts and as what they remember about you. The
-            paste itself is never stored or logged.
+            and keep up to {HISTORY_ITEMS_MAX} short lines, as their own facts and as what they remember about you. We
+            never store or log the paste itself.
           </p>
         ) : (
           <p className="muted small">

@@ -57,7 +57,7 @@ export default function HistoryReview({
       ) : (
         <p className="muted">
           Untick anything that shouldn&apos;t come, and fix any line the reader got wrong. Nothing is saved until you press the
-          button, and the paste itself is never kept.
+          button, and we never keep the paste itself.
         </p>
       )}
       {note && <p className="muted small">{note}</p>}

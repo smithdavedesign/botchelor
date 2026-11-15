@@ -682,7 +682,7 @@ describe("the pages", () => {
     for (const html of [await page(), await page({ from: "cai" })]) {
       expect(html).toContain('<textarea id="import-history"');
       expect(html).toContain("Bring their history");
-      expect(html).toContain("Your paste is read once and never stored or logged; only the lines you keep are saved.");
+      expect(html).toContain("Your paste is sent once to the show's AI model to be read; we never store or log it, and only the lines you keep are saved.");
       expect(html).toContain("Raw transcripts aren't kept");
       expect(html).toMatch(/<code>scenario<\/code>.*<code>mes_example<\/code>.*<code>character_book<\/code>/s);
       expect(html).not.toContain("stay behind");
@@ -709,7 +709,8 @@ describe("the pages", () => {
     const cai = alternativeBySlug("character-ai")!;
     const html = text(renderToStaticMarkup(AlternativePage({ alt: cai })));
     expect(html).toContain("Can I bring our chat history?");
-    expect(html).toMatch(/never stored or logged/);
+    expect(html).toMatch(/we never store or log it/);
+    expect(html).toContain("We never store or log the paste itself.");
     expect(html).not.toContain("stay behind");
     expect(html).not.toMatch(/official|partner|affiliated|endorsed/i);
     vi.stubEnv("IMPORT_MEMORIES", "0");

@@ -411,9 +411,10 @@ as a short list the person edits, never as a transcript:
   people: `sheetPgIssue`), an `us` line the companion memory's (`checkFamilyTalk`, plus no words of a crisis or anything
   near one), and one that ran long keeps its first sentence or is dropped. The page says how many were left out, as a
   number. The save and the memory write check everything again.
-- **The paste is never kept.** It is read in the request and goes nowhere else: no table, no log line (a JSON error's
-  own message is never passed on, since V8 quotes the text), no analytics prop, no browser storage. The page says so in
-  one line, and `tests/import-history.test.ts` searches every table for it.
+- **The paste is never kept.** It is sent once to the show's free model in the request and goes nowhere else on our
+  side: no table, no log line (a JSON error's own message is never passed on, since V8 quotes the text), no analytics
+  prop, no browser storage. The page says so in one line, and `tests/import-history.test.ts` searches every table for
+  it.
 - **Failure is ordinary.** The reader is down, slow (20 s) or unreadable, a limit is hit, or nothing worth keeping was
   found: the checklist's place shows one sentence and **Open the builder** (and **Try once more** when that could help).
   The identity import is never stopped by its history.

@@ -105,7 +105,7 @@ export const alternativeBySlug = (slug: string): Alternative | undefined => ALTE
  */
 export const HISTORY_FAQ: { q: string; a: string } = {
   q: "Can I bring our chat history?",
-  a: `Not the transcript, but what matters in it. Paste a chat log, a lorebook, a scenario or example dialogue into the import page's second box: the show's free model reads it once into at most ${HISTORY_ITEMS_MAX} short lines, and you tick and reword what stays. What's true of your character goes to their own facts, what happened between the two of you goes to what they remember about you as a Companion, and how they talk goes to their voice. The paste itself is never stored or logged; only the lines you keep are saved, and you can edit or delete them later.`,
+  a: `Not the transcript, but what matters in it. Paste a chat log, a lorebook, a scenario or example dialogue into the import page's second box: the show's free model reads it once into at most ${HISTORY_ITEMS_MAX} short lines, and you tick and reword what stays. What's true of your character goes to their own facts, what happened between the two of you goes to what they remember about you as a Companion, and how they talk goes to their voice. The paste is sent once to the show's AI model to be read and we never store or log it; only the lines you keep are saved, and you can edit or delete them later.`,
 };
 
 /** Every page's questions, this app's first: the page and its FAQPage data read the same list. */

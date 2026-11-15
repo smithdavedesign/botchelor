@@ -132,6 +132,23 @@ function genericExpressDraft(messages) {
   };
 }
 
+// "Bring their history" (lib/import-history.ts, POST /api/characters/import/history): the typed list its prompt asks
+// for, one line of each kind and one the show's rules drop. Told apart by the system prompt's opening words.
+const isHistoryRead = (messages) => (messages.find((m) => m.role === "system")?.content ?? "").startsWith("You read what someone saved from another chat app");
+function genericHistoryRead() {
+  return {
+    items: [
+      { about: "character", topic: "lore", text: "Marisol's grandmother kept the Cape Wren light before her." },
+      { about: "character", topic: "unresolved", text: "Marisol dives the wreck of the Halcyon every spring, looking for its logbook." },
+      { about: "us", topic: "event", text: "They and Marisol fixed the radio together during the storm in March." },
+      { about: "us", topic: "names", text: "They call Marisol 'keeper'; Marisol calls them 'sailor'." },
+      { about: "us", topic: "told", text: "Their sister Odile thinks Marisol is a ghost story." },
+      { about: "voice", topic: "", text: "Dry and brief, swears at solder, never raises her voice." },
+      { about: "us", topic: "event", text: "They got naked on the gallery together." },
+    ],
+  };
+}
+
 /** Starts a local OpenAI-compatible endpoint that returns the stub narration (or one agent turn). Returns the http server. */
 export function startShowrunner() {
   const server = createServer((req, res) => {
@@ -147,6 +164,8 @@ export function startShowrunner() {
         const content = JSON.stringify(
           isExpressDraft(messages)
             ? genericExpressDraft(messages)
+            : isHistoryRead(messages)
+            ? genericHistoryRead()
             : isAfterglow
             ? genericAfterglow(messages)
             : isBetweenDates

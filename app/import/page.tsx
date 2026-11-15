@@ -115,9 +115,10 @@ export default async function ImportPage({ searchParams }: { searchParams: Searc
         </ul>
         {history ? (
           <p className="muted small">
-            Raw transcripts aren&apos;t kept: what you paste is read once and never stored or logged, and only the lines
-            you keep are saved, where you can edit or delete them later. The show is PG, so a setup written for adult
-            chat doesn&apos;t come along. Nothing is saved until you press Create in the builder.
+            Raw transcripts aren&apos;t kept: what you paste is sent once to the show&apos;s AI model to be read, we never
+            store or log it, and only the lines you keep are saved, where you can edit or delete them later. The show is
+            PG, so a setup written for adult chat doesn&apos;t come along. Nothing is saved until you press Create in the
+            builder.
           </p>
         ) : (
           <p className="muted small">

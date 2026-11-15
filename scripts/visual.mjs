@@ -375,6 +375,21 @@ async function main() {
       { name: "home-owner", path: "/", as: "owner" },
       // The Character.AI rescue door (2026-11-14): /import with the three steps above the box.
       { name: "import-cai", path: "/import?from=cai" },
+      {
+        // "Bring their history" (lib/import-history.ts): the plain page with its second box, then a card and a pasted
+        // chat read into the checklist (the stub showrunner answers the reader's call), each line with its tick.
+        name: "import-history",
+        path: "/import",
+        walk: async (page) => {
+          await page.getByRole("button", { name: "Try an example card" }).click();
+          await page
+            .locator("#import-history")
+            .fill("You: do you remember the storm in March?\nMarisol: The night we fixed the radio. You held the torch and I swore at the solder.\nYou: my sister Odile still thinks you're a ghost story.\nMarisol: Tell Odile the ghost says hello, sailor.");
+          await page.getByRole("button", { name: "Bring them in" }).click();
+          await page.getByRole("heading", { name: "What Marisol brings" }).waitFor({ timeout: 30_000 });
+          await page.getByRole("button", { name: /^Keep \d and open the builder$/ }).waitFor();
+        },
+      },
       { name: "cast", path: "/cast" },
       { name: "watch-lobby", path: "/watch" },
       { name: "watch-room", path: `/watch/${data.templates[0]}` },

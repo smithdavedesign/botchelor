@@ -141,6 +141,11 @@ services:
       # - key: EXPRESS_CREATE
       #   value: "0"
       #   scope: RUN_AND_BUILD_TIME
+      # "Bring their history" on /import (lib/import-history.ts; docs/flows.md): on by default. Uncomment with "0" to
+      # take the second box and its two routes away without a deploy of code.
+      # - key: IMPORT_MEMORIES
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
       # A character's questions about its own sheet (lib/character-questions.ts; docs/companions.md): on by default.
       # Uncomment with "0" and the daily job sends none.
       # - key: CHARACTER_QUESTIONS
