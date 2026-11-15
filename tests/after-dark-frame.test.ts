@@ -188,6 +188,36 @@ describe("the hub", () => {
   });
 });
 
+// The home's "Your latest" (2026-11-15): what they made last, a tap from the Gallery; nothing when there's nothing.
+describe("the home's latest", () => {
+  const home = async () => renderToStaticMarkup(await AfterDarkHome({ searchParams: Promise.resolve({}) }));
+
+  it("shows their newest pictures and videos, marked new, each opening the Gallery on its tab", async () => {
+    const { id } = await admin();
+    expect(await home()).not.toContain("Your latest");
+    const add = (mid: string, kind: string, at: string) =>
+      t.db.query(`insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, status, created_at) values ($1, $2, $3, $4, $5, 'x', 'image/png', 'ready', $6)`, [
+        mid,
+        id,
+        HOUSE_CHARACTERS[0].id,
+        HOUSE_CHARACTERS[1].id,
+        kind,
+        at,
+      ]);
+    await add("old-picture", "scene", "2026-01-01T00:00:00Z");
+    await add("new-video", "video", new Date().toISOString());
+    await add("a-face", "baseline", new Date().toISOString());
+    const html = await home();
+    expect(html).toContain("Your latest");
+    expect(html).toContain('data-latest-item="new-video"');
+    expect(html).toContain('data-latest-item="old-picture"');
+    expect(html).not.toContain('data-latest-item="a-face"');
+    expect(html).toContain('href="/after-dark/gallery?tab=videos"');
+    expect(html).toContain('href="/after-dark/gallery?tab=pictures"');
+    expect(html).toContain("New video");
+  });
+});
+
 // The kit's After Dark home: a hero that says what it is, and one tap back into the latest night.
 describe("the home's hero", () => {
   const home = async () => renderToStaticMarkup(await AfterDarkHome({ searchParams: Promise.resolve({}) }));
