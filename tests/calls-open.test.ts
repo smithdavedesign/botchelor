@@ -6,6 +6,13 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 // listAiringSoon), up to four, as couple cards. Nothing airing is never an empty list (the empty-room rule, 2026-11-14):
 // the lobby's live room or the next premiere, else one card to the lobby; the button to the lobby stays either way.
 const jar = vi.hoisted(() => ({ cookies: new Map<string, string>() }));
+// /calls carries the league form now (the 2026-11-14 design audit), and the form asks for the router.
+vi.mock("next/navigation", async (original) => ({
+  ...(await original<typeof import("next/navigation")>()),
+  useRouter: () => ({ refresh() {}, push() {}, replace() {}, back() {}, prefetch() {} }),
+  usePathname: () => "/calls",
+  useSearchParams: () => new URLSearchParams(),
+}));
 vi.mock("next/headers", () => ({
   cookies: async () => ({ get: (name: string) => (jar.cookies.has(name) ? { name, value: jar.cookies.get(name)! } : undefined) }),
   headers: async () => new Headers(),

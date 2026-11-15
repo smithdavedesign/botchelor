@@ -478,7 +478,7 @@ describe("the board", () => {
     const [callers, pool] = sent[0].body.embeds;
     expect(sent[0].body.content).toMatch(/^🏆 \*\*This week's board\.\*\*/);
     expect(callers.title).toBe("Best callers this week");
-    expect(callers.url).toBe(`${SITE}/watch?utm_source=discord&utm_medium=board&utm_campaign=callers#best-callers`);
+    expect(callers.url).toBe(`${SITE}/calls?utm_source=discord&utm_medium=board&utm_campaign=callers#best-callers`);
     expect(callers.description).toMatch(/^\*\*1\.\*\* Ana \\\[mod\\\]\(https\\:\/\/x\.example\): 2 of 2\n\*\*2\.\*\* A viewer: 1 of 2\n\nRight endings on public dates that aired in the last 7 days \(2 callers\)\./);
     // The pool while the season runs: how many play and when it's revealed, never its names or scores.
     expect(pool.description).toMatch(/^2 players have points so far\./);

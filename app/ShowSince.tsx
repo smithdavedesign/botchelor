@@ -36,7 +36,7 @@ function Items({ card }: { card: ShowSinceData }) {
       {card.chat && (
         <li>
           <span aria-hidden="true">📱</span> Leaked from the cast group chat: <strong>{card.chat.name}</strong> <em>“{card.chat.text}”</em>{" "}
-          <Link href="/watch#cast-chat" data-track="cast-chat" data-track-where="since">
+          <Link href="/reunion#cast-chat" data-track="cast-chat" data-track-where="since">
             {card.chat.more > 0 ? `read the other ${card.chat.more}` : "read it"}
           </Link>
         </li>

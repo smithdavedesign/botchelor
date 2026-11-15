@@ -36,11 +36,14 @@ export default function SeasonBanner({ now = new Date(), format = null }: { now?
   const label = `Season ${number}, ${seasonLabel(id)}, night ${night} of ${nights}, ${left === 0 ? "the finale is tonight" : `${left} ${left === 1 ? "day" : "days"} to the finale`}`;
   return (
     <Link href="/reunion" className="season-arc" aria-label={label} data-track="season-arc">
-      <span className="season-arc-name">Season {number}</span>
+      <span className="season-arc-name">
+        <span className="season-arc-long">Season {number}</span>
+        <span className="season-arc-short">S{number}</span>
+      </span>
       <span className="season-arc-sep" aria-hidden="true">
         ·
       </span>
-      <span>{seasonLabel(id)}</span>
+      <span className="season-arc-month">{seasonLabel(id)}</span>
       <span className="season-arc-sep" aria-hidden="true">
         ·
       </span>
@@ -48,7 +51,16 @@ export default function SeasonBanner({ now = new Date(), format = null }: { now?
       <span className="season-arc-track" aria-hidden="true">
         <span style={{ width: `${pct}%` }} />
       </span>
-      <span className="season-arc-left">{left === 0 ? "Finale tonight" : `${left} ${left === 1 ? "day" : "days"} to the finale`}</span>
+      <span className="season-arc-left">
+        {left === 0 ? (
+          "Finale tonight"
+        ) : (
+          <>
+            <span className="season-arc-long">{`${left} ${left === 1 ? "day" : "days"} to the finale`}</span>
+            <span className="season-arc-short">{`${left} ${left === 1 ? "day" : "days"} left`}</span>
+          </>
+        )}
+      </span>
       {format && <span className="chip season-arc-format">{format}</span>}
     </Link>
   );

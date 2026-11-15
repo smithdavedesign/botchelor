@@ -219,6 +219,14 @@
   box-shadow: none;
   align-items: stretch;
 }
+/* On a phone the date leads (the 2026-11-14 design audit: the pitch filled the first screen and the date, the only proof
+   the show works, started below the fold). The pitch and "Make your character" follow it; PhoneActionBar keeps both
+   doors in thumb reach once they've scrolled by. The made-up matchup (nothing aired yet) still follows the pitch. */
+@media (max-width: 720px) {
+  .hero-art.has-date {
+    order: -1;
+  }
+}
 
 /* ---------------- the 18+ gate (app/gate/page.tsx): the show, blurred, behind the question ---------------- */
 .gate-backdrop {

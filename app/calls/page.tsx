@@ -12,7 +12,12 @@ import { dateNumberOf, endingLabel } from "@/lib/rules";
 import { nightCode, parseRecordShare, recordGrid, recordWords, sharedByOf, type RecordShare } from "@/lib/share-record";
 import { verifiedSharerName } from "@/lib/share-record-name";
 import { forViewer } from "@/lib/shared-cache";
-import { callRecord, recordLine, type CallRecord } from "@/lib/streaks";
+import { callersBoard, callRecord, recordLine, type CallRecord } from "@/lib/streaks";
+import { CallersBoardPanel } from "@/app/YourCalls";
+import { CreateLeagueForm } from "@/app/watch/WatchActions";
+import Icon from "@/app/Icon";
+import { listMyLeagues } from "@/lib/leagues";
+import { getProfileName } from "@/lib/people";
 import { countdown } from "@/lib/countdown";
 import { venueName } from "@/lib/venues";
 import { listLobby, type LobbyEntry } from "@/lib/watch";
@@ -178,6 +183,20 @@ export default async function CallsPage({ searchParams }: Props) {
       .then((db) => isInsider(db, viewerId))
       .catch(() => false),
   ]);
+  // Best callers and friend leagues, here since they left /watch (the 2026-11-14 design audit): the page about calling endings.
+  const [callers, leagues, profileName] = await Promise.all([
+    getDb()
+      .then((db) => forViewer(viewerId, "watch:callers", () => callersBoard(db, viewerId)))
+      .catch(() => null),
+    viewerId
+      ? getDb()
+          .then((db) => listMyLeagues(db, viewerId))
+          .catch(() => [])
+      : Promise.resolve([]),
+    getDb()
+      .then((db) => getProfileName(db, viewerId))
+      .catch(() => null),
+  ]);
   const open = airing.slice(0, OPEN_CALLS_SHOWN);
   const now = Date.now();
   return (
@@ -226,6 +245,33 @@ export default async function CallsPage({ searchParams }: Props) {
         ) : (
           <NothingOpen rooms={rooms} now={now} insider={insider} />
         )}
+      </section>
+
+      {callers && <CallersBoardPanel board={callers} nameless={viewerId !== null && profileName === null} insider={insider} />}
+
+      <section className="calls-leagues" id="leagues" aria-labelledby="leagues-head">
+        <h2 id="leagues-head">Leagues</h2>
+        {leagues.length > 0 && (
+          <ul className="list">
+            {leagues.map((league) => (
+              <li key={league.id} className="card">
+                <Link href={league.invite_path}>
+                  <strong>{league.name}</strong>
+                </Link>{" "}
+                <span className="muted">
+                  {league.members} {league.members === 1 ? "player" : "players"}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+        <details className="watch-league-details ux-fold">
+          <summary>
+            <Icon name="trophy" /> Start a league with friends
+          </summary>
+          <p className="muted small">Call endings together: the top 3 in each league earn a badge when a season closes.</p>
+          <CreateLeagueForm hasName={profileName !== null} />
+        </details>
       </section>
 
       <p className="muted small">

@@ -7,6 +7,14 @@ import { sharerOf, signShare, verifiedSharerName } from "@/lib/share-record-name
 import { recordOf } from "@/lib/streaks";
 import { startTestDb, TEST_SESSION_SECRET } from "./helpers";
 
+// /calls carries the league form now (the 2026-11-14 design audit), and the form asks for the router.
+vi.mock("next/navigation", async (original) => ({
+  ...(await original<typeof import("next/navigation")>()),
+  useRouter: () => ({ refresh() {}, push() {}, replace() {}, back() {}, prefetch() {} }),
+  usePathname: () => "/calls",
+  useSearchParams: () => new URLSearchParams(),
+}));
+
 let t: Awaited<ReturnType<typeof startTestDb>>;
 beforeAll(async () => {
   t = await startTestDb();
