@@ -172,7 +172,7 @@ function SearchForm({ q }: { q: string }) {
         name="q"
         defaultValue={q}
         maxLength={DIRECTORY_QUERY_MAX}
-        placeholder="Find a character: a name, a trait, a word from their bio"
+        placeholder="A name or a trait"
         autoComplete="off"
         enterKeyHint="search"
       />
