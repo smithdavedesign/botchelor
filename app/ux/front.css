@@ -390,3 +390,149 @@
 .newsletter-page .newsletter-card {
   margin: var(--space-4) 0;
 }
+
+/* ---------------- the home hero's clip and sentence box (lib/home-clip.ts, 2026-11-15) ---------------- */
+/* The day's clip in a phone (app/HomeClip.tsx): the hero's visual for a visitor with no character. No card around it:
+   the phone is the object. */
+.hero-art.has-clip {
+  padding: 0;
+  background: none;
+  border: 0;
+  box-shadow: none;
+}
+.home-clip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0;
+  width: 100%;
+}
+/* A smaller phone than a thread's: the clip is 9:16, and the hero must still fit the headline beside or under it. */
+.home-clip .phone {
+  width: min(100%, 16.5rem);
+  margin-top: 0;
+}
+.home-clip-screen {
+  position: relative;
+  width: 100%;
+  background: var(--photo-bg);
+}
+.home-clip-video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+/* The clip is a phone's whole screen already (the theater, recorded at phone size): the bezel alone frames it. */
+.home-clip .phone-status,
+.home-clip .phone-home {
+  display: none;
+}
+.home-clip-play {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: color-mix(in srgb, var(--photo-bg) 35%, transparent);
+  box-shadow: none;
+  color: var(--accent-ink);
+  cursor: pointer;
+}
+.home-clip-play .icon {
+  width: 3.5rem;
+  height: 3.5rem;
+  padding: var(--space-3);
+  border-radius: var(--radius-pill);
+  background: var(--grad);
+}
+.home-clip-cap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  text-align: center;
+}
+.home-clip-kicker {
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent-text);
+}
+.home-clip-who {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.home-clip-watch {
+  margin-top: var(--space-1);
+}
+/* The typed-in date, under the hero while the clip has its place. */
+.home-date {
+  margin: 0 0 var(--space-5);
+}
+
+/* One-sentence create on home (app/HomeExpressBox.tsx): a field and its button on one line, stacked on a phone. */
+.home-express {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: var(--space-3) 0;
+  max-width: 34rem;
+}
+.home-express-label {
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+.home-express-row {
+  display: flex;
+  gap: var(--space-2);
+}
+.home-express-row input {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+.home-express-row button {
+  flex: none;
+  margin: 0;
+}
+@media (max-width: 720px) {
+  /* On a phone: the headline, the sentence box, then the clip, then the rest of the pitch. The first screen says what
+     this is, offers the one field, and shows the clip's top (where the lines appear). The copy's children become the
+     hero's own rows so the clip can sit between them. */
+  .hero.has-clip {
+    row-gap: 0;
+  }
+  .hero.has-clip .hero-copy {
+    display: contents;
+  }
+  .hero.has-clip .hero-copy > * {
+    order: 3;
+  }
+  .hero.has-clip .hero-copy > .kicker,
+  .hero.has-clip .hero-copy > h1 {
+    order: 0;
+  }
+  .hero.has-clip .hero-copy > .home-express {
+    order: 1;
+  }
+  .hero-art.has-clip {
+    order: 2;
+    margin: var(--space-3) 0 var(--space-4);
+  }
+  .home-clip .phone {
+    width: min(100%, 11rem);
+  }
+}
+@media (max-width: 480px) {
+  .home-express-row {
+    flex-direction: column;
+  }
+}

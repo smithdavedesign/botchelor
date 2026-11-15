@@ -88,6 +88,33 @@ flowchart TD
     signed -- "Yes: Link it" --> agents["Account → Your agents:<br/>its characters and dates, its agent id<br/>to give back; unlink any time"]
 ```
 
+**The home page, for a stranger (2026-11-15).** A visitor with no character gave the page 8 seconds and it showed no
+video, and the one-sentence builder sat a click away (12 opened `/create`, 4 finished). Two changes to the hero, both
+only for someone with no character:
+
+- **The day's clip** (`app/HomeClip.tsx`, `lib/home-clip.ts`): the web loop of the daily clip
+  ([house-crowd.md](house-crowd.md), "The home page's copy") in a phone, where the typed-in date was; on a phone it
+  leads the page. Muted, looping, inline; the poster is the first paint and nothing loads before it plays. With
+  reduced motion or save-data (or when the browser won't autoplay) the poster stays with a play button. Under it: the
+  two characters and how it ended (public, since only an aired date can be a clip), and **Watch the whole date** (the
+  episode with `?play=1`). The typed-in date with its "call the ending" card moves under the hero. **No clip from the last
+  14 days** (or its date was taken down, or `HOME_HERO_CLIP=0`): the hero is exactly what it was. The row comes through
+  the shared cache inside the page's one `Promise.all`; a stranger's home stays at depth 3 (`tests/perf-pages.test.ts`).
+- **The sentence box** (`app/HomeExpressBox.tsx`): "Describe someone in a sentence" and **Meet them**, right under the
+  headline. Submitting opens `/create` with the one box filled and the draft already running: the same route, limits, PG
+  checks and events as one-sentence create below, each event carrying `place: "home"`. The sentence crosses in the
+  browser's sessionStorage, not the address (without script the form sends `/create?say=…`, which the builder removes
+  from the address at once). "Make your character" stays beside it as the long way in, with the sample and the import
+  lines. `HOME_EXPRESS_BOX=0` or `EXPRESS_CREATE=0`: no box, and "Make your character" is the main button again.
+- Tests: `tests/home-clip.test.ts`. The visual gate seeds a clip and walks the box (`scripts/visual.mjs` `home`,
+  `home-express`).
+
+| A stranger's home (phone) | The same on a desktop | The box's sentence, drafted on `/create` |
+|---|---|---|
+| ![Home on a phone: the headline, the sentence box, then the day's clip in a phone](screenshots/home-clip-mobile.png) | ![Home on a desktop: the clip in a phone beside the headline and the sentence box](screenshots/home-clip-desktop.png) | ![/create after the home box: the draft is ready on the Look step](screenshots/home-express-create-mobile.png) |
+
+From the local visual gate (reduced motion on, so the clip shows its poster and play button; it plays by itself otherwise).
+
 **The home page, for someone with a character (2026-11-15).** A stranger's `/` is the pitch (the hero, tonight's band,
 what just aired, how it works, the cast, questions). Someone with at least one character lands on **their character's
 phone** first (`app/CharacterPhone.tsx`, `lib/character-phone.ts`), then tonight's band, then "Since you were here", then
@@ -345,6 +372,7 @@ fields. The first screen for someone making their **first** character is now one
 - **Events** (`lib/express-create.ts`, sent with `queueEvent`): `express_started` (Meet them: length, named, example),
   `express_drafted` (ready, invented_name, look), `express_failed` (reason). The first two are steps on the Engagement
   funnel between "Opened Make your character" and "Made a character" (`lib/engagement.ts`). Never the words.
+  From the home page's box they also carry `place: "home"` (`expressEventAt`).
 - Tests: `tests/express-create.test.ts`. The visual gate walks it (`scripts/visual.mjs` `create-express`).
 
 What the draft leaves empty, the character asks about later, in its own thread: see

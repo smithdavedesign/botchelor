@@ -198,6 +198,14 @@ services:
       # - key: HOME_PHONE
       #   value: "0"
       #   scope: RUN_AND_BUILD_TIME
+      # A stranger's home hero (lib/home-clip.ts; docs/flows.md): the day's clip and the one-sentence box, both on by
+      # default. Uncomment either with "0" to put the hero back as it was without a deploy of code.
+      # - key: HOME_HERO_CLIP
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
+      # - key: HOME_EXPRESS_BOX
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
       # The After Dark bridge (lib/adult/bridge.ts; docs/hosting.md): one line on the creator's verdict card after a
       # second date, to the invite request. On by default; "0" takes it away without a deploy.
       # - key: AD_BRIDGE
