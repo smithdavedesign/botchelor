@@ -1060,7 +1060,7 @@ const BACKFILL_KEY = "backfill-v1";
 /**
  * Once, after this ships: firsthand opinions from the last BACKFILL_DAYS of public aired dates the current cast was
  * on (the latest date of each pair; afterAired does the rest), deterministic, no model call. It works inside
- * `budgetMs` and picks up where it left off on the next pass (a pair already written from its latest date is skipped),
+ * `budgetMs` and picks up where it left off on the next pass (a pair that already has a firsthand opinion is skipped),
  * and marks itself done (story_state_runs) only when nothing is left.
  */
 export async function backfillStoryState(db: Db, now: Date = new Date(), budgetMs = 45_000): Promise<{ pairs: number; done: boolean }> {
@@ -1073,7 +1073,8 @@ export async function backfillStoryState(db: Db, now: Date = new Date(), budgetM
        from episodes e join characters ca on ca.id = e.character_a join characters cb on cb.id = e.character_b
       where ${publicDateSql("e")} and e.ending is not null and e.revealed_at >= $1 and e.revealed_at <= $2
         and (e.character_a = any($3) or e.character_b = any($3)) and ca.visibility = 'public' and cb.visibility = 'public'
-        and not exists (select 1 from character_opinions o where o.source = e.id)
+        and not exists (select 1 from character_opinions o where o.basis = 'firsthand'
+                          and ((o.holder_id = e.character_a and o.about_id = e.character_b) or (o.holder_id = e.character_b and o.about_id = e.character_a)))
       order by least(e.character_a, e.character_b), greatest(e.character_a, e.character_b), e.revealed_at desc, e.id desc`,
     [since, now.toISOString(), cast],
   );
