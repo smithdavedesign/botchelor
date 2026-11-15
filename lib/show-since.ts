@@ -18,6 +18,7 @@
 import { backingSince, type BackingSince } from "./backing";
 import { latestCastChat } from "./cast-chat";
 import { storyToday } from "./producer";
+import { houseLine, latestHouseScene, scenePath } from "./house-scenes";
 import { newestOwnSlip, newestSecretOut, type SecretOut } from "./cast-secrets";
 import type { Db } from "./db";
 import { RETURN_GAP_HOURS } from "./activity";
@@ -73,6 +74,8 @@ export type ShowSince = {
   chat: { code: string | null; name: string; text: string; more: number } | null;
   /** Today's story from the producer (lib/producer.ts): what happened and what is coming. Rides along; never summons the card. */
   story: { previously: string; tonight: string; vote: boolean } | null;
+  /** The newest scene in the show's house written since (lib/house-scenes.ts): who was talking, its first line, and where to read it. */
+  house: { who: string; name: string; text: string; path: string } | null;
   /** Overnight dates that aired since and ended in the two leaving together (lib/overnight.ts), public ones only. */
   overnights: { lo: string; hi: string; a: string; b: string; episode_path: string }[];
 };
@@ -157,6 +160,8 @@ export async function showSince(db: Db, viewerId: string | null, now: Date = new
   const n = night.rows[0];
   // A roleplay by its id, or a producer's twist by the title the night kept (lib/producer.ts).
   const def = n ? (DATE_ROLEPLAYS.find((r) => r.id === n.pick) ?? (n.title ? { title: n.title, icon: n.icon ?? "🎬" } : undefined)) : undefined;
+  // The three that ride along (the week's twist, the cast chat, the house scene): side by side, not one after another.
+  const [twist, chat, house] = await Promise.all([twistSince(db, since, now), chatSince(db, since, now), houseSince(db, since, now)]);
   const card: ShowSince = {
     since: visit.toISOString(),
     aired: aired.rows[0]?.n ?? 0,
@@ -174,10 +179,11 @@ export async function showSince(db: Db, viewerId: string | null, now: Date = new
     secret,
     backing,
     season: seasonClosedSince(since, now),
-    twist: await twistSince(db, since, now),
-    chat: await chatSince(db, since, now),
+    twist,
+    chat,
+    house,
     story: await storyToday(db, now)
-      .then((t) => (t ? { previously: t.previously, tonight: t.tonight, vote: t.vote } : null))
+      .then((x) => (x ? { previously: x.previously, tonight: x.tonight, vote: x.vote } : null))
       .catch(() => null),
     overnights: overnightDatesOn()
       ? (await overnightMarks(db, { since: at }, null, OVERNIGHTS_SHOWN).catch(() => [])).map((m) => ({ lo: m.lo, hi: m.hi, a: m.names[0], b: m.names[1], episode_path: `/episodes/${m.episode_id}` }))
@@ -185,7 +191,8 @@ export async function showSince(db: Db, viewerId: string | null, now: Date = new
   };
   // The week's shift alone isn't news since a visit (it can predate it), so it never shows the card by itself.
   // Nor is the week's twist: most weeks have one, so it rides along but never summons the card. The cast chat is daily
-  // too (and only ever about dates that aired, which already count above), so it rides along the same way.
+  // too (and only ever about dates that aired, which already count above), so it rides along the same way, and so does the
+  // day's house scene.
   // An overnight date is one of the dates that aired (counted above), so it rides along too.
   const anything = card.aired || card.moves.length || card.calls || card.followed || card.situation || card.diary || card.secret || card.backing || card.season;
   return anything ? card : null;
@@ -198,6 +205,14 @@ async function twistSince(db: Db, since: Date, now: Date): Promise<{ label: stri
   if (twistWeekStart(def, now) <= since) return null;
   const twist = twistOf(def, now);
   return { label: twist.label, tease: twist.tease };
+}
+
+/** The newest house scene, when it was written after their last visit; otherwise null. Daily, so it rides along like the chat. */
+async function houseSince(db: Db, since: Date, now: Date): Promise<ShowSince["house"]> {
+  const scene = await latestHouseScene(db, now).catch(() => null);
+  if (!scene || new Date(scene.written_at) <= since) return null;
+  const first = scene.lines[0];
+  return { who: houseLine(scene), name: first.name, text: first.text, path: scenePath(scene.id) };
 }
 
 /** The newest cast group chat, when it was written after their last visit; otherwise null. */

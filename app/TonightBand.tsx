@@ -6,6 +6,7 @@ import type { CeremonyBoard } from "@/lib/ceremony";
 import type { SituationBoard } from "@/lib/situations";
 import type { RevealBoard } from "@/lib/weekly-reveal";
 import type { LobbyEntry } from "@/lib/watch";
+import { houseLine, type HouseSceneView } from "@/lib/house-scenes";
 
 /** "in 2h 10m", "in 4 min": server-rendered relative time (the page is dynamic; no ticking JS). */
 function inWords(iso: string | null, now: number): string {
@@ -37,6 +38,7 @@ export default function TonightBand({
   reveal = null,
   ceremony = null,
   latest,
+  house = null,
   now,
   insider = false,
   story = null,
@@ -49,6 +51,8 @@ export default function TonightBand({
   /** The rose ceremony (lib/ceremony.ts, a Botchelor season): a slot while its vote is open. */
   ceremony?: CeremonyBoard | null;
   latest: EpisodeView | null;
+  /** The newest scene in the show's house (lib/house-scenes.ts): the band's house line, under the slots. */
+  house?: HouseSceneView | null;
   now: number;
   /** The viewer has a character (lib/crowd-threshold.ts): "N watching" from 1; a stranger sees a count only for a crowd. */
   insider?: boolean;
@@ -140,7 +144,7 @@ export default function TonightBand({
   // comes out once the vote is in. Only facts the page already has.
   const filming = rooms.filter((r) => r.status === "live");
   const watching = filming.reduce((n, r) => n + (r.watching ?? 0), 0);
-  const facts: { key: string; text: string; live?: boolean }[] = [];
+  const facts: { key: string; text: string; live?: boolean; href?: string }[] = [];
   if (filming.length) {
     facts.push({ key: "filming", live: true, text: `${filming.length} ${filming.length === 1 ? "date" : "dates"} filming${showCrowd(watching, { insider }) ? ` · ${watching} watching` : ""}` });
   }
@@ -148,6 +152,8 @@ export default function TonightBand({
   if (reveal && reveal.state === "closed") facts.push({ key: "secret", live: true, text: `Sunday's secret comes out ${inWords(reveal.airs_at, now)}` });
   // The producer's line for the day (lib/producer.ts): what tonight is about. A fact like the others, never a new section.
   if (story?.tonight) facts.push({ key: "story", text: story.tonight });
+  // The house line (lib/house-scenes.ts): who is talking in the house, and about whose date. A link, never a slot.
+  if (house) facts.push({ key: "house", text: `In the house: ${houseLine(house)}`, href: `/house#scene-${house.id}` });
   return (
     <section className="tonight-band" aria-label="Tonight on Botchelor">
       <p className="tonight-band-eyebrow">
@@ -177,7 +183,13 @@ export default function TonightBand({
           {facts.map((f) => (
             <li key={f.key}>
               {f.live && <span className="tonight-live-dot" aria-hidden="true" />}
-              {f.text}
+              {f.href ? (
+                <Link href={f.href} data-track="house-scene" data-track-where="tonight">
+                  {f.text} →
+                </Link>
+              ) : (
+                f.text
+              )}
             </li>
           ))}
         </ul>

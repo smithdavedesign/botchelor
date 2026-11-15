@@ -317,10 +317,13 @@ behind it (the claims and whether they are true), the wants it set, the twists, 
 at night; and **Skip tomorrow's beat** (that day gets no beat, no producer wants and no twists; Undo takes it back).
 `GET`/`POST /api/admin/producer` (`{"action":"skip"}` / `{"action":"unskip"}`). The producer never needs a person.
 
-**The house's scenes** (`lib/house-scenes.ts`, built in parallel in the same wave: kitchen, confrontation, challenge).
-The hook is `beatFor(db, day)`: the day's beat or null, with `scene` (the kind it suits), `who`, `about` and
-`evidence.heard` (the claims to bring up). Its scene picker should prefer the day's beat when there is one. It was not
-on main when this shipped, so nothing calls the hook yet.
+**The house's scenes** ([`lib/house-scenes.ts`](../lib/house-scenes.ts), "The house" below). The day's scene is
+written at 18:20 UTC, and its room is seated from the day's beat first (`beatFor(db, day)`: the beat's two people, on a
+date its `about` was on when there is one), then from the state's own tensions. So the beat picked at 23:20 the night
+before is what the house is overheard talking about the next evening. A skipped day, a day with no beat, or
+`PRODUCER=0` leaves the scene to the tensions, as before. `beatFor` also carries `scene` (kitchen | confrontation |
+challenge: the kind of scene the beat suits) and `evidence.heard` (the claims to bring up) for the confrontations and
+challenges still to come.
 
 **The date plans written at night** are [`lib/night-plans.ts`](../lib/night-plans.ts): see
 [date-quality.md](date-quality.md), "Round: the plan at night".
@@ -336,3 +339,78 @@ free tier, about 0.02¢ at paid Flash-Lite rates.
 overwritten and not clobbered by the rules; twists and the dealt ballot with no beat; the Botchelor's limits; the
 lines; what came of it; the engine's input and decision unchanged), `tests/producer-lines.test.ts` (where the lines
 show, the clip picker and captions), `tests/night-plans.test.ts`.
+
+## The house: the daily scene (2026-11-15)
+
+The second part of the drama wave ([`lib/house-scenes.ts`](../lib/house-scenes.ts); the story state it writes into is
+[character-depth.md](character-depth.md) section 11). The cast group chat gossips about what aired and is forgotten.
+The house scene is the same gossip said out loud, and it leaves state behind: **what a speaker retells becomes
+something the others in the room heard, from that speaker**, so a later date can bring it up and the person it was
+about can find out who said it.
+
+**One scene a day** while a season has a cast (`house_scenes`, id `<day>-gossip`): two or three cast members who were
+**not** on the date they talk about, four to six lines, somewhere in the house (the kitchen, the terrace, the stairs,
+the big sofa, the pool, the laundry room: dealt by the day). The hourly lobby job writes it once, on its first pass
+from `HOUSE_SCENE_HOUR_UTC` (18) on, about the public dates that aired since the scene before it (a day back at most,
+never a date an earlier scene already told). An admin can ask for today's early: `POST /api/admin/house-scene`.
+
+**Who is in the room** follows the story state: the hottest tension (`tensions`) whose two people were both off some
+aired date seats them, preferring a date its subject was on; otherwise the newest date the cast can talk about and a
+pair dealt by the day, with a third on about half the days. The producer's beat for the day (`beatFor`, "The producer" above) is
+preferred when there is one. None of this touches a date: the engine alone decides endings.
+
+**What the writer may know** is the cast chat's rule: public aired dates between public characters, not reported away;
+nothing unaired, nothing private, never a hidden secret. Plus each speaker's own story state as an unspoken
+undercurrent: a house character's own stance (the two scales in words, never its private take word for word), its want
+and what it was told; a person's character on the cast, only what it was told.
+
+**Every line is checked** before it is stored (`checkSceneLines`): a speaker in the scene, PG (`checkSheetText`,
+`checkShowText`), English, 160 characters, no meme-speak, no hidden secret, nobody talking as if they had been on the
+date (the cast chat's `misattributed`), nothing about crime, health, money or sex, and never another character's
+private take. The writer says per line which aired fact it retells and whether faithfully. What can be verified is:
+the names against the fact's two people, the place against its venue, and the ending against its ending (a line that
+says another date is on when it isn't, or off when it is, is dropped). A faithful retelling is stored as the public
+record's own words (`airedClaim`), never the model's.
+
+**At most one retelling a scene may be wrong** (`is_true: false`; the writer is asked for one on about half the days),
+and only in a harmless way: who left first, who said what, an exaggeration of how it went. The writer gives the wrong
+version as one plain sentence naming the person; it is kept only if it names one of the date's two people and nobody
+else, passes the PG checks, is one of the three harmless kinds, says nothing about crime, health, money or sex, and
+doesn't get the ending itself wrong. A wrong retelling that fails is **dropped, not softened**, and a second one in the
+same scene is dropped whole. A template scene from the same facts stands in when the call fails or fewer than four
+lines pass (and never gets anything wrong).
+
+**What it tells** (`house_scenes.told`, then `hear`): each retelling reaches everyone else in the room, once per
+claim, with `told_by` the speaker and its own source `scene:<id>#<line>`. A listener with no opinion of the people in
+it gets a `heard` one. Two different stories about the same person are an `opposing_claims` tension the next day.
+
+**People's characters.** A public character's public aired date is public record, so the house may talk about a
+walk-on or a suitor someone made. Their owner hears: a `house_talk` notification (one per owner per scene), and, when
+they opted in to the character's texts, its own text from templates ("Apparently Sable is telling people I left
+early." / "I did not."), tagged `house_scene:<id>`, with a "Hear what they said" link to the scene and the date's
+chips. At most one such text a day per owner.
+
+**Reports.** "Something wrong with a line?" under each scene (`POST /api/house/<id>/report`, one per person per line).
+Three reports hide the line and take what it told back out of the story state; `/admin/reports` lists it with "Put it
+back" (it shows again and is told again) and "Take it down" (for good). A date that stops being public takes its
+retellings with it too (the hourly `houseUpkeep`), and a speaker who went private leaves the page.
+
+**Where it shows.** `/house` (PG, ungated, in the sitemap): today's scene first as a transcript with the cast's faces,
+the earlier ones under it, seven a page; `?scene=<id>` puts a linked scene on top. One line in "Since you were here",
+one under the Tonight band's slots ("In the house: Dex and Marisol in the kitchen, on Rafe and Juniper's date →"), one
+on the Reunion, and a link in /watch's "More from the show". The date theater plays two people and one date, so a scene
+is a transcript, not a theater.
+
+**Cost.** One call a day on the show's free model with minimal thinking, never the paid upgrade. Measured 2026-11-15
+on `gemini-3.5-flash-lite` (three real calls on the eval key): about 750 tokens in and 190 out, no thinking tokens,
+1.2 seconds: **$0.0007 a scene at paid list prices (0.07 cents a day), $0 on the free tier.** The row keeps the model,
+the tokens and that price (`cost_usd`). Everything else is rows and templates.
+
+**The switch.** `HOUSE_SCENES`, on unless it is `0`: no scene is written, the scene leaves home's band, Since you were
+here and the Reunion's line, and `/house` says the house is quiet. The cast group chat is unchanged and tells nobody anything: its messages have no
+facts per line to check, so counting them as heard would have meant trusting unverified words.
+
+**Tests.** `tests/house-scenes.test.ts`: what the writer may know (nothing private, unaired, old or reported away),
+every check on a line, the one wrong retelling and its banned kinds, what a scene tells to whom, the owner's
+notification and text once a day, reports and review, a date that stops being public, the switch, the empty states
+and the page's lists.

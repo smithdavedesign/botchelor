@@ -51,6 +51,14 @@ function Items({ card }: { card: ShowSinceData }) {
           </Link>
         </li>
       )}
+      {card.house && (
+        <li>
+          <span aria-hidden="true">🏠</span> In the house, {card.house.who}: <strong>{card.house.name}</strong> <em>“{card.house.text}”</em>{" "}
+          <Link href={card.house.path} data-track="house-scene" data-track-where="since">
+            hear the rest
+          </Link>
+        </li>
+      )}
       {card.situation && (
         <li>
           <span aria-hidden="true">{card.situation.icon}</span> The viewers picked <strong>{card.situation.title}</strong>:{" "}

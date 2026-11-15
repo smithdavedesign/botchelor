@@ -51,6 +51,7 @@ import { setDareJudgeEnabledForTests } from "@/lib/dare-verdict";
 import { setCastChatVoiceEnabledForTests } from "@/lib/cast-chat";
 import { setProducerVoiceEnabledForTests } from "@/lib/producer";
 import { setDatePlanAtNightForTests } from "@/lib/night-plans";
+import { setHouseSceneVoiceEnabledForTests } from "@/lib/house-scenes";
 import { setCharacterLessonsForTests } from "@/lib/character-lessons";
 import { setMatchChatEnabledForTests } from "@/lib/swipes";
 import { setSwipeGateForTests } from "@/lib/swipe-gate";
@@ -145,6 +146,7 @@ export async function startTestDb() {
   // The plan at night (lib/night-plans.ts) is off in tests by default: suites written before it script the director's
   // plan as a date's first call. tests/night-plans.test.ts turns it on.
   setDatePlanAtNightForTests(false);
+  setHouseSceneVoiceEnabledForTests(false);
   // The characters' weekly lessons (lib/character-lessons.ts) are off here: a suite that runs the daily job with two
   // aired dates would otherwise write lessons and send a text it never scripted. tests/character-lessons.test.ts turns them on.
   setCharacterLessonsForTests(false);
@@ -248,6 +250,9 @@ export async function startTestDb() {
         "character_opinions",
         "character_wants",
         "story_state_runs",
+        // The house scenes (lib/house-scenes.ts): keyed by day, so they outlive a reset.
+        "house_scene_reports",
+        "house_scenes",
         "adult_invites",
         "adult_tastes",
         "adult_age_checks",

@@ -370,6 +370,7 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
         <Link id="cast-chat" href="/reunion#cast-chat">
           The cast chat
         </Link>
+        <Link href="/house">The house</Link>
         <Link id="best-callers" href="/calls#best-callers">
           Best callers
         </Link>

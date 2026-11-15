@@ -8,6 +8,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { GET as adminGet, POST as adminPost } from "@/app/api/admin/producer/route";
 import { GET as storyGet } from "@/app/api/story/route";
 import { HOUSE_CHARACTERS } from "@/lib/house";
+import { ensureHouseScene } from "@/lib/house-scenes";
 import { shortName } from "@/lib/names";
 import {
   beatFor,
@@ -514,6 +515,45 @@ describe("what came of it", () => {
     );
     const o = await beatOutcome(t.db, (await beatFor(t.db, TODAY))!);
     expect(o.dates).toEqual([{ episode_id: "pr-wait", a: DEX, b: SABLE, aired: false, ending: null }]);
+  });
+});
+
+describe("the house's scene and the day's beat", () => {
+  it("seats the beat's two people first; a skipped day or PRODUCER=0 leaves the room to the state's own tensions", async () => {
+    const EXTRA = HOUSE_CHARACTERS[4].id;
+    setSeasonCastForTests([...CAST.map((c) => c.id), EXTRA]);
+    // Nell and June's date aired this afternoon: Dex, Sable and one more are left to talk about it.
+    await t.db.query(
+      `insert into episodes (id, creator_id, character_a, character_b, setting, goals, scenes, twist, finale, ending, revealed_at, visibility, setup, transcript)
+       values ('pr-house', 'system', $1, $2, 'a bar', '[]'::jsonb, '[]'::jsonb, 'T', 'F', 'friends', $3, 'public', '{"venue":"rooftop_bar"}'::jsonb, '[]'::jsonb)`,
+      [NELL, JUNE, new Date("2026-11-12T16:00:00Z").toISOString()],
+    );
+    // The day's beat is about Dex and the extra one (the state itself holds no tension, so nothing else would seat them).
+    await t.db.query(
+      `insert into story_beats (day, season_id, kind, status, tension, who, about, logline, previously, tonight)
+       values ($1, '2026-11-01', 'same_room', 'staged', 'mutual_distrust', $2::jsonb, null, 'x', 'Previously: x', 'Tonight: x')`,
+      [TODAY, JSON.stringify([DEX, EXTRA])],
+    );
+    const evening = new Date("2026-11-12T18:20:00Z");
+    const scene = async () => (await t.db.query<{ cast_ids: string[]; tension: { kind: string; a: string; b: string } | null; source: string }>(`select cast_ids, tension, source from house_scenes where day = $1`, [TODAY])).rows[0];
+    const again = async () => {
+      await t.db.query("delete from house_scenes");
+      await t.db.query("delete from character_heard");
+    };
+    expect(await ensureHouseScene(t.db, evening)).toMatchObject({ source: "template" });
+    expect((await scene()).tension).toEqual({ kind: "mutual_distrust", a: DEX, b: EXTRA, about: null });
+    expect((await scene()).cast_ids.slice(0, 2)).toEqual([DEX, EXTRA]);
+
+    await again();
+    await skipBeat(t.db, TODAY);
+    await ensureHouseScene(t.db, evening);
+    expect((await scene()).tension).toBeNull();
+
+    await again();
+    await unskipBeat(t.db, TODAY);
+    vi.stubEnv("PRODUCER", "0");
+    await ensureHouseScene(t.db, evening);
+    expect((await scene()).tension).toBeNull();
   });
 });
 

@@ -23,6 +23,7 @@ import { ensureCastChat } from "@/lib/cast-chat";
 import { storyUpkeep } from "@/lib/story-state";
 import { runProducer } from "@/lib/producer";
 import { nightPlansOn, writeNightPlans } from "@/lib/night-plans";
+import { ensureHouseScene, houseUpkeep } from "@/lib/house-scenes";
 import { runDueReveal } from "@/lib/weekly-reveal";
 import { revealDueSeasonPool } from "@/lib/season-pool";
 import { postDueDiscord } from "@/lib/discord-posts";
@@ -91,6 +92,11 @@ async function run(req: Request): Promise<Response> {
   const castChat = await ensureCastChat(db).catch(() => null);
   // The story state (lib/story-state.ts): its one-off backfill, this week's wants for the cast, and pruning. No model call.
   const storyState = await storyUpkeep(db).catch(() => null);
+  // The daily house scene (lib/house-scenes.ts): written once, the first pass from its hour on, about the dates that
+  // aired since the last one; what it retells becomes something the cast heard. One free-model call a day, or a template.
+  // Its upkeep takes back what a scene told of a date that is no longer public.
+  const houseScene = await ensureHouseScene(db).catch(() => null);
+  const houseKept = await houseUpkeep(db).catch(() => null);
   // The producer (lib/producer.ts): once a night, on the 23:20 pass, tomorrow's beat from the story state, the wants of
   // the people it is about and the vote's twists; a missed pass is caught up by the next. Rows, templates and one small
   // call for the logline. It sets situations, never an outcome.
@@ -132,7 +138,7 @@ async function run(req: Request): Promise<Response> {
   // Every character has a headshot (lib/default-portraits.ts): a few of those still without one are drawn each hour,
   // unless the run is already long (a template date above takes most of the 300 s).
   const portraits = Date.now() - started > LONG_RUN_MS ? { drawn: 0, failed: 0, left: -1 } : await portraitSweep(db).catch(() => ({ drawn: 0, failed: 0, left: -1 }));
-  return json({ ...lobby, portraits, overnight, situation, season_ballot: ballot, dare_verdicts: dareVerdicts.length, dare_points_settled: darePoints.reduce((n, d) => n + d.voters, 0), recoupling, ceremony, walk_ons: walkOns, reveal, season_pool: pool, secrets, cast_chat: castChat, story_state: storyState, producer, discord, newsletter, aired, stuck_generations: stuck, handed_over, sets_rechecked, sets_drawn, scheduled_dates: scheduled, mixers, ...away });
+  return json({ ...lobby, portraits, overnight, situation, season_ballot: ballot, dare_verdicts: dareVerdicts.length, dare_points_settled: darePoints.reduce((n, d) => n + d.voters, 0), recoupling, ceremony, walk_ons: walkOns, reveal, season_pool: pool, secrets, cast_chat: castChat, story_state: storyState, producer, house_scene: houseScene, house_upkeep: houseKept, discord, newsletter, aired, stuck_generations: stuck, handed_over, sets_rechecked, sets_drawn, scheduled_dates: scheduled, mixers, ...away });
 }
 
 export const GET = handle(run);

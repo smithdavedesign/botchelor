@@ -70,6 +70,7 @@ export type NotificationKind =
   | "secret_revealed" // Sunday's reveal you voted on: whose secret came out, and their date (lib/weekly-reveal.ts)
   | "season_pool" // the season closed: where you finished in the season pool (lib/season-pool.ts)
   | "ceremony_held" // Sunday's rose ceremony on a Botchelor season: who went home, or your suitor's badge (lib/ceremony.ts)
+  | "house_talk" // a scene in the show's house said something about your character (lib/house-scenes.ts)
   | "while_away"; // (agents) back after a while: what your characters did on their own, and that they're yours again (lib/away.ts)
 
 export type Notification = {

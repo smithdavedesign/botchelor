@@ -40,6 +40,7 @@ import DareVote from "./DareVote";
 import SituationVote from "./SituationVote";
 import TonightBand from "./TonightBand";
 import { storyToday } from "@/lib/producer";
+import { latestHouseScene } from "@/lib/house-scenes";
 import EpisodeShelf from "./EpisodeShelf";
 import { listLobby } from "@/lib/watch";
 import ShowSince from "./ShowSince";
@@ -118,7 +119,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
   );
   // Their character's phone (lib/character-phone.ts): one read next to "Since you were here", no round trip of its own.
   const phoneP = myCharactersP.then((mine) => (db && viewerId && mine.length ? characterPhone(db, viewerId, mine).catch(() => null) : null));
-  const [owned, tokens, myCharacters, [since, unread], phone, profileName, sharer, showNews, [aired, standout, sky, situation, dares, record, airing, rooms, onSeason, reveal, seasonDef, ceremony, story]] = await Promise.all([
+  const [owned, tokens, myCharacters, [since, unread], phone, profileName, sharer, showNews, [aired, standout, sky, situation, dares, record, airing, rooms, onSeason, reveal, seasonDef, ceremony, house, story]] = await Promise.all([
     db && viewerId ? ownedSkus(db, viewerId) : Promise.resolve<string[]>([]),
     db && viewerId ? episodeAllowance(db, viewerId) : freshAllowance(),
     myCharactersP,
@@ -155,6 +156,8 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
       shared("watch:season-format", () => seasonFormatNow(conn)).catch(() => null),
       // The rose ceremony (lib/ceremony.ts): the tonight band points at its vote on a Botchelor season; null otherwise.
       forViewer(viewerId, "watch:ceremony", () => ceremonyBoard(conn, viewerId)).catch(() => null),
+      // The newest scene in the show's house (lib/house-scenes.ts): the tonight band's house line, the same for everyone.
+      shared("house:latest", () => latestHouseScene(conn)).catch(() => null),
       // Today's story from the producer (lib/producer.ts): the band's "Tonight:" line. The same for everyone; null most days.
       shared("story:today", () => storyToday(conn)).catch(() => null),
     ]),
@@ -182,7 +185,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
   const casting = creator ? null : await castingP;
   // The band is there for a first visit too, on a quiet night as well (the design system's visitor home, all-screens
   // board, 2026-11-11): what just aired, what's open for predictions, and what's live, as proof the show is on.
-  const tonight = <TonightBand rooms={rooms} airing={airing} situation={situation} reveal={reveal} ceremony={ceremony} latest={airedEpisodes[0] ?? null} now={Date.now()} insider={creator} story={story} />;
+  const tonight = <TonightBand rooms={rooms} airing={airing} situation={situation} reveal={reveal} ceremony={ceremony} latest={airedEpisodes[0] ?? null} house={house} now={Date.now()} insider={creator} story={story} />;
 
   return (
     <div className="home page-wide">

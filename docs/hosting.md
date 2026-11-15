@@ -114,6 +114,11 @@ ignore it.
   nothing until a lead format is picked on `/admin/season` (this season's, or next season's with its lead); `0` closes
   it without a deploy: first dates are the usual ones again and no roses are handed out. Commented in `.do/show.yaml`;
   the rules are in [seasons.md](seasons.md), "Open casting".
+- **`HOUSE_SCENES`** (the show's app, not a secret; on unless it is `0`): the daily house scene
+  (`lib/house-scenes.ts`): a few of the cast talk over a date that aired, and what they retell becomes something the
+  others heard. One call a day on the free model (0.07 cents at paid list prices) or a template. `0` writes no scene
+  and `/house` says the house is quiet. `HOUSE_SCENE_HOUR_UTC` (default `18`) is the hour from which the hourly job
+  writes the day's. Commented in `.do/show.yaml`; the rules are in [seasons.md](seasons.md), "The house".
 - **`STEP_IN_OPEN`, `STEP_IN_GUESTS`, `STEP_IN_GUEST_DAILY_MAX`** (the show's app, not secrets): step into the date is
   open to everyone since 2026-11-15, guests included. `STEP_IN_OPEN=0` puts it back to admins only; `STEP_IN_GUESTS=0`
   asks a visitor without an account to sign in first; `STEP_IN_GUEST_DAILY_MAX` (default `300`) is the guest dates a day

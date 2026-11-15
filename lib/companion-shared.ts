@@ -63,6 +63,18 @@ export const DATE_PHOTO_ASPECT = { width: 4, height: 5 } as const;
  */
 const WATCH_LINK_TAG = /^(opener|tease):([A-Za-z0-9_-]{1,64})$/;
 export const watchLinkEpisode = (tag: string | null | undefined): string | null => (tag ? (WATCH_LINK_TAG.exec(tag)?.[2] ?? null) : null);
+/**
+ * A text about a scene in the show's house (lib/house-scenes.ts tellOwners, tagged `house_scene:<scene id>`): the link
+ * under its last bubble goes to that scene on /house.
+ */
+const HOUSE_SCENE_TAG = /^house_scene:([A-Za-z0-9_.-]{1,64})$/;
+/** The link a text's tag puts under its last bubble: the date to watch, or the house scene to read. Null: none. */
+export function textLink(tag: string | null | undefined): { href: string; label: string } | null {
+  const episode = watchLinkEpisode(tag);
+  if (episode) return { href: `/episodes/${episode}`, label: "Watch the date" };
+  const scene = tag ? HOUSE_SCENE_TAG.exec(tag)?.[1] : null;
+  return scene ? { href: `/house?scene=${encodeURIComponent(scene)}#scene-${scene}`, label: "Hear what they said" } : null;
+}
 /** COMPANION_DATE_OPENER=0: the cast opens the way it did (a model-written hello), and its prompt has no last-date block. */
 export function companionDateOpener(env: Record<string, string | undefined> = process.env): boolean {
   return env.COMPANION_DATE_OPENER?.trim() !== "0";
@@ -265,7 +277,7 @@ export type CompanionMessageView = {
    * on a tap. The message's `text` is its alt text. Absent: an ordinary text.
    */
   photo?: { src: string; href: string } | null;
-  /** A link under the bubble: the date this text is about, to watch (watchLinkEpisode). Absent: none. */
+  /** A link under the bubble: the date this text is about, to watch, or the house scene it is about (textLink). Absent: none. */
   link?: { href: string; label: string } | null;
 };
 
