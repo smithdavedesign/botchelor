@@ -11,6 +11,9 @@
  * Only unlabelled free text goes to a model (app/api/characters/import, on the show's free model); its answer comes back
  * as the same labelled fields and goes through mapSource like everything else.
  *
+ * This is who the character is. What it and its person built (a card's scenario, example dialogue and lorebook, a
+ * pasted chat log) maps to no field here: lib/import-history.ts reads that, as a short list the person edits.
+ *
  * Nothing here is trusted: every field is cut to the builder's limits, and screenDraft runs the show's own sheet filter
  * (lib/safety.ts): a source that suggests a minor anywhere, or a real person's name, is refused whole; a field that
  * isn't PG is left out and named. The wizard's own checks (name taken, originality, the save's filter) still apply.
@@ -53,6 +56,11 @@ export type SourceFields = {
   greeting?: string;
   examples?: string;
   definition?: string;
+  /**
+   * A card's lorebook ("character_book", V2 and V3), as text: one entry a line. Never mapped to a builder field; with
+   * `scenario` and `examples` it is what "Bring their history" reads (lib/import-history.ts cardHistory).
+   */
+  book?: string;
   /** Attributes a model read out of free text (the import route), or that a source labels directly. */
   age?: string;
   gender?: string;
@@ -105,6 +113,33 @@ export type ImportResult =
 
 const str = (v: unknown): string | undefined => (typeof v === "string" && v.trim() ? v : undefined);
 
+/** The most lorebook entries read from a card, and the most text: a big book is ~100 KB, and the reader takes far less. */
+const BOOK_ENTRIES_MAX = 80;
+const BOOK_TEXT_MAX = 20_000;
+
+/**
+ * A lorebook's entries as lines ("Cape Wren, the lighthouse: …"): a card's `character_book` (entries as a list) or a
+ * world-info export (entries as a map). Switched-off entries are skipped. Undefined when there is nothing in it.
+ */
+export function bookText(book: unknown): string | undefined {
+  if (!book || typeof book !== "object") return undefined;
+  const raw = (book as { entries?: unknown }).entries;
+  const entries: unknown[] = Array.isArray(raw) ? raw : raw && typeof raw === "object" ? Object.values(raw) : [];
+  const lines: string[] = [];
+  for (const e of entries.slice(0, BOOK_ENTRIES_MAX)) {
+    if (!e || typeof e !== "object") continue;
+    const o = e as Record<string, unknown>;
+    if (o.enabled === false || o.disable === true) continue;
+    const content = str(o.content)?.replace(/\s+/g, " ").trim();
+    if (!content) continue;
+    const keys = [o.keys, o.key].find(Array.isArray) as unknown[] | undefined;
+    const title = str(o.name) ?? str(o.comment) ?? (keys ?? []).filter((k): k is string => typeof k === "string").slice(0, 4).join(", ");
+    lines.push(title ? `${title.trim()}: ${content}` : content);
+  }
+  const text = lines.join("\n").slice(0, BOOK_TEXT_MAX);
+  return text || undefined;
+}
+
 /** A parsed JSON object's fields, whichever card format it is; null when it isn't one we know. */
 function fromJson(obj: Record<string, unknown>): { format: ImportFormat; fields: SourceFields } | null {
   const spec = str(obj.spec);
@@ -135,9 +170,12 @@ function fromJson(obj: Record<string, unknown>): { format: ImportFormat; fields:
     examples: str(obj.mes_example) ?? str(obj.example_dialogue),
     definition: str(obj.definition) ?? str(obj.long_description),
   };
+  const book = bookText(obj.character_book);
   const tavern = "first_mes" in obj || "mes_example" in obj;
   const known = Object.values(fields).filter(Boolean).length;
   if (!fields.name && known < 2) return null;
+  // After the count above: a lorebook alone doesn't make something a character.
+  if (book) fields.book = book;
   return { format: tavern ? "tavern_v1" : "json", fields };
 }
 

@@ -379,6 +379,54 @@ fields. The first screen for someone making their **first** character is now one
 What the draft leaves empty, the character asks about later, in its own thread: see
 [companions.md](companions.md), "The character asks you the rest".
 
+## Bringing a character from another app: who they are, and what you built (2026-11-15)
+
+`/import` (`app/import`, `lib/import-character.ts`; `/import?from=cai` is the Character.AI door) reads a pasted creator
+page or a SillyTavern/TavernAI card in the browser and opens the builder filled in. Until 2026-11-15 it brought the
+identity only and said so. **Bring their history** (`lib/import-history.ts`, switch `IMPORT_MEMORIES`) brings the rest,
+as a short list the person edits, never as a transcript:
+
+- **The second box** on `/import`, optional: a chat log (pasted, a SillyTavern `.jsonl`, a JSON list of messages), a
+  lorebook or world-info file, a scenario, example dialogue. A card's own `scenario`, `mes_example` and
+  `character_book` are read with it (a tick box, on by default; with nothing pasted, only when they hold at least 200
+  characters, so a card with a one-line example goes straight to the builder as before).
+- **One reading** (`POST /api/characters/import/history { text, name? }`): one call on the show's **free** model (never
+  the paid one), which copies and never invents. At most **20,000 characters** are read (about 5,000 tokens; a card's own
+  parts take at most 8,000 of them): a longer paste is cut to its start and its most recent part, and the page says how
+  much was read. Out come at most **eight** lines, each one sentence (140 characters), each of one kind:
+  `character` (what they know, their world, someone important, an unfinished storyline, a like or dislike), `us` (what
+  the two did, what the person told them, what they call each other, what never to forget), `voice` (how they talk; one
+  at most).
+- **The checklist** takes the form's place: each line has a tick, can be reworded, and says where it goes. A voice line
+  is ticked by default only when the card gave no voice (ticking it is the agreement to replace one). Nothing is saved
+  until **Keep N and open the builder**; **Skip their history** opens the builder with the character alone.
+- **Where kept lines go, through what was already there.** `character` lines become the draft's own facts
+  (`extras.facts`, the builder's "More about them" step), **private** until the person unlocks them there, since they
+  came out of a private chat and a reader can be wrong about whose they are; they ride the character's ordinary save.
+  The `voice` line becomes the sheet's voice. `us` lines wait in the person's browser (`HISTORY_US_KEY`) until Create
+  answers, then `POST /api/characters/:id/import-history` writes them into the companion memory of that person's thread
+  with that character ([companions.md](companions.md), "Memory"): pinned facts on `/companion/:id/memory`, theirs to
+  edit or forget. No new table.
+- **The rules on every line.** A `character` or `voice` line meets the sheet's filter (PG, fictional adults, no real
+  people: `sheetPgIssue`), an `us` line the companion memory's (`checkFamilyTalk`, plus no words of a crisis or anything
+  near one), and one that ran long keeps its first sentence or is dropped. The page says how many were left out, as a
+  number. The save and the memory write check everything again.
+- **The paste is never kept.** It is read in the request and goes nowhere else: no table, no log line (a JSON error's
+  own message is never passed on, since V8 quotes the text), no analytics prop, no browser storage. The page says so in
+  one line, and `tests/import-history.test.ts` searches every table for it.
+- **Failure is ordinary.** The reader is down, slow (20 s) or unreadable, a limit is hit, or nothing worth keeping was
+  found: the checklist's place shows one sentence and **Open the builder** (and **Try once more** when that could help).
+  The identity import is never stopped by its history.
+- **Limits and cost** (`lib/limits.ts`, guests included): 4 an hour and 10 a day per visitor, 8 and 24 per address, 30
+  and 120 across everyone. $0 on the free tier; about a third of a cent a reading at gemini-3.5-flash-lite's list price
+  (so under 40¢ a day across everyone).
+- **Switch.** `IMPORT_MEMORIES` (the show's app; on unless `0`): `0` removes the box, both routes answer 404, and
+  `/import`, the Character.AI page and its questions say what they said before (history stays behind).
+- **Events** (`lib/import-history.ts`, sent with `queueEvent`): `import_history_started`, `import_history_kept`,
+  `import_history_failed`: flags and counts, never text ([analytics.md](analytics.md)). The second box and the checklist
+  are `[data-private]`, so the beacon's click capture skips them.
+- Tests: `tests/import-history.test.ts`.
+
 ## Navigation (2026-11-15)
 
 Three doors and the account, for everyone: **Watch · Chat · Characters · Account**.

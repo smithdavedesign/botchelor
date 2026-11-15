@@ -2,6 +2,7 @@ import Link from "next/link";
 import JsonLd from "@/app/JsonLd";
 import { alternativeFaq, alternativePath, type Alternative } from "@/lib/alternatives";
 import { IMPORT_PATH } from "@/lib/import-character";
+import { HISTORY_ITEMS_MAX, importMemoriesOn } from "@/lib/import-history";
 import { breadcrumbJsonLd } from "@/lib/seo";
 import { siteUrl } from "@/lib/site";
 
@@ -76,9 +77,17 @@ export default function AlternativePage({ alt }: { alt: Alternative }) {
             want, a dealbreaker, a short dating profile) and create them.
           </li>
         </ol>
-        <p className="muted small">
-          Chat histories, scenarios and long roleplay setups stay behind: a date needs who they are, not a scene.
-        </p>
+        {importMemoriesOn() ? (
+          <p className="muted small">
+            Your chat history can come too, as what matters in it rather than a transcript: paste it in the second box
+            and keep up to {HISTORY_ITEMS_MAX} short lines, as their own facts and as what they remember about you. The
+            paste itself is never stored or logged.
+          </p>
+        ) : (
+          <p className="muted small">
+            Chat histories, scenarios and long roleplay setups stay behind: a date needs who they are, not a scene.
+          </p>
+        )}
       </section>
 
       <section className="card">

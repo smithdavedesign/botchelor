@@ -71,6 +71,8 @@ import CharacterName from "@/app/CharacterName";
 import { APPEARANCE_MAX, DEALBREAKER_MAX, NAME_MAX_WORDS, nameWords, TRAIT_MAX, WANT_MAX } from "@/lib/field-limits";
 import { THIS_WEEK_MAX } from "@/lib/life";
 import { IMPORT_PATH, IMPORT_STORAGE_KEY, type ImportedDraft } from "@/lib/import-character";
+import { sendHeldUs, type ImportMemoryNote } from "@/app/import/held-history";
+import ImportMemory from "@/app/import/ImportMemory";
 import { stampDateStarted } from "@/lib/engagement-keys";
 import { DEFAULT_FIRST_DATE_FORMAT, FIRST_DATE_STEPS, offerFirstDate, pickFirstPartner } from "@/lib/first-date";
 import { fillProfile } from "@/lib/profile-fill";
@@ -398,6 +400,8 @@ export default function CreateWizard({
   const [fromSample, setFromSample] = useState(false);
   // Brought in from another app (/import): what came in, what's still needed and what was left out, said on step one.
   const [imported, setImported] = useState<ImportNote | null>(null);
+  // "Bring their history" (lib/import-history.ts): what became of the lines about the two of them, once Create answered.
+  const [importMemory, setImportMemory] = useState<ImportMemoryNote | null>(null);
   // Editing: the owner chose to drop the explicit temperament and let the character's words decide again.
   const [temperamentCleared, setTemperamentCleared] = useState(false);
   // One-sentence create (lib/express-create.ts): offered to someone making their first character who arrived with
@@ -690,6 +694,7 @@ export default function CreateWizard({
         ready,
         dropped: Array.isArray(r.dropped) ? r.dropped.filter((x) => x && typeof x.field === "string" && typeof x.why === "string") : [],
         readBy: r.readBy === "model" || r.readBy === "fallback" ? r.readBy : null,
+        us: typeof r.us === "number" && r.us > 0 ? Math.floor(r.us) : 0,
       });
       // Everything Create needs came in: straight to Review, as a sample goes (the Character.AI rescue door, 2026-11-14:
       // paste, tick the box, Create, and the first date starts). Anything short of that starts on Identity with the list.
@@ -873,6 +878,9 @@ export default function CreateWizard({
         // `express`: drafted from one sentence (lib/express-create.ts), so the funnel can tell the two ways in apart.
         trackConversion("character_created", { open_to_dates: openToDates, ...(expressNote?.kind === "drafted" ? { express: true } : {}) });
         setCreated({ id: String(data.id), name: String(data.name), hue: typeof data.hue === "number" ? data.hue : null });
+        // The lines about the two of them that /import held for this character go into its memory of them now that it
+        // exists (app/import/held-history.ts). Not awaited: the next screen never waits on it.
+        void sendHeldUs(String(data.id), String(data.name), imported !== null).then(setImportMemory, () => {});
         // The site's nav is in the root layout, which a client-side link keeps: refresh it so it becomes the owner's
         // (Swipe, Matches) now that there's a character.
         router.refresh();
@@ -1019,6 +1027,8 @@ export default function CreateWizard({
   // ---- the "send on a date" phase (after the character exists) ----
   if (created) {
     return (
+      <>
+      {importMemory && <ImportMemory note={importMemory} name={created.name} />}
       <SendPhase
         character={created}
         partners={partners}
@@ -1048,6 +1058,7 @@ export default function CreateWizard({
             : null
         }
       />
+      </>
     );
   }
 
@@ -1567,6 +1578,7 @@ export default function CreateWizard({
                   ? "The show's model read your description, so look over each line below; the Edit links change anything."
                   : "Everything a first date needs came in; the Edit links change anything."}
                 {firstCharacter ? " Their dating profile is written from their sheet." : ""}
+                {imported.us ? ` The ${imported.us === 1 ? "line" : `${imported.us} lines`} about the two of you ${imported.us === 1 ? "goes" : "go"} into their memory of you once they exist.` : ""}
               </p>
             )}
             {/* Grouped by the step each answer came from, each a line that opens (2026-10-31 UX audit, B7: a full
@@ -1765,6 +1777,8 @@ type ImportNote = {
   ready: boolean;
   dropped: { field: string; why: string }[];
   readBy: "model" | "fallback" | null;
+  /** Lines about the two of them kept on /import (lib/import-history.ts): written to the companion memory after Create. */
+  us?: number;
 };
 
 /**
@@ -1810,6 +1824,9 @@ function ImportPrefill({ note }: { note: ImportNote }) {
       {note.missing.length > 0 && <p className="small">{`Still to add: ${listWords(note.missing)}.`}</p>}
       {note.optional.length > 0 && <p className="muted small">{`Optional, now or after their first date: ${listWords(note.optional)}.`}</p>}
       {note.dropped.length > 0 && <p className="muted small">{`Left out: ${listWords(note.dropped.map((d) => `the ${d.field} (${d.why})`))}.`}</p>}
+      {note.us ? (
+        <p className="muted small">{`The ${note.us === 1 ? "line" : `${note.us} lines`} about the two of you ${note.us === 1 ? "goes" : "go"} into their memory of you once they exist. What's true of them is under More about them.`}</p>
+      ) : null}
     </section>
   );
 }

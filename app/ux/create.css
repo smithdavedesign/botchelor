@@ -551,6 +551,75 @@
   margin-top: var(--space-2);
 }
 
+/* "Bring their history" (lib/import-history.ts): the second, optional box under the character's, then the checklist
+   that takes the form's place once the history is read (app/import/HistoryReview.tsx). */
+.import-history {
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line);
+}
+.import-form .import-history textarea {
+  min-height: 7rem;
+}
+.import-history-card {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: 400;
+}
+.import-history-list {
+  display: grid;
+  gap: var(--space-3);
+  margin: var(--space-4) 0;
+  padding: 0;
+  list-style: none;
+}
+/* A line: its tick on the left (a thumb-sized target), the sentence and where it goes on the right, at every width. */
+.import-history-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: start;
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--line);
+}
+.import-history-keep {
+  display: grid;
+  place-items: center;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  margin: 0;
+  cursor: pointer;
+}
+.import-history-keep input {
+  width: 1.25rem;
+  height: 1.25rem;
+  margin: 0;
+}
+.import-history-body textarea {
+  width: 100%;
+  min-height: 0;
+  resize: vertical;
+}
+.import-history-item.is-off .import-history-body {
+  opacity: 0.55;
+}
+.import-history-where {
+  margin: var(--space-1) 0 0;
+}
+.import-history-review .import-error {
+  margin-top: var(--space-1);
+}
+/* After Create: what became of the lines about the two of them (app/import/ImportMemory.tsx). */
+.import-memory {
+  margin-bottom: var(--space-4);
+}
+.held-import ul {
+  padding-left: var(--space-5);
+}
+
 /* How the deck sees them (app/create/DeckPreview.tsx; the design system's create screen, 2026-11-11): on a wide screen
    the form keeps its width and the card a person will swipe on sits beside it, filling in as they type; a phone keeps
    the one-row preview above the form. */

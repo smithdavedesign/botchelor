@@ -3,6 +3,7 @@ import Link from "next/link";
 import { pageMetadata } from "@/lib/seo";
 import { CAI_SOURCE, IMPORT_PATH } from "@/lib/import-character";
 import { importDoor } from "@/lib/import-events";
+import { HISTORY_ITEMS_MAX, importMemoriesOn } from "@/lib/import-history";
 import { WRITE_TIME_SPEED } from "@/lib/rules";
 import ImportForm from "./ImportForm";
 
@@ -31,6 +32,10 @@ export async function generateMetadata({ searchParams }: { searchParams: SearchP
  * "Bring your character" (lib/import-character.ts): a paste or a character card in, the /create builder out, filled in.
  * Read in the browser; only unlabelled free text goes to the show's free model (app/api/characters/import).
  *
+ * "Bring their history" (lib/import-history.ts, IMPORT_MEMORIES; 2026-11-15): a second, optional box for a chat log, a
+ * lorebook, a scenario or example dialogue, read once by the same free model into a short checklist the person edits.
+ * With the switch off the box is gone and the page says, as it did, that history stays behind.
+ *
  * ?from=cai (the home hero, the Character.AI landing, the rescue posts in docs/launch-kit.md): the same page, with the
  * three steps to copy a Character.AI character above the box and what happens next. The parser is unchanged: it has
  * read Character.AI's labelled fields (Name, Tagline, Description, Greeting, Definition) since the page opened.
@@ -38,6 +43,7 @@ export async function generateMetadata({ searchParams }: { searchParams: SearchP
 export default async function ImportPage({ searchParams }: { searchParams: SearchParams }) {
   const from = importDoor((await searchParams).from);
   const cai = from === CAI_SOURCE;
+  const history = importMemoriesOn();
   return (
     <>
       <section className="card import-tool">
@@ -48,6 +54,7 @@ export default async function ImportPage({ searchParams }: { searchParams: Searc
             <p className="lede">
               Copy what you wrote, paste it below, and they open in the builder with their name, bio, traits, voice and
               hello already in. Then a speed date with the cast, right away.
+              {history && " Months of chats behind you? Paste them in the second box and choose what they remember."}
             </p>
             <ol className="import-how-list import-cai-steps" aria-label="Three steps">
               <li>
@@ -71,9 +78,10 @@ export default async function ImportPage({ searchParams }: { searchParams: Searc
             Paste what you have from Character.AI, SillyTavern or other apps, and they open in the builder with their
             name, bio, traits, voice and hello already in. Check it over, fill in what&apos;s missing, and they&apos;re
             ready.
+            {history && " Their history can come too: paste a chat log or a lorebook in the second box and choose what they keep."}
           </p>
         )}
-        <ImportForm from={from} />
+        <ImportForm from={from} history={history} />
       </section>
 
       <section className="card">
@@ -94,12 +102,30 @@ export default async function ImportPage({ searchParams }: { searchParams: Searc
             <strong>Just a description?</strong> Paste it as it is. Text with no labels is read by the show&apos;s free
             model, once, to find the name, traits and the rest.
           </li>
+          {history && (
+            <li>
+              <strong>Their history, in the second box:</strong> a chat log you copied or exported, a lorebook or
+              character book, a scenario, example dialogue. A card&apos;s own <code>scenario</code>,{" "}
+              <code>mes_example</code> and <code>character_book</code> are read with it. The show&apos;s free model reads
+              it once into at most {HISTORY_ITEMS_MAX} short lines, and you tick and reword what stays: what&apos;s true
+              of them goes to their facts, what happened between the two of you goes to what they remember about you as
+              a <Link href="/companion">Companion</Link>, and how they talk goes to their voice.
+            </li>
+          )}
         </ul>
-        <p className="muted small">
-          The scenario, chat history and long backstory stay behind: here your character goes on dates on a show, and
-          talks one to one as a <Link href="/companion">Companion</Link>, so they need who they are, not a roleplay setup.
-          Nothing is saved until you press Create in the builder.
-        </p>
+        {history ? (
+          <p className="muted small">
+            Raw transcripts aren&apos;t kept: what you paste is read once and never stored or logged, and only the lines
+            you keep are saved, where you can edit or delete them later. The show is PG, so a setup written for adult
+            chat doesn&apos;t come along. Nothing is saved until you press Create in the builder.
+          </p>
+        ) : (
+          <p className="muted small">
+            The scenario, chat history and long backstory stay behind: here your character goes on dates on a show, and
+            talks one to one as a <Link href="/companion">Companion</Link>, so they need who they are, not a roleplay setup.
+            Nothing is saved until you press Create in the builder.
+          </p>
+        )}
       </section>
 
       {cai && (
