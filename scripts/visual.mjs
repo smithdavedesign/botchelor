@@ -401,6 +401,8 @@ async function main() {
       { name: "agents-changelog", path: "/agents/changelog" },
       { name: "legal", path: "/legal" },
       { name: "privacy", path: "/privacy" },
+      // What it costs (app/costs): tables of prices with notes under each row, a live call's minute among them, on a phone.
+      { name: "costs", path: "/costs" },
       { name: "terms", path: "/terms" },
       { name: "admin", path: "/admin" },
       { name: "account-signed-out", path: "/account" },

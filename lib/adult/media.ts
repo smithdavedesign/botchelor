@@ -36,6 +36,7 @@ import { countUse, overCap } from "./usage";
 import { adultKeys, getAdultSettings } from "./settings";
 import { cleanBody, currentRequests, logRequest, requestJson, withRequestLog } from "./request-log";
 import { showsLabel } from "./tag-labels";
+import { TAB_WHERE, type GalleryTab } from "./gallery";
 import { sizeFor } from "../studio/formats";
 
 /** `clip`: the picture can be made to move (it's on fal; Venice's explicit pictures can't be). */
@@ -971,13 +972,20 @@ export async function characterMedia(db: Db, characterId: string, viewerId: stri
  * After Dark's Gallery (app/after-dark/gallery): everything this person made, from every night and every shoot, newest
  * first, with who's in each. Their own only, an admin's too (the house cast's nights are on their own pages). Like
  * listMedia, no keyframes or voices, no version another was kept over, and a shot taken out of its video only with
- * the Archive.
+ * the Archive. With a `tab`, only that tab's (lib/adult/gallery.ts TAB_WHERE).
  */
-export async function ownMedia(db: Db, viewerId: string, limit = 120, opts: { withArchived?: boolean } = {}): Promise<(Media & { a_name: string | null; b_name: string | null })[]> {
+export async function ownMedia(
+  db: Db,
+  viewerId: string,
+  limit = 120,
+  opts: { withArchived?: boolean; tab?: GalleryTab } = {},
+): Promise<(Media & { a_name: string | null; b_name: string | null })[]> {
   const { rows } = await db.query<Media & { face_of: string | null; a_name: string | null; b_name: string | null }>(
     `select m.*, ca.name as a_name, cb.name as b_name from (
        ${MEDIA_SELECT}
         where i.owner_id = $2 and i.kind not in ('frame', 'audio') and i.superseded_by is null
+          -- One of the Gallery's tabs (lib/adult/gallery.ts): Videos (but the shots its reels play), Pictures or Faces.
+          ${opts.tab ? `and ${TAB_WHERE[opts.tab]}` : ""}
           and ($3::boolean or i.kind <> 'video' or not exists (
             select 1 from adult_reels v cross join lateral jsonb_array_elements(v.shots) s
              where v.owner_id = i.owner_id and s->>'media_id' = i.id and s ? 'archived_at'

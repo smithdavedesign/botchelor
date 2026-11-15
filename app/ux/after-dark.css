@@ -2163,6 +2163,35 @@ button.ad-studio-fold-head:active:not(:disabled) {
 .after-dark-gallery .ad-new-badge {
   font-weight: 600;
 }
+/* The Gallery's tabs and sections (2026-11-15, lib/adult/gallery.ts): Videos, Pictures, Faces; under Videos, each night's
+   reel as one card (ReelCards.tsx), then the clips. A reel that's playing takes the grid's whole width. */
+.ad-gallery-tabs {
+  margin-top: var(--space-3);
+}
+.ad-gallery-section > h2 {
+  margin: var(--space-4) 0 var(--space-1);
+}
+.ad-gallery-sources {
+  margin-bottom: var(--space-1);
+}
+.ad-reel-cards li.is-open {
+  grid-column: 1 / -1;
+}
+.ad-reel-cards li.is-open .after-dark-reel {
+  width: 100%;
+  margin: 0;
+}
+.ad-reel-card-wait {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  min-height: 8rem;
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px dashed var(--ad-line, var(--line));
+  border-radius: var(--radius-md);
+  text-align: center;
+}
 .ad-picture-pending {
   margin: 0 0 var(--space-3);
 }

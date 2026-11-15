@@ -28,6 +28,7 @@ import { pruneRateHits } from "@/lib/limits";
 import { pruneMcpCalls } from "@/lib/agent-analytics";
 import { markDay7Returns } from "@/lib/agent-funnel";
 import { dailyMatchmakerPicks } from "@/lib/house-matchmaker";
+import { houseTextsSweep, houseWordUpkeep } from "@/lib/house-texts";
 import { pruneKeptData } from "@/lib/retention";
 import { pruneExports } from "@/lib/media-tools/export";
 import { getModel } from "@/lib/model";
@@ -126,6 +127,11 @@ async function people({ db, step, t0 }: Ctx): Promise<PartResult> {
   const digests = await step("digests", () => sendDigests(db).catch(() => 0));
   // The day after a date that went well: its owners hear so, with the share a tap away (lib/air.ts).
   const wentWell = await step("went_well", () => notifyWentWell(db).catch(() => 0));
+  // What the house said about a character reaches its threads (lib/house-texts.ts): the catch-up for a scene whose text
+  // didn't go out with the hourly pass, then the upkeep of what those characters hold. Before the day-after text and the
+  // questions, so a character that texted about the house today asks nothing today. Templates only: $0.
+  const houseTexts = await step("house_texts", () => houseTextsSweep(db).catch(() => ({ sent: 0, held: 0, by_kind: {} })));
+  await step("house_word", () => houseWordUpkeep(db).catch(() => 0));
   // The day after a date, the owner's own character texts them where it stands (lib/after-date-text.ts): only to threads
   // whose owner tapped "Hear from" once, one text a date. One cheap query when nobody qualifies.
   const dayAfter = await step("day_after_texts", () => dayAfterTexts(db).catch(() => 0));
@@ -150,13 +156,14 @@ async function people({ db, step, t0 }: Ctx): Promise<PartResult> {
   // the booking route (the writing runs in after() / the queued generation job), house-paid, capped a day.
   const lifeDates = await step("life_dates", () => weeklyLifeDates(db).catch(() => ({ booked: 0, candidates: 0, stopped: "error" as const, refused: {} })));
   return {
-    body: { texts, day_after_texts: dayAfter, character_questions: questions, character_weeks: characterWeeks, life_dates: lifeDates },
+    body: { texts, day_after_texts: dayAfter, house_texts: houseTexts, character_questions: questions, character_weeks: characterWeeks, life_dates: lifeDates },
     counts: {
       texted_couples: texts.couples,
       texts_failed: texts.failed,
       email_digests: digests,
       went_well: wentWell,
       day_after_texts: dayAfter,
+      house_texts: houseTexts.sent,
       character_questions: questions.sent,
       character_questions_stopped: questions.stopped,
       character_weeks: characterWeeks,
