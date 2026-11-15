@@ -144,6 +144,8 @@ David asked whether to expand: let a person date a character themselves, and add
 
 **December (2026-11-14):** David wants the product original, so the December format is the show's own premise rather than the villa: **The Botchelor** (slug `botchelor`, `lib/season-format.ts` + `lib/ceremony.ts`; docs/seasons.md "December: The Botchelor"). One lead from the cast (last season's most reviewed survivor, or the admin's pick), people's characters as the suitors (approved auditions by votes, the house's own agent-made characters filling in), the lead dating one suitor a day, and a rose ceremony every Sunday at 20:00 UTC where the audience's vote and the lead's own date verdicts (the engine's endings) each send one home, until the last Sunday's final rose. Selectable on /admin/season like the island; not scheduled by default.
 
+**Open casting (2026-11-15):** the season is also the first date (`lib/casting.ts`; docs/seasons.md "Open casting"). While a Botchelor lead is known (in season, or before it once next month's format and lead are both picked on /admin/season), a person's new character's first speed date is with the lead; every Sunday the walk-ons whose date ended in a second date get a rose (the engine's ending, only read), the owner hears either way, a rose books a show-paid second date with the lead, and the finale names "the people's rose". `OPEN_CASTING=0` turns it off; nothing changes until a Botchelor month is picked.
+
 ### Order (2026-11-01)
 1. **This week, visitors:**
    - the AI and MCP directory listings;

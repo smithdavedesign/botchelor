@@ -20,7 +20,8 @@ const utcTime = (iso: string): string => {
 /**
  * The Botchelor (lib/ceremony.ts): the lead, the suitors with their roses or how they left, the audience's vote on who
  * goes home while it's open (counts once you've voted, like the situation vote), the countdown to Sunday's ceremony, and
- * the last ceremony in the show's words. Only on a season running the format; a classic season never renders it.
+ * the last ceremony in the show's words, and the walk-ons (open casting, lib/casting.ts). Only on a season running the
+ * format; a classic season never renders it.
  */
 export default function BotchelorCard({ board, now }: { board: CeremonyBoard; now: number }) {
   const { busy, error, run } = useAction();
@@ -94,6 +95,26 @@ export default function BotchelorCard({ board, now }: { board: CeremonyBoard; no
             </p>
           ))}
         </div>
+      )}
+      {/* Open casting (lib/casting.ts): anyone's new character walks on for a first date with the lead; the count shows
+          under the empty-room rule (decided on the server), and the finale names the people's rose. */}
+      {board.walk_ons && (board.walk_ons.line || board.walk_ons.peoples_rose) && (
+        <p className="muted small" data-walk-ons>
+          {board.walk_ons.line && (
+            <>
+              <strong>Walk-ons this week.</strong> {board.walk_ons.line}{" "}
+              <Link href="/create" data-track="walk-on-create">
+                Send yours in →
+              </Link>{" "}
+            </>
+          )}
+          {board.walk_ons.peoples_rose && (
+            <>
+              <strong>The people&apos;s rose:</strong> <Link href={`/characters/${board.walk_ons.peoples_rose.id}`}>{board.walk_ons.peoples_rose.name}</Link>, the walk-on with the
+              most roses ({board.walk_ons.peoples_rose.roses}).
+            </>
+          )}
+        </p>
       )}
       {error && (
         <p className="error" role="alert">

@@ -84,6 +84,11 @@ ignore it.
   show's model (~1¢ each). `0` turns them off without a deploy; nothing books while `BOTCHELOR_PAUSE` is on or the paid
   model's daily date cap (`FRONTIER_DAILY_DATE_CAP`) is spent. Commented in `.do/show.yaml`; the rules are in
   [companions.md](companions.md), "Your character lives without you".
+- **`OPEN_CASTING`** (the show's app, not a secret; on unless it is `0`): open casting (`lib/casting.ts`), where a
+  person's new character's first date goes to the Botchelor's lead and walk-ons get roses on Sunday. On, it still does
+  nothing until a lead format is picked on `/admin/season` (this season's, or next season's with its lead); `0` closes
+  it without a deploy: first dates are the usual ones again and no roses are handed out. Commented in `.do/show.yaml`;
+  the rules are in [seasons.md](seasons.md), "Open casting".
 - **`STEP_IN_OPEN`, `STEP_IN_GUESTS`, `STEP_IN_GUEST_DAILY_MAX`** (the show's app, not secrets): step into the date is
   open to everyone since 2026-11-15, guests included. `STEP_IN_OPEN=0` puts it back to admins only; `STEP_IN_GUESTS=0`
   asks a visitor without an account to sign in first; `STEP_IN_GUEST_DAILY_MAX` (default `300`) is the guest dates a day

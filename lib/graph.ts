@@ -291,6 +291,8 @@ export function kindMatrix(nodes: readonly GraphNode[], edges: readonly GraphEdg
 const COARSE_MET: Record<string, MetVia> = {
   blind: "set_up",
   show: "set_up",
+  // Open casting (lib/casting.ts): the show sent a new character to the season's lead.
+  casting: "set_up",
   match: "asked",
   proposal: "asked",
   chosen: "asked",

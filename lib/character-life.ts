@@ -75,7 +75,8 @@ type Candidate = { id: string; name: string; owner_id: string; visibility: strin
  * Whose turn it is: owned characters (a real person's, never the house's; one made over MCP only when its owner has an
  * account), public or at least open to dates (a private one that may be asked out by name may be taken out too, on an
  * unlisted date), with a portrait, with at least one date already (the first is the person's own), none being filmed,
- * not taken (one partner), and no life date in LIFE_GAP_DAYS. Longest since their last life date first. Our own
+ * not taken (one partner), and no life date in LIFE_GAP_DAYS, nor a Sunday rose in that time (lib/casting.ts: a rose is
+ * a show-paid second date with the lead, which is that week's outing). Longest since their last life date first. Our own
  * identities (lib/our-traffic.ts) are left out by the caller.
  */
 async function candidates(db: Db, now: Date, limit: number): Promise<Candidate[]> {
@@ -91,6 +92,8 @@ async function candidates(db: Db, now: Date, limit: number): Promise<Candidate[]
         and not exists (select 1 from episodes e where c.id in (e.character_a, e.character_b) and e.status = 'generating')
         and not exists (select 1 from episodes e where e.character_a = c.id and e.setup->>'met_via' = $2
                          and e.created_at > $3::timestamptz - make_interval(days => $4::int))
+        and not exists (select 1 from walk_on_roses w where w.character_id = c.id and w.rose
+                         and w.created_at > $3::timestamptz - make_interval(days => $4::int))
         and not ${takenSql("c")}
       order by (select max(e.created_at) from episodes e where e.character_a = c.id and e.setup->>'met_via' = $2) nulls first, c.created_at, c.id
       limit $5`,
