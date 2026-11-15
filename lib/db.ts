@@ -1847,6 +1847,9 @@ create table if not exists adult_invites (
   requested_at timestamptz not null default now(),
   decided_at timestamptz
 );
+-- Where the request came from (lib/adult/bridge.ts inviteSource): a short label from the link's ?source= ("verdict":
+-- the show's verdict card; "refugees": an outreach post), null for the subscribe page opened any other way.
+alter table adult_invites add column if not exists source text;
 -- A free taste of After Dark (lib/adult/taste.ts): one per person ever, scenes only for 48 hours; writes counts its steps.
 create table if not exists adult_tastes (
   user_id text primary key,

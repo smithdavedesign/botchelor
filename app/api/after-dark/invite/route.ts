@@ -19,6 +19,8 @@ const Input = z.object({
   adult: z.literal(true, "Confirm you're 18 or older."),
   terms: z.literal(true, "Confirm you've read how the beta works."),
   note: z.string().max(NOTE_MAX).optional(),
+  // Where they came from (the page's ?source=): a label, cleaned by requestInvite; a bad one is dropped, never refused.
+  source: z.string().max(200).optional(),
 });
 
 /**
@@ -47,7 +49,7 @@ export const POST = handle(async (req: Request) => {
     return json({ error: "needs_email", message: "Add an email to your account first (Account → Email), so we can write back with your invite." }, 422);
   }
   await recordSelfDeclaration(db, auth.userId, access.place.country);
-  const { invite, created } = await requestInvite(db, auth.userId, { email, note: input.note ?? null, country: access.place.country });
+  const { invite, created } = await requestInvite(db, auth.userId, { email, note: input.note ?? null, country: access.place.country, source: input.source ?? null });
   if (created) await emailRequest(db, invite).catch((err) => console.error("[invite] request email failed:", err instanceof Error ? err.message : "unknown"));
   return json({ status: invite.status });
 });

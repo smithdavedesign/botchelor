@@ -401,6 +401,7 @@ export default function GeneratingPoller({
                 // "Hear from" goes as soon as the ending is final (lib/after-date-text.ts takes a generating date with
                 // ending_final); the card only shows once it is, so this greys nothing today and stays for a card without it.
                 pending={!ready && final === null}
+                afterDark={final === "second_date" ? (stage.verdict.afterDark ?? null) : null}
               />
             ) : (
               <div className="theater-verdict">

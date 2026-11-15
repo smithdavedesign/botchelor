@@ -157,6 +157,11 @@ services:
       # - key: HOME_PHONE
       #   value: "0"
       #   scope: RUN_AND_BUILD_TIME
+      # The After Dark bridge (lib/adult/bridge.ts; docs/hosting.md): one line on the creator's verdict card after a
+      # second date, to the invite request. On by default; "0" takes it away without a deploy.
+      # - key: AD_BRIDGE
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
       # Copied from the old Vercel project's values (not secret, but deployment-specific).
       - key: CONTACT_EMAIL
         value: "CHANGE_ME"

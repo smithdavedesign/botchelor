@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import JsonLd from "@/app/JsonLd";
@@ -8,7 +8,9 @@ import { ENDING_CARD, endingCardAllowed, episodeCardPath, pageTitle, SHARE_QUEST
 import EpisodeNotices from "@/app/Notices";
 import { siteUrl } from "@/lib/site";
 import { getDb } from "@/lib/db";
+import { viewerBridge } from "@/lib/adult/bridge-viewer";
 import { adultViewerFromCookies } from "@/lib/adult/mode";
+import { ADULT_COOKIE } from "@/lib/age";
 import { afterDarkHref } from "@/lib/after-dark-host";
 import { dareReveal, VERDICT_WORDS } from "@/lib/dares";
 import { callRecord, NO_CALLS } from "@/lib/streaks";
@@ -249,6 +251,7 @@ export default async function EpisodePage({
     mixerTable,
     prev,
     creatorSide,
+    adBridge,
   ] = await Promise.all([
     // 🌙 on a date that carried an After Dark memory, only for someone After Dark is open to (never a hint to anyone else).
     episode.after_dark
@@ -307,6 +310,13 @@ export default async function EpisodePage({
             [id, viewerId],
           )
           .then((r) => r.rows[0] ?? null)
+          .catch(() => null)
+      : null,
+    // The After Dark bridge (lib/adult/bridge.ts): one line on the creator's verdict card when the date ended in a
+    // second date. Asked only for the creator arriving at their own date, and only once they've said they're 18+.
+    play && episode.is_creator
+      ? headers()
+          .then((h) => viewerBridge(db, auth, h, cookieStore.get(ADULT_COOKIE)?.value === "1"))
           .catch(() => null)
       : null,
   ]);
@@ -376,7 +386,7 @@ export default async function EpisodePage({
                     // The early verdict (GeneratingPoller.tsx): the card the theater would show, as soon as the ending stands.
                     // No reflection yet (it's written after the ending), so the card says the character will text them.
                     dateNumber: dateNumberOf(episode),
-                    verdict: creatorSide && creatorSide.side !== null ? { mine: creatorSide.side, reflection: null, pushKey: pushKeys()?.publicKey ?? null } : null,
+                    verdict: creatorSide && creatorSide.side !== null ? { mine: creatorSide.side, reflection: null, pushKey: pushKeys()?.publicKey ?? null, afterDark: adBridge } : null,
                   }
                 : undefined
             }
@@ -401,7 +411,13 @@ export default async function EpisodePage({
   // The verdict card at the end of the creator's just-filmed date (VerdictCard.tsx): their character, its reflection, push.
   const verdict: TheaterVerdict | null =
     play && episode.is_creator && creatorSide && creatorSide.side !== null
-      ? { mine: creatorSide.side, reflection: creatorSide.reflection?.trim() || null, pushKey: push?.publicKey ?? null }
+      ? {
+          mine: creatorSide.side,
+          reflection: creatorSide.reflection?.trim() || null,
+          pushKey: push?.publicKey ?? null,
+          // Only when their date ended in a second date (the live stage checks the ending itself).
+          afterDark: episode.ending === "second_date" ? adBridge : null,
+        }
       : null;
   // A creator's first date, just filmed: the page under the theater stays clear of the games (the card is the next step).
   const firstDateJustFilmed = play && episode.is_creator && (creatorSide?.dates ?? 0) <= 1;

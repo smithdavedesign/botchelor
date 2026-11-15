@@ -104,6 +104,11 @@ ignore it.
   its last aired date (`lib/cast-opener.ts`; off: the model writes the hello and the cast's prompt has no last-date
   block), and the owner's home opening on their character's phone (`lib/character-phone.ts`; off: the home page as it
   was). The rules are in [companions.md](companions.md) and [flows.md](flows.md).
+- **`AD_BRIDGE`** (the show's app, not a secret; default on): the After Dark bridge, one line on the creator's verdict
+  card when their character's date ended in a second date, linking the invite request with `source=verdict`
+  (`lib/adult/bridge.ts`; [after-dark.md](after-dark.md), "The bridge from the show's verdict card"). `0` takes the
+  line away without a deploy. It never touches After Dark's own `public_door` switch, and the invite page still takes
+  `?source=` either way. Commented in `.do/show.yaml`.
 - **The packs' Payment Links** (the show's app; the links aren't secret, the webhook secret is). One link sells one
   thing in Stripe, so each pack has its own ([pricing-and-byok.md](pricing-and-byok.md)):
 

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { BETA_DAYS, getInvite, verifyReviewToken } from "@/lib/adult/invites";
+import { BETA_DAYS, getInvite, inviteSourceCounts, sourceLabel, verifyReviewToken } from "@/lib/adult/invites";
 import { getDb } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -15,7 +15,8 @@ export default async function InviteReview({ searchParams }: { searchParams: Sea
   const p = await searchParams;
   const token = typeof p.t === "string" ? p.t : null;
   const userId = verifyReviewToken(token);
-  const invite = userId ? await getInvite(await getDb(), userId) : null;
+  const db = userId ? await getDb() : null;
+  const invite = db && userId ? await getInvite(db, userId) : null;
   if (!token || !invite || p.invalid) {
     return (
       <>
@@ -28,6 +29,8 @@ export default async function InviteReview({ searchParams }: { searchParams: Sea
     );
   }
   const done = typeof p.done === "string" ? p.done : null;
+  // Every request so far by where it came from (the verdict card, an outreach link, the subscribe page itself).
+  const bySource = db ? await inviteSourceCounts(db).catch(() => []) : [];
   return (
     <section data-invite-review>
       <h1>Invite request</h1>
@@ -38,6 +41,7 @@ export default async function InviteReview({ searchParams }: { searchParams: Sea
         <li className="muted small">Account {invite.user_id}</li>
         <li>Connecting from: {invite.country ?? "unknown"}</li>
         <li>Their note: {invite.note ?? "(none)"}</li>
+        <li data-invite-source>Came from: {sourceLabel(invite.source)}</li>
         <li className="muted small">Asked {new Date(invite.requested_at).toUTCString()}</li>
       </ul>
       {done === "approved" ? (
@@ -65,6 +69,15 @@ export default async function InviteReview({ searchParams }: { searchParams: Sea
             Decline
           </button>
         </form>
+      )}
+      {bySource.length > 0 && (
+        <p className="muted small" data-invite-sources>
+          Requests so far, by where they came from:{" "}
+          {bySource
+            .map((s) => `${sourceLabel(s.source)} ${s.requests}${s.pending ? ` (${s.pending} waiting)` : ""}`)
+            .join(" · ")}
+          .
+        </p>
       )}
     </section>
   );

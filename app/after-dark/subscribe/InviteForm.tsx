@@ -6,9 +6,10 @@ import { requestJson } from "@/app/request";
 
 /**
  * Asking for an invite to the beta (app/api/after-dark/invite): the two boxes the person ticks themselves (18 or older;
- * how the beta works) and an optional note for whoever reviews it.
+ * how the beta works) and an optional note for whoever reviews it. `source` is where they came from (the page's
+ * ?source=, lib/adult/bridge.ts): it goes with the request, so the owner sees which door people use.
  */
-export default function InviteForm({ days, clipTokens, reelTokens }: { days: number; clipTokens: number; reelTokens: number }) {
+export default function InviteForm({ days, clipTokens, reelTokens, source = null }: { days: number; clipTokens: number; reelTokens: number; source?: string | null }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
@@ -24,10 +25,11 @@ export default function InviteForm({ days, clipTokens, reelTokens }: { days: num
         adult: form.get("adult") === "on",
         terms: form.get("terms") === "on",
         ...(note ? { note } : {}),
+        ...(source ? { source } : {}),
       });
       if (ok) {
         setSent(true);
-        trackConversion("ad_invite_requested");
+        trackConversion("ad_invite_requested", source ? { source } : {});
       }
       else setError(message);
     } catch {
@@ -44,7 +46,7 @@ export default function InviteForm({ days, clipTokens, reelTokens }: { days: num
     );
   }
   return (
-    <form className="card" onSubmit={submit} data-invite-form>
+    <form className="card" onSubmit={submit} data-invite-form data-invite-source={source ?? undefined}>
       <h2>Ask for an invite</h2>
       <p>
         After Dark is in an invite-only beta. If you&apos;re invited, it&apos;s free for {days} days: every chapter and the pictures are on us. Video

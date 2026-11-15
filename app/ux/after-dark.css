@@ -2867,3 +2867,14 @@ button.ad-studio-fold-head:active:not(:disabled) {
     font-size: var(--text-md);
   }
 }
+
+/* ---------------- the After Dark bridge on the show's verdict card (app/episodes/[id]/AfterDarkBridge.tsx) ----------------
+   One quiet line under the card's own actions, on the theater's dark stage: the stage's muted white, the link in the
+   stage's own text colour and underlined, never a button (the card's next step stays "Hear from"). */
+.verdict-after-dark {
+  margin: 0;
+}
+.verdict-after-dark a {
+  color: var(--on-photo);
+  text-decoration: underline;
+}
