@@ -320,3 +320,57 @@
   margin-top: 0.2em;
   color: var(--ok-text);
 }
+
+/* The out-of-dates wall (app/OutOfDates.tsx): where the free dates run out, the offer in one card, inside the send
+   sheet or the first-date card. Buttons stack on a phone; the big pack first. */
+.out-of-dates {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  text-align: left;
+}
+.out-of-dates-head,
+.out-of-dates-offer,
+.out-of-dates p {
+  margin: 0;
+}
+.out-of-dates-buy {
+  display: grid;
+  gap: var(--space-2);
+}
+.out-of-dates-packs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.out-of-dates-packs > button {
+  flex: 1 1 10rem;
+  white-space: nowrap;
+}
+
+/* The "Botchelor Plus" intent tile (app/shop/PlusInterest.tsx): a shop tile, or a small block in the wall. */
+.plus-tile {
+  display: grid;
+  gap: var(--space-2);
+}
+.plus-tile p {
+  margin: 0;
+}
+.plus-tile-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.plus-tile-form {
+  display: grid;
+  gap: var(--space-2);
+}
+.plus-tile-form input[type="email"] {
+  width: 100%;
+  max-width: 24rem;
+}
+.plus-tile.is-compact {
+  border-top: 1px solid var(--line);
+  padding-top: var(--space-2);
+  font-size: var(--text-sm);
+}
