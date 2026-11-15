@@ -15,6 +15,8 @@ import { feedEpisodes } from "@/lib/feed-items";
 import { balancedColumns } from "@/lib/grid-balance";
 import { countNotifications } from "@/lib/notifications";
 import { sinceYouWereHere } from "@/lib/since";
+import { characterPhone } from "@/lib/character-phone";
+import CharacterPhone from "./CharacterPhone";
 import When from "@/app/When";
 import { cachedConstellation } from "@/lib/graph-cache";
 import { PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
@@ -109,11 +111,14 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
       ? Promise.all([sinceYouWereHere(db, viewerId, mine).catch(() => []), countNotifications(db, viewerId, { unread: true }).catch(() => 0)])
       : [[], 0],
   );
-  const [owned, tokens, myCharacters, [since, unread], profileName, sharer, showNews, [aired, standout, sky, situation, dares, record, airing, rooms, onSeason, reveal, seasonDef, ceremony]] = await Promise.all([
+  // Their character's phone (lib/character-phone.ts): one read next to "Since you were here", no round trip of its own.
+  const phoneP = myCharactersP.then((mine) => (db && viewerId && mine.length ? characterPhone(db, viewerId, mine).catch(() => null) : null));
+  const [owned, tokens, myCharacters, [since, unread], phone, profileName, sharer, showNews, [aired, standout, sky, situation, dares, record, airing, rooms, onSeason, reveal, seasonDef, ceremony]] = await Promise.all([
     db && viewerId ? ownedSkus(db, viewerId) : Promise.resolve<string[]>([]),
     db && viewerId ? episodeAllowance(db, viewerId) : freshAllowance(),
     myCharactersP,
     sinceP,
+    phoneP,
     // Your calls line offers "Put my name on the board" to someone with no display name yet (app/BoardName.tsx).
     profileNameP,
     // Their shared calls link carries that name when it's theirs alone (lib/share-record-name.ts).
@@ -174,6 +179,8 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
     <div className="home page-wide">
       {/* A creator's show is on before anything else (docs/show-style.md: lead with tonight); a first visit meets the
           pitch first and the band right under it. */}
+      {/* An owner lands on their character (2026-11-15): its phone first, then the show (HOME_PHONE=0: the show first, as before). */}
+      {phone && <CharacterPhone phone={phone} />}
       {creator && tonight}
       {/* The first week of a month: last season's finale (lib/season-ref.ts). */}
       {creator && (
