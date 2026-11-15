@@ -644,6 +644,19 @@ describe("the daily step and the one weekly text", () => {
     expect(lessonTextLines({ lines: ["I talk too much."], trying_next: null })).toEqual(["I've been thinking.", "I talk too much.", "Does that sound like me to you?"]);
   });
 
+  it("our own characters never reach the paid fallback: the free model, then the template", async () => {
+    const mine = await optedIn();
+    const ours = await optedIn("Mira Quell");
+    const free = scripted([]); // out of outputs: every call fails
+    const paid = scripted(Array.from({ length: 10 }, () => GOOD), { model: "anthropic/claude-haiku-5.5", cost: 0.002 });
+    const run = await runCharacterLessons(t.db, NOW, { models: [free.model, paid.model] });
+    expect(run).toMatchObject({ written: 4, by_model: 3, by_template: 1, ours: 1 });
+    expect((await stored(mine.c))[0]).toMatchObject({ source: "model", model: "anthropic/claude-haiku-5.5" });
+    expect((await stored(ours.c))[0]).toMatchObject({ source: "template", model: null });
+    expect(paid.calls).toHaveLength(3); // the person's character and the two house characters
+    expect(run.cost_usd).toBeCloseTo(0.006, 6);
+  });
+
   it("stops at the day's cap, people's characters first, and picks the rest up the next day", async () => {
     const mine = await optedIn();
     const ours = await optedIn("Mira Quell");

@@ -181,10 +181,11 @@ async function growth({ db, step, t0 }: Ctx): Promise<PartResult> {
   );
   // Learning, weekly (lib/character-lessons.ts): what each character that has been out learned about itself, written once
   // a week from its own side of its aired dates, on the free model (the paid default as the fallback, then a template),
-  // at most 40 characters a day, then the one text to an opted-in owner. It stops at its deadline (180 s from the
-  // request's start), so the steps after it keep their time; whoever is left is written tomorrow. CHARACTER_LESSONS=0: off.
+  // at most 40 characters a day, two seconds apart (the free model's per-minute limit is the live show's too), then the
+  // one text to an opted-in owner. It stops at its deadline (180 s from the request's start), so the steps after it keep
+  // their time; whoever is left is written tomorrow. CHARACTER_LESSONS=0: off.
   const lessons = await step("character_lessons", () =>
-    runCharacterLessons(db, new Date(), { deadline: t0 + 180_000, gapMs: 1000 }).catch(() => ({
+    runCharacterLessons(db, new Date(), { deadline: t0 + 180_000, gapMs: 2000 }).catch(() => ({
       candidates: 0,
       written: 0,
       by_model: 0,

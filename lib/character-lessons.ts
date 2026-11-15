@@ -30,8 +30,9 @@
  *    `lesson`, the existing forget controls); a forgotten line is gone from every prompt and is never written again.
  *  - One text a week at most: when new lessons land, an opted-in owner (companion_threads.muted_proactive = false, the
  *    "Hear from" tap) gets one text from the character ("I've been thinking. …"), tagged `lessons:<week>`, through
- *    lib/companion.ts postFromCharacter (lib/character-lessons-job.ts lessonText). Never to our own identities (lib/our-traffic.ts), which also go last in the
- *    day's cap and are counted apart, so test characters never crowd out or inflate real ones.
+ *    lib/companion.ts postFromCharacter (lib/character-lessons-job.ts lessonText). Never to our own identities
+ *    (lib/our-traffic.ts), which also go last in the day's cap, never use the paid fallback and are counted apart, so
+ *    test characters never crowd out, cost or inflate real ones.
  *
  * CHARACTER_LESSONS=0 turns all of it off without a deploy of code: nothing is written, no prompt carries a lesson, the
  * memory page and the recap leave them out, and no text is sent. Rows already written stay and come back with the switch.

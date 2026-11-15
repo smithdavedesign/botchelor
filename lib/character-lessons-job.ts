@@ -73,9 +73,15 @@ export type LessonsRun = {
  * The daily job's step: writes this week's lessons for the characters that qualify, at most LESSONS_PER_DAY a day
  * (counted from the rows written today, so a second run the same day doesn't start over), stopping at `deadline`.
  * People's characters first, then the house cast, then our own identities' (the crowd, test characters): theirs are
- * written when there's room, counted apart, and never texted. Then each owner who opted in gets the one weekly text.
+ * written when there's room, on the free model or the template only (never the paid fallback), counted apart, and
+ * never texted. Then each owner who opted in gets the one weekly text.
  */
-export async function runCharacterLessons(db: Db, now: Date = new Date(), opts: { models?: readonly Model[]; limit?: number; deadline?: number; gapMs?: number } = {}): Promise<LessonsRun> {
+export async function runCharacterLessons(
+  db: Db,
+  now: Date = new Date(),
+  /** `models`: the free model first, then any paid fallback (lessonModels by default). */
+  opts: { models?: readonly Model[]; limit?: number; deadline?: number; gapMs?: number } = {},
+): Promise<LessonsRun> {
   const run: LessonsRun = { candidates: 0, written: 0, by_model: 0, by_template: 0, ours: 0, texts: 0, input_tokens: 0, output_tokens: 0, cost_usd: 0, cost_per_character_usd: null, stopped: "done" };
   if (!characterLessonsOn()) return { ...run, cost_usd: null, stopped: "off" };
   const day = `${now.toISOString().slice(0, 10)}T00:00:00Z`;
@@ -92,6 +98,8 @@ export async function runCharacterLessons(db: Db, now: Date = new Date(), opts: 
   const queue = [...candidates].sort((x, y) => rank(x) - rank(y) || y.fresh - x.fresh).slice(0, room);
   if (queue.length < candidates.length) run.stopped = "day_cap";
   const models = opts.models ?? lessonModels();
+  // Our own identities' characters (the house-run crowd, test characters) never spend: the free model, then the template.
+  const freeOnly = models.slice(0, 1);
   let priced = true;
   for (const [i, c] of queue.entries()) {
     if (opts.deadline !== undefined && Date.now() >= opts.deadline) {
@@ -99,7 +107,7 @@ export async function runCharacterLessons(db: Db, now: Date = new Date(), opts: 
       break;
     }
     if (i > 0 && opts.gapMs) await new Promise((ok) => setTimeout(ok, opts.gapMs));
-    const r = await ensureCharacterLessons(db, c.id, now, { models }).catch(() => null);
+    const r = await ensureCharacterLessons(db, c.id, now, { models: isOurs(c) ? freeOnly : models }).catch(() => null);
     if (!r || "skipped" in r) continue;
     run.written++;
     if (r.source === "model") run.by_model++;
