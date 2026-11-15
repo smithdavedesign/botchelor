@@ -49,6 +49,7 @@ import { setSeasonRecapVoiceEnabledForTests } from "@/lib/season-recap";
 import { setEpisodeTitleVoiceEnabledForTests } from "@/lib/episode-title";
 import { setDareJudgeEnabledForTests } from "@/lib/dare-verdict";
 import { setCastChatVoiceEnabledForTests } from "@/lib/cast-chat";
+import { setHouseSceneVoiceEnabledForTests } from "@/lib/house-scenes";
 import { setMatchChatEnabledForTests } from "@/lib/swipes";
 import { setSwipeGateForTests } from "@/lib/swipe-gate";
 import { setLookAlikeGateForTests } from "@/lib/originality";
@@ -137,6 +138,7 @@ export async function startTestDb() {
   setDareJudgeEnabledForTests(false);
   // The cast group chat (lib/cast-chat.ts) writes from templates here; tests/cast-chat.test.ts passes a model.
   setCastChatVoiceEnabledForTests(false);
+  setHouseSceneVoiceEnabledForTests(false);
   // A new match's opening chat (lib/swipes.ts) is the swipe tests' to drive, with their own model.
   setMatchChatEnabledForTests(false);
   // The swipe gate (lib/swipe-gate.ts) is off in tests by default, so the suites written before it keep asking
@@ -235,6 +237,9 @@ export async function startTestDb() {
         "character_opinions",
         "character_wants",
         "story_state_runs",
+        // The house scenes (lib/house-scenes.ts): keyed by day, so they outlive a reset.
+        "house_scene_reports",
+        "house_scenes",
         "adult_invites",
         "adult_tastes",
         "adult_age_checks",

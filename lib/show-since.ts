@@ -17,6 +17,7 @@
  */
 import { backingSince, type BackingSince } from "./backing";
 import { latestCastChat } from "./cast-chat";
+import { houseLine, latestHouseScene, scenePath } from "./house-scenes";
 import { newestOwnSlip, newestSecretOut, type SecretOut } from "./cast-secrets";
 import type { Db } from "./db";
 import { RETURN_GAP_HOURS } from "./activity";
@@ -66,6 +67,8 @@ export type ShowSince = {
   twist: { label: string; tease: string } | null;
   /** The cast group chat leaked since (lib/cast-chat.ts): its first message, and how many more on /watch. */
   chat: { code: string | null; name: string; text: string; more: number } | null;
+  /** The newest scene in the show's house written since (lib/house-scenes.ts): who was talking, its first line, and where to read it. */
+  house: { who: string; name: string; text: string; path: string } | null;
 };
 
 /** When this person's last visit was, or null for a first visit (or one too recent to count as a return). */
@@ -166,10 +169,12 @@ export async function showSince(db: Db, viewerId: string | null, now: Date = new
     season: seasonClosedSince(since, now),
     twist: await twistSince(db, since, now),
     chat: await chatSince(db, since, now),
+    house: await houseSince(db, since, now),
   };
   // The week's shift alone isn't news since a visit (it can predate it), so it never shows the card by itself.
   // Nor is the week's twist: most weeks have one, so it rides along but never summons the card. The cast chat is daily
-  // too (and only ever about dates that aired, which already count above), so it rides along the same way.
+  // too (and only ever about dates that aired, which already count above), so it rides along the same way, and so does the
+  // day's house scene.
   const anything = card.aired || card.moves.length || card.calls || card.followed || card.situation || card.diary || card.secret || card.backing || card.season;
   return anything ? card : null;
 }
@@ -181,6 +186,14 @@ async function twistSince(db: Db, since: Date, now: Date): Promise<{ label: stri
   if (twistWeekStart(def, now) <= since) return null;
   const twist = twistOf(def, now);
   return { label: twist.label, tease: twist.tease };
+}
+
+/** The newest house scene, when it was written after their last visit; otherwise null. Daily, so it rides along like the chat. */
+async function houseSince(db: Db, since: Date, now: Date): Promise<ShowSince["house"]> {
+  const scene = await latestHouseScene(db, now).catch(() => null);
+  if (!scene || new Date(scene.written_at) <= since) return null;
+  const first = scene.lines[0];
+  return { who: houseLine(scene), name: first.name, text: first.text, path: scenePath(scene.id) };
 }
 
 /** The newest cast group chat, when it was written after their last visit; otherwise null. */

@@ -35,6 +35,8 @@ const OPEN = [
   "/characters/3f2a9c1e-1b2c-4d5e-8f90-1234567890ab",
   "/creators/juniper",
   "/reunion",
+  "/house",
+  "/house?scene=2026-11-15-gossip",
   "/casting",
   "/vote",
   "/calls",

@@ -19,7 +19,7 @@ import {
   datePhotoEpisode,
   isScenePlace,
   isTextTag,
-  watchLinkEpisode,
+  textLink,
   type CompanionCharacterRef,
   type CompanionMessageView,
   type CompanionReportReason,
@@ -427,9 +427,10 @@ export async function getThread(db: Db, userId: string, threadId: string): Promi
     // in for the composed snapshot. Owner-only, like the photos themselves.
     ref.yours ? realDatePhotos(db, threadId).catch(() => new Map<string, string>()) : Promise.resolve(new Map<string, string>()),
   ]);
-  // The "Watch the date" link goes under the last bubble of a text whose tag says so (the cast's opener, the tease).
+  // The link goes under the last bubble of a text whose tag says so: "Watch the date" (the cast's opener, the tease), or
+  // the house scene a text is about (lib/companion-shared.ts textLink).
   const lastOfTag = new Map<string, string>();
-  for (const m of msgs) if (m.role === "character" && m.via !== "photo" && watchLinkEpisode(m.action)) lastOfTag.set(m.action!, m.id);
+  for (const m of msgs) if (m.role === "character" && m.via !== "photo" && textLink(m.action)) lastOfTag.set(m.action!, m.id);
   // The chips: on the newest text whose menu is still open, and only while no newer date of theirs exists.
   const open = ref.yours ? await openOffers(db, ref.id, msgs).catch(() => null) : null;
   // The answer box: under the newest question the character asked about its own sheet, until it's answered.
@@ -455,7 +456,7 @@ export async function getThread(db: Db, userId: string, threadId: string): Promi
         ...(open && open.messageId === m.id ? { offers: open.view } : {}),
         ...(asked && asked.messageId === m.id ? { question: asked.view } : {}),
         ...photoOf(m, realPhotos),
-        ...(m.action && lastOfTag.get(m.action) === m.id ? { link: { href: `/episodes/${watchLinkEpisode(m.action)}`, label: "Watch the date" } } : {}),
+        ...(m.action && lastOfTag.get(m.action) === m.id ? { link: textLink(m.action)! } : {}),
       })),
       reply_length: t.reply_length,
       scene: isScenePlace(t.scene) ? t.scene : null,

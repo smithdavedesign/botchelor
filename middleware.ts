@@ -111,12 +111,13 @@ const DOC_SOURCES = new Set(["llms.txt", "llms-full.txt", "mcp.json", "agents"])
 export const UNGATED_PREFIXES: readonly string[] = ["/tools/", "/ship/", "/alternatives/", "/episodes/", "/seasons/", "/couples/", "/characters/", "/creators/", "/agents/"];
 
 const UNGATED_PAGES: ReadonlySet<string> = new Set([
-  // The PG show (2026-11-14): the front door, the feed and its tabs, the cast, the reunion, casting, the vote, calls,
+  // The PG show (2026-11-14): the front door, the feed and its tabs, the cast, the reunion, the house, casting, the vote, calls,
   // the import and the builder (the builder's own 18+ box is the attestation).
   "/",
   "/watch",
   "/characters",
   "/reunion",
+  "/house",
   "/casting",
   "/vote",
   "/calls",
