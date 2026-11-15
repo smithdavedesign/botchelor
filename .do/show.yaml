@@ -98,6 +98,11 @@ services:
       # - key: LIFE_DATES_PER_DAY
       #   value: "30"
       #   scope: RUN_AND_BUILD_TIME
+      # The model league (lib/model-league.ts; docs/hosting.md): /agents/league and /api/league/models, on by default.
+      # "0" takes the page, its JSON and the links to it away without a deploy; models are still kept and dates stamped.
+      # - key: MODEL_LEAGUE
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
       # Copied from the old Vercel project's values (not secret, but deployment-specific).
       - key: CONTACT_EMAIL
         value: "CHANGE_ME"

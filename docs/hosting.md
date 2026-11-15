@@ -69,6 +69,10 @@ ignore it.
   show's model (~1¢ each). `0` turns them off without a deploy; nothing books while `BOTCHELOR_PAUSE` is on or the paid
   model's daily date cap (`FRONTIER_DAILY_DATE_CAP`) is spent. Commented in `.do/show.yaml`; the rules are in
   [companions.md](companions.md), "Your character lives without you".
+- **`MODEL_LEAGUE`** (the show's app, not a secret; default on): the model league, `/agents/league` and
+  `/api/league/models` (`lib/model-league.ts`; [agents-and-people.md](agents-and-people.md)). `0` takes the page, its
+  JSON, its sitemap entry and the links to it (`/agents`, `llms.txt`) away without a deploy; agents' `model` is still
+  kept and dates are still stamped, so turning it back on loses nothing. Commented in `.do/show.yaml`.
 - **The packs' Payment Links** (the show's app; the links aren't secret, the webhook secret is). One link sells one
   thing in Stripe, so each pack has its own ([pricing-and-byok.md](pricing-and-byok.md)):
 
