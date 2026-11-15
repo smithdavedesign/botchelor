@@ -5,6 +5,7 @@ import { useState } from "react";
 import { AiTag } from "@/app/AiLabel";
 import { tileRatio } from "@/app/studio/FormatChips";
 import type { Media } from "@/lib/adult/media";
+import { SOURCE_LABEL, sourceOf, type MediaSource } from "@/lib/adult/gallery";
 import { DEFAULT_FILTER, filterMedia, type MediaFilter } from "@/lib/media-filter";
 import RateMedia from "../[a]/[b]/RateMedia";
 import MediaFilterBar from "../MediaFilterBar";
@@ -24,16 +25,31 @@ const homeOf = (m: Item): { href: string; label: string } | null => {
 
 /**
  * The Gallery's grid: the night's filters (lib/media-filter.ts: no 👎, 1–3★ or Archive by default), each tile with who's
- * in it, what it is, 👍/👎 (they steer the next pictures, lib/adult/steering.ts) and a link to where it was made.
+ * in it, what it is, 👍/👎 (they steer the next pictures, lib/adult/steering.ts) and a link to where it was made. When
+ * it holds both, a first row splits what came from their nights from what came from the Studio (lib/adult/gallery.ts).
  */
 export default function GalleryGrid({ items }: { items: Item[] }) {
   const [filter, setFilter] = useState<MediaFilter>(DEFAULT_FILTER);
+  const [source, setSource] = useState<MediaSource | null>(null);
   const [rated, setRated] = useState<Record<string, 1 | -1 | null>>({});
   const ratingOf = (m: Item) => (m.id in rated ? rated[m.id] : (m.rating ?? null));
-  const shown = filterMedia(items, filter, ratingOf);
+  const bySource = { night: items.filter((m) => sourceOf(m) === "night"), studio: items.filter((m) => sourceOf(m) === "studio") };
+  const both = bySource.night.length > 0 && bySource.studio.length > 0;
+  const pool = both && source ? bySource[source] : items;
+  const shown = filterMedia(pool, filter, ratingOf);
   return (
     <>
-      <MediaFilterBar items={items} value={filter} onChange={setFilter} ratingOf={ratingOf} shown={shown.length} />
+      {both && (
+        <div className="media-filter-row ad-gallery-sources" role="group" aria-label="Made where">
+          {(["night", "studio"] as const).map((k) => (
+            <button key={k} type="button" className={`chip${source === k ? " chip-on" : ""}`} aria-pressed={source === k} onClick={() => setSource(source === k ? null : k)} data-source={k}>
+              {SOURCE_LABEL[k]}
+              <span className="media-filter-count">{bySource[k].length}</span>
+            </button>
+          ))}
+        </div>
+      )}
+      <MediaFilterBar items={pool} value={filter} onChange={setFilter} ratingOf={ratingOf} shown={shown.length} />
       {shown.length ? (
         <ul className="after-dark-gallery" data-gallery>
           {shown.map((m) => {
@@ -56,7 +72,7 @@ export default function GalleryGrid({ items }: { items: Item[] }) {
                   <strong>{who}</strong>
                   <span className="muted">
                     {" · "}
-                    {m.shows ?? (m.kind === "video" ? "clip" : m.studio ? "Studio" : "picture")}
+                    {m.shows ?? (m.kind === "video" ? (sourceOf(m) === "studio" ? "Studio clip" : "clip") : m.studio ? "Studio" : "picture")}
                     {home && (
                       <>
                         {" · "}

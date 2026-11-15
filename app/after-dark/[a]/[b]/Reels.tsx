@@ -24,7 +24,7 @@ const mediaUrl = (id: string) => `/api/admin/after-dark/media/${id}`;
 
 /** A shot as a player plays it: with the video it's from, so it can be taken out of it (the Archive). */
 /** A shot as played: its video, and that video's kind and length (what filming it again costs, refilmTokens). */
-type PlayShot = ReelShot & { reel: string; reelKind?: string | null; reelShots?: number };
+export type PlayShot = ReelShot & { reel: string; reelKind?: string | null; reelShots?: number };
 
 /**
  * What filming a shot again costs this viewer (lib/adult/reel-timing.ts refilmTokens): the settings' prices, or null when
@@ -117,7 +117,7 @@ export default function Reels({
 }
 
 /** The shots of a video that play, in order: in, and not in the Archive (lib/adult/clip-chains.ts playable). */
-const readyShots = (r: Reel): PlayShot[] =>
+export const readyShots = (r: Reel): PlayShot[] =>
   r.status === "making" || r.status === "draft" ? [] : r.shots.filter(playable).map((s) => ({ ...s, reel: r.id, reelKind: r.kind ?? null, reelShots: r.shots.length }));
 
 /** Takes a shot out of its video into the Archive, or puts it back: the video as it is now, or what went wrong. */
@@ -525,7 +525,20 @@ function ReelPlayer({
  * Under it, the shot on screen: 👍/👎 (lib/adult/steering.ts), and with `onChange`, Remove this shot, which takes it out
  * of its video into the Archive (nothing is deleted). The shots already fetched are kept for the shots that are left.
  */
-function SeamlessPlayer({ shots, onChange, price = null, onMedia }: { shots: PlayShot[]; onChange?: (r: Reel) => void; price?: ReactNode; onMedia?: (m: Media) => void }) {
+/** `autoStart`: plays as soon as its links are in (the Gallery's reel cards mount it on a tap of their own ▶). */
+export function SeamlessPlayer({
+  shots,
+  onChange,
+  price = null,
+  onMedia,
+  autoStart = false,
+}: {
+  shots: PlayShot[];
+  onChange?: (r: Reel) => void;
+  price?: ReactNode;
+  onMedia?: (m: Media) => void;
+  autoStart?: boolean;
+}) {
   const refilmPrices = useContext(RefilmPrices);
   const key = shots.map((s) => `${s.media_id}${s.audio_id ? `+${s.audio_id}` : ""}`).join(",");
   const admin = useContext(MediaAdmin);
@@ -746,6 +759,16 @@ function SeamlessPlayer({ shots, onChange, price = null, onMedia }: { shots: Pla
     }
     next();
   }, [i, urls]);
+
+  // Started by the tap that mounted it (the Gallery): once, when its links are in. A browser that refuses (no sound
+  // without a fresh tap) leaves ▶ to press, as it would anyway.
+  const autoStarted = useRef(false);
+  useEffect(() => {
+    if (!autoStart || !urls || autoStarted.current) return;
+    autoStarted.current = true;
+    play();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoStart, urls]);
 
   function play() {
     if (!urls) return;

@@ -1,5 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { GALLERY_MAX, GALLERY_PAGE, galleryCounts, galleryLimit, galleryTab, sourceOf } from "@/lib/adult/gallery";
 import { ownMedia } from "@/lib/adult/media";
+import { ownReels } from "@/lib/adult/reels";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import { newUserCookie, startTestDb, userIdOf } from "./helpers";
 
@@ -46,5 +48,98 @@ describe("ownMedia", () => {
     );
     await t.db.query(`update adult_images set superseded_by = 'kept' where id = 'old'`);
     expect((await ownMedia(t.db, me)).map((m) => m.id)).toEqual(["kept"]);
+  });
+});
+
+// The Gallery's tabs (2026-11-15, lib/adult/gallery.ts): Videos (reels as one each, then the clips), Pictures, Faces.
+describe("the Gallery's tabs", () => {
+  const add = (id: string, owner: string, kind: string, b: string | null, at: string) =>
+    t.db.query(`insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, status, created_at) values ($1, $2, $3, $4, $5, 'x', 'image/png', 'ready', $6)`, [
+      id,
+      owner,
+      A.id,
+      b,
+      kind,
+      at,
+    ]);
+  const reel = (id: string, owner: string, status: string, kind: string | null, shots: object[], at = "2026-11-05T00:00:00Z") =>
+    t.db.query(`insert into adult_reels (id, owner_id, character_a, character_b, status, shots, kind, created_at) values ($1, $2, $3, $4, $5, $6::jsonb, $7, $8)`, [
+      id,
+      owner,
+      A.id,
+      B.id,
+      status,
+      JSON.stringify(shots),
+      kind,
+      at,
+    ]);
+
+  async function seed(me: string) {
+    await add("pic", me, "scene", B.id, "2026-11-01T00:00:00Z");
+    await add("face", me, "baseline", null, "2026-11-01T01:00:00Z");
+    await add("shot-1", me, "video", B.id, "2026-11-02T00:00:00Z");
+    await add("shot-2", me, "video", B.id, "2026-11-02T00:01:00Z");
+    await add("shot-out", me, "video", B.id, "2026-11-02T00:02:00Z");
+    await add("a-clip", me, "video", B.id, "2026-11-03T00:00:00Z");
+    await add("studio-clip", me, "video", null, "2026-11-04T00:00:00Z");
+    // A night's video: two shots that play and one taken out into the Archive.
+    await reel("night", me, "ready", "night", [
+      { media_id: "shot-1", status: "ready" },
+      { media_id: "shot-2", status: "ready" },
+      { media_id: "shot-out", status: "ready", archived_at: "2026-11-02T01:00:00Z" },
+    ]);
+    // A clip is a reel of one shot: it stays with the clips.
+    await reel("clip", me, "ready", "clip", [{ media_id: "a-clip", status: "ready" }]);
+  }
+
+  it("Videos leaves out the shots its reels play (not one taken out), Pictures and Faces their own kinds", async () => {
+    const me = userIdOf(newUserCookie());
+    await seed(me);
+    const ids = async (tab: "videos" | "pictures" | "faces") => (await ownMedia(t.db, me, 120, { withArchived: true, tab })).map((m) => m.id);
+    expect(await ids("videos")).toEqual(["studio-clip", "a-clip", "shot-out"]);
+    expect(await ids("pictures")).toEqual(["pic"]);
+    expect(await ids("faces")).toEqual(["face"]);
+  });
+
+  it("counts each tab as it lists them, a reel counting once under Videos", async () => {
+    const me = userIdOf(newUserCookie());
+    await seed(me);
+    expect(await galleryCounts(t.db, me)).toEqual({ videos: 4, pictures: 1, faces: 1, reels: 1, clips: 3 });
+    expect(await galleryCounts(t.db, userIdOf(newUserCookie()))).toEqual({ videos: 0, pictures: 0, faces: 0, reels: 0, clips: 0 });
+  });
+
+  it("lists each night's video once, with the two in it: not clips, drafts, others' or one with nothing left to play", async () => {
+    const me = userIdOf(newUserCookie());
+    const other = userIdOf(newUserCookie());
+    await seed(me);
+    await reel("being-made", me, "making", "night", [{ status: "queued" }], "2026-11-06T00:00:00Z");
+    await reel("all-out", me, "ready", "night", [{ media_id: "x", status: "ready", archived_at: "2026-11-02T01:00:00Z" }]);
+    await reel("failed-empty", me, "failed", "night", [{ status: "failed" }]);
+    await reel("theirs", other, "ready", "night", [{ media_id: "y", status: "ready" }]);
+    const reels = await ownReels(t.db, me);
+    expect(reels.map((r) => r.id)).toEqual(["being-made", "night"]);
+    expect(reels[1]).toMatchObject({ a: A.id, b: B.id, a_name: A.name, b_name: B.name, kind: "night" });
+    expect(reels[1].shots).toHaveLength(3);
+  });
+});
+
+describe("the Gallery's pure rules", () => {
+  it("opens on the tab asked for, else Videos when there are any, else Pictures", () => {
+    expect(galleryTab("faces", { videos: 3 })).toBe("faces");
+    expect(galleryTab("nonsense", { videos: 3 })).toBe("videos");
+    expect(galleryTab(undefined, { videos: 0 })).toBe("pictures");
+  });
+
+  it("shows whole pages, one at least and GALLERY_MAX at most", () => {
+    expect(galleryLimit(undefined)).toBe(GALLERY_PAGE);
+    expect(galleryLimit("-5")).toBe(GALLERY_PAGE);
+    expect(galleryLimit(String(GALLERY_PAGE + 1))).toBe(GALLERY_PAGE * 2);
+    expect(galleryLimit("999999")).toBe(GALLERY_MAX);
+  });
+
+  it("says a Studio shoot, or one of them alone, came from the Studio, and a pair's from a night", () => {
+    expect(sourceOf({ studio: true, character_b: "b" })).toBe("studio");
+    expect(sourceOf({ studio: false, character_b: null })).toBe("studio");
+    expect(sourceOf({ studio: false, character_b: "b" })).toBe("night");
   });
 });
