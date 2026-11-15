@@ -4,7 +4,7 @@
  * 👍 or 👎 (lib/line-feedback.ts, app/ChatThread.tsx), as JSONL, read-only. One JSON object per rated line:
  *
  *   { kind: "episode", ref_id, line_index,
- *     votes: { up, down, voters, score }, last_vote,
+ *     votes: { up, down, voters, score, out_of_character }, last_vote,   (out_of_character: 👎 marked "Not them")
  *     speaker: { side, name, character_id }, other: { name, character_id },
  *     text, action, emotion, act, moved_to,
  *     context: [{ side, name, text }],             (the lines just before it)
@@ -74,8 +74,9 @@ export async function collectPreferences(query, { consent = null, since = null, 
   const votes = await query(
     `select ref_id, line_index,
             count(*) filter (where ok and vote > 0)::int as up, count(*) filter (where ok and vote < 0)::int as down,
+            count(*) filter (where ok and vote < 0 and tag = 'out_of_character')::int as out_of_character,
             count(distinct user_id) filter (where ok)::int as voters, max(updated_at) filter (where ok) as last_vote
-       from (select lf.ref_id, lf.line_index, lf.vote, lf.user_id, lf.updated_at, (${voterOk}) as ok
+       from (select lf.ref_id, lf.line_index, lf.vote, lf.tag, lf.user_id, lf.updated_at, (${voterOk}) as ok
                from line_feedback lf
               where lf.kind = 'episode' and ($1::timestamptz is null or lf.updated_at >= $1)) v
       group by ref_id, line_index
@@ -117,7 +118,8 @@ export async function collectPreferences(query, { consent = null, since = null, 
       excluded++;
       continue;
     }
-    const tally = { up: Number(v.up), down: Number(v.down), voters: Number(v.voters), score: Number(v.up) - Number(v.down) };
+    // out_of_character: how many of the 👎 said the line didn't sound like its speaker (lib/line-feedback.ts "Not them").
+    const tally = { up: Number(v.up), down: Number(v.down), voters: Number(v.voters), score: Number(v.up) - Number(v.down), out_of_character: Number(v.out_of_character ?? 0) };
     const i = Number(v.line_index);
     const transcript = asArray(e.transcript);
     const t = transcript[i];

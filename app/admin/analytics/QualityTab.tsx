@@ -187,7 +187,7 @@ function ReadinessSection({ adminFetch }: { adminFetch: AdminFetch }) {
     <>
       <h2>Ready to learn from our own data?</h2>
       <p className="muted small">
-        The roadmap&apos;s two learning items wait for real data (ROADMAP &ldquo;Next&rdquo;, docs/data-plan.md). Fixed gates that ignore the
+        The roadmap&apos;s learning items wait for real data (ROADMAP &ldquo;Next&rdquo;, docs/data-plan.md). Fixed gates that ignore the
         filters above. Lines count only from aired public dates whose players opted in to training, and votes only from people who opted in;
         never After Dark. Our own traffic is left out the way Real use leaves it out.
       </p>
@@ -223,6 +223,19 @@ export function ReadinessView({ data }: { data: TrainingReadiness }) {
           r: data.outcomes,
           note: `Of these, the offline evaluators may read ${count(data.outcomes.usable.dates)} aired public dates whose players all opted in, and ${count(data.outcomes.usable.swipers)} opted-in swipers.`,
         },
+        // A readiness payload from before the ranker's gate was added has none: the card is left out, never a crash.
+        ...(data.ranker
+          ? [
+              {
+                key: "ranker",
+                title: <>A line ranker (pairwise line labels, docs/ideas.md)</>,
+                r: data.ranker,
+                note:
+                  `Of this week's thumbs, ${count(data.ranker.detail.opted_in_thumbs)} are from opted-in accounts (all a dataset may read) and ${count(data.ranker.detail.out_of_character_week)} say “Not them” (${count(data.ranker.detail.out_of_character_total)} in all). ` +
+                  `Stored for it: ${count(data.ranker.detail.pairs)} candidate/kept pairs (a draft next to the line that aired), ${count(data.ranker.detail.pairs_rated)} with a thumb on the aired line, ${count(data.ranker.detail.pairs_usable)} on dates a dataset may read.`,
+              },
+            ]
+          : []),
       ].map((s) => (
         <div key={s.key}>
           <h3>{s.title}</h3>

@@ -13,6 +13,12 @@
  * Line i is the ref's i-th line: the episode's transcript[i], the scene's or night's lines[i]. A running scene's lines are
  * cleared when its chapter is filed as a night (or Start over files it), so its votes move to that night with them
  * (moveLineFeedback, called from lib/adult/scenes.ts): a vote always stays on the line it was cast on.
+ *
+ * "Not them" (2026-11-15, docs/ideas.md's out-of-character flag): a 👎 may carry the tag `out_of_character`: the line
+ * didn't sound like the character who said it. It rides the vote (a 👍, or taking the vote back, clears it), goes where
+ * the vote goes (the export, the readiness readout), and a character's own flagged lines are part of what its weekly
+ * lessons are written from (lib/character-lessons.ts outOfCharacterFlags: signed-in viewers only, two distinct people or
+ * its owner). After Dark's tags are stored like its votes and, like them, read by nothing.
  */
 import { isSignedInAdmin } from "./admins";
 import type { Db } from "./db";
@@ -22,6 +28,9 @@ import { REPORT_HIDE_THRESHOLD } from "./rules";
 export const LINE_FEEDBACK_KINDS = ["episode", "after_dark"] as const;
 export type LineFeedbackKind = (typeof LINE_FEEDBACK_KINDS)[number];
 export type LineVote = -1 | 1;
+/** What a 👎 can say about the line. */
+export const LINE_TAGS = ["out_of_character"] as const;
+export type LineTag = (typeof LINE_TAGS)[number];
 
 /** Votes per connection and per person: a whole After Dark chapter is 120 lines, so there's room to rate one. */
 export const LINE_FEEDBACK_LIMITS = { perHour: 300, perDay: 1500 };
@@ -72,16 +81,29 @@ export async function viewerVotes(db: Db, userId: string, kind: LineFeedbackKind
   return Object.fromEntries(rows.map((r) => [r.line_index, r.vote > 0 ? 1 : -1]));
 }
 
-/** Sets one person's vote on one line (replacing theirs), or removes it with 0. */
-export async function setLineVote(db: Db, v: { userId: string; kind: LineFeedbackKind; refId: string; lineIndex: number; vote: -1 | 0 | 1 }): Promise<void> {
+/** The viewer's own tags on a ref, by line index: only the lines they marked "Not them". */
+export async function viewerTags(db: Db, userId: string, kind: LineFeedbackKind, refId: string): Promise<Record<number, LineTag>> {
+  const { rows } = await db.query<{ line_index: number; tag: LineTag }>(
+    `select line_index, tag from line_feedback where user_id = $1 and kind = $2 and ref_id = $3 and tag is not null and vote < 0 order by line_index`,
+    [userId, kind, refId],
+  );
+  return Object.fromEntries(rows.map((r) => [r.line_index, r.tag]));
+}
+
+/**
+ * Sets one person's vote on one line (replacing theirs), or removes it with 0. `tag` says what a 👎 was about ("Not
+ * them"); it's kept only on a 👎, so a 👍 or a 👎 sent without it clears the one that was there.
+ */
+export async function setLineVote(db: Db, v: { userId: string; kind: LineFeedbackKind; refId: string; lineIndex: number; vote: -1 | 0 | 1; tag?: LineTag | null }): Promise<void> {
   if (v.vote === 0) {
     await db.query(`delete from line_feedback where user_id = $1 and kind = $2 and ref_id = $3 and line_index = $4`, [v.userId, v.kind, v.refId, v.lineIndex]);
     return;
   }
+  const tag = v.vote < 0 ? (v.tag ?? null) : null;
   await db.query(
-    `insert into line_feedback (id, user_id, kind, ref_id, line_index, vote) values ($1, $2, $3, $4, $5, $6)
-       on conflict (user_id, kind, ref_id, line_index) do update set vote = excluded.vote, updated_at = now()`,
-    [crypto.randomUUID(), v.userId, v.kind, v.refId, v.lineIndex, v.vote],
+    `insert into line_feedback (id, user_id, kind, ref_id, line_index, vote, tag) values ($1, $2, $3, $4, $5, $6, $7)
+       on conflict (user_id, kind, ref_id, line_index) do update set vote = excluded.vote, tag = excluded.tag, updated_at = now()`,
+    [crypto.randomUUID(), v.userId, v.kind, v.refId, v.lineIndex, v.vote, tag],
   );
 }
 
