@@ -53,9 +53,25 @@ const NEAR_BOTTOM_PX = 80;
 
 /**
  * One line's thumbs: quiet until hovered or focused. The button is the tap target (44px on a touch screen) and the face
- * inside it is what shows, the same small circle everywhere (globals.css .chat-vote).
+ * inside it is what shows, the same small circle everywhere (globals.css .chat-vote). After a 👎, "Not them" says what
+ * was wrong with it: the line didn't sound like the character (lib/line-feedback.ts, the out-of-character tag). It only
+ * shows on a 👎 and only where the page can save it (`onTag`).
  */
-export function LineVoteButtons({ index, vote, name, onVote }: { index: number; vote: 1 | -1 | 0; name: string; onVote: (index: number, vote: 1 | -1) => void }) {
+export function LineVoteButtons({
+  index,
+  vote,
+  name,
+  onVote,
+  tagged = false,
+  onTag,
+}: {
+  index: number;
+  vote: 1 | -1 | 0;
+  name: string;
+  onVote: (index: number, vote: 1 | -1) => void;
+  tagged?: boolean;
+  onTag?: (index: number, on: boolean) => void;
+}) {
   const first = name.split(/\s+/)[0] || name;
   return (
     <span className={`chat-votes${vote ? " voted" : ""}`} role="group" aria-label={`Rate ${first}'s line`}>
@@ -69,6 +85,18 @@ export function LineVoteButtons({ index, vote, name, onVote }: { index: number; 
           👎
         </span>
       </button>
+      {vote === -1 && onTag && (
+        <button
+          type="button"
+          className="chat-vote-tag"
+          aria-pressed={tagged}
+          aria-label={`Not them: this didn't sound like ${first}`}
+          title={`This didn't sound like ${first}`}
+          onClick={() => onTag(index, !tagged)}
+        >
+          <span className="chat-vote-tag-face">Not them</span>
+        </button>
+      )}
     </span>
   );
 }
@@ -146,7 +174,7 @@ export default function ChatThread({ characters, turns, typing = null, challenge
                   // The caption and the thumbs share one row under the bubble, so rating adds little height.
                   <div className="chat-foot">
                     {caption && <span className="chat-meta">{caption}</span>}
-                    <LineVoteButtons index={i} vote={lineVotes.votes[i] ?? 0} name={c.name} onVote={lineVotes.cast} />
+                    <LineVoteButtons index={i} vote={lineVotes.votes[i] ?? 0} name={c.name} onVote={lineVotes.cast} tagged={lineVotes.tags[i] === true} onTag={lineVotes.tag} />
                   </div>
                 ) : (
                   caption && <span className="chat-meta">{caption}</span>

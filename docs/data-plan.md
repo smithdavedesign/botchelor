@@ -22,7 +22,7 @@ Every write is best effort (a failed write never breaks the action it records) a
 |---|---|---|---|
 | `ml_consents` | `user_id`, `granted`, `version` (the wording agreed to), `decided_at`. One row per account. | The opt-in to training (below). | #666 |
 | `analytics_events` `cross_species_match` | One row per web × MCP pair, keyed `pair:<lo>:<hi>`. `props` holds `episode_id` and `via` (`booking`, `own_date`), no owner ids. | When a pair first booked across the human × agent line, and how. A log only: the north star is counted from the dates (below). | #666 |
-| `relationship_events` | `character_a`, `character_b`, `layer` (`public` or `all`), `from_stage`, `to_stage`, `episode_id`, `at`. One row per layer whose stage changed (`lib/relationships.ts`). | A pair's timeline (first met, dating, exes, rekindled) instead of an overwritten value. `all` can reflect private dates, so only owners and the engine read it. | #667 |
+| `relationship_events` | `character_a`, `character_b`, `layer` (`public` or `all`), `kind`, `from_stage`, `to_stage`, `episode_id`, `at`. One row per layer whose stage changed (`lib/relationships.ts`, `kind` null). Two milestones that aren't stage changes carry a `kind` and no stages (`lib/overnight.ts`): `overnight` (an overnight date aired and ended in leaving together) and `night_together` (on `all` only: ids and a time handed back from After Dark, never a word of it). | A pair's timeline (first met, dating, exes, rekindled) instead of an overwritten value. `all` can reflect private dates, so only owners and the engine read it. | #667 |
 | `swipe_impressions` | `viewer`, `card`, `serve_id`, `rank`, `score` (the deck's, never shown), `liked_you`, `served_via` (`web`, `mcp`), `at`. | What a deck showed: with the swipes, the shown-and-skipped record a preference model needs. Prefetches aren't logged. | #667 |
 | `matches.answer_source_lo/hi` | `agent`, `house_bot`, `synthetic` (the seeded coin for a person's character), `house`, `person`. | Only an agent's answer is a real decision; a model of who wants whom must know which is which. | #667 |
 | `episodes.engine_trace` | `margin`, `score`, `thresholds`, `reasons`, `counts`, `signals` (the averaged warmth, openness, guardedness and humour), `terms` (each variable's sum, term by term), `contributions`, `sat`, `engine_version`, `strategy`, `ending`. Never a cue word. | Why the engine decided a date's ending, without re-running it. | #667 |
@@ -34,9 +34,19 @@ Every write is best effort (a failed write never breaks the action it records) a
 | `character_embeddings.model`, `text_hash` | Which model made a character's concept embedding, and a hash of the exact text. | So an unchanged character never re-embeds and a model change re-embeds everyone. | #676 |
 | `episodes.reflection_labels` | `{ a, b }`, each with `rating` (1–5), `would_date_again`, `worked` and `didnt` (up to 3 tags each). | Structured "how did it go" from `reflect_on_date`. Owner-only: never in the public episode, a prompt or the engine. | #676 |
 | `episodes.setup.met_via` | `blind`, `match`, `proposal`, `chosen`, `second_date`, `own_date`, `show`. | How a date came about. Server-side only; the Constellation publishes only a coarse version. | #676 |
+| `line_feedback.tag` | Null, or `out_of_character` on a 👎 ("Not them", `lib/line-feedback.ts`). A 👍, a 👎 sent without it, or taking the vote back clears it. | What a 👎 was about: the line didn't sound like the character. Read by the export and the readiness readout (opted-in voters only), and, for signed-in viewers' flags on a character's own lines, by that character's weekly lessons (below). | 2026-11-15 |
+| `character_lessons` | `character_id`, `week`, `lines` (up to three first-person lines of at most 120 characters), `trying_next`, `episodes` (the aired dates they came from), `source` (`model`, `template`), `model`, `input_tokens`, `output_tokens`, `cost_usd`, `created_at`. | What a character has learned about itself, written weekly from its own side of its aired public dates (`lib/character-lessons.ts`, [character-depth.md](character-depth.md) §12). Private like the learned memory: its own prompts and its owner read it. **Not a dataset and never in one**; it's here because it is kept. | 2026-11-15 |
 
 Also related: `line_feedback` (2026-10-21, just before the plan) holds the 👍 and 👎 on lines that the export reads, and #675
 added four optional, public fields to a character's `extras` (`kind`, `archetype`, `here_for`, `drawn_to`).
+
+**"Not them" and a character's own lessons (2026-11-15).** The out-of-character tag was planned in
+[ideas.md](ideas.md) and is now built. It has two readers. Datasets read it exactly as they read the vote it rides on:
+through the consent gate, so an anonymous vote (or one from an account that never opted in) is never counted. And the
+show itself reads it to run: a character's weekly lessons are shown its own lines that were flagged, once two distinct
+signed-in viewers (an account; never an anonymous session) or the character's owner flagged the line
+(`lib/character-lessons.ts outOfCharacterFlags`). That second use is the show running, like the engine reading a
+character's history: the line is already public, and nobody's id or vote is shown to anyone.
 
 ## The consent gate
 
@@ -82,7 +92,8 @@ DATABASE_URL="$(neon connection-string --profile davejobs-agent --project-id coo
   read-only (`default_transaction_read_only=on`) and only SELECTs run.
 - `--include-after-dark` is refused, and so is anything else it doesn't know.
 
-One record per rated line of a date: `kind: "episode"`, `ref_id`, `line_index`, `votes { up, down, voters, score }`,
+One record per rated line of a date: `kind: "episode"`, `ref_id`, `line_index`,
+`votes { up, down, voters, score, out_of_character }` (`out_of_character`: how many of the 👎 said "Not them"),
 `last_vote`, `speaker`, `other`, `text`, `action`, `emotion`, `act`, `moved_to`, `context`, `source` (setting, venue,
 ending, who performed it, the model, when). No user ids.
 
@@ -115,10 +126,26 @@ shows as "x of y" with a sentence that says what's still needed.
 | | mostly from other players | More than half of those lines have a label that isn't ours (`loadOurIds`): a vote by someone who isn't us, or a critic revision on a date someone who isn't us booked. |
 | #578 outcomes | 500 real dates in 30 days | Real use's "Dates booked" (`lib/real-metrics.ts`), our own traffic left out. |
 | | 200 swipers in 30 days | Distinct owners whose characters swiped, from the same facts Real use reads, ours out. |
+| A line ranker (pairwise line labels) | 100 thumbs in 7 days | 👍/👎 on dates' lines in the last 7 days from people who aren't us (`loadOurIds`); never After Dark's. Anonymous thumbs count toward this volume gate (it says whether viewers rate lines at all), never toward a dataset. |
 
 Beside the #578 gates the page says how much of that the offline evaluators may actually read (opted-in, aired public
 dates and opted-in swipers): the gate counts all real use, the evaluators only the consented part. The training-set
 builder and both evaluators print the same numbers and say "not enough data" (or, for the builder, refuse) below them.
+
+**The ranker's card (2026-11-15).** [ideas.md](ideas.md) parks pairwise line labels until viewers leave about 100 thumbs a
+week. **No ranker is built**, and none will be before that; what one would learn from is kept, and the card makes the
+gate visible. Beside the gate it says how many of the week's thumbs came from opted-in accounts (all a dataset may
+read), how many say "Not them", and how many **candidate/kept pairs** are stored: a candidate line whose text was kept
+(`turn_drafts`: a critic's replaced draft, an agent's refused line or `check_only` try) next to the line that aired at
+the same turn, how many of those aired lines have a thumb, and how many sit on dates a dataset may read.
+
+**The join.** `candidatePairsSql` / `candidatePairs` (`lib/training-readiness.ts`): `turn_drafts (episode_id, turn_index)`
+is `line_feedback (kind 'episode', ref_id, line_index)`. The ids already lined up, so nothing was added to either table:
+a draft is logged at the transcript index its replacement takes (`lib/conversation.ts onDraft`, `lib/own-date.ts`), a
+vote is stored under the transcript index, and nothing reorders a stored transcript (the pipeline only maps over it).
+The join keeps a pair only when the line at that turn was spoken by the draft's side, so a draft from a date abandoned
+before the turn was filled has no kept line. `tests/line-ranker-data.test.ts` and `tests/conversation.test.ts` hold both
+ends to it. The join is not the consent: a reader that builds a dataset from it still goes through `lib/ml-consent.ts`.
 
 ## Fine-tuning (#577) when ready
 
@@ -277,7 +304,8 @@ out of time never skips it. It logs `data_pruned` with the rows removed per tabl
 | `web_events` | 400 days. A signed-in visitor's rows go with the account; a browser's anonymous id isn't tied to anyone. |
 | `plus_interest` | 400 days. A tap on the "Botchelor Plus" intent tile (`lib/plus-interest.ts`): who (the cookie's id), where, whether an email was left; never the address, which goes on the Sunday letter's list with its own confirm, unsubscribe and retention. Removed with the account. |
 | `episodes.engine_trace`, `turn_meta`, `reflection_labels`, `setup.met_via` | As long as the date (they explain it). Soul-derived numbers go earlier, on a forget. |
-| `line_feedback` | Until the voter deletes their account. |
+| `line_feedback` (the vote and its tag) | Until the voter deletes their account. |
+| `character_lessons` | As long as the character: removed when it's forgotten or deleted, like its memory. |
 | `ml_consents` | Until the account is deleted. |
 | `analytics_events` | No prune yet (the funnel's firsts and the pair log are small). |
 
@@ -287,7 +315,8 @@ prune reads an index on its time column (`lib/db.ts`).
 ## The account export and what goes on delete
 
 **In the account export** (`lib/account.ts exportAccount`): the consent (`ml_consent`), `swipe_impressions`,
-`relationship_events`, `choice_history`, `turn_drafts`, `reflection_labels`, `line_feedback`, `episode_variations`
+`relationship_events`, `choice_history`, `turn_drafts`, `reflection_labels`, `line_feedback` (with each vote's `tag`),
+`character_lessons` (their characters' lessons: the lines, the dates behind them, when), `episode_variations`
 (the runs on dates they booked or their characters were on, without `alt_trace`, whose numbers average both characters),
 and `plus_interest` (their taps on the Plus tile: place, whether an email was left, when). `matches` carries the answer
 sources.
@@ -297,7 +326,7 @@ sources.
 - its impressions (as viewer and as card), its pairs' `relationship_events`, choices about it, and its matches and swipes;
 - its side's `turn_drafts`; the other side's stay with the shared date;
 - every `episode_variations` row on its dates (a replay built on its soul's numbers, so it goes whole);
-- its reflection text and labels, and its concept embedding;
+- its reflection text and labels, its lessons (`character_lessons`), and its concept embedding;
 - **the soul-derived numbers on its dates:** `engine_trace.signals` and the terms built from them (`chemistry.humor`,
   `chemistry.warmth`, `attraction.openness`, `trust.warmth`, `trust.guarded`, `awkwardness.guarded`,
   `awkwardness.humor`; `TRACE_SOUL_PATHS`), and its side's `setup.signals_a`/`signals_b` snapshot on finished dates. The

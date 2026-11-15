@@ -112,11 +112,29 @@ export type Character = {
    */
   secrets?: { season_id: string; idx: number; secret: string }[];
   /**
+   * Set only on a date's characters: what it has learned about itself lately, in its own words (lib/character-lessons.ts,
+   * written weekly from its own side of its aired dates). In its own self view, in place of the one-line arc; never the
+   * other side's prompt, never the engine.
+   */
+  lessons?: PromptLessons | null;
+  /**
    * Set only on a date's characters: its story state about the person it's meeting (lib/story-state.ts stateFor): what it
    * thinks of them, what it has heard about them, and what it wants this week. Private: only its own prompts carry it.
    */
   story?: StoryState | null;
 };
+
+/** A character's lessons as a prompt carries them: up to three first-person lines, and what it's trying next. */
+export type PromptLessons = { lines: string[]; trying_next: string | null };
+
+/** How the block tells the character to use it: on a date a lesson is acted on, never announced. */
+export const LESSON_USE_NOTE =
+  "What your own dates have taught you about yourself. It shows in what you do tonight (what you ask, when you stay, what you let go of), never in announcing it: don't quote it, and don't tell them you've learned something.";
+
+/** The lessons block of a self view: the lines, the trying-next line, and how they're to be used. */
+export function lessonsBlock(l: PromptLessons): Record<string, unknown> {
+  return { lessons: l.lines, ...(l.trying_next ? { what_you_are_trying_next: l.trying_next } : {}), how_it_shows: LESSON_USE_NOTE };
+}
 
 const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
 
@@ -222,14 +240,20 @@ export function characterSheet(c: Character): CharacterSheet {
   };
 }
 
-/** The distilled learned memory as the model sees it: an arc, what it likes / dislikes, lines it has said. */
-function memoryView(memory: CharacterMemory | null): Record<string, unknown> | null {
-  if (!memory || memory.dates === 0) return null;
+/**
+ * The distilled learned memory as the model sees it: who it has become, what it likes / dislikes, lines it has said.
+ * "Who it has become" is its own lessons when it has some (lib/character-lessons.ts: self-knowledge in its own words,
+ * with how to use it), in place of the deterministic one-line arc, so the block stays about the size it was.
+ */
+function memoryView(memory: CharacterMemory | null, lessons?: PromptLessons | null): Record<string, unknown> | null {
+  const learned = lessons?.lines.length ? lessons : null;
+  if ((!memory || memory.dates === 0) && !learned) return null;
   const v: Record<string, unknown> = {};
-  if (memory.arc) v.who_you_have_become = memory.arc;
-  if (memory.likes.length) v.what_you_tend_to_like = memory.likes;
-  if (memory.turnoffs.length) v.what_tends_to_put_you_off = memory.turnoffs;
-  if (memory.memorable_lines.length) v.lines_you_have_said_before = memory.memorable_lines;
+  if (learned) v.what_you_have_learned_about_yourself = lessonsBlock(learned);
+  else if (memory?.arc) v.who_you_have_become = memory.arc;
+  if (memory?.likes.length) v.what_you_tend_to_like = memory.likes;
+  if (memory?.turnoffs.length) v.what_tends_to_put_you_off = memory.turnoffs;
+  if (memory?.memorable_lines.length) v.lines_you_have_said_before = memory.memorable_lines;
   return Object.keys(v).length ? v : null;
 }
 
@@ -260,7 +284,7 @@ function languageNote(c: Character): Record<string, string> {
  */
 export function characterSelfView(c: Character, privateExtra: Record<string, unknown> = {}): Record<string, unknown> {
   const soul = c.soul && !c.soul.local_only ? soulText(c.soul) : null;
-  const memory = memoryView(c.memory);
+  const memory = memoryView(c.memory, c.lessons);
   const details = extrasForPrompt(c.extras);
   const examples = voiceExamples(c.extras);
   return {

@@ -21,6 +21,17 @@
  * days. Beside them, how much of it the offline evaluators may read (the same consent gates), since they only ever see
  * that part.
  *
+ * A line ranker ("pairwise line labels", docs/ideas.md "Parked"; 2026-11-15): not built, and not to be before real
+ * viewers leave about 100 thumbs a week. What it would learn from is kept and counted here so the gate is visible:
+ *  - thumbs in the last 7 days on dates' lines from people who aren't us (the gate), with how many of them came from
+ *    opted-in accounts (the only ones a dataset may read: an anonymous thumb counts toward the gate's volume, never
+ *    toward a dataset) and how many say "Not them" (the out-of-character tag, lib/line-feedback.ts);
+ *  - candidate/kept pairs: a stored candidate line (turn_drafts with its text kept) next to the line that went in at
+ *    the same turn, and how many of those kept lines a viewer has rated. The join is `candidatePairsSql`:
+ *    turn_drafts (episode_id, turn_index) is line_feedback (kind 'episode', ref_id, line_index), because a draft is
+ *    logged at the transcript index its replacement takes (lib/conversation.ts onDraft, lib/own-date.ts) and nothing
+ *    reorders a stored transcript. tests/line-ranker-data.test.ts holds both ends to that.
+ *
  * No money anywhere (the owner's rule for the analytics page).
  */
 import type { Db } from "./db";
@@ -32,6 +43,8 @@ import { computeWindow, loadFacts } from "./real-metrics";
 export const FINE_TUNE_GATE = { lines: 2000, characters: 30 } as const;
 /** #578's "Not before" (David, 2026-10-21): per this many days. */
 export const OUTCOMES_GATE = { days: 30, dates: 500, swipers: 200 } as const;
+/** docs/ideas.md "Parked, with the gate that reopens each": pairwise line labels wait for this many thumbs in a week. */
+export const RANKER_GATE = { days: 7, thumbs: 100 } as const;
 
 const DAY_MS = 86_400_000;
 
@@ -54,7 +67,7 @@ export type FineTuneReadiness = {
   ready: boolean;
   sentence: string;
   /** How the labelled lines break down: by label kind, and the characters that are players' (not the house cast's). */
-  detail: { voted_lines: number; critic_lines: number; player_characters: number; our_lines: number };
+  detail: { voted_lines: number; critic_lines: number; player_characters: number; our_lines: number; out_of_character_lines: number };
 };
 
 export type OutcomesReadiness = {
@@ -67,7 +80,28 @@ export type OutcomesReadiness = {
   usable: { dates: number; swipers: number };
 };
 
-export type TrainingReadiness = { generated_at: string; fine_tune: FineTuneReadiness; outcomes: OutcomesReadiness };
+/** What a line ranker would need, counted (never built before its gate): the week's thumbs, and the stored pairs. */
+export type RankerReadiness = {
+  days: number;
+  gates: ReadinessGate[];
+  ready: boolean;
+  sentence: string;
+  detail: {
+    /** Of the week's thumbs (ours left out), the ones from accounts that opted in to training: all a dataset may read. */
+    opted_in_thumbs: number;
+    /** The week's 👎 marked "Not them" (ours left out), and how many there are in all. */
+    out_of_character_week: number;
+    out_of_character_total: number;
+    /** Stored candidate lines whose text was kept, with the line that aired at the same turn by the same speaker. */
+    pairs: number;
+    /** Of those, pairs whose aired line has at least one thumb on it. */
+    pairs_rated: number;
+    /** Of those pairs, the ones on dates the dataset gates admit (aired publicly, characters opted in or the show's). */
+    pairs_usable: number;
+  };
+};
+
+export type TrainingReadiness = { generated_at: string; fine_tune: FineTuneReadiness; outcomes: OutcomesReadiness; ranker: RankerReadiness };
 
 const metGate = (g: Omit<ReadinessGate, "met">): ReadinessGate => ({ ...g, met: g.kind === "count" ? g.have >= g.need : g.need > 0 && g.have * 2 > g.need });
 
@@ -80,6 +114,8 @@ type LabelRow = {
   line_index: number;
   kind: "vote" | "critic";
   voter: string | null;
+  /** A vote's tag: 'out_of_character' on a 👎 marked "Not them" (lib/line-feedback.ts), else null. */
+  tag?: string | null;
   creator_id: string;
   side: string | null;
   character_a: string;
@@ -100,15 +136,15 @@ export async function loadLineLabels(db: Db): Promise<LabelRow[]> {
         where ${airedPublicSql("e")} and ${consentedCharactersSql("a", "b", "e.created_at")} and ${PUBLIC_CHARACTERS_SQL}
      ),
      labels as (
-       select lf.ref_id as episode_id, lf.line_index, 'vote' as kind, lf.user_id as voter
+       select lf.ref_id as episode_id, lf.line_index, 'vote' as kind, lf.user_id as voter, lf.tag
          from line_feedback lf
         where lf.kind = 'episode' and lf.ref_id in (select id from eligible) and ${consentedOwnerSql("lf.user_id", "lf.created_at")}
        union all
-       select d.episode_id, d.turn_index, 'critic', null
+       select d.episode_id, d.turn_index, 'critic', null, null
          from turn_drafts d
         where d.source = 'critic' and d.rejected is not null and d.episode_id in (select id from eligible)
      )
-     select l.episode_id, l.line_index, l.kind, l.voter, e.creator_id, e.transcript -> l.line_index ->> 'side' as side,
+     select l.episode_id, l.line_index, l.kind, l.voter, l.tag, e.creator_id, e.transcript -> l.line_index ->> 'side' as side,
             e.character_a, e.character_b, e.a_house, e.b_house
        from labels l join eligible e on e.id = l.episode_id
       where l.line_index >= 0 and l.line_index < (case when jsonb_typeof(e.transcript) = 'array' then jsonb_array_length(e.transcript) else 0 end)`,
@@ -118,13 +154,14 @@ export async function loadLineLabels(db: Db): Promise<LabelRow[]> {
 
 /** #577's gates from the labels and our own identities. */
 export function fineTuneFrom(labels: readonly LabelRow[], ours: ReadonlySet<string>): FineTuneReadiness {
-  const lines = new Map<string, { speaker: string | null; house: boolean; others: boolean; vote: boolean; critic: boolean }>();
+  const lines = new Map<string, { speaker: string | null; house: boolean; others: boolean; vote: boolean; critic: boolean; flagged: boolean }>();
   for (const l of labels) {
     const key = `${l.episode_id}#${l.line_index}`;
     const speaker = l.side === "a" ? l.character_a : l.side === "b" ? l.character_b : null;
-    const line = lines.get(key) ?? { speaker, house: l.side === "a" ? l.a_house : l.b_house, others: false, vote: false, critic: false };
+    const line = lines.get(key) ?? { speaker, house: l.side === "a" ? l.a_house : l.b_house, others: false, vote: false, critic: false, flagged: false };
     if (l.kind === "vote") {
       line.vote = true;
+      if (l.tag === "out_of_character") line.flagged = true;
       if (l.voter && !ours.has(l.voter)) line.others = true;
     } else {
       line.critic = true;
@@ -160,6 +197,7 @@ export function fineTuneFrom(labels: readonly LabelRow[], ours: ReadonlySet<stri
       critic_lines: all.filter((l) => l.critic).length,
       player_characters: players.size,
       our_lines: all.length - others,
+      out_of_character_lines: all.filter((l) => l.flagged).length,
     },
   };
 }
@@ -207,10 +245,87 @@ export async function outcomesReadiness(db: Db, now = new Date()): Promise<Outco
   return { issue: 578, days, gates, ready, sentence, usable: await usableOutcomes(db, [...facts.ours], since.toISOString()) };
 }
 
-/** Both, for the admin page. */
+/**
+ * SQL: every stored candidate line with the line that aired in its place and the thumbs on that aired line. One row a
+ * draft (turn_drafts with its text kept: a critic's replaced draft, an agent's refused line or check_only try):
+ * `kept` is the transcript's line at the draft's turn, joined only when the same side spoke it (a date abandoned before
+ * the turn was filled has none), and up / down / out_of_character count every vote on that line (line_feedback kind
+ * 'episode': ref_id is the episode, line_index the transcript index, which is what turn_index is). No ids of voters.
+ * A reader that builds a dataset must still gate it (lib/ml-consent.ts): this is the join, not the consent.
+ */
+export const candidatePairsSql = (where = "true") => `
+  select d.id as draft_id, d.episode_id, d.turn_index, d.side, d.source, d.reason, d.rejected,
+         e.transcript -> d.turn_index ->> 'dialogue' as kept,
+         (select count(*) filter (where lf.vote > 0)::int from line_feedback lf where lf.kind = 'episode' and lf.ref_id = d.episode_id and lf.line_index = d.turn_index) as up,
+         (select count(*) filter (where lf.vote < 0)::int from line_feedback lf where lf.kind = 'episode' and lf.ref_id = d.episode_id and lf.line_index = d.turn_index) as down,
+         (select count(*) filter (where lf.tag = 'out_of_character')::int from line_feedback lf where lf.kind = 'episode' and lf.ref_id = d.episode_id and lf.line_index = d.turn_index) as out_of_character
+    from turn_drafts d
+    join episodes e on e.id = d.episode_id
+   where d.rejected is not null
+     and e.transcript -> d.turn_index ->> 'side' = d.side
+     and e.transcript -> d.turn_index ->> 'dialogue' is not null
+     and ${where}`;
+
+export type CandidatePair = { draft_id: string; episode_id: string; turn_index: number; side: "a" | "b"; source: string; reason: string; rejected: string; kept: string; up: number; down: number; out_of_character: number };
+
+/** The candidate/kept pairs of one date (or all of them), with the thumbs on each kept line. */
+export async function candidatePairs(db: Db, episodeId?: string): Promise<CandidatePair[]> {
+  const { rows } = await db.query<CandidatePair>(`${candidatePairsSql(episodeId ? "d.episode_id = $1" : "true")} order by d.episode_id, d.turn_index, d.id`, episodeId ? [episodeId] : []);
+  return rows.map((r) => ({ ...r, draft_id: String(r.draft_id), turn_index: Number(r.turn_index), up: Number(r.up), down: Number(r.down), out_of_character: Number(r.out_of_character) }));
+}
+
+/** The ranker's gate and what's stored for it. `ours` defaults to lib/our-traffic.ts loadOurIds. */
+export async function rankerReadiness(db: Db, now = new Date(), ours?: readonly string[]): Promise<RankerReadiness> {
+  const days = RANKER_GATE.days;
+  const mine = ours ?? (await loadOurIds(db));
+  const since = new Date(now.getTime() - days * DAY_MS).toISOString();
+  const [week, total, pairs] = await Promise.all([
+    // The week's thumbs on dates' lines (never After Dark's), ours left out; opted-in ones beside them.
+    db.query<{ thumbs: number; opted_in: number; flagged: number }>(
+      `select count(*)::int as thumbs,
+              count(*) filter (where ${consentedOwnerSql("lf.user_id", "lf.created_at")})::int as opted_in,
+              count(*) filter (where lf.tag = 'out_of_character')::int as flagged
+         from line_feedback lf
+        where lf.kind = 'episode' and lf.updated_at > $2::timestamptz and lf.updated_at <= $3::timestamptz and lf.user_id <> all($1::text[])`,
+      [mine, since, now.toISOString()],
+    ),
+    db.query<{ n: number }>(`select count(*)::int as n from line_feedback where kind = 'episode' and tag = 'out_of_character'`),
+    db.query<{ pairs: number; rated: number; usable: number }>(
+      `select count(*)::int as pairs,
+              count(*) filter (where p.up + p.down > 0)::int as rated,
+              count(*) filter (where exists (
+                select 1 from episodes e join characters a on a.id = e.character_a join characters b on b.id = e.character_b
+                 where e.id = p.episode_id and ${airedPublicSql("e")} and ${consentedCharactersSql("a", "b", "e.created_at")} and ${PUBLIC_CHARACTERS_SQL}))::int as usable
+         from (${candidatePairsSql()}) p`,
+    ),
+  ]);
+  const w = week.rows[0] ?? { thumbs: 0, opted_in: 0, flagged: 0 };
+  const p = pairs.rows[0] ?? { pairs: 0, rated: 0, usable: 0 };
+  const gates = [metGate({ key: "thumbs", label: `Thumbs on lines, last ${days} days`, kind: "count", have: Number(w.thumbs), need: RANKER_GATE.thumbs })];
+  const ready = gates.every((g) => g.met);
+  const sentence = ready
+    ? "Pairwise line labels can start: viewers are rating lines. Build the labels from the stored pairs before any ranker; nothing ranks a live line until it has passed the golden gate."
+    : `A line ranker waits for ${n(RANKER_GATE.thumbs)} thumbs a week from viewers who aren't us (docs/ideas.md). Still needed: ${plural(RANKER_GATE.thumbs - Number(w.thumbs), "more thumb")} this week. Nothing is built until then; the pairs are kept.`;
+  return {
+    days,
+    gates,
+    ready,
+    sentence,
+    detail: {
+      opted_in_thumbs: Number(w.opted_in),
+      out_of_character_week: Number(w.flagged),
+      out_of_character_total: Number(total.rows[0]?.n ?? 0),
+      pairs: Number(p.pairs),
+      pairs_rated: Number(p.rated),
+      pairs_usable: Number(p.usable),
+    },
+  };
+}
+
+/** All three, for the admin page. */
 export async function trainingReadiness(db: Db, now = new Date()): Promise<TrainingReadiness> {
   const outcomes = await outcomesReadiness(db, now);
-  return { generated_at: now.toISOString(), fine_tune: await fineTuneReadiness(db), outcomes };
+  return { generated_at: now.toISOString(), fine_tune: await fineTuneReadiness(db), outcomes, ranker: await rankerReadiness(db, now) };
 }
 
 /** "x of y" as the page and the scripts print a gate. */

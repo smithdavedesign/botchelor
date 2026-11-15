@@ -27,6 +27,7 @@ import { runDueReveal } from "@/lib/weekly-reveal";
 import { revealDueSeasonPool } from "@/lib/season-pool";
 import { postDueDiscord } from "@/lib/discord-posts";
 import { runNewsletter } from "@/lib/newsletter-issue";
+import { bookHouseOvernight } from "@/lib/overnight-house";
 
 // One template date (~10 model calls) when the lobby has no open room left to start.
 export const maxDuration = 300;
@@ -124,11 +125,14 @@ async function run(req: Request): Promise<Response> {
       void rerun(); // outside a request (a test): just run it
     }
   }
+  // A house couple's overnight date (lib/overnight-house.ts): one that has earned it, at most one a day, before the
+  // lobby's own refresh so its room is the open one. One date on the show's model, so not on a run that's already long.
+  const overnight = Date.now() - started > LONG_RUN_MS ? null : await bookHouseOvernight(db).catch(() => null);
   const lobby = await refreshLobby(db, new Date(), { ensureFresh: true });
   // Every character has a headshot (lib/default-portraits.ts): a few of those still without one are drawn each hour,
   // unless the run is already long (a template date above takes most of the 300 s).
   const portraits = Date.now() - started > LONG_RUN_MS ? { drawn: 0, failed: 0, left: -1 } : await portraitSweep(db).catch(() => ({ drawn: 0, failed: 0, left: -1 }));
-  return json({ ...lobby, portraits, situation, season_ballot: ballot, dare_verdicts: dareVerdicts.length, dare_points_settled: darePoints.reduce((n, d) => n + d.voters, 0), recoupling, ceremony, walk_ons: walkOns, reveal, season_pool: pool, secrets, cast_chat: castChat, story_state: storyState, producer, discord, newsletter, aired, stuck_generations: stuck, handed_over, sets_rechecked, sets_drawn, scheduled_dates: scheduled, mixers, ...away });
+  return json({ ...lobby, portraits, overnight, situation, season_ballot: ballot, dare_verdicts: dareVerdicts.length, dare_points_settled: darePoints.reduce((n, d) => n + d.voters, 0), recoupling, ceremony, walk_ons: walkOns, reveal, season_pool: pool, secrets, cast_chat: castChat, story_state: storyState, producer, discord, newsletter, aired, stuck_generations: stuck, handed_over, sets_rechecked, sets_drawn, scheduled_dates: scheduled, mixers, ...away });
 }
 
 export const GET = handle(run);

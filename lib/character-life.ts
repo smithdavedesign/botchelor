@@ -16,13 +16,15 @@
  *     here (lib/since.ts).
  *  3. **"Your character's week"** (`weekOf`, `sendCharacterWeeks`, Sundays): a recap built from what already happened,
  *     no model call: the week's dates and how they ended, texts from the character, who texted whom, the chemistry
- *     shift, the next thing booked. Kind `character_week`: inbox, push, and the daily digest for email opt-ins.
+ *     shift, the next thing booked, and one line of what it learned about itself that week (lib/character-lessons.ts:
+ *     stored, only read here). Kind `character_week`: inbox, push, and the daily digest for email opt-ins.
  *
  * Sacred rule: nothing here touches points, odds, pairings or endings. The engine decides every life date like any other.
  */
 import { POST as postEpisode } from "@/app/api/episodes/route";
 import { track } from "./analytics";
 import { markShowPaidRequest } from "./cast-date-request";
+import { lessonsSince } from "./character-lessons";
 import { runningChemistry } from "./chemistry-shifts";
 import { postFromCharacter } from "./companion";
 import { textPhoto } from "./date-photo";
@@ -307,12 +309,18 @@ export type CharacterWeek = {
   shifts: WeekShift[];
   /** The next thing booked: a date being filmed, or one scheduled for later. */
   next: WeekNext | null;
-  /** How many things happened: dates, texts, couple texts, the next booking. 0 means nothing to say. */
+  /**
+   * What the character learned about itself this week, in its own words (lib/character-lessons.ts: lessons that landed
+   * in the window, minus anything its owner told it to forget). Absent when none did, or with CHARACTER_LESSONS=0.
+   */
+  lessons?: string[];
+  /** How many things happened: dates, texts, couple texts, the next booking, new lessons. 0 means nothing to say. */
   events: number;
 };
 
 /**
- * The week for each of one person's characters (the last WEEK_DAYS days), from what already happened: no model call.
+ * The week for each of one person's characters (the last WEEK_DAYS days), from what already happened: no model call
+ * (the lessons were written by the daily job and are only read here).
  * Characters with nothing this week come back with `events: 0`, so a caller can skip them.
  */
 export async function weekOf(db: Db, userId: string, now = new Date()): Promise<CharacterWeek[]> {
@@ -388,12 +396,15 @@ export async function weekOf(db: Db, userId: string, now = new Date()): Promise<
     shifts.set(cid, [...(shifts.get(cid) ?? []), { partner_id: pid, partner, before: Math.round(before), now: Math.round(after), shift }]);
   }
   const textsBy = new Map(texts.rows.map((r) => [r.character_id, r.n]));
+  // What each learned about itself this week (stored lines; a failure leaves them out, never the recap).
+  const learned = await lessonsSince(db, ids, since, now).catch(() => new Map<string, string[]>());
   return mine.map((c) => {
     const myDates = dates.rows.filter((d) => d.character_id === c.id).map((d) => ({ episode_id: d.episode_id, partner: d.partner, ending: d.ending, date_number: d.date_number, aired: d.aired, life: d.life, at: new Date(d.at).toISOString() }));
     const myTexts = couple.rows.filter((r) => r.character_id === c.id).map(({ partner_id, partner, from_mine, from_theirs }) => ({ partner_id, partner, from_mine, from_theirs }));
     const n = nexts.rows.find((r) => r.character_id === c.id);
     const next: WeekNext | null = n ? { kind: n.kind, partner: n.partner, episode_id: n.episode_id, at: new Date(n.at).toISOString() } : null;
     const texts_to_you = textsBy.get(c.id) ?? 0;
+    const lessons = learned.get(c.id) ?? [];
     return {
       character: c,
       dates: myDates,
@@ -401,7 +412,8 @@ export async function weekOf(db: Db, userId: string, now = new Date()): Promise<
       couple_texts: myTexts,
       shifts: shifts.get(c.id) ?? [],
       next,
-      events: myDates.length + texts_to_you + myTexts.reduce((s, t) => s + t.from_mine + t.from_theirs, 0) + (next ? 1 : 0),
+      ...(lessons.length ? { lessons } : {}),
+      events: myDates.length + texts_to_you + myTexts.reduce((s, t) => s + t.from_mine + t.from_theirs, 0) + (next ? 1 : 0) + (lessons.length ? 1 : 0),
     };
   });
 }
@@ -427,8 +439,10 @@ export function weekSentence(w: CharacterWeek): string {
   }
   for (const s of w.shifts) parts.push(`chemistry with ${firstNameOf(s.partner)} is ${s.shift > 0 ? "up" : "down"} ${Math.abs(s.shift)} to ${s.now}`);
   if (w.next) parts.push(w.next.kind === "filming" ? `is on a date with ${w.next.partner ? firstNameOf(w.next.partner) : "someone new"} right now` : `has a date with ${w.next.partner ? firstNameOf(w.next.partner) : "a blind date"} coming up`);
-  if (!parts.length) return `${me}: a quiet week.`;
-  return `${me} ${parts.join("; ")}.`;
+  // What it took from the week, in its own words: one line (the rest are on its memory page).
+  const took = w.lessons?.[0] ? `“${w.lessons[0]}”` : null;
+  if (!parts.length) return took ? `What ${me} took from the week: ${took}` : `${me}: a quiet week.`;
+  return `${me} ${parts.join("; ")}.${took ? ` What ${me} took from it: ${took}` : ""}`;
 }
 
 /** The recap's title and body (pure), for one person's characters with something to tell. */

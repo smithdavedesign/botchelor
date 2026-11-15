@@ -57,7 +57,7 @@ describe("the daily lines on the pages", () => {
   });
 
   it("Since you were here lists the story with the vote a tap away", () => {
-    const card = { since: new Date(NOW - 86_400_000).toISOString(), aired: 2, moves: [], calls: null, followed: 0, situation: null, diary: null, shift: null, secret: null, backing: null, season: null, twist: null, chat: null, story } as ShowSinceData;
+    const card = { since: new Date(NOW - 86_400_000).toISOString(), aired: 2, moves: [], calls: null, followed: 0, situation: null, diary: null, shift: null, secret: null, backing: null, season: null, twist: null, chat: null, overnights: [], story } as ShowSinceData;
     const html = renderToStaticMarkup(createElement(ShowSince, { card, inside: true }));
     expect(html).toContain("Previously: Dex found out what Sable has been saying.");
     expect(html).toContain('href="/vote"');

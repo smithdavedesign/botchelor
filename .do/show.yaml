@@ -146,6 +146,11 @@ services:
       # - key: CHARACTER_QUESTIONS
       #   value: "0"
       #   scope: RUN_AND_BUILD_TIME
+      # The characters' weekly lessons (lib/character-lessons.ts; docs/character-depth.md §12): on by default.
+      # Uncomment with "0" and nothing is written, carried in a prompt, shown or texted; the rows stay.
+      # - key: CHARACTER_LESSONS
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
       # Life dates a day (lib/character-life.ts weeklyLifeDates; docs/hosting.md): the house takes each owned character
       # out once a week, house-paid, ~1¢ each. Default 30; "0" turns them off without a deploy.
       # - key: LIFE_DATES_PER_DAY
@@ -177,6 +182,15 @@ services:
       # The After Dark bridge (lib/adult/bridge.ts; docs/hosting.md): one line on the creator's verdict card after a
       # second date, to the invite request. On by default; "0" takes it away without a deploy.
       # - key: AD_BRIDGE
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
+      # Overnight dates (lib/overnight-shared.ts; docs/hosting.md). Both on by default; "0" turns one off without a deploy:
+      # OVERNIGHT_DATES is the whole feature, OVERNIGHT_AFTER_DARK only the "Continue the night in After Dark" button
+      # (set that one on After Dark's app too, .do/app.yaml).
+      # - key: OVERNIGHT_DATES
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
+      # - key: OVERNIGHT_AFTER_DARK
       #   value: "0"
       #   scope: RUN_AND_BUILD_TIME
       # Copied from the old Vercel project's values (not secret, but deployment-specific).

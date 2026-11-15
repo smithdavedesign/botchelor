@@ -2,7 +2,7 @@ import { z } from "zod";
 import { getDb } from "@/lib/db";
 import { authFromRequest, handle, json, parseBody, readJson, session } from "@/lib/http";
 import { overLimit, visitorKey } from "@/lib/limits";
-import { LINE_FEEDBACK_KINDS, LINE_FEEDBACK_LIMITS, MAX_LINE_INDEX, REF_ID, setLineVote, viewerVotes, visibleLineCount, type LineFeedbackKind } from "@/lib/line-feedback";
+import { LINE_FEEDBACK_KINDS, LINE_FEEDBACK_LIMITS, LINE_TAGS, MAX_LINE_INDEX, REF_ID, setLineVote, viewerTags, viewerVotes, visibleLineCount, type LineFeedbackKind } from "@/lib/line-feedback";
 
 export const dynamic = "force-dynamic";
 
@@ -10,8 +10,9 @@ const NOT_FOUND = { error: "not_found", message: "There's no such date or night 
 
 /**
  * The viewer's own votes on one ref's lines (lib/line-feedback.ts): GET ?kind=episode|after_dark&ref=<id>, as
- * { votes: { [line index]: 1 | -1 }, lines }. Not found for a ref they can't see. A first-time visitor gets their
- * anonymous id here (like the other public reads), so the thumbs work on their first tap.
+ * { votes: { [line index]: 1 | -1 }, tags: { [line index]: "out_of_character" }, lines }. Not found for a ref they
+ * can't see. A first-time visitor gets their anonymous id here (like the other public reads), so the thumbs work on
+ * their first tap.
  */
 export const GET = handle(async (req) => {
   const sess = session(req);
@@ -22,20 +23,26 @@ export const GET = handle(async (req) => {
   const db = await getDb();
   const lines = await visibleLineCount(db, kind as LineFeedbackKind, ref, sess);
   if (lines === null) return json(NOT_FOUND, 404, sess);
-  return json({ kind, ref_id: ref, lines, votes: await viewerVotes(db, sess.userId, kind as LineFeedbackKind, ref) }, 200, sess);
+  const [votes, tags] = await Promise.all([viewerVotes(db, sess.userId, kind as LineFeedbackKind, ref), viewerTags(db, sess.userId, kind as LineFeedbackKind, ref)]);
+  return json({ kind, ref_id: ref, lines, votes, tags }, 200, sess);
 });
 
-const Input = z.object({
-  kind: z.enum(LINE_FEEDBACK_KINDS),
-  ref_id: z.string().regex(REF_ID, "Not a date or night id."),
-  line_index: z.number().int().min(0).max(MAX_LINE_INDEX),
-  vote: z.union([z.literal(-1), z.literal(0), z.literal(1)]),
-});
+const Input = z
+  .object({
+    kind: z.enum(LINE_FEEDBACK_KINDS),
+    ref_id: z.string().regex(REF_ID, "Not a date or night id."),
+    line_index: z.number().int().min(0).max(MAX_LINE_INDEX),
+    vote: z.union([z.literal(-1), z.literal(0), z.literal(1)]),
+    // "Not them": what a thumbs-down was about. Only a thumbs-down carries one.
+    tag: z.enum(LINE_TAGS).nullish(),
+  })
+  .refine((v) => !v.tag || v.vote === -1, { message: "Only a thumbs-down can be marked out of character.", path: ["tag"] });
 
 /**
- * Sets the viewer's vote on one line: { kind, ref_id, line_index, vote: 1 | -1 }, or vote 0 to take it back. Needs a
- * session (an anonymous one is fine: it has an id), is rate limited per connection and per person, and only takes lines
- * the viewer can see.
+ * Sets the viewer's vote on one line: { kind, ref_id, line_index, vote: 1 | -1 }, or vote 0 to take it back. A
+ * thumbs-down may add tag: "out_of_character" ("Not them"); sent again without it, the tag is gone. Needs a session (an
+ * anonymous one is fine: it has an id), is rate limited per connection and per person, and only takes lines the viewer
+ * can see.
  */
 export const POST = handle(async (req) => {
   const auth = authFromRequest(req);
@@ -50,6 +57,7 @@ export const POST = handle(async (req) => {
   const lines = await visibleLineCount(db, input.kind, input.ref_id, auth);
   if (lines === null) return json(NOT_FOUND, 404);
   if (input.line_index >= lines) return json({ error: "no_such_line", message: `That one has ${lines} line${lines === 1 ? "" : "s"}.` }, 422);
-  await setLineVote(db, { userId: auth.userId, kind: input.kind, refId: input.ref_id, lineIndex: input.line_index, vote: input.vote });
-  return json({ kind: input.kind, ref_id: input.ref_id, line_index: input.line_index, vote: input.vote });
+  const tag = input.vote === -1 ? (input.tag ?? null) : null;
+  await setLineVote(db, { userId: auth.userId, kind: input.kind, refId: input.ref_id, lineIndex: input.line_index, vote: input.vote, tag });
+  return json({ kind: input.kind, ref_id: input.ref_id, line_index: input.line_index, vote: input.vote, tag });
 });

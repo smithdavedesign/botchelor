@@ -35,7 +35,9 @@ import { Secrets } from "./Secrets";
 import PageTabs from "./PageTabs";
 import { describeTemperament } from "@/lib/temperament";
 import { connections, describeDrift, describeForgets, loadCharacterMemory, loadForgets, stageFor } from "@/lib/memory";
+import { loadLessons } from "@/lib/character-lessons";
 import { getCharacterRatings } from "@/lib/ratings";
+import OvernightMarks from "./OvernightMarks";
 import { relationshipsOf, viewRelationship } from "@/lib/relationships";
 import { authFromCookieStore, userIdFromCookieStore } from "@/lib/http";
 import { endingLabel } from "@/lib/rules";
@@ -256,6 +258,8 @@ export default async function CharacterPage({ params, searchParams }: Props) {
   const playsP = isOwner && !c.house ? loadCharacter(db, id).then((l) => l?.signals ?? null) : Promise.resolve(null);
   // Owner only: what it's been told to forget.
   const forgottenP = isOwner && !c.house ? loadForgets(db, id).then((f) => describeForgets(db, id, f)) : Promise.resolve(null);
+  // Owner only: what it has learned about itself lately (lib/character-lessons.ts), each line forgettable.
+  const lessonsP = isOwner && !c.house ? loadLessons(db, id).catch(() => null) : Promise.resolve(null);
   // Owner only: its story state (lib/story-state.ts): what it thinks of people, what it has heard, this week's want; and
   // which of its sources are dates (linked) rather than scenes.
   const storyP =
@@ -303,6 +307,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
     plays,
     forgotten,
     learnedPeople,
+    lessons,
     storyState,
   ] = await Promise.all([
     firstP,
@@ -326,6 +331,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
     playsP,
     forgottenP,
     learnedPeopleP,
+    lessonsP,
     storyP,
   ]);
   const week = thisWeek(c.id, c.this_week);
@@ -385,6 +391,19 @@ export default async function CharacterPage({ params, searchParams }: Props) {
     ratings.is_owner && !c.house && memory
       ? {
           sections: [
+            // What it has learned about itself lately, in its own words (lib/character-lessons.ts): each line can be
+            // forgotten like the rest; the dates the week's lessons came from are said once, under them.
+            {
+              title: `What ${shortName(c.name)} has learned about itself lately, in its own words:`,
+              quote: true,
+              items: (lessons?.lines ?? []).map((l) => ({ kind: "lesson" as const, item: l, label: l, from: [] })),
+              from: lessons?.episodes ?? [],
+            },
+            {
+              title: "What it's trying next:",
+              quote: true,
+              items: lessons?.trying_next ? [{ kind: "lesson" as const, item: lessons.trying_next, label: lessons.trying_next, from: [] }] : [],
+            },
             {
               title: "Warms to:",
               items: (memory.sources?.likes ?? memory.likes.map((cue) => ({ cue, from: [] }))).map((l) => ({ kind: "like" as const, item: l.cue, label: l.cue, from: l.from })),
@@ -811,6 +830,8 @@ export default async function CharacterPage({ params, searchParams }: Props) {
             {record.disasters === 1 ? "disaster" : "disasters"}
           </p>
         )}
+        {/* Their overnight dates that ended in leaving together (lib/overnight.ts); nothing when there are none. */}
+        <OvernightMarks characterId={c.id} viewerId={viewerId} />
         {relationships.length > 0 && (
           <div id="relationships">
             <ul className="list connections">

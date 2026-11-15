@@ -23,6 +23,7 @@ import NudgeForm from "./NudgeForm";
 import ThreadPreview from "./ThreadPreview";
 import { ArcCard, CopyLink, FollowButton } from "./CoupleActions";
 import NextDate from "./NextDate";
+import Overnight from "./Overnight";
 import RoleplayCard from "./RoleplayCard";
 import MatchHeader from "./MatchHeader";
 import { loadThread } from "@/lib/inbox";
@@ -245,6 +246,8 @@ export default async function CouplePage({ params, searchParams }: Props) {
       </section>
 
       {next && <NextDate pair={[ca.id, cb.id]} next={next} hasNudge={nudges.length > 0} />}
+      {/* Their overnight dates, and for an owner the one on offer (lib/overnight.ts); nothing when there's neither. */}
+      <Overnight a={ca.id} b={cb.id} viewerId={viewerId} owner={owner} />
 
       {/* Two columns on a wide screen, as the design system draws a couple (all-screens board, 2026-11-11): their dates
           on the left; the roleplay, the arc, their texts, inside jokes and what they've told each other on the right. */}

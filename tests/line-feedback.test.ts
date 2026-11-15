@@ -74,7 +74,7 @@ describe("voting on a date's lines", () => {
     const first = await votes("episode", ep);
     expect(first.status).toBe(200);
     expect(first.headers.get("set-cookie")).toMatch(/bz_sess=|bz_uid=/);
-    expect(await first.json()).toEqual({ kind: "episode", ref_id: ep, lines: 4, votes: {} });
+    expect(await first.json()).toEqual({ kind: "episode", ref_id: ep, lines: 4, votes: {}, tags: {} });
     const res = await vote({ kind: "episode", ref_id: ep, line_index: 1, vote: 1 });
     expect(res.status).toBe(401);
     expect((await res.json()).error).toBe("no_session");
@@ -84,7 +84,7 @@ describe("voting on a date's lines", () => {
   it("sets, replaces and takes back one vote per person per line (an anonymous viewer is fine)", async () => {
     const ep = await episode(userIdOf(newUserCookie()));
     const viewer = newUserCookie();
-    expect(await (await vote({ kind: "episode", ref_id: ep, line_index: 2, vote: 1 }, viewer)).json()).toEqual({ kind: "episode", ref_id: ep, line_index: 2, vote: 1 });
+    expect(await (await vote({ kind: "episode", ref_id: ep, line_index: 2, vote: 1 }, viewer)).json()).toEqual({ kind: "episode", ref_id: ep, line_index: 2, vote: 1, tag: null });
     expect((await vote({ kind: "episode", ref_id: ep, line_index: 0, vote: -1 }, viewer)).status).toBe(200);
     expect((await (await votes("episode", ep, viewer)).json()).votes).toEqual({ 0: -1, 2: 1 });
     // The other thumb replaces it: still one row for that line.
@@ -195,7 +195,7 @@ describe("voting on After Dark lines", () => {
     expect((await vote({ kind: "after_dark", ref_id: admin.sceneId, line_index: 1, vote: 1 }, admin.cookie)).status).toBe(200);
     expect((await vote({ kind: "after_dark", ref_id: admin.nightId, line_index: 0, vote: -1 }, admin.cookie)).status).toBe(200);
     expect((await vote({ kind: "after_dark", ref_id: admin.nightId, line_index: 2, vote: 1 }, admin.cookie)).status).toBe(422); // the night has 2 lines
-    expect(await (await votes("after_dark", admin.sceneId, admin.cookie)).json()).toEqual({ kind: "after_dark", ref_id: admin.sceneId, lines: 4, votes: { 1: 1 } });
+    expect(await (await votes("after_dark", admin.sceneId, admin.cookie)).json()).toEqual({ kind: "after_dark", ref_id: admin.sceneId, lines: 4, votes: { 1: 1 }, tags: {} });
     // Another admin's scene is theirs.
     const other = await adminWithScene();
     expect((await vote({ kind: "after_dark", ref_id: other.sceneId, line_index: 0, vote: 1 }, admin.cookie)).status).toBe(404);

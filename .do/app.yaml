@@ -42,6 +42,11 @@ services:
       - key: SITE_URL
         value: https://botchelor.com
         scope: RUN_AND_BUILD_TIME
+      # "Continue the night in After Dark" on an overnight date (lib/adult/overnight.ts; docs/hosting.md). On by default;
+      # "0" takes its page and route away here (set it on the show's app too, .do/show.yaml, to take the button away).
+      # - key: OVERNIGHT_AFTER_DARK
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
       - key: MEDIA_BUNNY_ZONE
         value: botchelor-ad
         scope: RUN_AND_BUILD_TIME

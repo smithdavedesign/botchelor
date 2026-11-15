@@ -51,6 +51,7 @@ import { setDareJudgeEnabledForTests } from "@/lib/dare-verdict";
 import { setCastChatVoiceEnabledForTests } from "@/lib/cast-chat";
 import { setProducerVoiceEnabledForTests } from "@/lib/producer";
 import { setDatePlanAtNightForTests } from "@/lib/night-plans";
+import { setCharacterLessonsForTests } from "@/lib/character-lessons";
 import { setMatchChatEnabledForTests } from "@/lib/swipes";
 import { setSwipeGateForTests } from "@/lib/swipe-gate";
 import { setLookAlikeGateForTests } from "@/lib/originality";
@@ -144,6 +145,9 @@ export async function startTestDb() {
   // The plan at night (lib/night-plans.ts) is off in tests by default: suites written before it script the director's
   // plan as a date's first call. tests/night-plans.test.ts turns it on.
   setDatePlanAtNightForTests(false);
+  // The characters' weekly lessons (lib/character-lessons.ts) are off here: a suite that runs the daily job with two
+  // aired dates would otherwise write lessons and send a text it never scripted. tests/character-lessons.test.ts turns them on.
+  setCharacterLessonsForTests(false);
   // A new match's opening chat (lib/swipes.ts) is the swipe tests' to drive, with their own model.
   setMatchChatEnabledForTests(false);
   // The swipe gate (lib/swipe-gate.ts) is off in tests by default, so the suites written before it keep asking
@@ -196,6 +200,8 @@ export async function startTestDb() {
         "choice_history",
         "turn_drafts",
         "episode_variations",
+        // The house cast's weekly lessons (lib/character-lessons.ts) would otherwise outlive a reset with the cast.
+        "character_lessons",
         "language_seen",
         // Site engagement (lib/engagement.ts) and After Dark's invite requests (lib/adult/invites.ts).
         "web_events",
@@ -297,6 +303,8 @@ export async function startTestDb() {
         "adult_profiles",
         "adult_scenes",
         "adult_nights",
+        // Nights that continued an overnight date (lib/adult/overnight.ts): a house pair's would outlive a reset.
+        "adult_overnights",
         "adult_reels",
         "adult_steps",
         "adult_memories",
