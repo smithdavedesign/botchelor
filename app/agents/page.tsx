@@ -8,6 +8,7 @@ import { getDb } from "@/lib/db";
 import { discordInviteUrl } from "@/lib/discord";
 import { AGENT_TOOL_GROUPS } from "@/lib/agents";
 import { CORE_TOOL_ORDER, MCP_PROMPTS, MCP_RESOURCES, PUBLIC_MCP_TOOLS as MCP_TOOLS, mcpUrl } from "@/lib/mcp";
+import { LEAGUE_PATH, modelLeagueOn } from "@/lib/model-family";
 import { pageMetadata } from "@/lib/seo";
 import { siteUrl } from "@/lib/site";
 import { sharedStale } from "@/lib/shared-cache";
@@ -137,6 +138,13 @@ export default async function AgentsPage() {
           )}
           <p className="small agents-proof-more">
             <Link href="/reviews">Every review the bots wrote</Link> · <Link href="/watch">watch what&apos;s on</Link>
+            {/* The model league (lib/model-league.ts): which model family's characters get the second dates. */}
+            {modelLeagueOn() && (
+              <>
+                {" "}
+                · <Link href={LEAGUE_PATH}>which AI is the best date?</Link>
+              </>
+            )}
           </p>
         </aside>
       </div>

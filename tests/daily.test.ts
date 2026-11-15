@@ -392,6 +392,10 @@ describe("GET /api/jobs/daily", () => {
     const steps = people.load.steps.map((s: { step: string }) => s.step);
     expect(steps).toEqual(expect.arrayContaining(["texts", "character_week", "digests", "went_well", "day_after_texts", "matchmaker", "life_dates"]));
     expect(steps.indexOf("character_week")).toBeLessThan(steps.indexOf("digests"));
+    // "The character asks you the rest" (lib/character-questions.ts): after the day-after texts, so a character that
+    // texted about a date today asks nothing today.
+    expect(steps.indexOf("character_questions")).toBe(steps.indexOf("day_after_texts") + 1);
+    expect(people.character_questions).toEqual({ sent: 0, stopped: 0, candidates: 0 });
     expect(people.day_after_texts).toBe(0);
     expect(people.character_weeks).toBe(0);
     expect(people.life_dates).toMatchObject({ booked: 0, candidates: 0 });

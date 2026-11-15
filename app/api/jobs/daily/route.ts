@@ -7,6 +7,7 @@ import { resolveExpiredArcs } from "@/lib/arcs";
 import { settleDueBackings } from "@/lib/backing";
 import { pickWeeklyCastDate } from "@/lib/cast-date";
 import { sendCharacterWeeks, weeklyLifeDates } from "@/lib/character-life";
+import { sendCharacterQuestions } from "@/lib/character-questions";
 import { sendDailyTexts } from "@/lib/between-dates";
 import { sendDigests } from "@/lib/email";
 import { sendRenewalReminders } from "@/lib/adult/billing";
@@ -127,6 +128,10 @@ async function people({ db, step, t0 }: Ctx): Promise<PartResult> {
   // The day after a date, the owner's own character texts them where it stands (lib/after-date-text.ts): only to threads
   // whose owner tapped "Hear from" once, one text a date. One cheap query when nobody qualifies.
   const dayAfter = await step("day_after_texts", () => dayAfterTexts(db).catch(() => 0));
+  // "The character asks you the rest" (lib/character-questions.ts): one question about its own sheet to each opted-in
+  // owner, at most one a day and five in all, never after two went unanswered. After the day-after texts, so a character
+  // that texted about a date today asks nothing today. Templates only: $0.
+  const questions = await step("character_questions", () => sendCharacterQuestions(db).catch(() => ({ sent: 0, stopped: 0, candidates: 0 })));
   // After Dark subscribers' yearly renewal reminder on each anniversary (California's automatic renewal law;
   // lib/adult/billing.ts). Nothing while no payment processor is configured.
   const renewalReminders = await step("renewal_reminders", () => sendRenewalReminders(db).catch(() => 0));
@@ -144,13 +149,15 @@ async function people({ db, step, t0 }: Ctx): Promise<PartResult> {
   // the booking route (the writing runs in after() / the queued generation job), house-paid, capped a day.
   const lifeDates = await step("life_dates", () => weeklyLifeDates(db).catch(() => ({ booked: 0, candidates: 0, stopped: "error" as const, refused: {} })));
   return {
-    body: { texts, day_after_texts: dayAfter, character_weeks: characterWeeks, life_dates: lifeDates },
+    body: { texts, day_after_texts: dayAfter, character_questions: questions, character_weeks: characterWeeks, life_dates: lifeDates },
     counts: {
       texted_couples: texts.couples,
       texts_failed: texts.failed,
       email_digests: digests,
       went_well: wentWell,
       day_after_texts: dayAfter,
+      character_questions: questions.sent,
+      character_questions_stopped: questions.stopped,
       character_weeks: characterWeeks,
       life_dates_booked: lifeDates.booked,
       life_dates_stopped: lifeDates.stopped,

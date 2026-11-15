@@ -37,6 +37,7 @@ import { COMPANION_OFFER_KINDS, type CompanionOfferKind } from "@/lib/companion-
 import { loadOffer, markOfferTaken, nobodyNewLines, offerLines, outOfDatesLines, pickSomeoneNew } from "@/lib/companion-offers";
 import { postFromCharacter } from "@/lib/companion";
 import { firstDateFormat } from "@/lib/first-date";
+import { takeAnswer } from "./answer";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -71,7 +72,8 @@ const Action = z.discriminatedUnion("action", [
     voice: z.enum(["device", "own"]).optional(),
   }),
   // A chip under one of the character's texts about a date (lib/companion-offers.ts): see them again, someone new, advice.
-  z.object({ action: z.literal("offer"), offer: z.enum(COMPANION_OFFER_KINDS), message_id: z.string().min(1).max(64) }),
+  // Or `answer`, with `text`: the box under a question it asked about its own sheet (lib/character-questions.ts, ./answer.ts).
+  z.object({ action: z.literal("offer"), offer: z.enum([...COMPANION_OFFER_KINDS, "answer"]), message_id: z.string().min(1).max(64), text: z.string().max(COMPANION_MESSAGE_MAX).optional() }),
 ]);
 
 type Allowance = Awaited<ReturnType<typeof companionAllowance>>;
@@ -138,7 +140,13 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
     }
     return json({ ok: true }, 200, sess);
   }
-  if (input.action === "offer") return takeOffer(req, db, sess, id, input.offer, input.message_id);
+  if (input.action === "offer") {
+    if (input.offer !== "answer") return takeOffer(req, db, sess, id, input.offer, input.message_id);
+    return takeAnswer(req, db, sess, id, input.message_id, input.text, async (body, status) => {
+      const [view, allowance, extras] = await Promise.all([getThread(db, sess.userId, id), companionAllowance(db, sess.userId, new Date(), process.env, { guest: !sess.authenticated }), extrasFor(db, sess)]);
+      return json({ ...body, ...(view.ok ? { view: view.view } : {}), allowance, extras }, status, sess);
+    });
+  }
   const talks = input.action === "send" || input.action === "regenerate" || input.action === "edit" || (input.action === "scene" && input.place !== null);
   if (talks && (await overLimit(db, "companion", sess.userId, COMPANION_LIMITS))) {
     return json({ error: "rate_limited", message: "That's a lot of talking for now. Take a breather and come back in a bit." }, 429, sess);

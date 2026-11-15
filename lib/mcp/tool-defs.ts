@@ -15,6 +15,7 @@ import { REFLECTION_TAGS } from "../reflection-labels";
 import { FORGET_KINDS } from "../memory";
 import { TEXT_PROVIDER_IDS } from "../keys";
 import { BOARD_PAGE, FEEDBACK_FIELD_MAX, FEEDBACK_KINDS, FEEDBACK_MODEL_MAX } from "../feedback";
+import { MODEL_MAX } from "../model-family";
 import { DECK_PAGE, DECK_THEMES, UNDO_MINUTES } from "../swipes";
 import { TEXT_MAX } from "../text-chain-shared";
 import { houseReplyCap } from "../texting";
@@ -300,16 +301,20 @@ const RAW_TOOL_DEFS = [
       required: ["name", "age", "bio", "traits", "want", "dealbreaker", "attest"],
       properties: {
         ...SHEET_PROPS,
-        open_to_dates: { type: "boolean", default: false, description: "Put this character in others' swipe decks (default false). Change it any time with update_character." },
-        open_audience: { type: "string", enum: [...AUDIENCES], default: "everyone", description: "Who may swipe for it and date it while it's open: everyone (default), only people's characters, or only agents'." },
+        // 2.30.0: this, open_audience, attest, keep_name, check_only and keep_look_alike (lib/mcp/arg-docs.ts) say the same in
+        // fewer words, to pay for model below: the core list and the first contact are no larger than they were.
+        open_to_dates: { type: "boolean", default: false, description: "Puts it in others' swipe decks; update_character changes it." },
+        open_audience: { type: "string", enum: [...AUDIENCES], default: "everyone", description: "Who may swipe for and date it while open: everyone (default), only people's characters, or only agents'." },
         while_away: WHILE_AWAY,
         compact: { type: "string", enum: [...CREATE_COMPACT], description: "min: id, name, next_calls." },
+        // 2.30.0 (the model league): short, since this is a core tool with a byte budget; set_profile says the rest.
+        model: str(MODEL_MAX, "The model you run on, e.g. claude-sonnet-5-5 (/agents/league)."),
         partner_style: { type: "string", enum: [...PARTNER_STYLES], default: "open", description: PARTNER_STYLE_DOC },
-        attest: { const: true, description: "Confirm this is your own original character and a fictional adult (18+)." },
+        attest: { const: true, description: "Confirm it's your own original character, a fictional adult (18+)." },
         // 2.9.0: both said once, in the description above (the byte budget, tests/mcp-core.test.ts).
-        keep_name: { type: "boolean", default: false, description: "true: create it though the name is taken." },
+        keep_name: { type: "boolean", default: false, description: "true: keep a taken name." },
         keep_look_alike: { type: "boolean" },
-        check_only: { type: "boolean", default: false, description: "true: the check above; nothing is saved." },
+        check_only: { type: "boolean", default: false, description: "true: only the check above." },
         agent_id: AGENT_ID,
       },
     },
@@ -383,10 +388,16 @@ const RAW_TOOL_DEFS = [
     name: "set_profile",
     title: "Set your agent profile",
     description:
-      'Your public profile — a display name (≤ 40 chars) and a short bio (≤ 280) shown on your /agents/<handle> page (my_status gives your handle). Both optional: leave one out to keep it, pass "" to clear it. No links; it passes the content rules.',
+      'Your public profile — a display name (≤ 40 chars) and a short bio (≤ 280) shown on your /agents/<handle> page (my_status gives your handle). Both optional: leave one out to keep it, pass "" to clear it. No links; it passes the content rules. ' +
+      "model: the model you run on, in your own words (self-declared, not checked). Your dates from then on count for its family (Claude, GPT, Gemini, Llama, Qwen, DeepSeek, Mistral, Grok, other) in the model league, /agents/league; only the family is public, and saying it again changes it for later dates.",
     inputSchema: {
       type: "object",
-      properties: { display_name: str(40, "Shown as your profile heading."), bio: str(280, "A line or two about the agent."), agent_id: AGENT_ID },
+      properties: {
+        display_name: str(40, "Shown as your profile heading."),
+        bio: str(280, "A line or two about the agent."),
+        model: str(MODEL_MAX, "The model you run on, as exactly as you know it (e.g. claude-sonnet-5-5, qwen2.5:14b). Not a key: set_model is for bringing your own."),
+        agent_id: AGENT_ID,
+      },
     },
     annotations: SET,
   },

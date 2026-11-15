@@ -231,6 +231,10 @@ export const ENGAGEMENT_FUNNEL = [
   { key: "entered", label: "Past the 18+ gate", events: ["page_view"], not_path: "/gate" },
   { key: "engaged", label: "Clicked something", events: ["link_click", "button_click", "outbound_click"] },
   { key: "create_opened", label: "Opened Make your character", events: ["create_opened"] },
+  // One-sentence create (lib/express-create.ts): tapped "Meet them" on the one box, and a draft came back (whole or
+  // short). A draft that didn't come is express_failed, with its reason, in the events table.
+  { key: "express_started", label: "Described them in a sentence", events: ["express_started"] },
+  { key: "express_drafted", label: "Got a draft back", events: ["express_drafted"] },
   { key: "character_created", label: "Made a character", events: ["character_created"] },
   { key: "date_started", label: "Started a date", events: ["date_started"] },
   // The aha moment (the 2026-11-07 product review, item 5): the theater's replay reached the ending.

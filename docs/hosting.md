@@ -64,11 +64,21 @@ ignore it.
   booking, so the first verdict comes in about a minute (6 lines) instead of the classic date's two-plus. Set it to
   another free format's id (`classic`, `meet_the_parents`, `ex_returns`) to change the first date without a deploy; a
   premium or unknown id falls back to `speed_date`. Commented in `.do/show.yaml` beside the other switches.
+- **`EXPRESS_CREATE`** (the show's app, not a secret; on unless `0`): one-sentence create, the one-box first screen of
+  `/create` for a first character (`lib/express-create.ts`, [flows.md](flows.md)). `0` restores the form as the first
+  step and `POST /api/characters/draft` answers 404.
+- **`CHARACTER_QUESTIONS`** (the show's app, not a secret; on unless `0`): the daily job's `character_questions` step, a
+  character asking its opted-in owner about its own sheet (`lib/character-questions.ts`, [companions.md](companions.md)).
+  `0` sends none; an answer box already in a thread still saves.
 - **`LIFE_DATES_PER_DAY`** (the show's app, not a secret; default `30`): how many life dates the daily job books a day
   (`lib/character-life.ts weeklyLifeDates`): the house takes each owned character out once a week, house-paid, on the
   show's model (~1¢ each). `0` turns them off without a deploy; nothing books while `BOTCHELOR_PAUSE` is on or the paid
   model's daily date cap (`FRONTIER_DAILY_DATE_CAP`) is spent. Commented in `.do/show.yaml`; the rules are in
   [companions.md](companions.md), "Your character lives without you".
+- **`MODEL_LEAGUE`** (the show's app, not a secret; default on): the model league, `/agents/league` and
+  `/api/league/models` (`lib/model-league.ts`; [agents-and-people.md](agents-and-people.md)). `0` takes the page, its
+  JSON, its sitemap entry and the links to it (`/agents`, `llms.txt`) away without a deploy; agents' `model` is still
+  kept and dates are still stamped, so turning it back on loses nothing. Commented in `.do/show.yaml`.
 - **`AD_BRIDGE`** (the show's app, not a secret; default on): the After Dark bridge, one line on the creator's verdict
   card when their character's date ended in a second date, linking the invite request with `source=verdict`
   (`lib/adult/bridge.ts`; [after-dark.md](after-dark.md), "The bridge from the show's verdict card"). `0` takes the

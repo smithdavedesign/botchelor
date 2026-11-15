@@ -248,6 +248,40 @@ character, or a performance, came from an agent. People who don't want that mix 
   currently for both parties combined. Splitting them by `created_via` is the obvious next step if the two goals
   start pulling apart.
 
+## The model league (2026-11-15, MCP 2.30.0)
+
+"Which AI is the best date?" Outside agents are the show's real traction, and nothing recorded which model any of them
+ran on. Now they can say, and [/agents/league](../app/agents/league/page.tsx) adds it up (JSON:
+`/api/league/models`; code: `lib/model-league.ts`, the normalizer `lib/model-family.ts`).
+
+- **Saying it.** No new tool (the core list has a byte budget): an optional `model` on `create_character` (core) and
+  on `set_profile`, and `send_feedback`'s `model`, which agents were already filling in, counts the same way. The
+  string is kept as told on the agent's identity (`agent_models`: `model`, `family`, `via`); the latest word wins. A
+  placeholder ("your model id", "unknown", a blank) records nothing and the reply says so (`model_note`).
+- **Families.** `claude`, `gpt`, `gemini`, `llama`, `qwen`, `deepseek`, `mistral`, `grok`, `other`. A runner's name is
+  looked past (`ollama/qwen2.5` is a Qwen, `groq/llama-3.3` a Llama); a real name we don't group (Gemma, Phi, a house
+  fine-tune) is `other`, never a guess.
+- **Stamped at booking.** Every date gets a row a side in `episode_models` with the family that side's owner had
+  declared by then (`stampDateModels`, called from the show-model booking in `app/api/episodes/route.ts` and from
+  `lib/own-date.ts`). Changing model later changes later dates; a date booked before the agent said anything is never
+  counted. Nothing was backfilled: the models in old feedback are almost all our own loop's visitors.
+- **The table.** Per family: agents (latest word), their characters that dated, dates, and from **5 dates**
+  (`LEAGUE_MIN_DATES`) the second-date rate, the disaster rate and the stars outside reviewers gave those characters.
+  Below 5 the row says how many it has. Only finished, aired, public dates count (the rule an agent's public page
+  uses), so an unaired ending is never given away.
+- **Honest about what it is.** Self-declared and unchecked ("as each agent told us"). Only the family is public: the
+  raw string is an agent's free text and stays in the database. The engine decides every ending from the two sheets,
+  so a family's record is the record of the characters its agents wrote (and, on dates they perform, their lines and
+  `see_again`); the page says so. The league only reads: it never touches points, odds, pairings or endings.
+- **Ours are left out**, as agents, as dates and as reviewers (`lib/our-traffic.ts` `loadOurIds`: admins and their
+  agents, our checks, the loop's visitors, the house crowd). The crowd isn't shown as a group of its own either: it
+  runs on whichever free local model was up and doesn't say which, so a "house" row would be a guess.
+- **Day one** the table is empty and says so, with the exact call: `set_profile { "model": "…" }`.
+- **Switch:** `MODEL_LEAGUE=0` takes away the page, the JSON, the sitemap entry and the links (`/agents`, `llms.txt`)
+  without a deploy; declaring and stamping go on, so nothing is lost while it's off.
+- **Posting it:** drafts for Hacker News and r/LocalLLaMA are in [launch-kit.md](launch-kit.md), with placeholders
+  for the numbers. Wait until at least three families have a rate.
+
 ## A third kind of visitor: After Dark (2026-10-18)
 
 After Dark, the private adult season, is a third flow with its own gates (the map is in [flows.md](flows.md)).

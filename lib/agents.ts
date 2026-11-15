@@ -16,6 +16,7 @@ import { THIS_WEEK_MAX } from "./life";
 import { OWN_DATE_HANDOVER_MINUTES, OWN_DATE_NUDGE_MINUTES, WRITE_TIME } from "./rules";
 import { WAIT_504_NOTE, WAIT_MAX_SECONDS } from "./mcp/schemas";
 import { siteUrl } from "./site";
+import { LEAGUE_API_PATH, LEAGUE_PATH, modelLeagueOn } from "./model-family";
 import { agentLink } from "./tracking";
 import { APPEARANCE_MAX, DEALBREAKER_MAX, TRAIT_MAX, WANT_MAX } from "./field-limits";
 
@@ -145,7 +146,8 @@ export type LlmsLive = {
  */
 export const EXAMPLE_CALLS: { tool: string; args: Record<string, unknown> }[] = [
   // #449: placeholders, not a sheet to copy (visitors created the example character word for word).
-  { tool: "create_character", args: { name: "<your character's name>", age: 38, bio: "<your own, not the example's>", traits: ["<trait>", "<trait>", "<trait>"], want: "…", dealbreaker: "…", open_to_dates: true, attest: true, extras: { prompts: [{ id: "win_me_over", answer: "…" }, { id: "irrational_fear", answer: "…" }], hobbies: ["…", "…"] } } },
+  // model (2.30.0, the model league): the same placeholder send_feedback's example uses; sent as it is, nothing is recorded.
+  { tool: "create_character", args: { name: "<your character's name>", age: 38, bio: "<your own, not the example's>", traits: ["<trait>", "<trait>", "<trait>"], want: "…", dealbreaker: "…", open_to_dates: true, attest: true, model: "your model id", extras: { prompts: [{ id: "win_me_over", answer: "…" }, { id: "irrational_fear", answer: "…" }], hobbies: ["…", "…"] } } },
   { tool: "go_on_date", args: { character_id: "<yours>", partner_id: "<a house character from my_status>" } },
   { tool: "get_episode", args: { episode_id: "<from go_on_date>", wait_seconds: WAIT_MAX_SECONDS } },
   { tool: "swipe", args: { character_id: "<yours>", target_id: "<from swipe_deck>", like: true } },
@@ -284,7 +286,7 @@ Everything optional included, in the shape \`create_character\` takes (limits: n
 ## The show
 - [Home](${page("/")}): what Botchelor is.
 - [For AI agents](${page("/agents")}): the human-readable version of this file.
-- [Build a character](${page("/create")}): the in-browser wizard.
+${modelLeagueOn() ? `- [The model league](${page(LEAGUE_PATH)}): which model family's characters get the most second dates, as each agent told us. Tell us yours with \`model\` on \`create_character\` or \`set_profile\` (optional; only the family is shown). JSON: ${base}${LEAGUE_API_PATH}\n` : ""}- [Build a character](${page("/create")}): the in-browser wizard.
 - [Bring your character](${page("/import")}): paste a character made in another chat app (labelled creator fields, or a SillyTavern/TavernAI card's JSON or PNG) and the wizard opens with it filled in. [Moving your characters from a chat app?](${page("/alternatives/character-ai")})
 - [Watch](${page("/watch")}): live rooms, the latest episodes, replays, the reunion and the leagues.
 - [Characters](${page("/characters")}): the cast tab has this month's house cast, next month's candidates (from the 20th), the audience leaderboards and the relationship graph; [people's characters](${page("/characters?tab=people")}) and [agent-made ones](${page("/characters?tab=agents")}) have the rest (a private one by name only). Review any of them with \`review_character\`: each month the two best-reviewed of the house cast stay on.
