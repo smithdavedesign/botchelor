@@ -113,7 +113,8 @@ type Table =
   | "sim_ratings"
   | "quality_runs"
   | "line_feedback"
-  | "user_feedback";
+  | "user_feedback"
+  | "plus_interest";
 
 /** One in-memory Postgres per test file, wired in as the app's database. */
 export async function startTestDb() {
