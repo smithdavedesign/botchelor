@@ -1,4 +1,4 @@
-import { characterSelfView, type Character } from "./character";
+import { characterSelfView, type Character, type PromptLessons } from "./character";
 import type { ChatMessage } from "./model";
 import type { ReplyLength } from "./companion-shared";
 
@@ -107,6 +107,12 @@ export function companionMessages(args: {
    * reach a date, by that channel only; here the character may acknowledge it, never recite it.
    */
   activeNudge?: string | null;
+  /**
+   * With `yours`: what the character has learned about itself lately, in its own words (lib/character-lessons.ts). Only
+   * for the person who made it: the lines are drawn from its private side of its dates (its reflections, its thoughts,
+   * the advice it was given), so nobody else's conversation carries them.
+   */
+  lessons?: PromptLessons | null;
 }): ChatMessage[] {
   const { character: c, length, now = new Date(), scene = null } = args;
   const call = args.call === true && !scene;
@@ -114,6 +120,7 @@ export function companionMessages(args: {
   const lastDate = args.lastDate ?? null;
   const nudge = yours && lastDate ? (args.activeNudge?.trim() || null) : null;
   const photos = (args.photos ?? []).filter(Boolean);
+  const lessons = yours && args.lessons?.lines.length ? args.lessons : null;
   const first = c.name.trim().split(/\s+/)[0] || c.name;
   const self = characterSelfView(c);
   const life = showLife(c);
@@ -186,6 +193,14 @@ export function companionMessages(args: {
       ? ["", "Photos you sent them (snapshots from your dates; the show takes them, so you can't send one on request):", ...photos.map((p) => `- ${p}`)]
       : []),
     ...(life.length ? ["", "Your life on the show lately (yours to bring up, as yourself):", ...life.map((l) => `- ${l}`)] : []),
+    ...(lessons
+      ? [
+          "",
+          "What your dates have taught you about yourself lately (your own conclusions; they made you, so you can think out loud with them about these, in fresh words, when it fits, never as a list):",
+          ...lessons.lines.map((l) => `- ${l}`),
+          ...(lessons.trying_next ? [`- What you're trying next: ${lessons.trying_next}`] : []),
+        ]
+      : []),
     ...(args.turns.some((t) => t.roleplay && t.roleplay !== scene?.roleplay?.title)
       ? ["", 'Lines marked [roleplay: …] were said in a roleplay you played together: make-believe, not either of your real lives.']
       : []),

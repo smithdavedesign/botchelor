@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson, session } from "@/lib/http";
+import { holdsLesson } from "@/lib/character-lessons";
 import { FORGET_KINDS, loadCharacterMemory, updateCharacterMemory, type CharacterMemory, type ForgetKind } from "@/lib/memory";
 import { ownsCharacter } from "@/lib/souls";
 
@@ -22,13 +23,17 @@ function remembers(m: CharacterMemory | null, kind: ForgetKind, item: string): b
       return m.turnoffs.includes(item);
     case "moment":
       return (m.people ?? []).some((p) => p.id === item && (p.wanted_more !== null || p.they_said || p.you_said));
+    case "lesson":
+      // A lesson lives in its own table (lib/character-lessons.ts holdsLesson): the route checks it there.
+      return false;
   }
 }
 
 /**
  * Tell your character to forget one thing it learned: a reflection, a line it carries, something it warms to or
- * clashes over, or how it left things with someone. It's gone from every future date, and a rebuild never brings it
- * back from the same dates. Forgetting is the only change: memory is learned, not written. Owner only.
+ * clashes over, how it left things with someone, or a lesson it drew about itself (lib/character-lessons.ts: by its
+ * words). It's gone from every future date, and a rebuild never brings it back from the same dates (a forgotten lesson
+ * is never written again either). Forgetting is the only change: memory is learned, not written. Owner only.
  */
 export const POST = handle(async (req: Request, ctx: Ctx) => {
   const { id } = await ctx.params;
@@ -36,7 +41,8 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
   const { kind, item } = parseBody(ForgetInput, await readJson(req), "invalid_forget");
   const db = await getDb();
   if (!(await ownsCharacter(db, id, sess.userId))) return json({ error: "character_not_found" }, 404, sess);
-  if (!remembers(await loadCharacterMemory(db, id), kind, item)) {
+  const held = kind === "lesson" ? await holdsLesson(db, id, item) : remembers(await loadCharacterMemory(db, id), kind, item);
+  if (!held) {
     return json({ error: "not_remembered", message: "Your character doesn't remember that (or has already forgotten it)." }, 404, sess);
   }
   await db.query(`insert into memory_forgets (character_id, kind, item) values ($1, $2, $3) on conflict do nothing`, [id, kind, item]);

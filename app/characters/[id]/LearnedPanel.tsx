@@ -12,12 +12,11 @@ import CharacterName from "@/app/CharacterName";
 export type LearnedItem = { kind: ForgetKind; item: string; label: ReactNode; from: Source[] };
 
 /** "your date with Nell, Oct 12": the aired date behind a memory, linked. */
-function From({ from }: { from: Source[] }) {
+function From({ from, lead = " — from " }: { from: Source[]; lead?: string }) {
   if (!from.length) return null;
   return (
     <span className="learned-from">
-      {" "}
-      — from{" "}
+      {lead}
       {from.map((s, i) => (
         <span key={s.episode_id}>
           {i > 0 && ", "}
@@ -45,7 +44,8 @@ export default function LearnedPanel({
 }: {
   characterId: string;
   name: string;
-  sections: { title: string; items: LearnedItem[]; quote?: boolean }[];
+  /** `from` on a section: the dates the whole section came from (a week's lessons), said once under its list. */
+  sections: { title: string; items: LearnedItem[]; quote?: boolean; from?: Source[] }[];
   drift: string[];
   people: (PersonMemory & { from: Source[]; portrait?: string | null })[];
   forgotten: { kind: ForgetKind; item: string; label: string }[];
@@ -99,6 +99,11 @@ export default function LearnedPanel({
                 </li>
               ))}
             </ul>
+            {s.from && s.from.length > 0 && (
+              <p className="small">
+                <From from={s.from} lead="Learned from " />
+              </p>
+            )}
           </div>
         ))}
       {drift.length > 0 && (

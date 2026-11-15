@@ -7,6 +7,7 @@ import { resolveExpiredArcs } from "@/lib/arcs";
 import { settleDueBackings } from "@/lib/backing";
 import { pickWeeklyCastDate } from "@/lib/cast-date";
 import { sendCharacterWeeks, weeklyLifeDates } from "@/lib/character-life";
+import { runCharacterLessons } from "@/lib/character-lessons-job";
 import { sendCharacterQuestions } from "@/lib/character-questions";
 import { sendDailyTexts } from "@/lib/between-dates";
 import { sendDigests } from "@/lib/email";
@@ -51,7 +52,7 @@ const MAX_BACKFILL = 6;
  * - upkeep: retention and the other prunes (database deletes, a few bucket deletes).
  * - show: the lobby's fresh room, backfilled conversations, queued dates, arcs, backings, the weekly cast date.
  * - people: the couples' daily texts, then the digest (so today's texts are in it), reminders, nudges, matchmaker.
- * - growth: IndexNow, next season's candidates, concept embeddings, the relationship metrics.
+ * - growth: IndexNow, the characters' weekly lessons, next season's candidates, concept embeddings, the relationship metrics.
  */
 const PARTS = ["upkeep", "show", "people", "growth"] as const;
 type Part = (typeof PARTS)[number];
@@ -178,6 +179,23 @@ async function growth({ db, step, t0 }: Ctx): Promise<PartResult> {
       .then((urls) => submitIndexNow(urls))
       .catch(() => ({ submitted: 0, status: null })),
   );
+  // Learning, weekly (lib/character-lessons.ts): what each character that has been out learned about itself, written once
+  // a week from its own side of its aired dates, on the free model (the paid default as the fallback, then a template),
+  // at most 40 characters a day, then the one text to an opted-in owner. It stops at its deadline (180 s from the
+  // request's start), so the steps after it keep their time; whoever is left is written tomorrow. CHARACTER_LESSONS=0: off.
+  const lessons = await step("character_lessons", () =>
+    runCharacterLessons(db, new Date(), { deadline: t0 + 180_000, gapMs: 1000 }).catch(() => ({
+      candidates: 0,
+      written: 0,
+      by_model: 0,
+      by_template: 0,
+      ours: 0,
+      texts: 0,
+      cost_usd: null,
+      cost_per_character_usd: null,
+      stopped: "error" as const,
+    })),
+  );
   // Monthly seasons (lib/season-gen.ts): from the 20th, next month's candidates. The cast's After Dark baselines are made
   // on After Dark's own host, where its media is (app/api/jobs/after-dark-daily, #1009).
   const candidates = await step("season_candidates", () =>
@@ -216,8 +234,13 @@ async function growth({ db, step, t0 }: Ctx): Promise<PartResult> {
     });
   }
   return {
-    body: { indexnow, embeddings },
+    body: { indexnow, embeddings, character_lessons: lessons },
     counts: {
+      lessons_written: lessons.written,
+      lessons_by_template: lessons.by_template,
+      lesson_texts: lessons.texts,
+      lessons_cost_usd: lessons.cost_usd,
+      lessons_stopped: lessons.stopped,
       season_candidates_made: candidates?.made.length ?? 0,
       season_candidate_errors: candidates?.errors.length ?? 0,
       embeddings_made: embeddings.made,

@@ -119,6 +119,7 @@ import { AFTER_DARK_ABOUT, AFTER_DARK_REQUEST_DAYS, type AfterDarkStatus } from 
 import { checkFields } from "../safety";
 import { kindLabel } from "../kinds";
 import { FORGET_KINDS } from "../memory";
+import { loadLessons } from "../character-lessons";
 import { CROWD_CLIENT_PREFIX, crowdMinutesToWake, HOUSE_BOT_CLIENT_PREFIX, houseBotRefusal } from "../house-bots";
 import { siteUrl } from "../site";
 import { profilePhotos } from "../studio/profile-photos";
@@ -8755,6 +8756,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
             this_week_by: isOwnUpdate(storedWeek) ? "you" : "the show",
           }
         : { this_week: null };
+      const lessons = await loadLessons(db, id).catch(() => null);
       if (!c || !m || m.dates === 0) {
         return {
           data: { character_id: id, stage: stageFor(0), ...about, note: "Nothing learned yet: it learns from each date once that date airs." },
@@ -8774,6 +8776,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           how_its_dates_have_shaped_it: describeDrift(m.signal_delta),
           lines_it_carries: m.sources ? m.sources.lines.map((l) => ({ text: l.text, from: fromDate(l) })) : m.memorable_lines.map((text) => ({ text })),
           its_reflections: (m.sources?.reflections ?? []).map((r) => ({ text: r.text, from: fromDate(r) })),
+          // What it has learned about itself lately, in its own words (lib/character-lessons.ts): forgettable by its words (kind lesson).
+          ...(lessons ? { what_it_has_learned: { lessons: lessons.lines, ...(lessons.trying_next ? { trying_next: lessons.trying_next } : {}), from: lessons.episodes.map(fromDate) } } : {}),
           who_it_remembers: (m.people ?? []).map((p) => ({
             id: p.id, name: p.name, dates: p.dates, status: p.stage ? STAGE_LABELS[p.stage] : PAIR_STATUS_LABELS[p.status], last_ending: p.last_ending,
             ...(p.last_episode_id ? { last_episode_id: p.last_episode_id } : {}),
