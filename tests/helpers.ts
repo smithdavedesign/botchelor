@@ -284,6 +284,8 @@ export async function startTestDb() {
         "adult_profiles",
         "adult_scenes",
         "adult_nights",
+        // Nights that continued an overnight date (lib/adult/overnight.ts): a house pair's would outlive a reset.
+        "adult_overnights",
         "adult_reels",
         "adult_steps",
         "adult_memories",
