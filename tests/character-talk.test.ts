@@ -193,6 +193,8 @@ const SECRET = {
 
 beforeEach(async () => {
   await t.reset();
+  // A reset keeps the drama wave's tables; these tests plant their own rows in each.
+  for (const table of ["story_beats", "house_scenes", "character_opinions", "character_heard", "character_wants", "cast_secrets"]) await t.db.query(`delete from ${table}`);
   clearSharedCache();
   jar.cookies.clear();
   setSeasonCastForTests(CAST.map((c) => c.id));
@@ -287,12 +289,12 @@ describe("characterTalk: public only", () => {
     // Said: the retelling of the aired date, the line that names him, and Dex's line from the confrontation.
     expect(talk.said.map((l) => l.text)).toEqual([`${first(RAFE)} and ${first(JUNIPER)} left by separate doors.`, `Poor ${first(RAFE)}. Somebody should check on him.`, `Fine, ${first(RAFE)}. I said it.`]);
     expect(talk.said[0].href).toBe(scenePath(gossip));
-    // Friction: the confrontation with its result, and the aired disaster as public bad blood.
+    // Friction, newest first: today's aired disaster as public bad blood, then yesterday's confrontation with its result.
     expect(talk.friction.map((f) => [f.kind, f.text, f.result])).toEqual([
-      ["confrontation", `Had it out with ${first(DEX)} on the stairs.`, "They cleared the air."],
       ["bad_blood", `Bad blood with ${first(JUNIPER)}.`, null],
+      ["confrontation", `Had it out with ${first(DEX)} on the stairs.`, "They cleared the air."],
     ]);
-    expect(talk.friction[0].href).toBe(scenePath(fight));
+    expect(talk.friction[1].href).toBe(scenePath(fight));
     // After them: today's public rivals line, linked to the day's scene. Tomorrow's beat and a skipped one aren't public.
     expect(talk.after.map((a) => [a.direction, a.other.id])).toEqual([["them", DEX], ["them", TEO]]);
     expect(talk.after[0].href).toBe(scenePath(gossip));
@@ -340,7 +342,7 @@ describe("characterTalk: public only", () => {
     await seed();
     expect(await talkOf(RAFE, { env: { CHARACTER_TALK: "0" } })).toBeNull();
     expect(await characterTalk(t.db, { id: RAFE, name: nameOf(RAFE), private: true }, { now: NOW })).toEqual(EMPTY_TALK);
-    expect(await talkOf(RAFE, { edges: Promise.reject(new Error("down")) })).toMatchObject({ empty: false, friction: [{ kind: "confrontation" }] });
+    expect((await talkOf(RAFE, { edges: Promise.reject(new Error("down")) }))!.friction.map((f) => f.kind)).toEqual(["confrontation"]);
     // HOUSE_SCENES=0 and PRODUCER=0 take the house's part away, as they do on /house; the graph's stays.
     vi.stubEnv("HOUSE_SCENES", "0");
     const quiet = (await talkOf(RAFE, { env: { PRODUCER: "0" } }))!;
