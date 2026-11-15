@@ -18,7 +18,8 @@ import { isConversationEnabled } from "./conversation";
 import { isAfterglowEnabled } from "./afterglow";
 import { isReflectionEnabled } from "./reflection";
 import { generateDate } from "./pipeline";
-import { ensureHotTakes } from "./hot-takes";
+import { ensureHotTakes, fallbackHotTakes } from "./hot-takes";
+import { fastStartOn, hotTakesWaitMs, settledWithin, speedDateActor, type DateTiming } from "./fast-date";
 import { recordSlips } from "./cast-secrets";
 import type { Db } from "./db";
 import { safeEqual } from "./http";
@@ -130,6 +131,8 @@ type GenRow = {
   creator_id: string;
   reservation: Reservation | null;
   attempts: number;
+  /** From the booking to this claim, on the database's clock (generated_with.timing). */
+  queued_ms: number | null;
   a_id: string; a_name: string; a_age: number; a_bio: string; a_traits: string[]; a_want: string; a_dealbreaker: string; a_house: boolean; a_appearance: string | null; a_pronouns: string | null; a_voice: string | null;
   b_id: string; b_name: string; b_age: number; b_bio: string; b_traits: string[]; b_want: string; b_dealbreaker: string; b_house: boolean; b_appearance: string | null; b_pronouns: string | null; b_voice: string | null;
 };
@@ -169,6 +172,7 @@ async function claim(db: Db, episodeId: string, now: Date): Promise<GenRow | nul
   if (!claimed) return null;
   const { rows } = await db.query<GenRow>(
     `select e.seed::text as seed, e.setup, e.note, j.use_frontier, j.creator_id, j.reservation, j.attempts,
+            round(extract(epoch from (j.updated_at - j.created_at)) * 1000)::int as queued_ms,
             a.id a_id, a.name a_name, a.age a_age, a.bio a_bio, a.traits a_traits, a.want a_want,
             a.dealbreaker a_dealbreaker, a.is_house a_house, a.appearance a_appearance, a.pronouns a_pronouns, a.voice a_voice,
             b.id b_id, b.name b_name, b.age b_age, b.bio b_bio, b.traits b_traits, b.want b_want,
@@ -220,7 +224,13 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
     // ...and on the pair's history as POST stored it (a date between them since can't change tonight's start).
     // Living dates: a character with no hot takes yet gets them derived once, on the cheap default model, before its first
     // date that needs them (lib/hot-takes.ts). Never fails the date.
-    await ensureHotTakes(db, [row.a_id, row.b_id], getModel("minimal", false)).catch(() => {});
+    // A fast date (lib/fast-date.ts) waits only so long for them: past that it plays this one date on the fallback takes
+    // while the derivation finishes behind it and is stored for the next.
+    const fast = fastStartOn(formatId);
+    const takes = ensureHotTakes(db, [row.a_id, row.b_id], getModel("minimal", false)).catch(() => {});
+    let takesInTime = true;
+    if (fast) takesInTime = await settledWithin(takes, hotTakesWaitMs());
+    else await takes;
     const built = await buildDate(db, episodeId, forDate("a"), forDate("b"), dateRequest, seed, signalsSnapshot, {
       creatorId: row.creator_id,
       followupOf: row.setup?.followup_of ?? null,
@@ -233,6 +243,7 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
       table: row.setup?.table ?? null,
       roleplay: row.setup?.roleplay ?? null,
     });
+    if (!takesInTime) for (const c of built.characters) if (!c.hotTakes?.length) c.hotTakes = fallbackHotTakes(c);
     // Moves as booked: a date stored before them (no flag) runs without, like the format that keeps one table.
     built.setup.moves = row.setup?.moves === true;
     // Re-decide under the calibration POST stored (a deploy between POST and this worker can't change it).
@@ -247,8 +258,11 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
     const useFrontier = Boolean(row.use_frontier) || frontierConfigured();
     const frontier = useFrontier ? getFrontierModel() : null;
     if (frontier && !row.use_frontier) await claimPaidDate(db).catch(() => false);
+    // SPEED_DATE_MODEL / SPEED_DATE_REASONING (lib/fast-date.ts; both unset by default): a speed date's lines, answers,
+    // texts and reflections on a faster model, the recap still on the show's. Never on an admin's A/B run.
+    const speedActor = frontier && !row.use_frontier ? speedDateActor(formatId, frontier) : null;
     const models = frontier
-      ? { actor: frontier, director: frontier }
+      ? { actor: speedActor ?? frontier, director: frontier }
       : { actor: getModel(undefined, false), director: getDirectorModel(process.env, undefined, false) };
     if (!frontier) track("show_date_free", { episode_id: episodeId, configured: frontierConfigured() });
     const fmtCtx = formatContextOf(built);
@@ -278,7 +292,10 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
       lines.map((t, i) => ({ at: lineAt[i] ?? at, by: keyForSide?.(t.side === "b" ? "b" : "a") ? "byok" : "show" }));
     // Lines the critic sent back and a revision replaced: stored as turn_drafts once the date is saved.
     const drafts: { turn_index: number; side: "a" | "b"; reason: string; rejected: string }[] = [];
+    // When each part happened, from the claim (generated_with.timing): the next "where do the seconds go" is one query.
+    const timing: DateTiming = { fast, queued_ms: row.queued_ms ?? null, setup_ms: Date.now() - t0, first_line_ms: null, last_line_ms: null, verdict_ms: null, written_ms: 0 };
     const gen = await generateDate(models, built, decided, {
+      fast,
       formatId,
       talk,
       formatCtx: fmtCtx,
@@ -303,6 +320,7 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
       // was only the engine's first word). The finished date's write below still wins; a failed date is still deleted.
       onOutcome: (outcome, lines) => {
         endingStands = true;
+        timing.verdict_ms = Date.now() - t0;
         void renewLease(db, episodeId, row!.attempts, AFTER_OUTCOME_LEASE_SECONDS).catch(() => {});
         return db
           .query(
@@ -328,6 +346,8 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
       // creator sees a transcript before it airs, lib/game.ts), and the finished date overwrites it below.
       onTurn: (lines) => {
         while (lineAt.length < lines.length) lineAt.push(new Date().toISOString());
+        timing.first_line_ms ??= Date.now() - t0;
+        timing.last_line_ms = Date.now() - t0;
         // A move somewhere new: start drawing its set now, so it's there by the time they arrive (lib/sets.ts).
         const to = lines[lines.length - 1]?.move?.to;
         if (to) void ensureSet(db, to);
@@ -353,7 +373,8 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
     const kept = partial ? gen.partialTranscript : transcript;
     // The stored lines' (empty when nothing came out, like the transcript; a backfill fills both later).
     const turnMeta = metaOf(kept, new Date().toISOString());
-    const generatedWith = { ...gen.generatedWith, ...(row.use_frontier ? { frontier: true } : {}), ...(partial ? { transcript_partial: true } : {}) };
+    timing.written_ms = Date.now() - t0;
+    const generatedWith = { ...gen.generatedWith, ...(row.use_frontier ? { frontier: true } : {}), ...(partial ? { transcript_partial: true } : {}), plan: gen.plan?.source ?? null, timing };
 
     // The ending as it stands once the wishes weighed in (the engine's own, unless they tipped it), with its drama and sides.
     const saved = await db.query<{ id: string }>(
