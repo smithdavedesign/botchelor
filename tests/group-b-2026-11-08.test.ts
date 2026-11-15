@@ -308,6 +308,8 @@ describe("the season pool", () => {
         standing: { season_id: SEASON, points: 20, place: 2, players: 3, leader: 35, reveals_at: "2026-12-01T00:00:00.000Z" },
         revealed: null,
         now,
+        // Someone with a character sees "of 3"; a stranger wouldn't (lib/crowd-threshold.ts, tests/crowd-threshold.test.ts).
+        insider: true,
       }),
     );
     expect(html).toContain("You: 20 points, 2nd of 3 so far.");

@@ -4,6 +4,7 @@ import Link from "next/link";
 import Avatar from "@/app/Avatar";
 import VenuePhoto from "@/app/VenuePhoto";
 import { airWindowMinutes } from "@/lib/air";
+import { showCrowd, isInsider } from "@/lib/crowd-threshold";
 import { getDb } from "@/lib/db";
 import { listAiringSoon, type AiringSoon } from "@/lib/game";
 import { userIdFromCookieStore } from "@/lib/http";
@@ -14,6 +15,7 @@ import { forViewer } from "@/lib/shared-cache";
 import { callRecord, recordLine, type CallRecord } from "@/lib/streaks";
 import { countdown } from "@/lib/countdown";
 import { venueName } from "@/lib/venues";
+import { listLobby, type LobbyEntry } from "@/lib/watch";
 import { revealBoard } from "@/lib/weekly-reveal";
 
 type Props = { searchParams: Promise<Record<string, string | string[] | undefined>> };
@@ -99,6 +101,48 @@ function OpenCall({ episode, now }: { episode: AiringSoon; now: number }) {
 }
 
 /**
+ * Nothing open to calls (the empty-room rule, lib/crowd-threshold.ts; docs/show-style.md): never an empty list. The
+ * lobby's live room, else the next premiere and when it starts, else one card to the lobby. The live room's count obeys
+ * the rule: "N watching" for a crowd or an insider, "Live now" otherwise.
+ */
+function NothingOpen({ rooms, now, insider }: { rooms: LobbyEntry[]; now: number; insider: boolean }) {
+  const live = rooms.find((r) => r.status === "live") ?? null;
+  const next = rooms.filter((r) => r.status === "upcoming" && r.starts_at).sort((x, y) => String(x.starts_at).localeCompare(String(y.starts_at)))[0] ?? null;
+  const room = live ?? next;
+  if (!room) {
+    return (
+      <Link className="card tap-card open-calls-next" href="/watch" data-track="share-record-lobby">
+        <strong>Nothing is on the air right now.</strong>
+        <span className="muted small">The next date opens for calls the moment it&apos;s booked. The lobby has tonight&apos;s schedule →</span>
+      </Link>
+    );
+  }
+  const [a, b] = room.characters;
+  const mins = room.starts_at ? Math.max(1, Math.round((new Date(room.starts_at).getTime() - now) / 60_000)) : null;
+  const when = live
+    ? showCrowd(live.watching, { insider })
+      ? `● Live now · ${live.watching} watching`
+      : "● Live now"
+    : mins === null
+      ? "Next premiere"
+      : `Next premiere · starts ${mins >= 60 ? `in ${Math.floor(mins / 60)}h ${mins % 60}m` : `in ${mins} min`}`;
+  return (
+    <Link className={`card tap-card open-calls-next${live ? " is-live" : ""}`} href={room.room_path} data-track={live ? "share-record-live" : "share-record-premiere"}>
+      <span className="pair-faces" aria-hidden="true">
+        <Avatar seed={a.id} name={a.name} hue={a.hue} house={a.house} portraitSrc={a.portrait} size={40} decorative />
+        <Avatar seed={b.id} name={b.name} hue={b.hue} house={b.house} portraitSrc={b.portrait} size={40} decorative />
+      </span>
+      <span className="open-call-body">
+        <strong>
+          <span className="nowrap">{a.name} ×</span> <span className="nowrap">{b.name}</span>
+        </strong>
+        <span className="muted small">{when}. Nothing is waiting for a call yet; the next date opens the moment it&apos;s booked.</span>
+      </span>
+    </Link>
+  );
+}
+
+/**
  * A shared record (lib/share-record.ts): someone's squares — right calls and misses, nothing about which dates — and
  * the invitation to call tonight's endings yourself, with tonight's open calls right here (the dates airing soon that
  * the lobby lists under #airing-soon, lib/game.ts listAiringSoon). A link with numbers that don't parse just shows the
@@ -114,7 +158,7 @@ export default async function CallsPage({ searchParams }: Props) {
   // Tonight's vote to land on (2026-11-07 audit, item 10): Sunday's reveal while its vote is open; the dates still open
   // to calls (the lobby's own list, shared with it from the same cache when nobody in particular is looking); and the
   // viewer's own record, one query, when they've called anything.
-  const [reveal, airing, record] = await Promise.all([
+  const [reveal, airing, record, rooms, insider] = await Promise.all([
     getDb()
       .then((db) => revealBoard(db, null))
       .catch(() => null),
@@ -126,6 +170,13 @@ export default async function CallsPage({ searchParams }: Props) {
           .then((db) => callRecord(db, viewerId))
           .catch(() => null as CallRecord | null)
       : Promise.resolve(null as CallRecord | null),
+    // The lobby (lib/watch.ts), for when nothing is open to calls: its live room or the next premiere stands in.
+    getDb()
+      .then((db) => forViewer(viewerId, "lobby", () => listLobby(db)))
+      .catch(() => [] as LobbyEntry[]),
+    getDb()
+      .then((db) => isInsider(db, viewerId))
+      .catch(() => false),
   ]);
   const open = airing.slice(0, OPEN_CALLS_SHOWN);
   const now = Date.now();
@@ -173,7 +224,7 @@ export default async function CallsPage({ searchParams }: Props) {
             ))}
           </ul>
         ) : (
-          <p className="muted open-calls-none">Nothing is waiting to air right now; the next date opens for calls the moment it&apos;s booked. The lobby has the rest of tonight.</p>
+          <NothingOpen rooms={rooms} now={now} insider={insider} />
         )}
       </section>
 

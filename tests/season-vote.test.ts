@@ -88,7 +88,8 @@ describe("/api/season-vote", () => {
     const get = await GET(new Request("http://localhost:3000/api/season-vote", { headers: { cookie } }));
     const body = await get.json();
     expect(body.my_pick).toBe("island");
-    expect(body.choices).toHaveLength(6);
+    // Seven formats since 2026-11-14: The Botchelor (lib/season-format.ts) joined the ballot.
+    expect(body.choices).toHaveLength(7);
   });
 });
 

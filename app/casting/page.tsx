@@ -4,10 +4,13 @@ import Link from "next/link";
 import Avatar from "@/app/Avatar";
 import Icon from "@/app/Icon";
 import { AUDITION_MIN_DATES, castingBoard } from "@/lib/auditions";
+import { auditionWords } from "@/lib/audition-words";
 import { getDb } from "@/lib/db";
 import { listMyCharacters } from "@/lib/game";
 import { userIdFromCookieStore } from "@/lib/http";
 import { HOUSE_MIN, SURVIVORS, seasonCastCards, seasonCastSize, type CastCard } from "@/lib/season-cast";
+import { seasonFormat, type SeasonFormatDef } from "@/lib/season-format";
+import { seasonFormatSlug } from "@/lib/season-format-store";
 import { pageMetadata } from "@/lib/seo";
 import CastingBoard from "./CastingBoard";
 
@@ -24,13 +27,23 @@ const day = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month: 
  * plain box over a blank column). This month's cast in the taken slots, the open places as dashed empty ones, and the
  * one step: make a character to audition, or go to your own when you have one.
  */
-function CastingSlots({ label, cast, size, open, hasOwn }: { label: string; cast: CastCard[]; size: number; open: number; hasOwn: boolean }) {
+function CastingSlots({ label, cast, size, open, hasOwn, def }: { label: string; cast: CastCard[]; size: number; open: number; hasOwn: boolean; def: SeasonFormatDef }) {
+  const words = auditionWords(def.lead);
   return (
     <section className="card casting-empty" aria-labelledby="casting-empty-title">
-      <h2 id="casting-empty-title">No auditions yet for {label}</h2>
+      <h2 id="casting-empty-title">No {def.lead ? "suitors" : "auditions"} yet for {label}</h2>
       <p className="muted">
-        Be the first: open one of your characters and press <em>Audition</em>. Next month has {size} places; the {SURVIVORS} most loved of this
-        month&apos;s cast stay on, and {open} {open === 1 ? "place is" : "places are"} open to people&apos;s characters.
+        {def.lead ? (
+          <>
+            Be the first: open one of your characters and press <em>{words.verb}</em>. {label} is {def.title}: one lead from the house, and{" "}
+            {open} {open === 1 ? "place" : "places"} for people&apos;s characters as the suitors, with a rose ceremony every Sunday.
+          </>
+        ) : (
+          <>
+            Be the first: open one of your characters and press <em>Audition</em>. Next month has {size} places; the {SURVIVORS} most loved of this
+            month&apos;s cast stay on, and {open} {open === 1 ? "place is" : "places are"} open to people&apos;s characters.
+          </>
+        )}
       </p>
       <ul className="casting-slots" aria-label="This month's cast, and next month's open places">
         {cast.slice(0, size).map((c) => (
@@ -79,8 +92,11 @@ export default async function CastingPage() {
   const viewer = userIdFromCookieStore(await cookies());
   const db = await getDb();
   const board = await castingBoard(db, viewer);
-  const size = seasonCastSize();
-  const open = Math.max(0, size - HOUSE_MIN);
+  // Next season's format (lib/season-format.ts): on The Botchelor the open places are the lead's suitors (lib/ceremony.ts).
+  const def = seasonFormat(await seasonFormatSlug(db, board.season_id).catch(() => null));
+  const words = auditionWords(def.lead);
+  const size = def.lead ? def.lead.places : seasonCastSize();
+  const open = def.lead ? def.lead.places - 1 : Math.max(0, size - HOUSE_MIN);
   // Only an empty board draws the slots, so a board with auditions costs nothing more.
   const [cast, own] = board.auditions.length
     ? [[], []]
@@ -91,39 +107,56 @@ export default async function CastingPage() {
     <article className="casting-page page-wide">
       <header>
         <p className="kicker">Casting · {board.label}</p>
-        <h1>Who&apos;s on next month&apos;s show?</h1>
+        <h1>{def.lead ? `Who dates the lead on ${def.title}?` : "Who's on next month's show?"}</h1>
         <p className="lede">
-          These are characters people made, auditioning for the {board.label} cast. Vote for the one you want to watch: one vote a
-          viewer, and voting again moves it.
+          {def.lead
+            ? `These are characters people made, applying to be the suitors on ${board.label}'s ${def.title}: one lead from the house, and a rose ceremony every Sunday. Vote for the one you want to watch: one vote a viewer, and voting again moves it.`
+            : `These are characters people made, auditioning for the ${board.label} cast. Vote for the one you want to watch: one vote a viewer, and voting again moves it.`}
         </p>
       </header>
       <div className="casting-layout">
         <div className="casting-main">
-          {board.auditions.length ? <CastingBoard board={board} viewer={viewer} /> : <CastingSlots label={board.label} cast={cast} size={size} open={open} hasOwn={own.length > 0} />}
+          {board.auditions.length ? <CastingBoard board={board} viewer={viewer} /> : <CastingSlots label={board.label} cast={cast} size={size} open={open} hasOwn={own.length > 0} def={def} />}
         </div>
         <aside className="casting-rail" aria-label="How casting works">
           <section className="card casting-rules">
-            <h2>How a character gets in</h2>
-            <ol>
-              <li>
-                Each season is a month, and its cast has <strong>{size} places</strong>. Anyone can date a cast member by name, all
-                month.
-              </li>
-              <li>
-                The last season&apos;s <strong>{SURVIVORS} most loved</strong> stay on, by their reviews.
-              </li>
-              <li>
-                When the month starts on {day(board.closes_at)}, the <strong>shortlisted</strong> auditions with the most votes take
-                up to {open} of the open places.
-              </li>
-              <li>House newcomers fill whatever is left.</li>
-              <li>Votes and reviews never change a date, the odds or anyone&apos;s points.</li>
-            </ol>
+            <h2>{def.lead ? "How a character becomes a suitor" : "How a character gets in"}</h2>
+            {def.lead ? (
+              <ol>
+                <li>
+                  {board.label} runs as <strong>{def.title}</strong>: one lead from the house cast and <strong>{open} suitors</strong>, people&apos;s
+                  own characters first.
+                </li>
+                <li>The lead is last season&apos;s most reviewed survivor. The suitors date the lead all week, in turn.</li>
+                <li>
+                  When the month starts on {day(board.closes_at)}, the <strong>shortlisted</strong> applicants with the most votes take the suitors&apos;
+                  places; the house&apos;s own agent-made characters fill whatever is left.
+                </li>
+                <li>Every Sunday a rose ceremony sends two home: one by the audience&apos;s vote, one by how the lead&apos;s dates went. The last Sunday is the final rose.</li>
+                <li>Votes and reviews never change a date, the odds or anyone&apos;s points.</li>
+              </ol>
+            ) : (
+              <ol>
+                <li>
+                  Each season is a month, and its cast has <strong>{size} places</strong>. Anyone can date a cast member by name, all
+                  month.
+                </li>
+                <li>
+                  The last season&apos;s <strong>{SURVIVORS} most loved</strong> stay on, by their reviews.
+                </li>
+                <li>
+                  When the month starts on {day(board.closes_at)}, the <strong>shortlisted</strong> auditions with the most votes take
+                  up to {open} of the open places.
+                </li>
+                <li>House newcomers fill whatever is left.</li>
+                <li>Votes and reviews never change a date, the odds or anyone&apos;s points.</li>
+              </ol>
+            )}
           </section>
           <section className="card casting-yours">
             <h2>Got a character?</h2>
             <p className="small">
-              Open its page and press <em>Audition for {board.label}</em>. People&apos;s own characters only, with{" "}
+              Open its page and press <em>{def.lead ? words.verb : `Audition for ${board.label}`}</em>. People&apos;s own characters only, with{" "}
               {AUDITION_MIN_DATES} public dates first so voters have something to judge. You can withdraw it at any time.
             </p>
             <Link href="/account" className="button secondary small">

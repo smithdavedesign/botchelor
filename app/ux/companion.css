@@ -1148,3 +1148,41 @@ body:has(.companion-fullscreen) .site-footer {
 .companion-call-tag {
   font-size: var(--text-xs);
 }
+
+/* The chips under a character's text about a date (lib/companion-offers.ts): the question as things to do, pills in the
+   character's column, big enough for a thumb; one row wraps on a phone. The "Watch it" link after a booking sits the same. */
+.companion-offers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: var(--space-1) var(--space-2) 0;
+}
+.companion-offers .companion-offer {
+  border: 1px solid var(--line);
+  background: var(--soft);
+  color: var(--accent-text);
+  cursor: pointer;
+  min-height: 36px;
+  padding: var(--space-1) var(--space-3);
+  font: inherit;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  line-height: 1.2;
+}
+.companion-offers .companion-offer:hover:not(:disabled),
+.companion-offers .companion-offer:focus-visible {
+  border-color: var(--accent);
+}
+.companion-offers .companion-offer:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+/* The composer as the "For next time" note: the toggle sits with the other actions; the standing note reads as a line. */
+.companion-next-time {
+  margin: 0;
+  font-size: var(--text-xs);
+}
+.companion-standing-note {
+  margin: 0;
+  color: var(--muted);
+}

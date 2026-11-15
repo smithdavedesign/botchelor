@@ -32,13 +32,16 @@ type LatestDate = {
   partner: string;
   date_number: number | null;
   created_at: Date | string;
+  /** The house booked it while the owner was away (lib/character-life.ts LIFE_MET_VIA). */
+  life: boolean;
 };
 
 /** Each character's newest date (After Dark's stay on its own host). */
 async function latestDates(db: Db, ids: readonly string[]): Promise<Map<string, LatestDate>> {
   const { rows } = await db.query<LatestDate>(
     `select distinct on (c.id) c.id as character_id, e.id as episode_id, e.status, e.ending, e.revealed_at is not null as aired,
-            p.name as partner, (e.setup->>'date_number')::int as date_number, e.created_at
+            p.name as partner, (e.setup->>'date_number')::int as date_number, e.created_at,
+            coalesce(e.setup->>'met_via' = 'life', false) as life
        from unnest($1::text[]) as c(id)
        join episodes e on c.id in (e.character_a, e.character_b)
        join characters p on p.id = case when e.character_a = c.id then e.character_b else e.character_a end
@@ -110,6 +113,8 @@ export async function sinceYouWereHere(db: Db, userId: string, mine: readonly Ch
     if (!d) return { character, news: "No dates yet", action: "Send on a date", href: another, at: null };
     const at = new Date(d.created_at).toISOString();
     const episode = `/episodes/${encodeURIComponent(d.episode_id)}`;
+    // A date the house booked while they were away (lib/character-life.ts), aired: the one thing that happened without them.
+    if (d.life && d.aired && d.ending) return { character, news: `${first} went on a date with ${d.partner} while you were away`, action: "See how it went", href: episode, at };
     if (d.status === "generating") return { character, news: `On a date with ${d.partner} right now`, action: "Watch", href: `${episode}?play=1`, at };
     if (!d.aired || !d.ending) return { character, news: `Their date with ${d.partner} is ready`, action: "Watch it", href: episode, at };
     return { character, news: `Last date, with ${d.partner}: ${endingLabel(d.ending, d.date_number)}`, action: "Another date", href: another, at };

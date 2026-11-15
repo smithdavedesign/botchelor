@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
+import OutOfDates, { type OutOfDatesData } from "@/app/OutOfDates";
 import Sheet from "@/app/Sheet";
 
 /**
@@ -34,8 +35,11 @@ export default function DateConfirm({
   busy: boolean;
   /** The settings aren't ready yet (a roleplay half picked). */
   disabled?: boolean;
-  /** `link`: where the refusal points (a date still being filmed: "Watch it"). */
-  error?: { text: string; shop?: boolean; link?: { href: string; label: string } } | null;
+  /**
+   * `link`: where the refusal points (a date still being filmed: "Watch it"). `wall`: the out-of-dates refusal's offer
+   * (app/OutOfDates.tsx), shown in place of the text; `first` is the character's first name for its copy.
+   */
+  error?: { text: string; shop?: boolean; link?: { href: string; label: string }; wall?: OutOfDatesData | null; first?: string } | null;
   /** The date's optional settings, folded where there are several. */
   children?: ReactNode;
 }) {
@@ -62,7 +66,8 @@ export default function DateConfirm({
           {busy ? busyLabel : sendLabel}
         </button>
       </div>
-      {error && (
+      {error?.wall && <OutOfDates data={error.wall} first={error.first ?? "them"} />}
+      {error && !error.wall && (
         <p className="sheet-error" role="alert">
           {error.text}
           {error.link && (

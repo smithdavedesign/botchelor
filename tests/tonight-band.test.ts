@@ -41,7 +41,10 @@ describe("the tonight band", () => {
     expect(order.every((at) => at >= 0)).toBe(true);
     expect(order).toEqual([...order].sort((a, b) => a - b));
     expect(html).not.toContain("Just aired"); // the fourth slot gives way
-    expect(html).toContain("3 watching");
+    // Three watching is a quiet room to a stranger (lib/crowd-threshold.ts): the count shows to someone with a character.
+    expect(html).toContain("On the air — tap in");
+    expect(html).not.toContain("3 watching");
+    expect(band({ rooms: [room("live")], airing: [airing()], situation: vote(), latest: aired(), insider: true })).toContain("3 watching");
     expect(html).toContain("Airs in 12 min");
     expect(html).toContain("closes in 5h");
     expect(html).toContain("tonight-live-dot");

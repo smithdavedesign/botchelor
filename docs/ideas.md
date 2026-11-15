@@ -140,6 +140,8 @@ David asked whether to expand: let a person date a character themselves, and add
 
 **Status (2026-11-02):** built as a season format CONFIG, not a second show (#1269 + #1270, `lib/season-format.ts` + `lib/recoupling.ts`): slug `island` — villa venue pool, weekly recoupling nights with the viewer vote, final vote on next season's newcomer. Selectable per season on /admin/season; December stays unscheduled until David picks it. The public name is **Bot Island** (David, 2026-11-09, knowing the naming note above); it's the format's title, label and announce line in the config.
 
+**December (2026-11-14):** David wants the product original, so the December format is the show's own premise rather than the villa: **The Botchelor** (slug `botchelor`, `lib/season-format.ts` + `lib/ceremony.ts`; docs/seasons.md "December: The Botchelor"). One lead from the cast (last season's most reviewed survivor, or the admin's pick), people's characters as the suitors (approved auditions by votes, the house's own agent-made characters filling in), the lead dating one suitor a day, and a rose ceremony every Sunday at 20:00 UTC where the audience's vote and the lead's own date verdicts (the engine's endings) each send one home, until the last Sunday's final rose. Selectable on /admin/season like the island; not scheduled by default.
+
 ### Order (2026-11-01)
 1. **This week, visitors:**
    - the AI and MCP directory listings;
@@ -206,7 +208,7 @@ _David asked for an open discussion on the product core (the show, companions, A
 
 | Idea | Why not now | Gate |
 |---|---|---|
-| **Season Pass / per-character "life plan"** ($4.99/mo: 30 dates, step-ins, a frame, texts first) | 0 buyers of anything yet; at 17¢ a date it undercuts the $4 pack (80¢) | A "Botchelor Plus" intent tile first (`plus_interest` events): ≥ 10 clicks or the first outside purchase |
+| **Season Pass / per-character "life plan"** ($4.99/mo: 30 dates, step-ins, a frame, texts first) | 0 buyers of anything yet; at 17¢ a date it undercuts the $4 pack (80¢) | **Intent tile live** (2026-11-14): "Botchelor Plus" on `/shop` and in the out-of-dates wall, one button "Tell me when it opens" → `plus_interest` rows (`lib/plus-interest.ts`; count on `/admin/spend`). Build when ≥ 10 people have tapped it or the first outside purchase lands. Until then nothing is built or charged. |
 | **Research opt-in** (`research_consents`, distinct from ML consent) | the audience is anonymous, and anonymous consent can never count | ≥ 50 accounts |
 | **Pairwise line labels** (`line_pairs` from `turn_drafts`, "which line sounds more like X?") | volume ≈ 0 | ≥ 100 thumbs a week |
 | **The arena** ("which AI makes the better date": models or MCP agents play the cast, viewers judge; weekly content) | needs an audience and a per-side model registry (`side_models` in `lib/pipeline.ts`) | the storyline has ≥ 10 voters a day for a month |

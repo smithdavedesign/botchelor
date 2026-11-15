@@ -147,7 +147,10 @@ describe("retention (lib/retention.ts)", () => {
     // A consent decision is the record of what someone agreed to: it stays while the account does.
     await t.db.query(`insert into choice_history (kind, user_id, value, at) values ('ml_consent', 'fan', '{"granted":true}'::jsonb, $1)`, [old]);
 
-    expect(await pruneKeptData(t.db, now)).toEqual({ choice_history: 1, swipe_impressions: 1, turn_drafts: 1, relationship_events: 1, episode_variations: 1, language_seen: 1, web_events: 1 });
+    // A tap on the Plus tile (lib/plus-interest.ts) is kept the same 400 days.
+    await t.db.query(`insert into plus_interest (user_id, place, with_email, created_at) values ('fan', 'shop', false, $1), ('fan', 'out_of_dates', false, $2)`, [old, recent]);
+    expect(await pruneKeptData(t.db, now)).toEqual({ choice_history: 1, swipe_impressions: 1, turn_drafts: 1, relationship_events: 1, episode_variations: 1, language_seen: 1, web_events: 1, plus_interest: 1 });
+    expect((await t.db.query(`select place from plus_interest`)).rows).toEqual([{ place: "out_of_dates" }]);
     expect((await t.db.query(`select kind from choice_history where user_id = 'fan' order by kind`)).rows).toEqual([{ kind: "ml_consent" }, { kind: "prediction" }]);
     expect(await count(`select 1 from swipe_impressions where at < $1`, [recent])).toBe(0);
     expect(await count(`select 1 from turn_drafts where created_at < $1`, [recent])).toBe(0);

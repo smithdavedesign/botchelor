@@ -68,6 +68,21 @@ describe("the tease on air", () => {
     expect(kinds).toHaveLength(2);
   });
 
+  it("a life date the house booked (lib/character-life.ts) tells what happened in the tease's place", async () => {
+    const { creator, thread, next } = await optedInWithNextDate("friends");
+    await t.db.query(`update episodes set setup = jsonb_set(setup, '{met_via}', '"life"') where id = $1`, [next.id]);
+    expect(await airEpisode(t.db, next.id, userIdOf(creator))).not.toBeNull();
+    const life = async () => (await t.db.query<{ thread_id: string; text: string }>(`select thread_id, text from companion_messages where action = $1 order by created_at, id`, [`life:${next.id}`])).rows;
+    for (let i = 0; i < 50 && (await life()).length < 3; i++) await new Promise((r) => setTimeout(r, 20));
+    await new Promise((r) => setTimeout(r, 40));
+    const rows = await life();
+    expect(rows).toHaveLength(3);
+    expect(rows.every((r) => r.thread_id === thread)).toBe(true);
+    expect(rows[0].text).toMatch(/^I went out with .* while you were gone\. The house set it up\.$/);
+    expect(rows[1].text).toMatch(/[Ff]riends is where it lands/);
+    expect(await teases(next.id)).toEqual([]);
+  });
+
   it("stays quiet for whoever aired it, and for a thread that never opted in", async () => {
     const { creator, next } = await optedInWithNextDate("friends");
     expect(await airEpisode(t.db, next.id, userIdOf(creator), { airedBy: userIdOf(creator) })).not.toBeNull();

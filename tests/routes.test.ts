@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { CATALOG, ON_SALE } from "@/lib/catalog";
+import { CATALOG, PACKS } from "@/lib/catalog";
 import { api, newUserCookie, openPayments, setupEpisode, startTestDb, validCharacter } from "./helpers";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
@@ -242,7 +242,7 @@ describe("request bodies cannot smuggle in points or payments", () => {
   it("ignores them on the M3 writes too: checkout and the waitlist", async () => {
     const smuggled = { points: 1000, amount: 1, price_cents: 1, currency: "jpy", to_user_id: "someone-else" };
     const user = newUserCookie();
-    const [item] = ON_SALE;
+    const [item] = PACKS;
     expect((await api.checkout({ sku: item.sku, attest: true, ...smuggled }, user)).status).toBe(200);
     expect(await t.count("orders", `amount_cents = ${item.price_cents} and currency = 'usd'`)).toBe(1);
     expect((await api.joinWaitlist({ email: "a@example.com", attest: true, ...smuggled }, user)).status).toBe(201);
