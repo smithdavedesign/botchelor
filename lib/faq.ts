@@ -6,7 +6,7 @@
  * Everything here is the PG show; nothing about After Dark.
  */
 import { formatPrice, PACK_5 } from "./catalog";
-import { COMPANION_FAIR_USE_PER_MONTH, companionOpen } from "./companion-shared";
+import { COMPANION_FAIR_USE_PER_MONTH, companionMessageDelete, companionOpen } from "./companion-shared";
 import { companionFreePerDay } from "./companion-plan";
 import { contactEmail, REPORT_RESPONSE } from "./legal-entity";
 import { planLink, planPrice, PLANS } from "./paid-plans";
@@ -25,6 +25,8 @@ export const answerText = (a: Piece[]): string => a.map((p) => (typeof p === "st
 export function faqs(env: Env = process.env): Faq[] {
   const packOnSale = paymentLinkFromEnv(env) !== null;
   const companions = companionOpen(env);
+  // One message of a conversation can be deleted on its own (lib/companion-message-delete.ts) unless it's switched off.
+  const oneMessage = companionMessageDelete(env);
   const plan = companions && planLink("companion", env) !== null;
   const email = contactEmail(env);
   const list: (Faq | null)[] = [
@@ -127,7 +129,7 @@ export function faqs(env: Env = process.env): Faq[] {
           id: "calls",
           q: "What happens to my voice on a call with a companion?",
           a: [
-            "We never receive or keep your audio. On a live call your browser sends it straight to Deepgram, which turns it into words; on a call that takes turns your browser's own speech recognition does (Google's in Chrome, Apple's in Safari). The words are saved in the conversation as messages, the same as ones you typed, and deleting the conversation deletes them. ",
+            `We never receive or keep your audio. On a live call your browser sends it straight to Deepgram, which turns it into words; on a call that takes turns your browser's own speech recognition does (Google's in Chrome, Apple's in Safari). The words are saved in the conversation as messages, the same as ones you typed${oneMessage ? ": you can delete one message at a time, or the whole conversation, from the conversation's Settings" : ", and deleting the conversation deletes them"}. `,
             { text: "What a call keeps", href: "/privacy#calls" },
             ".",
           ],
@@ -153,7 +155,7 @@ export function faqs(env: Env = process.env): Faq[] {
       id: "delete",
       q: "How do I delete my data?",
       a: [
-        "Delete a character, or your whole account, from your account page, or ask us. A date that already aired stays up, since it belongs to the other side too, with your character's public card and no owner. The ",
+        `Delete a character, or your whole account, from your account page, or ask us. ${companions ? `A conversation with a companion${oneMessage ? ", or one message in it," : ""} is deleted from that conversation's Settings. ` : ""}A date that already aired stays up, since it belongs to the other side too, with your character's public card and no owner. Your account page also has an export of your data${companions ? ", your companion conversations and call records included" : ""}. The `,
         { text: "privacy notice", href: "/privacy" },
         " says what's kept, why and for how long.",
       ],

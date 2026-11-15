@@ -7,12 +7,14 @@
  *    keep nothing for training (lib/companion-live.ts sttUrl, mip_opt_out); our server gets each finished phrase as text.
  *  - taking turns: the browser's own speech recognition (./CompanionCall.tsx listen); our server gets the text.
  *  - either way the text is kept as a message marked as said on a call (lib/companion.ts takeIn, on_call), and goes
- *    when the conversation is deleted (deleteThread; the messages cascade).
+ *    when the conversation is deleted (deleteThread; the messages cascade) or the message itself is
+ *    (lib/companion-message-delete.ts). Both are in the chat's Settings menu, so the line says where, and stays true
+ *    with COMPANION_MESSAGE_DELETE=0 (the conversation's delete is always there).
  */
 export const CALL_NOTICE = {
   live: "Your audio isn't kept: Deepgram turns it into words, and the words are saved as messages in this chat.",
   classic: "Your audio never reaches us: your browser turns it into words, and the words are saved as messages in this chat.",
-  remove: "Deleting the conversation deletes them.",
+  remove: "You can delete them later, in this chat's ⚙️ Settings.",
   link: "What a call keeps",
   href: "/privacy#calls",
 } as const;

@@ -83,7 +83,7 @@ async function companionNews(db: Db, userId: string, ids: readonly string[], now
     db.query<CompanionNews>(
       `select distinct on (t.character_id) t.character_id, t.id as thread_id, m.created_at as at, m.action
          from companion_threads t
-         join companion_messages m on m.thread_id = t.id and m.role = 'character' and m.action ~ '^(after_date|day_after|house_scene|house_tonight):'
+         join companion_messages m on m.thread_id = t.id and m.role = 'character' and m.replaced_by is null and m.action ~ '^(after_date|day_after|house_scene|house_tonight):'
         where t.user_id = $1 and t.character_id = any($2::text[]) and m.created_at > $3::timestamptz - make_interval(days => $4::int)
           and not exists (select 1 from companion_messages u where u.thread_id = t.id and u.role = 'user' and u.created_at > m.created_at)
           and not exists (select 1 from nudges g where g.character_id = t.character_id and g.user_id = t.user_id and g.created_at > m.created_at)
