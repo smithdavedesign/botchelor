@@ -38,6 +38,8 @@ export type RenderInput = {
   /** The kit's portrait and loop as URLs a provider can fetch (absolute), and the loop's bytes for ours. */
   portraitUrl: string | null;
   loopUrl: string | null;
+  /** The character's approved cast portrait (the full picture, not the kit's face crop), when they have one. */
+  castPortraitUrl?: string | null;
   /** The clause: Aura's PCM (16-bit mono at `rate`), the same as a WAV, its length, and a URL a provider can fetch it from. */
   audio: { pcm: Buffer; wav: Buffer; rate: number; seconds: number; url: string };
   /** For ours: the character's ready bundle (lib/live-face/index.ts), or null when there is none. */
@@ -120,6 +122,58 @@ const ditto: ClipRenderer = {
     );
     const ms = Date.now() - t0;
     return { mp4: Buffer.from(out.video_b64, "base64"), ms, cost_usd: round((out.ms?.total ?? ms) / 1000 * RUNPOD_USD_PER_SECOND), frames: out.frames, note: `${out.width}px, ${out.frames} frames, from the portrait, as a call renders it` };
+  },
+};
+
+/** The same Ditto with a calmer mouth and head (David, 2026-11-14: "the lips are way unnatural on a companion call"). */
+const dittoSoft: ClipRenderer = {
+  id: "ditto:soft",
+  label: "Ditto, calmer mouth (ours, Runpod)",
+  kind: "live",
+  provider: "house",
+  model: "antgroup/ditto-talkinghead (TensorRT), exp 0.7 / pose 0.85",
+  about: "Ditto from the portrait with its expression driven at 70% and the head at 85%: the mouth opens less, the head turns less. The same cost and speed.",
+  costHint: "about 1.3–2.2¢ a call minute while it renders",
+  runs: true,
+  ready: (env) => Boolean(dittoConfig(env)),
+  async speak(input, ctx) {
+    const cfg = dittoConfig(ctx.env);
+    if (!cfg) throw new RendererError("RUNPOD_API_KEY and LIVE_FACE_DITTO_ENDPOINT aren't set");
+    if (!input.portraitUrl) throw new RendererError("no portrait: draw the character's face kit first");
+    const t0 = Date.now();
+    const out = await speakDitto(
+      cfg,
+      { source_url: input.portraitUrl, pcm: input.audio.pcm, rate: input.audio.rate, fade_in: CHAIN_FADE_IN, fade_out: CHAIN_FADE_OUT, tail_silence_ms: CHAIN_TAIL_SILENCE_MS, emo: input.line ? emoFor(input.line) : undefined, exp_scale: 0.7, pose_scale: 0.85 },
+      { signal: ctx.signal, timeoutMs: 120_000 },
+    );
+    const ms = Date.now() - t0;
+    return { mp4: Buffer.from(out.video_b64, "base64"), ms, cost_usd: round((out.ms?.total ?? ms) / 1000 * RUNPOD_USD_PER_SECOND), frames: out.frames, note: `${out.width}px, ${out.frames} frames, mouth at 70%, head at 85%` };
+  },
+};
+
+/** Ditto from the character's approved cast portrait (the whole picture, the framing the OmniHuman intro had) rather than the kit's face crop. */
+const dittoCast: ClipRenderer = {
+  id: "ditto:cast",
+  label: "Ditto from the cast portrait (ours, Runpod)",
+  kind: "live",
+  provider: "house",
+  model: "antgroup/ditto-talkinghead (TensorRT), the cast portrait as the source",
+  about: "Ditto driving the character's full approved portrait instead of the kit's 512-px face crop: the face is smaller in the frame, the picture is the one the show uses, the paste-back sits in a real scene.",
+  costHint: "about 1.3–2.2¢ a call minute while it renders",
+  runs: true,
+  ready: (env) => Boolean(dittoConfig(env)),
+  async speak(input, ctx) {
+    const cfg = dittoConfig(ctx.env);
+    if (!cfg) throw new RendererError("RUNPOD_API_KEY and LIVE_FACE_DITTO_ENDPOINT aren't set");
+    if (!input.castPortraitUrl) throw new RendererError("no approved cast portrait for this character");
+    const t0 = Date.now();
+    const out = await speakDitto(
+      cfg,
+      { source_url: input.castPortraitUrl, pcm: input.audio.pcm, rate: input.audio.rate, fade_in: CHAIN_FADE_IN, fade_out: CHAIN_FADE_OUT, tail_silence_ms: CHAIN_TAIL_SILENCE_MS, emo: input.line ? emoFor(input.line) : undefined },
+      { signal: ctx.signal, timeoutMs: 120_000 },
+    );
+    const ms = Date.now() - t0;
+    return { mp4: Buffer.from(out.video_b64, "base64"), ms, cost_usd: round((out.ms?.total ?? ms) / 1000 * RUNPOD_USD_PER_SECOND), frames: out.frames, note: `${out.width}×${out.height}, ${out.frames} frames, from the cast portrait` };
   },
 };
 
@@ -379,7 +433,7 @@ const simli: ClipRenderer = {
 
 /* ----------------------------------------------------------- the registry ----------------------------------------------------------- */
 
-export const RENDERERS: readonly ClipRenderer[] = [musetalk, ditto, dittoLoop, falSync, falLatentsync, falKling, falInfinitalk, falOmnihuman, falOmnihuman15, falEchomimic, replicateWanS2v, didTalks, simli];
+export const RENDERERS: readonly ClipRenderer[] = [musetalk, ditto, dittoSoft, dittoCast, dittoLoop, falSync, falLatentsync, falKling, falInfinitalk, falOmnihuman, falOmnihuman15, falEchomimic, replicateWanS2v, didTalks, simli];
 
 export const rendererById = (id: string): ClipRenderer | null => RENDERERS.find((r) => r.id === id) ?? null;
 

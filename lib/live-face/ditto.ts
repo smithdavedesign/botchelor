@@ -67,6 +67,9 @@ export type DittoSpeakInput = {
   motion?: { kind: "sway" | "nod" | "tilt"; amount?: number; period_s?: number; at_s?: number };
   /** With a video source (the kit's loop): where in its cycle this clause starts, so clause follows clause through the loop. */
   start_frame?: number;
+  /** How far the expression (the mouth above all) and the head move from the still: 1 is Ditto's own, 0.7 a calmer mouth. */
+  exp_scale?: number;
+  pose_scale?: number;
   sampling_timesteps?: number;
 };
 
@@ -88,6 +91,8 @@ function speakInput(input: DittoSpeakInput): Record<string, unknown> {
     ...(input.emo !== undefined ? { emo: input.emo } : {}),
     ...(input.motion ? { motion: input.motion } : {}),
     ...(input.start_frame ? { start_frame: input.start_frame } : {}),
+    ...(input.exp_scale !== undefined ? { exp_scale: input.exp_scale } : {}),
+    ...(input.pose_scale !== undefined ? { pose_scale: input.pose_scale } : {}),
     ...(input.sampling_timesteps !== undefined ? { sampling_timesteps: input.sampling_timesteps } : {}),
   };
 }
@@ -126,21 +131,7 @@ export async function speakDittoStream(cfg: RunpodConfig, input: DittoSpeakInput
 export async function speakDitto(cfg: RunpodConfig, input: DittoSpeakInput, opts: { signal?: AbortSignal; timeoutMs?: number } = {}): Promise<DittoOutput> {
   const job = await runsync<DittoOutput | DittoOutput[]>(
     cfg,
-    {
-      op: "speak",
-      source_url: input.source_url,
-      audio_b64: input.pcm.toString("base64"),
-      audio_format: "pcm16",
-      rate: input.rate,
-      ...(input.fade_in ? { fade_in: input.fade_in } : {}),
-      ...(input.fade_out ? { fade_out: input.fade_out } : {}),
-      ...(input.tail_silence_ms ? { tail_silence_ms: input.tail_silence_ms } : {}),
-      ...(input.state ? { state_b64: input.state } : {}),
-      ...(input.want_state ? { want_state: true } : {}),
-      ...(input.emo !== undefined ? { emo: input.emo } : {}),
-      ...(input.motion ? { motion: input.motion } : {}),
-      ...(input.sampling_timesteps !== undefined ? { sampling_timesteps: input.sampling_timesteps } : {}),
-    },
+    speakInput(input),
     { ...opts, what: "ditto speak" },
   );
   const out = firstOutput(job.output);

@@ -56,7 +56,7 @@ describe("the renderer registry", () => {
   it("lists ours first, the hosted batch models, D-ID and Simli, and knows which can render a clip", () => {
     expect(RENDERERS[0].id).toBe("musetalk");
     expect(RENDERERS[1]).toMatchObject({ id: "ditto", provider: "house", kind: "live", runs: true });
-    expect(RENDERERS[2]).toMatchObject({ id: "ditto:loop", provider: "house", kind: "live", runs: true });
+    expect(RENDERERS.slice(2, 5).map((r) => r.id)).toEqual(["ditto:soft", "ditto:cast", "ditto:loop"]);
     expect(RENDERERS.map((r) => r.provider)).toEqual(expect.arrayContaining(["house", "fal", "replicate", "did", "simli"]));
     expect(runnableRenderers().map((r) => r.id)).not.toContain("simli");
     expect(rendererById("fal:sync-lipsync-2")?.model).toBe("fal-ai/sync-lipsync/v2");
@@ -183,6 +183,13 @@ describe("Ditto, our second worker", () => {
     // As a call renders a clause: eased in and out at the portrait, the line's expression (none here: a plain line).
     expect(asked[0].body).toMatchObject({ op: "speak", source_url: input.portraitUrl, audio_format: "pcm16", rate: 24_000, fade_in: CHAIN_FADE_IN, fade_out: CHAIN_FADE_OUT, tail_silence_ms: CHAIN_TAIL_SILENCE_MS });
     expect(asked[0].body?.audio_b64).toBe(pcm.toString("base64"));
+    // A calmer mouth: the same job with the driving weights turned down.
+    await rendererById("ditto:soft")!.speak(input, { apiKey: null, env });
+    expect(asked[asked.length - 1].body).toMatchObject({ source_url: input.portraitUrl, exp_scale: 0.7, pose_scale: 0.85 });
+    // From the cast portrait, when the character has one; refused when not.
+    await rendererById("ditto:cast")!.speak({ ...input, castPortraitUrl: "https://botchelor.com/api/assets/cast-1" }, { apiKey: null, env });
+    expect(asked[asked.length - 1].body).toMatchObject({ source_url: "https://botchelor.com/api/assets/cast-1" });
+    await expect(rendererById("ditto:cast")!.speak(input, { apiKey: null, env })).rejects.toThrow(/no approved cast portrait/);
     // Ditto on the loop: the same job with the kit's loop as the source, from the cycle's first frame, expression-only fades on the worker's side.
     const onLoop = await rendererById("ditto:loop")!.speak(input, { apiKey: null, env });
     expect(onLoop.mp4.equals(MP4)).toBe(true);
@@ -295,11 +302,12 @@ describe("Ditto, our second worker", () => {
     const asked = fakeChainEndpoint();
     const env = { RUNPOD_API_KEY: "placeholder-runpod", LIVE_FACE_DITTO_ENDPOINT: "ep-d", LIVE_FACE_PROVIDER: "ditto" };
     expect(await dittoLibrary(t.db, RAFE, "http://test")).toEqual({ idle: null, reactions: {}, complete: false });
-    expect(await ensureDittoLibrary(t.db, RAFE, "http://test", env)).toBe(3);
+    expect(await ensureDittoLibrary(t.db, RAFE, "http://test", env)).toBe(4);
     expect(asked.map((a) => [(a.motion as { kind: string }).kind, a.fade_in, a.fade_out, (a.audio_b64 as string).length > 0, a.emo])).toEqual([
       ["sway", LIBRARY_SPEC.idle.fade_in, LIBRARY_SPEC.idle.fade_out, true, 4],
       ["nod", LIBRARY_SPEC.nod.fade_in, LIBRARY_SPEC.nod.fade_out, true, 4],
       ["tilt", LIBRARY_SPEC.tilt.fade_in, LIBRARY_SPEC.tilt.fade_out, true, 4],
+      ["sway", LIBRARY_SPEC.brow.fade_in, LIBRARY_SPEC.brow.fade_out, true, 6],
     ]);
     // Eight seconds of silence at 24 kHz, 16-bit mono, for the idle.
     expect(Buffer.from(asked[0].audio_b64 as string, "base64").length).toBe(8 * 24_000 * 2);
@@ -307,7 +315,7 @@ describe("Ditto, our second worker", () => {
     const lib = await dittoLibrary(t.db, RAFE, "http://test");
     expect(lib.complete).toBe(true);
     expect(lib.idle).toMatch(/^\/api\/live-face\/clip\//);
-    expect(Object.keys(lib.reactions).sort()).toEqual(["nod", "tilt"]);
+    expect(Object.keys(lib.reactions).sort()).toEqual(["brow", "nod", "tilt"]);
     // Kept and served; asking again renders nothing more.
     const id = lib.idle!.split("/").pop()!;
     expect((await libraryClipFile(t.db, id))?.bytes.equals(Buffer.from("clip1", "base64"))).toBe(true);
@@ -316,7 +324,7 @@ describe("Ditto, our second worker", () => {
     expect(served.headers.get("content-type")).toBe("video/mp4");
     expect((await clipGet(new Request(`${BASE_URL}/api/live-face/clip/nope`), { params: Promise.resolve({ id: "nope" }) })).status).toBe(404);
     expect(await ensureDittoLibrary(t.db, RAFE, "http://test", env)).toBe(0);
-    expect(asked.length).toBe(3);
+    expect(asked.length).toBe(4);
     // A Ditto session carries them (the clips route's tests cover the session's making in lib/live-face).
     vi.stubEnv("LIVE_FACE_PROVIDER", "ditto");
     vi.stubEnv("LIVE_FACE_DITTO_ENDPOINT", "ep-d");
