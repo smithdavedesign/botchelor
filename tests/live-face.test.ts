@@ -7,8 +7,8 @@ import { setReplicateFetchForTests, setReplicatePausesForTests } from "@/lib/adu
 import { saveAdultSettings } from "@/lib/adult/settings";
 import { claimAdmin } from "@/lib/admins";
 import { setDeepgramFetchForTests } from "@/lib/companion-live";
-import { makeFaceKit } from "@/lib/face-kit";
-import { buildLiveFace, collectLiveFaces, liveFaceClips, liveFaceMode, liveFaceOn, liveFaceProvider, liveFaceSession, liveFaceState } from "@/lib/live-face";
+import { faceKitOf, makeFaceKit } from "@/lib/face-kit";
+import { buildLiveFace, collectLiveFaces, liveFaceClips, liveFaceMode, liveFaceOffer, liveFaceOn, liveFaceProvider, liveFaceSession, liveFaceState, liveFaceWho, warmLiveFace } from "@/lib/live-face";
 import { jobStatus, RUNPOD_API, setRunpodFetchForTests, speakClip, startPrepare } from "@/lib/live-face/musetalk";
 import { createSimliFace, mintSimliSession, setSimliFetchForTests, SIMLI_API, simliFaceStatus } from "@/lib/live-face/simli";
 import { HOUSE_CHARACTERS } from "@/lib/house";
@@ -256,6 +256,46 @@ describe("live faces on Ditto (our second worker on Runpod)", () => {
     expect(liveFaceOn({ ...DITTO, LIVE_FACE_PROVIDER: "ditto:admins" }, { admin: true })).toBe(true);
   });
 
+  it("with ditto:plan is the Companion Plan's: admins and members get the face and the warm-up, everyone else the offer", async () => {
+    const plan = { ...DITTO, LIVE_FACE_PROVIDER: "ditto:plan" };
+    expect(liveFaceMode(plan)).toBe("plan");
+    expect(liveFaceOn(plan, { admin: false })).toBe(false);
+    expect(liveFaceOn(plan, { admin: false, plan: true })).toBe(true);
+    expect(liveFaceOn(plan, { admin: true })).toBe(true);
+    // What the call screen says: theirs, the plan's to offer, or nothing (admins only; off).
+    expect(liveFaceOffer(plan, { admin: false, plan: false })).toBe("plan");
+    expect(liveFaceOffer(plan, { admin: false, plan: true })).toBe("yours");
+    expect(liveFaceOffer({ ...DITTO, LIVE_FACE_PROVIDER: "ditto:admins" }, { admin: false })).toBeNull();
+    expect(liveFaceOffer(DITTO, { admin: false })).toBe("yours");
+    expect(liveFaceOffer({ LIVE_FACE_PROVIDER: "ditto:plan" }, { admin: false })).toBeNull();
+    vi.stubEnv("LIVE_FACE_PROVIDER", "ditto:plan");
+    const id = await withKit();
+    const asked = fakeDitto();
+    const member = crypto.randomUUID();
+    const stranger = crypto.randomUUID();
+    await grantPlan(t.db, member, "companion", "initial", { subscriptionId: `sub_${member.slice(0, 8)}` });
+    // Without the plan: no face, no clips, no worker woken for them.
+    expect(await liveFaceSession(t.db, id, BASE_URL, { admin: false, userId: stranger })).toBeNull();
+    expect(await liveFaceClips(t.db, id, BASE_URL, { admin: false, userId: stranger })).toBeNull();
+    const strangerWho = await liveFaceWho(t.db, process.env, { admin: false, userId: stranger });
+    expect(strangerWho).toEqual({ admin: false, userId: stranger, plan: false });
+    warmLiveFace(process.env, strangerWho);
+    expect(asked).toHaveLength(0);
+    // With it: the session (which warms the worker), the chain's source, and the tick's warm-up.
+    expect(await liveFaceSession(t.db, id, BASE_URL, { admin: false, userId: member })).toMatchObject({ provider: "ditto" });
+    expect(await liveFaceClips(t.db, id, BASE_URL, { admin: false, userId: member })).toMatchObject({ provider: "ditto" });
+    const memberWho = await liveFaceWho(t.db, process.env, { admin: false, userId: member });
+    expect(memberWho).toMatchObject({ plan: true });
+    const before = asked.length;
+    warmLiveFace(process.env, memberWho);
+    await new Promise((ok) => setTimeout(ok, 10));
+    expect(asked.length).toBe(before + 1);
+    expect(asked[asked.length - 1].body?.input?.op).toBe("warm");
+    // An admin needs no plan; the plan isn't looked up for them.
+    expect(await liveFaceWho(t.db, process.env, { admin: true, userId: stranger })).toEqual({ admin: true, userId: stranger });
+    expect(await liveFaceSession(t.db, id, BASE_URL, { admin: true, userId: stranger })).toMatchObject({ provider: "ditto" });
+  });
+
   it("needs nothing built: a character with a kit portrait has a ready face, a call gets the session and its turns the chain's source", async () => {
     const id = await withKit();
     const asked = fakeDitto();
@@ -265,7 +305,10 @@ describe("live faces on Ditto (our second worker on Runpod)", () => {
     expect(await liveFaceSession(t.db, id, BASE_URL, { admin: false })).toEqual({ provider: "ditto", px: 512, idle: null, reactions: {} });
     // A session warms a Ditto worker, at Ditto's endpoint.
     expect(asked.some((a) => a.url === `${RUNPOD_API}/ep-d/run` && a.body?.input?.op === "warm")).toBe(true);
-    expect(await liveFaceClips(t.db, id, BASE_URL, { admin: false })).toEqual({ provider: "ditto", runpod: { key: "placeholder-runpod", endpoint: "ep-d" }, source_url: expect.stringContaining(`${BASE_URL}/api/face-kit/`) });
+    // Its turns talk from the kit's talking still (the mouth at rest), not the smiling portrait.
+    const kit = (await faceKitOf(t.db, id, BASE_URL))!;
+    expect(kit.stills.talk).toBeTruthy();
+    expect(await liveFaceClips(t.db, id, BASE_URL, { admin: false })).toEqual({ provider: "ditto", runpod: { key: "placeholder-runpod", endpoint: "ep-d" }, source_url: `${BASE_URL}${kit.stills.talk}` });
     // A character with no kit has no Ditto face.
     const bare = (await (await api.createCharacter(validCharacter({ name: "Bare Face" }), newUserCookie())).json()).id as string;
     expect(await liveFaceState(t.db, bare, BASE_URL)).toBeNull();

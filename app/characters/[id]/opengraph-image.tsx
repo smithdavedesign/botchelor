@@ -59,7 +59,7 @@ export default async function Image({ params }: { params: Promise<{ id: string }
               ))}
             </div>
           )}
-          <div style={{ fontSize: 26, color: MUTED, marginTop: 28 }}>Send your OC on a blind date. Then just watch.</div>
+          <div style={{ fontSize: 26, color: MUTED, marginTop: 28 }}>Give your character a love life. Blind dates nobody steers.</div>
         </div>
       </div>
     ),

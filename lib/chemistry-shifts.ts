@@ -5,11 +5,13 @@
  * on a public date in it: the meter now against where it stood before the week's dates. Both directions: the couples
  * warming up and the ones going cold. $0: read from aired dates, no model call.
  *
- *  - Public only: public dates that aired and weren't reported away, between two public characters.
+ *  - Public only: public dates that aired and weren't reported away, between two public characters whose accounts
+ *    still exist (lib/public-cast.ts).
  *  - A couple needs a meter before the week to have moved it, so a pair whose first date was this week isn't listed.
  *  - The same order as the couple page's history (by when each date was made), so the meter here matches the page.
  */
 import type { Db } from "./db";
+import { listedCharacterSql } from "./public-cast";
 import { RUNNING_WEIGHT } from "./relationships";
 import { REPORT_HIDE_THRESHOLD } from "./rules";
 
@@ -47,7 +49,7 @@ export async function chemistryShifts(db: Db, now: Date = new Date()): Promise<C
        join characters cb on cb.id = p.hi
       where e.revealed_at is not null and e.revealed_at <= $2 and e.visibility = 'public'
         and (select count(*) from reports r where r.episode_id = e.id) < $3
-        and ca.visibility = 'public' and cb.visibility = 'public'
+        and ca.visibility = 'public' and cb.visibility = 'public' and ${listedCharacterSql("ca")} and ${listedCharacterSql("cb")}
       order by p.lo, p.hi, e.created_at, e.id`,
     [since.toISOString(), now.toISOString(), REPORT_HIDE_THRESHOLD],
   );

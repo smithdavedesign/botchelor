@@ -5,7 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Avatar, { sized } from "@/app/Avatar";
 import { characterPortrait } from "@/lib/portraits";
-import { crisisFrom } from "@/app/CrisisNotice";
+import CrisisNotice, { crisisFrom } from "@/app/CrisisNotice";
+import { queueEvent } from "@/app/engagement";
+import { requestJson } from "@/app/request";
 import Scene from "@/app/Scene";
 import CrisisPause from "@/app/stage/CrisisPause";
 import RoleplayPicker, { choiceReady, roleplayFields, type RoleplayChoice } from "@/app/RoleplayPicker";
@@ -16,15 +18,18 @@ import type { CompanionAllowance } from "@/lib/companion-plan";
 import {
   COMPANION_MESSAGE_MAX,
   COMPANION_EXTRAS,
+  COMPANION_NEXT_TIME_MAX,
   COMPANION_REPORT_LABELS,
   COMPANION_REPORT_REASONS,
   extraPrice,
+  offerLabel,
   REPLY_LENGTH_LABELS,
   REPLY_LENGTHS,
   SCENE_PLACES,
   type CompanionExtraKind,
   type CompanionExtraState,
   type CompanionMessageView,
+  type CompanionOfferKind,
   type CompanionReportReason,
   type CompanionThreadView,
   type ReplyLength,
@@ -64,6 +69,12 @@ const MARK: Record<NonNullable<CompanionMessageView["marker"]> | "notice", strin
  *
  * A call (📞, ./CompanionCall.tsx): you talk and they talk back, each turn a message like any other (marked 📞 here).
  * Offered where the browser can hear you, never in a scene.
+ *
+ * Your own character's texts about its dates end on a question, and the question is a menu (lib/companion-offers.ts):
+ * chips under the newest open one book the next date with that partner or a speed date with someone new through the
+ * show's own route (POST {action: "offer"}), or turn the composer into the "For next time" note for the partner of its
+ * last date (the couples nudge route, lib/between-dates.ts: a nudge is the one thing from here that reaches a date, by
+ * that channel only; it is never chat text).
  */
 export default function CompanionChat({
   initial,
@@ -72,6 +83,7 @@ export default function CompanionChat({
   initialExtras = null,
   signedIn = false,
   liveCalls = false,
+  liveFace = null,
   callVoice = false,
   faceKit = null,
   about = null,
@@ -87,6 +99,8 @@ export default function CompanionChat({
   signedIn?: boolean;
   /** Live calls (P6) are on for this person (lib/companion-live.ts liveCallsOn); off, a call takes turns (v1). */
   liveCalls?: boolean;
+  /** Their moving face on a live call (lib/live-face liveFaceOffer): this person's, the Companion Plan's to offer, or none. */
+  liveFace?: "yours" | "plan" | null;
   /** A taking-turns call's replies are said in the character's own Aura voice (lib/companion-call-voice.ts); off, the device's. */
   callVoice?: boolean;
   /** The character's face kit (lib/face-kit.ts), when they have one: their face comes to life on a call. */
@@ -117,10 +131,19 @@ export default function CompanionChat({
   const [canCall, setCanCall] = useState(false);
   const callStarted = useRef(false);
   const scroller = useRef<HTMLDivElement>(null);
+  const box = useRef<HTMLTextAreaElement>(null);
+  // A chip being tapped (its kind), and the date a chip just booked: "Watch it" under the character's answer.
+  const [offering, setOffering] = useState<CompanionOfferKind | null>(null);
+  const [watch, setWatch] = useState<string | null>(null);
+  // The composer as the "For next time" note (a nudge for the last date's partner), and the help if that note read as crisis.
+  const [forNextTime, setForNextTime] = useState(false);
+  const [noteCrisis, setNoteCrisis] = useState<CrisisResources | null>(null);
   const speech = useSpeech();
   const c = view.character;
   const first = c.name.split(/\s+/)[0] || c.name;
   const who = { id: c.id, pronouns: c.pronouns ?? null };
+  const nextTime = c.yours ? view.next_time ?? null : null;
+  const partnerFirst = nextTime ? nextTime.partner.split(/\s+/)[0] || nextTime.partner : "";
 
   const shown = view.messages;
   // A scene starting or ending is a line of its own: what's after the last one is the conversation now.
@@ -262,12 +285,77 @@ export default function CompanionChat({
     e?.preventDefault();
     const text = draft.trim();
     if (!text || busy) return;
+    if (forNextTime && nextTime) return leaveNote(text);
     setPending(text);
     setDraft("");
     const ok = await post(editing ? { action: "edit", text } : { action: "send", text });
     setPending(null);
     if (ok) setEditing(false);
     else setDraft(text);
+  }
+
+  /**
+   * The "For next time" note: a nudge for the last date's partner, through the couples route (lib/between-dates.ts
+   * setNudge: the PG check and the record happen there). It never enters this thread as a message; the character sees it
+   * in its prompt as the standing note and takes it into that date.
+   */
+  async function leaveNote(text: string) {
+    if (!nextTime) return;
+    setBusy(true);
+    setNote(null);
+    try {
+      const res = await requestJson(`/api/couples/${c.id}/${nextTime.partner_id}/nudge`, { character_id: c.id, note: text });
+      const help = crisisFrom(res.data);
+      setNoteCrisis(help);
+      if (!res.ok) {
+        setNote(res.message);
+        return;
+      }
+      const saved = typeof res.data.note === "string" ? res.data.note : text;
+      setView((v) => ({ ...v, next_time: v.next_time ? { ...v.next_time, note: saved } : v.next_time }));
+      setDraft("");
+      setForNextTime(false);
+      setNote(`Noted. ${first} takes it into the next date with ${partnerFirst}; it stays out of this chat.`);
+    } catch {
+      setNote("Network error. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function clearNote() {
+    if (!nextTime) return;
+    setBusy(true);
+    const res = await requestJson(`/api/couples/${c.id}/${nextTime.partner_id}/nudge`, { character_id: c.id }, "DELETE").catch(() => null);
+    setBusy(false);
+    if (!res?.ok) return setNote("Couldn't remove it. Try again.");
+    setView((v) => ({ ...v, next_time: v.next_time ? { ...v.next_time, note: null } : v.next_time }));
+  }
+
+  /** Turns the composer into the note and puts the cursor in it (the advice chip, or the toggle). */
+  function startNote() {
+    setForNextTime(true);
+    setEditing(false);
+    setDraft("");
+    requestAnimationFrame(() => box.current?.focus());
+  }
+
+  /**
+   * A chip under one of their texts about a date (lib/companion-offers.ts): books through the server, which answers with
+   * the thread (their own line in it) and, for a booking, the date to watch. A refusal the character already said in the
+   * thread (`said`) needs no note under the box.
+   */
+  async function takeOffer(m: CompanionMessageView, kind: CompanionOfferKind) {
+    if (busy || offering) return;
+    setOffering(kind);
+    queueEvent("companion_offer", { offer: kind });
+    const r = await postData({ action: "offer", offer: kind, message_id: m.id }, true);
+    setOffering(null);
+    if (r.crisis) return;
+    const data = r.data ?? {};
+    if (typeof data.href === "string") setWatch(data.href);
+    if (r.ok && kind === "advice") startNote();
+    if (!r.ok && data.said !== true) setNote(typeof data.message === "string" ? data.message : "That didn't go through. Try again in a moment.");
   }
 
   function startEdit() {
@@ -598,6 +686,30 @@ export default function CompanionChat({
                       )}
                       {m.text}
                     </p>
+                    {m.role === "character" && m.offers && !paused && (
+                      // The question as chips (lib/companion-offers.ts): the newest open menu only, gone once one is tapped.
+                      <div className="companion-offers" role="group" aria-label={`What ${first} could do next`}>
+                        {m.offers.kinds.map((k) => (
+                          <button
+                            key={k}
+                            type="button"
+                            className="chip companion-offer"
+                            onClick={() => void takeOffer(m, k)}
+                            disabled={busy || offering !== null}
+                            data-track={`companion-offer-${k}`}
+                          >
+                            {offering === k ? (k === "advice" ? "One sec…" : "Booking…") : offerLabel(k, { partner: m.offers!.partner, character: c.name })}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {m.role === "character" && watch && newest?.id === m.id && (
+                      <p className="companion-offers">
+                        <Link className="button small" href={watch} data-track="companion-offer-watch">
+                          ▶ Watch it
+                        </Link>
+                      </p>
+                    )}
                     {m.role === "character" && (
                       <div className="companion-foot">
                         {m.voice ? (
@@ -748,12 +860,28 @@ export default function CompanionChat({
                 Cancel the edit
               </button>
             )}
+            {nextTime && !view.scene && (
+              // Your own character with a date behind it: the box can be a note for next time instead of a message.
+              <label className="check companion-next-time">
+                <input type="checkbox" checked={forNextTime} onChange={(e) => (e.target.checked ? startNote() : setForNextTime(false))} disabled={busy} data-track="companion-next-time" />
+                <span>📌 For next time with {partnerFirst}</span>
+              </label>
+            )}
           </div>
+          {nextTime?.note && !view.scene && (
+            <p className="companion-standing-note small" role="status">
+              📌 Next time with {partnerFirst}: “{nextTime.note}”{" "}
+              <button type="button" className="linklike small" onClick={() => void clearNote()} disabled={busy}>
+                Remove
+              </button>
+            </p>
+          )}
           <label className="sr-only" htmlFor="companion-line">
-            Your message
+            {forNextTime ? `A note for ${first}'s next date with ${partnerFirst}` : "Your message"}
           </label>
           <textarea
             id="companion-line"
+            ref={box}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => {
@@ -762,22 +890,31 @@ export default function CompanionChat({
                 void send();
               }
             }}
-            maxLength={COMPANION_MESSAGE_MAX}
+            maxLength={forNextTime ? COMPANION_NEXT_TIME_MAX : COMPANION_MESSAGE_MAX}
             rows={2}
-            placeholder={editing ? "Rewrite your last message…" : view.scene ? `Say something to ${first}…` : `Message ${first}…`}
+            placeholder={
+              forNextTime
+                ? `What should ${first} do differently with ${partnerFirst}? Private; it goes into that date, not this chat.`
+                : editing
+                  ? "Rewrite your last message…"
+                  : view.scene
+                    ? `Say something to ${first}…`
+                    : `Message ${first}…`
+            }
             disabled={busy}
           />
           <div className="companion-send">
             <span className="muted small">
-              {draft.length}/{COMPANION_MESSAGE_MAX}
-              {allowance.guest && allowance.left !== null && (
+              {draft.length}/{forNextTime ? COMPANION_NEXT_TIME_MAX : COMPANION_MESSAGE_MAX}
+              {forNextTime && " · a nudge, not a message: it costs no reply"}
+              {!forNextTime && allowance.guest && allowance.left !== null && (
                 <>
                   {" · "}
                   {allowance.left} free {allowance.left === 1 ? "reply" : "replies"} left ·{" "}
                   <Link href={`/account?next=${encodeURIComponent(`/companion/${view.id}`)}`}>Free account: keep going</Link>
                 </>
               )}
-              {!allowance.guest && !allowance.unlimited && allowance.left !== null && (
+              {!forNextTime && !allowance.guest && !allowance.unlimited && allowance.left !== null && (
                 <>
                   {" · "}
                   {allowance.left} free {allowance.left === 1 ? "reply" : "replies"} left today
@@ -790,8 +927,8 @@ export default function CompanionChat({
                 </>
               )}
             </span>
-            <button type="submit" className="button" disabled={busy || !draft.trim()} data-track="companion-send">
-              {editing ? "Send again" : view.scene ? "Say it" : "Send"}
+            <button type="submit" className="button" disabled={busy || !draft.trim()} data-track={forNextTime ? "companion-next-time-send" : "companion-send"}>
+              {forNextTime ? "Leave the note" : editing ? "Send again" : view.scene ? "Say it" : "Send"}
             </button>
           </div>
         </form>
@@ -801,6 +938,7 @@ export default function CompanionChat({
           {note}
         </p>
       )}
+      {noteCrisis && <CrisisNotice resources={noteCrisis} onClose={() => setNoteCrisis(null)} />}
       </div>
       {calling && (
         <CompanionCall
@@ -811,7 +949,7 @@ export default function CompanionChat({
           onVoice={voiceOf}
           onStart={callStart}
           onEnd={callEnd}
-          live={liveCalls && extras ? { url: `/api/companion/${view.id}/live`, minutes: extras.minute ?? null } : null}
+          live={liveCalls && extras ? { url: `/api/companion/${view.id}/live`, minutes: extras.minute ?? null, face: liveFace } : null}
           speakUrl={callVoice ? `/api/companion/${view.id}/speak` : null}
           onRefused={callRefusal}
           onKept={() => void refreshThread()}

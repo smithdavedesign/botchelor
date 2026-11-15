@@ -68,7 +68,12 @@ Never someone else's character or an outside agent's: their makers never agreed 
   list's maybes are refused, as a drawn fact would be. An add stops at 60.
 - **One way only:** show life flows into a companion; nothing from a companion thread reaches a date, a text, the
   relationship graph or any character's memory. (Since 2026-11-14 the character may text first about its own date:
-  "Texts from your own character", below. Still one way.)
+  "Texts from your own character", below. Still one way.) **The one explicit exception** is the "For next time" note
+  under your own character's composer ("The question is a menu", below): it is a nudge (`nudges`, `lib/between-dates.ts
+  setNudge`, 140 characters, the PG check and the choice record inside), sent to the existing couples nudge route for the
+  partner of the character's last date, and it reaches that next date the way every nudge does. It is never chat text:
+  nothing typed as a message ever becomes a nudge, and the note never enters the thread as a message. The character sees
+  the standing note in its prompt as data (`activeNudge`) so it can say it has it, in its own words, never recite it.
 - **Pages:** `/companion` (your threads, your characters, the cast), `/companion/:id` (the chat), the memory page, and
   "Talk with {name}" on a character's page. A Companions nav link shows once `COMPANION_OPEN=1` (on since 2026-11-04); a signed-out visitor sees the cast and the price and signs in first.
 - **Access** (`app/api/companion/access.ts`): signed in, past the 18+ gate, admins until `COMPANION_OPEN=1`; anyone
@@ -156,6 +161,95 @@ got neither a reply in the thread nor a nudge for the next date (`nudges`, `lib/
 (`ADVICE_WAIT_DAYS`). Tests: `tests/after-date-text.test.ts` (the words per state, the window, opt-in, dedupe, paused,
 ours), `tests/air-tease.test.ts` (fires once on air, opted-in only, not to the airer), `tests/daily.test.ts` (the step and
 its count), `tests/since.test.ts` (the two lines).
+
+### The question is a menu: chips in the thread (built 2026-11-14)
+
+A text used to end on a question the person could only type back to ("Want me to see Nell again?"), and nothing could
+happen from the thread. Now the thread is the control room for the character's love life, and the engine still decides
+every ending (nothing here touches points, odds, pairings or endings).
+
+- **The menu** (`lib/companion-offers.ts`): the after-date and day-after texts carry `companion_messages.offers`
+  (`{episode_id, partner_id, partner, kinds}`; `action` stays the dedupe tag). The kinds follow the question:
+  `second_date` where the ending left one open (lib/second-date.ts books only a mutual one), `someone_new` everywhere,
+  `advice` always; a day-after text whose next date is already booked offers advice only. The tease carries none (a chip
+  under it would give the ending away). A menu, nothing personal: it goes with the message and the thread's cascade.
+- **The chips** (`app/companion/[id]/CompanionChat.tsx`): under the newest text whose menu is open, and only on your own
+  character's thread: **"Yes, see {partner} again"**, **"Try someone new"**, **"Tell {first} what to do next time"**. They go
+  once one is tapped (`offers.taken`) or when the character has a newer date than the one the text is about.
+- **A tap** is `POST /api/companion/:id {action: "offer", offer, message_id}`, owner-only (the thread's character must be
+  yours; a guest on a signed session owns their own character, as Hear-from allows). Each does its thing through the
+  show's own machinery, so a booking is charged, limited, consented and filmed like any date, and costs no reply:
+  - `second_date` runs `POST /api/episodes/:id/second-date` as that character: `FREE_WEEKLY_SECOND_DATE` when on, else
+    one of the person's free weekly or pack dates; 202 when the other creator's yes is still wanted.
+  - `someone_new` books a date with one of this season's house cast the character hasn't dated (any status counts),
+    picked the way a first date is (`pickFirstPartner`), in the first-date format (`firstDateFormat`: the speed date).
+    Everyone met: 409 `nobody_new`, and the character says so.
+  - `advice` books nothing: the character asks for the note and the page turns the composer into "For next time".
+  - The answer is the thread (the character's own written line in it: "Booked. Wish me luck with Nell." / "Fine, someone
+    new. Teo, apparently. Watch me.", `postFromCharacter` kind `offer`, once per text) plus `href`
+    (`/episodes/<id>?play=1`), which the page shows as **"Watch it"**. No model call anywhere.
+  - **Out of dates** (the episodes route's 429): the character says "I'm out of dates this week. Free ones come back
+    Monday, or there's a pack in the shop." once per text, the chips stay for later, and the reply carries `shop_path`.
+- **"For next time"** (the composer): on your own character's thread with a finished date behind it, a toggle turns the
+  box into a note for the partner of that date (`CompanionThreadView.next_time`: partner and the standing note). Send
+  posts it to the couples nudge route; the standing note shows under the actions with Remove. See "One way only" above
+  for why this is the one thing that reaches a date.
+- **Hear from arrives with the card:** `POST /api/companion/after-date` takes a date that is still `generating` once its
+  early verdict is in (`setup.ending_final`, lib/jobs.ts): the first text is the ending and the debrief, with no reflection
+  yet, so the verdict card's button is live the moment the card shows instead of ~20 s later (the stage passes `pending`
+  only while the ending isn't final).
+- Counted: `companion_offer` (which chip; never the words) in the analytics log and the engagement beacon.
+- Tests: `tests/companion-offers.test.ts` (owner-only, each chip, the free second date, out of dates, nobody new, taken,
+  stale), `tests/after-date-text.test.ts` (the menu per text, the early verdict), `tests/between-dates.test.ts` (the
+  composer's nudge path and the shared 140), `tests/companion-prompt.test.ts` (the note in the prompt).
+
+### Your character lives without you (built 2026-11-14)
+
+The Tomodachi mechanic (`lib/character-life.ts`): things happen to your character whether or not you show up, and the
+text about it is the reason to come back.
+
+- **The house takes your character out once a week** (`weeklyLifeDates`, the daily job's people part, step
+  `life_dates`). Whose turn: an owned character (a real person's, never the house's; one made over MCP only when its
+  owner has an account; never our own identities, `lib/our-traffic.ts loadOurIds`), public or at least open to dates (a
+  private character that may be asked out by name is taken out too, on an unlisted date), with an approved portrait,
+  with at least one date already (the first date is the person's own), none
+  being filmed, not taken (one partner, `lib/partners.ts takenSql`), and no life date in the last 6 days
+  (`LIFE_GAP_DAYS`). Longest since the last life date first. The partner is one of this season's free house cast it
+  hasn't dated in 30 days (`LIFE_PARTNER_GAP_DAYS`; anyone on the cast once it has dated them all), picked by the
+  character's id salted with its date count so the pick rotates (`pickLifePartner`, on `lib/first-date.ts
+  pickFirstPartner`). The format is the first date's (`firstDateFormat`: the speed date unless `FIRST_DATE_FORMAT` says
+  otherwise); public when the character is public, unlisted for a private one.
+- **House-paid, through the ordinary route.** Each date books through `POST /api/episodes` as the owner, on a request
+  built in-process and marked show-paid (`lib/cast-date-request.ts markShowPaidRequest`, the cast-date prize's mark),
+  which the route reads as house-paid: it reserves none of the person's free or pack dates, and every other rule holds
+  (taken, blocks, one date at a time for a couple, the paused switch). The episode is then marked
+  `setup.met_via = 'life'` (index `episodes_life_idx`). Caps: `LIFE_RUN_LIMIT` (25) a run, `LIFE_DATES_PER_DAY` a day
+  (default 30, `0` turns them off; [hosting.md](hosting.md)), nothing while `BOTCHELOR_PAUSE` is on or the paid model's
+  daily date cap is spent (`lib/limits.ts paidDatesToday`: the generation job claims a paid date per show date). About
+  1¢ a date on the show's model.
+- **Stopping them for a character:** make it private and leave "open to dates" off (the character's card has both). A
+  deleted account's characters (owner `deleted`) are never taken out.
+- **The text afterwards** (`lifeTextAfterAir`, from `lib/air.ts airEpisode`, in the tease's place for a life date): when
+  the date airs, the character texts its person what happened, ending included, since they weren't there to watch:
+  "I went out with Juniper at the night market while you were gone. The house set it up." then the ending (its own
+  reflection when there is one, else the debrief's cue word or the plain verdict), then one question ("Want me to see
+  Juniper again?" / "Should I let the house pick again, or do you have someone in mind?" / "Next time, will you pick?").
+  Same opt-in as the day-after text (`muted_proactive = false`, the Hear-from tap), never into a paused thread, kind
+  `life`, tagged `life:<episode id>` (once a date), not to whoever aired it. An owner who never opted in gets the usual
+  `date_aired` notice, and Since you were here (`lib/since.ts`) reads "{name} went on a date with {partner} while you
+  were away · See how it went" while that date is the character's newest.
+- **"Your character's week"** (`weekOf`, `sendCharacterWeeks`, step `character_week`, Sundays UTC, before the digest so
+  the same day's email carries it). Built from what already happened, no model call, per owned character: the week's
+  dates and how each ended (a life date says "the house set it up"), texts the character sent its person, who texted
+  whom between dates (`couple_texts`), the chemistry meter's move per partner it dated this week (`lib/chemistry-shifts.ts
+  runningChemistry`, owner's view: private dates count), and the next thing booked (a date being filmed, or a scheduled
+  one). One `character_week` notice per owner with at least one event (type Matches & dates: inbox, push, the daily
+  digest for email opt-ins; a type mute silences it like any other), once a week (`WEEK_BATCH` 50 a run), never to our
+  own identities. Title "📺 {First}'s week on the show: 2 dates, 1 text to you"; body one sentence per character
+  (`weekSentence`), in the show's voice. Nothing on a quiet week: no notice at all.
+- Tests: `tests/character-life.test.ts` (selection, the 6-day gap, the caps, house-paid not person-paid, the text once
+  and opt-in, the recap's content and the quiet-week skip), `tests/air-tease.test.ts` (the life hook replaces the
+  tease), `tests/daily.test.ts` (the two steps), `tests/since.test.ts` (the line).
 
 ## The plan (P2, built 2026-11-04)
 
@@ -350,7 +444,9 @@ David, 2026-11-13, on a GPT proposal for live "digital humans" (the review and t
   own portrait (collarbones up, mouth closed) and six stills edited from it (lips parted, mouth open, lips rounded,
   eyes closed, a smile, a gasp) on Replicate's Qwen image edit with its safety checker on, each through the PG check
   before it's kept; and a five-second loop of them still and natural (Wan 2.2 at 480p), kept once three of its frames
-  pass. About 26¢ a character, once.
+  pass. Plus a talking still the page never shows (the portrait with the mouth at rest, lips together, not smiling):
+  what Ditto animates on calls, because from the smiling portrait it talks through a grin (2026-11-15). About 29¢ a
+  character, once.
 - **On the call** (`app/companion/[id]/LiveFace.tsx`): the loop plays while they listen; while they talk, the mouth
   follows how loud their voice is right now, read off the same audio the call plays (`PcmPlayer.level()`; a
   taking-turns call's voice file is routed through the same analyser; the device's own voice can't be measured, so
@@ -418,6 +514,15 @@ David, 2026-11-13, on a GPT proposal for live "digital humans" (the review and t
     it renders (`video_frag` events into a MediaSource; `LIVE_FACE_FRAGS=0` turns that off), and a person can pick
     Ditto or MuseTalk for their own calls on `/admin/live-face`. The spike, the chain and the numbers are in
     [PRDs/digital-human.md](PRDs/digital-human.md#ditto-2026-11-14-the-spike-and-the-second-worker).
+  - **Who gets it: the Companion Plan (2026-11-15).** A `:plan` suffix (`LIVE_FACE_PROVIDER=ditto:plan`, production's
+    setting) gives the moving face to admins and Companion Plan members (`planState(…, "companion").active`, looked up
+    by `liveFaceFor`/`liveFaceWho` in `lib/live-face/index.ts`); everyone else's call screen says "With the Companion
+    Plan, <name>'s face moves as they talk" (`liveFaceOffer` → `"plan"`, `data-testid="call-face-offer"`), and the
+    plan page and `/pricing` list it beside the 20 call minutes. It is never a separate charge: it rides on the call's
+    minutes, so a member past the included 20 pays the same token for 10 minutes with or without it. A non-member's
+    call never wakes a worker (no session, no clips, no tick warm-up). Why the plan and not tokens: a face minute costs
+    ~1.3¢ of GPU against the ~7¢ a call minute sells for, so the margin holds without a price of its own, and a perk
+    nobody else can see sells the plan better than a second meter on the call screen.
 
 ## Live calls (P6, built 2026-11-10; on once the Deepgram key is set)
 
@@ -458,7 +563,8 @@ you can talk over the other, and it's charged by the minute. It sits behind the 
 - **By the minute** (`lib/companion-live.ts`, table `companion_live_calls`: when it started and ended, minutes, turns,
   Aura's characters; never audio or words; kept 90 days). It's an extra like voice notes (`COMPANION_EXTRAS.minute`):
   - the Companion Plan includes **20 call minutes** a calendar month (`COMPANION_LIVE_INCLUDED`), then **1 token buys
-    10** (`COMPANION_LIVE_BUNDLE`), kept as credits; admins free; guests get v1 only.
+    10** (`COMPANION_LIVE_BUNDLE`), kept as credits; admins free; guests get v1 only. With `LIVE_FACE_PROVIDER=…:plan`
+    a member's minutes also carry the character's moving face at no extra price (see "Their face on a call").
   - Why 10 a token: a minute costs us about 2¢ at the most (Nova-3 streaming about 0.8¢, Aura about 3¢ per 1,000
     characters and a talkative companion says maybe 350 a minute, a few model calls at about 0.1¢). A token is about
     $0.72 after Stripe, so 10 minutes sells near 7¢ a minute, about 3.5×, in line with the voice notes.

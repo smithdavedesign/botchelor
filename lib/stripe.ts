@@ -22,14 +22,26 @@ export function isTestModeLink(url: URL): boolean {
   return url.hostname === "buy.stripe.com" && url.pathname.startsWith("/test_");
 }
 
+/** The pack the one original link sold; its env names (STRIPE_PAYMENT_LINK, STRIPE_PRICE_LABEL) stay as its defaults. */
+export const DEFAULT_SKU = "pack_5";
+
+/** The env name of one item's Payment Link: STRIPE_LINK_PACK_15 for pack_15. */
+export const linkEnvName = (sku: string) => `STRIPE_LINK_${sku.toUpperCase()}`;
+/** And of its button label: STRIPE_PRICE_LABEL_PACK_15. */
+export const labelEnvName = (sku: string) => `STRIPE_PRICE_LABEL_${sku.toUpperCase()}`;
+
 /**
- * The owner's Payment Link, read per request so a new link needs no rebuild; null unless it is https. On the
- * production site a test-mode link counts as no link: a real buyer would land on Stripe's test page and be declined,
- * so the shop says "purchases open soon" and checkout 503s until a live link is set. STRIPE_ALLOW_TEST_LINK=1 lifts
- * that for a test-mode proof run against production (npm run payment:live).
+ * The owner's Payment Link for one item (one link sells one thing in Stripe), read per request so a new link needs no
+ * rebuild; null unless it is https. STRIPE_LINK_<SKU> first; pack_5 alone also falls back to STRIPE_PAYMENT_LINK (or
+ * NEXT_PUBLIC_STRIPE_PAYMENT_LINK), the names from when it was the only thing on sale. An item with no link isn't on
+ * sale (lib/catalog.ts onSale): the shop hides its tile and checkout 503s for it. On the production site a test-mode
+ * link counts as no link: a real buyer would land on Stripe's test page and be declined, so the shop says "purchases
+ * open soon" and checkout 503s until a live link is set. STRIPE_ALLOW_TEST_LINK=1 lifts that for a test-mode proof run
+ * against production (npm run payment:live).
  */
-export function paymentLinkFromEnv(env: Env = process.env): URL | null {
-  const raw = (env.STRIPE_PAYMENT_LINK || env.NEXT_PUBLIC_STRIPE_PAYMENT_LINK || "").trim();
+export function paymentLinkFromEnv(env: Env = process.env, sku: string = DEFAULT_SKU): URL | null {
+  const fallback = sku === DEFAULT_SKU ? env.STRIPE_PAYMENT_LINK || env.NEXT_PUBLIC_STRIPE_PAYMENT_LINK : undefined;
+  const raw = (env[linkEnvName(sku)] || fallback || "").trim();
   if (!raw) return null;
   try {
     const url = new URL(raw);
@@ -61,10 +73,14 @@ export function paymentLinkUrl(link: URL, orderId: string): string {
   return url.href;
 }
 
-/** The Buy button's text, from STRIPE_PRICE_LABEL (set with the link, so it names the link's real price). */
-export function priceLabelFromEnv(env: Env, fallback: string): string {
-  const label = (env.STRIPE_PRICE_LABEL ?? "").trim();
-  return label ? label.slice(0, MAX_LABEL_LENGTH) : fallback;
+/**
+ * The Buy button's text for one item, from STRIPE_PRICE_LABEL_<SKU> (set with its link, so it names the link's real
+ * price); pack_5 alone also reads the original STRIPE_PRICE_LABEL. Else the fallback.
+ */
+export function priceLabelFromEnv(env: Env, fallback: string, sku: string = DEFAULT_SKU): string {
+  const label = (env[labelEnvName(sku)] || (sku === DEFAULT_SKU ? env.STRIPE_PRICE_LABEL : "") || "").trim();
+  // The .do spec commits CHANGE_ME as the placeholder; a button must never read that.
+  return label && label !== "CHANGE_ME" ? label.slice(0, MAX_LABEL_LENGTH) : fallback;
 }
 
 const HEX_SHA256 = /^[0-9a-f]{64}$/;

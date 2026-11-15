@@ -9,12 +9,19 @@
 /** The stills, each an edit of the portrait: the mouth shapes, the eyes closed, and two looks. */
 export const FACE_STILLS = ["portrait", "mouth_small", "mouth_open", "mouth_round", "blink", "smile", "surprised"] as const;
 export type FaceStill = (typeof FACE_STILLS)[number];
-export type FacePart = FaceStill | "loop";
-export const FACE_PARTS: readonly FacePart[] = [...FACE_STILLS, "loop"];
+/**
+ * A still the page never shows: the portrait with the mouth at rest (lips together, not smiling), what Ditto animates
+ * on a call. From a smiling still it talks through a grin (the 2026-11-15 compare: the smile holds while the jaw opens,
+ * so every word shows teeth and the lips never close); from a mouth at rest the lips close between words.
+ */
+export const TALK_STILL = "talk" as const;
+export type KitStill = FaceStill | typeof TALK_STILL;
+export type FacePart = KitStill | "loop";
+export const FACE_PARTS: readonly FacePart[] = [...FACE_STILLS, TALK_STILL, "loop"];
 
 /** What the page gets: a URL per part that's ready, whether more is on its way, and why a part failed if one did. */
 export type FaceKit = {
-  stills: Partial<Record<FaceStill, string>>;
+  stills: Partial<Record<KitStill, string>>;
   loop: string | null;
   making: boolean;
   failed: string | null;
@@ -29,7 +36,13 @@ export function canTalk(kit: FaceKit | null): kit is FaceKit {
   return Boolean(kit?.stills.portrait && kit.stills.mouth_small && kit.stills.mouth_open && kit.stills.mouth_round);
 }
 
-/** Everything's there: nothing left to wait for. */
+/** The still a renderer that moves the whole face works from: the talking still once it's drawn, else the portrait. */
+export function talkingStill(kit: FaceKit | null): { still: KitStill; url: string } | null {
+  if (kit?.stills.talk) return { still: TALK_STILL, url: kit.stills.talk };
+  return kit?.stills.portrait ? { still: "portrait", url: kit.stills.portrait } : null;
+}
+
+/** Everything the page plays is there: nothing left to wait for (the talking still isn't the page's, so not waited on). */
 export const kitComplete = (kit: FaceKit | null): boolean => Boolean(kit && !kit.making && kit.loop && FACE_STILLS.every((p) => kit.stills[p]));
 
 /** Loudness (0..1, the voice's RMS) above which the mouth opens, and above which it's wide. */

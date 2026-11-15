@@ -17,6 +17,7 @@ import { portraitPathSql } from "./assets";
 import type { Db } from "./db";
 import { leftTogether } from "./mixer-room";
 import { notify } from "./notifications";
+import { listedCharacterSql } from "./public-cast";
 import { POINTS_PER_BACKING, type Ending } from "./rules";
 import { showCastIds } from "./season-cast";
 import { seasonPath } from "./season-ref";
@@ -79,7 +80,7 @@ export async function backingBoard(db: Db, viewerId: string | null, now: Date = 
   const season = seasonIdOf(now);
   const [chars, counts, mine] = await Promise.all([
     db.query<{ id: string; name: string; hue: number | null; portrait: string | null }>(
-      `select c.id, c.name, c.avatar_hue as hue, ${portraitPathSql("c")} as portrait from characters c where c.id = any($1)`,
+      `select c.id, c.name, c.avatar_hue as hue, ${portraitPathSql("c")} as portrait from characters c where c.id = any($1) and ${listedCharacterSql("c")}`,
       [ids],
     ),
     db.query<{ character_id: string; n: number }>(`select character_id, count(*)::int as n from cast_backings where season_id = $1 group by character_id`, [season]),

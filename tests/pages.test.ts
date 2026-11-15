@@ -207,3 +207,51 @@ describe("the shop's Buy button (Stripe Payment Link)", () => {
     expect(html).toMatch(/<button[^>]*disabled=""/);
   });
 });
+
+describe("money at the free-dates wall (2026-11-14)", () => {
+  it("the out-of-dates card names the reset, the packs biggest first, the character's texts, one 18+ box and a button per pack", async () => {
+    const { default: OutOfDates } = await import("@/app/OutOfDates");
+    const html = renderToStaticMarkup(
+      createElement(OutOfDates, {
+        first: "Odile",
+        data: {
+          resets_at: "2026-11-16T00:00:00.000Z",
+          shop: "/shop",
+          packs: [
+            { sku: "pack_5", name: "5 more dates", price_cents: 400, episodes: 5 },
+            { sku: "pack_15", name: "15 more dates", price_cents: 1000, episodes: 15 },
+          ],
+          thread: "/companion/thread-1",
+          newsletter: false,
+        },
+      }),
+    );
+    expect(html).toMatch(/Out of free dates until \w+day\./);
+    expect(html).toContain("15 more dates $10 · 5 more $4");
+    expect(html).toContain('href="/companion/thread-1"');
+    expect(html).toContain("let Odile text you");
+    expect(html.match(/name="attest"/g)).toHaveLength(1);
+    expect(html).toMatch(/<button[^>]*value="pack_15"[^>]*>15 more dates · \$10<\/button>/);
+    expect(html).toMatch(/<button[^>]*value="pack_5"[^>]*>5 more dates · \$4<\/button>/);
+    // The Plus tile rides along, honest about what it is.
+    expect(html).toContain("Botchelor Plus");
+    expect(html).toContain("Tell me when it opens");
+    expect(html).toContain("nothing is charged");
+  });
+
+  it("the Plus tile says the plan doesn't exist yet and asks for an email only while the letter is open", async () => {
+    const { default: PlusInterest } = await import("@/app/shop/PlusInterest");
+    const off = renderToStaticMarkup(createElement(PlusInterest, { place: "shop", newsletter: false }));
+    expect(off).toContain("$4.99 a month");
+    expect(off).toMatch(/doesn(?:'|&#x27;)t exist yet/);
+    expect(off).not.toContain('type="email"');
+    const on = renderToStaticMarkup(createElement(PlusInterest, { place: "shop", newsletter: true }));
+    expect(on).toContain('type="email"');
+    expect(on).toContain("Sunday letter");
+  });
+
+  it("the Buy button carries where it was clicked", () => {
+    const html = renderToStaticMarkup(createElement(BuyButton, { sku: "pack_15", label: "Buy 15 more dates for $10", disabled: false, place: "out_of_dates" }));
+    expect(html).toContain("Buy 15 more dates for $10");
+  });
+});

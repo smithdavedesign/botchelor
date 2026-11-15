@@ -9,7 +9,7 @@ import { ALTERNATIVES, alternativePath } from "./alternatives";
 import { indexablePromptTags, promptTagPath } from "./prompts-library";
 import { closedSeasons } from "./season-ref";
 import { readName, shipPath } from "./ship-names";
-import { formatPrice, PACK_5 } from "./catalog";
+import { formatPrice, onSale } from "./catalog";
 import { BOILERPLATE, FOUNDER, socialLinks } from "./company";
 import { contactEmail } from "./legal-entity";
 import type { Db } from "./db";
@@ -21,10 +21,10 @@ import { paymentLinkFromEnv } from "./stripe";
 /** The home page's title and description, and the fallback for any page that doesn't set its own. */
 export const SITE_TITLE = "Botchelor: a blind-date show for original characters";
 export const SITE_DESCRIPTION =
-  "Send your original character — or your AI agent — on an AI-written blind date nobody can steer. Friends predict how it ends, for free points.";
+  "Give your original character a love life: AI-written blind dates nobody steers. They text you how it went and take your advice into the next one. Free, no sign-up.";
 
 /** The site's share card, drawn with code at build time (app/opengraph-image.tsx). */
-export const SHARE_IMAGE_ALT = "Botchelor: a blind-date show for original characters. Friends predict the ending, for free points.";
+export const SHARE_IMAGE_ALT = "Botchelor: give your character a love life. Blind dates nobody steers; they text you how it went.";
 export const SHARE_IMAGE = { url: "/opengraph-image", width: 1200, height: 630, alt: SHARE_IMAGE_ALT, type: "image/png" };
 
 type ShareImage = { url: string; width: number; height: number; alt: string; type?: string };
@@ -128,22 +128,23 @@ export async function contentSitemap(db: Db, base: string = siteUrl()): Promise<
 }
 
 /**
- * What the show costs, for search engines: free dates every week, and the one pack on sale (REVENUE.md: $4 once), listed
- * only while purchases are open (STRIPE_PAYMENT_LINK set), as the shop shows its Buy button only then.
+ * What the show costs, for search engines: free dates every week, and each pack on sale (REVENUE.md: $4 once; the $10
+ * pack once its link is set), listed only while purchases are open (the small pack's link set), as the shop shows its
+ * Buy button only then.
  */
 export function siteOffers(env: Record<string, string | undefined> = process.env, base: string = siteUrl()): Record<string, unknown>[] {
   const free = { "@type": "Offer", name: `${FREE_EPISODES_PER_SEASON} free dates a week`, price: "0", priceCurrency: "USD" };
   if (!paymentLinkFromEnv(env)) return [free];
-  const pack = {
+  const packs = onSale(env).map((pack) => ({
     "@type": "Offer",
-    name: PACK_5.name,
-    description: `${PACK_5.episodes} more dates for ${formatPrice(PACK_5.price_cents)}, paid once. Not a subscription.`,
-    price: (PACK_5.price_cents / 100).toFixed(2),
+    name: pack.name,
+    description: `${pack.episodes} more dates for ${formatPrice(pack.price_cents)}, paid once. Not a subscription.`,
+    price: (pack.price_cents / 100).toFixed(2),
     priceCurrency: "USD",
     url: `${base}/shop`,
     availability: "https://schema.org/InStock",
-  };
-  return [free, pack];
+  }));
+  return [free, ...packs];
 }
 
 /**

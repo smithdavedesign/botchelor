@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { CATALOG, catalogItem, ITEM_KINDS, ON_SALE } from "@/lib/catalog";
+import { CATALOG, catalogItem, ITEM_KINDS, onSale, PACKS } from "@/lib/catalog";
 import { ensureSchema } from "@/lib/db";
 import { HOUSE_CHARACTERS, PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
 import { ownedSkus } from "@/lib/payments";
@@ -8,6 +8,7 @@ import {
   api,
   buy,
   episodeJson,
+  FAKE_LINKS,
   FAKE_PAYMENT_LINK,
   grantByHand,
   named,
@@ -35,8 +36,8 @@ beforeEach(async () => {
 
 const CHARACTER_ITEMS = CATALOG.filter((i) => i.kind === "house_character");
 const FRAME_ITEMS = CATALOG.filter((i) => i.kind === "frame");
-const OFF_SALE = CATALOG.filter((i) => !ON_SALE.includes(i));
-const PACK = ON_SALE[0];
+const OFF_SALE = CATALOG.filter((i) => !PACKS.includes(i));
+const PACK = PACKS[0];
 
 type Entry = { rank: number; name: string; points: number; me: boolean; frame?: string };
 
@@ -104,12 +105,12 @@ describe("buying never changes points or rank (exit criterion)", () => {
     });
 
     // The middle player and the last-placed player each get every SKU: a change in either direction would show.
-    expect(ON_SALE.length).toBeGreaterThanOrEqual(1);
+    expect(PACKS.length).toBeGreaterThanOrEqual(1);
     expect(CHARACTER_ITEMS.length).toBeGreaterThanOrEqual(1);
     expect(FRAME_ITEMS.length).toBeGreaterThanOrEqual(1);
     for (const buyer of [kestrel, alder]) {
       for (const item of CATALOG) {
-        if (ON_SALE.includes(item)) await buy(item.sku, buyer);
+        if (PACKS.includes(item)) await buy(item.sku, buyer);
         else await grantByHand(t.db, buyer, item.sku);
         expect(await ownedSkus(t.db, userIdOf(buyer))).toContain(item.sku);
         expect(await snapshot()).toEqual(before);
@@ -128,7 +129,7 @@ describe("buying never changes points or rank (exit criterion)", () => {
 
 describe("POST /api/checkout (Stripe Payment Link)", () => {
   it("answers with the Payment Link carrying the new order's id as client_reference_id, and stores a pending order at the list price", async () => {
-    for (const item of ON_SALE) {
+    for (const item of PACKS) {
       const buyer = newUserCookie();
       // Smuggled price, currency, episode and points fields are ignored: the server prices from the catalog.
       const res = await api.checkout(
@@ -154,7 +155,7 @@ describe("POST /api/checkout (Stripe Payment Link)", () => {
 
       // The owner's link, plus our random order id; never the user's session cookie.
       const url = new URL(body.url);
-      expect(`${url.origin}${url.pathname}`).toBe(FAKE_PAYMENT_LINK);
+      expect(`${url.origin}${url.pathname}`).toBe(FAKE_LINKS[item.sku].url);
       expect([...url.searchParams]).toEqual([["client_reference_id", rows[0].id]]);
       expect(body.url).not.toContain(userIdOf(buyer));
     }
@@ -333,9 +334,30 @@ describe("the catalog", () => {
     expect(catalogItem("points")).toBeUndefined();
   });
 
-  it("sells exactly one thing, through the one Payment Link: the 5-date episode pack", () => {
-    expect(ON_SALE.map((i) => [i.sku, i.kind, i.episodes])).toEqual([["pack_5", "episode_pack", 5]]);
-    for (const item of ON_SALE) expect(CATALOG).toContain(item);
+  it("sells the two episode packs, each through its own Payment Link, the small one first", () => {
+    expect(PACKS.map((i) => [i.sku, i.kind, i.episodes, i.price_cents])).toEqual([
+      ["pack_5", "episode_pack", 5, 400],
+      ["pack_15", "episode_pack", 15, 1000],
+    ]);
+    for (const item of PACKS) expect(CATALOG).toContain(item);
+  });
+
+  it("puts a pack on sale only once its link is set; pack_5 is always listed (its Buy is off without a link)", () => {
+    expect(onSale({}).map((i) => i.sku)).toEqual(["pack_5"]);
+    expect(onSale({ STRIPE_PAYMENT_LINK: FAKE_PAYMENT_LINK }).map((i) => i.sku)).toEqual(["pack_5"]);
+    expect(onSale({ STRIPE_LINK_PACK_15: FAKE_LINKS.pack_15.url }).map((i) => i.sku)).toEqual(["pack_5", "pack_15"]);
+    expect(onSale({ STRIPE_PAYMENT_LINK: FAKE_PAYMENT_LINK, STRIPE_LINK_PACK_15: FAKE_LINKS.pack_15.url }).map((i) => i.sku)).toEqual(["pack_5", "pack_15"]);
+  });
+
+  it("answers 503 for a pack whose link isn't set, and still sells the other", async () => {
+    vi.stubEnv("STRIPE_LINK_PACK_15", "");
+    const buyer = newUserCookie();
+    const res = await api.checkout({ sku: "pack_15", attest: true }, buyer);
+    expect(res.status).toBe(503);
+    expect((await res.json()).error).toBe("payments_unavailable");
+    expect(await t.count("orders")).toBe(0);
+    expect((await api.checkout({ sku: "pack_5", attest: true }, buyer)).status).toBe(200);
+    expect(await t.count("orders")).toBe(1);
   });
 
   it("prices premium house characters between $3 and $8, as the roadmap says", () => {

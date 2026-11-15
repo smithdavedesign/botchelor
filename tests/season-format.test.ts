@@ -54,7 +54,7 @@ describe("the catalogue (lib/season-format.ts)", () => {
   it("defaults to classic and falls back for unknown slugs", () => {
     expect(seasonFormat(null).slug).toBe("classic");
     expect(seasonFormat("not_a_format").slug).toBe("classic");
-    expect(SEASON_FORMATS.map((f) => f.slug)).toEqual(["classic", "island", "last_standing", "sight_unseen", "meet_the_folks", "ex_files"]);
+    expect(SEASON_FORMATS.map((f) => f.slug)).toEqual(["classic", "island", "last_standing", "sight_unseen", "meet_the_folks", "ex_files", "botchelor"]);
   });
 
   it("classic deals from the whole library; every other format's pool is real venues only", () => {
@@ -276,7 +276,7 @@ describe("/api/admin/season: the format picker", () => {
   it("shows the formats, sets one for this season or the next, and refuses a closed one", async () => {
     vi.stubEnv("FRONTIER_PASSWORD", PW);
     const view = await (await adminSeasonGet(new Request(`${BASE_URL}/api/admin/season`, { headers }))).json();
-    expect(view.formats.map((f: { slug: string }) => f.slug)).toEqual(["classic", "island", "last_standing", "sight_unseen", "meet_the_folks", "ex_files"]);
+    expect(view.formats.map((f: { slug: string }) => f.slug)).toEqual(["classic", "island", "last_standing", "sight_unseen", "meet_the_folks", "ex_files", "botchelor"]);
     expect(view.this_season.format).toBe("classic");
 
     const set = await post({ action: "format", season_id: view.next_season.id, slug: "island" });

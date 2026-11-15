@@ -1,6 +1,8 @@
 import Link from "next/link";
 import Avatar from "./Avatar";
+import { showCrowd } from "@/lib/crowd-threshold";
 import type { AiringSoon, EpisodeView } from "@/lib/game";
+import type { CeremonyBoard } from "@/lib/ceremony";
 import type { SituationBoard } from "@/lib/situations";
 import type { RevealBoard } from "@/lib/weekly-reveal";
 import type { LobbyEntry } from "@/lib/watch";
@@ -33,16 +35,22 @@ export default function TonightBand({
   airing,
   situation,
   reveal = null,
+  ceremony = null,
   latest,
   now,
+  insider = false,
 }: {
   rooms: LobbyEntry[];
   airing: AiringSoon[];
   situation: SituationBoard | null;
   /** Sunday's reveal (lib/weekly-reveal.ts): a slot while its vote is open, the week's one appointment. */
   reveal?: RevealBoard | null;
+  /** The rose ceremony (lib/ceremony.ts, a Botchelor season): a slot while its vote is open. */
+  ceremony?: CeremonyBoard | null;
   latest: EpisodeView | null;
   now: number;
+  /** The viewer has a character (lib/crowd-threshold.ts): "N watching" from 1; a stranger sees a count only for a crowd. */
+  insider?: boolean;
 }) {
   const live = rooms.find((r) => r.status === "live") ?? null;
   const premiere = rooms.find((r) => r.status === "upcoming") ?? null;
@@ -55,7 +63,7 @@ export default function TonightBand({
       live: true,
       faces: live.characters,
       names: `${live.characters[0].name} × ${live.characters[1].name}`,
-      line: live.watching > 0 ? `${live.watching} watching — tap in` : "On the air — tap in",
+      line: showCrowd(live.watching, { insider }) ? `${live.watching} watching — tap in` : "On the air — tap in",
       href: live.room_path,
     });
   }
@@ -89,6 +97,16 @@ export default function TonightBand({
       href: "/watch#sunday-reveal",
     });
   }
+  if (ceremony?.vote && ceremony.vote.choices.length >= 2) {
+    slots.push({
+      key: "ceremony",
+      label: "The rose ceremony",
+      faces: [ceremony.lead, ...ceremony.vote.choices.map((c) => ceremony.suitors.find((s) => s.id === c.id) ?? { id: c.id, name: c.name })].slice(0, 2),
+      names: "Who goes home on Sunday?",
+      line: ceremony.vote.my_pick ? `Your vote is in — the ceremony ${inWords(ceremony.vote.closes_at, now)}` : `Vote — the ceremony ${inWords(ceremony.vote.closes_at, now)}`,
+      href: "/watch#rose-ceremony",
+    });
+  }
   if (situation) {
     const mins = Math.max(0, Math.round((Date.parse(situation.closes_at) - now) / 60_000));
     const closes = mins >= 60 ? `${Math.floor(mins / 60)}h` : `${mins}m`;
@@ -120,7 +138,7 @@ export default function TonightBand({
   const watching = filming.reduce((n, r) => n + (r.watching ?? 0), 0);
   const facts: { key: string; text: string; live?: boolean }[] = [];
   if (filming.length) {
-    facts.push({ key: "filming", live: true, text: `${filming.length} ${filming.length === 1 ? "date" : "dates"} filming${watching > 0 ? ` · ${watching} watching` : ""}` });
+    facts.push({ key: "filming", live: true, text: `${filming.length} ${filming.length === 1 ? "date" : "dates"} filming${showCrowd(watching, { insider }) ? ` · ${watching} watching` : ""}` });
   }
   if (airing.length > 1) facts.push({ key: "airing", text: `${airing.length} dates airing soon` });
   if (reveal && reveal.state === "closed") facts.push({ key: "secret", live: true, text: `Sunday's secret comes out ${inWords(reveal.airs_at, now)}` });

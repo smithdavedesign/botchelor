@@ -1,7 +1,8 @@
 /**
  * Ditto's clip library per character (docs/PRDs/digital-human.md, "The road from here", 1): what a call shows between
- * and around replies, rendered once from the kit's portrait by the Ditto worker and kept, so the idle, the reactions
- * and the talking all come from one renderer and every join is still-to-still:
+ * and around replies, rendered once from the still Ditto talks from (dittoSource: the kit's talking still, else its
+ * portrait) by the Ditto worker and kept, so the idle, the reactions and the talking all come from one renderer and
+ * one still, and every join is still-to-still:
  *
  *  - `idle`: eight seconds of silence with a slow sway of the head (Ditto's own blinks and small motion on top),
  *    fading in from and out to the portrait, so the browser can loop it in place of the kit's Wan loop;
@@ -16,6 +17,7 @@ import { randomUUID } from "node:crypto";
 import { LIVE_AUDIO_RATE } from "../companion-live-shared";
 import type { Db } from "../db";
 import { faceKitOf, faceSource } from "../face-kit";
+import { TALK_STILL, talkingStill, type KitStill } from "../face-kit-shared";
 import { type ReactionKind } from "../live-face-shared";
 import { keepBytes, readBytes } from "../object-store";
 import { dittoConfig, speakDitto } from "./ditto";
@@ -45,12 +47,28 @@ export type DittoLibrary = { idle: string | null; reactions: Partial<Record<Reac
 
 const COLS = `id, character_id, source_id, kind, status, mime, object_key, data, frames, error, created_at::text, updated_at::text`;
 
-/** The character's ready clips for the kit they have now, as URLs the browser plays; `complete` when all three are there. */
+/** Marks a library drawn from the talking still in its key, so clips from the smiling portrait never play beside it. */
+const TALK_KEY = "#talk";
+
+/**
+ * The still Ditto animates for this character, from the kit they have now: the talking still (the mouth at rest) once
+ * it's drawn, else the portrait. `sourceId` is the kit's (faceSource); `key` keys the clip library, marked when it's
+ * the talking still; `url` is absolute, what the worker fetches.
+ */
+export async function dittoSource(db: Db, characterId: string, baseUrl: string): Promise<{ sourceId: string; key: string; url: string; still: KitStill } | null> {
+  const source = await faceSource(db, characterId, baseUrl);
+  if (!source) return null;
+  const pick = talkingStill(await faceKitOf(db, characterId, baseUrl));
+  if (!pick) return null;
+  return { sourceId: source.id, key: pick.still === TALK_STILL ? `${source.id}${TALK_KEY}` : source.id, url: new URL(pick.url, baseUrl).toString(), still: pick.still };
+}
+
+/** The character's ready clips for the still Ditto talks from now, as URLs the browser plays; `complete` when all are there. */
 export async function dittoLibrary(db: Db, characterId: string, baseUrl: string): Promise<DittoLibrary> {
   const none: DittoLibrary = { idle: null, reactions: {}, complete: false };
-  const source = await faceSource(db, characterId, baseUrl);
+  const source = await dittoSource(db, characterId, baseUrl);
   if (!source) return none;
-  const { rows } = await db.query<Pick<LibraryRow, "id" | "kind" | "status">>(`select id, kind, status from live_face_clips where character_id = $1 and source_id = $2`, [characterId, source.id]);
+  const { rows } = await db.query<Pick<LibraryRow, "id" | "kind" | "status">>(`select id, kind, status from live_face_clips where character_id = $1 and source_id = $2`, [characterId, source.key]);
   const out: DittoLibrary = { idle: null, reactions: {}, complete: false };
   for (const r of rows) {
     if (r.status !== "ready") continue;
@@ -75,25 +93,23 @@ export const silence = (seconds: number): Buffer => Buffer.alloc(Math.round(seco
 const making = new Set<string>();
 
 /**
- * Renders whichever of the three clips the character lacks for their kit's portrait (missing, or failed or lost a
- * while ago), one after another on the Ditto endpoint, and keeps them. Safe to call on every Ditto call start: it does
- * nothing when all three are there, and a render in flight in this process isn't started twice. Returns how many it made.
+ * Renders whichever clips the character lacks for the still Ditto talks from (missing, or failed or lost a while ago),
+ * one after another on the Ditto endpoint, and keeps them. Safe to call on every Ditto call start: it does nothing when
+ * all are there, and a render in flight in this process isn't started twice. Returns how many it made.
  */
 export async function ensureDittoLibrary(db: Db, characterId: string, baseUrl: string, env: Env = process.env): Promise<number> {
   const cfg = dittoConfig(env);
   if (!cfg) return 0;
-  const source = await faceSource(db, characterId, baseUrl);
+  const source = await dittoSource(db, characterId, baseUrl);
   if (!source) return 0;
-  const kit = await faceKitOf(db, characterId, baseUrl);
-  if (!kit?.stills.portrait) return 0;
-  const sourceUrl = new URL(kit.stills.portrait, baseUrl).toString();
-  const { rows } = await db.query<Pick<LibraryRow, "id" | "kind" | "status" | "updated_at">>(`select id, kind, status, updated_at::text from live_face_clips where character_id = $1 and source_id = $2`, [characterId, source.id]);
+  const sourceUrl = source.url;
+  const { rows } = await db.query<Pick<LibraryRow, "id" | "kind" | "status" | "updated_at">>(`select id, kind, status, updated_at::text from live_face_clips where character_id = $1 and source_id = $2`, [characterId, source.key]);
   let made = 0;
   for (const kind of LIBRARY_KINDS) {
     const have = rows.find((r) => r.kind === kind);
     const stale = have && have.status !== "ready" && Date.now() - new Date(have.updated_at).getTime() > RETRY_AFTER_MS;
     if (have && (have.status === "ready" || !stale)) continue;
-    const lock = `${characterId}:${source.id}:${kind}`;
+    const lock = `${characterId}:${source.key}:${kind}`;
     if (making.has(lock)) continue;
     making.add(lock);
     const id = have?.id ?? randomUUID();
@@ -101,7 +117,7 @@ export async function ensureDittoLibrary(db: Db, characterId: string, baseUrl: s
       await db.query(
         `insert into live_face_clips (id, character_id, source_id, kind, status) values ($1, $2, $3, $4, 'making')
          on conflict (character_id, source_id, kind) do update set status = 'making', error = null, updated_at = now()`,
-        [id, characterId, source.id, kind],
+        [id, characterId, source.key, kind],
       );
       const spec = LIBRARY_SPEC[kind];
       const out = await speakDitto(cfg, { source_url: sourceUrl, pcm: silence(spec.seconds), rate: LIVE_AUDIO_RATE, fade_in: spec.fade_in, fade_out: spec.fade_out, motion: spec.motion, emo: spec.emo ?? 4 }, { timeoutMs: 60_000 });

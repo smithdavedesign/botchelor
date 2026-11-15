@@ -2,13 +2,13 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 import { GET as googleCallback } from "@/app/api/auth/google/callback/route";
 import { GET as googleStart } from "@/app/api/auth/google/start/route";
 import { signSession } from "@/lib/auth";
-import { ON_SALE } from "@/lib/catalog";
+import { PACKS } from "@/lib/catalog";
 import { api, openPayments, startTestDb } from "./helpers";
 
 // Buying needs an account (app/api/checkout): bought tokens hang off the buyer's id, and an anonymous id is one
 // browser's cookie. Built from parts so no literal secret sits in the repo (GitGuardian scans every commit).
 const SECRET = ["buy", "test", "secret", "abcdefghij0123456789"].join("-");
-const PACK = ON_SALE[0];
+const PACK = PACKS[0];
 const sessCookie = (uid: string, authenticated: boolean) => `bz_sess=${signSession({ uid, authenticated }, { SESSION_SECRET: SECRET })}`;
 
 let t: Awaited<ReturnType<typeof startTestDb>>;

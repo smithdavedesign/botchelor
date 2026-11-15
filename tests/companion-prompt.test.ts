@@ -115,6 +115,19 @@ describe("the companion's prompt", () => {
     expect(companionMessages({ ...base, character: character() })[0].content).not.toContain("Your life on the show lately");
   });
 
+  it("carries the owner's standing note for the next date as data it may acknowledge, never recite, and only with a last date", () => {
+    const own = character({ house: false, ownerId: "u1" });
+    const lastDate = { partner: "Otto Fenn", venue: "the night market", endingLabel: "Just friends", reflection: null };
+    const withNote = companionMessages({ ...base, character: own, yours: true, lastDate, activeNudge: "Bring up the boat." })[0].content;
+    expect(withNote).toContain('Their note for your next date with Otto Fenn (it goes with you into that date; you can say you\'ve got it, in your own words, without reciting it): "Bring up the boat."');
+    // No note, a blank note, or no last date to pin it to: nothing about it.
+    expect(companionMessages({ ...base, character: own, yours: true, lastDate, activeNudge: null })[0].content).not.toContain("Their note for your next date");
+    expect(companionMessages({ ...base, character: own, yours: true, lastDate, activeNudge: "   " })[0].content).not.toContain("Their note for your next date");
+    expect(companionMessages({ ...base, character: own, yours: true, lastDate: null, activeNudge: "Bring up the boat." })[0].content).not.toContain("Bring up the boat");
+    // A stranger's thread never sees an owner's note.
+    expect(companionMessages({ ...base, character: own, yours: false, lastDate, activeNudge: "Bring up the boat." })[0].content).not.toContain("Bring up the boat");
+  });
+
   it("talks to its own creator as the person who made it, with its last date to tell, and keeps every rule", () => {
     const own = character({ house: false, ownerId: "u1" });
     const lastDate = { partner: "Otto Fenn", venue: "the night market", endingLabel: "Just friends", reflection: "I talked over him twice. Next time I listen." };

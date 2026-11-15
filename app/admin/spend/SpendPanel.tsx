@@ -246,6 +246,12 @@ export default function SpendPanel() {
             </tbody>
           </table>
         </div>
+        {/* The "Botchelor Plus" intent tile (lib/plus-interest.ts): nothing sold, so it isn't income; the gate that would
+            reopen building the plan is 10 people, or the first outside purchase (docs/ideas.md). */}
+        <p className="muted small" data-plus-interest-count>
+          Plus interest: {view.plus_interest.people} {view.plus_interest.people === 1 ? "person" : "people"} ({view.plus_interest.with_email} with email,{" "}
+          {view.plus_interest.taps} taps). The plan is built at 10, or at the first outside purchase of anything.
+        </p>
       </section>
 
       <section className="card">

@@ -23,7 +23,9 @@ import type { Db } from "./db";
 import { seedFrom } from "./engine";
 import { notifyAll } from "./notifications";
 import { DATE_ROLEPLAYS, fillPremise, termsFor, type DateRoleplay, type DateRoleplayDef } from "./roleplays";
-import { seasonCastIds } from "./season-cast";
+import { seasonCastIds, suitorInTurn } from "./season-cast";
+import type { SeasonFormatDef } from "./season-format";
+import { seasonFormatNow } from "./season-format-store";
 import { createTemplateParty } from "./watch";
 
 /** How many situations each day's vote offers. */
@@ -48,15 +50,22 @@ export function situationChoices(day: string): DateRoleplayDef[] {
 
 /**
  * The two of the season's house cast a day's vote is for. The season is the one the day falls in (noon UTC), so the
- * date made just after midnight on the 1st is still last month's pair.
+ * date made just after midnight on the 1st is still last month's pair. On a Botchelor season (the format passed in has
+ * a lead, lib/ceremony.ts) the pair is the lead and the suitor whose turn it is, so every suitor dates the lead before
+ * Sunday; without a format, or on any other, the pair is dealt from the day exactly as before.
  */
-export function situationPair(day: string): [string, string] | null {
-  const cast = seasonCastIds(new Date(`${day}T12:00:00Z`));
+export function situationPair(day: string, def: SeasonFormatDef | null = null): [string, string] | null {
+  const noon = new Date(`${day}T12:00:00Z`);
+  if (def?.lead) return suitorInTurn(noon);
+  const cast = seasonCastIds(noon);
   if (cast.length < 2) return null;
   const i = seedFrom("situation-a", day) % cast.length;
   const j = (i + 1 + (seedFrom("situation-b", day) % (cast.length - 1))) % cast.length;
   return [cast[i], cast[j]];
 }
+
+/** The format a day's season runs in, for the pair (lib/season-format-store.ts); null means classic, as before. */
+const formatOfDay = (db: Db, day: string): Promise<SeasonFormatDef | null> => seasonFormatNow(db, new Date(`${day}T12:00:00Z`)).catch(() => null);
 
 export type VoteResult = { ok: true; pick: string } | { ok: false; status: number; error: string; message: string };
 
@@ -103,7 +112,7 @@ export async function playVotedSituation(db: Db, now: Date = new Date()): Promis
   // The ballot's dare lane (lib/dares.ts): its winner rides the same date. Either lane alone makes the night.
   const dare = dareWinnerOf(dareChoices(day), dareTally);
   if (!winner && !dare) return { played: false, day, reason: "no_votes" };
-  const pair = situationPair(day);
+  const pair = situationPair(day, await formatOfDay(db, day));
   if (!pair) return { played: false, day, reason: "no_cast" };
   const dared = dare ? daredOf(day, pair) : null;
   const total = [...tally.values()].reduce((s, n) => s + n, 0);
@@ -194,7 +203,7 @@ export type SituationBoard = {
 /** The card's data for one viewer. null when the season has no cast to deal from. */
 export async function situationBoard(db: Db, viewerId: string | null, now: Date = new Date()): Promise<SituationBoard | null> {
   const day = utcDay(now);
-  const pair = situationPair(day);
+  const pair = situationPair(day, await formatOfDay(db, day));
   if (!pair) return null;
   const [chars, tally, mine, lastRow] = await Promise.all([
     db.query<{ id: string; name: string; hue: number | null; portrait: string | null }>(`select c.id, c.name, c.avatar_hue as hue, ${portraitPathSql("c")} as portrait from characters c where c.id = any($1)`, [pair]),

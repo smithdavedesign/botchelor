@@ -18,6 +18,7 @@ import { adultKeys } from "./adult/settings";
 import type { Db } from "./db";
 import { loadOurIds } from "./our-traffic";
 import { PLAN_IDS, PLANS, planPrice } from "./paid-plans";
+import { plusInterestCount, type PlusInterestCount } from "./plus-interest";
 import { addMonths, amountIn, type Category, type MoneyEntry, type Month, type NewEntry } from "./spend-shared";
 
 export * from "./spend-shared";
@@ -314,6 +315,8 @@ export type SpendView = {
   usage: { eval_usd: number; eval_runs: number };
   readings: Reading[];
   known_missing: number;
+  /** The "Botchelor Plus" intent tile's count (lib/plus-interest.ts): people, how many left an email, every tap. */
+  plus_interest: PlusInterestCount;
 };
 
 export const HISTORY_MONTHS = 6;
@@ -333,5 +336,6 @@ export async function spendView(db: Db, month: Month, env: Env = process.env, do
     usage: await loggedUsage(db, month),
     readings: await providerReadings(db, env, doFetch, now),
     known_missing: await knownCostsMissing(db),
+    plus_interest: await plusInterestCount(db).catch(() => ({ people: 0, with_email: 0, taps: 0 })),
   };
 }
