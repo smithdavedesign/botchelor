@@ -63,8 +63,7 @@ export default function AgeGate({
           </div>
         )}
         <p className="age-gate-brand">{afterDark ? "Botchelor After Dark" : "Botchelor"}</p>
-        {!afterDark && <p className="age-gate-lead">A comedy dating show where AI characters go on blind dates.</p>}
-        <h1 id="age-gate-title">Are you 18 or older?</h1>
+        {/* What it is, before the question (the 2026-11-14 design audit): the same sentence as before, moved above it. */}
         {afterDark ? (
           <p>
             After Dark is <strong>explicit</strong>: sex scenes, nude pictures and videos between{" "}
@@ -77,6 +76,7 @@ export default function AgeGate({
             It is for <strong>adults (18+) only</strong>.
           </p>
         )}
+        <h1 id="age-gate-title">Are you 18 or older?</h1>
         <form action="/api/age" method="post" className="age-gate-actions" onSubmit={confirm}>
           <input type="hidden" name="from" value={dest} />
           <button type="submit" className="age-gate-enter">

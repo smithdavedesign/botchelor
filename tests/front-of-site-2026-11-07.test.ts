@@ -140,14 +140,14 @@ describe("the 18+ gate shows the show behind it (item 1)", () => {
     const linked = renderToStaticMarkup(await GatePage({ searchParams: Promise.resolve({ from: `/episodes/${id}?play=1` }) }));
     expect(linked).toContain("One tap from <strong>Pell Ardent ×");
     // 2026-11-14 design audit: the gate sells. The pair behind it sits at the top of the card (faces, "A × B", title),
-    // and one line says what the show is before the question; the legal sentence stays as it was.
+    // and what the show is comes before the question: the legal sentence, word for word, moved above it.
     for (const html of [home, linked]) {
       expect(html).toContain('<div class="age-gate-pair">');
       expect(html.indexOf('class="age-gate-pair"')).toBeLessThan(html.indexOf('id="age-gate-title"'));
       const faces = html.slice(html.indexOf('class="age-gate-faces"'), html.indexOf('class="age-gate-pair-names"'));
       expect(faces.match(/<(img|svg)\b/g)).toHaveLength(2);
       expect(html).toContain(`× ${HOUSE_CHARACTERS[0].name}</strong>`);
-      expect(html.indexOf("A comedy dating show where AI characters go on blind dates.")).toBeLessThan(html.indexOf("Are you 18 or older?"));
+      expect(html.indexOf("Botchelor is a comedic blind-date show")).toBeLessThan(html.indexOf("Are you 18 or older?"));
       expect(html).toContain("Botchelor is a comedic blind-date show starring <strong>fictional adult characters</strong>, written by AI.");
     }
   });

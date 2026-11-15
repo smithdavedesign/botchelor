@@ -278,13 +278,6 @@
   font-style: italic;
   color: var(--ink);
 }
-/* What the show is, before the question. */
-.age-gate-card p.age-gate-lead {
-  margin: 0 0 var(--space-3);
-  color: var(--ink);
-  font-size: var(--text-md);
-  font-weight: 600;
-}
 /* On a phone the card is a bottom sheet: the blurred show stays in view above it. After Dark's gate too. */
 @media (max-width: 720px) {
   .age-gate {
