@@ -387,10 +387,12 @@ claim, with `told_by` the speaker and its own source `scene:<id>#<line>`. A list
 it gets a `heard` one. Two different stories about the same person are an `opposing_claims` tension the next day.
 
 **People's characters.** A public character's public aired date is public record, so the house may talk about a
-walk-on or a suitor someone made. Their owner hears: a `house_talk` notification (one per owner per scene), and, when
-they opted in to the character's texts, its own text from templates ("Apparently Sable is telling people I left
-early." / "I did not."), tagged `house_scene:<id>`, with a "Hear what they said" link to the scene and the date's
-chips. At most one such text a day per owner.
+walk-on or a suitor someone made. Their owner hears: a `house_talk` notification (one per owner per scene). The
+character's own text about it is `lib/house-texts.ts` ([companions.md](companions.md), "When the house talks about
+them"): every character a scene names texts the threads whose person turned its texts on, from what `/house` itself
+shows ("Word got back to me: Sable's been talking about my date with Rafe in the kitchen." / "Want to know what Sable
+said?"), tagged `house_scene:<id>`, with a "Hear what they said" link to the scene, and for its owner the date's
+chips. It never says whether the retelling was right. At most one house text a thread a day.
 
 **Reports.** "Something wrong with a line?" under each scene (`POST /api/house/<id>/report`, one per person per line).
 Three reports hide the line and take what it told back out of the story state; `/admin/reports` lists it with "Put it
@@ -456,8 +458,9 @@ or writes points, odds or pairings beyond the order of dates the format already 
   hold a row that they saw it (`hear`, nobody told them) and the rest of the house hears it from them (`hear`, told by
   the witness). With nobody else in the room, nobody else knows.
 - **Owners.** A person's character in a confrontation: its owner gets a `house_talk` notification ("Lexi had it out
-  with Dex in the house"), and the character's own text when they opted in ("I had it out with Dex on the stairs." /
-  "We agreed to disagree. Loudly, but we agreed."), within the one house text a day per owner.
+  with Dex in the house"). Both of the two text the threads that turned their texts on ("I had it out with Dex on the
+  stairs." / "We agreed to disagree." / "Go and hear it. Was I fair?"; `lib/house-texts.ts`), within the one house
+  text a thread a day.
 
 ### Challenges
 
@@ -481,7 +484,9 @@ or writes points, odds or pairings beyond the order of dates the format already 
     story state wants (this week's want, else whoever of the cast they are most drawn to, else the cast's first). The
     lobby's first room and the situation's pair that day; one pair instead of the dealt one.
   - The scene says it ("🏆 Cato won. The prize: Nell's next date, on Thursday."), the Botchelor card says it until the
-    day has passed, and the winner's owner hears (a notification, and the character's text when they opted in).
+    day has passed, and the winner's owner hears (a notification). The winner and everyone who lost text the threads
+    that turned their texts on (`lib/house-texts.ts`: "Guess who won the cook-off. Me." / "Dex won the cook-off. I did
+    not.").
 
 **Where both show.** On `/house` with their result under the lines, a challenge before a confrontation before the
 day's scene; in "Since you were here"; and as the Tonight band's one house line, which is the day's biggest ("Dex and

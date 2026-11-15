@@ -397,6 +397,10 @@ describe("GET /api/jobs/daily", () => {
     expect(steps.indexOf("character_questions")).toBe(steps.indexOf("day_after_texts") + 1);
     expect(people.character_questions).toEqual({ sent: 0, stopped: 0, candidates: 0 });
     expect(people.day_after_texts).toBe(0);
+    // What the house said reaches the chat (lib/house-texts.ts): the catch-up runs ahead of the day-after text.
+    expect(steps.indexOf("house_texts")).toBeLessThan(steps.indexOf("day_after_texts"));
+    expect(steps).toContain("house_word");
+    expect(people.house_texts).toEqual({ sent: 0, held: 0, by_kind: {} });
     expect(people.character_weeks).toBe(0);
     expect(people.life_dates).toMatchObject({ booked: 0, candidates: 0 });
 

@@ -73,14 +73,17 @@ export const DATE_PHOTO_ASPECT = { width: 4, height: 5 } as const;
 const WATCH_LINK_TAG = /^(opener|tease):([A-Za-z0-9_-]{1,64})$/;
 export const watchLinkEpisode = (tag: string | null | undefined): string | null => (tag ? (WATCH_LINK_TAG.exec(tag)?.[2] ?? null) : null);
 /**
- * A text about a scene in the show's house (lib/house-scenes.ts tellOwners, tagged `house_scene:<scene id>`): the link
+ * A text about a scene in the show's house (lib/house-texts.ts, tagged `house_scene:<scene id>`): the link
  * under its last bubble goes to that scene on /house.
  */
 const HOUSE_SCENE_TAG = /^house_scene:([A-Za-z0-9_.-]{1,64})$/;
-/** The link a text's tag puts under its last bubble: the date to watch, or the house scene to read. Null: none. */
+/** A text about the producer's line for a day (lib/house-texts.ts, tagged `house_tonight:<day>`): the link goes to the show, where the line is. */
+const HOUSE_TONIGHT_TAG = /^house_tonight:\d{4}-\d{2}-\d{2}$/;
+/** The link a text's tag puts under its last bubble: the date to watch, the house scene to read, or tonight's show. Null: none. */
 export function textLink(tag: string | null | undefined): { href: string; label: string } | null {
   const episode = watchLinkEpisode(tag);
   if (episode) return { href: `/episodes/${episode}`, label: "Watch the date" };
+  if (tag && HOUSE_TONIGHT_TAG.test(tag)) return { href: "/watch", label: "See tonight's show" };
   const scene = tag ? HOUSE_SCENE_TAG.exec(tag)?.[1] : null;
   return scene ? { href: `/house?scene=${encodeURIComponent(scene)}#scene-${scene}`, label: "Hear what they said" } : null;
 }
