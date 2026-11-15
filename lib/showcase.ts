@@ -171,8 +171,13 @@ async function tagsFor(db: Db, source: ShowcaseSource, mediaId: string): Promise
  * picture with someone else's character waits for that owner's OK (`pending`; lib/showcase-consent.ts). A caption is
  * public words: held to the show's lines on a pg post, to After Dark's on any other.
  */
-export async function publish(db: Db, owner: string, input: { source: ShowcaseSource; media_id: string; caption?: string | null; show_prompt?: boolean }): Promise<{ ok: true; post_id: string; status: "live" | "pending" } | Fail> {
-  if (!(await creatorProfile(db, owner))) return fail(409, "no_profile", "Pick your creator handle first.");
+export async function publish(
+  db: Db,
+  owner: string,
+  input: { source: ShowcaseSource; media_id: string; caption?: string | null; show_prompt?: boolean },
+): Promise<{ ok: true; post_id: string; status: "live" | "pending"; rating: ContentRating; handle: string } | Fail> {
+  const profile = await creatorProfile(db, owner);
+  if (!profile) return fail(409, "no_profile", "Pick your creator handle first.");
   const src = await sourceOf(db, owner, input.source, input.media_id);
   if (!src) return fail(404, "not_found", "There's nothing of yours with that id.");
   const rating = ratingOf(src.rating);
@@ -206,7 +211,8 @@ export async function publish(db: Db, owner: string, input: { source: ShowcaseSo
   const social = await import("./showcase-social");
   if (status === "pending" && !existing) await social.askForOk(db, id);
   if (status === "live" && !wasLive) await social.tellFollowers(db, owner);
-  return { ok: true, post_id: id, status };
+  // Its side and its creator: where "See it on the showcase" opens (app/showcase/PublishButton.tsx postHref).
+  return { ok: true, post_id: id, status, rating, handle: profile.handle };
 }
 
 /** Menu keys a remix may carry: what a Studio's own menus picked, never words, a place of their own, or who with. */

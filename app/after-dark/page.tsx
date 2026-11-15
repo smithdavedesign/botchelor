@@ -10,6 +10,8 @@ import { afterDarkTitle } from "@/lib/adult/discreet";
 import { canAfterDark } from "@/lib/adult/entitlement";
 import { publicDoorOpen } from "@/lib/adult/door";
 import { adultAvailable } from "@/lib/adult/mode";
+import { LATEST_LOOK, latestMade, NEW_FOR_MS } from "@/lib/adult/latest";
+import { ownMedia } from "@/lib/adult/media";
 import { lockedForCookies } from "@/lib/adult/privacy";
 import { listCastPairs, type CastPair } from "@/lib/adult/scenes";
 import { sharedWithMe } from "@/lib/adult/shares";
@@ -64,7 +66,17 @@ export default async function AfterDarkPage({ searchParams }: { searchParams?: P
     );
   }
   const owner = auth!.userId;
-  const [pairs, switchable, shared, here, doors] = await Promise.all([listCastPairs(db, owner), listSwitchable(db, owner), sharedWithMe(db, owner), currentHere(), afterDarkDoors(db, owner)]);
+  const [pairs, switchable, shared, here, doors, recent] = await Promise.all([
+    listCastPairs(db, owner),
+    listSwitchable(db, owner),
+    sharedWithMe(db, owner),
+    currentHere(),
+    afterDarkDoors(db, owner),
+    ownMedia(db, owner, LATEST_LOOK),
+  ]);
+  // What they made last (David, 2026-11-15: a finished video sat on its pair's page, and the hub never said so): the
+  // newest few pictures and videos, each a tap from the Gallery. None where only the scenes are allowed.
+  const made = here.mode === "text_only" ? [] : latestMade(recent);
   // The Studio door's word (lib/adult/doors.ts): "Studio", or "Characters" where the Studio isn't open to them.
   const studioWord = studioDoorLabel(doors);
   // #1176: one of theirs just made on the show (its finish screen's "Bring … into After Dark"), its switch first.
@@ -127,6 +139,29 @@ export default async function AfterDarkPage({ searchParams }: { searchParams?: P
             <Link href="/after-dark/studio">switch them In on {studioWord}</Link>.
           </p>
         )}
+        {made.length > 0 && (
+          <section className="ad-home-latest" aria-labelledby="ad-latest" data-latest>
+            <div className="ad-home-latest-head">
+              <h2 id="ad-latest">Your latest</h2>
+              <Link href="/after-dark/gallery">See all in the Gallery →</Link>
+            </div>
+            <ul className="after-dark-gallery ad-latest-strip">
+              {made.map((m) => (
+                <li key={m.id} data-latest-item={m.id}>
+                  <Link href={`/after-dark/gallery?tab=${m.kind === "video" ? "videos" : "pictures"}`} title={m.kind === "video" ? "Your videos, in the Gallery" : "Your pictures, in the Gallery"}>
+                    {m.kind === "video" ? (
+                      <video src={`/api/admin/after-dark/media/${m.id}#t=0.1`} preload="metadata" muted playsInline aria-label="One of your latest videos" />
+                    ) : (
+                      // eslint-disable-next-line @next/next/no-img-element -- a private file from the media route
+                      <img src={`/api/admin/after-dark/media/${m.id}`} alt="One of your latest pictures" loading="lazy" />
+                    )}
+                  </Link>
+                  {Date.now() - Date.parse(m.created_at) < NEW_FOR_MS && <span className="ad-new-badge small">{m.kind === "video" ? "New video" : "New"}</span>}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
         {/* Your nights first, then a new one (the audit, 2026-10-29: the hub opened on a checklist of switches). */}
         <section id="scenes">
           <h2>Scenes</h2>
@@ -188,3 +223,4 @@ function latestNight(pairs: CastPair[]): CastPair | null {
 }
 
 const first = (name: string) => name.split(/\s+/)[0];
+
