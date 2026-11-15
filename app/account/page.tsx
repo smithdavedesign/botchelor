@@ -145,7 +145,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Sear
         <section>
           <h2>Your badges</h2>
           <p className="muted">
-            The top 3 in each <Link href="/watch#leagues">league</Link> earn one when a season closes. Badges are free and carry no prizes.
+            The top 3 in each <Link href="/calls#leagues">league</Link> earn one when a season closes. Badges are free and carry no prizes.
           </p>
           {backingWins.length > 0 && (
             <ul className="list">

@@ -2280,8 +2280,8 @@ button.swatch.chosen {
   width: 100%;
   aspect-ratio: 1;
   display: block;
-  border-radius: 14px;
-  background: #000;
+  border-radius: var(--radius-md);
+  background: var(--photo-bg);
   object-fit: cover;
 }
 

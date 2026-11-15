@@ -179,7 +179,7 @@ function datesPart(items: readonly DropItem[], link: (path: string) => string): 
 function boardPart(c: CallersBoard, link: (path: string) => string): Part {
   const lines = c.top.slice(0, BOARD_NAMES).map((e, i) => `${i + 1}. ${e.name?.trim() ? clip(e.name.trim(), 40) : "A viewer"}: ${e.right} of ${e.called}`);
   const note = `Right endings on public dates that aired in the last ${BOARD_DAYS} days (${plural(c.callers, "caller")}). Names show only for people who put one up.`;
-  const href = link("/watch#best-callers");
+  const href = link("/calls#best-callers");
   return {
     html:
       `<h2 ${H2}>Best callers this week</h2><p style="margin:0 0 8px">${lines.map(escapeHtml).join("<br>")}</p>` +

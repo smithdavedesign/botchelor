@@ -390,7 +390,7 @@ export function boardMessage(callers: CallersBoard, pool: PoolStanding | null, b
   const embeds: DiscordEmbed[] = [
     {
       title: "Best callers this week",
-      url: discordLink("/watch#best-callers", "board", "callers", base),
+      url: discordLink("/calls#best-callers", "board", "callers", base),
       description:
         `${lines.join("\n")}\n\nRight endings on public dates that aired in the last ${BOARD_DAYS} days (${plural(callers.callers, "caller")}). ` +
         "Names show only for people who put one up.",
@@ -399,7 +399,7 @@ export function boardMessage(callers: CallersBoard, pool: PoolStanding | null, b
   if (pool && pool.players > 0) {
     embeds.push({
       title: "The season pool",
-      url: discordLink("/watch#season-pool", "board", "pool", base),
+      url: discordLink("/reunion#season-pool", "board", "pool", base),
       description:
         `${pool.players} ${pool.players === 1 ? "player has" : "players have"} points so far. Every right call, drama pick, dealbreaker guess, ` +
         `arc, dare and backing this month adds up to one score. The board, with names, comes out when the season closes ${discordTime(pool.reveals_at, "R")}.`,

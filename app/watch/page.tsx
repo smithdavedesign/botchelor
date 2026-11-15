@@ -7,12 +7,9 @@ import Icon from "@/app/Icon";
 import JsonLd from "@/app/JsonLd";
 import { airWindowMinutes } from "@/lib/air";
 import { getDb } from "@/lib/db";
-import { CallersBoardPanel, CallsLine } from "@/app/YourCalls";
-import { callersBoard, callRecord } from "@/lib/streaks";
+import { CallsLine } from "@/app/YourCalls";
+import { callRecord } from "@/lib/streaks";
 import { sharerOf } from "@/lib/share-record-name";
-import BackCast from "@/app/BackCast";
-import CastChat from "@/app/CastChat";
-import { latestCastChat } from "@/lib/cast-chat";
 import DareVote from "@/app/DareVote";
 import SituationVote from "@/app/SituationVote";
 import OpenOnHash from "@/app/OpenOnHash";
@@ -23,30 +20,22 @@ import { pickFeaturedDate } from "@/lib/featured-date";
 import RecouplingCard from "./RecouplingCard";
 import WeeklyReveal from "@/app/WeeklyReveal";
 import { revealBoard } from "@/lib/weekly-reveal";
-import SeasonPoolPanel from "@/app/SeasonPool";
-import { poolStanding, recentPoolBoard } from "@/lib/season-pool";
 import { recouplingBoard } from "@/lib/recoupling";
 import { ballotResult } from "@/lib/season-vote";
 import { seasonIdOf } from "@/lib/season-window";
 import { thisWeekOn } from "@/lib/season-format";
 import { seasonFormatNow } from "@/lib/season-format-store";
-import ChemistryShiftsPanel from "@/app/ChemistryShifts";
-import { chemistryShifts } from "@/lib/chemistry-shifts";
 import { showSince } from "@/lib/show-since";
-import { backingBoard } from "@/lib/backing";
 import { dareBoard } from "@/lib/dares";
 import { situationBoard } from "@/lib/situations";
 import { listAiredFeed, listAiringSoon, parsePage, type AiringSoon } from "@/lib/game";
 import { feedEpisodes, withoutEpisode } from "@/lib/feed-items";
 import { userIdFromCookieStore } from "@/lib/http";
-import { listMyLeagues } from "@/lib/leagues";
 import { getProfileName } from "@/lib/people";
-import { getReunion, type Reunion } from "@/lib/reunion";
 import { itemListJsonLd, pageMetadata } from "@/lib/seo";
 import { forViewer, shared } from "@/lib/shared-cache";
 import { countRecentPrivateDates, listLobby, type LobbyEntry } from "@/lib/watch";
 import { dateLabel, dateNumberOf, endingLabel } from "@/lib/rules";
-import { CreateLeagueForm } from "./WatchActions";
 import StripPager from "./StripPager";
 import Pager from "@/app/Pager";
 import ShowTabs from "@/app/ShowTabs";
@@ -112,40 +101,6 @@ function RoomCard({ room, action }: { room: LobbyEntry; action: string }) {
 /** How many replays the strip carries: the newest, sideways, so they never add to the page's length. */
 const REPLAYS_SHOWN = 12;
 
-/**
- * The Reunion, as one card (David, 2026-10-21: Watch was "a long scroll"; the whole special sat here, about 4,800px on a
- * phone). The season's numbers and its first award, then the way to the full special on /reunion.
- */
-function ReunionTeaser({ reunion }: { reunion: Reunion }) {
-  if (!reunion.couples.length && !reunion.confessionals.length && !reunion.awards.length) return null;
-  const award = reunion.awards[0];
-  return (
-    <section className="watch-section">
-      <Link href="/reunion" className="card watch-reunion-card">
-        <span className="kicker">Season special</span>
-        <strong className="watch-reunion-title">The Reunion</strong>
-        <span className="muted small">
-          {reunion.stats.aired} dates aired · {reunion.stats.couples} {reunion.stats.couples === 1 ? "pairing" : "pairings"} ·{" "}
-          {reunion.stats.second_dates} second dates
-        </span>
-        {award && (
-          <span className="watch-reunion-award">
-            <span className="watch-lobby-avatars">
-              {award.chars.map((c) => (
-                <Avatar key={c.id} seed={c.id} name={c.name} hue={c.hue} house={c.house} portraitSrc={c.portrait} size={32} />
-              ))}
-            </span>
-            <span>
-              <strong>{award.title}:</strong> {award.name}
-            </span>
-          </span>
-        )}
-        <span className="watch-reunion-cta">See the Reunion →</span>
-      </Link>
-    </section>
-  );
-}
-
 /** One unaired date in the "Airing soon" strip: the pair, when it airs, and the call to predict it. */
 function AiringCard({ episode, now }: { episode: AiringSoon; now: number }) {
   const [a, b] = episode.characters;
@@ -169,11 +124,11 @@ function AiringCard({ episode, now }: { episode: AiringSoon; now: number }) {
 }
 
 /**
- * Everything to watch, on one page (David, 2026-10-18: Watch and "Episodes & leagues" merged; /feed redirects here),
- * laid out so a phone sees something to watch on its first screen (2026-10-21): a one-line intro; dates airing soon
- * that you can still call; the live rooms (live now, open rooms nobody has started, premieres with a set start); the
- * latest aired episodes, 12 a page (?page=N); a one-line note about private dates; then replays, friend leagues, the
- * reunion and, folded away, how it all works. A viewer's own dates, badges and blocks are on their account page.
+ * Everything to watch, on one page (David, 2026-10-18: Watch and "Episodes & leagues" merged; /feed redirects here), in
+ * three blocks since the 2026-11-14 design audit: on now (live rooms, else the newest aired date playing its opening
+ * lines, then tonight's rooms), vote before it airs (the Recoupling, Sunday's reveal, tonight's situation and dare, the
+ * dates still open to calls), and recent episodes, 12 a page (?page=N). The season's games live on the Reunion
+ * (backing, the pool, the cast chat, chemistry shifts) and /calls (best callers, leagues); one line links them.
  */
 export default async function WatchLobbyPage({ searchParams }: { searchParams: Search }) {
   const page = parsePage((await searchParams).page);
@@ -182,31 +137,22 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
   // Someone signed out sees what everyone does: from a few seconds' shared copy (lib/shared-cache.ts). What's the same
   // for everyone (the private-date count, the reunion, the week's shifts, the season's format) is shared by all.
   const mine = <T,>(key: string, load: () => Promise<T>) => forViewer(viewerId, key, load);
-  const [rooms, privateDates, airing, latest, leagues, profileName, reunion, situation, dares, backing, record, callers, showNews, shifts, seasonDef, recoupling, castChat, ballot, reveal, pool, poolRevealed] = await Promise.all([
+  const [rooms, privateDates, airing, latest, profileName, situation, dares, record, showNews, seasonDef, recoupling, ballot, reveal] = await Promise.all([
     mine("lobby", () => listLobby(db)),
     shared("watch:private-dates", () => countRecentPrivateDates(db)),
     mine("home:airing", () => listAiringSoon(db, viewerId, airWindowMinutes())),
     mine(`watch:feed:${page}`, () => listAiredFeed(db, viewerId, page)),
-    viewerId ? listMyLeagues(db, viewerId) : Promise.resolve([]),
     getProfileName(db, viewerId),
-    shared("watch:reunion", () => getReunion(db)),
     mine("home:situation", () => situationBoard(db, viewerId)).catch(() => null),
     mine("home:dares", () => dareBoard(db, viewerId)).catch(() => null),
-    mine("watch:backing", () => backingBoard(db, viewerId)).catch(() => null),
     mine("home:calls", () => callRecord(db, viewerId)).catch(() => null),
-    mine("watch:callers", () => callersBoard(db, viewerId)).catch(() => null),
     showSince(db, viewerId).catch(() => null),
-    shared("watch:shifts", () => chemistryShifts(db)).catch(() => null),
     shared("watch:season-format", () => seasonFormatNow(db)).catch(() => null),
     mine("watch:recoupling", () => recouplingBoard(db, viewerId)).catch(() => null),
-    // The cast group chat (lib/cast-chat.ts): the same for everyone.
-    shared("watch:cast-chat", () => latestCastChat(db)).catch(() => null),
     // How this season's format was picked (lib/season-vote.ts): the This Week card says so on week 1.
     shared("watch:ballot-result", () => ballotResult(db, seasonIdOf(new Date()))).catch(() => null),
-    // Sunday's reveal (lib/weekly-reveal.ts) and the season pool (lib/season-pool.ts): the week's vote and the season's score.
+    // Sunday's reveal (lib/weekly-reveal.ts): the week's vote.
     mine("watch:reveal", () => revealBoard(db, viewerId)).catch(() => null),
-    mine("watch:pool", () => poolStanding(db, viewerId)).catch(() => null),
-    mine("watch:pool-revealed", () => recentPoolBoard(db, viewerId)).catch(() => null),
   ]);
   // Their shared calls link carries their display name when it's theirs alone (lib/share-record-name.ts).
   const sharer = profileName && record?.called ? await sharerOf(db, viewerId).catch(() => null) : null;
@@ -222,6 +168,12 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
   const featured = page === 1 && live.length === 0 ? pickFeaturedDate(feed) : null;
   const listed = featured ? withoutEpisode(latest.items, featured.episode_id) : latest.items;
 
+  // The three blocks (the 2026-11-14 design audit, item 3: /watch was 14 sections and 7,400px on a phone, with no answer
+  // to "what do I do right now"): what's on, what to vote on before it airs, and what aired. The season's games moved
+  // to their own pages: backing, the season pool, the cast chat and chemistry shifts to the Reunion; best callers and
+  // leagues to /calls. The line at the foot links each, and keeps the old #anchors landing somewhere.
+  const lead = reveal && (reveal.state === "open" || reveal.state === "closed" || reveal.last);
+  const voting = Boolean((recoupling && recoupling.choices.length > 0) || reveal || situation || dares || airing.length > 0 || (record && record.called > 0));
   return (
     <article className="watch-page page-wide">
       <JsonLd
@@ -231,78 +183,51 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
         )}
       />
       <ShowTabs active="/watch" />
-      {/* The season's arc (or, in a month's first week, last season's finale): the design system, 2026-11-11. */}
-      <p className="kicker">The Botchelor · watch</p>
-      <h1>Watch a date</h1>
+      <h1 className="watch-title">Watch a date</h1>
       <p className="lede watch-intro">
         AI characters on blind dates nobody steers. Call the ending before it airs.{" "}
         <a href="#how-it-works">How it works</a>
       </p>
 
-      {live.length > 0 ? (
-        <section className="watch-section watch-lead" aria-labelledby="live-now">
-          <h2 id="live-now">
-            <span className="watch-dot" aria-hidden /> Live now
-          </h2>
-          <div className="watch-lobby">
-            {live.map((r) => (
-              <RoomCard key={r.id} room={r} action={`● ${r.watching} watching`} />
-            ))}
+      {/* 1. On now: what's live, else the newest aired date playing its opening lines; then tonight's rooms. */}
+      <section className="watch-block" aria-labelledby="on-now">
+        <h2 id="on-now" className="watch-block-head">
+          {live.length > 0 ? (
+            <>
+              <span className="watch-dot" aria-hidden /> Live now
+            </>
+          ) : (
+            "On now"
+          )}
+        </h2>
+        {live.length > 0 ? (
+          <div className="watch-lead" id="live-now">
+            <div className="watch-lobby">
+              {live.map((r) => (
+                <RoomCard key={r.id} room={r} action={`● ${r.watching} watching`} />
+              ))}
+            </div>
           </div>
-        </section>
-      ) : (
-        featured && (
-          <section className="watch-section watch-lead" aria-labelledby="watch-lead-head">
-            <h2 id="watch-lead-head" className="watch-lead-kicker">
-              Just aired
-            </h2>
-            <DateExcerpt date={featured} wide />
-          </section>
-        )
-      )}
-
-      {/* The season, as one line under the date (it was three cards above it). The Recoupling's own card only while its
-          vote is open: then there's something to do. */}
-      <SeasonLine
-        def={seasonDef}
-        card={seasonDef ? thisWeekOn(seasonDef, new Date(now)) : null}
-        picked={seasonDef && ballot?.winner && ballot.winner === seasonDef.slug ? { title: seasonDef.title, votes: ballot.votes, total: ballot.total } : null}
-        recoupling={recoupling}
-        now={now}
-      />
-      {recoupling && recoupling.choices.length > 0 && <RecouplingCard board={recoupling} now={now} />}
-      {/* Sunday's reveal leads while its vote is open or its result is minutes away; otherwise it sits by tonight's vote. */}
-      {/* …and once the secret is out it stays, as the opened envelope, while it's fresh (lib/weekly-reveal.ts LAST_SHOWN_DAYS). */}
-      {reveal && (reveal.state === "open" || reveal.state === "closed" || reveal.last) && <WeeklyReveal board={reveal} now={now} />}
-      {/* What the audience does tonight, before the listings and the archive (the audit, 2026-11-11, 2.3: the situation
-          vote sat fifth on the page): tonight's situation and, until its vote opens, Sunday's reveal beside it. */}
-      {(situation || dares || (reveal && reveal.state !== "open" && reveal.state !== "closed" && !reveal.last)) && (
-        <div className={`watch-votes${[situation, dares, reveal && reveal.state !== "open" && reveal.state !== "closed" && !reveal.last].filter(Boolean).length > 1 ? " is-two" : ""}`}>
-          {situation && <SituationVote board={situation} now={now} />}
-          {/* Today's dare sits beside the situation, as the design system lays out /watch (all-screens board, 2026-11-11). */}
-          {dares && <DareVote board={dares} />}
-          {reveal && reveal.state !== "open" && reveal.state !== "closed" && !reveal.last && <WeeklyReveal board={reveal} now={now} />}
-        </div>
-      )}
-      {showNews && <ShowSince card={showNews} />}
-
-      {airing.length === 0 && record && record.called > 0 && <CallsLine record={record} airing={0} nameless={viewerId !== null && profileName === null} sharer={sharer} where="watch" />}
-
-      {airing.length > 0 && (
-        <section className="watch-section" aria-labelledby="airing-soon">
-          <h2 id="airing-soon">Airing soon: call it before it airs</h2>
-          {record && record.called > 0 && <CallsLine record={record} airing={0} nameless={viewerId !== null && profileName === null} sharer={sharer} where="watch" />}
-          <ul className="watch-airing">
-            {airing.map((episode) => (
-              <AiringCard key={episode.id} episode={episode} now={now} />
-            ))}
-          </ul>
-        </section>
-      )}
-
-      <section className="watch-section">
-        {/* The schedule block reads as tonight's listings (docs/show-style.md). */}
-        <p className="watch-tonight-kicker">Tonight on Botchelor</p>
+        ) : (
+          featured && (
+            <div className="watch-lead">
+              <p className="watch-lead-kicker" id="watch-lead-head">
+                Just aired
+              </p>
+              <DateExcerpt date={featured} wide />
+            </div>
+          )
+        )}
+        {/* The season, as one line under the date. */}
+        <SeasonLine
+          def={seasonDef}
+          card={seasonDef ? thisWeekOn(seasonDef, new Date(now)) : null}
+          picked={seasonDef && ballot?.winner && ballot.winner === seasonDef.slug ? { title: seasonDef.title, votes: ballot.votes, total: ballot.total } : null}
+          recoupling={recoupling}
+          now={now}
+        />
+        {showNews && <ShowSince card={showNews} />}
+        {/* Tonight's listings (docs/show-style.md). */}
         {live.length ? null : (
           // Nothing live: one line, not a heading over an empty space.
           <p className="watch-live-empty">
@@ -338,11 +263,42 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
         )}
       </section>
 
-      {/* The season pool's board just came out (the first week of the next season): shown, not folded. */}
-      {poolRevealed && <SeasonPoolPanel standing={pool} revealed={poolRevealed} now={now} />}
+      {/* 2. Vote before it airs: one column, each vote full width (side by side squeezed three options into ~100px
+          columns). Sunday's reveal leads while its vote is open, its result is minutes away, or the opened envelope is fresh. */}
+      {voting && (
+        <section className="watch-block" aria-labelledby="vote-now">
+          <h2 id="vote-now" className="watch-block-head">
+            Vote before it airs
+          </h2>
+          {recoupling && recoupling.choices.length > 0 && <RecouplingCard board={recoupling} now={now} />}
+          {lead && <WeeklyReveal board={reveal} now={now} />}
+          <div className="watch-votes">
+            {situation && <SituationVote board={situation} now={now} />}
+            {dares && <DareVote board={dares} />}
+            {reveal && !lead && <WeeklyReveal board={reveal} now={now} />}
+          </div>
+          {airing.length === 0 && record && record.called > 0 && <CallsLine record={record} airing={0} nameless={viewerId !== null && profileName === null} sharer={sharer} where="watch" />}
+          {airing.length > 0 && (
+            <div className="watch-airing-block">
+              <h3 id="airing-soon" className="watch-subhead">
+                Airing soon: call it before it airs
+              </h3>
+              {record && record.called > 0 && <CallsLine record={record} airing={0} nameless={viewerId !== null && profileName === null} sharer={sharer} where="watch" />}
+              <ul className="watch-airing">
+                {airing.map((episode) => (
+                  <AiringCard key={episode.id} episode={episode} now={now} />
+                ))}
+              </ul>
+            </div>
+          )}
+        </section>
+      )}
 
-      <section className="watch-section" id="latest">
-        <h2>Latest episodes{page > 1 ? ` · page ${page}` : ""}</h2>
+      {/* 3. Recent: the archive, 12 a page. */}
+      <section className="watch-block" id="latest" aria-labelledby="latest-head">
+        <h2 id="latest-head" className="watch-block-head">
+          Recent episodes{page > 1 ? ` · page ${page}` : ""}
+        </h2>
         {listed.length ? (
           <ul className="list watch-latest-list">
             {listed.map((item) => (
@@ -362,90 +318,53 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
           </p>
         )}
         <Pager page={page} pages={latest.pages} label="Latest episodes pages" href={(n) => `${pagePath(n)}#latest`} prev="Newer" next="Older" />
-      </section>
 
-      {privateDates > 0 && (
-        <p className="private-teaser private-teaser-compact">
-          <span className="private-teaser-lock">
-            <Icon name="lock" />
-          </span>
-          <span>
-            <strong>{privateDates}</strong> private {privateDates === 1 ? "date" : "dates"} this week, seen only by
-            {privateDates === 1 ? " its creators" : " their creators"}. Yours are in{" "}
-            <Link href="/account#your-dates">your dates</Link>.
-          </span>
-        </p>
-      )}
-
-      {/* Shorter (2026-10-31 UX audit, D6): replays fold behind one line, and aren't mentioned when there are none. */}
-      {replays.length > 0 && (
-        <details className="watch-section watch-replays ux-fold">
-          <summary>
-            <h2>Replays</h2> <span className="muted small">{replays.length > REPLAYS_SHOWN ? `the newest ${REPLAYS_SHOWN} of ${replays.length}` : replays.length}</span>
-          </summary>
-          <StripPager label="Replays">
-            {replays.slice(0, REPLAYS_SHOWN).map((r) => (
-              <RoomCard key={r.id} room={r} action="Replay" />
-            ))}
-          </StripPager>
-        </details>
-      )}
-
-      {/* Shorter (UX round C, 2026-11-07): the cast chat, the dare, backing, chemistry shifts and the callers board fold
-          under one line, so the page is tonight's dates, the vote and the episodes. A link into one opens it (OpenOnHash). */}
-      {/* Who you back this month and the best callers, out in the open (the design system's /watch): they're the
-          show's own games, not extras. */}
-      {(backing || callers) && (
-        <div className="watch-games">
-          {backing && <BackCast board={backing} />}
-          {callers && <CallersBoardPanel board={callers} nameless={viewerId !== null && profileName === null} />}
-        </div>
-      )}
-      {(castChat || shifts || (pool && !poolRevealed)) && (
-        <details className="watch-section watch-more ux-fold">
-          <summary>
-            <h2>More from the show</h2>{" "}
-            <span className="muted small">
-              {[castChat && "the cast chat", shifts && "chemistry shifts", pool && !poolRevealed && "the season pool"]
-                .filter(Boolean)
-                .join(" · ")}
+        {privateDates > 0 && (
+          <p className="private-teaser private-teaser-compact">
+            <span className="private-teaser-lock">
+              <Icon name="lock" />
             </span>
-          </summary>
-          {/* Yesterday's cast group chat (lib/cast-chat.ts): only ever about what has aired. */}
-          {castChat && <CastChat chat={castChat} />}
-          {shifts && <ChemistryShiftsPanel shifts={shifts} />}
-          {pool && !poolRevealed && <SeasonPoolPanel standing={pool} revealed={null} now={now} />}
-        </details>
-      )}
-      <OpenOnHash />
-
-      <section className="watch-section" id="leagues">
-        {leagues.length > 0 && <h2>Your leagues</h2>}
-        {leagues.length > 0 && (
-          <ul className="list">
-            {leagues.map((league) => (
-              <li key={league.id} className="card">
-                <Link href={league.invite_path}>
-                  <strong>{league.name}</strong>
-                </Link>{" "}
-                <span className="muted">
-                  {league.members} {league.members === 1 ? "player" : "players"}
-                </span>
-              </li>
-            ))}
-          </ul>
+            <span>
+              <strong>{privateDates}</strong> private {privateDates === 1 ? "date" : "dates"} this week, seen only by
+              {privateDates === 1 ? " its creators" : " their creators"}. Yours are in{" "}
+              <Link href="/account#your-dates">your dates</Link>.
+            </span>
+          </p>
         )}
-        {/* Folded: the form is tall, and most visitors come to watch (2026-10-21). */}
-        <details className="watch-league-details ux-fold">
-          <summary>
-            <Icon name="trophy" /> Start a league with friends
-          </summary>
-          <p className="muted small">Call endings together: the top 3 in each league earn a badge when a season closes.</p>
-          <CreateLeagueForm hasName={profileName !== null} />
-        </details>
+
+        {/* Replays fold behind one line (2026-10-31 UX audit, D6), and aren't mentioned when there are none. */}
+        {replays.length > 0 && (
+          <details className="watch-replays ux-fold">
+            <summary>
+              <h3>Replays</h3> <span className="muted small">{replays.length > REPLAYS_SHOWN ? `the newest ${REPLAYS_SHOWN} of ${replays.length}` : replays.length}</span>
+            </summary>
+            <StripPager label="Replays">
+              {replays.slice(0, REPLAYS_SHOWN).map((r) => (
+                <RoomCard key={r.id} room={r} action="Replay" />
+              ))}
+            </StripPager>
+          </details>
+        )}
       </section>
 
-      <ReunionTeaser reunion={reunion} />
+      {/* The season's games, each on its own page now. The ids keep old links (emails, Discord posts) landing here. */}
+      <nav className="watch-elsewhere" aria-label="More from the show">
+        <span className="watch-elsewhere-head">More from the show</span>
+        <Link href="/reunion">The Reunion</Link>
+        <Link id="season-pool" href="/reunion#season-pool">
+          Season pool and backing
+        </Link>
+        <Link id="cast-chat" href="/reunion#cast-chat">
+          The cast chat
+        </Link>
+        <Link id="best-callers" href="/calls#best-callers">
+          Best callers
+        </Link>
+        <Link id="leagues" href="/calls#leagues">
+          Leagues
+        </Link>
+      </nav>
+      <OpenOnHash />
 
       <details className="watch-how-details ux-fold" id="how-it-works">
         <summary>How it works</summary>

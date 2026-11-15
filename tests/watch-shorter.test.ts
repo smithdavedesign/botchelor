@@ -5,9 +5,29 @@ import { describe, expect, it } from "vitest";
 const page = readFileSync(new URL("../app/watch/page.tsx", import.meta.url), "utf8");
 
 describe("Watch stays short", () => {
-  it("shows the Reunion as one card linking to /reunion, never the whole special", () => {
+  it("links the Reunion in one line, never the whole special", () => {
     expect(page).not.toContain("ReunionPanel");
-    expect(page).toMatch(/href="\/reunion"[\s\S]*See the Reunion →/);
+    expect(page).toContain('<Link href="/reunion">The Reunion</Link>');
+  });
+
+  it("is three blocks: on now, vote before it airs, recent episodes (the 2026-11-14 design audit)", () => {
+    expect(page.match(/<section className="watch-block"/g)?.length).toBe(3);
+    expect(page).toContain('id="on-now"');
+    expect(page).toContain("Vote before it airs");
+    expect(page).toContain("Recent episodes");
+    // One column of votes: never side by side.
+    expect(page).not.toContain("is-two");
+  });
+
+  it("sends the season's games to their own pages, and old #anchors still land on the way there", () => {
+    for (const gone of ["BackCast", "CastChat", "ChemistryShiftsPanel", "SeasonPoolPanel", "CallersBoardPanel", "CreateLeagueForm"]) expect(page).not.toContain(gone);
+    for (const id of ["season-pool", "cast-chat", "best-callers", "leagues"]) expect(page).toContain(`id="${id}"`);
+    const reunion = readFileSync(new URL("../app/reunion/page.tsx", import.meta.url), "utf8");
+    for (const here of ["<BackCast", "<CastChat", "<ChemistryShiftsPanel", "<SeasonPoolPanel"]) expect(reunion).toContain(here);
+    const calls = readFileSync(new URL("../app/calls/page.tsx", import.meta.url), "utf8");
+    expect(calls).toContain("<CallersBoardPanel");
+    expect(calls).toContain('id="leagues"');
+    expect(calls).toMatch(/<details className="watch-league-details[^"]*">\s*<summary>\s*<Icon name="trophy" \/> Start a league with friends\s*<\/summary>/);
   });
 
   it("puts rooms (ready, premieres, replays) in sideways strips, and caps the replays", () => {
@@ -17,7 +37,7 @@ describe("Watch stays short", () => {
   });
 
   it("folds the replays behind one line, and leaves them out when there are none (2026-10-31 UX audit, D6)", () => {
-    expect(page).toMatch(/replays\.length > 0 && \(\s*<details className="watch-section watch-replays ux-fold">/);
+    expect(page).toMatch(/replays\.length > 0 && \(\s*<details className="watch-replays ux-fold">/);
     expect(page).not.toContain("No replays yet.");
   });
 
@@ -25,9 +45,8 @@ describe("Watch stays short", () => {
     expect(page).toContain("Nothing live right now.");
   });
 
-  it("keeps the latest episodes paged and crawlable, and folds the league form away", () => {
+  it("keeps the latest episodes paged and crawlable", () => {
     expect(page).toContain("<Pager page={page} pages={latest.pages} label=\"Latest episodes pages\" href={(n) => `${pagePath(n)}#latest`}");
-    expect(page).toMatch(/<details className="watch-league-details[^"]*">\s*<summary>\s*<Icon name="trophy" \/> Start a league with friends\s*<\/summary>/);
   });
 });
 

@@ -17,6 +17,14 @@ import { seasonFormatNow } from "@/lib/season-format-store";
 import { seasonBallot } from "@/lib/season-vote";
 import SeasonPoolPanel from "@/app/SeasonPool";
 import { poolStanding, recentPoolBoard } from "@/lib/season-pool";
+import BackCast from "@/app/BackCast";
+import CastChat from "@/app/CastChat";
+import ChemistryShiftsPanel from "@/app/ChemistryShifts";
+import OpenOnHash from "@/app/OpenOnHash";
+import { backingBoard } from "@/lib/backing";
+import { latestCastChat } from "@/lib/cast-chat";
+import { chemistryShifts } from "@/lib/chemistry-shifts";
+import { forViewer, shared } from "@/lib/shared-cache";
 
 export const dynamic = "force-dynamic";
 
@@ -55,7 +63,15 @@ export default async function ReunionPage({ searchParams }: { searchParams?: Pro
     .then((def) => seasonBallot(db, viewerId, def.slug, now))
     .catch(() => null);
   // The season pool (lib/season-pool.ts): where you stand this season, and last season's board while it's fresh.
-  const [pool, poolRevealed] = await Promise.all([poolStanding(db, viewerId, now).catch(() => null), recentPoolBoard(db, viewerId, now).catch(() => null)]);
+  // The season's games, here since they left /watch (the 2026-11-14 design audit): who you back this month, the cast's
+  // morning-after group chat (only ever about what has aired) and the week's biggest chemistry shifts.
+  const [pool, poolRevealed, backing, castChat, shifts] = await Promise.all([
+    poolStanding(db, viewerId, now).catch(() => null),
+    recentPoolBoard(db, viewerId, now).catch(() => null),
+    forViewer(viewerId, "watch:backing", () => backingBoard(db, viewerId)).catch(() => null),
+    shared("watch:cast-chat", () => latestCastChat(db)).catch(() => null),
+    shared("watch:shifts", () => chemistryShifts(db)).catch(() => null),
+  ]);
   return (
     <article className="reunion-page page-wide">
       <ShowTabs active="/reunion" />
@@ -78,7 +94,13 @@ export default async function ReunionPage({ searchParams }: { searchParams?: Pro
       ) : (
         <ReunionPanel reunion={reunion} heading="h1" season={season} couplesPage={couplesPage} couplesHref={(n) => pageHref("/reunion", {}, "couples", n, "couples")} hidden={hidden} />
       )}
-      <SeasonPoolPanel standing={pool} revealed={poolRevealed} now={now.getTime()} />
+      {castChat && <CastChat chat={castChat} />}
+      {shifts && <ChemistryShiftsPanel shifts={shifts} />}
+      <div className="reunion-games">
+        {backing && <BackCast board={backing} />}
+        <SeasonPoolPanel standing={pool} revealed={poolRevealed} now={now.getTime()} />
+      </div>
+      <OpenOnHash />
       {ballot && <SeasonFormatVote ballot={ballot} now={now.getTime()} />}
       {past.length > 0 && (
         <section className="reunion-seasons" aria-labelledby="seasons">

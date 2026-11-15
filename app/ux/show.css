@@ -483,38 +483,93 @@ details.recap-toggle[open] .recap-toggle-hide {
   background: var(--accent-ink);
 }
 
-/* ---------------- /watch: tonight's votes ---------------- */
-/* The situation vote and Sunday's reveal as one row after the lead (the audit, 2026-11-11, 2.3). Two cards share the
-   row on a wide screen; on a phone they stack, as the sections above and below do. The cards keep their own frames
-   and lose the vertical margins the grid gap now provides. */
+/* ---------------- /watch: three blocks (the 2026-11-14 design audit) ----------------
+   On now, vote before it airs, recent episodes: each block opens with the same quiet heading and a hairline, so the
+   page reads as three things, not fourteen. */
+.watch-title {
+  margin-bottom: var(--space-1);
+}
+.watch-block {
+  margin: var(--space-6) 0 0;
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line);
+}
+.watch-block:first-of-type {
+  margin-top: var(--space-4);
+}
+.watch-block-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-xl);
+}
+.watch-block > .watch-lead {
+  margin-top: 0;
+}
+/* Tonight's votes, one column: each vote full width, so a situation's three options get a third of the page each
+   instead of ~100px columns (the audit: "Hero and villain, off duty" wrapped to three lines). The cards keep their own
+   frames and lose the vertical margins the gap now provides. */
 .watch-votes {
   display: grid;
   gap: var(--space-3);
-  margin: var(--space-4) 0;
+  margin: var(--space-3) 0;
+}
+.watch-votes > .situation,
+.watch-block > .situation {
+  margin: 0 0 var(--space-3);
 }
 .watch-votes > .situation {
   margin: 0;
 }
-@media (min-width: 60rem) {
-  .watch-votes.is-two {
-    grid-template-columns: 1fr 1fr;
-    align-items: start;
-  }
+.watch-airing-block {
+  margin-top: var(--space-4);
 }
-/* Who you back and the best callers, side by side on a wide screen (the design system's /watch). */
-.watch-games {
+.watch-replays {
+  margin-top: var(--space-4);
+}
+.watch-replays summary h3 {
+  display: inline;
+  margin: 0;
+  font-size: var(--text-lg);
+}
+/* The season's games, each on its own page now: one quiet line of links at the foot. */
+.watch-elsewhere {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  margin: var(--space-6) 0 var(--space-3);
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.watch-elsewhere-head {
+  font-weight: 700;
+}
+.watch-elsewhere a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  scroll-margin-top: 6rem;
+}
+/* Who you back and the season pool, side by side on a wide screen: on the Reunion since they left /watch. */
+.reunion-games {
   display: grid;
   gap: var(--space-3);
   margin: var(--space-4) 0;
 }
-.watch-games > * {
+.reunion-games > * {
   margin: 0;
 }
 @media (min-width: 60rem) {
-  .watch-games {
+  .reunion-games {
     grid-template-columns: 1fr 1fr;
     align-items: start;
   }
+}
+.calls-leagues {
+  margin: var(--space-6) 0 var(--space-4);
 }
 
 /* ---------------- a couple (app/couples/[a]/[b]) ---------------- */
@@ -1212,14 +1267,35 @@ details.recap-toggle[open] .recap-toggle-hide {
 .season-arc-format {
   margin-left: auto;
 }
+.season-arc-short {
+  display: none;
+}
+/* One line on a phone (the 2026-11-14 design audit: the strip cost three rows on every page): "S2 · Night 15", the
+   track inline, "15 days left". */
 @media (max-width: 560px) {
+  .season-arc {
+    flex-wrap: nowrap;
+    gap: var(--space-2);
+    white-space: nowrap;
+  }
   .season-arc-format,
-  .season-arc-sep {
+  .season-arc-month,
+  .season-arc-month + .season-arc-sep,
+  .season-arc-long {
     display: none;
   }
+  .season-arc-short {
+    display: inline;
+  }
   .season-arc-track {
-    flex-basis: 100%;
-    order: 9;
+    flex: 1 1 3rem;
+    min-width: 2.5rem;
+  }  /* The closed season's banner too: "Season 1 is over" and the way to the recap. */
+  .season-strip > .season-banner {
+    flex-wrap: nowrap;
+  }
+  .season-strip > .season-banner .season-banner-sub {
+    display: none;
   }
 }
 

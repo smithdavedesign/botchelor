@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 
 /**
- * A link to something inside a closed <details> (/watch#cast-chat into "More from the show") opens it and scrolls
+ * A link to something inside a closed <details> (/reunion#cast-chat, say) opens it and scrolls
  * there, on load and on every hash change. Renders nothing.
  */
 export default function OpenOnHash() {
