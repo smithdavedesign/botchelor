@@ -203,6 +203,20 @@
 .open-calls-none {
   margin: 0;
 }
+/* The next-date card is an <a class="card">: inline by default, so its box tore across the wrapped lines. */
+.open-calls-next {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0;
+  text-decoration: none;
+  color: inherit;
+}
+.open-calls-empty {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+}
 /* A phone: one card a row, the picture beside the words, so four calls stay one screen. */
 @media (max-width: 560px) {
   .open-calls-list {
