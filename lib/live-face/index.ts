@@ -10,10 +10,14 @@
  *    `LIVE_FACE_ENDPOINT`. A face is a bundle built from the kit's idle loop (a minute or two, pay-per-second: still an
  *    admin's call for now); on a call the server turns each clause of the voice into a clip (liveFaceClips) and streams
  *    it to the browser, which needs no token.
- *  - **Ditto** (./ditto.ts, our second worker on Runpod): `ditto` or `ditto:admins`, with `RUNPOD_API_KEY` and
+ *  - **Ditto** (./ditto.ts, our second worker on Runpod): `ditto`, `ditto:plan` or `ditto:admins`, with `RUNPOD_API_KEY` and
  *    `LIVE_FACE_DITTO_ENDPOINT`. The whole head from the kit's portrait, nothing to build (the worker registers the
  *    still in a moment), so a character with a kit has a Ditto face at once; on a call the server renders a reply's
  *    clauses as one chain of clips (DittoChain), the same `video` events the browser plays for MuseTalk.
+ *  - **Who gets it:** `<renderer>` alone is everyone on a live call; `:admins` admins alone; `:plan` (2026-11-15, the
+ *    price) admins and Companion Plan members, whose plan pays for it: the face rides on their call minutes (the plan's
+ *    included ones, then bought ones at a token for ten), never a charge of its own. Everyone else's call is Tier 0,
+ *    and the call screen says the face comes with the plan (liveFaceOffer).
  *  - Unset, nothing here does anything and a call is exactly Tier 0 (lib/face-kit.ts).
  *  - **A face** lives in live_faces: one per character per kit source (`source_id`) per provider. A new kit means a
  *    new face; the old plays until then. The kit route's poll collects faces being built (collectLiveFaces).
@@ -23,6 +27,7 @@
 import type { Db } from "../db";
 import { faceKitBytes, faceKitFile, faceKitOf, faceSource } from "../face-kit";
 import { type LiveFaceProvider, type LiveFaceSession } from "../live-face-shared";
+import { planState } from "../paid-plans";
 import { inBackground } from "../sets";
 import { DITTO_PX, dittoConfig } from "./ditto";
 import { dittoLibrary, dittoSource, dropDittoLibrary, ensureDittoLibrary } from "./ditto-clips";
@@ -32,7 +37,7 @@ import { createSimliFace, deleteSimliFace, listSimliFaces, mintSimliSession, out
 export type { LiveFaceProvider, LiveFaceSession } from "../live-face-shared";
 
 type Env = Record<string, string | undefined>;
-export type LiveFaceMode = "off" | "admins" | "on";
+export type LiveFaceMode = "off" | "admins" | "plan" | "on";
 
 export const simliKey = (env: Env = process.env): string | null => env.SIMLI_API_KEY?.trim() || null;
 
@@ -62,11 +67,38 @@ export function liveFaceProvider(env: Env = process.env): LiveFaceProvider | nul
 export function liveFaceMode(env: Env = process.env): LiveFaceMode {
   const s = setting(env);
   if (!s || !liveFaceProvider(env)) return "off";
-  return s.who === "admins" ? "admins" : "on";
+  return s.who === "admins" ? "admins" : s.who === "plan" ? "plan" : "on";
 }
-export function liveFaceOn(env: Env, who: { admin: boolean }): boolean {
+
+/** Who's asking: an admin, and (for `:plan`) whether they have the Companion Plan; `userId` lets the async checks look it up. */
+export type LiveFaceWho = { admin: boolean; plan?: boolean; userId?: string | null };
+
+/** Whether this person gets the live face, from what's known: everyone, admins, or admins and plan members. */
+export function liveFaceOn(env: Env, who: LiveFaceWho): boolean {
   const mode = liveFaceMode(env);
-  return mode === "on" || (mode === "admins" && who.admin);
+  return mode === "on" || (mode !== "off" && who.admin) || (mode === "plan" && who.plan === true);
+}
+
+/** The same, looking up their plan when the setting is `:plan` and it isn't known yet. */
+export async function liveFaceFor(db: Db, env: Env, who: LiveFaceWho): Promise<boolean> {
+  if (liveFaceOn(env, who)) return true;
+  if (liveFaceMode(env) !== "plan" || who.plan !== undefined || !who.userId) return false;
+  return (await planState(db, who.userId, "companion")).active;
+}
+
+/** `who` with their plan filled in when the setting needs it (a route's tick, which warms without a db of its own). */
+export async function liveFaceWho(db: Db, env: Env, who: LiveFaceWho): Promise<LiveFaceWho> {
+  if (who.plan !== undefined || who.admin || liveFaceMode(env) !== "plan" || !who.userId) return who;
+  return { ...who, plan: (await planState(db, who.userId, "companion")).active };
+}
+
+/**
+ * What the call screen says about the face: "yours" when this person gets it, "plan" when it comes with the Companion
+ * Plan they don't have (the price, shown before the call), else null (off, or admins only).
+ */
+export function liveFaceOffer(env: Env, who: LiveFaceWho): "yours" | "plan" | null {
+  if (liveFaceOn(env, who)) return "yours";
+  return liveFaceMode(env) === "plan" ? "plan" : null;
 }
 
 /** A face still "making" after this long with no word from the renderer is given up (Simli says about four hours). */
@@ -263,9 +295,9 @@ export async function collectLiveFaces(db: Db, env: Env = process.env, character
  * the token the browser opens the stream with; for MuseTalk the word that clips will come (and a worker warming up).
  * Null for any other reason, quietly: the call goes on as Tier 0.
  */
-export async function liveFaceSession(db: Db, characterId: string, baseUrl: string, who: { admin: boolean; userId?: string | null }, opts: { maxSeconds?: number; idleSeconds?: number; env?: Env } = {}): Promise<LiveFaceSession | null> {
+export async function liveFaceSession(db: Db, characterId: string, baseUrl: string, who: LiveFaceWho, opts: { maxSeconds?: number; idleSeconds?: number; env?: Env } = {}): Promise<LiveFaceSession | null> {
   const env = opts.env ?? process.env;
-  if (!liveFaceOn(env, who)) return null;
+  if (!(await liveFaceFor(db, env, who))) return null;
   // Their own pick first (when that renderer has a ready face for this character and its key), else the server's.
   const choice = await choiceOf(db, who);
   const picked = choice === "auto" ? null : await liveFaceRowFor(db, characterId, baseUrl, choice, env);
@@ -298,7 +330,7 @@ export async function liveFaceSession(db: Db, characterId: string, baseUrl: stri
  * companion page calls it as it opens and a call on every tick, so a reply's first clause finds a hot worker rather
  * than a 22–32 s boot (the browser gives a first clip 4 s, so a cold boot meant a plain first reply).
  */
-export function warmLiveFace(env: Env, who: { admin: boolean }): void {
+export function warmLiveFace(env: Env, who: LiveFaceWho): void {
   if (!liveFaceOn(env, who)) return;
   const p = liveFaceProvider(env);
   if (p === "ditto") void warmWorker(dittoConfig(env)!);
@@ -312,8 +344,8 @@ export type LiveFaceClipPlan = { provider: "musetalk"; runpod: RunpodConfig; bun
  * What a turn needs to render clips for this character, when a clip renderer is on for this person (their own pick,
  * else the server's) and the character's face at it is ready; else null (Simli streams; Tier 0 needs nothing).
  */
-export async function liveFaceClips(db: Db, characterId: string, baseUrl: string, who: { admin: boolean; userId?: string | null }, env: Env = process.env): Promise<LiveFaceClipPlan | null> {
-  if (!liveFaceOn(env, who)) return null;
+export async function liveFaceClips(db: Db, characterId: string, baseUrl: string, who: LiveFaceWho, env: Env = process.env): Promise<LiveFaceClipPlan | null> {
+  if (!(await liveFaceFor(db, env, who))) return null;
   const choice = await choiceOf(db, who);
   if (choice === "simli") return null;
   const want = choice === "auto" ? liveFaceProvider(env) : choice;

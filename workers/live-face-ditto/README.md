@@ -96,7 +96,7 @@ so each clip loops or cuts against the portrait, `emo` neutral. On a call a clau
    out, so scale `workers.max` to 0 and back to retire it. The first endpoint, 2026-11-14: `k6mzbe6h1jgc19`, from
    template `6xcn8wmxzq` (image `ditto-1`); the show app points at it.
 3. The show app: `LIVE_FACE_DITTO_ENDPOINT=<endpoint id>` beside `RUNPOD_API_KEY` and `LIVE_FACE_ENDPOINT`. The
-   compare page (`/admin/live-face`) then lists `ditto`, and `LIVE_FACE_PROVIDER=ditto` (or `ditto:admins`) puts
+   compare page (`/admin/live-face`) then lists `ditto`, and `LIVE_FACE_PROVIDER=ditto` (or `ditto:admins`, or `ditto:plan` for admins and Companion Plan members) puts
    calls on it: a character with a face kit has a Ditto face at once (nothing to build), a reply renders as one
    chain of clips (above), and a person can pick it for their own calls on the compare page whatever the server's
    setting (`user_live_face`). The browser (app/companion/[id]/LiveFace.tsx) plays the clips as it does MuseTalk's,

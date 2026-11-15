@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { episodeAllowance, releaseEpisode, reserveEpisode } from "@/lib/allowance";
-import { CATALOG, catalogItem, ON_SALE, type CatalogItem } from "@/lib/catalog";
+import { CATALOG, catalogItem, PACK_15, PACKS as SELLABLE, type CatalogItem } from "@/lib/catalog";
 import { listMyCharacters } from "@/lib/game";
 import { setModelForTests } from "@/lib/model";
 import { refundOrder } from "@/lib/payments";
@@ -10,6 +10,7 @@ import {
   api,
   buy,
   episodeJson,
+  FAKE_LINKS,
   FAKE_PAYMENT_LINK,
   FAKE_PAYMENT_LINK_ID,
   grantByHand,
@@ -42,7 +43,7 @@ beforeEach(async () => {
   openPayments(vi.stubEnv);
 });
 
-const PACKS = ON_SALE.filter((i) => i.kind === "episode_pack");
+const PACKS = SELLABLE.filter((i) => i.kind === "episode_pack");
 const PACK = catalogItem("pack_5")!;
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -136,7 +137,7 @@ describe("episode packs add episodes, not points (exit criterion)", () => {
 
       // The shop's Buy button: a pending order, and the owner's Payment Link carrying its id.
       const { orderId, url, paidEvent } = await startCheckout(pack.sku, creator.cookie);
-      expect(url).toBe(`${FAKE_PAYMENT_LINK}?client_reference_id=${orderId}`);
+      expect(url).toBe(`${FAKE_LINKS[pack.sku].url}?client_reference_id=${orderId}`);
       expect(await allowanceOf(creator.cookie)).toEqual(unbought); // nothing until Stripe says it's paid
       // The buyer pays on Stripe; Stripe sends the signed checkout.session.completed for that link.
       const payload = paidEvent({ payment_link: FAKE_PAYMENT_LINK_ID });
@@ -338,14 +339,17 @@ describe("buying episode packs", () => {
   // The roadmap said packs cost $5–$10. REVENUE.md, written later about getting the first dollar, sets the
   // one pack at "5 more dates, $4", the price of the Payment Link David was asked to make. It stays inside
   // the $3–$8 every other paid item already used.
-  it("sells one pack, 5 dates for a $4 list price, and gives no other item an episode count", () => {
-    expect(PACKS).toEqual([PACK]);
+  // 2026-11-14 adds the 15-date pack at $10 (67¢ a date against the small pack's 80¢), on its own Payment Link.
+  it("sells two packs, 5 dates for $4 and 15 for $10, and gives no other item an episode count", () => {
+    expect(PACKS).toEqual([PACK, PACK_15]);
     expect(PACK).toMatchObject({ sku: "pack_5", kind: "episode_pack", episodes: 5, price_cents: 400 });
+    expect(PACK_15).toMatchObject({ sku: "pack_15", kind: "episode_pack", episodes: 15, price_cents: 1000 });
     expect(PACK.character_id).toBeUndefined();
+    expect(PACK_15.character_id).toBeUndefined();
     for (const item of CATALOG.filter((i) => i.kind !== "episode_pack")) expect(item.episodes).toBeUndefined();
     for (const item of CATALOG) {
       expect(item.price_cents).toBeGreaterThanOrEqual(200);
-      expect(item.price_cents).toBeLessThanOrEqual(800);
+      expect(item.price_cents).toBeLessThanOrEqual(1000);
     }
   });
 

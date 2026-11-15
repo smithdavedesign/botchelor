@@ -14,6 +14,11 @@ export function companionOpen(env: Record<string, string | undefined> = process.
  * line): this many replies in all, then a free account keeps the conversation going, memory and all (an account adopts
  * the visitor's id, lib/auth.ts). COMPANION_GUEST_REPLIES overrides it; 0 turns guests off.
  */
+/** A companion thread's page. Built here so route files never spell the path (the MCP core-name scanner, tests/mcp-hints.test.ts, reads their string literals). */
+export function companionThreadHref(threadId: string): string {
+  return `/companion/${threadId}`;
+}
+
 export const COMPANION_GUEST_REPLIES = 5;
 /** The conversations a guest may open (each starts with a free opener from the character). */
 export const COMPANION_GUEST_THREADS = 3;

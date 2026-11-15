@@ -570,6 +570,13 @@ voice. Fixed by excluding that type on both endpoints (`gpu.excludedTypes`, sent
 landed on 4090s and the next live turn streamed every clause. Engines rebuilt on TensorRT 10 for Blackwell would let
 those cards back in.
 
+**Who gets it (2026-11-15, David: "make sure the pricing is set up for this").** Until then the face was admins only
+(`ditto:admins`), so no visitor could have it at any price. It is now a Companion Plan perk: `LIVE_FACE_PROVIDER=
+ditto:plan` gives it to admins and plan members, a non-member's call screen offers the plan instead, and the plan page
+and `/pricing` list it. No separate charge: it rides on the call's minutes (20 a month in the plan, then 1 token for
+10). At ~1.3¢ of GPU a face minute plus ~2¢ for the voice, a call minute costs ~3.3¢ against ~7¢ sold, so the face
+needs no price of its own; a non-member's call never wakes a worker.
+
 ### With our own hardware (when users pick up; David moves the system then)
 
 Everything that renders is portable: the two worker images are plain Docker + CUDA 12 with a Python handler, and the

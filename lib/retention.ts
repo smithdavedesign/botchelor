@@ -22,6 +22,7 @@ export const RETENTION_DAYS = {
   episode_variations: 400,
   language_seen: 400,
   web_events: 400,
+  plus_interest: 400,
 } as const;
 export type PrunedTable = keyof typeof RETENTION_DAYS;
 
@@ -35,6 +36,8 @@ const PRUNE_SQL: Record<PrunedTable, string> = {
   episode_variations: `delete from episode_variations where created_at < $1`,
   language_seen: `delete from language_seen where day < $1::date`,
   web_events: `delete from web_events where at < $1`,
+  // A tap on the Plus tile (lib/plus-interest.ts) is a signal for a decision; a year on, it's noise.
+  plus_interest: `delete from plus_interest where created_at < $1`,
 };
 
 /** Deletes what's past its time, table by table (one failing never stops the rest). Returns how many rows each lost. */

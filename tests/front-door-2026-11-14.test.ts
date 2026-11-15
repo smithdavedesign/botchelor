@@ -48,7 +48,7 @@ describe("the hero", () => {
     expect(html).toContain('href="/watch">Watch episodes</a>');
     expect(html).toContain('href="/create?sample=1"');
     expect(html).toContain("Bring your character");
-    expect(html).toContain('<p class="trust-micro">Fictional characters only, no real people</p>');
+    expect(html).toContain('<p class="trust-micro">Fictional characters only, no real people. Every date is written by AI.</p>');
     expect(html).not.toContain(OLD);
     expect(html).not.toContain("For OC roleplayers");
   });
