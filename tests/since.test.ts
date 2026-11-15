@@ -72,6 +72,16 @@ describe("Since you were here (J4)", () => {
     expect((await since(creator))[0].news).toMatch(/is ready|Last date/);
   });
 
+  it("a date the house booked while they were away, aired, says so (lib/character-life.ts)", async () => {
+    const { creator, episode } = await setupEpisode("second_date");
+    const partner = await partnerName();
+    await t.db.query(`update episodes set setup = jsonb_set(setup, '{met_via}', '"life"'), revealed_at = now() where id = $1`, [episode.id]);
+    expect((await since(creator))[0]).toMatchObject({ news: `Mira went on a date with ${partner} while you were away`, action: "See how it went", href: `/episodes/${episode.id}` });
+    // Not aired yet: it's a date ready to watch, like any other.
+    await t.db.query(`update episodes set revealed_at = null where id = $1`, [episode.id]);
+    expect((await since(creator))[0].news).toBe(`Their date with ${partner} is ready`);
+  });
+
   it("a new match reads as one", async () => {
     const { creator, character } = await setupEpisode("friends");
     await notify(t.db, userIdOf(creator), { kind: "matched", title: "💘 A match", link: `/messages/${character.id}/${HOUSE_PARTNER_ID}` });
