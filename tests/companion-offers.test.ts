@@ -68,7 +68,8 @@ const tap = async (cookie: string, threadId: string, body: unknown) => {
   );
   return { status: res.status, body: (await res.json()) as Any };
 };
-const said = async (threadId: string) => (await t.db.query<{ text: string; action: string | null }>(`select text, action from companion_messages where thread_id = $1 and role = 'character' order by created_at, id`, [threadId])).rows;
+// What the character said (its words; the photo that rides with a text about a date is tests/date-photo.test.ts's).
+const said = async (threadId: string) => (await t.db.query<{ text: string; action: string | null }>(`select text, action from companion_messages where thread_id = $1 and role = 'character' and via <> 'photo' order by created_at, id`, [threadId])).rows;
 const chips = async (me: string, threadId: string) => {
   const v = await getThread(t.db, me, threadId);
   if (!v.ok) throw new Error("no thread");

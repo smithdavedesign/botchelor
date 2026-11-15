@@ -60,6 +60,7 @@ import "./ux/thin.css";
 import "./ux/prompts.css";
 import "./ux/chrome.css";
 import "./ux/catalog.css";
+import "./ux/phone.css";
 
 const TRACKING = trackingConfig();
 

@@ -146,11 +146,24 @@ describe("the companion's prompt", () => {
     // No reflection: the date block still names who, where and how; no venue: who and how.
     expect(companionMessages({ ...base, character: own, yours: true, lastDate: { ...lastDate, reflection: null, venue: null } })[0].content).toContain("- With Otto Fenn. How it ended: Just friends.");
     expect(companionMessages({ ...base, character: own, yours: true, lastDate: { ...lastDate, reflection: null } })[0].content).not.toContain("What you thought afterwards");
-    // A stranger's thread never gets the owner's framing or the last date, even when one is handed over.
+    // A stranger's thread never gets the owner's framing. The last date it is handed is the aired, public one
+    // (lib/companion.ts lastDateFor picks which; lib/cast-opener.ts told them about it), framed as the character's news.
     const stranger = companionMessages({ ...base, character: own, yours: false, lastDate })[0].content;
     expect(stranger).toContain("a person who picked you to talk to");
-    expect(stranger).not.toContain("Your last date");
-    expect(stranger).not.toContain("Otto Fenn");
+    expect(stranger).not.toContain("they sent you on it");
+    expect(stranger).toContain("Your last date on the show (it aired, so anyone can watch it; it's your news, yours to talk about from the inside):");
+    expect(stranger).toContain("- With Otto Fenn, at the night market. How it ended: Just friends.");
+    expect(stranger).toContain('What you thought afterwards, in your own words: "I talked over him twice. Next time I listen."');
+    // Nothing handed over: no block at all.
+    expect(companionMessages({ ...base, character: own, yours: false })[0].content).not.toContain("Your last date");
+  });
+
+  it("is told about the photos it sent, without them being lines it said", () => {
+    const withPhoto = companionMessages({ ...base, character: character(), photos: ["A photo from the date: Nell and Otto at the night market, Saturday, November 14."] })[0].content;
+    expect(withPhoto).toContain("Photos you sent them (snapshots from your dates; the show takes them, so you can't send one on request):");
+    expect(withPhoto).toContain("- A photo from the date: Nell and Otto at the night market, Saturday, November 14.");
+    expect(companionMessages({ ...base, character: character() })[0].content).not.toContain("Photos you sent them");
+    expect(companionMessages({ ...base, character: character(), photos: [] })[0].content).not.toContain("Photos you sent them");
   });
 });
 

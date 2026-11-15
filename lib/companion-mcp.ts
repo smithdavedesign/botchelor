@@ -67,19 +67,29 @@ const failed = (r: CompanionFail): ToolError => ({
   ...(r.crisis_resources ? { details: { crisis_resources: r.crisis_resources, paused: true, note: "The conversation is paused: action carry_on when you're ready." } } : {}),
 });
 
+/**
+ * A photo message (a snapshot from one of their dates, lib/date-photo.ts: `text` is its alt text) and the date a text
+ * points at, as absolute links an agent can open.
+ */
+const media = (m: CompanionThreadView["messages"][number]): Record<string, string> => ({
+  ...(m.photo ? { photo: new URL(m.photo.src, siteUrl()).toString(), watch: new URL(m.photo.href, siteUrl()).toString() } : {}),
+  ...(m.link ? { watch: new URL(m.link.href, siteUrl()).toString() } : {}),
+});
+
 /** The thread for an agent's reply: the newest messages, not the whole history. */
 function compact(view: CompanionThreadView, since?: Set<string>, limit = RECENT): Record<string, unknown> {
   const fresh = since ? view.messages.filter((m) => !since.has(m.id)) : [];
   return {
     thread_id: view.id,
     character: { id: view.character.id, name: view.character.name, yours: view.character.yours },
-    ...(since ? { reply: fresh.filter((m) => m.role === "character").map((m) => ({ id: m.id, text: m.text, ...(m.action ? { does: m.action } : {}) })) } : {}),
+    ...(since ? { reply: fresh.filter((m) => m.role === "character").map((m) => ({ id: m.id, text: m.text, ...(m.action ? { does: m.action } : {}), ...media(m) })) } : {}),
     ...(fresh.some((m) => m.role === "system" && !m.marker) ? { notice: fresh.find((m) => m.role === "system" && !m.marker)!.text } : {}),
     messages: view.messages.slice(-limit).map((m) => ({
       id: m.id,
       from: m.role === "user" ? "you" : m.role === "character" ? "them" : m.marker ? "scene" : "notice",
       text: m.text,
       ...(m.action ? { does: m.action } : {}),
+      ...media(m),
       // Its voice note (action voice): a link that plays for an hour, no session needed.
       ...(m.voice ? { voice: signedVoiceUrl(view.id, m.id, siteUrl()) } : {}),
       at: m.at,

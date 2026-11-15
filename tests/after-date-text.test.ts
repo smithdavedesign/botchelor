@@ -109,7 +109,9 @@ const post = async (cookie: string | null, body: unknown, headers: Record<string
   const res = await afterDateRoute(new Request(`${BASE_URL}/api/companion/after-date`, { method: "POST", headers: { "content-type": "application/json", ...(cookie ? { cookie } : {}), ...headers }, body: JSON.stringify(body) }));
   return { status: res.status, body: (await res.json()) as Any };
 };
-const messages = async (threadId: string) => (await t.db.query<{ role: string; text: string; action: string | null }>(`select role, text, action from companion_messages where thread_id = $1 order by created_at, id`, [threadId])).rows;
+// What was said, in order. The photo that comes with a text about a date (lib/date-photo.ts) is a message of its own,
+// right after the first bubble: tests/date-photo.test.ts covers it, and it is left out here.
+const messages = async (threadId: string) => (await t.db.query<{ role: string; text: string; action: string | null }>(`select role, text, action from companion_messages where thread_id = $1 and via <> 'photo' order by created_at, id`, [threadId])).rows;
 
 describe("sendAfterDateText", () => {
   it("texts from the side the person owns, once per date, with the notice first and nothing counted", async () => {

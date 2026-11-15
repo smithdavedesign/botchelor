@@ -1,5 +1,6 @@
 import { postFromCharacter, threadIdFor } from "./companion";
 import { storedOffers } from "./companion-offers";
+import { textPhoto } from "./date-photo";
 import { dateNumberSql } from "./date-number";
 import type { Db } from "./db";
 import type { SideOutcome } from "./engine";
@@ -23,6 +24,9 @@ import { venuePhrase } from "./venues";
  * The question a text ends on is now also a menu (lib/companion-offers.ts): the after-date and day-after texts carry
  * `offers` (see them again, someone new, advice), which the thread shows as chips and books through the show's own
  * route. The tease carries none: a chip under it would give the ending away.
+ *
+ * The after-date text also carries a photo from the date (lib/date-photo.ts: a snapshot composed from the place and the
+ * two portraits, $0, one message after the first bubble, under the same tag). DATE_PHOTO_TEXTS=0 leaves it out.
  */
 
 /** What the text is built from: a row of `episodes` with the two names, or an episode view's fields. */
@@ -92,6 +96,7 @@ type Row = {
   ending: Ending;
   creator_id: string;
   venue: string | null;
+  created_at: Date | string;
   reflections: Reflections | null;
   sides: [SideOutcome, SideOutcome] | null;
   date_number: number | null;
@@ -112,7 +117,7 @@ type Row = {
  */
 async function load(db: Db, userId: string, episodeId: string): Promise<{ ok: true; row: Row; side: "a" | "b" } | AfterDateFail> {
   const { rows } = await db.query<Row>(
-    `select e.id, e.status, (e.setup->>'ending_final')::boolean as ending_final, e.ending, e.creator_id, e.setup->>'venue' as venue, e.reflections, e.sides, ${dateNumberSql("e")} as date_number,
+    `select e.id, e.status, (e.setup->>'ending_final')::boolean as ending_final, e.ending, e.creator_id, e.setup->>'venue' as venue, e.created_at, e.reflections, e.sides, ${dateNumberSql("e")} as date_number,
             a.id as a_id, a.name as a_name, a.owner_id as a_owner, b.id as b_id, b.name as b_name, b.owner_id as b_owner
        from episodes e
        join characters a on a.id = e.character_a
@@ -151,7 +156,9 @@ export async function sendAfterDateText(db: Db, args: { userId: string; episodeI
   const lines = afterDateLines({ ending: r.ending, date_number: r.date_number, names: [r.a_name, r.b_name], venue: r.venue, reflections: r.reflections, sides: r.sides }, side);
   // The chips under the text (lib/companion-offers.ts): see them again where the ending allows, someone new, advice.
   const offers = storedOffers({ episodeId: r.id, partnerId: side === "a" ? r.b_id : r.a_id, partner: side === "a" ? r.b_name : r.a_name, ending: r.ending });
-  const posted = await postFromCharacter(db, { userId: args.userId, characterId, lines, now: args.now, kind: "after_date", dedupeKey: `after_date:${r.id}`, offers });
+  // A photo from the date (lib/date-photo.ts): composed on request, never the ending in it.
+  const photo = textPhoto({ id: r.id, names: [r.a_name, r.b_name], venue: r.venue, at: r.created_at });
+  const posted = await postFromCharacter(db, { userId: args.userId, characterId, lines, now: args.now, kind: "after_date", dedupeKey: `after_date:${r.id}`, offers, photo });
   if (posted) return { ok: true, thread_id: posted.threadId, character_id: characterId, message_id: posted.messageId, sent: true };
   const existing = await threadIdFor(db, args.userId, characterId);
   if (existing) return { ok: true, thread_id: existing, character_id: characterId, message_id: null, sent: false };

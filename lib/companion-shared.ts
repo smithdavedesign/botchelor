@@ -41,6 +41,33 @@ export function companionGuestsOpen(env: Record<string, string | undefined> = pr
 export const TEXT_TAG = /^[a-z][a-z0-9_]*:[A-Za-z0-9_.:-]+$/;
 export const isTextTag = (action: string | null | undefined): boolean => Boolean(action && TEXT_TAG.test(action));
 
+/**
+ * A photo from a date in the character's texts (lib/date-photo.ts): companion_messages.via = 'photo', media_url the
+ * stateless snapshot route below, and the message's text its alt text. DATE_PHOTO_TEXTS=0 stops new ones being sent;
+ * the ones already in a thread stay.
+ */
+export function datePhotoTexts(env: Record<string, string | undefined> = process.env): boolean {
+  return env.DATE_PHOTO_TEXTS?.trim() !== "0";
+}
+const DATE_PHOTO_PATH = /^\/api\/og\/date-photo\/([A-Za-z0-9_-]{1,64})$/;
+/** Where a date's snapshot is drawn (app/api/og/date-photo/[id]/route.tsx). */
+export const datePhotoPath = (episodeId: string): string => `/api/og/date-photo/${encodeURIComponent(episodeId)}`;
+/** The date a stored photo address is of, or null for anything that isn't the snapshot route (never rendered then). */
+export const datePhotoEpisode = (mediaUrl: string | null | undefined): string | null => (mediaUrl ? (DATE_PHOTO_PATH.exec(mediaUrl)?.[1] ?? null) : null);
+/** The snapshot's shape, width over height: the thread holds this box before the picture loads, so nothing jumps. */
+export const DATE_PHOTO_ASPECT = { width: 4, height: 5 } as const;
+
+/**
+ * The kinds of text (the tag's prefix) whose ref is a date worth a "Watch the date" link under the last bubble: the
+ * cast's opener about its last aired date (lib/cast-opener.ts) and the spoiler-free tease ("Come see how it went").
+ */
+const WATCH_LINK_TAG = /^(opener|tease):([A-Za-z0-9_-]{1,64})$/;
+export const watchLinkEpisode = (tag: string | null | undefined): string | null => (tag ? (WATCH_LINK_TAG.exec(tag)?.[2] ?? null) : null);
+/** COMPANION_DATE_OPENER=0: the cast opens the way it did (a model-written hello), and its prompt has no last-date block. */
+export function companionDateOpener(env: Record<string, string | undefined> = process.env): boolean {
+  return env.COMPANION_DATE_OPENER?.trim() !== "0";
+}
+
 export const REPLY_LENGTHS = ["short", "normal", "long"] as const;
 export type ReplyLength = (typeof REPLY_LENGTHS)[number];
 export const REPLY_LENGTH_LABELS: Record<ReplyLength, string> = { short: "Short", normal: "Normal", long: "Long" };
@@ -223,6 +250,13 @@ export type CompanionMessageView = {
   roleplay: string | null;
   /** Said on a voice call (📞): the person spoke it, or the reply was spoken aloud. Absent: typed. */
   call?: boolean;
+  /**
+   * A photo the character sent, from one of its dates (lib/date-photo.ts): where it loads from, and the date it opens
+   * on a tap. The message's `text` is its alt text. Absent: an ordinary text.
+   */
+  photo?: { src: string; href: string } | null;
+  /** A link under the bubble: the date this text is about, to watch (watchLinkEpisode). Absent: none. */
+  link?: { href: string; label: string } | null;
 };
 
 export type CompanionCharacterRef = {

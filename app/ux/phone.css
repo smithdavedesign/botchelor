@@ -1,0 +1,213 @@
+/* The character's phone (2026-11-15): a photo from a date inside a companion thread (app/companion/[id]/DatePhoto.tsx),
+   and the home page's phone block for someone with a character (app/CharacterPhone.tsx). Tokens only (docs/brand.md). */
+
+/* ---------------- a photo from the date, in the thread ---------------- */
+/* The box is the picture's shape before the picture loads (4:5, the image's own width and height attributes), so a
+   thread that opens at its newest text doesn't jump when the photo arrives. One link: the whole photo opens the date. */
+.date-photo {
+  margin: 0;
+  width: 15rem;
+  max-width: 100%;
+}
+.date-photo-link {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  border-radius: var(--radius);
+  border-bottom-left-radius: var(--radius-sm);
+  background: var(--photo-bg);
+  color: var(--on-photo);
+  text-decoration: none;
+  box-shadow: var(--shadow-sm);
+}
+.date-photo-link img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 4 / 5;
+  object-fit: cover;
+}
+.date-photo-link figcaption {
+  position: absolute;
+  right: var(--space-2);
+  top: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--photo-bg) 78%, transparent);
+  color: var(--on-photo);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+}
+.date-photo-link:hover figcaption,
+.date-photo-link:focus-visible figcaption {
+  background: var(--accent-btn);
+  color: var(--accent-ink);
+}
+.date-photo-link:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* ---------------- the home page: your character's phone ---------------- */
+.char-phone {
+  display: grid;
+  gap: var(--space-3);
+  border-color: color-mix(in srgb, var(--accent) 25%, var(--line));
+}
+.char-phone-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.char-phone-who {
+  min-width: 0;
+  flex: 1;
+}
+.char-phone-who .kicker {
+  margin: 0;
+}
+.char-phone-who h2 {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.char-phone-new {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: none;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--accent-text);
+}
+.char-phone-dot {
+  display: inline-block;
+  flex: none;
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: var(--radius-pill);
+  background: var(--accent-btn);
+}
+/* The screen: the thread's own bubbles on the thread's own ground, so it reads as their texts and not as a card of news. */
+.char-phone-screen {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--paper);
+}
+.char-phone-thread {
+  display: grid;
+  gap: var(--space-1);
+  color: inherit;
+  text-decoration: none;
+  border-radius: var(--radius-md);
+}
+.char-phone-thread:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.char-phone-texts {
+  display: grid;
+  gap: var(--space-1);
+  justify-items: start;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.char-phone-texts .chat-bubble {
+  max-width: min(34rem, 92%);
+  border-bottom-left-radius: var(--radius-sm);
+  animation: none;
+}
+.char-phone-texts .char-phone-photo {
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+.char-phone-when {
+  margin-left: var(--space-2);
+  font-size: var(--text-2xs);
+}
+.char-phone-empty {
+  margin: 0;
+}
+.char-phone-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+/* A thumb's worth of chip, like the thread's own (.companion-offer). */
+.char-phone-chips .char-phone-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--line);
+  text-decoration: none;
+}
+.char-phone-chips .char-phone-chip:hover,
+.char-phone-chips .char-phone-chip:focus-visible {
+  border-color: var(--accent);
+}
+.char-phone-next {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  font-size: var(--text-sm);
+}
+.char-phone-next li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-2);
+  align-items: baseline;
+}
+.char-phone-next-label {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  color: var(--muted);
+}
+.char-phone-actions {
+  margin: 0;
+}
+.char-phone-actions > button,
+.char-phone-actions > a {
+  margin-top: 0;
+}
+.char-phone-error {
+  flex-basis: 100%;
+}
+.char-phone-others {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+}
+.char-phone-others ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  margin: 0;
+}
+.char-phone-others a {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 36px;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  text-decoration: none;
+}
+@media (max-width: 480px) {
+  /* One action a row on a phone, full width under the thumb. */
+  .char-phone-actions > button,
+  .char-phone-actions > a {
+    flex: 1 1 100%;
+    text-align: center;
+    justify-content: center;
+  }
+}

@@ -13,10 +13,13 @@ import {
   COMPANION_GUEST_THREADS,
   COMPANION_MESSAGE_MAX,
   COMPANION_REPORT_REASONS,
+  companionDateOpener,
   companionNotice,
   companionOpen,
+  datePhotoEpisode,
   isScenePlace,
   isTextTag,
+  watchLinkEpisode,
   type CompanionCharacterRef,
   type CompanionMessageView,
   type CompanionReportReason,
@@ -29,7 +32,9 @@ import { resolveTerms, type TermsInput } from "./date-roleplays";
 import type { Db } from "./db";
 import { activeNudge } from "./between-dates";
 import { nextTimeFor, openOffers, type StoredOffers } from "./companion-offers";
-import { lastDateOf } from "./last-date";
+import { castOpenerLines, castOpenerTag } from "./cast-opener";
+import { textPhoto, type TextPhoto } from "./date-photo";
+import { lastAiredDateOf, lastDateOf } from "./last-date";
 import { fallbackModel, getModel, openAICompatibleModel, type Model, type Usage } from "./model";
 import { notify } from "./notifications";
 import { loadOurIds } from "./our-traffic";
@@ -186,14 +191,50 @@ async function addMessage(
   role: "user" | "character" | "system",
   text: string,
   at: Date,
-  extra: { model?: string | null; cost?: number | null; scene?: VenueId | null; action?: string | null; marker?: "scene" | "texting"; roleplay?: string | null; onCall?: boolean; offers?: StoredOffers | null } = {},
+  extra: {
+    model?: string | null;
+    cost?: number | null;
+    scene?: VenueId | null;
+    action?: string | null;
+    marker?: "scene" | "texting";
+    roleplay?: string | null;
+    onCall?: boolean;
+    offers?: StoredOffers | null;
+    /** A photo message (lib/date-photo.ts): where it's drawn; `text` is then its alt text. */
+    photoUrl?: string | null;
+  } = {},
 ): Promise<string> {
   const id = randomUUID();
   await db.query(
-    `insert into companion_messages (id, thread_id, role, text, model, cost, created_at, scene, action, marker, roleplay, on_call, offers) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb)`,
-    [id, threadId, role, text, extra.model ?? null, extra.cost ?? null, at.toISOString(), extra.scene ?? null, extra.action ?? null, extra.marker ?? null, extra.roleplay ?? null, extra.onCall === true, extra.offers ? JSON.stringify(extra.offers) : null],
+    `insert into companion_messages (id, thread_id, role, text, model, cost, created_at, scene, action, marker, roleplay, on_call, offers, via, media_url) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb, $14, $15)`,
+    [id, threadId, role, text, extra.model ?? null, extra.cost ?? null, at.toISOString(), extra.scene ?? null, extra.action ?? null, extra.marker ?? null, extra.roleplay ?? null, extra.onCall === true, extra.offers ? JSON.stringify(extra.offers) : null, extra.photoUrl ? "photo" : "text", extra.photoUrl ?? null],
   );
   return id;
+}
+
+/** Written lines, cleaned and kept only when every one passes the PG line and the crisis list (null otherwise). */
+function writtenLines(raw: readonly string[]): string[] | null {
+  const lines = raw
+    .map((l) => clean(l).slice(0, BUBBLE_MAX))
+    .filter(Boolean)
+    .slice(0, MAX_BUBBLES);
+  return lines.length && lines.every((l) => checkFamilyTalk(l).ok && !crisisIntent(l)) ? lines : null;
+}
+
+/**
+ * Puts a written text (no model) in a thread as the character's: its bubbles, all with `tag`, the offers on the first,
+ * and its photo (lib/date-photo.ts) as a message of its own right after the first bubble, the way a person sends one:
+ * "back from the date with Nell", the picture, then the rest. Returns the bubbles' ids (the photo's isn't one).
+ */
+async function writeText(db: Db, threadId: string, now: Date, o: { lines: readonly string[]; tag: string; offers?: StoredOffers | null; photo?: TextPhoto | null }): Promise<string[]> {
+  const ids: string[] = [];
+  let n = 0;
+  for (const [i, text] of o.lines.entries()) {
+    ids.push(await addMessage(db, threadId, "character", text, tick(now, ++n), { action: o.tag, offers: i === 0 ? (o.offers ?? null) : null }));
+    if (i === 0 && o.photo) await addMessage(db, threadId, "character", clean(o.photo.alt).slice(0, BUBBLE_MAX), tick(now, ++n), { action: o.tag, photoUrl: o.photo.url });
+  }
+  await db.query(`update companion_threads set last_at = $2 where id = $1`, [threadId, tick(now, n + 1).toISOString()]);
+  return ids;
 }
 
 /** Messages that follow one another in a reply are a millisecond apart, so they always sort in the order said. */
@@ -280,8 +321,28 @@ export async function openThread(
   }
   const t = (await ownThread(db, userId, id))!;
   await putNotice(db, t, character.name, now);
-  if (opts.opener !== false) await speak(db, t, character, tick(now, 1), { cue: OPENER_CUE }).catch(() => null);
+  if (opts.opener !== false) {
+    // Someone else's cast character with an aired date opens with it, written (lib/cast-opener.ts); anyone else the old way.
+    const told = character.ownerId !== userId && (await castOpener(db, t, character, now).catch(() => false));
+    if (!told) await speak(db, t, character, tick(now, 1), { cue: OPENER_CUE }).catch(() => null);
+  }
   return { ok: true, thread_id: id, resumed: false };
+}
+
+/**
+ * The cast's opener (lib/cast-opener.ts): the character's last aired date in its own words, with the date's snapshot
+ * (lib/date-photo.ts) and, under the last bubble, the link to watch it. False when there is nothing to tell (no aired
+ * date, the switch is off, or a line failed the PG check), and then the model writes the hello as before.
+ */
+async function castOpener(db: Db, t: ThreadRow, character: Character, now: Date): Promise<boolean> {
+  if (!companionDateOpener()) return false;
+  const last = await lastAiredDateOf(db, character.id);
+  if (!last) return false;
+  const lines = writtenLines(castOpenerLines(character.name, last));
+  if (!lines) return false;
+  await writeText(db, t.id, now, { lines, tag: castOpenerTag(last.episodeId), photo: textPhoto({ id: last.episodeId, names: last.names, venue: last.venueId, at: last.at }) });
+  track("companion_text", { kind: "opener", bubbles: lines.length });
+  return true;
 }
 
 /** This person's thread with a character, if they have one. */
@@ -302,6 +363,8 @@ export type PostFromCharacterArgs = {
   dedupeKey: string;
   /** The chips under the text (lib/companion-offers.ts): kept on its first bubble, shown while they're open. */
   offers?: StoredOffers | null;
+  /** A photo from the date the text is about (lib/date-photo.ts textPhoto): one message of its own, after the first bubble. */
+  photo?: TextPhoto | null;
 };
 
 /**
@@ -317,11 +380,8 @@ export type PostFromCharacterArgs = {
 export async function postFromCharacter(db: Db, args: PostFromCharacterArgs): Promise<{ threadId: string; messageId: string } | null> {
   const now = args.now ?? new Date();
   if (!isTextTag(args.dedupeKey)) throw new Error(`postFromCharacter: dedupeKey must read <kind>:<ref>, got ${JSON.stringify(args.dedupeKey)}`);
-  const lines = args.lines
-    .map((l) => clean(l).slice(0, BUBBLE_MAX))
-    .filter(Boolean)
-    .slice(0, MAX_BUBBLES);
-  if (!lines.length || !lines.every((l) => checkFamilyTalk(l).ok && !crisisIntent(l))) return null;
+  const lines = writtenLines(args.lines);
+  if (!lines) return null;
   if (!(await companionEligible(db, args.userId, args.characterId))) return null;
   const character = await loadCharacter(db, args.characterId);
   if (!character) return null;
@@ -332,17 +392,15 @@ export async function postFromCharacter(db: Db, args: PostFromCharacterArgs): Pr
   const dup = await db.query(`select 1 from companion_messages where thread_id = $1 and action = $2 limit 1`, [t.id, args.dedupeKey]);
   if (dup.rows.length) return null;
   if (noticeDue(t, now)) await putNotice(db, t, character.name, now);
-  const ids: string[] = [];
   // Texting lines, whatever the thread is doing: a text arrives between scenes, never inside one. The offers ride the first.
-  for (const [i, text] of lines.entries()) ids.push(await addMessage(db, t.id, "character", text, tick(now, i + 1), { action: args.dedupeKey, offers: i === 0 ? (args.offers ?? null) : null }));
-  await db.query(`update companion_threads set last_at = $2 where id = $1`, [t.id, tick(now, lines.length + 1).toISOString()]);
+  const ids = await writeText(db, t.id, now, { lines, tag: args.dedupeKey, offers: args.offers, photo: args.photo });
   await notify(db, args.userId, {
     kind: "character_texted_you",
     title: `💬 ${firstNameOf(character.name)} texted you`,
     body: lines[0],
     link: `/companion/${t.id}`,
   });
-  track("companion_text", { kind: args.kind, bubbles: lines.length });
+  track("companion_text", { kind: args.kind, bubbles: lines.length, photo: args.photo ? true : undefined });
   return { threadId: t.id, messageId: ids[0] };
 }
 
@@ -352,15 +410,21 @@ export async function getThread(db: Db, userId: string, threadId: string): Promi
   if (!t) return NOT_FOUND;
   const ref = await characterRef(db, t.character_id, userId);
   if (!ref) return NOT_FOUND;
-  const [{ rows: msgs }, { rows: facts }, nextTime] = await Promise.all([
-    db.query<{ id: string; role: "user" | "character" | "system"; text: string; created_at: string; reported: string | null; scene: string | null; action: string | null; marker: CompanionMessageView["marker"]; roleplay: string | null; voice_key: string | null; on_call: boolean; offers: StoredOffers | null }>(
-      `select id, role, text, created_at, reported, scene, action, marker, roleplay, voice_key, on_call, offers from companion_messages where thread_id = $1 and replaced_by is null order by created_at asc, id asc`,
+  const [{ rows: msgs }, { rows: facts }, nextTime, realPhotos] = await Promise.all([
+    db.query<{ id: string; role: "user" | "character" | "system"; text: string; created_at: string; reported: string | null; scene: string | null; action: string | null; marker: CompanionMessageView["marker"]; roleplay: string | null; voice_key: string | null; on_call: boolean; offers: StoredOffers | null; via: string; media_url: string | null }>(
+      `select id, role, text, created_at, reported, scene, action, marker, roleplay, voice_key, on_call, offers, via, media_url from companion_messages where thread_id = $1 and replaced_by is null order by created_at asc, id asc`,
       [threadId],
     ),
     db.query<{ n: number }>(`select count(*)::int as n from companion_facts where thread_id = $1`, [threadId]),
     // Their own character: who the "For next time" note is for, and the standing note (lib/companion-offers.ts).
     ref.yours ? nextTimeFor(db, ref.id).catch(() => null) : Promise.resolve(null),
+    // Their own character's dates may have a real photo, made in the PG Studio (lib/studio/date-photos.ts): it stands
+    // in for the composed snapshot. Owner-only, like the photos themselves.
+    ref.yours ? realDatePhotos(db, threadId).catch(() => new Map<string, string>()) : Promise.resolve(new Map<string, string>()),
   ]);
+  // The "Watch the date" link goes under the last bubble of a text whose tag says so (the cast's opener, the tease).
+  const lastOfTag = new Map<string, string>();
+  for (const m of msgs) if (m.role === "character" && m.via !== "photo" && watchLinkEpisode(m.action)) lastOfTag.set(m.action!, m.id);
   // The chips: on the newest text whose menu is still open, and only while no newer date of theirs exists.
   const open = ref.yours ? await openOffers(db, ref.id, msgs).catch(() => null) : null;
   return {
@@ -382,6 +446,8 @@ export async function getThread(db: Db, userId: string, threadId: string): Promi
         voice: m.voice_key ? voiceUrl(t.id, m.id) : null,
         ...(m.on_call ? { call: true } : {}),
         ...(open && open.messageId === m.id ? { offers: open.view } : {}),
+        ...photoOf(m, realPhotos),
+        ...(m.action && lastOfTag.get(m.action) === m.id ? { link: { href: `/episodes/${watchLinkEpisode(m.action)}`, label: "Watch the date" } } : {}),
       })),
       reply_length: t.reply_length,
       scene: isScenePlace(t.scene) ? t.scene : null,
@@ -391,6 +457,30 @@ export async function getThread(db: Db, userId: string, threadId: string): Promi
       ...(ref.yours ? { next_time: nextTime } : {}),
     },
   };
+}
+
+/**
+ * A photo message as the page shows it: the composed snapshot (only ever the snapshot route's own path: anything else
+ * stored there is not rendered), or the real date photo when its owner made one; a tap opens the date.
+ */
+function photoOf(m: { via: string; media_url: string | null }, real: ReadonlyMap<string, string>): Pick<CompanionMessageView, "photo"> {
+  const episode = m.via === "photo" ? datePhotoEpisode(m.media_url) : null;
+  if (!episode) return {};
+  const asset = real.get(episode);
+  return { photo: { src: asset ? `/api/assets/${asset}` : m.media_url!, href: `/episodes/${episode}` } };
+}
+
+/** The newest approved real photo of each date this thread has a photo message about: episode id -> asset id. */
+async function realDatePhotos(db: Db, threadId: string): Promise<Map<string, string>> {
+  const { rows } = await db.query<{ episode_id: string; asset_id: string }>(
+    `select distinct on (d.episode_id) d.episode_id, d.asset_id
+       from date_photos d
+       join character_assets a on a.id = d.asset_id and a.review_status = 'approved' and a.content_rating = 'pg'
+      where d.episode_id in (select substring(m.media_url from '[^/]+$') from companion_messages m where m.thread_id = $1 and m.via = 'photo')
+      order by d.episode_id, d.created_at desc`,
+    [threadId],
+  );
+  return new Map(rows.map((r) => [r.episode_id, r.asset_id]));
 }
 
 async function characterRef(db: Db, characterId: string, userId: string): Promise<CompanionCharacterRef | null> {
@@ -520,13 +610,17 @@ type SpeakResult = { ok: true; ids: string[]; texts: string[] } | CompanionFail;
 export const REDRAW_WITHIN_MS = 40_000;
 
 /** The recent turns, oldest first (a redrawn reply's earlier draw left out, and the reply being drawn again). */
-async function recentTurns(db: Db, threadId: string, exclude: readonly string[] = []): Promise<{ turns: PromptTurn[]; avoid: string[] }> {
-  const { rows } = await db.query<{ role: "user" | "character"; text: string; action: string | null; roleplay: string | null }>(
-    `select role, text, action, roleplay from companion_messages
+async function recentTurns(db: Db, threadId: string, exclude: readonly string[] = []): Promise<{ turns: PromptTurn[]; avoid: string[]; photos: string[] }> {
+  const { rows: all } = await db.query<{ role: "user" | "character"; text: string; action: string | null; roleplay: string | null; via: string }>(
+    `select role, text, action, roleplay, via from companion_messages
       where thread_id = $1 and role <> 'system' and replaced_by is null and not (id = any($3::text[]))
       order by created_at desc, id desc limit $2`,
     [threadId, RECENT_TURNS + AVOID_LINES, exclude],
   );
+  // A photo is not something the character said: it stays out of the turns (so a reply never imitates its alt text),
+  // and the prompt is told a photo was sent, so "nice picture" doesn't come as a surprise.
+  const rows = all.filter((r) => r.via !== "photo");
+  const photos = all.filter((r) => r.via === "photo").map((r) => r.text).slice(0, 2);
   const recent = rows
     .slice(0, RECENT_TURNS)
     .reverse()
@@ -535,17 +629,25 @@ async function recentTurns(db: Db, threadId: string, exclude: readonly string[] 
     .slice(RECENT_TURNS)
     .filter((r) => r.role === "character")
     .map((r) => r.text);
-  return { turns: recent, avoid };
+  return { turns: recent, avoid, photos };
 }
 
 /** The character's own lines in this thread, newest first: what a new reply mustn't say again (repeatsEarlier). */
 async function earlierLines(db: Db, threadId: string): Promise<string[]> {
   const { rows } = await db.query<{ text: string }>(
-    `select text from companion_messages where thread_id = $1 and role = 'character' order by created_at desc, id desc limit 150`,
+    `select text from companion_messages where thread_id = $1 and role = 'character' and via <> 'photo' order by created_at desc, id desc limit 150`,
     [threadId],
   );
   return rows.map((r) => r.text);
 }
+
+/**
+ * The last date the character's prompt knows about (lib/companion-prompt.ts): for its owner, its last finished date,
+ * private or not yet aired included (it's theirs); for anyone else, its last aired public date, the one its opener told
+ * them about (lib/cast-opener.ts), and none with COMPANION_DATE_OPENER=0.
+ */
+const lastDateFor = (db: Db, characterId: string, yours: boolean) =>
+  (yours ? lastDateOf(db, characterId) : companionDateOpener() ? lastAiredDateOf(db, characterId) : Promise.resolve(null)).catch(() => null);
 
 /**
  * The character's reply to the thread as it stands: one model call, split into 1-3 messages, each checked against the
@@ -566,7 +668,7 @@ async function speak(
     call?: boolean;
   } = {},
 ): Promise<SpeakResult> {
-  const { turns, avoid } = await recentTurns(db, t.id, opts.replacing);
+  const { turns, avoid, photos } = await recentTurns(db, t.id, opts.replacing);
   const lastUser = [...turns].reverse().find((x) => x.role === "user")?.text ?? "";
   const facts = await factsForPrompt(db, t.id, lastUser, now);
   const model = await modelFor(db);
@@ -582,9 +684,9 @@ async function speak(
   // Their own character (lib/companion-prompt.ts, the "yours" branch): talking with the person who made them, who may
   // hear how their last date really went (a private date included: it's this owner's).
   const yours = character.ownerId !== null && character.ownerId === t.user_id;
-  const lastDate = yours ? await lastDateOf(db, character.id).catch(() => null) : null;
+  const lastDate = await lastDateFor(db, character.id, yours);
   // The owner's standing note for the next date with that partner (a nudge): the character may acknowledge it here.
-  const nudge = lastDate ? await activeNudge(db, character.id, lastDate.partnerId).catch(() => null) : null;
+  const nudge = yours && lastDate ? await activeNudge(db, character.id, lastDate.partnerId).catch(() => null) : null;
   // A safe draw that only says something again: used when the redraw doesn't come back better (never a deflection).
   let safeRepeat: { bubbles: string[]; action: string | null } | null = null;
   const again = (x: string) => `${x.slice(0, 300)} (you've said this before: say something new)`;
@@ -593,7 +695,7 @@ async function speak(
     let raw: string;
     try {
       raw = await model.complete(
-        companionMessages({ character, turns, facts, summary: t.summary, length: t.reply_length, avoid, now, insteadOf, cue: opts.cue, scene, call, yours, lastDate, activeNudge: nudge }),
+        companionMessages({ character, turns, facts, summary: t.summary, length: t.reply_length, avoid, now, insteadOf, cue: opts.cue, scene, call, yours, lastDate, activeNudge: nudge, photos }),
         {
           temperature: 0.9,
           frequencyPenalty: 0.3,
@@ -793,12 +895,12 @@ export async function liveReply(db: Db, turn: LiveTurn, sink: LiveSink): Promise
     return { ok: true, id: r.ids[0] ?? null, text, streamed: false, cut: false };
   };
   if (!model.stream) return v1(null);
-  const { turns, avoid } = await recentTurns(db, t.id);
+  const { turns, avoid, photos } = await recentTurns(db, t.id);
   const lastUser = [...turns].reverse().find((x) => x.role === "user")?.text ?? "";
   const [facts, earlier] = await Promise.all([factsForPrompt(db, t.id, lastUser, now), earlierLines(db, t.id)]);
   const yours = character.ownerId !== null && character.ownerId === t.user_id;
-  const lastDate = yours ? await lastDateOf(db, character.id).catch(() => null) : null;
-  const nudge = lastDate ? await activeNudge(db, character.id, lastDate.partnerId).catch(() => null) : null;
+  const lastDate = await lastDateFor(db, character.id, yours);
+  const nudge = yours && lastDate ? await activeNudge(db, character.id, lastDate.partnerId).catch(() => null) : null;
   const usage: Usage[] = [];
   let served = null as string | null;
   const parts: string[] = [];
@@ -827,7 +929,7 @@ export async function liveReply(db: Db, turn: LiveTurn, sink: LiveSink): Promise
   };
   try {
     const stream = model.stream(
-      companionMessages({ character, turns, facts, summary: t.summary, length: t.reply_length, avoid, now, call: true, live: true, yours, lastDate, activeNudge: nudge }),
+      companionMessages({ character, turns, facts, summary: t.summary, length: t.reply_length, avoid, now, call: true, live: true, yours, lastDate, activeNudge: nudge, photos }),
       { temperature: 0.9, frequencyPenalty: 0.3, maxTokens: 250, onUsage: (u) => usage.push(u), onModel: (id) => (served = id), signal },
     );
     reading: for await (const piece of stream) {
