@@ -100,3 +100,25 @@ function copy<T>(key: string, value: T): T {
 export function forViewer<T>(viewerId: string | null | undefined, key: string, load: () => Promise<T>): Promise<T> {
   return viewerId ? load() : shared(key, load);
 }
+
+const flights = new WeakMap<object, Map<string, Promise<unknown>>>();
+
+/**
+ * One read for everyone asking the same thing at the same moment: while `load()` for `key` is on its way, a second
+ * caller waits on that one instead of sending its own. Nothing is kept once it lands, so nothing is ever served stale;
+ * unlike `shared` this is on everywhere. For small reads a page asks several times over from different corners (the
+ * season's format, the day's beat): each copy took a connection of the pool and pushed the page's other reads back
+ * (tests/perf-pages.test.ts, home after the 2026-11-15 drama wave). `scope` is the database the read goes to, so two
+ * databases (tests) never share. Hand out only what callers won't change (a string, rows they map afresh).
+ */
+export function inFlight<T>(scope: object, key: string, load: () => Promise<T>): Promise<T> {
+  let mine = flights.get(scope);
+  if (!mine) flights.set(scope, (mine = new Map()));
+  const going = mine.get(key);
+  if (going) return going as Promise<T>;
+  const flight = load().finally(() => {
+    if (mine.get(key) === flight) mine.delete(key);
+  });
+  mine.set(key, flight);
+  return flight;
+}
