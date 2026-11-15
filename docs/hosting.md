@@ -119,6 +119,13 @@ ignore it.
   others heard. One call a day on the free model (0.07 cents at paid list prices) or a template. `0` writes no scene
   and `/house` says the house is quiet. `HOUSE_SCENE_HOUR_UTC` (default `18`) is the hour from which the hourly job
   writes the day's. Commented in `.do/show.yaml`; the rules are in [seasons.md](seasons.md), "The house".
+- **`CONFRONTATIONS`, `CHALLENGES`** (the show's app, not secrets; each on unless it is `0`): the two other kinds of
+  house scene (`lib/house-conflict.ts`). A confrontation is staged when the story state holds a tension hot enough
+  between two in the house (two a week at most); the challenge is held on Wednesdays, and its winner gets the next
+  one-on-one. Each result is decided by seeded rules, never a vote, and no date's ending changes. About 0.06 and 0.09
+  cents a scene at paid list prices. `0` stops new ones without a deploy (a prize already won is still honoured);
+  `HOUSE_SCENES=0` stops both. Commented in `.do/show.yaml`; the rules are in [seasons.md](seasons.md),
+  "Confrontations and challenges".
 - **`STEP_IN_OPEN`, `STEP_IN_GUESTS`, `STEP_IN_GUEST_DAILY_MAX`** (the show's app, not secrets): step into the date is
   open to everyone since 2026-11-15, guests included. `STEP_IN_OPEN=0` puts it back to admins only; `STEP_IN_GUESTS=0`
   asks a visitor without an account to sign in first; `STEP_IN_GUEST_DAILY_MAX` (default `300`) is the guest dates a day

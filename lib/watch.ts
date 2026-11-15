@@ -19,7 +19,7 @@ import { dateNumberSql } from "./date-number";
 import { decideTraced, seedFrom } from "./engine";
 import { track, trackDateQuality, trackEpisodeCost } from "./analytics";
 import { failureReason } from "./jobs";
-import { showCastIds, suitorInTurn } from "./season-cast";
+import { firstPickOn, showCastIds, suitorInTurn } from "./season-cast";
 import type { BoxScore, CharacterRef, DateSetup } from "./game";
 import { portraitPathSql } from "./assets";
 import { claimPaidDate } from "./limits";
@@ -1090,6 +1090,10 @@ export async function lobbyDeal(db: Db, now: Date, n: number): Promise<{ a: stri
   // A Botchelor season (lib/ceremony.ts): the lead with the suitor whose turn it is, a later room the next suitor.
   const courting = def?.lead ? suitorInTurn(now, n) : null;
   if (courting) return { a: courting[0], b: courting[1], thumbs };
+  // Any other format: the day's first house date goes to the week's challenge winner and their pick, when there is
+  // one (lib/season-cast.ts firstPickOn). The same number of dates as any day; only who is on the first changes.
+  const picked = !def?.lead && n === 0 ? firstPickOn(day, cast) : null;
+  if (picked) return { a: picked[0], b: picked[1], thumbs };
   if (cast.length < 2) return null;
   const fresh =
     twist?.pairing === "newcomer"

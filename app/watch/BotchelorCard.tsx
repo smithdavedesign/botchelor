@@ -17,6 +17,10 @@ const utcTime = (iso: string): string => {
   return `Sunday, ${h % 12 || 12}${m ? `:${String(m).padStart(2, "0")}` : ""} ${h < 12 ? "am" : "pm"} UTC`;
 };
 
+/** "today" or "on Thursday": the day a challenge's prize date is on (UTC, like the show's days). */
+const dayWord = (day: string, now: number): string =>
+  day === new Date(now).toISOString().slice(0, 10) ? "today" : `on ${new Date(`${day}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "long", timeZone: "UTC" })}`;
+
 /**
  * The Botchelor (lib/ceremony.ts): the lead, the suitors with their roses or how they left, the audience's vote on who
  * goes home while it's open (counts once you've voted, like the situation vote), the countdown to Sunday's ceremony, and
@@ -95,6 +99,20 @@ export default function BotchelorCard({ board, now }: { board: CeremonyBoard; no
             </p>
           ))}
         </div>
+      )}
+      {/* The week's house challenge (lib/house-conflict.ts): its winner takes the lead's next date in the rotation,
+          trading days with whoever's turn it was. Decided by the show's rules, never by a vote. */}
+      {board.challenge && (
+        <p className="small botchelor-line" data-challenge>
+          <span aria-hidden="true">🏆</span> <Link href={`/characters/${board.challenge.winner.id}`}>{board.challenge.winner.name}</Link> won{" "}
+          {board.challenge.title ? board.challenge.title.replace(/^The /, "the ") : "the house challenge"}: {board.lead.name}&apos;s next date,{" "}
+          {dayWord(board.challenge.day, now)}, is theirs.{" "}
+          {board.challenge.scene_path && (
+            <Link href={board.challenge.scene_path} data-track="house-scene" data-track-where="botchelor-card">
+              See how →
+            </Link>
+          )}
+        </p>
       )}
       {/* Open casting (lib/casting.ts): anyone's new character walks on for a first date with the lead; the count shows
           under the empty-room rule (decided on the server), and the finale names the people's rose. */}

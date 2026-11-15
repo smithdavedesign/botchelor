@@ -317,13 +317,15 @@ behind it (the claims and whether they are true), the wants it set, the twists, 
 at night; and **Skip tomorrow's beat** (that day gets no beat, no producer wants and no twists; Undo takes it back).
 `GET`/`POST /api/admin/producer` (`{"action":"skip"}` / `{"action":"unskip"}`). The producer never needs a person.
 
-**The house's scenes** ([`lib/house-scenes.ts`](../lib/house-scenes.ts), "The house" below). The day's scene is
-written at 18:20 UTC, and its room is seated from the day's beat first (`beatFor(db, day)`: the beat's two people, on a
-date its `about` was on when there is one), then from the state's own tensions. So the beat picked at 23:20 the night
-before is what the house is overheard talking about the next evening. A skipped day, a day with no beat, or
-`PRODUCER=0` leaves the scene to the tensions, as before. `beatFor` also carries `scene` (kitchen | confrontation |
-challenge: the kind of scene the beat suits) and `evidence.heard` (the claims to bring up) for the confrontations and
-challenges still to come.
+**The house's scenes** ([`lib/house-scenes.ts`](../lib/house-scenes.ts) and
+[`lib/house-conflict.ts`](../lib/house-conflict.ts), "The house" below) read the day's beat through one function
+(`beatFor` in `lib/house-scenes.ts`, which reads the producer's `beatFor(db, day)`). The day's gossip scene, written
+at 18:20 UTC, seats the beat's two people first (on a date its `about` was on when there is one), then follows the
+state's own tensions. A confrontation puts the beat's pair first among the tensions that are due (its own rules still
+decide whether anything is due, and seeded rules decide how it comes out). So the beat picked at 23:20 the night before
+is what the house is overheard talking about, or having out, the next evening. A skipped day, a day with no beat, or
+`PRODUCER=0` leaves both to the tensions, as before. The producer's own `beatFor` also carries `scene` (kitchen |
+confrontation | challenge: the kind of scene the beat suits) and `evidence.heard` (the claims behind it).
 
 **The date plans written at night** are [`lib/night-plans.ts`](../lib/night-plans.ts): see
 [date-quality.md](date-quality.md), "Round: the plan at night".
@@ -414,3 +416,81 @@ facts per line to check, so counting them as heard would have meant trusting unv
 every check on a line, the one wrong retelling and its banned kinds, what a scene tells to whom, the owner's
 notification and text once a day, reports and review, a date that stops being public, the switch, the empty states
 and the page's lists.
+
+## Confrontations and challenges (2026-11-15)
+
+The third part of the drama wave ([`lib/house-conflict.ts`](../lib/house-conflict.ts)): two more kinds of house scene,
+on the same table and page as the daily one, each with a **result that is decided before a word is written, by seeded
+rules, never by a vote or a payment**. Neither touches a date: the engine alone decides endings, and nothing here reads
+or writes points, odds or pairings beyond the order of dates the format already deals.
+
+### Confrontations
+
+- **When.** At the scene hour, before the day's own scene is written, the hourly job reads `tensions(db, seasonId)`.
+  A tension at weight 5 or more (someone knows what another said about them 6 to 8, opposing claims 5, rivals with a
+  want 5, distrust both ways at its deepest 5) between two who are **both in the house** is staged: so a day or two
+  after the gossip that caused it, never the same hour. **At most two a week** (Monday to Monday), the same two rest
+  three days (so never two days running), and the same thing is had out **once a season**: the same two over the same
+  tension, and one untrue story whoever confronts it. A pair that has never had it out goes before one that has; the
+  producer's beat for the day (`beatFor`, "The producer" above) goes first when it names a pair that qualifies. Nothing due: no scene.
+- **The scene.** Those two, six lines, somewhere in the house; on about half the days someone else is in the doorway
+  and says nothing.
+- **How it ends** (`decideOutcome`): they cleared the air, they agreed to disagree, or it ended worse than it started.
+  Three weights, each starting at 4: the trust each holds for the other (-2..2 each) and their temperaments
+  (`sheetSignals`: warmth against guardedness) move "cleared" up and "worse" down by the same amount, or the other way;
+  then the day and the pair deal it (`seedFrom`). Two who trust each other completely clear the air 8 times in 13; two
+  who don't at all make it worse 8 in 13. The same day and state always give the same result.
+- **The writer writes to the result.** One call on the free model with what it is over (the tension's own line: public
+  claims only) and how it ends. Every line passes the house scene's checks (`basicLine`), and the last two lines must
+  not land somewhere else (`fitsOutcome`: no slammed door when they cleared the air, no truce when it got worse); a
+  template for each kind of tension and each result stands in otherwise.
+- **What it changes, only through the story state** (`applyConfrontation`): trust moves **one step** each way
+  (`setOpinion`, up when they cleared the air, down when it got worse, nothing when they agreed to disagree; an opinion
+  that was hearsay becomes firsthand, its own words kept when it had any); every unsettled `knows_you_said` fact
+  between the two is closed (`settleKnown`), so it stops driving wants and tensions; and when someone watched, they
+  hold a row that they saw it (`hear`, nobody told them) and the rest of the house hears it from them (`hear`, told by
+  the witness). With nobody else in the room, nobody else knows.
+- **Owners.** A person's character in a confrontation: its owner gets a `house_talk` notification ("Lexi had it out
+  with Dex in the house"), and the character's own text when they opted in ("I had it out with Dex on the stairs." /
+  "We agreed to disagree. Loudly, but we agreed."), within the one house text a day per owner.
+
+### Challenges
+
+- **When.** Once a week, on **Wednesday** (Sunday has the roses), at the scene hour: three to five cast members (five
+  at most, dealt by the week when there are more; fewer than three, no challenge). On a Botchelor season the suitors
+  still in compete and the lead doesn't.
+- **The premise** comes from the roleplay catalog, played by the whole room, and the four take turns week by week:
+  the cook-off (`rival-chefs`), the quiz about each other (`quiz-partners`), talent night (`old-film`), the treasure
+  hunt (`treasure-map`). Eight to ten lines.
+- **The winner** (`challengeWinner`) is decided from who they are: three points for each of their traits the premise
+  favours (a generous, precise cook; a curious, observant quizzer) and up to four dealt by the week and the character.
+  The writer writes to it; a line that hands the win to someone else is dropped, and the template stands in when fewer
+  than eight lines pass.
+- **What winning gives: the next one-on-one** (`house_prizes`, read by `lib/season-cast.ts`).
+  - *The Botchelor:* the winner takes the lead's date **the next day**. `suitorInTurn` trades two days of the
+    rotation: the winner goes on the day after the challenge, and whoever's day that was goes on the winner's own next
+    day. Only the day's first house date (the lobby's first room and tonight's situation); later rooms are dealt as
+    ever. The same dates in another order: none is added, nobody dates the lead less, and no date's odds change. A
+    winner who has gone home by then changes nothing.
+  - *Any other format:* first pick of the next day's house date (`firstPickOn`): the winner, with the one their own
+    story state wants (this week's want, else whoever of the cast they are most drawn to, else the cast's first). The
+    lobby's first room and the situation's pair that day; one pair instead of the dealt one.
+  - The scene says it ("🏆 Cato won. The prize: Nell's next date, on Thursday."), the Botchelor card says it until the
+    day has passed, and the winner's owner hears (a notification, and the character's text when they opted in).
+
+**Where both show.** On `/house` with their result under the lines, a challenge before a confrontation before the
+day's scene; in "Since you were here"; and as the Tonight band's one house line, which is the day's biggest ("Dex and
+Marisol had it out in the kitchen: they cleared the air →"). An admin can stage either now:
+`POST /api/admin/house-scene?kind=confrontation` (when a tension is due; the weekly cadence holds) or `?kind=challenge`
+(whatever the weekday, once a day).
+
+**Cost.** Measured 2026-11-15 on `gemini-3.5-flash-lite` with minimal thinking (five real calls on the eval key): a
+confrontation about 340 tokens in and 180 out, **$0.0006**; a challenge about 360 in and 300 out, **$0.0009**, at paid
+list prices; $0 on the free tier. Two confrontations and a challenge a week at most: under a quarter of a cent a week.
+
+**The switches.** `CONFRONTATIONS` and `CHALLENGES`, each on unless it is `0`; `HOUSE_SCENES=0` stops both.
+
+**Tests.** `tests/house-conflict.test.ts`: when a confrontation is due and its cadence, the seeded result and its
+weights, the trust step and `settleKnown`, the witness's and the house's rows, the writer held to the result, the
+challenge's winner, the traded rotation (the same number of dates for every suitor), first pick on other formats, the
+owners' texts, the switches, the page, and that the file never imports anything of the engine but its seed.

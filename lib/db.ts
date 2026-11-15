@@ -4089,6 +4089,19 @@ create table if not exists house_scenes (
   written_at timestamptz
 );
 create index if not exists house_scenes_day_idx on house_scenes (day desc);
+-- What a house challenge's winner gets (lib/house-conflict.ts): the one-on-one on its day. 'lead_date' (a Botchelor
+-- season): the winner takes the lead's date that day, trading days with whoever's turn it was; 'first_pick' (any other
+-- format): the day's first house date is the winner's with with_id. One prize a day. lib/season-cast.ts reads it.
+create table if not exists house_prizes (
+  day text primary key,
+  season_id text not null,
+  winner_id text not null references characters (id) on delete cascade,
+  with_id text references characters (id) on delete set null,
+  kind text not null check (kind in ('lead_date', 'first_pick')),
+  title text,
+  scene_id text,
+  created_at timestamptz not null default now()
+);
 -- A viewer's report of one line of a scene (lib/house-scenes.ts reportSceneLine): REPORT_HIDE_THRESHOLD hide the line
 -- and take what it told back out of the story state.
 create table if not exists house_scene_reports (

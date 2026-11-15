@@ -51,7 +51,7 @@ import { setDareJudgeEnabledForTests } from "@/lib/dare-verdict";
 import { setCastChatVoiceEnabledForTests } from "@/lib/cast-chat";
 import { setProducerVoiceEnabledForTests } from "@/lib/producer";
 import { setDatePlanAtNightForTests } from "@/lib/night-plans";
-import { setHouseSceneVoiceEnabledForTests } from "@/lib/house-scenes";
+import { forgetLatestHouseScene, setHouseSceneVoiceEnabledForTests } from "@/lib/house-scenes";
 import { setCharacterLessonsForTests } from "@/lib/character-lessons";
 import { setMatchChatEnabledForTests } from "@/lib/swipes";
 import { setSwipeGateForTests } from "@/lib/swipe-gate";
@@ -185,6 +185,8 @@ export async function startTestDb() {
     db,
     async reset() {
       resetCheckerLogForTests();
+      // The newest house scene is kept in memory for a minute (lib/house-scenes.ts): a reset starts it over.
+      forgetLatestHouseScene();
       // The recent ending mix is cached per database (lib/endings-lately.ts): a reset starts it over.
       clearEndingsLatelyForTests();
       for (const table of [
@@ -251,6 +253,7 @@ export async function startTestDb() {
         "character_wants",
         "story_state_runs",
         // The house scenes (lib/house-scenes.ts): keyed by day, so they outlive a reset.
+        "house_prizes",
         "house_scene_reports",
         "house_scenes",
         "adult_invites",

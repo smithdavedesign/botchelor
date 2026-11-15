@@ -282,6 +282,11 @@ read them.
 - **`tensions(db, seasonId)`** ranks what the state holds among a season's cast, with the row ids behind each: someone
   knows what another said about them, two hold opposing claims about the same person, two want the same person, low
   trust both ways. For the producer and the confrontation builder; its lines carry public claims, never a private take.
+- **Confrontations** (`lib/house-conflict.ts`; [seasons.md](seasons.md) "Confrontations and challenges") are where a
+  tension is spent: the hottest one between two in the house is staged as a six-line scene, its result decided from
+  the trust each holds and their temperaments. Trust then moves one step each way (`setOpinion`), the
+  `knows_you_said` facts between them are closed (`settleKnown`), and anyone who watched, and through them the house,
+  holds that it happened (`hear`).
 
 **The rules it keeps**
 - **Never the engine.** `lib/engine.ts`, pairings, points and endings read none of it.
