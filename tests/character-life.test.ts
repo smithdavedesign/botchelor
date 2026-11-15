@@ -92,8 +92,15 @@ const lifeDates = async () =>
     `select id, creator_id, character_a, character_b, status, visibility, setup->>'format' as format from episodes where setup->>'met_via' = 'life' order by created_at, id`,
   )).rows;
 
+// The words of the life text. Its photo (lib/date-photo.ts) is a message of its own under the same tag: lifePhotos.
 const lifeTexts = async (episodeId: string) =>
-  (await t.db.query<{ thread_id: string; text: string }>(`select thread_id, text from companion_messages where action = $1 order by created_at, id`, [`life:${episodeId}`])).rows;
+  (await t.db.query<{ thread_id: string; text: string }>(`select thread_id, text from companion_messages where action = $1 and via <> 'photo' order by created_at, id`, [`life:${episodeId}`])).rows;
+const lifePhotos = async (episodeId: string) =>
+  (await t.db.query<{ text: string; media_url: string | null; after: number }>(
+    `select m.text, m.media_url, (select count(*)::int from companion_messages b where b.thread_id = m.thread_id and b.action = m.action and b.created_at < m.created_at) as after
+       from companion_messages m where m.action = $1 and m.via = 'photo'`,
+    [`life:${episodeId}`],
+  )).rows;
 const teases = async (episodeId: string) => (await t.db.query(`select 1 from companion_messages where action = $1`, [`tease:${episodeId}`])).rows;
 
 /** airEpisode fires the text and moves on: wait for it to land (or not) before looking. */
@@ -250,16 +257,33 @@ describe("the text afterwards (lifeTextAfterAir, from lib/air.ts)", () => {
     expect(rows[0].text).toMatch(new RegExp(`^I went out with ${partner} .*while you were gone\\. The house set it up\\.$`));
     expect(rows[1].text).toMatch(/badly|sideways/);
     expect(rows[2].text).toBe("Next time, will you pick?");
+    // One photo from the date they weren't there for, right after the first bubble; its alt text never says how it ended.
+    const photos = await lifePhotos(life.id);
+    expect(photos).toHaveLength(1);
+    expect(photos[0]).toMatchObject({ media_url: `/api/og/date-photo/${life.id}`, after: 1 });
+    expect(photos[0].text).toMatch(new RegExp(`^A photo from the date: \\S+ and ${partner} at `));
+    expect(photos[0].text).not.toMatch(/disaster|badly|sideways/i);
     // No spoiler-free tease on top of it, and a second air changes nothing.
     expect(await teases(life.id)).toEqual([]);
     expect(await airEpisode(t.db, life.id, userIdOf(creator))).toBeNull();
     expect(await lifeTextAfterAir(t.db, life.id)).toEqual({ life: true, sent: 0 });
     expect(await lifeTexts(life.id)).toHaveLength(3);
+    expect(await lifePhotos(life.id)).toHaveLength(1);
     // The owner was told once about it (plus once for the Hear-from text that opted them in).
     const told = (await t.db.query(`select 1 from notifications where user_id = $1 and kind = 'character_texted_you'`, [userIdOf(creator)])).rows;
     expect(told).toHaveLength(2);
     // And the usual aired notice went too.
     expect((await t.db.query(`select 1 from notifications where user_id = $1 and kind = 'date_aired' and link = $2`, [userIdOf(creator), `/episodes/${life.id}`])).rows).toHaveLength(1);
+  });
+
+  it("DATE_PHOTO_TEXTS=0: the life text goes without its photo", async () => {
+    vi.stubEnv("DATE_PHOTO_TEXTS", "0");
+    const { life } = await lifeDateFor("friends");
+    // Aired by nobody in particular (lib/air.ts airEpisode calls this hook): the owner hears about it.
+    await t.db.query(`update episodes set revealed_at = now() where id = $1`, [life.id]);
+    expect(await lifeTextAfterAir(t.db, life.id)).toEqual({ life: true, sent: 1 });
+    expect(await lifeTexts(life.id)).toHaveLength(3);
+    expect(await lifePhotos(life.id)).toEqual([]);
   });
 
   it("stays quiet for a thread that never opted in: the aired notice and Since you were here carry the news", async () => {

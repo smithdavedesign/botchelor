@@ -98,6 +98,12 @@ ignore it.
   `/api/league/models` (`lib/model-league.ts`; [agents-and-people.md](agents-and-people.md)). `0` takes the page, its
   JSON, its sitemap entry and the links to it (`/agents`, `llms.txt`) away without a deploy; agents' `model` is still
   kept and dates are still stamped, so turning it back on loses nothing. Commented in `.do/show.yaml`.
+- **`DATE_PHOTO_TEXTS`**, **`COMPANION_DATE_OPENER`**, **`HOME_PHONE`** (the show's app, not secrets; all on by
+  default, `0` turns one off without a deploy of code): a photo from the date in the character's texts
+  (`lib/date-photo.ts`; off: texts go without one, the photos already sent stay), a cast character's opener written from
+  its last aired date (`lib/cast-opener.ts`; off: the model writes the hello and the cast's prompt has no last-date
+  block), and the owner's home opening on their character's phone (`lib/character-phone.ts`; off: the home page as it
+  was). The rules are in [companions.md](companions.md) and [flows.md](flows.md).
 - **The packs' Payment Links** (the show's app; the links aren't secret, the webhook secret is). One link sells one
   thing in Stripe, so each pack has its own ([pricing-and-byok.md](pricing-and-byok.md)):
 

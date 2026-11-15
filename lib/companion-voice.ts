@@ -52,8 +52,8 @@ export async function voiceNote(
 ): Promise<VoiceNote | VoiceNoteFail> {
   const now = opts.now ?? new Date();
   const m = (
-    await db.query<{ id: string; text: string; role: string; replaced_by: string | null; voice_key: string | null; character_id: string; paused_at: string | null; kept: string | null }>(
-      `select m.id, m.text, m.role, m.replaced_by, m.voice_key, t.character_id, t.paused_at, v.key as kept
+    await db.query<{ id: string; text: string; role: string; replaced_by: string | null; voice_key: string | null; character_id: string; paused_at: string | null; kept: string | null; via: string }>(
+      `select m.id, m.text, m.role, m.replaced_by, m.voice_key, t.character_id, t.paused_at, v.key as kept, m.via
          from companion_messages m join companion_threads t on t.id = m.thread_id
          left join companion_voice v on v.key = m.voice_key
         where m.id = $1 and t.id = $2 and t.user_id = $3`,
@@ -61,6 +61,8 @@ export async function voiceNote(
     )
   ).rows[0];
   if (!m || m.role !== "character" || m.replaced_by) return fail(404, "not_found", "Pick one of their replies.");
+  // A photo (lib/date-photo.ts) has an alt text, not words they said.
+  if (m.via === "photo") return fail(422, "silent", "There's nothing to say out loud in that one.");
   const url = voiceUrl(threadId, messageId);
   if (m.kept) return { ok: true, message_id: m.id, url, cached: true, paid_with: "kept" };
   if (m.paused_at) return fail(409, "paused", "This conversation is paused. Carry on when you're ready.");

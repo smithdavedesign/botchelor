@@ -10,7 +10,8 @@
  *     every rule of the route holds (taken, blocks, one date at a time). Marked on the episode (`setup.met_via = 'life'`).
  *  2. **The text afterwards** (`lifeTextAfterAir`, from lib/air.ts when the date airs): the character tells its person
  *     what happened, ending included, in its companion thread. Only to a thread whose person tapped "Hear from" once
- *     (`companion_threads.muted_proactive = false`, the same opt-in as the day-after text), tagged `life:<episode id>`.
+ *     (`companion_threads.muted_proactive = false`, the same opt-in as the day-after text), tagged `life:<episode id>`,
+ *     with a photo from the date (lib/date-photo.ts).
  *     Everyone else gets the usual `date_aired` notice and a "went on a date while you were away" line on Since you were
  *     here (lib/since.ts).
  *  3. **"Your character's week"** (`weekOf`, `sendCharacterWeeks`, Sundays): a recap built from what already happened,
@@ -24,6 +25,7 @@ import { track } from "./analytics";
 import { markShowPaidRequest } from "./cast-date-request";
 import { runningChemistry } from "./chemistry-shifts";
 import { postFromCharacter } from "./companion";
+import { textPhoto } from "./date-photo";
 import { generationPaused } from "./compute";
 import type { Db } from "./db";
 import type { SideOutcome } from "./engine";
@@ -247,9 +249,12 @@ type LifeAired = {
   id: string;
   ending: Ending;
   venue: string | null;
+  created_at: Date | string;
   reflections: Reflections | null;
   sides: [SideOutcome, SideOutcome] | null;
   partner: string;
+  /** The character's own name (side a: the route books the owner's character first). */
+  name: string;
   owner_id: string;
   character_id: string;
   thread_id: string | null;
@@ -264,7 +269,7 @@ type LifeAired = {
  */
 export async function lifeTextAfterAir(db: Db, episodeId: string, opts: { now?: Date; skip?: readonly (string | null | undefined)[] } = {}): Promise<{ life: boolean; sent: number }> {
   const { rows } = await db.query<LifeAired>(
-    `select e.id, e.ending, e.setup->>'venue' as venue, e.reflections, e.sides, b.name as partner, a.owner_id, a.id as character_id,
+    `select e.id, e.ending, e.setup->>'venue' as venue, e.created_at, e.reflections, e.sides, b.name as partner, a.name, a.owner_id, a.id as character_id,
             (select t.id from companion_threads t where t.character_id = a.id and t.user_id = a.owner_id and t.muted_proactive = false and t.paused_at is null) as thread_id
        from episodes e
        join characters a on a.id = e.character_a
@@ -277,7 +282,9 @@ export async function lifeTextAfterAir(db: Db, episodeId: string, opts: { now?: 
   const skip = new Set((opts.skip ?? []).filter((u): u is string => Boolean(u)));
   if (!r.thread_id || skip.has(r.owner_id)) return { life: true, sent: 0 };
   const lines = lifeLines({ ending: r.ending, partner: r.partner, venue: r.venue, reflection: r.reflections?.a?.trim() || null, mine: r.sides?.[0] ?? null });
-  const posted = await postFromCharacter(db, { userId: r.owner_id, characterId: r.character_id, lines, now: opts.now, kind: "life", dedupeKey: `life:${r.id}` }).catch(() => null);
+  // A photo from the date they weren't there for (lib/date-photo.ts), with the text; DATE_PHOTO_TEXTS=0 leaves it out.
+  const photo = textPhoto({ id: r.id, names: [r.name, r.partner], venue: r.venue, at: r.created_at });
+  const posted = await postFromCharacter(db, { userId: r.owner_id, characterId: r.character_id, lines, now: opts.now, kind: "life", dedupeKey: `life:${r.id}`, photo }).catch(() => null);
   return { life: true, sent: posted ? 1 : 0 };
 }
 

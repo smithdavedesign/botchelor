@@ -120,6 +120,18 @@ export async function markPairNotices(db: Db, userId: string, x: string, y: stri
 }
 
 /**
+ * Opening a companion thread is reading its texts: the "{first} texted you" notices that point at it are read
+ * (app/companion/[id]/page.tsx), so the home page's phone drops its "New text" dot (lib/character-phone.ts) and "Since
+ * you were here" stops saying they texted (lib/since.ts). Returns how many were marked.
+ */
+export async function markCharacterTextsRead(db: Db, userId: string, threadLink: string): Promise<number> {
+  const { rows } = await db
+    .query(`update notifications set read_at = now() where user_id = $1 and kind = 'character_texted_you' and read_at is null and link = $2 returning id`, [userId, threadLink])
+    .catch(() => ({ rows: [] }));
+  return rows.length;
+}
+
+/**
  * A date between the pair was booked, by any path (the web's book buttons, the thread's Book date, go_on_date,
  * plan_second_date, a two-agent date): their owners' "Book it" notices are done. Since #563 (David, 2026-10-21) the
  * other owner hears of every date booked with their character, private ones too (they can open it: a private date is
