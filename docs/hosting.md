@@ -69,6 +69,11 @@ ignore it.
   show's model (~1¢ each). `0` turns them off without a deploy; nothing books while `BOTCHELOR_PAUSE` is on or the paid
   model's daily date cap (`FRONTIER_DAILY_DATE_CAP`) is spent. Commented in `.do/show.yaml`; the rules are in
   [companions.md](companions.md), "Your character lives without you".
+- **`AD_BRIDGE`** (the show's app, not a secret; default on): the After Dark bridge, one line on the creator's verdict
+  card when their character's date ended in a second date, linking the invite request with `source=verdict`
+  (`lib/adult/bridge.ts`; [after-dark.md](after-dark.md), "The bridge from the show's verdict card"). `0` takes the
+  line away without a deploy. It never touches After Dark's own `public_door` switch, and the invite page still takes
+  `?source=` either way. Commented in `.do/show.yaml`.
 - **The packs' Payment Links** (the show's app; the links aren't secret, the webhook secret is). One link sells one
   thing in Stripe, so each pack has its own ([pricing-and-byok.md](pricing-and-byok.md)):
 

@@ -297,6 +297,38 @@ that's on them. Include that in the welcome email."* (`lib/adult/invites.ts`)
 - **Both apps need email:** the request is made on the After Dark host, so its app needs `RESEND_API_KEY` and
   `CONTACT_EMAIL` as the show's does.
 
+### The bridge from the show's verdict card (2026-11-15)
+
+One quiet line on the show, at the one moment it fits: when a creator's own character's date ends in a second date,
+the verdict card (`app/episodes/[id]/VerdictCard.tsx`) ends with "What happened after is After Dark. It's invite only:
+ask for an invite", linking the invite request above with `?source=verdict` (`lib/adult/bridge.ts`, the rule and the
+copy; `lib/adult/bridge-viewer.ts`, who sees it; `app/episodes/[id]/AfterDarkBridge.tsx`, the line).
+
+- **What it is not.** It doesn't open the public door: `public_door` stays David's switch, and the header's door, the
+  arrival screen and `/after-dark`'s landing for everyone stay as he left them. No codes, no auto-approval: every
+  request still reaches him by email and waits for Approve. No payment, nothing explicit, no picture: a line of text.
+- **Why it's on by default.** The invite request was already reachable from the show before this (the looks
+  builder's locked After Dark tab on `/create` links `/after-dark/subscribe`, which shows the taste, the invite request
+  and the waitlist to anyone who isn't blocked; checked on the live site 2026-11-15). The bridge is a second,
+  better-timed link to the same page, so it opens nothing new. `AD_BRIDGE=0` (the show's app) turns it off without a
+  deploy. If David wants After Dark unmentioned on the show until payments are live, that switch and the looks tab's
+  link are the two places.
+- **Who sees it** (`bridgeShows`, all of them): the switch is on; After Dark is on at all and still invite only (with a
+  processor set up the page sells a subscription, so the line goes); the date ended in a second date and is the
+  viewer's own character's (the card only shows then); they've said they're 18 or older (the gate's cookie, which the
+  builder's 18+ box sets); After Dark is allowed where they are (`accessHere`: never in a blocked place or an unknown
+  one, text-only places count as allowed); they aren't in already and haven't asked already; not a crawler or agent.
+- **Where a request came from.** `adult_invites.source`: a short clean label from the subscribe page's `?source=`
+  (`inviteSource`: lowercase letters, digits, `-` and `_`, 40 at most; anything else is dropped, never refused). It
+  survives the sign-in hop (`/account?next=…`), goes with the request, is said in the request email ("Came from:
+  verdict"), and `/invites/review` lists every request by source with how many wait, so David can see which door
+  people use. Outreach links use their own label, e.g. `/after-dark/subscribe?source=refugees`
+  ([launch-kit.md](launch-kit.md)).
+- **Counting.** The click is the engagement log's `ad-bridge` (`data-track`); the request is the existing
+  `ad_invite_requested` conversion, now with the source.
+- **The page it leads to** also offers the free taste (above) where After Dark is fully open: that was already there,
+  and is self-started with no approval. The line itself only says "invite".
+
 ### Reviewer pass (2026-10-30)
 
 A processor's compliance team asks for a premium login to review the subscriber experience. CCBill asked on 2026-10-30.

@@ -101,6 +101,54 @@ bug reports, which is the point.
 > Feedback I'm after: did the date read like your character, and what would you want your character to do here that
 > they can't yet?
 
+### After Dark passes for people leaving Character.AI (draft, 2026-11-15)
+
+**Not posted, not sent. A draft for David; he decides whether, where and to whom.** Some of the people leaving
+Character.AI are leaving because of the filter. The show can't help them (it's PG and stays PG), but After Dark is the
+adults-only side, it's in an invite-only beta, and an approved invite is a free thirty-day pass. This is a way to offer
+that to adults who ask, one by one, without opening anything: the link is the invite request that already exists,
+tagged so the requests can be counted.
+
+**The link:** `https://botchelor.com/after-dark/subscribe?source=refugees`. Every request it brings shows "Came from:
+refugees" in the request email, and `/invites/review` counts them beside the verdict card's (`source=verdict`).
+Nothing is approved by the link: each request still waits for David's Approve.
+
+**Ground rules.**
+- **Never in the three rescue posts above.** They say the show is PG, and that has to stay true where they're read.
+  This goes only as a reply or a DM to an adult who has asked where adult roleplay went, in a place whose rules allow
+  pointing at 18+ services (read them first; many subreddits don't, and Reddit blocks rule lookups from scripts, so
+  none were checked here). Not in any community that has minors in it.
+- **Say what it is, plainly, with no description of what's in it.** Adults only; fictional adult characters only;
+  invite only; a beta; approved by hand, so it can take a day and it can be a no.
+- **Say what the pass is and isn't.** Thirty days free: the scenes and the pictures are on us, within fair-use limits.
+  Video isn't included (it costs tokens). It needs a free account with an email, to write back to.
+- **Say where it doesn't open.** It isn't offered in some places (several US states, and countries whose laws ask for
+  an ID check we don't do), and in a few it's text only. Where it isn't offered the link shows a page-not-found, on
+  purpose (nothing there says After Dark exists), so say that in the message or it reads as a broken link.
+- **Promise nothing about Character.AI.** Nothing is fetched from an account there; a character is pasted in by hand
+  (`/import`), and then its owner chooses, per character, whether it goes into After Dark at all.
+- One message a person. No follow-up unless they answer.
+
+**A reply, when someone asks where to take an adult character:**
+
+> I make Botchelor, so this is a maker answering, not a recommendation from a stranger. The show itself is PG, so it's
+> not what you're asking for. It does have an adults-only side, After Dark, that's in an invite-only beta right now: if
+> you're 18 or older and want to try it, you can ask for an invite here and I approve them by hand, so give it a day:
+> [refugees link]. An invite is thirty days free; video is the one thing that isn't included. It isn't available
+> everywhere (if the link shows a page-not-found, it isn't offered where you are), and it's a beta, so expect rough
+> edges. If you'd rather not, no hard feelings.
+
+**A DM, to someone who said the filter is why they're leaving** (only where DMs like this are welcome):
+
+> Hi, I'm the person who makes Botchelor. You mentioned the filter was the reason you're moving your characters. Our
+> main show is PG too, so I won't pretend otherwise, but there's an adults-only side in an invite-only beta, and I'm
+> giving thirty-day passes to people coming over from Character.AI: [refugees link]. You'd need to be 18 or older and
+> make a free account; I approve each one myself. Video costs extra; the rest of the month is on me. If it's not for
+> you, ignore this and sorry for the noise.
+
+**What to watch:** `/invites/review` (requests by source), then whether an approved pass is used at all. If
+`refugees` brings requests and nobody opens a scene, the pass isn't the problem to solve.
+
 ## Reddit: r/CharacterAI_No_Filter
 
 r/CharacterAI is Character.AI's own subreddit, and its rules on other sites couldn't be checked (Reddit blocks rule
