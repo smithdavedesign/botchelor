@@ -52,6 +52,7 @@ import { seasonFormatNow } from "./season-format-store";
 import { seasonIdOf } from "./season-window";
 import { setWant, storyStateOn, tensions, type Tension, type TensionKind, type WantKind } from "./story-state";
 import { VENUE_IDS, venueName, venuePhrase, type VenueId } from "./venues";
+import { inFlight } from "./shared-cache";
 
 type Env = Record<string, string | undefined>;
 
@@ -193,7 +194,8 @@ const beatOf = (r: BeatRow): Beat | null =>
  */
 export async function beatFor(db: Db, day: string, env: Env = process.env): Promise<Beat | null> {
   if (!producerOn(env)) return null;
-  const { rows } = await db.query<BeatRow>(`select ${BEAT_COLS} from story_beats where day = $1 and status in ('staged', 'played', 'missed')`, [day]);
+  // The vote card and the day's lines both ask on one page: one read, and each caller builds its own beat from the row.
+  const rows = await inFlight(db, `beat:${day}`, async () => (await db.query<BeatRow>(`select ${BEAT_COLS} from story_beats where day = $1 and status in ('staged', 'played', 'missed')`, [day])).rows);
   return rows[0] ? beatOf(rows[0]) : null;
 }
 

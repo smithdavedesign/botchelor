@@ -12,6 +12,7 @@ import {
   type SeasonFormatSlug,
 } from "./season-format";
 import { seasonIdOf } from "./season-window";
+import { inFlight } from "./shared-cache";
 import { ballotWinner, seasonBallotTally } from "./season-vote";
 
 let override: SeasonFormatSlug | null = null;
@@ -26,10 +27,13 @@ const isSlug = (s: string): s is SeasonFormatSlug => (SEASON_FORMAT_SLUGS as rea
  * A season's format: the admin's row when there is one; else the viewers' ballot winner for it (lib/season-vote.ts,
  * frozen once the season starts); else classic (a row from a format that no longer exists reads as classic too).
  */
-export async function seasonFormatSlug(db: Db, seasonId: string): Promise<SeasonFormatSlug> {
-  const row = (await db.query<{ slug: string }>(`select slug from season_formats where season_id = $1`, [seasonId])).rows[0];
-  if (row) return isSlug(row.slug) ? row.slug : DEFAULT_SEASON_FORMAT;
-  return ballotWinner(await seasonBallotTally(db, seasonId).catch(() => new Map())) ?? DEFAULT_SEASON_FORMAT;
+export function seasonFormatSlug(db: Db, seasonId: string): Promise<SeasonFormatSlug> {
+  // Asked from several corners of one page at once (the season line, the vote, casting, the cast): one read for all of them.
+  return inFlight(db, `season-format:${seasonId}`, async () => {
+    const row = (await db.query<{ slug: string }>(`select slug from season_formats where season_id = $1`, [seasonId])).rows[0];
+    if (row) return isSlug(row.slug) ? row.slug : DEFAULT_SEASON_FORMAT;
+    return ballotWinner(await seasonBallotTally(db, seasonId).catch(() => new Map())) ?? DEFAULT_SEASON_FORMAT;
+  });
 }
 
 /** The format the season containing `now` runs in. */

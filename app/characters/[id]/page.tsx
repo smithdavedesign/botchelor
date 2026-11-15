@@ -37,7 +37,7 @@ import { describeTemperament } from "@/lib/temperament";
 import { connections, describeDrift, describeForgets, loadCharacterMemory, loadForgets, stageFor } from "@/lib/memory";
 import { loadLessons } from "@/lib/character-lessons";
 import { getCharacterRatings } from "@/lib/ratings";
-import OvernightMarks from "./OvernightMarks";
+import { loadOvernightMarks, OvernightMarksList } from "./OvernightMarks";
 import { relationshipsOf, viewRelationship } from "@/lib/relationships";
 import { authFromCookieStore, userIdFromCookieStore } from "@/lib/http";
 import { endingLabel } from "@/lib/rules";
@@ -309,6 +309,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
     learnedPeople,
     lessons,
     storyState,
+    overnights,
   ] = await Promise.all([
     firstP,
     shownExtrasP,
@@ -333,6 +334,8 @@ export default async function CharacterPage({ params, searchParams }: Props) {
     learnedPeopleP,
     lessonsP,
     storyP,
+    // Their overnight dates that ended in leaving together, read beside the rest instead of after it.
+    loadOvernightMarks(id, viewerId),
   ]);
   const week = thisWeek(c.id, c.this_week);
   const origin = origins.get(id) ?? originOf({ house: c.house, agent: dating?.made_by === "agent" });
@@ -831,7 +834,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
           </p>
         )}
         {/* Their overnight dates that ended in leaving together (lib/overnight.ts); nothing when there are none. */}
-        <OvernightMarks characterId={c.id} viewerId={viewerId} />
+        <OvernightMarksList characterId={c.id} marks={overnights} />
         {relationships.length > 0 && (
           <div id="relationships">
             <ul className="list connections">
