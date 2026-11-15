@@ -83,6 +83,33 @@ flowchart TD
     signed -- "Yes: Link it" --> agents["Account → Your agents:<br/>its characters and dates, its agent id<br/>to give back; unlink any time"]
 ```
 
+**The home page, for someone with a character (2026-11-15).** A stranger's `/` is the pitch (the hero, tonight's band,
+what just aired, how it works, the cast, questions). Someone with at least one character lands on **their character's
+phone** first (`app/CharacterPhone.tsx`, `lib/character-phone.ts`), then tonight's band, then "Since you were here", then
+the rest of the page as before:
+
+- **Whose phone:** the character with an unread text from itself; else the one something happened to most recently (a
+  text or a date); else the newest. Their other characters are a row under it, each a link to its own thread (or its
+  page when it has none), with a dot when it has an unread text.
+- **On the screen:** the character's last three texts to them (a photo shows as "📷 A photo from the date"), a "New
+  text" dot while the `character_texted_you` notice is unread, and the time of the last one. A tap opens the thread.
+- **The chips:** the newest open menu of the thread ("Yes, see {partner} again", "Try someone new", "Tell {first} what to
+  do next time", [companions.md](companions.md)), or "Answer {first}" when its last text ends on a question nobody
+  answered. They are links into the thread, where the tap happens: nothing is booked from the home page.
+- **What's next** (three lines at most): on a date right now / a date ready to watch; a scheduled date; the house's
+  weekly date (only for a character it can happen to: a date behind it, a portrait, public or open to dates, life dates
+  on) with the day it comes from; Sunday's recap when something happened this week; "a first date is a speed date" for
+  a character with none.
+- **One action:** "Open {first}'s texts" when they opted in to its texts; "Hear from {first}" when they never did and a
+  date's ending stands (the verdict card's own call, `POST /api/companion/after-date`: the character texts them about
+  that date, the thread opens, and the tap is the opt-in); "Watch {first}'s date" while one is being filmed; "Send
+  {first} on a first date" before any.
+- **Cost:** one read for all their characters, next to "Since you were here" (`tests/perf-pages.test.ts` keeps the
+  page's depth budget with it). Shown only while companions are open (`COMPANION_OPEN=1`), since every link on it leads
+  into a thread. **Switch:** `HOME_PHONE` (on by default; `0`: the page as it was).
+- Tests: `tests/character-phone.test.ts` (nothing yet, never opted in, texts waiting, answered, several characters, the
+  page for a stranger and an owner, the switch).
+
 **Installing it (lib/pwa.ts).** Botchelor installs as an app (app/manifest.ts: standalone, opening on the home page, the
 PG heart tile for its icons). On a phone's browser a small "Install the app" hint shows once, on one page, a few seconds
 in: Install (Chrome's own prompt, where there is one) or How (Share, then Add to Home Screen on an iPhone), and × puts it

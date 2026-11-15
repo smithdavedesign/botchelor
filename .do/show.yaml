@@ -98,6 +98,18 @@ services:
       # - key: LIFE_DATES_PER_DAY
       #   value: "30"
       #   scope: RUN_AND_BUILD_TIME
+      # The character's phone (docs/hosting.md; all three on by default, "0" turns one off without a deploy of code):
+      # a photo from the date in the character's texts (lib/date-photo.ts), a cast character's opener written from its
+      # last aired date (lib/cast-opener.ts), and the owner's home opening on their character's phone (lib/character-phone.ts).
+      # - key: DATE_PHOTO_TEXTS
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
+      # - key: COMPANION_DATE_OPENER
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
+      # - key: HOME_PHONE
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
       # Copied from the old Vercel project's values (not secret, but deployment-specific).
       - key: CONTACT_EMAIL
         value: "CHANGE_ME"
