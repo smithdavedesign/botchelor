@@ -130,7 +130,7 @@ but with no portrait.
 
 ## December: The Botchelor (a lead format)
 
-Live from PR #TBD (David, 2026-11-14: the December format is open, and the product should be original). The show's
+Live from PR #1621 (David, 2026-11-14: the December format is open, and the product should be original). The show's
 own premise as a season: **one lead from the cast dates people's characters, and a rose ceremony every Sunday sends
 suitors home.** It is a season format like the island (`slug: botchelor` in [`lib/season-format.ts`](../lib/season-format.ts)),
 plus one new mechanism, the ceremony ([`lib/ceremony.ts`](../lib/ceremony.ts)). The engine still decides every ending;
