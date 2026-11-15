@@ -118,6 +118,12 @@ describe("the Studio door", () => {
     let html = renderToStaticMarkup(await AfterDarkStudio());
     expect(html).toContain("<h1>Studio</h1>");
     expect(html).toContain("data-whos-in");
+    // One "Who's in" heading (the switches' card), holding the anchor the pair page links to; its own rows, not the
+    // Account page's tiles that ran its states into the next column (David's screenshot, 2026-11-15).
+    expect(html.match(/<h2[^>]*>Who&#x27;s in<\/h2>/g)).toHaveLength(1);
+    expect(html).toContain('<h2 id="ad-whos-in">');
+    expect(html).toContain('class="ad-whos-in-row"');
+    expect(html).not.toContain("account-character");
     expect(html).toContain("Ines Valdecasas-Rook");
     expect(html).toContain("1 of yours is Out.");
     expect(html).not.toContain(`href="/after-dark/studio/${ines}"`);

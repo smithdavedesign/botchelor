@@ -95,19 +95,21 @@ export default async function AfterDarkStudioPage() {
                 : "The Studio is for your own characters. Once you've made one on the show and switched them In below, their Studio opens here."}
             </p>
           ))}
-        <section aria-labelledby="ad-whos-in">
-          <h2 id="ad-whos-in">Who&apos;s in</h2>
-          {doors.studio && (
-            <p className="muted small">
-              Your own characters start Out: nothing of theirs comes here until you switch them In, and you can switch them Out again any time.
-              {yoursOut > 0 ? ` ${yoursOut} of yours ${yoursOut === 1 ? "is" : "are"} Out.` : ""}
-            </p>
-          )}
-          {switchable.length ? (
-            <div data-whos-in>
-              <Switches key={onKey} initial={switchable} />
-            </div>
-          ) : (
+        {/* One "Who's in" heading: the switches' own card holds it (and the anchor the pair page links to). */}
+        {switchable.length ? (
+          <div data-whos-in>
+            <Switches key={onKey} initial={switchable} headingId="ad-whos-in">
+              {doors.studio && (
+                <p className="muted small">
+                  Your own characters start Out: nothing of theirs comes here until you switch them In, and you can switch them Out again any time.
+                  {yoursOut > 0 ? ` ${yoursOut} of yours ${yoursOut === 1 ? "is" : "are"} Out.` : ""}
+                </p>
+              )}
+            </Switches>
+          </div>
+        ) : (
+          <section aria-labelledby="ad-whos-in">
+            <h2 id="ad-whos-in">Who&apos;s in</h2>
             <p className="card muted" data-whos-in-empty>
               Nobody to switch yet. This season&apos;s cast is in by itself; a character of your own shows up here once you&apos;ve{" "}
               <Link prefetch={false} href="/create">
@@ -115,8 +117,8 @@ export default async function AfterDarkStudioPage() {
               </Link>
               .
             </p>
-          )}
-        </section>
+          </section>
+        )}
         <p className="muted small">
           To start a night with any of them, <Link href="/after-dark">pick a pair on Scenes</Link>.
         </p>

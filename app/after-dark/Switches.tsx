@@ -9,9 +9,24 @@ import CharacterName from "@/app/CharacterName";
 /**
  * Your characters and the house characters they date: a switch each (this season's cast is always in). `only`: just
  * that one character's switch, under its own heading (#1176: one made on the show, brought in from its finish screen).
- * One drawn in anime stays out, its switch off and saying so (After Dark only draws photographs).
+ * One drawn in anime stays out, its switch off and saying so (After Dark only draws photographs). `headingId`: an id for
+ * the heading, so a link can land on it (/after-dark/studio#ad-whos-in). Its own rows (.ad-whos-in-*, after-dark.css),
+ * not the Account page's character tiles they once borrowed: a long state ("In (this season's cast)") wraps under the
+ * name instead of running into the next column and out of the card (David's screenshot, 2026-11-15).
  */
-export default function Switches({ initial, only, title = "Who's in", children }: { initial: Switchable[]; only?: string; title?: string; children?: ReactNode }) {
+export default function Switches({
+  initial,
+  only,
+  title = "Who's in",
+  headingId,
+  children,
+}: {
+  initial: Switchable[];
+  only?: string;
+  title?: string;
+  headingId?: string;
+  children?: ReactNode;
+}) {
   const router = useRouter();
   const [list, setList] = useState(initial);
   const [busy, setBusy] = useState<string | null>(null);
@@ -30,16 +45,16 @@ export default function Switches({ initial, only, title = "Who's in", children }
 
   if (!list.length) return null;
   return (
-    <section className="card">
-      <h2>{title}</h2>
+    <section className="card" aria-labelledby={headingId}>
+      <h2 id={headingId}>{title}</h2>
       {children}
-      <ul className="account-characters">
+      <ul className="ad-whos-in-list">
         {list.map((c) => (
-          <li key={c.id} className="account-character">
-            <span className="account-character-name">
+          <li key={c.id} className="ad-whos-in-row">
+            <span className="ad-whos-in-name">
               <CharacterName character={c} link={false} /> {c.house && <span className="badge">house</span>}
             </span>
-            <label className="fact-private">
+            <label className="ad-whos-in-state">
               <input
                 type="checkbox"
                 id={`ad-switch-${c.id}`}
