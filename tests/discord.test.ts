@@ -191,7 +191,9 @@ describe("built and off", () => {
     expect(call).toBeGreaterThan(-1);
     for (const before of ["airDueDates(db)", "runDueReveal(db)", "revealDueSeasonPool(db)"]) expect(route.indexOf(before)).toBeLessThan(call);
     expect(route.indexOf("refreshLobby(db")).toBeGreaterThan(call);
-    expect(route).toMatch(/cast_chat: castChat, discord,/);
+    // The pass reports both; other steps report between them now (the story state since #1645), so not side by side.
+    expect(route).toMatch(/cast_chat: castChat,/);
+    expect(route).toMatch(/[ ,]discord,/);
   });
 });
 
