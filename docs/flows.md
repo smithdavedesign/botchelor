@@ -106,7 +106,14 @@ only for someone with no character:
   browser's sessionStorage, not the address (without script the form sends `/create?say=…`, which the builder removes
   from the address at once). "Make your character" stays beside it as the long way in, with the sample and the import
   lines. `HOME_EXPRESS_BOX=0` or `EXPRESS_CREATE=0`: no box, and "Make your character" is the main button again.
-- Tests: `tests/home-clip.test.ts`.
+- Tests: `tests/home-clip.test.ts`. The visual gate seeds a clip and walks the box (`scripts/visual.mjs` `home`,
+  `home-express`).
+
+| A stranger's home (phone) | The same on a desktop | The box's sentence, drafted on `/create` |
+|---|---|---|
+| ![Home on a phone: the headline, the sentence box, then the day's clip in a phone](screenshots/home-clip-mobile.png) | ![Home on a desktop: the clip in a phone beside the headline and the sentence box](screenshots/home-clip-desktop.png) | ![/create after the home box: the draft is ready on the Look step](screenshots/home-express-create-mobile.png) |
+
+From the local visual gate (reduced motion on, so the clip shows its poster and play button; it plays by itself otherwise).
 
 **The home page, for someone with a character (2026-11-15).** A stranger's `/` is the pitch (the hero, tonight's band,
 what just aired, how it works, the cast, questions). Someone with at least one character lands on **their character's

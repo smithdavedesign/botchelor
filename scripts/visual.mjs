@@ -417,6 +417,19 @@ async function main() {
           await page.getByText("A look that fits your words is already picked").waitFor();
         },
       },
+      {
+        // The home page's sentence box (app/HomeExpressBox.tsx): a sentence typed on home lands on /create with the
+        // draft already running, and the sentence never shows in the address. After create-express (a draft left in
+        // this browser doesn't stop this one: a sentence from home starts fresh), before the sample below.
+        name: "home-express",
+        path: "/",
+        walk: async (page) => {
+          await page.locator("#home-express-text").fill("A night-shift baker who names every sourdough starter.");
+          await page.locator(".home-express button[type=submit]").click();
+          await page.getByText("Give them a look").waitFor({ timeout: 30_000 });
+          if (new URL(page.url()).search) throw new Error(`the sentence's address wasn't cleaned: ${page.url()}`);
+        },
+      },
       { name: "create", path: "/create?sample=1", walk: "wizard" },
       { name: "character-owner", path: `/characters/${myChar}`, as: "owner" },
       { name: "character-edit", path: `/characters/${myChar}/edit`, as: "owner", walk: "wizard" },
