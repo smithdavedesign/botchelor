@@ -158,3 +158,104 @@
     display: none;
   }
 }
+
+/* ---------------- Chat's unread dot on the tab bar ---------------- */
+.tabbar-icon-wrap {
+  position: relative;
+  display: inline-flex;
+}
+.tabbar-dot {
+  position: absolute;
+  top: calc(-1 * var(--space-1));
+  right: calc(-1 * var(--space-2));
+  width: var(--space-2);
+  height: var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--accent-btn);
+}
+
+/* ---------------- Chat (app/chat/page.tsx): one inbox ---------------- */
+/* The rows are the Matches page's own (.matches-row, app/globals.css); what's added is which kind a row is and, for a
+   character's own thread, the two faces. */
+.chat-start {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+}
+.chat-start .button {
+  margin-top: 0;
+}
+.chat-lede {
+  margin: var(--space-2) 0 0;
+}
+.chat-faces {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 3.5rem;
+  height: 3.5rem;
+}
+/* Your character behind at the top left, who they're texting in front at the bottom right, ringed in the page's colour. */
+.chat-faces.is-pair > .avatar {
+  position: absolute;
+}
+.chat-faces.is-pair > .avatar:first-child {
+  top: 0;
+  left: 0;
+}
+.chat-faces.is-pair > .avatar:last-child {
+  right: 0;
+  bottom: 0;
+  box-shadow: 0 0 0 2px var(--paper);
+}
+.chat-row .matches-row-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chat-kind {
+  flex: none;
+  font-size: var(--text-xs);
+  color: var(--muted);
+  white-space: nowrap;
+}
+.chat-cast {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-5);
+  margin: var(--space-4) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.chat-cast-face {
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: var(--space-2);
+}
+.chat-cast-who {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-1);
+  color: var(--ink);
+  text-decoration: none;
+}
+.chat-foot {
+  margin-top: var(--space-4);
+}
+
+/* Text, the small second action (lib/character-verb.ts): in a character page's header and under a face on Chat. A link
+   in its place (sign in first) is the same size as the button. */
+.contestant-text {
+  margin: var(--space-2) 0 0;
+}
+:is(.contestant-text, .chat-cast-face) :is(a.button, button) {
+  --control-h: var(--control-h-sm);
+  margin-top: 0;
+  padding-inline: var(--space-4);
+  font-size: var(--text-sm);
+}

@@ -54,7 +54,7 @@ import { backingBoard } from "@/lib/backing";
 import { BackThem } from "@/app/BackCast";
 import { isFanCast, isOnSeasonCast, seasonIdAt, seasonMonth, showCastIds } from "@/lib/season-cast";
 import { stepInAccessFromCookies } from "@/lib/step-in-access";
-import { characterVerb, makeHref } from "@/lib/character-verb";
+import { characterVerb, makeHref, textVerb } from "@/lib/character-verb";
 import { companionAllowed, companionEligible } from "@/lib/companion";
 import { companionOpen } from "@/lib/companion-shared";
 import TalkButton from "@/app/companion/TalkButton";
@@ -361,6 +361,8 @@ export default async function CharacterPage({ params, searchParams }: Props) {
     { mine: goes ? { id: goes.id, name: goes.name } : null, stepIn: stepIn?.kind === "member" || stepIn?.kind === "guest" },
     { id: c.id, name: c.name, own: ratings.is_owner, private: c.private, dateable: cta.kind === "send" || cta.kind === "make", ready: goes?.mode === "book", mineTaken: Boolean(goes?.taken), steppable: stepIn !== null },
   );
+  // Text, the small second action in the header (lib/character-verb.ts): anyone they may text, their own included.
+  const text = textVerb(companion === "talk" ? "open" : companion === "signin" ? "sign_in" : "closed", { id: c.id, name: c.name, textable: Boolean(companion) });
   // Stepping in leads when it's their verb (no character of their own, or theirs can't go); otherwise it's the quieter
   // second under the date.
   const stepInLeads = verb?.kind === "step_in";
@@ -499,6 +501,17 @@ export default async function CharacterPage({ params, searchParams }: Props) {
               {c.extras.occupation}
               {c.extras.occupation && c.extras.hometown && " · "}
               {c.extras.hometown && <>from {c.extras.hometown}</>}
+            </p>
+          )}
+          {text && (
+            <p className="contestant-text">
+              {text.signIn ? (
+                <Link className="button secondary small" href={text.signIn} data-track={text.track} data-track-from="character">
+                  {text.label}
+                </Link>
+              ) : (
+                <TalkButton characterId={text.characterId} name={shortName(c.name)} label={text.label} className="button secondary small" track={text.track} />
+              )}
             </p>
           )}
         </div>

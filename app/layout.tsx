@@ -37,7 +37,8 @@ import JsonLd from "./JsonLd";
 import Nav from "./Nav";
 import NewsletterSignup from "./NewsletterSignup";
 import SocialLinks from "./SocialLinks";
-import { unreadTexts } from "@/lib/inbox";
+import { unreadChatTexts, unreadTexts } from "@/lib/inbox";
+import { navChatOn } from "@/lib/nav-chat";
 import { CrisisResources } from "./Notices";
 import Icon from "@/app/Icon";
 import { THEME_COOKIE, themeAttribute, themeFromCookie } from "@/lib/theme";
@@ -137,6 +138,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   // never on After Dark's host. The support address closes the footer once CONTACT_EMAIL is set.
   const socials = socialLinks(process.env, adHost);
   const support = contactEmail();
+  const navChat = navChatOn();
   const [, door, dates, unread, texts, hasCharacter, adTokens, seasonDef] = await Promise.all([
     // They're here (lib/activity.ts): their characters' likes wait for them rather than answering themselves. Throttled.
     db && viewerId ? touchOwner(db, viewerId).catch(() => {}) : null,
@@ -147,8 +149,9 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
     db && viewerId ? episodeAllowance(db, viewerId) : freshAllowance(),
     // The bell's unread count (lib/notifications.ts): what happened between dates.
     db && viewerId ? unreadCount(db, viewerId).catch(() => 0) : 0,
-    // The Matches link's dot: texts this viewer's characters haven't read (lib/inbox.ts).
-    db && viewerId ? unreadTexts(db, viewerId).catch(() => 0) : 0,
+    // Chat's count (lib/nav-chat.ts): unread texts of both kinds, a character's to them and their characters' own
+    // (lib/inbox.ts). With NAV_CHAT=0 it's the Dating link's, the characters' own only.
+    db && viewerId ? (navChat ? unreadChatTexts(db, viewerId) : unreadTexts(db, viewerId)).catch(() => 0) : 0,
     // The nav changes once there's a character of theirs (app/Nav.tsx): until then, the show and one create button.
     db && viewerId
       ? db.query(`select 1 from characters where owner_id = $1 and not is_house limit 1`, [viewerId]).then((r) => r.rows.length > 0, () => false)
@@ -201,7 +204,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
               <span>After Dark</span>
             </span>
           )}
-          <Nav tokens={adHost && viewerId ? (adTokens ?? dates.pack_left) : dates.left} meter={adHost ? (viewerId && afterDark ? "tokens" : "none") : "dates"} personal={Boolean(viewerId)} unread={unread} texts={texts} afterDark={afterDark} adHost={adHost} showHref={showHome()} hasCharacter={hasCharacter} prefetchShow={!adHost} companions={companionOpen()} />
+          <Nav tokens={adHost && viewerId ? (adTokens ?? dates.pack_left) : dates.left} meter={adHost ? (viewerId && afterDark ? "tokens" : "none") : "dates"} personal={Boolean(viewerId)} unread={unread} texts={texts} afterDark={afterDark} adHost={adHost} showHref={showHome()} hasCharacter={hasCharacter} prefetchShow={!adHost} companions={companionOpen()} chat={navChat} />
         </header>
         {/* The season's arc runs under the header on the show's spectator pages (the design system's all-screens board). */}
         {!adHost && (
@@ -245,9 +248,9 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
             )}
           </p>
         </footer>
-        {/* The phone's tab bar (app/PhoneTabBar.tsx): Watch, Characters, Companions while they're open, You. Not on After
+        {/* The phone's tab bar (app/PhoneTabBar.tsx): Watch, Chat, Characters, You. Not on After
             Dark's host, which has its own five doors in its header. Last in the page's flow, so its room is the foot. */}
-        {!adHost && <PhoneTabBar companions={companionOpen()} />}
+        {!adHost && <PhoneTabBar companions={companionOpen()} chat={navChat} unread={texts} />}
         <FeedbackDock />
         <InstallHint hasCharacter={hasCharacter} />
         {google && consent.ask && <ConsentBanner />}

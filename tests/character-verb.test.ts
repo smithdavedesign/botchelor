@@ -74,7 +74,7 @@ const top = (html: string) => html.slice(0, html.indexOf('<section class="card" 
 const first = (name: string) => name.split(" ")[0];
 
 describe("which verb (characterVerb)", () => {
-  const facts: VerbFacts = { id: "house-nell", name: "Nell Ashby", own: false, private: false, dateable: true, ready: true, mineTaken: false, steppable: true };
+  const facts: VerbFacts = { id: "house-nell", name: "Nell Ashby", own: false, private: false, dateable: true, ready: true, mineTaken: false, steppable: true, textable: true };
   const mine = { id: "c1", name: "Ira Fenn" };
 
   it("someone with a character sends it: by name when it can book, a match first behind the swipe gate", () => {
