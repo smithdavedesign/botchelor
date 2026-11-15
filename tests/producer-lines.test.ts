@@ -42,6 +42,11 @@ describe("the daily lines on the pages", () => {
     expect(html).toContain("Tonight: Dex wants an answer, and you pick where Dex gets to ask.");
     expect(html).toContain("You pick where they have it out.");
     expect(html).toContain("Vote — closes in 4h");
+    // The vote's slot already says tonight's sentence (the headline is that line without its label): the fact under it
+    // is what led to it, not the same words again.
+    const twice = renderToStaticMarkup(createElement(TonightBand, { rooms: [], airing: [], situation: board({ headline: "Dex wants an answer, and you pick where Dex gets to ask." }), latest: aired, now: NOW, story }));
+    expect(twice).toContain("Previously: Dex found out what Sable has been saying.");
+    expect(twice).not.toContain("Tonight: Dex wants an answer");
     // No story, no line; a dealt ballot keeps the pair and its own words.
     const plain = renderToStaticMarkup(createElement(TonightBand, { rooms: [], airing: [], situation: board(), latest: aired, now: NOW }));
     expect(plain).not.toContain("Tonight: ");

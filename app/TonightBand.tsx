@@ -57,7 +57,7 @@ export default function TonightBand({
   /** The viewer has a character (lib/crowd-threshold.ts): "N watching" from 1; a stranger sees a count only for a crowd. */
   insider?: boolean;
   /** Today's story from the producer (lib/producer.ts storyToday): its "Tonight:" line joins the facts under the slots. */
-  story?: { tonight: string } | null;
+  story?: { tonight: string; previously?: string } | null;
 }) {
   const live = rooms.find((r) => r.status === "live") ?? null;
   const premiere = rooms.find((r) => r.status === "upcoming") ?? null;
@@ -151,7 +151,12 @@ export default function TonightBand({
   if (airing.length > 1) facts.push({ key: "airing", text: `${airing.length} dates airing soon` });
   if (reveal && reveal.state === "closed") facts.push({ key: "secret", live: true, text: `Sunday's secret comes out ${inWords(reveal.airs_at, now)}` });
   // The producer's line for the day (lib/producer.ts): what tonight is about. A fact like the others, never a new section.
-  if (story?.tonight) facts.push({ key: "story", text: story.tonight });
+  // When the vote's slot above already says the same sentence (its headline is the "Tonight:" line without the label),
+  // the fact is what led to it instead: the band said "You pick who gets the date with Juniper." twice, one over the other.
+  const said = (t: string) => t.replace(/^Tonight: /, "").trim().toLowerCase();
+  const repeats = Boolean(story?.tonight && situation?.headline && said(story.tonight) === said(situation.headline));
+  const storyLine = repeats ? story?.previously : story?.tonight;
+  if (storyLine) facts.push({ key: "story", text: storyLine });
   // The house line (lib/house-scenes.ts): who is talking in the house, and about whose date. A link, never a slot.
   if (house) facts.push({ key: "house", text: `In the house: ${houseLine(house)}`, href: `/house#scene-${house.id}` });
   return (
