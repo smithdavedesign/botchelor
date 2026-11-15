@@ -90,8 +90,8 @@ describe("“date this character” at the top of a character page (lib/date-cta
     expect(top(html)).toMatch(/Send Ira on a date with \w+/);
     expect(top(html)).toMatch(/Ira goes\./);
     expect(top(html)).toContain(">Cast</span>"); // the origin badge
-    // The call to action is also kept further down, by the share card.
-    expect(html.match(/Send Ira on a date with/g)?.length).toBe(2);
+    // The call to action is also kept further down, by the share card, and under the Talk tab's "nobody is talking yet".
+    expect(html.match(/Send Ira on a date with/g)?.length).toBe(3);
   });
 
   it("a house character off this season, or someone else's character that's closed: says it's not taking dates", async () => {
