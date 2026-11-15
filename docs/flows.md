@@ -36,7 +36,12 @@ flowchart TD
     cast --> review["A character's card: review it, 1 to 5 stars<br/>(the two best-reviewed of the house cast<br/>stay on next month)"]
     watch --> review
 
-    home --> create["/create wizard:<br/>identity, voice, look, dating profile,<br/>more about them (facts), soul, review"]
+    home --> first{"Their first character?"}
+    first -- "Yes" --> express["/create, one box (2026-11-15):<br/>describe them in a sentence or two,<br/>an optional name, Meet them"]
+    express -- "Drafted (the show's free model)" --> look["Look, a look already picked<br/>→ Review, tick the 18+ box → Create"] --> rules
+    express -- "No draft (model down or slow, a limit,<br/>words the show refuses), or Fill it in myself" --> create
+    first -- "No, or EXPRESS_CREATE=0" --> create
+    home --> create["/create wizard:<br/>identity, look, review for a first character<br/>(the dating profile is written from the sheet);<br/>voice, dating profile, more about them, soul<br/>on the depth track and for later characters"]
     create --> rules{"Content rules:<br/>adult, original, no real people,<br/>nothing sexual"}
     rules -- "Breaks one" --> fix["Error names the field to fix"] --> create
     rules -- "Passes" --> profile{"Dating profile complete?<br/>2 prompts + 2 interests"}
@@ -265,6 +270,51 @@ flowchart LR
 | **After Dark discreet mode:** a PIN (when the owner sets one) on each device before any After Dark page, API or picture answers; 5 tries, then 15 minutes; a reset only through the account (an emailed code, or the password with no email) | Adult visitors | `lib/adult/privacy.ts`, `lib/adult/mode.ts` `adultViewer` |
 | **After Dark discreet mode:** pictures and videos blurred until tapped, and the tab titled "Botchelor" (both on by default) | Adult visitors | `app/after-dark/Frame.tsx`, `app/after-dark/discreet.css` |
 | **After Dark Shorts:** publishing is a signed-in admin's (two of this season's house cast, a whole saved night of their own, a PG title, a checked cover); watching needs `canAfterDark`; the night (lines, video) goes only to a viewer who pressed play; everyone else gets the teaser; bots get nothing | Admins, adult visitors | `lib/adult/shorts.ts` |
+
+## Making a character: one sentence, then the same three steps (2026-11-15)
+
+In the 30 days before, 12 people opened `/create` and 4 finished it, after 103 seconds on the first step's eight
+fields. The first screen for someone making their **first** character is now one box (`app/create/CreateWizard.tsx`,
+`lib/express-create.ts`):
+
+- **The box.** "Describe them in a sentence or two" (280 characters), three examples that fill it, an optional name and
+  **Meet them**. On a 390px phone the box, the examples and the button fit the first screen. Shown only to a visitor with
+  no character yet who arrived with nothing in hand: not when editing, not from `/import` (`?imported=1`), a sample
+  (`?sample=1`), a name (`?name=`), the chemistry test's pair or a character to send (`?character=`), and not when this
+  browser has a half-filled draft of the form (that draft comes back instead).
+- **The draft** (`POST /api/characters/draft { text, name? }`). The words are held to the sheet's own check first
+  (`checkSheetText`: a minor, a real person or anything past PG is refused before any model reads them). Then one call
+  on the show's **free** model (never the paid one) with a prompt that asks for the import reader's labelled fields,
+  and the answer goes through that reader (`lib/import-character.ts` `importFromFields`: cut to the builder's limits,
+  screened field by field). It comes back as the builder's fields: a name (theirs when they typed one; otherwise
+  invented, and swapped for a free one when someone has it, since names are unique), an **adult age** (their words' age
+  when they state one, else the model's when it is 18 or over, else an age from 24 to 39 picked from the words: the
+  model can never produce a minor, and a stated age under 18 refuses the draft), a bio, three traits, a want, a
+  dealbreaker, pronouns and a job when the words imply them, and **a look** (`suggestLooks`: hair, eyes, build and
+  clothes from the words where they say, a seeded pick where they don't; only when the words say woman or man, the two
+  the picture tiles have; never an ethnicity). Nothing is saved.
+- **Then the same steps.** Identity is done, so the builder goes to **Look** with the suggestion selected (Next works at
+  once; "Change their look" opens the picker), then **Review** with the 18+ box, then **Create** and the instant first
+  date, as before. Back from Look opens the whole Identity form, filled, and every line is editable. The dating profile
+  is still written from the sheet at Create (`lib/profile-fill.ts`). The save (`POST /api/characters`) judges the
+  character exactly as it judges a typed one.
+- **Failure is ordinary.** The model is down, slow (12 s) or answers something unreadable; a limit is hit; the words are
+  refused: the usual form opens with what they typed in the bio (and the name) and one sentence saying why. A draft
+  that comes back short opens the form with what came in and the list still to add; a typed name someone already has
+  opens it on the name with the free ones to pick. **Fill it in myself** and **Use a sample character** are under the
+  button, and the form has "describe them in a sentence" to come back.
+- **Limits and cost.** One call is about 330 tokens in and at most 700 out: $0 on the free tier, under 0.2¢ at
+  gemini-3.5-flash-lite's list price. Capped with `lib/limits.ts`, guests included: 5 an hour and 10 a day per visitor
+  (the session), 10 an hour and 30 a day per address, 60 an hour and 300 a day across everyone (about 60¢ a day at
+  list price, and the live show keeps its quota).
+- **Switch.** `EXPRESS_CREATE` (the show's app; on unless `0`): `0` restores today's first step and the route answers 404.
+- **Events** (`lib/express-create.ts`, sent with `queueEvent`): `express_started` (Meet them: length, named, example),
+  `express_drafted` (ready, invented_name, look), `express_failed` (reason). The first two are steps on the Engagement
+  funnel between "Opened Make your character" and "Made a character" (`lib/engagement.ts`). Never the words.
+- Tests: `tests/express-create.test.ts`. The visual gate walks it (`scripts/visual.mjs` `create-express`).
+
+What the draft leaves empty, the character asks about later, in its own thread: see
+[companions.md](companions.md), "The character asks you the rest".
 
 ## Where each thing lives (2026-10-20)
 

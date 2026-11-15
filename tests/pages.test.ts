@@ -116,6 +116,7 @@ describe("launch checks: robots.txt, sitemap and og:image", () => {
         "/costs",
         "/safety",
         "/agents/pricing",
+        "/agents/league",
         "/showcase",
         "/import",
         "/alternatives/character-ai",

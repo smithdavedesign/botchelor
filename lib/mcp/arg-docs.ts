@@ -34,7 +34,7 @@ const BY_PATH: Record<string, string> = {
   "temperament.humor": "How playful the character is, 0 to 1.",
   hiding: "Something the character is hiding on dates.",
   this_week: "What's going on in the character's life this week.",
-  keep_look_alike: "true: keep a look-alike character instead of changing the look.",
+  keep_look_alike: "true: keep a look-alike.",
   keep_name: "true: keep the current name even if it's similar to another.",
   open_to_dates: "true: the character accepts dates from others.",
   open_audience: "Who may date the character when it's open.",

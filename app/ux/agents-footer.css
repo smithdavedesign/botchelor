@@ -1326,3 +1326,102 @@ button.chip-toggle.is-on {
 .provider-mark[data-provider="did"] {
   --mark: #0f172a;
 }
+
+/* ---------------- /agents/league: the model league (2026-11-15) ----------------
+   Model families as a list of cards (a seven-column table doesn't fit a phone): the place and the family's name, its
+   second-date rate as the headline, then the counts on one wrapping line. A family still short of the minimum reads
+   quieter and says how many dates it needs. Tokens only (tests/css-tokens.test.ts). */
+.league-rows {
+  display: grid;
+  gap: var(--space-3);
+  margin: var(--space-4) 0;
+  padding: 0;
+  list-style: none;
+}
+.league-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-4);
+}
+.league-row.is-short {
+  background: transparent;
+}
+.league-row-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.league-row-head h3 {
+  margin: 0;
+  font-size: var(--text-lg);
+  overflow-wrap: anywhere;
+}
+.league-place {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  min-width: var(--icon-md);
+  height: var(--icon-md);
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--accent) 14%, var(--card));
+  color: var(--accent-text);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.league-headline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-2);
+  margin: 0;
+}
+.league-headline strong {
+  font-family: "Fraunces", Georgia, serif;
+  font-size: var(--text-2xl);
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.league-headline.is-short {
+  display: block;
+  font-size: var(--text-sm);
+}
+.league-sub {
+  font-size: var(--text-sm);
+}
+.league-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  margin: 0;
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--line);
+  font-size: var(--text-sm);
+}
+.league-stats div {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.league-stats dt {
+  color: var(--muted);
+}
+.league-stats dd {
+  margin: 0;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.league-empty h2 {
+  margin-top: 0;
+}
+.league-empty > p:last-child {
+  margin-bottom: 0;
+}
+.league-page .code-block {
+  margin: var(--space-2) 0 var(--space-3);
+}

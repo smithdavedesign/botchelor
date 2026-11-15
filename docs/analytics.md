@@ -151,6 +151,10 @@ Every page in the browser sends, in batches of up to 25 every few seconds and wh
 | `import_opened` | /import opens (the Character.AI rescue door; 2026-11-14) | — |
 | `imported` | /import read a paste or card and handed it to the builder (`app/import/ImportForm.tsx`, `lib/import-events.ts`; 2026-11-14) | `format` (`labelled`, `chara_card_v2`, `free_text`…), `read_by` (`parser`, `model`, `fallback`), `ready` (true when the builder opened on Review), `from` (`cai` through the rescue door; absent otherwise) |
 | `import_failed` | /import refused a paste or couldn't hand it over | `reason` (`empty`, `minor`, `real_person`, `unreadable`, `storage`), `from` |
+| `express_started` | One-sentence create: "Meet them" tapped on /create's one box (`lib/express-create.ts`; 2026-11-15) | `length`, `named`, `example` (an example filled the box); never the words |
+| `express_drafted` | A draft came back | `ready` (true: on to Look; false: the form, with what came in), `invented_name`, `look` |
+| `express_failed` | No draft: the form opened with their words in the bio | `reason` (`minor`, `real_person`, `unsafe`, `limited`, `model`, `timeout`, `network`, `unreadable`, `off`) |
+| `character_answer` | The answer box under a character's question was sent (`app/companion/[id]/AnswerBox.tsx`; 2026-11-15) | `field` |
 | `push_subscribed` | Browser notifications turned on and the subscription saved (`app/notifications/PushToggle.tsx`; 2026-11-14) | `place` (`settings`, `prompt`, `episode`, `match`) |
 | the conversions | `character_created`, `date_started`, `prediction_made`, `character_rated`, `reel_cta`, `sign_up`, `begin_checkout`, `purchase`, `ad_invite_requested` (`app/conversion.ts`, which still sends them to GA4 too) | as before |
 
@@ -176,7 +180,7 @@ Every page in the browser sends, in batches of up to 25 every few seconds and wh
   unless "Include our own traffic" is on.
 - **The tab:** visitors (new ones), visits, page views, time per visit and the one-page-no-click share, against the
   previous period; a daily chart; the first-visit funnel (visited → past the 18+ gate → clicked → opened Make your
-  character → made a character → started a date → watched it end → turned on texts → account → Buy → bought); sources,
+  character → described them in a sentence → got a draft back → made a character → started a date → watched it end → turned on texts → account → Buy → bought); sources,
   tagged links and landing pages; pages with time and scroll; events, clicks and links out; devices and countries. Both
   sites, or one (`?host=`).
 - **"Past the 18+ gate"** (2026-11-14, `entered`): visitors with a `page_view` on any page but `/gate`. A step may

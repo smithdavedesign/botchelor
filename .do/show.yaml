@@ -107,10 +107,25 @@ services:
       # - key: SPEED_DATE_REASONING
       #   value: "low"
       #   scope: RUN_AND_BUILD_TIME
+      # One-sentence create (lib/express-create.ts; docs/flows.md): on by default. Uncomment with "0" to put the form
+      # back as /create's first step without a deploy.
+      # - key: EXPRESS_CREATE
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
+      # A character's questions about its own sheet (lib/character-questions.ts; docs/companions.md): on by default.
+      # Uncomment with "0" and the daily job sends none.
+      # - key: CHARACTER_QUESTIONS
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
       # Life dates a day (lib/character-life.ts weeklyLifeDates; docs/hosting.md): the house takes each owned character
       # out once a week, house-paid, ~1¢ each. Default 30; "0" turns them off without a deploy.
       # - key: LIFE_DATES_PER_DAY
       #   value: "30"
+      #   scope: RUN_AND_BUILD_TIME
+      # The model league (lib/model-league.ts; docs/hosting.md): /agents/league and /api/league/models, on by default.
+      # "0" takes the page, its JSON and the links to it away without a deploy; models are still kept and dates stamped.
+      # - key: MODEL_LEAGUE
+      #   value: "0"
       #   scope: RUN_AND_BUILD_TIME
       # Copied from the old Vercel project's values (not secret, but deployment-specific).
       - key: CONTACT_EMAIL
