@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { trackConversion } from "@/app/conversion";
 import DateConfirm from "@/app/DateConfirm";
 import { requestJson, watchLinkOf } from "@/app/request";
@@ -24,6 +24,7 @@ export default function DateThisCharacter({
   first,
   roleplays = false,
   signedIn = false,
+  startWith = null,
 }: {
   cta: DateCta;
   targetId: string;
@@ -31,11 +32,17 @@ export default function DateThisCharacter({
   roleplays?: boolean;
   /** For the roleplay picker's ✨ Yours (the Create library, accounts only). */
   signedIn?: boolean;
+  /**
+   * A card's "Send {mine} on a date with {them}" (lib/character-verb.ts) lands here with ?send=<mine>: that one is
+   * picked, and when it can book, the confirm sheet is already open. Nothing is spent until they press Send.
+   */
+  startWith?: string | null;
 }) {
   const router = useRouter();
   const mine = cta.kind === "send" ? cta.mine : [];
   // One that's free to go first (a taken one, with someone else and wanting only them, is listed but can't go).
-  const [pick, setPick] = useState((mine.find((m) => !m.taken) ?? mine[0])?.id ?? "");
+  const asked = startWith ? mine.find((m) => m.id === startWith) : undefined;
+  const [pick, setPick] = useState((asked ?? mine.find((m) => !m.taken) ?? mine[0])?.id ?? "");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ text: string; shop?: boolean; link?: { href: string; label: string } } | null>(null);
   // David, 2026-10-23: the booker may say where the date happens (else a texted plan, else the show picks).
@@ -44,6 +51,12 @@ export default function DateThisCharacter({
   // The picker mounts once it's opened, not in every character page's HTML.
   const [roleplayOpen, setRoleplayOpen] = useState(false);
   const [asking, setAsking] = useState(false);
+  // Sent here by a card with the sender named: the sheet opens once the page is in the browser (it's drawn into
+  // <body>, so never on the server), and only for one that can book.
+  const openOnArrival = Boolean(asked && asked.mode === "book" && !asked.taken);
+  useEffect(() => {
+    if (openOnArrival) setAsking(true);
+  }, [openOnArrival]);
 
   if (cta.kind === "none") return null;
   if (cta.kind === "closed") {
@@ -56,7 +69,7 @@ export default function DateThisCharacter({
   if (cta.kind === "make") {
     return (
       <div className="date-cta">
-        <Link href={cta.href} className="button">
+        <Link href={cta.href} className="button" data-track="verb-make" data-track-from="character">
           💌 {cta.label}
         </Link>
       </div>
@@ -104,16 +117,19 @@ export default function DateThisCharacter({
         <button
           type="button"
           className="primary"
+          data-track="verb-send"
+          data-track-from="character"
           onClick={() => {
             setMessage(null);
             setAsking(true);
           }}
         >
-          💌 {cta.label}
+          {/* It names who goes (the picker above switches them), as the cards do. */}
+          💌 Send {shortName(chosen.name)} on a date with {first}
         </button>
       ) : (
-        <Link href={`/swipe?character=${encodeURIComponent(chosen.id)}`} className="button">
-          💌 {cta.label}
+        <Link href={`/swipe?character=${encodeURIComponent(chosen.id)}`} className="button" data-track="verb-match" data-track-from="character">
+          💘 Match {shortName(chosen.name)} with {first}
         </Link>
       )}
       <p className="muted small date-cta-note" hidden={Boolean(chosen.taken)}>

@@ -23,6 +23,7 @@ import { generationPaused, PAUSED_MESSAGE } from "@/lib/compute";
 import { DATE_START_LIMITS, overLimit, visitorKey } from "@/lib/limits";
 import { track } from "@/lib/analytics";
 import { recordCrossSpecies } from "@/lib/agent-funnel";
+import { stampDateModels } from "@/lib/model-league";
 import { enqueueGeneration, inlineGenerationEnabled, runGenerationJob } from "@/lib/jobs";
 import { ownsSku } from "@/lib/payments";
 import { DEFAULT_FORMAT, format as showFormat, FORMAT_IDS } from "@/lib/formats";
@@ -660,6 +661,8 @@ async function writeAndSave(
   if (group) await markNightBooked(db, group, episodeId).catch(() => {});
   // North-star: a web-made × MCP-made pair's date, once per pair (best effort; never breaks a booking).
   await recordCrossSpecies(db, episodeId, "booking");
+  // The model league (lib/model-league.ts): each side's declared model family, stamped now so a later change can't rewrite it.
+  await stampDateModels(db, episodeId);
   // Their nudges for each other go into this date (snapshotted on the setup), so they're used now.
   await useNudges(db, own.id, partner.id).catch(() => {});
   // Booked (the web's book buttons, the thread's Book date, go_on_date and plan_second_date all land here): the pair's

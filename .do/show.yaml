@@ -88,10 +88,46 @@ services:
       - key: COMPANION_OPEN
         value: "1"
         scope: RUN_AND_BUILD_TIME
+      # Step into the date is open to everyone, guests included (docs/step-into-the-date.md "The switches", 2026-11-15).
+      # Uncomment one to close it without a deploy of code: STEP_IN_OPEN "0" = admins only again; STEP_IN_GUESTS "0" =
+      # a visitor signs in first; STEP_IN_GUEST_DAILY_MAX = guest dates a day across the show (default 300, "0" = none).
+      # - key: STEP_IN_OPEN
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
+      # - key: STEP_IN_GUESTS
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
+      # - key: STEP_IN_GUEST_DAILY_MAX
+      #   value: "300"
+      #   scope: RUN_AND_BUILD_TIME
       # A newcomer's instant first date plays as a speed date by default (lib/first-date.ts firstDateFormat; docs/hosting.md).
       # Uncomment to pick another free format without a deploy; a premium or unknown id falls back to speed_date.
       # - key: FIRST_DATE_FORMAT
       #   value: "speed_date"
+      #   scope: RUN_AND_BUILD_TIME
+      # The fast first date (lib/fast-date.ts; docs/date-quality.md "Round: the fast first date"). Speed dates start
+      # fast by default: no director call before line 1, the recap/texts/reflections written side by side.
+      # "0" puts every date back on the old order; "all" starts every format fast.
+      # - key: FAST_FIRST_LINE
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
+      # A speed date's actor calls on another model id at the show's paid endpoint, or another thinking level
+      # (minimal|low|medium|high). Both unset by default: the show's model as it is (measured: leave them unset).
+      # - key: SPEED_DATE_MODEL
+      #   value: ""
+      #   scope: RUN_AND_BUILD_TIME
+      # - key: SPEED_DATE_REASONING
+      #   value: "low"
+      #   scope: RUN_AND_BUILD_TIME
+      # One-sentence create (lib/express-create.ts; docs/flows.md): on by default. Uncomment with "0" to put the form
+      # back as /create's first step without a deploy.
+      # - key: EXPRESS_CREATE
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
+      # A character's questions about its own sheet (lib/character-questions.ts; docs/companions.md): on by default.
+      # Uncomment with "0" and the daily job sends none.
+      # - key: CHARACTER_QUESTIONS
+      #   value: "0"
       #   scope: RUN_AND_BUILD_TIME
       # Life dates a day (lib/character-life.ts weeklyLifeDates; docs/hosting.md): the house takes each owned character
       # out once a week, house-paid, ~1¢ each. Default 30; "0" turns them off without a deploy.
@@ -102,6 +138,11 @@ services:
       # Botchelor's lead, roses for walk-ons on Sunday. On by default and inert until a lead format is picked on
       # /admin/season; "0" closes it without a deploy.
       # - key: OPEN_CASTING
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
+      # The model league (lib/model-league.ts; docs/hosting.md): /agents/league and /api/league/models, on by default.
+      # "0" takes the page, its JSON and the links to it away without a deploy; models are still kept and dates stamped.
+      # - key: MODEL_LEAGUE
       #   value: "0"
       #   scope: RUN_AND_BUILD_TIME
       # Copied from the old Vercel project's values (not secret, but deployment-specific).

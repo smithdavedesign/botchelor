@@ -11,7 +11,7 @@ import { queueEvent } from "@/app/engagement";
 import type { Turn } from "@/lib/conversation";
 import type { CrisisResources } from "@/lib/crisis";
 import { TURN_DIALOGUE_MAX } from "@/lib/rules";
-import type { StepInView } from "@/lib/step-in-shared";
+import { stepInShareText, type StepInView } from "@/lib/step-in-shared";
 
 type Reply = { view?: StepInView; refused?: string; message?: string };
 
@@ -22,7 +22,7 @@ const asTurns = (v: StepInView): Turn[] => v.lines.map((l) => ({ ...l, interest:
  * line to type. The cast member's AI disclosure is on the stage all the time, in the thread at the start and every few
  * lines, and again when you come back after a while. The show answers each line as it comes; the end is the reveal.
  */
-export default function StepInStage({ initial, initialCrisis }: { initial: StepInView; initialCrisis: CrisisResources | null }) {
+export default function StepInStage({ initial, initialCrisis, guest = false }: { initial: StepInView; initialCrisis: CrisisResources | null; guest?: boolean }) {
   const router = useRouter();
   const [view, setView] = useState(initial);
   const [draft, setDraft] = useState("");
@@ -32,6 +32,7 @@ export default function StepInStage({ initial, initialCrisis }: { initial: StepI
   const [note, setNote] = useState<string | null>(null);
   const [crisis, setCrisis] = useState<CrisisResources | null>(initialCrisis);
   const [welcomeBack, setWelcomeBack] = useState(initial.disclosure.again);
+  const [shared, setShared] = useState<string | null>(null);
   const finishedHere = useRef(false);
   const first = view.them.name.split(/\s+/)[0];
 
@@ -57,9 +58,14 @@ export default function StepInStage({ initial, initialCrisis }: { initial: StepI
     if (view.state !== "their_line" && view.state !== "finishing") return;
     let gone = false;
     setBusy(true);
-    post({ action: "advance" }).finally(() => {
-      if (!gone) setBusy(false);
-    });
+    post({ action: "advance" })
+      // The show couldn't play its side (the date has had too many tries): said, not left as "thinking…".
+      .then((data) => {
+        if (!gone && data?.refused) setNote(data.refused);
+      })
+      .finally(() => {
+        if (!gone) setBusy(false);
+      });
     return () => {
       gone = true;
     };
@@ -126,6 +132,27 @@ export default function StepInStage({ initial, initialCrisis }: { initial: StepI
       if (data?.view?.visibility === "public") queueEvent("step_in_aired", {});
     } finally {
       setBusy(false);
+    }
+  }
+
+  // The verdict, shared (lib/step-in-share.ts): one sentence and a signed link, through the phone's share sheet when
+  // there is one, else onto the clipboard. It names the cast member and how it ended, never their own lines.
+  async function share() {
+    if (!view.ending?.share_path) return;
+    const url = new URL(view.ending.share_path, window.location.origin).toString();
+    const text = stepInShareText(first, view.ending.family, url);
+    try {
+      if (typeof navigator.share === "function" && window.matchMedia("(pointer: coarse)").matches) {
+        await navigator.share({ text });
+        return;
+      }
+      await navigator.clipboard.writeText(text);
+      setShared("Copied. Paste it anywhere.");
+    } catch (err) {
+      // A dismissed share sheet is not a failure; a blocked clipboard opens the link to copy from the address bar.
+      if (err instanceof DOMException && err.name === "AbortError") return;
+      setShared("Couldn't copy here: the link opened in a new tab.");
+      window.open(url, "_blank", "noopener");
     }
   }
 
@@ -278,6 +305,47 @@ export default function StepInStage({ initial, initialCrisis }: { initial: StepI
               <span className="small">It&apos;s on the air: it airs on its own in a few minutes.</span> <Link href={view.episode_path}>See the episode</Link>
             </p>
           )}
+          {view.ending.share_path && (
+            <p className="cta-row stepin-share">
+              <button type="button" className="button secondary" onClick={() => void share()} data-track="step-in-share" data-track-ending={view.ending.family}>
+                Share how it went
+              </button>
+              {shared && (
+                <span className="small" role="status">
+                  {shared}
+                </span>
+              )}
+            </p>
+          )}
+          {/* The way on. Someone who came as themselves has no character yet to send back: the builder makes one whose
+              first date is with this cast member (/create?meet=). A guest's dates are few, so an account is said too. */}
+          <p className="small stepin-next">
+            {view.you.persona ? (
+              <>
+                Want {first} to remember someone?{" "}
+                <Link href={`/create?meet=${encodeURIComponent(view.them.id)}`} data-track="step-in-make" data-track-from="verdict">
+                  Make a character and send them on a date with {first}
+                </Link>
+                .
+              </>
+            ) : (
+              <>
+                <Link href={`/characters/${encodeURIComponent(view.them.id)}`} data-track="step-in-profile" data-track-from="verdict">
+                  Back to {first}&apos;s page
+                </Link>
+                : send {view.you.name.split(/\s+/)[0]} on a date the show films.
+              </>
+            )}
+            {guest && (
+              <>
+                {" "}
+                <Link href={`/account?next=${encodeURIComponent(`/step-in?with=${view.them.id}`)}`} data-track="step-in-signup" data-track-from="verdict">
+                  A free account
+                </Link>{" "}
+                gets you a step-in date every day.
+              </>
+            )}
+          </p>
         </section>
       )}
     </article>

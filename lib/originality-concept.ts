@@ -24,6 +24,7 @@
  */
 
 import { createHash } from "node:crypto";
+import { notPersonaSql } from "./step-in-shared";
 import type { Db } from "./db";
 import type { CharacterExtras } from "./extras";
 import { kindLabel } from "./kinds";
@@ -281,7 +282,7 @@ export async function refreshConceptEmbedding(db: Db, characterId: string, env: 
     await db.query<Sheet & { text_hash: string | null }>(
       `select c.bio, c.traits, c.want, c.extras, e.text_hash
          from characters c left join character_embeddings e on e.character_id = c.id
-        where c.id = $1 and not c.is_house and c.owner_id is distinct from $2`,
+        where c.id = $1 and not c.is_house and c.owner_id is distinct from $2 and ${notPersonaSql("c")}`,
       [characterId, DELETED_OWNER],
     )
   ).rows[0];
@@ -349,7 +350,7 @@ export async function backfillEmbeddings(
   if (!conceptEnabled(env)) return out;
   const { rows } = await db.query<{ id: string }>(
     `select c.id from characters c left join character_embeddings e on e.character_id = c.id
-      where not c.is_house and c.owner_id is distinct from $1 and (e.character_id is null or e.model is distinct from $2)
+      where not c.is_house and c.owner_id is distinct from $1 and ${notPersonaSql("c")} and (e.character_id is null or e.model is distinct from $2)
       order by c.created_at desc
       limit $3`,
     [DELETED_OWNER, embedModel(env), Math.max(0, Math.floor(opts.limit ?? 40))],

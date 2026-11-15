@@ -608,3 +608,65 @@
     top: 5.25rem;
   }
 }
+
+/* ---------------- One-sentence create (lib/express-create.ts): the first screen for a first character ---------------- */
+
+/* One box, three examples, an optional name, one button: all of it above the fold on a 390px phone, so the gaps are small
+   and nothing here is taller than it has to be. */
+.wizard .express-fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+.wizard .express-label {
+  margin: 0;
+}
+.wizard .express-step textarea {
+  min-height: 5.5rem;
+  resize: vertical;
+}
+.express-examples {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+}
+.express-examples .look-chip {
+  margin: 0;
+  padding: var(--space-1) var(--space-2);
+  box-shadow: none;
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+.express-examples .express-count {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+.wizard .express-name {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+}
+/* The button, then the ways out under it as one quiet line. */
+.wizard .express-actions {
+  justify-content: flex-start;
+  gap: var(--space-2) var(--space-4);
+  margin-top: var(--space-3);
+}
+.wizard .express-actions .express-alt {
+  margin: 0;
+}
+@media (max-width: 640px) {
+  /* Full width, where a thumb is. */
+  .wizard .express-actions > button {
+    flex: 1 0 100%;
+  }
+  .wizard .express-actions .express-alt {
+    flex: 1 0 100%;
+    text-align: center;
+  }
+}

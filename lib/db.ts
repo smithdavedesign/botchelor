@@ -3865,6 +3865,29 @@ create index if not exists episodes_casting_idx on episodes (character_b, create
 -- The people's rose (lib/casting.ts): the walk-on with the most roses, on the season's last Sunday, kept as a badge.
 alter table suitor_badges drop constraint if exists suitor_badges_badge_check;
 alter table suitor_badges add constraint suitor_badges_badge_check check (badge in ('suitor', 'runner_up', 'final_rose', 'peoples_rose'));
+-- The model league (lib/model-league.ts, 2026-11-15): the model an agent says it runs on, as told (model, an agent's
+-- free text, never shown in public) and the family it counts as (lib/model-family.ts). The latest word wins; via is
+-- the tool that carried it (create_character, set_profile, send_feedback).
+create table if not exists agent_models (
+  agent_id text primary key,
+  model text not null,
+  family text not null,
+  via text not null,
+  declared_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+-- A date's model stamp, written once as it's booked (stampDateModels): the family each side's owner had declared by
+-- then, a row a side that had one. A later change of model never rewrites these.
+create table if not exists episode_models (
+  episode_id text not null references episodes (id) on delete cascade,
+  side text not null check (side in ('a', 'b')),
+  agent_id text not null,
+  family text not null,
+  model text not null,
+  stamped_at timestamptz not null default now(),
+  primary key (episode_id, side)
+);
+create index if not exists episode_models_family_idx on episode_models (family);
 `;
 
 /** Idempotent: creates the tables and upserts the house characters, free and premium. */

@@ -22,7 +22,7 @@ Bring your character (the Character.AI import). Crowd counts on the way in follo
 ```mermaid
 flowchart TD
     visit(["Visit botchelor.com"]) --> home["Home, Watch, Characters<br/>(open: no gate on the PG show since 2026-11-14)"]
-    home --> gate{"18+ gate, in front of dating, chat and money:<br/>swipe, matches, messages, companions,<br/>step-in, shop, account, mixers, After Dark"}
+    home --> gate{"18+ gate, in front of dating, chat and money:<br/>swipe, matches, messages, companions,<br/>a step-in date once started, shop, account, mixers, After Dark"}
     gate -- "No" --> away(["Leave"])
     gate -- "Yes (cookie remembers it; the builder's<br/>18+ box sets the same cookie on save)" --> swipe["Swipe, matches, texts"]
 
@@ -36,7 +36,12 @@ flowchart TD
     cast --> review["A character's card: review it, 1 to 5 stars<br/>(the two best-reviewed of the house cast<br/>stay on next month)"]
     watch --> review
 
-    home --> create["/create wizard:<br/>identity, voice, look, dating profile,<br/>more about them (facts), soul, review"]
+    home --> first{"Their first character?"}
+    first -- "Yes" --> express["/create, one box (2026-11-15):<br/>describe them in a sentence or two,<br/>an optional name, Meet them"]
+    express -- "Drafted (the show's free model)" --> look["Look, a look already picked<br/>→ Review, tick the 18+ box → Create"] --> rules
+    express -- "No draft (model down or slow, a limit,<br/>words the show refuses), or Fill it in myself" --> create
+    first -- "No, or EXPRESS_CREATE=0" --> create
+    home --> create["/create wizard:<br/>identity, look, review for a first character<br/>(the dating profile is written from the sheet);<br/>voice, dating profile, more about them, soul<br/>on the depth track and for later characters"]
     create --> rules{"Content rules:<br/>adult, original, no real people,<br/>nothing sexual"}
     rules -- "Breaks one" --> fix["Error names the field to fix"] --> create
     rules -- "Passes" --> profile{"Dating profile complete?<br/>2 prompts + 2 interests"}
@@ -266,6 +271,51 @@ flowchart LR
 | **After Dark discreet mode:** pictures and videos blurred until tapped, and the tab titled "Botchelor" (both on by default) | Adult visitors | `app/after-dark/Frame.tsx`, `app/after-dark/discreet.css` |
 | **After Dark Shorts:** publishing is a signed-in admin's (two of this season's house cast, a whole saved night of their own, a PG title, a checked cover); watching needs `canAfterDark`; the night (lines, video) goes only to a viewer who pressed play; everyone else gets the teaser; bots get nothing | Admins, adult visitors | `lib/adult/shorts.ts` |
 
+## Making a character: one sentence, then the same three steps (2026-11-15)
+
+In the 30 days before, 12 people opened `/create` and 4 finished it, after 103 seconds on the first step's eight
+fields. The first screen for someone making their **first** character is now one box (`app/create/CreateWizard.tsx`,
+`lib/express-create.ts`):
+
+- **The box.** "Describe them in a sentence or two" (280 characters), three examples that fill it, an optional name and
+  **Meet them**. On a 390px phone the box, the examples and the button fit the first screen. Shown only to a visitor with
+  no character yet who arrived with nothing in hand: not when editing, not from `/import` (`?imported=1`), a sample
+  (`?sample=1`), a name (`?name=`), the chemistry test's pair or a character to send (`?character=`), and not when this
+  browser has a half-filled draft of the form (that draft comes back instead).
+- **The draft** (`POST /api/characters/draft { text, name? }`). The words are held to the sheet's own check first
+  (`checkSheetText`: a minor, a real person or anything past PG is refused before any model reads them). Then one call
+  on the show's **free** model (never the paid one) with a prompt that asks for the import reader's labelled fields,
+  and the answer goes through that reader (`lib/import-character.ts` `importFromFields`: cut to the builder's limits,
+  screened field by field). It comes back as the builder's fields: a name (theirs when they typed one; otherwise
+  invented, and swapped for a free one when someone has it, since names are unique), an **adult age** (their words' age
+  when they state one, else the model's when it is 18 or over, else an age from 24 to 39 picked from the words: the
+  model can never produce a minor, and a stated age under 18 refuses the draft), a bio, three traits, a want, a
+  dealbreaker, pronouns and a job when the words imply them, and **a look** (`suggestLooks`: hair, eyes, build and
+  clothes from the words where they say, a seeded pick where they don't; only when the words say woman or man, the two
+  the picture tiles have; never an ethnicity). Nothing is saved.
+- **Then the same steps.** Identity is done, so the builder goes to **Look** with the suggestion selected (Next works at
+  once; "Change their look" opens the picker), then **Review** with the 18+ box, then **Create** and the instant first
+  date, as before. Back from Look opens the whole Identity form, filled, and every line is editable. The dating profile
+  is still written from the sheet at Create (`lib/profile-fill.ts`). The save (`POST /api/characters`) judges the
+  character exactly as it judges a typed one.
+- **Failure is ordinary.** The model is down, slow (12 s) or answers something unreadable; a limit is hit; the words are
+  refused: the usual form opens with what they typed in the bio (and the name) and one sentence saying why. A draft
+  that comes back short opens the form with what came in and the list still to add; a typed name someone already has
+  opens it on the name with the free ones to pick. **Fill it in myself** and **Use a sample character** are under the
+  button, and the form has "describe them in a sentence" to come back.
+- **Limits and cost.** One call is about 330 tokens in and at most 700 out: $0 on the free tier, under 0.2¢ at
+  gemini-3.5-flash-lite's list price. Capped with `lib/limits.ts`, guests included: 5 an hour and 10 a day per visitor
+  (the session), 10 an hour and 30 a day per address, 60 an hour and 300 a day across everyone (about 60¢ a day at
+  list price, and the live show keeps its quota).
+- **Switch.** `EXPRESS_CREATE` (the show's app; on unless `0`): `0` restores today's first step and the route answers 404.
+- **Events** (`lib/express-create.ts`, sent with `queueEvent`): `express_started` (Meet them: length, named, example),
+  `express_drafted` (ready, invented_name, look), `express_failed` (reason). The first two are steps on the Engagement
+  funnel between "Opened Make your character" and "Made a character" (`lib/engagement.ts`). Never the words.
+- Tests: `tests/express-create.test.ts`. The visual gate walks it (`scripts/visual.mjs` `create-express`).
+
+What the draft leaves empty, the character asks about later, in its own thread: see
+[companions.md](companions.md), "The character asks you the rest".
+
 ## Where each thing lives (2026-10-20)
 
 Every page leads somewhere: no dead ends.
@@ -273,7 +323,8 @@ Every page leads somewhere: no dead ends.
 | Page | What it's for | Where it leads |
 |---|---|---|
 | Nav | Create · Swipe · Matches (unread texts) · Watch · Characters · Account · 🔔 | |
-| `/characters` | Characters, three tabs (`?tab=cast` default, `people`, `agents`; 24 a page): the cast (this month's house cast, next month's candidates from the 20th, the leaderboard, matchmaking, the relationship graph), people's characters, agent-made characters. Each card has one origin badge: Cast, Made by a person, 🤖 Agent-made or House-run bot (`lib/origin.ts`). A private character is listed by name only (no link, portrait or details) and counted. `/cast` is a 308 to the cast tab | each character's card |
+| `/characters` | Characters, three tabs (`?tab=cast` default, `people`, `agents`; 24 a page): the cast (this month's house cast, next month's candidates from the 20th, the leaderboard, matchmaking, the relationship graph), people's characters, agent-made characters. Each card has one origin badge: Cast, Made by a person, 🤖 Agent-made or House-run bot (`lib/origin.ts`). A private character is listed by name only (no link, portrait or details) and counted. Each card carries one primary action for whoever's looking (`lib/character-verb.ts`, 2026-11-15): "Send {mine} on a date with {them}" (or "Match {mine} with {them}" behind the swipe gate) for someone with a character, "Step into a date with {them}" on the season's cast or "Make a character to date {them}" for someone without; "Talk to {them}" is the quieter second where they're a companion. Nothing is offered that the booking would refuse. `/cast` is a 308 to the cast tab | each character's card, `/step-in?with=`, the date's confirm sheet (`?send=`), `/create` |
+| `/step-in` | Step into the date ([step-into-the-date.md](step-into-the-date.md)): the cast picker, open to everyone and without the 18+ interstitial (the start screen's own box is the answer); `?with=<cast>` is the start screen; a guest gets 3 dates in all | `/step-in/<id>` (the live date, behind the gate's cookie) |
 | `/matches?character=` | One character's inbox: your characters as a row of faces to switch (`app/CharacterTabs.tsx`; a taken one dimmed and tagged 💍 Taken), then new matches and conversations, with a badge for what's next. Tonight's mixer (not for a taken character): above an empty inbox, after the conversations otherwise | the thread, its card, its deck; the mixer |
 | `/swipe?character=` | One character's deck: the same row of faces as Matches (under the slim bar on a phone). A taken one (`lib/partners.ts` `takenWith`) is dimmed and tagged 💍 Taken; picking it says why it can't swipe. With none picked, it opens on one that can swipe | a match's thread, its matches |
 | `/messages/[a]/[b]` | The thread only. One header row: ‹, who it's with, a ▾ switcher to this character's other chats (wider screens), the one action (**📅 Book date**, **🎬 Watch live**, **▶ Last date**, or **💘 Swipe for others** after a "not this time"; a phone shows just the verb) and **⋯** for the rest: ⓘ their dates and story, ⇄ the other phone (when you own both), 💞 Make it a double date, the other chats (a phone), 💔 Unmatch (before a first date). The double date and Unmatch open as modals (`app/Sheet.tsx`: a bottom sheet on a phone). The double: bring another of yours (with a dealt house date; both tables book now) or invite another creator's couple from the social graph (★ near you), or **🔗 Share a double-date link** to bring a friend (`app/ShareDoubleLink.tsx`, lib/double-links.ts) | the date, their story, the other chats, back to Matches (where you switch characters); a double's two episodes; `/doubles/[id]` for an invite |

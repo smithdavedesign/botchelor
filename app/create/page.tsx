@@ -10,6 +10,7 @@ import { ceremonyHourUtc } from "@/lib/ceremony";
 import { createPairHref, readChemistry } from "@/lib/chemistry-test";
 import { listOpenCharacters } from "@/lib/dating";
 import { firstDateFormat } from "@/lib/first-date";
+import { expressCreateOn } from "@/lib/express-create";
 import { getDb } from "@/lib/db";
 import { listMyCharacters } from "@/lib/game";
 import { PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
@@ -117,6 +118,8 @@ export default async function CreatePage({ searchParams }: { searchParams: Searc
       afterDark={looks.afterDark}
       afterDarkOpen={afterDarkOpen}
       signedIn={auth?.authenticated === true}
+      // One-sentence create (EXPRESS_CREATE, on unless "0"): a first character's first screen is one box.
+      express={expressCreateOn(process.env)}
     />
     </CastingProvider>
   );

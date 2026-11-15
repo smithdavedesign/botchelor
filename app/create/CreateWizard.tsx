@@ -74,6 +74,19 @@ import { IMPORT_PATH, IMPORT_STORAGE_KEY, type ImportedDraft } from "@/lib/impor
 import { stampDateStarted } from "@/lib/engagement-keys";
 import { DEFAULT_FIRST_DATE_FORMAT, FIRST_DATE_STEPS, offerFirstDate, pickFirstPartner } from "@/lib/first-date";
 import { fillProfile } from "@/lib/profile-fill";
+import { queueEvent } from "@/app/engagement";
+import {
+  EXPRESS_CLIENT_TIMEOUT_MS,
+  EXPRESS_EXAMPLES,
+  EXPRESS_TEXT_MAX,
+  EXPRESS_TEXT_MIN,
+  expressDraftedEvent,
+  expressFailedEvent,
+  expressFailureLine,
+  expressStartedEvent,
+  isExpressFailure,
+  type ExpressFailure,
+} from "@/lib/express-create";
 
 export type Partner = {
   id: string;
@@ -273,6 +286,7 @@ export default function CreateWizard({
   afterDarkOpen = false,
   returnTo = null,
   signedIn = false,
+  express = false,
   edit,
 }: {
   partners?: Partner[];
@@ -305,6 +319,11 @@ export default function CreateWizard({
   returnTo?: { href: string; label: string } | null;
   /** Signed in to an account: the roleplay picker's ✨ Yours (the Create library) is accounts only. */
   signedIn?: boolean;
+  /**
+   * One-sentence create is on (EXPRESS_CREATE, lib/express-create.ts): a first character's first screen is one box, and
+   * the server drafts the sheet. Off (the default here, so the page decides): today's form.
+   */
+  express?: boolean;
   /** Edit an existing character instead of creating one: every field is prefilled and every step open. */
   edit?: { id: string; initial: EditInitial };
 }) {
@@ -369,6 +388,17 @@ export default function CreateWizard({
   const [imported, setImported] = useState<ImportNote | null>(null);
   // Editing: the owner chose to drop the explicit temperament and let the character's words decide again.
   const [temperamentCleared, setTemperamentCleared] = useState(false);
+  // One-sentence create (lib/express-create.ts): offered to someone making their first character who arrived with
+  // nothing in hand (no sample, name, pair, import or character to send). `expressOpen`: the one box is the screen.
+  const expressOffered = express && firstCharacter && !startSample && !startCharacterId && !startName && !startPair && !startImported;
+  const [expressOpen, setExpressOpen] = useState(expressOffered);
+  const [expressText, setExpressText] = useState("");
+  const [expressName, setExpressName] = useState("");
+  const [expressBusy, setExpressBusy] = useState(false);
+  // Which example filled the box, if one did and it wasn't typed over (the started event says so).
+  const expressExample = useRef<string | null>(null);
+  // What the draft was, said where it matters: on the form when it fell short or failed, on Look and Review when it came.
+  const [expressNote, setExpressNote] = useState<ExpressNote | null>(null);
 
   // Flow state.
   // Returning with ?character=id starts at the date step itself (not a flash of the builder before it).
@@ -428,6 +458,9 @@ export default function CreateWizard({
       const raw = localStorage.getItem(DRAFT_KEY);
       if (!raw) return;
       const d = JSON.parse(raw);
+      // A draft they were in the middle of beats the one box: back to the form they left, as it was.
+      const begun = [d.sheet?.name, d.sheet?.bio, d.sheet?.want, d.sheet?.dealbreaker, ...(Array.isArray(d.traits) ? d.traits : [])].some((v) => typeof v === "string" && v.trim());
+      if (begun) setExpressOpen(false);
       if (d.sheet) setSheet(d.sheet);
       if (Array.isArray(d.traits)) setTraits(d.traits);
       if (typeof d.pronouns === "string") setPronouns(d.pronouns);
@@ -477,8 +510,82 @@ export default function CreateWizard({
     setLookId(null);
     setTriedNext(false);
     setFromSample(true);
+    setExpressOpen(false);
+    setExpressNote(null);
     setMaxStep(last);
     setStep(S.review);
+  }
+
+  /** "Fill it in myself", or a draft that didn't come: the usual form, with what they typed in the bio (and the name). */
+  function openForm(note: ExpressNote | null = null) {
+    const text = expressText.trim();
+    const name = expressName.trim();
+    if (text || name) setSheet((p) => ({ ...p, bio: p.bio.trim() ? p.bio : text.slice(0, 500), name: p.name.trim() ? p.name : name }));
+    setExpressNote(note);
+    setExpressOpen(false);
+    setTriedNext(false);
+    setStep(S.identity);
+    window.scrollTo({ top: 0 });
+  }
+
+  /**
+   * "Meet them": the server drafts the whole sheet from the sentence (POST /api/characters/draft, the import reader on
+   * the show's free model). A draft with everything goes straight to Look, with a look already picked; one that's short,
+   * or a name someone has, opens the form with what came in; and when no draft comes at all (the model is down or slow,
+   * a limit, words the show refuses) the form opens with their words in the bio and one sentence saying why.
+   */
+  async function meetThem() {
+    const text = expressText.trim();
+    if (expressBusy || text.length < EXPRESS_TEXT_MIN) return;
+    const send = (ev: { name: string; props: Record<string, string | number | boolean | null> }) => queueEvent(ev.name, ev.props);
+    const failed = (reason: ExpressFailure, message?: string | null) => {
+      send(expressFailedEvent(reason));
+      openForm({ kind: "failed", line: expressFailureLine(reason, message) });
+    };
+    setExpressBusy(true);
+    setError(null);
+    send(expressStartedEvent({ length: text.length, named: Boolean(expressName.trim()), example: expressExample.current === text }));
+    try {
+      const { ok, status, data } = await requestJson("/api/characters/draft", { text, ...(expressName.trim() ? { name: expressName.trim() } : {}) }, "POST", { timeoutMs: EXPRESS_CLIENT_TIMEOUT_MS });
+      const d = data.draft as ImportedDraft | undefined;
+      if (!ok || !d || typeof d !== "object" || !d.sheet) {
+        const reason: ExpressFailure = isExpressFailure(data.reason) ? data.reason : status === 429 ? "limited" : "model";
+        failed(reason, typeof data.message === "string" && ["minor", "real_person", "unsafe"].includes(reason) ? data.message : null);
+        return;
+      }
+      const str = (v: unknown) => (typeof v === "string" ? v : "");
+      setSheet({ name: str(d.sheet.name), age: str(d.sheet.age), bio: str(d.sheet.bio) || text, want: str(d.sheet.want), dealbreaker: str(d.sheet.dealbreaker) });
+      setTraits([str(d.traits?.[0]), str(d.traits?.[1]), str(d.traits?.[2])]);
+      setPronouns(str(d.pronouns));
+      setVoice(str(d.voice));
+      const extra: CharacterExtras = d.extras && typeof d.extras === "object" ? d.extras : {};
+      setExtrasState(extra);
+      // Their own words about the look stay theirs; otherwise the line is the suggested look's, replaced as picks change.
+      const looksLine = extra.looks?.gender ? looksAppearance(extra.looks) : "";
+      autoAppearance.current = looksLine || null;
+      appearanceTyped.current = Boolean(str(d.appearance).trim());
+      setAppearance(str(d.appearance).trim() || looksLine);
+      setSoul(EMPTY_SOUL);
+      setHiding([]);
+      setFromSample(false);
+      setTriedNext(false);
+      const missing = Array.isArray(data.missing) ? data.missing.filter((x): x is string => typeof x === "string") : [];
+      const ready = data.ready === true && missing.length === 0;
+      const invented = (data.invented ?? {}) as { name?: unknown; age?: unknown };
+      send(expressDraftedEvent({ ready, invented_name: invented.name === true, look: Boolean(extra.looks?.gender) }));
+      setExpressNote({ kind: "drafted", ready, missing, nameTaken: data.name_taken === true, inventedName: invented.name === true, inventedAge: invented.age === true, look: Boolean(extra.looks?.gender) });
+      setExpressOpen(false);
+      window.scrollTo({ top: 0 });
+      if (ready) {
+        // Identity is done: on to Look, where the suggestion is already selected and Next works at once.
+        setMaxStep((m) => Math.max(m, S.look));
+        setStep(S.look);
+      } else setStep(S.identity);
+    } catch (e) {
+      failed(e instanceof DOMException && e.name === "TimeoutError" ? "timeout" : "network");
+    } finally {
+      setExpressBusy(false);
+    }
   }
 
   /**
@@ -523,6 +630,7 @@ export default function CreateWizard({
       setExtrasState(d.extras && typeof d.extras === "object" ? d.extras : {});
       setSoul(EMPTY_SOUL);
       setHiding([]);
+      setExpressOpen(false);
       const list = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
       const ready = r.readyToDate === true && list(r.missing).length === 0;
       setImported({
@@ -712,7 +820,8 @@ export default function CreateWizard({
         attest,
       });
       if (status === 201) {
-        trackConversion("character_created", { open_to_dates: openToDates });
+        // `express`: drafted from one sentence (lib/express-create.ts), so the funnel can tell the two ways in apart.
+        trackConversion("character_created", { open_to_dates: openToDates, ...(expressNote?.kind === "drafted" ? { express: true } : {}) });
         setCreated({ id: String(data.id), name: String(data.name), hue: typeof data.hue === "number" ? data.hue : null });
         // The site's nav is in the root layout, which a client-side link keeps: refresh it so it becomes the owner's
         // (Swipe, Matches) now that there's a character.
@@ -923,7 +1032,8 @@ export default function CreateWizard({
           <h1>Build your character</h1>
           {/* One line (2026-11-08 UI audit, item 10: five lines of intro pushed the first field off a phone's first screen;
               that nobody steers a date is on the home page and in the questions). */}
-          {step === S.identity && (
+          {step === S.identity && expressOpen && <p className="muted wizard-intro">An original fictional adult, from a sentence. Change anything before they&apos;re created.</p>}
+          {step === S.identity && !expressOpen && (
             <p className="muted wizard-intro">
               {depth
                 ? "An original fictional adult. Only who they are and a short dating profile are needed; the rest is optional."
@@ -937,6 +1047,7 @@ export default function CreateWizard({
 
       {!edit && startPair && step === S.identity && <PairPrefill pair={startPair} />}
       {!edit && imported && step === S.identity && <ImportPrefill note={imported} />}
+      {!edit && expressNote && !expressOpen && step === S.identity && <ExpressPrefill note={expressNote} />}
 
       <Stepper
         step={Math.max(0, track.indexOf(step))}
@@ -946,7 +1057,7 @@ export default function CreateWizard({
         // On the depth track a first character's dating profile is optional too: an empty one is filled at Create.
         optional={edit || !depth ? [] : firstCharacter ? [...OPTIONAL_STEPS, S.details] : OPTIONAL_STEPS}
       />
-      {livePreview}
+      {!expressOpen && livePreview}
       {edit && (
         <ModalSheet open={pictureOpen} onClose={() => setPictureOpen(false)} title={`${shortName(sheet.name || init?.name || "Their")}'s picture`}>
           <PortraitPanel id={edit.id} name={sheet.name || init?.name || "them"} portrait={portrait} onPortrait={setPortrait} hasLooks={Boolean(init?.extras.looks?.gender)} signedIn={Boolean(init?.signedIn)} />
@@ -974,6 +1085,78 @@ export default function CreateWizard({
         </ModalSheet>
       )}
 
+      {expressOpen ? (
+        // The one box (lib/express-create.ts): a sentence, an optional name, one button. Everything else is one tap away
+        // under it, and nothing here is required reading on a phone: the box, the examples and the button fit a 390px screen.
+        <form
+          className="card wizard-step express-step"
+          noValidate
+          onSubmit={(e) => {
+            e.preventDefault();
+            void meetThem();
+          }}
+        >
+          <div className="wizard-fields express-fields">
+            <label htmlFor="express-text" className="wizard-legend express-label">
+              Describe them in a sentence or two
+            </label>
+            <textarea
+              id="express-text"
+              name="express_text"
+              rows={3}
+              maxLength={EXPRESS_TEXT_MAX}
+              placeholder="A lighthouse keeper who repairs old radios and listens to ships talk at night."
+              value={expressText}
+              onChange={(e) => setExpressText(e.target.value)}
+              aria-describedby="express-count"
+            />
+            <div className="express-examples" role="group" aria-label="Examples that fill the box">
+              <span className="muted small">Try</span>
+              {EXPRESS_EXAMPLES.map((ex) => (
+                <button
+                  key={ex.label}
+                  type="button"
+                  className="look-chip"
+                  data-track="express-example"
+                  onClick={() => {
+                    expressExample.current = ex.text;
+                    setExpressText(ex.text);
+                  }}
+                >
+                  {ex.label}
+                </button>
+              ))}
+              {/* Said only near the end of the box: a sentence or two never gets there. */}
+              <span id="express-count" className="muted small express-count" aria-live="polite">
+                {expressText.length >= EXPRESS_TEXT_MAX - 60 ? `${expressText.length}/${EXPRESS_TEXT_MAX}` : ""}
+              </span>
+            </div>
+            <label className="express-name">
+              <span>
+                Name <span className="muted">(optional)</span>
+              </span>
+              <input type="text" name="express_name" maxLength={40} placeholder="Leave it blank and we'll pick one" value={expressName} onChange={(e) => setExpressName(e.target.value)} />
+            </label>
+          </div>
+          <div className="wizard-actions express-actions">
+            <button type="submit" disabled={expressBusy || expressText.trim().length < EXPRESS_TEXT_MIN} data-track="express-meet">
+              {expressBusy ? "Drafting them…" : "Meet them"}
+            </button>
+            {/* The ways out, always one tap away, in the same bar as the button (it sticks to the bottom on a phone). */}
+            <p className="muted small express-alt">
+              <button type="button" className="link-button" onClick={() => openForm()} disabled={expressBusy} data-track="express-form">
+                Fill it in myself
+              </button>
+              {" · "}
+              <button type="button" className="link-button" onClick={() => void applySample()} disabled={expressBusy}>
+                Use a sample character
+              </button>
+              {" · "}
+              <Link href={IMPORT_PATH}>bring one from another app</Link>
+            </p>
+          </div>
+        </form>
+      ) : (
       <form
         className="card wizard-step"
         noValidate
@@ -999,6 +1182,15 @@ export default function CreateWizard({
                   <>
                     {" "}
                     or <Link href={IMPORT_PATH}>bring one from another app</Link>
+                  </>
+                )}
+                {expressOffered && !expressNote && (
+                  <>
+                    {" "}
+                    or{" "}
+                    <button type="button" className="link-button" data-track="express-back" onClick={() => setExpressOpen(true)}>
+                      describe them in a sentence
+                    </button>
                   </>
                 )}
               </p>
@@ -1092,6 +1284,14 @@ export default function CreateWizard({
         {step === S.look && (
           <fieldset className="wizard-fields">
             <legend className="wizard-legend">Give them a look</legend>
+            {!edit && expressNote?.kind === "drafted" && expressNote.ready && (
+              <p className="notice wizard-sample-note" data-track="express-look">
+                <strong>{`Meet ${shortName(sheet.name) || "them"}.`}</strong>{" "}
+                {extras.looks?.gender
+                  ? "A look that fits your words is already picked: change it, or go on."
+                  : "Pick a look, or go on: it's optional."}
+              </p>
+            )}
             {/* One card and one button (2026-10-31 UX audit, B4): the picker of pictures, a wizard of its own, opens in a
                 sheet with its own steps and Done, instead of sitting inside this one. */}
             <div className="looks-card">
@@ -1300,6 +1500,16 @@ export default function CreateWizard({
                 the Edit links below.
               </p>
             )}
+            {expressNote?.kind === "drafted" && expressNote.ready && !edit && (
+              <p className="notice wizard-sample-note" data-track="express-ready">
+                <strong>{sheet.name ? `Check ${shortName(sheet.name)}, tick the box, create.` : "Check them, tick the box, create."}</strong>{" "}
+                We drafted them from your words
+                {expressNote.inventedName || expressNote.inventedAge
+                  ? ` (${listWords([expressNote.inventedName ? "the name" : "", expressNote.inventedAge ? "the age" : ""].filter(Boolean))} ${expressNote.inventedName && expressNote.inventedAge ? "are" : "is"} ours)`
+                  : ""}
+                : the Edit links below change anything.
+              </p>
+            )}
             {imported?.ready && !edit && (
               <p className="notice wizard-sample-note" data-track="import-ready">
                 <strong>{sheet.name ? `Check ${shortName(sheet.name)}, tick the box, create.` : "Check them, tick the box, create."}</strong>{" "}
@@ -1467,6 +1677,7 @@ export default function CreateWizard({
         {edit && !identityOk && <p className="error">Fill in the Identity step (a name nobody on the show has, an adult age, bio, three traits, want, dealbreaker) to save.</p>}
         {error && <p className="error">{error}</p>}
       </form>
+      )}
       </div>
       <DeckPreview
         seed={avatarSeed}
@@ -1505,6 +1716,35 @@ type ImportNote = {
   dropped: { field: string; why: string }[];
   readBy: "model" | "fallback" | null;
 };
+
+/**
+ * What one-sentence create did (lib/express-create.ts): no draft and why (the form opened with their words in the bio),
+ * or a draft and how complete it was. Said on the form when there's something to do there, on Look and Review otherwise.
+ */
+type ExpressNote =
+  | { kind: "failed"; line: string }
+  | { kind: "drafted"; ready: boolean; missing: string[]; nameTaken: boolean; inventedName: boolean; inventedAge: boolean; look: boolean };
+
+function ExpressPrefill({ note }: { note: ExpressNote }) {
+  if (note.kind === "drafted" && note.ready) return null;
+  return (
+    <section className="card pair-prefill import-prefill express-prefill" aria-label="From your description" role="status">
+      {note.kind === "failed" ? (
+        <p>
+          <strong>{note.line}</strong> Fill in the rest, or tap 🎲 to fill the blanks.
+        </p>
+      ) : note.nameTaken ? (
+        <p>
+          <strong>Someone on the show already has that name.</strong> Everything else is drafted below: pick another name and go on.
+        </p>
+      ) : (
+        <p>
+          <strong>The draft came back short.</strong> {note.missing.length ? `Still to add: ${listWords(note.missing)}.` : "Check what's here and add the rest."}
+        </p>
+      )}
+    </section>
+  );
+}
 
 function ImportPrefill({ note }: { note: ImportNote }) {
   return (

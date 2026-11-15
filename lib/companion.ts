@@ -29,6 +29,7 @@ import { resolveTerms, type TermsInput } from "./date-roleplays";
 import type { Db } from "./db";
 import { activeNudge } from "./between-dates";
 import { nextTimeFor, openOffers, type StoredOffers } from "./companion-offers";
+import { openQuestion, type StoredQuestion } from "./character-question-fields";
 import { lastDateOf } from "./last-date";
 import { fallbackModel, getModel, openAICompatibleModel, type Model, type Usage } from "./model";
 import { notify } from "./notifications";
@@ -186,7 +187,7 @@ async function addMessage(
   role: "user" | "character" | "system",
   text: string,
   at: Date,
-  extra: { model?: string | null; cost?: number | null; scene?: VenueId | null; action?: string | null; marker?: "scene" | "texting"; roleplay?: string | null; onCall?: boolean; offers?: StoredOffers | null } = {},
+  extra: { model?: string | null; cost?: number | null; scene?: VenueId | null; action?: string | null; marker?: "scene" | "texting"; roleplay?: string | null; onCall?: boolean; offers?: StoredOffers | StoredQuestion | null } = {},
 ): Promise<string> {
   const id = randomUUID();
   await db.query(
@@ -300,8 +301,11 @@ export type PostFromCharacterArgs = {
   kind: string;
   /** The tag kept on the message (lib/companion-shared.ts TEXT_TAG, e.g. `after_date:<episode id>`): a thread gets it once. */
   dedupeKey: string;
-  /** The chips under the text (lib/companion-offers.ts): kept on its first bubble, shown while they're open. */
-  offers?: StoredOffers | null;
+  /**
+   * The chips under the text (lib/companion-offers.ts), or a question's answer box (lib/character-question-fields.ts):
+   * kept on its first bubble, shown while open.
+   */
+  offers?: StoredOffers | StoredQuestion | null;
 };
 
 /**
@@ -363,6 +367,8 @@ export async function getThread(db: Db, userId: string, threadId: string): Promi
   ]);
   // The chips: on the newest text whose menu is still open, and only while no newer date of theirs exists.
   const open = ref.yours ? await openOffers(db, ref.id, msgs).catch(() => null) : null;
+  // The answer box: under the newest question the character asked about its own sheet, until it's answered.
+  const asked = ref.yours ? openQuestion(msgs) : null;
   return {
     ok: true,
     view: {
@@ -382,6 +388,7 @@ export async function getThread(db: Db, userId: string, threadId: string): Promi
         voice: m.voice_key ? voiceUrl(t.id, m.id) : null,
         ...(m.on_call ? { call: true } : {}),
         ...(open && open.messageId === m.id ? { offers: open.view } : {}),
+        ...(asked && asked.messageId === m.id ? { question: asked.view } : {}),
       })),
       reply_length: t.reply_length,
       scene: isScenePlace(t.scene) ? t.scene : null,

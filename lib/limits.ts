@@ -7,6 +7,8 @@
  *    on our model have their own daily cap (lib/dating.ts).
  *  - Dates written by the paid default model (FRONTIER_DEFAULT, docs/frontier.md) are capped per UTC day. Past the
  *    cap a date still runs, on the free model, so a flood can spend at most a day's cap however it arrives.
+ *  - One-sentence create drafts (POST /api/characters/draft) are limited per visitor, per address and across everyone:
+ *    each is one call on the show's free model (EXPRESS_DRAFT_LIMITS and its siblings below).
  *  - Originality checks of a draft (POST /api/characters/originality) are limited per visitor and per session: each
  *    distinct bio can cost one embedding call (lib/originality-concept.ts, which also caps those calls per UTC day).
  */
@@ -21,6 +23,16 @@ export const ORIGINALITY_CHECK_LIMITS = { perHour: 60, perDay: 300 };
  * that quota is the live show's. Labelled fields and character cards are read in the browser and never count.
  */
 export const IMPORT_READ_LIMITS = { perHour: 6, perDay: 20 };
+/**
+ * One-sentence create (POST /api/characters/draft, lib/express-create.ts): one call on the show's free model each, about
+ * 330 tokens in and at most 700 out, so $0 on the free tier and under 0.2 cents at gemini-3.5-flash-lite's list price.
+ * Capped three ways, guests included: per visitor (the session cookie), per address (several people can share one, so
+ * it's looser) and across everyone (a flood of fresh cookies and addresses still stops at about 60 cents a day, and the
+ * live show keeps its quota). Past any of them the builder opens its usual form.
+ */
+export const EXPRESS_DRAFT_LIMITS = { perHour: 5, perDay: 10 };
+export const EXPRESS_DRAFT_IP_LIMITS = { perHour: 10, perDay: 30 };
+export const EXPRESS_DRAFT_ALL_LIMITS = { perHour: 60, perDay: 300 };
 /** Paid-model dates a day unless FRONTIER_DAILY_DATE_CAP says otherwise: about $4–11 at Haiku's 4–11¢ a date. */
 export const DEFAULT_PAID_DATES_PER_DAY = 100;
 /** How long a rate-limit row is kept (the longest window plus a margin). */

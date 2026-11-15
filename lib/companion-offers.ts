@@ -78,7 +78,9 @@ type OfferMessageRow = { id: string; offers: StoredOffers | null; role: string }
  * question has moved on). Null when nothing is open.
  */
 export async function openOffers(db: Db, characterId: string, messages: readonly OfferMessageRow[]): Promise<{ messageId: string; view: CompanionOffersView } | null> {
-  const m = [...messages].reverse().find((x) => x.role === "character" && x.offers && !x.offers.taken);
+  // A question about the sheet (lib/character-question-fields.ts) keeps its box in the same column and is not a date's
+  // menu: it has no episode, and it never hides the chips of the text before it.
+  const m = [...messages].reverse().find((x) => x.role === "character" && x.offers && x.offers.episode_id && !x.offers.taken);
   if (!m?.offers) return null;
   if (await hasNewerDate(db, characterId, m.offers.episode_id)) return null;
   const { episode_id, partner_id, partner, kinds } = m.offers;
@@ -134,7 +136,7 @@ export async function loadOffer(db: Db, args: { userId: string; threadId: string
   const r = rows[0];
   if (!r) return no(404, "not_found", "Not found.");
   if (r.owner_id !== args.userId) return no(403, "not_your_character", `Only ${firstNameOf(r.name)}'s creator can send them on a date.`);
-  if (!r.offers || r.role !== "character") return no(404, "no_offer", "That text has nothing to tap.");
+  if (!r.offers || !r.offers.episode_id || r.role !== "character") return no(404, "no_offer", "That text has nothing to tap.");
   if (r.offers.taken) return no(409, "offer_taken", "You already answered that one.");
   if (!r.offers.kinds.includes(args.kind)) return no(404, "no_offer", "That wasn't on offer.");
   if (await hasNewerDate(db, r.character_id, r.offers.episode_id)) return no(409, "offer_stale", `${firstNameOf(r.name)} has been on a date since. Hear about that one instead.`);

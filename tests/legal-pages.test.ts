@@ -143,9 +143,10 @@ describe("the privacy notice", () => {
     expect(strip(render(PrivacyPage))).toContain(`The log of an agent's tool calls: ${MCP_CALLS_KEEP_DAYS} days.`);
   });
 
-  it("is dated 10 November 2026, with what changed", () => {
-    expect(render(PrivacyPage)).toMatch(/Last updated 10 November 2026\./);
-    expect(render(PrivacyPage)).toMatch(/Changed: a recovery email you can add to a handle-and-password account/);
+  it("is dated 15 November 2026, with what changed (and the 10 November changes kept under it)", () => {
+    expect(render(PrivacyPage)).toMatch(/Last updated 15 November 2026\./);
+    expect(render(PrivacyPage)).toMatch(/Changed: on a live call with the Companion Plan/);
+    expect(render(PrivacyPage)).toMatch(/Before that \(10 November\): a recovery email you can add to a handle-and-password account/);
     expect(render(PrivacyPage)).toMatch(/; who hosts the show and carries its traffic/);
     expect(render(PrivacyPage)).toMatch(/live calls with a companion/);
     // Who processes it, as deployed (2026-11-10): DigitalOcean, not Vercel; Claude through OpenRouter.
@@ -154,7 +155,7 @@ describe("the privacy notice", () => {
     expect(render(PrivacyPage)).toMatch(/Claude, reached through OpenRouter/);
     expect(render(PrivacyPage)).not.toMatch(/Vercel hosts|AI Gateway/);
     expect(render(PrivacyPage)).toMatch(/Before that \(1 November\): Analytics names the three events/);
-    expect(render(TermsPage)).toMatch(/Last updated 10 November 2026\./);
+    expect(render(TermsPage)).toMatch(/Last updated 15 November 2026\./);
   });
 });
 
