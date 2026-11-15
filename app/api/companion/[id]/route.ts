@@ -31,8 +31,18 @@ import { extrasState } from "@/lib/companion-extras";
 import { voiceNote } from "@/lib/companion-voice";
 import { companionRefusal } from "../access";
 import { bookingAsk } from "@/lib/date-roleplays";
+import { POST as createEpisode } from "@/app/api/episodes/route";
+import { POST as bookSecondDate } from "@/app/api/episodes/[id]/second-date/route";
+import { COMPANION_OFFER_KINDS, type CompanionOfferKind } from "@/lib/companion-shared";
+import { loadOffer, markOfferTaken, nobodyNewLines, offerLines, outOfDatesLines, pickSomeoneNew } from "@/lib/companion-offers";
+import { postFromCharacter } from "@/lib/companion";
+import { firstDateFormat } from "@/lib/first-date";
 
 type Ctx = { params: Promise<{ id: string }> };
+
+// A chip that books a date runs the episodes route in-process, and its after() worker films the whole date here: the same
+// budget the second-date route gives itself.
+export const maxDuration = 300;
 
 const Action = z.discriminatedUnion("action", [
   // `call`: said on a voice call in the app (the browser heard it); the reply is short, to be spoken aloud.
@@ -60,6 +70,8 @@ const Action = z.discriminatedUnion("action", [
     turns: z.number().int().min(0).max(10_000).optional(),
     voice: z.enum(["device", "own"]).optional(),
   }),
+  // A chip under one of the character's texts about a date (lib/companion-offers.ts): see them again, someone new, advice.
+  z.object({ action: z.literal("offer"), offer: z.enum(COMPANION_OFFER_KINDS), message_id: z.string().min(1).max(64) }),
 ]);
 
 type Allowance = Awaited<ReturnType<typeof companionAllowance>>;
@@ -126,6 +138,7 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
     }
     return json({ ok: true }, 200, sess);
   }
+  if (input.action === "offer") return takeOffer(req, db, sess, id, input.offer, input.message_id);
   const talks = input.action === "send" || input.action === "regenerate" || input.action === "edit" || (input.action === "scene" && input.place !== null);
   if (talks && (await overLimit(db, "companion", sess.userId, COMPANION_LIMITS))) {
     return json({ error: "rate_limited", message: "That's a lot of talking for now. Take a breather and come back in a bit." }, 429, sess);
@@ -169,6 +182,84 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
   if (talks && r.ok) inBackground(() => companionFollowUp(db, id));
   return reply(r, sess, await companionAllowance(db, sess.userId, new Date(), process.env, { guest }), await extrasFor(db, sess));
 });
+
+/** The same request, aimed at another of our routes in-process: the person's cookies and address go with it. */
+function forward(req: Request, path: string, body: unknown): Request {
+  const headers = new Headers(req.headers);
+  headers.set("content-type", "application/json");
+  headers.delete("content-length");
+  return new Request(new URL(path, req.url), { method: "POST", headers, body: JSON.stringify(body) });
+}
+
+/**
+ * A chip under a character's text about a date (lib/companion-offers.ts; the 2026-11-14 core plan: the thread is the
+ * control room for the character's love life). Owner-only: the thread's character must be the person's own (a guest on
+ * a signed session owns their own character, as the Hear-from route allows). Each chip does its thing through the show's
+ * own machinery, so a booking is charged, limited, consented and filmed exactly like any date:
+ * - `second_date`: POST /api/episodes/:id/second-date as this character (FREE_WEEKLY_SECOND_DATE when on, else one of the
+ *   person's free weekly or pack dates); 202 when the other creator's yes is still wanted.
+ * - `someone_new`: a date with a season cast member the character hasn't dated, in the first-date format (the speed date).
+ * - `advice`: nothing booked; the page turns the composer into the "For next time" note (the couples nudge route).
+ * The character answers with a written line (postFromCharacter, kind `offer`, once per text), never a model call; the
+ * 429 for no dates left becomes its own line too. Free: no reply is taken for any of it.
+ */
+async function takeOffer(req: Request, db: Awaited<ReturnType<typeof getDb>>, sess: ReturnType<typeof session>, threadId: string, offer: CompanionOfferKind, messageId: string): Promise<Response> {
+  const loaded = await loadOffer(db, { userId: sess.userId, threadId, messageId, kind: offer });
+  const settle = async (body: Record<string, unknown>, status: number) => {
+    const [view, allowance, extras] = await Promise.all([getThread(db, sess.userId, threadId), companionAllowance(db, sess.userId, new Date(), process.env, { guest: !sess.authenticated }), extrasFor(db, sess)]);
+    return json({ ...body, ...(view.ok ? { view: view.view } : {}), allowance, extras }, status, sess);
+  };
+  if (!loaded.ok) return settle({ error: loaded.error, message: loaded.message }, loaded.status);
+  const { characterId, offers } = loaded;
+  track("companion_offer", { offer, guest: !sess.authenticated || undefined });
+  /** The character's line about what just happened, once per text and kind of outcome (`said`: it went in now). */
+  const say = async (lines: string[], tag: string): Promise<boolean> =>
+    (await postFromCharacter(db, { userId: sess.userId, characterId, lines, kind: "offer", dedupeKey: `${tag}:${messageId}` }).catch(() => null)) !== null;
+
+  if (offer === "advice") {
+    await markOfferTaken(db, messageId, { kind: "advice" });
+    const said = await say(offerLines("advice", { partner: offers.partner }), "offer");
+    return settle({ offer, said, partner_id: offers.partner_id, partner: offers.partner }, 200);
+  }
+
+  let res: Response;
+  let newPartner: string | null = null;
+  if (offer === "someone_new") {
+    const pick = await pickSomeoneNew(db, characterId);
+    if (!pick) {
+      const said = await say(nobodyNewLines(), "offer_none");
+      return settle({ error: "nobody_new", message: "They've been on a date with everyone on this season's cast.", said }, 409);
+    }
+    newPartner = pick.name;
+    res = await createEpisode(forward(req, "/api/episodes", { character_id: characterId, partner_id: pick.id, format: firstDateFormat(process.env) }));
+  } else {
+    res = await bookSecondDate(forward(req, `/api/episodes/${offers.episode_id}/second-date`, { character_id: characterId }), { params: Promise.resolve({ id: offers.episode_id }) });
+  }
+  const data = ((await res.json().catch(() => ({}))) ?? {}) as Record<string, unknown>;
+  if (res.status === 200 && typeof data.id === "string") {
+    await markOfferTaken(db, messageId, { kind: offer, episodeId: data.id });
+    const said = await say(offerLines(offer, { partner: offers.partner, newPartner }), "offer");
+    return settle({ offer, said, episode_id: data.id, href: `/episodes/${data.id}?play=1` }, 200);
+  }
+  if (res.status === 202) {
+    // Their yes is in; the other character's creator completes it (the second-date route told them).
+    await markOfferTaken(db, messageId, { kind: offer });
+    const said = await say(offerLines("second_date", { partner: offers.partner, waiting: true }), "offer");
+    return settle({ offer, said, waiting: true, message: data.message }, 202);
+  }
+  if (res.status === 429) {
+    // No dates left this week (or too many from one connection): the character says so; the chip stays for later.
+    const said = await say(outOfDatesLines(), "offer_out");
+    return settle({ error: data.error, message: data.message, said, ...(data.shop_path ? { shop_path: data.shop_path } : {}), ...(data.resets_at ? { resets_at: data.resets_at } : {}) }, 429);
+  }
+  if (data.error === "planned" || data.error === "already_planned") {
+    // Booked already, from the episode's page or the other creator: the chips go, and the date is the answer.
+    const planned = typeof data.episode_id === "string" ? data.episode_id : null;
+    await markOfferTaken(db, messageId, { kind: offer, episodeId: planned });
+    return settle({ error: data.error, message: data.message, said: false, ...(planned ? { episode_id: planned, href: `/episodes/${planned}?play=1` } : {}) }, 409);
+  }
+  return settle({ error: typeof data.error === "string" ? data.error : "offer_failed", message: typeof data.message === "string" ? data.message : "That didn't go through. Try again in a moment.", said: false }, res.status >= 400 ? res.status : 500);
+}
 
 /** Deletes the thread, with everything the character remembered of it. */
 export const DELETE = handle(async (req: Request, ctx: Ctx) => {
