@@ -15,6 +15,7 @@ import { sendAccountEmail } from "../email";
 import { safeEqual } from "../http";
 import { contactEmail } from "../legal-entity";
 import { siteUrl } from "../site";
+import { inviteSource } from "./bridge";
 import { BETA_PROVIDER } from "./entitlement";
 import { DEFAULT_REEL_TOKENS, getAdultSettings } from "./settings";
 
@@ -28,25 +29,49 @@ export const REVIEW_LINK_DAYS = 30;
 export const NOTE_MAX = 500;
 
 export type InviteStatus = "pending" | "approved" | "declined";
-export type Invite = { user_id: string; email: string; note: string | null; country: string | null; status: InviteStatus; requested_at: string; decided_at: string | null };
+export type Invite = { user_id: string; email: string; note: string | null; country: string | null; status: InviteStatus; requested_at: string; decided_at: string | null; source: string | null };
 
 export async function getInvite(db: Db, userId: string): Promise<Invite | null> {
   const r = await db.query<Invite>(
-    `select user_id, email, note, country, status, requested_at::text as requested_at, decided_at::text as decided_at from adult_invites where user_id = $1`,
+    `select user_id, email, note, country, status, requested_at::text as requested_at, decided_at::text as decided_at, source from adult_invites where user_id = $1`,
     [userId],
   );
   return r.rows[0] ?? null;
 }
 
 /** Records a request, once a person: a new one is pending; an existing one is left as it is and returned. */
-export async function requestInvite(db: Db, userId: string, input: { email: string; note: string | null; country: string | null }): Promise<{ invite: Invite; created: boolean }> {
+export async function requestInvite(
+  db: Db,
+  userId: string,
+  input: { email: string; note: string | null; country: string | null; source?: string | null },
+): Promise<{ invite: Invite; created: boolean }> {
   const note = input.note?.trim().slice(0, NOTE_MAX) || null;
+  // Where they came from (a link's ?source=), kept only as a clean label (lib/adult/bridge.ts inviteSource).
+  const source = inviteSource(input.source);
   const inserted = await db.query(
-    `insert into adult_invites (user_id, email, note, country) values ($1, $2, $3, $4) on conflict (user_id) do nothing returning user_id`,
-    [userId, input.email, note, input.country],
+    `insert into adult_invites (user_id, email, note, country, source) values ($1, $2, $3, $4, $5) on conflict (user_id) do nothing returning user_id`,
+    [userId, input.email, note, input.country, source],
   );
   return { invite: (await getInvite(db, userId))!, created: inserted.rows.length > 0 };
 }
+
+export type SourceCount = { source: string | null; requests: number; pending: number; approved: number };
+
+/**
+ * Every request so far by where it came from, most first (the review page shows it, so the owner can see which door
+ * people use before deciding to widen one). A request with no source came by the subscribe page itself.
+ */
+export async function inviteSourceCounts(db: Db): Promise<SourceCount[]> {
+  const { rows } = await db.query<SourceCount>(
+    `select source, count(*)::int as requests, count(*) filter (where status = 'pending')::int as pending,
+            count(*) filter (where status = 'approved')::int as approved
+       from adult_invites group by source order by count(*) desc, source nulls last`,
+  );
+  return rows;
+}
+
+/** A source as the owner reads it. */
+export const sourceLabel = (source: string | null): string => source ?? "no source";
 
 /* ------------------------------------------------------ the review link ------------------------------------------------------ */
 
@@ -163,6 +188,7 @@ export function requestEmail(invite: Invite, link: string, pending: number) {
       `Account: ${invite.user_id}`,
       `Connecting from: ${invite.country ?? "unknown"}`,
       `Their note: ${invite.note ?? "(none)"}`,
+      `Came from: ${sourceLabel(invite.source)}`,
       `Approving gives them ${BETA_DAYS} days free: scenes and pictures on you, video on them (the welcome email says so). ${pending} request${pending === 1 ? "" : "s"} waiting.`,
     ],
     [{ label: "Approve or decline", href: link }],

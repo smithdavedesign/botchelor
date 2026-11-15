@@ -7,6 +7,7 @@ import WaitlistForm from "@/app/WaitlistForm";
 import { configuredProcessors, priceLabel, PROCESSOR_INFO, subscriptionPrice } from "@/lib/adult/billing";
 import { adTokensOn, tokenPacks } from "@/lib/adult/tokens";
 import { canAfterDark } from "@/lib/adult/entitlement";
+import { inviteSource, invitePath } from "@/lib/adult/bridge";
 import { BETA_DAYS, getInvite } from "@/lib/adult/invites";
 import { tokensWord } from "@/lib/adult/price-words";
 import { includedPlan } from "@/lib/adult/pricing";
@@ -43,6 +44,9 @@ export default async function AfterDarkSubscribe({ searchParams }: { searchParam
   const preview = entitled.ok && entitled.why === "admin" && (params.preview === "visitor" || params.preview === "signed-in") ? params.preview : null;
   if (entitled.ok && !preview) redirect("/after-dark");
   const auth = preview === "visitor" ? null : signedIn;
+  // Where they came from (?source=verdict from the show's verdict card, ?source=refugees from an outreach post): kept
+  // through the sign-in and sent with the invite request (lib/adult/bridge.ts).
+  const source = inviteSource(params.source);
   const processors = configuredProcessors();
   // Shorts to point at, only when there are some (the link to an empty page was the only taste there was).
   const shorts = Number((await db.query<{ n: number }>(`select count(*)::int as n from adult_shorts`).catch(() => ({ rows: [{ n: 0 }] }))).rows[0]?.n ?? 0);
@@ -64,7 +68,7 @@ export default async function AfterDarkSubscribe({ searchParams }: { searchParam
           {auth?.authenticated ? (
             <>
               <TasteStep db={db} userId={auth.userId} />
-              <InviteStep db={db} userId={auth.userId} />
+              <InviteStep db={db} userId={auth.userId} source={source} />
             </>
           ) : (
             <>
@@ -73,7 +77,7 @@ export default async function AfterDarkSubscribe({ searchParams }: { searchParam
                   Try a free taste ({TASTE_HOURS} hours of scenes, no card), or ask for an invite to the beta. Both belong to an account, so sign in
                   first (or make one: it&apos;s free).
                 </p>
-                <Link className="button" href={`/account?next=${encodeURIComponent("/after-dark/subscribe")}`}>
+                <Link className="button" href={`/account?next=${encodeURIComponent(invitePath(source))}`}>
                   Sign in to start
                 </Link>
               </section>
@@ -213,7 +217,7 @@ async function TasteStep({ db, userId }: { db: Db; userId: string }) {
 }
 
 /** A signed-in person's step in the beta: their request's status, or the form to ask. */
-async function InviteStep({ db, userId }: { db: Awaited<ReturnType<typeof getDb>>; userId: string }) {
+async function InviteStep({ db, userId, source }: { db: Awaited<ReturnType<typeof getDb>>; userId: string; source: string | null }) {
   const invite = await getInvite(db, userId);
   if (invite?.status === "pending") {
     return (
@@ -231,5 +235,5 @@ async function InviteStep({ db, userId }: { db: Awaited<ReturnType<typeof getDb>
   }
   const settings = await getAdultSettings(db).catch(() => null);
   const plan = includedPlan(settings);
-  return <InviteForm days={BETA_DAYS} clipTokens={plan.clipTokens} reelTokens={plan.reelTokens} />;
+  return <InviteForm days={BETA_DAYS} clipTokens={plan.clipTokens} reelTokens={plan.reelTokens} source={source} />;
 }
