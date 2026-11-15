@@ -115,6 +115,13 @@ ignore it.
   (`lib/adult/bridge.ts`; [after-dark.md](after-dark.md), "The bridge from the show's verdict card"). `0` takes the
   line away without a deploy. It never touches After Dark's own `public_door` switch, and the invite page still takes
   `?source=` either way. Commented in `.do/show.yaml`.
+- **`OVERNIGHT_DATES`** (both apps, not a secret; default on): overnight dates
+  ([relationship-graph.md](relationship-graph.md), "Overnight dates"). `0` turns them off without a deploy: no offer in a
+  character's texts or on a couple's page, no house booking, no closing card, and nothing recorded or texted when one
+  airs. **`OVERNIGHT_AFTER_DARK`** (both apps; default on): "Continue the night in After Dark" on an overnight date, for
+  a viewer After Dark already admits who owns one of the two ([after-dark.md](after-dark.md), "The night continues"). `0`
+  removes the button on the show and its page and route on After Dark's host; set it on both. Neither touches
+  `public_door`. Commented in `.do/show.yaml` and `.do/app.yaml`.
 - **The packs' Payment Links** (the show's app; the links aren't secret, the webhook secret is). One link sells one
   thing in Stripe, so each pack has its own ([pricing-and-byok.md](pricing-and-byok.md)):
 

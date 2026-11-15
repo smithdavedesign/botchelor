@@ -3891,6 +3891,29 @@ create table if not exists episode_models (
   primary key (episode_id, side)
 );
 create index if not exists episode_models_family_idx on episode_models (family);
+-- Overnight dates (lib/overnight.ts, 2026-11-15). A pair's timeline also keeps milestones that aren't stage changes:
+-- kind null is a stage change (from_stage/to_stage, as before); 'overnight' is an overnight date that aired and ended in
+-- leaving together (public layer when the date is public); 'night_together' is the one fact back from After Dark, on
+-- the owners' layer ('all'): ids and a timestamp, never a word of the night. One of each kind per overnight date.
+alter table relationship_events add column if not exists kind text;
+create unique index if not exists relationship_events_milestone on relationship_events (episode_id, kind) where kind is not null and episode_id is not null;
+-- An owner's yes to an overnight date is a second-date yes marked so (the overnight is that date's follow-up): a plain
+-- second-date yes never counts as a yes to an overnight.
+alter table second_date_requests add column if not exists overnight boolean not null default false;
+-- After Dark's side (lib/adult/overnight.ts): a night that continues an overnight date, per viewer. started_at when they
+-- pressed "Continue the night", nights_before how many nights the pair had filed by then (one filed after is this night
+-- ending); told_at once the show was handed its one fact (lib/overnight.ts recordNightTogether).
+-- The show's own code never reads this table.
+create table if not exists adult_overnights (
+  episode_id text not null references episodes (id) on delete cascade,
+  owner_id text not null,
+  character_a text not null references characters (id) on delete cascade,
+  character_b text not null references characters (id) on delete cascade,
+  started_at timestamptz not null default now(),
+  nights_before integer not null default 0,
+  told_at timestamptz,
+  primary key (episode_id, owner_id)
+);
 -- Learning, weekly (lib/character-lessons.ts; David 2026-11-15, the drama wave's part 6): what a character has learned
 -- about itself, in its own words. One row a character a week (week: that week's Monday, UTC), claimed as 'pending'
 -- before the writer is called so two passes can't both write it. lines: up to three first-person sentences of at most

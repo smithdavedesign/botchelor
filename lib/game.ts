@@ -189,6 +189,11 @@ export type DateSetup = {
   roleplay?: DateRoleplay;
   /** Step into the date (lib/step-in.ts): a person plays side a, the show's model side b. Server-side only. */
   step_in?: StepInSetup;
+  /**
+   * An overnight date (lib/overnight.ts), marked once it's booked. Display only: when the engine ends it in another
+   * date, the ending is told as leaving together (lib/overnight-shared.ts). No prompt and no engine reads it.
+   */
+  overnight?: boolean;
 };
 
 /**

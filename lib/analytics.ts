@@ -46,6 +46,9 @@ export type AnalyticsEvent =
   | "agent_referral_visit" // a visit that arrived from a link in an agent doc (utm_medium=ai_agent): the doc it came from and the landing path
   | "second_date_yes" // an owner said yes to a second date that also needs the other owner's yes (lib/second-date.ts)
   | "second_date_planned" // a second date was booked from a mutual afterglow: the new date, the one it follows, and the planned venue
+  | "overnight_yes" // an owner said yes to an overnight date that also needs the other owner's yes (lib/overnight.ts)
+  | "overnight_booked" // an overnight date was booked: by an owner (through the second-date flow) or by the house (lib/overnight-house.ts)
+  | "overnight_continued" // an After Dark viewer continued an overnight date's night there (lib/adult/overnight.ts); ids only
   | "show_date_free" // a show-model date fell through to the free model (the frontier wasn't configured): the episode, and whether that's unexpected
   | "scene_requested" // a finished date went somewhere the library has no set for (lib/scenes.ts): the place, normalized, and how (plan or move)
   | "date_link_accepted" // someone took a character's "date my OC" link (lib/date-invites.ts): the code, both characters

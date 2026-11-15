@@ -329,6 +329,61 @@ copy; `lib/adult/bridge-viewer.ts`, who sees it; `app/episodes/[id]/AfterDarkBri
 - **The page it leads to** also offers the free taste (above) where After Dark is fully open: that was already there,
   and is self-started with no approval. The line itself only says "invite".
 
+### The night continues: an overnight date carried on (2026-11-15)
+
+The show has overnight dates ([relationship-graph.md](relationship-graph.md), "Overnight dates"): a couple that has
+earned one goes on an evening date, and when the engine ends it in another date the episode closes on "They left
+together. The cameras stayed behind." For a viewer After Dark already admits, who owns one of the two, that episode
+carries one button: **"Continue the night in After Dark"** (`lib/adult/overnight.ts`).
+
+- **Who sees it** (`continueShows`, every one; `viewerContinue` reads them for a viewer): both switches on
+  (`OVERNIGHT_DATES`, `OVERNIGHT_AFTER_DARK`); After Dark on at all; the date is an overnight date that aired, ended in
+  another date, and is still the pair's latest finished date; the viewer has said they're 18+ on this browser; After
+  Dark is allowed where they are (never a blocked or unknown place; a text-only place counts, the night is words);
+  they're entitled today under the rules above, unchanged (`canAfterDark`: an admin, a subscription, a reviewer or beta
+  pass, a taste; age-checked); the device isn't PIN-locked; they own one of the two characters; and **both characters
+  are already in their After Dark** (`eligibleIds`: their own character switched in, this season's house cast, the
+  agent cast that passed its checks). Not a crawler or an agent. Anyone else sees nothing new: where it applies they
+  still get the bridge's invite line above, and that is all.
+- **No loophole for someone else's character.** There is no consent mechanism for another person's character to
+  appear in someone's night ("never another user's character", at the top of this doc), and this adds none. A pair of
+  two people's characters can have an overnight date on the show, and neither owner gets the button, even when each
+  has their own character switched in for themselves (`tests/overnight.test.ts` pins it). The button exists for a
+  person's own character with a house character, with one of the agent cast, or with another character of their own.
+- **What it can do today.** After Dark is invite only, so in practice the button is for admins and the people David has
+  approved (a 30-day beta pass), plus anyone on a self-started taste where After Dark is fully open. Nobody else can see
+  it, and pressing nothing changes who is admitted. `public_door` is never read or written by any of it.
+- **Starting the night** uses After Dark's own start path and nothing else. The button leads to
+  `/after-dark/overnight/<episode id>` on After Dark's host (not found for anyone `adultViewer` wouldn't let in, and for
+  a date they can't continue): the two names, where the show left them, and "Continue the night". That posts to
+  `/api/admin/after-dark/overnight`, which files a night already under way for the pair exactly as Start over does
+  (`resetScene`: it's kept in Nights), notes the continuation (`adult_overnights`), and opens the pair's page. It
+  writes no line and takes no token. The first chapter is asked for on the night's page as always: the same writer, the
+  same checks, limits, intensity and hard nos, and the chapter's usual price.
+- **What the night is seeded with** is what After Dark already reads from the show for any pair (`sceneMemories`,
+  `sceneMessages`): their latest date's setting, ending and last lines (here, the overnight date: a fresh scene "opens
+  exactly where the date ended"), the pair's memory from their dates, and their PG notes. The one addition is a
+  sentence of show facts in tonight's memories, only for a night this viewer continued (`overnightSeed`): "Their latest
+  date, at the pier at night, was an overnight date on the show: they left together, and tonight is the rest of that
+  night." No other prompt text is new.
+- **One fact back** (`tellShowNightsOver` → `lib/overnight.ts` `recordNightTogether`). When the continued night ends (a
+  chapter closes, or the night is filed by Start over or a scenario) the scene tells the show at once; one that is
+  simply left (it has lines and nobody has added to it for `NIGHT_LEFT_HOURS`, 6) is told by After Dark's daily job.
+  The show gets two character ids, the overnight date's id and a timestamp. It records "They spent the night
+  together." as a relationship event between the two on the owners' layer, once per overnight date, and each of the
+  two may carry "You spent the night together after the date at {place}" into their next date (the place is the
+  show's own venue for that date). To decide a night is over this reads whether the scene has any lines and when it
+  was last touched; it selects no line, recap, note, tag or picture, and the show's overnight files import nothing of
+  After Dark's and read none of its tables (`tests/overnight.test.ts`, "PIN").
+- **Beside the PG note, not in place of it.** "What After Dark leaves behind" (`lib/adult/memory.ts`, David's call of
+  2026-10-19) is unchanged: a filed night still has After Dark's own model write a short PG note per character, held to
+  the show's text check, which their next date and texts carry. That note is the one existing place where words
+  derived from a night reach the show, and it predates this. The overnight's fact is narrower on purpose (a template,
+  ids and a time), and a side that already has a note keeps the note rather than getting both.
+- **Switches.** `OVERNIGHT_AFTER_DARK=0` (set on both apps) removes the button, the page and the route; nights already
+  continued stay ordinary nights, and nothing more is told to the show. `OVERNIGHT_DATES=0` turns the show's half off
+  too.
+
 ### Reviewer pass (2026-10-30)
 
 A processor's compliance team asks for a premium login to review the subscriber experience. CCBill asked on 2026-10-30.

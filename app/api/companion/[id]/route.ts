@@ -33,6 +33,7 @@ import { companionRefusal } from "../access";
 import { bookingAsk } from "@/lib/date-roleplays";
 import { POST as createEpisode } from "@/app/api/episodes/route";
 import { POST as bookSecondDate } from "@/app/api/episodes/[id]/second-date/route";
+import { POST as bookOvernight } from "@/app/api/overnight/route";
 import { COMPANION_OFFER_KINDS, type CompanionOfferKind } from "@/lib/companion-shared";
 import { loadOffer, markOfferTaken, nobodyNewLines, offerLines, outOfDatesLines, pickSomeoneNew } from "@/lib/companion-offers";
 import { postFromCharacter } from "@/lib/companion";
@@ -206,6 +207,8 @@ function forward(req: Request, path: string, body: unknown): Request {
  * own machinery, so a booking is charged, limited, consented and filmed exactly like any date:
  * - `second_date`: POST /api/episodes/:id/second-date as this character (FREE_WEEKLY_SECOND_DATE when on, else one of the
  *   person's free weekly or pack dates); 202 when the other creator's yes is still wanted.
+ * - `overnight`: POST /api/overnight for the pair (lib/overnight.ts): the couple's overnight date, the second-date flow
+ *   with an evening place; 202 when the other creator's yes to an overnight is still wanted.
  * - `someone_new`: a date with a season cast member the character hasn't dated, in the first-date format (the speed date).
  * - `advice`: nothing booked; the page turns the composer into the "For next time" note (the couples nudge route).
  * The character answers with a written line (postFromCharacter, kind `offer`, once per text), never a model call; the
@@ -240,6 +243,8 @@ async function takeOffer(req: Request, db: Awaited<ReturnType<typeof getDb>>, se
     }
     newPartner = pick.name;
     res = await createEpisode(forward(req, "/api/episodes", { character_id: characterId, partner_id: pick.id, format: firstDateFormat(process.env) }));
+  } else if (offer === "overnight") {
+    res = await bookOvernight(forward(req, "/api/overnight", { character_id: characterId, partner_id: offers.partner_id }));
   } else {
     res = await bookSecondDate(forward(req, `/api/episodes/${offers.episode_id}/second-date`, { character_id: characterId }), { params: Promise.resolve({ id: offers.episode_id }) });
   }
@@ -252,7 +257,7 @@ async function takeOffer(req: Request, db: Awaited<ReturnType<typeof getDb>>, se
   if (res.status === 202) {
     // Their yes is in; the other character's creator completes it (the second-date route told them).
     await markOfferTaken(db, messageId, { kind: offer });
-    const said = await say(offerLines("second_date", { partner: offers.partner, waiting: true }), "offer");
+    const said = await say(offerLines(offer === "overnight" ? "overnight" : "second_date", { partner: offers.partner, waiting: true }), "offer");
     return settle({ offer, said, waiting: true, message: data.message }, 202);
   }
   if (res.status === 429) {

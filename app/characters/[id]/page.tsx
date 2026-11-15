@@ -37,6 +37,7 @@ import { describeTemperament } from "@/lib/temperament";
 import { connections, describeDrift, describeForgets, loadCharacterMemory, loadForgets, stageFor } from "@/lib/memory";
 import { loadLessons } from "@/lib/character-lessons";
 import { getCharacterRatings } from "@/lib/ratings";
+import OvernightMarks from "./OvernightMarks";
 import { relationshipsOf, viewRelationship } from "@/lib/relationships";
 import { authFromCookieStore, userIdFromCookieStore } from "@/lib/http";
 import { endingLabel } from "@/lib/rules";
@@ -829,6 +830,8 @@ export default async function CharacterPage({ params, searchParams }: Props) {
             {record.disasters === 1 ? "disaster" : "disasters"}
           </p>
         )}
+        {/* Their overnight dates that ended in leaving together (lib/overnight.ts); nothing when there are none. */}
+        <OvernightMarks characterId={c.id} viewerId={viewerId} />
         {relationships.length > 0 && (
           <div id="relationships">
             <ul className="list connections">
