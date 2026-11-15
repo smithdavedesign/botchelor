@@ -23,6 +23,11 @@ export type TheaterVerdict = {
   /** Its reflection on the date, when one was produced. */
   reflection: string | null;
   pushKey: string | null;
+  /**
+   * The After Dark bridge's link for this viewer (lib/adult/bridge-viewer.ts), or null. On a finished date the page
+   * sends it only when the date ended in a second date; the live stage checks the ending itself (GeneratingPoller.tsx).
+   */
+  afterDark?: { href: string } | null;
 };
 
 type Props = {
@@ -171,6 +176,7 @@ function Playback({ episodeId, characters, venue, transcript, endingLabel, justF
               preview={verdict.reflection}
               pushKey={verdict.pushKey}
               onRestart={replay.restart}
+              afterDark={verdict.afterDark ?? null}
             />
           ) : (
             <div className="theater-verdict">

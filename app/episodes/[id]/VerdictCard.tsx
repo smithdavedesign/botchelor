@@ -8,6 +8,7 @@ import { queueEvent } from "@/app/engagement";
 import PushToggle from "@/app/notifications/PushToggle";
 import { requestJson } from "@/app/request";
 import type { CharacterRef } from "@/lib/game";
+import AfterDarkBridge from "./AfterDarkBridge";
 import ShareEnding from "./ShareEnding";
 
 export type VerdictCardProps = {
@@ -27,6 +28,8 @@ export type VerdictCardProps = {
    * reflections): the first text is the ending and the debrief, with no reflection yet.
    */
   pending?: boolean;
+  /** The After Dark bridge's link, when this viewer sees the line on this date (lib/adult/bridge.ts); else nothing. */
+  afterDark?: { href: string } | null;
 };
 
 const firstNameOf = (name: string) => name.trim().split(/\s+/)[0] || name;
@@ -39,7 +42,7 @@ const firstNameOf = (name: string) => name.trim().split(/\s+/)[0] || name;
  * every viewer gets, and Watch again. Keeps `.theater-verdict` and `.ending`: scripts/clips/daily-clip.mjs records up to
  * them.
  */
-export default function VerdictCard({ episodeId, endingLabel, you, partner, preview, pushKey, onRestart, pending = false }: VerdictCardProps) {
+export default function VerdictCard({ episodeId, endingLabel, you, partner, preview, pushKey, onRestart, pending = false, afterDark = null }: VerdictCardProps) {
   const router = useRouter();
   const first = firstNameOf(you.name);
   const [busy, setBusy] = useState(false);
@@ -124,6 +127,7 @@ export default function VerdictCard({ episodeId, endingLabel, you, partner, prev
       </p>
       {/* The share where the feeling is (2026-11-11 growth plan): spoiler-free, like every viewer's share. */}
       <ShareEnding episodeId={episodeId} names={[you.name, partner.name]} kind="viewer" />
+      {afterDark && <AfterDarkBridge href={afterDark.href} />}
     </div>
   );
 }
