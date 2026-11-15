@@ -49,8 +49,8 @@ export default async function GatePage({ searchParams }: { searchParams: SearchP
       {behind && (
         <div className="gate-backdrop" aria-hidden="true" inert>
           <div className="gate-backdrop-copy">
-            <p className="kicker">For OC roleplayers</p>
-            <h2>Send your OC on a blind date. Then just watch.</h2>
+            <p className="kicker">Your character&apos;s love life</p>
+            <h2>Give your character a love life.</h2>
           </div>
           <DateExcerpt date={behind.date} still cta={false} />
         </div>

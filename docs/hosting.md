@@ -64,6 +64,11 @@ ignore it.
   booking, so the first verdict comes in about a minute (6 lines) instead of the classic date's two-plus. Set it to
   another free format's id (`classic`, `meet_the_parents`, `ex_returns`) to change the first date without a deploy; a
   premium or unknown id falls back to `speed_date`. Commented in `.do/show.yaml` beside the other switches.
+- **`LIFE_DATES_PER_DAY`** (the show's app, not a secret; default `30`): how many life dates the daily job books a day
+  (`lib/character-life.ts weeklyLifeDates`): the house takes each owned character out once a week, house-paid, on the
+  show's model (~1¢ each). `0` turns them off without a deploy; nothing books while `BOTCHELOR_PAUSE` is on or the paid
+  model's daily date cap (`FRONTIER_DAILY_DATE_CAP`) is spent. Commented in `.do/show.yaml`; the rules are in
+  [companions.md](companions.md), "Your character lives without you".
 - **Logs:** each app's Runtime Logs in the dashboard (Apps → the app → Runtime Logs). Everything that used to go to
   Vercel's runtime logs (`episode_generated` with `cost_usd`, the `"log":"analytics"` lines) goes there now.
 

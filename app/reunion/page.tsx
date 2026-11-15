@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import ReunionPanel from "@/app/ReunionPanel";
+import { isInsider } from "@/lib/crowd-threshold";
 import { getDb } from "@/lib/db";
 import { getReunion } from "@/lib/reunion";
 import { pageHref, parsePage } from "@/lib/paging";
@@ -65,12 +66,14 @@ export default async function ReunionPage({ searchParams }: { searchParams?: Pro
   // The season pool (lib/season-pool.ts): where you stand this season, and last season's board while it's fresh.
   // The season's games, here since they left /watch (the 2026-11-14 design audit): who you back this month, the cast's
   // morning-after group chat (only ever about what has aired) and the week's biggest chemistry shifts.
-  const [pool, poolRevealed, backing, castChat, shifts] = await Promise.all([
+  // The empty-room rule (lib/crowd-threshold.ts): vote and player counts show to someone with a character, or for a crowd.
+  const [pool, poolRevealed, backing, castChat, shifts, insider] = await Promise.all([
     poolStanding(db, viewerId, now).catch(() => null),
     recentPoolBoard(db, viewerId, now).catch(() => null),
     forViewer(viewerId, "watch:backing", () => backingBoard(db, viewerId)).catch(() => null),
     shared("watch:cast-chat", () => latestCastChat(db)).catch(() => null),
     shared("watch:shifts", () => chemistryShifts(db)).catch(() => null),
+    isInsider(db, viewerId),
   ]);
   return (
     <article className="reunion-page page-wide">
@@ -92,13 +95,13 @@ export default async function ReunionPage({ searchParams }: { searchParams?: Pro
           </p>
         </section>
       ) : (
-        <ReunionPanel reunion={reunion} heading="h1" season={season} couplesPage={couplesPage} couplesHref={(n) => pageHref("/reunion", {}, "couples", n, "couples")} hidden={hidden} />
+        <ReunionPanel reunion={reunion} heading="h1" season={season} couplesPage={couplesPage} couplesHref={(n) => pageHref("/reunion", {}, "couples", n, "couples")} hidden={hidden} insider={insider} />
       )}
       {castChat && <CastChat chat={castChat} />}
       {shifts && <ChemistryShiftsPanel shifts={shifts} />}
       <div className="reunion-games">
         {backing && <BackCast board={backing} />}
-        <SeasonPoolPanel standing={pool} revealed={poolRevealed} now={now.getTime()} />
+        <SeasonPoolPanel standing={pool} revealed={poolRevealed} now={now.getTime()} insider={insider} />
       </div>
       <OpenOnHash />
       {ballot && <SeasonFormatVote ballot={ballot} now={now.getTime()} />}

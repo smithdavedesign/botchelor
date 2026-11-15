@@ -51,6 +51,7 @@ const TYPE_OF: Record<NotificationKind, NotificationType> = {
   date_filmed: "dates",
   welcome: "show",
   week_best: "show",
+  character_week: "dates",
   partner_style: "dates",
   match_taken: "dates",
   exclusive_soon: "dates",

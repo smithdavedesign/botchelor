@@ -165,7 +165,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
   const creator = myCharacters.length > 0;
   // The band is there for a first visit too, on a quiet night as well (the design system's visitor home, all-screens
   // board, 2026-11-11): what just aired, what's open for predictions, and what's live, as proof the show is on.
-  const tonight = <TonightBand rooms={rooms} airing={airing} situation={situation} reveal={reveal} latest={airedEpisodes[0] ?? null} now={Date.now()} />;
+  const tonight = <TonightBand rooms={rooms} airing={airing} situation={situation} reveal={reveal} latest={airedEpisodes[0] ?? null} now={Date.now()} insider={creator} />;
 
   return (
     <div className="home page-wide">
@@ -214,11 +214,12 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
       )}
       <section className="hero">
         <div className="hero-copy">
-          <p className="kicker">For OC roleplayers</p>
-          <h1>Send your OC on a blind date. Then just watch.</h1>
+          {/* The promise (docs/ideas.md "The core, 2026-11-14"): your character has a love life, and you're in their corner. */}
+          <p className="kicker">Your character&apos;s love life</p>
+          <h1>Give your character a love life.</h1>
           <p className="lede">
-            Name them (🎲 fills in the rest if you like), pick a look, and watch their first speed date. A few minutes, free, no sign-up. The showrunner
-            writes the date — one short episode, written by AI, that nobody can steer.
+            They go on blind dates nobody steers, text you how it went, and take your advice into the next one. Make one in a minute — free, no
+            sign-up.
           </p>
           <p className="cta-row" id="hero-cta">
             <Link className="button" href="/create">

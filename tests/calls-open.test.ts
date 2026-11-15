@@ -3,7 +3,8 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 
 // The calls page (app/calls; the thin pages' lift, 2026-11-13): a shared record keeps its grid and words, and everyone
 // gets "Tonight's open calls": the dates airing soon that can still be called (the lobby's own list, lib/game.ts
-// listAiringSoon), up to four, as couple cards. Nothing airing is one line, and the button to the lobby stays either way.
+// listAiringSoon), up to four, as couple cards. Nothing airing is never an empty list (the empty-room rule, 2026-11-14):
+// the lobby's live room or the next premiere, else one card to the lobby; the button to the lobby stays either way.
 const jar = vi.hoisted(() => ({ cookies: new Map<string, string>() }));
 // /calls carries the league form now (the 2026-11-14 design audit), and the form asks for the router.
 vi.mock("next/navigation", async (original) => ({
@@ -43,14 +44,36 @@ const SHARE: RecordShare = { recent: [true, true, false, true, true, true], righ
 const shareQuery = () => Object.fromEntries(new URLSearchParams(recordSharePath(SHARE).split("?")[1]).entries());
 
 describe("/calls", () => {
-  it("with nothing airing: the invitation, one line saying so, and the button to the lobby", async () => {
+  it("with nothing airing and nothing in the lobby: the invitation, one card to the lobby, and the button", async () => {
     const html = await render();
     expect(html).toContain("<h1>Call the ending</h1>");
     expect(html).toContain('<h2 id="open-calls">');
-    expect(html).toContain("Nothing is waiting to air right now");
+    expect(html).toContain("Nothing is on the air right now.");
+    expect(html).toContain('class="card tap-card open-calls-next" data-track="share-record-lobby" href="/watch"');
     expect(html).not.toContain('class="card tap-card open-call"');
+    expect(html).not.toContain("Nothing is waiting to air right now");
     expect(html).toContain('data-track="share-record-cta" href="/watch#airing-soon"');
     expect(html).toContain("season pool");
+  });
+
+  it("with nothing airing but a room live: that room stands in, its count only for a crowd or an insider", async () => {
+    const { episode, creator } = await setupEpisode("friends");
+    // Its premiere room, started a minute ago, one viewer present (the lobby's "1 watching"); the date then marked
+    // aired, so it isn't an open call any more.
+    const party = (await (await api.createWatchParty(episode.id, {}, creator)).json()) as { room_path: string };
+    const partyId = party.room_path.split("/").pop()!;
+    await t.db.query(`update watch_parties set starts_at = now() - interval '1 minute' where id = $1`, [partyId]);
+    await t.db.query(`insert into watch_presence (party_id, user_id, last_seen) values ($1, 'viewer-1', now())`, [partyId]);
+    await t.db.query(`update episodes set revealed_at = now() - interval '1 minute', air_after = null where id = $1`, [episode.id]);
+    const stranger = await render();
+    expect(stranger).toContain(`class="card tap-card open-calls-next is-live" data-track="share-record-live" href="/watch/${partyId}"`);
+    expect(stranger).toContain("● Live now<!-- -->.");
+    expect(stranger).not.toContain("1 watching");
+    expect(stranger).not.toContain('class="card tap-card open-call"');
+    // Its creator has a character: an insider sees the count from 1.
+    jar.cookies.set(creator.split("=")[0], creator.split("=")[1]);
+    const insider = await render();
+    expect(insider).toContain("● Live now · 1 watching<!-- -->.");
   });
 
   it("lists the dates still open to calls as couple cards, at most four, each going where the lobby's card goes", async () => {

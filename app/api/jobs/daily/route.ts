@@ -6,6 +6,7 @@ import { backfillTranscripts } from "@/lib/backfill";
 import { resolveExpiredArcs } from "@/lib/arcs";
 import { settleDueBackings } from "@/lib/backing";
 import { pickWeeklyCastDate } from "@/lib/cast-date";
+import { sendCharacterWeeks, weeklyLifeDates } from "@/lib/character-life";
 import { sendDailyTexts } from "@/lib/between-dates";
 import { sendDigests } from "@/lib/email";
 import { sendRenewalReminders } from "@/lib/adult/billing";
@@ -116,6 +117,9 @@ async function people({ db, step, t0 }: Ctx): Promise<PartResult> {
       failed: 0,
     })),
   );
+  // Sunday's "your character's week" (lib/character-life.ts): one recap per owner with something to tell, built from what
+  // already happened, before the digest so the same day's email carries it. 0 on any other day.
+  const characterWeeks = await step("character_week", () => sendCharacterWeeks(db).catch(() => 0));
   // The daily email digest for players who opted in (lib/email.ts), after today's texts so they're in it.
   const digests = await step("digests", () => sendDigests(db).catch(() => 0));
   // The day after a date that went well: its owners hear so, with the share a tap away (lib/air.ts).
@@ -136,14 +140,20 @@ async function people({ db, step, t0 }: Ctx): Promise<PartResult> {
   const day7 = await step("day7", () => markDay7Returns(db).catch(() => 0));
   // The house matchmaker (lib/house-matchmaker.ts): a few deterministic pair picks a day, both owners told why.
   const matchmaker = await step("matchmaker", () => dailyMatchmakerPicks(db).catch(() => 0));
+  // The house takes each owned character out once a week (lib/character-life.ts): one query, then the bookings through
+  // the booking route (the writing runs in after() / the queued generation job), house-paid, capped a day.
+  const lifeDates = await step("life_dates", () => weeklyLifeDates(db).catch(() => ({ booked: 0, candidates: 0, stopped: "error" as const, refused: {} })));
   return {
-    body: { texts, day_after_texts: dayAfter },
+    body: { texts, day_after_texts: dayAfter, character_weeks: characterWeeks, life_dates: lifeDates },
     counts: {
       texted_couples: texts.couples,
       texts_failed: texts.failed,
       email_digests: digests,
       went_well: wentWell,
       day_after_texts: dayAfter,
+      character_weeks: characterWeeks,
+      life_dates_booked: lifeDates.booked,
+      life_dates_stopped: lifeDates.stopped,
       week_best: weekBest,
       ad_renewal_reminders: renewalReminders,
       plan_reminders: planReminders,

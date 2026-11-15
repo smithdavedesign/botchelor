@@ -6,6 +6,7 @@ import { FeedEntry } from "@/app/EpisodeItem";
 import Icon from "@/app/Icon";
 import JsonLd from "@/app/JsonLd";
 import { airWindowMinutes } from "@/lib/air";
+import { isInsider, showCrowd } from "@/lib/crowd-threshold";
 import { getDb } from "@/lib/db";
 import { CallsLine } from "@/app/YourCalls";
 import { callRecord } from "@/lib/streaks";
@@ -137,7 +138,7 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
   // Someone signed out sees what everyone does: from a few seconds' shared copy (lib/shared-cache.ts). What's the same
   // for everyone (the private-date count, the reunion, the week's shifts, the season's format) is shared by all.
   const mine = <T,>(key: string, load: () => Promise<T>) => forViewer(viewerId, key, load);
-  const [rooms, privateDates, airing, latest, profileName, situation, dares, record, showNews, seasonDef, recoupling, ballot, reveal] = await Promise.all([
+  const [rooms, privateDates, airing, latest, profileName, situation, dares, record, showNews, seasonDef, recoupling, ballot, reveal, insider] = await Promise.all([
     mine("lobby", () => listLobby(db)),
     shared("watch:private-dates", () => countRecentPrivateDates(db)),
     mine("home:airing", () => listAiringSoon(db, viewerId, airWindowMinutes())),
@@ -153,6 +154,8 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
     shared("watch:ballot-result", () => ballotResult(db, seasonIdOf(new Date()))).catch(() => null),
     // Sunday's reveal (lib/weekly-reveal.ts): the week's vote.
     mine("watch:reveal", () => revealBoard(db, viewerId)).catch(() => null),
+    // The empty-room rule (lib/crowd-threshold.ts): someone with a character sees every count; a stranger, only a crowd.
+    isInsider(db, viewerId),
   ]);
   // Their shared calls link carries their display name when it's theirs alone (lib/share-record-name.ts).
   const sharer = profileName && record?.called ? await sharerOf(db, viewerId).catch(() => null) : null;
@@ -204,7 +207,7 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
           <div className="watch-lead" id="live-now">
             <div className="watch-lobby">
               {live.map((r) => (
-                <RoomCard key={r.id} room={r} action={`● ${r.watching} watching`} />
+                <RoomCard key={r.id} room={r} action={showCrowd(r.watching, { insider }) ? `● ${r.watching} watching` : "● Live"} />
               ))}
             </div>
           </div>
