@@ -182,3 +182,65 @@ impressions, the hard question, hometowns (meet the parents), the final rose.
 **Tests.** `tests/ceremony.test.ts` (the vote, the verdicts, two eliminations, no votes, three left, the finale and
 recap, badges/notices/texts once, the classic pin), `tests/season-format-botchelor.test.ts` (the config, the lead
 pick and override, the suitors' fill order, the casting words, the admin API).
+
+### Open casting: the season is the first date
+
+David, 2026-11-15. "Blind dates" gave a stranger no reason to make a character today; the Botchelor gives a premise
+and a deadline: **your character's first date is with the season's lead, roses are handed out on Sunday, and you hear
+whether they got one.** All of it is [`lib/casting.ts`](../lib/casting.ts); the suitors' house and its ceremony above
+are untouched. A rose never touches points, odds, pairings or endings: the engine decides every date, the Sunday pass
+only reads the ending.
+
+**The switch.** `OPEN_CASTING`, on unless it is `0`. On, it is still inert until there is a lead to meet
+(`castingLead(db, now, env)`):
+- **Season:** this month runs a lead format and its stored cast has a lead. Open until the season's last Sunday's
+  roses are handed out (a date after them would be promised a rose nobody hands out).
+- **Preseason:** otherwise, next month's format is **picked** as a lead format on `/admin/season` (the stored row; the
+  viewers' ballot doesn't count, it can move until the 1st) **and** its lead is picked there too (`season_leads`; the
+  default lead is only known on the 1st, when the reviews are counted). Casting then opens at once, before the season:
+  the dates are auditions with next month's lead. The admin panel's Botchelor card says which it is ("Open casting:
+  open … / closed …").
+
+**The first date** (`castingPartnerFor`, read by `POST /api/episodes`). A blind date in the first-date format
+(`FIRST_DATE_FORMAT`, the speed date) by a person's character that has never been on a date of any kind meets the
+lead, and the date is marked `setup.met_via = 'casting'`. A person's character: made on the site, or over MCP by
+someone with an account (an agent's own run is not a walk-on). The builder's instant "Start the date now" card sends
+exactly that when casting is open, and says so ("First date: {Lead}, this season's Botchelor. Roses on Sunday."); a
+post's `?meet=` link still names its own cast member. Any number of walk-ons can be filming with the lead at once
+("one date at a time" is per couple), and the lead's memory of them is capped like anyone's (`PEOPLE_KEPT`). When the
+lead can't be dated (an unmatch, no lead, the switch) the booking falls back to the usual blind date, silently. It
+spends one of the person's free dates, as the instant date always did.
+
+**Sunday's roses** (`runWalkOnRoses`, from the hourly lobby job right after the ceremony; Sundays from
+`CEREMONY_HOUR_UTC` on, in the preseason too):
+- Every walk-on (never one of that season's suitors) whose newest finished date with the lead no pass has judged gets
+  **a rose if and only if that date ended in a second date**. One row a character a Sunday (`walk_on_roses`:
+  `season_id` (the lead's season), `held_on`, `character_id`, `episode_id`, `rose`, `next_episode_id`), claimed before
+  anything is sent, so it runs once.
+- The owner hears either way: a `ceremony_held` notification, and, when they opted in to the character's texts
+  (`companion_threads.muted_proactive = false`, not paused), its own text from templates, tagged
+  `rose:<season>-<Sunday>`: "I got a rose. {Lead} wants to see me again this week." or "No rose. {Lead} was kind about
+  it. I'm fine. Mostly." with the "Try someone new" chip (on a Botchelor season, once the lead is the only house
+  character, that chip offers a suitor still in).
+- **A rose books a second date with the lead at once**, paid by the show (the cast-date prize's show-paid request: none
+  of the owner's dates are spent), in the first-date format: as the planned second date when both of them wanted one,
+  else by name on the rose. If the owner had already booked the second date themselves, that one counts. A booking that
+  didn't land (the show paused) is tried again on every hourly pass for six days. The rose's date is what the **next**
+  Sunday judges, and the character's weekly life date is skipped that week (`lib/character-life.ts`).
+- **The people's rose**, in season on the last Sunday: the walk-on with the most roses in that season (preseason roses
+  count), ties by the better ending record over the judged dates, then by who walked on first; a public character of
+  a real person only (never ours). Kept as a `suitor_badges` row (`peoples_rose`), once. `ceremonySummary(...)
+  .peoples_rose` and the Botchelor card name it.
+- Cost: the pass is rows and templates ($0); a rose's date is a speed date on the show's model (about a cent), at most
+  25 booked a pass.
+
+**Where it shows.** The builder's instant card; one line on the verdict card of a casting date ("Roses are handed out
+Sunday at 20:00 UTC. {first} will text you.", its own component reading `GET /api/casting/walk-on?episode=`); a
+"Rose, week N" badge on the character's page (a rose from before the season reads "Casting rose"), next to what it
+left a season with as a suitor; a stranger's home hero sub line; and "Walk-ons this week" on the Botchelor card, with
+the count under the empty-room rule ([show-style.md](show-style.md)). Tests: `tests/casting.test.ts`.
+
+**To open it for a month** (David or an admin): `/admin/season` → the next season's Format → **The Botchelor**, then in
+"The Botchelor: the lead and the suitors" → **Next season's lead** → a house character. Or
+`POST /api/admin/season` with `{"action":"format","season_id":"<YYYY-MM-01>","slug":"botchelor"}` and then
+`{"action":"lead","season_id":"<YYYY-MM-01>","character_id":"<house id>"}`. Casting opens with the second call.

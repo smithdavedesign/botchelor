@@ -69,6 +69,11 @@ ignore it.
   show's model (~1¢ each). `0` turns them off without a deploy; nothing books while `BOTCHELOR_PAUSE` is on or the paid
   model's daily date cap (`FRONTIER_DAILY_DATE_CAP`) is spent. Commented in `.do/show.yaml`; the rules are in
   [companions.md](companions.md), "Your character lives without you".
+- **`OPEN_CASTING`** (the show's app, not a secret; on unless it is `0`): open casting (`lib/casting.ts`), where a
+  person's new character's first date goes to the Botchelor's lead and walk-ons get roses on Sunday. On, it still does
+  nothing until a lead format is picked on `/admin/season` (this season's, or next season's with its lead); `0` closes
+  it without a deploy: first dates are the usual ones again and no roses are handed out. Commented in `.do/show.yaml`;
+  the rules are in [seasons.md](seasons.md), "Open casting".
 - **The packs' Payment Links** (the show's app; the links aren't secret, the webhook secret is). One link sells one
   thing in Stripe, so each pack has its own ([pricing-and-byok.md](pricing-and-byok.md)):
 

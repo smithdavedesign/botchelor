@@ -98,6 +98,12 @@ services:
       # - key: LIFE_DATES_PER_DAY
       #   value: "30"
       #   scope: RUN_AND_BUILD_TIME
+      # Open casting (lib/casting.ts; docs/seasons.md "Open casting"): a new character's first date goes to the
+      # Botchelor's lead, roses for walk-ons on Sunday. On by default and inert until a lead format is picked on
+      # /admin/season; "0" closes it without a deploy.
+      # - key: OPEN_CASTING
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
       # Copied from the old Vercel project's values (not secret, but deployment-specific).
       - key: CONTACT_EMAIL
         value: "CHANGE_ME"
