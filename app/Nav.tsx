@@ -16,7 +16,7 @@ import { openFeedback } from "@/lib/user-feedback-shared";
  * the Matches header cross-link them). The Constellation and the Showcase moved under Watch (app/ShowTabs.tsx), which
  * supersedes the 2026-11-01 "Constellation stays in the nav" call with David's sign-off on the review plan.
  */
-type NavLink = { href: string; label: string; also?: readonly string[] };
+export type NavLink = { href: string; label: string; also?: readonly string[] };
 const OWNER_LINKS: readonly NavLink[] = [
   { href: "/watch", label: "Watch" },
   { href: "/matches", label: "Dating", also: ["/swipe", "/messages"] },
@@ -53,8 +53,11 @@ function navLinks(hasCharacter: boolean, adHost = false): readonly NavLink[] {
   return hasCharacter ? OWNER_LINKS : NEWCOMER_LINKS;
 }
 
-/** Whether this link is where the viewer is, counting its sibling routes (`also`: /swipe and /messages are Dating). */
-const atLink = (l: NavLink, pathname: string): boolean => {
+/**
+ * Whether this link is where the viewer is, counting its sibling routes (`also`: /swipe and /messages are Dating). The
+ * phone's tab bar (app/PhoneTabBar.tsx) marks its tabs by this same rule.
+ */
+export const atLink = (l: NavLink, pathname: string): boolean => {
   // After Dark's Scenes is its home and every night under it (/after-dark/<a>/<b>), not its other doors' pages.
   if (l.href === "/after-dark") return pathname === l.href || (pathname.startsWith("/after-dark/") && !AD_LINKS.slice(1).some((o) => atLink(o, pathname)));
   return [l.href, ...(l.also ?? [])].some((h) => pathname === h || pathname.startsWith(`${h}/`));

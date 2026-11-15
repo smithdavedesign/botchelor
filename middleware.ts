@@ -138,6 +138,8 @@ const UNGATED_PAGES: ReadonlySet<string> = new Set([
   "/accessibility",
   "/about",
   "/costs",
+  // Everything on Botchelor (app/everything/page.tsx): the footer's old links in one list, nothing adult.
+  "/everything",
 ]);
 
 /**

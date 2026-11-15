@@ -1,0 +1,160 @@
+/* The site's chrome after the 2026-11-14 design audit ("the chrome outweighs the content"): the footer's one row of
+   links, the "Everything on Botchelor" page that holds the rest (app/everything/page.tsx), and the phone's tab bar
+   (app/PhoneTabBar.tsx). Loaded before catalog.css (app/layout.tsx). Tokens only (tests/css-tokens.test.ts). */
+
+:root {
+  /* The tab bar's own height, above the safe area: a 44px+ target with its icon over its label. */
+  --tabbar-h: 3.75rem;
+}
+
+/* ---------------- the footer's row of links ---------------- */
+/* What people click (legal, the two tools, pricing, a way to tell us something), in one wrapping row, then the way to
+   everything else. Quiet links, as the design system draws the footer's (app/ux/company.css). */
+.footer-row {
+  margin: var(--space-3) 0;
+}
+.footer-row .footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  margin: 0;
+}
+.site-footer .footer-row a.footer-all {
+  /* Over the quiet links' muted colour (app/ux/company.css), so the way to the rest reads as the row's end. */
+  color: var(--ink);
+  font-weight: 600;
+}
+@media (pointer: coarse) {
+  /* A 44px row on a touchscreen, "Give us feedback" (a button) level with the links beside it. */
+  .site-footer .footer-row .footer-links li > :is(a, button) {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    margin-block: 0;
+    padding-block: 0;
+  }
+}
+
+/* ---------------- /everything ---------------- */
+.everything-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+  gap: var(--space-4) var(--space-5);
+  margin: var(--space-5) 0;
+}
+.legal-page.company-page .everything-groups section {
+  margin: 0;
+}
+.everything-groups h2 {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-md);
+}
+.everything-groups ul {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.everything-groups li > :is(a, button) {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+.everything-groups li .muted {
+  display: block;
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-sm);
+}
+
+/* ---------------- the phone's tab bar (app/PhoneTabBar.tsx) ---------------- */
+/* Phones only. The outer .tabbar sits in the page's flow at the bar's height plus the safe area, at the very end of
+   <body>: that's the body's bottom padding, and it goes wherever the bar does. The bar itself is fixed to the foot,
+   under the sticky header's layer (z-index 20) and its phone menu. */
+.tabbar {
+  display: none;
+}
+@media (max-width: 720px) {
+  .tabbar {
+    display: block;
+    height: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px));
+  }
+  .tabbar-nav {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 19;
+    display: flex;
+    padding: 0 max(var(--space-2), env(safe-area-inset-right)) env(safe-area-inset-bottom, 0px) max(var(--space-2), env(safe-area-inset-left));
+    border-top: 1px solid var(--line);
+    background: color-mix(in srgb, var(--paper) 92%, transparent);
+    backdrop-filter: saturate(1.4) blur(10px);
+  }
+  .tabbar-tab {
+    flex: 1 1 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-1);
+    min-width: 0;
+    min-height: var(--tabbar-h);
+    color: var(--muted);
+    font-size: var(--text-xs);
+    font-weight: 600;
+    line-height: 1.1;
+    text-decoration: none;
+  }
+  .tabbar-icon {
+    width: var(--icon-sm);
+    height: var(--icon-sm);
+  }
+  .tabbar-label {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .tabbar-tab[aria-current="page"] {
+    color: var(--accent-text);
+  }
+  .tabbar-tab:focus-visible {
+    outline-offset: -3px;
+  }
+
+  /* What already floats at the foot of a phone rides above the bar: the page's main action (app/PhoneActionBar.tsx),
+     the beta prompt and the install hint (app/FeedbackDock.tsx, app/InstallHint.tsx), and the Feedback button wherever
+     it shows. The install hint's 8rem of extra foot (app/globals.css) still clears it, the bar's room being added below. */
+  body:has(.tabbar-nav) :is(.phone-action-bar, .beta-toast, .install-hint, .feedback-fab) {
+    bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px) + var(--space-3));
+  }
+
+  /* Where it steps aside: the full-screen views the floating Feedback button steps aside for (app/globals.css, "people's
+     feedback", the one list), which are classes rather than addresses (app/PhoneTabBar.tsx keeps the addresses), and
+     the phone menu while it's open. */
+  :is(
+      html.theater-lock,
+      body:has(
+          .age-gate,
+          .theater,
+          .swipe-fullscreen,
+          .swipe-match-overlay,
+          .messages-fullscreen,
+          .companion-fullscreen,
+          .phone-stage.is-full,
+          .wizard,
+          .send-phase,
+          .after-dark-form,
+          .ad-reel-theater,
+          .ad-studio-main,
+          .consent-banner,
+          .constellation-panel,
+          .nav-links[data-open="true"],
+          .nav-backdrop
+        )
+    )
+    .tabbar {
+    display: none;
+  }
+}

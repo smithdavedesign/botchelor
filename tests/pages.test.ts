@@ -128,6 +128,7 @@ describe("launch checks: robots.txt, sitemap and og:image", () => {
         "/accessibility",
         "/newsletter",
         "/seasons",
+        "/everything",
         // Plus the search landings (lib/seo.ts landingPaths) and the RSS feed (app/feed.xml/route.ts, a route, not a page).
         ...landingPaths(),
         "/feed.xml",

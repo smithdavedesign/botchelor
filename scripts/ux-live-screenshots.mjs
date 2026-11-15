@@ -57,22 +57,17 @@ try {
   await shot(page, "ux-characters-phone.png");
 
   await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-  // The groups fold once the page runs (app/FooterGroup.tsx), so wait for that rather than count straight away.
-  const folded = await page
-    .waitForFunction(() => document.querySelectorAll("details.footer-group:not([open])").length === 3, null, { timeout: 15_000 })
-    .then(() => 3)
-    .catch(() => page.locator("details.footer-group:not([open])").count());
-  assert(folded === 3, `the footer's groups on a phone: ${folded} folded, not 3`);
-  await page.locator("details.footer-group > summary", { hasText: "Help and legal" }).click();
-  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  // The footer is one open row of links since the 2026-11-14 design audit (app/layout.tsx, app/ux/chrome.css).
   // "Give us feedback" is a button beside "Report a problem", a link: the two sit level in their row.
   const middle = async (l) => {
     const b = await l.boundingBox();
     return b ? b.y + b.height / 2 : NaN;
   };
-  const help = page.locator("details.footer-group[open]");
+  const help = page.locator("nav.footer-row");
   const [report, feedback] = [await middle(help.getByRole("link", { name: "Report a problem" })), await middle(help.getByRole("button", { name: "Give us feedback" }))];
-  assert(Math.abs(report - feedback) <= 3, `the footer: "Give us feedback" sits ${Math.round(report - feedback)}px off "Report a problem"`);
+  // The row wraps, so the two may land on different lines; on the same line (within half a 44px row) they sit level.
+  const off = Math.abs(report - feedback);
+  assert(off <= 3 || off >= 22, `the footer: "Give us feedback" sits ${Math.round(report - feedback)}px off "Report a problem"`);
   console.log("  ✓ the footer: Give us feedback level with Report a problem");
   await shot(page, "ux-footer-phone.png");
 

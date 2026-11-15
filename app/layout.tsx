@@ -9,7 +9,7 @@ import { afterDarkOnly, afterDarkOrigin } from "@/lib/after-dark-host";
 import { analyticsConsent, CONSENT_COOKIE, consentDefaultScript } from "@/lib/consent";
 import { companionOpen } from "@/lib/companion-shared";
 import { getDb } from "@/lib/db";
-import { socialLinks, STATUS_PAGE_URL } from "@/lib/company";
+import { socialLinks } from "@/lib/company";
 import { contactEmail, TRADING_AS } from "@/lib/legal-entity";
 import { gaGuardScript } from "@/lib/ga-guard";
 import { unreadCount } from "@/lib/notifications";
@@ -28,7 +28,7 @@ import FeedbackDock, { FeedbackLink } from "./FeedbackDock";
 import EngagementBeacon from "./EngagementBeacon";
 import FunnelBeacon from "./FunnelBeacon";
 import InstallHint from "./InstallHint";
-import FooterGroup from "./FooterGroup";
+import PhoneTabBar from "./PhoneTabBar";
 import SeasonBanner from "./SeasonBanner";
 import SeasonStrip from "./SeasonStrip";
 import { seasonFormatNow } from "@/lib/season-format-store";
@@ -58,6 +58,7 @@ import "./ux/company.css";
 import "./ux/money.css";
 import "./ux/thin.css";
 import "./ux/prompts.css";
+import "./ux/chrome.css";
 import "./ux/catalog.css";
 
 const TRACKING = trackingConfig();
@@ -213,58 +214,26 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
           <p className="footer-adults">Every character is a fictional adult (18+), and every episode is written by an AI model.</p>
           <CrisisResources />
           {!adHost && <NewsletterSignup />}
-          {/* Four groups (Company joined on 2026-11-10), not fifteen links in one list (2026-10-31 UX audit): columns on a wide screen, folds on a phone. */}
-          <nav className="footer-groups" aria-label="More of the site">
-            <FooterGroup title="The show">
-              <li><Link prefetch={showPrefetch} href="/graph">The Constellation</Link></li>
-              {!adHost && companionOpen() && <li><Link prefetch={showPrefetch} href="/companion">Companions</Link></li>}
-              <li><Link prefetch={showPrefetch} href="/prompts">Prompts library</Link></li>
-              <li><Link prefetch={showPrefetch} href="/shop">{adHost ? "Tokens" : "More dates"}</Link></li>
+          {/* One row of what people click (the 2026-11-14 design audit: ~33 footer links on every page had made the chrome
+              outweigh the content): pricing, the two tools, the rules, and two ways to tell us something. Everything
+              else that was here, in its old groups, and "About this show" are on /everything, the row's last link. */}
+          <nav className="footer-row" aria-label="More of the site">
+            <ul className="footer-links">
               {!adHost && <li><Link prefetch={showPrefetch} href="/pricing">Pricing</Link></li>}
-            </FooterGroup>
-            <FooterGroup title="Tools">
               <li><Link prefetch={showPrefetch} href="/tools/oc-chemistry-test">OC chemistry test</Link></li>
               <li><Link prefetch={showPrefetch} href="/tools/ship-name-generator">Ship name generator</Link></li>
-              <li><Link prefetch={showPrefetch} href="/agents">For AI agents</Link></li>
-            </FooterGroup>
-            {/* The company (2026-11-10, lib/company.ts): who makes it, what it costs, and how to reach us, for people,
-                press and the card processors' reviewers alike. */}
-            <FooterGroup title="Company">
-              <li><Link prefetch={showPrefetch} href="/about">How it&apos;s built</Link></li>
-              <li><Link prefetch={showPrefetch} href="/costs">What it costs</Link></li>
-              <li><Link prefetch={showPrefetch} href="/faq">FAQ</Link></li>
-              <li><Link prefetch={showPrefetch} href="/press">Press kit</Link></li>
-              <li><Link prefetch={showPrefetch} href="/contact">Contact</Link></li>
-              <li><Link prefetch={showPrefetch} href="/security">Security</Link></li>
-              <li><a href={STATUS_PAGE_URL} rel="noopener">Status</a></li>
-              <li><Link prefetch={showPrefetch} href="/accessibility">Accessibility</Link></li>
-            </FooterGroup>
-            <FooterGroup title="Help and legal">
+              <li><Link prefetch={showPrefetch} href="/terms">Terms</Link></li>
+              <li><Link prefetch={showPrefetch} href="/privacy">Privacy</Link></li>
+              <li><Link prefetch={showPrefetch} href="/content-policy">Content policy</Link></li>
               <li><Link prefetch={showPrefetch} href="/report">Report a problem</Link></li>
               <li>
                 <FeedbackLink />
               </li>
-              <li><Link prefetch={showPrefetch} href="/content-policy">Content policy</Link></li>
-              <li><Link prefetch={showPrefetch} href="/terms">Terms and refunds</Link></li>
-              <li><Link prefetch={showPrefetch} href="/privacy">Privacy</Link></li>
-              <li><Link prefetch={showPrefetch} href="/legal">Terms and privacy, one page</Link></li>
-              <li><Link prefetch={showPrefetch} href="/2257">2257 statement</Link></li>
-              <li><Link prefetch={showPrefetch} href="/cancel">Cancel a subscription</Link></li>
-            </FooterGroup>
+              <li><Link prefetch={showPrefetch} href="/everything" className="footer-all">Everything on Botchelor →</Link></li>
+            </ul>
           </nav>
           {/* The show's own accounts (lib/company.ts), Discord's once its invite is set; none on After Dark's host. */}
           <SocialLinks links={socials} area="footer" />
-          <details className="footer-about ux-fold">
-            <summary>About this show</summary>
-            <p>
-              Episodes are written by an AI model from the character sheets. Every character is a fictional adult.
-              Creators stay anonymous unless they agree to reveal themselves. Every episode has a report button.
-            </p>
-            <p>
-              Points and badges are free. They can&apos;t be bought, cashed out or transferred, and there are no prizes.
-              Nothing you buy changes points, badges or rank.
-            </p>
-          </details>
           <p className="footer-legal">
             © {new Date().getUTCFullYear()} {TRADING_AS} · <Link prefetch={showPrefetch} href="/contact">Contact us</Link>
             {support && (
@@ -275,6 +244,9 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
             )}
           </p>
         </footer>
+        {/* The phone's tab bar (app/PhoneTabBar.tsx): Watch, Characters, Companions while they're open, You. Not on After
+            Dark's host, which has its own five doors in its header. Last in the page's flow, so its room is the foot. */}
+        {!adHost && <PhoneTabBar companions={companionOpen()} />}
         <FeedbackDock />
         <InstallHint hasCharacter={hasCharacter} />
         {google && consent.ask && <ConsentBanner />}

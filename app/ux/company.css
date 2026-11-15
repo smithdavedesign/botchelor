@@ -1,16 +1,8 @@
 /* The company pages and the footer's company pieces (2026-11-10, lib/company.ts): /contact, /faq, /pricing, /press,
-   /security, /accessibility, the footer's fourth group, its row of accounts and its © line. Tokens only
+   /security, /accessibility, the footer's row of accounts and its © line. Tokens only
    (tests/css-tokens.test.ts). */
 
 /* ---------------- the footer ---------------- */
-/* Four groups since "Company" joined (app/layout.tsx): four columns on a wide screen; a phone keeps its folded rows. */
-@media (min-width: 641px) {
-  .footer-groups {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: var(--space-2) var(--space-4);
-  }
-}
-
 /* The accounts, as marks in round buttons: 40px, 44px on a touchscreen. */
 .social-links {
   display: flex;
@@ -273,7 +265,7 @@
 }
 
 /* The footer as the design system draws it (all-screens board, 2026-11-11): the page's full width, the fiction line
-   centred over it, and the link groups as plain quiet links that underline on hover. The crisis line, the letter and
+   centred over it, and the links as plain quiet links that underline on hover. The crisis line, the letter and
    the legal line stay where they are. */
 .site-footer {
   max-width: var(--page-wide);

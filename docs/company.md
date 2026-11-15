@@ -13,7 +13,9 @@ has, written from the code so they can't drift from it.
 | `/accessibility` | WCAG 2.2 AA aim, what's done, known gaps | docs/brand.md, the stylesheets |
 | `/.well-known/security.txt` | RFC 9116, Expires always 180 days out | `lib/security-policy.ts` |
 
-- **The footer** has a fourth group, Company, then a row of the show's accounts (`app/SocialLinks.tsx`: X, Bluesky, TikTok,
+- **The footer** is one row of links since the 2026-11-14 design audit (pricing, the two tools, the rules, Report a
+  problem, Give us feedback, "Everything on Botchelor →"); the Company group and the footer's other old groups live on
+  `/everything` (`app/everything/page.tsx`). Then a row of the show's accounts (`app/SocialLinks.tsx`: X, Bluesky, TikTok,
   Discord once `DISCORD_INVITE_URL` is set, GitHub), then a © line with the support address. No accounts on After Dark's
   host.
 - **The Organization JSON-LD** (`lib/seo.ts` `organizationJsonLd`) lists the accounts as `sameAs`, the founder, and the

@@ -41,7 +41,10 @@ async function check(base) {
   const html = await res.text();
   assert(/<h1[^>]*>Prompts library<\/h1>/.test(html), `${PAGE} has no "Prompts library" h1`);
   assert(items(html) === 24, `${PAGE} shows ${items(html)} prompts, not 24`);
-  assert(html.includes('href="/prompts"') && html.includes("Prompts library</a>"), "the footer doesn't link the library");
+  // The footer's old links live on /everything since the 2026-11-14 design audit; the footer links that page.
+  assert(html.includes('href="/everything"'), "the footer doesn't link /everything");
+  const everything = await (await fetch(`${base}/everything`, { headers: ADULT })).text();
+  assert(everything.includes('href="/prompts"') && everything.includes("Prompts library</a>"), "/everything doesn't link the library");
 
   const sitemap = await (await fetch(`${base}/sitemap.xml`)).text();
   assert(sitemap.includes(PAGE), "sitemap.xml doesn't list the library");
@@ -57,7 +60,7 @@ async function check(base) {
   assert(total(tagged) > 0 && total(tagged) < all && /aria-current="true"/.test(tagged), "the tag filter didn't narrow to Neon");
   const leaked = await (await fetch(`${base}${PAGE}?tag=wardrobe.swim`, { headers: ADULT })).text();
   assert(total(leaked) === all, "an NSFW tag filtered for a stranger");
-  console.log(`checks passed: 200 on ${PAGE} with 24 prompts, in sitemap.xml, footer link, "astronaut" → ${total(searched)}, Pick-a-Pic → ${total(filtered)}, Neon tag → ${total(tagged)}, NSFW tag ignored for a stranger`);
+  console.log(`checks passed: 200 on ${PAGE} with 24 prompts, in sitemap.xml, linked from /everything, "astronaut" → ${total(searched)}, Pick-a-Pic → ${total(filtered)}, Neon tag → ${total(tagged)}, NSFW tag ignored for a stranger`);
 }
 
 async function shoot(base) {

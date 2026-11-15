@@ -454,7 +454,9 @@ describe("5. findable and measured: the sitemap, the links to both tools, the be
       const footer = html.slice(html.indexOf('<footer class="site-footer"'));
       expect(footer).toContain(`href="${TOOL}"`);
       expect(footer).toContain('href="/tools/ship-name-generator"');
-      expect(footer).toContain('href="/prompts"'); // the prompts library (tests/prompts-library.test.ts)
+      // The prompts library (tests/prompts-library.test.ts) moved to /everything with the footer's other links (the
+      // 2026-11-14 design audit); the footer's row links that page.
+      expect(footer).toContain('href="/everything"');
     }
   });
 
