@@ -22,6 +22,8 @@ import SeasonLine from "./SeasonLine";
 import DateExcerpt from "@/app/DateExcerpt";
 import { pickFeaturedDate } from "@/lib/featured-date";
 import RecouplingCard from "./RecouplingCard";
+import BotchelorCard from "./BotchelorCard";
+import { ceremonyBoard } from "@/lib/ceremony";
 import WeeklyReveal from "@/app/WeeklyReveal";
 import { revealBoard } from "@/lib/weekly-reveal";
 import SeasonPoolPanel from "@/app/SeasonPool";
@@ -183,7 +185,7 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
   // Someone signed out sees what everyone does: from a few seconds' shared copy (lib/shared-cache.ts). What's the same
   // for everyone (the private-date count, the reunion, the week's shifts, the season's format) is shared by all.
   const mine = <T,>(key: string, load: () => Promise<T>) => forViewer(viewerId, key, load);
-  const [rooms, privateDates, airing, latest, leagues, profileName, reunion, situation, dares, backing, record, callers, showNews, shifts, seasonDef, recoupling, castChat, ballot, reveal, pool, poolRevealed, insider] = await Promise.all([
+  const [rooms, privateDates, airing, latest, leagues, profileName, reunion, situation, dares, backing, record, callers, showNews, shifts, seasonDef, recoupling, castChat, ballot, reveal, pool, poolRevealed, insider, ceremony] = await Promise.all([
     mine("lobby", () => listLobby(db)),
     shared("watch:private-dates", () => countRecentPrivateDates(db)),
     mine("home:airing", () => listAiringSoon(db, viewerId, airWindowMinutes())),
@@ -210,6 +212,8 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
     mine("watch:pool-revealed", () => recentPoolBoard(db, viewerId)).catch(() => null),
     // The empty-room rule (lib/crowd-threshold.ts): someone with a character sees every count; a stranger, only a crowd.
     isInsider(db, viewerId),
+    // The Botchelor (lib/ceremony.ts): the lead, the suitors and Sunday's rose ceremony; null on any other format.
+    mine("watch:ceremony", () => ceremonyBoard(db, viewerId)).catch(() => null),
   ]);
   // Their shared calls link carries their display name when it's theirs alone (lib/share-record-name.ts).
   const sharer = profileName && record?.called ? await sharerOf(db, viewerId).catch(() => null) : null;
@@ -274,6 +278,8 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
         now={now}
       />
       {recoupling && recoupling.choices.length > 0 && <RecouplingCard board={recoupling} now={now} />}
+      {/* A Botchelor season (lib/ceremony.ts): the house and Sunday's rose ceremony, where the Recoupling would sit. */}
+      {ceremony && <BotchelorCard board={ceremony} now={now} />}
       {/* Sunday's reveal leads while its vote is open or its result is minutes away; otherwise it sits by tonight's vote. */}
       {/* …and once the secret is out it stays, as the opened envelope, while it's fresh (lib/weekly-reveal.ts LAST_SHOWN_DAYS). */}
       {reveal && (reveal.state === "open" || reveal.state === "closed" || reveal.last) && <WeeklyReveal board={reveal} now={now} />}

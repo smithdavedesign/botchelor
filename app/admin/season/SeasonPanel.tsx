@@ -4,7 +4,18 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import CharacterName from "@/app/CharacterName";
 
-type Slot = { character_id: string; name: string; slot: number; source: "dealt" | "survivor" | "new" | "fan" };
+type Slot = { character_id: string; name: string; slot: number; source: "dealt" | "survivor" | "new" | "fan" | "lead" | "suitor" };
+type Botchelor = {
+  leads: { id: string; name: string }[];
+  this_season: {
+    runs: boolean;
+    lead: { id: string; name: string } | null;
+    override: string | null;
+    suitors: { id: string; name: string; in: boolean }[];
+    ceremonies: { week: number; held_on: string; finale: boolean; eliminated_by_vote: { name: string } | null; eliminated_by_lead: { name: string } | null; final_rose: { name: string } | null; votes: number; total: number }[];
+  };
+  next_season: { runs: boolean; override: string | null; override_name: string | null };
+};
 type Candidate = {
   character_id: string;
   name: string;
@@ -25,11 +36,12 @@ type View = {
     auditions: Audition[];
     ballot?: { slug: string; votes: number }[];
   };
-  formats: { slug: string; label: string; title?: string }[];
+  formats: { slug: string; label: string; title?: string; lead?: boolean }[];
+  botchelor?: Botchelor;
   note?: string | null;
 };
 
-const SOURCE: Record<Slot["source"], string> = { dealt: "dealt", survivor: "stayed on", new: "new", fan: "fan pick" };
+const SOURCE: Record<Slot["source"], string> = { dealt: "dealt", survivor: "stayed on", new: "new", fan: "fan pick", lead: "the lead", suitor: "suitor" };
 
 /** The review queue: next month's candidates with their portraits, and this month's cast. Admin account or password. */
 export default function SeasonPanel() {
@@ -211,6 +223,65 @@ export default function SeasonPanel() {
           <span className="muted small">Off-cycle test: seats the cast and their season partners, runs the room tonight, house-paid.</span>
         </p>
       </section>
+      {view.botchelor && (view.botchelor.this_season.runs || view.botchelor.next_season.runs || view.formats.some((f) => f.lead && (f.slug === view.this_season.format || f.slug === view.next_season.format))) && (
+        <section className="card">
+          <h2>The Botchelor: the lead and the suitors</h2>
+          <p className="muted small">
+            One lead from the house cast dates people&apos;s characters; a rose ceremony every Sunday sends two home (lib/ceremony.ts). By default
+            the lead is last season&apos;s most reviewed survivor, picked with the cast on the 1st; a pick here overrides it. Suitors: approved
+            auditions by votes, then the house&apos;s own agent-made characters with the most public dates.
+          </p>
+          {([
+            ["This season", view.this_season, view.botchelor.this_season.override],
+            ["Next season", view.next_season, view.botchelor.next_season.override],
+          ] as const).map(([title, season, override]) => (
+            <p key={season.id}>
+              <strong>{title}&apos;s lead</strong> ({season.label}):{" "}
+              <select
+                aria-label={`${title}'s lead`}
+                value={override ?? ""}
+                disabled={busy !== null}
+                onChange={(e) => act(`lead-${season.id}`, { action: "lead", season_id: season.id, character_id: e.target.value || null })}
+              >
+                <option value="">Default (most reviewed survivor)</option>
+                {view.botchelor!.leads.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.name}
+                  </option>
+                ))}
+              </select>
+            </p>
+          ))}
+          {view.botchelor.this_season.lead && (
+            <p>
+              <strong>Lead now:</strong> <CharacterName character={view.botchelor.this_season.lead} />
+              {" · "}
+              <strong>Suitors:</strong>{" "}
+              {view.botchelor.this_season.suitors.length
+                ? view.botchelor.this_season.suitors.map((s, i) => (
+                    <span key={s.id}>
+                      {i > 0 ? ", " : ""}
+                      <CharacterName character={s} />
+                      {s.in ? "" : " (went home)"}
+                    </span>
+                  ))
+                : "none yet"}
+            </p>
+          )}
+          {view.botchelor.this_season.ceremonies.length > 0 && (
+            <ol>
+              {view.botchelor.this_season.ceremonies.map((c) => (
+                <li key={c.held_on}>
+                  {c.finale ? "Finale" : `Week ${c.week}`} ({c.held_on}):{" "}
+                  {c.final_rose
+                    ? `the final rose to ${c.final_rose.name}`
+                    : [c.eliminated_by_vote && `${c.eliminated_by_vote.name} by vote (${c.votes}/${c.total})`, c.eliminated_by_lead && `${c.eliminated_by_lead.name} by the lead`].filter(Boolean).join(", ")}
+                </li>
+              ))}
+            </ol>
+          )}
+        </section>
+      )}
     </>
   );
 }
