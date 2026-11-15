@@ -8,7 +8,8 @@ const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 /**
  * One scene from the show's house (lib/house-scenes.ts), as a transcript with the cast's faces: where it is, who is
- * in it, which aired date they are talking about, and the lines. Only ever about what has aired. `lead`: today's
+ * in it, which aired date they are talking about, and the lines. Only ever about what has aired. A confrontation or
+ * a challenge (lib/house-conflict.ts) is headed by who is in it and closes on its result. `lead`: today's
  * scene on /house, with the page's h1 above it, so its heading is an h2 either way; an earlier scene is quieter.
  */
 export default function HouseScene({ scene, lead = false, report = true }: { scene: HouseSceneView; lead?: boolean; report?: boolean }) {
@@ -19,9 +20,15 @@ export default function HouseScene({ scene, lead = false, report = true }: { sce
         {scene.code ? `${scene.code.replace("S", "Season ").replace(" · ", ", ")} · ` : ""}
         {dayWords(scene.day)}
       </p>
-      <h2 id={headId}>{capital(scene.place.label)}</h2>
+      <h2 id={headId}>
+        {scene.result?.kind === "confrontation"
+          ? `${scene.result.a} and ${scene.result.b} have it out`
+          : scene.result?.kind === "challenge"
+            ? scene.result.title
+            : capital(scene.place.label)}
+      </h2>
       <p className="muted small house-scene-about">
-        {capital(scene.place.when)}.{" "}
+        {scene.result ? `${capital(scene.place.at)}, ${scene.place.when}.` : `${capital(scene.place.when)}.`}{" "}
         {scene.about.length > 0 && (
           <>
             On the table:{" "}
@@ -50,6 +57,17 @@ export default function HouseScene({ scene, lead = false, report = true }: { sce
           </li>
         ))}
       </ol>
+      {/* How it came out (lib/house-conflict.ts): decided by the show's rules before a line was written, never by a vote. */}
+      {scene.result?.kind === "confrontation" && (
+        <p className="house-result">
+          <strong>How it ended:</strong> {scene.result.label.charAt(0).toLowerCase() + scene.result.label.slice(1)}.
+        </p>
+      )}
+      {scene.result?.kind === "challenge" && (
+        <p className="house-result">
+          <span aria-hidden="true">🏆</span> <Link href={`/characters/${scene.result.winner.id}`}>{scene.result.winner.name}</Link> won. <strong>The prize:</strong> {scene.result.prize}.
+        </p>
+      )}
       {report && <ReportScene sceneId={scene.id} lines={scene.lines.map((l) => ({ n: l.n, name: l.name, text: l.text }))} />}
     </section>
   );

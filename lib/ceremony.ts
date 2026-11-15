@@ -28,7 +28,7 @@ import type { Db } from "./db";
 import { shortName } from "./names";
 import { notify, notifyAll } from "./notifications";
 import type { Ending } from "./rules";
-import { forgetLoadedSeasonCast } from "./season-cast";
+import { forgetLoadedSeasonCast, housePrizes } from "./season-cast";
 import { ceremonySundays, nextCeremonySunday, type SeasonFormatDef } from "./season-format";
 import { seasonFormatNow } from "./season-format-store";
 import { seasonNumber } from "./season-ref";
@@ -416,6 +416,11 @@ export type CeremonyBoard = {
    * rose once the finale handed it out. Null with casting switched off.
    */
   walk_ons: { line: string | null; peoples_rose: { id: string; name: string; roses: number } | null } | null;
+  /**
+   * The week's house challenge (lib/house-conflict.ts): who won the lead's next date, which day it is, and where the
+   * scene is. From today's prize or the next one; null without one (or once its day has passed).
+   */
+  challenge: { winner: CeremonyFace; title: string | null; day: string; scene_path: string | null } | null;
 };
 
 async function facesOf(db: Db, ids: readonly string[]): Promise<Map<string, CeremonyFace>> {
@@ -484,7 +489,13 @@ export async function ceremonyBoard(db: Db, viewerId: string | null, now: Date =
         total: lr.total ?? 0,
       }
     : null;
-  return { title: def.title, lead: face(lead), suitors: suitorCards, next, vote, last, walk_ons: await walkOnsP };
+  // The week's challenge prize, from the loaded cast (lib/season-cast.ts housePrizes): no read of its own.
+  const today = dayId(now);
+  const prize = housePrizes(now).find((p) => p.kind === "lead_date" && p.day >= today && suitors.includes(p.winner)) ?? null;
+  const challenge: CeremonyBoard["challenge"] = prize
+    ? { winner: face(prize.winner), title: prize.title, day: prize.day, scene_path: prize.scene ? `/house?scene=${encodeURIComponent(prize.scene)}#scene-${prize.scene}` : null }
+    : null;
+  return { title: def.title, lead: face(lead), suitors: suitorCards, next, vote, last, walk_ons: await walkOnsP, challenge };
 }
 
 export type CeremonySummary = {

@@ -150,6 +150,14 @@ services:
       # - key: HOUSE_SCENES
       #   value: "0"
       #   scope: RUN_AND_BUILD_TIME
+      # Confrontations and the weekly challenge (lib/house-conflict.ts; docs/seasons.md "Confrontations and
+      # challenges"): on by default. "0" stops new ones without a deploy.
+      # - key: CONFRONTATIONS
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
+      # - key: CHALLENGES
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
       # The model league (lib/model-league.ts; docs/hosting.md): /agents/league and /api/league/models, on by default.
       # "0" takes the page, its JSON and the links to it away without a deploy; models are still kept and dates stamped.
       # - key: MODEL_LEAGUE

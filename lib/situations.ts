@@ -23,7 +23,7 @@ import type { Db } from "./db";
 import { seedFrom } from "./engine";
 import { notifyAll } from "./notifications";
 import { DATE_ROLEPLAYS, fillPremise, termsFor, type DateRoleplay, type DateRoleplayDef } from "./roleplays";
-import { seasonCastIds, suitorInTurn } from "./season-cast";
+import { firstPickOn, seasonCastIds, suitorInTurn } from "./season-cast";
 import type { SeasonFormatDef } from "./season-format";
 import { seasonFormatNow } from "./season-format-store";
 import { createTemplateParty } from "./watch";
@@ -52,13 +52,17 @@ export function situationChoices(day: string): DateRoleplayDef[] {
  * The two of the season's house cast a day's vote is for. The season is the one the day falls in (noon UTC), so the
  * date made just after midnight on the 1st is still last month's pair. On a Botchelor season (the format passed in has
  * a lead, lib/ceremony.ts) the pair is the lead and the suitor whose turn it is, so every suitor dates the lead before
- * Sunday; without a format, or on any other, the pair is dealt from the day exactly as before.
+ * Sunday; without a format, or on any other, the pair is dealt from the day exactly as before, unless the week's house
+ * challenge gave its winner first pick of this day (lib/season-cast.ts firstPickOn): then it is the winner and their pick.
  */
 export function situationPair(day: string, def: SeasonFormatDef | null = null): [string, string] | null {
   const noon = new Date(`${day}T12:00:00Z`);
   if (def?.lead) return suitorInTurn(noon);
   const cast = seasonCastIds(noon);
   if (cast.length < 2) return null;
+  // The week's house challenge (lib/house-conflict.ts): its winner has first pick of this day's house date.
+  const prize = firstPickOn(day, cast);
+  if (prize) return prize;
   const i = seedFrom("situation-a", day) % cast.length;
   const j = (i + 1 + (seedFrom("situation-b", day) % (cast.length - 1))) % cast.length;
   return [cast[i], cast[j]];

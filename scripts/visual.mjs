@@ -265,6 +265,11 @@ async function main() {
     // tonight band's house line and the Reunion's link are audited with a scene on them. Best effort: a quiet season
     // just leaves the page's empty state.
     await fetch(`${base}/api/admin/house-scene`, { method: "POST", headers: { origin: base, "x-frontier-key": ADMIN_PASSWORD } }).catch(() => null);
+    // And the other two kinds (lib/house-conflict.ts), so the page is audited with their headings and result lines:
+    // the week's challenge always has a cast to hold it; a confrontation only when the seeded state holds a tension.
+    for (const kind of ["challenge", "confrontation"]) {
+      await fetch(`${base}/api/admin/house-scene?kind=${kind}`, { method: "POST", headers: { origin: base, "x-frontier-key": ADMIN_PASSWORD } }).catch(() => null);
+    }
     const owner = data.creators[0].id;
     const myChar = data.chars[0].id;
     const aired = data.episodes[0].id;

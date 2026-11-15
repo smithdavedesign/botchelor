@@ -63,10 +63,46 @@ function dealt(season: string, size: number): string[] {
 }
 
 /**
+ * A house challenge's prize (lib/house-conflict.ts, house_prizes): on `day`, the one-on-one goes to the challenge's
+ * winner. 'lead_date' (a Botchelor season): the winner takes the lead's date that day and gives up their own next
+ * turn to whoever's day it was (suitorInTurn), so no date is added and nobody dates the lead less. 'first_pick' (any
+ * other format): the day's first house date is the winner's, with the partner they picked (firstPickOn).
+ */
+export type HousePrize = { day: string; winner: string; with: string | null; kind: "lead_date" | "first_pick"; title: string | null; scene: string | null };
+
+let prizesForTests: HousePrize[] | null = null;
+/** Tests pin the season's prizes (null = what the loaded cast holds). */
+export function setHousePrizesForTests(prizes: HousePrize[] | null): void {
+  prizesForTests = prizes;
+}
+
+/** This season's challenge prizes, from the loaded cast (sync, like seasonCastIds). */
+export function housePrizes(now: Date = new Date()): HousePrize[] {
+  if (prizesForTests) return prizesForTests;
+  return stored?.season === seasonIdAt(now) ? stored.prizes : [];
+}
+
+/** The prize on a UTC day, if a challenge gave one. */
+export function housePrizeOn(day: string): HousePrize | null {
+  return housePrizes(new Date(`${day}T12:00:00.000Z`)).find((p) => p.day === day) ?? null;
+}
+
+/**
+ * On a season without a lead: the two on the day's first house date when a challenge's winner has first pick of it
+ * (the winner, then the partner they picked), as long as both are still among `cast`. Null otherwise: the day deals
+ * its pair as always.
+ */
+export function firstPickOn(day: string, cast: readonly string[]): [string, string] | null {
+  const p = housePrizeOn(day);
+  if (!p || p.kind !== "first_pick" || !p.with || p.with === p.winner) return null;
+  return cast.includes(p.winner) && cast.includes(p.with) ? [p.winner, p.with] : null;
+}
+
+/**
  * The stored cast this instance has loaded, and when (refreshSeasonCast): the house ids, the fan picks still on, and
  * on a Botchelor season the lead (lib/ceremony.ts).
  */
-let stored: { season: string; ids: string[]; fans: string[]; lead: string | null; at: number } | null = null;
+let stored: { season: string; ids: string[]; fans: string[]; lead: string | null; prizes: HousePrize[]; at: number } | null = null;
 const FRESH_MS = 60_000;
 
 /** The house ids on this season's show, in billing order (the fan picks: seasonFanCastIds). */
@@ -242,13 +278,33 @@ export function leadAndSuitors(now: Date = new Date()): { lead: string; suitors:
 /**
  * The suitor whose turn it is on a Botchelor season's house dates: the season's days deal the suitors in order (day 1
  * the first, day 2 the next…), `offset` for a day's later rooms, so every suitor dates the lead before Sunday. Null
- * without a lead or with no suitor left.
+ * without a lead or with no suitor left. The week's challenge (lib/house-conflict.ts) can trade two days of it: the
+ * winner takes the day after the challenge, and whoever's day that was takes the winner's next one. The same dates,
+ * in another order: none is added, and nothing about how any of them ends changes.
  */
 export function suitorInTurn(now: Date, offset = 0): [string, string] | null {
   const cast = leadAndSuitors(now);
   if (!cast || !cast.suitors.length) return null;
-  const day = Math.floor((now.getTime() - seasonWindow(now).start.getTime()) / (24 * 60 * 60 * 1000));
-  return [cast.lead, cast.suitors[(day + offset) % cast.suitors.length]];
+  const start = seasonWindow(now).start.getTime();
+  const DAY = 24 * 60 * 60 * 1000;
+  const day = Math.floor((now.getTime() - start) / DAY);
+  const n = cast.suitors.length;
+  const inTurn = (d: number, off = 0) => cast.suitors[(d + off) % n];
+  // A challenge's prize (HousePrize 'lead_date'): two days of the rotation trade places, and only the day's first
+  // date (offset 0). On the prize day the winner dates the lead; on the winner's own next day, whoever gave theirs up.
+  if (offset === 0) {
+    for (const p of housePrizes(now)) {
+      if (p.kind !== "lead_date" || !cast.suitors.includes(p.winner)) continue;
+      const prizeDay = Math.floor((Date.parse(`${p.day}T12:00:00.000Z`) - start) / DAY);
+      const displaced = inTurn(prizeDay);
+      if (displaced === p.winner || day < prizeDay || day > prizeDay + n) continue;
+      if (day === prizeDay) return [cast.lead, p.winner];
+      let own = prizeDay + 1;
+      while (inTurn(own) !== p.winner) own++;
+      if (day === own) return [cast.lead, displaced];
+    }
+  }
+  return [cast.lead, inTurn(day, offset)];
 }
 
 /**
@@ -277,7 +333,12 @@ export async function refreshSeasonCast(db: Db, now: Date = new Date()): Promise
   if (stored?.season === season && Date.now() - stored.at < FRESH_MS) return;
   await ensureSeasonCast(db, now);
   const { house, fans, lead } = await castKinds(db, season);
-  stored = { season, ids: house, fans, lead, at: Date.now() };
+  // The season's challenge prizes (lib/house-conflict.ts): a failed read leaves the rotation as it always was.
+  const prizes = await db
+    .query<HousePrize>(`select day, winner_id as winner, with_id as "with", kind, title, scene_id as scene from house_prizes where season_id = $1 order by day`, [season])
+    .then((r) => r.rows)
+    .catch(() => [] as HousePrize[]);
+  stored = { season, ids: house, fans, lead, prizes, at: Date.now() };
 }
 
 /** Forget the loaded cast, so the next getDb loads it again (a fan pick that left the cast leaves at once here). */
