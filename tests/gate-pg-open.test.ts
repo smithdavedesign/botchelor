@@ -56,6 +56,7 @@ const OPEN = [
 const GATED = [
   "/swipe",
   "/matches",
+  "/chat",
   "/messages",
   "/messages/aaaa/bbbb",
   "/companion",

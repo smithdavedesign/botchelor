@@ -145,6 +145,7 @@ const BUDGET: Record<string, number> = {
   characters: 8,
   watch: 8,
   "matches (owner)": 8,
+  "chat (owner)": 7,
   "swipe (owner)": 5,
   "account (owner)": 4,
   "notifications (owner)": 6,
@@ -179,6 +180,9 @@ describe("heavy pages' round trips (2026-11-04 audit)", () => {
     ["characters", null, async () => (await import("@/app/characters/page")).default({ searchParams: Promise.resolve({}) as never })],
     ["watch", null, async () => (await import("@/app/watch/page")).default({ searchParams: Promise.resolve({}) as never })],
     ["matches (owner)", "owner", async () => (await import("@/app/matches/page")).default({ searchParams: Promise.resolve({}) })],
+    // Chat (lib/chat-inbox.ts) with companions open, as on prod: the threads with them ride the round trip that reads
+    // their characters, then each character's own threads at once.
+    ["chat (owner)", "owner", async () => withEnv("COMPANION_OPEN", "1", async () => (await import("@/app/chat/page")).default({ searchParams: Promise.resolve({}) }))],
     ["swipe (owner)", "owner", async () => (await import("@/app/swipe/page")).default({ searchParams: Promise.resolve({}) as never })],
     ["account (owner)", "owner", async () => (await import("@/app/account/page")).default({ searchParams: Promise.resolve({}) as never })],
     ["notifications (owner)", "owner", async () => (await import("@/app/notifications/page")).default({ searchParams: Promise.resolve({}) })],

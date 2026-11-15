@@ -15,7 +15,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import CharacterPage from "@/app/characters/[id]/page";
 import CharactersPage from "@/app/characters/page";
 import { signSession } from "@/lib/auth";
-import { characterVerb, makeHref, sendHref, stepInHref, verbFacts, verbsFor, viewerCharacter, type VerbFacts } from "@/lib/character-verb";
+import { actionsFor, characterVerb, makeHref, sendHref, stepInHref, textVerb, verbFacts, verbsFor, viewerCharacter, type VerbFacts } from "@/lib/character-verb";
+import { companionEligible } from "@/lib/companion";
 import { HOUSE_CHARACTERS, PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
 import { setSeasonCastForTests } from "@/lib/season-cast";
 import { setSwipeGateForTests } from "@/lib/swipe-gate";
@@ -108,6 +109,50 @@ describe("which verb (characterVerb)", () => {
   });
 });
 
+describe("Text, the second action (textVerb)", () => {
+  const nell = { id: "house-nell", name: "Nell Ashby", textable: true };
+
+  it("is a button's worth of facts for anyone the viewer may text: who, the label, the click's name", () => {
+    expect(textVerb("open", nell)).toEqual({ kind: "text", label: "Text Nell", characterId: "house-nell", track: "verb-text", signIn: null });
+  });
+
+  it("sends a visitor to an account first where texting needs one, and back to the character", () => {
+    expect(textVerb("sign_in", nell)).toMatchObject({ label: "Text Nell", signIn: "/account?next=%2Fcharacters%2Fhouse-nell" });
+  });
+
+  it("is never offered where the server would refuse: texting closed to the viewer, or a character they can't text", () => {
+    expect(textVerb("closed", nell)).toBeNull();
+    expect(textVerb("open", { ...nell, textable: false })).toBeNull();
+  });
+
+  it("reads who can be texted with the verbs, by the companions' own rule: the house and open cast, and your own", async () => {
+    const me = await made("Ira Fenn");
+    const theirs = await made("Wren Kestrel", { open_to_dates: true });
+    const opened = await made("Pim Alder");
+    await t.db.query(`update characters set companion_open = true where id = $1`, [opened.id]);
+    const hidden = await made("Quiet Type");
+    await api.editCharacter(hidden.id, { visibility: "private" }, hidden.cookie);
+    await t.db.query(`update characters set companion_open = true where id = $1`, [hidden.id]);
+    const ids = [CAST.id, OFF.id, PREMIUM_HOUSE_CHARACTERS[0].id, me.id, theirs.id, opened.id, hidden.id];
+    const f = await verbFacts(t.db, me.userId, me.id, ids);
+    const textable = ids.filter((id) => f.get(id)?.textable);
+    expect(textable).toEqual([CAST.id, OFF.id, me.id, opened.id]);
+    for (const id of ids) expect(f.get(id)?.textable, id).toBe(await companionEligible(t.db, me.userId, id));
+    // A stranger: the same, less anyone's own.
+    const stranger = await verbFacts(t.db, null, null, ids);
+    expect(ids.filter((id) => stranger.get(id)?.textable)).toEqual([CAST.id, OFF.id, opened.id]);
+    // Both actions from the one read: your own character has Text and no date verb.
+    const actions = await actionsFor(t.db, { userId: me.userId, mine: { id: me.id, name: me.name }, stepIn: true, text: "open" }, ids);
+    expect(actions.get(me.id)).toEqual({ verb: null, text: expect.objectContaining({ label: "Text Ira" }) });
+    expect(actions.get(CAST.id)).toMatchObject({ verb: { kind: "send" }, text: { label: `Text ${first(CAST.name)}` } });
+    expect(actions.get(theirs.id)).toMatchObject({ verb: { kind: "send" }, text: null });
+    expect(actions.has(hidden.id)).toBe(false);
+    const closed = await actionsFor(t.db, { userId: me.userId, mine: { id: me.id, name: me.name }, stepIn: true, text: "closed" }, ids);
+    expect(closed.has(me.id)).toBe(false);
+    expect(closed.get(CAST.id)).toMatchObject({ verb: { kind: "send" }, text: null });
+  });
+});
+
 describe("what the booking would take, read ahead (verbFacts)", () => {
   it("the house cast takes dates while it's on this season's show; off it, and the premium ones, offer nothing on a card", async () => {
     const f = await verbFacts(t.db, null, null, [CAST.id, OFF.id, PREMIUM_HOUSE_CHARACTERS[0].id]);
@@ -173,16 +218,17 @@ describe("each card on /characters", () => {
     const cast = await hub(null, { tab: "cast" });
     const card = cardOf(cast, CAST.id);
     expect(card).toContain(`<a class="button dir-verb" data-track="step-in" data-track-from="card" data-track-verb="step_in" href="/step-in?with=${CAST.id}">Step into a date with ${first(CAST.name)}</a>`);
-    // The card is still one tap through to the profile, and Talk is the quieter second.
+    // The card is still one tap through to the profile, and Text is the quieter second (a button: it opens the thread).
     expect(card).toContain(`href="/characters/${CAST.id}"`);
-    expect(card).toContain(`Talk to ${first(CAST.name)}`);
-    expect(card.indexOf("dir-verb")).toBeLessThan(card.indexOf("Talk to"));
+    expect(card).toContain(`<button type="button" class="button secondary" data-track="verb-text">Text ${first(CAST.name)}</button>`);
+    expect(card.indexOf("dir-verb")).toBeLessThan(card.indexOf("verb-text"));
+    expect(card).not.toContain("Talk to");
     // The strip of faces under the cast is for someone whose cards say something else.
     expect(cast).not.toContain('id="stepin-cast-title"');
-    // A house character off this season isn't taking dates: no verb, only Talk.
+    // A house character off this season isn't taking dates: no verb, only Text.
     const off = cardOf(cast, OFF.id);
     expect(off).not.toContain("dir-verb");
-    expect(off).toContain(`Talk to ${first(OFF.name)}`);
+    expect(off).toContain(`>Text ${first(OFF.name)}</button>`);
 
     const people = await hub(null, { tab: "people" });
     expect(cardOf(people, open.id)).toContain(`data-track="verb-make" data-track-from="card" data-track-verb="make" href="/create?next=${encodeURIComponent(`/characters/${open.id}`)}">Make a character to date Wren</a>`);
@@ -203,6 +249,10 @@ describe("each card on /characters", () => {
     const people = await hub(me.cookie, { tab: "people" });
     expect(cardOf(people, open.id)).toContain(`Send Nan on a date with Wren`);
     expect(cardOf(people, me.id)).not.toContain("dir-verb");
+    // Their own characters have no date verb, and can be texted (they text back about their dates). Someone else's
+    // character that isn't on the open cast can't.
+    expect(cardOf(people, me.id)).toContain(`data-track="verb-text">Text Ira</button>`);
+    expect(cardOf(people, open.id)).not.toContain("verb-text");
     // A search's cards carry the same verbs.
     expect(cardOf(await hub(me.cookie, { q: "Wren" }), open.id)).toContain("Send Nan on a date with Wren");
   });
@@ -228,7 +278,9 @@ describe("the head of a character's page", () => {
     expect(html).toContain(`href="/create?meet=${CAST.id}&amp;next=${encodeURIComponent(`/characters/${CAST.id}`)}">make a character to date ${first(CAST.name)}</a>`);
     // One filled button: the builder's own filled "Make a character" isn't there too.
     expect(html).not.toContain("💌 Make a character to date");
-    expect(html).toContain(`Talk to ${first(CAST.name)}`);
+    // Text, one small button in the header (the card further down still explains what a thread with them is).
+    expect(html).toContain(`<p class="contestant-text"><button type="button" class="button secondary small" data-track="verb-text">Text ${first(CAST.name)}</button></p>`);
+    expect(html.indexOf("contestant-text")).toBeLessThan(html.indexOf("Step into a date with"));
   });
 
   it("someone with characters sends one, named, and can switch who goes; step-in is the outlined second", async () => {
