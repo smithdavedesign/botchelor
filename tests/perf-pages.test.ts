@@ -149,6 +149,10 @@ const BUDGET: Record<string, number> = {
   "swipe (owner)": 5,
   "account (owner)": 4,
   "notifications (owner)": 6,
+  // The scenes and this week's story map (lib/story-map.ts) side by side: the map's uncached build is the deeper one
+  // (its reads at once, then the people; the lead's lookup beside them). On prod every view shares one cached build.
+  house: 5,
+  graph: 6,
 };
 
 /** Runs `run` with one environment variable set, and puts it back. */
@@ -185,6 +189,8 @@ describe("heavy pages' round trips (2026-11-04 audit)", () => {
     ["swipe (owner)", "owner", async () => (await import("@/app/swipe/page")).default({ searchParams: Promise.resolve({}) as never })],
     ["account (owner)", "owner", async () => (await import("@/app/account/page")).default({ searchParams: Promise.resolve({}) as never })],
     ["notifications (owner)", "owner", async () => (await import("@/app/notifications/page")).default({ searchParams: Promise.resolve({}) })],
+    ["house", null, async () => (await import("@/app/house/page")).default({ searchParams: Promise.resolve({}) })],
+    ["graph", null, async () => (await import("@/app/graph/page")).default({ searchParams: Promise.resolve({}) })],
   ];
   for (const [name, who, run] of pages) {
     it(name, async () => {

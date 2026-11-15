@@ -70,7 +70,8 @@ it only coarsely, and only for a pair's first public date (below).
 - **The Reunion and the cast page:** only the public layer. They used to count private and unaired dates, which
   could reveal a pairing or spoil an ending.
 - **The ex-returns format:** it uses public edges only.
-- **The Constellation (`/graph`, `lib/graph.ts`):** the whole public layer on one canvas. A private character is name
+- **The Constellation (`/graph`, `lib/graph.ts`):** the whole public layer on one canvas (since 2026-11-15 under
+  "All time" on `/graph`, below this week's story map: see "The story map"). A private character is name
   only and its pairs are existence only (`maskNode` / `maskEdge` null every other field, and `tests/graph.test.ts`
   checks that for any field added later); a deleted account's characters vanish. From 2026-10-22 it also shows:
   - each star's **kind** (`lib/kinds.ts`), with "Colour by" character, kind or cluster, a kind filter, and a
@@ -106,6 +107,58 @@ it only coarsely, and only for a pair's first public date (below).
   ![/graph coloured by cluster: the toolbar above the sky, eight clusters in colour and "+2 smaller"](screenshots/graph-cluster-desktop.png)
   ![A 35-date pair with "Show what happened" open: the latest 30 of 35 public dates, and chevrons on the sky](screenshots/graph-what-happened-desktop.png)
   On a phone: [by cluster](screenshots/graph-cluster-mobile.png), [what happened](screenshots/graph-what-happened-mobile.png).
+
+## The story map: this week, not all time (`lib/story-map.ts`, 2026-11-15)
+
+The Constellation drew everyone who ever dated; in thirty days three visitors opened it and none scrolled. Since the
+drama wave the show has a story each day, so the map of record is now **this week's**: this season's cast (and any
+public character tied to them) and the last seven days. It lives on `/house` under today's scene ("This week in the
+house") and at the top of `/graph` ("Who's with whom this week"); the Constellation follows there as "All time", and
+the ledger, the kind table and "what the network doesn't know yet" are folded into one `<details>` (open when a
+`?ledger=` page is asked for).
+
+**Ties** (`TIE_KINDS`, strongest first; a pair can hold several, the drawing shows the strongest and the list all):
+
+| Kind | Where it comes from (public sources only) | Links to |
+| --- | --- | --- |
+| `date_now`, `date_next` | a room the watch lobby lists (`watch_parties` of a public date; an open room counts for 2 days), or a house challenge's prize until its day | the room, the scene |
+| `rivals` | the producer's public line for a `rivals` beat ("Nell and Sable both set their sights on Juniper") | `/watch` |
+| `feuding` | a `knows_said` or `mutual_distrust` beat's public line; a confrontation on `/house` that didn't clear the air; public bad blood (`relationships.public_stage`) after a date this week | `/house`, the scene, the couple |
+| `cleared` | a confrontation on `/house` that cleared the air | the scene |
+| `together` | `public_stage` dating or going steady, with a public date this week | the couple |
+| `second_date` | `public_stage` sparks (their last public date ended on a second date), this week | the couple |
+| `stories` | an `opposing_claims` beat's public line, the two named alphabetically (the stored order lists whoever holds the true story first) | `/house` |
+| `talked` | a line `/house` shows that retold an aired date: the speaker and each of the date's two | the scene |
+
+**What it never reads:** `character_opinions`, `character_heard`, `character_wants`, `character_knows_said`; a beat's
+`why`, `evidence` or `wants`; a line's words or whether its claim is true; a beat before its day; a scene line or
+result `/house` doesn't show (reported, removed, its date off the air: the map asks `listHouseScenes` what is shown);
+a date that isn't public. A tie with a private, unlisted or deleted character at either end (or as who it is over) is
+left out whole, not masked. `shapeStoryMap` is the pure half and applies those rules again on the rows it is handed
+(`tests/story-map.test.ts`, privacy cases first).
+
+**Reading and caching:** `storyMap(db, now)` is five statements at once and one more for the people; `cachedStoryMap`
+keeps one build for everyone exactly as the Constellation's is kept (60 s fresh, served stale to 10 min while it
+rebuilds, the same `constellation` tag, so `invalidateGraph` drops both at once). `/house`, `/graph` and every circle
+read that one copy.
+
+**Drawing** (`app/StoryMap.tsx`): server-rendered SVG with fixed places (`layout`: the lead in the middle, the cast on
+a ring, up to `MAP_PEOPLE_MAX` people in all, an outsider in the free outer place nearest their tie), portraits in
+circles, a line per pair in its kind's token colour and dash with its words on it, every line and face a link. No
+client JavaScript. In the page the same ties come first as a list of sentences ("Nell and Sable: rivals for Juniper,
+since Sunday"): that is what a screen reader gets (the SVG is `aria-hidden`, its links out of the tab order) and what
+a phone shows first; from 700 px the drawing is lifted above the list. A week with no ties says so.
+
+**The circle** (`app/Circle.tsx`, `loadCircle(db, characterId)`): one character in the middle and up to six people
+round them with the tie to each, from the same map. The component is plain and synchronous (data as props) and the
+loader returns null when there is nothing to show, so a page puts `loadCircle` in its own `Promise.all` and renders
+`{circle && <Circle circle={circle} />}`. In use on `/house` (the lead's circle, or that of whoever the week's
+strongest tie is about); the character page mounts it next.
+
+**The lead** is marked (accent ring, the middle of the map): this season's (`leadAndSuitors`), else the one open
+casting is running for (`castingLead`: "December's Botchelor" in November), when they are on this season's cast.
+
+`STORY_MAP=0` turns all of it off without a deploy of code: `/house` and `/graph` are as they were and nothing is read.
 
 ## The second date (`lib/second-date.ts`)
 
