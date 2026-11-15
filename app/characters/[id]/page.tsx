@@ -110,6 +110,9 @@ export default async function CharacterPage({ params, searchParams }: Props) {
   const { id } = await params;
   const sp: Search = (await searchParams) ?? {};
   const db = await getDb();
+  // Their circle (lib/story-map.ts) starts with the page's first read: the week's map is one shared copy, and on a cold
+  // one its reads overlap the page's early ones, not the wide one below (tests/perf-pages.test.ts).
+  const circleP = loadCircle(db, id).catch(() => null);
   const c = await getPublicCharacter(db, id);
   if (!c) notFound();
   const viewerId = userIdFromCookieStore(await cookies());
@@ -349,7 +352,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
     characterTalk(db, { id: c.id, name: c.name, private: c.private }, { edges: edgesP }),
     // The people around them this week (lib/story-map.ts): from the map /house already shares, so no read of its own
     // while that is warm. Null with no ties, with STORY_MAP=0, and for a private character (the map never holds one).
-    c.private ? Promise.resolve(null) : loadCircle(db, c.id),
+    c.private ? Promise.resolve(null) : circleP,
     // Whether reviews are open (a house character only while on the season's cast), read beside the rest.
     c.house ? reviewableNow(c.id) : Promise.resolve(true),
   ]);
