@@ -2904,3 +2904,31 @@ button.ad-studio-fold-head:active:not(:disabled) {
 .ad-studio-card-name {
   font-weight: 700;
 }
+
+/* The home's "Your latest" (2026-11-15, app/after-dark/page.tsx): the newest four they made, a tap from the Gallery. */
+.ad-home-latest {
+  margin: var(--space-4) 0;
+}
+.ad-home-latest-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.ad-home-latest-head h2 {
+  margin: 0;
+}
+.after-dark-gallery.ad-latest-strip {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-top: var(--space-2);
+}
+.ad-latest-strip a {
+  display: block;
+  width: 100%;
+}
+.ad-latest-strip img,
+.ad-latest-strip video {
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+}
