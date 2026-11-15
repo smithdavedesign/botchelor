@@ -22,6 +22,7 @@ const view: CompanionThreadView = {
     { id: "m3", role: "character", text: "The one you'd pretend you've read.", at: "2026-11-13T00:00:03Z", action: null, marker: null, roleplay: null, voice: "/api/companion/t1/voice/m3", scene: false },
   ] as unknown as CompanionThreadView["messages"],
   reply_length: "normal",
+  texts: false,
   scene: null,
   roleplay: null,
   paused: false,

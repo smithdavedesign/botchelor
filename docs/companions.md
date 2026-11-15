@@ -785,6 +785,8 @@ behaviour behind them):
 
 ### When the house talks about them (built 2026-11-16)
 
+**Turning texts on.** A thread's texts are off until its person turns them on: "Hear from" on an owner's verdict card, or, in any thread, Settings → "Let {name} text you first" (`action: "texts"` on the thread route, `setTexts` in lib/companion.ts, the same `muted_proactive` column). The switch is how someone texting a cast member hears when the house talks about that cast member; it only ever lets event-driven texts through, never one on silence.
+
 The outside review's point was one continuous person: what happens to a character in the show's house should reach
 the chat. `lib/house-texts.ts` is the one place every house text is written, and it does three things.
 
