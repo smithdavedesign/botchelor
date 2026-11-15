@@ -406,6 +406,9 @@ describe("your character's week (weekOf, sendCharacterWeeks)", () => {
     await t.db.query(`update episodes set created_at = $2 where id = $1`, [quiet.episode.id, new Date(SUNDAY.getTime() - 20 * DAY).toISOString()]);
     const admin = await dated("friends");
     await t.db.query(`insert into admins (user_id) values ($1) on conflict do nothing`, [userIdOf(admin.creator)]);
+    // A step-in "you" (owner `you:<id>`) is a person on one date: it has no week, and its owner id is no user.
+    const steppedIn = await dated("friends");
+    await t.db.query(`update characters set owner_id = 'you:' || owner_id where owner_id = $1`, [userIdOf(steppedIn.creator)]);
 
     // Not Sunday: nothing, unless forced.
     expect(await sendCharacterWeeks(t.db, WEEKDAY)).toBe(0);

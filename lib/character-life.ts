@@ -459,6 +459,8 @@ export async function sendCharacterWeeks(db: Db, now = new Date(), opts: { force
   const { rows } = await db.query<{ owner_id: string }>(
     `select distinct c.owner_id from characters c
       where not c.is_house and c.owner_id is not null and c.owner_id <> $1
+        -- A step-in "you" (lib/step-in-shared.ts PERSONA_OWNER_PREFIX) is a person on one date, not a character with a week.
+        and c.owner_id not like 'you:%'
         and (exists (select 1 from episodes e where c.id in (e.character_a, e.character_b) and e.status = 'ready' and e.created_at > $2::timestamptz)
           or exists (select 1 from companion_threads t join companion_messages m on m.thread_id = t.id
                       where t.character_id = c.id and t.user_id = c.owner_id and m.role = 'character' and m.created_at > $2::timestamptz)

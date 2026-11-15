@@ -131,6 +131,8 @@ const UNGATED_PAGES: ReadonlySet<string> = new Set([
   "/privacy",
   "/legal",
   "/content-policy",
+  // How a crisis is handled: the open step-in start screen links here, so it opens like the other policy pages.
+  "/safety",
   "/2257",
   "/report",
   "/cancel",
