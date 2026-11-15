@@ -403,6 +403,9 @@ async function main() {
     assert(text.includes("the words are saved as messages in this chat. Deleting the conversation deletes them."), `the call's notice should say the words are kept and how they go: "${text}"`);
     const link = notice.getByRole("link", { name: "What a call keeps" });
     assert((await link.getAttribute("href")) === "/privacy#calls" && (await link.getAttribute("target")) === "_blank", "the notice should open the privacy notice's calls section in a new tab");
+    // Readable on the call's dark backdrop: the link takes the line's own colour, not the site's accent.
+    const colours = await notice.evaluate((el) => [getComputedStyle(el).color, getComputedStyle(el.querySelector("a")).color]);
+    assert(colours[0] === colours[1], `the notice's link should be the line's colour (${colours[0]}), got ${colours[1]}`);
     const box = await notice.boundingBox();
     assert(box && box.x >= 0 && box.x + box.width <= width, `the call's notice should fit a ${width}px screen (it spans ${box?.x}–${box && box.x + box.width})`);
     // Above the button, so it's read before the tap that turns the microphone on.
@@ -455,7 +458,8 @@ async function main() {
       page = await admin.newPage();
       await page.goto(`${base}/characters/${who.id}`);
       await page.getByRole("heading", { name: `💬 Talk with ${first}` }).waitFor({ timeout: 15_000 });
-      await page.getByRole("button", { name: `Talk with ${first}` }).click();
+      // The section's button reads "Talk to <name>" since the Chat wave (b0538c6c); the header's reads "Text".
+      await page.getByRole("button", { name: `Talk to ${first}` }).click();
       await page.waitForURL(/\/companion\/[^/]+$/, { timeout: 30_000 });
       threadPath = new URL(page.url()).pathname;
       await page.locator(".companion-thread .chat-note", { hasText: `${first} is an AI character, not a real person.` }).waitFor({ timeout: 10_000 });
