@@ -196,8 +196,9 @@ describe("when a date airs (afterAired)", () => {
     const nell = rows.find((r) => r.holder_id === NELL)!;
     expect(nell).toMatchObject({ about_id: DEX, basis: "firsthand", source: aired, attraction: 2, trust: 2, take: "He made me laugh twice before the drinks came." });
     const dex = rows.find((r) => r.holder_id === DEX)!;
-    // Its own answer was read from the date, so the take is its reflection's sentence about her.
-    expect(dex).toMatchObject({ about_id: NELL, attraction: 0, take: "She is quick, and I can't tell yet if she means it." });
+    // Its answer was only read from the date, so its decided wish stands in (yes) and the take is its reflection's
+    // sentence about her; it ended the night wary, so trust stays where the second date put it, less one.
+    expect(dex).toMatchObject({ about_id: NELL, attraction: 1, trust: 1, take: "She is quick, and I can't tell yet if she means it." });
   });
 
   it("is idempotent, and the cast who weren't on the date watch it air (nobody who was, nobody off the cast)", async () => {

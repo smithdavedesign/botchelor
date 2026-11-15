@@ -314,9 +314,10 @@ on both sides (one or two things heard about the other, the opinion that hearsay
   reuses one line, thought "Good joke, but Marisol's constellation story is still in my head" and then caught him
   contradicting himself about his basil. The endings didn't move (the engine decides them), and the dates read like the
   ones before: same voices, no line reciting the block.
-- The stub sim (`npm run sim:relationships --pairs 1,4 --dates 3`) checks the plumbing end to end: after each aired
-  date both characters hold a firsthand opinion of the other from that date (`date-N-storyA.json`, and `thinks` in
-  `summary.json`).
+- The stub sim (`npm run sim:relationships -- --pairs 1 --dates 3`) checks the plumbing end to end in a real app:
+  after each of the three aired dates both characters held a firsthand opinion of the other from that date
+  (`date-N-storyA.json`, and `thinks` in `summary.json`). The sim had stopped at "claim admin → 401" since admins
+  became signed-in accounts; it signs each owner up first now.
 
 ## The house cast
 `lib/house-kits.ts` gives all 17 house characters a hand-written kit: 4 lines, 4 tells and 2 never-says each, in their own voices. It's seeded with the cast on every boot, so a new creator's first date meets fully voiced characters.

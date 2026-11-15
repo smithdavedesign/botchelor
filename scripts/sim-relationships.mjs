@@ -97,7 +97,24 @@ function envFor(showrunnerPort, dataDir) {
   return env;
 }
 
+/**
+ * A handle-and-password account for the persona: an admin is a signed-in account (the 2026-11 security review), so the
+ * claim below needs one. Its signed session joins the persona's cookie; the visitor id, and so its characters, stay.
+ */
+async function signUp(base, who) {
+  const res = await fetch(`${base}/api/auth/register`, {
+    method: "POST",
+    headers: { "content-type": "application/json", cookie: who.cookie, origin: base, "x-forwarded-for": ipFor(who.id) },
+    body: JSON.stringify({ handle: `sim${randomBytes(4).toString("hex")}`, password: randomBytes(12).toString("hex"), attest: true }),
+  });
+  if (!res.ok) throw new Error(`sign up → ${res.status}`);
+  const sess = res.headers.getSetCookie().map((c) => c.split(";")[0]).filter((c) => c.startsWith("bz_sess="));
+  if (!sess.length) throw new Error("sign up set no session cookie");
+  who.cookie = [who.cookie, ...sess].join("; ");
+}
+
 async function grantDates(base, who) {
+  await signUp(base, who);
   must(await post(base, "/api/admin/claim", {}, who, { "x-frontier-key": ADMIN_PASSWORD }), "claim admin");
   must(await post(base, "/api/admin/tokens", {}, who), "grant dates");
 }
@@ -128,10 +145,11 @@ async function runPair(index, pair, browser) {
   try {
     const ownerA = persona();
     const ownerB = persona();
-    const a = await call("/api/characters", { ...pair.a, open_to_dates: true, attest: true, keep_name: true }, ownerA);
-    const b = await call("/api/characters", { ...pair.b, open_to_dates: true, attest: true, keep_name: true }, ownerB);
+    // Accounts first (grantDates signs each owner up), so their characters are made by the account that books the dates.
     await grantDates(base, ownerA);
     await grantDates(base, ownerB);
+    const a = await call("/api/characters", { ...pair.a, open_to_dates: true, attest: true, keep_name: true }, ownerA);
+    const b = await call("/api/characters", { ...pair.b, open_to_dates: true, attest: true, keep_name: true }, ownerB);
 
     let prev = null;
     for (let n = 1; n <= DATES; n++) {

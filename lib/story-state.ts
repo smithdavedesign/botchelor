@@ -528,7 +528,9 @@ function factsOf(ep: AiredRow, side: "a" | "b", status: PairStatus): FirsthandFa
     ending: ep.ending,
     feeling,
     strength,
-    seeAgain: choice?.see_again ?? (wants === undefined ? null : wants ? "yes" : "no"),
+    // Its own answer when it gave one; an answer only read from the date (lib/choices.ts readChoice) gives way to the
+    // side's decided wish, which is what the ending was built on.
+    seeAgain: choice && !choice.read ? choice.see_again : wants === undefined ? (choice?.see_again ?? null) : wants ? "yes" : "no",
     status,
     turnedDown: rejected ? (rejected === side ? "you" : "them") : null,
     walkedOut: walked ? (walked === side ? "you" : "them") : null,
