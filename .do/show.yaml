@@ -140,6 +140,11 @@ services:
       # - key: OPEN_CASTING
       #   value: "0"
       #   scope: RUN_AND_BUILD_TIME
+      # The daily house scene (lib/house-scenes.ts; docs/seasons.md "The house"): on by default, one free-model call a
+      # day or a template. "0" writes no scene and /house says the house is quiet, without a deploy.
+      # - key: HOUSE_SCENES
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
       # The model league (lib/model-league.ts; docs/hosting.md): /agents/league and /api/league/models, on by default.
       # "0" takes the page, its JSON and the links to it away without a deploy; models are still kept and dates stamped.
       # - key: MODEL_LEAGUE

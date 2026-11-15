@@ -150,6 +150,8 @@ export async function showSince(db: Db, viewerId: string | null, now: Date = new
   const c = calls.rows[0];
   const n = night.rows[0];
   const def = n ? DATE_ROLEPLAYS.find((r) => r.id === n.pick) : undefined;
+  // The three that ride along (the week's twist, the cast chat, the house scene): side by side, not one after another.
+  const [twist, chat, house] = await Promise.all([twistSince(db, since, now), chatSince(db, since, now), houseSince(db, since, now)]);
   const card: ShowSince = {
     since: visit.toISOString(),
     aired: aired.rows[0]?.n ?? 0,
@@ -167,9 +169,9 @@ export async function showSince(db: Db, viewerId: string | null, now: Date = new
     secret,
     backing,
     season: seasonClosedSince(since, now),
-    twist: await twistSince(db, since, now),
-    chat: await chatSince(db, since, now),
-    house: await houseSince(db, since, now),
+    twist,
+    chat,
+    house,
   };
   // The week's shift alone isn't news since a visit (it can predate it), so it never shows the card by itself.
   // Nor is the week's twist: most weeks have one, so it rides along but never summons the card. The cast chat is daily
