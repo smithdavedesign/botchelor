@@ -203,6 +203,12 @@ export type CompanionNextTime = {
   note: string | null;
 };
 
+/**
+ * The answer box under a question a character asked about its own sheet (lib/character-questions.ts; the offer kind
+ * `answer`): which field it fills, what the box is for, and the longest answer the sheet takes.
+ */
+export type CompanionQuestionView = { field: string; label: string; placeholder: string; max: number };
+
 export type CompanionMessageView = {
   id: string;
   role: "user" | "character" | "system";
@@ -211,6 +217,8 @@ export type CompanionMessageView = {
   reported: boolean;
   /** The chips under this text, while they're open (absent or null otherwise). */
   offers?: CompanionOffersView | null;
+  /** The answer box under this text: the newest question the character asked about its sheet, while it has no answer. */
+  question?: CompanionQuestionView | null;
   /** The scene it was said in (null: texted). */
   scene: VenueId | null;
   /** In a scene, what the character does as they say it. */
