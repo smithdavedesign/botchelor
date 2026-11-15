@@ -10,6 +10,7 @@
  * "Since you were here", so the page waits on no extra round trip). No model, no writes.
  * HOME_PHONE=0 turns the block off.
  */
+import { CASTING_MET_VIA, nextRosesAt, openCasting } from "./casting";
 import { isStoredQuestion, type StoredQuestion } from "./character-question-fields";
 import type { StoredOffers } from "./companion-offers";
 import { companionOpen, companionThreadHref, COMPANION_OFFER_KINDS, offerLabel } from "./companion-shared";
@@ -38,7 +39,7 @@ const firstNameOf = (name: string) => name.trim().split(/\s+/)[0] || name;
 export type PhoneText = { id: string; text: string; at: string; /** A photo from a date (lib/date-photo.ts): `text` is its alt text. */ photo: boolean };
 export type PhoneChip = { label: string; href: string };
 export type PhoneNext = {
-  key: "on_date" | "ready" | "scheduled" | "weekly" | "recap" | "first_date";
+  key: "on_date" | "ready" | "scheduled" | "roses" | "weekly" | "recap" | "first_date";
   text: string;
   href: string | null;
   /** A moment to show by the viewer's clock (a scheduled date), or null. */
@@ -95,6 +96,8 @@ type DateRow = {
   aired: boolean | null;
   partner: string | null;
   created_at: Date | string | null;
+  /** The newest date is a walk-on's with the season's lead (lib/casting.ts) that no Sunday has judged yet. */
+  awaiting_rose: boolean | null;
   last_life_at: Date | string | null;
   scheduled_at: Date | string | null;
   has_ready: boolean;
@@ -102,12 +105,13 @@ type DateRow = {
 
 /**
  * One read for every character: its thread with its owner (the opt-in, the unread dot, its last few texts, newest
- * last), its newest date on the show (After Dark's stay on its own host), its next booking and its last house date.
+ * last), its newest date on the show (After Dark's stay on its own host, and whether Sunday's roses are still to come
+ * for it), its next booking and its last house date.
  */
 const phoneRows = (db: Db, userId: string, ids: readonly string[], now: Date) =>
   db.query<DateRow & Partial<ThreadRow>>(
     `select c.id as character_id, c.visibility, c.open_to_dates,
-            d.episode_id, d.status, d.ending_final, d.aired, d.partner, d.created_at,
+            d.episode_id, d.status, d.ending_final, d.aired, d.partner, d.created_at, d.awaiting_rose,
             (select max(l.created_at) from episodes l where l.character_a = c.id and l.setup->>'met_via' = 'life') as last_life_at,
             (select min(s.run_at) from scheduled_dates s where s.character_id = c.id and s.ran_at is null and s.run_at > $3::timestamptz) as scheduled_at,
             exists (select 1 from episodes r where c.id in (r.character_a, r.character_b) and r.status = 'ready') as has_ready,
@@ -122,14 +126,16 @@ const phoneRows = (db: Db, userId: string, ids: readonly string[], now: Date) =>
        left join companion_threads t on t.character_id = c.id and t.user_id = $2
        left join lateral (
          select e.id as episode_id, e.status, (e.setup->>'ending_final')::boolean as ending_final, e.revealed_at is not null as aired,
-                p.name as partner, e.created_at
+                p.name as partner, e.created_at,
+                (e.setup->>'met_via' = $4 or exists (select 1 from walk_on_roses w where w.next_episode_id = e.id))
+                  and not exists (select 1 from walk_on_roses w where w.episode_id = e.id) as awaiting_rose
            from episodes e
            join characters p on p.id = case when e.character_a = c.id then e.character_b else e.character_a end
           where c.id in (e.character_a, e.character_b) and e.status in ('generating', 'ready')
             and coalesce((e.setup->>'after_dark')::boolean, false) = false
           order by e.created_at desc, e.id limit 1) d on true
       where c.id = any($1::text[])`,
-    [ids, userId, now.toISOString()],
+    [ids, userId, now.toISOString(), CASTING_MET_VIA],
   );
 
 /** A date's ending won't move: ready, or still being finished with the early verdict in (= lib/after-date-text.ts endingStands, kept apart so the home page doesn't load the companion's model code). */
@@ -204,6 +210,12 @@ export function phoneOf(character: CharacterRef, t: ThreadRow | null, d: DateRow
   else if (date && date.status === "ready" && !date.aired) next.push({ key: "ready", text: `The date with ${partner} is ready to watch`, href: episode, at: null });
   if (d?.scheduled_at) next.push({ key: "scheduled", text: "A date is booked for", href: `/characters/${encodeURIComponent(character.id)}`, at: iso(d.scheduled_at) });
   if (!date) next.push({ key: "first_date", text: "A first date is a speed date: about a minute, and free", href: `/create?character=${encodeURIComponent(character.id)}`, at: null });
+  // Open casting (lib/casting.ts): a walk-on's finished date with the season's lead is judged at the next Sunday pass.
+  if (date && date.status === "ready" && date.awaiting_rose && openCasting(env)) {
+    const at = nextRosesAt(now, env);
+    const today = at.getTime() - now.getTime() < DAY_MS && at.getUTCDay() === now.getUTCDay();
+    next.push({ key: "roses", text: `${today ? "Today's" : "Sunday's"} roses: ${partner} decides whether ${first} gets one`, href: episode, at: null });
+  }
   // The house's weekly date (lib/character-life.ts candidates): a character with a date behind it and a portrait, public
   // or at least open to dates. Said only when it can happen, and never with a day it may not keep.
   if (d?.has_ready && character.portrait && (d.visibility === "public" || d.open_to_dates) && weeklyDatesOn(env)) {

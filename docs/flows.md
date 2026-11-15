@@ -103,7 +103,8 @@ the rest of the page as before:
 - **The chips:** the newest open menu of the thread ("Yes, see {partner} again", "Try someone new", "Tell {first} what to
   do next time", [companions.md](companions.md)), or "Answer {first}" when its last text ends on a question nobody
   answered. They are links into the thread, where the tap happens: nothing is booked from the home page.
-- **What's next** (three lines at most): on a date right now / a date ready to watch; a scheduled date; the house's
+- **What's next** (three lines at most): on a date right now / a date ready to watch; a scheduled date; Sunday's roses
+  while a walk-on's date with the season's lead is still to be judged (open casting, `lib/casting.ts`); the house's
   weekly date (only for a character it can happen to: a date behind it, a portrait, public or open to dates, life dates
   on) with the day it comes from; Sunday's recap when something happened this week; "a first date is a speed date" for
   a character with none.

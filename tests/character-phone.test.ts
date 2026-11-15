@@ -253,6 +253,23 @@ describe("texts waiting: an opted-in thread with an unread text", () => {
   });
 });
 
+describe("open casting (lib/casting.ts): Sunday's roses", () => {
+  it("says the lead decides on Sunday while a walk-on's date is unjudged, and stops once it is, or with casting off", async () => {
+    const { creator, character, episode } = await setupEpisode("second_date");
+    await heard(creator, episode.id);
+    expect((await phoneFor(creator))!.next.some((n) => n.key === "roses")).toBe(false);
+    await t.db.query(`update episodes set setup = setup || '{"met_via":"casting"}'::jsonb where id = $1`, [episode.id]);
+    const waiting = (await phoneFor(creator))!;
+    expect(waiting.next.find((n) => n.key === "roses")).toEqual({ key: "roses", text: `Sunday's roses: ${firstOf(H0.name)} decides whether Mira gets one`, href: `/episodes/${episode.id}`, at: null });
+    // On the Sunday itself, before the pass (20:20 UTC): today's.
+    expect((await phoneFor(creator, new Date("2026-11-15T12:00:00Z")))!.next.find((n) => n.key === "roses")?.text).toBe(`Today's roses: ${firstOf(H0.name)} decides whether Mira gets one`);
+    expect((await phoneFor(creator, NOW, { COMPANION_OPEN: "1", OPEN_CASTING: "0" }))!.next.some((n) => n.key === "roses")).toBe(false);
+    // Judged: the row is gone (the character's own text tells them which way it went).
+    await t.db.query(`insert into walk_on_roses (season_id, held_on, character_id, episode_id, rose) values ('2026-11', '2026-11-15', $1, $2, true)`, [character.id, episode.id]);
+    expect((await phoneFor(creator))!.next.some((n) => n.key === "roses")).toBe(false);
+  });
+});
+
 describe("several characters", () => {
   it("leads with the one that has an unread text, and lists the others as ways into their own threads or pages", async () => {
     const creator = newUserCookie();
