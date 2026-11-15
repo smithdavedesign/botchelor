@@ -13,12 +13,13 @@
  *  - template: an always-on house-vs-house date; starts_at is null until the first viewer joins, then it
  *    plays on one shared clock — "join and the date starts" — so there is always something to drop into.
  */
+import { isInsider, showCrowd } from "./crowd-threshold";
 import { getDb, type Db } from "./db";
 import { dateNumberSql } from "./date-number";
 import { decideTraced, seedFrom } from "./engine";
 import { track, trackDateQuality, trackEpisodeCost } from "./analytics";
 import { failureReason } from "./jobs";
-import { showCastIds } from "./season-cast";
+import { showCastIds, suitorInTurn } from "./season-cast";
 import type { BoxScore, CharacterRef, DateSetup } from "./game";
 import { portraitPathSql } from "./assets";
 import { claimPaidDate } from "./limits";
@@ -240,6 +241,8 @@ export type RoomState = {
   is_host: boolean;
   clock: WatchClock;
   watching: number;
+  /** Whether to say "N watching" to this viewer (lib/crowd-threshold.ts: insiders from 1, strangers from CROWD_MIN). */
+  show_watching: boolean;
   characters: [CharacterRef, CharacterRef];
   setting: string;
   /** Which date this is for the couple (lib/rules dateNumberOf), or null: on a third date the happy ending is "A fourth date". */
@@ -381,13 +384,16 @@ export async function getRoomState(
   const clock = watchClock(row.starts_at, now);
   const idx = clock.phase_index;
 
-  const watching = (
-    await db.query<{ n: number }>(
-      `select count(*)::int as n from watch_presence
-        where party_id = $1 and last_seen > now() - ($2::int * interval '1 second')`,
-      [partyId, WATCH_PRESENCE_WINDOW_SECONDS],
-    )
-  ).rows[0].n;
+  const [watching, insider] = await Promise.all([
+    db
+      .query<{ n: number }>(
+        `select count(*)::int as n from watch_presence
+          where party_id = $1 and last_seen > now() - ($2::int * interval '1 second')`,
+        [partyId, WATCH_PRESENCE_WINDOW_SECONDS],
+      )
+      .then((r) => r.rows[0].n),
+    isInsider(db, viewerId),
+  ]);
 
   const reactionRows = (
     await db.query<{ emoji: string; count: number; mine: boolean }>(
@@ -511,6 +517,7 @@ export async function getRoomState(
     is_host: viewerId !== null && row.host_id === viewerId,
     clock,
     watching,
+    show_watching: showCrowd(watching, { insider }),
     characters,
     setting: row.setting,
     date_number: row.date_number,
@@ -1028,7 +1035,10 @@ export async function refreshLobby(
     const dealt = seedFrom("lobby-a", day, attempt + 2 * round);
     const i = fresh.length ? cast.indexOf(fresh[dealt % fresh.length]) : dealt % cast.length;
     const j = (i + 1 + (seedFrom("lobby-b", day, attempt + 2 * round) % (cast.length - 1))) % cast.length;
-    const result = await createTemplateParty(db, cast[i], cast[j], thumbs);
+    // A Botchelor season (lib/ceremony.ts): the lead with the suitor whose turn it is, a later room the next suitor.
+    const courting = def?.lead ? suitorInTurn(now, attempt + 2 * round) : null;
+    const [a, b] = courting ?? [cast[i], cast[j]];
+    const result = await createTemplateParty(db, a, b, thumbs);
     if (!result || !result.ok) continue;
     const { rows } = await db.query<{ n: number }>(
       `select jsonb_array_length(e.transcript)::int as n from watch_parties w join episodes e on e.id = w.episode_id where w.id = $1`,

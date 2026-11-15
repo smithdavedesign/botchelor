@@ -25,7 +25,7 @@ import type { ProducerId } from "./rules";
 import { seasonWindow } from "./season-window";
 import type { VenueId } from "./venues";
 
-export const SEASON_FORMAT_SLUGS = ["classic", "island", "last_standing", "sight_unseen", "meet_the_folks", "ex_files"] as const;
+export const SEASON_FORMAT_SLUGS = ["classic", "island", "last_standing", "sight_unseen", "meet_the_folks", "ex_files", "botchelor"] as const;
 export type SeasonFormatSlug = (typeof SEASON_FORMAT_SLUGS)[number];
 
 export type TwistWeek = {
@@ -44,10 +44,29 @@ export type TwistWeek = {
 };
 
 export type RecouplingRule = {
-  /** When a recoupling night runs: on the season's last night, or at the end of every season week. */
-  nights: "last_night" | "weekly";
+  /**
+   * When a recoupling night runs: on the season's last night, at the end of every season week, or never ("none": a
+   * format whose weekly appointment is the rose ceremony instead, lib/ceremony.ts).
+   */
+  nights: "last_night" | "weekly" | "none";
   /** What the season's FINAL vote asks: the couple in trouble, or (island) the newcomer who joins next season. */
   finalVote: "couple_in_trouble" | "newcomer";
+};
+
+/**
+ * A lead format (The Botchelor, lib/ceremony.ts): one cast member dates people's characters, and a rose ceremony every
+ * Sunday sends suitors home. Everything about it is config here; the ceremony's rules are lib/ceremony.ts's.
+ */
+export type LeadRule = {
+  /** How many places the season's cast has, the lead included (BOTCHELOR_SEASON_CAST_SIZE is for the other formats). */
+  places: number;
+  /** How many suitors at least: fewer approved auditions than this, and the house's own agent-made characters fill in. */
+  suitorsMin: number;
+  /** The ceremony's cadence: every Sunday of the season at CEREMONY_HOUR_UTC. */
+  ceremony: "weekly";
+  /** What the casting page calls an audition under this format. */
+  auditionVerb: string;
+  auditionNoun: string;
 };
 
 export type SeasonFormatDef = {
@@ -66,7 +85,24 @@ export type SeasonFormatDef = {
   venues: readonly VenueId[] | null;
   twists: readonly TwistWeek[];
   recoupling: RecouplingRule;
+  /** Set on a lead format only (The Botchelor); every other format leaves it out and runs exactly as before. */
+  lead?: LeadRule;
 };
+
+/** The first-date places of a courtship season: candlelit, open-air, the kind of table a rose gets handed over. */
+const COURTSHIP_VENUES: readonly VenueId[] = [
+  "rooftop_bar",
+  "tasting_menu",
+  "stargazing_hill",
+  "botanic_park",
+  "jazz_bar",
+  "pier_at_night",
+  "hot_air_balloon",
+  "ballroom_lesson",
+  "old_cinema",
+  "night_beach",
+  "cooking_class",
+];
 
 /** The villa pool: open-air, beachy, golden-hour places from the existing library (lib/venues.ts). */
 const VILLA_VENUES: readonly VenueId[] = [
@@ -228,6 +264,27 @@ export const SEASON_FORMATS: readonly SeasonFormatDef[] = [
     ],
     recoupling: { nights: "weekly", finalVote: "couple_in_trouble" },
   },
+  {
+    // The show's own premise, finally run as a season (David, 2026-11-14: "the product original"): one lead from the
+    // cast, people's characters as the suitors, and a rose ceremony every Sunday where the audience's vote and the
+    // lead's own date verdicts each send one home (lib/ceremony.ts). No recoupling night: the ceremony is the week's
+    // appointment. The cast rules are lib/season-cast.ts pickCast's (the lead, then the suitors).
+    slug: "botchelor",
+    title: "The Botchelor",
+    pitch: "One lead, your characters as the suitors, and a rose ceremony every Sunday: the audience sends one home, the lead's own dates send another.",
+    emoji: "🥀",
+    label: "The Botchelor",
+    announce: "This month: The Botchelor. One lead, a house full of your characters, and every Sunday two of them go home: one by your vote, one by how the dates went.",
+    venues: COURTSHIP_VENUES,
+    twists: [
+      { week: 1, label: "First impressions", tease: "The suitors arrive: every house date this week is the lead's first look at one of them.", format: null, producer: null, pairing: null },
+      { week: 2, label: "The hard question", tease: "Second looks: every date this week opens on a hard question, with a rose on the line.", format: null, producer: "a_hard_question", pairing: null },
+      { week: 3, label: "Hometowns", tease: "Hometowns week: someone's family joins the lead's dates, and not everyone passes.", format: "meet_the_parents", producer: null, pairing: null },
+      { week: 4, label: "The final rose", tease: "The final two: quiet confessions on every table before the last Sunday's rose.", format: null, producer: "a_quiet_confession", pairing: null },
+    ],
+    recoupling: { nights: "none", finalVote: "couple_in_trouble" },
+    lead: { places: 6, suitorsMin: 4, ceremony: "weekly", auditionVerb: "Apply to be a suitor", auditionNoun: "suitor" },
+  },
 ] as const;
 
 export const DEFAULT_SEASON_FORMAT: SeasonFormatSlug = "classic";
@@ -281,6 +338,7 @@ const dayId = (d: Date): string => d.toISOString().slice(0, 10);
 export function recouplingNightDays(def: SeasonFormatDef, now: Date): string[] {
   const { start, end } = seasonWindow(now);
   const last = new Date(end.getTime() - DAY_MS);
+  if (def.recoupling.nights === "none") return [];
   if (def.recoupling.nights === "last_night") return [dayId(last)];
   const out: string[] = [];
   for (let d = new Date(start.getTime() + 6 * DAY_MS); d < last; d = new Date(d.getTime() + 7 * DAY_MS)) {
@@ -300,4 +358,27 @@ export function nextRecouplingDay(def: SeasonFormatDef, now: Date): string | nul
 export function isFinalNight(def: SeasonFormatDef, nightDay: string, now: Date): boolean {
   const days = recouplingNightDays(def, now);
   return days[days.length - 1] === nightDay;
+}
+
+/** The day a season week's ceremony needs behind it before its first Sunday counts: a Sunday on day 1 or 2 has no dates. */
+const CEREMONY_MIN_SEASON_DAY = 3;
+
+/**
+ * The UTC Sundays of a lead format's season that hold a rose ceremony (lib/ceremony.ts), in order: every Sunday from
+ * the season's third day on. The last one is the finale. Empty for a format without a lead.
+ */
+export function ceremonySundays(def: SeasonFormatDef, now: Date): string[] {
+  if (!def.lead) return [];
+  const { start, end } = seasonWindow(now);
+  const out: string[] = [];
+  for (let d = new Date(start.getTime() + (CEREMONY_MIN_SEASON_DAY - 1) * DAY_MS); d < end; d = new Date(d.getTime() + DAY_MS)) {
+    if (d.getUTCDay() === 0) out.push(dayId(d));
+  }
+  return out;
+}
+
+/** The next ceremony Sunday (today's counts until the day ends), or null when the season has none left. */
+export function nextCeremonySunday(def: SeasonFormatDef, now: Date): string | null {
+  const today = dayId(now);
+  return ceremonySundays(def, now).find((d) => d >= today) ?? null;
 }

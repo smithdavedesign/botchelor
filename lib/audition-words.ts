@@ -18,3 +18,12 @@ export const AUDITION_BLOCKS = {
   rejected: "It was turned down for this season. Try again next month.",
 } as const;
 export type AuditionBlock = keyof typeof AUDITION_BLOCKS;
+
+/**
+ * What the casting page calls an audition under next season's format (lib/season-format.ts): on a Botchelor season a
+ * character applies to be a suitor; on every other it auditions for the cast. The requirements are the same either way.
+ */
+export function auditionWords(lead: { auditionVerb: string; auditionNoun: string } | null | undefined): { verb: string; noun: string; places: string } {
+  if (!lead) return { verb: "Audition", noun: "cast member", places: "the cast" };
+  return { verb: lead.auditionVerb, noun: lead.auditionNoun, places: "the lead's suitors" };
+}

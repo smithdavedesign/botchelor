@@ -17,6 +17,7 @@
  *    with a fixed-text fallback stored the same way. About 1¢ a season, never per page view.
  */
 import { portraitPathSql } from "./assets";
+import { finalRoseAward } from "./ceremony";
 import { trimTo } from "./conversation";
 import type { Db } from "./db";
 import { needsTranslation } from "./language-check";
@@ -256,7 +257,8 @@ export async function computeRecapData(db: Db, seasonId: string): Promise<Season
       w,
     ),
     castOf(db, seasonId, nextId, start, end),
-    seasonAwards(db, { start, end }),
+    // The season's awards (lib/reunion.ts), and on a Botchelor season the final rose first (lib/ceremony.ts).
+    Promise.all([seasonAwards(db, { start, end }), finalRoseAward(db, seasonId).catch(() => null)]).then(([list, rose]) => (rose ? [rose, ...list] : list)),
   ]);
 
   // Each couple's dates, oldest first, then the busiest couples' lines.

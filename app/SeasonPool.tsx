@@ -1,11 +1,16 @@
 import Link from "next/link";
 import { countdown } from "@/lib/countdown";
+import { crowdLine, showCrowd } from "@/lib/crowd-threshold";
 import { ordinal, type PoolBoard, type PoolStanding } from "@/lib/season-pool";
 import Icon from "@/app/Icon";
 
-/** A revealed season pool (lib/season-pool.ts): its top places, ties sharing one, and the viewer's own line. */
-export function PoolBoardList({ board, link = true }: { board: PoolBoard; link?: boolean }) {
+/**
+ * A revealed season pool (lib/season-pool.ts): its top places, ties sharing one, and the viewer's own line. The player
+ * count obeys the empty-room rule (lib/crowd-threshold.ts): a stranger reads "players" only once there's a crowd.
+ */
+export function PoolBoardList({ board, link = true, insider = false }: { board: PoolBoard; link?: boolean; insider?: boolean }) {
   const listed = board.top.some((e) => e.mine);
+  const players = crowdLine(board.players, { one: "player", many: "players" }, { insider });
   return (
     <div className="season-pool-board">
       <ol className="callers-board">
@@ -21,7 +26,7 @@ export function PoolBoardList({ board, link = true }: { board: PoolBoard; link?:
         ))}
       </ol>
       <p className="muted small">
-        {board.players} {board.players === 1 ? "player" : "players"}. Names show only for people who put one up.
+        {players ? `${players}. ` : ""}Names show only for people who put one up.
         {board.me && !listed ? ` You finished ${ordinal(board.me.place)} with ${board.me.points} points.` : ""}
         {link && (
           <>
@@ -39,8 +44,10 @@ export function PoolBoardList({ board, link = true }: { board: PoolBoard; link?:
  * dares and the backing), the board hidden until the season closes. Shows the viewer's standing in the running season
  * and, for the first week of the next one, the board just revealed.
  */
-export default function SeasonPoolPanel({ standing, revealed, now }: { standing: PoolStanding | null; revealed: PoolBoard | null; now: number }) {
+export default function SeasonPoolPanel({ standing, revealed, now, insider = false }: { standing: PoolStanding | null; revealed: PoolBoard | null; now: number; insider?: boolean }) {
   if (!standing && !revealed) return null;
+  // "N players have points so far": only to someone with a character, or once N is a crowd (lib/crowd-threshold.ts).
+  const players = standing ? crowdLine(standing.players, { one: "player has", many: "players have" }, { insider }) : "";
   return (
     <section className="watch-section season-pool" id="season-pool" aria-labelledby="season-pool-head">
       <h2 id="season-pool-head">
@@ -51,7 +58,7 @@ export default function SeasonPoolPanel({ standing, revealed, now }: { standing:
           <p className="small">
             <strong>The {revealed.label} pool is out.</strong>
           </p>
-          <PoolBoardList board={revealed} />
+          <PoolBoardList board={revealed} insider={insider} />
         </>
       )}
       {standing && (
@@ -59,13 +66,13 @@ export default function SeasonPoolPanel({ standing, revealed, now }: { standing:
           {standing.points > 0 ? (
             <>
               <strong>
-                You: {standing.points} points{standing.place ? `, ${ordinal(standing.place)} of ${standing.players} so far` : ""}.
+                You: {standing.points} points{standing.place ? `, ${ordinal(standing.place)}${showCrowd(standing.players, { insider }) ? ` of ${standing.players}` : ""} so far` : ""}.
               </strong>{" "}
               {standing.leader > standing.points ? `The leader has ${standing.leader}. ` : standing.place === 1 ? "You're leading. " : ""}
             </>
           ) : (
             <>
-              {standing.players > 0 ? `${standing.players} ${standing.players === 1 ? "player has" : "players have"} points so far. ` : ""}
+              {players ? `${players} points so far. ` : ""}
               <Link href="/watch#airing-soon">Call an ending</Link> to get on the board.{" "}
             </>
           )}

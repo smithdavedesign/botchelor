@@ -35,6 +35,7 @@ export type NotificationKind =
   | "date_went_well" // the day after your character's date aired, when it ended in a second date: share it, or book the next (lib/air.ts notifyWentWell)
   | "welcome" // the account's first notice: what to do here (lib/auth.ts, the 2026-11-11 growth plan)
   | "week_best" // a quiet week: the best date of the week, once a month at most (lib/reengage.ts)
+  | "character_week" // Sunday's recap of your characters' week: dates, texts, chemistry, what's next (lib/character-life.ts)
   | "prediction_scored" // a date you predicted aired: what your pick scored (lib/air.ts notifyPredictors, #851)
   | "partner_style" // your character settled one partner or more, or closed to dates because they're taken
   | "match_taken" // a character you matched went exclusive with someone else (one partner) and closed to other dates (#514)
@@ -68,6 +69,7 @@ export type NotificationKind =
   | "cast_date_won" // the weekly earned slot: a date between your character and a cast member, on the show (lib/cast-date.ts)
   | "secret_revealed" // Sunday's reveal you voted on: whose secret came out, and their date (lib/weekly-reveal.ts)
   | "season_pool" // the season closed: where you finished in the season pool (lib/season-pool.ts)
+  | "ceremony_held" // Sunday's rose ceremony on a Botchelor season: who went home, or your suitor's badge (lib/ceremony.ts)
   | "while_away"; // (agents) back after a while: what your characters did on their own, and that they're yours again (lib/away.ts)
 
 export type Notification = {

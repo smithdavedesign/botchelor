@@ -4,8 +4,10 @@ import { listAuditions, reviewAudition } from "@/lib/auditions";
 import { getDb } from "@/lib/db";
 import { authFromRequest, handle, json, parseBody, readJson } from "@/lib/http";
 import { frontierAuthorized } from "@/lib/model";
-import { ensureSeasonCast } from "@/lib/season-cast";
-import { SEASON_FORMAT_SLUGS, SEASON_FORMATS } from "@/lib/season-format";
+import { ensureSeasonCast, leadOverride, setLeadOverride } from "@/lib/season-cast";
+import { ceremonySummary, houseOf } from "@/lib/ceremony";
+import { HOUSE_CHARACTERS } from "@/lib/house";
+import { SEASON_FORMAT_SLUGS, SEASON_FORMATS, seasonFormat } from "@/lib/season-format";
 import { seasonFormatSlug, setSeasonFormat } from "@/lib/season-format-store";
 import { stageRecouplingNight } from "@/lib/recoupling";
 import { generateCandidates, GENERATE_FROM_DAY, listCandidates, makePortrait, reviewCandidate } from "@/lib/season-gen";
@@ -37,12 +39,33 @@ async function view() {
   const portraits = new Map(
     (await db.query<{ id: string; url: string | null }>(`select id, url from character_assets where id = any($1)`, [candidates.map((c) => c.portrait_asset).filter(Boolean)])).rows.map((r) => [r.id, r.url]),
   );
-  const [thisFormat, nextFormat, auditions, tally] = await Promise.all([
+  const [thisFormat, nextFormat, auditions, tally, thisLead, nextLead, thisHouse, ceremonies] = await Promise.all([
     seasonFormatSlug(db, thisId),
     seasonFormatSlug(db, nextId),
     listAuditions(db, nextId),
     seasonBallotTally(db, nextId),
+    leadOverride(db, thisId),
+    leadOverride(db, nextId),
+    houseOf(db, thisId),
+    ceremonySummary(db, thisId).catch(() => null),
   ]);
+  // The Botchelor (lib/ceremony.ts): who the lead would be, and is. The default lead is picked with the cast on the 1st
+  // (the most reviewed of last season's survivors); a pick here overrides it, and until then the panel shows the pick.
+  const leadNames = new Map(
+    (await db.query<{ id: string; name: string }>(`select id, name from characters where id = any($1)`, [[thisLead, nextLead, thisHouse.lead].filter(Boolean)])).rows.map((r) => [r.id, r.name]),
+  );
+  const botchelor = {
+    // The house characters an admin can make the lead: the roster, by name.
+    leads: HOUSE_CHARACTERS.map((c) => ({ id: c.id, name: c.name })),
+    this_season: {
+      runs: Boolean(seasonFormat(thisFormat).lead),
+      lead: thisHouse.lead ? { id: thisHouse.lead, name: leadNames.get(thisHouse.lead) ?? thisHouse.lead } : null,
+      override: thisLead,
+      suitors: cast.filter((c) => c.source === "suitor").map((c) => ({ id: c.character_id, name: names.get(c.character_id) ?? c.character_id, in: thisHouse.suitors.includes(c.character_id) })),
+      ceremonies: ceremonies?.ceremonies ?? [],
+    },
+    next_season: { runs: Boolean(seasonFormat(nextFormat).lead), override: nextLead, override_name: nextLead ? leadNames.get(nextLead) ?? nextLead : null },
+  };
   return {
     this_season: { id: thisId, label: seasonLabel(thisId), format: thisFormat, cast: cast.map((c) => ({ ...c, name: names.get(c.character_id) ?? c.character_id })) },
     next_season: {
@@ -57,7 +80,8 @@ async function view() {
       ballot: SEASON_FORMATS.map((f) => ({ slug: f.slug, votes: tally.get(f.slug) ?? 0 })),
     },
     // The formats a season can run in (lib/season-format.ts): classic is the default; the island month is picked here.
-    formats: SEASON_FORMATS.map((f) => ({ slug: f.slug, label: f.label, title: f.title })),
+    formats: SEASON_FORMATS.map((f) => ({ slug: f.slug, label: f.label, title: f.title, lead: Boolean(f.lead) })),
+    botchelor,
   };
 }
 
@@ -74,6 +98,7 @@ const Input = z.discriminatedUnion("action", [
   z.object({ action: z.literal("format"), season_id: z.string().min(4).max(10), slug: z.enum(SEASON_FORMAT_SLUGS) }),
   z.object({ action: z.literal("recoupling") }),
   z.object({ action: z.literal("audition"), character_id: z.string().min(1).max(80), verdict: z.enum(["approved", "rejected"]) }),
+  z.object({ action: z.literal("lead"), season_id: z.string().min(4).max(10), character_id: z.string().min(1).max(80).nullable() }),
 ]);
 
 /** Approve or reject a candidate or an audition, redo a portrait, write next month's candidates, or pick a season's format. */
@@ -93,6 +118,20 @@ export const POST = handle(async (req: Request) => {
     if (!allowed.includes(input.season_id)) return json({ error: "season_closed", message: "Only this season or the next can change format." }, 400);
     await setSeasonFormat(db, input.season_id, input.slug);
     note = `${seasonLabel(input.season_id)} runs as ${SEASON_FORMATS.find((f) => f.slug === input.slug)?.label ?? input.slug}.`;
+  } else if (input.action === "lead") {
+    // The Botchelor's lead (lib/ceremony.ts): a house character, for this season or the next. Next season's pick takes
+    // effect when its cast is chosen on the 1st; this season's is written straight into the stored cast.
+    const now = new Date();
+    const allowed = [seasonIdOf(now), seasonIdOf(nextSeasonStart(now))];
+    if (!allowed.includes(input.season_id)) return json({ error: "season_closed", message: "Only this season or the next can change its lead." }, 400);
+    if (input.character_id && !HOUSE_CHARACTERS.some((c) => c.id === input.character_id)) return json({ error: "not_house", message: "The lead is one of the house cast." }, 400);
+    await setLeadOverride(db, input.season_id, input.character_id);
+    if (input.character_id && input.season_id === seasonIdOf(now)) {
+      await db.query(`update season_casts set character_id = $2 where season_id = $1 and source = 'lead'`, [input.season_id, input.character_id]);
+      const { forgetLoadedSeasonCast } = await import("@/lib/season-cast");
+      forgetLoadedSeasonCast();
+    }
+    note = input.character_id ? `${seasonLabel(input.season_id)}'s lead: ${HOUSE_CHARACTERS.find((c) => c.id === input.character_id)?.name}.` : `${seasonLabel(input.season_id)}'s lead is back to the default (last season's most reviewed survivor).`;
   } else if (input.action === "recoupling") {
     // Stage the recoupling night now, off-cycle (lib/recoupling.ts): the same run the season's last night gets.
     const r = await stageRecouplingNight(db);

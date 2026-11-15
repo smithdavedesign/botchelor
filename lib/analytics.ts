@@ -16,11 +16,13 @@ export type AnalyticsEvent =
   | "situation_vote" // a vote on tonight's situation (lib/situations.ts)
   | "season_format_vote" // a vote for next season's format (lib/season-vote.ts)
   | "recoupling_vote" // a vote on the recoupling night (lib/recoupling.ts)
+  | "ceremony_vote" // a vote on who goes home at Sunday's rose ceremony (lib/ceremony.ts)
   | "reveal_vote" // a vote on Sunday's reveal (lib/weekly-reveal.ts)
   | "cast_backed" // a viewer backed a cast member for the month (lib/backing.ts)
   | "audition" // an owner put their character up for next month's cast (lib/auditions.ts)
   | "audition_vote" // a vote on next month's auditions (lib/auditions.ts)
   | "cast_date_booked" // the weekly earned slot was spent on a date with a season cast member (lib/cast-date.ts)
+  | "life_date_booked" // the house took an owned character out with a cast member, house-paid (lib/character-life.ts)
   | "dare_vote" // a vote on tonight's dare (lib/dares.ts)
   | "purchase_completed"
   | "purchase_refunded" // a full refund made in Stripe took the pack's unused dates back

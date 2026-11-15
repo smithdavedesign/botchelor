@@ -68,6 +68,31 @@ Dark has its own pages and owner.
 | Season pages | The finale special: the recap as a cold open, numbers as the season's stats board. |
 | Everywhere | Episode titles (generated once at air time, template fallback), small-caps framing labels, faces, kind streak copy, in-world empty states. |
 
+## The empty-room rule
+
+Real use is near zero (48 visitors in the 30 days to 2026-11-14), and every social surface said so to a newcomer: the
+live room's "1 watching" (them), "2 players have points", a best-callers board of two names, "2 viewers called them
+the most likable". A number that small is not information, it is a sign on the door saying *nobody's here*.
+
+- **A crowd count shows to a stranger only from `CROWD_MIN` people (default 5) up.** Below that the room, the award,
+  the board's invitation and the call to play stay, and the number goes: "● Live" instead of "● 1 watching", "Called
+  the most likable of the season" instead of "2 viewers called them", the best-callers board becomes "Call the ending
+  before a date airs and your name goes up here".
+- **Insiders see counts from 1.** Someone with a character of their own is in the show, not at the door; they see
+  every number, as before (`isInsider`).
+- **Nothing waiting is never an empty list.** `/calls` with nothing open shows the lobby's live room or the next
+  premiere and when it starts; with nothing at all, one card to the lobby. "Nothing live" on /watch was already the
+  next appointment.
+- **People's characters first, agents labelled.** When the show picks who to feature (the Characters tabs, the
+  Reunion's awards and couples, the top-rated board), real people's characters lead and agent-made ones wear the
+  agent badge (David, 2026-11-03). The 242 agent-made characters stay counted on their tab, folded for a stranger.
+- **A deleted account's character never wins.** Awards, boards and leaderboards use `lib/public-cast.ts`
+  (`listedCharacterSql`, `listedDateSql`): the Reunion's "Biggest disaster" was once a deleted account's test character.
+
+One helper, `lib/crowd-threshold.ts` (`showCrowd`, `crowdLine`, `isInsider`), at every count;
+`tests/crowd-threshold.test.ts` pins the files that use it, so a new count can't slip in unguarded. Discord digests
+and the newsletter keep their numbers: they go to people who joined the show's own channels.
+
 ## Episode titles
 
 Episodes get a display title — a 3–6 word TV-episode title ("The Fountain Incident") — written once at air time by
