@@ -251,6 +251,53 @@ text about it is the reason to come back.
   and opt-in, the recap's content and the quiet-week skip), `tests/air-tease.test.ts` (the life hook replaces the
   tease), `tests/daily.test.ts` (the two steps), `tests/since.test.ts` (the line).
 
+### The character asks you the rest (built 2026-11-15)
+
+One-sentence create ([flows.md](flows.md)) makes a character from a sentence: its job may be nobody's choice, its
+interests are read off its traits and its profile is written from its sheet (`lib/profile-fill.ts`). After its first
+date the character asks its owner about them, in the thread, in its own voice: "Random question. What do I do for work?
+I feel like I should know." Templates only (`lib/character-question-fields.ts`): $0, no model call.
+
+- **What it asks about**, in this order, each once: the job (`extras.occupation`), what they do for fun (`hobbies`),
+  their ideal first date, where they're from, "Dating me is like…" (the profile prompt), what they always order, their
+  pet peeve, how they say hello (`extras.lines.hello`). These are fields a date reads (`lib/extras.ts extrasForPrompt`,
+  the voice kit). Only a field that is **empty** or **the show's own fill**: `fieldState` calls interests or the profile
+  answer `auto` only when they are exactly what `profile-fill` writes from the current sheet; anything else is the
+  owner's words and is never asked about or replaced.
+- **Who gets one** (`lib/character-questions.ts sendCharacterQuestions`, the daily job's people part, step
+  `character_questions`, right after the day-after texts): the owner's own character (never a house one), in a thread
+  that is opted in (`muted_proactive = false`, the "Hear from" tap) and not paused, once the character has a finished
+  date on the show. Never for our own identities (`loadOurIds`), nor for a fan pick on this month's cast (its sheet is
+  locked). Sent through `postFromCharacter` (the AI notice, the PG and crisis checks, the notification), tagged
+  `question:<field>`.
+- **It never nags.** At most one a day (`QUESTION_GAP_HOURS` 20), and none on a day the character already texted first
+  about anything in the 20 hours before (a date, the day after, a tease, a thanks). At most five ever
+  (`MAX_QUESTIONS`). After two questions in a row with no answer it **stops for good**: the last one is marked
+  `stopped` in its `offers`, and no question is ever sent to that thread again, whatever happens later. Nothing is sent
+  because of silence.
+- **The answer box.** The text carries `companion_messages.offers = { kinds: ["answer"], field }` (the offer kind
+  `answer`; a date's chips are told apart by their `episode_id`, and a question never hides them). The thread view puts
+  `question: { field, label, placeholder, max }` on the newest question while it has no answer
+  (`openQuestion`), and the page shows a small input and Save under it (`app/companion/[id]/AnswerBox.tsx`). The box
+  stays on the last question even after the stop, so a late answer still saves.
+- **Saving** (`POST /api/companion/:id { action: "offer", offer: "answer", message_id, text }`,
+  `app/api/companion/[id]/answer.ts`): owner-only. The answer is merged into the character's details (`withAnswer`: the
+  show's fill is replaced, the owner's own interests are kept with the answer beside them) and saved by **the edit
+  route itself**, `PATCH /api/characters/:id`, run in-process as that person. So it meets exactly what an edit of that
+  field meets: the field's limit ("At most 60 characters."), the PG sheet check in any language
+  (`checkFieldsAnyLanguage` with `checkSheetText`), the fan-cast lock. A refusal comes back with that route's own words,
+  nothing is saved and the box stays. Self-harm intent in an answer is never written to a sheet: the reply carries the
+  crisis resources (`lib/crisis.ts`). Saved: the question is marked `taken`, and the character says thanks with a
+  written line (`answer:<message id>`: "Lighthouse keeper. Of course. That explains a lot about me."; an answer over 60
+  characters gets a line that doesn't quote it). Free: no reply is taken.
+- **One way only still holds.** An answer is an edit of the owner's own character's sheet, the same as the builder's:
+  it shapes that character's dates to come like any sheet field, and touches no ending, pairing or points.
+- **Switch:** `CHARACTER_QUESTIONS` (on unless `0`): `0` sends none; a box already in a thread still saves.
+- Counted: `character_question` (the field) and `character_answer` (the field, saved or refused) in the logs; the
+  page's `character_answer` event on Save.
+- Tests: `tests/character-questions.test.ts` (the fields and words, who gets one, one a day, five in all, the
+  two-unanswered stop, the answer through the edit route's checks), `tests/daily.test.ts` (the step).
+
 ### A photo from the date, in the texts (built 2026-11-15)
 
 Nine people opened a companion in 30 days and none came back a second day. What our companions have that others don't

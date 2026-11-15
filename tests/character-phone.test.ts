@@ -19,7 +19,7 @@ import CharacterPhone from "@/app/CharacterPhone";
 import { sendAfterDateText } from "@/lib/after-date-text";
 import { characterPhone, homePhoneOn, PHONE_OTHERS, PHONE_TEXTS, PHONE_WEEK_DAYS, PHONE_WEEKLY_GAP_DAYS, type CharacterPhoneView } from "@/lib/character-phone";
 import { LIFE_GAP_DAYS, lifeDatesPerDay, WEEK_DAYS } from "@/lib/character-life";
-import { openThread, sendMessage, setCompanionModelForTests } from "@/lib/companion";
+import { openThread, postFromCharacter, sendMessage, setCompanionModelForTests } from "@/lib/companion";
 import { markOfferTaken } from "@/lib/companion-offers";
 import { listMyCharacters } from "@/lib/game";
 import { markCharacterTextsRead } from "@/lib/notifications";
@@ -209,6 +209,21 @@ describe("texts waiting: an opted-in thread with an unread text", () => {
     expect(moved.chips.map((c) => c.label)).toEqual(["Answer Mira"]);
     expect(moved.threadHref).toBe(`/companion/${heardOther.thread_id}`);
     expect(character.id).not.toBe(other.character.id);
+  });
+
+  it("a question the character asked about its own sheet (lib/character-question-fields.ts) is one chip to answer it, never a date menu", async () => {
+    const { creator, episode } = await setupEpisode("friends");
+    const me = userIdOf(creator);
+    const r = await heard(creator, episode.id);
+    await markOfferTaken(t.db, r.message_id!, { kind: "someone_new" });
+    expect((await sendMessage(t.db, me, r.thread_id, "Someone new, then.", new Date(NOW.getTime() + 60_000))).ok).toBe(true);
+    expect((await phoneFor(creator))!.chips).toEqual([]);
+    // The question's box rides in the same column as a date's chips, told apart by having no episode.
+    const asked = await postFromCharacter(t.db, { userId: me, characterId: (await listMyCharacters(t.db, me))[0].id, lines: ["Random question. What do I do for work? I feel like I should know."], now: new Date(NOW.getTime() + 120_000), kind: "question", dedupeKey: "question:occupation", offers: { kinds: ["answer"], field: "occupation" } });
+    expect(asked).not.toBeNull();
+    expect((await phoneFor(creator))!.chips).toEqual([{ label: "Answer Mira", href: `/companion/${r.thread_id}` }]);
+    await t.db.query(`update companion_messages set offers = offers || '{"taken":{"kind":"answer","at":"2026-11-14T21:00:00Z"}}'::jsonb where id = $1`, [asked!.messageId]);
+    expect((await phoneFor(creator))!.chips).toEqual([]);
   });
 
   it("what's next: Sunday's recap for a character something happened to this week, and the house's weekly date only when it can happen", async () => {

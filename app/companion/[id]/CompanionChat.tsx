@@ -37,6 +37,7 @@ import {
 import type { CharacterRef } from "@/lib/game";
 import { venueName, type VenueId } from "@/lib/venues";
 import type { FaceKit } from "@/lib/face-kit-shared";
+import AnswerBox from "./AnswerBox";
 import CompanionCall, { callSupported, liveSupported, type CallStats, type CallTurn, type CallVoice } from "./CompanionCall";
 import DatePhoto from "./DatePhoto";
 
@@ -716,6 +717,10 @@ export default function CompanionChat({
                           </button>
                         ))}
                       </div>
+                    )}
+                    {m.role === "character" && m.question && !paused && (
+                      // A question about its own sheet (lib/character-questions.ts): the answer box, until it's answered.
+                      <AnswerBox threadId={view.id} messageId={m.id} question={m.question} first={first} disabled={busy} onThread={setView} />
                     )}
                     {m.role === "character" && watch && newest?.id === m.id && (
                       <p className="companion-offers">

@@ -33,6 +33,7 @@ import type { Db } from "./db";
 import { activeNudge } from "./between-dates";
 import { nextTimeFor, openOffers, type StoredOffers } from "./companion-offers";
 import { castOpenerLines, castOpenerTag } from "./cast-opener";
+import { openQuestion, type StoredQuestion } from "./character-question-fields";
 import { textPhoto, type TextPhoto } from "./date-photo";
 import { lastAiredDateOf, lastDateOf } from "./last-date";
 import { fallbackModel, getModel, openAICompatibleModel, type Model, type Usage } from "./model";
@@ -199,7 +200,7 @@ async function addMessage(
     marker?: "scene" | "texting";
     roleplay?: string | null;
     onCall?: boolean;
-    offers?: StoredOffers | null;
+    offers?: StoredOffers | StoredQuestion | null;
     /** A photo message (lib/date-photo.ts): where it's drawn; `text` is then its alt text. */
     photoUrl?: string | null;
   } = {},
@@ -226,7 +227,7 @@ function writtenLines(raw: readonly string[]): string[] | null {
  * and its photo (lib/date-photo.ts) as a message of its own right after the first bubble, the way a person sends one:
  * "back from the date with Nell", the picture, then the rest. Returns the bubbles' ids (the photo's isn't one).
  */
-async function writeText(db: Db, threadId: string, now: Date, o: { lines: readonly string[]; tag: string; offers?: StoredOffers | null; photo?: TextPhoto | null }): Promise<string[]> {
+async function writeText(db: Db, threadId: string, now: Date, o: { lines: readonly string[]; tag: string; offers?: StoredOffers | StoredQuestion | null; photo?: TextPhoto | null }): Promise<string[]> {
   const ids: string[] = [];
   let n = 0;
   for (const [i, text] of o.lines.entries()) {
@@ -361,8 +362,11 @@ export type PostFromCharacterArgs = {
   kind: string;
   /** The tag kept on the message (lib/companion-shared.ts TEXT_TAG, e.g. `after_date:<episode id>`): a thread gets it once. */
   dedupeKey: string;
-  /** The chips under the text (lib/companion-offers.ts): kept on its first bubble, shown while they're open. */
-  offers?: StoredOffers | null;
+  /**
+   * The chips under the text (lib/companion-offers.ts), or a question's answer box (lib/character-question-fields.ts):
+   * kept on its first bubble, shown while open.
+   */
+  offers?: StoredOffers | StoredQuestion | null;
   /** A photo from the date the text is about (lib/date-photo.ts textPhoto): one message of its own, after the first bubble. */
   photo?: TextPhoto | null;
 };
@@ -427,6 +431,8 @@ export async function getThread(db: Db, userId: string, threadId: string): Promi
   for (const m of msgs) if (m.role === "character" && m.via !== "photo" && watchLinkEpisode(m.action)) lastOfTag.set(m.action!, m.id);
   // The chips: on the newest text whose menu is still open, and only while no newer date of theirs exists.
   const open = ref.yours ? await openOffers(db, ref.id, msgs).catch(() => null) : null;
+  // The answer box: under the newest question the character asked about its own sheet, until it's answered.
+  const asked = ref.yours ? openQuestion(msgs) : null;
   return {
     ok: true,
     view: {
@@ -446,6 +452,7 @@ export async function getThread(db: Db, userId: string, threadId: string): Promi
         voice: m.voice_key ? voiceUrl(t.id, m.id) : null,
         ...(m.on_call ? { call: true } : {}),
         ...(open && open.messageId === m.id ? { offers: open.view } : {}),
+        ...(asked && asked.messageId === m.id ? { question: asked.view } : {}),
         ...photoOf(m, realPhotos),
         ...(m.action && lastOfTag.get(m.action) === m.id ? { link: { href: `/episodes/${watchLinkEpisode(m.action)}`, label: "Watch the date" } } : {}),
       })),

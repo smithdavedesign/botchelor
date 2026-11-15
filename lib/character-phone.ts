@@ -10,6 +10,7 @@
  * "Since you were here", so the page waits on no extra round trip). No model, no writes.
  * HOME_PHONE=0 turns the block off.
  */
+import { isStoredQuestion, type StoredQuestion } from "./character-question-fields";
 import type { StoredOffers } from "./companion-offers";
 import { companionOpen, companionThreadHref, COMPANION_OFFER_KINDS, offerLabel } from "./companion-shared";
 import { generationPaused } from "./compute";
@@ -80,7 +81,8 @@ type ThreadRow = {
   last_at: Date | string;
   answered_at: Date | string | null;
   unread: boolean;
-  texts: { id: string; text: string; via: string; offers: StoredOffers | null; created_at: string }[] | null;
+  /** `offers`: a date's menu (lib/companion-offers.ts) or a question about the sheet (lib/character-question-fields.ts). */
+  texts: { id: string; text: string; via: string; offers: StoredOffers | StoredQuestion | null; created_at: string }[] | null;
 };
 
 type DateRow = {
@@ -182,15 +184,17 @@ export function phoneOf(character: CharacterRef, t: ThreadRow | null, d: DateRow
   const filming = date?.status === "generating";
   const stands = date ? endingStands({ status: date.status!, ending_final: date.ending_final }) : false;
 
-  // The chips: the newest text's menu still open (nobody tapped one, and no date newer than the one it is about), as
-  // links into the thread; else, a text that ends on a question nobody answered gets one chip to answer it.
+  // The chips: the newest date menu still open (nobody tapped one, and no date newer than the one it is about), as
+  // links into the thread; else one chip to answer: the newest question about its sheet while its box is open
+  // (lib/character-question-fields.ts openQuestion), or a text that ends on a question nobody answered.
   const chips: PhoneChip[] = [];
   if (threadHref) {
-    const menu = [...all].reverse().find((m) => m.offers && !m.offers.taken);
+    const menu = [...all].reverse().map((m) => m.offers).find((o): o is StoredOffers => Boolean(o && !isStoredQuestion(o) && o.episode_id && !o.taken));
+    const asked = [...all].reverse().map((m) => m.offers).find(isStoredQuestion);
     const lastText = [...all].reverse().find((m) => m.via !== "photo");
-    if (menu?.offers && (!date || date.episode_id === menu.offers.episode_id)) {
-      for (const k of menu.offers.kinds) if ((COMPANION_OFFER_KINDS as readonly string[]).includes(k)) chips.push({ label: offerLabel(k, { partner: menu.offers.partner, character: character.name }), href: threadHref });
-    } else if (lastText && /\?\s*$/.test(lastText.text) && (!t?.answered_at || new Date(t.answered_at) < new Date(lastText.created_at))) {
+    if (menu && (!date || date.episode_id === menu.episode_id)) {
+      for (const k of menu.kinds) if ((COMPANION_OFFER_KINDS as readonly string[]).includes(k)) chips.push({ label: offerLabel(k, { partner: menu.partner, character: character.name }), href: threadHref });
+    } else if ((asked && !asked.taken) || (lastText && /\?\s*$/.test(lastText.text) && (!t?.answered_at || new Date(t.answered_at) < new Date(lastText.created_at)))) {
       chips.push({ label: `Answer ${first}`, href: threadHref });
     }
   }
