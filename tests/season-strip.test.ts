@@ -10,7 +10,7 @@ describe("the season strip's pages", () => {
   });
 
   it("stays off the theater and the pages about you", () => {
-    for (const path of ["/watch/room-1", "/characters/house-nell", "/characters/abc/edit", "/create", "/matches", "/account", "/pricing", "/companion", "/swipe", "/after-dark"]) {
+    for (const path of ["/watch/room-1", "/characters/house-nell", "/characters/abc/edit", "/create", "/matches", "/chat", "/account", "/pricing", "/companion", "/swipe", "/after-dark"]) {
       expect(onSpectatorPage(path), path).toBe(false);
     }
   });

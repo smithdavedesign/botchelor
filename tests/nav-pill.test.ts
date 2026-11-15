@@ -3,8 +3,11 @@
 // 2026-10-22-0215: an agent with 1 date left read "3 dates left" on an episode page it fetched.
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import Nav from "@/app/Nav";
+import ShowTabs from "@/app/ShowTabs";
+import { navChatOn } from "@/lib/nav-chat";
 
 vi.mock("next/navigation", () => ({ usePathname: () => "/" }));
 
@@ -52,25 +55,77 @@ describe("the header's date meter", () => {
   });
 });
 
-// Four doors: Watch · Dating · Characters · Account (the 2026-11-07 product review's five, less Companions since the
-// 2026-11-11 audit: it's a way to meet a character, so every character card carries Talk and /characters points at the
-// directory). The Constellation and the Showcase live under Watch — the ShowTabs strip on every spectator surface —
-// which supersedes the 2026-11-01 "Constellation stays in the nav" call, with David's sign-off on the review plan.
-describe("the four-door nav", () => {
-  it("shows the doors and nothing else; Dating is one door at /matches", () => {
+// Three doors and the account, the same for everyone (2026-11-15, lib/nav-chat.ts): Watch · Chat · Characters ·
+// Account. Chat is one door for every thread: what was Dating (/matches, the deck, a thread) and what was Companions
+// (/companion). The show's other rooms live under Watch, on the ShowTabs strip: Watch · House · Reels · Reunion.
+describe("the nav: Watch · Chat · Characters · Account", () => {
+  const labels = (html: string) => [...(html.match(/<div id="nav-menu"[\s\S]*$/)?.[0] ?? "").matchAll(/<a[^>]*href="(\/[a-z]*)"[^>]*>([A-Z][a-z]+)/g)].map((m) => `${m[2]} ${m[1]}`);
+
+  it("shows the same doors to someone with a character and to a newcomer, who also gets the create button", () => {
     const owner = renderToStaticMarkup(createElement(Nav, { tokens: 3, hasCharacter: true }));
-    expect(owner).toMatch(/<a[^>]*href="\/matches"[^>]*>Dating/);
-    for (const href of ["/watch", "/characters", "/account"]) expect(owner).toContain(`href="${href}"`);
-    for (const gone of ["/graph", "/showcase", "/swipe", "/companion"]) expect(owner).not.toContain(`href="${gone}"`);
+    expect(labels(owner).slice(0, 4)).toEqual(["Watch /watch", "Chat /chat", "Characters /characters", "Account /account"]);
+    for (const gone of ["/graph", "/showcase", "/swipe", "/companion", "/matches"]) expect(owner).not.toContain(`href="${gone}"`);
+    expect(owner).not.toContain("Dating");
     const newcomer = renderToStaticMarkup(createElement(Nav, { tokens: 3, hasCharacter: false }));
-    expect(newcomer).not.toContain('href="/matches"');
+    expect(newcomer).toMatch(/<a[^>]*href="\/chat"[^>]*>Chat/);
     expect(newcomer).toContain('href="/create"');
+    // Companions is no sub-link any more, open or not.
+    expect(renderToStaticMarkup(createElement(Nav, { tokens: 3, hasCharacter: true, companions: true }))).not.toContain("nav-sub");
   });
 
-  it("keeps the Constellation one tap away: the show strip carries it on every spectator surface", async () => {
-    const ShowTabs = (await import("@/app/ShowTabs")).default;
-    const strip = renderToStaticMarkup(createElement(ShowTabs, { active: "/watch" }));
-    for (const href of ["/watch", "/showcase", "/reunion", "/reviews", "/graph"]) expect(strip).toContain(`href="${href}"`);
-    expect(strip).toMatch(/<a[^>]*aria-current="page"[^>]*href="\/watch"/);
+  it("puts one number on Chat: unread texts of both kinds", () => {
+    const html = renderToStaticMarkup(createElement(Nav, { tokens: 3, texts: 4 }));
+    expect(html).toMatch(/<a[^>]*href="\/chat"[^>]*>Chat<span class="nav-count" aria-label="4 unread texts">4<\/span><\/a>/);
+    expect(renderToStaticMarkup(createElement(Nav, { tokens: 3, texts: 0 }))).not.toMatch(/Chat<span class="nav-count"/);
+    expect(renderToStaticMarkup(createElement(Nav, { tokens: 3, texts: 120 }))).toContain(">99+</span>");
+    // The layout counts both kinds for it (lib/inbox.ts unreadChatTexts).
+    expect(readFileSync("app/layout.tsx", "utf8")).toContain("(navChat ? unreadChatTexts(db, viewerId) : unreadTexts(db, viewerId))");
+  });
+
+  it("NAV_CHAT=0 (chat: false) is the header as it was: Dating for someone with a character, none for a newcomer, Companions under Characters", () => {
+    const owner = renderToStaticMarkup(createElement(Nav, { tokens: 3, hasCharacter: true, chat: false, companions: true, texts: 2 }));
+    expect(owner).toMatch(/<a[^>]*href="\/matches"[^>]*>Dating<span class="nav-count"/);
+    expect(owner).toMatch(/href="\/characters">Characters<\/a><a class="nav-sub" href="\/companion">Companions<\/a>/);
+    expect(owner).not.toContain('href="/chat"');
+    const newcomer = renderToStaticMarkup(createElement(Nav, { tokens: 3, hasCharacter: false, chat: false }));
+    expect(newcomer).not.toContain('href="/matches"');
+    expect(navChatOn({})).toBe(true);
+    expect(navChatOn({ NAV_CHAT: "1" })).toBe(true);
+    expect(navChatOn({ NAV_CHAT: "0" })).toBe(false);
+  });
+});
+
+describe("the show's tabs: Watch · House · Reels · Reunion", () => {
+  const strip = (active: Parameters<typeof ShowTabs>[0]["active"]) => renderToStaticMarkup(createElement(ShowTabs, { active }));
+  const tabs = (html: string) => [...html.matchAll(/href="([^"]+)"[^>]*>([^<]+)</g)].map((m) => `${m[2]} ${m[1]}`);
+  const current = (html: string) => /aria-current="page"[^>]*>([^<]+)</.exec(html)?.[1] ?? null;
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("carries the house, and no longer Reviews or the Constellation", () => {
+    expect(tabs(strip("/watch"))).toEqual(["Watch /watch", "House /house", "Reels /showcase", "Reunion /reunion"]);
+    expect(current(strip("/watch"))).toBe("Watch");
+    expect(current(strip("/house"))).toBe("House");
+    expect(current(strip("/showcase"))).toBe("Reels");
+  });
+
+  it("still takes the two pages that left it: the Constellation reads as the house's, Reviews marks none", () => {
+    expect(current(strip("/graph"))).toBe("House");
+    expect(current(strip("/reviews"))).toBeNull();
+    // Both pages still wear the strip, and /house does now.
+    expect(readFileSync("app/house/page.tsx", "utf8")).toContain('<ShowTabs active="/house" />');
+    expect(readFileSync("app/graph/page.tsx", "utf8")).toContain('<ShowTabs active="/graph" />');
+    expect(readFileSync("app/reviews/page.tsx", "utf8")).toContain('<ShowTabs active="/reviews" />');
+  });
+
+  it("keeps Reviews and the Constellation reachable from /everything", () => {
+    const everything = readFileSync("app/everything/page.tsx", "utf8");
+    for (const href of ["/reviews", "/graph"]) expect(everything).toContain(`<Link href="${href}">`);
+  });
+
+  it("NAV_CHAT=0 brings the old strip back", () => {
+    vi.stubEnv("NAV_CHAT", "0");
+    expect(tabs(strip("/graph"))).toEqual(["Watch /watch", "Reels /showcase", "Reunion /reunion", "Reviews /reviews", "Constellation /graph"]);
+    expect(current(strip("/graph"))).toBe("Constellation");
+    expect(current(strip("/house"))).toBeNull();
   });
 });

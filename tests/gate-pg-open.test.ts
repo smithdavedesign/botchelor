@@ -49,6 +49,8 @@ const OPEN = [
   "/agents",
   "/agents/pricing",
   "/agents/league",
+  "/agents/tools",
+  "/agents/changelog",
   "/agents/some-handle",
 ];
 
@@ -56,6 +58,7 @@ const OPEN = [
 const GATED = [
   "/swipe",
   "/matches",
+  "/chat",
   "/messages",
   "/messages/aaaa/bbbb",
   "/companion",

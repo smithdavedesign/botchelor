@@ -18,7 +18,7 @@ import { companionOpen } from "@/lib/companion-shared";
 import { DIRECTORY_QUERY_MAX, DIRECTORY_SEARCH_LIMIT, directoryEntries, listTab, offSeasonHouse, parseDirectoryQuery, privateAmong, searchDirectory, tabCounts, type DirectoryEntry } from "@/lib/directory";
 import { authFromCookieStore } from "@/lib/http";
 import { stepInAccessFromCookies } from "@/lib/step-in-access";
-import { type Verb, type VerbViewer, verbsFor, viewerCharacter } from "@/lib/character-verb";
+import { actionsFor, type CardActions, type TextAccess, textVerb, type VerbViewer, viewerCharacter } from "@/lib/character-verb";
 import { shortName } from "@/lib/names";
 import { listCast, listMyProposals, listRelationshipEdges } from "@/lib/mechanics";
 import { isAgentMade, parseTab, TAB_LABEL, tabHref, TABS, type Tab } from "@/lib/origin";
@@ -84,7 +84,7 @@ const EAGER_CARDS = 4;
  * it, each its own target.
  * `origin={false}` on the cast tab, where every card is the show's own and a "Cast" chip on each says nothing.
  */
-function Entry({ e, badge, origin = true, talk = false, eager = false, verb }: { e: DirectoryEntry; badge?: string; origin?: boolean; talk?: boolean; eager?: boolean; verb?: Verb }) {
+function Entry({ e, badge, origin = true, talk = false, eager = false, actions }: { e: DirectoryEntry; badge?: string; origin?: boolean; talk?: boolean; eager?: boolean; actions?: CardActions }) {
   if (e.private) {
     return (
       <li className="card dir-card is-private">
@@ -99,6 +99,10 @@ function Entry({ e, badge, origin = true, talk = false, eager = false, verb }: {
     );
   }
   const basics = [e.age, e.pronouns].filter(Boolean).join(" · ");
+  const verb = actions?.verb;
+  // Text (lib/character-verb.ts): read with the verb where the card has its facts (your own character included); a
+  // card without them (off-season house, next season's candidates) goes by what anyone may text.
+  const text = actions ? actions.text : textVerb(talk ? "open" : "closed", { id: e.id, name: e.name, textable: e.companion });
   return (
     <li className="card tap-card dir-card">
       {/* The name below says who it is: the face is decorative, and the card's link covers it. */}
@@ -151,17 +155,17 @@ function Entry({ e, badge, origin = true, talk = false, eager = false, verb }: {
           </ul>
         )}
         {/* What to do with them (lib/character-verb.ts): one primary action chosen by who's looking (send yours on a
-            date, step into one yourself, or make a character to date them), and Talk as the quieter second where
-            they're a companion (the audit, 2026-11-11, Part 4; app/companion/TalkButton.tsx). Each its own target above
-            the card's link; your own character's card has neither verb, only what it had. */}
-        {(verb || (talk && e.companion)) && (
+            date, step into one yourself, or make a character to date them), and Text as the quieter second for anyone
+            they can text (app/companion/TalkButton.tsx opens the thread). Each its own target above the card's link;
+            your own character's card has no date verb, only Text. */}
+        {(verb || text) && (
           <div className="dir-actions">
             {verb && (
               <Link className="button dir-verb" href={verb.href} prefetch={false} data-track={verb.track} data-track-from="card" data-track-verb={verb.kind}>
                 {verb.label}
               </Link>
             )}
-            {talk && e.companion && <TalkButton characterId={e.id} name={e.name} label={`Talk to ${shortName(e.name)}`} className="button secondary" />}
+            {text && <TalkButton characterId={text.characterId} name={e.name} label={text.label} className="button secondary" track={text.track} />}
           </div>
         )}
       </div>
@@ -255,12 +259,15 @@ export default async function CharactersPage({ searchParams }: Props) {
  */
 type Viewer = VerbViewer & { userId: string | null; stepInEntry: boolean };
 
-/** Each card's verb for this viewer. Signed out with no character, it's the same for everyone: the shared copy. Never fails a page. */
-const cardVerbs = async (viewer: Viewer, ids: string[]): Promise<Map<string, Verb>> => {
+/** Each card's verb and Text for this viewer. Signed out with no character, it's the same for everyone: the shared copy. Never fails a page. */
+const cardVerbs = async (viewer: Viewer, ids: string[]): Promise<Map<string, CardActions>> => {
   const db = await getDb();
-  const load = async () => [...(await verbsFor(db, viewer, ids))];
-  const rows = await (viewer.userId ? load() : shared(`characters:verbs:${viewer.stepIn ? 1 : 0}:${ids.join(",")}`, load)).catch(() => [] as [string, Verb][]);
-  return new Map(rows);
+  // Text on every card once texting is open (lib/companion-shared.ts): the button itself says when an account comes first.
+  const text: TextAccess = companionOpen() ? "open" : "closed";
+  const load = async () => [...(await actionsFor(db, { ...viewer, text }, ids))];
+  const rows = await (viewer.userId ? load() : shared(`characters:verbs:${viewer.stepIn ? 1 : 0}:${text}:${ids.join(",")}`, load)).catch(() => null);
+  // A failed read: no verbs, and Text by what anyone may text (Entry's own fallback), so an empty map isn't "nothing".
+  return rows ? new Map(rows) : new Map();
 };
 
 async function castTab({ season, thisId, castIds, now, pairsPage, viewer }: { season: DirectoryEntry[]; thisId: string; castIds: string[]; now: Date; pairsPage: number; viewer: Viewer }) {
@@ -312,7 +319,7 @@ async function castTab({ season, thisId, castIds, now, pairsPage, viewer }: { se
         <p className="muted">The show&apos;s own. Each month the two best-reviewed stay and two newcomers join.</p>
         <ul className="gallery grid-balanced" style={{ "--cols": balancedColumns(season.length, 4) } as CSSProperties}>
           {season.map((e, i) => (
-            <Entry key={e.id} e={e} origin={false} talk={talk} eager={i < EAGER_CARDS} verb={verbs.get(e.id)} />
+            <Entry key={e.id} e={e} origin={false} talk={talk} eager={i < EAGER_CARDS} actions={verbs.get(e.id)} />
           ))}
         </ul>
       </section>
@@ -511,7 +518,7 @@ async function madeByTab({ tab, page, privateCount, viewer, insider }: { tab: "p
             </summary>
             <ul className="gallery">
               {list.entries.map((e, i) => (
-                <Entry key={e.id} e={e} talk={talk} eager={i < EAGER_CARDS} verb={verbs.get(e.id)} />
+                <Entry key={e.id} e={e} talk={talk} eager={i < EAGER_CARDS} actions={verbs.get(e.id)} />
               ))}
             </ul>
             <Pager page={list.page} pages={list.pages} label={`${TAB_LABEL[tab]} pages`} href={(n) => tabHref(tab, n)} prev="Newer" next="Older" />
@@ -520,7 +527,7 @@ async function madeByTab({ tab, page, privateCount, viewer, insider }: { tab: "p
           <>
             <ul className="gallery">
               {list.entries.map((e, i) => (
-                <Entry key={e.id} e={e} talk={talk} eager={i < EAGER_CARDS} verb={verbs.get(e.id)} />
+                <Entry key={e.id} e={e} talk={talk} eager={i < EAGER_CARDS} actions={verbs.get(e.id)} />
               ))}
             </ul>
             <Pager page={list.page} pages={list.pages} label={`${TAB_LABEL[tab]} pages`} href={(n) => tabHref(tab, n)} prev="Newer" next="Older" />
@@ -551,7 +558,7 @@ async function searchResults(q: string, viewer: Viewer) {
       {n ? (
         <ul className="gallery">
           {entries.map((e, i) => (
-            <Entry key={e.id} e={e} talk={talk} eager={i < EAGER_CARDS} verb={verbs.get(e.id)} />
+            <Entry key={e.id} e={e} talk={talk} eager={i < EAGER_CARDS} actions={verbs.get(e.id)} />
           ))}
         </ul>
       ) : (

@@ -77,3 +77,11 @@ The newer spec adds elicitation, better auth, and refines sampling. Current serv
 ## Verdict
 
 The MCP server already sits in the top decile of hosted servers for craft. The two highest-leverage next moves are (a) splitting the monolith and (b) adopting sampling once a sampling-capable host is a user — both are protocol-forward, not product-forward, so there's no rush.
+
+## Since this review (2026-11-15, MCP 2.31.0)
+
+The counts above are the day's (34 core of 51). Today's are on [/agents/tools](../app/agents/tools/page.tsx), a
+reference rendered from the server's own tool definitions (`lib/mcp/reference.ts`), and each version since is in
+[/agents/changelog](../app/agents/changelog/page.tsx) (`lib/mcp/changelog.ts`, held to `MCP_SERVER_INFO.version` by a
+test). 2.31.0 added four read-only tools on the show's house and story (`lib/mcp/house.ts`), all outside the core list:
+[agents-and-people.md](agents-and-people.md).

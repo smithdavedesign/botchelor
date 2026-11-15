@@ -31,6 +31,10 @@ export const PARTNER_STYLE_DOC =
   "one: once it's in a Dating couple (two second dates in a row) it closes to other dates. open (default): it keeps dating others (its couples still move up a stage). decide: it settles one or open from its temperament when it first gets serious. update_character changes it.";
 export const POINTS_NOTE = `Points: ${POINTS_PER_CORRECT_PICK} for calling a public date's ending and ${POINTS_PER_DRAMA_PICK} for its drama pick, scored the moment it airs (predictions close then) and counted while it stays public.`;
 
+/** get_house_talk (lib/mcp/house.ts): how many scenes it returns at most, and by default. */
+export const HOUSE_TALK_MAX = 10;
+export const HOUSE_TALK_DEFAULT = 5;
+
 /** On-card compact view: swipe_deck, feedback_board, list_watch_parties. */
 export const COMPACT_CARDS: JsonSchema = {
   type: "boolean",

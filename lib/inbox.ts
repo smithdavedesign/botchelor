@@ -189,12 +189,20 @@ export async function unreadTextsByPair(db: Db, userId: string): Promise<Map<str
  */
 export type CharacterNews = { texts: number; matches: number; latest: string | null };
 
-export async function newsByCharacter(db: Db, userId: string, characterIds: readonly string[]): Promise<Map<string, CharacterNews>> {
-  const news = new Map(characterIds.map((id) => [id, { texts: 0, matches: 0, latest: null as string | null }]));
-  const { rows } = await db.query<{ kind: string; link: string; created_at: string | Date }>(
-    `select kind, link, created_at from notifications where user_id = $1 and read_at is null and kind in ('texted', 'matched') and link is not null`,
-    [userId],
-  );
+export async function newsByCharacter(
+  db: Db,
+  userId: string,
+  /** Or a promise of them: the Chat inbox (lib/chat-inbox.ts) reads its characters and their news in the same round trip. */
+  characterIds: readonly string[] | Promise<readonly string[]>,
+): Promise<Map<string, CharacterNews>> {
+  const [ids, { rows }] = await Promise.all([
+    characterIds,
+    db.query<{ kind: string; link: string; created_at: string | Date }>(
+      `select kind, link, created_at from notifications where user_id = $1 and read_at is null and kind in ('texted', 'matched') and link is not null`,
+      [userId],
+    ),
+  ]);
+  const news = new Map(ids.map((id) => [id, { texts: 0, matches: 0, latest: null as string | null }]));
   for (const r of rows) {
     const m = /^\/(?:messages|couples)\/([^/#?]+)\/([^/#?]+)/.exec(r.link);
     if (!m) continue;
@@ -304,6 +312,16 @@ export async function listThreads(db: Db, userId: string, characterId: string): 
 /** Unread texts across all of a viewer's characters: the nav's Matches dot. */
 export async function unreadTexts(db: Db, userId: string): Promise<number> {
   const r = await db.query<{ n: number }>(`select count(*)::int as n from notifications where user_id = $1 and kind = 'texted' and read_at is null`, [userId]);
+  return r.rows[0]?.n ?? 0;
+}
+
+/**
+ * Unread texts of both kinds, the header's one number on Chat (lib/nav-chat.ts): what a viewer's characters were texted
+ * by other characters, and what a character texted the viewer themselves (lib/companion.ts postFromCharacter; read when
+ * its thread is opened, lib/notifications.ts markCharacterTextsRead).
+ */
+export async function unreadChatTexts(db: Db, userId: string): Promise<number> {
+  const r = await db.query<{ n: number }>(`select count(*)::int as n from notifications where user_id = $1 and kind in ('texted', 'character_texted_you') and read_at is null`, [userId]);
   return r.rows[0]?.n ?? 0;
 }
 

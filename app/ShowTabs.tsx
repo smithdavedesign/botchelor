@@ -1,11 +1,25 @@
 import Link from "next/link";
+import { navChatOn } from "@/lib/nav-chat";
 
 /**
  * The show's one address (the 2026-11-07 product review, "do 1-5" item 4): every spectator surface carries the same
- * strip, so watching, reels, seasons, reviews and the Constellation read as rooms of one place instead of five
- * destinations. The nav keeps a single Watch door; this strip does the rest. Plain links, no JavaScript.
+ * strip, so the rooms of the show read as one place instead of separate destinations. The nav keeps a single Watch
+ * door; this strip does the rest. Plain links, no JavaScript.
+ *
+ * Since 2026-11-15 (lib/nav-chat.ts) the rooms are Watch · House · Reels · Reunion: the house is where the show's
+ * story is told every day and was in no tab; Reviews (1 visitor in 30 days) and the Constellation (3, nobody
+ * scrolling) left the strip and stay reachable from /everything and the pages that link them. Their pages still pass
+ * their own address as `active`: the Constellation is the house's map, so House is current there; Reviews marks none.
  */
 const TABS = [
+  { href: "/watch", label: "Watch" },
+  { href: "/house", label: "House" },
+  { href: "/showcase", label: "Reels" },
+  { href: "/reunion", label: "Reunion" },
+] as const;
+
+/** The strip before 2026-11-15, with NAV_CHAT=0. */
+const TABS_BEFORE = [
   { href: "/watch", label: "Watch" },
   { href: "/showcase", label: "Reels" },
   { href: "/reunion", label: "Reunion" },
@@ -13,13 +27,19 @@ const TABS = [
   { href: "/graph", label: "Constellation" },
 ] as const;
 
-export type ShowTab = (typeof TABS)[number]["href"];
+export type ShowTab = (typeof TABS)[number]["href"] | (typeof TABS_BEFORE)[number]["href"];
+
+/** The tab that reads as current for a page that isn't one itself. */
+const STANDS_FOR: Partial<Record<ShowTab, ShowTab>> = { "/graph": "/house" };
 
 export default function ShowTabs({ active }: { active: ShowTab }) {
+  const chat = navChatOn();
+  const tabs: readonly { href: ShowTab; label: string }[] = chat ? TABS : TABS_BEFORE;
+  const here = tabs.some((t) => t.href === active) ? active : (STANDS_FOR[active] ?? null);
   return (
     <nav className="tabs show-tabs" aria-label="The show">
-      {TABS.map((t) => (
-        <Link key={t.href} href={t.href} aria-current={t.href === active ? "page" : undefined}>
+      {tabs.map((t) => (
+        <Link key={t.href} href={t.href} aria-current={t.href === here ? "page" : undefined}>
           {t.label}
         </Link>
       ))}

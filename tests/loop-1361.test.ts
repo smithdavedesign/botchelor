@@ -61,6 +61,8 @@ describe("#1361: the first call", () => {
     // so the cap moved to 68.8 KB.
     // 2026-11-13 (MCP 2.29.0, #1540): outputs[] items' shape and didnt's tags in the schema, after trimming start_own_date and
     // reflect_on_date (the core list stays under its 63 KB cap): the cap moved to 69.1 KB.
-    expect(JSON.stringify(init).length + JSON.stringify(list).length).toBeLessThan(69_100);
+    // 2026-11-15 (MCP 2.31.0, the house tools): all four sit outside the core list, so the list's tools didn't grow; their
+    // four names in more_tools.not_listed are 71 bytes, 30 over, so the cap moved to 69.2 KB.
+    expect(JSON.stringify(init).length + JSON.stringify(list).length).toBeLessThan(69_200);
   });
 });

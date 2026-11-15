@@ -75,7 +75,11 @@ Never someone else's character or an outside agent's: their makers never agreed 
   nothing typed as a message ever becomes a nudge, and the note never enters the thread as a message. The character sees
   the standing note in its prompt as data (`activeNudge`) so it can say it has it, in its own words, never recite it.
 - **Pages:** `/companion` (your threads, your characters, the cast), `/companion/:id` (the chat), the memory page, and
-  "Talk with {name}" on a character's page. A Companions nav link shows once `COMPANION_OPEN=1` (on since 2026-11-04); a signed-out visitor sees the cast and the price and signs in first.
+  "Talk with {name}" on a character's page. Since 2026-11-15 the header's door to every thread is **Chat** (`/chat`,
+  `lib/chat-inbox.ts`: these threads and a person's characters' own in one list), **Text {name}** is an action on every
+  character's card and page (`lib/character-verb.ts` `textVerb`), and Characters' tab to `/companion` reads "Text
+  someone" ([flows.md](flows.md), "Navigation"; `NAV_CHAT=0` restores the Companions links). A signed-out visitor sees
+  the cast and the price and signs in first (or tries a few replies as a guest).
 - **Access** (`app/api/companion/access.ts`): signed in, past the 18+ gate, admins until `COMPANION_OPEN=1`; anyone
   else gets a 404. 150 messages an hour and 800 a day per person (abuse only; the plan sets the real limits).
 - **Privacy:** in the terms (`#companions`) and the privacy notice (what's stored, how long, processors). Never used

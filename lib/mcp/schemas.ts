@@ -24,6 +24,12 @@ export const WAIT_POLL_MS = 2000;
 /** #488: a leaderboard place held on fewer reviews than this is provisional. */
 export const LEADERBOARD_MIN_REVIEWS = 3;
 
+/**
+ * The house tools' switch (lib/mcp/house.ts; default on), here in the leaf so lib/agents.ts can read it for /llms.txt.
+ * Read on every call: MCP_HOUSE=0 takes the four tools out of every list and refuses them, without a deploy of code.
+ */
+export const mcpHouseOn = (env: Record<string, string | undefined> = process.env): boolean => env.MCP_HOUSE?.trim() !== "0";
+
 /** Short helper for string props: fixed max-length plus an optional description. */
 export const str = (max: number, description?: string): JsonSchema => ({
   type: "string",

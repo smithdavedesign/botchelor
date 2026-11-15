@@ -15,6 +15,7 @@ import {
   COMPANION_MESSAGE_MAX,
   COMPANION_REPORT_REASONS,
   companionDateOpener,
+  companionEligibleSql,
   companionNotice,
   companionOpen,
   datePhotoEpisode,
@@ -140,9 +141,7 @@ const modelFor = async (db: Db): Promise<Model> => modelForTests ?? companionMod
 /** Whether this person may talk with this character: a public house character, one of the show's open cast, or their own. */
 export async function companionEligible(db: Db, userId: string, characterId: string): Promise<boolean> {
   const { rows } = await db.query(
-    `select 1 from characters
-      where id = $1 and owner_id is distinct from $3
-        and ((is_house and premium_sku is null and visibility <> 'private') or (companion_open and visibility <> 'private') or owner_id = $2)`,
+    `select 1 from characters c where c.id = $1 and ${companionEligibleSql("c", "$2", "$3")}`,
     [characterId, userId, DELETED_OWNER],
   );
   return rows.length > 0;
@@ -535,7 +534,13 @@ export const COMPANIONS_LISTED = 500;
  * cast, then the rest. (Until 2026-11-07 the order was `(owner_id = $1) desc nulls last`, which sorts a house
  * character's NULL owner LAST, so behind 177 agent-made characters the 120 limit cut the house cast out entirely.)
  */
-export async function listCompanions(db: Db, userId: string, now: Date = new Date()): Promise<{ threads: CompanionListItem[]; yours: CompanionListItem[]; cast: CompanionListItem[] }> {
+export async function listCompanions(
+  db: Db,
+  userId: string,
+  now: Date = new Date(),
+  /** `others: false`: only the threads (the Chat inbox, lib/chat-inbox.ts, lists no one new), so the directory isn't read. */
+  opts: { others?: boolean } = {},
+): Promise<{ threads: CompanionListItem[]; yours: CompanionListItem[]; cast: CompanionListItem[] }> {
   type Row = {
     id: string;
     name: string;
@@ -584,7 +589,9 @@ export async function listCompanions(db: Db, userId: string, now: Date = new Dat
         where t.user_id = $1 order by t.last_at desc limit 50`,
       [userId],
     ),
-    db.query<Row>(
+    opts.others === false
+      ? { rows: [] as Row[] }
+      : db.query<Row>(
       `select ${cols}, null as thread_id, null as last, null as last_at
          from characters c
         where c.owner_id is distinct from $2

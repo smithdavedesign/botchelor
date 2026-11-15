@@ -31,6 +31,7 @@ export default function EverythingPage() {
           <h2 id="the-show">The show</h2>
           <ul>
             <li><Link href="/graph">The Constellation</Link></li>
+            <li><Link href="/reviews">Reviews</Link></li>
             {companionOpen() && <li><Link href="/companion">Companions</Link></li>}
             {stepInOpen() && <li><Link href="/step-in" data-track="step-in" data-track-from="everything">Step into a date</Link></li>}
             <li><Link href="/prompts">Prompts library</Link></li>
