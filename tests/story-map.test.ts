@@ -225,6 +225,17 @@ describe("the drawing, the list and the circle", () => {
       expect(p.y + p.r + 24).toBeLessThanOrEqual(540);
     }
     for (const p of placed) for (const q of placed) if (p !== q) expect(Math.hypot(p.x - q.x, p.y - q.y), `${p.person.name} and ${q.person.name}`).toBeGreaterThan(p.r + q.r);
+    // A cast too big for the inner ring (fifteen, with no room for anyone else) still stands apart, inside the frame.
+    const many = Array.from({ length: 15 }, (_, i) => person(`house-m${i}`, `Member${i} X`));
+    const crowd = mapView(shapeStoryMap(facts({ cast: many.map((m) => m.id), people: [...many, ...PEOPLE], pairs: [{ a: "house-m0", b: "oc-1", stage: "dating", dates: 2, second_dates: 2, last_at: "2026-11-15T09:00:00Z" }] })));
+    expect(crowd.people).toHaveLength(15);
+    const ring = layout(crowd.people, crowd.lines);
+    for (const p of ring) {
+      expect(p.x - p.r).toBeGreaterThanOrEqual(0);
+      expect(p.x + p.r).toBeLessThanOrEqual(720);
+      expect(p.y + p.r + 24).toBeLessThanOrEqual(540);
+      for (const q of ring) if (p !== q) expect(Math.hypot(p.x - q.x, p.y - q.y)).toBeGreaterThan(p.r + q.r);
+    }
     // Without a lead nobody takes the middle.
     const flat = mapView(shapeStoryMap(facts({ beats: [rivalsBeat] })));
     expect(layout(flat.people, flat.lines).some((p) => p.x === 360 && p.y === 264)).toBe(false);

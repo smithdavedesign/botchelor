@@ -44,11 +44,14 @@ export function layout(people: readonly StoryPerson[], ties: readonly Pick<Story
   if (lead) out.push({ person: lead, x: CX, y: CY, r: R_LEAD });
   // An even ring starts off the vertical, so the top and bottom stay free for the outer ring's names.
   const start = -90 + (cast.length % 2 === 0 && cast.length > 0 ? 180 / cast.length : 0);
-  const [rx, ry] = lead ? [200, 150] : others.length ? [165, 118] : [215, 150];
+  // A big cast (a Botchelor season's suitors, a seeded demo's fifteen) takes the outer ring itself, with smaller
+  // faces: lib/story-map.ts mapView draws nobody else once the cast alone fills the map.
+  const big = cast.length > 8;
+  const [rx, ry] = big ? [300, 205] : lead ? [200, 150] : others.length ? [165, 118] : [215, 150];
   cast.forEach((p, i) => {
     const deg = start + (360 / Math.max(cast.length, 1)) * i;
     angle.set(p.id, deg);
-    out.push({ person: p, ...(cast.length === 1 && !lead ? { x: CX, y: CY } : at(deg, rx, ry)), r: R_CAST });
+    out.push({ person: p, ...(cast.length === 1 && !lead ? { x: CX, y: CY } : at(deg, rx, ry)), r: big ? R_OTHER + 3 : R_CAST });
   });
   const slots = Math.max(others.length, 8);
   const free = Array.from({ length: slots }, (_, i) => -90 + 180 / slots + (360 / slots) * i);
@@ -140,6 +143,8 @@ export function TieLine({ tie, from, to }: { tie: StoryTie; from: Spot; to: Spot
 export function TieLabel({ tie, from, to }: { tie: StoryTie; from: Spot; to: Spot }) {
   if (tie.kind === "talked") return null;
   const { x1, y1, x2, y2, len } = ends(from, to);
+  // Two neighbours on a crowded ring: no room for words between them (the list and the key say it).
+  if (len < 110) return null;
   const t = len < 220 ? 0.5 : 0.32;
   return (
     <text x={Math.round(x1 + (x2 - x1) * t)} y={Math.round(y1 + (y2 - y1) * t)} className="story-tie-label" textAnchor="middle" dominantBaseline="central">
