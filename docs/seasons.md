@@ -335,12 +335,13 @@ or writes points, odds or pairings beyond the order of dates the format already 
 
 ### Confrontations
 
-- **When.** After the daily scene, the hourly job reads `tensions(db, seasonId)`. A tension at weight 5 or more
-  (someone knows what another said about them 6 to 8, opposing claims 5, rivals with a want 5, distrust both ways at
-  its deepest 5) between two who are **both in the house** is staged at that day's scene hour: so a day or two after
-  the gossip that caused it. **At most two a week** (Monday to Monday), and the same two rest three days, so never two
-  days running. A pair that has never had it out goes before one that has; the producer's beat for the day
-  (`story_beats`) goes first when it names a pair that qualifies. Nothing due: no scene.
+- **When.** At the scene hour, before the day's own scene is written, the hourly job reads `tensions(db, seasonId)`.
+  A tension at weight 5 or more (someone knows what another said about them 6 to 8, opposing claims 5, rivals with a
+  want 5, distrust both ways at its deepest 5) between two who are **both in the house** is staged: so a day or two
+  after the gossip that caused it, never the same hour. **At most two a week** (Monday to Monday), the same two rest
+  three days (so never two days running), and the same thing is had out **once a season**: the same two over the same
+  tension, and one untrue story whoever confronts it. A pair that has never had it out goes before one that has; the
+  producer's beat for the day (`story_beats`) goes first when it names a pair that qualifies. Nothing due: no scene.
 - **The scene.** Those two, six lines, somewhere in the house; on about half the days someone else is in the doorway
   and says nothing.
 - **How it ends** (`decideOutcome`): they cleared the air, they agreed to disagree, or it ended worse than it started.

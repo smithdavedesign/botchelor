@@ -150,11 +150,25 @@ describe("when a confrontation is due (pickConfrontation)", () => {
     expect(pickConfrontation(dayId(at(16)), [tension()], house, two)).not.toBeNull();
   });
 
+  it("has the same thing out once a season: the same two over the same tension, and one untrue story whoever confronts it", () => {
+    const done = [{ day: "2026-11-02", a: DEX, b: MARISOL, kind: "knows_said", about: DEX }];
+    expect(pickConfrontation(dayId(MON), [tension()], house, done)).toBeNull();
+    // The same two over something else can still meet.
+    expect(pickConfrontation(dayId(MON), [tension({ kind: "rivals", about: TEO, weight: 5 })], house, done)).toMatchObject({ kind: "rivals" });
+    // Opposing claims: Marisol holds the untrue story about Rafe. Once someone who knows better has had it out with her,
+    // nobody else stages the same story again.
+    const claims = (a: string) => tension({ kind: "opposing_claims", a, b: MARISOL, about: RAFE, weight: 5 });
+    const had = [{ day: "2026-11-02", a: DEX, b: MARISOL, kind: "opposing_claims", about: RAFE }];
+    expect(pickConfrontation(dayId(MON), [claims(TEO), claims(JUNIPER)], house, had)).toBeNull();
+    expect(pickConfrontation(dayId(MON), [claims(TEO)], house, [])).toMatchObject({ a: TEO, b: MARISOL });
+  });
+
   it("puts a pair that has never had it out before one that has", () => {
     const old = [{ day: "2026-11-02", a: DEX, b: MARISOL }];
     const fresh = tension({ a: RAFE, b: TEO, kind: "rivals", weight: 5 });
     expect(pickConfrontation(dayId(MON), [tension(), fresh], house, old)).toMatchObject({ a: RAFE, b: TEO });
     expect(pickConfrontation(dayId(MON), [tension()], house, old)).toMatchObject({ a: DEX, b: MARISOL });
+    // (No kind on that old row: an older confrontation over something else doesn't spend this one.)
   });
 });
 

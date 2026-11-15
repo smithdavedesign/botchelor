@@ -7,8 +7,8 @@
  * CONFRONTATIONS (kind 'confrontation'). When the story state holds a tension between two people who are both in the
  * house (lib/story-state.ts tensions: someone knows what another said about them, opposing claims, two who want the
  * same person, distrust both ways) at CONFRONT_MIN_WEIGHT or more, the house stages it at the next scene hour: those
- * two, six lines. At most CONFRONTATIONS_A_WEEK a week, and the same pair rests PAIR_REST_DAYS (so never two days
- * running). The producer's beat for the day (story_beats) is preferred when it names a pair that qualifies.
+ * two, six lines. At most CONFRONTATIONS_A_WEEK a week, the same pair rests PAIR_REST_DAYS (so never two days
+ * running), and the same thing is had out once a season. The producer's beat for the day (story_beats) is preferred when it names a pair that qualifies.
  *  - How it ends (decideOutcome): cleared the air, agreed to disagree, or worse than before, weighted by the trust
  *    each holds for the other and by their temperaments (lib/temperament.ts sheetSignals: warmth against
  *    guardedness), then dealt by the day and the pair (lib/engine.ts seedFrom). The writer writes TO that result;
@@ -104,13 +104,21 @@ const OUTCOME_WORDS: Record<Outcome, string> = {
   worse_than_before: "it ended worse than it started",
 };
 
-export type Confronted = { day: string; a: string; b: string };
+/** A confrontation already staged this season: the day, the two, and what it was over. */
+export type Confronted = { day: string; a: string; b: string; kind?: string; about?: string | null };
 const samePair = (x: { a: string; b: string }, y: { a: string; b: string }) => (x.a === y.a && x.b === y.b) || (x.a === y.b && x.b === y.a);
+/**
+ * Whether a tension has been had out already this season. The same two over the same thing is staged once; and one
+ * untrue story is confronted once, whoever of the people who know better does it (opposing_claims: b holds the untrue
+ * one). The two can still meet again over something else.
+ */
+const spent = (t: Tension, history: readonly Confronted[]): boolean =>
+  history.some((h) => h.kind === t.kind && (h.about ?? null) === (t.about ?? null) && (t.kind === "opposing_claims" ? h.b === t.b : samePair(h, t)));
 
 /**
- * Which tension the house stages today (pure), or null: hot enough, both of its people in the house, inside the
- * week's cadence, and not a pair that had it out in the last PAIR_REST_DAYS. A pair that has never been confronted
- * this season goes before one that has; then the hottest (the order `tensions` gives).
+ * Which tension the house stages today (pure), or null: hot enough, both of its people in the house, not had out
+ * already this season, inside the week's cadence, and not a pair that had it out in the last PAIR_REST_DAYS. A pair
+ * that has never been confronted this season goes before one that has; then the hottest (the order `tensions` gives).
  */
 export function pickConfrontation(day: string, all: readonly Tension[], inHouse: readonly string[], history: readonly Confronted[]): Tension | null {
   const week = weekIdOf(new Date(`${day}T12:00:00Z`));
@@ -118,7 +126,7 @@ export function pickConfrontation(day: string, all: readonly Tension[], inHouse:
   if (thisWeek.length >= CONFRONTATIONS_A_WEEK) return null;
   const today = Date.parse(`${day}T00:00:00Z`);
   const resting = (t: Tension) => history.some((h) => samePair(h, t) && today - Date.parse(`${h.day}T00:00:00Z`) < PAIR_REST_DAYS * DAY_MS);
-  const due = all.filter((t) => t.weight >= CONFRONT_MIN_WEIGHT && t.a !== t.b && inHouse.includes(t.a) && inHouse.includes(t.b) && !resting(t));
+  const due = all.filter((t) => t.weight >= CONFRONT_MIN_WEIGHT && t.a !== t.b && inHouse.includes(t.a) && inHouse.includes(t.b) && !resting(t) && !spent(t, history));
   return due.find((t) => !history.some((h) => samePair(h, t))) ?? due[0] ?? null;
 }
 
@@ -356,9 +364,12 @@ export async function ensureConfrontation(
   if (!(await claimScene(db, id, day, "confrontation", now))) return { skipped: "already" };
   const seasonId = seasonIdOf(now);
   const cast = await membersOf(db, showCastIds(now));
-  const history = (
-    await db.query<{ day: string; result: ConfrontResult | null }>(`select day, result from house_scenes where kind = 'confrontation' and source in ('model', 'template') and season_id = $1`, [seasonId])
-  ).rows.flatMap((r) => (r.result ? [{ day: r.day, a: r.result.a, b: r.result.b }] : []));
+  const history: Confronted[] = (
+    await db.query<{ day: string; result: ConfrontResult | null; tension: { kind?: string; about?: string | null } | null }>(
+      `select day, result, tension from house_scenes where kind = 'confrontation' and source in ('model', 'template') and season_id = $1`,
+      [seasonId],
+    )
+  ).rows.flatMap((r) => (r.result ? [{ day: r.day, a: r.result.a, b: r.result.b, kind: r.tension?.kind ?? r.result.over, about: r.tension?.about ?? null }] : []));
   const all = await tensions(db, seasonId, { now }).catch(() => [] as Tension[]);
   // The producer's beat for the day goes first when it names two who are due; the state's own order after it.
   const beat = await beatFor(db, day);

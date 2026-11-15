@@ -91,15 +91,17 @@ async function run(req: Request): Promise<Response> {
   const castChat = await ensureCastChat(db).catch(() => null);
   // The story state (lib/story-state.ts): its one-off backfill, this week's wants for the cast, and pruning. No model call.
   const storyState = await storyUpkeep(db).catch(() => null);
+  // Confrontations (lib/house-conflict.ts): a tension hot enough between two in the house is staged, two a week at
+  // most, its result decided by seeded rules before the writer is called. Before the daily scene, so what that scene
+  // spreads today is only had out tomorrow or after.
+  const confrontation = await ensureConfrontation(db).catch(() => null);
   // The daily house scene (lib/house-scenes.ts): written once, the first pass from its hour on, about the dates that
   // aired since the last one; what it retells becomes something the cast heard. One free-model call a day, or a template.
   // Its upkeep takes back what a scene told of a date that is no longer public.
   const houseScene = await ensureHouseScene(db).catch(() => null);
   const houseKept = await houseUpkeep(db).catch(() => null);
-  // Confrontations and challenges (lib/house-conflict.ts): a tension hot enough between two in the house is staged
-  // (at most two a week), and on Wednesdays the week's challenge is held; each result is decided by seeded rules before
-  // the writer is called. After the daily scene, so what it just spread can't be confronted the same hour.
-  const confrontation = await ensureConfrontation(db).catch(() => null);
+  // The week's challenge (lib/house-conflict.ts), on Wednesdays: the winner, decided by seeded rules, gets the next
+  // one-on-one (the same dates in another order: none is added).
   const challenge = await ensureChallenge(db).catch(() => null);
   // The show's Discord (lib/discord-posts.ts, docs/discord.md): the episode digest, Sunday's vote and the board, each
   // posted once, after everything above that changes them. Off until a webhook is set; at most a few posts of 5 seconds,
