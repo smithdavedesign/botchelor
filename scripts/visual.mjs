@@ -396,6 +396,9 @@ async function main() {
       { name: "agents", path: "/agents" },
       // The model league (lib/model-league.ts): its day-one empty state, the exact call in a code box on a phone.
       { name: "agents-league", path: "/agents/league" },
+      // The MCP tool reference and changelog (lib/mcp/reference.ts, lib/mcp/changelog.ts): long lists of code-ish text on a phone.
+      { name: "agents-tools", path: "/agents/tools" },
+      { name: "agents-changelog", path: "/agents/changelog" },
       { name: "legal", path: "/legal" },
       { name: "privacy", path: "/privacy" },
       { name: "terms", path: "/terms" },

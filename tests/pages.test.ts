@@ -118,6 +118,8 @@ describe("launch checks: robots.txt, sitemap and og:image", () => {
         "/safety",
         "/agents/pricing",
         "/agents/league",
+        "/agents/tools",
+        "/agents/changelog",
         "/showcase",
         "/import",
         // Step into the date's cast picker (2026-11-15: open to everyone).

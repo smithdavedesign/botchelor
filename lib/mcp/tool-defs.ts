@@ -1,5 +1,5 @@
 /**
- * All 61 MCP tool definitions. Moved out of lib/mcp.ts (split phase 3) — the dispatcher and handlers still
+ * Every MCP tool definition. Moved out of lib/mcp.ts (split phase 3) — the dispatcher and handlers still
  * live in lib/mcp.ts because they share many module-local helpers; moving them is phase 4 (its own PR).
  *
  * No circular imports: this file imports from upstream libraries and from lib/mcp/{schemas,annotations,
@@ -24,7 +24,7 @@ import { airWindowMinutes } from "../air";
 import { PLACE_LABEL_MAX } from "../venues";
 import { AGENT_ID, COMPACT_STEP, type JsonSchema, PREVIEW, SINCE_TURN, str, VISIBILITY, FORMAT, WAIT, WAIT_MAX_SECONDS, visibilityRules } from "./schemas";
 import { DELETE, READ, SET, WRITE } from "./annotations";
-import { bare, BOOKING_RULE, COMPACT_CARDS, CONVERSATION_TURNS, EXCLUSIVE_POINTER, EXCLUSIVE_RULE, EXCLUSIVE_SHORT, EXCLUSIVE_SOON, PARTNER_STYLE_DOC, POINTS_NOTE, POINTS_PER_CORRECT_PICK, POINTS_PER_DRAMA_PICK, SHEET_PROPS, thin } from "./constants";
+import { bare, BOOKING_RULE, COMPACT_CARDS, CONVERSATION_TURNS, EXCLUSIVE_POINTER, EXCLUSIVE_RULE, EXCLUSIVE_SHORT, EXCLUSIVE_SOON, HOUSE_TALK_DEFAULT, HOUSE_TALK_MAX, PARTNER_STYLE_DOC, POINTS_NOTE, POINTS_PER_CORRECT_PICK, POINTS_PER_DRAMA_PICK, SHEET_PROPS, thin } from "./constants";
 import { EXAMPLE_CALLS } from "../agents";
 import { WHILE_AWAY_MODES } from "../activity";
 import { withArgDocs } from "./arg-docs";
@@ -1186,6 +1186,59 @@ const RAW_TOOL_DEFS = [
       },
     },
     annotations: SET,
+  },
+  // The house (2.31.0, lib/mcp/house.ts): four read tools on the show's house and story layer. None is in the core list
+  // (its byte budget, tests/mcp-core.test.ts, had 135 bytes left), so each says what it is in one short paragraph.
+  {
+    name: "get_house_scene",
+    title: "A scene from the house",
+    description:
+      "The show's house: each evening a few of the cast talk over the dates that aired, sometimes two have it out, and on Wednesdays they compete. " +
+      "Without scene_id: the latest scene (place, who was there, every line, its kind and link) and the ids of the few before it. " +
+      "Public, exactly what /house shows: only aired public dates are ever talked about, and what's said can be wrong (it's gossip).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        scene_id: str(64, "One scene by its id (from earlier, get_house_talk or a house_talk notice). Left out: the latest."),
+        agent_id: AGENT_ID,
+      },
+    },
+    annotations: READ,
+  },
+  {
+    name: "get_house_talk",
+    title: "What the house has said about a character",
+    description:
+      "Is anyone talking about a character? The public house scenes that name it, newest first: how (it spoke, was_there, its date_talked_about, had_it_out, won_the_challenge, named), " +
+      "a one-line summary, the lines by it or naming it, and each scene's link. Any public character; get_house_scene has a scene's whole text.",
+    inputSchema: {
+      type: "object",
+      required: ["character_id"],
+      properties: {
+        character_id: str(64, "The character to ask about: one of yours, or any public character."),
+        limit: { type: "integer", minimum: 1, maximum: HOUSE_TALK_MAX, default: HOUSE_TALK_DEFAULT, description: "How many scenes at most." },
+        agent_id: AGENT_ID,
+      },
+    },
+    annotations: READ,
+  },
+  {
+    name: "get_story_so_far",
+    title: "The story so far",
+    description:
+      "The producer's public lines for today: a logline, Previously and Tonight, and the aired public dates the last few days' story was about. " +
+      "Empty on a day with no story line. It frames the night; it never decides how a date ends.",
+    inputSchema: { type: "object", properties: { agent_id: AGENT_ID } },
+    annotations: READ,
+  },
+  {
+    name: "my_story_state",
+    title: "What my character thinks, has heard and wants",
+    description:
+      "For one of YOUR characters, what only its owner sees: what it thinks of people (trust, attraction, its take), what it has heard and from whom (never whether it's true: it doesn't know), " +
+      "and what it wants this week. Each item carries the forget { kind, item } that forget_memory takes. Read-only: it's learned from aired dates and the house, not written.",
+    inputSchema: { type: "object", required: ["character_id"], properties: { character_id: str(64, "One of your characters."), agent_id: AGENT_ID } },
+    annotations: READ,
   },
   {
     name: "check_originality",

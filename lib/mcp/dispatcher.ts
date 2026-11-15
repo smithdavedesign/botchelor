@@ -121,6 +121,7 @@ import { kindLabel } from "../kinds";
 import { FORGET_KINDS } from "../memory";
 import { loadLessons } from "../character-lessons";
 import { STORY_FORGET_KINDS, storyView } from "../story-state";
+import { getHouseScene, getHouseTalk, getStorySoFar, HOUSE_TOOL_NAMES, HOUSE_TOOLS_OFF, isHouseTool, mcpHouseOn, myStoryState, sceneAbout } from "./house";
 import { CROWD_CLIENT_PREFIX, crowdMinutesToWake, HOUSE_BOT_CLIENT_PREFIX, houseBotRefusal } from "../house-bots";
 import { siteUrl } from "../site";
 import { profilePhotos } from "../studio/profile-photos";
@@ -265,7 +266,11 @@ export const MCP_PROTOCOL_VERSION = "2025-06-18";
 // model the agent says it runs on (optional, self-declared, as send_feedback's model already was; all three now keep it
 // on the agent's identity). Each date is stamped at booking with the family its agents had declared, and /agents/league
 // (JSON: /api/league/models) adds them up per family: new optional arguments and reply fields, nothing else changed.
-export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.30.0" } as const;
+// 2.31.0 (the front-door wave, 2026-11-15: the house over MCP, lib/mcp/house.ts): four read tools outside the core list,
+// get_house_scene, get_house_talk, get_story_so_far and my_story_state, and get_episode's house_talk pointer on an aired
+// date of yours the house talked about: new tools and one new field, nothing else changed. The versions are data now
+// (lib/mcp/changelog.ts, shown at /agents/changelog; a test holds its newest entry to this version): add the entry there.
+export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.31.0" } as const;
 
 /** Where every tool is listed: the default list is the core (2026-10-20: 53 tools were ~14k tokens in every agent's context). */
 export const ALL_TOOLS_HINT = "/api/mcp?tools=all";
@@ -639,6 +644,10 @@ export const TOOL_COSTS: Record<ToolName, string> = {
   my_model: FREE,
   clear_model: "Free. Your dates go back to the shared pool and the 3-free-dates-a-week cap.",
   companion: "Free, on the show's model: up to 60 messages an hour and 300 a day.",
+  get_house_scene: FREE,
+  get_house_talk: FREE,
+  get_story_so_far: FREE,
+  my_story_state: FREE,
 };
 
 /** Which tools carry a free-path rate limit (lib/rate-limit.ts). Buckets map to tool names. */
@@ -662,6 +671,7 @@ const RATE_LIMIT_BY_TOOL: Partial<Record<ToolName, RateLimitBucket>> = {
  * top-level keys. Clients that don't read `_meta` ignore it.
  */
 const toolCategory = (name: ToolName): string => {
+  if (isHouseTool(name)) return "house";
   if (/^(my_|list_|get_|search_|browse_|find_|export_|link_|request_)/.test(name)) return "discovery";
   if (/^(swipe|answer_match|my_matches)/.test(name)) return "swipes";
   if (/_text$|^read_texts$|^send_text$|^leave_nudge$/.test(name)) return "texting";
@@ -780,6 +790,8 @@ const UNLISTED_TOOLS = new Set<string>([
   "request_after_dark", "list_watch_parties", "air_date", "wait_for_episode", "wait_for_my_turn", "wait_for_text", "rate_character",
   // Companions (lib/companion-mcp.ts): listed once COMPANION_OPEN=1 (an env change redeploys, so read once); the admin's own agents call it by name until then.
   ...(companionOpen() ? [] : ["companion"]),
+  // The house tools (lib/mcp/house.ts) while MCP_HOUSE=0: out of every list, and refused by name (tools/call checks again on each call).
+  ...(mcpHouseOn() ? [] : HOUSE_TOOL_NAMES),
 ]);
 /** Every public tool: tools/list on /api/mcp?tools=all (or with params { all: true }), /llms-full.txt and /agents. */
 export const PUBLIC_MCP_TOOLS = MCP_TOOLS.filter((t) => !UNLISTED_TOOLS.has(t.name));
@@ -5200,7 +5212,14 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
               : [];
         if (calls.length) out.data = { ...out.data, next_calls: calls };
       }
-      if (args.summary !== true) return out;
+      // 2.31.0: an aired date of yours the house talked about says so, with the scene and the call that reads it. The
+      // house tools sit outside the core list, so this is a field of its own, not a next_call, and says they work by name.
+      const eNow = (d.episode && typeof d.episode === "object" ? d.episode : out.data) as Record<string, unknown>;
+      const talk = out.data.aired === true && eNow.is_creator === true ? await sceneAbout(db, String(eNow.id ?? args.episode_id ?? "")).catch(() => null) : null;
+      const houseTalk = talk
+        ? { house_talk: { ...talk, call: { tool: "get_house_scene", args: { scene_id: talk.scene_id } }, note: "The house talked about this date. The house tools aren't in the core list: they work by name." } }
+        : {};
+      if (args.summary !== true) return { ...out, data: { ...out.data, ...houseTalk } };
       const summary = episodeSummary(out.data);
       // While it's being written, say how far along it is (2026-10-20 visitors: "just {status: generating}, no ETA").
       const e = summary.episode as Record<string, unknown>;
@@ -5221,7 +5240,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           };
         }
       }
-      return { ...out, data: summary };
+      return { ...out, data: { ...summary, ...houseTalk } };
     }
     case "wait_for_episode":
       return waitForEpisode(db, args, session, Number(args.timeout_seconds) || WAIT_MAX_SECONDS);
@@ -8808,6 +8827,32 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         identity: who,
       };
     }
+    // The house (2.31.0, lib/mcp/house.ts): three public reads and the owner's own view. None writes.
+    case "get_house_scene": {
+      const who = resolveIdentity(args, session, false);
+      const out = await getHouseScene(db, args);
+      return "error" in out ? out : { data: out.data, identity: who ?? undefined };
+    }
+    case "get_house_talk": {
+      // An identity only widens it to the caller's own private character (which the house never names anyway).
+      const who = resolveIdentity(args, session, false);
+      const out = await getHouseTalk(db, args, who?.id ?? null);
+      return "error" in out ? out : { data: out.data, identity: who ?? undefined };
+    }
+    case "get_story_so_far": {
+      const who = resolveIdentity(args, session, false);
+      const out = await getStorySoFar(db);
+      return "error" in out ? out : { data: out.data, identity: who ?? undefined };
+    }
+    case "my_story_state": {
+      // The owner's fold, so the same ownership check as my_character_memory.
+      const who = resolveIdentity(args, session, false);
+      if (!who) return { error: NEEDS_IDENTITY };
+      const id = String(args.character_id ?? "");
+      if (!(await ownsCharacter(db, id, who.id))) return { error: "That character isn't yours (or doesn't exist). my_status lists yours." };
+      const out = await myStoryState(db, id);
+      return "error" in out ? out : { data: out.data, identity: who };
+    }
     case "forget_memory": {
       const who = resolveIdentity(args, session, false);
       if (!who) return { error: NEEDS_IDENTITY };
@@ -9182,13 +9227,16 @@ export function toolsListResult(params: Record<string, unknown> | undefined, ctx
   // #461: the core is the default, as it is over HTTP (app/api/mcp/route.ts), so every client sees one list; ?tools=all
   // (or params { all: true }) lists every tool. Every tool a reply names is in the core (tests/mcp-hints.test.ts).
   const core = ctx.toolset !== "all" && params?.all !== true;
-  const tools = admin ? [...MCP_TOOLS, ...ADULT_TOOLS] : core ? CORE_MCP_TOOLS : PUBLIC_MCP_TOOLS;
+  // MCP_HOUSE=0 (lib/mcp/house.ts) takes the house tools out of every list, the admin's and names: [...] too.
+  const houseOff = !mcpHouseOn();
+  const shown = <T extends { name: string }>(list: readonly T[]): readonly T[] => (houseOff ? list.filter((t) => !isHouseTool(t.name)) : list);
+  const tools = admin ? shown([...MCP_TOOLS, ...ADULT_TOOLS]) : core ? CORE_MCP_TOOLS : shown(PUBLIC_MCP_TOOLS);
   // #373: lean: true lists each tool's name and first sentence only (the full schemas stay the default).
   // #376: names: [...] returns just those tools in full: any tool that can be called, listed or not.
   const names = Array.isArray(params?.names) ? (params.names as unknown[]).map(String) : null;
-  if (names) return { tools: (admin ? tools : MCP_TOOLS).filter((t) => names.includes(t.name)) };
+  if (names) return { tools: (admin ? tools : shown(MCP_TOOLS)).filter((t) => names.includes(t.name)) };
   // #447: the core list says it's part of the list, and names the rest (clients that don't show the instructions miss it).
-  const more = tools === CORE_MCP_TOOLS ? { more_tools: MORE_TOOLS } : {};
+  const more = tools === CORE_MCP_TOOLS ? { more_tools: houseOff ? { ...MORE_TOOLS, total: shown(PUBLIC_MCP_TOOLS).length, not_listed: MORE_TOOLS.not_listed.filter((n) => !isHouseTool(n)) } : MORE_TOOLS } : {};
   if (params?.lean === true) {
     return {
       tools: tools.map((t) => ({
@@ -9520,6 +9568,8 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
         return reply(toToolResult(out, null));
       }
       if (!TOOL_NAMES.has(name)) return isNotification ? null : fail(-32602, unknownToolMessage(name));
+      // The house tools behind their switch (lib/mcp/house.ts): read on every call, so MCP_HOUSE=0 needs no deploy of code.
+      if (isHouseTool(name) && !mcpHouseOn()) return isNotification ? null : refuse(HOUSE_TOOLS_OFF);
       const given = (msg.params?.arguments ?? {}) as Record<string, unknown>;
       const normalised = normaliseArgs(name, given);
       let args = normalised.args;

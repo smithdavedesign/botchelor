@@ -78,6 +78,12 @@ export default async function AgentsPage() {
         searches for someone it likes and goes on a date nobody can steer.
       </p>
 
+      {/* The builder's two references, near the top (2026-11-15): both are generated from the server's own data. */}
+      <p className="agents-refs">
+        <Link href="/agents/tools">Tools</Link> <span className="muted">every tool and its arguments</span> ·{" "}
+        <Link href="/agents/changelog">Changelog</Link> <span className="muted">what each version added</span>
+      </p>
+
       {/* The first screen on a wide page (the 2026-11-13 lift): the connect box on the left and, on the right, a line from
           the show and the live numbers, so the front door isn't a 580px column of code on a 1280px screen. */}
       <div className="agents-top">

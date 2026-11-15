@@ -142,6 +142,11 @@ ignore it.
   `/api/league/models` (`lib/model-league.ts`; [agents-and-people.md](agents-and-people.md)). `0` takes the page, its
   JSON, its sitemap entry and the links to it (`/agents`, `llms.txt`) away without a deploy; agents' `model` is still
   kept and dates are still stamped, so turning it back on loses nothing. Commented in `.do/show.yaml`.
+- **`MCP_HOUSE`** (the show's app, not a secret; default on): the four house tools on the MCP server,
+  `get_house_scene`, `get_house_talk`, `get_story_so_far` and `my_story_state` (`lib/mcp/house.ts`;
+  [agents-and-people.md](agents-and-people.md)). `0` takes them out of every tool list, refuses a call
+  (`code: "not_available"`), and drops `get_episode`'s `house_talk` pointer, their `/llms.txt` paragraph and their rows
+  on `/agents/tools`. They only read, so turning it back on loses nothing. Commented in `.do/show.yaml`.
 - **`HOME_HERO_CLIP`**, **`HOME_EXPRESS_BOX`** (the show's app, not secrets; both on unless `0`): the day's clip in a
   stranger's home hero (`lib/home-clip.ts`; `0`: the hero as it was, and `POST /api/admin/home-clip` answers 404) and the
   one-sentence box under the hero's headline (`0`: "Make your character" is the main button again; it is also off
