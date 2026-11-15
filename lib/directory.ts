@@ -8,6 +8,7 @@ import { portraitPathSql } from "./assets";
 import type { Db } from "./db";
 import { originSql, type Origin } from "./origin";
 import { DELETED_OWNER } from "./rules";
+import { notPersonaSql } from "./step-in-shared";
 
 export type DirectoryEntry = {
   id: string;
@@ -58,8 +59,11 @@ const TAB_WHERE = {
   people: `not c.is_house and c.created_via <> 'mcp'`,
   agents: `not c.is_house and c.created_via = 'mcp'`,
 } as const;
-/** Listed at all: not a deleted account's ($1). A private one is listed too, by name only (shown). */
-const LISTED = `c.owner_id is distinct from $1`;
+/**
+ * Listed at all: not a deleted account's ($1), and not someone's "you" from a step-in date (lib/step-in.ts: a seat at
+ * the table, not a character). A private one is listed too, by name only (shown).
+ */
+const LISTED = `c.owner_id is distinct from $1 and ${notPersonaSql("c")}`;
 
 /** A made-by tab, a page at a time, newest first. */
 export async function listTab(
@@ -98,7 +102,7 @@ export async function tabCounts(db: Db): Promise<{ people: number; agents: numbe
     `select count(*) filter (where ${TAB_WHERE.people})::int as people,
             count(*) filter (where ${TAB_WHERE.agents})::int as agents,
             count(*) filter (where c.visibility = 'private' and not c.is_house)::int as private
-       from characters c where c.owner_id is distinct from $1`,
+       from characters c where ${LISTED}`,
     [DELETED_OWNER],
   );
   return rows[0] ?? { people: 0, agents: 0, private: 0 };

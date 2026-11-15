@@ -340,6 +340,34 @@ h3 {
   color: var(--muted);
 }
 
+/* ---------------- Characters: a card's actions (app/characters/page.tsx Entry; lib/character-verb.ts) ----------------
+   The one verb for whoever's looking, and Talk under it, at the card's foot so a row of cards lines them up. Each is
+   the full width of the card and a full-height control (44px), and a long label ("Send Marisol on a date with
+   Juniper") wraps inside a narrow card, two to a row on a phone, instead of widening it. */
+.characters-hub .dir-card .dir-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  align-self: stretch;
+  gap: var(--space-2);
+  margin-top: auto;
+  padding-top: var(--space-2);
+}
+.characters-hub .dir-actions :is(a.button, button) {
+  min-height: var(--control-h);
+  margin: 0;
+  padding-inline: var(--space-2);
+  /* Not the site's pill: a label that wraps to two or three lines would run into a pill's round ends. */
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  text-align: center;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.characters-hub .dir-actions .error {
+  margin: 0;
+}
+
 /* ---------------- Companions: show more (app/companion/CompanionBrowser.tsx, item 4) ---------------- */
 .companion-more {
   display: flex;

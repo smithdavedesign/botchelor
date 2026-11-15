@@ -11,6 +11,7 @@
  *    prediction, a follow, or opening a notification.
  */
 import { agentFunnel } from "./agent-funnel";
+import { notPersonaSql } from "./step-in-shared";
 import type { Db } from "./db";
 import { DELETED_OWNER } from "./rules";
 
@@ -138,7 +139,7 @@ export async function relationshipMetrics(db: Db, now = new Date(), windowDays =
     ),
     one<{ made: number; said: number }>(
       `select count(*)::int as made, count(*) filter (where extras->>'kind' is not null)::int as said
-         from characters where not is_house and owner_id is distinct from $1`,
+         from characters where not is_house and owner_id is distinct from $1 and ${notPersonaSql()}`,
       [DELETED_OWNER],
     ),
     agentFunnel(db),

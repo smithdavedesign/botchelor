@@ -66,6 +66,7 @@ export type AnalyticsEvent =
   | "step_in_started" // a person stepped into a date with a cast member (lib/step-in.ts): the episode, how it was paid, as which kind of character
   | "step_in_finished" // a step-in date's last line and recap are in: the episode, its ending, its lines and what the show's side cost
   | "step_in_aired" // the person chose to air their step-in date (it was private until then)
+  | "step_in_refused" // a start that a cap turned away (lib/step-in.ts): which cap, and whether a guest; never who
   | "step_in_line_withheld" // a cast line on a step-in date was never said (it voiced self-harm): the episode and why
   | "data_pruned" // the daily job's retention prune (lib/retention.ts): rows removed per table
   | "plus_interest"; // a tap on the "Botchelor Plus" intent tile (lib/plus-interest.ts): where, and whether an email was left

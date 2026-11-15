@@ -191,7 +191,8 @@ friends". A disaster is a clear no whose cause everyone saw in act two.
 - `rulesPlan` builds the sheet deterministically from the engine's facts. It's free and always available.
 - `planDate` asks the director model to rewrite that skeleton in specifics: their lives, this venue, a running
   callback. It's best-effort, with two attempts, then it falls back to the rules plan. A director at its
-  quota costs nothing.
+  quota costs nothing. On the show's paid model it has not been coming back: see
+  [Round: the fast first date](#round-the-fast-first-date-2026-11-15), which also takes it off the speed date.
 
 **The leak check.** The director sees both characters, so its output is checked deterministically:
 `carriesPrivate` looks for any two-word run of the other side's private words (soul, secret goal, the owner's
@@ -912,3 +913,156 @@ times in 40, so no position lean. The genuineness critic scored plain 84.9 and d
 mostly washed out: on 20 dates Go deeper is no worse and maybe slightly better, but not measurably. It stays as it is,
 an optional step; its case is what creators can say about their character, not a judged lift. Spend $0.93: $0.81
 generating (the first six dates' files were lost when the Mac restarted and were played again), $0.12 judging.
+
+## Round: the fast first date (2026-11-15)
+
+A newcomer's first date is a 6-line speed date (`lib/first-date.ts`). It took a median 111 s to write, the first line
+came after 57 s, and in 30 days two visitors started one and neither saw it end. The goal: the first line on screen
+within 10 seconds, the verdict within 60. `lib/fast-date.ts` has the code's side of this; this is the measurement.
+
+**Where the 111 seconds went.** Production, read-only: 74 speed-date jobs over 14 days. Per-line times are
+`episodes.turn_meta[i].at`; the job's claim is `generation_jobs.leased_until` minus the 330 s lease on jobs from before
+#1613, and the verdict is `leased_until` minus 240 s on jobs after it; the end is `generation_jobs.updated_at`.
+
+| Part | p50 | p90 | What it is |
+|---|---|---|---|
+| Pickup | 0-1 s | | `after()` on the booking request, then the claim. Not a queue, not a cron (those are the backstops). |
+| Before the first line | 56.7 s | 62.2 s | pickup, the date's loads, a new character's hot takes, **the director's plan**, the first line's call |
+| First line to last | 25.2 s | 33.4 s | five more lines: one call each, about one critic revision a date |
+| Last line to ready | 28.8 s | 32.9 s | the two answers (2 s, in parallel), then the recap, four texts and two reflections, one after another |
+| Whole date | 111.3 s | 125.2 s | (classic, 251 jobs: 155.1 s and 183.8 s, with the same 56.5 s before its first line) |
+
+The verdict (`onOutcome`, #1608) landed about 77 s after the booking on the six jobs written after #1613.
+
+**The same date call by call** (`scripts/eval/speed-date-timing.eval.ts`: the real pipeline in memory, Haiku 5.5 on
+OpenRouter, the show's 25 s call limit; two dates):
+
+| Call | Each | A date |
+|---|---|---|
+| The director's plan | 25.0 s, cut off, twice | **50 s**, then the rules plan |
+| A line | 3.8 s (350-800 output tokens, most of it thinking) | 6, plus ~1 revision of 1-5 s |
+| An answer ("see them again?") | 1.8 s | 2, in parallel |
+| The recap | 9.7 s (~1,900 tokens) | 1 |
+| A morning-after text | 2.8 s | 4, one after another |
+| A reflection | 2.2 s | 2, in parallel |
+
+So the first line came at 53 s, the verdict at 76 s and the date was ready at 100 s: production's numbers, less its
+few seconds of pickup and loads. **Half of every date was a plan that never arrived.** The show's model thinks before it
+answers, and on a plan it thinks for about 7,500 tokens: with a 90 s limit the two plan calls took 40.4 s and 36.8 s
+(the first didn't parse), cost 0.41¢ and 0.39¢, and doubled the date's cost to 1.65¢. Under the show's 25 s limit both
+are cut off (`model returned no text`: the reply's headers arrive, its body doesn't) and the date plays from
+`rulesPlan`. In 30 days, 387 of 397 dates of every format had no first line before 40 s, and none before 20 s: the
+director's plan has not been reaching dates since at least mid-October.
+
+**What a fast date does** (`GenerateOptions.fast`, on for speed dates):
+
+1. **No director call.** The conversation starts at once on the rules plan, the plan these dates were playing from.
+2. **A bounded wait for hot takes.** A newcomer's character has none yet, and deriving them (one small call on the free
+   model) sat in front of the date with a 25 s limit of its own. A fast date waits `HOT_TAKES_WAIT_MS` (2.5 s); past
+   that it plays this date on the fallback takes (`fallbackHotTakes`, what a failed derivation has always given) while
+   the derivation finishes behind it and is stored for the next date.
+3. **The recap, the texts and the reflections side by side** once the ending stands. None reads another's output: each
+   is written from the lines and the ending. The recap still fails closed, after the other two have settled.
+
+What didn't change: the engine's outcome and how the two answers move it; one line at a time, each parsed, filtered
+and read by the critic before it is saved or played, and the next line asked for only after; the verdict's write
+(`setup.ending_final`) before the date is ready; the lease rules (#1613: each saved line renews `TURN_LEASE_SECONDS`,
+the verdict `AFTER_OUTCOME_LEASE_SECONDS`, and nothing after the verdict writes a line). `tests/fast-date.test.ts`
+pins each, and that a fast date and the old order write the same lines, ending, recap, texts and reflections from a
+model that answers from the prompt alone. Nothing per line could be cut without changing what is asked: a line is
+already one call (its feeling, thought and note ride in the same reply), its checks are free and instant, and the
+answers were already parallel.
+
+**After** (the same harness, four dates, the show's model as it is):
+
+| | Before | Fast | Fast + `SPEED_DATE_REASONING=low` | Fast + Gemini 3.5 Flash-Lite |
+|---|---|---|---|---|
+| First line (median; worst) | 53.2 s | **2.4 s; 4.2 s** | 1.5 s; 1.9 s | 1.2 s; 1.3 s |
+| Verdict (median; worst) | 76.3 s | **27.0 s; 30.7 s** | 19.3 s; 22.1 s | 9.1 s; 11.1 s |
+| Ready (median) | 100.5 s | **39.9 s** | 31.5 s | 12.6 s |
+| Cost a date | 0.80¢ | 0.81¢ | 0.70¢ | 1.05¢ |
+
+Production adds the pickup, the loads and up to 2.5 s of hot takes on a newcomer's first date, so expect the first
+line at 4 to 8 s, the verdict at about 30 to 35 s and the whole date in about 45 s. These are four local dates, not a
+p90: the copy that promises a time (`WRITE_TIME_SPEED`, "about two minutes") stays until production's own p90 is in.
+
+**A faster model for speed dates?** `SPEED_DATE_MODEL` and `SPEED_DATE_REASONING` put a speed date's actor calls
+(lines, answers, texts, reflections) on another model or thinking level; the recap stays on the show's model, and a call
+the speed model fails falls back to the show's. Both are unset, and the measurements say leave them unset:
+
+- **Gemini 3.5 Flash-Lite** (thinking low) is three times faster and worse on every date: scored alone, twice each, by
+  Gemini 3.7 Flash (`LIVING_EVAL_MODE=score`), Haiku against Flash-Lite was alive 5.25 to 3.75, opinions 5.63 to 4.38,
+  listening 7.0 to 4.88, carry 5.75 to 3.38, watch 5.38 to 3.5, Haiku ahead on 4 dates of 4 on all five (p = 0.125,
+  the least four pairs can give). Its lines are half as long (96 characters against 204), three of four dates stopped
+  at 5 lines, and it costs more here (1.05¢).
+- **The show's model with less thinking** (`SPEED_DATE_REASONING=low`) keeps the voice, takes 8 s off the verdict and
+  14% off the cost. The judge had it a little lower everywhere (alive 4.88 to 4.75, opinions 5.38 to 4.63, listening
+  6.5 to 6.0, carry 5.38 to 4.88, watch 5.13 to 4.63; ahead on 1 date of 4, behind on 2 or 3; p from 0.63 to 1), and
+  the critic sent back 8 lines in four dates against 3. Four dates can't tell that from noise. It is the one to try if
+  27 s to a verdict turns out too slow, after a larger run (the command below with `SPEED_TIMING_N=6`, both arms,
+  then the score). `minimal` measured the same as `low` (verdict 21.7 s, 0.68¢).
+
+Spend: 22¢ on OPENROUTER_LOOP_KEY (16¢ generating 19 dates, 6¢ judging), small runs one at a time.
+
+**Switches** (the show's app, [hosting.md](hosting.md)):
+
+| Env | Default | What |
+|---|---|---|
+| `FAST_FIRST_LINE` | unset: speed dates | `0`/`off`: no date starts fast (the old order). `all`: every format. Or a list of format ids. |
+| `HOT_TAKES_WAIT_MS` | `2500` | how long a fast date waits for a new character's hot takes |
+| `SPEED_DATE_MODEL` | unset: the show's model | a model id at the show's paid endpoint, for a speed date's actor calls |
+| `SPEED_DATE_REASONING` | unset: the model's default | `minimal`, `low`, `medium` or `high`, for a speed date's actor calls |
+
+**The classic date has the same 50 seconds in it** and is untouched here: it still asks the director twice and waits
+(its content was not this round's to change). `FAST_FIRST_LINE=all` takes the wait off every format; the dates would
+play from the rules plan, as 97% of them already do. The other way to spend those seconds is to let the plan land (a
+longer limit for that one call, at +40 to 77 s and +0.4 to 0.8¢ a date, or a director that thinks less). That's an
+owner's call about the classic date.
+
+**Measuring it in production.** Every date written by a job now records when each part happened, on the episode:
+`generated_with.timing` = `{fast, queued_ms, setup_ms, first_line_ms, last_line_ms, verdict_ms, written_ms}`
+(`queued_ms` from the booking to the claim on the database's clock, the rest from the claim) and `generated_with.plan`
+(`director` or `rules`). After a day of speed dates (the 20:20 UTC mixer writes four to six):
+
+```sql
+select count(*) n, bool_and((t->>'fast')::boolean) all_fast,
+       round(percentile_cont(0.5) within group (order by q + (t->>'first_line_ms')::numeric) / 1000, 1) first_line_p50,
+       round(percentile_cont(0.9) within group (order by q + (t->>'first_line_ms')::numeric) / 1000, 1) first_line_p90,
+       round(percentile_cont(0.5) within group (order by q + (t->>'verdict_ms')::numeric) / 1000, 1) verdict_p50,
+       round(percentile_cont(0.9) within group (order by q + (t->>'verdict_ms')::numeric) / 1000, 1) verdict_p90,
+       round(percentile_cont(0.5) within group (order by q + (t->>'written_ms')::numeric) / 1000, 1) ready_p50,
+       round(percentile_cont(0.9) within group (order by q + (t->>'written_ms')::numeric) / 1000, 1) ready_p90
+  from episodes e
+  cross join lateral (select e.generated_with->'timing' t, coalesce((e.generated_with->'timing'->>'queued_ms')::numeric, 0) q) x
+ where e.setup->>'format' = 'speed_date' and e.status = 'ready' and t is not null
+   and e.created_at > now() - interval '7 days';
+```
+
+The older query still works on every date, before and after (the first line from `turn_meta`, the end from the job):
+
+```sql
+select coalesce(e.setup->>'format', 'classic') fmt, count(*) n,
+       percentile_cont(0.5) within group (order by extract(epoch from (e.turn_meta->0->>'at')::timestamptz - j.created_at)) first_line_p50,
+       percentile_cont(0.9) within group (order by extract(epoch from (e.turn_meta->0->>'at')::timestamptz - j.created_at)) first_line_p90,
+       percentile_cont(0.5) within group (order by extract(epoch from j.updated_at - j.created_at)) ready_p50,
+       percentile_cont(0.9) within group (order by extract(epoch from j.updated_at - j.created_at)) ready_p90
+  from generation_jobs j join episodes e on e.id = j.episode_id
+ where j.status = 'succeeded' and j.created_at > now() - interval '7 days'
+   and jsonb_typeof(e.turn_meta) = 'array' and jsonb_array_length(e.turn_meta) > 0
+ group by 1;
+```
+
+Once `ready_p90` for speed dates is under 60 s, `WRITE_TIME_SPEED` (lib/rules.ts) can say "about a minute", and the
+stage's slow note (`SLOW_LINE_MS`, 60 s without a line) can come down; not before.
+
+**Running the timing harness** (about 0.8¢ a date; one date at a time, never the live show's quota):
+
+```sh
+SPEED_TIMING_KEY="$(security find-generic-password -s vault/botchelor/OPENROUTER_LOOP_KEY -w)" \
+SPEED_TIMING_OUT=<dir> SPEED_TIMING_LABEL=fast SPEED_TIMING_N=4 \
+  npx vitest run --config scripts/eval/vitest.eval.mts scripts/eval/speed-date-timing.eval.ts
+# the arm from before: FAST_FIRST_LINE=0. Another model or thinking level: SPEED_TIMING_MODEL=…, SPEED_TIMING_REASONING=low.
+# two arms scored against each other (each date alone, twice, by another model family):
+LIVING_EVAL_KEY=… LIVING_EVAL_MODE=score LIVING_EVAL_A=<dir>/fast.json LIVING_EVAL_B=<dir>/low.json LIVING_EVAL_OUT=<dir> \
+  npx vitest run --config scripts/eval/vitest.eval.mts scripts/eval/living-dates.eval.ts
+```

@@ -1,6 +1,6 @@
 /**
- * Step into the date (docs/ideas.md idea E; docs/step-into-the-date.md is the truth for the safeguards): a signed-in
- * adult goes on a date with one of this season's cast themselves, live, line by line in the theater. They play side a,
+ * Step into the date (docs/ideas.md idea E; docs/step-into-the-date.md is the truth for the safeguards): an adult goes
+ * on a date with one of this season's cast themselves, live, line by line in the theater. They play side a,
  * as one of their own characters or as a light "you" (a name, pronouns, an age and a line about themselves); the cast
  * member plays side b on the show's model, through the show's own conversation loop (lib/conversation.ts: its critic,
  * the cast's inner life and secrets), one line after each of theirs.
@@ -13,10 +13,13 @@
  *    for phrases the list leaves out), then the show's PG filter with a soft, in-world redirect;
  *  - it's booked private: at the end the person chooses whether it airs (then it's a normal public episode).
  *
- * Who can: signed-in accounts past the 18+ gate, admins only until STEP_IN_OPEN=1 (stepInOpen) opens it to all of them.
- * What it costs: the show pays the cast's side (about one side of a normal date) for each person's first a UTC day;
- * after that it's one of their dates (this week's free ones, then pack dates: lib/allowance.ts), and STEP_IN_MAX_PER_DAY
- * caps a day whatever they hold. Admins step in free.
+ * Who can (2026-11-15, "every character gets a verb"): everyone who has said they're 18+ (the gate's cookie, or the
+ * start screen's own box), unless STEP_IN_OPEN=0 puts it back to admins only. Someone without an account plays as a
+ * guest on their signed visitor id (lib/step-in-access.ts) unless STEP_IN_GUESTS=0.
+ * What it costs: the show pays the cast's side (about one side of a normal date, under a cent). An account gets its
+ * first a UTC day free; after that it's one of their dates (this week's free ones, then pack dates: lib/allowance.ts),
+ * and STEP_IN_MAX_PER_DAY caps a day whatever they hold. A guest gets STEP_IN_GUEST_DATES in all, held by the caps
+ * below ("what stops a flood"). Admins step in free.
  */
 import { judgePlay, type StepInPlay } from "./step-in-play";
 import { isAdmin } from "./admins";
@@ -51,18 +54,25 @@ import { weekAt } from "./seasons";
 import { anchorBestLine, narrateEpisode } from "./showrunner";
 import { buildDate, rememberDate, type CharacterForDate, type DateRequest } from "./simulation";
 import { areUnmatched } from "./unmatch";
-import { DISCLOSURE_EVERY, DISCLOSURE_IDLE_MINUTES, disclosureText, PERSONA_ABOUT_MAX, PERSONA_NAME_MAX, type Persona, type StepInLine, type StepInView } from "./step-in-shared";
+import { overLimit } from "./limits";
+import { stepInSharePath } from "./step-in-share";
+import { DISCLOSURE_EVERY, DISCLOSURE_IDLE_MINUTES, disclosureText, PERSONA_ABOUT_MAX, PERSONA_NAME_MAX, PERSONA_OWNER_PREFIX, type Persona, type StepInLine, type StepInView } from "./step-in-shared";
 
 export * from "./step-in-shared";
 
 /* ------------------------------------------------ the switch ------------------------------------------------ */
 
-/** STEP_IN_OPEN=1 opens it to every signed-in adult; unset (the default) keeps it to admins. */
+/** Open to everyone (2026-11-15) unless STEP_IN_OPEN=0, which puts it back to admins only. */
 export function stepInOpen(env: Record<string, string | undefined> = process.env): boolean {
-  return env.STEP_IN_OPEN?.trim() === "1";
+  return env.STEP_IN_OPEN?.trim() !== "0";
 }
 
-/** Whether this viewer may step into a date: signed in, and an admin unless it's open. (The 18+ gate is the route's.) */
+/** Someone without an account may step in as a guest while it's open, unless STEP_IN_GUESTS=0 (then: sign in first). */
+export function stepInGuestsOpen(env: Record<string, string | undefined> = process.env): boolean {
+  return stepInOpen(env) && env.STEP_IN_GUESTS?.trim() !== "0" && stepInGuestDailyMax(env) > 0;
+}
+
+/** Whether this signed-in viewer may step into a date: an admin unless it's open. (Guests: lib/step-in-access.ts; the 18+ answer is the route's.) */
 export async function stepInAllowed(
   db: Db,
   auth: { userId: string; authenticated: boolean } | null | undefined,
@@ -72,6 +82,43 @@ export async function stepInAllowed(
   if (stepInOpen(env)) return true;
   return isAdmin(db, auth.userId);
 }
+
+/* ------------------------------------------- what stops a flood ------------------------------------------- */
+
+/**
+ * Every line is a model call on the show's bill, and a guest's identity is a cookie that costs nothing, so a guest is
+ * held four ways, all counted in Postgres (rate_hits through lib/limits.ts overLimit, and step_in_usage), never in one
+ * instance's memory:
+ *  - STEP_IN_GUEST_DATES dates in all for one visitor id;
+ *  - STEP_IN_IP_START_LIMITS starts from one address (an HMAC of it, lib/limits.ts visitorKey), whatever cookies it sends;
+ *  - STEP_IN_IP_LINE_LIMITS lines from one address (everyone but admins: nobody types thirty lines an hour);
+ *  - stepInGuestDailyMax guest dates a day across the whole show (STEP_IN_GUEST_DAILY_MAX), the hard bound on the bill.
+ * And one for everybody: STEP_IN_DATE_TRIES tries on one date (a line said, or the show asked for its side), so a date's
+ * model calls are bounded however many of its lines are refused or however often the show's side fails.
+ */
+export const STEP_IN_GUEST_DATES = 3;
+export const STEP_IN_IP_START_LIMITS = { perHour: 4, perDay: 10 };
+export const STEP_IN_IP_LINE_LIMITS = { perHour: 30, perDay: 150 };
+export const STEP_IN_GUEST_DAILY_MAX = 300;
+export const STEP_IN_DATE_TRIES = 40;
+/**
+ * The check on what a guest wrote about themselves can call a model before any date is counted (a "maybe", MAYBE_CRISIS),
+ * so those calls have their own show-wide count. Past it a maybe isn't sent to the model: it counts as a hit, as it does
+ * whenever that call fails.
+ */
+export const STEP_IN_GUEST_ABOUT_CHECKS = { perHour: 60, perDay: 600 };
+const TOO_MANY_TRIES = "This date has had too many tries at a line. Leave it and start a fresh one.";
+const dateTries = (db: Db, episodeId: string) => overLimit(db, "step_in_date", episodeId, { perHour: STEP_IN_DATE_TRIES, perDay: STEP_IN_DATE_TRIES });
+
+/** Guest step-in dates a day, show-wide: STEP_IN_GUEST_DAILY_MAX (0 turns guests off), else the default. */
+export function stepInGuestDailyMax(env: Record<string, string | undefined> = process.env): number {
+  const raw = env.STEP_IN_GUEST_DAILY_MAX?.trim();
+  const n = raw ? Number(raw) : NaN;
+  return Number.isFinite(n) && n >= 0 ? Math.floor(n) : STEP_IN_GUEST_DAILY_MAX;
+}
+
+/** Who is starting or playing: a guest (no account), and the address they come from (lib/limits.ts visitorKey; null in-process). */
+export type StepInWho = { guest?: boolean; ip?: string | null };
 
 /* ---------------------------------------------- the safeguards ---------------------------------------------- */
 
@@ -186,7 +233,7 @@ export const PG_REDIRECT: Record<RejectReason, string> = {
 /* ------------------------------------------------ the persona ------------------------------------------------ */
 
 /** The owner of someone's "you" (never their own id, so it's on none of their character lists). */
-export const personaOwner = (userId: string) => `you:${userId}`;
+export const personaOwner = (userId: string) => `${PERSONA_OWNER_PREFIX}${userId}`;
 /** What's wrong with a "you", or null. A first name or a nickname; nothing the show's sheet filter refuses. */
 export function personaProblem(p: Partial<Persona>): string | null {
   const name = p.name?.trim() ?? "";
@@ -253,7 +300,29 @@ export async function stepInAllowance(db: Db, userId: string, now: Date = new Da
   };
 }
 
+/** How many dates a guest has stepped into, ever (step_in_usage keeps a row a day; a date called off before a word is given back). */
+export async function guestStepIns(db: Db, userId: string): Promise<number> {
+  return (await db.query<{ n: number }>(`select coalesce(sum(dates), 0)::int as n from step_in_usage where user_id = $1`, [userId])).rows[0]?.n ?? 0;
+}
+
+/** What a guest has left of their STEP_IN_GUEST_DATES (someone with no visitor id yet has all of them). */
+export async function guestStepInsLeft(db: Db, userId: string | null): Promise<number> {
+  return Math.max(0, STEP_IN_GUEST_DATES - (userId ? await guestStepIns(db, userId) : 0));
+}
+
 type Charge = { charge: StepInSetup["charge"]; reservation: Reservation | null };
+
+/** Takes one of a guest's dates (all days together): null once they've had STEP_IN_GUEST_DATES. */
+async function guestCharge(db: Db, userId: string, now: Date): Promise<Charge | null> {
+  const total = `(select coalesce(sum(s.dates), 0) from step_in_usage s where s.user_id = $1::text)`;
+  const slot = await db.query(
+    `insert into step_in_usage as u (user_id, day, dates) select $1::text, $2::text, 1 where ${total} < $3::int
+       on conflict (user_id, day) do update set dates = u.dates + 1 where ${total} < $3::int
+     returning dates`,
+    [userId, dayOf(now), STEP_IN_GUEST_DATES],
+  );
+  return slot.rows.length ? { charge: "guest", reservation: null } : null;
+}
 
 /** Takes today's slot and pays for it: admin, the day's free one, then one of their dates. Null when none's left. */
 async function charge(db: Db, userId: string, now: Date): Promise<Charge | { refused: "day_cap" | "no_dates" }> {
@@ -285,7 +354,14 @@ async function giveBack(db: Db, userId: string, c: Charge, day: string): Promise
 /* ------------------------------------------------ starting ------------------------------------------------ */
 
 export type StepInStart = { with: string; character_id?: string; persona?: Persona; format?: StepInFormat };
-export type StepInFail = { ok: false; status: number; error: string; message: string; crisis_resources?: CrisisResources; episode_id?: string };
+/** `next`: where a refusal sends them (make a character, sign in): the page offers each as a link under the sentence. */
+export type StepInNext = { href: string; label: string; track: string };
+export type StepInFail = { ok: false; status: number; error: string; message: string; crisis_resources?: CrisisResources; episode_id?: string; next?: StepInNext[] };
+
+/** The two ways on from a guest's refusal: an account (its own free date a day), or a character of their own to send on dates. */
+const signInNext = (castId: string): StepInNext => ({ href: `/account?next=${encodeURIComponent(`/step-in?with=${castId}`)}`, label: "Make a free account", track: "step-in-signup" });
+const makeNext = (castId: string, first: string): StepInNext => ({ href: `/create?meet=${encodeURIComponent(castId)}`, label: `Make a character to date ${first}`, track: "step-in-make" });
+const refusedStart = (why: string, guest: boolean) => track("step_in_refused", { why, guest });
 const fail = (status: number, error: string, message: string, extra: Partial<StepInFail> = {}): StepInFail => ({ ok: false, status, error, message, ...extra });
 
 type SheetRow = { id: string; name: string; age: number; bio: string; traits: string[]; want: string; dealbreaker: string; appearance: string | null; pronouns: string | null; voice: string | null; is_house: boolean; owner_id: string | null };
@@ -301,7 +377,8 @@ async function openStepIn(db: Db, userId: string): Promise<{ id: string; with: s
   return r ? { id: r.id, with: r.b } : null;
 }
 
-export async function startStepIn(db: Db, userId: string, input: StepInStart, now: Date = new Date()): Promise<{ ok: true; episode_id: string; resumed?: true } | StepInFail> {
+export async function startStepIn(db: Db, userId: string, input: StepInStart, now: Date = new Date(), who: StepInWho = {}): Promise<{ ok: true; episode_id: string; resumed?: true } | StepInFail> {
+  const guest = who.guest === true;
   const castIds = seasonCastIds(now);
   if (!castIds.includes(input.with)) return fail(404, "not_on_cast", "You can step into a date with this season's cast. Pick one of them.");
   const cast = (await db.query<SheetRow>(`select ${SHEET_COLUMNS} from characters where id = $1 and is_house and premium_sku is null`, [input.with])).rows[0];
@@ -329,19 +406,56 @@ export async function startStepIn(db: Db, userId: string, input: StepInStart, no
     mode = "you";
     const problem = personaProblem(input.persona);
     if (problem) return fail(422, "persona_invalid", problem);
-    // What they wrote about themselves is their own words: checked for crisis before any date starts.
-    const about = await lineInCrisis(input.persona.about, "step_in_about");
-    if (about.crisis) await countCrisis(db, "step_in_about");
-    if (about.crisis) return fail(200, "paused", "Before any date: are you okay?", { crisis_resources: CRISIS_RESOURCES });
   } else {
     return fail(422, "who_needed", "Come as one of your characters (character_id) or as yourself (persona).");
   }
 
-  const paid = await charge(db, userId, now);
-  if ("refused" in paid) {
-    return paid.refused === "day_cap"
-      ? fail(429, "day_cap", "That's today's dates stepped into. Come back tomorrow.")
-      : fail(429, "no_dates", "Today's free one is used and you've no dates left this week. Free dates come back Monday 00:00 UTC, or get a pack in the shop.");
+  const first = shortName(cast.name);
+  // A guest's address, before anything that calls a model (the check on what they wrote about themselves is one):
+  // fresh cookies don't get a script past it. A refusal isn't counted, so it never eats the show-wide day below.
+  if (guest && who.ip && (await overLimit(db, "step_in_start", who.ip, STEP_IN_IP_START_LIMITS, now))) {
+    refusedStart("ip_starts", guest);
+    return fail(429, "busy_here", "A lot of dates have started from your connection lately, so step-in is resting for it. Try again in an hour, or make a free account and use your own free date.", { next: [signInNext(cast.id)] });
+  }
+  if (mode === "you") {
+    // What they wrote about themselves is their own words: checked for crisis before any date starts. A guest's maybe
+    // goes to the model only while the show-wide count allows (STEP_IN_GUEST_ABOUT_CHECKS); past it, it's a hit.
+    const words = input.persona!.about;
+    const unchecked = guest && !crisisIntent(words) && maybeCrisis(words) && (await overLimit(db, "step_in_about_check", "all", STEP_IN_GUEST_ABOUT_CHECKS, now));
+    if (unchecked) track("crisis_notice_shown", { surface: "step_in_about" });
+    const about = unchecked ? { crisis: true } : await lineInCrisis(words, "step_in_about");
+    if (about.crisis) await countCrisis(db, "step_in_about");
+    if (about.crisis) return fail(200, "paused", "Before any date: are you okay?", { crisis_resources: CRISIS_RESOURCES });
+  }
+
+  let paid: Charge;
+  if (guest) {
+    const slot = await guestCharge(db, userId, now);
+    if (!slot) {
+      refusedStart("guest_dates", guest);
+      return fail(429, "guest_used_up", `That's the ${STEP_IN_GUEST_DATES} dates you can step into without an account. Make a free account for one a day, or make a character and send them on dates.`, {
+        next: [signInNext(cast.id), makeNext(cast.id, first)],
+      });
+    }
+    // The show-wide day, last: only a start that would otherwise happen counts toward it.
+    const max = stepInGuestDailyMax();
+    if (await overLimit(db, "step_in_guest_day", "all", { perHour: max, perDay: max }, now)) {
+      await giveBack(db, userId, slot, dayOf(now)).catch(() => {});
+      refusedStart("guest_day", guest);
+      return fail(429, "guests_full", "Today's dates for visitors without an account are all taken. Make a free account for your own free date, or come back tomorrow.", { next: [signInNext(cast.id)] });
+    }
+    paid = slot;
+  } else {
+    const took = await charge(db, userId, now);
+    if ("refused" in took) {
+      refusedStart(took.refused, guest);
+      return took.refused === "day_cap"
+        ? fail(429, "day_cap", "That's today's dates stepped into. Come back tomorrow.")
+        : fail(429, "no_dates", "Today's free one is used and you've no dates left this week. Free dates come back Monday 00:00 UTC, or get a pack in the shop.", {
+            next: [{ href: "/shop", label: "See the shop", track: "step-in-shop" }],
+          });
+    }
+    paid = took;
   }
   const day = dayOf(now);
   try {
@@ -377,7 +491,7 @@ export async function startStepIn(db: Db, userId: string, input: StepInStart, no
         trace ? JSON.stringify(trace) : null,
       ],
     );
-    track("step_in_started", { episode_id: episodeId, charge: paid.charge, mode, format: formatId });
+    track("step_in_started", { episode_id: episodeId, charge: paid.charge, mode, format: formatId, guest });
     return { ok: true, episode_id: episodeId };
   } catch (err) {
     await giveBack(db, userId, paid, day).catch(() => {});
@@ -441,7 +555,18 @@ async function viewOf(db: Db, row: StepRow): Promise<StepInView> {
     paused: row.setup?.step_in?.paused === true,
     format: showFormat(formatId).label,
     visibility: row.visibility,
-    ...(row.status === "ready" ? { ending: { label: endingLabel(row.ending, built.input.date_number), kind: kind ? ENDING_DETAIL_LABELS[kind] : null, best_line: row.best_line, why: row.setup?.step_in?.play?.why ?? null } } : {}),
+    ...(row.status === "ready"
+      ? {
+          ending: {
+            label: endingLabel(row.ending, built.input.date_number),
+            kind: kind ? ENDING_DETAIL_LABELS[kind] : null,
+            best_line: row.best_line,
+            why: row.setup?.step_in?.play?.why ?? null,
+            family: row.ending,
+            share_path: stepInSharePath({ episodeId: row.id, castId: row.b_id, castName: row.b_name, ending: row.ending }),
+          },
+        }
+      : {}),
     episode_path: `/episodes/${row.id}`,
   };
 }
@@ -626,8 +751,19 @@ async function catchUp(db: Db, userId: string, episodeId: string): Promise<StepR
   return row;
 }
 
-/** The cast member's line (or the recap) when it's the show's to play: the page asks once it opens on one. */
-export async function advanceStepIn(db: Db, userId: string, episodeId: string): Promise<StepInResult> {
+/**
+ * The cast member's line (or the recap) when it's the show's to play: the page asks once it opens on one. Each ask can
+ * cost model calls (and again each time the show's side fails), so an ask from the page counts as a try on the date;
+ * `counted`: it follows a line that already was.
+ */
+export async function advanceStepIn(db: Db, userId: string, episodeId: string, counted = false): Promise<StepInResult> {
+  if (!counted) {
+    const before = await loadStep(db, userId, episodeId);
+    if (!before) return fail(404, "not_found", "No date of yours here.");
+    if (before.status === "generating" && !before.setup?.step_in?.paused && (await dateTries(db, episodeId))) {
+      return { ok: true, view: await viewOf(db, before), refused: TOO_MANY_TRIES };
+    }
+  }
   const row = await catchUp(db, userId, episodeId);
   if (!row) return fail(404, "not_found", "No date of yours here.");
   return withPause({ ok: true, view: await viewOf(db, row) });
@@ -642,7 +778,7 @@ export type StepInSay = { dialogue: string; action?: string; see_again?: boolean
  * never answered in character), the PG filter (a soft redirect, the line not used), then every check an agent's line
  * gets (submitOwnDateStep). Then the cast member answers, and on the last line the show writes the recap.
  */
-export async function sayStepIn(db: Db, userId: string, episodeId: string, input: StepInSay): Promise<StepInResult> {
+export async function sayStepIn(db: Db, userId: string, episodeId: string, input: StepInSay, who: StepInWho = {}): Promise<StepInResult> {
   const row = await loadStep(db, userId, episodeId);
   if (!row) return fail(404, "not_found", "No date of yours here.");
   const view = () => loadStep(db, userId, episodeId).then(async (r) => viewOf(db, r ?? row));
@@ -652,21 +788,41 @@ export async function sayStepIn(db: Db, userId: string, episodeId: string, input
   if (!dialogue) return { ok: true, view: await view(), refused: "Say something first." };
   if (dialogue.length > TURN_DIALOGUE_MAX) return { ok: true, view: await view(), refused: `Keep a line under ${TURN_DIALOGUE_MAX} characters.` };
 
-  const crisis = await lineInCrisis(dialogue);
-  await addCost(db, episodeId, crisis.usage).catch(() => {});
-  if (crisis.crisis) {
-    // Paused: nothing is said in character on this turn, and the date waits for them (continue or leave).
+  // Paused: nothing is said in character on this turn, and the date waits for them (continue or leave).
+  const pause = async (): Promise<StepInResult> => {
     await countCrisis(db, "step_in_line");
     await db.query(`update episodes set setup = jsonb_set(setup, '{step_in,paused}', 'true'::jsonb) where id = $1 and status = 'generating'`, [episodeId]);
     return { ok: true, view: await view(), crisis_resources: CRISIS_RESOURCES };
+  };
+
+  // From here a line can cost a model call (the maybe check, then the cast's reply), so it's counted first: by this
+  // date (everyone: a date's calls stay bounded however many lines are refused) and by the address it comes from
+  // (everyone but admins). Their words come back to them unsent, as with any refused line.
+  const capped = (await dateTries(db, episodeId))
+    ? TOO_MANY_TRIES
+    : who.ip && row.setup?.step_in?.charge !== "admin" && (await overLimit(db, "step_in_line", who.ip, STEP_IN_IP_LINE_LIMITS))
+      ? "That's a lot of lines from your connection this hour. Your date is saved: come back to it in a little while."
+      : null;
+  if (capped) {
+    // Past a cap no model is called, and the self-harm check still comes first: the list, and a maybe counts as a hit
+    // without its model call (it fails closed, exactly as when that call fails).
+    if (crisisIntent(dialogue) || maybeCrisis(dialogue)) {
+      track("crisis_notice_shown", { surface: "step_in_line" });
+      return pause();
+    }
+    return { ok: true, view: await view(), refused: capped };
   }
+
+  const crisis = await lineInCrisis(dialogue);
+  await addCost(db, episodeId, crisis.usage).catch(() => {});
+  if (crisis.crisis) return pause();
   const action = input.action?.trim().slice(0, 40) ?? "";
   const verdict = checkShowText({ dialogue, action });
   if (!verdict.ok) return { ok: true, view: await view(), refused: PG_REDIRECT[verdict.reason] };
 
   const { built, decided, formatId } = await rebuildOwnDate(db, row);
   const next = nextSide(built, decided, formatId, row.transcript ?? []);
-  if (next?.side !== "a") return advanceStepIn(db, userId, episodeId);
+  if (next?.side !== "a") return advanceStepIn(db, userId, episodeId, true);
   const out = await submitOwnDateStep(db, userId, episodeId, {
     dialogue,
     action,
@@ -677,7 +833,7 @@ export async function sayStepIn(db: Db, userId: string, episodeId: string, input
   if (out.rejected && out.rejected !== "raced") {
     return { ok: true, view: await view(), refused: "The show couldn't use that line. Try saying it another way." };
   }
-  return advanceStepIn(db, userId, episodeId);
+  return advanceStepIn(db, userId, episodeId, true);
 }
 
 /** After a pause (the crisis notice), they choose to carry on: the date picks up where it was. */

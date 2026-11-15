@@ -23,6 +23,7 @@
  * Read-only. Nothing here touches money: no orders, no prices, no amounts (the owner's rule).
  */
 import { addDays, dayDiff, daysBetween, isDay, isoDay, weekOf } from "./chart";
+import { notPersonaSql } from "./step-in-shared";
 import { portraitPathSql } from "./portrait-sql";
 import type { Db } from "./db";
 import { loadOurIds, OUR_TRAFFIC, peopleCountedFrom, SYSTEM_ID } from "./our-traffic";
@@ -124,7 +125,7 @@ const GRID_SQL: Record<Measure, string> = {
   characters: `select 'characters'::text as measure, ${DAY("c.created_at")} as day,
       (not c.is_house and c.created_via = 'web') as people, (not c.is_house and c.created_via = 'mcp') as agents, c.is_house as house,
       coalesce(c.owner_id = any($3::text[]), false) as ours, ''::text as key, count(*)::int as n
-    from characters c where c.created_at >= $1 and c.created_at < $2
+    from characters c where c.created_at >= $1 and c.created_at < $2 and ${notPersonaSql("c")}
       and (not c.is_house or exists (select 1 from season_candidates sc where sc.character_id = c.id and sc.status <> 'rejected'))
     group by 2, 3, 4, 5, 6`,
   // Dates started (booked), by the ending the engine decided.
