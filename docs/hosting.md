@@ -64,6 +64,15 @@ ignore it.
   booking, so the first verdict comes in about a minute (6 lines) instead of the classic date's two-plus. Set it to
   another free format's id (`classic`, `meet_the_parents`, `ex_returns`) to change the first date without a deploy; a
   premium or unknown id falls back to `speed_date`. Commented in `.do/show.yaml` beside the other switches.
+- **`FAST_FIRST_LINE`** (the show's app, not a secret; default: speed dates): which formats start fast
+  (`lib/fast-date.ts`): no director call in front of the first line, a 2.5 s limit on a new character's hot takes
+  (`HOT_TAKES_WAIT_MS`), and the recap, texts and reflections written side by side. `0` or `off` puts every date back
+  on the old order without a deploy; `all` starts every format fast (the classic date waits 50 s on a plan that hasn't
+  been arriving: [date-quality.md](date-quality.md), "Round: the fast first date", which has the measurements and the
+  query to check the result). **`SPEED_DATE_MODEL`** and **`SPEED_DATE_REASONING`** (both unset: the show's model as
+  it is) put a speed date's lines, answers, texts and reflections on another model id at the show's paid endpoint, or
+  on another thinking level (`minimal`, `low`, `medium`, `high`); the measurements there say leave them unset.
+  Commented in `.do/show.yaml`.
 - **`LIFE_DATES_PER_DAY`** (the show's app, not a secret; default `30`): how many life dates the daily job books a day
   (`lib/character-life.ts weeklyLifeDates`): the house takes each owned character out once a week, house-paid, on the
   show's model (~1¢ each). `0` turns them off without a deploy; nothing books while `BOTCHELOR_PAUSE` is on or the paid
