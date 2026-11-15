@@ -140,6 +140,7 @@ const CALL_SITES = [
   "app/reunion/page.tsx",
   "app/seasons/[slug]/page.tsx",
   "app/watch/page.tsx",
+  "lib/casting.ts",
   "lib/watch.ts",
 ];
 

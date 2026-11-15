@@ -134,6 +134,12 @@ services:
       # - key: LIFE_DATES_PER_DAY
       #   value: "30"
       #   scope: RUN_AND_BUILD_TIME
+      # Open casting (lib/casting.ts; docs/seasons.md "Open casting"): a new character's first date goes to the
+      # Botchelor's lead, roses for walk-ons on Sunday. On by default and inert until a lead format is picked on
+      # /admin/season; "0" closes it without a deploy.
+      # - key: OPEN_CASTING
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
       # The model league (lib/model-league.ts; docs/hosting.md): /agents/league and /api/league/models, on by default.
       # "0" takes the page, its JSON and the links to it away without a deploy; models are still kept and dates stamped.
       # - key: MODEL_LEAGUE

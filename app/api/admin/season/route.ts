@@ -6,6 +6,7 @@ import { authFromRequest, handle, json, parseBody, readJson } from "@/lib/http";
 import { frontierAuthorized } from "@/lib/model";
 import { ensureSeasonCast, leadOverride, setLeadOverride } from "@/lib/season-cast";
 import { ceremonySummary, houseOf } from "@/lib/ceremony";
+import { castingLead, openCasting } from "@/lib/casting";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import { SEASON_FORMAT_SLUGS, SEASON_FORMATS, seasonFormat } from "@/lib/season-format";
 import { seasonFormatSlug, setSeasonFormat } from "@/lib/season-format-store";
@@ -39,7 +40,7 @@ async function view() {
   const portraits = new Map(
     (await db.query<{ id: string; url: string | null }>(`select id, url from character_assets where id = any($1)`, [candidates.map((c) => c.portrait_asset).filter(Boolean)])).rows.map((r) => [r.id, r.url]),
   );
-  const [thisFormat, nextFormat, auditions, tally, thisLead, nextLead, thisHouse, ceremonies] = await Promise.all([
+  const [thisFormat, nextFormat, auditions, tally, thisLead, nextLead, thisHouse, ceremonies, casting] = await Promise.all([
     seasonFormatSlug(db, thisId),
     seasonFormatSlug(db, nextId),
     listAuditions(db, nextId),
@@ -48,6 +49,7 @@ async function view() {
     leadOverride(db, nextId),
     houseOf(db, thisId),
     ceremonySummary(db, thisId).catch(() => null),
+    castingLead(db, now).catch(() => null),
   ]);
   // The Botchelor (lib/ceremony.ts): who the lead would be, and is. The default lead is picked with the cast on the 1st
   // (the most reviewed of last season's survivors); a pick here overrides it, and until then the panel shows the pick.
@@ -65,6 +67,9 @@ async function view() {
       ceremonies: ceremonies?.ceremonies ?? [],
     },
     next_season: { runs: Boolean(seasonFormat(nextFormat).lead), override: nextLead, override_name: nextLead ? leadNames.get(nextLead) ?? nextLead : null },
+    // Open casting (lib/casting.ts): who a new character's first date goes to right now, or why nobody. In the preseason it
+    // opens the moment next season's format AND lead are both picked here; the OPEN_CASTING=0 switch closes it.
+    casting: { switched_on: openCasting(), now: casting ? { phase: casting.phase, month: casting.month, lead: { id: casting.lead.id, name: casting.lead.name }, roses_at: casting.roses_at } : null },
   };
   return {
     this_season: { id: thisId, label: seasonLabel(thisId), format: thisFormat, cast: cast.map((c) => ({ ...c, name: names.get(c.character_id) ?? c.character_id })) },

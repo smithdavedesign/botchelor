@@ -20,6 +20,8 @@
  *  - The ceremony itself is rows and templates ($0, no model call): the row (ceremonies) says who went home and why,
  *    and the /watch card and a `ceremony_held` notification tell it in the show's voice. The engine decided every
  *    date; the ceremony only reads the endings. Nothing here touches points, odds, pairings or endings.
+ *  - Walk-ons (lib/casting.ts, open casting): people's new characters whose first date went to the lead get their own
+ *    Sunday roses, outside the house: the card's "Walk-ons this week" line and the finale's "people's rose" come from there.
  */
 import { portraitPathSql } from "./portrait-sql";
 import type { Db } from "./db";
@@ -409,6 +411,11 @@ export type CeremonyBoard = {
   vote: { held_on: string; closes_at: string; choices: { id: string; name: string; votes: number }[]; my_pick: string | null; total: number } | null;
   /** The newest ceremony held, in the show's words. */
   last: { held_on: string; week: number; finale: boolean; lines: string[]; went_home: CeremonyFace[]; final_rose: CeremonyFace | null; votes: number; total: number } | null;
+  /**
+   * Open casting (lib/casting.ts): "Walk-ons this week" in words (the count under the empty-room rule) and the people's
+   * rose once the finale handed it out. Null with casting switched off.
+   */
+  walk_ons: { line: string | null; peoples_rose: { id: string; name: string; roses: number } | null } | null;
 };
 
 async function facesOf(db: Db, ids: readonly string[]): Promise<Map<string, CeremonyFace>> {
@@ -422,11 +429,15 @@ export async function ceremonyBoard(db: Db, viewerId: string | null, now: Date =
   const def = await seasonFormatNow(db, now);
   if (!def.lead) return null;
   const seasonId = seasonIdOf(now);
+  // The walk-ons' line (open casting), started now so it rides alongside the board's own reads. Imported here:
+  // lib/casting.ts reads this module's hour and house.
+  const walkOnsP = import("./casting").then((m) => m.walkOnsLine(db, viewerId, now)).catch(() => null);
   const { lead, suitors } = await houseOf(db, seasonId);
   if (!lead) return null;
   const [all, badges, lastRow] = await Promise.all([
     db.query<{ character_id: string }>(`select character_id from season_casts where season_id = $1 and source = 'suitor' order by slot`, [seasonId]),
-    db.query<{ character_id: string; badge: "suitor" | "runner_up" | "final_rose"; week: number }>(`select character_id, badge, week from suitor_badges where season_id = $1`, [seasonId]),
+    // The suitors' badges only: the people's rose is a walk-on's (lib/casting.ts), never a suitor's state.
+    db.query<{ character_id: string; badge: "suitor" | "runner_up" | "final_rose"; week: number }>(`select character_id, badge, week from suitor_badges where season_id = $1 and badge <> 'peoples_rose'`, [seasonId]),
     db.query<CeremonyRow>(
       `select season_id, held_on, week, lead_id, choices, finale, held_at, eliminated_by_vote, eliminated_by_lead, final_rose, votes, total, remaining, lines
          from ceremonies where season_id = $1 and held_at is not null order by held_on desc limit 1`,
@@ -473,7 +484,7 @@ export async function ceremonyBoard(db: Db, viewerId: string | null, now: Date =
         total: lr.total ?? 0,
       }
     : null;
-  return { title: def.title, lead: face(lead), suitors: suitorCards, next, vote, last };
+  return { title: def.title, lead: face(lead), suitors: suitorCards, next, vote, last, walk_ons: await walkOnsP };
 }
 
 export type CeremonySummary = {
@@ -493,11 +504,13 @@ export type CeremonySummary = {
     lines: string[];
   }[];
   badges: { character_id: string; name: string; badge: string; week: number }[];
+  /** The walk-on with the most roses, named on the season's last Sunday (lib/casting.ts); null until then. */
+  peoples_rose: { id: string; name: string; roses: number } | null;
 };
 
 /** A season's ceremonies in order, names resolved: for the clip scripts (scripts/clips/*) and the recap. */
 export async function ceremonySummary(db: Db, seasonId: string): Promise<CeremonySummary> {
-  const [{ lead }, rows, badges] = await Promise.all([
+  const [{ lead }, rows, badges, peoplesRose] = await Promise.all([
     houseOf(db, seasonId),
     db.query<CeremonyRow>(
       `select season_id, held_on, week, lead_id, choices, finale, held_at, eliminated_by_vote, eliminated_by_lead, final_rose, votes, total, remaining, lines
@@ -505,6 +518,7 @@ export async function ceremonySummary(db: Db, seasonId: string): Promise<Ceremon
       [seasonId],
     ),
     db.query<{ character_id: string; badge: string; week: number }>(`select character_id, badge, week from suitor_badges where season_id = $1 order by week, badge`, [seasonId]),
+    import("./casting").then((m) => m.peoplesRoseOf(db, seasonId)).catch(() => null),
   ]);
   const ids = new Set<string>([...(lead ? [lead] : []), ...badges.rows.map((b) => b.character_id)]);
   for (const r of rows.rows) for (const id of [r.eliminated_by_vote, r.eliminated_by_lead, r.final_rose, ...(r.remaining ?? [])]) if (id) ids.add(id);
@@ -527,6 +541,7 @@ export async function ceremonySummary(db: Db, seasonId: string): Promise<Ceremon
       lines: r.lines ?? [],
     })),
     badges: badges.rows.map((b) => ({ ...b, name: names.get(b.character_id) ?? b.character_id })),
+    peoples_rose: peoplesRose,
   };
 }
 
@@ -547,6 +562,6 @@ export async function suitorBadgesOf(db: Db, characterId: string): Promise<{ sea
   return rows.map((r) => {
     const n = seasonNumber(r.season_id);
     const season = n ? `Season ${n}` : r.season_id;
-    return { ...r, label: r.badge === "final_rose" ? `${season} final rose` : r.badge === "runner_up" ? `${season} runner-up` : `${season} suitor` };
+    return { ...r, label: r.badge === "final_rose" ? `${season} final rose` : r.badge === "runner_up" ? `${season} runner-up` : r.badge === "peoples_rose" ? `${season} people's rose` : `${season} suitor` };
   });
 }

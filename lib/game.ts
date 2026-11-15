@@ -73,7 +73,7 @@ export type CreatorRef = { character_id: string; name: string };
 
 /** The per-date settings the owner chose (PRD budget & autonomy). Stored as episodes.setup (jsonb). */
 /** How a date came about (DateSetup.met_via). */
-export const MET_VIA = ["blind", "match", "proposal", "chosen", "second_date", "own_date", "show", "step_in"] as const;
+export const MET_VIA = ["blind", "match", "proposal", "chosen", "second_date", "own_date", "show", "step_in", "casting"] as const;
 export type MetVia = (typeof MET_VIA)[number];
 
 export type DateSetup = {

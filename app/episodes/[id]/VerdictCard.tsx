@@ -8,6 +8,7 @@ import { queueEvent } from "@/app/engagement";
 import PushToggle from "@/app/notifications/PushToggle";
 import { requestJson } from "@/app/request";
 import type { CharacterRef } from "@/lib/game";
+import CastingVerdictLine from "./CastingVerdictLine";
 import ShareEnding from "./ShareEnding";
 
 export type VerdictCardProps = {
@@ -89,6 +90,7 @@ export default function VerdictCard({ episodeId, endingLabel, you, partner, prev
           {busy ? "Opening…" : `Hear from ${first}`}
         </button>
       </p>
+      <CastingVerdictLine episodeId={episodeId} />
       {pending && (
         <p className="muted small verdict-pending" id="verdict-pending" role="status">
           Wrapping up the date; {first} can text you in a moment.
