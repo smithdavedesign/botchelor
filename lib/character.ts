@@ -16,6 +16,7 @@
  * belongs to one date, so the builders wrap the self view with it. The deterministic engine (lib/engine.ts)
  * is untouched: it still decides from the sheet + signals; this object just gathers and presents them.
  */
+import type { StoryState } from "./story-state";
 import type { Db } from "./db";
 import { deriveSoulSignals, NEUTRAL_SIGNALS, type CharacterSheet, type DateSignals, type SoulSignals } from "./engine";
 import { loadSoul, soulText, type StoredSoul } from "./souls";
@@ -110,6 +111,11 @@ export type Character = {
    * secretsForDate), to guard, hint at or let slip. Private: only its own turn prompt carries them (never the director's).
    */
   secrets?: { season_id: string; idx: number; secret: string }[];
+  /**
+   * Set only on a date's characters: its story state about the person it's meeting (lib/story-state.ts stateFor): what it
+   * thinks of them, what it has heard about them, and what it wants this week. Private: only its own prompts carry it.
+   */
+  story?: StoryState | null;
 };
 
 const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
