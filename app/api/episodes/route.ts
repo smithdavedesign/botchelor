@@ -57,6 +57,7 @@ import { notify, notifyDateBooked, resolvePairNotices } from "@/lib/notification
 import { buildDate, type CharacterForDate, type DateRequest } from "@/lib/simulation";
 import { groupBookingFor, markNightBooked, type GroupBooking } from "@/lib/group-dates";
 import { HOUSE_BOOKER, isHouseRequest } from "@/lib/house-booker";
+import { CASTING_MET_VIA, castingPartnerFor, isRoseRequest } from "@/lib/casting";
 import { type CharacterSheet } from "@/lib/showrunner";
 
 // The request itself is instant (the engine, no model). Generation runs in after(), which keeps the
@@ -292,6 +293,8 @@ export const POST = crisisAware("date_note", (body) => [str(body.note)], handle(
 
   let partner: CharacterRow | undefined;
   let secondDate: { followupOf: string; visibility: "public" | "private" | "unlisted"; dateNumber: number } | null = null;
+  // Open casting (lib/casting.ts): this blind date is a person's new character's first, and it went to the season's lead.
+  let casting = false;
   if (group?.kind === "mixer") {
     // The mixer drew this pair and both joined: load the partner plainly, still never taken elsewhere or across a block.
     partner = (
@@ -312,8 +315,26 @@ export const POST = crisisAware("date_note", (body) => [str(body.note)], handle(
     secondDate = { followupOf: check.followupOf, visibility: check.visibility, dateNumber: check.dateNumber };
     partner = (await db.query<CharacterRow>(`select ${CHARACTER_COLUMNS} from characters c where c.id = $1`, [input.partner_id])).rows[0];
     if (!partner) return json({ error: "partner_not_available", message: "That character isn't here any more." }, 422, sess);
+  } else if (isRoseRequest(req) && input.partner_id) {
+    // A walk-on's Sunday rose (lib/casting.ts runWalkOnRoses): the show books its next date with the lead, and the rose
+    // is the lead's yes, so the lead needn't be on this season's cast or have an aired date with them yet. Only a
+    // request that module built in-process can be one; still a house character, never premium, never across an unmatch.
+    partner = (
+      await db.query<CharacterRow>(`select ${CHARACTER_COLUMNS} from characters c where c.id = $1 and c.is_house and c.premium_sku is null and not ${unmatchedSql("c.id", "$2::text")}`, [input.partner_id, own.id])
+    ).rows[0];
+    if (!partner) return json({ error: "partner_not_available", message: "The lead can't be dated by them right now." }, 422, sess);
   } else if (input.blind) {
-    partner = await blindMatch(db, sess.userId, own.id);
+    // Open casting: a person's character on its first date, in the first-date format, meets the season's lead (several
+    // walk-ons can be filming with the lead at once: "one date at a time" is per couple). No lead to meet, or the lead
+    // can't be dated by this one: the usual blind date, silently.
+    const leadId = await castingPartnerFor(db, own, input.format ?? DEFAULT_FORMAT).catch(() => null);
+    if (leadId) {
+      partner = (
+        await db.query<CharacterRow>(`select ${CHARACTER_COLUMNS} from characters c where c.id = $1 and c.is_house and c.premium_sku is null and not ${filmingWithSql("c", "$2::text")}`, [leadId, own.id])
+      ).rows[0];
+      casting = Boolean(partner);
+    }
+    partner ??= await blindMatch(db, sess.userId, own.id);
     if (!partner) return json({ error: "partner_not_available", message: "There's nobody left for a blind date with them right now: pick someone from the deck." }, 422, sess);
   } else {
     if (input.proposal_id && !(await acceptableProposal(db, sess.userId, input.proposal_id, own.id, input.partner_id ?? ""))) {
@@ -501,7 +522,7 @@ export const POST = crisisAware("date_note", (body) => [str(body.note)], handle(
   }
   const outcome = { saved: false };
   try {
-    return await writeAndSave(db, sess, useFrontier, reservation, own, partner, input, outcome, secondDate, passDate, group, roleplay);
+    return await writeAndSave(db, sess, useFrontier, reservation, own, partner, input, outcome, secondDate, passDate, group, roleplay, casting);
   } finally {
     if (!outcome.saved) {
       const giveBack = passDate ? releaseOperatorDate(db, sess.userId) : reservation ? releaseEpisode(db, sess.userId, reservation) : Promise.resolve();
@@ -534,6 +555,7 @@ async function writeAndSave(
   operatorReserved = false,
   group: GroupBooking | null = null,
   roleplay: DateRoleplay | null = null,
+  casting = false,
 ): Promise<Response> {
   const episodeId = crypto.randomUUID();
   const dateRequest: DateRequest = {
@@ -571,7 +593,9 @@ async function writeAndSave(
         .catch(() => undefined);
   built.setup.met_via = secondDate
     ? "second_date"
-    : input.blind
+    : casting
+      ? CASTING_MET_VIA
+      : input.blind
       ? swipeGateOn() && !partner.is_house
         ? "match"
         : "blind"
@@ -646,6 +670,7 @@ async function writeAndSave(
   // cron route re-runs anything after() misses); inline — tests — it runs now so the episode is ready.
   await enqueueGeneration(db, episodeId, useFrontier, sess.userId, reservation);
   track("episode_created", { episode_id: episodeId, ending: decided.ending, blind: input.blind === true, second_date: secondDate !== null });
+  if (casting) track("casting_date", { episode_id: episodeId, character_id: own.id, lead_id: partner.id });
   if (secondDate) {
     track("second_date_planned", { episode_id: episodeId, followup_of: secondDate.followupOf, planned_venue: built.setup.plan?.length ? built.setup.venue : null });
     // The other character's creator hears it's happening (house characters have none).

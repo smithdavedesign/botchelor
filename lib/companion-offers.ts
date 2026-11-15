@@ -11,9 +11,10 @@
  */
 import type { Db } from "./db";
 import { pickFirstPartner } from "./first-date";
+import { takenSql } from "./partners";
 import { lastDateOf } from "./last-date";
 import { activeNudge } from "./between-dates";
-import { seasonCastIds } from "./season-cast";
+import { leadAndSuitors, seasonCastIds } from "./season-cast";
 import { COMPANION_OFFER_KINDS, type CompanionNextTime, type CompanionOfferKind, type CompanionOffersView } from "./companion-shared";
 import type { Ending } from "./rules";
 
@@ -151,8 +152,8 @@ export async function markOfferTaken(db: Db, messageId: string, taken: { kind: C
 /**
  * Someone new for a speed date: one of this season's house cast this character hasn't been on a date with (any status:
  * a date being filmed counts), picked the way a first date picks (lib/first-date.ts pickFirstPartner, by the character's
- * id, so the same character keeps meeting the cast in the same order and never the same one twice). Null when they have
- * met everyone.
+ * id, so the same character keeps meeting the cast in the same order and never the same one twice). On a Botchelor
+ * season, once the lead is met, one of the suitors still in. Null when they have met everyone.
  */
 export async function pickSomeoneNew(db: Db, characterId: string, now = new Date()): Promise<{ id: string; name: string } | null> {
   const castIds = seasonCastIds(now);
@@ -167,5 +168,22 @@ export async function pickSomeoneNew(db: Db, characterId: string, now = new Date
   );
   const order = new Map(castIds.map((id, i) => [id, i]));
   const left = rows.sort((x, y) => (order.get(x.id) ?? 0) - (order.get(y.id) ?? 0)).map((c) => ({ id: c.id, name: c.name, premium: false }));
-  return pickFirstPartner(left, characterId);
+  const picked = pickFirstPartner(left, characterId);
+  if (picked) return picked;
+  // A Botchelor season's house side is its one lead (lib/season-cast.ts), so after the lead "someone new" is one of the
+  // season's suitors still in: their owners agreed that anyone may date them by name while they're on the cast
+  // (lib/auditions.ts). Never the person's own, a taken one, or across a block or an unmatch (the booking would refuse).
+  const suitors = leadAndSuitors(now)?.suitors ?? [];
+  if (!suitors.length) return null;
+  const others = await db.query<{ id: string; name: string }>(
+    `select c.id, c.name from characters c, characters me
+      where me.id = $1 and c.id = any($2) and not c.is_house and c.visibility = 'public' and c.open_to_dates
+        and c.owner_id is distinct from me.owner_id and not ${takenSql("c")}
+        and not exists (select 1 from episodes e where (e.character_a = $1 and e.character_b = c.id) or (e.character_a = c.id and e.character_b = $1))
+        and not exists (select 1 from unmatches um where (um.character_lo = $1 and um.character_hi = c.id) or (um.character_lo = c.id and um.character_hi = $1))
+        and not exists (select 1 from blocks bl where (bl.blocker_id = me.owner_id and bl.blocked_id = c.owner_id) or (bl.blocker_id = c.owner_id and bl.blocked_id = me.owner_id))`,
+    [characterId, suitors],
+  );
+  const inTurn = new Map(suitors.map((id, i) => [id, i]));
+  return pickFirstPartner(others.rows.sort((x, y) => (inTurn.get(x.id) ?? 0) - (inTurn.get(y.id) ?? 0)).map((c) => ({ id: c.id, name: c.name, premium: false })), characterId);
 }

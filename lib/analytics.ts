@@ -23,6 +23,8 @@ export type AnalyticsEvent =
   | "audition_vote" // a vote on next month's auditions (lib/auditions.ts)
   | "cast_date_booked" // the weekly earned slot was spent on a date with a season cast member (lib/cast-date.ts)
   | "life_date_booked" // the house took an owned character out with a cast member, house-paid (lib/character-life.ts)
+  | "casting_date" // a person's new character walked on: its first date went to the season's lead (lib/casting.ts)
+  | "rose_date_booked" // a walk-on's Sunday rose booked its second date with the lead, show-paid (lib/casting.ts)
   | "dare_vote" // a vote on tonight's dare (lib/dares.ts)
   | "purchase_completed"
   | "purchase_refunded" // a full refund made in Stripe took the pack's unused dates back

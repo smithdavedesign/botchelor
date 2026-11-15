@@ -17,6 +17,7 @@ import { judgePendingDares } from "@/lib/dare-verdict";
 import { settleDueDares } from "@/lib/dare-points";
 import { runDueRecoupling } from "@/lib/recoupling";
 import { runDueCeremony } from "@/lib/ceremony";
+import { runWalkOnRoses } from "@/lib/casting";
 import { ensureCastSecrets } from "@/lib/cast-secrets";
 import { ensureCastChat } from "@/lib/cast-chat";
 import { runDueReveal } from "@/lib/weekly-reveal";
@@ -75,6 +76,9 @@ async function run(req: Request): Promise<Response> {
   const recoupling = await runDueRecoupling(db).catch(() => null);
   // The rose ceremony (lib/ceremony.ts, a Botchelor season only): opens Sunday's vote on Thursday, holds it at the ceremony hour.
   const ceremony = await runDueCeremony(db).catch(() => null);
+  // Open casting (lib/casting.ts): Sunday's roses for the walk-ons, after the house's ceremony (the finale's people's rose
+  // follows the final rose). In the preseason too; nothing without a lead format picked.
+  const walkOns = await runWalkOnRoses(db).catch(() => null);
   // This season's cast secrets (lib/cast-secrets.ts): written once a season each on the show's cheap model; a no-op after.
   const secrets = await ensureCastSecrets(db).catch(() => null);
   // The season pool (lib/season-pool.ts): the season that just closed is frozen and revealed, once.
@@ -105,7 +109,7 @@ async function run(req: Request): Promise<Response> {
   // Every character has a headshot (lib/default-portraits.ts): a few of those still without one are drawn each hour,
   // unless the run is already long (a template date above takes most of the 300 s).
   const portraits = Date.now() - started > LONG_RUN_MS ? { drawn: 0, failed: 0, left: -1 } : await portraitSweep(db).catch(() => ({ drawn: 0, failed: 0, left: -1 }));
-  return json({ ...lobby, portraits, situation, season_ballot: ballot, dare_verdicts: dareVerdicts.length, dare_points_settled: darePoints.reduce((n, d) => n + d.voters, 0), recoupling, ceremony, reveal, season_pool: pool, secrets, cast_chat: castChat, discord, newsletter, aired, stuck_generations: stuck, handed_over, sets_rechecked, sets_drawn, scheduled_dates: scheduled, mixers, ...away });
+  return json({ ...lobby, portraits, situation, season_ballot: ballot, dare_verdicts: dareVerdicts.length, dare_points_settled: darePoints.reduce((n, d) => n + d.voters, 0), recoupling, ceremony, walk_ons: walkOns, reveal, season_pool: pool, secrets, cast_chat: castChat, discord, newsletter, aired, stuck_generations: stuck, handed_over, sets_rechecked, sets_drawn, scheduled_dates: scheduled, mixers, ...away });
 }
 
 export const GET = handle(run);
