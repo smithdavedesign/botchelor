@@ -58,8 +58,8 @@ import "./ux/company.css";
 import "./ux/money.css";
 import "./ux/thin.css";
 import "./ux/prompts.css";
-import "./ux/chrome.css";
 import "./ux/phone.css";
+import "./ux/chrome.css";
 import "./ux/catalog.css";
 
 const TRACKING = trackingConfig();
