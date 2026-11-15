@@ -10,7 +10,21 @@ export const LATEST_LOOK = 12;
 /** Made within a day: marked New. */
 export const NEW_FOR_MS = 24 * 60 * 60 * 1000;
 
-/** The newest pictures and videos that came through: not a face, not one in the Archive, not one they gave a 👎. */
-export function latestMade<T extends Pick<Media, "kind" | "status" | "rating" | "archived">>(items: readonly T[], n = LATEST_SHOWN): T[] {
-  return items.filter((m) => m.kind !== "baseline" && m.status === "ready" && !m.archived && m.rating !== -1).slice(0, n);
+/**
+ * The newest pictures and videos that came through: not a face, not one in the Archive, not one they gave a 👎. A
+ * night's video is many shots made at once, so one shot of a video stands for it, not four of the same night.
+ */
+export function latestMade<T extends Pick<Media, "kind" | "status" | "rating" | "archived" | "in_reel">>(items: readonly T[], n = LATEST_SHOWN): T[] {
+  const out: T[] = [];
+  let shot = false;
+  for (const m of items) {
+    if (out.length >= n) break;
+    if (m.kind === "baseline" || m.status !== "ready" || m.archived || m.rating === -1) continue;
+    if (m.kind === "video" && m.in_reel) {
+      if (shot) continue;
+      shot = true;
+    }
+    out.push(m);
+  }
+  return out;
 }

@@ -4,12 +4,13 @@ import { postHref } from "@/app/showcase/PublishButton";
 
 // After Dark's home shows what they made last (2026-11-15), and a post says where it is on the showcase.
 describe("latestMade", () => {
-  const m = (id: string, over: Partial<{ kind: "baseline" | "scene" | "video"; status: string; rating: 1 | -1 | null; archived: boolean }> = {}) => ({
+  const m = (id: string, over: Partial<{ kind: "baseline" | "scene" | "video"; status: string; rating: 1 | -1 | null; archived: boolean; in_reel: boolean }> = {}) => ({
     id,
     kind: "scene" as const,
     status: "ready",
     rating: null,
     archived: false,
+    in_reel: false,
     ...over,
   });
 
@@ -27,6 +28,11 @@ describe("latestMade", () => {
     ];
     expect(latestMade(items).map((x) => x.id)).toEqual(["v1", "p1", "p2", "p3"]);
     expect(latestMade([m("face", { kind: "baseline" })])).toEqual([]);
+  });
+
+  it("lets one shot stand for a night's video, not four shots of it", () => {
+    const shots = ["s1", "s2", "s3", "s4"].map((id) => m(id, { kind: "video", in_reel: true }));
+    expect(latestMade([...shots, m("clip", { kind: "video" }), m("p1")]).map((x) => x.id)).toEqual(["s1", "clip", "p1"]);
   });
 });
 
