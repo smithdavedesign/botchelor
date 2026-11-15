@@ -387,6 +387,9 @@ export async function storyMap(db: Db, now: Date = new Date(), env: Env = proces
   const fromDay = dayOf(from);
   const today = dayOf(now);
   const none = <T,>() => ({ rows: [] as T[] });
+  // The lead: this season's (lib/season-cast.ts, already loaded), else the one casting is open for (next month's,
+  // before the 1st), which is looked up next to the other reads.
+  const seasonLead = leadAndSuitors(now)?.lead ?? null;
   const [beats, pairs, rooms, sceneRows, shown, casting] = await Promise.all([
     producerOn(env)
       ? db
@@ -423,7 +426,7 @@ export async function storyMap(db: Db, now: Date = new Date(), env: Env = proces
       : none<SceneRow>(),
     // What /house shows of those scenes: the lines and results that passed its own checks.
     houseScenesOn(env) ? listHouseScenes(db, { limit: 30 }).catch(() => ({ scenes: [], total: 0 })) : { scenes: [], total: 0 },
-    castingLead(db, now, env).catch(() => null),
+    seasonLead ? null : castingLead(db, now, env).catch(() => null),
   ]);
   const views = new Map(shown.scenes.map((s) => [s.id, s]));
   const scenes: RawScene[] = sceneRows.rows.map((r) => {
@@ -441,8 +444,6 @@ export async function storyMap(db: Db, now: Date = new Date(), env: Env = proces
   });
   const roomRows: RawRoom[] = rooms.rows.map((r) => ({ ...r, public: true, ended: r.starts_at ? watchClock(r.starts_at, now).ended : false }));
 
-  // The lead: this season's (lib/season-cast.ts), else the one casting is open for (next month's, before the 1st).
-  const seasonLead = leadAndSuitors(now)?.lead ?? null;
   const lead = seasonLead ? { id: seasonLead, billing: "this season's Botchelor" } : casting ? { id: casting.lead.id, billing: leadBilling(casting) } : null;
 
   const ids = new Set<string>(cast);

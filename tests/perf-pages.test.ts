@@ -152,7 +152,7 @@ const BUDGET: Record<string, number> = {
   // The scenes and this week's story map (lib/story-map.ts) side by side: the map's uncached build is the deeper one
   // (its reads at once, then the people; the lead's lookup beside them). On prod every view shares one cached build.
   house: 5,
-  graph: 6,
+  graph: 5,
 };
 
 /** Runs `run` with one environment variable set, and puts it back. */

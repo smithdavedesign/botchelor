@@ -78,7 +78,7 @@ export default async function GraphPage({ searchParams }: { searchParams: Search
   );
   const sky = (
     <>
-      {/* The sky first: the page opens on it (2026-10-25); what it is and the numbers read under it. */}
+      {/* The sky (2026-10-25: the page opened on it; since the story map, 2026-11-15, it is the "All time" section). */}
       {/* The strongest pairs first; the rest of the sky loads when asked for (or when ?focus= names someone outside it). */}
       <ConstellationApp
         data={first}
