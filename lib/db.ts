@@ -1181,7 +1181,7 @@ create table if not exists face_kits (
   id text primary key,
   character_id text not null references characters (id) on delete cascade,
   source_id text not null,
-  part text not null check (part in ('portrait', 'mouth_small', 'mouth_open', 'mouth_round', 'blink', 'smile', 'surprised', 'loop')),
+  part text not null check (part in ('portrait', 'mouth_small', 'mouth_open', 'mouth_round', 'blink', 'smile', 'surprised', 'talk', 'loop')),
   status text not null check (status in ('making', 'ready', 'failed')),
   model text,
   queue_id text,
@@ -1193,6 +1193,10 @@ create table if not exists face_kits (
   updated_at timestamptz not null default now()
 );
 create unique index if not exists face_kits_one on face_kits (character_id, source_id, part);
+-- 2026-11-15: the talking still (lib/face-kit-shared.ts TALK_STILL, the mouth at rest that Ditto animates), widened in place.
+alter table face_kits drop constraint if exists face_kits_part_check;
+alter table face_kits add constraint face_kits_part_check
+  check (part in ('portrait', 'mouth_small', 'mouth_open', 'mouth_round', 'blink', 'smile', 'surprised', 'talk', 'loop'));
 -- A character's live face at a renderer (lib/live-face/index.ts; docs/PRDs/digital-human.md Tier 1): one per character per
 -- kit portrait per provider, built by an admin (hours), the renderer's face id once it exists. Sessions aren't rows:
 -- a call's face time is on companion_live_calls (face_provider, face_seconds) for the spend view.

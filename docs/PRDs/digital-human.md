@@ -59,7 +59,7 @@ transparency plan is a fantasy for every candidate, and the estimate is about th
 | Layer | $/min | Note |
 |---|---|---|
 | Deepgram Nova-3 + Aura-2 (today) | ~0.02 | measured, docs/companions.md |
-| **Tier 0 living face (ours)** | **0.00** | about 26¢ once per character: seven Qwen edits (~3¢) and one Wan 2.2 clip at 480p (~5¢) |
+| **Tier 0 living face (ours)** | **0.00** | about 29¢ once per character: eight Qwen edits (~3¢; the eighth is Ditto's talking still) and one Wan 2.2 clip at 480p (~5¢) |
 | Simli | ~0.01 | 50 free min/month; plans about $10–49/month |
 | Anam | 0.11–0.16 | free 30 min; $12/month for 50 |
 | HeyGen LiveAvatar (avatar only) | ~0.09 | chroma-key only |
@@ -538,6 +538,37 @@ the character, memory, voice orchestration and animation state; keep the rendere
    2026-08-23) called it "the least convincing result" (tight crop, softer identity, weaker mouth), it has no listening
    mode and no network API, fal's `fal-ai/flashhead` 404s (delisted mid-2026) and the only live host is WaveSpeed,
    which we don't hold. Nothing it does that Ditto doesn't do better for us.
+
+### The lips (2026-11-15, David: "the lips are way unnatural on a companion call")
+
+**What was wrong.** The kit's portrait has a closed-lip smile, and Ditto keeps the source's expression and adds the
+voice's motion on top: the smile holds while the jaw opens, so every word shows teeth through a grin and the lips never
+close between words. At Ditto's own amplitude the mouth also barely changes shape. Ditto on the loop (`ditto:loop`)
+doesn't fix it: the loop is drawn from the same smiling portrait.
+
+**Measured** on Juniper's own reply (her Aura voice, 9.9 s), one worker, mouth strips at 8 fps:
+
+| Source | Mouth amplitude | What the mouth does |
+|---|---|---|
+| Kit portrait (closed-lip smile) | 1.0 (what calls did) | a grin with teeth on every word, small shape changes, never closes |
+| Kit portrait | 1.3 | clearer shapes, real "oh" rounds, still the grin |
+| Kit portrait | 1.6 | mugging: wide toothy grin |
+| Cast portrait (mouth at rest) | 1.0 | natural shapes, lips close between words, no grin |
+| Cast portrait | 1.3 | the best: articulate, closes on p/b/m, no grin |
+
+**The fix (built).** A kit gets an eighth still, the *talking still* (`TALK_STILL`): its portrait with the mouth at
+rest, lips together, not smiling. The page never shows it; Ditto animates it (`lib/live-face/ditto-clips.ts`
+`dittoSource`), and the idle and reaction clips are drawn again from it so every join is one face. Calls drive the mouth
+at 1.3 (`CHAIN_EXP_SCALE`); the compare's `ditto` row renders exactly that, `ditto:soft` the same still at 0.7. A kit
+drawn before gets just the talking still on its next call (about 3¢, counted in the day's 12) and its clips again
+(about a cent).
+
+**The outage the same night.** Runpod began placing Ditto workers on "RTX PRO 6000 Blackwell Server Edition MIG
+1g.24gb" slices inside the 24 GB pools. The worker's TensorRT 8.6 engines are built for Ampere and Ada and can't load
+there (`'NoneType' object has no attribute 'set_input_shape'`), so every Ditto job failed and calls played their plain
+voice. Fixed by excluding that type on both endpoints (`gpu.excludedTypes`, sent together with `gpu.pools`); workers
+landed on 4090s and the next live turn streamed every clause. Engines rebuilt on TensorRT 10 for Blackwell would let
+those cards back in.
 
 ### With our own hardware (when users pick up; David moves the system then)
 

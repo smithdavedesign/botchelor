@@ -7,7 +7,7 @@ import { setReplicateFetchForTests, setReplicatePausesForTests } from "@/lib/adu
 import { saveAdultSettings } from "@/lib/adult/settings";
 import { claimAdmin } from "@/lib/admins";
 import { setDeepgramFetchForTests } from "@/lib/companion-live";
-import { makeFaceKit } from "@/lib/face-kit";
+import { faceKitOf, makeFaceKit } from "@/lib/face-kit";
 import { buildLiveFace, collectLiveFaces, liveFaceClips, liveFaceMode, liveFaceOn, liveFaceProvider, liveFaceSession, liveFaceState } from "@/lib/live-face";
 import { jobStatus, RUNPOD_API, setRunpodFetchForTests, speakClip, startPrepare } from "@/lib/live-face/musetalk";
 import { createSimliFace, mintSimliSession, setSimliFetchForTests, SIMLI_API, simliFaceStatus } from "@/lib/live-face/simli";
@@ -265,7 +265,10 @@ describe("live faces on Ditto (our second worker on Runpod)", () => {
     expect(await liveFaceSession(t.db, id, BASE_URL, { admin: false })).toEqual({ provider: "ditto", px: 512, idle: null, reactions: {} });
     // A session warms a Ditto worker, at Ditto's endpoint.
     expect(asked.some((a) => a.url === `${RUNPOD_API}/ep-d/run` && a.body?.input?.op === "warm")).toBe(true);
-    expect(await liveFaceClips(t.db, id, BASE_URL, { admin: false })).toEqual({ provider: "ditto", runpod: { key: "placeholder-runpod", endpoint: "ep-d" }, source_url: expect.stringContaining(`${BASE_URL}/api/face-kit/`) });
+    // Its turns talk from the kit's talking still (the mouth at rest), not the smiling portrait.
+    const kit = (await faceKitOf(t.db, id, BASE_URL))!;
+    expect(kit.stills.talk).toBeTruthy();
+    expect(await liveFaceClips(t.db, id, BASE_URL, { admin: false })).toEqual({ provider: "ditto", runpod: { key: "placeholder-runpod", endpoint: "ep-d" }, source_url: `${BASE_URL}${kit.stills.talk}` });
     // A character with no kit has no Ditto face.
     const bare = (await (await api.createCharacter(validCharacter({ name: "Bare Face" }), newUserCookie())).json()).id as string;
     expect(await liveFaceState(t.db, bare, BASE_URL)).toBeNull();
