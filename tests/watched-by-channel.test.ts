@@ -12,7 +12,7 @@ const src = (p: string) => readFileSync(p, "utf8");
 describe("watched it end, for readers too", () => {
   it("the episode page marks the recap's ending block once it's on screen; the theater says it was the theater", () => {
     const page = src("app/episodes/[id]/page.tsx");
-    const beat = page.slice(page.indexOf('className="ending-beat"'), page.indexOf('className="ending-beat"') + 400);
+    const beat = page.slice(page.indexOf('className="ending-beat"'), page.indexOf('className="ending-beat"') + 900); // the overnight card's closing line sits between the two
     expect(beat).toContain("<EndingSeen />");
     expect(beat).toContain("episode.revealed &&"); // never before the finale airs
     const seen = src("app/episodes/[id]/EndingSeen.tsx");

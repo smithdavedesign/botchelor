@@ -256,9 +256,11 @@ export type SituationBoard = {
 export async function situationBoard(db: Db, viewerId: string | null, now: Date = new Date()): Promise<SituationBoard | null> {
   const day = utcDay(now);
   // The producer's twists, when the day has them: each names its own two, so the card leads with the first twist's.
-  const beat = await beatFor(db, day).catch(() => null);
+  // Read beside the season's format (which only a day without twists needs): one after the other was a round trip more
+  // in front of everything below, on every home page (tests/perf-pages.test.ts).
+  const [beat, format] = await Promise.all([beatFor(db, day).catch(() => null), formatOfDay(db, day)]);
   const twists = beat?.choices ?? null;
-  const pair = twists ? twists[0].pair : situationPair(day, await formatOfDay(db, day));
+  const pair = twists ? twists[0].pair : situationPair(day, format);
   if (!pair) return null;
   const [chars, tally, mine, lastRow] = await Promise.all([
     db.query<{ id: string; name: string; hue: number | null; portrait: string | null }>(`select c.id, c.name, c.avatar_hue as hue, ${portraitPathSql("c")} as portrait from characters c where c.id = any($1)`, [pair]),
@@ -292,10 +294,12 @@ export async function situationBoard(db: Db, viewerId: string | null, now: Date 
   // What won: a roleplay by its id, or a producer's twist by the title the night kept.
   const lastDef = lr ? (DATE_ROLEPLAYS.find((r) => r.id === lr.pick) ?? (lr.title ? { title: lr.title, icon: lr.icon ?? "🎬" } : undefined)) : undefined;
   if (lr && lastDef) {
-    const names = await namesOf(db, [lr.a_id, lr.b_id]);
-    const myLast = viewerId
-      ? ((await db.query<{ pick: string }>(`select pick from situation_votes where day = $1 and user_id = $2`, [lr.day, viewerId])).rows[0]?.pick ?? null)
-      : null;
+    const [names, myLast] = await Promise.all([
+      namesOf(db, [lr.a_id, lr.b_id]),
+      viewerId
+        ? db.query<{ pick: string }>(`select pick from situation_votes where day = $1 and user_id = $2`, [lr.day, viewerId]).then((r) => r.rows[0]?.pick ?? null)
+        : Promise.resolve(null),
+    ]);
     last = {
       day: lr.day,
       title: lastDef.title,
