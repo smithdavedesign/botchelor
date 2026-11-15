@@ -584,7 +584,9 @@ export async function writeLessons(models: readonly Model[], f: LessonFacts, usa
   for (const model of models) {
     let raw: string;
     try {
-      raw = await model.complete(messages, { temperature: 0.8, maxTokens: 500, onUsage: (u) => usage.push(u) });
+      // Room for a model that thinks first (the paid fallback spent 500 tokens thinking and answered nothing); the
+      // answer itself is about 150 tokens.
+      raw = await model.complete(messages, { temperature: 0.8, maxTokens: 1500, onUsage: (u) => usage.push(u) });
     } catch {
       continue;
     }

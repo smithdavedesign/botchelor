@@ -104,6 +104,17 @@ function envFor(showrunnerPort, dataDir) {
 }
 
 async function grantDates(base, who) {
+  // An admin is a signed-in account (#508): the owner registers one (it adopts their anonymous id, so their character
+  // stays theirs), and the signed session cookie rides every request from here on.
+  const res = await fetch(`${base}/api/auth/register`, {
+    method: "POST",
+    headers: { "content-type": "application/json", cookie: who.cookie, origin: base, "x-forwarded-for": ipFor(who.id) },
+    body: JSON.stringify({ handle: `sim${who.id.replace(/-/g, "").slice(0, 12)}`, password: randomBytes(18).toString("hex"), attest: true }),
+  });
+  if (!res.ok) throw new Error(`register → ${res.status}`);
+  const session = (res.headers.getSetCookie?.() ?? []).map((c) => c.split(";")[0]).filter((c) => c.startsWith("bz_sess="));
+  if (!session.length) throw new Error("register set no session cookie");
+  who.cookie = [who.cookie, ...session].join("; ");
   must(await post(base, "/api/admin/claim", {}, who, { "x-frontier-key": ADMIN_PASSWORD }), "claim admin");
   must(await post(base, "/api/admin/tokens", {}, who), "grant dates");
 }

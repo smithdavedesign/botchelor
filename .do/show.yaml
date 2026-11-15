@@ -129,6 +129,11 @@ services:
       # - key: CHARACTER_QUESTIONS
       #   value: "0"
       #   scope: RUN_AND_BUILD_TIME
+      # The characters' weekly lessons (lib/character-lessons.ts; docs/character-depth.md §11): on by default.
+      # Uncomment with "0" and nothing is written, carried in a prompt, shown or texted; the rows stay.
+      # - key: CHARACTER_LESSONS
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
       # Life dates a day (lib/character-life.ts weeklyLifeDates; docs/hosting.md): the house takes each owned character
       # out once a week, house-paid, ~1¢ each. Default 30; "0" turns them off without a deploy.
       # - key: LIFE_DATES_PER_DAY
