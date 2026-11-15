@@ -585,7 +585,12 @@ async function main() {
           if (as === "owner" || as === "member") await ctx.addCookies([{ name: "bz_uid", value: owner, url: base }]);
           // Signed in to the admin pages the way they remember it: the password in localStorage.
           if (as === "admin") await ctx.addInitScript((k) => { try { localStorage.setItem("bz_frontier", k); } catch {} }, ADMIN_PASSWORD);
-          if (as === "adult-admin") await adminSignIn(ctx.request);
+          if (as === "adult-admin") {
+            await adminSignIn(ctx.request);
+            // The arrival screen (app/Threshold.tsx) shows once a tab, and every state opens a new tab: seen already, so
+            // the screenshots are the pages, not the arrival screen over each of them (until 2026-11-15 they all were).
+            await ctx.addInitScript(() => { try { sessionStorage.setItem("bz-threshold:after-dark", "1"); } catch {} });
+          }
           if (as === "member") {
             // The first signed-in pass registers (adopting the owner's anonymous session, so the account lists
             // their characters); later passes sign in to the same account.
