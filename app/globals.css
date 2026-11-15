@@ -12235,6 +12235,27 @@ a.char-name-link:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
+/*
+ * Tap targets (2026-11-14 design audit: a character's name link was 19px tall, "Start from a sample character" 16px). On
+ * a touch screen or a phone a name link is 44px tall; the negative margin gives the extra back to the line, so a list of
+ * names keeps its rhythm and only the target grows. .tap-link is the same for a link in a line of prose that is the
+ * line's action (the home hero's "Start from a sample character", "Bring your character"): 44px tall, its own line box.
+ * The whole-card target is .tap-card + a.stretch (above); the swipe deck's row of faces is .character-tab (below).
+ */
+@media (pointer: coarse), (max-width: 720px) {
+  a.char-name-link {
+    min-height: 2.75rem;
+    margin-block: -0.625rem;
+  }
+  a.tap-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.75rem;
+  }
+  a.character-tab {
+    min-height: 2.75rem;
+  }
+}
 .char-name.is-private {
   display: inline;
 }
