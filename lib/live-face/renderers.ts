@@ -18,7 +18,7 @@
  */
 import { runModel } from "../adult/replicate";
 import { emoFor } from "../live-face-shared";
-import { CHAIN_FADE_IN, CHAIN_FADE_OUT, CHAIN_TAIL_SILENCE_MS, dittoConfig, speakDitto } from "./ditto";
+import { CHAIN_EXP_SCALE, CHAIN_FADE_IN, CHAIN_FADE_OUT, CHAIN_TAIL_SILENCE_MS, dittoConfig, speakDitto } from "./ditto";
 import { MUSETALK_STREAM_PX, runpodConfig, speakClip } from "./musetalk";
 
 type Env = Record<string, string | undefined>;
@@ -40,6 +40,8 @@ export type RenderInput = {
   loopUrl: string | null;
   /** The character's approved cast portrait (the full picture, not the kit's face crop), when they have one. */
   castPortraitUrl?: string | null;
+  /** The kit's talking still (the mouth at rest, lib/face-kit-shared.ts TALK_STILL), absolute, once it's drawn: what Ditto animates on calls. */
+  talkUrl?: string | null;
   /** The clause: Aura's PCM (16-bit mono at `rate`), the same as a WAV, its length, and a URL a provider can fetch it from. */
   audio: { pcm: Buffer; wav: Buffer; rate: number; seconds: number; url: string };
   /** For ours: the character's ready bundle (lib/live-face/index.ts), or null when there is none. */
@@ -104,24 +106,25 @@ const ditto: ClipRenderer = {
   kind: "live",
   provider: "house",
   model: "antgroup/ditto-talkinghead (TensorRT)",
-  about: "Our second renderer: the whole head animated from the kit's portrait (turns, brows, blinks, a mouth with teeth) on the same rented GPU, real time on TensorRT. The candidate to take over calls.",
+  about: "What calls render: the whole head animated (turns, brows, blinks, a mouth with teeth) from the kit's talking still, the portrait with the mouth at rest, with the mouth driven at 130%. Real time on TensorRT on the same rented GPU.",
   costHint: "about 1.3–2.2¢ a call minute while it renders",
   runs: true,
   ready: (env) => Boolean(dittoConfig(env)),
   async speak(input, ctx) {
     const cfg = dittoConfig(ctx.env);
     if (!cfg) throw new RendererError("RUNPOD_API_KEY and LIVE_FACE_DITTO_ENDPOINT aren't set");
-    if (!input.portraitUrl) throw new RendererError("no portrait: draw the character's face kit first");
+    const source = input.talkUrl ?? input.portraitUrl;
+    if (!source) throw new RendererError("no portrait: draw the character's face kit first");
     const t0 = Date.now();
-    // Rendered as a call renders a one-clause reply: eased in from the portrait, spoken in the expression the line's
-    // words pick, eased back to the portrait over appended silence (lib/live-face/ditto.ts DittoChain's settings).
+    // Rendered as a call renders a one-clause reply: from the still a call talks from, eased in from it, spoken in the
+    // expression the line's words pick at the call's mouth, eased back over appended silence (DittoChain's settings).
     const out = await speakDitto(
       cfg,
-      { source_url: input.portraitUrl, pcm: input.audio.pcm, rate: input.audio.rate, fade_in: CHAIN_FADE_IN, fade_out: CHAIN_FADE_OUT, tail_silence_ms: CHAIN_TAIL_SILENCE_MS, emo: input.line ? emoFor(input.line) : undefined },
+      { source_url: source, pcm: input.audio.pcm, rate: input.audio.rate, fade_in: CHAIN_FADE_IN, fade_out: CHAIN_FADE_OUT, tail_silence_ms: CHAIN_TAIL_SILENCE_MS, emo: input.line ? emoFor(input.line) : undefined, exp_scale: CHAIN_EXP_SCALE },
       { signal: ctx.signal, timeoutMs: 120_000 },
     );
     const ms = Date.now() - t0;
-    return { mp4: Buffer.from(out.video_b64, "base64"), ms, cost_usd: round((out.ms?.total ?? ms) / 1000 * RUNPOD_USD_PER_SECOND), frames: out.frames, note: `${out.width}px, ${out.frames} frames, from the portrait, as a call renders it` };
+    return { mp4: Buffer.from(out.video_b64, "base64"), ms, cost_usd: round((out.ms?.total ?? ms) / 1000 * RUNPOD_USD_PER_SECOND), frames: out.frames, note: `${out.width}px, ${out.frames} frames, from the ${input.talkUrl ? "talking still" : "portrait"}, as a call renders it` };
   },
 };
 
@@ -132,18 +135,19 @@ const dittoSoft: ClipRenderer = {
   kind: "live",
   provider: "house",
   model: "antgroup/ditto-talkinghead (TensorRT), exp 0.7 / pose 0.85",
-  about: "Ditto from the portrait with its expression driven at 70% and the head at 85%: the mouth opens less, the head turns less. The same cost and speed.",
+  about: "Ditto from the same still as calls with its expression driven at 70% and the head at 85%: the mouth opens less, the head turns less. The same cost and speed.",
   costHint: "about 1.3–2.2¢ a call minute while it renders",
   runs: true,
   ready: (env) => Boolean(dittoConfig(env)),
   async speak(input, ctx) {
     const cfg = dittoConfig(ctx.env);
     if (!cfg) throw new RendererError("RUNPOD_API_KEY and LIVE_FACE_DITTO_ENDPOINT aren't set");
-    if (!input.portraitUrl) throw new RendererError("no portrait: draw the character's face kit first");
+    const source = input.talkUrl ?? input.portraitUrl;
+    if (!source) throw new RendererError("no portrait: draw the character's face kit first");
     const t0 = Date.now();
     const out = await speakDitto(
       cfg,
-      { source_url: input.portraitUrl, pcm: input.audio.pcm, rate: input.audio.rate, fade_in: CHAIN_FADE_IN, fade_out: CHAIN_FADE_OUT, tail_silence_ms: CHAIN_TAIL_SILENCE_MS, emo: input.line ? emoFor(input.line) : undefined, exp_scale: 0.7, pose_scale: 0.85 },
+      { source_url: source, pcm: input.audio.pcm, rate: input.audio.rate, fade_in: CHAIN_FADE_IN, fade_out: CHAIN_FADE_OUT, tail_silence_ms: CHAIN_TAIL_SILENCE_MS, emo: input.line ? emoFor(input.line) : undefined, exp_scale: 0.7, pose_scale: 0.85 },
       { signal: ctx.signal, timeoutMs: 120_000 },
     );
     const ms = Date.now() - t0;

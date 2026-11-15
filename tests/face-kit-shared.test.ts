@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canTalk, kitComplete, lookFor, MOUTH_OPEN_FROM, MOUTH_SMALL_FROM, mouthFor, nextBlinkIn, syntheticLevel, type FaceKit } from "@/lib/face-kit-shared";
+import { canTalk, kitComplete, lookFor, MOUTH_OPEN_FROM, MOUTH_SMALL_FROM, mouthFor, nextBlinkIn, syntheticLevel, talkingStill, type FaceKit } from "@/lib/face-kit-shared";
 
 // The face on a call, the part the browser runs (lib/face-kit-shared.ts; app/companion/[id]/LiveFace.tsx).
 describe("the mouth follows the voice", () => {
@@ -53,6 +53,12 @@ describe("what a kit can do", () => {
     expect(kitComplete(kit(all))).toBe(false);
     expect(kitComplete(kit(all, "/api/face-kit/loop", true))).toBe(false);
     expect(kitComplete(kit(all, "/api/face-kit/loop"))).toBe(true);
+  });
+  it("gives Ditto the talking still once it's drawn, else the portrait, else nothing", () => {
+    expect(talkingStill(null)).toBeNull();
+    expect(talkingStill(kit(["mouth_small"]))).toBeNull();
+    expect(talkingStill(kit(["portrait", "mouth_small"]))).toEqual({ still: "portrait", url: "/api/face-kit/portrait" });
+    expect(talkingStill(kit(["portrait", "talk"]))).toEqual({ still: "talk", url: "/api/face-kit/talk" });
   });
   it("blinks every two and a half to six seconds", () => {
     expect(nextBlinkIn(0)).toBe(2500);

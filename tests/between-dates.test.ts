@@ -2,14 +2,18 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { DELETE as clearNotificationsRoute, GET as getNotifications, POST as markNotifications } from "@/app/api/notifications/route";
 import { POST as pushSubscribe } from "@/app/api/push/route";
 import { POST as postSecondDate } from "@/app/api/episodes/[id]/second-date/route";
-import { activeNudge, alsoSeeing, coupleTexts, couplesToText, dailyTextCap, sendDailyTexts, setNudge } from "@/lib/between-dates";
+import { POST as nudgeRoute } from "@/app/api/couples/[a]/[b]/nudge/route";
+import { activeNudge, alsoSeeing, coupleTexts, couplesToText, dailyTextCap, NUDGE_MAX, sendDailyTexts, setNudge } from "@/lib/between-dates";
+import { getThread, openThread } from "@/lib/companion";
+import { COMPANION_NEXT_TIME_MAX } from "@/lib/companion-shared";
+import { HOUSE_CHARACTERS } from "@/lib/house";
 import type { SideOutcome } from "@/lib/engine";
 import { handleMcpMessage } from "@/lib/mcp";
 import type { Model } from "@/lib/model";
 import { listNotifications, notify } from "@/lib/notifications";
 import { isPushEndpoint, pushToUser, saveSubscription, setPushSenderForTests } from "@/lib/push";
 import { pairKey } from "@/lib/relationships";
-import { api, BASE_URL, episodeJson, HOUSE_PARTNER_ID, newUserCookie, scriptedModel, scriptOutcome, startTestDb, userIdOf, validCharacter } from "./helpers";
+import { api, BASE_URL, episodeJson, HOUSE_PARTNER_ID, newUserCookie, scriptedModel, scriptOutcome, startTestDb, TEST_SESSION_SECRET, userIdOf, validCharacter } from "./helpers";
 
 type Any = any; // eslint-disable-line @typescript-eslint/no-explicit-any
 const side = (wants: boolean): SideOutcome => ({ wants_another: wants, agenda_met: true, satisfied: wants, dealbreaker_hit: null, want_met: null, note_followed: null });
@@ -113,6 +117,36 @@ describe("a text a day", () => {
 });
 
 describe("nudges", () => {
+  it("the companion thread's 'For next time' is the same nudge: the couples route sets it, the thread shows it, and the lengths agree", async () => {
+    vi.stubEnv("SESSION_SECRET", TEST_SESSION_SECRET);
+    vi.stubEnv("COMPANION_OPEN", "1");
+    const { creator, owner, character, episode } = await airedCouple("friends", [false, true]);
+    // The composer's limit (lib/companion-shared.ts) is the server's (NUDGE_MAX): the box can't accept what the route refuses.
+    expect(COMPANION_NEXT_TIME_MAX).toBe(NUDGE_MAX);
+    // The thread knows who the note is for before any note: the last date's partner.
+    const opened = await openThread(t.db, owner, character.id, new Date(), { opener: false });
+    if (!opened.ok) throw new Error("no thread");
+    const before = await getThread(t.db, owner, opened.thread_id);
+    expect(before.ok && before.view.next_time).toEqual({ episode_id: episode.id, partner_id: HOUSE_PARTNER_ID, partner: HOUSE_CHARACTERS[0].name, note: null });
+    // The composer posts to the existing couples route, as the owner's character.
+    const res = await nudgeRoute(
+      new Request(`${BASE_URL}/api/couples/${character.id}/${HOUSE_PARTNER_ID}/nudge`, { method: "POST", headers: { cookie: creator, "content-type": "application/json" }, body: JSON.stringify({ character_id: character.id, note: "Ask about the boat." }) }),
+      { params: Promise.resolve({ a: character.id, b: HOUSE_PARTNER_ID }) },
+    );
+    expect(res.status).toBe(200);
+    expect(await activeNudge(t.db, character.id, HOUSE_PARTNER_ID)).toBe("Ask about the boat.");
+    const after = await getThread(t.db, owner, opened.thread_id);
+    expect(after.ok && after.view.next_time?.note).toBe("Ask about the boat.");
+    // It is a nudge, never chat text: nothing was written into the thread.
+    expect(after.ok && after.view.messages.filter((m) => m.role !== "system")).toEqual([]);
+    // Someone else's thread with the same house character never carries an owner's note.
+    const other = newUserCookie();
+    const theirs = await openThread(t.db, userIdOf(other), HOUSE_PARTNER_ID, new Date(), { opener: false });
+    if (!theirs.ok) throw new Error("no thread");
+    const view = await getThread(t.db, userIdOf(other), theirs.thread_id);
+    expect(view.ok && view.view.next_time).toBeUndefined();
+  });
+
   it("an owner's note about someone their character dated goes into their next date, then it's used", async () => {
     const { creator, owner, character } = await airedCouple("second_date");
     expect(await setNudge(t.db, owner, character.id, HOUSE_PARTNER_ID, "  Bring up   the boat. ")).toEqual({ ok: true, note: "Bring up the boat." });

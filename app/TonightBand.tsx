@@ -2,6 +2,7 @@ import Link from "next/link";
 import Avatar from "./Avatar";
 import { showCrowd } from "@/lib/crowd-threshold";
 import type { AiringSoon, EpisodeView } from "@/lib/game";
+import type { CeremonyBoard } from "@/lib/ceremony";
 import type { SituationBoard } from "@/lib/situations";
 import type { RevealBoard } from "@/lib/weekly-reveal";
 import type { LobbyEntry } from "@/lib/watch";
@@ -34,6 +35,7 @@ export default function TonightBand({
   airing,
   situation,
   reveal = null,
+  ceremony = null,
   latest,
   now,
   insider = false,
@@ -43,6 +45,8 @@ export default function TonightBand({
   situation: SituationBoard | null;
   /** Sunday's reveal (lib/weekly-reveal.ts): a slot while its vote is open, the week's one appointment. */
   reveal?: RevealBoard | null;
+  /** The rose ceremony (lib/ceremony.ts, a Botchelor season): a slot while its vote is open. */
+  ceremony?: CeremonyBoard | null;
   latest: EpisodeView | null;
   now: number;
   /** The viewer has a character (lib/crowd-threshold.ts): "N watching" from 1; a stranger sees a count only for a crowd. */
@@ -91,6 +95,16 @@ export default function TonightBand({
       names: "Whose secret comes out?",
       line: reveal.my_pick ? `Your vote is in — closes ${inWords(reveal.closes_at, now)}` : `Vote — closes ${inWords(reveal.closes_at, now)}`,
       href: "/watch#sunday-reveal",
+    });
+  }
+  if (ceremony?.vote && ceremony.vote.choices.length >= 2) {
+    slots.push({
+      key: "ceremony",
+      label: "The rose ceremony",
+      faces: [ceremony.lead, ...ceremony.vote.choices.map((c) => ceremony.suitors.find((s) => s.id === c.id) ?? { id: c.id, name: c.name })].slice(0, 2),
+      names: "Who goes home on Sunday?",
+      line: ceremony.vote.my_pick ? `Your vote is in — the ceremony ${inWords(ceremony.vote.closes_at, now)}` : `Vote — the ceremony ${inWords(ceremony.vote.closes_at, now)}`,
+      href: "/watch#rose-ceremony",
     });
   }
   if (situation) {

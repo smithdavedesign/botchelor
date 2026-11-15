@@ -20,6 +20,7 @@ import { cachedConstellation } from "@/lib/graph-cache";
 import { PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
 import { seasonCastCards } from "@/lib/season-cast";
 import { seasonFormatNow } from "@/lib/season-format-store";
+import { ceremonyBoard } from "@/lib/ceremony";
 import { GENERATE_FROM_DAY } from "@/lib/season-gen";
 import { userIdFromCookieStore } from "@/lib/http";
 import { ownedSkus } from "@/lib/payments";
@@ -108,7 +109,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
       ? Promise.all([sinceYouWereHere(db, viewerId, mine).catch(() => []), countNotifications(db, viewerId, { unread: true }).catch(() => 0)])
       : [[], 0],
   );
-  const [owned, tokens, myCharacters, [since, unread], profileName, sharer, showNews, [aired, standout, sky, situation, dares, record, airing, rooms, onSeason, reveal, seasonDef]] = await Promise.all([
+  const [owned, tokens, myCharacters, [since, unread], profileName, sharer, showNews, [aired, standout, sky, situation, dares, record, airing, rooms, onSeason, reveal, seasonDef, ceremony]] = await Promise.all([
     db && viewerId ? ownedSkus(db, viewerId) : Promise.resolve<string[]>([]),
     db && viewerId ? episodeAllowance(db, viewerId) : freshAllowance(),
     myCharactersP,
@@ -142,6 +143,8 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
       forViewer(viewerId, "home:reveal", () => revealBoard(conn, viewerId)).catch(() => null),
       // This season's format, for the arc under the header (the same cached read /watch makes).
       shared("watch:season-format", () => seasonFormatNow(conn)).catch(() => null),
+      // The rose ceremony (lib/ceremony.ts): the tonight band points at its vote on a Botchelor season; null otherwise.
+      forViewer(viewerId, "watch:ceremony", () => ceremonyBoard(conn, viewerId)).catch(() => null),
     ]),
   ]);
 
@@ -165,7 +168,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
   const creator = myCharacters.length > 0;
   // The band is there for a first visit too, on a quiet night as well (the design system's visitor home, all-screens
   // board, 2026-11-11): what just aired, what's open for predictions, and what's live, as proof the show is on.
-  const tonight = <TonightBand rooms={rooms} airing={airing} situation={situation} reveal={reveal} latest={airedEpisodes[0] ?? null} now={Date.now()} insider={creator} />;
+  const tonight = <TonightBand rooms={rooms} airing={airing} situation={situation} reveal={reveal} ceremony={ceremony} latest={airedEpisodes[0] ?? null} now={Date.now()} insider={creator} />;
 
   return (
     <div className="home page-wide">

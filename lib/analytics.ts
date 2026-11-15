@@ -16,6 +16,7 @@ export type AnalyticsEvent =
   | "situation_vote" // a vote on tonight's situation (lib/situations.ts)
   | "season_format_vote" // a vote for next season's format (lib/season-vote.ts)
   | "recoupling_vote" // a vote on the recoupling night (lib/recoupling.ts)
+  | "ceremony_vote" // a vote on who goes home at Sunday's rose ceremony (lib/ceremony.ts)
   | "reveal_vote" // a vote on Sunday's reveal (lib/weekly-reveal.ts)
   | "cast_backed" // a viewer backed a cast member for the month (lib/backing.ts)
   | "audition" // an owner put their character up for next month's cast (lib/auditions.ts)
@@ -55,6 +56,7 @@ export type AnalyticsEvent =
   | "companion_report" // a person reported a companion's reply: the reason only
   | "companion_scene" // a companion thread started a scene at a place, or went back to texting: the place only
   | "companion_text" // a character texted its person first (lib/companion.ts postFromCharacter): the kind of text and how many bubbles; never the words
+  | "companion_offer" // a chip under one of those texts was tapped (lib/companion-offers.ts): which offer (second_date, someone_new, advice), and whether a guest
   | "companion_voice" // a companion reply recorded as a voice note (lib/companion-voice.ts): how long, its length, what paid; never the words
   | "companion_call" // a voice call with a companion started or ended (stage; app/companion/[id]/CompanionCall.tsx): how long, how many turns, which voice, and for a live call (live: P6) its minutes, first-audio ms and barge-ins; never the words
   | "face_kit" // a character's face kit was drawn for calls (lib/face-kit.ts): how many stills, whether the loop was queued, failures, the cost estimate; never a picture

@@ -25,7 +25,7 @@ import { faceKitBytes, faceKitFile, faceKitOf, faceSource } from "../face-kit";
 import { type LiveFaceProvider, type LiveFaceSession } from "../live-face-shared";
 import { inBackground } from "../sets";
 import { DITTO_PX, dittoConfig } from "./ditto";
-import { dittoLibrary, dropDittoLibrary, ensureDittoLibrary } from "./ditto-clips";
+import { dittoLibrary, dittoSource, dropDittoLibrary, ensureDittoLibrary } from "./ditto-clips";
 import { jobError, jobStatus, MUSETALK_STREAM_PX, type PrepareOutput, runpodConfig, type RunpodConfig, startPrepare, warmWorker } from "./musetalk";
 import { createSimliFace, deleteSimliFace, listSimliFaces, mintSimliSession, outOfFaces, simliFaceStatus, SIMLI_STREAM_PX, SimliError } from "./simli";
 
@@ -87,16 +87,15 @@ async function rowFor(db: Db, characterId: string, sourceId: string, provider: L
 }
 
 /**
- * Ditto's face is the kit's portrait itself: nothing is built or stored, so its "row" is made up from the kit (ready
- * when the kit has a portrait, else none). `provider_face_id` is the portrait's absolute URL, what the worker fetches.
+ * Ditto's face is a still of the kit itself (dittoSource: the talking still, the mouth at rest, once it's drawn, else
+ * the portrait): nothing is built or stored, so its "row" is made up from the kit (ready when the kit has one, else
+ * none). `provider_face_id` is the still's absolute URL, what the worker fetches.
  */
 async function dittoRow(db: Db, characterId: string, baseUrl: string): Promise<LiveFaceRow | null> {
-  const source = await faceSource(db, characterId, baseUrl);
+  const source = await dittoSource(db, characterId, baseUrl);
   if (!source) return null;
-  const kit = await faceKitOf(db, characterId, baseUrl);
-  if (!kit?.stills.portrait) return null;
   const now = new Date().toISOString();
-  return { id: `ditto:${characterId}`, character_id: characterId, source_id: source.id, provider: "ditto", provider_face_id: new URL(kit.stills.portrait, baseUrl).toString(), status: "ready", error: null, created_at: now, updated_at: now };
+  return { id: `ditto:${characterId}`, character_id: characterId, source_id: source.sourceId, provider: "ditto", provider_face_id: source.url, status: "ready", error: null, created_at: now, updated_at: now };
 }
 
 /** The character's live face at a given renderer, for the kit they have now (the compare and a person's own choice ask by provider). */
