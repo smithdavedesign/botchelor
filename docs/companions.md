@@ -728,6 +728,33 @@ you can talk over the other, and it's charged by the minute. It sits behind the 
   first audio (a few hundred ms). Expect around 1 s, sometimes under 800 ms. The call measures it: `first_audio_ms` on
   `companion_call` is the median from the end of speech to their voice, per call.
 
+### What a call keeps, and where we say it (2026-11-15)
+
+An outside review found the site open about costs and data everywhere but calls. Checked against the code first, then
+written in three places that must keep saying the same thing (`tests/call-honesty.test.ts` pins the sentences and the
+behaviour behind them):
+
+| Fact | Where it's true |
+|---|---|
+| The caller's audio never reaches us. Live: the browser streams the microphone to Deepgram's socket with a 30-second token. Taking turns: the browser's own `SpeechRecognition` (Chrome → Google, Safari → Apple). | `app/companion/[id]/live-audio.ts` (`Mic`, `listen`), `CompanionCall.tsx` (`liveOpen`, `listen`) |
+| Deepgram is asked to keep nothing for training, on listening and on the voice. Its docs say an opted-out request's data is kept only as long as it takes to process. | `lib/companion-live.ts` `sttUrl`, `speakAura` (`mip_opt_out=true`) |
+| What was said reaches us as text and is kept as a message marked 📞, like a typed one; a line that trips the self-harm check or the PG line isn't kept. | `lib/companion.ts` `takeIn` → `screen` → `addMessage` (`on_call`) |
+| The words can be deleted only with the conversation (or the account). The last message can be rewritten (`editLast`); there is no delete for one message. | `deleteThread` (messages cascade), `lib/account.ts` |
+| The companion's voice is Aura, made on the server from checked words and streamed through, never stored. Picking "their own voice" on a taking-turns call makes each reply a voice note (Kokoro on Venice or Replicate), which is stored with the thread. | `speakAura`, `lib/companion-call-voice.ts`, `lib/companion-voice.ts` |
+| The moving face is rendered by our worker on Runpod from the character's kit still and the character's Aura audio. Nothing of the caller is sent, and clips are streamed, not stored. | `lib/live-face/ditto.ts` `speakInput`, the live route's `DittoChain` |
+| A live call's row holds times, minutes, turns, voiced characters, the face's renderer and seconds, and the first minute's ticket: no sound, no words. Gone after 90 days or with the account; **not** with the conversation. | `companion_live_calls`, `pruneLiveCalls`, `deleteAccount` |
+
+- **On the call screen** (`CallNotice.tsx`): one line above 📞 Call, always shown (the "How calls work" fold closes
+  after the first call), for the way of calling that's picked, with "What a call keeps" opening `/privacy#calls` in a
+  new tab. It's copy only: nothing to tick, nothing that delays the call.
+- **`/privacy#calls`** ("Calls with a companion"): the table above in plain words; the processors list now names
+  Runpod, and "How long we keep it" has the 90 days.
+- **`/faq`**: "What happens to my voice on a call with a companion?" (while companions are open).
+- **`/costs#call`**: what a minute costs us, part by part ([costs.md](costs.md), "A live call, a minute").
+- **Known gaps, told to the owner rather than papered over:** no single-message delete; the account export
+  (`exportAccount`) leaves out companion conversations and call records; Runpod's own retention of a job's input (the
+  character's audio) isn't something our code controls.
+
 ### Turning it on
 
 1. Make a Deepgram key with **Member** rights (the grant API needs them) and a spend cap at Deepgram; keep it in the
