@@ -694,7 +694,16 @@ export const ATTRACTION_LABELS: Record<number, string> = { [-2]: "put off", [-1]
 
 const opinionLine = (o: Opinion): string =>
   `${o.basis === "heard" ? "This comes from what you've heard, not from a date of your own that aired. " : ""}${TRUST_YOU[o.trust]}${o.attraction !== null ? `, and ${ATTRACTION_YOU[o.attraction]}` : ""}. In your own words: “${o.take}”`;
-const heardLine = (h: Heard): string => `${h.told_by_name ? `${shortName(h.told_by_name)} told you` : "You watched it air"}: ${h.claim}`;
+/**
+ * The source of a row the house's word left (lib/house-texts.ts: `house:<scene id>`): the holder was named by a public
+ * house scene or the day's line. Nobody told it to its face and it didn't watch a date air, so it reads as word that
+ * reached it, and it never counts as one side of two opposing stories (tensions).
+ */
+export const HOUSE_WORD_SOURCE = "house:";
+/** Where a heard row came from, said to its holder: who told it, the house's word, or a date it watched air. */
+export const heardFrom = (h: Pick<Heard, "told_by_name" | "source">): string =>
+  h.told_by_name ? `${shortName(h.told_by_name)} told you` : h.source.startsWith(HOUSE_WORD_SOURCE) ? "Word reached you from the house" : "You watched it air";
+const heardLine = (h: Heard): string => `${heardFrom(h)}: ${h.claim}`;
 
 /** The things heard a date's prompt numbers for "brought_up": only the ones that haven't come up before. */
 export const bringable = (state: StoryState | null | undefined): Heard[] => (state?.heard ?? []).filter((h) => !h.used_at);
@@ -926,7 +935,8 @@ export async function tensions(db: Db, seasonId: string, opts: { now?: Date; hol
         order by learned_at desc, id`,
       [cast, since],
     ),
-    db.query<HeardRow>(`select ${HEARD_COLS} from ${HEARD_FROM} where h.holder_id = any($1) and h.forgotten_at is null and h.heard_at >= $2 order by h.heard_at desc, h.id`, [cast, since]),
+    // Not the house's word about its holder (HOUSE_WORD_SOURCE): "X talked about you" is no rival story to anything.
+    db.query<HeardRow>(`select ${HEARD_COLS} from ${HEARD_FROM} where h.holder_id = any($1) and h.forgotten_at is null and h.heard_at >= $2 and position($3 in h.source) <> 1 order by h.heard_at desc, h.id`, [cast, since, HOUSE_WORD_SOURCE]),
     db.query<OpinionRow>(`select ${OPINION_COLS} from character_opinions o join characters c on c.id = o.about_id where o.holder_id = any($1) and o.forgotten_at is null`, [cast]),
     db.query<Want>(`select holder_id, season_id, week_id, want, about_id, kind, set_by from character_wants where week_id = $1 and holder_id = any($2)`, [week, cast]),
   ]);

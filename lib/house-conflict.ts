@@ -17,8 +17,9 @@
  *    down when it got worse), what was confronted is closed (settleKnown: every unsettled knows_you_said fact
  *    between the two), and when someone else was in the room they saw it (hear, nobody told them) and the rest of the
  *    house hears it from them (hear, told by the witness).
- *  - An owner whose character was in one hears, as with the daily scene: a `house_talk` notification, and the
- *    character's own text when they opted in (one such text a day per owner, shared with the daily scene's).
+ *  - An owner whose character was in one hears, as with the daily scene: a `house_talk` notification. The
+ *    character's own text is lib/house-texts.ts (textAboutScene): the two who had it out, a challenge's winner and
+ *    the ones who lost each text the threads that turned their texts on.
  *
  * CHALLENGES (kind 'challenge'). Once a week, on CHALLENGE_WEEKDAY (Wednesday; Sunday has the roses), the house
  * holds a group challenge: three to five cast members (on a Botchelor season the suitors still in), a premise from
@@ -65,7 +66,7 @@ import {
   sceneSource,
   sensitiveClaim,
   storeScene,
-  textedToday,
+  textAboutScene,
   type ChallengeResult,
   type ConfrontResult,
   type HousePlaceId,
@@ -427,31 +428,20 @@ export async function ensureConfrontation(
     result,
     now,
   });
-  const owners = await tellParticipants(db, { id, place: facts.place, people: [a, b], now, title: (me, other) => `🏠 ${first(me.name)} had it out with ${first(other.name)} in the house`, body: `${OUTCOME_LABELS[outcome]}.`, lines: (_me, other) => confrontTextLines(other.name, housePlace(facts.place).at, outcome) });
-  return { id, source: written ? "model" : "template", outcome, over: tension.kind, moved: effects.moved.length, settled: effects.settled, cost_usd: spent.cost_usd, ...owners };
-}
-
-/** The character's own text to its owner about a confrontation it was in (pure, templates). */
-export function confrontTextLines(other: string, place: string, outcome: Outcome): string[] {
-  const o = first(other);
-  const last: Record<Outcome, string> = {
-    cleared_the_air: "We cleared the air. I think I like them better for it.",
-    agreed_to_disagree: "We agreed to disagree. Loudly, but we agreed.",
-    worse_than_before: "It went worse than I meant it to. I'm not sorry yet.",
-  };
-  return [`I had it out with ${o} ${place}.`, last[outcome], "Go and hear it for yourself."];
+  const owners = await tellParticipants(db, { id, people: [a, b], title: (me, other) => `🏠 ${first(me.name)} had it out with ${first(other.name)} in the house`, body: `${OUTCOME_LABELS[outcome]}.` });
+  const texted = await textAboutScene(db, id, now, env);
+  return { id, source: written ? "model" : "template", outcome, over: tension.kind, moved: effects.moved.length, settled: effects.settled, cost_usd: spent.cost_usd, ...owners, texted };
 }
 
 /**
  * The owners of people's characters who were IN a scene hear (a confrontation's two, a challenge's winner): a
- * `house_talk` notification each, once per scene, and the character's own text when they opted in, at most one house
- * text a day per owner (shared with the daily scene's, lib/house-scenes.ts textedToday). Never throws.
+ * `house_talk` notification each, once per scene. Never throws. The character's own text is textAboutScene's.
  */
 async function tellParticipants(
   db: Db,
-  s: { id: string; place: string; people: readonly Member[]; now: Date; title: (me: Member, other: Member) => string; body: string; lines: (me: Member, other: Member) => string[] },
-): Promise<{ notified: number; texted: number }> {
-  const done = { notified: 0, texted: 0 };
+  s: { id: string; people: readonly Member[]; title: (me: Member, other: Member) => string; body: string },
+): Promise<{ notified: number }> {
+  const done = { notified: 0 };
   try {
     const { notify } = await import("./notifications");
     const link = scenePath(s.id);
@@ -462,15 +452,9 @@ async function tellParticipants(
       if (me.house || !owner || owner === "deleted" || seen.has(owner)) continue;
       seen.add(owner);
       const had = await db.query(`select 1 from notifications where user_id = $1 and kind = 'house_talk' and link = $2 limit 1`, [owner, link]);
-      if (!had.rows.length) {
-        await notify(db, owner, { kind: "house_talk", title: s.title(me, other), body: s.body, link });
-        done.notified++;
-      }
-      const opted = await db.query(`select 1 from companion_threads where user_id = $1 and character_id = $2 and muted_proactive = false and paused_at is null`, [owner, me.id]);
-      if (!opted.rows.length || (await textedToday(db, owner, s.now))) continue;
-      const { postFromCharacter } = await import("./companion");
-      const posted = await postFromCharacter(db, { userId: owner, characterId: me.id, lines: s.lines(me, other), now: s.now, kind: "house_scene", dedupeKey: `house_scene:${s.id}` }).catch(() => null);
-      if (posted) done.texted++;
+      if (had.rows.length) continue;
+      await notify(db, owner, { kind: "house_talk", title: s.title(me, other), body: s.body, link });
+      done.notified++;
     }
   } catch (err) {
     console.error("[house-conflict] could not tell the owners:", err instanceof Error ? err.message : "unknown");
@@ -693,24 +677,9 @@ export async function ensureChallenge(
     [prizeDay, seasonIdOf(now), winner.id, partner, result.prize.kind, def.title, id],
   );
   forgetLoadedSeasonCast();
-  const owners = await tellParticipants(db, {
-    id,
-    place: facts.place,
-    people: [winner],
-    now,
-    title: (me) => `🏆 ${first(me.name)} won ${def.title.replace(/^The /, "the ")}`,
-    body: `The prize: ${prize}`,
-    lines: () => challengeTextLines(def.title, house ? "lead_date" : "first_pick", partnerName),
-  });
-  return { id, source: written ? "model" : "template", challenge: def.id, winner: winner.id, prize_day: prizeDay, cost_usd: spent.cost_usd, ...owners };
-}
-
-/** The winner's own text to its owner (pure, templates). */
-export function challengeTextLines(title: string, kind: "lead_date" | "first_pick", partner: string | null): string[] {
-  const won = `I won ${title.replace(/^The /, "the ")}.`;
-  return kind === "lead_date"
-    ? [won, `${partner ? first(partner) : "The lead"}'s next date is mine. Tomorrow.`, "Come and watch."]
-    : [won, `First pick of tomorrow's house date is mine${partner ? `, and I'm picking ${first(partner)}` : ""}.`, "Come and watch."];
+  const owners = await tellParticipants(db, { id, people: [winner], title: (me) => `🏆 ${first(me.name)} won ${def.title.replace(/^The /, "the ")}`, body: `The prize: ${prize}` });
+  const texted = await textAboutScene(db, id, now, env);
+  return { id, source: written ? "model" : "template", challenge: def.id, winner: winner.id, prize_day: prizeDay, cost_usd: spent.cost_usd, ...owners, texted };
 }
 
 /** Every roleplay a challenge borrows its premise from is in the show's catalog (tests pin it). */

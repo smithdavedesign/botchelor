@@ -173,6 +173,11 @@ services:
       # - key: HOUSE_SCENES
       #   value: "0"
       #   scope: RUN_AND_BUILD_TIME
+      # What the house does reaches the chat (lib/house-texts.ts; docs/companions.md "When the house talks about
+      # them"): on by default, templates only. "0" sends no house text and takes the block out of the prompt.
+      # - key: HOUSE_TEXTS
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
       # This week's story map on /house and /graph, and the circle (lib/story-map.ts; docs/relationship-graph.md "The
       # story map"): on by default, reads only. "0" leaves both pages as they were, without a deploy of code.
       # - key: STORY_MAP

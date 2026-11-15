@@ -21,10 +21,8 @@ import {
   houseLine,
   houseScene,
   houseScenesOn,
-  houseTalkLines,
   houseUpkeep,
   HOUSE_PAGE_SIZE,
-  inFirstPerson,
   isScene,
   latestHouseScene,
   listHouseScenes,
@@ -349,21 +347,7 @@ describe("the template scene", () => {
   });
 });
 
-describe("the owner's text (templates)", () => {
-  it("answers a wrong claim in the character's own first person, and quotes one it can't turn", () => {
-    expect(inFirstPerson("Lexi left before the second drink.", "Lexi Marlowe")).toBe("I left before the second drink");
-    expect(inFirstPerson("Rafe told Lexi she talks too much.", "Lexi Marlowe")).toBeNull();
-    expect(houseTalkLines({ name: "Lexi Marlowe", speaker: "Sable Quist", partner: "Rafe Calloway", place: "in the kitchen", claim: "Lexi left early.", isTrue: false })).toEqual([
-      "Apparently Sable is telling people I left early.",
-      "I did not.",
-      "Go and hear it for yourself.",
-    ]);
-    const quoted = houseTalkLines({ name: "Lexi Marlowe", speaker: "Sable Quist", partner: "Rafe Calloway", place: "in the kitchen", claim: "Rafe told Lexi she talks too much.", isTrue: false });
-    expect(quoted[0]).toContain('"Rafe told Lexi she talks too much."');
-    expect(quoted[1]).toBe("That is not how it went.");
-    const fair = houseTalkLines({ name: "Lexi Marlowe", speaker: "Sable Quist", partner: "Rafe Calloway", place: "in the kitchen", claim: "x", isTrue: true });
-    expect(fair[0]).toBe("So the house was talking about my date with Rafe. Sable brought it up in the kitchen.");
-  });
+describe("the texts' links", () => {
   it("links a text about a scene to the scene, and a date's tease to the date", () => {
     expect(textLink(`house_scene:${SCENE}`)).toEqual({ href: `/house?scene=${SCENE}#scene-${SCENE}`, label: "Hear what they said" });
     expect(textLink("tease:ep-1")).toEqual({ href: "/episodes/ep-1", label: "Watch the date" });
@@ -606,17 +590,19 @@ describe("people's characters: the owner hears", () => {
     // A rerun of the telling notifies nobody twice.
     const row = (await t.db.query<{ id: string; day: string; place: string; lines: never; told: never }>(`select id, day, place, lines, told from house_scenes where id = $1`, [SCENE])).rows[0];
     const { tellOwners } = await import("@/lib/house-scenes");
-    expect(await tellOwners(t.db, row, NOW)).toEqual({ notified: 0, texted: 0 });
+    expect(await tellOwners(t.db, row)).toEqual({ notified: 0 });
     expect(await notices("owner-1")).toHaveLength(1);
   });
 
-  it("an owner who opted in also gets the character's own text, with the scene's link and the date's chips, at most one a day", async () => {
+  it("an owner who opted in also gets the character's own text (lib/house-texts.ts), with the scene's link and the date's chips", async () => {
     const { lexi, ep } = await walkOn();
     await t.db.query(`insert into companion_threads (id, user_id, character_id, muted_proactive) values ('th-lexi', 'owner-1', $1, false)`, [lexi]);
     const made = await ensureHouseScene(t.db, NOW, { model: answering(WRONG()).model });
     expect(made).toMatchObject({ notified: 1, texted: 1 });
     const sent = await texts("th-lexi");
-    expect(sent.map((x) => x.text)).toEqual(["Apparently Marisol is telling people I left before the second drink.", "I did not.", "Go and hear it for yourself."]);
+    // From what /house shows a stranger: who talked, about which date, where. Never the wrong detail or a verdict on it.
+    expect(sent[0].text).toMatch(/Dex.* my date with Rafe\b/);
+    expect(sent.map((x) => x.text).join(" ")).not.toMatch(/second drink|did not|not how it went/i);
     expect(sent.every((s) => s.action === `house_scene:${SCENE}`)).toBe(true);
     expect(sent[0].offers).toMatchObject({ episode_id: ep, partner_id: RAFE, kinds: ["someone_new", "advice"] });
     // The thread shows the link under the last bubble, and the chips on the first.
@@ -626,17 +612,13 @@ describe("people's characters: the owner hears", () => {
     expect(mine[mine.length - 1].link).toEqual({ href: `/house?scene=${SCENE}#scene-${SCENE}`, label: "Hear what they said" });
     expect(mine[0].offers).toMatchObject({ episode_id: ep });
 
-    // The same day, another scene about them (a second kind, later): notified again, but not texted again.
+    // The same day, another scene about them: notified again (the text's own cap is tests/house-texts.test.ts).
     const { tellOwners } = await import("@/lib/house-scenes");
-    const again = await tellOwners(t.db, { id: `${DAY}-other`, day: DAY, place: "stairs", lines: [{ character_id: DEX, text: "Lexi again." }], told: [{ line: 1, by: DEX, to: [TEO], episode_id: ep, about: lexi, about_b: RAFE, claim: "x", is_true: true, source: "scene:x#1" }] }, NOW);
-    expect(again).toEqual({ notified: 1, texted: 0 });
-    // Tomorrow is another day.
-    const tomorrow = new Date(NOW.getTime() + 24 * HOURS);
-    const next = await tellOwners(t.db, { id: `2026-11-13-gossip`, day: "2026-11-13", place: "stairs", lines: [{ character_id: DEX, text: "Lexi again." }], told: [{ line: 1, by: DEX, to: [TEO], episode_id: ep, about: lexi, about_b: RAFE, claim: "x", is_true: true, source: "scene:y#1" }] }, tomorrow);
-    expect(next).toEqual({ notified: 1, texted: 1 });
+    const again = await tellOwners(t.db, { id: `${DAY}-other`, day: DAY, place: "stairs", lines: [{ character_id: DEX, text: "Lexi again." }], told: [{ line: 1, by: DEX, to: [TEO], episode_id: ep, about: lexi, about_b: RAFE, claim: "x", is_true: true, source: "scene:x#1" }] });
+    expect(again).toEqual({ notified: 1 });
   });
 
-  it("tells nobody about a house character's date, a private character's, or a muted or paused thread's owner by text", async () => {
+  it("notifies nobody about a house character's date or a private character's", async () => {
     await episode(RAFE, JUNIPER);
     expect(await ensureHouseScene(t.db, NOW)).toMatchObject({ notified: 0, texted: 0 });
     expect((await t.db.query(`select 1 from notifications where kind = 'house_talk'`)).rows).toEqual([]);
@@ -645,9 +627,9 @@ describe("people's characters: the owner hears", () => {
     const ep = await episode(lexi, RAFE);
     await t.db.query(`insert into companion_threads (id, user_id, character_id, muted_proactive, paused_at) values ('th-p', 'owner-2', $1, false, now())`, [lexi]);
     const told = [{ line: 1, by: DEX, to: [TEO], episode_id: ep, about: lexi, about_b: RAFE, claim: "x", is_true: true, source: "scene:z#1" }];
-    expect(await tellOwners(t.db, { id: "s-1", day: DAY, place: "stairs", lines: [{ character_id: DEX, text: "Lexi." }], told }, NOW)).toEqual({ notified: 1, texted: 0 });
+    expect(await tellOwners(t.db, { id: "s-1", day: DAY, place: "stairs", lines: [{ character_id: DEX, text: "Lexi." }], told })).toEqual({ notified: 1 });
     await t.db.query(`update characters set visibility = 'private' where id = $1`, [lexi]);
-    expect(await tellOwners(t.db, { id: "s-2", day: DAY, place: "stairs", lines: [{ character_id: DEX, text: "Lexi." }], told }, NOW)).toEqual({ notified: 0, texted: 0 });
+    expect(await tellOwners(t.db, { id: "s-2", day: DAY, place: "stairs", lines: [{ character_id: DEX, text: "Lexi." }], told })).toEqual({ notified: 0 });
   });
 });
 

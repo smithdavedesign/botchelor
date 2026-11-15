@@ -741,6 +741,55 @@ you can talk over the other, and it's charged by the minute. It sits behind the 
 4. Tests: `tests/companion-live.test.ts` (Deepgram stubbed), `tests/companion-call-transcript.test.ts` (the transcript); `npm run e2e:companion` runs a live call with Deepgram
    stubbed (a local stand-in for the grant and Aura, and the page's socket and microphone faked) on a desktop and a phone.
 
+### When the house talks about them (built 2026-11-16)
+
+The outside review's point was one continuous person: what happens to a character in the show's house should reach
+the chat. `lib/house-texts.ts` is the one place every house text is written, and it does three things.
+
+1. **A text.** When something public in the house names a character, that character texts every thread with it whose
+   person turned its texts on (`muted_proactive = false`): its owner first, and anyone texting a cast member under the
+   same opt-in. Five kinds, each a few template variants (no model call), dealt by the day and the character so two
+   days running never read the same:
+   - **talked** (a house scene retold one of its dates): "Word got back to me: Juniper's been talking about my date
+     with Nell on the big sofa." / "Want to know what Juniper said?"
+   - **confronted**: "I had it out with Dex in the kitchen." / "We agreed to disagree." / "Go and hear it. Was I fair?"
+   - **won**, **lost** (the week's challenge): "Guess who won the cook-off. Me." / "That gets me Nell's next date, on
+     Thursday." and "Dex won the cook-off. I did not."
+   - **tonight** (the producer's public line for the day names it): "I'm in the show's story for today: "Dex found out
+     what Sable has been saying."" / "Will you be watching tonight?"
+
+   The words come only from the scene as `/house` shows it to a stranger (`HouseSceneView`) and the producer's public
+   lines: who spoke, where, whose date, how a confrontation came out, who won what. **Whether a retelling was true is
+   not in that view, so no text can say** (the earlier owner text that answered "I did not." is gone). A scene's text
+   is tagged `house_scene:<scene id>` and links to the scene ("Hear what they said"); the line's is tagged
+   `house_tonight:<day>` and links to `/watch`. The owner's text about a retold date keeps the date's chips; nobody
+   else's has any.
+2. **The rules.** Never to a paused thread, a thread that isn't opted in, a person who muted the "texts" notification
+   type, or our own identities (`loadOurIds`, as the day-after text). Never about a scene that isn't public, or a
+   character that went private (the public view already left them out). Once per thread per scene (the tag), **one
+   house text a thread a UTC day** (what the character did comes before what was said, the line last), and
+   `HOUSE_TEXTS_PER_PASS` (40) a pass. A scene the cap held back is not sent the next day: a late text only goes to a
+   thread that had no house text since the scene's day began. Every one goes through `postFromCharacter`, so the AI
+   notice, the PG check and the `character_texted_you` notice hold; Chat counts it unread and "Since you were here"
+   says "{name} texted you", then "{name} told you what the house is saying" once it is read and unanswered.
+3. **The character then knows it, and can talk about it.** It holds one heard row for what it texted about
+   ([character-depth.md](character-depth.md), "Word from the house"), and every thread's prompt carries a short house
+   block for its character: the last public things the house said about it (three lines, 700 characters, seven days),
+   "yours to bring up when they ask or when it fits … not in every reply". The block says the talk reached it second
+   hand, so it answers from how the date was for it rather than confirming a detail.
+
+**When it runs.** Right after a scene of any kind is stored (`textAboutScene`, inside the hourly lobby pass's
+`ensureHouseScene`, `ensureConfrontation`, `ensureChallenge`; it never throws); the lobby pass's `houseTextsSweep` picks
+up a scene whose text didn't go out and, from the hour after the scenes' (`HOUSE_SCENE_HOUR_UTC` + 1, 19:00 UTC),
+today's line; the daily job's people part runs the same sweep (`house_texts` in its counts and the `daily_job` line,
+next to `day_after_texts`) and the upkeep of what the characters hold (`house_word`). All idempotent through the tags.
+
+**The switch.** `HOUSE_TEXTS`, on unless it is `0`: nothing is sent, nothing is held, and no prompt carries the block.
+
+**What isn't there yet.** Only the "Hear from" tap turns a thread's texts on, and only an owner sees that button, so
+today the texts reach owners; a person texting a house character has no control to turn them on yet (the sender is
+ready for it: it only reads `muted_proactive`). Tests: `tests/house-texts.test.ts`.
+
 ## Still to build
 
 - **P3, the rest (voice notes are built, above):** PG selfies from `lib/studio/date-photos.ts` with the face reference.

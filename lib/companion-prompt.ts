@@ -119,6 +119,12 @@ export function companionMessages(args: {
    * Sable said about me". Empty for a character that holds none (and with STORY_STATE=0).
    */
   story?: readonly string[];
+  /**
+   * What the house has said about or done with this thread's character lately (lib/house-texts.ts houseForPrompt): the
+   * last public things on the show's house page that name it, one line each. Public data, so any thread with the
+   * character may carry it; capped here as well (HOUSE_BLOCK_LINES, HOUSE_BLOCK_MAX) so the prompt can't grow with it.
+   */
+  house?: readonly string[];
 }): ChatMessage[] {
   const { character: c, length, now = new Date(), scene = null } = args;
   const call = args.call === true && !scene;
@@ -127,6 +133,7 @@ export function companionMessages(args: {
   const nudge = yours && lastDate ? (args.activeNudge?.trim() || null) : null;
   const photos = (args.photos ?? []).filter(Boolean);
   const lessons = yours && args.lessons?.lines.length ? args.lessons : null;
+  const house = houseBlock(args.house);
   const first = c.name.trim().split(/\s+/)[0] || c.name;
   const self = characterSelfView(c);
   const life = showLife(c);
@@ -214,6 +221,13 @@ export function companionMessages(args: {
           ...args.story.map((l) => `- ${l}`),
         ]
       : []),
+    ...(house.length
+      ? [
+          "",
+          "What the house has been saying about you lately (public: it's on the show's house page, where they can read it too). You weren't in the room for talk about your dates, so that part reached you second hand and may not be how it went; say how it was for you rather than confirming a detail. Yours to bring up when they ask or when it fits: one thing at a time, in your own words, never as a list, and not in every reply:",
+          ...house.map((l) => `- ${l}`),
+        ]
+      : []),
     ...(args.turns.some((t) => t.roleplay && t.roleplay !== scene?.roleplay?.title)
       ? ["", 'Lines marked [roleplay: …] were said in a roleplay you played together: make-believe, not either of your real lives.']
       : []),
@@ -238,6 +252,24 @@ export function companionMessages(args: {
   // The model answers a user turn: the opener, or a thread whose last word was the character's, gets one.
   if (messages[messages.length - 1]?.role !== "user") messages.push({ role: "user", content: args.cue ?? "(They're waiting for your reply.)" });
   return messages;
+}
+
+/** The house block's cap: this many lines, and this many characters in all (a line that doesn't fit is left out). */
+export const HOUSE_BLOCK_LINES = 3;
+export const HOUSE_BLOCK_MAX = 700;
+
+/** The house block's lines inside their cap, whatever was handed over. */
+export function houseBlock(lines: readonly string[] | null | undefined): string[] {
+  const out: string[] = [];
+  let used = 0;
+  for (const raw of lines ?? []) {
+    if (out.length >= HOUSE_BLOCK_LINES) break;
+    const line = raw.replace(/\s+/g, " ").trim();
+    if (!line || used + line.length > HOUSE_BLOCK_MAX) continue;
+    out.push(line);
+    used += line.length;
+  }
+  return out;
 }
 
 const wordsOf = (s: string) => s.toLowerCase().replace(/[^a-z0-9' ]+/g, " ").split(/\s+/).filter(Boolean);
