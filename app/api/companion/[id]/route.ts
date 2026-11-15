@@ -22,6 +22,7 @@ import {
   SCENE_PLACES,
   sendMessage,
   setReplyLength,
+  setTexts,
   setScene,
   type CompanionSend,
 } from "@/lib/companion";
@@ -61,6 +62,8 @@ const Action = z.discriminatedUnion("action", [
     my_role: z.union([z.literal(0), z.literal(1)]).optional(),
   }),
   z.object({ action: z.literal("carry_on") }),
+  // The thread's switch for texts the character starts (a date aired, the house talked about them); never on silence.
+  z.object({ action: z.literal("texts"), on: z.boolean() }),
   z.object({ action: z.literal("report"), message_id: z.string().min(1).max(64), reason: z.enum(COMPANION_REPORT_REASONS) }),
   // A reply as a voice note (lib/companion-voice.ts); `buy`: the button showed the price, so a token may buy a bundle.
   z.object({ action: z.literal("voice"), message_id: z.string().min(1).max(64), buy: z.boolean().optional() }),
@@ -182,6 +185,9 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
       break;
     case "carry_on":
       r = await carryOn(db, sess.userId, id);
+      break;
+    case "texts":
+      r = await setTexts(db, sess.userId, id, input.on);
       break;
     case "report":
       r = await reportMessage(db, sess.userId, id, input.message_id, input.reason);

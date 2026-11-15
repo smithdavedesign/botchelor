@@ -170,6 +170,8 @@ type ThreadRow = {
   notice_at: string | null;
   paused_at: string | null;
   reply_length: ReplyLength;
+  /** True until the person turns this character's texts on ("Hear from" on a verdict card, or the thread's Settings). */
+  muted_proactive: boolean;
   summary: string | null;
   scene: VenueId | null;
   /** The scene's roleplay (`first` is YOU or the character's id); null without one, and always null while texting. */
@@ -182,7 +184,7 @@ const NOT_FOUND = fail(404, "not_found", "Not found.");
 
 async function ownThread(db: Db, userId: string, threadId: string): Promise<ThreadRow | null> {
   const { rows } = await db.query<ThreadRow>(
-    `select id, user_id, character_id, last_at, notice_at, paused_at, reply_length, summary, scene, roleplay from companion_threads where id = $1 and user_id = $2`,
+    `select id, user_id, character_id, last_at, notice_at, paused_at, reply_length, muted_proactive, summary, scene, roleplay from companion_threads where id = $1 and user_id = $2`,
     [threadId, userId],
   );
   return rows[0] ?? null;
@@ -460,6 +462,7 @@ export async function getThread(db: Db, userId: string, threadId: string): Promi
         ...(m.action && lastOfTag.get(m.action) === m.id ? { link: textLink(m.action)! } : {}),
       })),
       reply_length: t.reply_length,
+      texts: !t.muted_proactive,
       scene: isScenePlace(t.scene) ? t.scene : null,
       roleplay: t.scene && t.roleplay ? roleplayView(t.roleplay, ref.name) : null,
       paused: Boolean(t.paused_at),
@@ -1079,6 +1082,18 @@ export async function setReplyLength(db: Db, userId: string, threadId: string, l
   const t = await ownThread(db, userId, threadId);
   if (!t) return NOT_FOUND;
   await db.query(`update companion_threads set reply_length = $2 where id = $1`, [t.id, length]);
+  return getThread(db, userId, threadId);
+}
+
+/**
+ * Whether this character may text first (docs/companions.md, "When the house talks about them"): the thread's own
+ * switch, the same column "Hear from" sets on a verdict card. On: the event-driven texts (a date aired, the house
+ * talked about them) may arrive in this thread; never on silence. Off: the character only ever answers.
+ */
+export async function setTexts(db: Db, userId: string, threadId: string, on: boolean): Promise<CompanionSend> {
+  const t = await ownThread(db, userId, threadId);
+  if (!t) return NOT_FOUND;
+  await db.query(`update companion_threads set muted_proactive = $2 where id = $1`, [t.id, !on]);
   return getThread(db, userId, threadId);
 }
 
