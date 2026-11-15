@@ -56,6 +56,9 @@ export type AnalyticsEvent =
   | "companion_report" // a person reported a companion's reply: the reason only
   | "companion_scene" // a companion thread started a scene at a place, or went back to texting: the place only
   | "companion_text" // a character texted its person first (lib/companion.ts postFromCharacter): the kind of text and how many bubbles; never the words
+  | "express_draft" // one-sentence create drafted a sheet, or didn't (app/api/characters/draft): ready or the reason; never the words
+  | "character_question" // a character asked its owner about its own sheet (lib/character-questions.ts): the field only
+  | "character_answer" // the owner answered one (the thread's answer box): the field, and whether the sheet's checks took it
   | "companion_offer" // a chip under one of those texts was tapped (lib/companion-offers.ts): which offer (second_date, someone_new, advice), and whether a guest
   | "companion_voice" // a companion reply recorded as a voice note (lib/companion-voice.ts): how long, its length, what paid; never the words
   | "companion_call" // a voice call with a companion started or ended (stage; app/companion/[id]/CompanionCall.tsx): how long, how many turns, which voice, and for a live call (live: P6) its minutes, first-audio ms and barge-ins; never the words

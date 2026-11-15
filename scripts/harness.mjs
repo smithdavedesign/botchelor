@@ -113,6 +113,25 @@ function genericBetweenDates(messages) {
   return { text: BETWEEN_DATES_LINES[n % BETWEEN_DATES_LINES.length] };
 }
 
+// One-sentence create (lib/express-create.ts, POST /api/characters/draft): the labelled fields its prompt asks for, with
+// the person's own sentence as the bio. Told apart by the system prompt's opening words.
+const isExpressDraft = (messages) => (messages.find((m) => m.role === "system")?.content ?? "").startsWith("You draft a character for a PG dating show");
+function genericExpressDraft(messages) {
+  const text = messages.find((m) => m.role === "user")?.content ?? "";
+  return {
+    name: "Marisol Vane",
+    age: 34,
+    gender: "woman",
+    description: text,
+    personality: "wry, patient, guarded",
+    wants: "someone who stays up for the late shipping forecast",
+    dislikes: "people who whistle indoors",
+    occupation: "lighthouse keeper",
+    likes: "shortwave radio, storms",
+    appearance: "",
+  };
+}
+
 /** Starts a local OpenAI-compatible endpoint that returns the stub narration (or one agent turn). Returns the http server. */
 export function startShowrunner() {
   const server = createServer((req, res) => {
@@ -126,7 +145,9 @@ export function startShowrunner() {
         const isBetweenDates = !isAfterglow && user.includes('"texts_so_far"');
         const isTurn = !isAfterglow && !isBetweenDates && user.includes('"you"') && user.includes('"them"');
         const content = JSON.stringify(
-          isAfterglow
+          isExpressDraft(messages)
+            ? genericExpressDraft(messages)
+            : isAfterglow
             ? genericAfterglow(messages)
             : isBetweenDates
               ? genericBetweenDates(messages)

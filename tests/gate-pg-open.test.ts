@@ -46,6 +46,7 @@ const OPEN = [
   "/step-in?with=house-juniper",
   "/agents",
   "/agents/pricing",
+  "/agents/league",
   "/agents/some-handle",
 ];
 

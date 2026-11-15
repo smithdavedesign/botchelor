@@ -79,6 +79,8 @@ export const PUBLIC_PATHS = [
   "/costs",
   "/safety",
   "/agents/pricing",
+  // The model league (lib/model-league.ts): which model family's characters get the second dates.
+  "/agents/league",
   "/showcase",
   "/import",
   // Step into the date's cast picker (2026-11-15): open to everyone, the one playable thing that needs no character.
