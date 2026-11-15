@@ -210,10 +210,13 @@ describe("the turn critic", () => {
       turnJson("So what do you do when you're not on a date?"), // the revision wins
       ...Array.from({ length: CONVERSATION_TURNS }, (_, i) => turnJson(`Line ${i}: something friendly to say.`)),
     ]);
-    await simulateConversation(model, INPUT, OUTCOME, CHARS, PRODUCER, VENUE, undefined, undefined, undefined, undefined, undefined, undefined, {
+    const aired = await simulateConversation(model, INPUT, OUTCOME, CHARS, PRODUCER, VENUE, undefined, undefined, undefined, undefined, undefined, undefined, {
       onDraft: (d) => drafts.push(d),
     });
     expect(drafts).toEqual([{ turn_index: 1, side: "b", reason: expect.stringMatching(/haven't told you/), rejected: "A cartographer who wants a map reader, huh?" }]);
+    // The join a line ranker needs (lib/training-readiness.ts candidatePairsSql): a draft's turn_index is the transcript
+    // index of the line that went in instead, by the same side, so it is the line_index a viewer's thumb is stored under.
+    expect(aired[1]).toMatchObject({ side: "b", dialogue: "So what do you do when you're not on a date?" });
 
     const kept: unknown[] = [];
     const { model: m2 } = turnModel([

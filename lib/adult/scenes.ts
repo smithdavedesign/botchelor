@@ -23,6 +23,7 @@ import { pairMemory } from "../memory";
 import { contentWords, lineIssues } from "../quality";
 import type { Turn } from "../conversation";
 import { afterDarkNote, notesBetween, ownNotes, rememberAfterDark, restoreNotes, setOwnNote, type NoteRow } from "./memory";
+import { overnightSeed, tellShowNightsOver } from "./overnight";
 import {
   afterWhisperStep,
   cleanWhisper,
@@ -273,7 +274,15 @@ export const SCENE_REPLY_TOKENS = 1600;
 /** A line's private "why" or "memory", at most this long. */
 const NOTE_MAX = 240;
 
-export type LatestDate = { setting: string | null; ending: string | null; venue: string | null; character_a: string; transcript: { side: "a" | "b"; dialogue: string; action?: string }[] | null };
+export type LatestDate = {
+  /** The date's id (absent on one built by hand, as tests and the eval do). */
+  id?: string;
+  setting: string | null;
+  ending: string | null;
+  venue: string | null;
+  character_a: string;
+  transcript: { side: "a" | "b"; dialogue: string; action?: string }[] | null;
+};
 
 /**
  * The pair, lower id first, when both may be in this person's after dark (lib/adult/characters.ts), or when it's a pair
@@ -374,7 +383,7 @@ export async function listCastPairs(db: Db, adminId: string): Promise<CastPair[]
 
 async function latestDate(db: Db, a: string, b: string): Promise<LatestDate | null> {
   const { rows } = await db.query<LatestDate>(
-    `select setting, ending, setup->>'venue' as venue, character_a, transcript from episodes
+    `select id, setting, ending, setup->>'venue' as venue, character_a, transcript from episodes
       where status = 'ready' and varies_episode_id is null and ((character_a = $1 and character_b = $2) or (character_a = $2 and character_b = $1))
       order by created_at desc limit 1`,
     [a, b],
@@ -524,6 +533,9 @@ export async function sceneMemories(db: Db, ownerId: string, a: Character | null
   const first = (c: Character) => c.name.split(/\s+/)[0];
   const out: string[] = [];
   if (date?.ending) out.push(`Their latest date${date.setting ? `, ${date.setting},` : ""} ended: ${date.ending}`);
+  // A night this viewer continued from an overnight date (lib/adult/overnight.ts): one sentence of show facts.
+  const overnight = await overnightSeed(db, ownerId, date);
+  if (overnight) out.push(overnight);
   for (const [self, other] of [
     [a, b],
     [b, a],
@@ -3005,6 +3017,9 @@ async function nextChapter<S extends AdultScene>(db: Db, ownerId: string, scene:
   // The PG notes as they were, so a rewind of the step that closed this chapter can put them back.
   const notes = await notesBetween(db, scene.a.id, scene.b.id);
   await rememberAfterDark(db, ownerId, a, b, recap, scene.lines);
+  // A night that continued an overnight date has a chapter behind it: the show gets its one fact, ids and a time
+  // (lib/adult/overnight.ts). Never holds up the chapter.
+  await tellShowNightsOver(db, { ownerId, pair: [scene.a.id, scene.b.id] }).catch(() => 0);
   // The chapter's concrete facts, for the scene prompt from now on (lib/adult/facts.ts; After Dark only).
   const facts = await rememberFactsChange(db, ownerId, a, b, scene.lines);
   const prev_tail = scene.lines.slice(-PREV_TAIL);
@@ -3488,6 +3503,8 @@ export async function resetScene(db: Db, adminId: string, x: string, y: string):
     await fileSteps(db, scene.id, scene.chapter, nightId);
     // Its moments too, and those never pictured are drawn now (lib/adult/beats.ts).
     await fileBeats(db, scene.id, scene.chapter, nightId);
+    // A night that continued an overnight date is filed: the show gets its one fact, ids and a time (lib/adult/overnight.ts).
+    await tellShowNightsOver(db, { ownerId: adminId, pair }).catch(() => 0);
   } else if (scene) {
     await clearBeats(db, scene.id);
   }

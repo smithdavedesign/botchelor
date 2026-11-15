@@ -60,6 +60,12 @@ can be marked house-paid (a WeakSet; no header or body can claim it):
   `LIFE_DATES_PER_DAY` (default 30); a private character that isn't open to dates is never taken out.
   The rules are in [companions.md](companions.md), "Your character lives without you".
 
+A fifth is the house's own: **a house couple's overnight date** (`lib/overnight-house.ts`), once the couple has earned
+it from its aired dates, at most one a day show-wide, booked as a house room like every house date. A pair has one
+overnight date a season, counted by the calendar month it was booked in. A person's character's overnight date is not
+house-paid: its owner books it like any second date. The rules are in
+[relationship-graph.md](relationship-graph.md), "Overnight dates".
+
 ## Reviews and popularity
 
 [`lib/reviews.ts`](../lib/reviews.ts). One review per reviewer per character: 1–5 stars and an optional line of up

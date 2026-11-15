@@ -124,8 +124,10 @@ export type MemorySources = {
  * written about, a line by its words, a like/turnoff by its cue, and a moment (how it left things with someone) by
  * that person's id. Forgets are stored (memory_forgets) and applied on every rebuild, so a forgotten memory never
  * comes back from the same dates. Forgetting is the only change an owner can make: memory is learned, not written.
+ * A lesson (lib/character-lessons.ts: what it has learned about itself, written weekly) is forgotten by its words; this
+ * module's rebuild doesn't read that kind, the lessons' own readers and writer do.
  */
-export const FORGET_KINDS = ["reflection", "line", "like", "turnoff", "moment"] as const;
+export const FORGET_KINDS = ["reflection", "line", "like", "turnoff", "moment", "lesson"] as const;
 export type ForgetKind = (typeof FORGET_KINDS)[number];
 export type Forgets = ReadonlySet<string>;
 export const forgetKey = (kind: ForgetKind, item: string): string => `${kind}:${item}`;
@@ -580,6 +582,7 @@ export async function describeForgets(
       f.kind === "reflection" ? `Its reflection on the date with ${first(f.item)}`
       : f.kind === "moment" ? `How it left things with ${first(f.item)}`
       : f.kind === "line" ? `The line “${f.item}”`
+      : f.kind === "lesson" ? `What it learned: “${f.item}”`
       : f.kind === "like" ? `Warming to “${f.item}”`
       : `Clashing over “${f.item}”`,
   }));

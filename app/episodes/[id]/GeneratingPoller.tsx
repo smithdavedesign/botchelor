@@ -7,6 +7,7 @@ import Scene from "@/app/Scene";
 import ChatThread from "@/app/ChatThread";
 import { useReplay } from "@/app/useReplay";
 import { DATE_ACTS, endingLabel, WRITE_TIME, type Ending } from "@/lib/rules";
+import { overnightEndingLabel } from "@/lib/overnight-shared";
 import type { Turn } from "@/lib/conversation";
 import type { CharacterRef } from "@/lib/game";
 import { placeAt, type PlaceId } from "@/lib/venues";
@@ -81,6 +82,8 @@ type Stage = {
   canSetScene?: boolean;
   /** Which date it is for the pair (lib/rules.ts endingLabel: "A third date", never "A second date" on a second). */
   dateNumber?: number | null;
+  /** An overnight date (lib/overnight.ts): its ending is told as leaving together (lib/overnight-shared.ts overnightEndingLabel). */
+  overnight?: boolean;
   /** What the verdict card needs for the creator (EpisodeTheater.tsx TheaterVerdict); null when their side isn't known. */
   verdict?: TheaterVerdict | null;
 };
@@ -322,7 +325,8 @@ export default function GeneratingPoller({
     const last = shown[shown.length - 1];
     const typing = caughtUp ? (lines.length && !decided ? (last?.side === "a" ? "b" : "a") : null) : replay.typing;
     const actLabel = last ? DATE_ACTS[last.act] ?? null : null;
-    const label = final ? endingLabel(final, stage.dateNumber) : "";
+    const usual = final ? endingLabel(final, stage.dateNumber) : "";
+    const label = final && stage.overnight ? overnightEndingLabel(final, usual) : usual;
     const skipToEnding = () => {
       skipped.current = true;
       replay.skip();

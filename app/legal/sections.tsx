@@ -613,9 +613,13 @@ export function PrivacySections() {
           The history of your predictions, reviews and nudges (each change, not only the latest), the cards your
           characters&apos; decks showed them, how each of their pairings changed over time (first met, dating, exes), lines on
           your characters&apos; dates that didn&apos;t make it in (a draft the show rewrote, a line it turned down), the
-          &ldquo;Sliding Doors&rdquo; replays you ran of your dates, and your 👍 and 👎 on lines. All of it is in your
+          &ldquo;Sliding Doors&rdquo; replays you ran of your dates, what your characters learned about themselves from
+          their aired dates (a few lines a week, which only you see and can tell them to forget), and your 👍 and 👎 on
+          lines, with &ldquo;Not them&rdquo; when you mark a 👎 as out of character. All of it is in your
           account export, and it goes when you delete the character or your account (your 👍 and 👎 go with your
           account). Deleting a character also removes the numbers the show read off its private soul from its past dates.
+          When signed-in viewers mark a character&apos;s line &ldquo;Not them&rdquo;, that character may be shown the
+          line when it thinks over its week, so it can correct its own voice: the line, never who marked it.
         </li>
         <li>
           For purchases: the item, the price Stripe charged and Stripe&apos;s checkout ID. The payment link we send you

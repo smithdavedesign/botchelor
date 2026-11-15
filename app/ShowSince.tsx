@@ -82,6 +82,15 @@ function Items({ card }: { card: ShowSinceData }) {
           {m.following && <span className="chip">You follow</span>}
         </li>
       ))}
+      {card.overnights?.map((o) => (
+        <li key={o.episode_path}>
+          <span aria-hidden="true">🌙</span>{" "}
+          <Link href={`/couples/${o.lo}/${o.hi}`}>
+            {o.a} &amp; {o.b}
+          </Link>{" "}
+          left their overnight date together: <Link href={o.episode_path}>watch it</Link>
+        </li>
+      ))}
       {card.followed > 0 && (
         <li>
           <span aria-hidden="true">👀</span> Couples you follow went on {plural(card.followed, "date", "dates")}

@@ -38,6 +38,7 @@ export type AccountExport = {
   leagues_joined: Record<string, unknown>[];
   /** What each of the user's characters has learned from its dates (lib/memory.ts), with where it came from. */
   character_memory: Record<string, unknown>[];
+  character_lessons: Record<string, unknown>[];
   /** What the user told their characters to forget. */
   memory_forgets: Record<string, unknown>[];
   /** Their characters' reflections on each date (show-written or their own), by episode and character. */
@@ -151,6 +152,12 @@ export async function exportAccount(db: Db, userId: string): Promise<AccountExpo
       `select m.* from character_memory m join characters c on c.id = m.character_id where c.owner_id = $1 and not c.is_house`,
       [userId],
     ),
+    // What their characters learned about themselves (lib/character-lessons.ts): the lines, the dates behind them, when.
+    character_lessons: await q(
+      `select l.character_id, l.week, l.lines, l.trying_next, l.episodes, l.source, l.created_at from character_lessons l
+         join characters c on c.id = l.character_id where c.owner_id = $1 and not c.is_house and l.source in ('model', 'template') order by l.created_at`,
+      [userId],
+    ),
     memory_forgets: await q(
       `select f.character_id, f.kind, f.item, f.created_at from memory_forgets f join characters c on c.id = f.character_id where c.owner_id = $1`,
       [userId],
@@ -206,7 +213,7 @@ export async function exportAccount(db: Db, userId: string): Promise<AccountExpo
       [userId],
     ),
     relationship_events: await q(
-      `select e.character_a, e.character_b, e.layer, e.from_stage, e.to_stage, e.episode_id, e.at from relationship_events e
+      `select e.character_a, e.character_b, e.layer, e.kind, e.from_stage, e.to_stage, e.episode_id, e.at from relationship_events e
         where exists (select 1 from characters c where c.id in (e.character_a, e.character_b) and c.owner_id = $1 and not c.is_house)
         order by e.at`,
       [userId],
@@ -223,7 +230,7 @@ export async function exportAccount(db: Db, userId: string): Promise<AccountExpo
         order by u.created_at`,
       [userId],
     ),
-    second_date_yeses: await q("select episode_id, created_at from second_date_requests where user_id = $1", [userId]),
+    second_date_yeses: await q("select episode_id, overnight, created_at from second_date_requests where user_id = $1", [userId]),
     date_proposals: await q(
       "select from_character, to_character, status, created_at, decided_at, case when from_user = $1 then 'sent' else 'received' end as direction from date_proposals where from_user = $1 or to_user = $1 order by created_at",
       [userId],
@@ -263,7 +270,7 @@ export async function exportAccount(db: Db, userId: string): Promise<AccountExpo
         order by d.created_at`,
       [userId],
     ),
-    line_feedback: await q("select kind, ref_id, line_index, vote, created_at, updated_at from line_feedback where user_id = $1 order by created_at", [userId]),
+    line_feedback: await q("select kind, ref_id, line_index, vote, tag, created_at, updated_at from line_feedback where user_id = $1 order by created_at", [userId]),
     // The run's trace is left out: its numbers average both characters' temperaments, so it isn't one person's to take.
     episode_variations: await q(
       `select v.varies_episode_id as episode_id, v.variation, v.engine_version, v.base_ending, v.stored_ending, v.alt_ending,
@@ -305,6 +312,8 @@ async function forgetEverything(db: Db, characterIds: string[]): Promise<void> {
   if (!characterIds.length) return;
   await db.query("delete from character_memory where character_id = any($1)", [characterIds]);
   await db.query("delete from memory_forgets where character_id = any($1)", [characterIds]);
+  // What it learned about itself (lib/character-lessons.ts): written from its private side of its dates.
+  await db.query("delete from character_lessons where character_id = any($1)", [characterIds]);
   // Their texts between dates and any notes about them (lib/between-dates.ts) go too; the shared episodes stay.
   await db.query("delete from couple_texts where character_lo = any($1) or character_hi = any($1)", [characterIds]);
   await db.query("delete from nudges where character_id = any($1) or other_id = any($1)", [characterIds]);
@@ -530,6 +539,8 @@ const AFTER_DARK_OWNED: readonly [string, string][] = [
   ["adult_prefs", "user_id"],
   ["adult_images", "owner_id"], ["adult_studio_shoots", "owner_id"],
   ["adult_steer_resets", "owner_id"], ["adult_shorts", "owner_id"], ["adult_nights", "owner_id"], ["adult_scenes", "owner_id"],
+  // The nights that continued an overnight date (lib/adult/overnight.ts).
+  ["adult_overnights", "owner_id"],
   ["adult_characters", "owner_id"], ["adult_switches", "owner_id"], ["adult_usage", "owner_id"], ["adult_privacy", "user_id"],
   ["adult_entitlements", "user_id"], ["adult_viewer_places", "user_id"], ["adult_billing_flags", "user_id"], ["adult_tastes", "user_id"],
   // Their Didit age check (lib/adult/age-check.ts): passed or not, when, where.

@@ -23,13 +23,15 @@ import {
   type SoulSignals,
 } from "./engine";
 import type { BoxScore, DateSetup } from "./game";
-import { assembleCharacter, type Character } from "./character";
+import { assembleCharacter, type Character, type PromptLessons } from "./character";
+import { lessonsForPrompt } from "./character-lessons";
 import type { CharacterExtras } from "./extras";
 import { thisWeek, type StoredThisWeek } from "./life";
 import { leanedOnWords, loadCharacterMemory, pairMemory, pendingReflections, withPairMemory, withPendingReflections, type CharacterMemory } from "./memory";
 import { activeNudge, alsoSeeing } from "./between-dates";
 import { agreedPlan, planLines, type AgreedPlan, type PlanText } from "./plans";
 import { afterDarkNote, withAfterDark } from "./adult/memory";
+import { nightTogetherFact } from "./overnight";
 import { engineHistory, loadRelationship, pairContext, pairKey, pairSharedWords, PUBLIC_ONLY, refreshRelationship, type End, type Relationship } from "./relationships";
 import { planPlace } from "./places";
 import { warnWhenSparksOut } from "./partners";
@@ -157,6 +159,8 @@ export type DateParts = {
   creatorId?: string;
   /** What each side remembers of After Dark with the other, in PG terms (lib/adult/memory.ts), or null. */
   afterDark?: { a: string | null; b: string | null };
+  /** The one fixed fact a continued overnight date left (lib/overnight.ts nightTogetherFact), or null. Both sides get the same sentence. */
+  nightTogether?: string | null;
   followupOf?: string | null;
   /** Which date this is for the couple (setup.date_number), for the words only: DateInput.date_number. */
   dateNumber?: number | null;
@@ -189,6 +193,12 @@ export type DateParts = {
   /** Each side's story state about the other (lib/story-state.ts stateFor): its opinion, what it heard, its want. Private to its side. */
   storyA?: StoryState | null;
   storyB?: StoryState | null;
+  /**
+   * What each side has learned about itself lately (lib/character-lessons.ts): its own prompt only, in place of its
+   * one-line arc. Behaviour, never the engine: nothing below reads it but the character's self view.
+   */
+  lessonsA?: PromptLessons | null;
+  lessonsB?: PromptLessons | null;
   /**
    * The season format's venue pool (lib/season-format.ts): the lobby's house dates deal from it when the season has
    * one (the island month's villa). Null/omitted deals from the whole library, exactly as before.
@@ -223,6 +233,8 @@ export function assembleDate(p: DateParts): BuiltDate {
   if (p.claimsB?.length) charB.claimsBefore = p.claimsB;
   if (p.secretsA?.length) charA.secrets = p.secretsA;
   if (p.secretsB?.length) charB.secrets = p.secretsB;
+  if (p.lessonsA?.lines.length) charA.lessons = p.lessonsA;
+  if (p.lessonsB?.lines.length) charB.lessons = p.lessonsB;
   // The story state each carries about the other (lib/story-state.ts). Flavour only: the engine never reads it.
   if (p.storyA) charA.story = p.storyA;
   if (p.storyB) charB.story = p.storyB;
@@ -246,6 +258,10 @@ export function assembleDate(p: DateParts): BuiltDate {
   // After Dark, only ever as its PG note (David's pick: on their public dates too).
   if (p.afterDark?.a) charA.pair = withAfterDark(charA.pair ?? null, p.afterDark.a);
   if (p.afterDark?.b) charB.pair = withAfterDark(charB.pair ?? null, p.afterDark.b);
+  // A side with no note still knows the one fixed fact of an overnight date that carried on (lib/overnight.ts): the
+  // same slot, a template sentence, so their next date isn't written as if nothing happened. Never the engine.
+  if (p.nightTogether && !p.afterDark?.a) charA.pair = withAfterDark(charA.pair ?? null, p.nightTogether);
+  if (p.nightTogether && !p.afterDark?.b) charB.pair = withAfterDark(charB.pair ?? null, p.nightTogether);
   if (agreed) charA.pairShared = charB.pairShared = `${charA.pairShared ?? ""} ${agreed.texts.map((t) => t.text).join(" ")}`.trim();
   // Their texts go into the date (David: "the full text history going into the date"). Both of them sent and read every
   // one, so each side carries the whole thread, and its words are things both already know.
@@ -434,6 +450,7 @@ export async function buildDate(
     alsoSeeing(db, b.id, a.id).catch(() => []),
   ]);
   const afterDark = { a: await afterDarkNote(db, a.id, b.id), b: await afterDarkNote(db, b.id, a.id) };
+  const nightTogether = await nightTogetherFact(db, a.id, b.id);
   // What each has leaned on across its recent aired dates (lib/memory.ts), so a voice tic doesn't recur every date.
   const [overusedA, overusedB] = await Promise.all([leanedOnWords(db, a.id).catch(() => []), leanedOnWords(db, b.id).catch(() => [])]);
   // The texts this date's creator may bring in: every text between dates, and the morning afters of the dates they can use.
@@ -455,6 +472,8 @@ export async function buildDate(
       : [[], []];
   // A cast member's own secrets still hidden this season, to guard or let slip (living dates, lib/cast-secrets.ts).
   const [secretsA, secretsB] = await Promise.all([secretsForDate(db, a.id).catch(() => []), secretsForDate(db, b.id).catch(() => [])]);
+  // What each has learned about itself lately (lib/character-lessons.ts; null with CHARACTER_LESSONS=0): its own prompt only.
+  const [lessonsA, lessonsB] = await Promise.all([lessonsForPrompt(db, a.id), lessonsForPrompt(db, b.id)]);
   // What each thinks of the other, has heard about them and wants this week (lib/story-state.ts; null with STORY_STATE=0).
   const [storyA, storyB] = await Promise.all([stateFor(db, a.id, { withId: b.id }).catch(() => null), stateFor(db, b.id, { withId: a.id }).catch(() => null)]);
   const [lo] = pairKey(a.id, b.id);
@@ -478,11 +497,11 @@ export async function buildDate(
     soulA, soulB, memoryA: withPairMemory(withPendingReflections(memoryA, pendingA), pairA), memoryB: withPairMemory(withPendingReflections(memoryB, pendingB), pairB), history, ex, signalsOverride,
     relationship, creatorId: opts.creatorId, followupOf: opts.followupOf ?? null,
     dateNumber: opts.dateNumber !== undefined ? opts.dateNumber : opts.followupOf ? null : ((await nextDateNumber(db, a.id, b.id, episodeId)) ?? 1),
-    nudges, alsoSeeing: { a: seeingA, b: seeingB }, texts, afterDark, table: opts.table ?? null, roleplay: opts.roleplay ?? null,
+    nudges, alsoSeeing: { a: seeingA, b: seeingB }, texts, afterDark, nightTogether, table: opts.table ?? null, roleplay: opts.roleplay ?? null,
     venuePool: opts.venuePool ?? null, producerPick: opts.producerPick ?? null,
     extrasA: rowOf(a.id)?.extras ?? null, extrasB: rowOf(b.id)?.extras ?? null,
     hotTakesA: rowOf(a.id)?.hot_takes ?? null, hotTakesB: rowOf(b.id)?.hot_takes ?? null,
-    claimsA, claimsB, secretsA, secretsB, storyA, storyB,
+    claimsA, claimsB, secretsA, secretsB, lessonsA, lessonsB, storyA, storyB,
     overusedA, overusedB,
     thisWeekA: thisWeek(a.id, rowOf(a.id)?.this_week), thisWeekB: thisWeek(b.id, rowOf(b.id)?.this_week),
   });

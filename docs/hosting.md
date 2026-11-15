@@ -79,6 +79,12 @@ ignore it.
 - **`CHARACTER_QUESTIONS`** (the show's app, not a secret; on unless `0`): the daily job's `character_questions` step, a
   character asking its opted-in owner about its own sheet (`lib/character-questions.ts`, [companions.md](companions.md)).
   `0` sends none; an answer box already in a thread still saves.
+- **`CHARACTER_LESSONS`** (the show's app, not a secret; on unless `0`): the characters' weekly lessons
+  (`lib/character-lessons.ts`, [character-depth.md](character-depth.md) §12): the daily job's `character_lessons` step
+  (up to 40 characters a day on the free model, the paid default as the fallback, then a template), the lessons block in
+  a character's own date prompt and its owner's companion prompt, the lines on the owner's memory page and in Sunday's
+  recap, and the one weekly text. `0` turns all of it off without a deploy of code; rows already written stay and come
+  back with the switch.
 - **`LIFE_DATES_PER_DAY`** (the show's app, not a secret; default `30`): how many life dates the daily job books a day
   (`lib/character-life.ts weeklyLifeDates`): the house takes each owned character out once a week, house-paid, on the
   show's model (~1¢ each). `0` turns them off without a deploy; nothing books while `BOTCHELOR_PAUSE` is on or the paid
@@ -114,6 +120,13 @@ ignore it.
   (`lib/adult/bridge.ts`; [after-dark.md](after-dark.md), "The bridge from the show's verdict card"). `0` takes the
   line away without a deploy. It never touches After Dark's own `public_door` switch, and the invite page still takes
   `?source=` either way. Commented in `.do/show.yaml`.
+- **`OVERNIGHT_DATES`** (both apps, not a secret; default on): overnight dates
+  ([relationship-graph.md](relationship-graph.md), "Overnight dates"). `0` turns them off without a deploy: no offer in a
+  character's texts or on a couple's page, no house booking, no closing card, and nothing recorded or texted when one
+  airs. **`OVERNIGHT_AFTER_DARK`** (both apps; default on): "Continue the night in After Dark" on an overnight date, for
+  a viewer After Dark already admits who owns one of the two ([after-dark.md](after-dark.md), "The night continues"). `0`
+  removes the button on the show and its page and route on After Dark's host; set it on both. Neither touches
+  `public_door`. Commented in `.do/show.yaml` and `.do/app.yaml`.
 - **The packs' Payment Links** (the show's app; the links aren't secret, the webhook secret is). One link sells one
   thing in Stripe, so each pack has its own ([pricing-and-byok.md](pricing-and-byok.md)):
 

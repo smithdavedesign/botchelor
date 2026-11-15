@@ -202,10 +202,10 @@ export type CompanionRoleplayView = {
 /**
  * What a character's text about one of its dates offers the person to do from the thread (lib/after-date-text.ts,
  * lib/companion-offers.ts): book the next date with that partner, a speed date with someone new on the cast, or a note for
- * next time (a nudge, lib/between-dates.ts). The thread is the control room for the character's love life; the engine
- * still decides every ending.
+ * next time (a nudge, lib/between-dates.ts); and, for a couple that has earned it, their overnight date (lib/overnight.ts).
+ * The thread is the control room for the character's love life; the engine still decides every ending.
  */
-export const COMPANION_OFFER_KINDS = ["second_date", "someone_new", "advice"] as const;
+export const COMPANION_OFFER_KINDS = ["overnight", "second_date", "someone_new", "advice"] as const;
 export type CompanionOfferKind = (typeof COMPANION_OFFER_KINDS)[number];
 
 /** The menu under a text, as the page shows it: only on the newest text whose chips are still open. */
@@ -221,6 +221,8 @@ export type CompanionOffersView = {
 export function offerLabel(kind: CompanionOfferKind, o: { partner: string; character: string }): string {
   const first = (name: string) => name.trim().split(/\s+/)[0] || name;
   switch (kind) {
+    case "overnight":
+      return `Say yes to the overnight date with ${first(o.partner)}`;
     case "second_date":
       return `Yes, see ${first(o.partner)} again`;
     case "someone_new":

@@ -46,6 +46,9 @@ export type AnalyticsEvent =
   | "agent_referral_visit" // a visit that arrived from a link in an agent doc (utm_medium=ai_agent): the doc it came from and the landing path
   | "second_date_yes" // an owner said yes to a second date that also needs the other owner's yes (lib/second-date.ts)
   | "second_date_planned" // a second date was booked from a mutual afterglow: the new date, the one it follows, and the planned venue
+  | "overnight_yes" // an owner said yes to an overnight date that also needs the other owner's yes (lib/overnight.ts)
+  | "overnight_booked" // an overnight date was booked: by an owner (through the second-date flow) or by the house (lib/overnight-house.ts)
+  | "overnight_continued" // an After Dark viewer continued an overnight date's night there (lib/adult/overnight.ts); ids only
   | "show_date_free" // a show-model date fell through to the free model (the frontier wasn't configured): the episode, and whether that's unexpected
   | "scene_requested" // a finished date went somewhere the library has no set for (lib/scenes.ts): the place, normalized, and how (plan or move)
   | "date_link_accepted" // someone took a character's "date my OC" link (lib/date-invites.ts): the code, both characters
@@ -60,6 +63,7 @@ export type AnalyticsEvent =
   | "companion_text" // a character texted its person first (lib/companion.ts postFromCharacter): the kind of text and how many bubbles; never the words
   | "express_draft" // one-sentence create drafted a sheet, or didn't (app/api/characters/draft): ready or the reason; never the words
   | "character_question" // a character asked its owner about its own sheet (lib/character-questions.ts): the field only
+  | "character_lessons" // the daily job wrote characters' weekly lessons (lib/character-lessons-job.ts): how many (ours apart), by model or template, texts sent, the cost; never the words
   | "character_answer" // the owner answered one (the thread's answer box): the field, and whether the sheet's checks took it
   | "companion_offer" // a chip under one of those texts was tapped (lib/companion-offers.ts): which offer (second_date, someone_new, advice), and whether a guest
   | "companion_voice" // a companion reply recorded as a voice note (lib/companion-voice.ts): how long, its length, what paid; never the words

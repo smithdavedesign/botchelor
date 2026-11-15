@@ -5,6 +5,8 @@ import { dateNumberSql } from "./date-number";
 import type { Db } from "./db";
 import type { SideOutcome } from "./engine";
 import { loadOurIds } from "./our-traffic";
+import { overnightOnOffer } from "./overnight";
+import { overnightOfferLine } from "./overnight-shared";
 import type { Reflections } from "./reflection";
 import type { Ending } from "./rules";
 import { venuePhrase } from "./venues";
@@ -154,8 +156,14 @@ export async function sendAfterDateText(db: Db, args: { userId: string; episodeI
   const { row: r, side } = l;
   const characterId = side === "a" ? r.a_id : r.b_id;
   const lines = afterDateLines({ ending: r.ending, date_number: r.date_number, names: [r.a_name, r.b_name], venue: r.venue, reflections: r.reflections, sides: r.sides }, side);
+  // An overnight date the couple has earned (lib/overnight.ts: from their aired dates, this one included only once it
+  // has aired): the text says so, and its chip leads the menu.
+  const partnerId = side === "a" ? r.b_id : r.a_id;
+  const partnerName = side === "a" ? r.b_name : r.a_name;
+  const overnight = r.ending === "second_date" && (await overnightOnOffer(db, args.userId, characterId, partnerId, { now: args.now }));
+  if (overnight) lines[lines.length - 1] = overnightOfferLine(partnerName);
   // The chips under the text (lib/companion-offers.ts): see them again where the ending allows, someone new, advice.
-  const offers = storedOffers({ episodeId: r.id, partnerId: side === "a" ? r.b_id : r.a_id, partner: side === "a" ? r.b_name : r.a_name, ending: r.ending });
+  const offers = storedOffers({ episodeId: r.id, partnerId, partner: partnerName, ending: r.ending, overnight });
   // A photo from the date (lib/date-photo.ts): composed on request, never the ending in it.
   const photo = textPhoto({ id: r.id, names: [r.a_name, r.b_name], venue: r.venue, at: r.created_at });
   const posted = await postFromCharacter(db, { userId: args.userId, characterId, lines, now: args.now, kind: "after_date", dedupeKey: `after_date:${r.id}`, offers, photo });
@@ -278,8 +286,11 @@ export async function dayAfterTexts(db: Db, now = new Date(), limit = 50): Promi
       theirs_wants: r.sides?.[me === 0 ? 1 : 0]?.wants_another ?? null,
       booked: r.booked,
     });
+    // An overnight date the couple has earned by now (lib/overnight.ts): the text says so, and its chip leads the menu.
+    const overnight = !r.booked && r.ending === "second_date" && (await overnightOnOffer(db, r.user_id, r.character_id, r.partner_id, { now }));
+    if (overnight) lines[lines.length - 1] = overnightOfferLine(r.partner);
     // The chips: only advice once the next date is booked; otherwise what the question asks (lib/companion-offers.ts).
-    const offers = storedOffers({ episodeId: r.episode_id, partnerId: r.partner_id, partner: r.partner, ending: r.ending, booked: r.booked });
+    const offers = storedOffers({ episodeId: r.episode_id, partnerId: r.partner_id, partner: r.partner, ending: r.ending, booked: r.booked, overnight });
     const posted = await postFromCharacter(db, { userId: r.user_id, characterId: r.character_id, lines, now, kind: "day_after", dedupeKey: `day_after:${r.episode_id}`, offers }).catch(() => null);
     if (posted) sent++;
   }
@@ -300,8 +311,9 @@ export const teaseLines = (partner: string): string[] => [`Back from the date wi
 export async function teaseAfterAir(db: Db, episodeId: string, opts: { now?: Date; skip?: readonly (string | null | undefined)[] } = {}): Promise<number> {
   const skip = new Set((opts.skip ?? []).filter((u): u is string => Boolean(u)));
   const { rows } = await db.query<OptedInSide>(
+    // Nor to a thread whose character already told them about this date as an overnight (lib/overnight.ts overnightAired).
     OPTED_IN_SIDES_SQL(`and e.id = $2 and e.revealed_at is not null
-     and not exists (select 1 from companion_messages h where h.thread_id = t.id and h.action = 'after_date:' || e.id)`),
+     and not exists (select 1 from companion_messages h where h.thread_id = t.id and h.action in ('after_date:' || e.id, 'overnight:' || e.id))`),
     ["tease:", episodeId],
   );
   let sent = 0;

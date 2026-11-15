@@ -171,7 +171,9 @@ every ending (nothing here touches points, odds, pairings or endings).
 - **The menu** (`lib/companion-offers.ts`): the after-date and day-after texts carry `companion_messages.offers`
   (`{episode_id, partner_id, partner, kinds}`; `action` stays the dedupe tag). The kinds follow the question:
   `second_date` where the ending left one open (lib/second-date.ts books only a mutual one), `someone_new` everywhere,
-  `advice` always; a day-after text whose next date is already booked offers advice only. The tease carries none (a chip
+  `advice` always; a day-after text whose next date is already booked offers advice only. When the couple has earned an
+  overnight date ([relationship-graph.md](relationship-graph.md), "Overnight dates"), `overnight` leads the menu and the
+  text's closing question asks about it instead. The tease carries none (a chip
   under it would give the ending away). A menu, nothing personal: it goes with the message and the thread's cascade.
 - **The chips** (`app/companion/[id]/CompanionChat.tsx`): under the newest text whose menu is open, and only on your own
   character's thread: **"Yes, see {partner} again"**, **"Try someone new"**, **"Tell {first} what to do next time"**. They go
@@ -181,6 +183,9 @@ every ending (nothing here touches points, odds, pairings or endings).
   show's own machinery, so a booking is charged, limited, consented and filmed like any date, and costs no reply:
   - `second_date` runs `POST /api/episodes/:id/second-date` as that character: `FREE_WEEKLY_SECOND_DATE` when on, else
     one of the person's free weekly or pack dates; 202 when the other creator's yes is still wanted.
+  - `overnight` runs `POST /api/overnight` for the pair: the second-date flow at an evening place, marked an overnight
+    date; 202 when the other creator's yes to an overnight is still wanted. The chip reads "Say yes to the overnight
+    date with {partner}".
   - `someone_new` books a date with one of this season's house cast the character hasn't dated (any status counts),
     picked the way a first date is (`pickFirstPartner`), in the first-date format (`firstDateFormat`: the speed date).
     Everyone met: 409 `nobody_new`, and the character says so.
