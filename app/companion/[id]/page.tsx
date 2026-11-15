@@ -8,6 +8,7 @@ import { companionAccessFromCookies } from "@/lib/companion-access";
 import { companionAllowance } from "@/lib/companion-plan";
 import { extrasState } from "@/lib/companion-extras";
 import { liveCallsOn } from "@/lib/companion-live";
+import { warmLiveFace } from "@/lib/live-face";
 import { callVoiceOn } from "@/lib/companion-call-voice";
 import { faceKitOf } from "@/lib/face-kit";
 import { isAdmin } from "@/lib/admins";
@@ -54,6 +55,8 @@ export default async function CompanionThreadPage({ params }: { params: Promise<
   ]);
   // Live calls (P6, lib/companion-live.ts): on with a Deepgram key, for accounts; otherwise a call takes turns (v1).
   const live = liveCallsOn(process.env, { admin, guest: access.guest });
+  // The live-face worker starts booting now (lib/live-face warmLiveFace), so a call's first clause finds it hot.
+  if (live) warmLiveFace(process.env, { admin });
   return (
     <CompanionChat
       initial={r.view}
