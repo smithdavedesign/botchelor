@@ -8,6 +8,8 @@
  */
 import { portraitPathSql } from "./assets";
 import type { Db } from "./db";
+import { originSql, type Origin } from "./origin";
+import { listedCharacterSql } from "./public-cast";
 import { RATING_CATEGORY_IDS, type RatingCategory } from "./rules";
 
 export type RatingCounts = Record<RatingCategory, number>;
@@ -81,7 +83,7 @@ export async function getCharacterRatings(
   return { counts, mine, is_owner: owner?.rows[0]?.is_owner ?? false };
 }
 
-export type TopRated = { id: string; name: string; house: boolean; hue: number | null; portrait: string | null; count: number };
+export type TopRated = { id: string; name: string; house: boolean; hue: number | null; portrait: string | null; origin: Origin; count: number };
 
 /**
  * The top-rated characters in a category, for the cast leaderboard. Ties break by name. `within`: only the ratings given
@@ -89,12 +91,12 @@ export type TopRated = { id: string; name: string; house: boolean; hue: number |
  */
 export async function topRatedCharacters(db: Db, category: RatingCategory, limit = 5, within?: { start: Date; end: Date }): Promise<TopRated[]> {
   const { rows } = await db.query<TopRated>(
-    `select c.id, c.name, c.is_house as house, c.avatar_hue as hue, ${portraitPathSql("c")} as portrait, count(*)::int as count
+    `select c.id, c.name, c.is_house as house, c.avatar_hue as hue, ${portraitPathSql("c")} as portrait, ${originSql("c")} as origin, count(*)::int as count
        from character_ratings r
        join characters c on c.id = r.character_id
-      where r.category = $1
+      where r.category = $1 and ${listedCharacterSql("c")}
         and ($3::timestamptz is null or r.created_at >= $3::timestamptz) and ($4::timestamptz is null or r.created_at < $4::timestamptz)
-      group by c.id, c.name, c.is_house, c.avatar_hue
+      group by c.id
       order by count desc, c.name
       limit $2`,
     [category, limit, within?.start.toISOString() ?? null, within?.end.toISOString() ?? null],

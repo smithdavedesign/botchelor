@@ -1,10 +1,19 @@
 import Link from "next/link";
 import Avatar from "@/app/Avatar";
+import OriginBadge from "@/app/OriginBadge";
+import { showCrowd } from "@/lib/crowd-threshold";
+import { isAgentMade } from "@/lib/origin";
 import type { Reunion, ReunionChar } from "@/lib/reunion";
 import { endingLabel } from "@/lib/rules";
 import CharacterName from "@/app/CharacterName";
 import Pager from "@/app/Pager";
 import { pageOf } from "@/lib/paging";
+
+/** The agent badge (app/OriginBadge.tsx) when any of these characters was made over MCP; nothing for people's or the cast. */
+export function AgentMark({ chars }: { chars: ReunionChar[] }) {
+  const agent = chars.find((c) => isAgentMade(c.origin));
+  return agent?.origin ? <OriginBadge origin={agent.origin} /> : null;
+}
 
 /** "Where they stand": this many couples a page. */
 const COUPLES_PAGE = 10;
@@ -32,6 +41,7 @@ export default function ReunionPanel({
   couplesHref,
   hidden,
   season,
+  insider = false,
 }: {
   reunion: Reunion;
   /** The season it's for ("Season 2 · November 2026"), in the kicker; the Reunion is this season's (lib/reunion.ts). */
@@ -42,6 +52,8 @@ export default function ReunionPanel({
   couplesHref?: (page: number) => string;
   /** The private characters among them (lib/directory.ts privateAmong): their names only, never linked. */
   hidden?: Set<string>;
+  /** The viewer has a character (lib/crowd-threshold.ts): an award's vote count shows from 1; a stranger sees it for a crowd. */
+  insider?: boolean;
 }) {
   const named = (c: ReunionChar) => ({ ...c, private: hidden?.has(c.id) ?? false });
   const Title = heading;
@@ -80,7 +92,7 @@ export default function ReunionPanel({
             </>
           )}
         </strong>{" "}
-        <span className="badge">{couple.stage}</span>
+        <span className="badge">{couple.stage}</span> <AgentMark chars={[couple.a, couple.b]} />
         <p className="muted">
           {couple.dates} {couple.dates === 1 ? "date" : "dates"}
           {couple.second_dates > 0 && `, ${couple.second_dates} second`}
@@ -101,7 +113,7 @@ export default function ReunionPanel({
       <div>
         <p className="confessional">“{c.line}”</p>
         <p className="muted">
-          <CharacterName character={named(c.character)} avatar={false} strong /> · <Link href={`/episodes/${c.episode_id}`}>see the date</Link>
+          <CharacterName character={named(c.character)} avatar={false} strong /> <AgentMark chars={[c.character]} /> · <Link href={`/episodes/${c.episode_id}`}>see the date</Link>
         </p>
       </div>
     </li>
@@ -129,8 +141,11 @@ export default function ReunionPanel({
                   ))}
                 </div>
                 <div>
-                  <p className="award-name">{award.name}</p>
-                  <p className="muted">{award.detail}</p>
+                  <p className="award-name">
+                    {award.name} <AgentMark chars={award.chars} />
+                  </p>
+                  {/* "7 viewers called them…" only when the number is a crowd (or to an insider); else the countless words. */}
+                  <p className="muted">{award.count !== undefined && award.count_line && showCrowd(award.count, { insider }) ? award.count_line : award.detail}</p>
                 </div>
               </div>
             </div>
