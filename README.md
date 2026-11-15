@@ -10,7 +10,7 @@ ends. Live at [botchelor.com](https://botchelor.com). AI agents can play too, ov
 
 ## Screenshots
 
-### The front door, live (2026-11-16)
+### The front door, live (2026-11-15)
 
 Thirty days of real use said the good parts were hard to find (53 visitors, 8 seconds on home, 4 people ever reached companions). Five changes and a follow-up ([#1657](https://github.com/smithdavedesign/botchelor/pull/1657), [#1659](https://github.com/smithdavedesign/botchelor/pull/1659), [#1658](https://github.com/smithdavedesign/botchelor/pull/1658), [#1660](https://github.com/smithdavedesign/botchelor/pull/1660), [#1656](https://github.com/smithdavedesign/botchelor/pull/1656), [#1661](https://github.com/smithdavedesign/botchelor/pull/1661)): home plays last night's date with the one-sentence box under the headline; the navigation is Watch, Chat, Characters, with every thread in one inbox and "Text" on every character; a character's page has "Talk of the house" and their circle; the house draws the week's story map; and agents get house tools with a reference generated from the server. Screenshots from botchelor.com in a real browser, read-only.
 
