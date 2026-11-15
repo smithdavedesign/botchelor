@@ -1059,6 +1059,8 @@ export type SceneLineView = SceneFace & {
   /** The line's number in the stored scene, from 1: what a report names. */
   n: number;
   text: string;
+  /** The two the line's retelling is about, by id (lib/character-talk.ts: which lines name whom). Never whether it was true. */
+  about?: [string, string];
 };
 export type HouseSceneView = {
   id: string;
@@ -1072,12 +1074,12 @@ export type HouseSceneView = {
   cast: SceneFace[];
   lines: SceneLineView[];
   /** The aired dates it talks about: the two names and the episode. */
-  about: { episode_id: string; a: string; b: string }[];
+  about: { episode_id: string; a: string; b: string; a_id?: string; b_id?: string }[];
   /**
    * How a confrontation or a challenge came out (lib/house-conflict.ts), in words for the page: the two and the result,
    * or the winner and what they won. Null for the daily scene.
    */
-  result: { kind: "confrontation"; a: string; b: string; outcome: Outcome; label: string } | { kind: "challenge"; title: string; winner: SceneFace; prize: string } | null;
+  result: { kind: "confrontation"; a: string; b: string; a_id?: string; b_id?: string; outcome: Outcome; label: string } | { kind: "challenge"; title: string; winner: SceneFace; prize: string } | null;
 };
 
 const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] as const;
@@ -1125,7 +1127,7 @@ async function sceneViews(db: Db, rows: readonly StoredScene[]): Promise<HouseSc
       const who = face(l.character_id);
       if (!who || l.removed || hidden.has(`${r.id}#${i + 1}`)) return [];
       if (l.tell && (gone.has(l.tell.episode_id) || !byId.has(l.tell.about) || !byId.has(l.tell.about_b))) return [];
-      return [{ ...who, n: i + 1, text: l.text }];
+      return [{ ...who, n: i + 1, text: l.text, ...(l.tell ? { about: [l.tell.about, l.tell.about_b] as [string, string] } : {}) }];
     });
     if (lines.length < 2) continue;
     const about = [...new Map(r.lines.flatMap((l) => (l.tell && !gone.has(l.tell.episode_id) && byId.has(l.tell.about) && byId.has(l.tell.about_b) ? [[l.tell.episode_id, l.tell] as const] : []))).values()];
@@ -1133,7 +1135,7 @@ async function sceneViews(db: Db, rows: readonly StoredScene[]): Promise<HouseSc
     // The result names its people only while they are still public.
     let result: HouseSceneView["result"] = null;
     if (r.result?.kind === "confrontation" && byId.has(r.result.a) && byId.has(r.result.b)) {
-      result = { kind: "confrontation", a: first(byId.get(r.result.a)!.name), b: first(byId.get(r.result.b)!.name), outcome: r.result.outcome, label: OUTCOME_LABELS[r.result.outcome] ?? OUTCOME_LABELS.agreed_to_disagree };
+      result = { kind: "confrontation", a: first(byId.get(r.result.a)!.name), b: first(byId.get(r.result.b)!.name), a_id: r.result.a, b_id: r.result.b, outcome: r.result.outcome, label: OUTCOME_LABELS[r.result.outcome] ?? OUTCOME_LABELS.agreed_to_disagree };
     } else if (r.result?.kind === "challenge" && face(r.result.winner)) {
       const partner = r.result.prize.with ? byId.get(r.result.prize.with)?.name ?? null : null;
       result = { kind: "challenge", title: r.result.title, winner: face(r.result.winner)!, prize: prizeWords(r.result.prize, partner) };
@@ -1147,7 +1149,7 @@ async function sceneViews(db: Db, rows: readonly StoredScene[]): Promise<HouseSc
       written_at: new Date(r.written_at ?? r.created_at).toISOString(),
       cast: r.cast_ids.map(face).filter((c): c is SceneFace => c !== null),
       lines,
-      about: about.map((t) => ({ episode_id: t.episode_id, a: byId.get(t.about)!.name, b: byId.get(t.about_b)!.name })),
+      about: about.map((t) => ({ episode_id: t.episode_id, a: byId.get(t.about)!.name, b: byId.get(t.about_b)!.name, a_id: t.about, b_id: t.about_b })),
       result,
     });
   }

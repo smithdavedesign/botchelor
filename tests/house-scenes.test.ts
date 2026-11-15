@@ -743,7 +743,7 @@ describe("where it shows", () => {
 
     const latest = (await latestHouseScene(t.db, NOW))!;
     expect(latest.id).toBe(SCENE);
-    expect(latest.about).toEqual([{ episode_id: expect.any(String), a: "Rafe Calloway", b: "Juniper Vale" }]);
+    expect(latest.about).toEqual([{ episode_id: expect.any(String), a: "Rafe Calloway", b: "Juniper Vale", a_id: RAFE, b_id: JUNIPER }]);
     expect(houseLine(latest)).toMatch(new RegExp(`^(Dex and Marisol|Marisol and Dex) (in|on|at) the .+, on ${R} and ${J}'s date$`));
     // Three days on with nothing new, the band and the card let it go; the page still has it.
     expect(await latestHouseScene(t.db, new Date(NOW.getTime() + 4 * 24 * HOURS))).toBeNull();

@@ -402,6 +402,11 @@ the earlier ones under it, seven a page; `?scene=<id>` puts a linked scene on to
 one under the Tonight band's slots ("In the house: Dex and Marisol in the kitchen, on Rafe and Juniper's date →"), one
 on the Reunion, and a link in /watch's "More from the show". The date theater plays two people and one date, so a scene
 is a transcript, not a theater.
+Under today's scene on the first page: **this week's story map** ("This week in the house": who has a date coming up,
+who are rivals, who had it out, who talked about whom, drawn with the cast's faces and listed as sentences) and the
+lead's **circle** ([`lib/story-map.ts`](../lib/story-map.ts), `STORY_MAP`; the rules are in
+[relationship-graph.md](relationship-graph.md), "The story map"). It reads only what this page, `/watch` and the
+public couple pages already show.
 
 **Cost.** One call a day on the show's free model with minimal thinking, never the paid upgrade. Measured 2026-11-15
 on `gemini-3.5-flash-lite` (three real calls on the eval key): about 750 tokens in and 190 out, no thinking tokens,

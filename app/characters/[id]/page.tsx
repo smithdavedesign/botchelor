@@ -61,6 +61,8 @@ import TalkButton from "@/app/companion/TalkButton";
 import { companionGuestFromCookies } from "@/lib/companion-access";
 import LearnedPanel from "./LearnedPanel";
 import StoryPanel from "./StoryPanel";
+import TalkPanel from "./TalkPanel";
+import { characterTalk } from "@/lib/character-talk";
 import { storyView } from "@/lib/story-state";
 import AfterDarkTeaser from "@/app/AfterDarkTeaser";
 import AfterDarkPhotos, { afterDarkPhotosOf } from "./AfterDarkPhotos";
@@ -148,8 +150,9 @@ export default async function CharacterPage({ params, searchParams }: Props) {
       : Promise.resolve(c.extras);
   // Its relationships in the graph (lib/relationships.ts), as this viewer may see them: the public layer, or the
   // owner's (with their own private dates). Strongest tie first.
+  const edgesP = relationshipsOf(db, id);
   const relationshipsP = (async () => {
-    const edges = await relationshipsOf(db, id);
+    const edges = await edgesP;
     const others = edges.map((r) => (r.lo === id ? r.hi : r.lo));
     // Each one's face and whether it's private to someone else (then: its name only, never linked).
     type Other = { id: string; name: string; hue: number | null; house: boolean; portrait: string | null; private: boolean };
@@ -310,6 +313,8 @@ export default async function CharacterPage({ params, searchParams }: Props) {
     lessons,
     storyState,
     overnights,
+    talkOfHouse,
+    reviewsOpen,
   ] = await Promise.all([
     firstP,
     shownExtrasP,
@@ -336,6 +341,11 @@ export default async function CharacterPage({ params, searchParams }: Props) {
     storyP,
     // Their overnight dates that ended in leaving together, read beside the rest instead of after it.
     loadOvernightMarks(id, viewerId),
+    // Talk of the house (lib/character-talk.ts): public sources only, the same for every viewer, the owner included.
+    // The house's part is one shared read; the edges are the ones read above. Null with CHARACTER_TALK=0.
+    characterTalk(db, { id: c.id, name: c.name, private: c.private }, { edges: edgesP }),
+    // Whether reviews are open (a house character only while on the season's cast), read beside the rest.
+    c.house ? reviewableNow(c.id) : Promise.resolve(true),
   ]);
   const week = thisWeek(c.id, c.this_week);
   const origin = origins.get(id) ?? originOf({ house: c.house, agent: dating?.made_by === "agent" });
@@ -514,6 +524,20 @@ export default async function CharacterPage({ params, searchParams }: Props) {
               )}
             </p>
           )}
+          {/* The crowd's read of them, in the header since Audience became Talk of the house (2026-11-15): the same
+              counts and owner rule, the "never changes points" line behind its ⓘ. */}
+          {talkOfHouse && (
+            <div className="hero-ratings" id="ratings">
+              <RatingButtons characterId={c.id} counts={ratings.counts} mine={ratings.mine} isOwner={ratings.is_owner} compact />
+              <details className="info-tip">
+                <summary aria-label="About audience ratings">ⓘ</summary>
+                <span className="info-tip-body muted small">
+                  How the crowd reads them: just for fun, it never changes a date, the odds or anyone&apos;s points.
+                  {ratings.is_owner && <> Others rate your character: you can&apos;t rate your own.</>}
+                </span>
+              </details>
+            </div>
+          )}
         </div>
       </div>
       {intro && (
@@ -660,7 +684,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
         tabs={[
           { id: "profile", label: "Profile" },
           ...(secrets ? [{ id: "secrets", label: "Secrets" }] : []),
-          { id: "audience", label: "Audience" },
+          talkOfHouse ? { id: "talk", label: "Talk of the house", short: "Talk" } : { id: "audience", label: "Audience" },
           ...(memory && (memory.arc || (memory.milestones?.length ?? 0) > 0 || (memory.chapters?.length ?? 0) > 0) ? [{ id: "story", label: "Story" }] : []),
           { id: "dates", label: "Dates" },
         ]}
@@ -772,6 +796,22 @@ export default async function CharacterPage({ params, searchParams }: Props) {
         </div>
       )}
 
+      {talkOfHouse ? (
+        <div data-panel="talk" id="panel-talk" role="tabpanel" aria-labelledby="tab-talk" hidden>
+          {/* The circle (the people around them and the tie to each) mounts here, above the talk. */}
+          <TalkPanel name={shortName(c.name)} talk={talkOfHouse} verb={verb ?? (ratings.is_owner && !c.house ? { label: `Send ${shortName(c.name)} on a date`, href: `/create?character=${c.id}`, track: "verb-own" } : null)}>
+            {/* The written reviews keep their home (agents write them over MCP), folded under the talk. #audience, the
+                old tab's anchor, is this fold: PageTabs opens Talk, opens the fold and scrolls to it. */}
+            <details className="card ux-fold character-audience talk-audience" id="audience">
+              <summary>
+                <h3>From the audience</h3>
+                <span className="muted small fold-status">{reviews.count ? `${reviews.average?.toFixed(1)} ★ · ${reviews.count} review${reviews.count === 1 ? "" : "s"}` : "No reviews yet"}</span>
+              </summary>
+              <Reviews characterId={c.id} name={c.name} initial={reviews} isOwner={ratings.is_owner} house={c.house} open={reviewsOpen} />
+            </details>
+          </TalkPanel>
+        </div>
+      ) : (
       <div data-panel="audience" id="panel-audience" role="tabpanel" aria-labelledby="tab-audience" hidden>
       {/* The crowd's read of them and its reviews, one card (2026-10-31 UX audit: two cards for one thing). */}
       <section className="card character-audience" id="audience" aria-labelledby="audience-title">
@@ -786,9 +826,10 @@ export default async function CharacterPage({ params, searchParams }: Props) {
         </div>
         <RatingButtons characterId={c.id} counts={ratings.counts} mine={ratings.mine} isOwner={ratings.is_owner} />
         <h3>Reviews</h3>
-        <Reviews characterId={c.id} name={c.name} initial={reviews} isOwner={ratings.is_owner} house={c.house} open={!c.house || (await reviewableNow(c.id))} />
+        <Reviews characterId={c.id} name={c.name} initial={reviews} isOwner={ratings.is_owner} house={c.house} open={reviewsOpen} />
       </section>
       </div>
+      )}
 
       {/* Who they've become and their story, one card (2026-10-31 UX audit: the same dates were told in four cards); what
           they've learned, the owner's alone, folded inside it. */}

@@ -123,6 +123,9 @@ ignore it.
   others heard. One call a day on the free model (0.07 cents at paid list prices) or a template. `0` writes no scene
   and `/house` says the house is quiet. `HOUSE_SCENE_HOUR_UTC` (default `18`) is the hour from which the hourly job
   writes the day's. Commented in `.do/show.yaml`; the rules are in [seasons.md](seasons.md), "The house".
+- **`STORY_MAP`** (the show's app, not a secret; on unless it is `0`): this week's story map (`lib/story-map.ts`) on
+  `/house` and at the top of `/graph`, and the circle component. Reads only; no model calls. `0` leaves both pages as
+  they were. Commented in `.do/show.yaml`; the rules are in [relationship-graph.md](relationship-graph.md), "The story map".
 - **`CONFRONTATIONS`, `CHALLENGES`** (the show's app, not secrets; each on unless it is `0`): the two other kinds of
   house scene (`lib/house-conflict.ts`). A confrontation is staged when the story state holds a tension hot enough
   between two in the house (two a week at most); the challenge is held on Wednesdays, and its winner gets the next
@@ -130,6 +133,10 @@ ignore it.
   cents a scene at paid list prices. `0` stops new ones without a deploy (a prize already won is still honoured);
   `HOUSE_SCENES=0` stops both. Commented in `.do/show.yaml`; the rules are in [seasons.md](seasons.md),
   "Confrontations and challenges".
+- **`CHARACTER_TALK`** (the show's app, not a secret; on unless it is `0`): the character page's Talk of the house
+  tab (`lib/character-talk.ts`): what the house said about them, their friction and who is after them, from public
+  sources only, with the ratings in the page's header. `0` puts the Audience tab back without a deploy. No model call.
+  Commented in `.do/show.yaml`; the rules are in [character-depth.md](character-depth.md), section 13.
 - **`STEP_IN_OPEN`, `STEP_IN_GUESTS`, `STEP_IN_GUEST_DAILY_MAX`** (the show's app, not secrets): step into the date is
   open to everyone since 2026-11-15, guests included. `STEP_IN_OPEN=0` puts it back to admins only; `STEP_IN_GUESTS=0`
   asks a visitor without an account to sign in first; `STEP_IN_GUEST_DAILY_MAX` (default `300`) is the guest dates a day

@@ -31,7 +31,7 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { join } from "node:path";
 import { chromium } from "playwright-core";
-import { appEnv, build, freePort, ROOT, seedDataset, startApp, startShowrunner, stopApp } from "./harness.mjs";
+import { appEnv, build, client, freePort, persona, ROOT, seedDataset, startApp, startShowrunner, stopApp } from "./harness.mjs";
 
 const OUT = join(ROOT, ".data", "visual");
 const DATA_DIR = join(ROOT, ".data", "visual-db");
@@ -271,6 +271,12 @@ async function main() {
     for (const kind of ["challenge", "confrontation"]) {
       await fetch(`${base}/api/admin/house-scene?kind=${kind}`, { method: "POST", headers: { origin: base, "x-frontier-key": ADMIN_PASSWORD } }).catch(() => null);
     }
+    // A character made a minute ago, with no date: its Talk tab is the "nobody is talking yet" line (best effort).
+    const newcomer = await client(base)(
+      "/api/characters",
+      { name: "Maren Oduya", age: 31, bio: "Repairs lighthouse lamps and writes the keepers' names inside each one.", traits: ["steady", "curious", "dry"], want: "Someone who stays for the whole sunset", dealbreaker: "Leaving before the light comes on", attest: true, keep_name: true },
+      persona(),
+    ).catch(() => null);
     const owner = data.creators[0].id;
     const myChar = data.chars[0].id;
     const aired = data.episodes[0].id;
@@ -502,6 +508,11 @@ async function main() {
       { name: "directory-owner", path: "/characters", as: "owner" },
       // A cast member's page for a stranger: stepping into a date is the one filled button.
       { name: "character-cast", path: "/characters/house-teo" },
+      // Talk of the house (lib/character-talk.ts): the lead's page with the tab open, from the seeded house scenes;
+      // the old #audience link, which opens Talk and the reviews fold; and a newcomer nobody is talking about yet.
+      { name: "character-talk", path: "/characters/house-nell#talk" },
+      { name: "character-talk-reviews", path: "/characters/house-teo#audience" },
+      ...(newcomer?.id ? [{ name: "character-talk-new", path: `/characters/${newcomer.id}#talk` }] : []),
       { name: "directory-people", path: "/characters?tab=people" },
       {
         // Step into the date, open to everyone: the cast picker a stranger lands on with no 18+ cookie, then the start
