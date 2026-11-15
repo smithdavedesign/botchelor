@@ -30,6 +30,7 @@ import { leanedOnWords, loadCharacterMemory, pairMemory, pendingReflections, wit
 import { activeNudge, alsoSeeing } from "./between-dates";
 import { agreedPlan, planLines, type AgreedPlan, type PlanText } from "./plans";
 import { afterDarkNote, withAfterDark } from "./adult/memory";
+import { nightTogetherFact } from "./overnight";
 import { engineHistory, loadRelationship, pairContext, pairKey, pairSharedWords, PUBLIC_ONLY, refreshRelationship, type End, type Relationship } from "./relationships";
 import { planPlace } from "./places";
 import { warnWhenSparksOut } from "./partners";
@@ -156,6 +157,8 @@ export type DateParts = {
   creatorId?: string;
   /** What each side remembers of After Dark with the other, in PG terms (lib/adult/memory.ts), or null. */
   afterDark?: { a: string | null; b: string | null };
+  /** The one fixed fact a continued overnight date left (lib/overnight.ts nightTogetherFact), or null. Both sides get the same sentence. */
+  nightTogether?: string | null;
   followupOf?: string | null;
   /** Which date this is for the couple (setup.date_number), for the words only: DateInput.date_number. */
   dateNumber?: number | null;
@@ -239,6 +242,10 @@ export function assembleDate(p: DateParts): BuiltDate {
   // After Dark, only ever as its PG note (David's pick: on their public dates too).
   if (p.afterDark?.a) charA.pair = withAfterDark(charA.pair ?? null, p.afterDark.a);
   if (p.afterDark?.b) charB.pair = withAfterDark(charB.pair ?? null, p.afterDark.b);
+  // A side with no note still knows the one fixed fact of an overnight date that carried on (lib/overnight.ts): the
+  // same slot, a template sentence, so their next date isn't written as if nothing happened. Never the engine.
+  if (p.nightTogether && !p.afterDark?.a) charA.pair = withAfterDark(charA.pair ?? null, p.nightTogether);
+  if (p.nightTogether && !p.afterDark?.b) charB.pair = withAfterDark(charB.pair ?? null, p.nightTogether);
   if (agreed) charA.pairShared = charB.pairShared = `${charA.pairShared ?? ""} ${agreed.texts.map((t) => t.text).join(" ")}`.trim();
   // Their texts go into the date (David: "the full text history going into the date"). Both of them sent and read every
   // one, so each side carries the whole thread, and its words are things both already know.
@@ -427,6 +434,7 @@ export async function buildDate(
     alsoSeeing(db, b.id, a.id).catch(() => []),
   ]);
   const afterDark = { a: await afterDarkNote(db, a.id, b.id), b: await afterDarkNote(db, b.id, a.id) };
+  const nightTogether = await nightTogetherFact(db, a.id, b.id);
   // What each has leaned on across its recent aired dates (lib/memory.ts), so a voice tic doesn't recur every date.
   const [overusedA, overusedB] = await Promise.all([leanedOnWords(db, a.id).catch(() => []), leanedOnWords(db, b.id).catch(() => [])]);
   // The texts this date's creator may bring in: every text between dates, and the morning afters of the dates they can use.
@@ -469,7 +477,7 @@ export async function buildDate(
     soulA, soulB, memoryA: withPairMemory(withPendingReflections(memoryA, pendingA), pairA), memoryB: withPairMemory(withPendingReflections(memoryB, pendingB), pairB), history, ex, signalsOverride,
     relationship, creatorId: opts.creatorId, followupOf: opts.followupOf ?? null,
     dateNumber: opts.dateNumber !== undefined ? opts.dateNumber : opts.followupOf ? null : ((await nextDateNumber(db, a.id, b.id, episodeId)) ?? 1),
-    nudges, alsoSeeing: { a: seeingA, b: seeingB }, texts, afterDark, table: opts.table ?? null, roleplay: opts.roleplay ?? null,
+    nudges, alsoSeeing: { a: seeingA, b: seeingB }, texts, afterDark, nightTogether, table: opts.table ?? null, roleplay: opts.roleplay ?? null,
     venuePool: opts.venuePool ?? null, producerPick: opts.producerPick ?? null,
     extrasA: rowOf(a.id)?.extras ?? null, extrasB: rowOf(b.id)?.extras ?? null,
     hotTakesA: rowOf(a.id)?.hot_takes ?? null, hotTakesB: rowOf(b.id)?.hot_takes ?? null,
