@@ -35,7 +35,9 @@ Jobs ("input" of a Runpod job):
         frame (the portrait) with no jump.
     `sampling_timesteps` is the motion model's diffusion steps (Ditto's default 50; fewer is faster and flatter);
     `emo` picks the expression bank (Ditto's: 0 angry, 1 disgust, 2 fear, 3 happy, 4 neutral, 5 sad, 6 surprise,
-    7 contempt); `motion` adds a pose on top of what the audio drives, through Ditto's per-frame pose controls
+    7 contempt); `exp_scale` (1.0) scales how far the expression, the mouth above all, moves from the still, and
+    `pose_scale` (1.0) how far the head turns (both through Ditto's per-key driving weights: 0.7 is a calmer mouth,
+    1.2 a bigger one); `motion` adds a pose on top of what the audio drives, through Ditto's per-frame pose controls
     (degrees): `sway` (a slow, small drift of pitch and yaw for an idle), `nod` (a pitch pulse at `at_s`), `tilt`
     (a roll held through the clip). The clip's fades still bring the ends back to the still.
   {"op": "warm"} → {"ok": true}
@@ -67,7 +69,7 @@ import threading
 import time
 import urllib.request
 
-HANDLER_VERSION = "stream-3"
+HANDLER_VERSION = "stream-4"
 DITTO_DIR = os.environ.get("DITTO_DIR", "/app/ditto")
 DATA_ROOT = os.environ.get("DITTO_DATA_ROOT", os.path.join(DITTO_DIR, "checkpoints/ditto_trt_Ampere_Plus"))
 CFG_PKL = os.environ.get("DITTO_CFG_PKL", os.path.join(DITTO_DIR, "checkpoints/ditto_cfg/v0.4_hubert_cfg_trt.pkl"))
@@ -454,6 +456,20 @@ def mux(video_path: str, wav_path: str, out_path: str) -> bytes:
         return f.read()
 
 
+def drive_keys(opts: dict, is_video: bool) -> dict | None:
+    """Ditto's per-key driving weights (`use_d_keys` as a dict): how far the expression and the pose move from the
+    source. None keeps Ditto's defaults (expression and pose from a still, expression alone from a video)."""
+    exp = float(opts.get("exp_scale") or 1.0)
+    pose = float(opts.get("pose_scale") or 1.0)
+    if abs(exp - 1.0) < 1e-6 and abs(pose - 1.0) < 1e-6:
+        return None
+    exp = max(0.2, min(1.6, exp))
+    pose = max(0.0, min(1.6, pose))
+    if is_video:
+        return {"exp": exp}
+    return {"exp": exp, "pitch": pose, "yaw": pose, "roll": pose, "t": 1.0}
+
+
 def motion_ctrl(motion: dict | None, frames: int) -> dict:
     """Per-frame pose offsets (degrees) for Ditto's ctrl_info from a named motion: `sway` drifts pitch and yaw slowly
     (an idle that breathes), `nod` pulses pitch once at `at_s` for 0.6 s, `tilt` rolls the head and holds it. `amount`
@@ -529,6 +545,9 @@ def render(source_path: str, wav_path: str, opts: dict) -> tuple[bytes, int, dic
         setup_kwargs["emo"] = int(opts["emo"])
     is_video = source_path.endswith(".mp4")
     start_frame = max(0, int(opts.get("start_frame") or 0))
+    keys = drive_keys(opts, is_video)
+    if keys:
+        setup_kwargs["use_d_keys"] = keys
     if fade_in > 0 or fade_out > 0:
         # Ditto fades nothing unless told what to fade towards: "s" is the source frame itself. From a still that is
         # all of pose and expression; on a video the pose is the loop's already, so only the expression eases.
@@ -567,7 +586,7 @@ def render(source_path: str, wav_path: str, opts: dict) -> tuple[bytes, int, dic
             if mux_wav != wav_path:
                 os.unlink(mux_wav)
         t_enc = time.time()
-    chain = {"in": bool(state_in), "skip": skip, "fade_in": fade_in, "fade_out": fade_out, "silence_ms": silence_ms, "state": bool(state_out), "motion": (opts.get("motion") or {}).get("kind") or None, "emo": opts.get("emo"), "video": is_video, "start_frame": start_frame, "next_frame": start_frame + frames, "source_frames": source_frames}
+    chain = {"in": bool(state_in), "skip": skip, "fade_in": fade_in, "fade_out": fade_out, "silence_ms": silence_ms, "state": bool(state_out), "motion": (opts.get("motion") or {}).get("kind") or None, "emo": opts.get("emo"), "video": is_video, "start_frame": start_frame, "next_frame": start_frame + frames, "source_frames": source_frames, "exp_scale": opts.get("exp_scale"), "pose_scale": opts.get("pose_scale")}
     return mp4, frames, {
         "setup": int((t_setup - t0) * 1000),
         "audio": int((t_audio - t_setup) * 1000),
@@ -718,6 +737,9 @@ def speak_stream(inp: dict):
             setup_kwargs["emo"] = int(inp["emo"])
         is_video = source_path.endswith(".mp4")
         start_frame = max(0, int(inp.get("start_frame") or 0))
+        keys = drive_keys(inp, is_video)
+        if keys:
+            setup_kwargs["use_d_keys"] = keys
         if fade_in > 0 or fade_out > 0:
             setup_kwargs["fade_type"] = "s"
             setup_kwargs["fade_out_keys"] = ("exp",) if is_video else ("exp", "pitch", "yaw", "roll", "t")
