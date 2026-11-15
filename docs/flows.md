@@ -117,6 +117,10 @@ the rest of the page as before:
 - Tests: `tests/character-phone.test.ts` (nothing yet, never opted in, texts waiting, answered, several characters, the
   page for a stranger and an owner, the switch).
 
+| Never opted in (phone) | Texts waiting (phone) | Texts waiting (desktop) |
+|---|---|---|
+| ![The owner's home opens on their character's phone: Hear from Mira](screenshots/phone-home-hear-mobile.png) | ![Mira's last texts, the chips into the thread, what's next](screenshots/phone-home-texts-mobile.png) | ![The same on a desktop, above tonight's band](screenshots/phone-home-texts-desktop.png) |
+
 **Installing it (lib/pwa.ts).** Botchelor installs as an app (app/manifest.ts: standalone, opening on the home page, the
 PG heart tile for its icons). On a phone's browser a small "Install the app" hint shows once, on one page, a few seconds
 in: Install (Chrome's own prompt, where there is one) or How (Share, then Add to Home Screen on an iPhone), and × puts it

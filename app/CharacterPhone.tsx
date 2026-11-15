@@ -71,7 +71,9 @@ export default function CharacterPhone({ phone }: { phone: CharacterPhoneView })
         <ul className="list char-phone-next" aria-label={`What's next for ${first}`}>
           {phone.next.map((n) => (
             <li key={n.key}>
-              <span className="char-phone-next-label">Next</span>
+              <span className="char-phone-next-label" aria-hidden="true">
+                Next
+              </span>
               <span>
                 {n.href ? (
                   <Link href={n.href} data-track={`home-phone-next-${n.key}`}>

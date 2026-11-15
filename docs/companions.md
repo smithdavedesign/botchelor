@@ -338,6 +338,12 @@ is a life you can watch: dates that really happened. So a character's text about
 - Tests: `tests/date-photo.test.ts` (the route: renders, the rule, no spoiler, caching; the message in the after-date
   text, the real photo, the switch, the prompt, no voice note; the thread's markup), `tests/character-life.test.ts` (the
   life text's photo), `tests/cast-opener.test.ts` (the opener's).
+- Proof in a real browser: `npm run screenshots:phone` (`scripts/phone-screenshots.mjs`: a phone and a desktop, the photo's
+  4:5 box, its alt text and link, no sideways scroll, the cast's opener, the snapshot route).
+
+| The snapshot | In the owner's thread (phone) | A cast character's opener (phone) |
+|---|---|---|
+| ![A date's snapshot: the place, both portraits, their names, the place and the day](screenshots/phone-date-photo.webp) | ![The after-date text with its photo in the thread](screenshots/phone-thread-photo-mobile.png) | ![Rafe opens with his last aired date, its photo and Watch the date](screenshots/phone-cast-opener-mobile.png) |
 
 ### A cast character opens with what happened to it (built 2026-11-15)
 

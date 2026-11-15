@@ -169,6 +169,10 @@
   font-weight: 700;
   color: var(--muted);
 }
+/* "Next" is said once; the rows under it keep its width, so every line starts at the same edge. */
+.char-phone-next li + li .char-phone-next-label {
+  visibility: hidden;
+}
 .char-phone-actions {
   margin: 0;
 }
