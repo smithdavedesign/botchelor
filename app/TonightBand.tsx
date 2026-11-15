@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Avatar from "./Avatar";
+import { showCrowd } from "@/lib/crowd-threshold";
 import type { AiringSoon, EpisodeView } from "@/lib/game";
 import type { SituationBoard } from "@/lib/situations";
 import type { RevealBoard } from "@/lib/weekly-reveal";
@@ -35,6 +36,7 @@ export default function TonightBand({
   reveal = null,
   latest,
   now,
+  insider = false,
 }: {
   rooms: LobbyEntry[];
   airing: AiringSoon[];
@@ -43,6 +45,8 @@ export default function TonightBand({
   reveal?: RevealBoard | null;
   latest: EpisodeView | null;
   now: number;
+  /** The viewer has a character (lib/crowd-threshold.ts): "N watching" from 1; a stranger sees a count only for a crowd. */
+  insider?: boolean;
 }) {
   const live = rooms.find((r) => r.status === "live") ?? null;
   const premiere = rooms.find((r) => r.status === "upcoming") ?? null;
@@ -55,7 +59,7 @@ export default function TonightBand({
       live: true,
       faces: live.characters,
       names: `${live.characters[0].name} × ${live.characters[1].name}`,
-      line: live.watching > 0 ? `${live.watching} watching — tap in` : "On the air — tap in",
+      line: showCrowd(live.watching, { insider }) ? `${live.watching} watching — tap in` : "On the air — tap in",
       href: live.room_path,
     });
   }
@@ -120,7 +124,7 @@ export default function TonightBand({
   const watching = filming.reduce((n, r) => n + (r.watching ?? 0), 0);
   const facts: { key: string; text: string; live?: boolean }[] = [];
   if (filming.length) {
-    facts.push({ key: "filming", live: true, text: `${filming.length} ${filming.length === 1 ? "date" : "dates"} filming${watching > 0 ? ` · ${watching} watching` : ""}` });
+    facts.push({ key: "filming", live: true, text: `${filming.length} ${filming.length === 1 ? "date" : "dates"} filming${showCrowd(watching, { insider }) ? ` · ${watching} watching` : ""}` });
   }
   if (airing.length > 1) facts.push({ key: "airing", text: `${airing.length} dates airing soon` });
   if (reveal && reveal.state === "closed") facts.push({ key: "secret", live: true, text: `Sunday's secret comes out ${inWords(reveal.airs_at, now)}` });
