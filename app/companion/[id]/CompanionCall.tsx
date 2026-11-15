@@ -11,6 +11,7 @@ import { sseData } from "@/lib/sse";
 import { kitComplete, type FaceKit } from "@/lib/face-kit-shared";
 import { CLIP_HOLD_MS, CLIP_LATE_MS, LISTEN_MIN_SPEECH_MS, LISTEN_PAUSE_MS, REACTION_GAP_MS, type ReactionKind, voiceForLiveFace, type LiveFaceSession } from "@/lib/live-face-shared";
 import { TRANSCRIPT_START, transcriptStep, type Transcript, type TranscriptEvent } from "@/lib/companion-call-transcript";
+import CallNotice from "./CallNotice";
 import CallTranscript from "./CallTranscript";
 import LiveFace, { type LiveFaceHandle } from "./LiveFace";
 import { listen as listenLive, liveSupported, Mic, newAudioContext, PcmPlayer, type Listening } from "./live-audio";
@@ -1194,8 +1195,8 @@ export default function CompanionCall({
                 <>
                   <p>
                     A live call is like a phone call: talk whenever you like, and if you start talking while {first} is, {first} stops to listen. Your voice
-                    goes from your browser to Deepgram, which turns it into words as you speak and keeps nothing; only the words come to Botchelor, kept in
-                    this conversation like messages. {first} is an AI character, and the voice is made by Deepgram from {first}&apos;s words, never a real
+                    goes from your browser to Deepgram, which turns it into words as you speak and keeps it only while it does; only the words come to
+                    Botchelor, kept in this conversation like messages. {first} is an AI character, and the voice is made by Deepgram from {first}&apos;s words, never a real
                     person&apos;s.
                   </p>
                   <p>
@@ -1215,6 +1216,8 @@ export default function CompanionCall({
               )}
               <p>Each time {first} answers counts as one reply, the same as a text.{left !== null ? ` You have ${left} left.` : ""}</p>
             </details>
+            {/* Always there, above the button that turns the microphone on: "How calls work" folds after the first call. */}
+            <CallNotice mode={canLive && mode === "live" ? "live" : "classic"} />
             <p className="companion-call-controls">
               <button type="button" className="button companion-call-go" onClick={start} ref={mainButton} data-track="companion-call-start">
                 📞 Call {first}

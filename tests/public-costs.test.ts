@@ -72,6 +72,24 @@ describe("/costs", () => {
     expect(PUBLIC_PATHS).toContain("/costs");
   });
 
+  it("prices a live call's minute part by part, as an estimate, and links to what a call keeps", async () => {
+    const html = renderToStaticMarkup(await CostsPage());
+    expect(html).toContain('<section id="call"><h2>A live call, a minute</h2>');
+    // Marked as an estimate, with what it assumes (lib/call-costs.ts; tests/call-honesty.test.ts pins the sums).
+    expect(html).toContain("An estimate, not a bill");
+    expect(html).toContain("published price on 15 November 2026 times what our own calls used from 10 November to 15 November 2026 (48 minutes)");
+    const rows = [...html.slice(html.indexOf('<section id="call">'), html.indexOf('<section id="low">')).matchAll(/<th scope="row">([^<]+)(?:<span[^>]*>[^<]*<\/span>)?<\/th><td>([^<]+)<\/td>/g)].map((m) => [m[1], m[2]]);
+    expect(rows).toEqual([
+      ["Speech in: your voice into words", "0.5–0.6¢"],
+      ["The reply", "about 0.1¢"],
+      ["The voice", "0.4–1.1¢"],
+      ["The moving face", "1.3–2.2¢"],
+      ["A minute, with their voice", "1.1–1.8¢"],
+      ["A minute, with the moving face too", "2.3–4¢"],
+    ]);
+    expect(html).toContain('href="/privacy#calls"');
+  });
+
   it("says so when nothing is recorded", async () => {
     expect(renderToStaticMarkup(await CostsPage())).toContain("Nothing recorded yet.");
   });
