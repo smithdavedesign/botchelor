@@ -193,6 +193,11 @@ export async function startTestDb() {
         "web_events",
         // The show's Discord (lib/discord.ts): what it posted, keyed by time slot, week and season.
         "discord_posts",
+        // The rose ceremony (lib/ceremony.ts): its Sundays, votes, badges and the admin's lead pick.
+        "ceremony_votes",
+        "ceremonies",
+        "suitor_badges",
+        "season_leads",
         // Tonight's situation (lib/situations.ts): the house cast outlives a reset, so its nights would too.
         "situation_votes",
         "season_format_votes",
