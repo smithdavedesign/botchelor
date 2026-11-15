@@ -359,6 +359,8 @@ async function main() {
       { name: "league", path: `/leagues/${data.league.id}` },
       { name: "shop", path: "/shop" },
       { name: "agents", path: "/agents" },
+      // The model league (lib/model-league.ts): its day-one empty state, the exact call in a code box on a phone.
+      { name: "agents-league", path: "/agents/league" },
       { name: "legal", path: "/legal" },
       { name: "privacy", path: "/privacy" },
       { name: "terms", path: "/terms" },

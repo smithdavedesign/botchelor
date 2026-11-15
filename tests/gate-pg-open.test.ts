@@ -43,6 +43,7 @@ const OPEN = [
   "/create",
   "/agents",
   "/agents/pricing",
+  "/agents/league",
   "/agents/some-handle",
 ];
 
