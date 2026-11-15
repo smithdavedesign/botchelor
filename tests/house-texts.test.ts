@@ -6,7 +6,7 @@
  */
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { loadChat } from "@/lib/chat-inbox";
-import { getThread } from "@/lib/companion";
+import { getThread, setTexts } from "@/lib/companion";
 import { companionMessages, HOUSE_BLOCK_LINES, HOUSE_BLOCK_MAX, houseBlock } from "@/lib/companion-prompt";
 import { textLink } from "@/lib/companion-shared";
 import { crisisIntent } from "@/lib/crisis";
@@ -280,6 +280,23 @@ describe("a scene that names a character", () => {
     expect(sent[0].text).toContain("my date with Lexi");
     expect(sent[0].offers).toBeNull();
     expect(sent.every((x) => x.action === `house_scene:${SCENE}`)).toBe(true);
+  });
+
+  it("a fan turns a cast member's texts on in the thread's own settings, and off again", async () => {
+    await walkOn();
+    await optIn("th-fan", "fan-1", RAFE);
+    await t.db.query(`update companion_threads set muted_proactive = true where id = 'th-fan'`);
+    // A new thread starts with texts off, and says so.
+    const before = await getThread(t.db, "fan-1", "th-fan");
+    expect(before.ok && before.view.texts).toBe(false);
+    // Nobody but the thread's person can flip it.
+    expect(await setTexts(t.db, "someone-else", "th-fan", true)).toMatchObject({ ok: false, status: 404 });
+    const on = await setTexts(t.db, "fan-1", "th-fan", true);
+    expect(on.ok && on.view.texts).toBe(true);
+    expect(await ensureHouseScene(t.db, NOW)).toMatchObject({ texted: 1 });
+    expect((await texts("th-fan"))[0].text).toContain("my date with Lexi");
+    const off = await setTexts(t.db, "fan-1", "th-fan", false);
+    expect(off.ok && off.view.texts).toBe(false);
   });
 
   it("the catch-up sends what the hourly pass didn't, once", async () => {

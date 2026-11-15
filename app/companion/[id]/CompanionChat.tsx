@@ -555,6 +555,25 @@ export default function CompanionChat({
                 </label>
               ))}
             </fieldset>
+            {/* The thread's own switch for texts the character starts (lib/house-texts.ts, lib/after-date-text.ts). A cast
+                member's fan had no way to turn it on: only "Hear from" on an owner's verdict card did. */}
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={view.texts}
+                onChange={(e) => {
+                  const on = e.target.checked;
+                  // Shown at once; the server's answer confirms it (or puts it back).
+                  setView((v) => ({ ...v, texts: on }));
+                  void post({ action: "texts", on });
+                }}
+                disabled={busy}
+              />
+              <span>Let {first} text you first</span>
+            </label>
+            <p className="muted small">
+              Only when something happens to them: a date airs, or the house talks about them. Never just to check in.
+            </p>
             {extras && (
               <p className="muted small">
                 🔊 Voice notes:{" "}

@@ -309,6 +309,8 @@ export type CompanionThreadView = {
   character: CompanionCharacterRef;
   messages: CompanionMessageView[];
   reply_length: ReplyLength;
+  /** Whether this character may text first when something happens to them (the thread's switch; off until turned on). */
+  texts: boolean;
   /** The scene they're playing now (null: texting). */
   scene: VenueId | null;
   /** The roleplay that scene plays (null: just the two of you). */
