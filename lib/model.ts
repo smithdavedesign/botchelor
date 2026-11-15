@@ -371,6 +371,8 @@ export function modelFromEnv(
   env: Record<string, string | undefined> = process.env,
   fetchImpl?: typeof fetch,
   reasoning?: ReasoningEffort,
+  /** A call's limit when it isn't the usual MODEL_TIMEOUT_MS (the plans written at night: nobody is waiting). */
+  timeoutMs?: number,
 ): Model {
   const baseUrl = env.LLM_BASE_URL || DEFAULT_LLM_BASE_URL;
   // The Google key is only ever sent to Google's endpoint, never to a custom LLM_BASE_URL.
@@ -382,7 +384,7 @@ export function modelFromEnv(
       },
     };
   }
-  return openAICompatibleModel({ baseUrl, apiKey, model: env.LLM_MODEL || DEFAULT_LLM_MODEL, fetchImpl, reasoning });
+  return openAICompatibleModel({ baseUrl, apiKey, model: env.LLM_MODEL || DEFAULT_LLM_MODEL, fetchImpl, reasoning, timeoutMs });
 }
 
 let testModel: Model | null = null;
@@ -443,9 +445,9 @@ export function paidDefaultOn(env: Record<string, string | undefined> = process.
  * The actor: speaks every line of the date and the morning-after texts. Paid-by-default (with free fallback) when
  * FRONTIER_DEFAULT is on and `allowPaid` (false once today's paid-date cap is spent: lib/limits.ts).
  */
-export function getModel(reasoning: ReasoningEffort | undefined = roleReasoning("actor"), allowPaid = true): Model {
+export function getModel(reasoning: ReasoningEffort | undefined = roleReasoning("actor"), allowPaid = true, timeoutMs?: number): Model {
   if (testModel) return testModel;
-  const free = modelFromEnv(process.env, undefined, reasoning);
+  const free = modelFromEnv(process.env, undefined, reasoning, timeoutMs);
   const paid = allowPaid && paidDefaultOn() ? getFrontierModel() : null;
   return paid ? fallbackModel(paid, free) : free;
 }

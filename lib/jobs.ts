@@ -20,6 +20,7 @@ import { isReflectionEnabled } from "./reflection";
 import { generateDate } from "./pipeline";
 import { ensureHotTakes, fallbackHotTakes } from "./hot-takes";
 import { fastStartOn, hotTakesWaitMs, settledWithin, speedDateActor, type DateTiming } from "./fast-date";
+import { datePlanAtNightOn } from "./night-plans";
 import { recordSlips } from "./cast-secrets";
 import type { Db } from "./db";
 import { safeEqual } from "./http";
@@ -296,6 +297,9 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
     const timing: DateTiming = { fast, queued_ms: row.queued_ms ?? null, setup_ms: Date.now() - t0, first_line_ms: null, last_line_ms: null, verdict_ms: null, written_ms: 0 };
     const gen = await generateDate(models, built, decided, {
       fast,
+      // The plan at night (lib/night-plans.ts): a booked date has no stored plan, so it plays from the rules plan at
+      // once, whatever its format. DATE_PLAN_AT_NIGHT=0 leaves this out, and the director is asked first as before.
+      ...(datePlanAtNightOn() ? { plan: "rules" as const } : {}),
       formatId,
       talk,
       formatCtx: fmtCtx,

@@ -49,6 +49,8 @@ import { setSeasonRecapVoiceEnabledForTests } from "@/lib/season-recap";
 import { setEpisodeTitleVoiceEnabledForTests } from "@/lib/episode-title";
 import { setDareJudgeEnabledForTests } from "@/lib/dare-verdict";
 import { setCastChatVoiceEnabledForTests } from "@/lib/cast-chat";
+import { setProducerVoiceEnabledForTests } from "@/lib/producer";
+import { setDatePlanAtNightForTests } from "@/lib/night-plans";
 import { setMatchChatEnabledForTests } from "@/lib/swipes";
 import { setSwipeGateForTests } from "@/lib/swipe-gate";
 import { setLookAlikeGateForTests } from "@/lib/originality";
@@ -137,6 +139,11 @@ export async function startTestDb() {
   setDareJudgeEnabledForTests(false);
   // The cast group chat (lib/cast-chat.ts) writes from templates here; tests/cast-chat.test.ts passes a model.
   setCastChatVoiceEnabledForTests(false);
+  // The producer's logline (lib/producer.ts) comes from its template here; tests/producer.test.ts passes a model.
+  setProducerVoiceEnabledForTests(false);
+  // The plan at night (lib/night-plans.ts) is off in tests by default: suites written before it script the director's
+  // plan as a date's first call. tests/night-plans.test.ts turns it on.
+  setDatePlanAtNightForTests(false);
   // A new match's opening chat (lib/swipes.ts) is the swipe tests' to drive, with their own model.
   setMatchChatEnabledForTests(false);
   // The swipe gate (lib/swipe-gate.ts) is off in tests by default, so the suites written before it keep asking

@@ -25,6 +25,9 @@ import { portraitPathSql } from "./assets";
 import { claimPaidDate } from "./limits";
 import { getDirectorModel, getModel, paidDefaultOn } from "./model";
 import { generateDate } from "./pipeline";
+import { claimNightPlan, datePlanAtNightOn, planIfFits } from "./night-plans";
+import type { BuiltDate } from "./simulation";
+import type { EngineTrace, Outcome } from "./engine";
 import { ensureHotTakes } from "./hot-takes";
 import { recordSlips } from "./cast-secrets";
 import { DEFAULT_FORMAT, formatContextOf, type FormatId } from "./formats";
@@ -828,24 +831,32 @@ const houseSheet = (c: HouseRow): CharacterSheet => ({
  * Meant for the seed/demo path (scripts/seed.mjs) and tests; in production David pre-generates a handful
  * so the lobby is never empty. Refreshing them on a schedule is a deferred, spend-free follow-up.
  */
-export async function createTemplateParty(
+// The situation the viewers voted for (lib/situations.ts): the date plays it as a roleplay the show agreed to.
+// `dare` (lib/dares.ts): the producers' note slipped to side A ONLY — it rides that side's private note
+// (lib/simulation.ts), so the other side never sees it, and the engine's note_followed says if they went through.
+// The season format's thumbs (lib/season-format.ts): this week's twist format and producer event, and the format's
+// venue pool. Passed by refreshLobby only; left out, the date is built exactly as before.
+export type TemplateOpts = {
+  roleplay?: DateRoleplay | null;
+  dare?: string | null;
+  format?: FormatId;
+  producer?: ProducerId;
+  venuePool?: readonly VenueId[];
+};
+
+/**
+ * A house date, built and decided, from its episode id: the two characters, the setup dealt from the id's seed and the
+ * engine's decision. createTemplateParty's first half, on its own so the producer can build tomorrow's house date the
+ * night before under a reserved id and write its plan (lib/night-plans.ts): the same id gives the same date. Null when
+ * either character is missing. Writes nothing but a character's missing hot takes.
+ */
+export async function buildTemplateDate(
   db: Db,
+  episodeId: string,
   aId: string,
   bId: string,
-  // The situation the viewers voted for (lib/situations.ts): the date plays it as a roleplay the show agreed to.
-  // `dare` (lib/dares.ts): the producers' note slipped to side A ONLY — it rides that side's private note
-  // (lib/simulation.ts), so the other side never sees it, and the engine's note_followed says if they went through.
-  // The season format's thumbs (lib/season-format.ts): this week's twist format and producer event, and the format's
-  // venue pool. Passed by refreshLobby only; left out, the date is built exactly as before.
-  opts: {
-    roleplay?: DateRoleplay | null;
-    dare?: string | null;
-    format?: FormatId;
-    producer?: ProducerId;
-    venuePool?: readonly VenueId[];
-  } = {},
-): Promise<CreatePartyResult | null> {
-  if (generationPaused()) return { ok: false, status: 503, error: "generation_paused", message: PAUSED_MESSAGE };
+  opts: TemplateOpts = {},
+): Promise<{ a: HouseRow; b: HouseRow; built: BuiltDate; decided: Outcome; trace: EngineTrace | null } | null> {
   const rows = (
     await db.query<HouseRow>(
       `select id, name, age, bio, traits, want, dealbreaker, is_house, appearance, avatar_hue, pronouns, voice
@@ -856,8 +867,6 @@ export async function createTemplateParty(
   const a = rows.find((r) => r.id === aId);
   const b = rows.find((r) => r.id === bId);
   if (!a || !b) return null;
-
-  const episodeId = crypto.randomUUID();
   const forDate = (c: HouseRow): CharacterForDate => ({ id: c.id, sheet: houseSheet(c) });
   // Hot takes for a character with none yet, derived once on the free model (lib/hot-takes.ts). Never fails the room.
   await ensureHotTakes(db, [a.id, b.id], getModel("minimal", false)).catch(() => {});
@@ -877,6 +886,20 @@ export async function createTemplateParty(
   });
   built.setup.met_via = "show"; // how it came about (data plan Tier 2): the show set it up for the lobby
   const { outcome: decided, trace } = decideTraced(built.input, built.seed, built.setup.engine_version);
+  return { a, b, built, decided, trace };
+}
+
+export async function createTemplateParty(db: Db, aId: string, bId: string, opts: TemplateOpts = {}): Promise<CreatePartyResult | null> {
+  if (generationPaused()) return { ok: false, status: 503, error: "generation_paused", message: PAUSED_MESSAGE };
+  // The plan written at night (lib/night-plans.ts): when the producer planned this pair's house date for today, the
+  // date takes the id reserved for it, so it is the date the plan was written for. Its fit is checked once it's decided.
+  const night = await claimNightPlan(db, aId, bId).catch(() => null);
+  const episodeId = night?.episode_id ?? crypto.randomUUID();
+  const date = await buildTemplateDate(db, episodeId, aId, bId, opts);
+  if (!date) return null;
+  const { a, b, built, decided, trace } = date;
+  // No format calls the director in front of line 1 (DATE_PLAN_AT_NIGHT): the stored plan if it fits, else the rules.
+  const plan = datePlanAtNightOn() ? ((await planIfFits(db, night, built, decided).catch(() => null)) ?? ("rules" as const)) : undefined;
   // The shared pipeline (lib/pipeline.ts): the recap, plus the turn-by-turn conversation so template rooms
   // play the date line by line too. Pre-generated system content; the conversation is best-effort and gated
   // off in tests. Template rooms have no owners, so no afterglow.
@@ -891,6 +914,7 @@ export async function createTemplateParty(
       afterglow: false,
       // Template rooms have no owner, so a reflection would never be shown; skip it to spare the lobby's quota.
       reflection: false,
+      ...(plan ? { plan } : {}),
     });
   let gen;
   try {
@@ -952,7 +976,8 @@ export async function createTemplateParty(
       JSON.stringify(draft.confessionals),
       JSON.stringify(built.setup),
       JSON.stringify(transcript),
-      JSON.stringify(gen.generatedWith),
+      // Which plan it played from, like a booked date's (lib/jobs.ts): "producer" | "rules", or "director" with the switch off.
+      JSON.stringify({ ...gen.generatedWith, plan: gen.plan?.source ?? null }),
       trace ? JSON.stringify(trace) : null,
       JSON.stringify(transcript.map(() => ({ at, by: "show" }))),
       // Living dates: the lines' private thoughts, shown once the room airs it (lib/inner-life.ts).
@@ -1014,34 +1039,10 @@ export async function refreshLobby(
   }
   // Today's later rooms deal a different pairing from the first one.
   const round = today.rows.length;
-
-  // Paired from this season's cast (lib/season-cast.ts): the house cast and the fan picks; the rest of the roster sits
-  // the season out.
-  const cast = showCastIds(now);
-  // The season's format and this week's twist (lib/season-format.ts): a thumb on the house's own dates — the twist's
-  // show format or producer event, the format's venue pool, and on newcomer week one side who joined this season.
-  // A classic week with no twist passes nothing, and the date is built exactly as before.
-  const def = await seasonFormatNow(db, now).catch(() => null);
-  const twist = def ? twistOf(def, now) : null;
-  const thumbs = {
-    ...(twist?.format ? { format: twist.format } : {}),
-    ...(twist?.producer ? { producer: twist.producer } : {}),
-    ...(def?.venues ? { venuePool: def.venues } : {}),
-  };
-  const fresh =
-    twist?.pairing === "newcomer"
-      ? (await db.query<{ character_id: string }>(`select character_id from season_casts where season_id = $1 and source in ('new', 'fan')`, [seasonIdOf(now)])).rows
-          .map((r) => r.character_id)
-          .filter((id) => cast.includes(id))
-      : [];
   for (let attempt = 0; attempt < 2; attempt++) {
-    const dealt = seedFrom("lobby-a", day, attempt + 2 * round);
-    const i = fresh.length ? cast.indexOf(fresh[dealt % fresh.length]) : dealt % cast.length;
-    const j = (i + 1 + (seedFrom("lobby-b", day, attempt + 2 * round) % (cast.length - 1))) % cast.length;
-    // A Botchelor season (lib/ceremony.ts): the lead with the suitor whose turn it is, a later room the next suitor.
-    const courting = def?.lead ? suitorInTurn(now, attempt + 2 * round) : null;
-    const [a, b] = courting ?? [cast[i], cast[j]];
-    const result = await createTemplateParty(db, a, b, thumbs);
+    const deal = await lobbyDeal(db, now, attempt + 2 * round);
+    if (!deal) continue;
+    const result = await createTemplateParty(db, deal.a, deal.b, deal.thumbs);
     if (!result || !result.ok) continue;
     const { rows } = await db.query<{ n: number }>(
       `select jsonb_array_length(e.transcript)::int as n from watch_parties w join episodes e on e.id = w.episode_id where w.id = $1`,
@@ -1050,6 +1051,52 @@ export async function refreshLobby(
     if ((rows[0]?.n ?? 0) > 0) return { created: result.id };
   }
   return { created: null, reason: "no_conversation" };
+}
+
+/** How many template rooms with a conversation were made on a UTC day: the round the day's next lobby room is dealt as. */
+export async function templateRoomsOn(db: Db, day: string): Promise<number> {
+  const { rows } = await db.query<{ n: number }>(
+    `select count(*)::int as n from watch_parties w join episodes e on e.id = w.episode_id
+      where w.kind = 'template' and w.created_at >= $1::timestamptz and w.created_at < $1::timestamptz + interval '1 day' and jsonb_array_length(e.transcript) > 0`,
+    [`${day}T00:00:00Z`],
+  );
+  return rows[0]?.n ?? 0;
+}
+
+/**
+ * Who the lobby's room is for and with which thumbs, dealt from the day and the deal's number (attempt + 2 x the day's
+ * round): refreshLobby's own deal, on its own so the producer can know tomorrow's house date the night before
+ * (lib/night-plans.ts). Null when the cast is too small to deal from.
+ */
+export async function lobbyDeal(db: Db, now: Date, n: number): Promise<{ a: string; b: string; thumbs: TemplateOpts } | null> {
+  const day = now.toISOString().slice(0, 10);
+  // Paired from this season's cast (lib/season-cast.ts): the house cast and the fan picks; the rest of the roster sits
+  // the season out.
+  const cast = showCastIds(now);
+  // The season's format and this week's twist (lib/season-format.ts): a thumb on the house's own dates — the twist's
+  // show format or producer event, the format's venue pool, and on newcomer week one side who joined this season.
+  // A classic week with no twist passes nothing, and the date is built exactly as before.
+  const def = await seasonFormatNow(db, now).catch(() => null);
+  const twist = def ? twistOf(def, now) : null;
+  const thumbs: TemplateOpts = {
+    ...(twist?.format ? { format: twist.format } : {}),
+    ...(twist?.producer ? { producer: twist.producer } : {}),
+    ...(def?.venues ? { venuePool: def.venues } : {}),
+  };
+  // A Botchelor season (lib/ceremony.ts): the lead with the suitor whose turn it is, a later room the next suitor.
+  const courting = def?.lead ? suitorInTurn(now, n) : null;
+  if (courting) return { a: courting[0], b: courting[1], thumbs };
+  if (cast.length < 2) return null;
+  const fresh =
+    twist?.pairing === "newcomer"
+      ? (await db.query<{ character_id: string }>(`select character_id from season_casts where season_id = $1 and source in ('new', 'fan')`, [seasonIdOf(now)])).rows
+          .map((r) => r.character_id)
+          .filter((id) => cast.includes(id))
+      : [];
+  const dealt = seedFrom("lobby-a", day, n);
+  const i = fresh.length ? cast.indexOf(fresh[dealt % fresh.length]) : dealt % cast.length;
+  const j = (i + 1 + (seedFrom("lobby-b", day, n) % (cast.length - 1))) % cast.length;
+  return { a: cast[i], b: cast[j], thumbs };
 }
 
 /** Toggles one of a viewer's emoji reactions on. Returns the new count and whether it is now theirs. */

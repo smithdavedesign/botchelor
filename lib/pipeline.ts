@@ -4,8 +4,10 @@
  * (lib/watch.ts) and the quality eval (lib/eval.ts), so all three produce dates the same way.
  *
  * Order (M15, docs/date-quality.md):
- *   1. plan       — the director turns the engine's reasons into a beat sheet (lib/beats.ts). Best-effort:
- *                   falls back to the deterministic rules plan.
+ *   1. plan       — the beat sheet the conversation plays from (lib/beats.ts). With DATE_PLAN_AT_NIGHT on (the
+ *                   default; lib/night-plans.ts) it is the one the producer wrote the night before when the date has
+ *                   one, and otherwise the deterministic rules plan, at once: no call in front of line 1. With it off
+ *                   the director is asked first (best-effort: it falls back to the rules plan).
  *   2. conversation — the two agents play the date turn by turn from their beats (lib/conversation.ts).
  *                   Best-effort: a failure leaves it empty.
  *   3. recap      — the narration, written FROM the conversation when there is one, so the recap and the lines
@@ -105,6 +107,14 @@ export type GenerateOptions = {
    * exactly as before.
    */
   fast?: boolean;
+  /**
+   * The plan the date plays from (lib/night-plans.ts, DATE_PLAN_AT_NIGHT):
+   *   a DatePlan   the one the producer wrote at night for exactly this date (its fit already checked);
+   *   "rules"      there is none: play from the rules plan at once, no director call in front of line 1;
+   *   left out     the old order: the director is asked first (the switch off, and the evals' director arm).
+   * It shapes how the conversation moves, never the ending: `decided` is the engine's either way.
+   */
+  plan?: DatePlan | "rules";
 };
 
 export type GeneratedDate = {
@@ -207,9 +217,13 @@ export async function generateDate(
   if (opts.conversation) {
     // A director that is down (a stronger free model at its quota) costs nothing: planDate falls back to rules. A fast
     // date doesn't ask it: the plan call ran 50 s in front of the first line and came back empty (lib/fast-date.ts).
-    plan = opts.fast
-      ? rulesPlan(built.input, decided, characters, producer, venueId)
-      : await planDate(director.model, built.input, decided, characters, producer, venueId, opts.formatId, opts.formatCtx);
+    // With the plan at night (lib/night-plans.ts) no format asks it: the stored plan when the date has one, else the rules.
+    plan =
+      opts.plan && opts.plan !== "rules"
+        ? opts.plan
+        : opts.fast || opts.plan === "rules"
+          ? rulesPlan(built.input, decided, characters, producer, venueId)
+          : await planDate(director.model, built.input, decided, characters, producer, venueId, opts.formatId, opts.formatCtx);
     const converse = (from?: Turn[]) =>
       simulateConversation(actor.model, built.input, decided, characters, producer, venueId, opts.formatId, opts.talk?.date, opts.formatCtx, plan ?? undefined, keyForSide, onTurn, {
         moves: opts.moves,

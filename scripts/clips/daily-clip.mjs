@@ -25,10 +25,12 @@ const MAX_RECORD_MS = 75_000;
 /**
  * Today's clip from the public feed (newest first): among the newest NEWEST dates, one that has aired, has at least
  * MIN_LINES lines and wasn't clipped before. A decided ending scores (a second date or a disaster beats friends), a best
- * line scores, a longer date scores a little; a tie goes to the newer. Returns the episode or null. Pure.
+ * line scores, a longer date scores a little; a tie goes to the newer. `prefer`: the episodes the day's story is about
+ * (the producer's beat, GET /api/story): one of those outscores any other, so the clip has a story. Returns the
+ * episode or null. Pure.
  */
-export function pickClip(episodes, { clipped = new Set() } = {}) {
-  const score = (e) => (e.ending === "second_date" || e.ending === "disaster" ? 2 : 0) + (e.best_line ? 1 : 0) + Math.min(1, (e.transcript?.length ?? 0) / 24);
+export function pickClip(episodes, { clipped = new Set(), prefer = new Set() } = {}) {
+  const score = (e) => (prefer.has(e.id) ? 5 : 0) + (e.ending === "second_date" || e.ending === "disaster" ? 2 : 0) + (e.best_line ? 1 : 0) + Math.min(1, (e.transcript?.length ?? 0) / 24);
   const fresh = episodes
     .slice(0, NEWEST)
     .map((e, i) => ({ e, i }))
@@ -37,11 +39,26 @@ export function pickClip(episodes, { clipped = new Set() } = {}) {
   return fresh[0]?.e ?? null;
 }
 
-/** The caption to paste with the video: the pair, the best line, the link, a few tags. */
-export function captionFor(e, base) {
+/**
+ * The day's story from the show (GET /api/story, lib/producer.ts clipStory): the logline each aired date played under,
+ * by episode id. Best effort: no story (an older deploy, a quiet day, a network error) is an empty map.
+ */
+export async function fetchStory(base, headers = {}) {
+  try {
+    const res = await fetch(`${base}/api/story`, { headers });
+    if (!res.ok) return new Map();
+    const body = await res.json();
+    return new Map((body.episodes ?? []).filter((x) => x?.id && x?.logline).map((x) => [x.id, x.logline]));
+  } catch {
+    return new Map();
+  }
+}
+
+/** The caption to paste with the video: the story's logline when this date is the one it's about, the pair, the best line, the link, a few tags. */
+export function captionFor(e, base, logline = null) {
   const [a, b] = (e.characters ?? []).map((c) => c.name);
   const pair = a && b ? `${a} × ${b}` : "Tonight's date";
-  return [`${pair}${e.best_line ? `: "${e.best_line}"` : ""}`, "", `Watch the whole date: ${base}/episodes/${e.id}`, "", "#botchelor #originalcharacter #oc #aidating #datingshow"].join("\n");
+  return [...(logline ? [logline, ""] : []), `${pair}${e.best_line ? `: "${e.best_line}"` : ""}`, "", `Watch the whole date: ${base}/episodes/${e.id}`, "", "#botchelor #originalcharacter #oc #aidating #datingshow"].join("\n");
 }
 
 /** The newest Chromium Playwright has cached on this Mac (no download, ever). */
@@ -78,6 +95,8 @@ async function main() {
   const done = existsSync(doneFile) ? JSON.parse(readFileSync(doneFile, "utf8")) : {};
   const headers = { "user-agent": "botchelor-clip/1.0", cookie: "bz_adult=1" };
 
+  // The day's story (lib/producer.ts): the dates the producer's beats are about, and the logline each played under.
+  const story = await fetchStory(base, headers);
   const wanted = process.argv[2];
   let episode;
   if (wanted) {
@@ -86,7 +105,7 @@ async function main() {
   }
   else {
     const feed = (await (await fetch(`${base}/api/episodes`, { headers })).json()).episodes ?? [];
-    episode = pickClip(feed, { clipped: new Set(Object.keys(done)) });
+    episode = pickClip(feed, { clipped: new Set(Object.keys(done)), prefer: new Set(story.keys()) });
   }
   if (!episode) {
     console.log("No new aired date with enough lines among the newest: no clip today.");
@@ -195,7 +214,7 @@ async function main() {
     ...(voices ? ["-map", "0:v", "-map", "1:a", "-c:a", "copy", "-shortest"] : ["-an"]),
     mp4,
   ]);
-  writeFileSync(join(out, `${name}.txt`), captionFor(episode, base) + (voices ? "\nVoices: AI (Kokoro)." : "") + "\n");
+  writeFileSync(join(out, `${name}.txt`), captionFor(episode, base, story.get(episode.id) ?? null) + (voices ? "\nVoices: AI (Kokoro)." : "") + "\n");
   rmSync(tmp, { recursive: true, force: true });
   done[episode.id] = { at: new Date().toISOString(), file: mp4 };
   writeFileSync(doneFile + ".tmp", JSON.stringify(done, null, 1));
