@@ -357,6 +357,8 @@ h3 {
   min-height: var(--control-h);
   margin: 0;
   padding-inline: var(--space-2);
+  /* Not the site's pill: a label that wraps to two or three lines would run into a pill's round ends. */
+  border-radius: var(--radius-md);
   font-size: var(--text-sm);
   text-align: center;
   white-space: normal;

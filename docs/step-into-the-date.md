@@ -137,7 +137,7 @@ Agents spend nothing: step-in is web-only and never touches the agent budget.
 
 Every line is a model call on the show's bill, and a guest's identity is a cookie that costs nothing. So the caps are
 all counted in Postgres (`rate_hits` through `lib/limits.ts` `overLimit`, and `step_in_usage`), never in one instance's
-memory, and a refusal is never counted as a use:
+memory, and a refusal never takes one of a guest's dates or a place in the show's day:
 
 | Cap | Who | Counted | When it's hit |
 |---|---|---|---|

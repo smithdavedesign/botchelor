@@ -14,9 +14,9 @@ type Mine = { id: string; name: string; hue: number | null; portrait: string | n
 type Next = { href: string; label: string; track: string };
 
 /** A refusal: one plain sentence, then the ways on (make a character, an account, the shop), each its own tap target. */
-function Refusal({ message, next }: { message: string; next: Next[] }) {
+function Refusal({ message, next, role }: { message: string; next: Next[]; role: "alert" | "status" }) {
   return (
-    <div className="stepin-refusal" role="alert">
+    <div className="stepin-refusal" role={role}>
       <p className="error">{message}</p>
       {next.length > 0 && (
         <p className="cta-row">
@@ -173,7 +173,8 @@ export default function StepInSetup({
         </label>
       )}
       <p className="muted small">{cost}</p>
-      {blocked ? <Refusal message={blocked.message} next={blocked.next} /> : error && <Refusal message={error.message} next={error.next} />}
+      {/* Known before they try (a note on the page), or the answer to a try (announced). */}
+      {blocked ? <Refusal message={blocked.message} next={blocked.next} role="status" /> : error && <Refusal message={error.message} next={error.next} role="alert" />}
       {!blocked && (
         <p className="cta-row">
           <button type="submit" className="button" disabled={busy} data-track="step-in-start">

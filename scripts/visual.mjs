@@ -427,6 +427,8 @@ async function main() {
       { name: "directory", path: "/characters" },
       // Every card's verb (lib/character-verb.ts): a stranger steps in or makes a character (above), an owner sends theirs.
       { name: "directory-owner", path: "/characters", as: "owner" },
+      // A cast member's page for a stranger: stepping into a date is the one filled button.
+      { name: "character-cast", path: "/characters/house-teo" },
       { name: "directory-people", path: "/characters?tab=people" },
       {
         // Step into the date, open to everyone: the cast picker a stranger lands on with no 18+ cookie, then the start
