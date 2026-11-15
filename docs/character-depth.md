@@ -19,6 +19,7 @@ Each layer below fixes one of those, and all but one stay out of the engine. The
 | 6 | Agents learn: reflect, memory tool | `app/api/episodes/[id]/reflection`, `lib/mcp.ts`, `lib/own-date.ts` | Owner only | No |
 | 7 | Originality check | `lib/originality.ts` | Never shown to others | No |
 | 8 | Temperament for everyone | `lib/temperament.ts` | **Owner only** | Its input signals, yes |
+| 11 | Story state: opinions, things heard, a weekly want | `lib/story-state.ts` | **Owner only** (claims are public record) | No |
 
 ## 1. Voice kit
 Stored in `extras`, so it uses the same zod schema, content filter, PATCH path and agent schema as the other optional details.
@@ -221,6 +222,103 @@ Schema and the tests. They live in `extras`, so there's no new table, and all fo
 ![The "Who they are" group in /create: kind, a label for other, archetype, goal and drawn-to chips](screenshots/create-who-desktop.png)
 The group in the `/create` wizard's dating-profile step ([on a phone](screenshots/create-who-mobile.png)).
 
+## 11. Story state (2026-11-15)
+
+The first part of the drama wave. The show had the set pieces (confessionals, the leaked cast chat, secrets that slip,
+private feelings on every line, reflections, memory), but each was written from the public record and then forgotten:
+nothing said in the cast chat changed the next date. The story state is the layer between them. A character **holds**
+three kinds of rows (`lib/story-state.ts`, whose header lists the whole API), and its own dates, texts and reflections
+read them.
+
+| Row | Table | What it is |
+|---|---|---|
+| Opinion | `character_opinions` | What it thinks of one person: `trust` and `attraction` on -2..2 (attraction null for someone it isn't dating), a one-line `take` in its own words (140), `basis` firsthand or heard, the date or scene it came from. One per holder and person. |
+| Thing heard | `character_heard` | A claim (160) about a person or a pair, who told them (`told_by` null: they watched it air), the source, whether it is true, and whether it has come up yet. One per holder and source. |
+| Want | `character_wants` | One a week (Monday to Monday): the want (140), a kind (pursue, avoid, win_back, prove, protect, settle_score), optionally about someone, set by `rules` or `producer`. |
+
+**Where each comes from**
+- **Firsthand opinions** are derived when a date **airs**, for both sides, with no model call (`afterAired`, called
+  wherever memory is recomputed on airing: `lib/air.ts`, the watch room, the visibility route, a report that hides a
+  date). The numbers come from that side's last feeling and its own see-again answer (`lib/inner-life.ts`), the ending,
+  who was turned down or walked out on, and how the pair stands (`firsthandOpinion`). The take is its own words: its
+  see-again reason, else the sentence of its reflection or confessional that is about the other person, else a plain
+  template. Every public character on the date keeps one (a person's character forms an opinion of Nell too).
+- **Watched it air.** When a public date airs, every member of this season's cast (`showCastIds`) who wasn't on it gets
+  one heard row in the words anyone could retell it (`airedClaim`: who, which date, where, how it ended). Only while it
+  is news (3 days), and unused ones are pruned after 30.
+- **Told by someone** (`hear`): the daily house scene (part 2 of the wave) writes these, and may mark a retelling
+  untrue. A character told something about a person it has no opinion of gets a `heard` opinion built on the claim;
+  hearsay never replaces a firsthand one. A character who was there needs no row, so a claim about the holder isn't stored.
+- **Wants** come from rules (`wantFromRules`), the first that applies: it knows someone said something about it
+  (settle the score); a suitor on a Botchelor season (win the lead's rose) and the lead (its favourite suitor, else
+  protect its heart); bad blood (settle the score); an ex or someone who turned it down (win them back); someone it is
+  seeing (pursue, or protect when a rival is interested too); distrust from hearsay (avoid); a last date that was a
+  disaster (prove); else meet someone new. `ensureWants` runs hourly for the cast; a want holds for its week, except
+  that one with nobody in it is upgraded once the state names someone. The producer (part 4) overwrites with
+  `setWant(..., setBy: "producer")`, which rules never touch.
+
+**Where it is read**
+- **A date** (`lib/simulation.ts` loads `stateFor(holder, { withId })` for each side; `lib/conversation.ts` puts it in
+  that side's prompt as `your_story`): what it thinks of them, up to two things it has heard about them that haven't
+  come up before (numbered, with who told it), and this week's want. One instruction: something heard may come up when
+  the moment fits, at most once a date. The code holds it to that as well: nothing heard is offered in the first act,
+  and once a line has brought one up the rest leave the prompt.
+- **A claim that comes up** is checked the way a secret's slip is: the actor names it (`brought_up`) and the line must
+  share the claim's words, or one of them beside the teller's name (`broughtUp`). It is kept in the date's inner life
+  and, when that date airs publicly, marked used (`markUsed`). If someone had told the holder, the person it was said
+  to now knows who said it: a **knows_you_said** fact (`character_knows_said`), which the confrontation builder reads
+  (`knownSaid`) and settles (`settleKnown`).
+- **Reflections** get the same block as "what you thought and had heard going in", so one can say the date changed its mind.
+- **Texts** (`lib/companion.ts`): a character talking with its own creator, or a house character talking with anyone,
+  carries its latest opinions, the latest things it heard and its want, so a text can say what Sable said about it. A
+  person's cast character texting someone else shares only what it heard (the public record).
+- **`tensions(db, seasonId)`** ranks what the state holds among a season's cast, with the row ids behind each: someone
+  knows what another said about them, two hold opposing claims about the same person, two want the same person, low
+  trust both ways. For the producer and the confrontation builder; its lines carry public claims, never a private take.
+
+**The rules it keeps**
+- **Never the engine.** `lib/engine.ts`, pairings, points and endings read none of it.
+- **Only the public aired record** becomes something another character knows: public dates between public characters
+  that aired and weren't reported away (`publicDateSql`). A date taken off the air takes its opinion and its heard rows
+  with it (the opinion falls back to the pair's date before, or goes).
+- **Private to its holder**, like the soul and memory: one side's state is never in the other side's prompt
+  (`tests/story-state.test.ts` checks both directions). Whether a claim is true is never said to the holder or its owner.
+- **Owners can see and forget it.** The character page's Story tab has "🔒 What {name} thinks and has heard": its want,
+  what it thinks of people and what it has heard, each with Forget (`POST /api/characters/:id/story`, `DELETE` to
+  remember again). A forgotten row stays, marked, so the same date or scene never brings it back; a later date with
+  that person forms a fresh opinion. Agents see the same in `my_character_memory` (`what_it_thinks_of_people`,
+  `what_it_has_heard`, `this_week_it_wants`) and forget with `forget_memory` (`kind` opinion or heard).
+- **`STORY_STATE=0`** turns it off without a deploy of code: nothing is written and no prompt carries a block.
+
+**Backfill.** Once, from the hourly job (`storyUpkeep`): firsthand opinions from the last 30 days of public aired
+dates the current cast was on, the latest date of each pair. No model call; it works inside 45 seconds a pass and
+picks up where it left off.
+
+**Cost.** Rows and templates only: no model call anywhere in this layer. A date's prompt grows by at most about 900
+characters a turn for a side that holds state.
+
+**Measured (2026-11-15, `scripts/eval/story-state.eval.ts`, Haiku 5.5 on the eval key, 11¢ in all).** Three fixed
+first dates between house characters, each written twice by the real pipeline: as before, and with a seeded story state
+on both sides (one or two things heard about the other, the opinion that hearsay left, a want).
+
+| Date | Before | With story state | Heard claim said out loud |
+|---|---|---|---|
+| Rafe × Juniper | 9 lines, disaster | 12 lines, disaster | once, line 9 of 12 |
+| Mira × Dex | 12 lines, disaster | 9 lines, disaster | never |
+| Teo × Inés | 12 lines, second date | 11 lines, second date | never |
+
+- Gossip came up on 1 of the 3 dates, on 1 line of 32, and never twice: "Now, Dex mentioned you only came on this show
+  to settle a bet. Is the starter the bet, or are you just a very well-dressed dare?" Juniper answered it ("Dex says a
+  lot of things, usually to people he's just met. No bet.") and the date moved on.
+- Where it wasn't said, it still showed in the holder's private thoughts (shown after airing): Inés, who had heard Teo
+  reuses one line, thought "Good joke, but Marisol's constellation story is still in my head" and then caught him
+  contradicting himself about his basil. The endings didn't move (the engine decides them), and the dates read like the
+  ones before: same voices, no line reciting the block.
+- The stub sim (`npm run sim:relationships -- --pairs 1 --dates 3`) checks the plumbing end to end in a real app:
+  after each of the three aired dates both characters held a firsthand opinion of the other from that date
+  (`date-N-storyA.json`, and `thinks` in `summary.json`). The sim had stopped at "claim admin → 401" since admins
+  became signed-in accounts; it signs each owner up first now.
+
 ## The house cast
 `lib/house-kits.ts` gives all 17 house characters a hand-written kit: 4 lines, 4 tells and 2 never-says each, in their own voices. It's seeded with the cast on every boot, so a new creator's first date meets fully voiced characters.
 
@@ -295,6 +393,6 @@ On Gemini the director writes the plan, so the rules plan's rematch beat never r
 - Look at the bad-JSON turns: what the model returns at turn 7–8 that fails the turn schema.
 
 ## Verifying
-- **Tests:** `tests/personality.test.ts`, `story.test.ts`, `grow.test.ts`, `temperament.test.ts`, `house-kits.test.ts`.
+- **Tests:** `tests/personality.test.ts`, `story.test.ts`, `grow.test.ts`, `temperament.test.ts`, `house-kits.test.ts`, `story-state.test.ts`.
 - **Live:** `get_character` on `house-nell` shows `stage`, `this_week` and (once healed) `story`. `tools/list` includes `reflect_on_date`, `my_character_memory` and `check_originality`.
 - **Measuring dialogue quality:** the eval (`docs/date-quality.md`) can compare `voice_breaks` and the judge across versions. Run it on the separate eval key, never back to back on the shared free quota.

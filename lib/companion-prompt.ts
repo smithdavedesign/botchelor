@@ -107,6 +107,12 @@ export function companionMessages(args: {
    * reach a date, by that channel only; here the character may acknowledge it, never recite it.
    */
   activeNudge?: string | null;
+  /**
+   * The character's story state as lines (lib/story-state.ts companionStory): what it thinks of people on the show,
+   * what it has heard and from whom, and what it wants this week. Its own, so a text can say "you won't believe what
+   * Sable said about me". Empty for a character that holds none (and with STORY_STATE=0).
+   */
+  story?: readonly string[];
 }): ChatMessage[] {
   const { character: c, length, now = new Date(), scene = null } = args;
   const call = args.call === true && !scene;
@@ -186,6 +192,13 @@ export function companionMessages(args: {
       ? ["", "Photos you sent them (snapshots from your dates; the show takes them, so you can't send one on request):", ...photos.map((p) => `- ${p}`)]
       : []),
     ...(life.length ? ["", "Your life on the show lately (yours to bring up, as yourself):", ...life.map((l) => `- ${l}`)] : []),
+    ...(args.story?.length
+      ? [
+          "",
+          "What's on your mind about people on the show (private: how you really feel, and talk you've heard, which is hearsay and may be wrong). It's yours to bring up in your own words when it fits, one thing at a time, never as a list:",
+          ...args.story.map((l) => `- ${l}`),
+        ]
+      : []),
     ...(args.turns.some((t) => t.roleplay && t.roleplay !== scene?.roleplay?.title)
       ? ["", 'Lines marked [roleplay: …] were said in a roleplay you played together: make-believe, not either of your real lives.']
       : []),

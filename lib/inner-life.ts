@@ -65,6 +65,10 @@ export type LineInner = {
   slip?: number;
   /** That slip, checked against the line's words (lib/cast-secrets.ts slipped): which secret came out. */
   secret?: { season_id: string; idx: number };
+  /** Which thing it had heard about the other (lib/story-state.ts) the speaker says this line brings up, 1-based. */
+  brought_up?: number;
+  /** That claim, checked against the line's words (lib/story-state.ts broughtUp): the character_heard row's id. */
+  heard?: string;
 };
 
 export const THOUGHT_MAX = 140;
@@ -80,7 +84,7 @@ const short = (s: string, max: number) => (s.length <= max ? s : `${s.slice(0, m
  * claim that pass the show's content filter (a thought is shown after airing; one that doesn't pass is dropped, never
  * the line). Empty when the reply had none.
  */
-export function readInner(raw: { feeling?: unknown; feeling_strength?: unknown; thought?: unknown; they_claimed?: unknown; let_slip?: unknown }): LineInner {
+export function readInner(raw: { feeling?: unknown; feeling_strength?: unknown; thought?: unknown; they_claimed?: unknown; let_slip?: unknown; brought_up?: unknown }): LineInner {
   const out: LineInner = {};
   const f = feelingName(raw.feeling);
   if (f) {
@@ -95,6 +99,8 @@ export function readInner(raw: { feeling?: unknown; feeling_strength?: unknown; 
   if (claim && !/^(none|nothing|n\/a|-)\.?$/i.test(claim) && checkShowText({ claim }).ok) out.claim = claim;
   const slip = Number(raw.let_slip);
   if (Number.isInteger(slip) && slip >= 1 && slip <= 5) out.slip = slip;
+  const brought = Number(raw.brought_up);
+  if (Number.isInteger(brought) && brought >= 1 && brought <= 5) out.brought_up = brought;
   return out;
 }
 

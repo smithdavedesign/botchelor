@@ -6,7 +6,7 @@
  *   - books a first date, then each next one as a second date when both wanted another (the other owner says yes,
  *     then the booking owner), or a fresh date between the same two when they didn't;
  *   - airs each date, opens its afterglow, and runs the daily job once (the texts between dates);
- *   - saves the owner's episode view, the afterglow, the relationship edge, both characters' learned memory and the
+ *   - saves the owner's episode view, the afterglow, the relationship edge, both characters' learned memory, story state and the
  *     couple's texts after every date;
  *   - screenshots the couple page and the last date on desktop and phone.
  * Then it writes summary.json: per couple, the edge after each date, endings, and what was remembered.
@@ -97,7 +97,24 @@ function envFor(showrunnerPort, dataDir) {
   return env;
 }
 
+/**
+ * A handle-and-password account for the persona: an admin is a signed-in account (the 2026-11 security review), so the
+ * claim below needs one. Its signed session joins the persona's cookie; the visitor id, and so its characters, stay.
+ */
+async function signUp(base, who) {
+  const res = await fetch(`${base}/api/auth/register`, {
+    method: "POST",
+    headers: { "content-type": "application/json", cookie: who.cookie, origin: base, "x-forwarded-for": ipFor(who.id) },
+    body: JSON.stringify({ handle: `sim${randomBytes(4).toString("hex")}`, password: randomBytes(12).toString("hex"), attest: true }),
+  });
+  if (!res.ok) throw new Error(`sign up → ${res.status}`);
+  const sess = res.headers.getSetCookie().map((c) => c.split(";")[0]).filter((c) => c.startsWith("bz_sess="));
+  if (!sess.length) throw new Error("sign up set no session cookie");
+  who.cookie = [who.cookie, ...sess].join("; ");
+}
+
 async function grantDates(base, who) {
+  await signUp(base, who);
   must(await post(base, "/api/admin/claim", {}, who, { "x-frontier-key": ADMIN_PASSWORD }), "claim admin");
   must(await post(base, "/api/admin/tokens", {}, who), "grant dates");
 }
@@ -128,10 +145,11 @@ async function runPair(index, pair, browser) {
   try {
     const ownerA = persona();
     const ownerB = persona();
-    const a = await call("/api/characters", { ...pair.a, open_to_dates: true, attest: true, keep_name: true }, ownerA);
-    const b = await call("/api/characters", { ...pair.b, open_to_dates: true, attest: true, keep_name: true }, ownerB);
+    // Accounts first (grantDates signs each owner up), so their characters are made by the account that books the dates.
     await grantDates(base, ownerA);
     await grantDates(base, ownerB);
+    const a = await call("/api/characters", { ...pair.a, open_to_dates: true, attest: true, keep_name: true }, ownerA);
+    const b = await call("/api/characters", { ...pair.b, open_to_dates: true, attest: true, keep_name: true }, ownerB);
 
     let prev = null;
     for (let n = 1; n <= DATES; n++) {
@@ -160,7 +178,10 @@ async function runPair(index, pair, browser) {
       const edgeB = await relationship(base, ownerB, a.id, b.id);
       const memA = (await get(base, `/api/characters/${a.id}/memory`, ownerA)).data;
       const memB = (await get(base, `/api/characters/${b.id}/memory`, ownerB)).data;
-      for (const [name, data] of Object.entries({ view, afterglow, edge, edgeB, memA, memB, daily })) {
+      // Each one's story state (lib/story-state.ts): what it now thinks of the other, from the date that just aired.
+      const storyA = (await get(base, `/api/characters/${a.id}/story`, ownerA)).data;
+      const storyB = (await get(base, `/api/characters/${b.id}/story`, ownerB)).data;
+      for (const [name, data] of Object.entries({ view, afterglow, edge, edgeB, memA, memB, storyA, storyB, daily })) {
         writeFileSync(join(dir, `date-${n}-${name}.json`), JSON.stringify(data, null, 2));
       }
       const bx = view.box_score ?? {};
@@ -196,6 +217,11 @@ async function runPair(index, pair, browser) {
         plans_kept: (e.plans ?? []).filter((p) => p.status === "kept").length,
         texts: e.texts?.length ?? 0,
         labels: (e.timeline ?? []).map((t) => t.ending_label),
+        // What each thinks of the other after this date (its own view): trust, attraction, and the date it came from.
+        thinks: [storyA, storyB].map((x) => {
+          const o = x?.story?.thinks?.[0];
+          return o ? { trust: o.trust, attraction: o.attraction, basis: o.basis, from_this_date: o.source === id } : null;
+        }),
       };
       log.dates.push(row);
       log.edges.push(summary);

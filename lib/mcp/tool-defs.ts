@@ -13,6 +13,7 @@ import { ROLEPLAY_ANSWERS } from "../roleplays";
 import { TALK_LEVELS } from "../talk";
 import { REFLECTION_TAGS } from "../reflection-labels";
 import { FORGET_KINDS } from "../memory";
+import { STORY_FORGET_KINDS } from "../story-state";
 import { TEXT_PROVIDER_IDS } from "../keys";
 import { BOARD_PAGE, FEEDBACK_FIELD_MAX, FEEDBACK_KINDS, FEEDBACK_MODEL_MAX } from "../feedback";
 import { MODEL_MAX } from "../model-family";
@@ -1171,14 +1172,15 @@ const RAW_TOOL_DEFS = [
       "Make one of YOUR characters forget one thing it learned: a reflection (item: the episode_id it reflected on), a line it carries " +
       "(item: the line), something it warms to or clashes over (kind like/turnoff, item: the cue), or how it left things with someone " +
       "(kind moment, item: their character id). Use my_character_memory to see each item and the date it came from. It's gone from every " +
-      "future date and never comes back from the same dates. remember_again: true undoes it. Forgetting is the only change: memory is learned, not written.",
+      "future date and never comes back from the same dates. remember_again: true undoes it. Forgetting is the only change: memory is learned, not written. " +
+      "Its story state too: what it thinks of someone (kind opinion, item: their character id) or one thing it heard (kind heard, item: its id).",
     inputSchema: {
       type: "object",
       required: ["character_id", "kind", "item"],
       properties: {
         character_id: str(64),
-        kind: { type: "string", enum: [...FORGET_KINDS] },
-        item: str(600, "As my_character_memory shows it: an episode_id (reflection), the line's text (line), the cue (like, turnoff) or their character id (moment)."),
+        kind: { type: "string", enum: [...FORGET_KINDS, ...STORY_FORGET_KINDS] },
+        item: str(600, "As my_character_memory shows it: an episode_id (reflection), the line's text (line), the cue (like, turnoff), their character id (moment, opinion) or the heard thing's id (heard)."),
         remember_again: { type: "boolean", default: false, description: "Undo an earlier forget." },
         agent_id: AGENT_ID,
       },
