@@ -1425,3 +1425,87 @@ button.chip-toggle.is-on {
 .league-page .code-block {
   margin: var(--space-2) 0 var(--space-3);
 }
+
+/* ---------------- /agents/tools and /agents/changelog (2026-11-15) ----------------
+   The tool reference and the server's changelog, both rendered from the server's own data (lib/mcp/reference.ts,
+   lib/mcp/changelog.ts). One block per tool or version, a rule between them; chips reuse .agents-core, with a quiet
+   variant for what isn't the headline. Long names and enum lists wrap anywhere so a phone never scrolls sideways.
+   Tokens only (tests/css-tokens.test.ts). */
+.agents-core.is-quiet {
+  background: var(--card);
+  color: var(--muted);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.tools-ref-jump ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  margin: var(--space-4) 0;
+  padding: 0;
+  list-style: none;
+}
+.tools-ref-jump a {
+  display: inline-block;
+  padding-block: var(--space-2);
+}
+.tools-ref-group {
+  margin-top: var(--space-6);
+  scroll-margin-top: var(--space-8);
+}
+.tool-ref,
+.mcp-release {
+  margin: 0;
+  padding-block: var(--space-4);
+  border-top: 1px solid var(--line);
+  scroll-margin-top: var(--space-8);
+  overflow-wrap: anywhere;
+}
+.tool-ref-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-md);
+}
+.tool-ref-head a {
+  text-decoration: none;
+}
+.tool-ref-purpose {
+  margin: 0 0 var(--space-2);
+  max-width: 46rem;
+}
+.tool-ref-args {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+.tool-ref-args li {
+  margin: 0;
+  padding-block: var(--space-1);
+  max-width: 52rem;
+}
+.tool-ref-required {
+  color: var(--accent-text);
+}
+.tool-ref-full > p {
+  margin: 0;
+  max-width: 52rem;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+.mcp-releases {
+  margin: var(--space-5) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.mcp-release ul {
+  margin: 0;
+  padding-left: var(--space-5);
+  max-width: 52rem;
+}
+.mcp-release li {
+  margin: var(--space-1) 0;
+}

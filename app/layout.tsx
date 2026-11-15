@@ -227,6 +227,8 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
               <li><Link prefetch={showPrefetch} href="/privacy">Privacy</Link></li>
               <li><Link prefetch={showPrefetch} href="/content-policy">Content policy</Link></li>
               <li><Link prefetch={showPrefetch} href="/report">Report a problem</Link></li>
+              {/* For people building agents: the MCP server's front door (/agents: tools and changelog are a tap further). */}
+              {!adHost && <li><Link prefetch={showPrefetch} href="/agents">Developers</Link></li>}
               <li>
                 <FeedbackLink />
               </li>
