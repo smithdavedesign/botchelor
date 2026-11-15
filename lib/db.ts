@@ -4102,6 +4102,23 @@ create table if not exists house_prizes (
   scene_id text,
   created_at timestamptz not null default now()
 );
+-- The daily clip the home page plays (lib/home-clip.ts, 2026-11-15): scripts/clips/daily-clip.mjs uploads a small muted
+-- web loop and a poster of the day's clip (POST /api/admin/home-clip). One row per clip, one clip per episode (a second
+-- upload replaces it). Bytes live in the object store (loop_key, poster_key), or here when none is configured.
+create table if not exists home_clips (
+  id text primary key,
+  episode_id text not null unique references episodes (id) on delete cascade,
+  day text not null,
+  loop_key text,
+  loop_data bytea,
+  poster_key text,
+  poster_data bytea,
+  width integer not null,
+  height integer not null,
+  seconds numeric(6, 2) not null,
+  created_at timestamptz not null default now()
+);
+create index if not exists home_clips_created_idx on home_clips (created_at desc);
 -- A viewer's report of one line of a scene (lib/house-scenes.ts reportSceneLine): REPORT_HIDE_THRESHOLD hide the line
 -- and take what it told back out of the story state.
 create table if not exists house_scene_reports (
