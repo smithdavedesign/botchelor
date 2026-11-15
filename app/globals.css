@@ -4860,6 +4860,49 @@ button.chat-vote[aria-pressed="true"] .chat-vote-face {
 .chat-dark button.chat-vote[aria-pressed="true"] .chat-vote-face {
   background: rgba(255, 255, 255, 0.16);
 }
+/* "Not them" (lib/line-feedback.ts): under a 👎, says the line was out of character. The button is the tap target and
+   the chip inside it is what shows, like the thumbs. */
+button.chat-vote-tag {
+  display: inline-grid;
+  place-items: center;
+  margin: 0 0 0 var(--space-1);
+  padding: 0;
+  min-height: 1.75rem;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  transform: none;
+  cursor: pointer;
+}
+button.chat-vote-tag:hover:not(:disabled) {
+  transform: none;
+  box-shadow: none;
+}
+.chat-vote-tag-face {
+  padding: 0.1rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+}
+button.chat-vote-tag[aria-pressed="true"] .chat-vote-tag-face {
+  border-color: var(--accent);
+  background: var(--soft);
+  color: var(--ink);
+}
+.chat-dark button.chat-vote-tag {
+  color: rgba(255, 255, 255, 0.85);
+}
+.chat-dark .chat-vote-tag-face {
+  border-color: rgba(255, 255, 255, 0.3);
+}
+.chat-dark button.chat-vote-tag[aria-pressed="true"] .chat-vote-tag-face {
+  background: rgba(255, 255, 255, 0.16);
+  color: rgba(255, 255, 255, 0.95);
+}
 .chat-vote-error {
   align-self: center;
   margin: var(--space-2) 0 0;
@@ -4880,6 +4923,11 @@ button.chat-vote[aria-pressed="true"] .chat-vote-face {
   button.chat-vote {
     width: 2.75rem;
     height: 2.75rem;
+    margin-block: -0.5rem;
+  }
+  /* A finger's target: 44px tall, its extra height pulled back out of the row like the thumbs'. */
+  button.chat-vote-tag {
+    min-height: 2.75rem;
     margin-block: -0.5rem;
   }
 }

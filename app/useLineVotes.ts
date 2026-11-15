@@ -14,8 +14,12 @@ export type LineVotes = {
   /** Whether to show the thumbs: a ref was given and the server didn't say it's not one this viewer can rate. */
   enabled: boolean;
   votes: Record<number, 1 | -1>;
+  /** The lines this viewer marked "Not them" (a 👎 that says the line was out of character). */
+  tags: Record<number, true>;
   /** Tap a thumb: sets it, or takes it back when it's the one already set. */
   cast: (index: number, vote: 1 | -1) => void;
+  /** Tap "Not them" under a 👎: marks the line out of character, or takes the mark back. The 👎 itself stays. */
+  tag: (index: number, on: boolean) => void;
   error: string | null;
 };
 
@@ -26,12 +30,17 @@ export type LineVotes = {
  */
 export function useLineVotes(feedback: LineFeedbackRef | null | undefined): LineVotes {
   const [votes, setVotes] = useState<Record<number, 1 | -1>>({});
+  const [tags, setTags] = useState<Record<number, true>>({});
   const [unavailable, setUnavailable] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const current = useRef(votes);
   current.current = votes;
   // Taps since the votes were read: kept over the read's answer, which may have left before the tap landed.
   const touched = useRef(new Map<number, 1 | -1 | 0>());
+  // The same for "Not them": a mark set or taken back since the read.
+  const touchedTags = useRef(new Map<number, boolean>());
+  const currentTags = useRef(tags);
+  currentTags.current = tags;
   const kind = feedback?.kind ?? null;
   const refId = feedback?.refId ?? null;
   const epoch = feedback?.epoch ?? null;
@@ -40,7 +49,9 @@ export function useLineVotes(feedback: LineFeedbackRef | null | undefined): Line
     if (!kind || !refId) return;
     let live = true;
     touched.current = new Map();
+    touchedTags.current = new Map();
     setVotes({});
+    setTags({});
     setUnavailable(false);
     setError(null);
     fetch(`/api/line-feedback?kind=${encodeURIComponent(kind)}&ref=${encodeURIComponent(refId)}`)
@@ -48,7 +59,7 @@ export function useLineVotes(feedback: LineFeedbackRef | null | undefined): Line
         if (!live) return;
         if (res.status === 404 || res.status === 400) return setUnavailable(true);
         if (!res.ok) return;
-        const body = (await res.json().catch(() => ({}))) as { votes?: Record<string, number> };
+        const body = (await res.json().catch(() => ({}))) as { votes?: Record<string, number>; tags?: Record<string, string> };
         const next: Record<number, 1 | -1> = {};
         for (const [i, v] of Object.entries(body.votes ?? {})) if (v === 1 || v === -1) next[Number(i)] = v;
         for (const [i, v] of touched.current) {
@@ -56,6 +67,14 @@ export function useLineVotes(feedback: LineFeedbackRef | null | undefined): Line
           else next[i] = v;
         }
         setVotes(next);
+        // A mark only ever sits on a 👎; a tap since the read wins over what the read says.
+        const marks: Record<number, true> = {};
+        for (const [i, tag] of Object.entries(body.tags ?? {})) if (tag === "out_of_character" && next[Number(i)] === -1) marks[Number(i)] = true;
+        for (const [i, on] of touchedTags.current) {
+          if (on && next[i] === -1) marks[i] = true;
+          else delete marks[i];
+        }
+        setTags(marks);
       })
       .catch(() => {
         /* offline: the thumbs still try on a tap */
@@ -77,20 +96,60 @@ export function useLineVotes(feedback: LineFeedbackRef | null | undefined): Line
           else copy[index] = v;
           return copy;
         });
+      // Any tap on a thumb drops the "Not them" mark: it belongs to the 👎 that was there.
+      const hadTag = currentTags.current[index] === true;
+      const mark = (on: boolean) =>
+        setTags((all) => {
+          const copy = { ...all };
+          if (on) copy[index] = true;
+          else delete copy[index];
+          return copy;
+        });
       apply(next);
+      mark(false);
       touched.current.set(index, next);
+      touchedTags.current.set(index, false);
       setError(null);
       void requestJson("/api/line-feedback", { kind, ref_id: refId, line_index: index, vote: next })
         .catch(() => null)
         .then((res) => {
           if (res?.ok) return;
           apply(before);
+          mark(hadTag);
           touched.current.set(index, before);
+          touchedTags.current.set(index, hadTag);
           setError(res?.message ?? "That vote didn't save. Check your connection and try again.");
         });
     },
     [kind, refId],
   );
 
-  return { enabled: Boolean(kind && refId) && !unavailable, votes, cast, error };
+  const tag = useCallback(
+    (index: number, on: boolean) => {
+      if (!kind || !refId || current.current[index] !== -1) return;
+      const before = currentTags.current[index] === true;
+      if (before === on) return;
+      const mark = (v: boolean) =>
+        setTags((all) => {
+          const copy = { ...all };
+          if (v) copy[index] = true;
+          else delete copy[index];
+          return copy;
+        });
+      mark(on);
+      touchedTags.current.set(index, on);
+      setError(null);
+      void requestJson("/api/line-feedback", { kind, ref_id: refId, line_index: index, vote: -1, tag: on ? "out_of_character" : null })
+        .catch(() => null)
+        .then((res) => {
+          if (res?.ok) return;
+          mark(before);
+          touchedTags.current.set(index, before);
+          setError(res?.message ?? "That didn't save. Check your connection and try again.");
+        });
+    },
+    [kind, refId],
+  );
+
+  return { enabled: Boolean(kind && refId) && !unavailable, votes, tags, cast, tag, error };
 }

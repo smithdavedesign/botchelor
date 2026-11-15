@@ -79,6 +79,12 @@ ignore it.
 - **`CHARACTER_QUESTIONS`** (the show's app, not a secret; on unless `0`): the daily job's `character_questions` step, a
   character asking its opted-in owner about its own sheet (`lib/character-questions.ts`, [companions.md](companions.md)).
   `0` sends none; an answer box already in a thread still saves.
+- **`CHARACTER_LESSONS`** (the show's app, not a secret; on unless `0`): the characters' weekly lessons
+  (`lib/character-lessons.ts`, [character-depth.md](character-depth.md) §12): the daily job's `character_lessons` step
+  (up to 40 characters a day on the free model, the paid default as the fallback, then a template), the lessons block in
+  a character's own date prompt and its owner's companion prompt, the lines on the owner's memory page and in Sunday's
+  recap, and the one weekly text. `0` turns all of it off without a deploy of code; rows already written stay and come
+  back with the switch.
 - **`LIFE_DATES_PER_DAY`** (the show's app, not a secret; default `30`): how many life dates the daily job books a day
   (`lib/character-life.ts weeklyLifeDates`): the house takes each owned character out once a week, house-paid, on the
   show's model (~1¢ each). `0` turns them off without a deploy; nothing books while `BOTCHELOR_PAUSE` is on or the paid

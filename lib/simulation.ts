@@ -23,7 +23,8 @@ import {
   type SoulSignals,
 } from "./engine";
 import type { BoxScore, DateSetup } from "./game";
-import { assembleCharacter, type Character } from "./character";
+import { assembleCharacter, type Character, type PromptLessons } from "./character";
+import { lessonsForPrompt } from "./character-lessons";
 import type { CharacterExtras } from "./extras";
 import { thisWeek, type StoredThisWeek } from "./life";
 import { leanedOnWords, loadCharacterMemory, pairMemory, pendingReflections, withPairMemory, withPendingReflections, type CharacterMemory } from "./memory";
@@ -193,6 +194,12 @@ export type DateParts = {
   storyA?: StoryState | null;
   storyB?: StoryState | null;
   /**
+   * What each side has learned about itself lately (lib/character-lessons.ts): its own prompt only, in place of its
+   * one-line arc. Behaviour, never the engine: nothing below reads it but the character's self view.
+   */
+  lessonsA?: PromptLessons | null;
+  lessonsB?: PromptLessons | null;
+  /**
    * The season format's venue pool (lib/season-format.ts): the lobby's house dates deal from it when the season has
    * one (the island month's villa). Null/omitted deals from the whole library, exactly as before.
    */
@@ -226,6 +233,8 @@ export function assembleDate(p: DateParts): BuiltDate {
   if (p.claimsB?.length) charB.claimsBefore = p.claimsB;
   if (p.secretsA?.length) charA.secrets = p.secretsA;
   if (p.secretsB?.length) charB.secrets = p.secretsB;
+  if (p.lessonsA?.lines.length) charA.lessons = p.lessonsA;
+  if (p.lessonsB?.lines.length) charB.lessons = p.lessonsB;
   // The story state each carries about the other (lib/story-state.ts). Flavour only: the engine never reads it.
   if (p.storyA) charA.story = p.storyA;
   if (p.storyB) charB.story = p.storyB;
@@ -463,6 +472,8 @@ export async function buildDate(
       : [[], []];
   // A cast member's own secrets still hidden this season, to guard or let slip (living dates, lib/cast-secrets.ts).
   const [secretsA, secretsB] = await Promise.all([secretsForDate(db, a.id).catch(() => []), secretsForDate(db, b.id).catch(() => [])]);
+  // What each has learned about itself lately (lib/character-lessons.ts; null with CHARACTER_LESSONS=0): its own prompt only.
+  const [lessonsA, lessonsB] = await Promise.all([lessonsForPrompt(db, a.id), lessonsForPrompt(db, b.id)]);
   // What each thinks of the other, has heard about them and wants this week (lib/story-state.ts; null with STORY_STATE=0).
   const [storyA, storyB] = await Promise.all([stateFor(db, a.id, { withId: b.id }).catch(() => null), stateFor(db, b.id, { withId: a.id }).catch(() => null)]);
   const [lo] = pairKey(a.id, b.id);
@@ -490,7 +501,7 @@ export async function buildDate(
     venuePool: opts.venuePool ?? null, producerPick: opts.producerPick ?? null,
     extrasA: rowOf(a.id)?.extras ?? null, extrasB: rowOf(b.id)?.extras ?? null,
     hotTakesA: rowOf(a.id)?.hot_takes ?? null, hotTakesB: rowOf(b.id)?.hot_takes ?? null,
-    claimsA, claimsB, secretsA, secretsB, storyA, storyB,
+    claimsA, claimsB, secretsA, secretsB, lessonsA, lessonsB, storyA, storyB,
     overusedA, overusedB,
     thisWeekA: thisWeek(a.id, rowOf(a.id)?.this_week), thisWeekB: thisWeek(b.id, rowOf(b.id)?.this_week),
   });

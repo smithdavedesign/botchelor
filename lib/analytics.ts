@@ -63,6 +63,7 @@ export type AnalyticsEvent =
   | "companion_text" // a character texted its person first (lib/companion.ts postFromCharacter): the kind of text and how many bubbles; never the words
   | "express_draft" // one-sentence create drafted a sheet, or didn't (app/api/characters/draft): ready or the reason; never the words
   | "character_question" // a character asked its owner about its own sheet (lib/character-questions.ts): the field only
+  | "character_lessons" // the daily job wrote characters' weekly lessons (lib/character-lessons-job.ts): how many (ours apart), by model or template, texts sent, the cost; never the words
   | "character_answer" // the owner answered one (the thread's answer box): the field, and whether the sheet's checks took it
   | "companion_offer" // a chip under one of those texts was tapped (lib/companion-offers.ts): which offer (second_date, someone_new, advice), and whether a guest
   | "companion_voice" // a companion reply recorded as a voice note (lib/companion-voice.ts): how long, its length, what paid; never the words

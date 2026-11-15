@@ -5,6 +5,7 @@ import { adultKeys } from "./adult/settings";
 import { track } from "./analytics";
 import { portraitPathSql } from "./assets";
 import { loadCharacter, type Character } from "./character";
+import { lessonsForPrompt } from "./character-lessons";
 import { ClauseSplitter, spokenClause } from "./companion-live-shared";
 import { AVOID_LINES, BUBBLE_MAX, companionMessages, MAX_BUBBLES, RECENT_TURNS, repeatsEarlier, replyBubbles, sceneReply, type PromptRoleplay, type PromptScene, type PromptTurn } from "./companion-prompt";
 import { factsForPrompt, updateFacts, updateSummary } from "./companion-memory";
@@ -695,6 +696,8 @@ async function speak(
   const lastDate = await lastDateFor(db, character.id, yours);
   // The owner's standing note for the next date with that partner (a nudge): the character may acknowledge it here.
   const nudge = yours && lastDate ? await activeNudge(db, character.id, lastDate.partnerId).catch(() => null) : null;
+  // What it has learned about itself lately (lib/character-lessons.ts): its maker's thread only.
+  const lessons = yours ? await lessonsForPrompt(db, character.id) : null;
   // What it thinks of people, has heard and wants this week (lib/story-state.ts): its own, so a text can mention it.
   const story = await companionStory(db, character, yours, now).catch(() => []);
   // A safe draw that only says something again: used when the redraw doesn't come back better (never a deflection).
@@ -705,7 +708,7 @@ async function speak(
     let raw: string;
     try {
       raw = await model.complete(
-        companionMessages({ character, turns, facts, summary: t.summary, length: t.reply_length, avoid, now, insteadOf, cue: opts.cue, scene, call, yours, lastDate, activeNudge: nudge, photos, story }),
+        companionMessages({ character, turns, facts, summary: t.summary, length: t.reply_length, avoid, now, insteadOf, cue: opts.cue, scene, call, yours, lastDate, activeNudge: nudge, photos, lessons, story }),
         {
           temperature: 0.9,
           frequencyPenalty: 0.3,
@@ -911,6 +914,8 @@ export async function liveReply(db: Db, turn: LiveTurn, sink: LiveSink): Promise
   const yours = character.ownerId !== null && character.ownerId === t.user_id;
   const lastDate = await lastDateFor(db, character.id, yours);
   const nudge = yours && lastDate ? await activeNudge(db, character.id, lastDate.partnerId).catch(() => null) : null;
+  // What it has learned about itself lately (lib/character-lessons.ts): its maker's thread only.
+  const lessons = yours ? await lessonsForPrompt(db, character.id) : null;
   // What it thinks of people, has heard and wants this week (lib/story-state.ts): its own, so a text can mention it.
   const story = await companionStory(db, character, yours, now).catch(() => []);
   const usage: Usage[] = [];
@@ -941,7 +946,7 @@ export async function liveReply(db: Db, turn: LiveTurn, sink: LiveSink): Promise
   };
   try {
     const stream = model.stream(
-      companionMessages({ character, turns, facts, summary: t.summary, length: t.reply_length, avoid, now, call: true, live: true, yours, lastDate, activeNudge: nudge, photos, story }),
+      companionMessages({ character, turns, facts, summary: t.summary, length: t.reply_length, avoid, now, call: true, live: true, yours, lastDate, activeNudge: nudge, photos, lessons, story }),
       { temperature: 0.9, frequencyPenalty: 0.3, maxTokens: 250, onUsage: (u) => usage.push(u), onModel: (id) => (served = id), signal },
     );
     reading: for await (const piece of stream) {

@@ -3914,6 +3914,36 @@ create table if not exists adult_overnights (
   told_at timestamptz,
   primary key (episode_id, owner_id)
 );
+-- Learning, weekly (lib/character-lessons.ts; David 2026-11-15, the drama wave's part 6): what a character has learned
+-- about itself, in its own words. One row a character a week (week: that week's Monday, UTC), claimed as 'pending'
+-- before the writer is called so two passes can't both write it. lines: up to three first-person sentences of at most
+-- 120 characters; trying_next: one optional "what I'm trying next" sentence; episodes: the aired public dates they came
+-- from ([{episode_id, with, at}]); source: 'model' or the $0 'template'; model and the tokens and cost of the call that
+-- wrote it (cost_usd: the provider's own figure, else list price, else null). Private like the learned memory: only the
+-- character's own prompts, its owner's memory page and its texts to its owner read it; never the engine, never a dataset.
+create table if not exists character_lessons (
+  character_id text not null references characters (id) on delete cascade,
+  week text not null,
+  lines jsonb not null default '[]'::jsonb,
+  trying_next text,
+  episodes jsonb not null default '[]'::jsonb,
+  source text not null check (source in ('pending', 'model', 'template', 'none')),
+  model text,
+  input_tokens integer,
+  output_tokens integer,
+  cost_usd numeric,
+  created_at timestamptz not null default now(),
+  primary key (character_id, week)
+);
+create index if not exists character_lessons_created_idx on character_lessons (created_at desc);
+-- A lesson is something an owner can tell the character to forget (item: the lesson's words), like the rest of memory.
+alter table memory_forgets drop constraint if exists memory_forgets_kind_check;
+alter table memory_forgets add constraint memory_forgets_kind_check check (kind in ('reflection', 'line', 'like', 'turnoff', 'moment', 'lesson'));
+-- "Not them" (lib/line-feedback.ts): a thumbs-down may say the line was out of character. Null on every other vote.
+alter table line_feedback add column if not exists tag text;
+alter table line_feedback drop constraint if exists line_feedback_tag_check;
+alter table line_feedback add constraint line_feedback_tag_check check (tag is null or (tag = 'out_of_character' and vote < 0));
+create index if not exists line_feedback_tag_idx on line_feedback (ref_id) where tag is not null;
 -- The story state (lib/story-state.ts, 2026-11-15): what a character thinks of people, what it has heard and from whom,
 -- and what it wants this week. Private to its holder (its own prompts, its owner's view), built only from the public
 -- aired record, never read by the engine. forgotten_at: its owner told it to forget (the row stays, so the same source

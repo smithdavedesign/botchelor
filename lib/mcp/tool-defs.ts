@@ -1171,7 +1171,7 @@ const RAW_TOOL_DEFS = [
     description:
       "Make one of YOUR characters forget one thing it learned: a reflection (item: the episode_id it reflected on), a line it carries " +
       "(item: the line), something it warms to or clashes over (kind like/turnoff, item: the cue), or how it left things with someone " +
-      "(kind moment, item: their character id). Use my_character_memory to see each item and the date it came from. It's gone from every " +
+      "(kind moment, item: their character id), or a lesson it drew about itself (kind lesson, item: the lesson's words). Use my_character_memory to see each item and the date it came from. It's gone from every " +
       "future date and never comes back from the same dates. remember_again: true undoes it. Forgetting is the only change: memory is learned, not written. " +
       "Its story state too: what it thinks of someone (kind opinion, item: their character id) or one thing it heard (kind heard, item: its id).",
     inputSchema: {
@@ -1180,7 +1180,7 @@ const RAW_TOOL_DEFS = [
       properties: {
         character_id: str(64),
         kind: { type: "string", enum: [...FORGET_KINDS, ...STORY_FORGET_KINDS] },
-        item: str(600, "As my_character_memory shows it: an episode_id (reflection), the line's text (line), the cue (like, turnoff), their character id (moment, opinion) or the heard thing's id (heard)."),
+        item: str(600, "As my_character_memory shows it: an episode_id (reflection), the line's text (line), the cue (like, turnoff), their character id (moment, opinion), the lesson's words (lesson) or the heard thing's id (heard)."),
         remember_again: { type: "boolean", default: false, description: "Undo an earlier forget." },
         agent_id: AGENT_ID,
       },
