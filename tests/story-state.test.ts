@@ -3,6 +3,8 @@
  * who told them), the private prompt block (one side's never in the other's), a claim brought up on a line and the
  * knows_you_said fact it leaves, wants from rules, tensions, forgetting, the switch and the backfill. No paid calls.
  */
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { DELETE as deleteStory, GET as getStory, POST as postStory } from "@/app/api/characters/[id]/story/route";
 import { airEpisode } from "@/lib/air";
@@ -12,6 +14,8 @@ import { buildTurnMessages, simulateConversation } from "@/lib/conversation";
 import { fixedEngine, NEUTRAL_SIGNALS, type CharacterSheet, type DateInput, type Outcome, type SideOutcome, type SideSetup } from "@/lib/engine";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import { innerOf } from "@/lib/inner-life";
+import { handleMcpMessage, type McpContext } from "@/lib/mcp";
+import { updateCharacterMemory } from "@/lib/memory";
 import type { ChatMessage, Model } from "@/lib/model";
 import { shortName } from "@/lib/names";
 import { buildReflectionMessages } from "@/lib/reflection";
@@ -50,7 +54,10 @@ import {
   type WantFacts,
 } from "@/lib/story-state";
 import { pickVenue } from "@/lib/venues";
-import { BASE_URL, jsonRequest, newUserCookie, startTestDb, userIdOf } from "./helpers";
+import { BASE_URL, jsonRequest, newUserCookie, startTestDb, userIdOf, validCharacter } from "./helpers";
+
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push() {}, refresh() {} }) }));
+const { default: StoryPanel } = await import("@/app/characters/[id]/StoryPanel");
 
 let t: Awaited<ReturnType<typeof startTestDb>>;
 beforeAll(async () => {
@@ -652,6 +659,30 @@ describe("the owner's view and forgetting", () => {
     expect((await stateFor(t.db, mine, { withId: NELL }))!.opinions[0]).toMatchObject({ source: later });
   });
 
+  it("the owner's panel shows the want, each opinion and thing heard with Forget, and what was forgotten", async () => {
+    const mine = await person("Rowan Vale");
+    const date = await episode(mine, NELL, { ending: "friends", sides: [true, false] });
+    await afterAired(t.db, date);
+    await hear(t.db, { holder: mine, about: DEX, claim: "Dex owns a boat he says he doesn't.", toldBy: SABLE, source: "scene:p", isTrue: false });
+    const gone = await hear(t.db, { holder: mine, about: JUNE, claim: "June cheats at cards.", toldBy: SABLE, source: "scene:q", isTrue: true });
+    await forgetStory(t.db, mine, "heard", gone!.id);
+    await setWant(t.db, { holder: mine, want: "Get closer to someone new.", kind: "pursue", setBy: "rules", now: NOW });
+    const story = (await storyView(t.db, mine, NOW))!;
+    const html = renderToStaticMarkup(createElement(StoryPanel, { characterId: mine, name: "Rowan Vale", story, episodes: [date] }));
+    expect(html).toContain("This week Rowan wants:");
+    expect(html).toContain("What Rowan thinks of people:");
+    expect(html).toContain("What Rowan has heard:");
+    expect(html).toContain(`href="/characters/${NELL}"`);
+    expect(html).toContain(`href="/episodes/${date}"`);
+    expect(html).toContain("Dex owns a boat he says he doesn&#x27;t.");
+    expect(html).toContain(`${first(SABLE)} told it`);
+    expect(html).toContain("(only from what it heard)");
+    expect(html).toContain(">Forget<");
+    expect(html).toContain("Forgotten (1)");
+    expect(html).toContain("Remember it again");
+    expect(html).not.toMatch(/is_true|untrue/);
+  });
+
   it("is the owner's alone over the API: see it, forget, remember again", async () => {
     const cookie = newUserCookie();
     const stranger = newUserCookie();
@@ -674,6 +705,36 @@ describe("the owner's view and forgetting", () => {
     expect((await back.json()).story.thinks).toHaveLength(1);
     // A house character has no owner: nobody reads its state here.
     expect((await getStory(new Request(`${BASE_URL}/api/characters/${NELL}/story`, { headers: { cookie } }), { params: Promise.resolve({ id: NELL }) })).status).toBe(404);
+  });
+});
+
+describe("agents (MCP)", () => {
+  it("see their character's story state in my_character_memory and forget it with forget_memory, with no new tool", async () => {
+    const mctx: McpContext = {};
+    await handleMcpMessage({ jsonrpc: "2.0", id: 0, method: "initialize", params: { protocolVersion: "2025-06-18" } }, mctx);
+    const session: McpContext = { sessionId: mctx.issuedSessionId };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const call = async (name: string, args: Record<string, unknown>): Promise<any> =>
+      (await handleMcpMessage({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args } }, session))!.result;
+    const ada = (await call("create_character", validCharacter({ name: "Ada Lumen" }))).structuredContent.character.id;
+    await afterAired(t.db, await episode(ada, NELL, { ending: "friends", sides: [true, false] }));
+    await updateCharacterMemory(t.db, ada);
+    const h = await hear(t.db, { holder: ada, about: DEX, claim: "Dex owns a boat he says he doesn't.", toldBy: SABLE, source: "scene:m", isTrue: false });
+
+    const mem = (await call("my_character_memory", { character_id: ada })).structuredContent;
+    expect(mem.what_it_thinks_of_people.map((o: { about: string }) => o.about).sort()).toEqual([DEX, NELL].sort());
+    expect(mem.what_it_has_heard).toEqual([{ id: h!.id, claim: "Dex owns a boat he says he doesn't.", told_by: HOUSE_CHARACTERS.find((c) => c.id === SABLE)!.name, from: "scene:m" }]);
+    expect(JSON.stringify(mem)).not.toContain("is_true");
+    expect((await call("forget_memory", { character_id: ada, kind: "opinion", item: NELL })).isError).toBeUndefined();
+    expect((await call("forget_memory", { character_id: ada, kind: "heard", item: h!.id })).isError).toBeUndefined();
+    const after = (await call("my_character_memory", { character_id: ada })).structuredContent;
+    expect(after.what_it_thinks_of_people.map((o: { about: string }) => o.about)).toEqual([DEX]);
+    expect(after.what_it_has_heard).toBeUndefined();
+    expect(after.forgotten).toEqual(expect.arrayContaining([{ kind: "opinion", item: NELL }, { kind: "heard", item: h!.id }]));
+    expect((await call("forget_memory", { character_id: ada, kind: "opinion", item: NELL, remember_again: true })).isError).toBeUndefined();
+    expect((await call("my_character_memory", { character_id: ada })).structuredContent.what_it_thinks_of_people).toHaveLength(2);
+    // Forgetting something it doesn't hold is an error, as with memory.
+    expect((await call("forget_memory", { character_id: ada, kind: "opinion", item: JUNE })).isError).toBe(true);
   });
 });
 

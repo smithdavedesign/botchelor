@@ -6,7 +6,7 @@
  *   - books a first date, then each next one as a second date when both wanted another (the other owner says yes,
  *     then the booking owner), or a fresh date between the same two when they didn't;
  *   - airs each date, opens its afterglow, and runs the daily job once (the texts between dates);
- *   - saves the owner's episode view, the afterglow, the relationship edge, both characters' learned memory and the
+ *   - saves the owner's episode view, the afterglow, the relationship edge, both characters' learned memory, story state and the
  *     couple's texts after every date;
  *   - screenshots the couple page and the last date on desktop and phone.
  * Then it writes summary.json: per couple, the edge after each date, endings, and what was remembered.
@@ -160,7 +160,10 @@ async function runPair(index, pair, browser) {
       const edgeB = await relationship(base, ownerB, a.id, b.id);
       const memA = (await get(base, `/api/characters/${a.id}/memory`, ownerA)).data;
       const memB = (await get(base, `/api/characters/${b.id}/memory`, ownerB)).data;
-      for (const [name, data] of Object.entries({ view, afterglow, edge, edgeB, memA, memB, daily })) {
+      // Each one's story state (lib/story-state.ts): what it now thinks of the other, from the date that just aired.
+      const storyA = (await get(base, `/api/characters/${a.id}/story`, ownerA)).data;
+      const storyB = (await get(base, `/api/characters/${b.id}/story`, ownerB)).data;
+      for (const [name, data] of Object.entries({ view, afterglow, edge, edgeB, memA, memB, storyA, storyB, daily })) {
         writeFileSync(join(dir, `date-${n}-${name}.json`), JSON.stringify(data, null, 2));
       }
       const bx = view.box_score ?? {};
@@ -196,6 +199,11 @@ async function runPair(index, pair, browser) {
         plans_kept: (e.plans ?? []).filter((p) => p.status === "kept").length,
         texts: e.texts?.length ?? 0,
         labels: (e.timeline ?? []).map((t) => t.ending_label),
+        // What each thinks of the other after this date (its own view): trust, attraction, and the date it came from.
+        thinks: [storyA, storyB].map((x) => {
+          const o = x?.story?.thinks?.[0];
+          return o ? { trust: o.trust, attraction: o.attraction, basis: o.basis, from_this_date: o.source === id } : null;
+        }),
       };
       log.dates.push(row);
       log.edges.push(summary);
