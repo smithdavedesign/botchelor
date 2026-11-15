@@ -27,6 +27,12 @@ import {
 import { startTestDb } from "./helpers";
 
 vi.mock("next/dynamic", () => ({ default: () => () => null }));
+// The character page reads the viewer from cookies; here everyone is a stranger.
+vi.mock("next/headers", () => ({
+  cookies: async () => ({ get: () => undefined }),
+  headers: async () => new Headers(),
+}));
+vi.mock("@/app/AfterDarkTeaser", () => ({ default: () => null }));
 vi.mock("next/navigation", async (original) => ({
   ...(await original<typeof import("next/navigation")>()),
   useRouter: () => ({ refresh() {}, push() {}, replace() {}, back() {}, prefetch() {} }),
@@ -386,6 +392,19 @@ describe("the read, the switch and the pages", () => {
     expect(off).not.toContain("story-map");
     expect(off).not.toContain("story-circle");
     expect(off).toContain("house-scene-lead");
+  });
+
+  it("a character's page carries their circle at the top of Talk, and not with the switch off", async () => {
+    const { default: CharacterPage } = await import("@/app/characters/[id]/page");
+    const page = async () => renderToStaticMarkup(await CharacterPage({ params: Promise.resolve({ id: "house-sable" }) }));
+    const html = await page();
+    expect(html).toContain('id="circle"');
+    expect(html).toContain("circle this week");
+    // Above the talk, inside the Talk panel.
+    expect(html.indexOf('id="panel-talk"')).toBeLessThan(html.indexOf('id="circle"'));
+    expect(html).not.toContain(SECRET);
+    process.env.STORY_MAP = "0";
+    expect(await page()).not.toContain("story-circle");
   });
 
   it("/graph opens on this week, then all time, then the tables folded; with the switch off it is the old page", async () => {

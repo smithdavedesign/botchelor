@@ -62,6 +62,8 @@ import { companionGuestFromCookies } from "@/lib/companion-access";
 import LearnedPanel from "./LearnedPanel";
 import StoryPanel from "./StoryPanel";
 import TalkPanel from "./TalkPanel";
+import Circle from "@/app/Circle";
+import { loadCircle } from "@/lib/story-map";
 import { characterTalk } from "@/lib/character-talk";
 import { storyView } from "@/lib/story-state";
 import AfterDarkTeaser from "@/app/AfterDarkTeaser";
@@ -314,6 +316,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
     storyState,
     overnights,
     talkOfHouse,
+    circle,
     reviewsOpen,
   ] = await Promise.all([
     firstP,
@@ -344,6 +347,9 @@ export default async function CharacterPage({ params, searchParams }: Props) {
     // Talk of the house (lib/character-talk.ts): public sources only, the same for every viewer, the owner included.
     // The house's part is one shared read; the edges are the ones read above. Null with CHARACTER_TALK=0.
     characterTalk(db, { id: c.id, name: c.name, private: c.private }, { edges: edgesP }),
+    // The people around them this week (lib/story-map.ts): from the map /house already shares, so no read of its own
+    // while that is warm. Null with no ties, with STORY_MAP=0, and for a private character (the map never holds one).
+    c.private ? Promise.resolve(null) : loadCircle(db, c.id),
     // Whether reviews are open (a house character only while on the season's cast), read beside the rest.
     c.house ? reviewableNow(c.id) : Promise.resolve(true),
   ]);
@@ -785,7 +791,8 @@ export default async function CharacterPage({ params, searchParams }: Props) {
 
       {talkOfHouse ? (
         <div data-panel="talk" id="panel-talk" role="tabpanel" aria-labelledby="tab-talk" hidden>
-          {/* The circle (the people around them and the tie to each) mounts here, above the talk. */}
+          {/* The people around them and the tie to each, above the talk: the same ties /house draws for the lead. */}
+          {circle && <Circle circle={circle} title={`${shortName(c.name)}'s circle this week`} id="circle" />}
           <TalkPanel name={shortName(c.name)} talk={talkOfHouse} verb={verb ?? (ratings.is_owner && !c.house ? { label: `Send ${shortName(c.name)} on a date`, href: `/create?character=${c.id}`, track: "verb-own" } : null)}>
             {/* The written reviews keep their home (agents write them over MCP), folded under the talk. #audience, the
                 old tab's anchor, is this fold: PageTabs opens Talk, opens the fold and scrolls to it. */}
