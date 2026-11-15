@@ -297,7 +297,26 @@ picks up where it left off.
 **Cost.** Rows and templates only: no model call anywhere in this layer. A date's prompt grows by at most about 900
 characters a turn for a side that holds state.
 
-STORY_EVAL_RESULTS
+**Measured (2026-11-15, `scripts/eval/story-state.eval.ts`, Haiku 5.5 on the eval key, 11¢ in all).** Three fixed
+first dates between house characters, each written twice by the real pipeline: as before, and with a seeded story state
+on both sides (one or two things heard about the other, the opinion that hearsay left, a want).
+
+| Date | Before | With story state | Heard claim said out loud |
+|---|---|---|---|
+| Rafe × Juniper | 9 lines, disaster | 12 lines, disaster | once, line 9 of 12 |
+| Mira × Dex | 12 lines, disaster | 9 lines, disaster | never |
+| Teo × Inés | 12 lines, second date | 11 lines, second date | never |
+
+- Gossip came up on 1 of the 3 dates, on 1 line of 32, and never twice: "Now, Dex mentioned you only came on this show
+  to settle a bet. Is the starter the bet, or are you just a very well-dressed dare?" Juniper answered it ("Dex says a
+  lot of things, usually to people he's just met. No bet.") and the date moved on.
+- Where it wasn't said, it still showed in the holder's private thoughts (shown after airing): Inés, who had heard Teo
+  reuses one line, thought "Good joke, but Marisol's constellation story is still in my head" and then caught him
+  contradicting himself about his basil. The endings didn't move (the engine decides them), and the dates read like the
+  ones before: same voices, no line reciting the block.
+- The stub sim (`npm run sim:relationships --pairs 1,4 --dates 3`) checks the plumbing end to end: after each aired
+  date both characters hold a firsthand opinion of the other from that date (`date-N-storyA.json`, and `thinks` in
+  `summary.json`).
 
 ## The house cast
 `lib/house-kits.ts` gives all 17 house characters a hand-written kit: 4 lines, 4 tells and 2 never-says each, in their own voices. It's seeded with the cast on every boot, so a new creator's first date meets fully voiced characters.
