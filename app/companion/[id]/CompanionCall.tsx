@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import Avatar, { sized } from "@/app/Avatar";
 import { characterPortrait } from "@/lib/portraits";
 import { useSpeech } from "@/app/stage/useSpeech";
@@ -38,8 +39,11 @@ const BIG_FACE = 768;
 /** How the call goes: live (P6: Deepgram hears you as you talk, either of you can talk over the other) or taking turns (v1). */
 export type CallMode = "live" | "classic";
 
-/** Live calls (P6), when they're on for this person: the route, and where they stand on call minutes. */
-export type LiveOffer = { url: string; minutes: CompanionExtraState | null };
+/**
+ * Live calls (P6), when they're on for this person: the route, where they stand on call minutes, and their moving face
+ * (lib/live-face liveFaceOffer): "yours" on their calls, "plan" when it comes with the Companion Plan, else none.
+ */
+export type LiveOffer = { url: string; minutes: CompanionExtraState | null; face?: "yours" | "plan" | null };
 
 /** Their call minutes, in words: free (an admin), what's left, or the price of the next ten. */
 export function minutesWords(s: CompanionExtraState | null | undefined): string {
@@ -1147,7 +1151,10 @@ export default function CompanionCall({
                   <input type="radio" name="call-mode" checked={mode === "live"} onChange={() => setMode("live")} />
                   <span>
                     Live · {minutesWords(minutes)}
-                    <span className="muted small"> (talk over each other, {first}&apos;s own voice)</span>
+                    <span className="muted small">
+                      {" "}
+                      (talk over each other, {first}&apos;s own voice{live?.face === "yours" ? " and moving face" : ""})
+                    </span>
                   </span>
                 </label>
                 <label className="check">
@@ -1155,6 +1162,15 @@ export default function CompanionCall({
                   <span>Taking turns · free</span>
                 </label>
               </fieldset>
+            )}
+            {canLive && mode === "live" && live?.face === "plan" && (
+              <p className="muted small" data-testid="call-face-offer">
+                With the{" "}
+                <Link href="/companion/plan" data-track="companion-call-face-plan">
+                  Companion Plan
+                </Link>
+                , {first}&apos;s face moves as they talk on a live call.
+              </p>
             )}
             {voicePrice !== null && !(canLive && mode === "live") && (
               <fieldset className="companion-call-voices">
@@ -1185,6 +1201,9 @@ export default function CompanionCall({
                   <p>
                     It&apos;s by the minute: each minute on the line is a call minute ({minutesWords(minutes)}), and a quiet minute pauses it so silence
                     isn&apos;t paid for.
+                    {live?.face === "yours"
+                      ? ` ${first}'s moving face costs nothing more: our own renderer draws it from ${first}'s portrait and voice as they speak, and your voice never goes to it.`
+                      : ""}
                   </p>
                 </>
               ) : (
