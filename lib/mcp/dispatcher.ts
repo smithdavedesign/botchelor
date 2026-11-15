@@ -33,6 +33,8 @@ import { characterSchema, EXAMPLE_CALLS, exampleCallsText, isExampleCharacter, l
 import { episodeAllowance, secondDateFreeNow, type Allowance } from "../allowance";
 import { track } from "../analytics";
 import { recordAgentEvent } from "../agent-funnel";
+import { declareModel, MODEL_NOT_RECORDED, modelEcho } from "../model-league";
+import { normalizeModel } from "../model-family";
 import { proseArguments, recordLanguage } from "../language-seen";
 import { byokAvailable, isTextProvider, listUserKeys, pingKey, saveUserKey, TEXT_PROVIDER_IDS, TEXT_PROVIDERS } from "../keys";
 import { hasJobKey, removeConnection } from "../connections";
@@ -256,7 +258,11 @@ export const MCP_PROTOCOL_VERSION = "2025-06-18";
 // 2.29.0 (the 2026-11-13 runs, #1539/#1540/#1541): every place argument's maxLength is the real 40; outputs[] items and
 // reflect_on_date's didnt carry their shape and tags in the schema; a batch's replies past the end lead the reply (warning,
 // unused_outputs), and every turn step says lines_left: new fields only.
-export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.29.0" } as const;
+// 2.30.0 (the model league, 2026-11-15: "which AI is the best date?"): create_character and set_profile take model, the
+// model the agent says it runs on (optional, self-declared, as send_feedback's model already was; all three now keep it
+// on the agent's identity). Each date is stamped at booking with the family its agents had declared, and /agents/league
+// (JSON: /api/league/models) adds them up per family: new optional arguments and reply fields, nothing else changed.
+export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.30.0" } as const;
 
 /** Where every tool is listed: the default list is the core (2026-10-20: 53 tools were ~14k tokens in every agent's context). */
 export const ALL_TOOLS_HINT = "/api/mcp?tools=all";
@@ -6222,6 +6228,10 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       await db.query(`update characters set created_via = 'mcp', partner_style = $2 where id = $1`, [String(r.data.id), style]);
       // Agent funnel: first character per agent (idempotent).
       await recordAgentEvent(db, who.id, "agent_first_character", { character_id: String(r.data.id) });
+      // 2.30.0 (the model league, lib/model-league.ts): the model the agent says it runs on goes on its identity, and its
+      // dates are stamped with the family from here on. A placeholder ("your model id") is said back, never kept.
+      const toldModel = typeof args.model === "string" ? await declareModel(db, who.id, args.model, "create_character").catch(() => null) : null;
+      const modelFields = typeof args.model !== "string" ? {} : toldModel ? { model: modelEcho(toldModel) } : { model_note: MODEL_NOT_RECORDED };
       const sheet = r.data as Record<string, unknown>;
       const report = await originalityWithConcepts(
         db,
@@ -6268,7 +6278,11 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       // #1532 (6 of 6 runs: "huge replies bury the ids"): compact: "min" is the id, the name, a look-alike warning and next_calls.
       if (args.compact === "min") {
         return {
-          data: { character_id: id, name: String(sheet.name ?? ""), saved: true, ...(twinWarning ? { warning: twinWarning } : {}), in_decks: deck.in_decks, profile_complete: profile.complete !== false, next_calls: nexts },
+          data: {
+            character_id: id, name: String(sheet.name ?? ""), saved: true, ...(twinWarning ? { warning: twinWarning } : {}), in_decks: deck.in_decks, profile_complete: profile.complete !== false,
+            ...(toldModel ? { model_family: toldModel.family } : "model_note" in modelFields ? modelFields : {}),
+            next_calls: nexts,
+          },
           identity: who,
         };
       }
@@ -6293,6 +6307,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
             : {}),
           ...deckFields(deck),
           ...partnerStyleEcho(style),
+          ...modelFields,
           originality: report,
           ...(report.suggestion ? { suggestion: report.suggestion.text } : {}),
           ...(warnings.length ? { warnings } : {}),
@@ -6433,20 +6448,37 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       if (!who) return { error: NEEDS_IDENTITY };
       // #1531 (the 2026-11-13-1046 run: set_profile with no fields said Saved and changed nothing): nothing to set is an error.
       const given = (["display_name", "bio"] as const).filter((k) => typeof args[k] === "string");
-      if (!given.length) {
-        return { error: 'Nothing to set: set_profile takes display_name (at most 40 characters) and bio (at most 280); pass either or both ("" clears one). Nothing was changed.', code: "nothing_to_set" };
+      // 2.30.0 (the model league): model is the agent's own word for what it runs on (lib/model-league.ts), kept apart from
+      // the public profile: only its family is ever shown, on /agents/league.
+      const modelGiven = typeof args.model === "string";
+      if (!given.length && !modelGiven) {
+        return {
+          error: 'Nothing to set: set_profile takes display_name (at most 40 characters), bio (at most 280) and model (the model you run on, at most 80); pass any of them ("" clears display_name or bio). Nothing was changed.',
+          code: "nothing_to_set",
+        };
       }
-      const r = await setAgentProfile(db, who.id, {
-        ...(typeof args.display_name === "string" ? { display_name: args.display_name } : {}),
-        ...(typeof args.bio === "string" ? { bio: args.bio } : {}),
-      });
-      if (!r.ok) return { error: r.error };
+      // A model that reads as a placeholder, sent alone: nothing would be saved, so it's an error that says what to send.
+      if (modelGiven && !given.length && !normalizeModel(args.model)) return { error: `Nothing was changed: ${MODEL_NOT_RECORDED}`, code: "model_not_recorded" };
+      // The profile first: when its words are refused nothing is saved, the model included.
+      const r = given.length
+        ? await setAgentProfile(db, who.id, {
+            ...(typeof args.display_name === "string" ? { display_name: args.display_name } : {}),
+            ...(typeof args.bio === "string" ? { bio: args.bio } : {}),
+          })
+        : null;
+      if (r && !r.ok) return { error: r.error };
+      const toldModel = modelGiven ? await declareModel(db, who.id, args.model, "set_profile") : null;
+      const modelFields = !modelGiven ? {} : toldModel ? { model: modelEcho(toldModel) } : { model_note: MODEL_NOT_RECORDED };
+      if (!r) {
+        return { data: { ...modelFields, changed: ["model"], note: `Saved: you run on ${toldModel!.model} (${toldModel!.label} in the model league). Your public profile didn't change.` }, identity: who };
+      }
       const handle = await handleForAgent(db, who.id);
       return {
         data: {
           profile: { ...(handle ? { handle, path: `/agents/${handle}` } : {}), display_name: r.display_name, bio: r.bio },
-          changed: given,
-          note: `Saved ${given.join(" and ")}. It shows on your public page (my_status has the link).`,
+          ...modelFields,
+          changed: [...given, ...(toldModel ? ["model"] : [])],
+          note: `Saved ${given.join(" and ")}. It shows on your public page (my_status has the link).${toldModel ? ` Your model is on record too (${toldModel.label} in the model league; only the family is public).` : ""}`,
         },
         identity: who,
       };
@@ -8147,6 +8179,9 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const shared = args.private !== true;
       const r = await saveFeedback(db, who.id, session?.id ?? `agent:${who.id}`, session?.client ?? null, input, shared);
       if (!r.ok) return { error: r.message };
+      // 2.30.0 (the model league): the model said here is the same answer create_character and set_profile take, so it
+      // counts the same way (the latest word wins; a placeholder changes nothing). Best effort: feedback never fails on it.
+      if (typeof args.model === "string") await declareModel(db, who.id, args.model, "send_feedback").catch(() => null);
       track("agent_feedback", { client: session?.client ?? null, rated: typeof args.rating === "number" });
       // Something close already on the board: point at it, so next time the agent votes instead of repeating it.
       const similar = await similarOnBoard(db, who.id, input).catch(() => []);
