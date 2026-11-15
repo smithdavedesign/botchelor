@@ -4,7 +4,8 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { POST as afterDateRoute } from "@/app/api/companion/after-date/route";
 import { afterDateCharacter, afterDateLines, allowsSecondDate, dayAfterLines, dayAfterTexts, sendAfterDateText, teaseAfterAir, teaseLines, type AfterDateEpisode, type DayAfterState } from "@/lib/after-date-text";
 import { signSession } from "@/lib/auth";
-import { companionNotice, openThread, setCompanionModelForTests, threadIdFor } from "@/lib/companion";
+import { companionNotice, getThread, openThread, setCompanionModelForTests, threadIdFor } from "@/lib/companion";
+import { offersFor } from "@/lib/companion-offers";
 import type { SideOutcome } from "@/lib/engine";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import { venuePhrase } from "@/lib/venues";
@@ -138,12 +139,54 @@ describe("sendAfterDateText", () => {
     const { creator, episode } = await setupEpisode("friends");
     expect(await sendAfterDateText(t.db, { userId: crypto.randomUUID(), episodeId: episode.id })).toMatchObject({ ok: false, status: 404 });
     expect(await sendAfterDateText(t.db, { userId: userIdOf(creator), episodeId: "no-such-date" })).toMatchObject({ ok: false, status: 404 });
-    await t.db.query(`update episodes set status = 'generating' where id = $1`, [episode.id]);
+    // Still being written, with the ending not yet decided for good (no early verdict in setup): nothing to text about.
+    await t.db.query(`update episodes set status = 'generating', setup = setup - 'ending_final' where id = $1`, [episode.id]);
     expect(await sendAfterDateText(t.db, { userId: userIdOf(creator), episodeId: episode.id })).toMatchObject({ ok: false, status: 409, error: "not_ready" });
     await t.db.query(`update episodes set status = 'ready' where id = $1`, [episode.id]);
     // The host booked it, but owns neither side now (the character moved on): nobody to hear from.
     await t.db.query(`update characters set owner_id = $2 where id = (select character_a from episodes where id = $1)`, [episode.id, crypto.randomUUID()]);
     expect(await sendAfterDateText(t.db, { userId: userIdOf(creator), episodeId: episode.id })).toMatchObject({ ok: false, status: 409, error: "no_character" });
+  });
+});
+
+describe("sendAfterDateText: the early verdict and the offers", () => {
+  it("texts about a date still being finished once its ending is final, from the ending and the debrief (no reflection yet)", async () => {
+    const { creator, character, episode } = await setupEpisode("disaster", { sides: [side({ wants_another: false, satisfied: false, dealbreaker_hit: "the forecast" }), side()] });
+    const me = userIdOf(creator);
+    // What lib/jobs.ts onOutcome leaves while the recap, afterglow and reflections are still being written.
+    await t.db.query(`update episodes set status = 'generating', reflections = null, setup = coalesce(setup, '{}'::jsonb) || '{"ending_final":true}'::jsonb where id = $1`, [episode.id]);
+    expect(await afterDateCharacter(t.db, { userId: me, episodeId: episode.id })).toEqual({ ok: true, character_id: character.id });
+    const r = await sendAfterDateText(t.db, { userId: me, episodeId: episode.id });
+    expect(r).toMatchObject({ ok: true, sent: true });
+    if (!r.ok) return;
+    const rows = (await messages(r.thread_id)).filter((m) => m.role === "character");
+    expect(rows[1].text).toBe('"the forecast" was the moment it went sideways for me.');
+    expect(rows[2].text).toBe("What would you have done in my shoes?");
+    // The route takes it too (the verdict card's "Hear from" no longer waits ~20 s for 'ready').
+    const again = await post(guestCookie(creator), { episode_id: episode.id });
+    expect(again.status).toBe(200);
+    expect(again.body).toMatchObject({ sent: false, thread_id: r.thread_id });
+  });
+
+  it("carries the chips for its question: see them again where the ending allows, someone new, advice", async () => {
+    const yes = await setupEpisode("second_date");
+    const r = await sendAfterDateText(t.db, { userId: userIdOf(yes.creator), episodeId: yes.episode.id });
+    if (!r.ok) throw new Error(r.error);
+    const offers = async (messageId: string) => (await t.db.query<{ offers: Any }>(`select offers from companion_messages where id = $1`, [messageId])).rows[0].offers;
+    expect(await offers(r.message_id!)).toEqual({ episode_id: yes.episode.id, partner_id: HOUSE_CHARACTERS[0].id, partner: HOUSE_CHARACTERS[0].name, kinds: ["second_date", "someone_new", "advice"] });
+    // Only the first bubble carries the menu; the view shows it there and nowhere else.
+    const view = await getThread(t.db, userIdOf(yes.creator), r.thread_id);
+    if (!view.ok) throw new Error("no thread");
+    expect(view.view.messages.filter((m) => m.offers).map((m) => m.id)).toEqual([r.message_id]);
+    expect(view.view.messages.find((m) => m.offers)?.offers?.kinds).toEqual(["second_date", "someone_new", "advice"]);
+    const no = await setupEpisode("friends");
+    const f = await sendAfterDateText(t.db, { userId: userIdOf(no.creator), episodeId: no.episode.id });
+    if (!f.ok) throw new Error(f.error);
+    expect((await offers(f.message_id!)).kinds).toEqual(["someone_new", "advice"]);
+    // Pure: the menu per template, and a booked next date leaves only advice (the day-after text).
+    expect(offersFor({ ending: "disaster" })).toEqual(["someone_new", "advice"]);
+    expect(offersFor({ ending: "second_date", booked: true })).toEqual(["advice"]);
+    expect(offersFor({ ending: "friends", booked: true })).toEqual(["advice"]);
   });
 });
 
@@ -309,6 +352,10 @@ describe("dayAfterTexts (the daily job)", () => {
     await t.db.query(`update episodes set followup_of = $2 where id = $1`, [next.id, planned.episode.id]);
     expect(await dayAfterTexts(t.db, NOW)).toBe(2);
     expect((await tagged(oneThread, "day_after:"))[1].text).toBe(`${them} would see me again, I think. I'm not sure I would.`);
+    // The chips on the day-after text: someone new or advice when one-sided; only advice once the next date is booked.
+    const dayOffers = async (threadId: string) => (await t.db.query<{ offers: Any }>(`select offers from companion_messages where thread_id = $1 and action like 'day_after:%' and offers is not null`, [threadId])).rows.map((r) => r.offers);
+    expect(await dayOffers(oneThread)).toEqual([{ episode_id: oneSided.episode.id, partner_id: HOUSE_CHARACTERS[0].id, partner: HOUSE_CHARACTERS[0].name, kinds: ["someone_new", "advice"] }]);
+    expect((await dayOffers(plannedThread))[0]).toMatchObject({ episode_id: planned.episode.id, kinds: ["advice"] });
     expect((await tagged(plannedThread, "day_after:")).map((m) => m.text)).toEqual([
       `Still thinking about ${them}.`,
       "We're seeing each other again, and I'm a little nervous about it, honestly.",

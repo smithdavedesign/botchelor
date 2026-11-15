@@ -14318,3 +14318,62 @@ button.thread-menu-item:hover:not(:disabled) {
   border-color: var(--accent);
   color: var(--fg);
 }
+
+/* The Botchelor card (app/watch/BotchelorCard.tsx, lib/ceremony.ts): the lead, then the suitors as a row of faces with
+   their roses or how they left; the ballot as buttons like the Recoupling's. Tokens only. */
+.botchelor-house {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 1rem 1.25rem;
+  margin: 0.75rem 0;
+}
+.botchelor-lead {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: inherit;
+  text-decoration: none;
+}
+.botchelor-suitors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.botchelor-suitor a {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  width: 5.5rem;
+  color: inherit;
+  text-align: center;
+  text-decoration: none;
+}
+.botchelor-suitor-name {
+  font-weight: 600;
+  overflow: hidden;
+  max-width: 100%;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.botchelor-suitor.is-out a,
+.botchelor-suitor.is-runner_up a {
+  opacity: 0.55;
+}
+.botchelor-ballot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.botchelor-last {
+  margin-top: 0.75rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--line);
+}
+.botchelor-line {
+  margin: 0.25rem 0;
+}

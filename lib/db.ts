@@ -1157,6 +1157,10 @@ create table if not exists companion_voice (
 alter table companion_messages add column if not exists voice_key text;
 -- Said on a voice call in the app (docs/companions.md, Calls): the person spoke it, or the reply was spoken aloud.
 alter table companion_messages add column if not exists on_call boolean not null default false;
+-- The menu under a text the character sent about one of its dates (lib/after-date-text.ts, lib/companion-offers.ts): which
+-- date, who the partner was and the chips offered (see them again, someone new, advice), plus "taken" once one was tapped.
+-- A menu, nothing personal; "action" stays the text's dedupe tag. Goes with the message (the thread's cascade).
+alter table companion_messages add column if not exists offers jsonb;
 -- A live call (docs/companions.md, P6; lib/companion-live.ts): one row a call, to charge it by the minute and count it.
 -- Never any audio and never the words (those are messages, marked on_call). first_ticket: the first minute's, given
 -- back when the call ends at once with nothing said. Kept 90 days.
@@ -1181,7 +1185,7 @@ create table if not exists face_kits (
   id text primary key,
   character_id text not null references characters (id) on delete cascade,
   source_id text not null,
-  part text not null check (part in ('portrait', 'mouth_small', 'mouth_open', 'mouth_round', 'blink', 'smile', 'surprised', 'loop')),
+  part text not null check (part in ('portrait', 'mouth_small', 'mouth_open', 'mouth_round', 'blink', 'smile', 'surprised', 'talk', 'loop')),
   status text not null check (status in ('making', 'ready', 'failed')),
   model text,
   queue_id text,
@@ -1193,6 +1197,10 @@ create table if not exists face_kits (
   updated_at timestamptz not null default now()
 );
 create unique index if not exists face_kits_one on face_kits (character_id, source_id, part);
+-- 2026-11-15: the talking still (lib/face-kit-shared.ts TALK_STILL, the mouth at rest that Ditto animates), widened in place.
+alter table face_kits drop constraint if exists face_kits_part_check;
+alter table face_kits add constraint face_kits_part_check
+  check (part in ('portrait', 'mouth_small', 'mouth_open', 'mouth_round', 'blink', 'smile', 'surprised', 'talk', 'loop'));
 -- A character's live face at a renderer (lib/live-face/index.ts; docs/PRDs/digital-human.md Tier 1): one per character per
 -- kit portrait per provider, built by an admin (hours), the renderer's face id once it exists. Sessions aren't rows:
 -- a call's face time is on companion_live_calls (face_provider, face_seconds) for the spend view.
@@ -3765,6 +3773,58 @@ create table if not exists job_deals (
   dealt_at timestamptz not null default now()
 );
 create index if not exists job_deals_dealt_idx on job_deals (dealt_at);
+-- The Botchelor (lib/season-format.ts 'botchelor', lib/ceremony.ts; David 2026-11-14): a season's cast can hold the
+-- lead ('lead', one house character) and the suitors ('suitor': people's characters, or the house's own agent-made ones).
+alter table season_casts drop constraint if exists season_casts_source_check;
+alter table season_casts add constraint season_casts_source_check check (source in ('dealt', 'survivor', 'new', 'fan', 'lead', 'suitor'));
+-- The admin's pick of a season's lead (/admin/season), read when the season picks its cast; no row = the most reviewed
+-- of last season's survivors.
+create table if not exists season_leads (
+  season_id text primary key,
+  character_id text not null,
+  created_at timestamptz not null default now()
+);
+-- Rose ceremonies (lib/ceremony.ts): one row a ceremony Sunday (held_on). The row opens the audience's vote with a frozen
+-- ballot (choices: the suitors still in); held_at is set when the hourly job runs it at CEREMONY_HOUR_UTC. The audience's
+-- pick and the lead's go home (eliminated_by_vote, eliminated_by_lead); remaining is who is left; on the finale final_rose
+-- names the lead's pick. lines: the ceremony in the show's voice, written from templates at the time.
+create table if not exists ceremonies (
+  season_id text not null,
+  held_on text not null,
+  week integer not null,
+  lead_id text not null,
+  choices jsonb not null,
+  finale boolean not null default false,
+  held_at timestamptz,
+  eliminated_by_vote text,
+  eliminated_by_lead text,
+  final_rose text,
+  votes integer,
+  total integer,
+  remaining jsonb,
+  lines jsonb,
+  created_at timestamptz not null default now(),
+  primary key (season_id, held_on)
+);
+-- One vote a viewer a ceremony ("Who goes home?"), changeable until the ceremony runs.
+create table if not exists ceremony_votes (
+  held_on text not null,
+  user_id text not null,
+  pick text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (held_on, user_id)
+);
+-- What a suitor leaves a Botchelor season with (lib/ceremony.ts): 'suitor' (went home at a ceremony), 'runner_up', or
+-- 'final_rose'. One a character a season, written once.
+create table if not exists suitor_badges (
+  season_id text not null,
+  character_id text not null,
+  badge text not null check (badge in ('suitor', 'runner_up', 'final_rose')),
+  week integer not null,
+  created_at timestamptz not null default now(),
+  primary key (season_id, character_id)
+);
 `;
 
 /** Idempotent: creates the tables and upserts the house characters, free and premium. */

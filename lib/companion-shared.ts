@@ -155,12 +155,57 @@ export type CompanionRoleplayView = {
   they_play: string | null;
 };
 
+/**
+ * What a character's text about one of its dates offers the person to do from the thread (lib/after-date-text.ts,
+ * lib/companion-offers.ts): book the next date with that partner, a speed date with someone new on the cast, or a note for
+ * next time (a nudge, lib/between-dates.ts). The thread is the control room for the character's love life; the engine
+ * still decides every ending.
+ */
+export const COMPANION_OFFER_KINDS = ["second_date", "someone_new", "advice"] as const;
+export type CompanionOfferKind = (typeof COMPANION_OFFER_KINDS)[number];
+
+/** The menu under a text, as the page shows it: only on the newest text whose chips are still open. */
+export type CompanionOffersView = {
+  episode_id: string;
+  partner_id: string;
+  /** The partner's name (the chips say "see {first} again"). */
+  partner: string;
+  kinds: CompanionOfferKind[];
+};
+
+/** The chips' labels, in the thread (pure; the page and the tests use it). */
+export function offerLabel(kind: CompanionOfferKind, o: { partner: string; character: string }): string {
+  const first = (name: string) => name.trim().split(/\s+/)[0] || name;
+  switch (kind) {
+    case "second_date":
+      return `Yes, see ${first(o.partner)} again`;
+    case "someone_new":
+      return "Try someone new";
+    case "advice":
+      return `Tell ${first(o.character)} what to do next time`;
+  }
+}
+
+/** The longest "For next time" note (= lib/between-dates.ts NUDGE_MAX, which the server enforces; tests keep them equal). */
+export const COMPANION_NEXT_TIME_MAX = 140;
+
+/** The thread's "For next time" (the composer's nudge toggle): the last date's partner and the standing note, if any. */
+export type CompanionNextTime = {
+  episode_id: string;
+  partner_id: string;
+  partner: string;
+  /** The owner's standing note for their next date together (lib/between-dates.ts activeNudge), or null. */
+  note: string | null;
+};
+
 export type CompanionMessageView = {
   id: string;
   role: "user" | "character" | "system";
   text: string;
   at: string;
   reported: boolean;
+  /** The chips under this text, while they're open (absent or null otherwise). */
+  offers?: CompanionOffersView | null;
   /** The scene it was said in (null: texted). */
   scene: VenueId | null;
   /** In a scene, what the character does as they say it. */
@@ -199,6 +244,8 @@ export type CompanionThreadView = {
   paused: boolean;
   /** How many things the character remembers about you (the memory page). */
   facts: number;
+  /** Your own character with a finished date behind it: who the next-time note is for (absent otherwise). */
+  next_time?: CompanionNextTime | null;
 };
 
 export type CompanionFactView = { id: string; kind: string; text: string; pinned: boolean; edited: boolean; at: string };

@@ -19,6 +19,8 @@ import SeasonLine from "./SeasonLine";
 import DateExcerpt from "@/app/DateExcerpt";
 import { pickFeaturedDate } from "@/lib/featured-date";
 import RecouplingCard from "./RecouplingCard";
+import BotchelorCard from "./BotchelorCard";
+import { ceremonyBoard } from "@/lib/ceremony";
 import WeeklyReveal from "@/app/WeeklyReveal";
 import { revealBoard } from "@/lib/weekly-reveal";
 import { recouplingBoard } from "@/lib/recoupling";
@@ -138,7 +140,7 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
   // Someone signed out sees what everyone does: from a few seconds' shared copy (lib/shared-cache.ts). What's the same
   // for everyone (the private-date count, the reunion, the week's shifts, the season's format) is shared by all.
   const mine = <T,>(key: string, load: () => Promise<T>) => forViewer(viewerId, key, load);
-  const [rooms, privateDates, airing, latest, profileName, situation, dares, record, showNews, seasonDef, recoupling, ballot, reveal, insider] = await Promise.all([
+  const [rooms, privateDates, airing, latest, profileName, situation, dares, record, showNews, seasonDef, recoupling, ballot, reveal, insider, ceremony] = await Promise.all([
     mine("lobby", () => listLobby(db)),
     shared("watch:private-dates", () => countRecentPrivateDates(db)),
     mine("home:airing", () => listAiringSoon(db, viewerId, airWindowMinutes())),
@@ -156,6 +158,8 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
     mine("watch:reveal", () => revealBoard(db, viewerId)).catch(() => null),
     // The empty-room rule (lib/crowd-threshold.ts): someone with a character sees every count; a stranger, only a crowd.
     isInsider(db, viewerId),
+    // The Botchelor (lib/ceremony.ts): the lead, the suitors and Sunday's rose ceremony; null on any other format.
+    mine("watch:ceremony", () => ceremonyBoard(db, viewerId)).catch(() => null),
   ]);
   // Their shared calls link carries their display name when it's theirs alone (lib/share-record-name.ts).
   const sharer = profileName && record?.called ? await sharerOf(db, viewerId).catch(() => null) : null;
@@ -176,7 +180,7 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
   // to their own pages: backing, the season pool, the cast chat and chemistry shifts to the Reunion; best callers and
   // leagues to /calls. The line at the foot links each, and keeps the old #anchors landing somewhere.
   const lead = reveal && (reveal.state === "open" || reveal.state === "closed" || reveal.last);
-  const voting = Boolean((recoupling && recoupling.choices.length > 0) || reveal || situation || dares || airing.length > 0 || (record && record.called > 0));
+  const voting = Boolean((recoupling && recoupling.choices.length > 0) || ceremony || reveal || situation || dares || airing.length > 0 || (record && record.called > 0));
   return (
     <article className="watch-page page-wide">
       <JsonLd
@@ -274,6 +278,8 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
             Vote before it airs
           </h2>
           {recoupling && recoupling.choices.length > 0 && <RecouplingCard board={recoupling} now={now} />}
+          {/* A Botchelor season (lib/ceremony.ts): the house and Sunday's rose ceremony, where the Recoupling would sit. */}
+          {ceremony && <BotchelorCard board={ceremony} now={now} />}
           {lead && <WeeklyReveal board={reveal} now={now} />}
           <div className="watch-votes">
             {situation && <SituationVote board={situation} now={now} />}
