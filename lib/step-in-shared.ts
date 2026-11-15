@@ -57,3 +57,13 @@ export const STEP_IN_SHARE_WORDS: Record<Ending, { said: string; card: (first: s
 
 /** The text a Share puts on the clipboard or in the phone's share sheet. */
 export const stepInShareText = (castFirst: string, ending: Ending, url: string): string => `${STEP_IN_SHARE_WORDS[ending].card(castFirst)} on Botchelor. Your turn:\n${url}`;
+
+/**
+ * A person's "you" on a step-in date is a row in `characters` owned by `you:<their id>` (lib/step-in.ts personaOwner),
+ * so the date engine can seat it. It is not a character anyone made: with step-in open to everyone there is one for
+ * every visitor who plays, so it is never listed on /characters, counted as a character made, or allowed to take a
+ * name (a guest called Sam must not stop anyone naming a character Sam).
+ */
+export const PERSONA_OWNER_PREFIX = "you:";
+/** SQL that's true for every character but a "you" (`alias`: the characters table's alias, or none). */
+export const notPersonaSql = (alias?: string): string => `coalesce(${alias ? `${alias}.` : ""}owner_id, '') not like '${PERSONA_OWNER_PREFIX}%'`;

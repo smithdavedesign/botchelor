@@ -23,9 +23,12 @@ import StepInDatePage from "@/app/step-in/[id]/page";
 import StepInPage, { generateMetadata } from "@/app/step-in/page";
 import { adultCookie } from "@/lib/age";
 import { signSession } from "@/lib/auth";
+import { listTab, searchDirectory, tabCounts } from "@/lib/directory";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import { visitorKey } from "@/lib/limits";
+import { listCast } from "@/lib/mechanics";
 import { setModelForTests } from "@/lib/model";
+import { nameCheck } from "@/lib/name-check";
 import { setSeasonCastForTests } from "@/lib/season-cast";
 import { PUBLIC_PATHS } from "@/lib/site";
 import {
@@ -315,6 +318,25 @@ describe("a guest steps in", () => {
     const s = await start(g.cookie, { body: { persona: undefined, character_id: mine.id } });
     expect(s.status).toBe(201);
     expect((await t.db.query<Any>(`select character_a, setup->'step_in' as s from episodes where id = $1`, [s.body.episode_id])).rows[0]).toMatchObject({ character_a: mine.id, s: { mode: "own", charge: "guest" } });
+  });
+});
+
+describe("a \"you\" is a seat at the table, not a character (lib/step-in-shared.ts notPersonaSql)", () => {
+  it("is never listed or counted on /characters, never takes a name, and isn't a character someone made", async () => {
+    const g = guest();
+    expect((await start(g.cookie)).status).toBe(201);
+    const persona = (await t.db.query<Any>(`select id, name, owner_id, visibility from characters where owner_id = $1`, [`you:${g.id}`])).rows[0];
+    expect(persona).toMatchObject({ name: "Sam", visibility: "private" });
+    // With step-in open to everyone there's one of these for every visitor who plays.
+    expect(await tabCounts(t.db)).toEqual({ people: 0, agents: 0, private: 0 });
+    expect((await listTab(t.db, "people")).entries).toEqual([]);
+    expect((await searchDirectory(t.db, "Sam")).entries).toEqual([]);
+    expect((await listCast(t.db, 200)).some((c) => c.id === persona.id)).toBe(false);
+    // A visitor called Sam doesn't stop anyone naming a character Sam.
+    expect((await nameCheck(t.db, "Sam")).twin).toBeNull();
+    const made = await api.createCharacter({ ...validCharacter({ name: "Sam" }), keep_name: false }, guest().cookie);
+    expect(made.status).toBe(201);
+    expect(await tabCounts(t.db)).toMatchObject({ people: 1 });
   });
 });
 

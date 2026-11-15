@@ -56,7 +56,7 @@ import { buildDate, rememberDate, type CharacterForDate, type DateRequest } from
 import { areUnmatched } from "./unmatch";
 import { overLimit } from "./limits";
 import { stepInSharePath } from "./step-in-share";
-import { DISCLOSURE_EVERY, DISCLOSURE_IDLE_MINUTES, disclosureText, PERSONA_ABOUT_MAX, PERSONA_NAME_MAX, type Persona, type StepInLine, type StepInView } from "./step-in-shared";
+import { DISCLOSURE_EVERY, DISCLOSURE_IDLE_MINUTES, disclosureText, PERSONA_ABOUT_MAX, PERSONA_NAME_MAX, PERSONA_OWNER_PREFIX, type Persona, type StepInLine, type StepInView } from "./step-in-shared";
 
 export * from "./step-in-shared";
 
@@ -233,7 +233,7 @@ export const PG_REDIRECT: Record<RejectReason, string> = {
 /* ------------------------------------------------ the persona ------------------------------------------------ */
 
 /** The owner of someone's "you" (never their own id, so it's on none of their character lists). */
-export const personaOwner = (userId: string) => `you:${userId}`;
+export const personaOwner = (userId: string) => `${PERSONA_OWNER_PREFIX}${userId}`;
 /** What's wrong with a "you", or null. A first name or a nickname; nothing the show's sheet filter refuses. */
 export function personaProblem(p: Partial<Persona>): string | null {
   const name = p.name?.trim() ?? "";

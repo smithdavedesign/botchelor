@@ -31,7 +31,11 @@ The questions for counsel at the end are still open, and one of them (age) matte
 - **Setup (`/step-in?with=<cast id>`, `app/step-in/StepInSetup.tsx`):** come as one of your own characters, or as
   "you": a name, pronouns, an age (18+) and one line about yourself. "You" is a private character owned by the
   sentinel `you:<user id>` (`lib/step-in.ts` `upsertPersona`), so it never shows in the person's own lists, is never open
-  to dates and is reused next time. Quick date (6 lines, 3 each) or full date (12 lines, 6 each). The screen says what
+  to dates and is reused next time. With step-in open there is one for every visitor who plays, so a "you" is left out
+  wherever characters are listed or counted (`lib/step-in-shared.ts` `notPersonaSql`: the `/characters` tabs and their
+  counts, the matchmaker's cast, the unique-name check, so a visitor called Sam never takes the name "Sam", the
+  real-use and insights counts of characters made, and the concept embeddings). Quick date (6 lines, 3 each) or full
+  date (12 lines, 6 each). The screen says what
   it costs before they start ("Free to try, no account needed: 3 dates on the show."), and when they can't start, why
   and what to do instead (never a dead button).
 - **The date (`/step-in/<id>`, `app/step-in/[id]/StepInStage.tsx`):** the venue, both faces, the thread, a composer.
