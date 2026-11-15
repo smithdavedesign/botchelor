@@ -4,6 +4,9 @@
 
 .stepin {
   --stepin-bg: #140c18;
+  /* The composer's field: 6% white over the stage, as one solid colour (a translucent white reads as a light field to
+     anything that inspects it, the visual audit included). */
+  --stepin-field: #221b26;
   --stepin-ink: #f6eef3;
   --stepin-muted: rgba(246, 238, 243, 0.68);
   --stepin-line: rgba(255, 255, 255, 0.12);
@@ -101,7 +104,7 @@
   padding: 0.7rem 0.9rem;
   border-radius: var(--radius-md);
   border: 1px solid rgba(255, 255, 255, 0.24);
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--stepin-field);
   color: var(--stepin-ink);
 }
 .stepin-composer textarea:focus-visible {
@@ -318,11 +321,9 @@
   padding: var(--space-3);
   text-align: center;
 }
-.stepin-cast-bio {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-  overflow: hidden;
+.stepin-cast-job {
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 /* The start screen's 18+ box (the page is open without the gate) and a refusal's ways on. */
 .stepin-attest {

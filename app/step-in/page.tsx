@@ -54,8 +54,9 @@ export default async function StepInPage({ searchParams }: { searchParams: Promi
   const sp = await searchParams;
   const asked = typeof sp.with === "string" ? sp.with : null;
   const castIds = seasonCastIds();
-  const { rows: cast } = await db.query<{ id: string; name: string; bio: string; hue: number | null; portrait: string | null }>(
-    `select c.id, c.name, c.bio, c.avatar_hue as hue, ${portraitPathSql("c")} as portrait from characters c where c.id = any($1) and c.is_house and c.premium_sku is null`,
+  const { rows: cast } = await db.query<{ id: string; name: string; bio: string; job: string | null; hue: number | null; portrait: string | null }>(
+    `select c.id, c.name, c.bio, nullif(c.extras->>'occupation', '') as job, c.avatar_hue as hue, ${portraitPathSql("c")} as portrait
+       from characters c where c.id = any($1) and c.is_house and c.premium_sku is null`,
     [castIds],
   );
   cast.sort((x, y) => castIds.indexOf(x.id) - castIds.indexOf(y.id));
@@ -79,7 +80,8 @@ export default async function StepInPage({ searchParams }: { searchParams: Promi
                 <Link className="stepin-cast-pick card" href={`/step-in?with=${c.id}`} data-track="step-in" data-track-from="step-in-page">
                   <Avatar seed={c.id} name={c.name} hue={c.hue} house portraitSrc={c.portrait} size={96} decorative />
                   <strong>{shortName(c.name)}</strong>
-                  <span className="muted small stepin-cast-bio">{c.bio}</span>
+                  {/* What they do, in a few words (their bio is on the next screen): a face, a name and a hook. */}
+                  {c.job && <span className="muted small stepin-cast-job">{c.job}</span>}
                 </Link>
               </li>
             ))}
