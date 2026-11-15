@@ -354,3 +354,5 @@ export const COMPANION_TOOL_DESCRIPTION =
   `voice {message_id} (one of their replies as a voice note in their own voice: an MP3 link that works for an hour; free, up to ${COMPANION_AGENT_VOICE_LIMITS.perDay} a day), report {message_id, reason}, ` +
   "memory (what it knows about you), remember {text}, forget {fact_id}, forget_all, carry_on (after crisis resources paused it), delete. Every action but list and open takes thread_id (or character_id).";
 
+/** A thread's memory page (what the character knows about you): one place builds the address. */
+export const companionMemoryHref = (threadId: string): string => "/companion/" + encodeURIComponent(threadId) + "/memory";

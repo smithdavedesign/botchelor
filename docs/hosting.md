@@ -95,6 +95,7 @@ ignore it.
 - **`EXPRESS_CREATE`** (the show's app, not a secret; on unless `0`): one-sentence create, the one-box first screen of
   `/create` for a first character (`lib/express-create.ts`, [flows.md](flows.md)). `0` restores the form as the first
   step and `POST /api/characters/draft` answers 404.
+- **`IMPORT_HISTORY_MODEL`** (the show's app, not a secret; unset in production): a pasted history is read by the paid model (`FRONTIER_LLM_*`) and by nothing when there is none; `free` puts the reading on the free model, for a local setup without a paid key. Never set it to `free` in production: a history is a private chat log.
 - **`IMPORT_MEMORIES`** (the show's app, not a secret; on unless `0`): "Bring their history" on `/import`
   (`lib/import-history.ts`, [flows.md](flows.md), "Bringing a character from another app"). `0` removes the second box,
   `POST /api/characters/import/history` and `POST /api/characters/:id/import-history` answer 404, and the import pages

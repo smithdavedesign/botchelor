@@ -33,7 +33,8 @@ export async function generateMetadata({ searchParams }: { searchParams: SearchP
  * Read in the browser; only unlabelled free text goes to the show's free model (app/api/characters/import).
  *
  * "Bring their history" (lib/import-history.ts, IMPORT_MEMORIES; 2026-11-15): a second, optional box for a chat log, a
- * lorebook, a scenario or example dialogue, read once by the same free model into a short checklist the person edits.
+ * lorebook, a scenario or example dialogue, read once by the show's paid model (the route says why) into a short
+ * checklist the person edits.
  * With the switch off the box is gone and the page says, as it did, that history stays behind.
  *
  * ?from=cai (the home hero, the Character.AI landing, the rescue posts in docs/launch-kit.md): the same page, with the
@@ -106,7 +107,7 @@ export default async function ImportPage({ searchParams }: { searchParams: Searc
             <li>
               <strong>Their history, in the second box:</strong> a chat log you copied or exported, a lorebook or
               character book, a scenario, example dialogue. A card&apos;s own <code>scenario</code>,{" "}
-              <code>mes_example</code> and <code>character_book</code> are read with it. The show&apos;s free model reads
+              <code>mes_example</code> and <code>character_book</code> are read with it. The show&apos;s paid model reads
               it once into at most {HISTORY_ITEMS_MAX} short lines, and you tick and reword what stays: what&apos;s true
               of them goes to their facts, what happened between the two of you goes to what they remember about you as
               a <Link href="/companion">Companion</Link>, and how they talk goes to their voice.

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { COMPANION_GUEST_OPEN_IP_LIMITS, COMPANION_OPEN_LIMITS, guestOpening, threadIdFor } from "@/lib/companion";
 import { FACT_MAX } from "@/lib/companion-memory";
+import { companionMemoryHref } from "@/lib/companion-shared";
 import { companionAllowance } from "@/lib/companion-plan";
 import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson, session } from "@/lib/http";
@@ -68,5 +69,5 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
   const r = await rememberImported(db, sess.userId, id, screened.ok);
   if (!r.ok) return held("closed");
   if (r.fresh) inBackground(() => drawImportOpener(db, sess.userId, r.threadId));
-  return json({ kept: r.kept, dropped: screened.dropped + r.dropped, thread_id: r.threadId, href: `/companion/${r.threadId}/memory` }, 200, sess);
+  return json({ kept: r.kept, dropped: screened.dropped + r.dropped, thread_id: r.threadId, href: companionMemoryHref(r.threadId) }, 200, sess);
 });

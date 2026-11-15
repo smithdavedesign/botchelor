@@ -390,8 +390,10 @@ as a short list the person edits, never as a transcript:
   lorebook or world-info file, a scenario, example dialogue. A card's own `scenario`, `mes_example` and
   `character_book` are read with it (a tick box, on by default; with nothing pasted, only when they hold at least 200
   characters, so a card with a one-line example goes straight to the builder as before).
-- **One reading** (`POST /api/characters/import/history { text, name? }`): one call on the show's **free** model (never
-  the paid one), which copies and never invents. At most **20,000 characters** are read (about 5,000 tokens; a card's own
+- **One reading** (`POST /api/characters/import/history { text, name? }`): one call on the show's **paid** model
+  (never a free tier: a history is a private chat log, and a free tier's terms may let its provider use what it is sent;
+  with no paid model the reading fails like an outage; `IMPORT_HISTORY_MODEL=free` for a local setup), which copies and
+  never invents. At most **20,000 characters** are read (about 5,000 tokens; a card's own
   parts take at most 8,000 of them): a longer paste is cut to its start and its most recent part, and the page says how
   much was read. Out come at most **eight** lines, each one sentence (140 characters), each of one kind:
   `character` (what they know, their world, someone important, an unfinished storyline, a like or dislike), `us` (what
@@ -418,9 +420,9 @@ as a short list the person edits, never as a transcript:
 - **Failure is ordinary.** The reader is down, slow (20 s) or unreadable, a limit is hit, or nothing worth keeping was
   found: the checklist's place shows one sentence and **Open the builder** (and **Try once more** when that could help).
   The identity import is never stopped by its history.
-- **Limits and cost** (`lib/limits.ts`, guests included): 4 an hour and 10 a day per visitor, 8 and 24 per address, 30
-  and 120 across everyone. $0 on the free tier; about a third of a cent a reading at gemini-3.5-flash-lite's list price
-  (so under 40¢ a day across everyone).
+- **Limits and cost** (`lib/limits.ts`, guests included): 4 an hour and 10 a day per visitor, 8 and 24 per address, 15
+  and 60 across everyone. Somewhere under a cent a reading on the paid model, so the across-everyone cap keeps a day to
+  roughly 40¢; the key's monthly cap at the provider is the hard limit.
 - **Switch.** `IMPORT_MEMORIES` (the show's app; on unless `0`): `0` removes the box, both routes answer 404, and
   `/import`, the Character.AI page and its questions say what they said before (history stays behind).
 - **Events** (`lib/import-history.ts`, sent with `queueEvent`): `import_history_started`, `import_history_kept`,

@@ -116,7 +116,7 @@ function NothingOpen({ rooms, now, insider }: { rooms: LobbyEntry[]; now: number
   const room = live ?? next;
   if (!room) {
     return (
-      <Link className="card tap-card open-calls-next" href="/watch" data-track="share-record-lobby">
+      <Link className="card tap-card open-calls-next open-calls-empty" href="/watch" data-track="share-record-lobby">
         <strong>Nothing is on the air right now.</strong>
         <span className="muted small">The next date opens for calls the moment it&apos;s booked. The lobby has tonight&apos;s schedule →</span>
       </Link>
