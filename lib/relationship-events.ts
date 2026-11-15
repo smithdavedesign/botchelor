@@ -8,6 +8,7 @@ import { settleCommitment, warnWhenSparksOut } from "./partners";
 import { resolveArcs } from "./arcs";
 import { followerIds } from "./follows";
 import { notifyAll, ownersOf } from "./notifications";
+import { overnightAired } from "./overnight";
 import { pairKey, refreshRelationship, STAGE_LABELS, viewRelationship, type Stage } from "./relationships";
 import { endingLabel } from "./rules";
 
@@ -18,7 +19,8 @@ const RANK: Partial<Record<Stage, number>> = { just_met: 1, sparks: 2, dating: 3
  * Refreshes a pair's edge after one of their dates airs, then tells people about it:
  *  - a move up a stage ("Mira & Rafe: 💞 Dating") to the characters' owners and the couple's followers;
  *  - otherwise, a new public date to its followers ("Mira & Rafe went on another date");
- * and settles the arc predictions the new public record decides (lib/arcs.ts). Only on airing, so making a date
+ * records an overnight date's milestone (lib/overnight.ts), and settles the arc predictions the new public record
+ * decides (lib/arcs.ts). Only on airing, so making a date
  * private and public again can't re-announce anything. Returns who was told of a step up (#1032: they need no "aired" notice too).
  */
 export async function refreshAndAnnounce(db: Db, x: string, y: string, opts: { episodeId?: string; quiet?: readonly string[] } = {}): Promise<Set<string>> {
@@ -73,6 +75,9 @@ export async function refreshAndAnnounce(db: Db, x: string, y: string, opts: { e
       });
     }
   }
+  // An overnight date that just aired and ended in leaving together (lib/overnight.ts): the pair's milestone, once, and
+  // each opted-in owner hears from their own character. Any other date, and any other ending, does nothing here.
+  if (opts.episodeId) await overnightAired(db, opts.episodeId).catch(() => null);
   await resolveArcs(db, lo, hi).catch(() => 0);
   // In a relationship now? Each side settles one partner or more, and a one-partner side closes to dates.
   await settleCommitment(db, lo, hi).catch(() => {});

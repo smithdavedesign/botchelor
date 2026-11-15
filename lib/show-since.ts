@@ -28,6 +28,8 @@ import { seasonClosedSince, type SeasonRef } from "./season-ref";
 import { callRecord } from "./streaks";
 import { chemistryShifts, type ChemistryShift } from "./chemistry-shifts";
 import { clipBody } from "./notifications";
+import { overnightMarks } from "./overnight";
+import { overnightDatesOn } from "./overnight-shared";
 import { REPORT_HIDE_THRESHOLD } from "./rules";
 
 /** The furthest back the card counts from. */
@@ -36,6 +38,8 @@ export const LOOKBACK_DAYS = 30;
 export const DIARY_SHOWN_MAX = 160;
 /** How many couples' moves it names. */
 export const MOVES_SHOWN = 4;
+/** How many overnight dates it names. */
+export const OVERNIGHTS_SHOWN = 2;
 
 export type SinceMove = { lo: string; hi: string; a: string; b: string; label: string; following: boolean };
 
@@ -66,6 +70,8 @@ export type ShowSince = {
   twist: { label: string; tease: string } | null;
   /** The cast group chat leaked since (lib/cast-chat.ts): its first message, and how many more on /watch. */
   chat: { code: string | null; name: string; text: string; more: number } | null;
+  /** Overnight dates that aired since and ended in the two leaving together (lib/overnight.ts), public ones only. */
+  overnights: { lo: string; hi: string; a: string; b: string; episode_path: string }[];
 };
 
 /** When this person's last visit was, or null for a first visit (or one too recent to count as a return). */
@@ -166,10 +172,14 @@ export async function showSince(db: Db, viewerId: string | null, now: Date = new
     season: seasonClosedSince(since, now),
     twist: await twistSince(db, since, now),
     chat: await chatSince(db, since, now),
+    overnights: overnightDatesOn()
+      ? (await overnightMarks(db, { since: at }, null, OVERNIGHTS_SHOWN).catch(() => [])).map((m) => ({ lo: m.lo, hi: m.hi, a: m.names[0], b: m.names[1], episode_path: `/episodes/${m.episode_id}` }))
+      : [],
   };
   // The week's shift alone isn't news since a visit (it can predate it), so it never shows the card by itself.
   // Nor is the week's twist: most weeks have one, so it rides along but never summons the card. The cast chat is daily
   // too (and only ever about dates that aired, which already count above), so it rides along the same way.
+  // An overnight date is one of the dates that aired (counted above), so it rides along too.
   const anything = card.aired || card.moves.length || card.calls || card.followed || card.situation || card.diary || card.secret || card.backing || card.season;
   return anything ? card : null;
 }

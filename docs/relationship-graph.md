@@ -129,6 +129,67 @@ sides, the afterglow's "it was mutual"), an owner can book their second date fro
 - **Measured.** The analytics events are `second_date_yes` and `second_date_planned`; `episode_created` carries
   `second_date`.
 
+## Overnight dates (`lib/overnight-shared.ts`, `lib/overnight.ts`, `lib/overnight-house.ts`)
+
+Reality TV has the overnight; so does the show (David, 2026-11-15, the drama wave). A couple that has earned it gets an
+overnight date. On the show it fades to black. Nothing here touches points, odds, pairings or endings: the engine
+decides an overnight date like any other, and no prompt is told it is one.
+
+- **The milestone** (`overnightMilestone`, constants in `OVERNIGHT_RULES`), read from the pair's **aired, public,
+  unhidden dates only** (`loadOvernight`), so an offer can never give away an ending nobody has seen:
+  - at least 3 aired dates, the last 2 of them ending in another date;
+  - both sides' latest "see them again?" is a yes (each side's own answer, `lib/choices.ts`, which is public once a date
+    has aired; a maybe, a no, or an answer that was never asked isn't one);
+  - no bad blood (exes or bad blood on the public record, a block between the two owners, an owner who left);
+  - no overnight date with each other this season (one a season, however it ended, booked counts);
+  - their next date isn't already under way (one being filmed or waiting to air, or the latest aired date's follow-up
+    already booked).
+- **What it is.** The follow-up of their latest aired date, booked through the second-date flow above with an evening
+  place from the library (`OVERNIGHT_VENUES`, the same one for a pair all season). It is marked `setup.overnight`, which
+  only changes how its ending is told. Same pipeline, same PG checks, same prompts as any second date
+  (`tests/overnight.test.ts` checks the prompts carry nothing about it).
+- **Who books it.**
+  - *Two house characters:* the house (`bookHouseOvernight`, in the hourly lobby job, before the lobby's own refresh):
+    a house room like every house date, on the show's model, at most one a UTC day show-wide. House dates air when
+    someone starts their room, so a house couple reaches the milestone only as fast as its rooms are watched.
+  - *A person's character:* it's offered to the owner, in two places. The character's text about the date that earned
+    it ends "The show has offered Nell and me an overnight date. Should I say yes?" with the chip **"Say yes to the
+    overnight date with Nell"** first in the menu (`lib/companion-offers.ts`, kind `overnight`); and the couple's page
+    has a 🌙 card with the offer. Both call `POST /api/overnight {character_id, partner_id}`. It costs a date like any
+    second date (the season's free second date when that's on).
+  - *Consent* is the second date's, with one more word in it. The show's own side (a house character, a house-run
+    bot's) and two characters of your own agree at once. Another owner says yes to an **overnight** themselves: the
+    first yes is recorded (`second_date_requests.overnight`), they get a notice, and their yes books it (whoever
+    completes it books it, on their dates). A plain second-date yes is never read as a yes to an overnight. There is no
+    MCP tool for it yet, so a pair whose other side is an agent's character waits on a yes that can only be given on
+    the website.
+- **How the ending is told** (templates, no model): when the engine ends it in another date, the episode's last card
+  and the recap's close read **"They left together. The cameras stayed behind."** Any other ending keeps its own label,
+  followed by **"They called it a night."** The episode carries a 🌙 Overnight date chip. Predictions, points, the
+  stage and every list still read the engine's ending (`second_date`, `friends`, `disaster`) exactly as before.
+- **The milestone on the record** (`overnightAired`, called from `refreshAndAnnounce` when the date airs): an overnight
+  date that ended in leaving together adds one row to the pair's timeline (`relationship_events.kind = 'overnight'`,
+  on the public layer when the date is public). It shows on the couple's page (the 🌙 card), on both characters' pages
+  (their Dates card) and in "Since you were here" (`ShowSince.overnights`). Every reader checks the date as it stands
+  now (`overnightMarks`): one taken off the air, made unlisted or hidden by reports leaves the public lists at once. The
+  episode itself airs like any other, so the cast chat and the house can talk about it from the public record with no
+  extra plumbing. An overnight date that ended any other way is an ordinary date everywhere.
+- **The character tells its owner** when it airs having ended in leaving together: "About the overnight date with
+  Nell." / "We left together. That's all you're getting out of me." (`postFromCharacter`, tag `overnight:<episode id>`,
+  once, only to a thread whose person tapped "Hear from"). The usual tease is skipped for that date, so they aren't
+  texted twice. The text does say how it ended, as a life date's does.
+- **What comes back from After Dark** ([after-dark.md](after-dark.md), "The night continues"): for an owner After Dark
+  already admits, the night can carry on there. When it ends, the show records one more row for the pair,
+  `kind = 'night_together'` on the owners' layer: the fixed sentence "They spent the night together.", shown on the
+  couple's page to the two characters' owners only. `recordNightTogether` takes two character ids, the date's id and a
+  timestamp, and nothing else. While that overnight date is still the pair's latest finished date, each of the two
+  carries one neutral sentence into their next date ("You spent the night together after the date at the pier at
+  night", `nightTogetherFact`, in the pair-memory slot `what_happened_after_your_last_date`, for a side that has no
+  After Dark note of its own). Behaviour only, never the engine, and the date isn't marked 🌙 for it.
+- **Switches.** `OVERNIGHT_DATES=0` turns all of it off without a deploy (no offer, no house booking, no card, no
+  milestone or text when one airs; dates already booked read as ordinary dates). `OVERNIGHT_AFTER_DARK=0` removes only
+  the After Dark button and its page.
+
 ## Couples on the site, in matchmaking and for agents
 
 - **The next date, from the couple page** (`lib/date-proposals.ts`, owners only). One panel, "Their next date", with the

@@ -16,6 +16,7 @@ import { lastDateOf } from "./last-date";
 import { activeNudge } from "./between-dates";
 import { leadAndSuitors, seasonCastIds } from "./season-cast";
 import { COMPANION_OFFER_KINDS, type CompanionNextTime, type CompanionOfferKind, type CompanionOffersView } from "./companion-shared";
+import { overnightChipLines } from "./overnight-shared";
 import type { Ending } from "./rules";
 
 /** What companion_messages.offers holds: the menu, and `taken` once a chip was tapped (kept for the record; the chips go). */
@@ -33,17 +34,19 @@ const firstNameOf = (name: string) => name.trim().split(/\s+/)[0] || name;
  * The menu a text about a date offers (pure). `booked`: a next date with that partner exists already, so the only thing
  * left to do is advise. Otherwise the chips follow the question the text ends on: "see them again?" where the ending left
  * a second date open (lib/second-date.ts books only a mutual one), "someone new?" everywhere, and advice always.
+ * `overnight`: the couple has earned an overnight date (lib/overnight.ts overnightOnOffer), so it leads the menu.
  */
-export function offersFor(o: { ending: Ending; booked?: boolean }): CompanionOfferKind[] {
+export function offersFor(o: { ending: Ending; booked?: boolean; overnight?: boolean }): CompanionOfferKind[] {
   if (o.booked) return ["advice"];
   const kinds: CompanionOfferKind[] = [];
+  if (o.overnight && o.ending === "second_date") kinds.push("overnight");
   if (o.ending === "second_date") kinds.push("second_date");
   kinds.push("someone_new", "advice");
   return kinds;
 }
 
 /** The menu to store on a text (pure): null when there is nothing to offer. */
-export function storedOffers(o: { episodeId: string; partnerId: string; partner: string; ending: Ending; booked?: boolean }): StoredOffers | null {
+export function storedOffers(o: { episodeId: string; partnerId: string; partner: string; ending: Ending; booked?: boolean; overnight?: boolean }): StoredOffers | null {
   const kinds = offersFor(o);
   return kinds.length ? { episode_id: o.episodeId, partner_id: o.partnerId, partner: o.partner, kinds } : null;
 }
@@ -55,6 +58,8 @@ export function storedOffers(o: { episodeId: string; partnerId: string; partner:
 export function offerLines(kind: CompanionOfferKind, o: { partner: string; newPartner?: string | null; waiting?: boolean }): string[] {
   const them = firstNameOf(o.partner);
   switch (kind) {
+    case "overnight":
+      return overnightChipLines(o.partner, o.waiting === true);
     case "second_date":
       return o.waiting ? [`I said yes to seeing ${them} again. It's up to ${them}'s creator now.`] : [`Booked. Wish me luck with ${them}.`];
     case "someone_new":

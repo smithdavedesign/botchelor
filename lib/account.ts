@@ -206,7 +206,7 @@ export async function exportAccount(db: Db, userId: string): Promise<AccountExpo
       [userId],
     ),
     relationship_events: await q(
-      `select e.character_a, e.character_b, e.layer, e.from_stage, e.to_stage, e.episode_id, e.at from relationship_events e
+      `select e.character_a, e.character_b, e.layer, e.kind, e.from_stage, e.to_stage, e.episode_id, e.at from relationship_events e
         where exists (select 1 from characters c where c.id in (e.character_a, e.character_b) and c.owner_id = $1 and not c.is_house)
         order by e.at`,
       [userId],
@@ -223,7 +223,7 @@ export async function exportAccount(db: Db, userId: string): Promise<AccountExpo
         order by u.created_at`,
       [userId],
     ),
-    second_date_yeses: await q("select episode_id, created_at from second_date_requests where user_id = $1", [userId]),
+    second_date_yeses: await q("select episode_id, overnight, created_at from second_date_requests where user_id = $1", [userId]),
     date_proposals: await q(
       "select from_character, to_character, status, created_at, decided_at, case when from_user = $1 then 'sent' else 'received' end as direction from date_proposals where from_user = $1 or to_user = $1 order by created_at",
       [userId],
@@ -529,6 +529,8 @@ const AFTER_DARK_OWNED: readonly [string, string][] = [
   ["adult_prefs", "user_id"],
   ["adult_images", "owner_id"], ["adult_studio_shoots", "owner_id"],
   ["adult_steer_resets", "owner_id"], ["adult_shorts", "owner_id"], ["adult_nights", "owner_id"], ["adult_scenes", "owner_id"],
+  // The nights that continued an overnight date (lib/adult/overnight.ts).
+  ["adult_overnights", "owner_id"],
   ["adult_characters", "owner_id"], ["adult_switches", "owner_id"], ["adult_usage", "owner_id"], ["adult_privacy", "user_id"],
   ["adult_entitlements", "user_id"], ["adult_viewer_places", "user_id"], ["adult_billing_flags", "user_id"], ["adult_tastes", "user_id"],
   // Their Didit age check (lib/adult/age-check.ts): passed or not, when, where.

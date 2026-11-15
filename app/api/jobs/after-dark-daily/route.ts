@@ -1,4 +1,5 @@
 import { checkPortraits } from "@/lib/adult/agent-cast";
+import { tellShowNightsOver } from "@/lib/adult/overnight";
 import { getDb } from "@/lib/db";
 import { handle, json } from "@/lib/http";
 import { internalJobAuthorized } from "@/lib/jobs";
@@ -20,7 +21,10 @@ async function run(req: Request): Promise<Response> {
   const baselines = await ensureCastBaselines(db).catch(() => ({ made: 0, errors: ["error"] }));
   // The agent cast's portraits, 30 a day of Hive's 100 (lib/adult/agent-cast.ts): each that passes joins After Dark.
   const portraits = await checkPortraits(db).catch(() => ({ checked: 0, opened: 0, failed: 0, stopped: "error" }));
-  return json({ ok: true, cast_baselines_made: baselines.made, errors: baselines.errors, agent_cast: portraits });
+  // Nights that continued an overnight date and were simply left (lib/adult/overnight.ts): the show gets its one fact
+  // for each, ids and a time. One that ended is told when it's filed; this is the sweep for the rest.
+  const overnights_told = await tellShowNightsOver(db).catch(() => 0);
+  return json({ ok: true, cast_baselines_made: baselines.made, errors: baselines.errors, agent_cast: portraits, overnights_told });
 }
 
 export const GET = handle(run);
