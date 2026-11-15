@@ -102,6 +102,8 @@ async function run(base, browser, devices, label, ctxOpts) {
   assert((await chips.count()) >= 2, `${label}: no chips on the phone`);
   for (const href of await chips.evaluateAll((els) => els.map((el) => el.getAttribute("href")))) assert(href === thread, `${label}: a chip leads to ${href}, not the thread`);
   assert((await phone.getByRole("button").count()) === 0, `${label}: the opted-in phone has a button (nothing is booked from home)`);
+  // They just read the thread: no "New text" dot left behind.
+  assert((await phone.locator(".char-phone-new").count()) === 0, `${label}: the "New text" dot is still there after the thread was opened`);
   await noSidewaysScroll(page, `${label} home (texts)`);
   await page.screenshot({ path: join(OUT_DIR, `phone-home-texts-${label}.png`) });
 

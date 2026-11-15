@@ -22,6 +22,7 @@ import { LIFE_GAP_DAYS, lifeDatesPerDay, WEEK_DAYS } from "@/lib/character-life"
 import { openThread, sendMessage, setCompanionModelForTests } from "@/lib/companion";
 import { markOfferTaken } from "@/lib/companion-offers";
 import { listMyCharacters } from "@/lib/game";
+import { markCharacterTextsRead } from "@/lib/notifications";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import { api, episodeJson, newUserCookie, scriptedModel, scriptOutcome, setupEpisode, startTestDb, TEST_SESSION_SECRET, userIdOf, validCharacter } from "./helpers";
 
@@ -182,7 +183,12 @@ describe("texts waiting: an opted-in thread with an unread text", () => {
     const { creator, character, episode } = await setupEpisode("second_date");
     const me = userIdOf(creator);
     const r = await heard(creator, episode.id);
-    await t.db.query(`update notifications set read_at = now() where user_id = $1`, [me]);
+    // Opening the thread reads its texts (app/companion/[id]/page.tsx calls this): someone else's, or another thread's, don't.
+    expect(await markCharacterTextsRead(t.db, crypto.randomUUID(), `/companion/${r.thread_id}`)).toBe(0);
+    expect(await markCharacterTextsRead(t.db, me, "/companion/another-thread")).toBe(0);
+    expect((await phoneFor(creator))!.unread).toBe(true);
+    expect(await markCharacterTextsRead(t.db, me, `/companion/${r.thread_id}`)).toBe(1);
+    expect(await markCharacterTextsRead(t.db, me, `/companion/${r.thread_id}`)).toBe(0);
     expect((await phoneFor(creator))!.unread).toBe(false);
     expect((await phoneFor(creator))!.chips).toHaveLength(3);
     await markOfferTaken(t.db, r.message_id!, { kind: "advice" });

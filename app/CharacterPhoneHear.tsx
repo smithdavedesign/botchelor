@@ -30,7 +30,7 @@ export default function CharacterPhoneHear({ episodeId, label }: { episodeId: st
       }
       const fix =
         data.error === "age_gate"
-          ? { href: `/gate?next=${encodeURIComponent("/")}`, label: "Confirm your age →" }
+          ? { href: `/gate?from=${encodeURIComponent("/")}`, label: "Confirm your age →" }
           : data.error === "sign_in" || data.error === "guest_used_up"
             ? { href: `/account?next=${encodeURIComponent("/")}`, label: "Make a free account →" }
             : null;

@@ -92,7 +92,9 @@ the rest of the page as before:
   text or a date); else the newest. Their other characters are a row under it, each a link to its own thread (or its
   page when it has none), with a dot when it has an unread text.
 - **On the screen:** the character's last three texts to them (a photo shows as "📷 A photo from the date"), a "New
-  text" dot while the `character_texted_you` notice is unread, and the time of the last one. A tap opens the thread.
+  text" dot while the `character_texted_you` notice is unread, and the time of the last one. A tap opens the thread,
+  and opening a thread marks its notices read (`lib/notifications.ts markCharacterTextsRead`), so the dot and "Since
+  you were here"'s "{name} texted you" go once the texts were seen.
 - **The chips:** the newest open menu of the thread ("Yes, see {partner} again", "Try someone new", "Tell {first} what to
   do next time", [companions.md](companions.md)), or "Answer {first}" when its last text ends on a question nobody
   answered. They are links into the thread, where the tap happens: nothing is booked from the home page.

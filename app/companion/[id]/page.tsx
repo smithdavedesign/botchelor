@@ -6,6 +6,8 @@ import { authFromCookieStore } from "@/lib/http";
 import { getThread } from "@/lib/companion";
 import { companionAccessFromCookies } from "@/lib/companion-access";
 import { companionAllowance } from "@/lib/companion-plan";
+import { companionThreadHref } from "@/lib/companion-shared";
+import { markCharacterTextsRead } from "@/lib/notifications";
 import { extrasState } from "@/lib/companion-extras";
 import { liveCallsOn } from "@/lib/companion-live";
 import { liveFaceOffer, warmLiveFace } from "@/lib/live-face";
@@ -52,6 +54,8 @@ export default async function CompanionThreadPage({ params }: { params: Promise<
     access.guest ? false : isAdmin(db, access.userId),
     // Their face for a call (lib/face-kit.ts), when they have one.
     faceKitOf(db, r.view.character.id),
+    // Their own character's texts are read once the thread is open (the home phone's "New text" dot goes by this).
+    r.view.character.yours ? markCharacterTextsRead(db, access.userId, companionThreadHref(id)) : 0,
   ]);
   // Live calls (P6, lib/companion-live.ts): on with a Deepgram key, for accounts; otherwise a call takes turns (v1).
   const live = liveCallsOn(process.env, { admin, guest: access.guest });
