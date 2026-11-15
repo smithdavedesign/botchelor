@@ -76,7 +76,7 @@ export default async function AfterDarkPage({ searchParams }: { searchParams?: P
   ]);
   // What they made last (David, 2026-11-15: a finished video sat on its pair's page, and the hub never said so): the
   // newest few pictures and videos, each a tap from the Gallery. None where only the scenes are allowed.
-  const latest = here.mode === "text_only" ? [] : latestMade(recent);
+  const made = here.mode === "text_only" ? [] : latestMade(recent);
   // The Studio door's word (lib/adult/doors.ts): "Studio", or "Characters" where the Studio isn't open to them.
   const studioWord = studioDoorLabel(doors);
   // #1176: one of theirs just made on the show (its finish screen's "Bring … into After Dark"), its switch first.
@@ -139,14 +139,14 @@ export default async function AfterDarkPage({ searchParams }: { searchParams?: P
             <Link href="/after-dark/studio">switch them In on {studioWord}</Link>.
           </p>
         )}
-        {latest.length > 0 && (
+        {made.length > 0 && (
           <section className="ad-home-latest" aria-labelledby="ad-latest" data-latest>
             <div className="ad-home-latest-head">
               <h2 id="ad-latest">Your latest</h2>
               <Link href="/after-dark/gallery">See all in the Gallery →</Link>
             </div>
             <ul className="after-dark-gallery ad-latest-strip">
-              {latest.map((m) => (
+              {made.map((m) => (
                 <li key={m.id} data-latest-item={m.id}>
                   <Link href={`/after-dark/gallery?tab=${m.kind === "video" ? "videos" : "pictures"}`} title={m.kind === "video" ? "Your videos, in the Gallery" : "Your pictures, in the Gallery"}>
                     {m.kind === "video" ? (
