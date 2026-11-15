@@ -26,6 +26,7 @@
  *   SKIP_BUILD=1 npm run e2e:visual   reuse the last build
  *   ONLY=account,create               audit only routes whose name contains one of these words
  */
+import { execFileSync } from "node:child_process";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { join } from "node:path";
@@ -279,6 +280,25 @@ async function main() {
     const owner = data.creators[0].id;
     const myChar = data.chars[0].id;
     const aired = data.episodes[0].id;
+    // The day's clip in a stranger's home hero (lib/home-clip.ts), sent the way the daily clip sends it (the script's own
+    // cut and upload, against this server): a few seconds of HOME_CLIP_SAMPLE (a rendered clip) when given, else of a
+    // test pattern. Best effort: with no ffmpeg, home is audited as it is without a clip.
+    try {
+      const { makeWebClip, uploadWebClip } = await import("./clips/daily-clip.mjs");
+      const dir = join(OUT, "home-clip");
+      mkdirSync(dir, { recursive: true });
+      let src = process.env.HOME_CLIP_SAMPLE;
+      if (!src) {
+        src = join(dir, "pattern.mp4");
+        execFileSync(process.env.FFMPEG || "ffmpeg", ["-y", "-loglevel", "error", "-f", "lavfi", "-i", "testsrc2=s=480x854:r=24:d=4", "-pix_fmt", "yuv420p", src]);
+      }
+      const window = process.env.HOME_CLIP_SAMPLE ? { start: 2, seconds: 12 } : { start: 0, seconds: 3 };
+      const made = makeWebClip({ mp4: src, dir, name: "web", window });
+      const sent = await uploadWebClip({ base, key: ADMIN_PASSWORD, episode: aired, loop: made.loop, poster: made.poster, seconds: window.seconds });
+      console.log(sent.ok ? "Home clip: seeded" : `Home clip: not seeded (${sent.status} ${sent.error})`);
+    } catch (e) {
+      console.log(`Home clip: not seeded (${String(e?.message ?? e).slice(0, 120)})`);
+    }
     const unaired = data.episodes[11].id;
     // Texts, boards and swipes (2026-10-17). The first seeded date (the owner's character and Teo) has aired, so its
     // couple page has a phone for the owner and a locked one for everyone else. A second character of the owner's
@@ -401,6 +421,19 @@ async function main() {
           await page.getByRole("button", { name: "Meet them" }).click();
           await page.getByText("Give them a look").waitFor({ timeout: 20_000 });
           await page.getByText("A look that fits your words is already picked").waitFor();
+        },
+      },
+      {
+        // The home page's sentence box (app/HomeExpressBox.tsx): a sentence typed on home lands on /create with the
+        // draft already running, and the sentence never shows in the address. After create-express (a draft left in
+        // this browser doesn't stop this one: a sentence from home starts fresh), before the sample below.
+        name: "home-express",
+        path: "/",
+        walk: async (page) => {
+          await page.locator("#home-express-text").fill("A night-shift baker who names every sourdough starter.");
+          await page.locator(".home-express button[type=submit]").click();
+          await page.getByText("Give them a look").waitFor({ timeout: 30_000 });
+          if (new URL(page.url()).search) throw new Error(`the sentence's address wasn't cleaned: ${page.url()}`);
         },
       },
       { name: "create", path: "/create?sample=1", walk: "wizard" },
