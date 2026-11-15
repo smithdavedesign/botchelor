@@ -819,7 +819,8 @@ export default function CreateWizard({
         attest,
       });
       if (status === 201) {
-        trackConversion("character_created", { open_to_dates: openToDates });
+        // `express`: drafted from one sentence (lib/express-create.ts), so the funnel can tell the two ways in apart.
+        trackConversion("character_created", { open_to_dates: openToDates, ...(expressNote?.kind === "drafted" ? { express: true } : {}) });
         setCreated({ id: String(data.id), name: String(data.name), hue: typeof data.hue === "number" ? data.hue : null });
         // The site's nav is in the root layout, which a client-side link keeps: refresh it so it becomes the owner's
         // (Swipe, Matches) now that there's a character.
