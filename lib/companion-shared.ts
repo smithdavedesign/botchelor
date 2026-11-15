@@ -92,6 +92,14 @@ export function companionDateOpener(env: Record<string, string | undefined> = pr
   return env.COMPANION_DATE_OPENER?.trim() !== "0";
 }
 
+/**
+ * COMPANION_MESSAGE_DELETE=0: one message can't be deleted on its own (lib/companion-message-delete.ts): the Settings
+ * entry goes, the route answers not-found, and the privacy notice and the FAQ say only the whole conversation can be.
+ */
+export function companionMessageDelete(env: Record<string, string | undefined> = process.env): boolean {
+  return env.COMPANION_MESSAGE_DELETE?.trim() !== "0";
+}
+
 export const REPLY_LENGTHS = ["short", "normal", "long"] as const;
 export type ReplyLength = (typeof REPLY_LENGTHS)[number];
 export const REPLY_LENGTH_LABELS: Record<ReplyLength, string> = { short: "Short", normal: "Normal", long: "Long" };

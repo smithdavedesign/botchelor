@@ -13,6 +13,7 @@
  * real user: real ids are UUIDs (lib/http readUserId).
  */
 import { deleteAdultProfile } from "./adult/profile-data";
+import { isTextTag } from "./companion-shared";
 import { forgetUnusedVoices } from "./companion-voice";
 import type { Db } from "./db";
 import { getPoints } from "./game";
@@ -99,6 +100,36 @@ export type AccountExport = {
   episode_variations: Record<string, unknown>[];
   /** Their taps on the "Botchelor Plus" tile (lib/plus-interest.ts): where, when, and whether they left an email. */
   plus_interest: Record<string, unknown>[];
+  /**
+   * Their conversations with companions (lib/companion.ts), a thread each: the character, every message with who said
+   * it, when and whether it was said on a call, what the character remembers about them (the facts and the running
+   * notes), and the blank markers left by texts they deleted. After Dark is not here: nothing of it is in this export.
+   */
+  companion_conversations: CompanionConversationExport[];
+  /** The record of each live call (lib/companion-live.ts): its times, minutes and turns. No words or sound exist there. */
+  companion_calls: Record<string, unknown>[];
+};
+
+export type CompanionConversationExport = {
+  thread_id: string;
+  character_id: string;
+  character: string;
+  started_at: string;
+  last_at: string;
+  /** The thread's settings: how much the character says, whether it may text first, and whether the crisis pause is up. */
+  reply_length: string;
+  texts_on: boolean;
+  paused: boolean;
+  /** The scene being played now and its roleplay (the person's own words when they wrote one), or null while texting. */
+  scene: string | null;
+  roleplay: unknown;
+  /** The running notes the character keeps of everything older than its recent turns (lib/companion-memory.ts). */
+  notes: string | null;
+  messages: Record<string, unknown>[];
+  /** What the character remembers about them (the memory page's facts). */
+  memory: Record<string, unknown>[];
+  /** Texts the character sent first that they deleted: what each was about and when, never its words (lib/companion-message-delete.ts). */
+  deleted_text_markers: { about: string; at: string }[];
 };
 
 /** Everything stored under this user id, as JSON. Owner-only (the route checks the cookie is the user). */
@@ -282,7 +313,83 @@ export async function exportAccount(db: Db, userId: string): Promise<AccountExpo
       [userId],
     ),
     plus_interest: await q("select place, with_email, created_at from plus_interest where user_id = $1 order by created_at", [userId]),
+    companion_conversations: await companionConversations(db, userId),
+    // A call's row has no words and no sound (its words are messages, marked on_call, in the conversation above).
+    companion_calls: await q(
+      `select thread_id, started_at, ended_at, last_at, minutes, turns, tts_chars as voiced_characters, face_provider, face_seconds,
+              first_ticket->>'source' as first_minute_paid_with
+         from companion_live_calls where user_id = $1 order by started_at`,
+      [userId],
+    ),
   };
+}
+
+/**
+ * The person's companion threads for the export, three reads whatever the number of threads. A message says who said it
+ * (`you`, `character`, or `notice` for the AI notice and a scene's line), when, and whether it was said on a call; a
+ * voice note is a flag (the audio is made from the words and isn't the person's), a photo its address. A reply drawn
+ * again is here too, marked `redrawn`: it is kept, hidden, until its reply or the conversation is deleted. Only the
+ * person's own threads: the character is named, and nothing of any other person's is read.
+ */
+async function companionConversations(db: Db, userId: string): Promise<CompanionConversationExport[]> {
+  const iso = (v: Date | string) => new Date(v).toISOString();
+  const [threads, messages, facts] = await Promise.all([
+    db.query<{ id: string; character_id: string; character: string; created_at: Date | string; last_at: Date | string; reply_length: string; muted_proactive: boolean; paused_at: Date | string | null; scene: string | null; roleplay: unknown; summary: string | null }>(
+      `select t.id, t.character_id, c.name as character, t.created_at, t.last_at, t.reply_length, t.muted_proactive, t.paused_at, t.scene, t.roleplay, t.summary
+         from companion_threads t join characters c on c.id = t.character_id
+        where t.user_id = $1 order by t.created_at, t.id`,
+      [userId],
+    ),
+    db.query<{ thread_id: string; id: string; role: string; text: string; created_at: Date | string; on_call: boolean; via: string; media_url: string | null; scene: string | null; action: string | null; roleplay: string | null; reported: string | null; reported_at: Date | string | null; voice_note: boolean; replaced_by: string | null }>(
+      `select m.thread_id, m.id, m.role, m.text, m.created_at, m.on_call, m.via, m.media_url, m.scene, m.action, m.roleplay, m.reported, m.reported_at,
+              m.voice_key is not null as voice_note, m.replaced_by
+         from companion_messages m join companion_threads t on t.id = m.thread_id
+        where t.user_id = $1 order by m.created_at, m.id`,
+      [userId],
+    ),
+    db.query<{ thread_id: string; kind: string; text: string; pinned: boolean; edited_by_user: boolean; created_at: Date | string }>(
+      `select f.thread_id, f.kind, f.text, f.pinned, f.edited_by_user, f.created_at
+         from companion_facts f join companion_threads t on t.id = f.thread_id
+        where t.user_id = $1 order by f.created_at, f.id`,
+      [userId],
+    ),
+  ]);
+  return threads.rows.map((t) => {
+    const mine = messages.rows.filter((m) => m.thread_id === t.id);
+    // A deleted text's marker is the row blanked and pointed at itself (lib/companion-message-delete.ts).
+    const marker = (m: (typeof mine)[number]) => m.replaced_by === m.id;
+    return {
+      thread_id: t.id,
+      character_id: t.character_id,
+      character: t.character,
+      started_at: iso(t.created_at),
+      last_at: iso(t.last_at),
+      reply_length: t.reply_length,
+      texts_on: !t.muted_proactive,
+      paused: t.paused_at !== null,
+      scene: t.scene,
+      roleplay: t.roleplay ?? null,
+      notes: t.summary,
+      messages: mine
+        .filter((m) => !marker(m))
+        .map((m) => ({
+          said_by: m.role === "user" ? "you" : m.role === "character" ? "character" : "notice",
+          text: m.text,
+          at: iso(m.created_at),
+          on_call: m.on_call,
+          ...(m.via === "photo" ? { photo: m.media_url } : {}),
+          ...(m.voice_note ? { voice_note: true } : {}),
+          ...(m.scene ? { scene: m.scene } : {}),
+          ...(m.roleplay ? { roleplay: m.roleplay } : {}),
+          // What they did as they said it (a scene), or what a text they sent first was about (its tag).
+          ...(m.action ? (isTextTag(m.action) ? { about: m.action } : { action: m.action }) : {}),
+          ...(m.reported ? { reported: m.reported, reported_at: m.reported_at ? iso(m.reported_at) : null } : {}),
+          ...(m.replaced_by ? { redrawn: true } : {}),
+        })),
+      memory: facts.rows.filter((f) => f.thread_id === t.id).map((f) => ({ kind: f.kind, text: f.text, pinned: f.pinned, edited_by_you: f.edited_by_user, at: iso(f.created_at) })),
+      deleted_text_markers: mine.filter(marker).map((m) => ({ about: m.action ?? "", at: iso(m.created_at) })),
+    };
+  });
 }
 
 /**

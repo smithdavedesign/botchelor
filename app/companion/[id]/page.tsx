@@ -6,7 +6,7 @@ import { authFromCookieStore } from "@/lib/http";
 import { getThread } from "@/lib/companion";
 import { companionAccessFromCookies } from "@/lib/companion-access";
 import { companionAllowance } from "@/lib/companion-plan";
-import { companionThreadHref } from "@/lib/companion-shared";
+import { companionMessageDelete, companionThreadHref } from "@/lib/companion-shared";
 import { markCharacterTextsRead } from "@/lib/notifications";
 import { extrasState } from "@/lib/companion-extras";
 import { liveCallsOn } from "@/lib/companion-live";
@@ -77,6 +77,7 @@ export default async function CompanionThreadPage({ params }: { params: Promise<
       liveFace={liveFace}
       callVoice={callVoiceOn(process.env)}
       faceKit={faceKit}
+      messageDelete={companionMessageDelete()}
     />
   );
 }

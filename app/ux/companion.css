@@ -381,6 +381,18 @@ body:has(.companion-fullscreen) .site-footer {
   display: flex;
   gap: 0.25rem;
 }
+/* Deleting one message (app/companion/[id]/messages): the memory page's list, with who and when on the first line, the
+   message's own words on a line of their own (they can be long, or one unbroken link), and the buttons under them. */
+.companion-delete-list .companion-fact-text {
+  flex-basis: 100%;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.companion-delete-list .companion-fact-tools {
+  flex-wrap: wrap;
+  align-items: center;
+  margin-left: auto;
+}
 /* The plan (app/companion/plan; lib/companion-plan.ts): the line on the list, the card when the free replies are gone. */
 .companion-plan-line {
   margin: var(--space-2) 0 0;

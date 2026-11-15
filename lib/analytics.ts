@@ -62,6 +62,7 @@ export type AnalyticsEvent =
   | "companion_reply" // a companion answered (lib/companion.ts): the model, its cost and how long; never the words
   | "companion_report" // a person reported a companion's reply: the reason only
   | "companion_scene" // a companion thread started a scene at a place, or went back to texting: the place only
+  | "companion_message_delete" // a person deleted one message of a companion thread (lib/companion-message-delete.ts): whose it was and whether it was said on a call; never the words
   | "companion_text" // a character texted its person first (lib/companion.ts postFromCharacter): the kind of text and how many bubbles; never the words
   | "express_draft" // one-sentence create drafted a sheet, or didn't (app/api/characters/draft): ready or the reason; never the words
   | "character_question" // a character asked its owner about its own sheet (lib/character-questions.ts): the field only
