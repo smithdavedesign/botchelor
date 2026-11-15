@@ -514,6 +514,15 @@ David, 2026-11-13, on a GPT proposal for live "digital humans" (the review and t
     it renders (`video_frag` events into a MediaSource; `LIVE_FACE_FRAGS=0` turns that off), and a person can pick
     Ditto or MuseTalk for their own calls on `/admin/live-face`. The spike, the chain and the numbers are in
     [PRDs/digital-human.md](PRDs/digital-human.md#ditto-2026-11-14-the-spike-and-the-second-worker).
+  - **Who gets it: the Companion Plan (2026-11-15).** A `:plan` suffix (`LIVE_FACE_PROVIDER=ditto:plan`, production's
+    setting) gives the moving face to admins and Companion Plan members (`planState(…, "companion").active`, looked up
+    by `liveFaceFor`/`liveFaceWho` in `lib/live-face/index.ts`); everyone else's call screen says "With the Companion
+    Plan, <name>'s face moves as they talk" (`liveFaceOffer` → `"plan"`, `data-testid="call-face-offer"`), and the
+    plan page and `/pricing` list it beside the 20 call minutes. It is never a separate charge: it rides on the call's
+    minutes, so a member past the included 20 pays the same token for 10 minutes with or without it. A non-member's
+    call never wakes a worker (no session, no clips, no tick warm-up). Why the plan and not tokens: a face minute costs
+    ~1.3¢ of GPU against the ~7¢ a call minute sells for, so the margin holds without a price of its own, and a perk
+    nobody else can see sells the plan better than a second meter on the call screen.
 
 ## Live calls (P6, built 2026-11-10; on once the Deepgram key is set)
 
@@ -554,7 +563,8 @@ you can talk over the other, and it's charged by the minute. It sits behind the 
 - **By the minute** (`lib/companion-live.ts`, table `companion_live_calls`: when it started and ended, minutes, turns,
   Aura's characters; never audio or words; kept 90 days). It's an extra like voice notes (`COMPANION_EXTRAS.minute`):
   - the Companion Plan includes **20 call minutes** a calendar month (`COMPANION_LIVE_INCLUDED`), then **1 token buys
-    10** (`COMPANION_LIVE_BUNDLE`), kept as credits; admins free; guests get v1 only.
+    10** (`COMPANION_LIVE_BUNDLE`), kept as credits; admins free; guests get v1 only. With `LIVE_FACE_PROVIDER=…:plan`
+    a member's minutes also carry the character's moving face at no extra price (see "Their face on a call").
   - Why 10 a token: a minute costs us about 2¢ at the most (Nova-3 streaming about 0.8¢, Aura about 3¢ per 1,000
     characters and a talkative companion says maybe 350 a minute, a few model calls at about 0.1¢). A token is about
     $0.72 after Stripe, so 10 minutes sells near 7¢ a minute, about 3.5×, in line with the voice notes.

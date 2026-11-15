@@ -83,6 +83,7 @@ export default function CompanionChat({
   initialExtras = null,
   signedIn = false,
   liveCalls = false,
+  liveFace = null,
   callVoice = false,
   faceKit = null,
   about = null,
@@ -98,6 +99,8 @@ export default function CompanionChat({
   signedIn?: boolean;
   /** Live calls (P6) are on for this person (lib/companion-live.ts liveCallsOn); off, a call takes turns (v1). */
   liveCalls?: boolean;
+  /** Their moving face on a live call (lib/live-face liveFaceOffer): this person's, the Companion Plan's to offer, or none. */
+  liveFace?: "yours" | "plan" | null;
   /** A taking-turns call's replies are said in the character's own Aura voice (lib/companion-call-voice.ts); off, the device's. */
   callVoice?: boolean;
   /** The character's face kit (lib/face-kit.ts), when they have one: their face comes to life on a call. */
@@ -946,7 +949,7 @@ export default function CompanionChat({
           onVoice={voiceOf}
           onStart={callStart}
           onEnd={callEnd}
-          live={liveCalls && extras ? { url: `/api/companion/${view.id}/live`, minutes: extras.minute ?? null } : null}
+          live={liveCalls && extras ? { url: `/api/companion/${view.id}/live`, minutes: extras.minute ?? null, face: liveFace } : null}
           speakUrl={callVoice ? `/api/companion/${view.id}/speak` : null}
           onRefused={callRefusal}
           onKept={() => void refreshThread()}

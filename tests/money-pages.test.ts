@@ -57,9 +57,9 @@ describe("/shop: offer tiles under a meter card", () => {
     expect(html).toContain(`<strong>${FREE_EPISODES_PER_SEASON}</strong><span>dates left</span>`);
     expect(html).toContain(`${FREE_EPISODES_PER_SEASON} of ${FREE_EPISODES_PER_SEASON} free this week. Free dates come back Monday 00:00 UTC.`);
     expect(html.indexOf("money-meter")).toBeLessThan(html.indexOf("money-tile"));
-    // Two tiles: the pack and the Companion Plan, each led by its price.
-    // Three tiles since 2026-11-14: the pack, the Companion Plan and the Botchelor Plus intent tile (app/shop/PlusInterest.tsx).
+    // Three tiles: the pack and the Companion Plan, each led by its price, and Plus's demand test (not for sale).
     expect(html.match(/class="card money-tile shop-item[^"]*"/g)).toHaveLength(3);
+    expect(html).toContain("data-shop-plus");
     expect(html).toContain('<p class="money-price"><span class="money-price-amount">$4</span><span class="money-price-per">once</span></p>');
     expect(html).toContain('<p class="money-price"><span class="money-price-amount">$9.99</span><span class="money-price-per">a month</span></p>');
     expect(html).toContain('data-shop-plan="companion"');
