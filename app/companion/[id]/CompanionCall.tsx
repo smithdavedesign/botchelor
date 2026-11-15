@@ -8,7 +8,7 @@ import { extraPrice, type CompanionCharacterRef, type CompanionExtraState, type 
 import { heardSoFar, LIVE_START, liveStep, type Heard, type LiveEvent, type LiveState } from "@/lib/companion-live-shared";
 import { sseData } from "@/lib/sse";
 import { kitComplete, type FaceKit } from "@/lib/face-kit-shared";
-import { CLIP_HOLD_MS, CLIP_LATE_MS, REACTION_GAP_MS, type ReactionKind, voiceForLiveFace, type LiveFaceSession } from "@/lib/live-face-shared";
+import { CLIP_HOLD_MS, CLIP_LATE_MS, LISTEN_MIN_SPEECH_MS, LISTEN_PAUSE_MS, REACTION_GAP_MS, type ReactionKind, voiceForLiveFace, type LiveFaceSession } from "@/lib/live-face-shared";
 import { TRANSCRIPT_START, transcriptStep, type Transcript, type TranscriptEvent } from "@/lib/companion-call-transcript";
 import CallTranscript from "./CallTranscript";
 import LiveFace, { type LiveFaceHandle } from "./LiveFace";
@@ -689,13 +689,33 @@ export default function CompanionCall({
     listen();
   }
 
-  // A reaction between replies (LiveFace.react: Ditto's nod or tilt), not every time and not too often, so it reads
-  // as listening rather than a tic: a nod as what they said goes in, a tilt as the reply is thought about.
+  // A reaction between replies (LiveFace.react: Ditto's nod, tilt or brow raise), not every time and not too often, so
+  // it reads as listening rather than a tic: a brow raise as they start talking, a nod at a pause once they've been
+  // talking a while, a nod as what they said goes in, a tilt as the reply is thought about (the listening rules
+  // AVTR-1's paper measured: the listener's motion follows the speaker's speech within a few seconds).
   const lastReaction = useRef(0);
   function maybeReact(kind: ReactionKind, odds: number) {
     if (Date.now() - lastReaction.current < REACTION_GAP_MS || Math.random() >= odds) return;
     lastReaction.current = Date.now();
     face.current?.react(kind);
+  }
+  // While they talk: when their words started, when the last ones landed, and a timer that fires at a pause.
+  const speechFrom = useRef(0);
+  const pauseTimer = useRef(0);
+  function heardWords() {
+    const now = Date.now();
+    if (!speechFrom.current) {
+      speechFrom.current = now;
+      maybeReact("brow", 0.35);
+    }
+    window.clearTimeout(pauseTimer.current);
+    pauseTimer.current = window.setTimeout(() => {
+      if (phaseNow.current === "listening" && speechFrom.current && Date.now() - speechFrom.current >= LISTEN_MIN_SPEECH_MS) maybeReact("nod", 0.5);
+    }, LISTEN_PAUSE_MS);
+  }
+  function speechOver() {
+    window.clearTimeout(pauseTimer.current);
+    speechFrom.current = 0;
   }
 
   /** What Deepgram heard: the turn-taking (lib/companion-live-shared.ts liveStep) decides what it means. */
@@ -703,7 +723,10 @@ export default function CompanionCall({
     if (ended.current || modeNow.current !== "live") return;
     const p = phaseNow.current;
     if (p !== "listening" && p !== "thinking" && p !== "speaking") return;
-    if (e.kind === "words" && e.text.trim()) heardAt.current = Date.now();
+    if (e.kind === "words" && e.text.trim()) {
+      heardAt.current = Date.now();
+      if (p === "listening") heardWords();
+    }
     const { state, effects } = liveStep(liveState.current, e);
     liveState.current = state;
     for (const fx of effects) {
@@ -714,6 +737,7 @@ export default function CompanionCall({
         props.current.speech.stop();
         go("listening");
       } else {
+        speechOver();
         maybeReact("nod", 0.7);
         void liveTurn(fx.text);
       }

@@ -21,7 +21,7 @@ import { LIVE_AUDIO_RATE, type LiveEvent } from "@/lib/companion-live-shared";
 import { companionAllowance, giveBackReply, takeReply } from "@/lib/companion-plan";
 import { getDb } from "@/lib/db";
 import { ensureFaceKit } from "@/lib/face-kit";
-import { liveFaceClips, liveFaceSession } from "@/lib/live-face";
+import { liveFaceClips, liveFaceSession, warmLiveFace } from "@/lib/live-face";
 import { DittoChain } from "@/lib/live-face/ditto";
 import { speakClip } from "@/lib/live-face/musetalk";
 import { clausesOf, emoFor, framesOfPcm, SHORT_FIRST_PIECE, SHORT_FIRST_WAIT_MS } from "@/lib/live-face-shared";
@@ -141,7 +141,11 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
     return json({ ...body, extras: await extras() }, status, sess);
   }
 
-  if (input.action === "tick") return json({ minutes: charged.minutes, extras: await extras() }, 200, sess);
+  if (input.action === "tick") {
+    // Every half minute of a call: the renderer's worker stays hot through the call's pauses.
+    warmLiveFace(process.env, { admin });
+    return json({ minutes: charged.minutes, extras: await extras() }, 200, sess);
+  }
 
   if (input.action === "token") {
     const token = await mintSttToken();

@@ -13,6 +13,7 @@ import { openConnection } from "../connections";
 import type { Db } from "../db";
 import { faceKitOf } from "../face-kit";
 import { keepBytes, readBytes } from "../object-store";
+import { approvedPortraitSelect } from "../portrait-sql";
 import { inBackground } from "../sets";
 import { JOB, liveFaceRowFor } from "./index";
 import { RENDERERS, rendererById, type ClipRenderer, type RenderInput, type RendererProvider } from "./renderers";
@@ -143,10 +144,12 @@ export async function startCompare(db: Db, who: { userId: string }, input: { cha
     renders.push({ renderId, r });
   }
   const bundle = await liveFaceRowFor(db, c.id, baseUrl, "musetalk", env);
+  const castAsset = (await db.query<{ id: string }>(`${approvedPortraitSelect("$1")}`, [c.id])).rows[0];
   const renderInput: RenderInput = {
     characterId: c.id,
     portraitUrl: new URL(kit.stills.portrait, baseUrl).toString(),
     loopUrl: new URL(kit.loop, baseUrl).toString(),
+    castPortraitUrl: castAsset ? new URL(`/api/assets/${encodeURIComponent(castAsset.id)}`, baseUrl).toString() : null,
     audio: { pcm, wav, rate: LIVE_AUDIO_RATE, seconds, url: `${baseUrl.replace(/\/$/, "")}/api/live-face/audio/${id}.wav` },
     line,
     bundleKey: bundle && bundle.status === "ready" && bundle.provider_face_id && !bundle.provider_face_id.startsWith(JOB) ? bundle.provider_face_id : null,

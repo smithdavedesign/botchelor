@@ -294,6 +294,18 @@ export async function liveFaceSession(db: Db, characterId: string, baseUrl: stri
   }
 }
 
+/**
+ * Spins the set renderer's worker up for this person (nothing awaited, nothing when live faces are off for them): the
+ * companion page calls it as it opens and a call on every tick, so a reply's first clause finds a hot worker rather
+ * than a 22–32 s boot (the browser gives a first clip 4 s, so a cold boot meant a plain first reply).
+ */
+export function warmLiveFace(env: Env, who: { admin: boolean }): void {
+  if (!liveFaceOn(env, who)) return;
+  const p = liveFaceProvider(env);
+  if (p === "ditto") void warmWorker(dittoConfig(env)!);
+  else if (p === "musetalk") void warmWorker(runpodConfig(env)!);
+}
+
 /** What a turn renders a reply's clips with: MuseTalk from the character's bundle, or Ditto from the kit's portrait. */
 export type LiveFaceClipPlan = { provider: "musetalk"; runpod: RunpodConfig; bundle_key: string } | { provider: "ditto"; runpod: RunpodConfig; source_url: string };
 

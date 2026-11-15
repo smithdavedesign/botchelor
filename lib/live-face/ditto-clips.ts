@@ -23,13 +23,15 @@ import { dittoConfig, speakDitto } from "./ditto";
 type Env = Record<string, string | undefined>;
 
 export type LibraryKind = "idle" | ReactionKind;
-export const LIBRARY_KINDS: readonly LibraryKind[] = ["idle", "nod", "tilt"];
+export const LIBRARY_KINDS: readonly LibraryKind[] = ["idle", "nod", "tilt", "brow"];
 
 /** Each clip: its length of silence, the pose motion on top, and the frames easing in from and out to the still. */
-export const LIBRARY_SPEC: Record<LibraryKind, { seconds: number; motion: { kind: "sway" | "nod" | "tilt"; amount: number; period_s?: number; at_s?: number }; fade_in: number; fade_out: number }> = {
+export const LIBRARY_SPEC: Record<LibraryKind, { seconds: number; motion: { kind: "sway" | "nod" | "tilt"; amount: number; period_s?: number; at_s?: number }; fade_in: number; fade_out: number; emo?: number }> = {
   idle: { seconds: 8, motion: { kind: "sway", amount: 1, period_s: 4.2 }, fade_in: 10, fade_out: 10 },
   nod: { seconds: 1.4, motion: { kind: "nod", amount: 1.4, at_s: 0.25 }, fade_in: 4, fade_out: 8 },
   tilt: { seconds: 1.8, motion: { kind: "tilt", amount: 1.3 }, fade_in: 6, fade_out: 8 },
+  // A brow raise: the surprise bank over a small sway, from the still back to it.
+  brow: { seconds: 1.4, motion: { kind: "sway", amount: 0.5, period_s: 2.8 }, fade_in: 5, fade_out: 8, emo: 6 },
 };
 
 /** A clip still "making" after this long is asked for again; a failed one after this long too. */
@@ -55,7 +57,7 @@ export async function dittoLibrary(db: Db, characterId: string, baseUrl: string)
     if (r.kind === "idle") out.idle = libraryClipUrl(r.id);
     else out.reactions[r.kind] = libraryClipUrl(r.id);
   }
-  out.complete = Boolean(out.idle && out.reactions.nod && out.reactions.tilt);
+  out.complete = Boolean(out.idle && out.reactions.nod && out.reactions.tilt && out.reactions.brow);
   return out;
 }
 
@@ -102,7 +104,7 @@ export async function ensureDittoLibrary(db: Db, characterId: string, baseUrl: s
         [id, characterId, source.id, kind],
       );
       const spec = LIBRARY_SPEC[kind];
-      const out = await speakDitto(cfg, { source_url: sourceUrl, pcm: silence(spec.seconds), rate: LIVE_AUDIO_RATE, fade_in: spec.fade_in, fade_out: spec.fade_out, motion: spec.motion, emo: 4 }, { timeoutMs: 60_000 });
+      const out = await speakDitto(cfg, { source_url: sourceUrl, pcm: silence(spec.seconds), rate: LIVE_AUDIO_RATE, fade_in: spec.fade_in, fade_out: spec.fade_out, motion: spec.motion, emo: spec.emo ?? 4 }, { timeoutMs: 60_000 });
       const mp4 = Buffer.from(out.video_b64, "base64");
       const stored = await keepBytes("companion", `live-face-clip-${id}`, mp4, "video/mp4");
       await db.query(`update live_face_clips set status = 'ready', mime = 'video/mp4', object_key = $2, data = $3, frames = $4, error = null, updated_at = now() where id = $1`, [id, stored.object_key, stored.data, out.frames]);
