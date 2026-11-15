@@ -60,6 +60,9 @@ export type LessonsRun = {
   /** Of `written`, the ones for our own identities' characters (admins, the house-run crowd, test names): counted apart. */
   ours: number;
   texts: number;
+  /** The tokens the day's calls used (failed attempts included), whatever they cost. */
+  input_tokens: number;
+  output_tokens: number;
   /** What the day's calls cost in USD (null when a call ran on a model with no known price), and per character written. */
   cost_usd: number | null;
   cost_per_character_usd: number | null;
@@ -73,7 +76,7 @@ export type LessonsRun = {
  * written when there's room, counted apart, and never texted. Then each owner who opted in gets the one weekly text.
  */
 export async function runCharacterLessons(db: Db, now: Date = new Date(), opts: { models?: readonly Model[]; limit?: number; deadline?: number; gapMs?: number } = {}): Promise<LessonsRun> {
-  const run: LessonsRun = { candidates: 0, written: 0, by_model: 0, by_template: 0, ours: 0, texts: 0, cost_usd: 0, cost_per_character_usd: null, stopped: "done" };
+  const run: LessonsRun = { candidates: 0, written: 0, by_model: 0, by_template: 0, ours: 0, texts: 0, input_tokens: 0, output_tokens: 0, cost_usd: 0, cost_per_character_usd: null, stopped: "done" };
   if (!characterLessonsOn()) return { ...run, cost_usd: null, stopped: "off" };
   const day = `${now.toISOString().slice(0, 10)}T00:00:00Z`;
   const today = (await db.query<{ n: number }>(`select count(*)::int as n from character_lessons where created_at >= $1::timestamptz and created_at <= $2::timestamptz`, [day, now.toISOString()])).rows[0]?.n ?? 0;
@@ -101,6 +104,8 @@ export async function runCharacterLessons(db: Db, now: Date = new Date(), opts: 
     run.written++;
     if (r.source === "model") run.by_model++;
     else run.by_template++;
+    run.input_tokens += r.cost.input_tokens;
+    run.output_tokens += r.cost.output_tokens;
     if (r.cost.cost_usd === null && r.cost.input_tokens > 0) priced = false;
     else run.cost_usd = (run.cost_usd ?? 0) + (r.cost.cost_usd ?? 0);
     if (isOurs(c)) {

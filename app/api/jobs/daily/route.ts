@@ -191,6 +191,8 @@ async function growth({ db, step, t0 }: Ctx): Promise<PartResult> {
       by_template: 0,
       ours: 0,
       texts: 0,
+      input_tokens: 0,
+      output_tokens: 0,
       cost_usd: null,
       cost_per_character_usd: null,
       stopped: "error" as const,

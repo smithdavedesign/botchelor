@@ -17,11 +17,16 @@
  *                  OpenRouter), SIM_LLM_API_KEY (required, read from the environment only), SIM_MODEL (default
  *                  anthropic/claude-haiku-5.5, what production runs). Costs about 1¢ a date.
  * Options: --pairs 1,4,10 (default all)  --dates 5  --out .data/sim  --no-build  --no-screens
+ *   --lessons-ab   the last date twice from the same history (lib/character-lessons.ts): once on a copy of the database
+ *                  with CHARACTER_LESSONS=0, once with the characters' lessons in their prompts. Saves the lessons each
+ *                  character holds (lessons.json) and both dates (date-N-without-lessons-view.json beside
+ *                  date-N-view.json), and in paid mode what the lessons step took off the key. The two dates have
+ *                  different ids, so the engine may decide them differently: compare what is said, not how it ends.
  *
  * Tokens: each run makes both owners admins with a throwaway password and grants them free dates (/api/admin/tokens),
  * so no code is patched. Needs CHROMIUM_PATH for the screenshots (never downloads a browser).
  */
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { randomBytes } from "node:crypto";
 import { appEnv, build, client, freePort, ipFor, persona, ROOT, startApp, startShowrunner, stopApp, WATCH_ADMIN_TOKEN } from "./harness.mjs";
@@ -37,6 +42,7 @@ const MODEL = opt("model", "stub");
 const DATES = Number(opt("dates", "5"));
 const OUT = opt("out", join(ROOT, ".data", "sim"));
 const PICK = opt("pairs", "all");
+const LESSONS_AB = flag("lessons-ab");
 const ADMIN_PASSWORD = randomBytes(18).toString("hex");
 const GATEWAY = "https://openrouter.ai/api/v1";
 
@@ -120,8 +126,10 @@ async function runPair(index, pair, browser) {
   rmSync(dir, { recursive: true, force: true });
   mkdirSync(join(dir, "db"), { recursive: true });
   const showrunner = await startShowrunner();
-  const app = await startApp(await freePort(), envFor(showrunner.address().port, join(dir, "db")));
-  const base = app.base;
+  // One environment for every start of this couple's app (a restart keeps its session secret and admin password).
+  const env = envFor(showrunner.address().port, join(dir, "db"));
+  let app = await startApp(await freePort(), env);
+  let base = app.base;
   const call = client(base);
   const log = { label: pair.label, dates: [], edges: [] };
   console.log(`\n== ${index + 1}. ${pair.label} ==`);
@@ -136,6 +144,32 @@ async function runPair(index, pair, browser) {
     let prev = null;
     for (let n = 1; n <= DATES; n++) {
       const t0 = Date.now();
+      if (LESSONS_AB && n === DATES && n > 1) {
+        // What each character has learned by now, as its owner's memory route says it.
+        const held = async (who, c) => (await get(base, `/api/characters/${c.id}/memory`, who)).data?.lessons ?? { lines: [] };
+        const lessons = { a: { name: pair.a.name, ...(await held(ownerA, a)) }, b: { name: pair.b.name, ...(await held(ownerB, b)) } };
+        writeFileSync(join(dir, "lessons.json"), JSON.stringify(lessons, null, 2));
+        log.lessons = lessons;
+        console.log(`  lessons: ${pair.a.name}: ${JSON.stringify(lessons.a.lines)} · ${pair.b.name}: ${JSON.stringify(lessons.b.lines)}`);
+        // The same date from the same history, without them: a copy of the database, the switch off.
+        await stopApp(app);
+        cpSync(join(dir, "db"), join(dir, "db-without"), { recursive: true });
+        const off = await startApp(await freePort(), { ...env, PGLITE_DIR: join(dir, "db-without"), CHARACTER_LESSONS: "0" });
+        try {
+          const without = await book(off.base, n, prev, ownerA, ownerB, a, b);
+          const seen = must(await get(off.base, `/api/episodes/${without.ep.id}`, ownerA), "episode (without lessons)");
+          writeFileSync(join(dir, `date-${n}-without-lessons-view.json`), JSON.stringify(seen, null, 2));
+          log.without_lessons = { n, episode_id: without.ep.id, booked_as: without.how, ending: seen.ending, transcript_turns: seen.transcript?.length ?? 0 };
+          console.log(`  ✓ date ${n} without lessons (${without.how}) ${seen.ending}`);
+        } catch (err) {
+          console.log(`  ✗ date ${n} without lessons: ${err.message}`);
+          log.without_lessons = { n, error: err.message };
+        } finally {
+          await stopApp(off);
+        }
+        app = await startApp(await freePort(), env);
+        base = app.base;
+      }
       let booked;
       try {
         booked = await book(base, n, prev, ownerA, ownerB, a, b);
@@ -155,7 +189,26 @@ async function runPair(index, pair, browser) {
       // Air it (as whoever booked it), read the afterglow, run the day's texts.
       for (const who of [ownerA, ownerB]) if ((await post(base, `/api/episodes/${id}/reveal`, {}, who)).status === 200) break;
       const afterglow = (await post(base, `/api/episodes/${id}/afterglow`, {}, ownerA)).data;
-      const daily = (await get(base, "/api/jobs/daily?backfill=0", ownerA, { "x-jobs-token": WATCH_ADMIN_TOKEN })).data;
+      const job = async (part) => (await get(base, `/api/jobs/daily?backfill=0${part ? `&part=${part}` : ""}`, ownerA, { "x-jobs-token": WATCH_ADMIN_TOKEN })).data;
+      let daily;
+      if (LESSONS_AB) {
+        // The job part by part, so what the lessons step (in the growth part) spends can be read off the key's balance.
+        daily = {};
+        for (const part of ["upkeep", "show", "people"]) Object.assign(daily, await job(part));
+        const before = await gatewayBalance();
+        Object.assign(daily, await job("growth"));
+        const l = daily.character_lessons;
+        if (l?.written) {
+          // The provider's balance can trail a call by a few seconds.
+          if (before !== null) await new Promise((ok) => setTimeout(ok, 8000));
+          const after = await gatewayBalance();
+          const spent = before !== null && after !== null ? Number((before - after).toFixed(6)) : null;
+          log.lessons_step = { after_date: n, ...l, balance_spent_usd: spent, balance_per_character_usd: spent !== null ? Number((spent / l.written).toFixed(6)) : null };
+          console.log(`  lessons step: ${l.written} written (${l.by_model} by the model, ${l.by_template} by template), ${l.input_tokens} tokens in / ${l.output_tokens} out${spent !== null ? `, $${spent} off the key` : ""}`);
+        }
+      } else {
+        daily = await job();
+      }
       const edge = await relationship(base, ownerA, a.id, b.id);
       const edgeB = await relationship(base, ownerB, a.id, b.id);
       const memA = (await get(base, `/api/characters/${a.id}/memory`, ownerA)).data;
