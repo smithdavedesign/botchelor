@@ -185,7 +185,13 @@ describe("3. the result page leads to /create with the first name filled in, and
   });
 
   it("leaves /create's name empty without the parameter, and caps a long one at the field's 40 characters", async () => {
+    // A first character's /create opens on the one box since 2026-11-15 (EXPRESS_CREATE); the form is what this pins.
+    // (Set and put back by hand: vi.unstubAllEnvs() would also bring back the model keys beforeAll took away.)
+    const before = process.env.EXPRESS_CREATE;
+    process.env.EXPRESS_CREATE = "0";
     const plain = renderToStaticMarkup(await CreatePage({ searchParams: Promise.resolve({}) }));
+    if (before === undefined) delete process.env.EXPRESS_CREATE;
+    else process.env.EXPRESS_CREATE = before;
     expect(plain.match(/<input[^>]*name="name"[^>]*>/)?.[0]).toContain('value=""');
     const long = renderToStaticMarkup(await CreatePage({ searchParams: Promise.resolve({ name: "x".repeat(80) }) }));
     expect(long.match(/<input[^>]*name="name"[^>]*>/)?.[0]).toContain(`value="${"x".repeat(40)}"`);
