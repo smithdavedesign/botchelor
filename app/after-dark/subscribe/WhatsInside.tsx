@@ -67,7 +67,7 @@ export default function WhatsInside({ shorts, price }: { shorts: number; price: 
       {price && <p className="ad-inside-price">{price} a month when it opens. Cancel any time.</p>}
       {shorts > 0 && (
         <p className="muted small">
-          A taste, blurred: <Link href="/after-dark/shorts">the Shorts</Link>, the house cast&apos;s nights as episodes.
+          A taste, blurred: <Link href="/after-dark/shorts">the episodes</Link>, the house cast&apos;s nights as episodes.
         </p>
       )}
     </section>

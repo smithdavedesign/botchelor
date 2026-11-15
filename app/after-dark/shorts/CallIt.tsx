@@ -131,7 +131,7 @@ export function Reveal({ names, call, outcome, boardLabel, owner = false }: { na
           Free points on <Link href="/after-dark/shorts#board">After Dark&apos;s board{boardLabel ? ` for ${boardLabel}` : ""}</Link>: nothing buys them and they buy nothing.
         </p>
       ) : (
-        !owner && <p className="muted small">You didn&apos;t call this one. Call the next Short before you press play.</p>
+        !owner && <p className="muted small">You didn&apos;t call this one. Call the next episode before you press play.</p>
       )}
     </section>
   );

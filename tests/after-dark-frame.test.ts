@@ -1,9 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { createElement } from "react";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-// After Dark's frame (the design kit's After Dark header, 2026-11-12): on its own host the header is Scenes · Shorts ·
-// Gallery · Characters · Account. Who's in and the Studio moved from the hub to Characters; the writer and privacy to
-// Account. Nothing dropped: each is one tap from the header, and the hub's row carries them where the header is the show's.
+// After Dark's frame (the design kit's After Dark header, 2026-11-12; its doors 2026-11-15, lib/adult/doors.ts): on its
+// own host the header is Scenes · Studio · Gallery · Showcase · Episodes, and the account as an icon after them. Who's in
+// and the Studio are on the Studio door's page (/after-dark/characters sends there); the writer and privacy on Account.
+// Nothing dropped: each is one tap from the header, and the hub's row carries them where the header is the show's.
 const jar = vi.hoisted(() => ({ cookies: new Map<string, string>(), path: "/after-dark", adOnly: false }));
 vi.mock("next/headers", () => ({
   cookies: async () => ({ get: (name: string) => (jar.cookies.has(name) ? { name, value: jar.cookies.get(name)! } : undefined) }),
@@ -22,6 +23,7 @@ vi.mock("next/navigation", async (original) => ({
 import { renderToStaticMarkup } from "react-dom/server";
 import AfterDarkAccount from "@/app/after-dark/account/page";
 import AfterDarkCharacters from "@/app/after-dark/characters/page";
+import AfterDarkStudio from "@/app/after-dark/studio/page";
 import AfterDarkHome from "@/app/after-dark/page";
 import Nav from "@/app/Nav";
 import { claimAdmin } from "@/lib/admins";
@@ -71,36 +73,59 @@ const current = (html: string, href: string) => [...html.matchAll(/<a\b[^>]*>/g)
 const navLinks = (html: string) => [...html.matchAll(/<a[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g)].map((m) => [m[1], text(m[2])]);
 
 describe("the header on After Dark's host", () => {
-  it("is Scenes, Shorts, Gallery, Characters and Account, with the page you're on marked", () => {
-    jar.path = "/after-dark/characters";
-    const html = renderToStaticMarkup(createElement(Nav, { tokens: 0, meter: "none", adHost: true, hasCharacter: true }));
-    const links = navLinks(html).filter(([href]) => href.startsWith("/after-dark"));
-    expect(links.map(([, label]) => label)).toEqual(expect.arrayContaining(["Scenes", "Shorts", "Gallery", "Characters", "Account"]));
-    expect(current(html, "/after-dark/characters")).toBe(true);
+  const nav = (doors: { studio: boolean; showcase: boolean }) =>
+    renderToStaticMarkup(createElement(Nav, { tokens: 0, meter: "none", adHost: true, afterDark: true, hasCharacter: true, adDoors: doors, showHref: "https://show.example" }));
+
+  it("is Scenes, Studio, Gallery, Showcase and Episodes, then the account, with the page you're on marked", () => {
+    jar.path = "/after-dark/studio";
+    const html = nav({ studio: true, showcase: true });
+    expect(navLinks(html).map(([, label]) => label)).toEqual(expect.arrayContaining(["Scenes", "Studio", "Gallery", "Showcase", "Episodes", "Account"]));
+    expect(current(html, "/after-dark/studio")).toBe(true);
     expect(current(html, "/after-dark")).toBe(false);
+    // The showcase's After Dark side, on the show's host.
+    expect(html).toContain('href="https://show.example/showcase?side=after_dark"');
+    // Shorts and Characters are Episodes and Studio now, at the same addresses (Characters sends to Studio).
+    expect(navLinks(html).map(([, label]) => label)).not.toContain("Shorts");
+    expect(html).toContain('href="/after-dark/shorts"');
     // The show's own links stay on the show.
     expect(navLinks(html).map(([href]) => href)).not.toContain("/watch");
   });
 
-  it("marks Scenes on a pair's night, and Account on the tokens page", () => {
+  it("where the Studio isn't open to them, the door says Characters, and there's no Showcase", () => {
+    jar.path = "/after-dark/characters";
+    const html = nav({ studio: false, showcase: false });
+    const labels = navLinks(html).map(([, label]) => label);
+    expect(labels).toContain("Characters");
+    expect(labels).not.toContain("Studio");
+    expect(labels).not.toContain("Showcase");
+    expect(current(html, "/after-dark/studio")).toBe(true);
+  });
+
+  it("marks Scenes on a pair's night, the Studio door on a Studio, and Account on the tokens page", () => {
     jar.path = `/after-dark/${HOUSE_CHARACTERS[0].id}/${HOUSE_CHARACTERS[1].id}`;
-    expect(current(renderToStaticMarkup(createElement(Nav, { tokens: 0, meter: "none", adHost: true, hasCharacter: true })), "/after-dark")).toBe(true);
+    expect(current(nav({ studio: true, showcase: false }), "/after-dark")).toBe(true);
+    jar.path = `/after-dark/studio/${HOUSE_CHARACTERS[0].id}`;
+    expect(current(nav({ studio: true, showcase: false }), "/after-dark/studio")).toBe(true);
+    expect(current(nav({ studio: true, showcase: false }), "/after-dark")).toBe(false);
     jar.path = "/after-dark/tokens";
-    expect(current(renderToStaticMarkup(createElement(Nav, { tokens: 0, meter: "none", adHost: true, hasCharacter: true })), "/after-dark/account")).toBe(true);
+    expect(current(nav({ studio: true, showcase: false }), "/after-dark/account")).toBe(true);
   });
 });
 
-describe("Characters", () => {
-  it("has who's in, theirs Out until switched, and each one's Studio once In", async () => {
+describe("the Studio door", () => {
+  it("has a card per character whose Studio is theirs once In, then who's in, theirs Out until switched", async () => {
     const { id, ines } = await admin();
-    let html = renderToStaticMarkup(await AfterDarkCharacters());
+    let html = renderToStaticMarkup(await AfterDarkStudio());
+    expect(html).toContain("<h1>Studio</h1>");
     expect(html).toContain("data-whos-in");
     expect(html).toContain("Ines Valdecasas-Rook");
     expect(html).toContain("1 of yours is Out.");
     expect(html).not.toContain(`href="/after-dark/studio/${ines}"`);
     await setAdultSwitch(t.db, id, ines, true);
-    html = renderToStaticMarkup(await AfterDarkCharacters());
+    html = renderToStaticMarkup(await AfterDarkStudio());
+    expect(html).toContain(`data-studio-card="${ines}"`);
     expect(html).toContain(`href="/after-dark/studio/${ines}"`);
+    expect(html).toContain("Pick their face first");
     expect(html).not.toContain("of yours is Out");
   });
 
@@ -110,13 +135,21 @@ describe("Characters", () => {
     const c = signedInCookie(id);
     jar.cookies.set(c.slice(0, c.indexOf("=")), c.slice(c.indexOf("=") + 1));
     setSeasonCastForTests([]);
-    const html = renderToStaticMarkup(await AfterDarkCharacters());
+    const html = renderToStaticMarkup(await AfterDarkStudio());
     expect(html).toContain("data-whos-in-empty");
     expect(html).toContain('href="/create"');
   });
+
+  it("is where the old Characters page sends", () => {
+    let digest = "";
+    try {
+      AfterDarkCharacters();
+    } catch (e) {
+      digest = String((e as { digest?: string }).digest);
+    }
+    expect(digest).toMatch(/^NEXT_REDIRECT;[a-z]+;\/after-dark\/studio;/);
+  });
 });
-
-
 
 describe("Account", () => {
   it("has the subscription and tokens, privacy (the theater's #privacy link lands on it), the writer, and the show's Account", async () => {
@@ -131,14 +164,17 @@ describe("Account", () => {
 });
 
 describe("the hub", () => {
-  it("drops what moved, and its row carries Characters and Account where the header is the show's", async () => {
+  it("drops what moved, and its row carries the header's doors and Account where the header is the show's", async () => {
     await admin();
     const html = renderToStaticMarkup(await AfterDarkHome({ searchParams: Promise.resolve({}) }));
     expect(html).not.toContain("ad-hub-settings");
     expect(html).not.toContain('id="privacy"');
     expect(html).toContain("<h2>Scenes</h2>");
-    for (const href of ["/after-dark/shorts", "/after-dark/gallery", "/after-dark/characters", "/after-dark/account", "#shared", "/"])
+    for (const href of ["/after-dark/studio", "/after-dark/gallery", "/after-dark/shorts", "/after-dark/account", "#shared", "/"])
       expect(html).toContain(`href="${href}"`);
+    // An admin may see the showcase's After Dark side.
+    expect(html).toContain("showcase?side=after_dark");
+    expect(text(html)).toContain("Episodes");
   });
 
   it("on After Dark's own host, leaves the header's pages to the header", async () => {

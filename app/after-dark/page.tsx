@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import Icon from "@/app/Icon";
 import Link from "next/link";
+import { showcaseHref, studioDoorLabel } from "@/lib/adult/door-links";
+import { afterDarkDoors } from "@/lib/adult/doors";
 import { notFound, redirect } from "next/navigation";
 import { listSwitchable } from "@/lib/adult/characters";
 import { afterDarkTitle } from "@/lib/adult/discreet";
@@ -29,7 +31,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
 /**
  * After Dark (lib/adult): Scenes, every pair's night. Not found for anyone it isn't open to. Who's in and the Studio are on
- * Characters (/after-dark/characters), the writer and privacy on Account (/after-dark/account), since the design kit's
+ * the Studio door (/after-dark/studio, was Characters), the writer and privacy on Account (/after-dark/account), since the design kit's
  * After Dark header (2026-11-12) gave them their own pages.
  */
 export default async function AfterDarkPage({ searchParams }: { searchParams?: Promise<Record<string, string | string[] | undefined>> } = {}) {
@@ -62,7 +64,9 @@ export default async function AfterDarkPage({ searchParams }: { searchParams?: P
     );
   }
   const owner = auth!.userId;
-  const [pairs, switchable, shared, here] = await Promise.all([listCastPairs(db, owner), listSwitchable(db, owner), sharedWithMe(db, owner), currentHere()]);
+  const [pairs, switchable, shared, here, doors] = await Promise.all([listCastPairs(db, owner), listSwitchable(db, owner), sharedWithMe(db, owner), currentHere(), afterDarkDoors(db, owner)]);
+  // The Studio door's word (lib/adult/doors.ts): "Studio", or "Characters" where the Studio isn't open to them.
+  const studioWord = studioDoorLabel(doors);
   // #1176: one of theirs just made on the show (its finish screen's "Bring … into After Dark"), its switch first.
   const bringId = (await searchParams)?.bring;
   const bring = typeof bringId === "string" ? switchable.find((c) => c.id === bringId && !c.house) : undefined;
@@ -70,8 +74,8 @@ export default async function AfterDarkPage({ searchParams }: { searchParams?: P
   const yoursOut = switchable.filter((c) => !c.house && !c.on).length;
   // Switches keeps what it was given, so it remounts with the new state after a switch.
   const onKey = switchable.filter((c) => c.on).map((c) => c.id).join(",");
-  // On After Dark's own host the header has Scenes, Shorts, Gallery, Characters and Account (app/Nav.tsx). Where After
-  // Dark shares the show's host (local, tests), the header is the show's, so this row carries them.
+  // On After Dark's own host the header has Scenes, Studio, Gallery, Showcase, Episodes and the account (app/Nav.tsx).
+  // Where After Dark shares the show's host (local, tests), the header is the show's, so this row carries them.
   const inHeader = afterDarkOnly();
   const pending = shared.shares.filter((x) => x.status === "pending").length;
   // The night to pick up: the latest played of those under way (PairPicker's Continue, its first).
@@ -112,7 +116,7 @@ export default async function AfterDarkPage({ searchParams }: { searchParams?: P
               <p className="muted small">
                 {bring.on
                   ? "Pick them a scene below, or set up their face and body in the Studio for pictures."
-                  : "Characters start Out: nothing of theirs comes here until you switch them In. You can switch them Out again any time, on Characters."}
+                  : `Characters start Out: nothing of theirs comes here until you switch them In. You can switch them Out again any time, on ${studioWord}.`}
               </p>
             </Switches>
           </div>
@@ -120,7 +124,7 @@ export default async function AfterDarkPage({ searchParams }: { searchParams?: P
         {yoursOut > 0 && !bring && (
           <p className="muted small" data-yours-out>
             {yoursOut === 1 ? "One of your characters is" : `${yoursOut} of your characters are`} Out: nothing of theirs comes here until you{" "}
-            <Link href="/after-dark/characters">switch them In on Characters</Link>.
+            <Link href="/after-dark/studio">switch them In on {studioWord}</Link>.
           </p>
         )}
         {/* Your nights first, then a new one (the audit, 2026-10-29: the hub opened on a checklist of switches). */}
@@ -132,14 +136,19 @@ export default async function AfterDarkPage({ searchParams }: { searchParams?: P
         <nav className="ad-hub-links" aria-label="After Dark">
           {!inHeader && (
             <>
-              <Link className="button-ghost" href="/after-dark/shorts">
-                📺 Shorts
+              <Link className="button-ghost" href="/after-dark/studio">
+                🎨 {studioWord}
               </Link>
               <Link className="button-ghost" href="/after-dark/gallery">
                 🖼 Gallery
               </Link>
-              <Link className="button-ghost" href="/after-dark/characters">
-                🎭 Characters
+              {doors.showcase && (
+                <Link className="button-ghost" href={showcaseHref(showHome())}>
+                  🌟 Showcase
+                </Link>
+              )}
+              <Link className="button-ghost" href="/after-dark/shorts">
+                📺 Episodes
               </Link>
               <Link className="button-ghost" href="/after-dark/account">
                 🔒 Account
