@@ -93,6 +93,16 @@ services:
       # - key: FIRST_DATE_FORMAT
       #   value: "speed_date"
       #   scope: RUN_AND_BUILD_TIME
+      # One-sentence create (lib/express-create.ts; docs/flows.md): on by default. Uncomment with "0" to put the form
+      # back as /create's first step without a deploy.
+      # - key: EXPRESS_CREATE
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
+      # A character's questions about its own sheet (lib/character-questions.ts; docs/companions.md): on by default.
+      # Uncomment with "0" and the daily job sends none.
+      # - key: CHARACTER_QUESTIONS
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
       # Life dates a day (lib/character-life.ts weeklyLifeDates; docs/hosting.md): the house takes each owned character
       # out once a week, house-paid, ~1¢ each. Default 30; "0" turns them off without a deploy.
       # - key: LIFE_DATES_PER_DAY
