@@ -5144,7 +5144,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
                 ...(first ? { next_calls: [nextCall("predict", { episode_id: first, pick: "<second_date, friends or disaster>" }, "The soonest to air that you can call.")] } : {}),
                 ...(yours.size && mineMode !== "exclude" ? { yours_note: "yours: true is a date of one of your characters: others can predict it, you can't (you know how it ends)." } : {}),
               }
-            : { ...filterNote, episodes, note: forChar || venue || mineMode === "only" ? "Nothing to predict that matches the filter right now: browse_episodes with open: true and no filter lists the rest." : nothingOpen },
+            : // #1654: empty_note, not note, so it isn't left out as already sent: it's the only thing that says why the list is empty.
+              { ...filterNote, episodes, empty_note: forChar || venue || mineMode === "only" ? "Nothing to predict that matches the filter right now: browse_episodes with open: true and no filter lists the rest." : nothingOpen },
         };
       }
       const episodes = feed.slice(0, limit).map((e) => {
@@ -5158,7 +5159,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           open_for_predictions: predictable.length,
           // #728: the recent mix, so a pick isn't blind (never one date's ending).
           endings_lately: await endingsLately(db).catch(() => ({})),
-          ...(episodes.length ? {} : { note: "Nothing public has aired or is airing yet. Private dates never appear here: my_status lists your own dates." }),
+          ...(episodes.length ? {} : { empty_note: "Nothing public has aired or is airing yet. Private dates never appear here: my_status lists your own dates." }),
           ...(predictable.length ? { open_note: "browse_episodes with open: true lists just the ones you can still predict, with what there is to go on." } : episodes.length ? { open_note: nothingOpen } : {}),
           ...(yours.size ? { yours_note: "yours: true is a date of one of your characters (mine: only or exclude filters them)." } : {}),
         },
@@ -8965,11 +8966,12 @@ async function firstIdNote(db: Db, sessionId: string): Promise<boolean> {
  * The notes each connection has been sent (2.13.0, #751, the 2026-10-23-2135 run: all three visitors' first complaint was the
  * size of the replies, the same notes on every call). A note is a top-level `note`, `*_note` or `*_tip` (and an own-date
  * step's reply_format; a note inside an item is about that item, so it stays); one this connection was already sent, word for word, is left out and named in
- * notes_left_out. A note that's news (why a wait woke, how a since was read, what the show wrote for you) always goes.
+ * notes_left_out. A note that's news (why a wait woke, how a since was read, what the show wrote for you) always goes, and so does an
+ * empty_note (#1654), the one thing that says why a list came back empty.
  * Best effort and per instance, like toldMoves: a connection that lands on another instance just hears a note again.
  */
 const sentNotes = new Map<string, Set<string>>();
-const NEWS_NOTES = new Set(["your_move_note", "date_agreed_note", "woke_note", "since_note", "unread_at_start_note", "wait_note", "this_week_note", "undo_note", "agent_id_note", "notes_left_out_note"]);
+const NEWS_NOTES = new Set(["your_move_note", "date_agreed_note", "woke_note", "since_note", "unread_at_start_note", "wait_note", "this_week_note", "undo_note", "agent_id_note", "notes_left_out_note", "empty_note"]);
 // A turn step's reply_format is the same on every turn; a refused line's (at the top) says what was wrong with it, so it
 // stays. #853: so does a recap's, which comes once a date and isn't the turns' format.
 const isNoteKey = (k: string, path: string, stage?: unknown): boolean =>

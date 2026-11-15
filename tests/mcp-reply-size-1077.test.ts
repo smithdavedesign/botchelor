@@ -31,3 +31,17 @@ describe("#1077: shorter replies", () => {
     expect(dropSentNotes(key, { ok: true, next_calls: other }).next_calls).toEqual(other);
   });
 });
+
+// #1654 (the 2026-11-15-0610 run): a second empty browse_episodes open: true came back as a bare empty list, its
+// "nothing is open" note left out as already sent.
+describe("#1654: an empty list always says why", () => {
+  it("keeps empty_note on every reply, and still leaves a repeated note out", () => {
+    const key = `conn-${Math.random()}`;
+    const reply = () => ({ episodes: [], empty_note: "Nothing to predict right now.", context_note: "Same every time." });
+    dropSentNotes(key, reply());
+    const again = dropSentNotes(key, reply());
+    expect(again.empty_note).toBe("Nothing to predict right now.");
+    expect(again.context_note).toBeUndefined();
+    expect(again.notes_left_out).toEqual(["context_note"]);
+  });
+});
