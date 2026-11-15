@@ -95,6 +95,7 @@ describe("launch checks: robots.txt, sitemap and og:image", () => {
         "/create",
         "/watch",
         "/reunion",
+        "/house",
         "/graph",
         "/casting",
         "/characters",

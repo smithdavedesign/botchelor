@@ -1476,3 +1476,85 @@ main:has(> .couple-page) {
     align-items: start;
   }
 }
+
+/* ---------------- the house (app/house/page.tsx, app/HouseScene.tsx; lib/house-scenes.ts) ----------------
+   A scene is a transcript with the cast's faces: it borrows the cast chat's thread (.cast-chat-*). Today's scene is the
+   card at full size; the earlier ones sit under it a little quieter. One reading column on every width. */
+.house-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.house-page > header > h1 {
+  margin: 0;
+}
+.house-scene > h2 {
+  margin: 0;
+}
+.house-scene-about {
+  margin: var(--space-1) 0 0;
+}
+.house-scene-lead .cast-chat-bubble {
+  font-size: var(--text-md);
+}
+.house-earlier {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.house-earlier > h2 {
+  margin: var(--space-2) 0 0;
+}
+.house-quiet-note,
+.house-foot {
+  margin: 0;
+}
+/* Report a line: folded away under the scene, so the transcript stays clean. The summary is the quiet line; the
+   form's own controls keep the site's sizes (16px on a phone, so iOS doesn't zoom), one to a row, never wider than
+   the card whatever the longest line in the list is. */
+.house-report {
+  margin-top: var(--space-2);
+}
+.house-report > summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  cursor: pointer;
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
+.house-report .report {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  align-items: start;
+}
+.house-report .report label {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-1);
+  min-width: 0;
+}
+.house-report select {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+.house-report .report button {
+  justify-self: start;
+}
+/* The Reunion's one line about the house. */
+.house-link {
+  margin: 0;
+  font-size: var(--text-sm);
+}
+/* The tonight band's house line is a link on the dark strip: the strip's own ink, underlined on hover. */
+.tonight-live a {
+  color: inherit;
+  text-decoration: none;
+}
+.tonight-live a:hover,
+.tonight-live a:focus-visible {
+  text-decoration: underline;
+}

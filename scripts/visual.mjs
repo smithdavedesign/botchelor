@@ -261,6 +261,10 @@ async function main() {
       await mcp("tools/list", {}, sid, `${name}/1.0`);
       for (const [tool, args] of calls) await mcp("tools/call", { name: tool, arguments: args }, sid, `${name}/1.0`);
     }
+    // Today's house scene (lib/house-scenes.ts), written now from the seeded season's aired dates, so /house, the
+    // tonight band's house line and the Reunion's link are audited with a scene on them. Best effort: a quiet season
+    // just leaves the page's empty state.
+    await fetch(`${base}/api/admin/house-scene`, { method: "POST", headers: { origin: base, "x-frontier-key": ADMIN_PASSWORD } }).catch(() => null);
     const owner = data.creators[0].id;
     const myChar = data.chars[0].id;
     const aired = data.episodes[0].id;
@@ -479,6 +483,7 @@ async function main() {
       { name: "notifications", path: "/notifications", as: "owner" },
       { name: "graph", path: "/graph" },
       { name: "reunion", path: "/reunion" },
+      { name: "house", path: "/house" },
       { name: "ship", path: "/ship/juniper/teo" },
       { name: "tool-chemistry", path: "/tools/oc-chemistry-test" },
       { name: "tool-ship-names", path: "/tools/ship-name-generator" },

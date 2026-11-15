@@ -4016,6 +4016,41 @@ create table if not exists story_state_runs (
   key text primary key,
   ran_at timestamptz not null default now()
 );
+-- The daily house scene (lib/house-scenes.ts, 2026-11-15): a few of the cast talk in the show's house about a date that
+-- aired, and what each line retells becomes something the others heard (character_heard, source 'scene:<id>#<line>').
+-- One row a day and kind (id '<day>-<kind>'). lines: [{character_id, text, tell?, removed?}], every one checked before
+-- it is stored; told: what each line told to whom [{line, by, to, episode_id, about, about_b, claim, is_true, source}].
+-- source: 'model', 'template', 'quiet' (nothing to talk about: no scene) or 'pending' (claimed, being written).
+create table if not exists house_scenes (
+  id text primary key,
+  day text not null,
+  season_id text not null,
+  kind text not null default 'gossip',
+  place text not null,
+  cast_ids jsonb not null default '[]'::jsonb,
+  lines jsonb not null default '[]'::jsonb,
+  told jsonb not null default '[]'::jsonb,
+  tension jsonb,            -- the tension that seated them, for the record (never shown)
+  result jsonb,             -- how a confrontation or a challenge came out (later kinds)
+  source text not null,
+  model text,
+  cost_usd numeric(10, 6),  -- at paid list prices (lib/pricing.ts); $0 in cash on the free tier
+  input_tokens integer,
+  output_tokens integer,
+  created_at timestamptz not null default now(),
+  written_at timestamptz
+);
+create index if not exists house_scenes_day_idx on house_scenes (day desc);
+-- A viewer's report of one line of a scene (lib/house-scenes.ts reportSceneLine): REPORT_HIDE_THRESHOLD hide the line
+-- and take what it told back out of the story state.
+create table if not exists house_scene_reports (
+  scene_id text not null references house_scenes (id) on delete cascade,
+  line integer not null,
+  reporter_id text not null,
+  reason text not null default 'other',
+  created_at timestamptz not null default now(),
+  primary key (scene_id, line, reporter_id)
+);
 `;
 
 /** Idempotent: creates the tables and upserts the house characters, free and premium. */

@@ -49,6 +49,7 @@ import { setSeasonRecapVoiceEnabledForTests } from "@/lib/season-recap";
 import { setEpisodeTitleVoiceEnabledForTests } from "@/lib/episode-title";
 import { setDareJudgeEnabledForTests } from "@/lib/dare-verdict";
 import { setCastChatVoiceEnabledForTests } from "@/lib/cast-chat";
+import { setHouseSceneVoiceEnabledForTests } from "@/lib/house-scenes";
 import { setCharacterLessonsForTests } from "@/lib/character-lessons";
 import { setMatchChatEnabledForTests } from "@/lib/swipes";
 import { setSwipeGateForTests } from "@/lib/swipe-gate";
@@ -138,6 +139,7 @@ export async function startTestDb() {
   setDareJudgeEnabledForTests(false);
   // The cast group chat (lib/cast-chat.ts) writes from templates here; tests/cast-chat.test.ts passes a model.
   setCastChatVoiceEnabledForTests(false);
+  setHouseSceneVoiceEnabledForTests(false);
   // The characters' weekly lessons (lib/character-lessons.ts) are off here: a suite that runs the daily job with two
   // aired dates would otherwise write lessons and send a text it never scripted. tests/character-lessons.test.ts turns them on.
   setCharacterLessonsForTests(false);
@@ -241,6 +243,9 @@ export async function startTestDb() {
         "character_opinions",
         "character_wants",
         "story_state_runs",
+        // The house scenes (lib/house-scenes.ts): keyed by day, so they outlive a reset.
+        "house_scene_reports",
+        "house_scenes",
         "adult_invites",
         "adult_tastes",
         "adult_age_checks",

@@ -24,6 +24,7 @@ import ChemistryShiftsPanel from "@/app/ChemistryShifts";
 import OpenOnHash from "@/app/OpenOnHash";
 import { backingBoard } from "@/lib/backing";
 import { latestCastChat } from "@/lib/cast-chat";
+import { houseLine, latestHouseScene } from "@/lib/house-scenes";
 import { chemistryShifts } from "@/lib/chemistry-shifts";
 import { forViewer, shared } from "@/lib/shared-cache";
 
@@ -67,13 +68,15 @@ export default async function ReunionPage({ searchParams }: { searchParams?: Pro
   // The season's games, here since they left /watch (the 2026-11-14 design audit): who you back this month, the cast's
   // morning-after group chat (only ever about what has aired) and the week's biggest chemistry shifts.
   // The empty-room rule (lib/crowd-threshold.ts): vote and player counts show to someone with a character, or for a crowd.
-  const [pool, poolRevealed, backing, castChat, shifts, insider] = await Promise.all([
+  const [pool, poolRevealed, backing, castChat, shifts, insider, house] = await Promise.all([
     poolStanding(db, viewerId, now).catch(() => null),
     recentPoolBoard(db, viewerId, now).catch(() => null),
     forViewer(viewerId, "watch:backing", () => backingBoard(db, viewerId)).catch(() => null),
     shared("watch:cast-chat", () => latestCastChat(db)).catch(() => null),
     shared("watch:shifts", () => chemistryShifts(db)).catch(() => null),
     isInsider(db, viewerId),
+    // The newest scene in the show's house (lib/house-scenes.ts): one line here; the scenes live on /house.
+    shared("house:latest", () => latestHouseScene(db)).catch(() => null),
   ]);
   return (
     <article className="reunion-page page-wide">
@@ -98,6 +101,12 @@ export default async function ReunionPage({ searchParams }: { searchParams?: Pro
         <ReunionPanel reunion={reunion} heading="h1" season={season} couplesPage={couplesPage} couplesHref={(n) => pageHref("/reunion", {}, "couples", n, "couples")} hidden={hidden} insider={insider} />
       )}
       {castChat && <CastChat chat={castChat} />}
+      <p className="house-link">
+        <span aria-hidden="true">🏠</span> {house ? `In the house: ${houseLine(house)}.` : "The house: what the cast says about the dates, out loud."}{" "}
+        <Link href={house ? `/house#scene-${house.id}` : "/house"} data-track="house-scene" data-track-where="reunion">
+          {house ? "Hear what they said →" : "Go to the house →"}
+        </Link>
+      </p>
       {shifts && <ChemistryShiftsPanel shifts={shifts} />}
       <div className="reunion-games">
         {backing && <BackCast board={backing} />}
