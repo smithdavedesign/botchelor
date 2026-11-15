@@ -6,6 +6,7 @@ import { Fragment, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import Icon from "@/app/Icon";
 import { afterDarkHref } from "@/lib/after-dark-host";
+import { NO_AD_DOORS, showcaseHref, studioDoorLabel, type AdDoors } from "@/lib/adult/door-links";
 import { openFeedback } from "@/lib/user-feedback-shared";
 
 /**
@@ -41,21 +42,35 @@ const NEWCOMER_LINKS: readonly NavLink[] = [
 ];
 
 /**
- * After Dark's own host has its own five doors (the design kit's After Dark header, 2026-11-12; David approved Watch and
- * Dating leaving it, "Back to the show" staying): its scenes, Shorts, the Gallery, its Characters (who's in, the Studio)
- * and its Account (privacy, the writer, the subscription and tokens). The show's links there only hopped back to the show.
+ * After Dark's own host has its own doors (the design kit's After Dark header, 2026-11-12; David approved Watch and
+ * Dating leaving it, "Back to the show" staying). Since 2026-11-15 (David: "shouldn't we have an easier way to get to the
+ * studio? or the showcase page in after dark?", then "go build all three"): Scenes · Studio · Gallery · Showcase ·
+ * Episodes, and the account as an icon after them (as the show's bell), lib/adult/doors.ts deciding the two that depend
+ * on the viewer. What moved where:
+ *  - Characters → Studio (/after-dark/studio: whose Studio, then who's in). Called "Characters" where the Studio isn't
+ *    open to them, since then the page only holds the switches; /after-dark/characters sends there.
+ *  - Shorts → Episodes (the same page, /after-dark/shorts): "Shorts" read as the viewer's own videos, which live in the
+ *    Gallery.
+ *  - Showcase (new): the showcase's After Dark side on the show's host, only for whoever may see that side.
+ *  - Account → the icon at the row's end (a labelled item in the phone menu); it still covers tokens and subscribing.
  */
-const AD_LINKS: readonly NavLink[] = [
-  { href: "/after-dark", label: "Scenes" },
-  { href: "/after-dark/shorts", label: "Shorts" },
-  { href: "/after-dark/gallery", label: "Gallery" },
-  { href: "/after-dark/characters", label: "Characters", also: ["/after-dark/studio"] },
-  { href: "/after-dark/account", label: "Account", also: ["/after-dark/tokens", "/after-dark/subscribe"] },
-];
+export function adLinks(doors: AdDoors = NO_AD_DOORS, showHref = "/"): NavLink[] {
+  return [
+    { href: "/after-dark", label: "Scenes" },
+    { href: "/after-dark/studio", label: studioDoorLabel(doors), also: ["/after-dark/characters"] },
+    { href: "/after-dark/gallery", label: "Gallery" },
+    ...(doors.showcase ? [{ href: showcaseHref(showHref), label: "Showcase" }] : []),
+    { href: "/after-dark/shorts", label: "Episodes" },
+  ];
+}
+/** After Dark's account (privacy, the writer, the subscription and tokens): the icon after the doors. */
+export const AD_ACCOUNT: NavLink = { href: "/after-dark/account", label: "Account", also: ["/after-dark/tokens", "/after-dark/subscribe"] };
+/** After Dark's pages that aren't a night: every door's but Scenes', and the account's. */
+const AD_PAGES = ["/after-dark/studio", "/after-dark/characters", "/after-dark/gallery", "/after-dark/shorts", AD_ACCOUNT.href, ...(AD_ACCOUNT.also ?? [])];
 
 /** The links for this viewer: After Dark's on its own host, else the show's (the same for everyone while `chat` is on). */
-function navLinks(hasCharacter: boolean, adHost = false, chat = true): readonly NavLink[] {
-  if (adHost) return AD_LINKS;
+function navLinks(hasCharacter: boolean, adHost = false, chat = true, doors: AdDoors = NO_AD_DOORS, showHref = "/"): readonly NavLink[] {
+  if (adHost) return adLinks(doors, showHref);
   if (chat) return LINKS;
   return hasCharacter ? OWNER_LINKS : NEWCOMER_LINKS;
 }
@@ -66,7 +81,7 @@ function navLinks(hasCharacter: boolean, adHost = false, chat = true): readonly 
  */
 export const atLink = (l: NavLink, pathname: string): boolean => {
   // After Dark's Scenes is its home and every night under it (/after-dark/<a>/<b>), not its other doors' pages.
-  if (l.href === "/after-dark") return pathname === l.href || (pathname.startsWith("/after-dark/") && !AD_LINKS.slice(1).some((o) => atLink(o, pathname)));
+  if (l.href === "/after-dark") return pathname === l.href || (pathname.startsWith("/after-dark/") && !AD_PAGES.some((h) => pathname === h || pathname.startsWith(`${h}/`)));
   return [l.href, ...(l.also ?? [])].some((h) => pathname === h || pathname.startsWith(`${h}/`));
 };
 
@@ -92,6 +107,7 @@ export default function Nav({
   showHref = "/",
   companions = false,
   chat = true,
+  adDoors = NO_AD_DOORS,
 }: {
   tokens: number;
   /**
@@ -116,6 +132,8 @@ export default function Nav({
   showHref?: string;
   /** False on After Dark's own host: the show's links there only redirect, so they aren't prefetched (app/layout.tsx). */
   prefetchShow?: boolean;
+  /** On After Dark's own host: whether the Studio is open to them and whether they may see the showcase's After Dark side (lib/adult/doors.ts). */
+  adDoors?: AdDoors;
 }) {
   const pf = prefetchShow ? undefined : false;
   const [open, setOpen] = useState(false);
@@ -241,7 +259,7 @@ export default function Nav({
             Make your character
           </Link>
         )}
-        {navLinks(hasCharacter, adHost, chat).map((l) => (
+        {navLinks(hasCharacter, adHost, chat, adDoors, showHref).map((l) => (
           <Fragment key={l.href}>
             {/* After Dark's own links are on its own host, so they prefetch; the show's there only hop back. */}
             <Link prefetch={adHost ? undefined : pf} href={l.href} aria-current={atLink(l, pathname) ? "page" : undefined}>
@@ -260,6 +278,13 @@ export default function Nav({
             )}
           </Fragment>
         ))}
+        {/* After Dark's account, as the show's bell: an icon after the doors, "Account" in the phone menu. */}
+        {adHost && personal && afterDark && (
+          <Link href={AD_ACCOUNT.href} aria-current={atLink(AD_ACCOUNT, pathname) ? "page" : undefined} className="nav-bell nav-ad-account" title="Account: privacy, the subscription and tokens">
+            <Icon name="user" className="nav-bell-icon" />
+            <span className="nav-bell-label">Account</span>
+          </Link>
+        )}
         {/* A first visit has nothing to be told yet (the audit, 2026-11-11, 2.6): the bell waits for a viewer of their own. */}
         {/* The bell is the show's (its notifications are the show's page), so not on After Dark's own host. */}
         {(personal || unread > 0) && !adHost && (

@@ -20,7 +20,7 @@ import styles from "../shorts.module.css";
 import { currentHere } from "../../view";
 
 export const dynamic = "force-dynamic";
-export const metadata: Metadata = { title: "A Short · After Dark · Botchelor", robots: { index: false, follow: false } };
+export const metadata: Metadata = { title: "An episode · After Dark · Botchelor", robots: { index: false, follow: false } };
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -52,7 +52,7 @@ export default async function ShortPage({ params }: Props) {
         <article className="after-dark">
           <p className="kicker">
             <Link href="/after-dark/shorts">
-            ← <Icon name="moon" /> Shorts
+            ← <Icon name="moon" /> Episodes
           </Link>
           </p>
           <h1>{short.title}</h1>
@@ -72,7 +72,7 @@ export default async function ShortPage({ params }: Props) {
       <article className="after-dark">
         <p className="kicker">
           <Link href="/after-dark/shorts">
-            ← <Icon name="moon" /> Shorts
+            ← <Icon name="moon" /> Episodes
           </Link>
         </p>
         <div className={styles.hero}>

@@ -18,10 +18,11 @@ import styles from "./shorts.module.css";
 import CharacterName from "@/app/CharacterName";
 
 export const dynamic = "force-dynamic";
-export const metadata: Metadata = { title: "Shorts · After Dark · Botchelor", robots: { index: false, follow: false } };
+export const metadata: Metadata = { title: "Episodes · After Dark · Botchelor", robots: { index: false, follow: false } };
 
 /**
- * After Dark Shorts (lib/adult/shorts.ts): the house cast's nights, published as episodes. An entitled viewer sees them
+ * After Dark Shorts (lib/adult/shorts.ts), called Episodes on the page since 2026-11-15 ("Shorts" read as the viewer's
+ * own videos, which are in the Gallery): the house cast's nights, published as episodes. An entitled viewer sees them
  * all; anyone else sees the blurred teaser and "Subscribe to unlock"; a bot gets not found.
  */
 export default async function ShortsPage() {
@@ -40,8 +41,8 @@ export default async function ShortsPage() {
           <p className="kicker">
             <Icon name="moon" /> After Dark · <Link href="/admin/after-dark/settings">Settings</Link>
           </p>
-          <h1>Shorts</h1>
-          <p>After Dark is off, so its Shorts are too. Turn it on in its settings.</p>
+          <h1>Episodes</h1>
+          <p>After Dark is off, so its episodes are too. Turn it on in its settings.</p>
         </article>
       </div>
     );
@@ -54,7 +55,7 @@ export default async function ShortsPage() {
           <p className="kicker">
             <Icon name="moon" /> After Dark · <Link href={showHome()}>Back to the show</Link>
           </p>
-          <h1>Shorts</h1>
+          <h1>Episodes</h1>
           <p>This season&apos;s house cast, after the cameras stop: whole nights between two of them, as episodes to read and watch.</p>
           <SubscribeToUnlock />
           {shorts.length ? (
@@ -64,7 +65,7 @@ export default async function ShortsPage() {
               ))}
             </ul>
           ) : (
-            <p className="muted">The first Shorts are on their way.</p>
+            <p className="muted">The first episodes are on their way.</p>
           )}
         </article>
       </div>
@@ -80,12 +81,12 @@ export default async function ShortsPage() {
             ← <Icon name="moon" /> After Dark
           </Link>
         </p>
-        <h1>Shorts</h1>
+        <h1>Episodes</h1>
         <p className="muted">
           Nights between two of this season&apos;s house cast, as episodes: read them, watch them in the theater, and the night&apos;s video when it has
           one. Included in the subscription.
         </p>
-        {access.admin && <p className="muted small">You publish a Short from a pair&apos;s page: 📺 Shorts, above the scene.</p>}
+        {access.admin && <p className="muted small">You publish an episode from a pair&apos;s page: 📺 Episodes, above the scene.</p>}
         {shorts.length ? (
           <ul className={styles.grid}>
             {shorts.map((s) => (
@@ -119,7 +120,7 @@ export default async function ShortsPage() {
               📺
             </p>
             <p>
-              <strong>No Shorts yet.</strong>
+              <strong>No episodes yet.</strong>
             </p>
             <p className="muted small">The house cast&apos;s nights land here as they&apos;re published.</p>
             <p>
@@ -132,7 +133,7 @@ export default async function ShortsPage() {
         <section id="board" className={styles.board} aria-label="Call it: the board">
           <h2>📣 Call it: {board.season.label}</h2>
           <p className="muted small">
-            Call a Short before you press play: the first move ({CALL_POINTS.first_move} points), how far it goes ({CALL_POINTS.furthest}), one of their places (
+            Call an episode before you press play: the first move ({CALL_POINTS.first_move} points), how far it goes ({CALL_POINTS.furthest}), one of their places (
             {CALL_POINTS.their_place}) and the bonus, a second night ({CALL_POINTS.second_night}). Free points, on this board only: never the show&apos;s, and
             nothing buys them. You&apos;re on it as {name ?? "Unnamed player"}
             {name ? "." : ": your display name is the one the show's league boards use."}
