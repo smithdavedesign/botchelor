@@ -374,6 +374,18 @@ async function main() {
         },
       },
       { name: "create", path: "/create?sample=1", walk: "wizard" },
+      {
+        // One-sentence create (lib/express-create.ts): a first-time visitor's first screen is one box; "Meet them" drafts
+        // the sheet (the stub showrunner answers) and lands on Look with a look already picked.
+        name: "create-express",
+        path: "/create",
+        walk: async (page) => {
+          await page.locator("#express-text").fill("A lighthouse keeper who repairs old radios and listens to ships talk at night.");
+          await page.getByRole("button", { name: "Meet them" }).click();
+          await page.getByText("Give them a look").waitFor({ timeout: 20_000 });
+          await page.getByText("A look that fits your words is already picked").waitFor();
+        },
+      },
       { name: "character-owner", path: `/characters/${myChar}`, as: "owner" },
       { name: "character-edit", path: `/characters/${myChar}/edit`, as: "owner", walk: "wizard" },
       { name: "create-send", path: `/create?character=${myChar}`, as: "owner" },
