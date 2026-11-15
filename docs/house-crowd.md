@@ -104,6 +104,40 @@ Analytics are blocked during the recording, so it doesn't count as a visit. Davi
 The show's Discord bot ([discord.md](discord.md)) and the Bluesky poster in `scripts/post` cover text posts once their
 credentials are set.
 
+### The home page's copy (`lib/home-clip.ts`, 2026-11-15)
+
+The home page plays the day's clip to a visitor with no character ([flows.md](flows.md), "The home page, for a
+stranger"), so the clip run sends the site a small copy once the MP4 is written:
+
+- **What is cut:** a muted web loop, the 10 to 14 seconds from the moment the first line appears (it ends a second
+  after a line lands), 480×854, H.264 with faststart, at most 700 kbit/s (in practice 70 to 300 KB, never over
+  1.4 MB: a heavier one is cut again, coarser), and a JPEG poster of the loop's own first frame. The same ffmpeg; both
+  files stay in `~/BotchelorClips/web/`.
+- **Where it goes:** `POST /api/admin/home-clip` (a multipart form: `episode`, `loop`, `poster`, `width`, `height`,
+  `seconds`, `day`), with the admin password in `x-frontier-key`. The route checks the date itself and refuses anything
+  but a publicly aired date between public characters (`not_aired`, `not_public`, `episode_not_found`), an MP4 over
+  2.5 MB or a poster over 400 KB, and a loop longer than 20 seconds. One clip per date: sending it again replaces it. The
+  files go where the show's own media goes (`lib/object-store.ts`, area `clips/`; the row itself when no store is set)
+  and are read at `/api/home-clip/<id>/loop.mp4` and `/poster.jpg`, which check the date again on every read: a date
+  reported away or made private takes its clip off the site.
+- **The password** is read when it's needed, from `FRONTIER_PASSWORD` if the run has it, else the keychain
+  (`security find-generic-password -s vault/botchelor/FRONTIER_PASSWORD -w`). It is never written to a file or printed.
+- **A failed upload never fails the clip:** it is logged (`~/.botchelor-crowd/logs/clip.log`, and a `fail` event in the
+  system log) and the MP4 and caption are already on disk. `HOME_CLIP_UPLOAD=0` in `~/.botchelor-crowd/env` skips the step.
+- **Nothing to install:** the launchd job runs the crowd's own clone on the newest main (`scripts/crowd/run.sh`), which
+  has ffmpeg on its PATH and the keychain of the signed-in user.
+- **A clip already rendered** (the first one, or after a failed upload), without recording again:
+
+  ```
+  node scripts/clips/daily-clip.mjs --upload ~/BotchelorClips/<day>-<a>-<b>.mp4 --episode <episode id>
+  ```
+
+  `--from <seconds>` moves where the loop starts in the clip (default 2: the date's page shows for about two seconds
+  before the theater opens); `--dry` cuts the two files and sends nothing. The episode id of each rendered clip is in
+  `~/.botchelor-crowd/clips.json`.
+- Tests: `tests/clips-web-loop.test.ts` (the window, the ffmpeg arguments, `--upload`, where the password comes from, what
+  an upload reports), `tests/home-clip.test.ts` (the route's refusals, the files, the home page).
+
 ### A post kit (`scripts/clips/post-kit.mjs`)
 
 The daily clip is a bare recording. For a TikTok, Reels or Shorts post, the post kit wraps a date the way short video
