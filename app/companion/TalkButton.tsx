@@ -9,7 +9,20 @@ import { requestJson } from "@/app/request";
  * Starts (or reopens) your thread with a character (app/api/companion) and goes to it. A guest past what they can try
  * without an account (a few characters, a few replies) gets the reason and the way on: a free account.
  */
-export default function TalkButton({ characterId, name, label, className = "button secondary" }: { characterId: string; name: string; label?: string; className?: string }) {
+export default function TalkButton({
+  characterId,
+  name,
+  label,
+  className = "button secondary",
+  track = "companion-open",
+}: {
+  characterId: string;
+  name: string;
+  label?: string;
+  className?: string;
+  /** The click's name in the engagement log: "verb-text" where it's a character's Text action (lib/character-verb.ts). */
+  track?: string;
+}) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -33,7 +46,7 @@ export default function TalkButton({ characterId, name, label, className = "butt
   }
   return (
     <>
-      <button type="button" className={className} onClick={() => void talk()} disabled={busy} data-track="companion-open">
+      <button type="button" className={className} onClick={() => void talk()} disabled={busy} data-track={track}>
         {busy ? `Opening…` : (label ?? `Talk with ${name}`)}
       </button>
       {error && (

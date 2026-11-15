@@ -1,6 +1,6 @@
 // The site's chrome after the 2026-11-14 design audit ("the chrome outweighs the content"): the footer keeps one row of
 // what people click and links /everything for the rest (app/everything/page.tsx), and phones get a tab bar of the
-// phone-first doors, Watch · Characters · Companions · You (app/PhoneTabBar.tsx), off the full-screen surfaces.
+// phone-first doors, Watch · Chat · Characters · You (app/PhoneTabBar.tsx), off the full-screen surfaces.
 import { readFileSync } from "node:fs";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -86,29 +86,49 @@ describe("the phone's tab bar", () => {
   const labels = (html: string) => [...html.matchAll(/class="tabbar-label">([^<]+)</g)].map((m) => m[1]);
   const current = (html: string) => /aria-current="page"[^>]*>[\s\S]*?class="tabbar-label">([^<]+)</.exec(html)?.[1] ?? null;
 
-  it("has four tabs with companions open, three without", () => {
-    expect(tabBarTabs(true).map((t) => t.href)).toEqual(["/watch", "/characters", "/companion", "/account"]);
-    expect(labels(renderToStaticMarkup(createElement(PhoneTabBar, { companions: true })))).toEqual(["Watch", "Characters", "Companions", "You"]);
-    expect(labels(renderToStaticMarkup(createElement(PhoneTabBar, { companions: false })))).toEqual(["Watch", "Characters", "You"]);
+  it("has four tabs, always: Watch · Chat · Characters · You, the header's doors", () => {
+    expect(tabBarTabs(true).map((t) => t.href)).toEqual(["/watch", "/chat", "/characters", "/account"]);
+    expect(tabBarTabs(false).map((t) => t.href)).toEqual(["/watch", "/chat", "/characters", "/account"]);
+    expect(labels(renderToStaticMarkup(createElement(PhoneTabBar, { companions: true })))).toEqual(["Watch", "Chat", "Characters", "You"]);
+    expect(labels(renderToStaticMarkup(createElement(PhoneTabBar, {})))).toEqual(["Watch", "Chat", "Characters", "You"]);
   });
 
-  it("marks the tab you're on by the header's rule, its pages under it included", () => {
+  it("marks the tab you're on by the header's rule: Chat on every list of threads", () => {
+    const here = () => current(renderToStaticMarkup(createElement(PhoneTabBar, { companions: true })));
     nav.path = "/watch";
-    expect(current(renderToStaticMarkup(createElement(PhoneTabBar, { companions: true })))).toBe("Watch");
+    expect(here()).toBe("Watch");
     nav.path = "/characters/abc";
-    expect(current(renderToStaticMarkup(createElement(PhoneTabBar, { companions: true })))).toBe("Characters");
+    expect(here()).toBe("Characters");
     nav.path = "/account";
-    expect(current(renderToStaticMarkup(createElement(PhoneTabBar, { companions: true })))).toBe("You");
-    // The directory is its own tab while companions are open; without one, Characters stays current there, as in the header.
-    nav.path = "/companion";
-    expect(current(renderToStaticMarkup(createElement(PhoneTabBar, { companions: true })))).toBe("Companions");
-    expect(current(renderToStaticMarkup(createElement(PhoneTabBar, { companions: false })))).toBe("Characters");
+    expect(here()).toBe("You");
+    for (const path of ["/chat", "/matches", "/companion", "/companion/plan"]) {
+      nav.path = path;
+      expect(here(), path).toBe("Chat");
+    }
     nav.path = "/";
-    expect(current(renderToStaticMarkup(createElement(PhoneTabBar, { companions: true })))).toBeNull();
+    expect(here()).toBeNull();
+  });
+
+  it("dots Chat while there are unread texts", () => {
+    nav.path = "/watch";
+    const html = renderToStaticMarkup(createElement(PhoneTabBar, { unread: 3 }));
+    expect(html).toMatch(/href="\/chat"[^>]*>(?:(?!<\/a>)[\s\S])*<span class="tabbar-dot" aria-label="3 unread"><\/span>/);
+    expect(html.match(/tabbar-dot/g)).toHaveLength(1);
+    expect(renderToStaticMarkup(createElement(PhoneTabBar, { unread: 0 }))).not.toContain("tabbar-dot");
+  });
+
+  it("NAV_CHAT=0 (chat: false) is the bar as it was: Companions a tab while they're open, three without", () => {
+    expect(tabBarTabs(true, false).map((t) => t.href)).toEqual(["/watch", "/characters", "/companion", "/account"]);
+    expect(labels(renderToStaticMarkup(createElement(PhoneTabBar, { companions: true, chat: false })))).toEqual(["Watch", "Characters", "Companions", "You"]);
+    expect(labels(renderToStaticMarkup(createElement(PhoneTabBar, { companions: false, chat: false })))).toEqual(["Watch", "Characters", "You"]);
+    nav.path = "/companion";
+    expect(current(renderToStaticMarkup(createElement(PhoneTabBar, { companions: true, chat: false })))).toBe("Companions");
+    expect(current(renderToStaticMarkup(createElement(PhoneTabBar, { companions: false, chat: false })))).toBe("Characters");
+    nav.path = "/";
   });
 
   it("shows on the show's pages and never on the full-screen surfaces, the gate, After Dark or admin", () => {
-    for (const path of ["/", "/watch", "/characters", "/characters/abc", "/companion", "/companion/plan", "/account", "/matches", "/episodes/abc", "/everything", "/step-in"]) {
+    for (const path of ["/", "/watch", "/characters", "/characters/abc", "/companion", "/companion/plan", "/account", "/matches", "/chat", "/episodes/abc", "/everything", "/step-in"]) {
       expect(tabBarShowsOn(path), path).toBe(true);
     }
     for (const path of ["/watch/abc", "/gate", "/after-dark", "/after-dark/shorts", "/admin", "/admin/x", "/step-in/abc", "/companion/abc", "/swipe", "/messages/a/b", "/create", "/email/x"]) {
@@ -121,7 +141,7 @@ describe("the phone's tab bar", () => {
   it("is mounted once in the layout, never on After Dark's host", () => {
     const layout = source("app/layout.tsx");
     expect(layout.match(/<PhoneTabBar /g)).toHaveLength(1);
-    expect(layout).toContain("{!adHost && <PhoneTabBar companions={companionOpen()} />}");
+    expect(layout).toContain("{!adHost && <PhoneTabBar companions={companionOpen()} chat={navChat} unread={texts} />}");
   });
 
   it("is a phone's only (720px), hides with the full-screen views, and lifts what floats at the foot above it", () => {

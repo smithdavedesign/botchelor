@@ -9,15 +9,21 @@ type Tab = NavLink & { icon: IconName };
 
 /**
  * The phone's tab bar (the 2026-11-14 design audit: "on mobile everything hides behind a hamburger; a four-item bottom
- * bar would cut taps on the phone-first surfaces"): Watch · Characters · Companions · You. Companions is a tab only
- * while companions are open (lib/companion-shared.ts companionOpen); otherwise it's three, and Characters stays current
- * on /companion, as it does in the header (app/Nav.tsx). The hamburger keeps everything else.
+ * bar would cut taps on the phone-first surfaces"): Watch · Chat · Characters · You, always four, the header's own
+ * doors (app/Nav.tsx; lib/nav-chat.ts). Chat is current on every thread list (/chat, /matches, /companion). The
+ * hamburger keeps everything else.
+ *
+ * `chat: false` (NAV_CHAT=0) is the bar before 2026-11-15: Watch · Characters · Companions · You, Companions a tab only
+ * while companions are open, Characters current on /companion otherwise.
  */
-export function tabBarTabs(companions: boolean): readonly Tab[] {
+export function tabBarTabs(companions: boolean, chat = true): readonly Tab[] {
   const watch: Tab = { href: "/watch", label: "Watch", icon: "tv" };
+  const you: Tab = { href: "/account", label: "You", icon: "user" };
+  if (chat) {
+    return [watch, { href: "/chat", label: "Chat", icon: "chat", also: ["/matches", "/swipe", "/messages", "/companion"] }, { href: "/characters", label: "Characters", icon: "users" }, you];
+  }
   const characters: Tab = { href: "/characters", label: "Characters", icon: "users", also: companions ? [] : ["/companion"] };
   const companion: Tab = { href: "/companion", label: "Companions", icon: "chat" };
-  const you: Tab = { href: "/account", label: "You", icon: "user" };
   return companions ? [watch, characters, companion, you] : [watch, characters, you];
 }
 
@@ -49,17 +55,20 @@ export function tabBarShowsOn(path: string): boolean {
  * Phones only (app/ux/chrome.css shows it up to 720px). The outer element stays in the page's flow at the bar's height,
  * so the foot of every page scrolls clear of it, and wherever the bar is hidden that room goes with it.
  */
-export default function PhoneTabBar({ companions = false }: { companions?: boolean }) {
+export default function PhoneTabBar({ companions = false, chat = true, unread = 0 }: { companions?: boolean; chat?: boolean; /** Unread texts of both kinds: a dot on Chat. */ unread?: number }) {
   const pathname = usePathname() ?? "/";
   if (!tabBarShowsOn(pathname)) return null;
   return (
     <div className="tabbar">
       <nav className="tabbar-nav" aria-label="Sections">
-        {tabBarTabs(companions).map((t) => {
+        {tabBarTabs(companions, chat).map((t) => {
           const here = atLink(t, pathname);
           return (
             <Link key={t.href} href={t.href} className="tabbar-tab" aria-current={here ? "page" : undefined}>
-              <Icon name={t.icon} className="tabbar-icon" />
+              <span className="tabbar-icon-wrap">
+                <Icon name={t.icon} className="tabbar-icon" />
+                {t.href === "/chat" && unread > 0 && <span className="tabbar-dot" aria-label={`${unread} unread`} />}
+              </span>
               <span className="tabbar-label">{t.label}</span>
             </Link>
           );

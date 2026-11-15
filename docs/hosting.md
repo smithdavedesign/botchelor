@@ -114,6 +114,10 @@ ignore it.
   nothing until a lead format is picked on `/admin/season` (this season's, or next season's with its lead); `0` closes
   it without a deploy: first dates are the usual ones again and no roses are handed out. Commented in `.do/show.yaml`;
   the rules are in [seasons.md](seasons.md), "Open casting".
+- **`NAV_CHAT`** (the show's app, not a secret; on unless it is `0`): the navigation of 2026-11-15 (`lib/nav-chat.ts`):
+  Watch · Chat · Characters · Account in the header and the phone's tab bar, and Watch · House · Reels · Reunion as the
+  show's tabs. `0` brings back the header, tab bar and show tabs as they were, without a deploy of code; `/chat` still
+  works. Commented in `.do/show.yaml`; described in [flows.md](flows.md), "Navigation".
 - **`HOUSE_SCENES`** (the show's app, not a secret; on unless it is `0`): the daily house scene
   (`lib/house-scenes.ts`): a few of the cast talk over a date that aired, and what they retell becomes something the
   others heard. One call a day on the free model (0.07 cents at paid list prices) or a template. `0` writes no scene

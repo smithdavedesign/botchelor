@@ -223,6 +223,9 @@ call to action, the links (the bell is a link). The tagline belongs in the hero;
   to explain that "the show's dates aren't spent here".
 - **One call to action** (`.nav-cta`), for a newcomer only: in words above 1180px, an icon-only plus from 900 to
   1180px, and in the menu under 900px.
+- **The links** are three doors and the account, the same for everyone (2026-11-15, `lib/nav-chat.ts`): Watch · Chat ·
+  Characters · Account. Chat's count (`.nav-count`) is unread texts of both kinds. A phone repeats them as the tab bar
+  at the foot (`.tabbar`: Watch · Chat · Characters · You), with a dot on Chat instead of a number.
 - **Breakpoints.** Under 1180px the bar tightens (the meter drops its word, the door keeps its words). Under 900px
   the links fold behind the menu button and the tools stay. Under 560px the door and the badge are marks.
 

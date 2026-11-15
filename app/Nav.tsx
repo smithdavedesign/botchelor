@@ -9,14 +9,25 @@ import { afterDarkHref } from "@/lib/after-dark-host";
 import { openFeedback } from "@/lib/user-feedback-shared";
 
 /**
- * The primary nav links (the token meter and the logo sit outside these lists). David, 2026-10-22: Create isn't a nav
- * item; a newcomer gets one "Make your character" button, and doing anything that needs a character sends them to
- * /create and back. Five doors since the 2026-11-07 product review (David: "do 1-5"): Watch · Dating · Characters ·
- * Companions · Account. Dating is one door — /matches is the hub and /swipe one tap away (the deck's own topbar and
- * the Matches header cross-link them). The Constellation and the Showcase moved under Watch (app/ShowTabs.tsx), which
- * supersedes the 2026-11-01 "Constellation stays in the nav" call with David's sign-off on the review plan.
+ * The primary nav links (the token meter and the logo sit outside these lists). Three doors and the account, the same
+ * for everyone (2026-11-15, lib/nav-chat.ts): Watch · Chat · Characters · Account. Chat (/chat) is every thread a
+ * person has: the ones with them (what was "Companions") and their characters' own (what was "Dating": /matches, the
+ * swipe deck, a thread), so it's current on all of those, and its count is unread texts of both kinds. Create isn't a
+ * nav item (David, 2026-10-22): a newcomer gets one "Make your character" button. The show's other rooms are under
+ * Watch (app/ShowTabs.tsx).
  */
 export type NavLink = { href: string; label: string; also?: readonly string[] };
+const LINKS: readonly NavLink[] = [
+  { href: "/watch", label: "Watch" },
+  { href: "/chat", label: "Chat", also: ["/matches", "/swipe", "/messages", "/companion"] },
+  { href: "/characters", label: "Characters" },
+  { href: "/account", label: "Account" },
+];
+
+/**
+ * The header before 2026-11-15 (NAV_CHAT=0): Watch · Dating · Characters · Account for someone with a character,
+ * without Dating for a newcomer, and the companions' directory a sub-link under Characters in the phone menu.
+ */
 const OWNER_LINKS: readonly NavLink[] = [
   { href: "/watch", label: "Watch" },
   { href: "/matches", label: "Dating", also: ["/swipe", "/messages"] },
@@ -42,19 +53,15 @@ const AD_LINKS: readonly NavLink[] = [
   { href: "/after-dark/account", label: "Account", also: ["/after-dark/tokens", "/after-dark/subscribe"] },
 ];
 
-/**
- * The links for this viewer. Companions is no door of its own (the audit, 2026-11-11, Part 4: a second product behind a
- * fifth door): every character card carries Talk, and the directory is Characters' fourth tab (app/characters/
- * CharactersTabs.tsx), so Characters stays current there. The phone menu also lists it under Characters (David,
- * 2026-11-11: the directory had become a footer link).
- */
-function navLinks(hasCharacter: boolean, adHost = false): readonly NavLink[] {
+/** The links for this viewer: After Dark's on its own host, else the show's (the same for everyone while `chat` is on). */
+function navLinks(hasCharacter: boolean, adHost = false, chat = true): readonly NavLink[] {
   if (adHost) return AD_LINKS;
+  if (chat) return LINKS;
   return hasCharacter ? OWNER_LINKS : NEWCOMER_LINKS;
 }
 
 /**
- * Whether this link is where the viewer is, counting its sibling routes (`also`: /swipe and /messages are Dating). The
+ * Whether this link is where the viewer is, counting its sibling routes (`also`: /matches, /swipe, /messages and /companion are Chat). The
  * phone's tab bar (app/PhoneTabBar.tsx) marks its tabs by this same rule.
  */
 export const atLink = (l: NavLink, pathname: string): boolean => {
@@ -84,6 +91,7 @@ export default function Nav({
   prefetchShow = true,
   showHref = "/",
   companions = false,
+  chat = true,
 }: {
   tokens: number;
   /**
@@ -95,11 +103,14 @@ export default function Nav({
   /** The viewer owns a character: the owner's nav. Without one, the newcomer's, with the create button. */
   hasCharacter?: boolean;
   unread?: number;
+  /** Unread texts: on Chat, both kinds (lib/inbox.ts unreadChatTexts); on Dating (NAV_CHAT=0), the characters' own. */
   texts?: number;
+  /** Watch · Chat · Characters · Account (lib/nav-chat.ts navChatOn, read by the layout); false is the header before it. */
+  chat?: boolean;
   afterDark?: boolean;
   /** On After Dark's own host: the door turns into "Back to the show", and there's no create button. */
   adHost?: boolean;
-  /** Companions are open (lib/companion-shared.ts companionOpen): the phone menu lists the directory under Characters. */
+  /** Companions are open (lib/companion-shared.ts companionOpen): with `chat` off, the phone menu lists the directory under Characters. */
   companions?: boolean;
   /** Where "Back to the show" goes (lib/site.ts showHome): the show's address on After Dark's host. */
   showHref?: string;
@@ -230,19 +241,19 @@ export default function Nav({
             Make your character
           </Link>
         )}
-        {navLinks(hasCharacter, adHost).map((l) => (
+        {navLinks(hasCharacter, adHost, chat).map((l) => (
           <Fragment key={l.href}>
             {/* After Dark's own links are on its own host, so they prefetch; the show's there only hop back. */}
             <Link prefetch={adHost ? undefined : pf} href={l.href} aria-current={atLink(l, pathname) ? "page" : undefined}>
               {l.label}
-              {l.href === "/matches" && texts > 0 && (
+              {l.href === (chat ? "/chat" : "/matches") && texts > 0 && (
                 <span className="nav-count" aria-label={`${texts} unread texts`}>
                   {texts > 99 ? "99+" : texts}
                 </span>
               )}
             </Link>
-            {/* Phone menu only: the companions' directory under Characters (hidden in the desktop bar, where it's a tab). */}
-            {l.href === "/characters" && companions && !adHost && (
+            {/* NAV_CHAT=0, phone menu only: the companions' directory under Characters (in the desktop bar it's a tab). */}
+            {l.href === "/characters" && companions && !chat && !adHost && (
               <Link prefetch={pf} href="/companion" className="nav-sub">
                 Companions
               </Link>

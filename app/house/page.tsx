@@ -3,6 +3,7 @@ import Link from "next/link";
 import EmptyState from "@/app/EmptyState";
 import HouseScene from "@/app/HouseScene";
 import Pager from "@/app/Pager";
+import ShowTabs from "@/app/ShowTabs";
 import { getDb } from "@/lib/db";
 import { HOUSE_PAGE_SIZE, houseScene, houseScenesOn, listHouseScenes } from "@/lib/house-scenes";
 import { pageCount, pageHref, parsePage } from "@/lib/paging";
@@ -59,6 +60,7 @@ export default async function HousePage({ searchParams }: { searchParams?: Promi
   );
   return (
     <article className="house-page">
+      <ShowTabs active="/house" />
       <header>
         <p className="kicker">
           <Link href="/watch">The show</Link> · The house

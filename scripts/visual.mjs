@@ -456,6 +456,22 @@ async function main() {
       },
       { name: "swipe", path: `/swipe?character=${swiper.id}`, as: "owner" },
       { name: "swipe-match", path: matchPath, as: "owner" },
+      // Chat (lib/chat-inbox.ts): the one inbox. Empty for a visitor (three of the cast to text, Make your character),
+      // with a character's threads for its owner, and with the phone's menu open: Watch · Chat · Characters · Account.
+      { name: "chat-none", path: "/chat" },
+      { name: "chat", path: "/chat", as: "owner" },
+      {
+        name: "chat-menu",
+        path: "/chat",
+        as: "owner",
+        walk: async (page) => {
+          const toggle = page.locator(".nav-toggle");
+          if (await toggle.isVisible()) {
+            await toggle.click();
+            await page.locator('.nav-links[data-open="true"]').waitFor();
+          }
+        },
+      },
       { name: "matches-none", path: "/matches" },
       { name: "matches", path: `/matches?character=${swiper.id}`, as: "owner" },
       { name: "messages", path: `/messages/${[swiper.id, houseCard.id].sort().join("/")}?as=${swiper.id}`, as: "owner" },

@@ -10,6 +10,15 @@ export function companionOpen(env: Record<string, string | undefined> = process.
 }
 
 /**
+ * Who a person may text, as SQL over `characters <c>` (lib/companion.ts companionEligible, and the Text action on a
+ * character's card, lib/character-verb.ts): a public house character that isn't a premium one, one of the show's open
+ * cast, or their own. Never a deleted owner's. `user` and `deleted` are text parameters ("$2").
+ */
+export const companionEligibleSql = (c: string, user: string, deleted: string): string =>
+  `(${c}.owner_id is distinct from ${deleted}
+    and ((${c}.is_house and ${c}.premium_sku is null and ${c}.visibility <> 'private') or (${c}.companion_open and ${c}.visibility <> 'private') or ${c}.owner_id = ${user}))`;
+
+/**
  * Someone without an account can try a companion first (2026-11-07 audit, item 6: "Sign in to talk" came before a single
  * line): this many replies in all, then a free account keeps the conversation going, memory and all (an account adopts
  * the visitor's id, lib/auth.ts). COMPANION_GUEST_REPLIES overrides it; 0 turns guests off.

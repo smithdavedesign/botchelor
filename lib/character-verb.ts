@@ -8,15 +8,23 @@
  *  - someone with no character: "Step into a date with {them}" when step-in is open to them and this is one of the
  *    season's cast (lib/step-in.ts), otherwise "Make a character to date {them}";
  *  - nothing on your own character, a private one, or one that isn't taking dates: an action the server would refuse
- *    is never offered. (Talk, the companion, is a second, quieter action where it applies: DirectoryEntry.companion.)
+ *    is never offered.
+ *
+ * Beside it, a second action (2026-11-15, lib/nav-chat.ts): "Text {them}", for any character the viewer may text
+ * (lib/companion.ts companionEligible: the house cast, the show's open cast, and their own characters, who have no
+ * date verb). It opens their thread with that character, the way the directory of who can be texted always did
+ * (app/companion/TalkButton.tsx: POST /api/companion, which checks again, then /companion/<thread>). It was "Talk",
+ * under a product name, Companions; texting is what it is.
  *
  * This module only chooses and links. The booking is still the one path it always was: the character page's "Date
  * this character" (lib/date-cta.ts, app/characters/[id]/DateThisCharacter.tsx → POST /api/episodes, which checks
  * everything again), opened from a card with ?send=<mine> so the sender is already picked.
  */
 import { audienceAllowsSql } from "./audience";
+import { companionEligibleSql } from "./companion-shared";
 import type { Db } from "./db";
 import { shortName } from "./names";
+import { DELETED_OWNER } from "./rules";
 import { takenSql } from "./partners";
 import { seasonCastIds, seasonFanCastIds } from "./season-cast";
 import { datedSql, swipeGateOn } from "./swipe-gate";
@@ -45,7 +53,35 @@ export type VerbFacts = {
   mineTaken: boolean;
   /** One of this season's house cast, so a person can step into a date with them. */
   steppable: boolean;
+  /** This viewer may text them (lib/companion.ts companionEligible): the house or open cast, or their own. */
+  textable: boolean;
 };
+
+/**
+ * Whether this viewer can text at all: "open" (texting is open to them, or to a visitor trying it as a guest),
+ * "sign_in" (open to everyone, an account first) or "closed" (lib/companion-access.ts, lib/companion-shared.ts).
+ */
+export type TextAccess = "open" | "sign_in" | "closed";
+/**
+ * The Text action. It's a button, not a link: the thread is opened (or made) by POST /api/companion with
+ * `characterId`. `signIn` is where "sign_in" sends them instead, coming back to the character.
+ */
+export type TextVerb = { kind: "text"; label: string; characterId: string; track: "verb-text"; signIn: string | null };
+/** A card's actions: the one primary verb and Text, either of which may be missing. */
+export type CardActions = { verb: Verb | null; text: TextVerb | null };
+
+/** The Text action for this viewer on this character, or null: texting is closed to them, or this one can't be texted. */
+export function textVerb(access: TextAccess, f: Pick<VerbFacts, "id" | "name" | "textable">): TextVerb | null {
+  // `textable` already keeps a private character to its owner.
+  if (access === "closed" || !f.textable) return null;
+  return {
+    kind: "text",
+    label: `Text ${shortName(f.name)}`,
+    characterId: f.id,
+    track: "verb-text",
+    signIn: access === "sign_in" ? `/account?next=${encodeURIComponent(`/characters/${f.id}`)}` : null,
+  };
+}
 
 /** Where a card's "send" lands: the character's page, its confirm sheet open with this sender picked. */
 export const sendHref = (themId: string, mineId: string): string => `/characters/${encodeURIComponent(themId)}?send=${encodeURIComponent(mineId)}#date`;
@@ -55,7 +91,7 @@ export const makeHref = (themId: string, onCast: boolean): string =>
   `/create?${onCast ? `meet=${encodeURIComponent(themId)}&` : ""}next=${encodeURIComponent(`/characters/${themId}`)}`;
 
 /** The one primary action for this viewer on this character, or null when there's none to offer. */
-export function characterVerb(viewer: VerbViewer, f: VerbFacts): Verb | null {
+export function characterVerb(viewer: VerbViewer, f: Omit<VerbFacts, "textable">): Verb | null {
   if (f.own || f.private) return null;
   const them = shortName(f.name);
   const stepIn: Verb | null = viewer.stepIn && f.steppable ? { kind: "step_in", label: `Step into a date with ${them}`, href: stepInHref(f.id), track: "step-in" } : null;
@@ -91,7 +127,7 @@ export async function verbFacts(db: Db, viewerId: string | null, mineId: string 
   if (!ids.length) return out;
   const cast = seasonCastIds(now);
   const fans = seasonFanCastIds(now);
-  type Row = { id: string; name: string; own: boolean; private: boolean; dateable: boolean; ready: boolean; mine_taken: boolean; house_cast: boolean };
+  type Row = { id: string; name: string; own: boolean; private: boolean; dateable: boolean; ready: boolean; mine_taken: boolean; house_cast: boolean; textable: boolean };
   const { rows } = await db.query<Row>(
     `select c.id, c.name,
             (c.owner_id is not distinct from $2::text and $2::text is not null) as own,
@@ -107,13 +143,14 @@ export async function verbFacts(db: Db, viewerId: string | null, mineId: string 
                  end) as dateable,
             (c.is_house or c.id = any($5::text[]) or not $6::boolean
              or ($3::text is not null and (${datedSql("c", "$3")} or ${agreedMatchSql("c", "$3")}))) as ready,
-            ($3::text is not null and coalesce((select ${takenSql("m", "c.id")} from characters m where m.id = $3::text), false)) as mine_taken
+            ($3::text is not null and coalesce((select ${takenSql("m", "c.id")} from characters m where m.id = $3::text), false)) as mine_taken,
+            coalesce(${companionEligibleSql("c", "$2::text", "$7::text")}, false) as textable
        from characters c
       where c.id = any($1::text[])`,
-    [ids, viewerId, mineId, cast, fans, swipeGateOn()],
+    [ids, viewerId, mineId, cast, fans, swipeGateOn(), DELETED_OWNER],
   );
   for (const r of rows) {
-    out.set(r.id, { id: r.id, name: r.name, own: r.own, private: r.private, dateable: r.dateable, ready: r.ready, mineTaken: r.mine_taken, steppable: r.house_cast });
+    out.set(r.id, { id: r.id, name: r.name, own: r.own, private: r.private, dateable: r.dateable, ready: r.ready, mineTaken: r.mine_taken, steppable: r.house_cast, textable: r.textable });
   }
   return out;
 }
@@ -125,6 +162,20 @@ export async function verbsFor(db: Db, viewer: VerbViewer & { userId: string | n
   for (const [id, f] of facts) {
     const verb = characterVerb(viewer, f);
     if (verb) out.set(id, verb);
+  }
+  return out;
+}
+
+/**
+ * Each card's two actions, by character id, from the one read verbFacts makes (those with neither aren't in the map).
+ * `text`: whether this viewer can text at all.
+ */
+export async function actionsFor(db: Db, viewer: VerbViewer & { userId: string | null; text: TextAccess }, ids: string[], now: Date = new Date()): Promise<Map<string, CardActions>> {
+  const facts = await verbFacts(db, viewer.userId, viewer.mine?.id ?? null, ids, now);
+  const out = new Map<string, CardActions>();
+  for (const [id, f] of facts) {
+    const actions = { verb: characterVerb(viewer, f), text: textVerb(viewer.text, f) };
+    if (actions.verb || actions.text) out.set(id, actions);
   }
   return out;
 }

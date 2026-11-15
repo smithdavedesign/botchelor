@@ -379,13 +379,53 @@ fields. The first screen for someone making their **first** character is now one
 What the draft leaves empty, the character asks about later, in its own thread: see
 [companions.md](companions.md), "The character asks you the rest".
 
+## Navigation (2026-11-15)
+
+Three doors and the account, for everyone: **Watch · Chat · Characters · Account**.
+
+```mermaid
+flowchart LR
+    nav["Header and phone tab bar"] --> watch["Watch"]
+    nav --> chat["Chat (/chat)"]
+    nav --> chars["Characters"]
+    nav --> acct["Account"]
+    watch --> tabs["Show tabs:<br/>Watch · House · Reels · Reunion"]
+    chat --> you["With you:<br/>/companion/[id]"]
+    chat --> theirs["Their dating:<br/>/messages/[a]/[b]"]
+    chat --> start["Text someone (/companion)<br/>Find a match (/swipe)"]
+    chars --> card["Every card and page:<br/>one verb + Text"]
+    card --> you
+```
+
+- **Why.** Threads lived behind two doors with two product names: "Dating" (a character's matches) and "Companions"
+  (a character texting you). In 30 days four visitors found Companions, three the Constellation, one Reviews. Chat is
+  one door for every text; the house, where the show's story is told daily, takes a show tab.
+- **"Text" is a verb**, not a place. Beside each character's one primary action (`lib/character-verb.ts`: send yours on
+  a date, match, step in, make a character) sits **Text {name}** for anyone the viewer may text (`lib/companion.ts`
+  `companionEligible`: the house cast, the show's open cast, their own characters). It opens the thread
+  (`app/companion/TalkButton.tsx` → `POST /api/companion`, which checks again). On every card of `/characters` and,
+  as one small button, in the header of `/characters/[id]`.
+- **The directory of who can be texted** is still `/companion`; Characters' fourth tab to it reads **Text someone**
+  (`app/characters/CharactersTabs.tsx`), the words of Chat's own button.
+- **What didn't move.** `/matches`, `/swipe`, `/messages/…` and `/companion/…` are at their addresses and work as
+  before; Chat lists and links them. Reviews and the Constellation are on `/everything` and wherever they were linked.
+- **Switch.** `NAV_CHAT` (the show's app; on unless `0`): `0` brings back the header (Watch · Dating · Characters ·
+  Account, no Dating for a newcomer, Companions under Characters in the phone menu), the tab bar (Watch · Characters ·
+  Companions · You) and the show tabs (Watch · Reels · Reunion · Reviews · Constellation) as they were. `/chat` works
+  either way.
+- Tests: `tests/nav-pill.test.ts`, `tests/site-chrome.test.ts`, `tests/companions-door.test.ts`,
+  `tests/chat-inbox.test.ts`, `tests/character-verb.test.ts`; `/chat` is in `tests/perf-pages.test.ts`. The visual gate
+  opens `/chat` empty, with threads, and with the phone menu open (`scripts/visual.mjs` `chat-none`, `chat`, `chat-menu`).
+
 ## Where each thing lives (2026-10-20)
 
 Every page leads somewhere: no dead ends.
 
 | Page | What it's for | Where it leads |
 |---|---|---|
-| Nav | Create · Swipe · Matches (unread texts) · Watch · Characters · Account · 🔔 | |
+| Nav | **Watch · Chat · Characters · Account** · 🔔, the same for everyone (2026-11-15, `app/Nav.tsx`, `lib/nav-chat.ts`); a newcomer also gets the one **Make your character** button. Chat carries one number, unread texts of both kinds (`lib/inbox.ts` `unreadChatTexts`), and is current on `/chat`, `/matches`, `/swipe`, `/messages` and `/companion`. On a phone the same four are the tab bar at the foot (`app/PhoneTabBar.tsx`: Watch · Chat · Characters · You, a dot on Chat while there's something unread) | see "Navigation" below |
+| Show tabs | **Watch · House · Reels · Reunion** (`app/ShowTabs.tsx`) on `/watch`, `/house`, `/showcase`, `/reunion`. `/graph` still wears the strip with House current (the Constellation is the house's map); `/reviews` wears it with none current. Both are linked from `/everything` | the show's rooms |
+| `/chat` | One inbox (`lib/chat-inbox.ts`): every thread the viewer has, newest first. A thread **with them** (their own character after its dates, the cast, anyone they started one with) reads "{name} · texting you"; one of **their characters' own** reads "{mine} and {them} · texting each other", two faces. Unread ones are bold with a dot. A segmented filter: All · With you · Their dating. At the top: **Text someone** (the directory of who can be texted, `/companion`) and **Find a match** (the deck), or **Make your character** for someone without one. Empty: three of this season's cast to text now and Make your character. Guests keep their threads (a signed identity); not indexed, behind the 18+ gate like Matches. At most six characters' threads are merged (the ones with unread news first); matches that didn't work out stay on `/matches` | the thread's own page (`/companion/[id]`, `/messages/[a]/[b]`), `/companion`, `/swipe`, `/create`, `/matches` |
 | `/characters` | Characters, three tabs (`?tab=cast` default, `people`, `agents`; 24 a page): the cast (this month's house cast, next month's candidates from the 20th, the leaderboard, matchmaking, the relationship graph), people's characters, agent-made characters. Each card has one origin badge: Cast, Made by a person, 🤖 Agent-made or House-run bot (`lib/origin.ts`). A private character is listed by name only (no link, portrait or details) and counted. Each card carries one primary action for whoever's looking (`lib/character-verb.ts`, 2026-11-15): "Send {mine} on a date with {them}" (or "Match {mine} with {them}" behind the swipe gate) for someone with a character, "Step into a date with {them}" on the season's cast or "Make a character to date {them}" for someone without; "Talk to {them}" is the quieter second where they're a companion. Nothing is offered that the booking would refuse. `/cast` is a 308 to the cast tab | each character's card, `/step-in?with=`, the date's confirm sheet (`?send=`), `/create` |
 | `/step-in` | Step into the date ([step-into-the-date.md](step-into-the-date.md)): the cast picker, open to everyone and without the 18+ interstitial (the start screen's own box is the answer); `?with=<cast>` is the start screen; a guest gets 3 dates in all | `/step-in/<id>` (the live date, behind the gate's cookie) |
 | `/matches?character=` | One character's inbox: your characters as a row of faces to switch (`app/CharacterTabs.tsx`; a taken one dimmed and tagged 💍 Taken), then new matches and conversations, with a badge for what's next. Tonight's mixer (not for a taken character): above an empty inbox, after the conversations otherwise | the thread, its card, its deck; the mixer |
