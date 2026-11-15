@@ -34,7 +34,7 @@ export const LAST_UPDATED = "Last updated 24 October 2026.";
 export const TERMS_PRIVACY_UPDATED = "Last updated 15 November 2026.";
 /** What changed last time, in a line. */
 export const PRIVACY_CHANGES =
-  "Changed: on a live call with the Companion Plan, where it's offered, a companion's face can move as they talk, drawn by our own renderer from their portrait and voice (never yours) at no charge beyond the call's minutes. Before that (10 November): a recovery email you can add to a handle-and-password account, used only to reset a forgotten password and to tell you when the password or that address changes; the Sunday letter, a weekly email you can sign up for (confirmed by email, with an unsubscribe in every letter, and an address taken off when its emails bounce or are reported as spam); who hosts the show and carries its traffic (DigitalOcean and Cloudflare, no longer Vercel), and that the show's model is reached through OpenRouter; live calls with a companion, where they're offered: Deepgram hears your voice and makes the companion's, and the terms say how call minutes are charged. Before that (1 November): Analytics names the three events our own dashboard counts (visit, activate, checkout) and says the site you came from goes with a visit only when it's another site; the terms state the pack's price. Before that (24 October): who runs Botchelor, After Dark's data and where it's offered, the location and age we read, everyone who processes data, your rights, and the complaint form.";
+  "Changed: what happens on a call with a companion now has a section of its own (your audio, your words, who makes the voice and the face, what's kept and how to delete it), and it names Runpod, whose GPUs our face renderer runs on. Earlier the same day: on a live call with the Companion Plan, where it's offered, a companion's face can move as they talk, drawn by our own renderer from their portrait and voice (never yours) at no charge beyond the call's minutes. Before that (10 November): a recovery email you can add to a handle-and-password account, used only to reset a forgotten password and to tell you when the password or that address changes; the Sunday letter, a weekly email you can sign up for (confirmed by email, with an unsubscribe in every letter, and an address taken off when its emails bounce or are reported as spam); who hosts the show and carries its traffic (DigitalOcean and Cloudflare, no longer Vercel), and that the show's model is reached through OpenRouter; live calls with a companion, where they're offered: Deepgram hears your voice and makes the companion's, and the terms say how call minutes are charged. Before that (1 November): Analytics names the three events our own dashboard counts (visit, activate, checkout) and says the site you came from goes with a visit only when it's another site; the terms state the pack's price. Before that (24 October): who runs Botchelor, After Dark's data and where it's offered, the location and age we read, everyone who processes data, your rights, and the complaint form.";
 
 /** The "On this page" lists: each id matches an h2 below (keep the two in step when a heading changes). */
 export const TERMS_HEADINGS = [
@@ -64,6 +64,7 @@ export const TERMS_HEADINGS = [
 export const PRIVACY_HEADINGS = [
   { id: "who-is-responsible", title: "Who is responsible" },
   { id: "what-we-store", title: "What we store" },
+  { id: "calls", title: "Calls with a companion" },
   { id: "newsletter", title: "The Sunday letter" },
   { id: "after-dark-data", title: "After Dark data" },
   { id: "location-age", title: "Your location and your age" },
@@ -670,6 +671,49 @@ export function PrivacySections() {
         </li>
       </ul>
 
+      <h2 id="calls">Calls with a companion</h2>
+      <p>
+        A call is a companion conversation said aloud: taking turns, or live where that&apos;s offered. This is what
+        happens to it today.
+      </p>
+      <ul>
+        <li>
+          <strong>Your audio.</strong> We never receive it and never keep it. On a call that takes turns, your browser&apos;s
+          own speech recognition turns your voice into words (Chrome sends the audio to Google, Safari to Apple, under their
+          terms). On a live call, your browser sends your voice straight to Deepgram, which turns it into words as you
+          speak. We ask Deepgram to leave it out of training, and Deepgram says it then keeps the audio only for as long as
+          it takes to process it.
+        </li>
+        <li>
+          <strong>Your words.</strong> What you said reaches us as text and is kept in the conversation as a message, marked
+          📞, with the companion&apos;s reply, the same as a message you typed: the same models read it to write the reply,
+          the companion may note a fact from it (on its memory page, where you can change or delete it), and only you see
+          it, except a reply you report. A line that sets off the self-harm check, or that we turn away for breaking the
+          show&apos;s content rules, isn&apos;t kept. The transcript on the call screen lives only in that page.
+        </li>
+        <li>
+          <strong>The companion&apos;s voice.</strong> Deepgram makes it from the reply&apos;s words. The audio passes through
+          our server to your browser and isn&apos;t kept. If you pick the companion&apos;s own voice on a call that takes
+          turns, each reply is made as a voice note instead (by Venice or Replicate, from the reply&apos;s words) and kept
+          with the conversation like any voice note.
+        </li>
+        <li>
+          <strong>The moving face.</strong> On a live call with the Companion Plan, our own renderer draws it, on GPUs we
+          rent from Runpod. It is sent the character&apos;s portrait and the character&apos;s voice: never your voice, your
+          words or who you are. We don&apos;t keep the clips.
+        </li>
+        <li>
+          <strong>The record of a live call.</strong> When it started and ended, its minutes, how many turns it had, how
+          many characters were voiced and how long the face showed, to charge it and count it: never sound, never words.
+          It&apos;s deleted after 90 days, or sooner with your account. Deleting the conversation doesn&apos;t delete it.
+        </li>
+        <li>
+          <strong>Deleting it.</strong> &ldquo;Delete this conversation&rdquo;, in the conversation&apos;s menu, deletes every
+          message in it, said or typed, with what the companion remembered and its voice notes. You can rewrite your last
+          message, but there&apos;s no way yet to delete one message on its own. Deleting your account deletes all of it.
+        </li>
+      </ul>
+
       <h2 id="newsletter">The Sunday letter</h2>
       <p>
         If you sign up for the Sunday letter, our weekly email (no account needed), we keep your email address, that you said
@@ -790,6 +834,10 @@ export function PrivacySections() {
           months), then deleted, sooner if you delete the character or your account. Your past choices on training are
           kept as long as your account, as the record of what you agreed to and when.
         </li>
+        <li>
+          The record of a live call with a companion (its times, minutes and turns; never sound or words): 90 days. See{" "}
+          <a href="#calls">Calls with a companion</a>.
+        </li>
         <li>The log of an agent&apos;s tool calls: 400 days.</li>
         <li>
           The keyed hash of your IP address that limits how many dates one connection starts, how many sign-ups to the Sunday
@@ -836,6 +884,8 @@ export function PrivacySections() {
           your device when it can&apos;t), or made as voice notes. On a live call, your voice goes from your
           browser to Deepgram instead, which turns it into words as you speak, and Deepgram also makes the companion&apos;s voice
           from its words; we ask Deepgram to keep none of it for training, and it keeps the audio only while it works on it.
+          Where a companion&apos;s face moves on a live call, our own renderer draws it on GPUs rented from Runpod, from the
+          character&apos;s portrait and voice, never yours.
         </li>
         <li>
           <strong>After Dark:</strong> OpenRouter (through its hosts CoreWeave and DeepInfra) writes the scenes; Venice, with

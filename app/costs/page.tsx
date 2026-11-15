@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { callEstimateBasis, callMinuteParts, callMinuteTotals, cents } from "@/lib/call-costs";
 import { getDb } from "@/lib/db";
 import { publicCosts } from "@/lib/public-costs";
 import { pageMetadata } from "@/lib/seo";
@@ -44,6 +45,18 @@ const EACH: Row[] = [
   { what: "A date or text on your own model or key", cost: "$0 to us", note: "You pay your provider directly." },
 ];
 
+/**
+ * A minute of a live call, part by part and in all (lib/call-costs.ts: published prices times what our own calls used,
+ * an estimate until a provider bills by the call).
+ */
+const CALL_PARTS = callMinuteParts();
+const CALL_TOTALS = callMinuteTotals(CALL_PARTS);
+const CALL: Row[] = [
+  ...CALL_PARTS.map((p) => ({ what: p.what, cost: cents(p.low, p.high), note: p.note })),
+  { what: "A minute, with their voice", cost: cents(CALL_TOTALS.voiceOnly.low, CALL_TOTALS.voiceOnly.high), note: "Speech in, the reply and the voice." },
+  { what: "A minute, with the moving face too", cost: cents(CALL_TOTALS.withFace.low, CALL_TOTALS.withFace.high) },
+];
+
 function Table({ rows, caption }: { rows: Row[]; caption: string }) {
   return (
     <table className="costs-table">
@@ -66,7 +79,7 @@ function Table({ rows, caption }: { rows: Row[]; caption: string }) {
 /**
  * What it costs, in the open (David, 2026-11-10: "add a section below or another page for cost, I value transparency"):
  * the ledger's costs by month and provider (lib/public-costs.ts: costs only, never income, balances or the admin's
- * notes), the monthly bills, and what one of each thing costs us.
+ * notes), the monthly bills, what one of each thing costs us, and a live call's minute part by part.
  */
 export default async function CostsPage() {
   const costs = await getDb()
@@ -100,6 +113,19 @@ export default async function CostsPage() {
         <h2>What each thing costs us</h2>
         <p className="muted">Measured on the live site in October and November 2026. Models change price, so these are ranges.</p>
         <Table rows={EACH} caption="What one of each costs us to make" />
+      </section>
+
+      <section id="call">
+        <h2>A live call, a minute</h2>
+        <p className="muted">
+          An estimate, not a bill: no provider bills us by the call, so {callEstimateBasis()}. It leaves out the minute or so a
+          GPU stays warm after a call ends.
+        </p>
+        <Table rows={CALL} caption="What a minute of a live call costs us, part by part" />
+        <p className="muted">
+          A call that takes turns has no line to pay for: your browser does the hearing, so it costs us the reply and the
+          voice. What happens to your audio and your words on a call is in the <Link href="/privacy#calls">privacy notice</Link>.
+        </p>
       </section>
 
       <section id="low">

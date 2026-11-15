@@ -145,7 +145,8 @@ describe("the privacy notice", () => {
 
   it("is dated 15 November 2026, with what changed (and the 10 November changes kept under it)", () => {
     expect(render(PrivacyPage)).toMatch(/Last updated 15 November 2026\./);
-    expect(render(PrivacyPage)).toMatch(/Changed: on a live call with the Companion Plan/);
+    expect(render(PrivacyPage)).toMatch(/Changed: what happens on a call with a companion now has a section of its own/);
+    expect(render(PrivacyPage)).toMatch(/Earlier the same day: on a live call with the Companion Plan/);
     expect(render(PrivacyPage)).toMatch(/Before that \(10 November\): a recovery email you can add to a handle-and-password account/);
     expect(render(PrivacyPage)).toMatch(/; who hosts the show and carries its traffic/);
     expect(render(PrivacyPage)).toMatch(/live calls with a companion/);
