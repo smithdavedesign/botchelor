@@ -79,6 +79,8 @@ export const PUBLIC_PATHS = [
   "/costs",
   "/safety",
   "/agents/pricing",
+  // The model league (lib/model-league.ts): which model family's characters get the second dates.
+  "/agents/league",
   "/showcase",
   "/import",
   "/alternatives/character-ai",
