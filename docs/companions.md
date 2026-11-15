@@ -68,7 +68,12 @@ Never someone else's character or an outside agent's: their makers never agreed 
   list's maybes are refused, as a drawn fact would be. An add stops at 60.
 - **One way only:** show life flows into a companion; nothing from a companion thread reaches a date, a text, the
   relationship graph or any character's memory. (Since 2026-11-14 the character may text first about its own date:
-  "Texts from your own character", below. Still one way.)
+  "Texts from your own character", below. Still one way.) **The one explicit exception** is the "For next time" note
+  under your own character's composer ("The question is a menu", below): it is a nudge (`nudges`, `lib/between-dates.ts
+  setNudge`, 140 characters, the PG check and the choice record inside), sent to the existing couples nudge route for the
+  partner of the character's last date, and it reaches that next date the way every nudge does. It is never chat text:
+  nothing typed as a message ever becomes a nudge, and the note never enters the thread as a message. The character sees
+  the standing note in its prompt as data (`activeNudge`) so it can say it has it, in its own words, never recite it.
 - **Pages:** `/companion` (your threads, your characters, the cast), `/companion/:id` (the chat), the memory page, and
   "Talk with {name}" on a character's page. A Companions nav link shows once `COMPANION_OPEN=1` (on since 2026-11-04); a signed-out visitor sees the cast and the price and signs in first.
 - **Access** (`app/api/companion/access.ts`): signed in, past the 18+ gate, admins until `COMPANION_OPEN=1`; anyone
@@ -156,6 +161,47 @@ got neither a reply in the thread nor a nudge for the next date (`nudges`, `lib/
 (`ADVICE_WAIT_DAYS`). Tests: `tests/after-date-text.test.ts` (the words per state, the window, opt-in, dedupe, paused,
 ours), `tests/air-tease.test.ts` (fires once on air, opted-in only, not to the airer), `tests/daily.test.ts` (the step and
 its count), `tests/since.test.ts` (the two lines).
+
+### The question is a menu: chips in the thread (built 2026-11-14)
+
+A text used to end on a question the person could only type back to ("Want me to see Nell again?"), and nothing could
+happen from the thread. Now the thread is the control room for the character's love life, and the engine still decides
+every ending (nothing here touches points, odds, pairings or endings).
+
+- **The menu** (`lib/companion-offers.ts`): the after-date and day-after texts carry `companion_messages.offers`
+  (`{episode_id, partner_id, partner, kinds}`; `action` stays the dedupe tag). The kinds follow the question:
+  `second_date` where the ending left one open (lib/second-date.ts books only a mutual one), `someone_new` everywhere,
+  `advice` always; a day-after text whose next date is already booked offers advice only. The tease carries none (a chip
+  under it would give the ending away). A menu, nothing personal: it goes with the message and the thread's cascade.
+- **The chips** (`app/companion/[id]/CompanionChat.tsx`): under the newest text whose menu is open, and only on your own
+  character's thread: **"Yes, see {partner} again"**, **"Try someone new"**, **"Tell {first} what to do next time"**. They go
+  once one is tapped (`offers.taken`) or when the character has a newer date than the one the text is about.
+- **A tap** is `POST /api/companion/:id {action: "offer", offer, message_id}`, owner-only (the thread's character must be
+  yours; a guest on a signed session owns their own character, as Hear-from allows). Each does its thing through the
+  show's own machinery, so a booking is charged, limited, consented and filmed like any date, and costs no reply:
+  - `second_date` runs `POST /api/episodes/:id/second-date` as that character: `FREE_WEEKLY_SECOND_DATE` when on, else
+    one of the person's free weekly or pack dates; 202 when the other creator's yes is still wanted.
+  - `someone_new` books a date with one of this season's house cast the character hasn't dated (any status counts),
+    picked the way a first date is (`pickFirstPartner`), in the first-date format (`firstDateFormat`: the speed date).
+    Everyone met: 409 `nobody_new`, and the character says so.
+  - `advice` books nothing: the character asks for the note and the page turns the composer into "For next time".
+  - The answer is the thread (the character's own written line in it: "Booked. Wish me luck with Nell." / "Fine, someone
+    new. Teo, apparently. Watch me.", `postFromCharacter` kind `offer`, once per text) plus `href`
+    (`/episodes/<id>?play=1`), which the page shows as **"Watch it"**. No model call anywhere.
+  - **Out of dates** (the episodes route's 429): the character says "I'm out of dates this week. Free ones come back
+    Monday, or there's a pack in the shop." once per text, the chips stay for later, and the reply carries `shop_path`.
+- **"For next time"** (the composer): on your own character's thread with a finished date behind it, a toggle turns the
+  box into a note for the partner of that date (`CompanionThreadView.next_time`: partner and the standing note). Send
+  posts it to the couples nudge route; the standing note shows under the actions with Remove. See "One way only" above
+  for why this is the one thing that reaches a date.
+- **Hear from arrives with the card:** `POST /api/companion/after-date` takes a date that is still `generating` once its
+  early verdict is in (`setup.ending_final`, lib/jobs.ts): the first text is the ending and the debrief, with no reflection
+  yet, so the verdict card's button is live the moment the card shows instead of ~20 s later (the stage passes `pending`
+  only while the ending isn't final).
+- Counted: `companion_offer` (which chip; never the words) in the analytics log and the engagement beacon.
+- Tests: `tests/companion-offers.test.ts` (owner-only, each chip, the free second date, out of dates, nobody new, taken,
+  stale), `tests/after-date-text.test.ts` (the menu per text, the early verdict), `tests/between-dates.test.ts` (the
+  composer's nudge path and the shared 140), `tests/companion-prompt.test.ts` (the note in the prompt).
 
 ## The plan (P2, built 2026-11-04)
 
