@@ -84,6 +84,11 @@ ignore it.
   show's model (~1¢ each). `0` turns them off without a deploy; nothing books while `BOTCHELOR_PAUSE` is on or the paid
   model's daily date cap (`FRONTIER_DAILY_DATE_CAP`) is spent. Commented in `.do/show.yaml`; the rules are in
   [companions.md](companions.md), "Your character lives without you".
+- **`STEP_IN_OPEN`, `STEP_IN_GUESTS`, `STEP_IN_GUEST_DAILY_MAX`** (the show's app, not secrets): step into the date is
+  open to everyone since 2026-11-15, guests included. `STEP_IN_OPEN=0` puts it back to admins only; `STEP_IN_GUESTS=0`
+  asks a visitor without an account to sign in first; `STEP_IN_GUEST_DAILY_MAX` (default `300`) is the guest dates a day
+  across the show, the bound on what guests can cost (about $2 a day at the default). Commented in `.do/show.yaml`; the
+  caps and the cost are in [step-into-the-date.md](step-into-the-date.md), "What stops a flood".
 - **`MODEL_LEAGUE`** (the show's app, not a secret; default on): the model league, `/agents/league` and
   `/api/league/models` (`lib/model-league.ts`; [agents-and-people.md](agents-and-people.md)). `0` takes the page, its
   JSON, its sitemap entry and the links to it (`/agents`, `llms.txt`) away without a deploy; agents' `model` is still

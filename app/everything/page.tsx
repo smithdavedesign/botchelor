@@ -3,6 +3,7 @@ import Link from "next/link";
 import { STATUS_PAGE_URL } from "@/lib/company";
 import { companionOpen } from "@/lib/companion-shared";
 import { pageMetadata } from "@/lib/seo";
+import { stepInOpen } from "@/lib/step-in";
 import { FeedbackLink } from "../FeedbackDock";
 
 export const metadata: Metadata = pageMetadata({
@@ -11,7 +12,7 @@ export const metadata: Metadata = pageMetadata({
     "Every page on Botchelor in one place: the show's corners, the free tools, how it's built and what it costs, the FAQ and press kit, and every policy, from the terms and privacy to the 2257 statement and cancelling.",
   path: "/everything",
 });
-// Per request, so the Companions link follows COMPANION_OPEN without a redeploy.
+// Per request, so the Companions and step-in links follow COMPANION_OPEN and STEP_IN_OPEN without a redeploy.
 export const dynamic = "force-dynamic";
 
 /**
@@ -31,6 +32,7 @@ export default function EverythingPage() {
           <ul>
             <li><Link href="/graph">The Constellation</Link></li>
             {companionOpen() && <li><Link href="/companion">Companions</Link></li>}
+            {stepInOpen() && <li><Link href="/step-in" data-track="step-in" data-track-from="everything">Step into a date</Link></li>}
             <li><Link href="/prompts">Prompts library</Link></li>
             <li><Link href="/shop">More dates</Link></li>
             <li><Link href="/pricing">Pricing</Link></li>

@@ -440,6 +440,42 @@ async function main() {
       { name: "account-signed-in", path: "/account", as: "member" },
       { name: "account-keys", path: "/account/keys", as: "member" },
       { name: "directory", path: "/characters" },
+      // Every card's verb (lib/character-verb.ts): a stranger steps in or makes a character (above), an owner sends theirs.
+      { name: "directory-owner", path: "/characters", as: "owner" },
+      // A cast member's page for a stranger: stepping into a date is the one filled button.
+      { name: "character-cast", path: "/characters/house-teo" },
+      { name: "directory-people", path: "/characters?tab=people" },
+      {
+        // Step into the date, open to everyone: the cast picker a stranger lands on with no 18+ cookie, then the start
+        // screen with its own 18+ box (app/step-in/StepInSetup.tsx).
+        name: "step-in",
+        path: "/step-in",
+        as: "visitor",
+        walk: async (page) => {
+          await page.locator(".stepin-cast-pick").first().click();
+          await page.locator(".stepin-form").waitFor({ timeout: 20_000 });
+        },
+      },
+      {
+        // The same stranger goes on: as themselves, the box ticked, and the live date opens for a guest (the start signs
+        // their visitor session and sets the gate's cookie, so the date's page lets them in).
+        name: "step-in-date",
+        path: "/step-in",
+        as: "visitor",
+        walk: async (page) => {
+          await page.locator(".stepin-cast-pick").first().click();
+          const form = page.locator(".stepin-form");
+          await form.waitFor({ timeout: 20_000 });
+          await form.getByLabel("Your name on the date").fill("Sam");
+          await form.getByLabel("Age").fill("31");
+          await form.getByLabel("One line about you").fill("Bakes too much bread and laughs at their own jokes.");
+          await form.locator(".stepin-attest input").check();
+          await form.getByRole("button", { name: /^Step in with/ }).click();
+          await page.locator(".stepin-composer").waitFor({ timeout: 30_000 });
+          // The cast member's opening line (or the composer ready for theirs), so the thread isn't caught mid-request.
+          await page.locator("#stepin-line:not([disabled]), .stepin-note").first().waitFor({ timeout: 30_000 }).catch(() => {});
+        },
+      },
       { name: "notifications", path: "/notifications", as: "owner" },
       { name: "graph", path: "/graph" },
       { name: "reunion", path: "/reunion" },

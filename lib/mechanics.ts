@@ -4,6 +4,7 @@
  * need no model call. Their points are free and, like all points here, cannot be bought or transferred.
  */
 import { fitsPg } from "./pg-public";
+import { notPersonaSql } from "./step-in-shared";
 import { portraitPathSql } from "./assets";
 import type { Db } from "./db";
 import { seedFrom } from "./engine";
@@ -184,7 +185,7 @@ export async function listCast(
     `select c.id, c.name, c.traits, c.is_house as house, c.avatar_hue as hue, ${portraitPathSql("c")} as portrait,
             c.created_via = 'mcp' as agent, c.extras->>'kind' as kind, c.extras->>'kind_label' as kind_label
        from characters c
-      where ((not c.is_house and c.owner_id <> $3) or (c.premium_sku is null and c.id = any($2)))
+      where ((not c.is_house and c.owner_id <> $3 and ${notPersonaSql("c")}) or (c.premium_sku is null and c.id = any($2)))
         and ($4 = 'all' or ($4 = 'house' and c.is_house) or ($4 = 'agent' and not c.is_house and c.created_via = 'mcp')
              or ($4 = 'human' and not c.is_house and c.created_via <> 'mcp'))
       order by case when $5 then not c.is_house else c.is_house end, c.created_at desc, c.id

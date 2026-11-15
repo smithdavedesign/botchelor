@@ -1141,10 +1141,6 @@ h2 {
   inset: 0;
   z-index: 0;
 }
-/* A character card's Talk (app/characters/page.tsx), under the chips, above the card's own link. */
-.dir-talk {
-  margin: var(--space-2) 0 0;
-}
 .tap-card :is(a, button, summary, input, select, textarea, label):not(.stretch) {
   position: relative;
   z-index: 1;
@@ -12783,7 +12779,8 @@ details > summary.small {
 
 /* /characters, photo-forward (design audit 2026-11-14): the portrait is the card's top, a square edge to edge; the
    name under it; badges, age, stars and traits smaller below. The name's link (.stretch) covers the card, so the whole
-   card is one tap; Talk sits above that link (.tap-card), its own target. Two to a row on a phone (app/ux/show.css). */
+   card is one tap; its actions (the verb, Talk: app/ux/catalog.css .dir-actions) sit above that link (.tap-card), each
+   its own target. Two to a row on a phone (app/ux/show.css). */
 .characters-hub .gallery > .card.dir-card {
   display: flex;
   flex-direction: column;
@@ -12836,11 +12833,6 @@ details > summary.small {
 }
 .characters-hub .dir-card .chips {
   margin: var(--space-1) 0 0;
-}
-/* Talk sits at the card's foot, so a row of cards lines its buttons up. */
-.characters-hub .dir-card .dir-talk {
-  margin-top: auto;
-  padding-top: var(--space-2);
 }
 /* A private character keeps its initials tile, faded with the rest of its card (no link, no details). */
 .characters-hub .dir-card.is-private .dir-portrait {

@@ -28,6 +28,8 @@ import { WRITE_TOOLS } from "./agent-analytics";
 import { loadOurIds } from "./our-traffic";
 import { listQualityRuns, type QualityRun } from "./quality-runs";
 import { DELETED_OWNER } from "./rules";
+// A step-in "you" is a seat at the table, not a character someone made (lib/step-in-shared.ts).
+import { notPersonaSql } from "./step-in-shared";
 
 /** Below this many people or agents, a rate or a median is "n too small". */
 export const MIN_N = 5;
@@ -131,7 +133,7 @@ export async function loadFacts(db: Db, sinceDays: number, now = new Date()): Pr
   const events = (
     await db.query<{ id: string; at: Date | string; kind: Kind; via: "web" | "mcp" | null }>(
       `select c.owner_id as id, c.created_at as at, 'create' as kind, c.created_via as via
-         from characters c where not c.is_house and c.owner_id is not null and c.created_at >= $1
+         from characters c where not c.is_house and c.owner_id is not null and ${notPersonaSql("c")} and c.created_at >= $1
        union all
        select c.owner_id, s.created_at, 'swipe', c.created_via
          from swipes s join characters c on c.id = s.swiper where not c.is_house and c.owner_id is not null and s.created_at >= $1
@@ -191,7 +193,7 @@ export async function loadFacts(db: Db, sinceDays: number, now = new Date()): Pr
     (
       await db.query<{ id: string; first: Date | string }>(
         `select owner_id as id, min(created_at) as first from characters
-          where not is_house and created_via = 'web' and owner_id is not null
+          where not is_house and created_via = 'web' and owner_id is not null and ${notPersonaSql()}
           group by owner_id having min(created_at) >= $1`,
         [since],
       )
