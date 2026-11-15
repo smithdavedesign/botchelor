@@ -11,7 +11,7 @@ import PushToggle from "@/app/notifications/PushToggle";
 import { kindLabel } from "@/lib/kinds";
 
 /** A deck card with who made it (lib/origin.ts withOrigins). */
-type DeckCard = BaseCard & { origin?: Origin };
+export type DeckCard = BaseCard & { origin?: Origin };
 
 type Props = {
   character: { id: string; name: string; hue: number | null; portrait: string | null };
@@ -370,8 +370,11 @@ type CardProps = {
   onPointerCancel?: () => void;
 };
 
-/** One dating-profile card: the look, who they are, two or three prompts, interests, what they're after, and why. */
-function Card({ card, className, style, children, ...pointer }: CardProps) {
+/**
+ * One dating-profile card: the look, who they are, two or three prompts, interests, what they're after, and why. Also the
+ * demo deck's card (app/swipe/DemoDeck.tsx), so a visitor without a character swipes the real thing.
+ */
+export function Card({ card, className, style, children, ...pointer }: CardProps) {
   // A long profile scrolls inside the card. With a mouse nothing said so (it faded out mid-sentence), so while there's
   // more below, a "More" button sits on the fade and scrolls it on.
   const body = useRef<HTMLDivElement>(null);

@@ -17,7 +17,7 @@ import { answersItself, AWAY_PENALTY, characterSeenSql, HOUSE_RUN_SAYS_YES, nobo
 import { audienceAllows } from "./audience";
 import { buildTextMessages, dayOf, insertText, SHOW_THREAD_CHARS, threadFor } from "./between-dates";
 import { loadCharacter, type Character } from "./character";
-import { PUBLIC_COLUMNS, rankFor, toProfile, type DatingProfile, type MadeBy, type ProfileRow } from "./dating";
+import { getDatingProfile, PUBLIC_COLUMNS, rankFor, toProfile, type DatingProfile, type MadeBy, type ProfileRow } from "./dating";
 import type { Db } from "./db";
 import { loadCharacterMemory } from "./memory";
 import { seedFrom } from "./engine";
@@ -286,6 +286,26 @@ export async function deckFor(
     cards: dealt.map((m) => toCard(m, m.why, likedMine.has(m.id), hints.get(m.id)!)),
     scores: Object.fromEntries(dealt.map((m) => [m.id, m.score + boost(m.id)])),
   };
+}
+
+/**
+ * The demo deck on /swipe for a visitor without a character (2026-11-14 design audit: the page was a sentence and four
+ * small faces). This season's house cast, dealt as the real deck deals them, starting from a different one each day;
+ * the first two, so the next card peeks behind the top one. Read-only: swiping it writes nothing (app/swipe/DemoDeck.tsx).
+ */
+export async function demoDeck(db: Db, now: Date = new Date(), max = 2): Promise<DeckCard[]> {
+  const ids = seasonCastIds(now);
+  if (!ids.length) return [];
+  const start = Math.floor(now.getTime() / 86_400_000) % ids.length;
+  const order = [...ids.slice(start), ...ids.slice(0, start)];
+  const house = replyHint({ house: true, house_bot: false, created_via: null, while_away: null, seen: null });
+  const cards: DeckCard[] = [];
+  for (const id of order) {
+    if (cards.length >= max) break;
+    const p = await getDatingProfile(db, id).catch(() => null);
+    if (p) cards.push(toCard(p, [], false, house));
+  }
+  return cards;
 }
 
 /** Where this season's cast goes in a page of the deck when it isn't there already: second and fourth. */
