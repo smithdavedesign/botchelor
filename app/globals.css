@@ -2281,7 +2281,7 @@ button.swatch.chosen {
   aspect-ratio: 1;
   display: block;
   border-radius: var(--radius-md);
-  background: var(--photo-bg);
+  background: var(--media-bg);
   object-fit: cover;
 }
 
