@@ -39,6 +39,7 @@ export default function TonightBand({
   latest,
   now,
   insider = false,
+  story = null,
 }: {
   rooms: LobbyEntry[];
   airing: AiringSoon[];
@@ -51,6 +52,8 @@ export default function TonightBand({
   now: number;
   /** The viewer has a character (lib/crowd-threshold.ts): "N watching" from 1; a stranger sees a count only for a crowd. */
   insider?: boolean;
+  /** Today's story from the producer (lib/producer.ts storyToday): its "Tonight:" line joins the facts under the slots. */
+  story?: { tonight: string } | null;
 }) {
   const live = rooms.find((r) => r.status === "live") ?? null;
   const premiere = rooms.find((r) => r.status === "upcoming") ?? null;
@@ -114,8 +117,9 @@ export default function TonightBand({
       key: "vote",
       label: "Tonight's vote",
       faces: situation.cast,
-      names: `${situation.cast[0].name} × ${situation.cast[1].name}`,
-      line: situation.my_pick ? `Your pick is in — closes in ${closes}` : `You pick their date — closes in ${closes}`,
+      // A producer's beat (lib/producer.ts): the twists name their own people, so the slot says what the vote decides.
+      names: situation.headline ?? `${situation.cast[0].name} × ${situation.cast[1].name}`,
+      line: situation.my_pick ? `Your pick is in — closes in ${closes}` : situation.headline ? `Vote — closes in ${closes}` : `You pick their date — closes in ${closes}`,
       href: "#situation",
     });
   }
@@ -142,6 +146,8 @@ export default function TonightBand({
   }
   if (airing.length > 1) facts.push({ key: "airing", text: `${airing.length} dates airing soon` });
   if (reveal && reveal.state === "closed") facts.push({ key: "secret", live: true, text: `Sunday's secret comes out ${inWords(reveal.airs_at, now)}` });
+  // The producer's line for the day (lib/producer.ts): what tonight is about. A fact like the others, never a new section.
+  if (story?.tonight) facts.push({ key: "story", text: story.tonight });
   return (
     <section className="tonight-band" aria-label="Tonight on Botchelor">
       <p className="tonight-band-eyebrow">

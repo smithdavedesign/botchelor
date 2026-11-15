@@ -17,6 +17,7 @@
  */
 import { backingSince, type BackingSince } from "./backing";
 import { latestCastChat } from "./cast-chat";
+import { storyToday } from "./producer";
 import { newestOwnSlip, newestSecretOut, type SecretOut } from "./cast-secrets";
 import type { Db } from "./db";
 import { RETURN_GAP_HOURS } from "./activity";
@@ -66,6 +67,8 @@ export type ShowSince = {
   twist: { label: string; tease: string } | null;
   /** The cast group chat leaked since (lib/cast-chat.ts): its first message, and how many more on /watch. */
   chat: { code: string | null; name: string; text: string; more: number } | null;
+  /** Today's story from the producer (lib/producer.ts): what happened and what is coming. Rides along; never summons the card. */
+  story: { previously: string; tonight: string; vote: boolean } | null;
 };
 
 /** When this person's last visit was, or null for a first visit (or one too recent to count as a return). */
@@ -116,8 +119,8 @@ export async function showSince(db: Db, viewerId: string | null, now: Date = new
         where e.revealed_at > $1 and e.visibility = 'public'`,
       [at, viewerId],
     ),
-    db.query<{ pick: string; party_id: string }>(
-      `select pick, party_id from situation_nights where party_id is not null and created_at > $1 order by day desc limit 1`,
+    db.query<{ pick: string; party_id: string; title: string | null; icon: string | null }>(
+      `select pick, party_id, title, icon from situation_nights where party_id is not null and created_at > $1 order by day desc limit 1`,
       [at],
     ),
     // The diary cam's rule (lib/game.ts): a house character's take, or either side's when the host shared them. Never a
@@ -146,7 +149,8 @@ export async function showSince(db: Db, viewerId: string | null, now: Date = new
   const side = d ? ([0, 1] as const).find((i) => (i === 0 ? d.a_ok : d.b_ok) && d.lines?.[i]?.trim()) : undefined;
   const c = calls.rows[0];
   const n = night.rows[0];
-  const def = n ? DATE_ROLEPLAYS.find((r) => r.id === n.pick) : undefined;
+  // A roleplay by its id, or a producer's twist by the title the night kept (lib/producer.ts).
+  const def = n ? (DATE_ROLEPLAYS.find((r) => r.id === n.pick) ?? (n.title ? { title: n.title, icon: n.icon ?? "🎬" } : undefined)) : undefined;
   const card: ShowSince = {
     since: visit.toISOString(),
     aired: aired.rows[0]?.n ?? 0,
@@ -166,6 +170,9 @@ export async function showSince(db: Db, viewerId: string | null, now: Date = new
     season: seasonClosedSince(since, now),
     twist: await twistSince(db, since, now),
     chat: await chatSince(db, since, now),
+    story: await storyToday(db, now)
+      .then((t) => (t ? { previously: t.previously, tonight: t.tonight, vote: t.vote } : null))
+      .catch(() => null),
   };
   // The week's shift alone isn't news since a visit (it can predate it), so it never shows the card by itself.
   // Nor is the week's twist: most weeks have one, so it rides along but never summons the card. The cast chat is daily

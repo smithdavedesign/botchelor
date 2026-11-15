@@ -16,6 +16,7 @@ import SituationVote from "@/app/SituationVote";
 import OpenOnHash from "@/app/OpenOnHash";
 import ShowSince from "@/app/ShowSince";
 import SeasonLine from "./SeasonLine";
+import { storyToday } from "@/lib/producer";
 import DateExcerpt from "@/app/DateExcerpt";
 import { pickFeaturedDate } from "@/lib/featured-date";
 import RecouplingCard from "./RecouplingCard";
@@ -140,7 +141,7 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
   // Someone signed out sees what everyone does: from a few seconds' shared copy (lib/shared-cache.ts). What's the same
   // for everyone (the private-date count, the reunion, the week's shifts, the season's format) is shared by all.
   const mine = <T,>(key: string, load: () => Promise<T>) => forViewer(viewerId, key, load);
-  const [rooms, privateDates, airing, latest, profileName, situation, dares, record, showNews, seasonDef, recoupling, ballot, reveal, insider, ceremony] = await Promise.all([
+  const [rooms, privateDates, airing, latest, profileName, situation, dares, record, showNews, seasonDef, recoupling, ballot, reveal, insider, ceremony, story] = await Promise.all([
     mine("lobby", () => listLobby(db)),
     shared("watch:private-dates", () => countRecentPrivateDates(db)),
     mine("home:airing", () => listAiringSoon(db, viewerId, airWindowMinutes())),
@@ -160,6 +161,8 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
     isInsider(db, viewerId),
     // The Botchelor (lib/ceremony.ts): the lead, the suitors and Sunday's rose ceremony; null on any other format.
     mine("watch:ceremony", () => ceremonyBoard(db, viewerId)).catch(() => null),
+    // Today's story from the producer (lib/producer.ts): "Tonight: …" on the season line. The same for everyone.
+    shared("story:today", () => storyToday(db)).catch(() => null),
   ]);
   // Their shared calls link carries their display name when it's theirs alone (lib/share-record-name.ts).
   const sharer = profileName && record?.called ? await sharerOf(db, viewerId).catch(() => null) : null;
@@ -232,6 +235,7 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
           picked={seasonDef && ballot?.winner && ballot.winner === seasonDef.slug ? { title: seasonDef.title, votes: ballot.votes, total: ballot.total } : null}
           recoupling={recoupling}
           now={now}
+          story={story}
         />
         {showNews && <ShowSince card={showNews} />}
         {/* Tonight's listings (docs/show-style.md). */}

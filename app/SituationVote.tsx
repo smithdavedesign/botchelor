@@ -30,11 +30,10 @@ export default function SituationVote({ board, now }: { board: SituationBoard; n
         </span>
         <div>
           <p className="kicker">Tonight&apos;s situation · you pick</p>
-          <h2 id="situation-head">
-            {a.name} × {b.name}: what happens on their date?
-          </h2>
+          {/* A day the producer staged a beat (lib/producer.ts): the twists name their own people, so the line says what the vote decides. */}
+          <h2 id="situation-head">{board.headline ?? `${a.name} × ${b.name}: what happens on their date?`}</h2>
           <p className="muted small">
-            Most votes wins; they play it after the vote closes in {closesIn(board.closes_at, now)}.{" "}
+            Most votes wins; {board.headline ? "it happens" : "they play it"} after the vote closes in {closesIn(board.closes_at, now)}.{" "}
             {voted ? `${board.total} ${board.total === 1 ? "vote" : "votes"} so far.` : "Vote to see how it's going."}
           </p>
         </div>
