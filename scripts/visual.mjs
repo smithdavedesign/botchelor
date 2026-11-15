@@ -375,10 +375,10 @@ async function main() {
           await page.waitForTimeout(200);
         },
       },
-      { name: "create", path: "/create?sample=1", walk: "wizard" },
       {
         // One-sentence create (lib/express-create.ts): a first-time visitor's first screen is one box; "Meet them" drafts
-        // the sheet (the stub showrunner answers) and lands on Look with a look already picked.
+        // the sheet (the stub showrunner answers) and lands on Look with a look already picked. Before the sample route
+        // below: that one leaves a half-built draft in this browser, and a draft brings the form back instead of the box.
         name: "create-express",
         path: "/create",
         walk: async (page) => {
@@ -388,6 +388,7 @@ async function main() {
           await page.getByText("A look that fits your words is already picked").waitFor();
         },
       },
+      { name: "create", path: "/create?sample=1", walk: "wizard" },
       { name: "character-owner", path: `/characters/${myChar}`, as: "owner" },
       { name: "character-edit", path: `/characters/${myChar}/edit`, as: "owner", walk: "wizard" },
       { name: "create-send", path: `/create?character=${myChar}`, as: "owner" },
