@@ -151,6 +151,9 @@ Every page in the browser sends, in batches of up to 25 every few seconds and wh
 | `import_opened` | /import opens (the Character.AI rescue door; 2026-11-14) | — |
 | `imported` | /import read a paste or card and handed it to the builder (`app/import/ImportForm.tsx`, `lib/import-events.ts`; 2026-11-14) | `format` (`labelled`, `chara_card_v2`, `free_text`…), `read_by` (`parser`, `model`, `fallback`), `ready` (true when the builder opened on Review), `from` (`cai` through the rescue door; absent otherwise) |
 | `import_failed` | /import refused a paste or couldn't hand it over | `reason` (`empty`, `minor`, `real_person`, `unreadable`, `storage`), `from` |
+| `import_history_started` | /import sent a history to the reader ("Bring their history", `lib/import-history.ts`; 2026-11-15) | `pasted` (the second box had text), `card` (the card's own scenario, examples or lorebook were read), `trimmed`, `from`; never the text or its length |
+| `import_history_kept` | The person left the checklist | `offered`, `kept`, `character`, `us`, `voice` (kept, by where they go), `edited` (kept lines they reworded), `skipped`, `from`: counts only |
+| `import_history_failed` | No list: the builder opened with the character alone | `reason` (`limited`, `model`, `timeout`, `network`, `empty`, `off`), `from` |
 | `express_started` | One-sentence create: "Meet them" tapped on /create's one box (`lib/express-create.ts`; 2026-11-15) | `length`, `named`, `example` (an example filled the box); never the words |
 | `express_drafted` | A draft came back | `ready` (true: on to Look; false: the form, with what came in), `invented_name`, `look` |
 | `express_failed` | No draft: the form opened with their words in the bio | `reason` (`minor`, `real_person`, `unsafe`, `limited`, `model`, `timeout`, `network`, `unreadable`, `off`) |

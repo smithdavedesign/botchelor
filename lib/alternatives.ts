@@ -6,6 +6,7 @@
  */
 import { COMPANION_FREE_PER_DAY } from "./companion-shared";
 import { IMPORT_CAI_PATH } from "./import-character";
+import { HISTORY_ITEMS_MAX, importMemoriesOn } from "./import-history";
 import { FREE_EPISODES_PER_SEASON } from "./rules";
 
 export type Alternative = {
@@ -98,5 +99,18 @@ export const ALTERNATIVES: readonly Alternative[] = [
 
 export const alternativePath = (slug: string): string => `/alternatives/${slug}`;
 export const alternativeBySlug = (slug: string): Alternative | undefined => ALTERNATIVES.find((a) => a.slug === slug);
+/**
+ * "Bring their history" (lib/import-history.ts, 2026-11-15): asked second on every page while IMPORT_MEMORIES is on,
+ * since what someone leaving a chat app has most of is the chat.
+ */
+export const HISTORY_FAQ: { q: string; a: string } = {
+  q: "Can I bring our chat history?",
+  a: `Not the transcript, but what matters in it. Paste a chat log, a lorebook, a scenario or example dialogue into the import page's second box: the show's free model reads it once into at most ${HISTORY_ITEMS_MAX} short lines, and you tick and reword what stays. What's true of your character goes to their own facts, what happened between the two of you goes to what they remember about you as a Companion, and how they talk goes to their voice. The paste is sent once to the show's AI model to be read and we never store or log it; only the lines you keep are saved, and you can edit or delete them later.`,
+};
+
 /** Every page's questions, this app's first: the page and its FAQPage data read the same list. */
-export const alternativeFaq = (a: Alternative): { q: string; a: string }[] => [a.bring, ...SHARED_FAQ];
+export const alternativeFaq = (a: Alternative, env: Record<string, string | undefined> = process.env): { q: string; a: string }[] => [
+  a.bring,
+  ...(importMemoriesOn(env) ? [HISTORY_FAQ] : []),
+  ...SHARED_FAQ,
+];

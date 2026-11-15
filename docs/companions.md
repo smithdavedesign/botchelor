@@ -66,6 +66,21 @@ Never someone else's character or an outside agent's: their makers never agreed 
   (pinned), pin, forget one, forget everything (the summary too). What the person adds or edits goes through the
   self-harm check first (`screenFact`): a crisis pauses the conversation with the resources and keeps nothing, and the
   list's maybes are refused, as a drawn fact would be. An add stops at 60.
+- **Memories brought from another app** (2026-11-15, `lib/import-history.ts`; [flows.md](flows.md), "Bringing a
+  character from another app"): when someone imports a character with its history, the lines about the two of them
+  that they kept on `/import`'s checklist are written here once the character exists (`POST
+  /api/characters/:id/import-history`, the owner only, `lib/import-history-server.ts`), through the same `editFacts`
+  "add" the memory page uses: pinned, marked as the person's own, eight at most, never doubled. The thread is started
+  the way a character's own first text starts it (`openThread(…, { opener: false })`: the AI notice, no model call),
+  then the hello is drawn in the background (`regenerate` on a thread nobody has spoken in is the opener), so the
+  character's first words can use what it remembers. Under the limits of opening a conversation; texts stay off
+  (`muted_proactive` is untouched). The memory editor's checks hold, and where the editor asks a model about a line
+  close to a crisis, an import fails closed: such a line is dropped, and an import never pauses a conversation. Someone
+  who can't open the thread yet (a guest past their conversations, no 18+ answer, companions closed to them) is told
+  the lines are held in their browser; the memory page of that character offers them, one press, once the thread exists
+  (`app/companion/[id]/memory/HeldImport.tsx`). The one-way rule is untouched: this is the person's own paste going
+  into their own thread, and nothing of it reaches the show (the lines about the character itself are a separate kind,
+  saved as the character's private facts by the builder). Switch: `IMPORT_MEMORIES=0`.
 - **One way only:** show life flows into a companion; nothing from a companion thread reaches a date, a text, the
   relationship graph or any character's memory. (Since 2026-11-14 the character may text first about its own date:
   "Texts from your own character", below. Still one way.) **The one explicit exception** is the "For next time" note
