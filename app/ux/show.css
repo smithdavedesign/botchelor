@@ -977,8 +977,75 @@ details.recap-toggle[open] .recap-toggle-hide {
     min-height: 44px;
   }
 }
-:is(#profile, #audience, #story, #date-record) {
+:is(#profile, #audience, #talk, #story, #date-record) {
   scroll-margin-top: 5rem;
+}
+/* A tab with a shorter name for a phone ("Talk of the house" / "Talk"): one of the two shows. */
+.page-tabs .tab-short {
+  display: none;
+}
+@media (max-width: 480px) {
+  .page-tabs .tab-long {
+    display: none;
+  }
+  .page-tabs .tab-short {
+    display: inline;
+  }
+}
+
+/* The crowd's read of them, a compact row under the name (the character page's header, 2026-11-15: it was the top of
+   the Audience tab). Its ⓘ opens across the row, as the audience card's did, so a phone never cuts it off. */
+.hero-ratings {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+}
+.hero-ratings .ratings {
+  margin: 0;
+}
+.ratings-compact .rating-chip {
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-xs);
+}
+.hero-ratings .info-tip {
+  position: static;
+}
+.hero-ratings .info-tip-body {
+  left: 0;
+  right: 0;
+  width: auto;
+}
+@media (pointer: coarse) {
+  .ratings-compact button.rating-chip {
+    min-height: 44px;
+  }
+}
+
+/* Talk of the house (app/characters/[id]/TalkPanel.tsx): what was said about them in the house's own thread look,
+   then friction and who is after whom as two-line rows, like the Dates tab's. */
+.character-talk h3 {
+  margin: 0 0 var(--space-2);
+}
+.character-talk .talk-part + .talk-part {
+  margin-top: var(--space-4);
+}
+.character-talk .talk-said {
+  margin: 0;
+}
+.character-talk .talk-list {
+  margin: 0;
+}
+.talk-where {
+  margin-top: var(--space-1);
+}
+.talk-empty p {
+  margin: 0 0 var(--space-2);
+}
+.talk-foot {
+  margin: var(--space-4) 0 0;
 }
 
 /* Just aired: six are fetched for the wide screen's two rows of three; narrower, four (two rows of two, or a list). */
