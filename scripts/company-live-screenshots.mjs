@@ -82,7 +82,7 @@ try {
     }
     const { page: footerPage } = await open(desk, "/pricing");
     const footer = footerPage.locator("footer.site-footer");
-    for (const want of ["Company", "The Sunday letter.", "Sign up"]) {
+    for (const want of ["Everything on Botchelor", "The Sunday letter.", "Sign up"]) {
       assert((await footer.innerText()).includes(want), `the footer has no "${want}"`);
     }
     await footer.scrollIntoViewIfNeeded();

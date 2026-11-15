@@ -93,4 +93,6 @@ export const PUBLIC_PATHS = [
   "/newsletter",
   // Every closed season's finale, one page (app/seasons/page.tsx).
   "/seasons",
+  // Every page the footer used to list, in one place (app/everything/page.tsx, the 2026-11-14 design audit).
+  "/everything",
 ] as const;

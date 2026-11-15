@@ -74,10 +74,14 @@ describe("the show's accounts", () => {
 
 describe("the footer", () => {
   const layout = readFileSync(new URL("../app/layout.tsx", import.meta.url), "utf8");
+  const everything = readFileSync(new URL("../app/everything/page.tsx", import.meta.url), "utf8");
 
-  it("links every company page and the pricing page, and closes with the © line", () => {
-    for (const href of COMPANY_PAGES) expect(layout).toContain(`href="${href}"`);
-    expect(layout).toContain('title="Company"');
+  // One row since the 2026-11-14 design audit: pricing and contact stay in the footer, the Company group lives on
+  // /everything, which the row links on every page.
+  it("links pricing, contact and /everything, where every company page is under Company, and closes with the © line", () => {
+    for (const href of ["/pricing", "/contact", "/everything"]) expect(layout).toContain(`href="${href}"`);
+    expect(everything).toMatch(/<h2 id="company">Company<\/h2>/);
+    for (const href of COMPANY_PAGES) expect(everything).toContain(`href="${href}"`);
     expect(layout).toContain("<SocialLinks links={socials}");
     expect(layout).toMatch(/className="footer-legal"[\s\S]*©/);
   });

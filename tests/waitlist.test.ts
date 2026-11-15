@@ -117,10 +117,16 @@ describe("landing page (M3)", () => {
     expect(page).toContain('href="/create"');
   });
 
-  it("links the shop and the legal page from the site layout", () => {
+  // The shop is the header's date meter on every page; the one-page legal is on /everything, which the footer's row
+  // links on every page (the 2026-11-14 design audit trimmed the footer to one row).
+  it("links the shop and the legal page from every page: the header's meter, and /everything from the footer", () => {
     const layout = readFileSync(new URL("../app/layout.tsx", import.meta.url), "utf8");
-    expect(layout).toContain('href="/shop"');
-    expect(layout).toContain('href="/legal"');
+    const nav = readFileSync(new URL("../app/Nav.tsx", import.meta.url), "utf8");
+    const everything = readFileSync(new URL("../app/everything/page.tsx", import.meta.url), "utf8");
+    expect(nav).toContain('href="/shop"');
+    expect(layout).toContain('href="/everything"');
+    expect(everything).toContain('href="/shop"');
+    expect(everything).toContain('href="/legal"');
   });
 });
 

@@ -205,9 +205,13 @@ describe("the new policy pages", () => {
     for (const href of ["/terms", "/privacy", "/report", "/cancel", "/2257"]) expect(html).toContain(`href="${href}"`);
   });
 
-  it("the site footer links all of them", () => {
+  // Since the 2026-11-14 design audit the footer is one row: the rules people open (terms, privacy, the content policy,
+  // reporting) are in it, and the rest one tap away on /everything, which the row links on every page.
+  it("every one is reachable from every page: in the footer's row, or on /everything, which the row links", () => {
     const layout = readFileSync(new URL("../app/layout.tsx", import.meta.url), "utf8");
-    for (const href of ["/terms", "/privacy", "/legal", "/content-policy", "/report", "/cancel", "/2257"]) expect(layout).toContain(`href="${href}"`);
+    const everything = readFileSync(new URL("../app/everything/page.tsx", import.meta.url), "utf8");
+    for (const href of ["/terms", "/privacy", "/content-policy", "/report", "/everything"]) expect(layout).toContain(`href="${href}"`);
+    for (const href of ["/terms", "/privacy", "/legal", "/content-policy", "/report", "/cancel", "/2257"]) expect(everything).toContain(`href="${href}"`);
   });
 
   it("the 18+ gate lets a person through to the policy pages, and still stops them elsewhere", () => {

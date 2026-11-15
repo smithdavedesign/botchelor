@@ -876,9 +876,7 @@ async function captureLaunch(base) {
       await page.goto(`${base}/shop`);
       const buy = page.getByRole("button", { name: "Buy 5 more dates for $4" });
       await buy.waitFor();
-      // On a phone the footer's groups are folded: open "Help and legal", where Privacy and Terms are.
-      const legal = page.locator(".footer-group").filter({ hasText: "Help and legal" });
-      if (!(await page.getByRole("link", { name: "Privacy", exact: true }).isVisible())) await legal.locator("summary").click();
+      // The footer's one row of links (2026-11-14 design audit) is always open, Privacy and Terms in it.
       // At 1280×800 the Buy button and the footer's Privacy link are 739px apart, a few more than show under the sticky
       // header: Privacy goes at the bottom edge, which tucks only the pill's top edge under the header and leaves its
       // label clear. On a phone the footer is a screen and a half further down, so the pack's card fills the shot.
