@@ -104,6 +104,9 @@
   --text-2xl: clamp(1.5rem, 1.2rem + 1.4vw, 2rem);
   /* The display size: a page's h1, from a phone's 32px up with the viewport (docs/brand.md, Typography). */
   --text-display: clamp(2rem, 6vw, 3.1rem);
+  /* Eyebrows: small capitals over a section (.kicker and its kin). The same as --text-2xs on a desktop; on a phone it
+     stays at 13px while the steps around it lift to 14px (the phone type floor below). */
+  --text-eyebrow: clamp(0.75rem, 0.73rem + 0.2vw, 0.8rem);
   /*
    * Icon sizes: a glyph or an emoji that stands alone in a button or a tile (×, ‹, ★, ▾, an empty state's emoji). Fixed,
    * not fluid: an icon is drawn for the size of its target. An <Icon> beside words takes their size (1em) instead.
@@ -123,6 +126,21 @@
   --viz-3: #eb6834;
   --viz-4: #1baf7a;
   --viz-prev: #8f7f8e;
+}
+
+/*
+ * The phone type floor (2026-11-14 design audit): at 390px the small steps rendered at 12.5–13.6px, so trait chips,
+ * counts, meta lines, badges and captions all read below 14px. On a phone every body-adjacent step floors at 14px
+ * (0.875rem); only eyebrows (--text-eyebrow, uppercase and letterspaced) stay at 13px. Desktop sizes are unchanged.
+ * The steps stay fluid (tests/theme-contrast.test.ts) and keep their order: 2xs ≤ xs ≤ sm.
+ */
+@media (max-width: 720px) {
+  :root {
+    --text-2xs: clamp(0.875rem, 0.8rem + 0.2vw, 0.9rem);
+    --text-xs: clamp(0.875rem, 0.82rem + 0.2vw, 0.92rem);
+    --text-sm: clamp(0.9rem, 0.86rem + 0.2vw, 0.95rem);
+    --text-eyebrow: clamp(0.8125rem, 0.78rem + 0.2vw, 0.84rem);
+  }
 }
 
 /* Dark: the system's, unless the viewer picked Light on /account; or the viewer's own pick (lib/theme.ts writes

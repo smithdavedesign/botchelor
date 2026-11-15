@@ -409,3 +409,12 @@ select.sr-only {
   padding: 0;
   border: 0;
 }
+
+/* ---------------- phone type floor (2026-11-14 design audit) ---------------- */
+/* On a phone the small steps floor at 14px (app/globals.css, the phone type floor); eyebrows, set in small capitals
+   and letterspaced, keep their own 13px step so they still sit under the text they label. */
+@media (max-width: 720px) {
+  :is(.kicker, .watch-lead-kicker, .watch-tonight-kicker, .tonight-band-eyebrow, .tonight-slot-label, .matches-label, .episode-prev-label, .season-hero-kicker, .season-hero-eyebrow, .season-index-eyebrow, .moon-badge) {
+    font-size: var(--text-eyebrow);
+  }
+}
