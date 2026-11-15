@@ -162,6 +162,12 @@ services:
       # - key: OPEN_CASTING
       #   value: "0"
       #   scope: RUN_AND_BUILD_TIME
+      # The navigation of 2026-11-15 (lib/nav-chat.ts; docs/flows.md "Navigation"): Watch · Chat · Characters, and the
+      # show tabs Watch · House · Reels · Reunion. On by default. "0" brings back the header, the phone's tab bar and
+      # the show tabs as they were, without a deploy of code (/chat still works).
+      # - key: NAV_CHAT
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
       # The daily house scene (lib/house-scenes.ts; docs/seasons.md "The house"): on by default, one free-model call a
       # day or a template. "0" writes no scene and /house says the house is quiet, without a deploy.
       # - key: HOUSE_SCENES
