@@ -7,7 +7,7 @@ import { releaseOperatorDate, reserveOperatorDate } from "@/lib/operator-pass";
 import { isCastDateRequest } from "@/lib/cast-date-request";
 import { portraitPathSql } from "@/lib/assets";
 import { onSale, PACK_5 } from "@/lib/catalog";
-import { companionOpen } from "@/lib/companion-shared";
+import { companionOpen, companionThreadHref } from "@/lib/companion-shared";
 import { threadIdFor } from "@/lib/companion";
 import { newsletterOpen } from "@/lib/newsletter";
 import { planLink } from "@/lib/paid-plans";
@@ -491,7 +491,7 @@ export const POST = crisisAware("date_note", (body) => [str(body.note)], handle(
           .filter((p) => paymentLinkFromEnv(process.env, p.sku) !== null)
           .map((p) => ({ sku: p.sku, name: p.name, price_cents: p.price_cents, episodes: p.episodes ?? 0 })),
         ...(plan ? { plan } : {}),
-        ...(thread ? { thread: `/companion/${thread}` } : {}),
+        ...(thread ? { thread: companionThreadHref(thread) } : {}),
         newsletter: newsletterOpen(),
         message: `No dates left: you've used this week's ${FREE_EPISODES_PER_SEASON} free ones (and any pack dates). Free dates come back Monday 00:00 UTC, or get ${PACK_5.name} in the shop. Packs add dates, never points.`,
       },

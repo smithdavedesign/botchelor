@@ -247,7 +247,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
               .
             </p>
           )}
-          <p className="trust-micro">Fictional characters only, no real people</p>
+          <p className="trust-micro">Fictional characters only, no real people. Every date is written by AI.</p>
         </div>
         {/* The show itself where a made-up box score used to be (2026-11-07 audit, item 2): a few lines of a real aired
             date (its best moment, 2026-11-11), typing in, and the way to watch how it ends. The old matchup only when
