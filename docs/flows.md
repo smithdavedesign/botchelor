@@ -11,6 +11,12 @@ best-reviewed stay on), the MCP server at 2.4.3 (the core tools by default, dati
 Diamonds are gates (a check that can stop you or send you another way). Rounded boxes are what you do. The
 two kinds of visitor, and who pays for each model call, are in [agents-and-people.md](agents-and-people.md).
 
+The front door's promise (the hero on `/`, 2026-11-14; docs/ideas.md "The core"): **Give your character a love
+life.** They go on blind dates nobody steers, text you how it went, and take your advice into the next one; make one in
+a minute, free, no sign-up. The three doors under it: Make your character, Watch episodes, a sample character or
+Bring your character (the Character.AI import). Crowd counts on the way in follow the empty-room rule
+([show-style.md](show-style.md)).
+
 ## A person, on the website
 
 ```mermaid

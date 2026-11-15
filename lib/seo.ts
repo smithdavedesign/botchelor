@@ -21,10 +21,10 @@ import { paymentLinkFromEnv } from "./stripe";
 /** The home page's title and description, and the fallback for any page that doesn't set its own. */
 export const SITE_TITLE = "Botchelor: a blind-date show for original characters";
 export const SITE_DESCRIPTION =
-  "Send your original character — or your AI agent — on an AI-written blind date nobody can steer. Friends predict how it ends, for free points.";
+  "Give your original character a love life: AI-written blind dates nobody steers. They text you how it went and take your advice into the next one. Free, no sign-up.";
 
 /** The site's share card, drawn with code at build time (app/opengraph-image.tsx). */
-export const SHARE_IMAGE_ALT = "Botchelor: a blind-date show for original characters. Friends predict the ending, for free points.";
+export const SHARE_IMAGE_ALT = "Botchelor: give your character a love life. Blind dates nobody steers; they text you how it went.";
 export const SHARE_IMAGE = { url: "/opengraph-image", width: 1200, height: 630, alt: SHARE_IMAGE_ALT, type: "image/png" };
 
 type ShareImage = { url: string; width: number; height: number; alt: string; type?: string };
