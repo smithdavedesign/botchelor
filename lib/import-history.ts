@@ -2,7 +2,7 @@
  * "Bring their history" (/import, 2026-11-15): someone leaving another chat app has months with a character, and the
  * importer (lib/import-character.ts) brought only who the character is. Here the rest is read: a chat log, a lorebook, a
  * scenario, example dialogue (pasted into the page's second box, or found in a card's own `scenario`, `mes_example` and
- * `character_book`), turned by ONE call on the show's free model into a short typed list, at most HISTORY_ITEMS_MAX
+ * `character_book`), turned by ONE call on the show's paid model into a short typed list, at most HISTORY_ITEMS_MAX
  * one-sentence items:
  *
  *  - `character`: true of the character (what they know, their world, someone important, an unfinished storyline, a
@@ -34,8 +34,8 @@ export function importMemoriesOn(env: Record<string, string | undefined> = proce
 }
 
 /**
- * The most history the model reads, in characters (about 5,000 tokens: a third of a cent at gemini-3.5-flash-lite's list
- * price with the answer, $0 on the free tier). A longer paste is trimmed to its start and its most recent part, and the
+ * The most history the model reads, in characters (about 5,000 tokens: with the answer, somewhere under a cent on the
+ * show's paid model). A longer paste is trimmed to its start and its most recent part, and the
  * page says how much was read.
  */
 export const HISTORY_READ_MAX = 20_000;

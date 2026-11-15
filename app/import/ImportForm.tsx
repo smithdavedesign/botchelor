@@ -67,7 +67,7 @@ async function readFreeText(text: string): Promise<{ fields: SourceFields } | { 
 }
 
 /**
- * Reads a history with the show's free model (app/api/characters/import/history): the lines, or why there are none. The
+ * Reads a history with the show's paid model (app/api/characters/import/history): the lines, or why there are none. The
  * text goes in the request body and nowhere else: not into an address, a log or this browser's storage.
  */
 async function readHistory(text: string, name: string): Promise<{ items: HistoryItem[]; dropped: number } | { failed: HistoryFailure }> {
