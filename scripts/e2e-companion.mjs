@@ -401,7 +401,7 @@ async function main() {
     await notice.waitFor({ timeout: 5_000 });
     const text = ((await notice.textContent()) ?? "").replace(/\s+/g, " ");
     assert(text.startsWith(starts), `the call's notice should start "${starts}", got "${text}"`);
-    assert(text.includes("the words are saved as messages in this chat. Deleting the conversation deletes them."), `the call's notice should say the words are kept and how they go: "${text}"`);
+    assert(text.includes("the words are saved as messages in this chat. You can delete them later, in this chat's ⚙️ Settings."), `the call's notice should say the words are kept and where they're deleted: "${text}"`);
     const link = notice.getByRole("link", { name: "What a call keeps" });
     assert((await link.getAttribute("href")) === "/privacy#calls" && (await link.getAttribute("target")) === "_blank", "the notice should open the privacy notice's calls section in a new tab");
     // Readable on the call's dark backdrop: the link takes the line's own colour, not the site's accent.
