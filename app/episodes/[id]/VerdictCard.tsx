@@ -22,8 +22,9 @@ export type VerdictCardProps = {
   pushKey: string | null;
   onRestart: () => void;
   /**
-   * The early verdict (GeneratingPoller.tsx): the ending is decided but the date is still being finished (recap, texts,
-   * reflections), so "Hear from" waits (POST /api/companion/after-date needs the date ready) and says so.
+   * The ending isn't final yet (GeneratingPoller.tsx passes it only then), so "Hear from" waits and says so. Once the
+   * early verdict is in, POST /api/companion/after-date takes the date while it's still being finished (recap, texts,
+   * reflections): the first text is the ending and the debrief, with no reflection yet.
    */
   pending?: boolean;
 };
