@@ -6,6 +6,7 @@ import { FeedEntry } from "@/app/EpisodeItem";
 import Icon from "@/app/Icon";
 import JsonLd from "@/app/JsonLd";
 import { airWindowMinutes } from "@/lib/air";
+import { isInsider, showCrowd } from "@/lib/crowd-threshold";
 import { getDb } from "@/lib/db";
 import { CallersBoardPanel, CallsLine } from "@/app/YourCalls";
 import { callersBoard, callRecord } from "@/lib/streaks";
@@ -21,6 +22,8 @@ import SeasonLine from "./SeasonLine";
 import DateExcerpt from "@/app/DateExcerpt";
 import { pickFeaturedDate } from "@/lib/featured-date";
 import RecouplingCard from "./RecouplingCard";
+import BotchelorCard from "./BotchelorCard";
+import { ceremonyBoard } from "@/lib/ceremony";
 import WeeklyReveal from "@/app/WeeklyReveal";
 import { revealBoard } from "@/lib/weekly-reveal";
 import SeasonPoolPanel from "@/app/SeasonPool";
@@ -182,7 +185,7 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
   // Someone signed out sees what everyone does: from a few seconds' shared copy (lib/shared-cache.ts). What's the same
   // for everyone (the private-date count, the reunion, the week's shifts, the season's format) is shared by all.
   const mine = <T,>(key: string, load: () => Promise<T>) => forViewer(viewerId, key, load);
-  const [rooms, privateDates, airing, latest, leagues, profileName, reunion, situation, dares, backing, record, callers, showNews, shifts, seasonDef, recoupling, castChat, ballot, reveal, pool, poolRevealed] = await Promise.all([
+  const [rooms, privateDates, airing, latest, leagues, profileName, reunion, situation, dares, backing, record, callers, showNews, shifts, seasonDef, recoupling, castChat, ballot, reveal, pool, poolRevealed, insider, ceremony] = await Promise.all([
     mine("lobby", () => listLobby(db)),
     shared("watch:private-dates", () => countRecentPrivateDates(db)),
     mine("home:airing", () => listAiringSoon(db, viewerId, airWindowMinutes())),
@@ -207,6 +210,10 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
     mine("watch:reveal", () => revealBoard(db, viewerId)).catch(() => null),
     mine("watch:pool", () => poolStanding(db, viewerId)).catch(() => null),
     mine("watch:pool-revealed", () => recentPoolBoard(db, viewerId)).catch(() => null),
+    // The empty-room rule (lib/crowd-threshold.ts): someone with a character sees every count; a stranger, only a crowd.
+    isInsider(db, viewerId),
+    // The Botchelor (lib/ceremony.ts): the lead, the suitors and Sunday's rose ceremony; null on any other format.
+    mine("watch:ceremony", () => ceremonyBoard(db, viewerId)).catch(() => null),
   ]);
   // Their shared calls link carries their display name when it's theirs alone (lib/share-record-name.ts).
   const sharer = profileName && record?.called ? await sharerOf(db, viewerId).catch(() => null) : null;
@@ -246,7 +253,7 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
           </h2>
           <div className="watch-lobby">
             {live.map((r) => (
-              <RoomCard key={r.id} room={r} action={`● ${r.watching} watching`} />
+              <RoomCard key={r.id} room={r} action={showCrowd(r.watching, { insider }) ? `● ${r.watching} watching` : "● Live"} />
             ))}
           </div>
         </section>
@@ -271,6 +278,8 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
         now={now}
       />
       {recoupling && recoupling.choices.length > 0 && <RecouplingCard board={recoupling} now={now} />}
+      {/* A Botchelor season (lib/ceremony.ts): the house and Sunday's rose ceremony, where the Recoupling would sit. */}
+      {ceremony && <BotchelorCard board={ceremony} now={now} />}
       {/* Sunday's reveal leads while its vote is open or its result is minutes away; otherwise it sits by tonight's vote. */}
       {/* …and once the secret is out it stays, as the opened envelope, while it's fresh (lib/weekly-reveal.ts LAST_SHOWN_DAYS). */}
       {reveal && (reveal.state === "open" || reveal.state === "closed" || reveal.last) && <WeeklyReveal board={reveal} now={now} />}
@@ -339,7 +348,7 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
       </section>
 
       {/* The season pool's board just came out (the first week of the next season): shown, not folded. */}
-      {poolRevealed && <SeasonPoolPanel standing={pool} revealed={poolRevealed} now={now} />}
+      {poolRevealed && <SeasonPoolPanel standing={pool} revealed={poolRevealed} now={now} insider={insider} />}
 
       <section className="watch-section" id="latest">
         <h2>Latest episodes{page > 1 ? ` · page ${page}` : ""}</h2>
@@ -398,7 +407,7 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
       {(backing || callers) && (
         <div className="watch-games">
           {backing && <BackCast board={backing} />}
-          {callers && <CallersBoardPanel board={callers} nameless={viewerId !== null && profileName === null} />}
+          {callers && <CallersBoardPanel board={callers} nameless={viewerId !== null && profileName === null} insider={insider} />}
         </div>
       )}
       {(castChat || shifts || (pool && !poolRevealed)) && (
@@ -414,7 +423,7 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
           {/* Yesterday's cast group chat (lib/cast-chat.ts): only ever about what has aired. */}
           {castChat && <CastChat chat={castChat} />}
           {shifts && <ChemistryShiftsPanel shifts={shifts} />}
-          {pool && !poolRevealed && <SeasonPoolPanel standing={pool} revealed={null} now={now} />}
+          {pool && !poolRevealed && <SeasonPoolPanel standing={pool} revealed={null} now={now} insider={insider} />}
         </details>
       )}
       <OpenOnHash />

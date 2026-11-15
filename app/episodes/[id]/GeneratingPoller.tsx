@@ -149,7 +149,8 @@ function SetSceneBar({ episodeId }: { episodeId: string }) {
  * weighed in, with `ending_final` on the view (lib/game.ts), 30-60 s before the recap, texts and reflections make the
  * date ready. Once the stage has played every saved line it shows the same verdict card the theater does
  * (VerdictCard.tsx) and counts `date_watched` with `live: 1`; a "Skip to the ending" control appears as soon as the ending
- * is decided. "Hear from" on the card waits until the date is ready. Exit folds the stage without leaving `?play=1`, so
+ * is decided. "Hear from" on the card goes the moment the ending is final (the after-date route takes a generating date
+ * with `ending_final`; the first text is built from the ending and the debrief). Exit folds the stage without leaving `?play=1`, so
  * the finished date still opens in the theater (and counts) for a creator who stepped out early.
  */
 type Poll = { status?: string; transcript?: Turn[]; ending?: Ending; ending_final?: true };
@@ -397,7 +398,9 @@ export default function GeneratingPoller({
                 preview={stage.verdict.reflection}
                 pushKey={stage.verdict.pushKey}
                 onRestart={replay.restart}
-                pending={!ready}
+                // "Hear from" goes as soon as the ending is final (lib/after-date-text.ts takes a generating date with
+                // ending_final); the card only shows once it is, so this greys nothing today and stays for a card without it.
+                pending={!ready && final === null}
               />
             ) : (
               <div className="theater-verdict">

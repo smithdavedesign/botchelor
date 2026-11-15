@@ -11,6 +11,7 @@ import { venuePhrase } from "./venues";
  */
 export type LastDate = {
   episodeId: string;
+  partnerId: string;
   partner: string;
   /** The place in words ("the night market"), or null for a date written before venues existed. */
   venue: string | null;
@@ -21,10 +22,11 @@ export type LastDate = {
 };
 
 export async function lastDateOf(db: Db, characterId: string): Promise<LastDate | null> {
-  const { rows } = await db.query<{ id: string; ending: Ending; venue: string | null; reflections: Reflections | null; side: "a" | "b"; partner: string; date_number: number | null; created_at: Date | string }>(
+  const { rows } = await db.query<{ id: string; ending: Ending; venue: string | null; reflections: Reflections | null; side: "a" | "b"; partner: string; partner_id: string; date_number: number | null; created_at: Date | string }>(
     `select e.id, e.ending, e.setup->>'venue' as venue, e.reflections, e.created_at,
             case when e.character_a = $1 then 'a' else 'b' end as side,
             case when e.character_a = $1 then b.name else a.name end as partner,
+            case when e.character_a = $1 then b.id else a.id end as partner_id,
             ${dateNumberSql("e")} as date_number
        from episodes e
        join characters a on a.id = e.character_a
@@ -38,6 +40,7 @@ export async function lastDateOf(db: Db, characterId: string): Promise<LastDate 
   const reflection = r.reflections?.[r.side] ?? null;
   return {
     episodeId: r.id,
+    partnerId: r.partner_id,
     partner: r.partner,
     venue: r.venue ? venuePhrase(r.venue) : null,
     ending: r.ending,

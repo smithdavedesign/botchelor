@@ -264,8 +264,9 @@ export default function WatchRoom({ initial, autoStart = true }: { initial: Room
           </div>
         </div>
         <div className="watch-status">
+          {/* The empty-room rule (lib/crowd-threshold.ts, decided server-side): a quiet room is "Live", not "1 watching". */}
           <span className="watch-live">
-            <span className="watch-dot" aria-hidden /> {state.watching} watching
+            <span className="watch-dot" aria-hidden /> {state.show_watching ? `${state.watching} watching` : "Live"}
           </span>
           <span className="chip">{state.clock.started ? state.clock.phase_label : wantStart ? "Starting…" : "Ready"}</span>
           <button type="button" className={state.clock.ended ? "primary small" : "secondary small"} onClick={() => setTheater(true)}>
@@ -429,7 +430,7 @@ function Theater({
             ) : (
               <>
                 <span className="watch-live">
-                  <span className="watch-dot" aria-hidden /> {state.watching} watching
+                  <span className="watch-dot" aria-hidden /> {state.show_watching ? `${state.watching} watching` : "Live"}
                 </span>
                 <span className="chip">
                   {state.clock.started ? state.clock.phase_label : "Starting…"}
@@ -954,7 +955,7 @@ function Chat({ state, onDone }: { state: RoomState; onDone: () => void }) {
       <div className="watch-messages" ref={listRef}>
         {state.messages.length === 0 ? (
           <p className="muted watch-welcome">
-            Welcome to the room{state.watching > 1 ? `: ${state.watching} watching` : ""}. Say hi, or react to a line.
+            Welcome to the room{state.show_watching && state.watching > 1 ? `: ${state.watching} watching` : ""}. Say hi, or react to a line.
           </p>
         ) : (
           state.messages.map((m) => (

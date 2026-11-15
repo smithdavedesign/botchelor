@@ -6,12 +6,14 @@
  * Points, odds and rank are never for sale (there is no balance to sell: points are derived from
  * predictions, see lib/rules.ts).
  *
- * Payments go through one Stripe Payment Link (the owner's call, BUILD.md), and one link sells one
- * thing: ON_SALE is just the 5-date pack. Premium characters and frames stay listed so an order
- * restored by hand still unlocks them, but checkout refuses them.
+ * Payments go through Stripe Payment Links (the owner's call, BUILD.md), and one link sells one thing: the
+ * PACKS each have their own link env (lib/stripe.ts paymentLinkFromEnv), and onSale(env) is the packs whose
+ * link is set. Premium characters and frames stay listed so an order restored by hand still unlocks them,
+ * but checkout refuses them.
  */
 import { PREMIUM_HOUSE_CHARACTERS } from "./house";
 import { FREE_EPISODES_PER_SEASON } from "./rules";
+import { paymentLinkFromEnv } from "./stripe";
 
 export const ITEM_KINDS = ["house_character", "frame", "episode_pack"] as const;
 export type ItemKind = (typeof ITEM_KINDS)[number];
@@ -52,7 +54,7 @@ const FRAMES: readonly CatalogItem[] = [
 ];
 
 /**
- * M4's one episode pack, sold through the owner's Stripe Payment Link: "5 more dates, $4" (REVENUE.md).
+ * M4's episode pack, sold through the owner's Stripe Payment Link: "5 more dates, $4" (REVENUE.md).
  * The price is set on the link in Stripe; price_cents is the list price, and the least a payment must
  * be for the webhook to grant it. If the link is ever changed to another size or price, change this.
  * The name avoids anything that reads like currency or points (tests/routes.test.ts checks).
@@ -68,6 +70,22 @@ export const PACK_5: CatalogItem = {
   episodes: 5,
 };
 
+/**
+ * The bigger pack (2026-11-14, the money-at-the-wall item): 15 dates for $10, about 67¢ a date against the small
+ * pack's 80¢, for whoever hits the free-dates wall and wants the week settled. It sells through its own Payment
+ * Link (STRIPE_LINK_PACK_15) and is on sale only once that link is set.
+ */
+export const PACK_15: CatalogItem = {
+  sku: "pack_15",
+  kind: "episode_pack",
+  name: "15 more dates",
+  description:
+    `15 more dates for your characters, on top of the ${FREE_EPISODES_PER_SEASON} free ones every week. ` +
+    "Used after the free ones, they never expire. Adds episodes, never points.",
+  price_cents: 1000,
+  episodes: 15,
+};
+
 export const CATALOG: readonly CatalogItem[] = [
   ...PREMIUM_HOUSE_CHARACTERS.map(
     (c): CatalogItem => ({
@@ -81,11 +99,21 @@ export const CATALOG: readonly CatalogItem[] = [
   ),
   ...FRAMES,
   PACK_5,
+  PACK_15,
 ];
 
-/** What checkout sells: what the one Payment Link sells. */
-export const ON_SALE: readonly CatalogItem[] = [PACK_5];
-export const ON_SALE_SKUS = ON_SALE.map((i) => i.sku) as [string, ...string[]];
+/** What the Payment Links can sell: the packs, the small one first. Checkout accepts these and no other SKU. */
+export const PACKS: readonly CatalogItem[] = [PACK_5, PACK_15];
+export const PACK_SKUS = PACKS.map((i) => i.sku) as [string, ...string[]];
+
+/**
+ * What's on sale right now: the packs whose Payment Link is set, in PACKS order (pack_5 first). pack_5 is always
+ * listed, as the shop has always shown its tile (its Buy button is off while its link is unset, under "purchases open
+ * soon"); any other pack with no link is simply not shown, so a missing link hides a tile instead of 503ing.
+ */
+export function onSale(env: Record<string, string | undefined> = process.env): CatalogItem[] {
+  return PACKS.filter((i) => i === PACK_5 || paymentLinkFromEnv(env, i.sku) !== null);
+}
 
 export function catalogItem(sku: string): CatalogItem | undefined {
   return CATALOG.find((i) => i.sku === sku);

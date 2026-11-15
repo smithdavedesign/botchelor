@@ -93,6 +93,11 @@ services:
       # - key: FIRST_DATE_FORMAT
       #   value: "speed_date"
       #   scope: RUN_AND_BUILD_TIME
+      # Life dates a day (lib/character-life.ts weeklyLifeDates; docs/hosting.md): the house takes each owned character
+      # out once a week, house-paid, ~1¢ each. Default 30; "0" turns them off without a deploy.
+      # - key: LIFE_DATES_PER_DAY
+      #   value: "30"
+      #   scope: RUN_AND_BUILD_TIME
       # Copied from the old Vercel project's values (not secret, but deployment-specific).
       - key: CONTACT_EMAIL
         value: "CHANGE_ME"
@@ -104,6 +109,14 @@ services:
         value: "CHANGE_ME"
         scope: RUN_AND_BUILD_TIME
       - key: STRIPE_PRICE_LABEL
+        value: "CHANGE_ME"
+        scope: RUN_AND_BUILD_TIME
+      # The 15-date pack's own Payment Link ($10 once) and button label (lib/stripe.ts, docs/hosting.md). Unset: the pack
+      # isn't on sale and its shop tile isn't shown. CHANGE_ME counts as unset.
+      - key: STRIPE_LINK_PACK_15
+        value: "CHANGE_ME"
+        scope: RUN_AND_BUILD_TIME
+      - key: STRIPE_PRICE_LABEL_PACK_15
         value: "CHANGE_ME"
         scope: RUN_AND_BUILD_TIME
       - key: OPERATOR_PASS_LINK

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import BoardName from "./BoardName";
+import { showCrowd } from "@/lib/crowd-threshold";
 import ShareRecord from "./ShareRecord";
 import { tonightOf, type RecordShare } from "@/lib/share-record";
 import { signShare, type Sharer } from "@/lib/share-record-name";
@@ -86,11 +87,26 @@ export function shareOf(record: CallRecord, now: Date = new Date(), sharer: Shar
   );
 }
 
-/** This week's best callers, by display name or "A viewer"; you're marked, and told your place when you're off the list. */
-/** `nameless`: the viewer has no display name yet, so the board offers to put one on it (app/BoardName.tsx). */
-export function CallersBoardPanel({ board, nameless = false }: { board: CallersBoard; nameless?: boolean }) {
+/**
+ * This week's best callers, by display name or "A viewer"; you're marked, and told your place when you're off the list.
+ * `nameless`: the viewer has no display name yet, so the board offers to put one on it (app/BoardName.tsx). The
+ * empty-room rule (lib/crowd-threshold.ts): a board of two names tells a stranger they're alone, so below the threshold
+ * they get the invitation to call an ending instead; someone with a character sees the board from one caller.
+ */
+export function CallersBoardPanel({ board, nameless = false, insider = false }: { board: CallersBoard; nameless?: boolean; insider?: boolean }) {
   if (!board.top.length) return null;
   const listed = board.top.some((e) => e.mine);
+  if (!showCrowd(board.callers, { insider })) {
+    return (
+      <section className="watch-section" aria-labelledby="best-callers">
+        <h2 id="best-callers">Best callers this week</h2>
+        <p className="calls-line">
+          <span aria-hidden="true">🔮</span> <strong>Call the ending before a date airs</strong> and your name goes up here.{" "}
+          <Link href="/calls">Tonight&apos;s open calls →</Link>
+        </p>
+      </section>
+    );
+  }
   return (
     <section className="watch-section" aria-labelledby="best-callers">
       <h2 id="best-callers">Best callers this week</h2>
@@ -109,8 +125,8 @@ export function CallersBoardPanel({ board, nameless = false }: { board: CallersB
         ))}
       </ol>
       <p className="muted small">
-        Right endings on public dates that aired in the last {BOARD_DAYS} days ({board.callers}{" "}
-        {board.callers === 1 ? "caller" : "callers"}). Names show only for people who put one up.
+        Right endings on public dates that aired in the last {BOARD_DAYS} days ({board.callers} {board.callers === 1 ? "caller" : "callers"}). Names show
+        only for people who put one up.
         {board.my_rank && !listed ? ` You're number ${board.my_rank} this week.` : ""}
       </p>
       {/* On the board as "A viewer": the form, open. Not on it yet: a link to it. */}

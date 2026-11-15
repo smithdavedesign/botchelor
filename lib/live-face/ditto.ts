@@ -67,7 +67,7 @@ export type DittoSpeakInput = {
   motion?: { kind: "sway" | "nod" | "tilt"; amount?: number; period_s?: number; at_s?: number };
   /** With a video source (the kit's loop): where in its cycle this clause starts, so clause follows clause through the loop. */
   start_frame?: number;
-  /** How far the expression (the mouth above all) and the head move from the still: 1 is Ditto's own, 0.7 a calmer mouth. */
+  /** How far the expression (the mouth above all) and the head move from the still: 1 is Ditto's own, 0.7 a calmer mouth, calls 1.3 (CHAIN_EXP_SCALE). */
   exp_scale?: number;
   pose_scale?: number;
   sampling_timesteps?: number;
@@ -146,6 +146,11 @@ export const CHAIN_FADE_IN = 6;
 /** Its last clause: the silence appended (the lips close on it) and the frames over which pose and expression return to the still. */
 export const CHAIN_TAIL_SILENCE_MS = 400;
 export const CHAIN_FADE_OUT = 13;
+/**
+ * How far a call's expression, the mouth above all, moves from the still: 1.3 times Ditto's own. At 1 the lips barely
+ * change shape; at 1.3 they round and close between words; at 1.6 it reads as mugging (the 2026-11-15 compare).
+ */
+export const CHAIN_EXP_SCALE = 1.3;
 /** A clause whose place isn't known yet (nothing after it named, the reply not ended) waits this long before rendering as not the last. */
 export const CHAIN_DECIDE_MS = 2500;
 /** A clause's clip not back in this long breaks the chain there: that piece plays plain and the next starts from the still. */
@@ -268,7 +273,7 @@ export class DittoChain {
     this.running = true;
     const first = this.fresh;
     const state = this.state;
-    const input: DittoSpeakInput = { source_url: this.sourceUrl, pcm: c.pcm, rate: this.rate, state, want_state: !last, fade_in: first ? CHAIN_FADE_IN : 0, fade_out: last ? CHAIN_FADE_OUT : 0, tail_silence_ms: last ? CHAIN_TAIL_SILENCE_MS : 0, ...(c.emo !== undefined ? { emo: c.emo } : {}) };
+    const input: DittoSpeakInput = { source_url: this.sourceUrl, pcm: c.pcm, rate: this.rate, state, want_state: !last, fade_in: first ? CHAIN_FADE_IN : 0, fade_out: last ? CHAIN_FADE_OUT : 0, tail_silence_ms: last ? CHAIN_TAIL_SILENCE_MS : 0, exp_scale: CHAIN_EXP_SCALE, ...(c.emo !== undefined ? { emo: c.emo } : {}) };
     const jobOpts = { signal: this.opts.signal, timeoutMs: this.opts.timeoutMs ?? CHAIN_SPEAK_TIMEOUT_MS };
     // The next clause may start once this one's state is known: with a whole clip that's when the clip is back; streamed, the moment the motion step is done.
     let released = false;

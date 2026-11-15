@@ -16,11 +16,13 @@ export type AnalyticsEvent =
   | "situation_vote" // a vote on tonight's situation (lib/situations.ts)
   | "season_format_vote" // a vote for next season's format (lib/season-vote.ts)
   | "recoupling_vote" // a vote on the recoupling night (lib/recoupling.ts)
+  | "ceremony_vote" // a vote on who goes home at Sunday's rose ceremony (lib/ceremony.ts)
   | "reveal_vote" // a vote on Sunday's reveal (lib/weekly-reveal.ts)
   | "cast_backed" // a viewer backed a cast member for the month (lib/backing.ts)
   | "audition" // an owner put their character up for next month's cast (lib/auditions.ts)
   | "audition_vote" // a vote on next month's auditions (lib/auditions.ts)
   | "cast_date_booked" // the weekly earned slot was spent on a date with a season cast member (lib/cast-date.ts)
+  | "life_date_booked" // the house took an owned character out with a cast member, house-paid (lib/character-life.ts)
   | "dare_vote" // a vote on tonight's dare (lib/dares.ts)
   | "purchase_completed"
   | "purchase_refunded" // a full refund made in Stripe took the pack's unused dates back
@@ -54,6 +56,7 @@ export type AnalyticsEvent =
   | "companion_report" // a person reported a companion's reply: the reason only
   | "companion_scene" // a companion thread started a scene at a place, or went back to texting: the place only
   | "companion_text" // a character texted its person first (lib/companion.ts postFromCharacter): the kind of text and how many bubbles; never the words
+  | "companion_offer" // a chip under one of those texts was tapped (lib/companion-offers.ts): which offer (second_date, someone_new, advice), and whether a guest
   | "companion_voice" // a companion reply recorded as a voice note (lib/companion-voice.ts): how long, its length, what paid; never the words
   | "companion_call" // a voice call with a companion started or ended (stage; app/companion/[id]/CompanionCall.tsx): how long, how many turns, which voice, and for a live call (live: P6) its minutes, first-audio ms and barge-ins; never the words
   | "face_kit" // a character's face kit was drawn for calls (lib/face-kit.ts): how many stills, whether the loop was queued, failures, the cost estimate; never a picture
@@ -61,7 +64,8 @@ export type AnalyticsEvent =
   | "step_in_finished" // a step-in date's last line and recap are in: the episode, its ending, its lines and what the show's side cost
   | "step_in_aired" // the person chose to air their step-in date (it was private until then)
   | "step_in_line_withheld" // a cast line on a step-in date was never said (it voiced self-harm): the episode and why
-  | "data_pruned"; // the daily job's retention prune (lib/retention.ts): rows removed per table
+  | "data_pruned" // the daily job's retention prune (lib/retention.ts): rows removed per table
+  | "plus_interest"; // a tap on the "Botchelor Plus" intent tile (lib/plus-interest.ts): where, and whether an email was left
 
 type Props = Record<string, string | number | boolean | null | undefined>;
 

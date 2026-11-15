@@ -21,7 +21,7 @@ import { LIVE_AUDIO_RATE, type LiveEvent } from "@/lib/companion-live-shared";
 import { companionAllowance, giveBackReply, takeReply } from "@/lib/companion-plan";
 import { getDb } from "@/lib/db";
 import { ensureFaceKit } from "@/lib/face-kit";
-import { liveFaceClips, liveFaceSession, warmLiveFace } from "@/lib/live-face";
+import { liveFaceClips, liveFaceSession, liveFaceWho, warmLiveFace } from "@/lib/live-face";
 import { DittoChain } from "@/lib/live-face/ditto";
 import { speakClip } from "@/lib/live-face/musetalk";
 import { clausesOf, emoFor, framesOfPcm, SHORT_FIRST_PIECE, SHORT_FIRST_WAIT_MS } from "@/lib/live-face-shared";
@@ -142,8 +142,8 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
   }
 
   if (input.action === "tick") {
-    // Every half minute of a call: the renderer's worker stays hot through the call's pauses.
-    warmLiveFace(process.env, { admin });
+    // Every half minute of a call: the renderer's worker stays hot through the call's pauses (for those who get the face).
+    warmLiveFace(process.env, await liveFaceWho(db, process.env, { admin, userId: sess.userId }));
     return json({ minutes: charged.minutes, extras: await extras() }, 200, sess);
   }
 
@@ -151,7 +151,7 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
     const token = await mintSttToken();
     if (!token) return json({ error: "live_down", message: "Live calls aren't working right now." }, 503, sess);
     const view = await getThread(db, sess.userId, id);
-    const face = view.ok ? await liveFaceSession(db, view.view.character.id, requestBase(req), { admin }, { maxSeconds: liveMaxMinutes(process.env) * 60 }) : null;
+    const face = view.ok ? await liveFaceSession(db, view.view.character.id, requestBase(req), { admin, userId: sess.userId }, { maxSeconds: liveMaxMinutes(process.env) * 60 }) : null;
     return json({ stt: { url: sttUrl(process.env, input.lang), ...token }, face, minutes: charged.minutes }, 200, sess);
   }
 

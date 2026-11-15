@@ -7,7 +7,7 @@ import { setReplicateFetchForTests, setReplicatePausesForTests } from "@/lib/adu
 import { saveAdultSettings } from "@/lib/adult/settings";
 import { claimAdmin } from "@/lib/admins";
 import { collectFaceKits, ensureFaceKit, FACE_KIT_USD, faceKitBlocked, faceKitOf, facePromptsPass, makeFaceKit } from "@/lib/face-kit";
-import { FACE_STILLS } from "@/lib/face-kit-shared";
+import { FACE_STILLS, TALK_STILL } from "@/lib/face-kit-shared";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import { runFfmpeg } from "@/lib/media-tools/ffmpeg";
 import { api, BASE_URL, newUserCookie, signedInCookie, startTestDb, TEST_SESSION_SECRET, userIdOf, validCharacter } from "./helpers";
@@ -95,14 +95,14 @@ describe("a face kit", () => {
     const { asked, polled } = fakeReplicate();
     verdict("CLOTHED");
     const made = await makeFaceKit(t.db, id, BASE_URL);
-    expect(made).toEqual({ ok: true, made: 7, queued: true, failed: [] });
-    // Seven edits of Qwen and one Wan clip, Replicate's safety checker on for all of them (the public side).
-    expect(asked).toHaveLength(8);
+    expect(made).toEqual({ ok: true, made: 8, queued: true, failed: [] });
+    // Eight edits of Qwen (the page's seven stills and the talking still) and one Wan clip, Replicate's safety checker on for all of them (the public side).
+    expect(asked).toHaveLength(9);
     expect(asked.every((a) => !("disable_safety_checker" in a.input))).toBe(true);
     const edits = asked.filter((a) => !a.url.includes("wan-video"));
     expect(edits[0].input.image).toEqual([`${BASE_URL}/cast/house-juniper-v3.webp`]);
     const kit = await faceKitOf(t.db, id, BASE_URL);
-    expect(kit && Object.keys(kit.stills).sort()).toEqual([...FACE_STILLS].sort());
+    expect(kit && Object.keys(kit.stills).sort()).toEqual([...FACE_STILLS, TALK_STILL].sort());
     const portrait = kit!.stills.portrait!;
     // Every other still, and the loop, start from the kit's own portrait, by its public link.
     expect(edits.slice(1).every((a) => (a.input.image as string[])[0] === `${BASE_URL}${portrait}`)).toBe(true);
@@ -131,7 +131,30 @@ describe("a face kit", () => {
     expect(await ensureFaceKit(t.db, id, BASE_URL)).toBeNull();
     expect(asked).toHaveLength(before);
     expect(await collectFaceKits(t.db)).toBe(0);
-    expect(FACE_KIT_USD).toBeCloseTo(0.26, 2);
+    expect(FACE_KIT_USD).toBeCloseTo(0.29, 2);
+  });
+
+  it("draws the talking still (the mouth at rest, for Ditto) with the kit, and alone for a kit drawn before it, on its next call", async () => {
+    const id = await withPortrait();
+    const { asked } = fakeReplicate();
+    verdict("CLOTHED");
+    await makeFaceKit(t.db, id, BASE_URL);
+    const kit = (await faceKitOf(t.db, id, BASE_URL))!;
+    const talkAsk = asked.find((a) => /lips gently together and not smiling/.test(String(a.input.prompt)))!;
+    expect((talkAsk.input.image as string[])[0]).toBe(`${BASE_URL}${kit.stills.portrait}`);
+    expect(kit.stills.talk).toMatch(/^\/api\/face-kit\//);
+    // The page doesn't wait on it: complete without it is complete.
+    const { kitComplete } = await import("@/lib/face-kit-shared");
+    await collectFaceKits(t.db);
+    const done = (await faceKitOf(t.db, id, BASE_URL))!;
+    expect(kitComplete({ ...done, stills: { ...done.stills, talk: undefined } })).toBe(true);
+    // A kit from before the talking still: the next call draws that one still and nothing else.
+    await t.db.query(`delete from face_kits where character_id = $1 and part = 'talk'`, [id]);
+    asked.length = 0;
+    expect(await ensureFaceKit(t.db, id, BASE_URL)).toEqual({ ok: true, made: 1, queued: false, failed: [] });
+    expect(asked).toHaveLength(1);
+    expect(String(asked[0].input.prompt)).toMatch(/lips gently together and not smiling/);
+    expect((await faceKitOf(t.db, id, BASE_URL))!.stills.talk).toBeTruthy();
   });
 
   it("draws a character made in anime in anime, never as a photograph, and replaces a kit drawn as a photograph before", async () => {
@@ -139,20 +162,20 @@ describe("a face kit", () => {
     const { asked } = fakeReplicate();
     verdict("CLOTHED");
     // A kit made while they were drawn as photographs (before their style was anime, or before this fix).
-    expect(await makeFaceKit(t.db, id, BASE_URL)).toMatchObject({ ok: true, made: 7 });
+    expect(await makeFaceKit(t.db, id, BASE_URL)).toMatchObject({ ok: true, made: 8 });
     expect(asked.every((a) => /Photorealistic/.test(String(a.input.prompt)))).toBe(true);
     await t.db.query(`update characters set extras = jsonb_set(extras, '{looks}', '{"style":"anime"}'::jsonb) where id = $1`, [id]);
     // That kit isn't theirs any more: none is shown, and the next call draws one.
     expect(await faceKitOf(t.db, id, BASE_URL)).toBeNull();
     asked.length = 0;
-    expect(await ensureFaceKit(t.db, id, BASE_URL)).toMatchObject({ ok: true, made: 7, queued: true });
-    expect(asked).toHaveLength(8);
+    expect(await ensureFaceKit(t.db, id, BASE_URL)).toMatchObject({ ok: true, made: 8, queued: true });
+    expect(asked).toHaveLength(9);
     for (const a of asked) {
       expect(String(a.input.prompt)).not.toMatch(/photograph|Photorealistic/i);
       expect(String(a.input.prompt)).toMatch(/anime/);
       expect(String(a.input.prompt)).toMatch(/adult/);
     }
-    expect(Object.keys((await faceKitOf(t.db, id, BASE_URL))!.stills).sort()).toEqual([...FACE_STILLS].sort());
+    expect(Object.keys((await faceKitOf(t.db, id, BASE_URL))!.stills).sort()).toEqual([...FACE_STILLS, TALK_STILL].sort());
     // The photograph kit is gone, not just hidden.
     const { rows } = await t.db.query<{ n: string }>(`select count(*) as n from face_kits where character_id = $1 and source_id not like '%#anime'`, [id]);
     expect(Number(rows[0].n)).toBe(0);
@@ -185,7 +208,7 @@ describe("a face kit", () => {
     expect(await ensureFaceKit(t.db, id, BASE_URL)).toBeNull();
     expect(asked).toHaveLength(1);
     verdict("CLOTHED");
-    expect(await makeFaceKit(t.db, id, BASE_URL)).toEqual({ ok: true, made: 7, queued: true, failed: [] });
+    expect(await makeFaceKit(t.db, id, BASE_URL)).toEqual({ ok: true, made: 8, queued: true, failed: [] });
   });
 
   it("a still that comes out undressed fails on its own; the rest of the kit stands", async () => {
@@ -194,10 +217,10 @@ describe("a face kit", () => {
     let n = 0;
     setModerationFetchForTests(async () => Response.json({ choices: [{ message: { content: JSON.stringify({ clothing: ++n === 3 ? "REVEALING" : "CLOTHED", age: "ADULTS" }) } }] }));
     const made = await makeFaceKit(t.db, id, BASE_URL);
-    expect(made).toMatchObject({ ok: true, made: 6, queued: true });
+    expect(made).toMatchObject({ ok: true, made: 7, queued: true });
     expect((made as { failed: string[] }).failed).toEqual([expect.stringMatching(/it came out revealing/)]);
     const kit = await faceKitOf(t.db, id, BASE_URL);
-    expect(Object.keys(kit!.stills)).toHaveLength(6);
+    expect(Object.keys(kit!.stills)).toHaveLength(7);
     expect(kit!.failed).toMatch(/still: it came out revealing/);
   });
 
@@ -207,12 +230,12 @@ describe("a face kit", () => {
     const b = await withPortrait("Second Face");
     const { asked } = fakeReplicate();
     verdict("CLOTHED");
-    expect(await ensureFaceKit(t.db, a, BASE_URL)).toMatchObject({ ok: true, made: 7 });
+    expect(await ensureFaceKit(t.db, a, BASE_URL)).toMatchObject({ ok: true, made: 8 });
     expect(await ensureFaceKit(t.db, b, BASE_URL)).toMatchObject({ ok: false, error: "capped" });
-    expect(asked).toHaveLength(8);
+    expect(asked).toHaveLength(9);
     // The loop's still on its way: a call with the first draws nothing more.
     expect(await ensureFaceKit(t.db, a, BASE_URL)).toBeNull();
-    expect(asked).toHaveLength(8);
+    expect(asked).toHaveLength(9);
   });
 
   it("is started by an admin alone; the kit itself is open to anyone", async () => {

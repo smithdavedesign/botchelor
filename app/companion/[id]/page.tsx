@@ -8,7 +8,7 @@ import { companionAccessFromCookies } from "@/lib/companion-access";
 import { companionAllowance } from "@/lib/companion-plan";
 import { extrasState } from "@/lib/companion-extras";
 import { liveCallsOn } from "@/lib/companion-live";
-import { warmLiveFace } from "@/lib/live-face";
+import { liveFaceOffer, warmLiveFace } from "@/lib/live-face";
 import { callVoiceOn } from "@/lib/companion-call-voice";
 import { faceKitOf } from "@/lib/face-kit";
 import { isAdmin } from "@/lib/admins";
@@ -55,8 +55,12 @@ export default async function CompanionThreadPage({ params }: { params: Promise<
   ]);
   // Live calls (P6, lib/companion-live.ts): on with a Deepgram key, for accounts; otherwise a call takes turns (v1).
   const live = liveCallsOn(process.env, { admin, guest: access.guest });
-  // The live-face worker starts booting now (lib/live-face warmLiveFace), so a call's first clause finds it hot.
-  if (live) warmLiveFace(process.env, { admin });
+  // Their moving face on a live call (lib/live-face): theirs (admins; with `:plan`, Companion Plan members too), or the
+  // plan's to offer; only for a character whose face kit has its portrait. Theirs: the worker starts booting now, so a
+  // call's first clause finds it hot.
+  const faceWho = { admin, plan: allowance.unlimited && !access.guest };
+  const liveFace = live && faceKit?.stills.portrait ? liveFaceOffer(process.env, faceWho) : null;
+  if (liveFace === "yours") warmLiveFace(process.env, faceWho);
   return (
     <CompanionChat
       initial={r.view}
@@ -66,6 +70,7 @@ export default async function CompanionThreadPage({ params }: { params: Promise<
       initialExtras={extras}
       signedIn={!access.guest}
       liveCalls={live}
+      liveFace={liveFace}
       callVoice={callVoiceOn(process.env)}
       faceKit={faceKit}
     />

@@ -96,6 +96,8 @@ export type AccountExport = {
   line_feedback: Record<string, unknown>[];
   /** Sliding Doors runs on their dates (lib/simulation.ts saveDoors): what was changed and how the alternate ended. */
   episode_variations: Record<string, unknown>[];
+  /** Their taps on the "Botchelor Plus" tile (lib/plus-interest.ts): where, when, and whether they left an email. */
+  plus_interest: Record<string, unknown>[];
 };
 
 /** Everything stored under this user id, as JSON. Owner-only (the route checks the cookie is the user). */
@@ -272,6 +274,7 @@ export async function exportAccount(db: Db, userId: string): Promise<AccountExpo
         order by v.created_at`,
       [userId],
     ),
+    plus_interest: await q("select place, with_email, created_at from plus_interest where user_id = $1 order by created_at", [userId]),
   };
 }
 
@@ -496,6 +499,8 @@ export async function deleteAccount(db: Db, userId: string): Promise<AccountDele
   await run("delete from second_date_requests where user_id = $1", [userId]);
   await run("delete from date_proposals where from_user = $1 or to_user = $1", [userId]);
   await run("delete from user_feedback where user_id = $1", [userId]);
+  // Their taps on the Plus tile (lib/plus-interest.ts); an email they left is on the Sunday letter's list, which has its own exit.
+  await run("delete from plus_interest where user_id = $1", [userId]);
   await run("delete from language_seen where actor = $1", [userId]);
   // Site engagement rows logged while signed in (lib/engagement.ts), and every other row from the same browsers.
   await run("delete from web_events where visitor in (select visitor from web_events where user_id = $1)", [userId]);

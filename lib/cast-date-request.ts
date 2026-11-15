@@ -16,3 +16,9 @@ export function markCastDateRequest(req: Request): Request {
 export function isCastDateRequest(req: Request): boolean {
   return prizeRequests.has(req);
 }
+
+/**
+ * The same mark for any other date the show pays for that books as a person: a character's weekly life date
+ * (lib/character-life.ts). The booking route reads a marked request as house-paid, whatever it is for.
+ */
+export const markShowPaidRequest = markCastDateRequest;

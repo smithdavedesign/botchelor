@@ -275,6 +275,7 @@ out of time never skips it. It logs `data_pruned` with the rows removed per tabl
 | `episode_variations` | 400 days from the first run. |
 | `language_seen` | 400 days. Removed with the account (it's keyed by who wrote). |
 | `web_events` | 400 days. A signed-in visitor's rows go with the account; a browser's anonymous id isn't tied to anyone. |
+| `plus_interest` | 400 days. A tap on the "Botchelor Plus" intent tile (`lib/plus-interest.ts`): who (the cookie's id), where, whether an email was left; never the address, which goes on the Sunday letter's list with its own confirm, unsubscribe and retention. Removed with the account. |
 | `episodes.engine_trace`, `turn_meta`, `reflection_labels`, `setup.met_via` | As long as the date (they explain it). Soul-derived numbers go earlier, on a forget. |
 | `line_feedback` | Until the voter deletes their account. |
 | `ml_consents` | Until the account is deleted. |
@@ -286,9 +287,10 @@ prune reads an index on its time column (`lib/db.ts`).
 ## The account export and what goes on delete
 
 **In the account export** (`lib/account.ts exportAccount`): the consent (`ml_consent`), `swipe_impressions`,
-`relationship_events`, `choice_history`, `turn_drafts`, `reflection_labels`, `line_feedback`, and `episode_variations`
-(the runs on dates they booked or their characters were on, without `alt_trace`, whose numbers average both characters).
-`matches` carries the answer sources.
+`relationship_events`, `choice_history`, `turn_drafts`, `reflection_labels`, `line_feedback`, `episode_variations`
+(the runs on dates they booked or their characters were on, without `alt_trace`, whose numbers average both characters),
+and `plus_interest` (their taps on the Plus tile: place, whether an email was left, when). `matches` carries the answer
+sources.
 
 **When a character is forgotten** (deleting it once it has dates, or deleting the account; `forgetEverything`):
 
@@ -307,7 +309,7 @@ a dataset anyway, since the forgotten character's owner (the deleted owner) neve
 
 **When an account is deleted** (`deleteAccount`): all of the above for every character it kept, then its consent,
 choice history, votes, the Sliding Doors runs on dates it booked, its agents' `agent_links` rows (so the consent they
-carried goes too), and everything else keyed to it.
+carried goes too), its `plus_interest` taps, and everything else keyed to it.
 
 ## The north star
 

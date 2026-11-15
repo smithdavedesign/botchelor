@@ -9,8 +9,8 @@ import { HOUSE_CHARACTERS } from "@/lib/house";
 import { GET as clipGet } from "@/app/api/live-face/clip/[id]/route";
 import { liveFaceClips, liveFaceSession } from "@/lib/live-face";
 import { compareState, keysFor, LIVE_FACE_CHOICES, pcmOfWav, rateRender, rendererListing, setUserLiveFaceChoice, userLiveFaceChoice } from "@/lib/live-face/compare";
-import { CHAIN_FADE_IN, CHAIN_FADE_OUT, CHAIN_TAIL_SILENCE_MS, type ChainClip, DittoChain, speakDittoStream } from "@/lib/live-face/ditto";
-import { dittoLibrary, ensureDittoLibrary, LIBRARY_SPEC, libraryClipFile } from "@/lib/live-face/ditto-clips";
+import { CHAIN_EXP_SCALE, CHAIN_FADE_IN, CHAIN_FADE_OUT, CHAIN_TAIL_SILENCE_MS, type ChainClip, DittoChain, speakDittoStream } from "@/lib/live-face/ditto";
+import { dittoLibrary, dittoSource, ensureDittoLibrary, LIBRARY_SPEC, libraryClipFile } from "@/lib/live-face/ditto-clips";
 import { DITTO_EMO, emoFor } from "@/lib/live-face-shared";
 import { RUNPOD_API, setRunpodFetchForTests } from "@/lib/live-face/musetalk";
 import { DID_API, didTalk, FAL_QUEUE, falRun, falVideo, RENDERERS, rendererById, runnableRenderers, setRendererFetchForTests } from "@/lib/live-face/renderers";
@@ -181,11 +181,17 @@ describe("Ditto, our second worker", () => {
     expect(out).toMatchObject({ frames: 50, note: "512px, 50 frames, from the portrait, as a call renders it" });
     expect(out.cost_usd).toBeGreaterThan(0);
     // As a call renders a clause: eased in and out at the portrait, the line's expression (none here: a plain line).
-    expect(asked[0].body).toMatchObject({ op: "speak", source_url: input.portraitUrl, audio_format: "pcm16", rate: 24_000, fade_in: CHAIN_FADE_IN, fade_out: CHAIN_FADE_OUT, tail_silence_ms: CHAIN_TAIL_SILENCE_MS });
+    expect(asked[0].body).toMatchObject({ op: "speak", source_url: input.portraitUrl, audio_format: "pcm16", rate: 24_000, fade_in: CHAIN_FADE_IN, fade_out: CHAIN_FADE_OUT, tail_silence_ms: CHAIN_TAIL_SILENCE_MS, exp_scale: CHAIN_EXP_SCALE });
     expect(asked[0].body?.audio_b64).toBe(pcm.toString("base64"));
     // A calmer mouth: the same job with the driving weights turned down.
     await rendererById("ditto:soft")!.speak(input, { apiKey: null, env });
     expect(asked[asked.length - 1].body).toMatchObject({ source_url: input.portraitUrl, exp_scale: 0.7, pose_scale: 0.85 });
+    // With the kit's talking still drawn (the mouth at rest), both talk from it, as a call does.
+    const talk = { ...input, talkUrl: "https://botchelor.com/api/face-kit/x/talk.webp" };
+    expect(await ditto.speak(talk, { apiKey: null, env })).toMatchObject({ note: "512px, 50 frames, from the talking still, as a call renders it" });
+    expect(asked[asked.length - 1].body).toMatchObject({ source_url: talk.talkUrl, exp_scale: CHAIN_EXP_SCALE });
+    await rendererById("ditto:soft")!.speak(talk, { apiKey: null, env });
+    expect(asked[asked.length - 1].body).toMatchObject({ source_url: talk.talkUrl, exp_scale: 0.7 });
     // From the cast portrait, when the character has one; refused when not.
     await rendererById("ditto:cast")!.speak({ ...input, castPortraitUrl: "https://botchelor.com/api/assets/cast-1" }, { apiKey: null, env });
     expect(asked[asked.length - 1].body).toMatchObject({ source_url: "https://botchelor.com/api/assets/cast-1" });
@@ -248,6 +254,8 @@ describe("Ditto, our second worker", () => {
     expect(asked[1]).not.toHaveProperty("fade_in");
     expect(asked[2]).toMatchObject({ state_b64: "state2", fade_out: CHAIN_FADE_OUT, tail_silence_ms: CHAIN_TAIL_SILENCE_MS });
     expect(asked[2]).not.toHaveProperty("want_state");
+    // Every clause at the call's mouth (CHAIN_EXP_SCALE): at Ditto's own the lips barely change shape.
+    expect(asked.every((a) => a.exp_scale === CHAIN_EXP_SCALE)).toBe(true);
     expect(failed).toEqual([]);
     expect(chain.stats).toEqual({ clips: 3, failed: 0 });
   });
@@ -330,6 +338,18 @@ describe("Ditto, our second worker", () => {
     vi.stubEnv("LIVE_FACE_DITTO_ENDPOINT", "ep-d");
     const session = await liveFaceSession(t.db, RAFE, "http://test", { admin: true, userId });
     expect(session).toMatchObject({ provider: "ditto", px: 512, idle: lib.idle, reactions: lib.reactions });
+    // So far all from the portrait. The talking still arrives (the mouth at rest): Ditto talks from it, and the clips
+    // are drawn again from it, so the idle and the replies are one face; the portrait's are never shown beside it.
+    expect(asked.every((a) => a.source_url === `http://test/api/face-kit/kit-portrait-${RAFE}`)).toBe(true);
+    await t.db.query(`insert into face_kits (id, character_id, source_id, part, status, mime, data) values ($1, $2, $3, 'talk', 'ready', 'image/webp', $4)`, [`kit-talk-${RAFE}`, RAFE, `asset-${RAFE}`, Buffer.from("webp")]);
+    expect(await dittoSource(t.db, RAFE, "http://test")).toEqual({ sourceId: `asset-${RAFE}`, key: `asset-${RAFE}#talk`, url: `http://test/api/face-kit/kit-talk-${RAFE}`, still: "talk" });
+    expect(await dittoLibrary(t.db, RAFE, "http://test")).toEqual({ idle: null, reactions: {}, complete: false });
+    expect(await liveFaceClips(t.db, RAFE, "http://test", { admin: true, userId })).toMatchObject({ provider: "ditto", source_url: `http://test/api/face-kit/kit-talk-${RAFE}` });
+    expect(await ensureDittoLibrary(t.db, RAFE, "http://test", env)).toBe(4);
+    expect(asked.slice(4).map((a) => a.source_url)).toEqual(Array(4).fill(`http://test/api/face-kit/kit-talk-${RAFE}`));
+    const fromTalk = await dittoLibrary(t.db, RAFE, "http://test");
+    expect(fromTalk.complete).toBe(true);
+    expect(fromTalk.idle).not.toBe(lib.idle);
   });
 
   it("gives a reply up when its first clause fails: the clauses waiting and any added after are failed at once, nothing more is rendered", async () => {

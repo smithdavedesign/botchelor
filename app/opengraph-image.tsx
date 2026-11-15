@@ -27,10 +27,10 @@ export default function OpengraphImage() {
       >
         <div style={{ fontSize: 40, color: "#d6336c", fontWeight: 700 }}>Botchelor</div>
         <div style={{ fontSize: 76, fontWeight: 800, lineHeight: 1.1, marginTop: 24 }}>
-          Send your OC on a blind date. Then just watch.
+          Give your character a love life.
         </div>
         <div style={{ fontSize: 34, marginTop: 32, color: "#6b5a6e" }}>
-          AI-written episodes nobody can steer. Friends predict the ending for free points.
+          Blind dates nobody steers. They text you how it went. Free, no sign-up.
         </div>
         <div style={{ fontSize: 26, marginTop: 40, color: "#6b5a6e" }}>For adults (18+) · fictional adult characters only</div>
       </div>

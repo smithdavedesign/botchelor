@@ -20,6 +20,7 @@ import { cachedConstellation } from "@/lib/graph-cache";
 import { PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
 import { seasonCastCards } from "@/lib/season-cast";
 import { seasonFormatNow } from "@/lib/season-format-store";
+import { ceremonyBoard } from "@/lib/ceremony";
 import { GENERATE_FROM_DAY } from "@/lib/season-gen";
 import { userIdFromCookieStore } from "@/lib/http";
 import { ownedSkus } from "@/lib/payments";
@@ -108,7 +109,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
       ? Promise.all([sinceYouWereHere(db, viewerId, mine).catch(() => []), countNotifications(db, viewerId, { unread: true }).catch(() => 0)])
       : [[], 0],
   );
-  const [owned, tokens, myCharacters, [since, unread], profileName, sharer, showNews, [aired, standout, sky, situation, dares, record, airing, rooms, onSeason, reveal, seasonDef]] = await Promise.all([
+  const [owned, tokens, myCharacters, [since, unread], profileName, sharer, showNews, [aired, standout, sky, situation, dares, record, airing, rooms, onSeason, reveal, seasonDef, ceremony]] = await Promise.all([
     db && viewerId ? ownedSkus(db, viewerId) : Promise.resolve<string[]>([]),
     db && viewerId ? episodeAllowance(db, viewerId) : freshAllowance(),
     myCharactersP,
@@ -142,6 +143,8 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
       forViewer(viewerId, "home:reveal", () => revealBoard(conn, viewerId)).catch(() => null),
       // This season's format, for the arc under the header (the same cached read /watch makes).
       shared("watch:season-format", () => seasonFormatNow(conn)).catch(() => null),
+      // The rose ceremony (lib/ceremony.ts): the tonight band points at its vote on a Botchelor season; null otherwise.
+      forViewer(viewerId, "watch:ceremony", () => ceremonyBoard(conn, viewerId)).catch(() => null),
     ]),
   ]);
 
@@ -165,7 +168,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
   const creator = myCharacters.length > 0;
   // The band is there for a first visit too, on a quiet night as well (the design system's visitor home, all-screens
   // board, 2026-11-11): what just aired, what's open for predictions, and what's live, as proof the show is on.
-  const tonight = <TonightBand rooms={rooms} airing={airing} situation={situation} reveal={reveal} latest={airedEpisodes[0] ?? null} now={Date.now()} />;
+  const tonight = <TonightBand rooms={rooms} airing={airing} situation={situation} reveal={reveal} ceremony={ceremony} latest={airedEpisodes[0] ?? null} now={Date.now()} insider={creator} />;
 
   return (
     <div className="home page-wide">
@@ -214,11 +217,12 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
       )}
       <section className="hero">
         <div className="hero-copy">
-          <p className="kicker">For OC roleplayers</p>
-          <h1>Send your OC on a blind date. Then just watch.</h1>
+          {/* The promise (docs/ideas.md "The core, 2026-11-14"): your character has a love life, and you're in their corner. */}
+          <p className="kicker">Your character&apos;s love life</p>
+          <h1>Give your character a love life.</h1>
           <p className="lede">
-            Name them (🎲 fills in the rest if you like), pick a look, and watch their first speed date. A few minutes, free, no sign-up. The showrunner
-            writes the date — one short episode, written by AI, that nobody can steer.
+            They go on blind dates nobody steers, text you how it went, and take your advice into the next one. Make one in a minute — free, no
+            sign-up.
           </p>
           <p className="cta-row" id="hero-cta">
             <Link className="button" href="/create">
@@ -243,7 +247,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
               .
             </p>
           )}
-          <p className="trust-micro">Fictional characters only, no real people</p>
+          <p className="trust-micro">Fictional characters only, no real people. Every date is written by AI.</p>
         </div>
         {/* The show itself where a made-up box score used to be (2026-11-07 audit, item 2): a few lines of a real aired
             date (its best moment, 2026-11-11), typing in, and the way to watch how it ends. The old matchup only when

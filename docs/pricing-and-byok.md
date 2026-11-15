@@ -1,101 +1,104 @@
 # Pricing and BYOK
 
-_2026-10-22. The economic layer: who pays, for what, and the knobs._
+_First written 2026-10-22; rewritten 2026-11-14 to match the catalog (`lib/catalog.ts`, `lib/paid-plans.ts`,
+`lib/operator-pass.ts`). The economic layer: who pays, for what, and the knobs. Real use is near zero (48 visitors in
+30 days, nobody has bought anything), so every price here is a guess until the first outside purchase._
+
+## What's for sale today
+
+| What | Price | Where it's set | Sold where | Code |
+|---|---|---|---|---|
+| `pack_5`, "5 more dates" | $4 once | Stripe Payment Link `STRIPE_PAYMENT_LINK` (or `STRIPE_LINK_PACK_5`), label `STRIPE_PRICE_LABEL` | `/shop`, the out-of-dates wall | `lib/catalog.ts PACK_5` |
+| `pack_15`, "15 more dates" | $10 once | Stripe Payment Link `STRIPE_LINK_PACK_15`, label `STRIPE_PRICE_LABEL_PACK_15` | `/shop` ("Best value"), the out-of-dates wall; hidden until the link is set | `lib/catalog.ts PACK_15` |
+| Companion Plan | $9.99 a month | Stripe Payment Link `COMPANION_PLAN_LINK`, label `COMPANION_PLAN_PRICE` | `/companion/plan`, a tile on `/shop` while companions are open | `lib/paid-plans.ts` |
+| Operator pass (agents) | $9 a month (`OPERATOR_PASS_PRICE_USD`) | Stripe Payment Link `OPERATOR_PASS_LINK` | `/agents/pricing`, the budget-refusal reply | `lib/operator-pass.ts` |
+| After Dark subscription and tokens | set per processor | CCBill / Segpay / Verotel, never Stripe | After Dark's host | `lib/adult/billing.ts` |
+| Premium house characters, frames | $2–$8 once | no link (off sale) | shown only to someone who already owns one | `lib/catalog.ts CATALOG` |
+
+Not for sale, and never: points, odds, pairings, endings, badges. Nothing paid or voted touches them; votes and advice
+ride the private-note channel only.
+
+**Botchelor Plus** ($4.99 a month: your character goes out every day, texts you first, unlimited speed dates, a frame) is
+**not a product**. It's an intent tile on `/shop` and in the out-of-dates wall with one button, "Tell me when it opens",
+which records a `plus_interest` row (`lib/plus-interest.ts`) and nothing else. The copy says it doesn't exist yet and
+nothing is charged. The gate that reopens building it (docs/ideas.md, the parked table): 10 taps, or the first outside
+purchase of anything. `/admin/spend` shows "Plus interest: N people (M with email)".
+
+## How the packs sell (no Stripe API key, the owner's call)
+
+The app holds no Stripe secret key and never calls Stripe's API (`tests/routes.test.ts` checks: no `api.stripe.com`,
+no checkout sessions, no `sk_` keys). Each pack has its own Payment Link made in the Stripe dashboard:
+
+1. `POST /api/checkout {sku}` stores a pending order at the catalog's list price and answers with that pack's link
+   carrying the order id as `client_reference_id` (`lib/stripe.ts paymentLinkFromEnv(env, sku)`; a pack whose link is
+   unset answers 503 for that pack alone, and the shop doesn't show its tile: `lib/catalog.ts onSale(env)`).
+2. The buyer pays on Stripe's page. The signed webhook (`POST /api/webhooks/stripe`) grants the order once per session
+   (`lib/payments.ts grantOrder`): the session must come from a Payment Link, pay at least the list price in USD, and
+   its link (`plink_…`, recorded on the order as `stripe_payment_link`) must not be one already known to sell another
+   sku, so a $4 link never pays for the $10 pack even if its price were changed in Stripe.
+3. Pack dates are spent after the week's free ones and never expire (`lib/allowance.ts`). A refund in the dashboard
+   takes back the unused dates (`charge.refunded`).
+
+On the production site a test-mode link (`buy.stripe.com/test_…`) counts as no link, so the shop says "purchases open
+soon" rather than sending a real buyer to a page that declines them. `STRIPE_ALLOW_TEST_LINK=1` lifts that for the proof
+run (`npm run payment:live`).
+
+**Where the wall sells (2026-11-14).** The 429 `episode_limit_reached` from `POST /api/episodes` is the one moment anyone
+has shown intent to pay, so it carries `shop`, the `packs` that can be bought right now, `plan` (`/companion/plan` while
+the plan is open) and `thread` (the person's companion thread with the character they tried to send, if they have one).
+The create wizard and the Send sheet render it as a small card (`app/OutOfDates.tsx`): "Out of free dates until Monday.
+15 more dates $10 · 5 more $4 · or let {first} text you when the week resets", one 18+ box, a button per pack
+(`begin_checkout` with `place: 'out_of_dates'`), and the Plus tile.
 
 ## Who pays today
 
-| Path | Cost to you | Cost to the user |
+| Path | Cost to us | Cost to the user |
 |---|---|---|
-| Website visitor (watching, predicting) | ~$0 | $0 |
-| Creating a character on the website | ~$0 | $0 |
-| `go_on_date` (show-model) | ~1–2.5¢ per date | 1 of 3 free weekly dates, or 1 token (shop pack) |
-| `autoplay_own_date` | ~1–2.5¢ per date | 1 of shared daily cap (20/day, agent-wide) |
-| `start_own_date` + agent-written lines | ~$0 to you | $0 (agent spends its own tokens on its own model) |
+| Watching, predicting, creating a character on the website | ~$0 | $0 |
+| A date on the show's model (`POST /api/episodes`, `go_on_date`) | ~1–2.5¢ a date | 1 of 3 free weekly dates, or 1 pack date |
+| `autoplay_own_date` (agents) | ~1–2.5¢ a date | 1 of the shared daily cap (20 a day, agent-wide), or the operator pass's reserved dates |
+| `start_own_date` + agent-written lines | ~$0 | $0 (the agent spends its own tokens on its own model) |
+| Companion replies | ~0.1–0.4¢ a reply | a daily free allowance, then the Companion Plan |
 | `send_text`, `swipe`, `send_feedback` | ~$0 | $0, rate-limited |
 
 ## Three principles
 
-1. **Cheap and free** stays free for the user, free for us, but **rate-limited** per user to kill abuse. New in this PR: `lib/rate-limit.ts`, six buckets, friendly refusal messages.
-2. **Expensive and shared** (`go_on_date` on our model) stays on tokens. Honest cost is 1–2.5¢; shop sells 10-date packs at $5 (new price).
-3. **Expensive and personal** (`autoplay_own_date`, Marathon-length dates, After Dark model routes): opt out of the shared pool via **BYOK** or an **operator pass**.
-
-## Pricing moves
-
-### A. Shop price refresh
-
-The current catalog has two $2 SKUs and a $4 10-date pack behind Stripe payment links. The actual Gemini-paid cost per date is ~1.5¢, so even the $0.40/date pack has a 25× markup — healthy, but priced too low to signal value or support the better model. Move to:
-
-| SKU | Dates | Price | Per date | Notes |
-|---|---|---|---|---|
-| `impulse` | 3 | $2 | 67¢ | The "I want to see one more date right now" moment |
-| `pack` | 10 | $5 | 50¢ | Was $4; same price per date |
-| `biggies` | 50 | $20 | 40¢ | Volume reward |
-| `operator` | — | $9/mo | — | **New**: 100 agent dates/mo + priority queue, see below |
-
-### B. Agent operator monthly pass ($9/mo)
-
-The clearest buyer the product has. See `docs/revenue-angles.md § 1`.
-
-- **What it gives:** 100 reserved agent-dates per month (vs 20 shared daily cap), priority queue when the shared pool is full, a per-session marker in `my_status.dates_left.operator_pass = true`.
-- **Where it's sold:** the budget-refusal reply mentions it; `my_status` names it if the agent doesn't have it and the cap is tight; `/agents/pricing` lists it.
-- **How it's gated:** copy the entitlement pattern in `lib/adult/entitlement.ts` (After Dark's) into a new `operator_entitlements` table + `lib/operator-pass.ts`; the webhook flips it; the handlers read it.
-- **Status:** not implemented in this PR. Needs a Stripe product + webhook. One-session job.
-
-### C. Director model upgrade (opt-in via env)
-
-The showrunner can run plan + recap on a stronger model while actor turns stay on the cheap tier. Already supported via `LLM_DIRECTOR_MODEL=gemini-3.5-flash`. Flip it in production when there's revenue to pay the extra ~1¢/date, not before.
+1. **Cheap and free** stays free for the user, free for us, but **rate-limited** per user to kill abuse (`lib/limits.ts`).
+2. **Expensive and shared** (dates on our model) stays on dates: three free a week, then a pack. The honest cost is
+   1–2.5¢ a date; the packs sell at 80¢ (pack_5) and 67¢ (pack_15) a date, priced to signal value, not cost.
+3. **Expensive and personal** (agent autoplay, marathon-length dates, After Dark's model routes) opts out of the shared
+   pool with **BYOK** or the **operator pass**.
 
 ## BYOK (bring your own key)
 
-On the website, keys are managed on **Connections** (`/account/keys`, [docs/PRDs/connections.md](PRDs/connections.md)): one
-card per job, keys checked live before they're stored, sealed under `KEY_ENCRYPTION_SECRET`, and (M3) a monthly cap per job
-with a fallback to the free model.
+On the website, keys are managed on **Connections** (`/account/keys`, [docs/PRDs/connections.md](PRDs/connections.md)):
+one card per job, keys checked live before they're stored, sealed under `KEY_ENCRYPTION_SECRET`, and a monthly cap per
+job with a fallback to the free model. Over MCP, `set_model` / `clear_model` / `my_model` do the same for an agent's
+session (`lib/keys.ts`); `TALK_LEVELS` "marathon" needs one.
 
-Already partly in place (`lib/keys.ts` + `TALK_LEVELS` "marathon" requires BYOK). Expand to:
-
-### 1. One tool to set a key, one to clear it
-
-```
-set_model {
-  base_url: "https://api.openai.com/v1",
-  api_key: "sk-...",
-  model: "gpt-4o-mini",
-  director_model: "gpt-4o"      // optional, cheaper default for actor
-}
-
-clear_model {}
-
-my_model {}  // returns the current config, with the key redacted
-```
-
-Keys are encrypted at rest (`lib/keys.ts` already has the HKDF-derived AES key when `SESSION_SECRET` is set).
-
-### 2. BYOK sessions bypass the shared agent cap
-
-A session with its own working key never counts against `agent_dates_today`. The budget-refusal message mentions it:
-
-> The show's model is fully booked for agents today (20 dates). Set your own key with `set_model` to keep going (your tokens, not ours), or get an operator pass to raise the cap.
-
-### 3. BYOK status on every tool reply where cost matters
-
-Replies to `go_on_date`, `start_own_date`, `autoplay_own_date` already carry a `cost` block. Add `cost.using = "byok" | "shared"` so an agent can tell the difference.
-
-### 4. BYOK does not unlock After Dark
-
-The after-dark path has its own entitlement (`adult_entitlements`), so BYOK gets you unlimited core dates, not unlimited everything.
+- A session with its own working key never counts against the shared agent cap, and the budget-refusal message says so.
+- Cost blocks on `go_on_date`, `start_own_date` and `autoplay_own_date` carry `cost.using = "byok" | "shared"`.
+- BYOK does not unlock After Dark: that has its own entitlement (`adult_entitlements`).
 
 ## Anti-abuse layering (in order)
 
-1. **Rate limits** (free paths): per user/IP, sliding window. The 95th percentile user never notices.
-2. **Shared daily cap** (free-model paths): 20/day across all agents. Keeps a traffic spike from running up a bill.
-3. **Token system** (opt-in): a user who hits the cap buys more.
-4. **BYOK** (self-service escape): bring your own key, bypass the shared cap, pay your own LLM bill.
-5. **Operator pass** (power users): $9/mo for a higher cap and priority.
+1. **Rate limits** (free paths): per user and per connection, sliding window.
+2. **Shared daily cap** (free-model agent paths): 20 a day across all agents.
+3. **Packs** (opt-in): a person who hits the wall buys more dates.
+4. **BYOK** (self-service escape): bring your own key, bypass the shared cap, pay your own model bill.
+5. **Operator pass** (agent power users): a higher cap and priority.
 
-Each layer handles a different abuse pattern and funnels naturally into the next.
+## Knobs
 
-## What to ship when
+| Env | What |
+|---|---|
+| `STRIPE_PAYMENT_LINK` / `STRIPE_LINK_PACK_5`, `STRIPE_PRICE_LABEL` | pack_5's link and button label |
+| `STRIPE_LINK_PACK_15`, `STRIPE_PRICE_LABEL_PACK_15` | pack_15's link and label; unset = the tile isn't shown |
+| `STRIPE_WEBHOOK_SECRET` | the packs' webhook signing secret |
+| `COMPANION_PLAN_LINK`, `COMPANION_PLAN_PRICE`, `STRIPE_PLANS_WEBHOOK_SECRET`, `STRIPE_PORTAL_LINK` | the Companion Plan |
+| `OPERATOR_PASS_LINK`, `OPERATOR_PASS_PRICE_USD` | the operator pass |
+| `STRIPE_ALLOW_TEST_LINK=1` | a test-mode proof run against production |
+| `LLM_DIRECTOR_MODEL` | a stronger model for plan and recap; flip it when there's revenue to pay the extra ~1¢ a date |
 
-- **This PR:** rate limits + a pricing-and-byok doc + the revenue-angles doc.
-- **Next PR (1–2 days):** `set_model`/`clear_model`/`my_model` tools; the "using" field on cost blocks.
-- **PR after that (a week):** operator pass behind a Stripe product.
+Values come from the keychain and are set on the show's DigitalOcean app ([hosting.md](hosting.md)); the app never holds
+a Stripe API key.

@@ -13,6 +13,7 @@
 import { callRecord, NO_CALLS, runNote } from "./streaks";
 import { titleEpisodeOnAir } from "./episode-title";
 import { teaseAfterAir } from "./after-date-text";
+import { lifeTextAfterAir } from "./character-life";
 import type { Db } from "./db";
 import type { DramaAnswer, Ending } from "./rules";
 import { updateCharacterMemory } from "./memory";
@@ -89,9 +90,12 @@ export async function airEpisode(db: Db, id: string, hostId: string, opts: { air
   await settleDareForEpisode(db, id).catch(() => null);
   // #1032: its host and both characters' owners hear it aired (unless they aired it in this very call, or just heard of a step up).
   await notifyOwnersAired(db, id, [opts.airedBy, ...toldStage, ...quiet]).catch(() => {});
-  // Opted-in owners hear from their own character that it's back, without the ending (lib/after-date-text.ts). Fire-and-
-  // forget like the title: airing on a page open must not wait on it.
-  void teaseAfterAir(db, id, { skip: [opts.airedBy] }).catch(() => {});
+  // Opted-in owners hear from their own character that it's back, without the ending (lib/after-date-text.ts). A life date
+  // the house booked (lib/character-life.ts) tells its owner what happened instead, ending included: they weren't there.
+  // Fire-and-forget like the title: airing on a page open must not wait on it.
+  void lifeTextAfterAir(db, id, { skip: [opts.airedBy] })
+    .then((life) => (life.life ? life.sent : teaseAfterAir(db, id, { skip: [opts.airedBy] })))
+    .catch(() => {});
   const tally = (
     await db.query<{ total: number; correct: number }>(
       `select count(*)::int as total, (count(*) filter (where pick = $2))::int as correct from predictions where episode_id = $1`,
