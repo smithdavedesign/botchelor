@@ -31,10 +31,10 @@ import { ConsentChoice } from "../ConsentBanner";
 /** The other policy pages' date (content policy, 2257, cancelling). */
 export const LAST_UPDATED = "Last updated 24 October 2026.";
 /** The terms' and the privacy notice's date: they changed after the rest. */
-export const TERMS_PRIVACY_UPDATED = "Last updated 10 November 2026.";
+export const TERMS_PRIVACY_UPDATED = "Last updated 15 November 2026.";
 /** What changed last time, in a line. */
 export const PRIVACY_CHANGES =
-  "Changed: a recovery email you can add to a handle-and-password account, used only to reset a forgotten password and to tell you when the password or that address changes; the Sunday letter, a weekly email you can sign up for (confirmed by email, with an unsubscribe in every letter, and an address taken off when its emails bounce or are reported as spam); who hosts the show and carries its traffic (DigitalOcean and Cloudflare, no longer Vercel), and that the show's model is reached through OpenRouter; live calls with a companion, where they're offered: Deepgram hears your voice and makes the companion's, and the terms say how call minutes are charged. Before that (1 November): Analytics names the three events our own dashboard counts (visit, activate, checkout) and says the site you came from goes with a visit only when it's another site; the terms state the pack's price. Before that (24 October): who runs Botchelor, After Dark's data and where it's offered, the location and age we read, everyone who processes data, your rights, and the complaint form.";
+  "Changed: on a live call with the Companion Plan, where it's offered, a companion's face can move as they talk, drawn by our own renderer from their portrait and voice (never yours) at no charge beyond the call's minutes. Before that (10 November): a recovery email you can add to a handle-and-password account, used only to reset a forgotten password and to tell you when the password or that address changes; the Sunday letter, a weekly email you can sign up for (confirmed by email, with an unsubscribe in every letter, and an address taken off when its emails bounce or are reported as spam); who hosts the show and carries its traffic (DigitalOcean and Cloudflare, no longer Vercel), and that the show's model is reached through OpenRouter; live calls with a companion, where they're offered: Deepgram hears your voice and makes the companion's, and the terms say how call minutes are charged. Before that (1 November): Analytics names the three events our own dashboard counts (visit, activate, checkout) and says the site you came from goes with a visit only when it's another site; the terms state the pack's price. Before that (24 October): who runs Botchelor, After Dark's data and where it's offered, the location and age we read, everyone who processes data, your rights, and the complaint form.";
 
 /** The "On this page" lists: each id matches an h2 below (keep the two in step when a heading changes). */
 export const TERMS_HEADINGS = [
@@ -327,7 +327,9 @@ export function TermsSections() {
           their own voice). Past that, and without the plan, a bought token from a pack buys {COMPANION_EXTRAS.voice.bundle} voice notes, which never expire.
           Where live calls are offered, they&apos;re by the minute: the plan includes {extraTerms("minute").included} call minutes a calendar month, and past
           that a token buys {extraTerms("minute").bundle}. Each minute is taken as it starts, a quiet minute pauses the call, and a call ended within a few
-          seconds with nothing said gives its minute back; calls that take turns stay free. The price is on the button before anything is made, a voice
+          seconds with nothing said gives its minute back; calls that take turns stay free. Where it&apos;s offered, a companion&apos;s face moves as they
+          talk on a live call with the plan, drawn by our own renderer from their portrait and voice, never yours, and it costs nothing beyond the
+          call&apos;s minutes. The price is on the button before anything is made, a voice
           note is never charged in the middle of a reply, and anything that fails gives back what it took. Included ones that aren&apos;t used don&apos;t
           carry over. Extras need an account.
         </li>

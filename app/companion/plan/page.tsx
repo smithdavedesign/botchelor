@@ -10,6 +10,7 @@ import { authFromCookieStore } from "@/lib/http";
 import { listCompanions, type CompanionListItem } from "@/lib/companion";
 import { COMPANION_EXTRAS, companionOpen, extraTerms } from "@/lib/companion-shared";
 import { liveCallsOn } from "@/lib/companion-live";
+import { liveFaceMode } from "@/lib/live-face";
 import { COMPANION_FAIR_USE_PER_MONTH, companionAllowance, companionFreePerDay } from "@/lib/companion-plan";
 import { planLink, planPrice } from "@/lib/paid-plans";
 import { PlanCheckout, PlanWait } from "./PlanCheckout";
@@ -75,6 +76,8 @@ export default async function CompanionPlanPage({ searchParams }: { searchParams
   const faces = pickFaces(people);
   const companions = people.cast.length + people.threads.filter((c) => !c.yours).length;
   const live = liveCallsOn(process.env, { admin: false, guest: false });
+  // With LIVE_FACE_PROVIDER `<renderer>:plan` the moving face on a live call is the plan's (lib/live-face).
+  const facePlan = live && liveFaceMode() === "plan";
   const voice = COMPANION_EXTRAS.voice;
   const minutes = extraTerms("minute");
   const perDay = companionFreePerDay();
@@ -148,7 +151,7 @@ export default async function CompanionPlanPage({ searchParams }: { searchParams
                 </th>
                 <td>Calls that take turns are free</td>
                 <td className="is-plan">
-                  {minutes.included} minutes a month
+                  {minutes.included} minutes a month{facePlan ? ", with their face moving as they talk" : ""}
                   <small>after that, a token buys {minutes.bundle} minutes; calls that take turns are free</small>
                 </td>
               </tr>

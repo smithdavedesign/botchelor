@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { formatPrice, onSale, PACK_5 } from "@/lib/catalog";
-import { COMPANION_EXTRAS, COMPANION_FAIR_USE_PER_MONTH, companionGuestReplies, companionGuestsOpen, companionOpen } from "@/lib/companion-shared";
+import { COMPANION_EXTRAS, COMPANION_FAIR_USE_PER_MONTH, companionGuestReplies, companionGuestsOpen, companionOpen, extraTerms } from "@/lib/companion-shared";
+import { liveCallsOn } from "@/lib/companion-live";
+import { liveFaceMode } from "@/lib/live-face";
 import { companionFreePerDay } from "@/lib/companion-plan";
 import { planLink, planPrice, PLANS } from "@/lib/paid-plans";
 import { FREE_EPISODES_PER_SEASON } from "@/lib/rules";
@@ -25,6 +27,9 @@ export default function PricingPage() {
   const packOnSale = paymentLinkFromEnv() !== null;
   const companions = companionOpen();
   const planOnSale = companions && planLink("companion") !== null;
+  // Live calls (P6) and, with LIVE_FACE_PROVIDER `<renderer>:plan`, the plan's moving face on them (lib/live-face).
+  const live = companions && liveCallsOn(process.env, { admin: false, guest: false });
+  const facePlan = live && liveFaceMode() === "plan";
   return (
     <article className="legal-page company-page">
       <h1>Pricing</h1>
@@ -83,6 +88,11 @@ export default function PricingPage() {
             <ul>
               <li>No daily limit on companion replies (fair use: {COMPANION_FAIR_USE_PER_MONTH.toLocaleString("en-US")} a month)</li>
               <li>{COMPANION_EXTRAS.voice.included} voice notes a month in their own voices</li>
+              {live && (
+                <li>
+                  {extraTerms("minute").included} live call minutes a month{facePlan ? ", with their face moving as they talk" : ""}
+                </li>
+              )}
               <li>Cancel any time: it runs to the end of the month you paid for</li>
             </ul>
             {planOnSale ? (
