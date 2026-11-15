@@ -93,6 +93,11 @@ services:
       # - key: FIRST_DATE_FORMAT
       #   value: "speed_date"
       #   scope: RUN_AND_BUILD_TIME
+      # Life dates a day (lib/character-life.ts weeklyLifeDates; docs/hosting.md): the house takes each owned character
+      # out once a week, house-paid, ~1¢ each. Default 30; "0" turns them off without a deploy.
+      # - key: LIFE_DATES_PER_DAY
+      #   value: "30"
+      #   scope: RUN_AND_BUILD_TIME
       # Copied from the old Vercel project's values (not secret, but deployment-specific).
       - key: CONTACT_EMAIL
         value: "CHANGE_ME"

@@ -3646,6 +3646,9 @@ alter table season_casts add column if not exists withdrawn_at timestamptz;
 -- A pair's dates, and one character's (lib/text-chain.ts loadChain/loadChainsFor, lib/inbox.ts): by either side.
 create index if not exists episodes_pair_idx on episodes (character_a, character_b);
 create index if not exists episodes_b_idx on episodes (character_b);
+-- The dates the house books for a character while its person is away (lib/character-life.ts, setup.met_via = 'life'):
+-- the weekly gap check and the day's cap read them by character and by day, so they are indexed apart.
+create index if not exists episodes_life_idx on episodes (character_a, created_at desc) where setup->>'met_via' = 'life';
 -- Sunday's reveal (lib/weekly-reveal.ts; 2026-11-07 audit, items 7 and 9): one row a week (week_id: its Sunday), the
 -- ballot frozen when Saturday's vote opens; the result, the secret it brought out and the date it made, each once.
 create table if not exists weekly_reveals (

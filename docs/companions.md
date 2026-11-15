@@ -157,6 +157,54 @@ got neither a reply in the thread nor a nudge for the next date (`nudges`, `lib/
 ours), `tests/air-tease.test.ts` (fires once on air, opted-in only, not to the airer), `tests/daily.test.ts` (the step and
 its count), `tests/since.test.ts` (the two lines).
 
+### Your character lives without you (built 2026-11-14)
+
+The Tomodachi mechanic (`lib/character-life.ts`): things happen to your character whether or not you show up, and the
+text about it is the reason to come back.
+
+- **The house takes your character out once a week** (`weeklyLifeDates`, the daily job's people part, step
+  `life_dates`). Whose turn: an owned character (a real person's, never the house's; one made over MCP only when its
+  owner has an account; never our own identities, `lib/our-traffic.ts loadOurIds`), public or at least open to dates (a
+  private character that may be asked out by name is taken out too, on an unlisted date), with an approved portrait,
+  with at least one date already (the first date is the person's own), none
+  being filmed, not taken (one partner, `lib/partners.ts takenSql`), and no life date in the last 6 days
+  (`LIFE_GAP_DAYS`). Longest since the last life date first. The partner is one of this season's free house cast it
+  hasn't dated in 30 days (`LIFE_PARTNER_GAP_DAYS`; anyone on the cast once it has dated them all), picked by the
+  character's id salted with its date count so the pick rotates (`pickLifePartner`, on `lib/first-date.ts
+  pickFirstPartner`). The format is the first date's (`firstDateFormat`: the speed date unless `FIRST_DATE_FORMAT` says
+  otherwise); public when the character is public, unlisted for a private one.
+- **House-paid, through the ordinary route.** Each date books through `POST /api/episodes` as the owner, on a request
+  built in-process and marked show-paid (`lib/cast-date-request.ts markShowPaidRequest`, the cast-date prize's mark),
+  which the route reads as house-paid: it reserves none of the person's free or pack dates, and every other rule holds
+  (taken, blocks, one date at a time for a couple, the paused switch). The episode is then marked
+  `setup.met_via = 'life'` (index `episodes_life_idx`). Caps: `LIFE_RUN_LIMIT` (25) a run, `LIFE_DATES_PER_DAY` a day
+  (default 30, `0` turns them off; [hosting.md](hosting.md)), nothing while `BOTCHELOR_PAUSE` is on or the paid model's
+  daily date cap is spent (`lib/limits.ts paidDatesToday`: the generation job claims a paid date per show date). About
+  1¢ a date on the show's model.
+- **Stopping them for a character:** make it private and leave "open to dates" off (the character's card has both). A
+  deleted account's characters (owner `deleted`) are never taken out.
+- **The text afterwards** (`lifeTextAfterAir`, from `lib/air.ts airEpisode`, in the tease's place for a life date): when
+  the date airs, the character texts its person what happened, ending included, since they weren't there to watch:
+  "I went out with Juniper at the night market while you were gone. The house set it up." then the ending (its own
+  reflection when there is one, else the debrief's cue word or the plain verdict), then one question ("Want me to see
+  Juniper again?" / "Should I let the house pick again, or do you have someone in mind?" / "Next time, will you pick?").
+  Same opt-in as the day-after text (`muted_proactive = false`, the Hear-from tap), never into a paused thread, kind
+  `life`, tagged `life:<episode id>` (once a date), not to whoever aired it. An owner who never opted in gets the usual
+  `date_aired` notice, and Since you were here (`lib/since.ts`) reads "{name} went on a date with {partner} while you
+  were away · See how it went" while that date is the character's newest.
+- **"Your character's week"** (`weekOf`, `sendCharacterWeeks`, step `character_week`, Sundays UTC, before the digest so
+  the same day's email carries it). Built from what already happened, no model call, per owned character: the week's
+  dates and how each ended (a life date says "the house set it up"), texts the character sent its person, who texted
+  whom between dates (`couple_texts`), the chemistry meter's move per partner it dated this week (`lib/chemistry-shifts.ts
+  runningChemistry`, owner's view: private dates count), and the next thing booked (a date being filmed, or a scheduled
+  one). One `character_week` notice per owner with at least one event (type Matches & dates: inbox, push, the daily
+  digest for email opt-ins; a type mute silences it like any other), once a week (`WEEK_BATCH` 50 a run), never to our
+  own identities. Title "📺 {First}'s week on the show: 2 dates, 1 text to you"; body one sentence per character
+  (`weekSentence`), in the show's voice. Nothing on a quiet week: no notice at all.
+- Tests: `tests/character-life.test.ts` (selection, the 6-day gap, the caps, house-paid not person-paid, the text once
+  and opt-in, the recap's content and the quiet-week skip), `tests/air-tease.test.ts` (the life hook replaces the
+  tease), `tests/daily.test.ts` (the two steps), `tests/since.test.ts` (the line).
+
 ## The plan (P2, built 2026-11-04)
 
 David, 2026-11-04: "open it up to the public and add the paywall with stripe".

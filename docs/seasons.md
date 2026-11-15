@@ -44,6 +44,22 @@ Storage and reads:
   appear too.
 - **Pinning.** `BOTCHELOR_SEASON_CAST` still pins a hand-picked cast.
 
+## Dates the house pays for
+
+Four kinds of date spend none of a person's free or pack dates; the show pays (its own model, about 1¢ a speed date). All
+four book through the ordinary route (`POST /api/episodes`), so every rule holds, and only a request built in-process
+can be marked house-paid (a WeakSet; no header or body can claim it):
+
+- **Mixer rotations the house cast fills** (`lib/mixer-fill.ts`, `lib/house-booker.ts`): the house books its own cast's
+  seats as `HOUSE_BOOKER`.
+- **The recoupling night** (`lib/recoupling.ts`): the cast and their season partners, on the format's nights.
+- **The weekly earned slot** (`lib/cast-date.ts`): last week's most active viewer books one date with a cast member they
+  pick, on a request marked show-paid (`lib/cast-date-request.ts`).
+- **Life dates** (`lib/character-life.ts`): once a week the house takes each owned character out with a cast member it
+  hasn't dated lately, on the same show-paid mark, and the character texts its person about it afterwards. Capped by
+  `LIFE_DATES_PER_DAY` (default 30); a private character that isn't open to dates is never taken out.
+  The rules are in [companions.md](companions.md), "Your character lives without you".
+
 ## Reviews and popularity
 
 [`lib/reviews.ts`](../lib/reviews.ts). One review per reviewer per character: 1–5 stars and an optional line of up
