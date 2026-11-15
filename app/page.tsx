@@ -50,6 +50,9 @@ import { situationBoard } from "@/lib/situations";
 import { revealBoard } from "@/lib/weekly-reveal";
 import { getProfileName } from "@/lib/people";
 import { forViewer, shared } from "@/lib/shared-cache";
+import { clipCaption, homeExpressBoxOn, homeHeroClipOn, latestHomeClip } from "@/lib/home-clip";
+import HomeClip from "./HomeClip";
+import HomeExpressBox from "./HomeExpressBox";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = pageMetadata({ title: SITE_TITLE, description: SITE_DESCRIPTION, path: "/" });
@@ -119,7 +122,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
   );
   // Their character's phone (lib/character-phone.ts): one read next to "Since you were here", no round trip of its own.
   const phoneP = myCharactersP.then((mine) => (db && viewerId && mine.length ? characterPhone(db, viewerId, mine).catch(() => null) : null));
-  const [owned, tokens, myCharacters, [since, unread], phone, profileName, sharer, showNews, [aired, standout, sky, situation, dares, record, airing, rooms, onSeason, reveal, seasonDef, ceremony, house, story]] = await Promise.all([
+  const [owned, tokens, myCharacters, [since, unread], phone, profileName, sharer, showNews, [aired, standout, sky, situation, dares, record, airing, rooms, onSeason, reveal, seasonDef, ceremony, house, story, clipRow]] = await Promise.all([
     db && viewerId ? ownedSkus(db, viewerId) : Promise.resolve<string[]>([]),
     db && viewerId ? episodeAllowance(db, viewerId) : freshAllowance(),
     myCharactersP,
@@ -160,6 +163,9 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
       shared("house:latest", () => latestHouseScene(conn)).catch(() => null),
       // Today's story from the producer (lib/producer.ts): the band's "Tonight:" line. The same for everyone; null most days.
       shared("story:today", () => storyToday(conn)).catch(() => null),
+      // The day's clip for a stranger's hero (lib/home-clip.ts): the same for everyone, so from the shared copy; an owner's
+      // home (their character's phone) doesn't show it and doesn't read it.
+      myCharactersP.then((mine) => (mine.length || !homeHeroClipOn() ? null : shared("home:clip", () => latestHomeClip(conn)).catch(() => null))),
     ]),
   ]);
 
@@ -183,6 +189,10 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
   const creator = myCharacters.length > 0;
   // Open casting: a stranger's hero says who their character's first date is with; an owner's hero is unchanged.
   const casting = creator ? null : await castingP;
+  // A stranger's hero plays the day's clip when there is a fresh one (lib/home-clip.ts); otherwise it is what it was.
+  const clip = creator ? null : clipRow;
+  // The sentence box under the headline, for a visitor with no character, while one-sentence create is on.
+  const expressBox = !creator && homeExpressBoxOn();
   // The band is there for a first visit too, on a quiet night as well (the design system's visitor home, all-screens
   // board, 2026-11-11): what just aired, what's open for predictions, and what's live, as proof the show is on.
   const tonight = <TonightBand rooms={rooms} airing={airing} situation={situation} reveal={reveal} ceremony={ceremony} latest={airedEpisodes[0] ?? null} house={house} now={Date.now()} insider={creator} story={story} />;
@@ -245,8 +255,10 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
               : "They go on blind dates nobody steers, text you how it went, and take your advice into the next one. "}
             Make one in a minute — free, no sign-up.
           </p>
+          {expressBox && <HomeExpressBox />}
           <p className="cta-row" id="hero-cta">
-            <Link className="button" href="/create">
+            {/* With the box above, the box's own button is the main one and this is the long way in. */}
+            <Link className={expressBox ? "button-ghost" : "button"} href="/create">
               Make your character
             </Link>
             <Link className="button-ghost" href="/watch">
@@ -277,7 +289,12 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
         {/* The show itself where a made-up box score used to be (2026-11-07 audit, item 2): a few lines of a real aired
             date (its best moment, 2026-11-11), typing in, and the way to watch how it ends. The old matchup only when
             nothing has aired. */}
-        {featured ? (
+        {clip ? (
+          // The show itself, moving (2026-11-15): the day's clip in a phone. The typed-in date moves under the hero.
+          <div className="hero-art has-clip">
+            <HomeClip loopSrc={clip.loop_src} posterSrc={clip.poster_src} width={clip.width} height={clip.height} watchHref={clip.watch_href} caption={clipCaption(clip)} />
+          </div>
+        ) : featured ? (
           <div className="hero-art has-date">
             {/* A first visit calls the ending on the card (app/FirstRunCall.tsx); a creator's hero just plays it. */}
             <DateExcerpt date={featured} call={!creator} />
@@ -296,6 +313,12 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
           )
         )}
       </section>
+      {/* With the clip in the hero, the real date a first visit calls the ending of (app/FirstRunCall.tsx) follows it. */}
+      {clip && featured && (
+        <section className="home-date" aria-label="A date from the show">
+          <DateExcerpt date={featured} call={!creator} wide />
+        </section>
+      )}
       {/* Two doors in thumb reach, so both labels are short: measured one line each at 360px and up (2026-11-14). */}
       {myCharacters.length === 0 && (
         <PhoneActionBar watch="hero-cta">
