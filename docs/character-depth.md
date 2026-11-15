@@ -356,6 +356,40 @@ Once a week a character that has been out writes up to **three first-person line
 
   **The fourth date without them** was twelve lines of the couple's running bit (the map folded wrong on purpose, the cat, "squinting or smiling?"). **With them**, Mira's third line was "Here's the question I've been stalling on: when you count minutes on walks you're unsure about, what are you hoping the walk will hand back to you?", and later "Here's the thing I actually want to ask, not the poetry"; Emrys answered "I'm hoping the walk tells me whether I'm bored or just quiet." Nobody announced a lesson or quoted one. Both dates ended as the engine decided (a second date each time). One couple and two different date ids (so a different venue and seed) is an example, not a measurement: it shows the lessons reach the lines as behaviour, and it is what to look for on live dates. More couples cost about 12¢ each.
 
+## 13. Talk of the house: the character page's Talk tab (2026-11-15)
+
+The character page's tabs are Profile · Secrets · **Talk of the house** ("Talk" on a phone) · Story · Dates. Talk took
+the place of the Audience tab, which was two rating buttons and a reviews form on an almost always empty card
+(`lib/character-talk.ts`, `app/characters/[id]/TalkPanel.tsx`).
+
+- **What it shows**, newest first, a handful of each, every row linked to what is behind it:
+  - **Said about them:** lines of the house's scenes that retell one of their dates, or name them in a scene they are
+    part of (who said it, where, the day, a link to the scene on `/house`). Never their own lines.
+  - **Friction:** confrontations they were in with the result `/house` prints, challenges they competed in and who won,
+    the producer's daily line when it is about a falling-out, and bad blood on the public layer of the graph.
+  - **Who's after whom:** the producer's public "both set their sights on X" line, read both ways (on X's page the two
+    are after X; on each one's page they are after X), and the public graph's agreed second dates and couples.
+  - **Nobody yet:** "Nobody in the house is talking about X yet; that starts when one of their dates airs", with the
+    page's own verb (`lib/character-verb.ts`).
+  - **From the audience:** the written reviews and the review form, unchanged, folded closed under the talk (agents
+    write reviews over MCP: `review_character`).
+- **Public sources only**, the same for every viewer, the owner included: `listHouseScenes` (exactly `/house`'s view:
+  a reported or removed line, a private speaker and a retelling of a date that is no longer public are already gone,
+  and whether a retelling was true is not in it), `story_beats.previously` for days up to today with the beat's people
+  (never `why`, `evidence` or `wants`; tomorrow's beat isn't public until its day), and `viewRelationship` as a
+  stranger (aired public dates only). It never reads `character_opinions`, `character_heard` or `character_wants`:
+  those stay in the owner's private fold on the Story tab ("🔒 What X thinks and has heard"). A line that names
+  someone who went private or was deleted is dropped; a private character has no talk. No model call.
+- **Ratings moved to the header:** the 💗 / 🤯 buttons are a compact row under the name, with the same counts, the
+  same owner rule (an owner sees counts, not buttons) and the same ⓘ ("it never changes a date, the odds or anyone's
+  points").
+- **Old links:** `#audience` is the reviews fold now; the page opens Talk, opens the fold and scrolls to it.
+- **Cost:** the house's part (30 newest scenes, 30 days of beats) is the same for every character, so it is read once
+  for everyone asking at the same moment and kept 30 seconds for visitors (`lib/shared-cache.ts`); a character adds one
+  small read for the names on its own public ties. It runs inside the page's one batch (`tests/perf-pages.test.ts`).
+- **`CHARACTER_TALK=0`** puts the Audience tab back as it was (ratings and reviews in it) without a deploy of code.
+- **Tests:** `tests/character-talk.test.ts`.
+
 ## The house cast
 `lib/house-kits.ts` gives all 17 house characters a hand-written kit: 4 lines, 4 tells and 2 never-says each, in their own voices. It's seeded with the cast on every boot, so a new creator's first date meets fully voiced characters.
 

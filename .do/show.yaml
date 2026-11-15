@@ -167,6 +167,11 @@ services:
       # - key: HOUSE_SCENES
       #   value: "0"
       #   scope: RUN_AND_BUILD_TIME
+      # Talk of the house on a character's page (lib/character-talk.ts; docs/character-depth.md, section 13): on by
+      # default. "0" puts the Audience tab back without a deploy.
+      # - key: CHARACTER_TALK
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
       # Confrontations and the weekly challenge (lib/house-conflict.ts; docs/seasons.md "Confrontations and
       # challenges"): on by default. "0" stops new ones without a deploy.
       # - key: CONFRONTATIONS

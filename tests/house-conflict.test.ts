@@ -257,7 +257,7 @@ describe("the confrontation (ensureConfrontation)", () => {
     expect(view.lines).toHaveLength(6);
     expect(new Set(view.lines.map((l) => l.id))).toEqual(new Set([DEX, MARISOL]));
     if (!("outcome" in made)) throw new Error("no confrontation");
-    expect(view.result).toEqual({ kind: "confrontation", a: first(DEX), b: first(MARISOL), outcome: made.outcome, label: OUTCOME_LABELS[made.outcome] });
+    expect(view.result).toEqual({ kind: "confrontation", a: first(DEX), b: first(MARISOL), a_id: DEX, b_id: MARISOL, outcome: made.outcome, label: OUTCOME_LABELS[made.outcome] });
     expect(houseLine(view)).toBe(`${first(DEX)} and ${first(MARISOL)} had it out ${view.place.at}: ${OUTCOME_LABELS[made.outcome].charAt(0).toLowerCase()}${OUTCOME_LABELS[made.outcome].slice(1)}`);
   });
 

@@ -2,13 +2,15 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-export type PageTab = { id: string; label: string };
+/** `short`: the label on a phone, where the row has no room for the long one ("Talk of the house" / "Talk"). */
+export type PageTab = { id: string; label: string; short?: string };
 
 /**
  * A character page in tabs (the design system's character page, all-screens board, 2026-11-11): one part at a time
  * instead of five phone screens of cards. Each tab shows the `[data-panel="<id>"]` block of the page and hides the
  * others; the first is open from the server, the rest arrive `hidden`. A link to anything inside a panel (#secrets,
- * #date-record, #relationships) opens that panel, so old links still land.
+ * #date-record, #relationships) opens that panel, so old links still land; when it points at a fold (#audience, the
+ * reviews under Talk since 2026-11-15) or into one, the fold opens too.
  */
 export default function PageTabs({ tabs }: { tabs: PageTab[] }) {
   const [active, setActive] = useState(tabs[0]?.id ?? "");
@@ -37,6 +39,8 @@ export default function PageTabs({ tabs }: { tabs: PageTab[] }) {
       (tabs.some((t) => t.id === target) ? target : null);
     if (panel) {
       show(panel);
+      // A link to a fold, or to something inside one, opens it: a closed <details> has nothing to scroll to.
+      for (let fold = el?.closest("details"); fold; fold = fold.parentElement?.closest("details")) fold.open = true;
       requestAnimationFrame(() => el?.scrollIntoView({ block: "start" }));
     }
   }, [show, tabs]);
@@ -60,7 +64,14 @@ export default function PageTabs({ tabs }: { tabs: PageTab[] }) {
           className={t.id === active ? "is-active" : undefined}
           onClick={() => show(t.id)}
         >
-          {t.label}
+          {t.short ? (
+            <>
+              <span className="tab-long">{t.label}</span>
+              <span className="tab-short">{t.short}</span>
+            </>
+          ) : (
+            t.label
+          )}
         </button>
       ))}
     </div>
