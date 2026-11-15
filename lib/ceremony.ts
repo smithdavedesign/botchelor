@@ -277,7 +277,11 @@ export async function runCeremony(db: Db, def: SeasonFormatDef, heldOn: string, 
     // The final rose: the better record over the season, the engine's verdicts and nothing else.
     finalRose = verdicts[verdicts.length - 1].suitor;
     const others = suitors.filter((s) => s !== finalRose);
-    lines.push(`The last Sunday of the season. ${leadName} holds one rose, and ${others.map(nameOf).join(" and ")} ${others.length === 1 ? "waits" : "wait"} with ${nameOf(finalRose)}.`);
+    lines.push(
+      others.length
+        ? `The last Sunday of the season. ${leadName} holds one rose, and ${others.map(nameOf).join(" and ")} ${others.length === 1 ? "waits" : "wait"} with ${nameOf(finalRose)}.`
+        : `The last Sunday of the season. ${leadName} holds one rose, and only ${nameOf(finalRose)} is left to take it.`,
+    );
     const w = verdicts[verdicts.length - 1];
     lines.push(`The final rose goes to ${nameOf(finalRose)}: ${w.dates} ${w.dates === 1 ? "date" : "dates"} with ${leadName} this season${w.best?.ending === "second_date" ? ", and a second date among them" : ""}.`);
     if (others.length) lines.push(`${others.map(nameOf).join(" and ")} ${others.length === 1 ? "leaves" : "leave"} as the final ${others.length === 1 ? "two" : `${others.length + 1}`}.`);
@@ -304,7 +308,7 @@ export async function runCeremony(db: Db, def: SeasonFormatDef, heldOn: string, 
     // Nobody voted with four or more left: the lead's dates stand in for the audience too, so the week still moves.
     if (!goneByVote && twoGo) {
       goneByVote = rest[1].suitor;
-      lines.push(`And with no vote to lean on, the dates sent ${nameOf(goneByVote)} home too: ${whyHome(nameOf(goneByVote), rest[1]).replace(/^[^ ]+ /, "")}`);
+      lines.push(`And with no vote to lean on, the dates sent ${nameOf(goneByVote)} home too. ${whyHome(nameOf(goneByVote), rest[1])}`);
     }
     const remaining = suitors.filter((s) => s !== goneByVote && s !== goneByLead);
     lines.push(remaining.length === 2 ? `Two remain: ${remaining.map(nameOf).join(" and ")}. The final rose on the last Sunday.` : `Still in: ${remaining.map(nameOf).join(", ")}.`);

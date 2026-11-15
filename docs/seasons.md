@@ -171,6 +171,9 @@ impressions, the hard question, hometowns (meet the parents), the final rose.
   **"Season N suitor"** badge (`suitor_badges`: `suitor`, `runner_up`, `final_rose`; `suitorBadgesOf`), and their
   owner hears (`ceremony_held`) plus, when they opted in to hear from the character (`companion_threads.muted_proactive =
   false`), the character's own text ("The rose went elsewhere. I'm fine. Mostly."), once per ceremony.
+- Sunday's reveal (`lib/weekly-reveal.ts`) needs two house cast members for its ballot, so on a Botchelor season (one
+  house member, the lead) it opens no vote: the rose ceremony is Sunday's appointment instead. The Recoupling has no
+  night on this format (`recoupling.nights: "none"`).
 - The ceremony is a row (`ceremonies`: week, choices, eliminated_by_vote, eliminated_by_lead, final_rose, votes, total,
   remaining, lines) and templates, $0. `/watch` shows **The Botchelor card** (the lead, the suitors with their roses or
   how they left, the open vote, the countdown, the last ceremony in the show's words); the tonight band points at the
