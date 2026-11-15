@@ -598,10 +598,10 @@
   height: 1.25rem;
   margin: 0;
 }
+/* One sentence, so two lines of room, never under the 64px a text box needs to be a comfortable target. */
 .import-history-body textarea {
-  width: 100%;
-  min-height: 0;
-  resize: vertical;
+  min-height: 4.5rem;
+  margin-top: 0;
 }
 .import-history-item.is-off .import-history-body {
   opacity: 0.55;

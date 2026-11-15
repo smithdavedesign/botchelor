@@ -37,7 +37,10 @@ somewhere to take the characters they made. David said yes (2026-11-14) to posti
 gather. The door is `/import?from=cai`: the three steps to copy a character (Name, Description, Greeting, and the
 Tagline and Definition when there is one), paste, and when everything a date needs is in, the builder opens on Review;
 tick the box, Create, and the character is on a speed date with the cast (six lines, about a minute). Afterwards the
-character texts its creator about how it went (the verdict card's "Hear from …").
+character texts its creator about how it went (the verdict card's "Hear from …"). Since 2026-11-15 the page has a
+second, optional box for what the two of them built (a chat log, a lorebook): it comes over as up to eight short lines
+the person picks, never as a transcript ([flows.md](flows.md), "Bringing a character from another app"), so a post may
+say "bring what they remember" but not "bring your chats".
 
 Ground rules for all three posts, learned from the entries above: post as yourself and say you made it; read the
 subreddit's rules on self-promotion first and ask a moderator where they're unclear (Reddit blocks rule lookups from
