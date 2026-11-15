@@ -121,7 +121,7 @@ ignore it.
   writes the day's. Commented in `.do/show.yaml`; the rules are in [seasons.md](seasons.md), "The house".
 - **`STORY_MAP`** (the show's app, not a secret; on unless it is `0`): this week's story map (`lib/story-map.ts`) on
   `/house` and at the top of `/graph`, and the circle component. Reads only; no model calls. `0` leaves both pages as
-  they were. The rules are in [relationship-graph.md](relationship-graph.md), "The story map".
+  they were. Commented in `.do/show.yaml`; the rules are in [relationship-graph.md](relationship-graph.md), "The story map".
 - **`CONFRONTATIONS`, `CHALLENGES`** (the show's app, not secrets; each on unless it is `0`): the two other kinds of
   house scene (`lib/house-conflict.ts`). A confrontation is staged when the story state holds a tension hot enough
   between two in the house (two a week at most); the challenge is held on Wednesdays, and its winner gets the next

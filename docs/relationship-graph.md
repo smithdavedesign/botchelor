@@ -123,10 +123,11 @@ the ledger, the kind table and "what the network doesn't know yet" are folded in
 | --- | --- | --- |
 | `date_now`, `date_next` | a room the watch lobby lists (`watch_parties` of a public date; an open room counts for 2 days), or a house challenge's prize until its day | the room, the scene |
 | `rivals` | the producer's public line for a `rivals` beat ("Nell and Sable both set their sights on Juniper") | `/watch` |
-| `feuding` | a `knows_said` or `mutual_distrust` beat's public line; a confrontation on `/house` that didn't clear the air; public bad blood (`relationships.public_stage`) after a date this week | `/house`, the scene, the couple |
+| `feuding` | a `knows_said` or `mutual_distrust` beat's public line; a confrontation on `/house` that didn't clear the air | `/house`, the scene |
 | `cleared` | a confrontation on `/house` that cleared the air | the scene |
 | `together` | `public_stage` dating or going steady, with a public date this week | the couple |
 | `second_date` | `public_stage` sparks (their last public date ended on a second date), this week | the couple |
+| `bad_blood` | `public_stage` bad blood after a public date this week (ranked low: most weeks hold a dozen with one-date strangers) | the couple |
 | `stories` | an `opposing_claims` beat's public line, the two named alphabetically (the stored order lists whoever holds the true story first) | `/house` |
 | `talked` | a line `/house` shows that retold an aired date: the speaker and each of the date's two | the scene |
 
@@ -144,9 +145,9 @@ read that one copy.
 
 **Drawing** (`app/StoryMap.tsx`): server-rendered SVG with fixed places (`layout`: the lead in the middle, the cast on
 a ring, up to `MAP_PEOPLE_MAX` people in all, an outsider in the free outer place nearest their tie), portraits in
-circles, a line per pair in its kind's token colour and dash with its words on it, every line and face a link. No
+circles, a line per pair in its kind's token colour and dash (with its words on it between two of the cast), every line and face a link. No
 client JavaScript. In the page the same ties come first as a list of sentences ("Nell and Sable: rivals for Juniper,
-since Sunday"): that is what a screen reader gets (the SVG is `aria-hidden`, its links out of the tab order) and what
+since Sunday"), the first eight in view and the rest folded: that is what a screen reader gets (the SVG is `aria-hidden`, its links out of the tab order) and what
 a phone shows first; from 700 px the drawing is lifted above the list. A week with no ties says so.
 
 **The circle** (`app/Circle.tsx`, `loadCircle(db, characterId)`): one character in the middle and up to six people

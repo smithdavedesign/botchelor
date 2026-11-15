@@ -1611,6 +1611,8 @@ main:has(> .couple-page) {
   stroke-width: 5;
   stroke-linejoin: round;
   paint-order: stroke;
+  /* Over a face's edge on a short line: the face under it still takes the click. */
+  pointer-events: none;
 }
 .story-tie:hover .story-tie-line,
 .story-face:hover .story-face-ring {
@@ -1651,6 +1653,16 @@ main:has(> .couple-page) {
 }
 .story-tie-second_date .story-tie-line {
   stroke-dasharray: 5 6;
+}
+.story-tie-bad_blood {
+  --tie: var(--bad);
+}
+.story-tie-bad_blood .story-tie-line {
+  stroke-width: 2;
+  stroke-dasharray: 3 6;
+}
+.story-map-rest > .story-ties {
+  margin-top: var(--space-2);
 }
 .story-tie-stories {
   --tie: var(--field);

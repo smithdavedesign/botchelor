@@ -37,7 +37,7 @@ export default function Circle({ circle, title, id = "circle" }: { circle: Circl
         <TieList ties={around.map((a) => a.tie)} className="story-circle-list" />
         <svg className="story-circle-svg" viewBox={`0 0 ${SIZE} ${SIZE}`} role="presentation" aria-hidden="true" focusable="false">
           {spots.map((s) => (
-            <TieLine key={s.tie.id} tie={s.tie} from={mid} to={s} labelled={false} />
+            <TieLine key={s.tie.id} tie={s.tie} from={mid} to={s} />
           ))}
           {spots.map((s) => (
             <Face key={s.person.id} p={s.person} x={s.x} y={s.y} r={s.r} scope={id} />

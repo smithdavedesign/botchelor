@@ -152,10 +152,10 @@ describe("the story map's kinds and words", () => {
       // A state keeps the day it began: the beat ran on the 9th and again today.
       "rivals: Nell and Sable: rivals for Juniper, since Monday",
       "feuding: Juniper found out what Barnaby has been saying, since Thursday",
-      "feuding: Juniper and Wren: bad blood after their date, since Wednesday",
       "cleared: Nell and Sable had it out and cleared the air, today",
       "together: Nell and Sable: dating, last date today",
       "second_date: Sable and Wren: agreed to a second date, yesterday",
+      "bad_blood: Juniper and Wren: bad blood after their date, since Wednesday",
     ]);
     expect(map.ties[0]).toMatchObject({ label: "rivals for Juniper", about: "house-juniper", href: "/watch" });
     expect(map.ties.find((t) => t.kind === "together")?.href).toBe("/couples/house-nell/house-sable");
@@ -206,7 +206,7 @@ describe("the drawing, the list and the circle", () => {
     expect(view.people).toHaveLength(MAP_PEOPLE_MAX);
     expect(view.people.slice(0, 4).map((p) => p.id)).toEqual(CAST);
     expect(view.left_out).toBe(map.ties.length - view.ties.length);
-    expect(view.left_out).toBe(6);
+    expect(view.left_out).toBe(8);
     // Nell and Sable are rivals and dating: one line (the rivalry), the other tie still in the list.
     const pair = view.lines.filter((t) => [t.a, t.b].sort().join() === "house-nell,house-sable");
     expect(pair).toHaveLength(1);
@@ -238,7 +238,12 @@ describe("the drawing, the list and the circle", () => {
     expect(html).toContain('class="story-tie story-tie-rivals"');
     expect(html).toContain('class="story-face is-lead is-cast"');
     expect(html).toContain("this season&#x27;s Botchelor");
-    expect(html).toContain("And 6 more ties with people outside the cast this week.");
+    expect(html).toContain("And 8 more ties with people outside the cast this week.");
+    // Eight sentences in view, the rest folded under them; only a line between two of the cast carries its words.
+    expect(html).not.toContain("story-map-rest");
+    const pairs = CAST.flatMap((x, i) => CAST.slice(i + 1).map((y) => ({ a: x, b: y, stage: "dating", dates: 2, second_dates: 2, last_at: "2026-11-14T10:00:00Z" })));
+    expect(renderToStaticMarkup(createElement(StoryMapView, { map: shapeStoryMap(facts({ beats: [rivalsBeat], scenes: [gossip()], pairs })) }))).toContain("<summary>1 more this week</summary>");
+    expect(html.match(/class="story-tie-label"/g)).toHaveLength(1);
     expect(html).not.toContain("<script");
     // The drawing repeats the list for the eye: hidden from a screen reader, its links out of the tab order.
     expect(html).toMatch(/<svg class="story-map-svg"[^>]*aria-hidden="true"/);

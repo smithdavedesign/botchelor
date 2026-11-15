@@ -50,15 +50,17 @@ export const OPEN_ROOM_DAYS = 2;
 /** The most ties a map keeps (the newest and strongest first). */
 export const TIES_MAX = 60;
 /** The most people the drawing shows: the cast, then whoever the strongest ties bring. */
-export const MAP_PEOPLE_MAX = 12;
+export const MAP_PEOPLE_MAX = 10;
 export const CIRCLE_MAX = 6;
 const DELETED_OWNER = "deleted";
 
 /**
  * What a tie is. `date_now` and `date_next`: a public booking. `rivals`, `feuding`, `stories`: the producer's public
- * line, or (feuding) a public confrontation or public bad blood. `cleared`: they had it out and it ended well.
+ * line, or (feuding) a public confrontation. `cleared`: they had it out and it ended well. `bad_blood`: a public date
+ * this week left the pair on bad terms (the public stage); it ranks under the house's own stories, since most weeks
+ * hold a dozen of them with one-date strangers.
  */
-export const TIE_KINDS = ["date_now", "rivals", "feuding", "date_next", "cleared", "together", "second_date", "stories", "talked"] as const;
+export const TIE_KINDS = ["date_now", "rivals", "feuding", "date_next", "cleared", "together", "second_date", "bad_blood", "stories", "talked"] as const;
 export type TieKind = (typeof TIE_KINDS)[number];
 /** One word or two for the key under the map. */
 export const TIE_KIND_LABELS: Record<TieKind, string> = {
@@ -69,6 +71,7 @@ export const TIE_KIND_LABELS: Record<TieKind, string> = {
   cleared: "Cleared the air",
   together: "Together",
   second_date: "Second date agreed",
+  bad_blood: "Bad blood",
   stories: "Two stories",
   talked: "Talked about",
 };
@@ -305,7 +308,7 @@ export function shapeStoryMap(f: StoryFacts): StoryMap {
     } else if (p.stage === "sparks") {
       add("second_date", x, y, null, at, href, { label: "second date agreed", text: `${both}: agreed to a second date`, when: onDay(at, f.now) });
     } else if (p.stage === "bad_blood") {
-      add("feuding", x, y, null, at, href, { label: "bad blood", text: `${both}: bad blood after their date`, when: since(at, f.now) });
+      add("bad_blood", x, y, null, at, href, { label: "bad blood", text: `${both}: bad blood after their date`, when: since(at, f.now) });
     }
   }
 

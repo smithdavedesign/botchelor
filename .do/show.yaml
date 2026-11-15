@@ -167,6 +167,11 @@ services:
       # - key: HOUSE_SCENES
       #   value: "0"
       #   scope: RUN_AND_BUILD_TIME
+      # This week's story map on /house and /graph, and the circle (lib/story-map.ts; docs/relationship-graph.md "The
+      # story map"): on by default, reads only. "0" leaves both pages as they were, without a deploy of code.
+      # - key: STORY_MAP
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
       # Confrontations and the weekly challenge (lib/house-conflict.ts; docs/seasons.md "Confrontations and
       # challenges"): on by default. "0" stops new ones without a deploy.
       # - key: CONFRONTATIONS

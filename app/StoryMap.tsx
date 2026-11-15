@@ -20,6 +20,8 @@ const CY = H / 2 - 6;
 const R_LEAD = 42;
 const R_CAST = 33;
 const R_OTHER = 23;
+/** How many ties the list shows before the rest fold. */
+export const LIST_FIRST = 8;
 
 export type Placed = { person: StoryPerson; x: number; y: number; r: number };
 
@@ -50,14 +52,25 @@ export function layout(people: readonly StoryPerson[], ties: readonly Pick<Story
   });
   const slots = Math.max(others.length, 8);
   const free = Array.from({ length: slots }, (_, i) => -90 + 180 / slots + (360 / slots) * i);
-  others.forEach((p, i) => {
+  const ringAngles = [...angle.values()];
+  const wanted = (p: StoryPerson): number | null => {
     const tie = ties.find((t) => (t.a === p.id && angle.has(t.b)) || (t.b === p.id && angle.has(t.a)));
-    const want = tie ? angle.get(tie.a === p.id ? tie.b : tie.a)! : -90 + (360 / Math.max(others.length, 1)) * i;
+    return tie ? angle.get(tie.a === p.id ? tie.b : tie.a)! : null;
+  };
+  const take = (score: (deg: number) => number): number => {
     let best = 0;
-    for (let s = 1; s < free.length; s++) if (turn(free[s], want) < turn(free[best], want)) best = s;
-    const [deg] = free.splice(best, 1);
-    out.push({ person: p, ...at(deg, 312, 218), r: R_OTHER });
-  });
+    for (let s = 1; s < free.length; s++) if (score(free[s]) < score(free[best])) best = s;
+    return free.splice(best, 1)[0];
+  };
+  const spot = new Map<string, number>();
+  // Whoever is tied to someone on the ring stands just outside them; the rest (tied to the lead in the middle) take
+  // the places between the ring's faces, so their lines to the middle don't run through one.
+  for (const p of others) {
+    const want = wanted(p);
+    if (want !== null) spot.set(p.id, take((deg) => turn(deg, want)));
+  }
+  for (const p of others) if (!spot.has(p.id)) spot.set(p.id, take((deg) => -Math.min(360, ...ringAngles.map((a) => turn(deg, a)))));
+  for (const p of others) out.push({ person: p, ...at(spot.get(p.id)!, 312, 218), r: R_OTHER });
   return out;
 }
 
@@ -98,29 +111,40 @@ export function Face({ p, x, y, r, scope, named = true }: { p: StoryPerson; x: n
   );
 }
 
-/** A tie's line between two placed faces, clipped to their edges, with its words on it (not for "talked about"). */
-export function TieLine({ tie, from, to, labelled = true }: { tie: StoryTie; from: Placed | { x: number; y: number; r: number }; to: Placed | { x: number; y: number; r: number }; labelled?: boolean }) {
+type Spot = { x: number; y: number; r: number };
+/** A line's two ends, clipped to the faces' edges. */
+const ends = (from: Spot, to: Spot) => {
   const dx = to.x - from.x;
   const dy = to.y - from.y;
   const len = Math.hypot(dx, dy) || 1;
-  const x1 = from.x + (dx / len) * (from.r + 4);
-  const y1 = from.y + (dy / len) * (from.r + 4);
-  const x2 = to.x - (dx / len) * (to.r + 4);
-  const y2 = to.y - (dy / len) * (to.r + 4);
-  // Off the middle, so two lines that cross there keep their words apart.
-  const lx = x1 + (x2 - x1) * 0.4;
-  const ly = y1 + (y2 - y1) * 0.4;
+  return { x1: from.x + (dx / len) * (from.r + 4), y1: from.y + (dy / len) * (from.r + 4), x2: to.x - (dx / len) * (to.r + 4), y2: to.y - (dy / len) * (to.r + 4), len };
+};
+
+/** A tie's line between two placed faces, a link to what made it. */
+export function TieLine({ tie, from, to }: { tie: StoryTie; from: Spot; to: Spot }) {
+  const { x1, y1, x2, y2 } = ends(from, to);
   return (
     <a href={tie.href} className={`story-tie story-tie-${tie.kind}`} tabIndex={-1}>
       <title>{`${tie.text}, ${tie.when}`}</title>
       <line x1={x1} y1={y1} x2={x2} y2={y2} className="story-tie-hit" />
       <line x1={x1} y1={y1} x2={x2} y2={y2} className="story-tie-line" />
-      {labelled && tie.kind !== "talked" && (
-        <text x={lx} y={ly} className="story-tie-label" textAnchor="middle" dominantBaseline="central">
-          {tie.label}
-        </text>
-      )}
     </a>
+  );
+}
+
+/**
+ * A tie's words on its line (not for "talked about"). Drawn after the faces, so a short line's words lie over the
+ * faces' edges instead of under them; a long line carries them a third of the way along, so two lines that cross in
+ * the middle keep their words apart.
+ */
+export function TieLabel({ tie, from, to }: { tie: StoryTie; from: Spot; to: Spot }) {
+  if (tie.kind === "talked") return null;
+  const { x1, y1, x2, y2, len } = ends(from, to);
+  const t = len < 220 ? 0.5 : 0.32;
+  return (
+    <text x={Math.round(x1 + (x2 - x1) * t)} y={Math.round(y1 + (y2 - y1) * t)} className="story-tie-label" textAnchor="middle" dominantBaseline="central">
+      {tie.label}
+    </text>
   );
 }
 
@@ -197,7 +221,16 @@ export default function StoryMap({ map, title = "This week in the house", lede =
         <div className="story-map-body">
           {/* The list first in the page: what a screen reader and a phone get. The drawing repeats it (aria-hidden). */}
           <div className="story-map-list">
-            <TieList ties={view.ties} />
+            <TieList ties={view.ties.slice(0, LIST_FIRST)} />
+            {/* The rest fold: seventeen sentences before the drawing was a long way down a phone. */}
+            {view.ties.length > LIST_FIRST && (
+              <details className="ux-fold story-map-rest">
+                <summary>
+                  {view.ties.length - LIST_FIRST} more this week
+                </summary>
+                <TieList ties={view.ties.slice(LIST_FIRST)} />
+              </details>
+            )}
             {view.left_out > 0 && (
               <p className="muted small story-map-more">
                 And {view.left_out} more {view.left_out === 1 ? "tie" : "ties"} with people outside the cast this week.
@@ -209,12 +242,17 @@ export default function StoryMap({ map, title = "This week in the house", lede =
               {view.lines.map((t) => {
                 const a = where.get(t.a);
                 const b = where.get(t.b);
-                // The words read from the earlier-placed face, so the same pair always carries them at the same end.
                 return a && b ? <TieLine key={t.id} tie={t} from={a} to={b} /> : null;
               })}
               {placed.map((p) => (
                 <Face key={p.person.id} p={p.person} x={p.x} y={p.y} r={p.r} scope={id} />
               ))}
+              {/* Words only between two of the cast: a line to someone outside is told by its colour, the key and the list. */}
+              {view.lines.map((t) => {
+                const a = where.get(t.a);
+                const b = where.get(t.b);
+                return a && b && a.person.cast && b.person.cast ? <TieLabel key={t.id} tie={t} from={a} to={b} /> : null;
+              })}
             </svg>
             {kinds.length > 0 && (
               <figcaption className="story-key">
