@@ -88,10 +88,36 @@ services:
       - key: COMPANION_OPEN
         value: "1"
         scope: RUN_AND_BUILD_TIME
+      # Step into the date is open to everyone, guests included (docs/step-into-the-date.md "The switches", 2026-11-15).
+      # Uncomment one to close it without a deploy of code: STEP_IN_OPEN "0" = admins only again; STEP_IN_GUESTS "0" =
+      # a visitor signs in first; STEP_IN_GUEST_DAILY_MAX = guest dates a day across the show (default 300, "0" = none).
+      # - key: STEP_IN_OPEN
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
+      # - key: STEP_IN_GUESTS
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
+      # - key: STEP_IN_GUEST_DAILY_MAX
+      #   value: "300"
+      #   scope: RUN_AND_BUILD_TIME
       # A newcomer's instant first date plays as a speed date by default (lib/first-date.ts firstDateFormat; docs/hosting.md).
       # Uncomment to pick another free format without a deploy; a premium or unknown id falls back to speed_date.
       # - key: FIRST_DATE_FORMAT
       #   value: "speed_date"
+      #   scope: RUN_AND_BUILD_TIME
+      # The fast first date (lib/fast-date.ts; docs/date-quality.md "Round: the fast first date"). Speed dates start
+      # fast by default: no director call before line 1, the recap/texts/reflections written side by side.
+      # "0" puts every date back on the old order; "all" starts every format fast.
+      # - key: FAST_FIRST_LINE
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
+      # A speed date's actor calls on another model id at the show's paid endpoint, or another thinking level
+      # (minimal|low|medium|high). Both unset by default: the show's model as it is (measured: leave them unset).
+      # - key: SPEED_DATE_MODEL
+      #   value: ""
+      #   scope: RUN_AND_BUILD_TIME
+      # - key: SPEED_DATE_REASONING
+      #   value: "low"
       #   scope: RUN_AND_BUILD_TIME
       # One-sentence create (lib/express-create.ts; docs/flows.md): on by default. Uncomment with "0" to put the form
       # back as /create's first step without a deploy.
@@ -108,9 +134,27 @@ services:
       # - key: LIFE_DATES_PER_DAY
       #   value: "30"
       #   scope: RUN_AND_BUILD_TIME
+      # Open casting (lib/casting.ts; docs/seasons.md "Open casting"): a new character's first date goes to the
+      # Botchelor's lead, roses for walk-ons on Sunday. On by default and inert until a lead format is picked on
+      # /admin/season; "0" closes it without a deploy.
+      # - key: OPEN_CASTING
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
       # The model league (lib/model-league.ts; docs/hosting.md): /agents/league and /api/league/models, on by default.
       # "0" takes the page, its JSON and the links to it away without a deploy; models are still kept and dates stamped.
       # - key: MODEL_LEAGUE
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
+      # The character's phone (docs/hosting.md; all three on by default, "0" turns one off without a deploy of code):
+      # a photo from the date in the character's texts (lib/date-photo.ts), a cast character's opener written from its
+      # last aired date (lib/cast-opener.ts), and the owner's home opening on their character's phone (lib/character-phone.ts).
+      # - key: DATE_PHOTO_TEXTS
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
+      # - key: COMPANION_DATE_OPENER
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
+      # - key: HOME_PHONE
       #   value: "0"
       #   scope: RUN_AND_BUILD_TIME
       # The After Dark bridge (lib/adult/bridge.ts; docs/hosting.md): one line on the creator's verdict card after a

@@ -15,12 +15,15 @@ import { feedEpisodes } from "@/lib/feed-items";
 import { balancedColumns } from "@/lib/grid-balance";
 import { countNotifications } from "@/lib/notifications";
 import { sinceYouWereHere } from "@/lib/since";
+import { characterPhone } from "@/lib/character-phone";
+import CharacterPhone from "./CharacterPhone";
 import When from "@/app/When";
 import { cachedConstellation } from "@/lib/graph-cache";
 import { PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
 import { seasonCastCards } from "@/lib/season-cast";
 import { seasonFormatNow } from "@/lib/season-format-store";
 import { ceremonyBoard } from "@/lib/ceremony";
+import { castingHeroLine, castingLead } from "@/lib/casting";
 import { GENERATE_FROM_DAY } from "@/lib/season-gen";
 import { userIdFromCookieStore } from "@/lib/http";
 import { ownedSkus } from "@/lib/payments";
@@ -99,6 +102,9 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
   const viewerId = userIdFromCookieStore(await cookies());
   const db = viewerId ? await getDb() : null;
   const conn = db ?? (await getDb());
+  // Open casting (lib/casting.ts): who a new character's first date goes to while a Botchelor lead is taking walk-ons.
+  // Started here so it rides alongside the reads below; the same few seconds' shared copy for everyone.
+  const castingP = shared("casting-lead", () => castingLead(conn)).catch(() => null);
   // The viewer's own cards and the show's boards, all at once (2026-11-04 performance audit: one after another they were
   // eleven database round trips in a row, ~70 ms each from New York to the database in Oregon).
   const myCharactersP = db && viewerId ? listMyCharacters(db, viewerId) : Promise.resolve<Awaited<ReturnType<typeof listMyCharacters>>>([]);
@@ -109,11 +115,14 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
       ? Promise.all([sinceYouWereHere(db, viewerId, mine).catch(() => []), countNotifications(db, viewerId, { unread: true }).catch(() => 0)])
       : [[], 0],
   );
-  const [owned, tokens, myCharacters, [since, unread], profileName, sharer, showNews, [aired, standout, sky, situation, dares, record, airing, rooms, onSeason, reveal, seasonDef, ceremony]] = await Promise.all([
+  // Their character's phone (lib/character-phone.ts): one read next to "Since you were here", no round trip of its own.
+  const phoneP = myCharactersP.then((mine) => (db && viewerId && mine.length ? characterPhone(db, viewerId, mine).catch(() => null) : null));
+  const [owned, tokens, myCharacters, [since, unread], phone, profileName, sharer, showNews, [aired, standout, sky, situation, dares, record, airing, rooms, onSeason, reveal, seasonDef, ceremony]] = await Promise.all([
     db && viewerId ? ownedSkus(db, viewerId) : Promise.resolve<string[]>([]),
     db && viewerId ? episodeAllowance(db, viewerId) : freshAllowance(),
     myCharactersP,
     sinceP,
+    phoneP,
     // Your calls line offers "Put my name on the board" to someone with no display name yet (app/BoardName.tsx).
     profileNameP,
     // Their shared calls link carries that name when it's theirs alone (lib/share-record-name.ts).
@@ -166,6 +175,8 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
   // Next month's newcomers are written from the 20th (lib/season-gen.ts): from then, the cast strip points at them.
   const candidatesOut = new Date().getUTCDate() >= GENERATE_FROM_DAY;
   const creator = myCharacters.length > 0;
+  // Open casting: a stranger's hero says who their character's first date is with; an owner's hero is unchanged.
+  const casting = creator ? null : await castingP;
   // The band is there for a first visit too, on a quiet night as well (the design system's visitor home, all-screens
   // board, 2026-11-11): what just aired, what's open for predictions, and what's live, as proof the show is on.
   const tonight = <TonightBand rooms={rooms} airing={airing} situation={situation} reveal={reveal} ceremony={ceremony} latest={airedEpisodes[0] ?? null} now={Date.now()} insider={creator} />;
@@ -174,6 +185,8 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
     <div className="home page-wide">
       {/* A creator's show is on before anything else (docs/show-style.md: lead with tonight); a first visit meets the
           pitch first and the band right under it. */}
+      {/* An owner lands on their character (2026-11-15): its phone first, then the show (HOME_PHONE=0: the show first, as before). */}
+      {phone && <CharacterPhone phone={phone} />}
       {creator && tonight}
       {/* The first week of a month: last season's finale (lib/season-ref.ts). */}
       {creator && (
@@ -221,8 +234,10 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
           <p className="kicker">Your character&apos;s love life</p>
           <h1>Give your character a love life.</h1>
           <p className="lede">
-            They go on blind dates nobody steers, text you how it went, and take your advice into the next one. Make one in a minute — free, no
-            sign-up.
+            {casting
+              ? `${castingHeroLine(casting)} `
+              : "They go on blind dates nobody steers, text you how it went, and take your advice into the next one. "}
+            Make one in a minute — free, no sign-up.
           </p>
           <p className="cta-row" id="hero-cta">
             <Link className="button" href="/create">

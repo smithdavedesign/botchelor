@@ -38,8 +38,9 @@ export type PromptTurn = { role: "user" | "character"; text: string; action?: st
 export type PromptFact = { kind: string; text: string };
 
 /**
- * The character's last date, for the person who made it (lib/last-date.ts): who with, where, how it ended, and its own
- * reflection afterwards. Only in the "yours" branch; a private date is this owner's own to hear about.
+ * The character's last date (lib/last-date.ts): who with, where, how it ended, and its own reflection afterwards. For
+ * the person who made it, its last finished date (a private one is this owner's own to hear about); for anyone else
+ * who talks with a cast character, its last aired public date, the one its opener told them about (lib/cast-opener.ts).
  */
 export type PromptLastDate = { partner: string; venue: string | null; endingLabel: string; reflection: string | null };
 
@@ -93,8 +94,13 @@ export function companionMessages(args: {
    * nothing said here reaches a date (docs/companions.md, "One way only").
    */
   yours?: boolean;
-  /** With `yours`: the character's last date, to tell them about (lib/last-date.ts). */
+  /** The character's last date, to talk about (lib/last-date.ts): with `yours` any finished one, otherwise an aired public one. */
   lastDate?: PromptLastDate | null;
+  /**
+   * The alt texts of photos the character sent lately (snapshots from its dates, lib/date-photo.ts). They're not turns:
+   * the character is told it sent them, so a remark about the picture makes sense.
+   */
+  photos?: readonly string[];
   /**
    * With `lastDate`: the owner's standing note for the next date with that partner (a nudge, lib/between-dates.ts
    * activeNudge), left from the thread's "For next time" or the couple's page. The one thing from the person that does
@@ -105,8 +111,9 @@ export function companionMessages(args: {
   const { character: c, length, now = new Date(), scene = null } = args;
   const call = args.call === true && !scene;
   const yours = args.yours === true;
-  const lastDate = yours ? (args.lastDate ?? null) : null;
-  const nudge = lastDate ? (args.activeNudge?.trim() || null) : null;
+  const lastDate = args.lastDate ?? null;
+  const nudge = yours && lastDate ? (args.activeNudge?.trim() || null) : null;
+  const photos = (args.photos ?? []).filter(Boolean);
   const first = c.name.trim().split(/\s+/)[0] || c.name;
   const self = characterSelfView(c);
   const life = showLife(c);
@@ -165,13 +172,18 @@ export function companionMessages(args: {
     ...(lastDate
       ? [
           "",
-          "Your last date (they sent you on it; it's the thing they most want to hear about, from you):",
+          yours
+            ? "Your last date (they sent you on it; it's the thing they most want to hear about, from you):"
+            : "Your last date on the show (it aired, so anyone can watch it; it's your news, yours to talk about from the inside):",
           `- With ${lastDate.partner}${lastDate.venue ? `, at ${lastDate.venue}` : ""}. How it ended: ${lastDate.endingLabel}.`,
           ...(lastDate.reflection ? [`- What you thought afterwards, in your own words: "${lastDate.reflection}"`] : []),
           ...(nudge
             ? [`- Their note for your next date with ${lastDate.partner} (it goes with you into that date; you can say you've got it, in your own words, without reciting it): "${nudge}"`]
             : []),
         ]
+      : []),
+    ...(photos.length
+      ? ["", "Photos you sent them (snapshots from your dates; the show takes them, so you can't send one on request):", ...photos.map((p) => `- ${p}`)]
       : []),
     ...(life.length ? ["", "Your life on the show lately (yours to bring up, as yourself):", ...life.map((l) => `- ${l}`)] : []),
     ...(args.turns.some((t) => t.roleplay && t.roleplay !== scene?.roleplay?.title)

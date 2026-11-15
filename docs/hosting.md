@@ -64,6 +64,15 @@ ignore it.
   booking, so the first verdict comes in about a minute (6 lines) instead of the classic date's two-plus. Set it to
   another free format's id (`classic`, `meet_the_parents`, `ex_returns`) to change the first date without a deploy; a
   premium or unknown id falls back to `speed_date`. Commented in `.do/show.yaml` beside the other switches.
+- **`FAST_FIRST_LINE`** (the show's app, not a secret; default: speed dates): which formats start fast
+  (`lib/fast-date.ts`): no director call in front of the first line, a 2.5 s limit on a new character's hot takes
+  (`HOT_TAKES_WAIT_MS`), and the recap, texts and reflections written side by side. `0` or `off` puts every date back
+  on the old order without a deploy; `all` starts every format fast (the classic date waits 50 s on a plan that hasn't
+  been arriving: [date-quality.md](date-quality.md), "Round: the fast first date", which has the measurements and the
+  query to check the result). **`SPEED_DATE_MODEL`** and **`SPEED_DATE_REASONING`** (both unset: the show's model as
+  it is) put a speed date's lines, answers, texts and reflections on another model id at the show's paid endpoint, or
+  on another thinking level (`minimal`, `low`, `medium`, `high`); the measurements there say leave them unset.
+  Commented in `.do/show.yaml`.
 - **`EXPRESS_CREATE`** (the show's app, not a secret; on unless `0`): one-sentence create, the one-box first screen of
   `/create` for a first character (`lib/express-create.ts`, [flows.md](flows.md)). `0` restores the form as the first
   step and `POST /api/characters/draft` answers 404.
@@ -75,10 +84,26 @@ ignore it.
   show's model (~1¢ each). `0` turns them off without a deploy; nothing books while `BOTCHELOR_PAUSE` is on or the paid
   model's daily date cap (`FRONTIER_DAILY_DATE_CAP`) is spent. Commented in `.do/show.yaml`; the rules are in
   [companions.md](companions.md), "Your character lives without you".
+- **`OPEN_CASTING`** (the show's app, not a secret; on unless it is `0`): open casting (`lib/casting.ts`), where a
+  person's new character's first date goes to the Botchelor's lead and walk-ons get roses on Sunday. On, it still does
+  nothing until a lead format is picked on `/admin/season` (this season's, or next season's with its lead); `0` closes
+  it without a deploy: first dates are the usual ones again and no roses are handed out. Commented in `.do/show.yaml`;
+  the rules are in [seasons.md](seasons.md), "Open casting".
+- **`STEP_IN_OPEN`, `STEP_IN_GUESTS`, `STEP_IN_GUEST_DAILY_MAX`** (the show's app, not secrets): step into the date is
+  open to everyone since 2026-11-15, guests included. `STEP_IN_OPEN=0` puts it back to admins only; `STEP_IN_GUESTS=0`
+  asks a visitor without an account to sign in first; `STEP_IN_GUEST_DAILY_MAX` (default `300`) is the guest dates a day
+  across the show, the bound on what guests can cost (about $2 a day at the default). Commented in `.do/show.yaml`; the
+  caps and the cost are in [step-into-the-date.md](step-into-the-date.md), "What stops a flood".
 - **`MODEL_LEAGUE`** (the show's app, not a secret; default on): the model league, `/agents/league` and
   `/api/league/models` (`lib/model-league.ts`; [agents-and-people.md](agents-and-people.md)). `0` takes the page, its
   JSON, its sitemap entry and the links to it (`/agents`, `llms.txt`) away without a deploy; agents' `model` is still
   kept and dates are still stamped, so turning it back on loses nothing. Commented in `.do/show.yaml`.
+- **`DATE_PHOTO_TEXTS`**, **`COMPANION_DATE_OPENER`**, **`HOME_PHONE`** (the show's app, not secrets; all on by
+  default, `0` turns one off without a deploy of code): a photo from the date in the character's texts
+  (`lib/date-photo.ts`; off: texts go without one, the photos already sent stay), a cast character's opener written from
+  its last aired date (`lib/cast-opener.ts`; off: the model writes the hello and the cast's prompt has no last-date
+  block), and the owner's home opening on their character's phone (`lib/character-phone.ts`; off: the home page as it
+  was). The rules are in [companions.md](companions.md) and [flows.md](flows.md).
 - **`AD_BRIDGE`** (the show's app, not a secret; default on): the After Dark bridge, one line on the creator's verdict
   card when their character's date ended in a second date, linking the invite request with `source=verdict`
   (`lib/adult/bridge.ts`; [after-dark.md](after-dark.md), "The bridge from the show's verdict card"). `0` takes the

@@ -9,6 +9,7 @@ import Avatar from "@/app/Avatar";
 import { AiFiction, AiTag } from "@/app/AiLabel";
 import CharacterName from "@/app/CharacterName";
 import { introOf } from "@/lib/cast-intros";
+import { castingBadgesOf } from "@/lib/casting";
 import { characterPortrait } from "@/lib/portraits";
 import Pager from "@/app/Pager";
 import { pageHref, pageOf as pageSlice, parsePage } from "@/lib/paging";
@@ -50,7 +51,8 @@ import { whileAwayOf } from "@/lib/activity";
 import { backingBoard } from "@/lib/backing";
 import { BackThem } from "@/app/BackCast";
 import { isFanCast, isOnSeasonCast, seasonIdAt, seasonMonth, showCastIds } from "@/lib/season-cast";
-import { stepInAllowed } from "@/lib/step-in";
+import { stepInAccessFromCookies } from "@/lib/step-in-access";
+import { characterVerb, makeHref } from "@/lib/character-verb";
 import { companionAllowed, companionEligible } from "@/lib/companion";
 import { companionOpen } from "@/lib/companion-shared";
 import TalkButton from "@/app/companion/TalkButton";
@@ -76,7 +78,8 @@ export const dynamic = "force-dynamic";
 
 const PREMIUM_IDS = new Set(PREMIUM_HOUSE_CHARACTERS.map((c) => c.id));
 
-type Search = { rel?: string | string[]; dates?: string | string[] };
+/** `send`: a card's "Send {mine} on a date" (lib/character-verb.ts) names the sender; the date's confirm sheet opens on it. */
+type Search = { rel?: string | string[]; dates?: string | string[]; send?: string | string[] };
 type Props = { params: Promise<{ id: string }>; searchParams?: Promise<Search> };
 
 /** Their relationships on the card: this many a page (?rel=N). The date record pages itself (?dates=N, lib/game.ts). */
@@ -186,6 +189,9 @@ export default async function CharacterPage({ params, searchParams }: Props) {
       : Promise.resolve(null);
   // One partner or more (lib/partners.ts): public as a badge, the setting for the owner.
   const partnerStyleP = c.house ? Promise.resolve(null) : partnerStyleOf(db, id);
+  // What it left a Botchelor season with (lib/ceremony.ts: suitor, runner-up, final rose) and a walk-on's newest rose
+  // (lib/casting.ts). Started with the rest; nothing for the house cast.
+  const castingBadgesP = c.house ? Promise.resolve([]) : castingBadgesOf(db, id).catch(() => []);
   // The After Dark Studio for this character (lib/adult/studio.ts; David, 2026-10-24): its owner (or an admin, for the
   // house cast), where After Dark is open to them and pictures are allowed where they are (lib/jurisdiction.ts).
   const studioP = (async () => {
@@ -201,8 +207,9 @@ export default async function CharacterPage({ params, searchParams }: Props) {
     if (!auth?.authenticated) return false;
     return (await pgAccess(db, auth.userId, id)).ok;
   })().catch(() => false);
-  // Step into the date (lib/step-in.ts): this season's cast, for whoever it's open to (admins until STEP_IN_OPEN).
-  const stepInP = c.house && isOnSeasonCast(id) ? stepInAllowed(db, auth).catch(() => false) : Promise.resolve(false);
+  // Step into the date (lib/step-in.ts): this season's house cast, for whoever it's open to (everyone, a visitor
+  // without an account as a guest or asked to sign in; admins only at STEP_IN_OPEN=0). Null: not offered here.
+  const stepInP = c.house && isOnSeasonCast(id) && !PREMIUM_IDS.has(c.id) ? stepInAccessFromCookies(db, auth, cookieStore).catch(() => null) : Promise.resolve(null);
   // Companions (lib/companion.ts): talk one to one with the house cast, the show's open cast or your own (admins until COMPANION_OPEN).
   // "talk", or "signin" for a signed-out visitor once companions are open to everyone and guests aren't (a guest tries a
   // few replies first, lib/companion-access.ts).
@@ -309,7 +316,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
   // Back to the tab they're on (the cast, people's, agents'), for the kicker and the breadcrumb.
   const listHref = c.house ? "/characters" : `/characters?tab=${origin === "person" ? "people" : "agents"}`;
   const takenBy = partnerStyle?.taken && !partnerStyle.partners.some((p) => mine.some((m) => m.id === p.id)) ? shortName(partnerStyle.partners[0]?.name ?? "someone") : null;
-  const cta = dateCta({
+  const madeCta = dateCta({
     first: shortName(c.name),
     id,
     isOwner: ratings.is_owner,
@@ -318,9 +325,44 @@ export default async function CharacterPage({ params, searchParams }: Props) {
     takenBy,
     mine,
   });
+  // With one of this season's cast, the builder makes the new character's first date with them (/create?meet=), as the cards' link does.
+  const cta = madeCta.kind === "make" && c.house && isOnSeasonCast(id) && !PREMIUM_IDS.has(c.id) ? { ...madeCta, href: makeHref(c.id, true) } : madeCta;
+  // The page's one primary action, by who's looking (lib/character-verb.ts, the cards' rule): theirs that goes is the
+  // one a card named (?send=), else the first that's free, as the picker below starts on.
+  const sendAs = typeof sp.send === "string" ? sp.send : null;
+  const goes = cta.kind === "send" ? (cta.mine.find((m) => m.id === sendAs) ?? cta.mine.find((m) => !m.taken) ?? cta.mine[0]) : null;
+  const verb = characterVerb(
+    { mine: goes ? { id: goes.id, name: goes.name } : null, stepIn: stepIn?.kind === "member" || stepIn?.kind === "guest" },
+    { id: c.id, name: c.name, own: ratings.is_owner, private: c.private, dateable: cta.kind === "send" || cta.kind === "make", ready: goes?.mode === "book", mineTaken: Boolean(goes?.taken), steppable: stepIn !== null },
+  );
+  // Stepping in leads when it's their verb (no character of their own, or theirs can't go); otherwise it's the quieter
+  // second under the date.
+  const stepInLeads = verb?.kind === "step_in";
+  const stepInEntry = stepIn && (
+    <section className="card stepin-entry" aria-labelledby="stepin-entry-title">
+      <div>
+        <h2 id="stepin-entry-title">🎬 Step into the date</h2>
+        <p className="muted small">Go on a date with {shortName(c.name)} yourself, live, line by line. {shortName(c.name)} is an AI character on a show.</p>
+      </div>
+      <Link className={stepInLeads ? "button" : "button secondary"} href={`/step-in?with=${c.id}`} data-track="step-in" data-track-from="character">
+        {stepInLeads ? `Step into a date with ${shortName(c.name)}` : `Step in with ${shortName(c.name)}`}
+      </Link>
+      {stepInLeads && cta.kind === "make" && (
+        // The other way to date them, said quietly: the page has one filled button.
+        <p className="small stepin-entry-or">
+          Or{" "}
+          <Link href={cta.href} data-track="verb-make" data-track-from="character">
+            make a character to date {shortName(c.name)}
+          </Link>{" "}
+          and watch how it goes.
+        </p>
+      )}
+    </section>
+  );
   const people = connections(memory);
   const relPage = pageSlice(relationships, parsePage(sp.rel), RELATIONSHIPS_PAGE);
-  const here = (key: "rel" | "dates", hash: string) => (n: number) => pageHref(`/characters/${c.id}`, { ...sp }, key, n, hash);
+  // Paging keeps the other pager's place, never ?send= (it would reopen the date's confirm sheet on every page).
+  const here = (key: "rel" | "dates", hash: string) => (n: number) => pageHref(`/characters/${c.id}`, { rel: sp.rel, dates: sp.dates }, key, n, hash);
   // Owner only: what it has learned, where each item came from, and what it's been told to forget.
   const learned =
     ratings.is_owner && !c.house && memory
@@ -353,6 +395,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
         }
       : null;
 
+  const castingBadges = await castingBadgesP;
   const intro = await introOf(db, c.id);
   return (
     <article>
@@ -387,6 +430,11 @@ export default async function CharacterPage({ params, searchParams }: Props) {
                 🎬 On {seasonMonth(seasonIdAt(new Date()))}&apos;s cast
               </Link>
             )}
+            {castingBadges.map((b) => (
+              <span key={b.key} className="badge" title={b.title} data-casting-badge={b.key}>
+                🌹 {b.label}
+              </span>
+            ))}
             {!c.house && dating?.open_to_dates && <span className="badge badge-open">💌 Open to dates</span>}
             {partnerStyle?.taken && partnerStyle.partners[0] && <span className="badge">
                 💍 With <CharacterName character={partnerStyle.partners[0]} label={shortName(partnerStyle.partners[0].name)} size={18} />
@@ -433,19 +481,16 @@ export default async function CharacterPage({ params, searchParams }: Props) {
         </p>
       )}
       <AiFiction />
-      <DateThisCharacter cta={cta} targetId={c.id} first={shortName(c.name)} />
-      {backing && <BackThem characterId={c.id} name={shortName(c.name)} board={backing} />}
-      {stepIn && (
-        <section className="card stepin-entry" aria-labelledby="stepin-entry-title">
-          <div>
-            <h2 id="stepin-entry-title">🎬 Step into the date</h2>
-            <p className="muted small">Go on a date with {shortName(c.name)} yourself, live, line by line. {shortName(c.name)} is an AI character on a show.</p>
-          </div>
-          <Link className="button secondary" href={`/step-in?with=${c.id}`} data-track="step-in" data-track-from="character">
-            Step in with {shortName(c.name)}
-          </Link>
-        </section>
+      {/* One primary action (lib/character-verb.ts): send theirs on a date, or step into one themselves, or make a
+          character. #date is where a card's "Send … on a date" lands, its confirm sheet open (?send=). */}
+      {stepInLeads && stepInEntry}
+      {!(stepInLeads && cta.kind === "make") && (
+        <div id="date">
+          <DateThisCharacter cta={cta} targetId={c.id} first={shortName(c.name)} startWith={sendAs} />
+        </div>
       )}
+      {backing && <BackThem characterId={c.id} name={shortName(c.name)} board={backing} />}
+      {!stepInLeads && stepInEntry}
       {companion && (
         <section className="card stepin-entry" aria-labelledby="companion-entry-title">
           <div>
@@ -459,7 +504,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
               Sign in to talk with {shortName(c.name)}
             </Link>
           ) : (
-            <TalkButton characterId={c.id} name={shortName(c.name)} />
+            <TalkButton characterId={c.id} name={shortName(c.name)} label={`Talk to ${shortName(c.name)}`} />
           )}
         </section>
       )}

@@ -3655,8 +3655,10 @@ create table if not exists audition_votes (
 create index if not exists audition_votes_character_idx on audition_votes (season_id, character_id);
 -- A season's cast can hold people's characters now: 'fan', an audition that won a place (lib/season-cast.ts). Its owner
 -- can take it off the show mid-season: withdrawn_at, and it's off at once (the row stays, for the record).
+-- The list is the whole one ('lead' and 'suitor' came with The Botchelor, below): this statement runs again whenever the
+-- schema changes, and a narrower check here would fail on a Botchelor season's rows and stop the boot.
 alter table season_casts drop constraint if exists season_casts_source_check;
-alter table season_casts add constraint season_casts_source_check check (source in ('dealt', 'survivor', 'new', 'fan'));
+alter table season_casts add constraint season_casts_source_check check (source in ('dealt', 'survivor', 'new', 'fan', 'lead', 'suitor'));
 alter table season_casts add column if not exists withdrawn_at timestamptz;
 -- A pair's dates, and one character's (lib/text-chain.ts loadChain/loadChainsFor, lib/inbox.ts): by either side.
 create index if not exists episodes_pair_idx on episodes (character_a, character_b);
@@ -3844,6 +3846,28 @@ create table if not exists suitor_badges (
   created_at timestamptz not null default now(),
   primary key (season_id, character_id)
 );
+-- Open casting (lib/casting.ts; David 2026-11-15): a person's new character's first date goes to the season's lead
+-- (episodes.setup.met_via = 'casting'), and every Sunday the walk-ons get a rose or not, by that date's ending. One row
+-- a character a Sunday, claimed before anything is sent, so the pass runs once: episode_id is the date judged, rose is
+-- whether its ending was a second date, next_episode_id the second date the rose booked (judged the Sunday after).
+-- season_id is the lead's season, so a rose handed out before the season starts (the preseason) counts in it.
+create table if not exists walk_on_roses (
+  season_id text not null,
+  held_on text not null,
+  character_id text not null,
+  episode_id text not null,
+  rose boolean not null,
+  next_episode_id text,
+  created_at timestamptz not null default now(),
+  primary key (season_id, held_on, character_id)
+);
+create index if not exists walk_on_roses_character_idx on walk_on_roses (character_id, held_on desc);
+create index if not exists walk_on_roses_episode_idx on walk_on_roses (episode_id);
+create index if not exists walk_on_roses_next_idx on walk_on_roses (next_episode_id) where next_episode_id is not null;
+create index if not exists episodes_casting_idx on episodes (character_b, created_at desc) where setup->>'met_via' = 'casting';
+-- The people's rose (lib/casting.ts): the walk-on with the most roses, on the season's last Sunday, kept as a badge.
+alter table suitor_badges drop constraint if exists suitor_badges_badge_check;
+alter table suitor_badges add constraint suitor_badges_badge_check check (badge in ('suitor', 'runner_up', 'final_rose', 'peoples_rose'));
 -- The model league (lib/model-league.ts, 2026-11-15): the model an agent says it runs on, as told (model, an agent's
 -- free text, never shown in public) and the family it counts as (lib/model-family.ts). The latest word wins; via is
 -- the tool that carried it (create_character, set_profile, send_feedback).

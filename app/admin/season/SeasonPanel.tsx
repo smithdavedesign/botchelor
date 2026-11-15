@@ -15,6 +15,7 @@ type Botchelor = {
     ceremonies: { week: number; held_on: string; finale: boolean; eliminated_by_vote: { name: string } | null; eliminated_by_lead: { name: string } | null; final_rose: { name: string } | null; votes: number; total: number }[];
   };
   next_season: { runs: boolean; override: string | null; override_name: string | null };
+  casting?: { switched_on: boolean; now: { phase: "season" | "preseason"; month: string; lead: { id: string; name: string }; roses_at: string } | null };
 };
 type Candidate = {
   character_id: string;
@@ -252,6 +253,16 @@ export default function SeasonPanel() {
               </select>
             </p>
           ))}
+          {view.botchelor.casting && (
+            <p className="small" data-casting-status>
+              <strong>Open casting</strong> (lib/casting.ts):{" "}
+              {!view.botchelor.casting.switched_on
+                ? "switched off (OPEN_CASTING=0)."
+                : view.botchelor.casting.now
+                  ? `open. A new character's first speed date goes to ${view.botchelor.casting.now.lead.name} (${view.botchelor.casting.now.phase === "season" ? "this season's lead" : `${view.botchelor.casting.now.month}'s lead, the preseason`}); roses for the walk-ons every Sunday at the ceremony hour.`
+                  : "closed. It opens when this season runs as The Botchelor, or as soon as next season is set to The Botchelor and its lead is picked above (the default lead is only known on the 1st)."}
+            </p>
+          )}
           {view.botchelor.this_season.lead && (
             <p>
               <strong>Lead now:</strong> <CharacterName character={view.botchelor.this_season.lead} />

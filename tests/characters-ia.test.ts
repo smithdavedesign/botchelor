@@ -82,14 +82,16 @@ describe("“date this character” at the top of a character page (lib/date-cta
     setSeasonCastForTests([HOUSE_PARTNER_ID]);
     const stranger = top(await characterPage(HOUSE_PARTNER_ID, newUserCookie()));
     expect(stranger).toMatch(/Make a character to date \w+/);
-    expect(stranger).toContain(`href="/create?next=${encodeURIComponent(`/characters/${HOUSE_PARTNER_ID}`)}"`);
+    // With one of the cast, the builder makes the new character's first date with them (?meet=), then comes back here.
+    expect(stranger).toContain(`href="/create?meet=${HOUSE_PARTNER_ID}&amp;next=${encodeURIComponent(`/characters/${HOUSE_PARTNER_ID}`)}"`);
     const me = await made("Ira Fenn");
     const html = await characterPage(HOUSE_PARTNER_ID, me.cookie);
-    expect(top(html)).toMatch(/Send one of yours on a date with \w+/);
+    // The button names who goes (lib/character-verb.ts), as the cards on /characters do.
+    expect(top(html)).toMatch(/Send Ira on a date with \w+/);
     expect(top(html)).toMatch(/Ira goes\./);
     expect(top(html)).toContain(">Cast</span>"); // the origin badge
     // The call to action is also kept further down, by the share card.
-    expect(html.match(/Send one of yours on a date with/g)?.length).toBe(2);
+    expect(html.match(/Send Ira on a date with/g)?.length).toBe(2);
   });
 
   it("a house character off this season, or someone else's character that's closed: says it's not taking dates", async () => {
@@ -106,13 +108,13 @@ describe("“date this character” at the top of a character page (lib/date-cta
     const me = await made("Ira Fenn");
     const open = await made("Wren Kestrel", { open_to_dates: true });
     const html = top(await characterPage(open.id, me.cookie));
-    expect(html).toMatch(/Send one of yours on a date with Wren/);
+    expect(html).toMatch(/Send Ira on a date with Wren/);
     expect(html).toContain(">Made by a person</span>");
     expect(html).toMatch(/goes\./);
     setSwipeGateForTests(true);
     try {
       const gated = top(await characterPage(open.id, me.cookie));
-      expect(gated).toMatch(/Send one of yours on a date with Wren/);
+      expect(gated).toMatch(/Match Ira with Wren/);
       expect(gated).toContain(`href="/swipe?character=${me.id}"`);
       expect(gated).toMatch(/starts with a match/);
     } finally {

@@ -298,6 +298,81 @@ I feel like I should know." Templates only (`lib/character-question-fields.ts`):
 - Tests: `tests/character-questions.test.ts` (the fields and words, who gets one, one a day, five in all, the
   two-unanswered stop, the answer through the edit route's checks), `tests/daily.test.ts` (the step).
 
+### A photo from the date, in the texts (built 2026-11-15)
+
+Nine people opened a companion in 30 days and none came back a second day. What our companions have that others don't
+is a life you can watch: dates that really happened. So a character's text about a date now carries a photo of it.
+
+- **What the photo is** (`lib/date-photo.ts`, `GET /api/og/date-photo/<episode id>`): a PG date has no drawn picture of
+  its own (beat pictures are After Dark's; a mid-date move changes the place, not the art), so the photo is a snapshot
+  composed on request, like the share card (`/api/og/episode/<id>`): the place's reviewed backdrop, both portraits as
+  two prints, the two first names, the place and the day. 640×800 (4:5), a WebP of about 40 KB. **$0: no model call, no
+  image generated, nothing stored.** The show's own art goes in as small JPEGs made with sharp (the rasterizer draws a
+  WebP as nothing; a full-size portrait took a share card 8-11 s) and the house files' small copies are kept in memory;
+  a character without an approved portrait is its gradient tile with its initials, a place without a backdrop its
+  gradient.
+- **Never the ending.** The picture has no ending, no line of the date and no chemistry on it, whoever asks, so it is
+  safe in a text to someone who hasn't watched. `tests/date-photo.test.ts` reads the words drawn for every ending.
+- **Who may load it** is the episode page's rule (`datePhotoFacts`): anyone for a public or unlisted date; a private
+  date's two owners and its host only; nobody else once reports hide it; never an After Dark date; 404 otherwise. A
+  private character's face is drawn only for its owner. The same picture for everyone is cached a day in the browser and
+  a week at the CDN; one that depends on who asks stays in that browser (`private`). Marked AI-generated in the file and
+  the headers (`lib/ai-mark.ts`).
+- **In the thread** it is one message of its own: `companion_messages.via = 'photo'`, `media_url` the route's path, `text`
+  its alt text ("A photo from the date: Mira and Rafe at a night market of steam and lanterns, Saturday, November 14."),
+  and the same tag as the text it came with, right after the first bubble, the way a person sends one. Sent once with
+  the text (the tag's dedupe). It comes with the **after-date text** (`sendAfterDateText`), the **life text**
+  (`lifeTextAfterAir`) and the **cast's opener** (below). The tease and the day-after text carry none.
+- **A real photo wins.** When the owner made a date photo in the PG Studio (`lib/studio/date-photos.ts`, `date_photos`),
+  the thread shows the newest approved one in the snapshot's place (`lib/companion.ts getThread`, owner's threads only,
+  resolved when the thread is read, so a photo made later still shows).
+- **On the page** (`app/companion/[id]/DatePhoto.tsx`, `app/ux/phone.css`): the image has its 4:5 width and height on
+  the element, so the thread doesn't jump when it loads; the alt text is on the image; one tap anywhere on it opens the
+  date ("▶ Watch the date" sits on it). It has no voice note and no Report button (it is two approved portraits and a
+  reviewed backdrop). Anything stored in `media_url` that isn't the snapshot route's own path is not rendered.
+- **The character knows it sent one.** A photo is not a line the character said: it stays out of the model's turns and
+  its "don't reuse" list, and the prompt gets "Photos you sent them (snapshots from your dates; the show takes them, so
+  you can't send one on request)" with the alt texts, so "cute picture" makes sense to it. Over MCP a photo message
+  carries `photo` and `watch` (absolute links).
+- **Switch:** `DATE_PHOTO_TEXTS` (on by default; `0` stops new photos, the ones already in a thread stay).
+- Tests: `tests/date-photo.test.ts` (the route: renders, the rule, no spoiler, caching; the message in the after-date
+  text, the real photo, the switch, the prompt, no voice note; the thread's markup), `tests/character-life.test.ts` (the
+  life text's photo), `tests/cast-opener.test.ts` (the opener's).
+- Proof in a real browser: `npm run screenshots:phone` (`scripts/phone-screenshots.mjs`: a phone and a desktop, the photo's
+  4:5 box, its alt text and link, no sideways scroll, the cast's opener, the snapshot route).
+
+| The snapshot | In the owner's thread (phone) | A cast character's opener (phone) |
+|---|---|---|
+| ![A date's snapshot: the place, both portraits, their names, the place and the day](screenshots/phone-date-photo.webp) | ![The after-date text with its photo in the thread](screenshots/phone-thread-photo-mobile.png) | ![Rafe opens with his last aired date, its photo and Watch the date](screenshots/phone-cast-opener-mobile.png) |
+
+### A cast character opens with what happened to it (built 2026-11-15)
+
+When someone starts a thread with a house or cast character that isn't theirs, the first message used to be a
+model-written hello. It is now written from that character's **last aired date** (`lib/cast-opener.ts`,
+`lib/companion.ts openThread` → `castOpener`):
+
+- **What it says**, three bubbles and the photo: "Hey, I'm {first}. My last date was with {partner} at {place}" and how
+  it ended (a second date, friends, or as badly as a date can; "another one with" from the second date on); its own
+  reflection on that date when the episode has one (`episodes.reflections`, the character's side only), else a plain
+  line for that ending; and "It aired, so you can watch it." with at most one question. The thread puts **▶ Watch the
+  date** under the last bubble (`CompanionMessageView.link`, from the tag `opener:<episode id>`,
+  `lib/companion-shared.ts watchLinkEpisode`); the tease ("Come see how it went") gets the same link.
+- **Templates only: no model call** (the hello it replaces was the thread's one model call, so opening a cast thread
+  now costs nothing). Each line still passes the PG check and the crisis list; a line that fails falls back to the
+  model's hello.
+- **Which date** (`lib/last-date.ts lastAiredDateOf`): the newest finished date that aired, is public, is on the show
+  (never After Dark's) and isn't hidden by reports. The ending is told on purpose: the date is public, and it is the
+  character's own news. No aired date: **today's opener, unchanged.** Your own character's thread is unchanged too (the
+  model's hello, or the after-date text when it opens from "Hear from").
+- **The prompt knows the same date.** The last-date block (`lib/companion-prompt.ts`) used to be the owner's alone; for
+  anyone else it now carries the last *aired* date, framed "Your last date on the show (it aired, so anyone can watch
+  it; it's your news, yours to talk about from the inside)": partner, place, ending, its reflection. The owner's note
+  for the next date (a nudge) is still the owner's thread only. `lib/companion.ts lastDateFor` picks which date; an
+  unaired or private date never reaches a stranger's thread.
+- **Switch:** `COMPANION_DATE_OPENER` (on by default; `0`: the model's hello and no last-date block for the cast).
+- Tests: `tests/cast-opener.test.ts` (the words per ending, which date counts, no model call, the photo and the link,
+  no aired date, both switches, the owner's own thread, the prompt, MCP), `tests/companion-prompt.test.ts`.
+
 ## The plan (P2, built 2026-11-04)
 
 David, 2026-11-04: "open it up to the public and add the paywall with stripe".

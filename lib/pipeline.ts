@@ -17,7 +17,7 @@
  * when both agree (lib/wishes.ts); the recap, afterglow and reflections then follow the ending as it stands.
  */
 import { simulateAfterglow, type AfterglowLine } from "./afterglow";
-import { planDate, type DatePlan } from "./beats";
+import { planDate, rulesPlan, type DatePlan } from "./beats";
 import type { Character } from "./character";
 import { bestLine, ConversationError, simulateConversation, type Turn } from "./conversation";
 import type { Outcome } from "./engine";
@@ -98,6 +98,13 @@ export type GenerateOptions = {
    * and the date goes on.
    */
   onOutcome?: (outcome: Outcome, transcript: Turn[]) => void | Promise<void>;
+  /**
+   * The fast first date (lib/fast-date.ts, which has the measurements): the conversation starts at once on the rules
+   * plan, with no director call in front of line 1, and once the ending stands the recap, the morning-after texts and
+   * the reflections are written side by side. Same calls, same checks, same order of lines; off, the date is written
+   * exactly as before.
+   */
+  fast?: boolean;
 };
 
 export type GeneratedDate = {
@@ -198,8 +205,11 @@ export async function generateDate(
   let conversationError: unknown = null;
   let partialTranscript: Turn[] = [];
   if (opts.conversation) {
-    // A director that is down (a stronger free model at its quota) costs nothing: planDate falls back to rules.
-    plan = await planDate(director.model, built.input, decided, characters, producer, venueId, opts.formatId, opts.formatCtx);
+    // A director that is down (a stronger free model at its quota) costs nothing: planDate falls back to rules. A fast
+    // date doesn't ask it: the plan call ran 50 s in front of the first line and came back empty (lib/fast-date.ts).
+    plan = opts.fast
+      ? rulesPlan(built.input, decided, characters, producer, venueId)
+      : await planDate(director.model, built.input, decided, characters, producer, venueId, opts.formatId, opts.formatCtx);
     const converse = (from?: Turn[]) =>
       simulateConversation(actor.model, built.input, decided, characters, producer, venueId, opts.formatId, opts.talk?.date, opts.formatCtx, plan ?? undefined, keyForSide, onTurn, {
         moves: opts.moves,
@@ -267,34 +277,53 @@ export async function generateDate(
 
   // The recap: on the director, from what was actually said; on the actor's model if the director can't.
   const story = { transcript, plan };
-  let draft: EpisodeDraft;
-  try {
-    draft = await narrateEpisode(director.model, built.input, outcome, characters, producer, venueId, opts.formatId, opts.formatCtx, story);
-  } catch (err) {
-    if (director === actor) throw err;
-    draft = await narrateEpisode(actor.model, built.input, outcome, characters, producer, venueId, opts.formatId, opts.formatCtx, story);
-  }
-
-  // A scheduling line is never the date's best line (it became what they remembered, and booked, every time).
-  if (draft.best_line && isLogistics(draft.best_line)) draft = { ...draft, best_line: bestLine(transcript) ?? draft.best_line };
+  const narrate = async (): Promise<EpisodeDraft> => {
+    try {
+      return await narrateEpisode(director.model, built.input, outcome, characters, producer, venueId, opts.formatId, opts.formatCtx, story);
+    } catch (err) {
+      if (director === actor) throw err;
+      return narrateEpisode(actor.model, built.input, outcome, characters, producer, venueId, opts.formatId, opts.formatCtx, story);
+    }
+  };
 
   // More endings: the side that said no against a yes or a maybe may never answer the morning after (ghosted).
   const seeAgain = wishes?.choices?.a && wishes.choices.b ? { a: wishes.choices.a, b: wishes.choices.b } : null;
   const ghost = ghostSide(seeAgain, built.seed);
   let afterglow: AfterglowLine[] = [];
   let afterglowError: unknown = null;
-  if (opts.afterglow) {
+  // The morning-after texts. Best-effort: a failure is kept for the logs and the date goes on without them.
+  const text = async (): Promise<void> => {
+    if (!opts.afterglow) return;
     try {
       afterglow = await simulateAfterglow(actor.model, built.input, outcome, characters, venueId, opts.formatId, opts.talk?.texts, opts.formatCtx, transcript, keyForSide, ghost);
     } catch (err) {
       afterglowError = err;
     }
+  };
+  // Each character's own postmortem. Best-effort and never throws (nulls on failure), so it can't cost a date.
+  const reflect = async (): Promise<Reflections> =>
+    opts.reflection
+      ? simulateReflections(actor.model, built.input, outcome, characters, venueId, opts.formatId, opts.formatCtx, transcript, keyForSide)
+      : { a: null, b: null };
+
+  let draft: EpisodeDraft;
+  let reflections: Reflections;
+  if (opts.fast) {
+    // Side by side: each is written from the lines and the ending, none from another's words (the recap took ~10 s, the
+    // four texts ~11 s, the reflections ~3 s, one after another). The recap still fails closed, once the other two have
+    // settled (neither can reject), so a failed date leaves no call running behind it.
+    const [recap, , thought] = await Promise.allSettled([narrate(), text(), reflect()]);
+    if (recap.status === "rejected") throw recap.reason;
+    draft = recap.value;
+    reflections = thought.status === "fulfilled" ? thought.value : { a: null, b: null };
+  } else {
+    draft = await narrate();
+    await text();
+    reflections = await reflect();
   }
 
-  // Each character's own postmortem. Best-effort and never throws (nulls on failure), so it can't cost a date.
-  const reflections: Reflections = opts.reflection
-    ? await simulateReflections(actor.model, built.input, outcome, characters, venueId, opts.formatId, opts.formatCtx, transcript, keyForSide)
-    : { a: null, b: null };
+  // A scheduling line is never the date's best line (it became what they remembered, and booked, every time).
+  if (draft.best_line && isLogistics(draft.best_line)) draft = { ...draft, best_line: bestLine(transcript) ?? draft.best_line };
 
   const quality = transcript.length ? transcriptQuality(transcript, characters, qualityContext(built, draft.setting)) : null;
 

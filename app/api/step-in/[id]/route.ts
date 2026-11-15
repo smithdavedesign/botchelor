@@ -3,7 +3,7 @@ import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson, session } from "@/lib/http";
 import { advanceStepIn, airStepIn, continueStepIn, getStepIn, leaveStepIn, sayStepIn, type StepInResult } from "@/lib/step-in";
 import { TURN_DIALOGUE_MAX } from "@/lib/rules";
-import { stepInRefusal } from "../access";
+import { AGE_REFUSAL, passedAgeGate, stepInWho } from "../access";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -28,8 +28,9 @@ export const GET = handle(async (req: Request, ctx: Ctx) => {
   const { id } = await ctx.params;
   const sess = session(req);
   const db = await getDb();
-  const refused = await stepInRefusal(db, req, sess);
-  if (refused) return refused;
+  const access = await stepInWho(db, req, sess);
+  if ("refused" in access) return access.refused;
+  if (!passedAgeGate(req)) return json(AGE_REFUSAL, 403, sess);
   return reply(await getStepIn(db, sess.userId, id), sess);
 });
 
@@ -41,12 +42,13 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
   const { id } = await ctx.params;
   const sess = session(req);
   const db = await getDb();
-  const refused = await stepInRefusal(db, req, sess);
-  if (refused) return refused;
+  const access = await stepInWho(db, req, sess);
+  if ("refused" in access) return access.refused;
+  if (!passedAgeGate(req)) return json(AGE_REFUSAL, 403, sess);
   const input = parseBody(Action, await readJson(req), "invalid_request");
   switch (input.action) {
     case "line":
-      return reply(await sayStepIn(db, sess.userId, id, { dialogue: input.dialogue, action: input.action_text, see_again: input.see_again }), sess);
+      return reply(await sayStepIn(db, sess.userId, id, { dialogue: input.dialogue, action: input.action_text, see_again: input.see_again }, access.who), sess);
     case "advance":
       return reply(await advanceStepIn(db, sess.userId, id), sess);
     case "continue":

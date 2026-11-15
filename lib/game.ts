@@ -73,7 +73,7 @@ export type CreatorRef = { character_id: string; name: string };
 
 /** The per-date settings the owner chose (PRD budget & autonomy). Stored as episodes.setup (jsonb). */
 /** How a date came about (DateSetup.met_via). */
-export const MET_VIA = ["blind", "match", "proposal", "chosen", "second_date", "own_date", "show", "step_in"] as const;
+export const MET_VIA = ["blind", "match", "proposal", "chosen", "second_date", "own_date", "show", "step_in", "casting"] as const;
 export type MetVia = (typeof MET_VIA)[number];
 
 export type DateSetup = {
@@ -197,7 +197,8 @@ export type DateSetup = {
  */
 export type StepInSetup = {
   mode: "own" | "you";
-  charge: "admin" | "daily_free" | "free" | "pack";
+  /** "guest": someone without an account, one of their few (lib/step-in.ts STEP_IN_GUEST_DATES). */
+  charge: "admin" | "daily_free" | "free" | "pack" | "guest";
   /** The person's lines tripped the self-harm check: the date waits until they choose to go on (lib/crisis.ts). */
   paused?: boolean;
   cost?: { calls: number; input_tokens: number; output_tokens: number; cost_usd: number };

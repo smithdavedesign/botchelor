@@ -46,6 +46,7 @@ import { archetypeLabel, goalLabel, kindLabel, kindName } from "@/lib/kinds";
 import { LOOK_GALLERY, type ResolvedLook } from "@/lib/presets";
 import { DEFAULT_FORMAT, FORMATS, format as showFormat, type FormatId } from "@/lib/formats";
 import { trackConversion } from "@/app/conversion";
+import { useCasting } from "@/app/CastingContext";
 import type { OcSheet } from "@/lib/chemistry-test";
 import {
   AGENDAS,
@@ -2022,6 +2023,10 @@ export function SendPhase({ character, partners, openCharacters, swipeGate, toke
   // A first character's first date, one tap and straight into the theater (2026-11-11 bounce review): no menu, no sheet.
   const firstPartner = pickFirstPartner(partners, character.id, meet);
   const instant = offerFirstDate({ firstCharacter, taken: Boolean(taken), datesLeft: tokens.left, partner: firstPartner }) ? firstPartner : null;
+  // Open casting (lib/casting.ts): the first date goes to the season's lead, unless a post's link named someone (?meet=).
+  // The card then sends a blind date in the first-date format, and the booking route seats the lead.
+  const castingNow = useCasting();
+  const casting = instant && castingNow && !(meet && instant.id === meet) ? castingNow : null;
   // How many lines that first date has: the format's own length (a speed date is 6), else the classic 12.
   const firstLines = showFormat(firstFormat).turns ?? CONVERSATION_TURNS;
   const closed = (id: string) => Boolean(taken) && id !== taken?.id;
@@ -2215,17 +2220,29 @@ export function SendPhase({ character, partners, openCharacters, swipeGate, toke
         // It plays in the first-date format (the speed date: 6 lines, about two minutes to write), so the verdict comes while they're
         // still watching; the classic date's 12 lines took as long again, and nobody stayed for the ending.
         <div className="card send-first" data-first-date data-first-format={firstFormat}>
-          <Avatar seed={instant.id} name={instant.name} hue={instant.hue ?? null} house size={56} />
+          {casting ? (
+            <Avatar seed={casting.lead.id} name={casting.lead.name} hue={casting.lead.hue} portraitSrc={casting.lead.portrait} house size={56} />
+          ) : (
+            <Avatar seed={instant.id} name={instant.name} hue={instant.hue ?? null} house size={56} />
+          )}
           <div className="send-first-meta">
-            <strong>{`${first}'s first date can start right now`}</strong>
+            <strong>{casting ? `First date: ${shortName(casting.lead.name)}, ${casting.billing}. Roses on Sunday.` : `${first}'s first date can start right now`}</strong>
             <p>
-              {`${first} meets ${shortName(instant.name)}`}
-              {instant.archetype ? `, ${instant.archetype.toLowerCase()} from this season's cast` : ", from this season's cast"}
+              {casting
+                ? `${first} walks on for a date with ${shortName(casting.lead.name)}`
+                : `${first} meets ${shortName(instant.name)}${instant.archetype ? `, ${instant.archetype.toLowerCase()} from this season's cast` : ", from this season's cast"}`}
               {firstFormat === "speed_date"
                 ? `, for a speed date: ${firstLines} lines, ${WRITE_TIME_SPEED}. It plays as you watch, and nobody can steer how it ends.`
                 : `, for a ${showFormat(firstFormat).label.toLowerCase()}: ${firstLines} lines. It plays as you watch, and nobody can steer how it ends.`}
+              {casting ? ` On Sunday at ${String(casting.hour).padStart(2, "0")}:00 UTC ${shortName(casting.lead.name)} hands out roses, and you hear whether ${first} got one.` : ""}
             </p>
-            <button type="button" className="primary" data-track="first_date_now" disabled={busy !== null} onClick={() => void sendOnDate(instant.id, true, { format: firstFormat })}>
+            <button
+              type="button"
+              className="primary"
+              data-track="first_date_now"
+              disabled={busy !== null}
+              onClick={() => void (casting ? sendOnDate(null, false, { format: firstFormat }) : sendOnDate(instant.id, true, { format: firstFormat }))}
+            >
               {busy === "episode" ? "Starting the date…" : "▶ Start the date now"}
             </button>
             {busy === "episode" && <p className="muted small">The engine is deciding the outcome and the showrunner is writing it…</p>}

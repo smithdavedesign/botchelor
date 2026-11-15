@@ -41,6 +41,9 @@ const OPEN = [
   "/import",
   "/import?from=cai",
   "/create",
+  // Step into the date's picker and start screen (2026-11-15): its own 18+ box is the answer, as the builder's is.
+  "/step-in",
+  "/step-in?with=house-juniper",
   "/agents",
   "/agents/pricing",
   "/agents/league",
@@ -56,7 +59,7 @@ const GATED = [
   "/companion",
   "/companion/plan",
   "/companions",
-  "/step-in",
+  // A step-in date once it's started (the start sets the cookie).
   "/step-in/abc",
   "/shop",
   "/account",

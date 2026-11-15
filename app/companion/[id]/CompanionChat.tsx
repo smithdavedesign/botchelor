@@ -39,6 +39,7 @@ import { venueName, type VenueId } from "@/lib/venues";
 import type { FaceKit } from "@/lib/face-kit-shared";
 import AnswerBox from "./AnswerBox";
 import CompanionCall, { callSupported, liveSupported, type CallStats, type CallTurn, type CallVoice } from "./CompanionCall";
+import DatePhoto from "./DatePhoto";
 
 type Extras = Record<CompanionExtraKind, CompanionExtraState> | null;
 /** Who they are, for the panel beside the thread (the page reads it): their job, the first line of their bio, their week on the show. */
@@ -679,14 +680,27 @@ export default function CompanionChat({
                     ))}
                   <div className="chat-col">
                     {m.action && <span className="companion-action">{m.action}</span>}
-                    <p className="chat-bubble">
-                      {m.call && (
-                        <span className="companion-call-tag" title="Said on a call" aria-label="Said on a call: ">
-                          📞{" "}
-                        </span>
-                      )}
-                      {m.text}
-                    </p>
+                    {m.photo ? (
+                      // A photo from one of their dates (./DatePhoto.tsx): the message's text is its alt text.
+                      <DatePhoto src={m.photo.src} alt={m.text} href={m.photo.href} />
+                    ) : (
+                      <p className="chat-bubble">
+                        {m.call && (
+                          <span className="companion-call-tag" title="Said on a call" aria-label="Said on a call: ">
+                            📞{" "}
+                          </span>
+                        )}
+                        {m.text}
+                      </p>
+                    )}
+                    {m.link && (
+                      // The date this text is about (the cast's opener, the tease): one tap to watch it.
+                      <p className="companion-offers">
+                        <Link className="button-ghost small" href={m.link.href} data-track="companion-watch-date">
+                          ▶ {m.link.label}
+                        </Link>
+                      </p>
+                    )}
                     {m.role === "character" && m.offers && !paused && (
                       // The question as chips (lib/companion-offers.ts): the newest open menu only, gone once one is tapped.
                       <div className="companion-offers" role="group" aria-label={`What ${first} could do next`}>
@@ -715,7 +729,7 @@ export default function CompanionChat({
                         </Link>
                       </p>
                     )}
-                    {m.role === "character" && (
+                    {m.role === "character" && !m.photo && (
                       <div className="companion-foot">
                         {m.voice ? (
                           <button type="button" className="button-ghost small companion-voice-note" onClick={() => play(m.id, m.voice!)} aria-pressed={playing === m.id} data-track="companion-voice-play">

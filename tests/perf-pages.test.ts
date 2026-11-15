@@ -150,6 +150,18 @@ const BUDGET: Record<string, number> = {
   "notifications (owner)": 6,
 };
 
+/** Runs `run` with one environment variable set, and puts it back. */
+async function withEnv<T>(key: string, value: string, run: () => Promise<T>): Promise<T> {
+  const before = process.env[key];
+  process.env[key] = value;
+  try {
+    return await run();
+  } finally {
+    if (before === undefined) delete process.env[key];
+    else process.env[key] = before;
+  }
+}
+
 describe("heavy pages' round trips (2026-11-04 audit)", () => {
   const pages: [string, string | "owner" | null, () => Promise<unknown>][] = [
     ["layout", "owner", async () => (await import("@/app/layout")).default({ children: null })],
@@ -161,7 +173,9 @@ describe("heavy pages' round trips (2026-11-04 audit)", () => {
     ["date (visitor)", null, async () => (await import("@/app/episodes/[id]/page")).default({ params: Promise.resolve({ id: episode }), searchParams: Promise.resolve({}) })],
     ["couple (owner)", "owner", async () => (await import("@/app/couples/[a]/[b]/page")).default({ params: Promise.resolve({ a: character, b: partner }), searchParams: Promise.resolve({}) })],
     ["relationships", null, async () => (await import("@/app/characters/[id]/relationships/page")).default({ params: Promise.resolve({ id: character }), searchParams: Promise.resolve({}) })],
-    ["home (owner)", "owner", async () => (await import("@/app/page")).default({ searchParams: Promise.resolve({}) as never })],
+    // With companions open, as on prod: the owner's home then loads their character's phone too (lib/character-phone.ts:
+    // one read next to "Since you were here"), and the budget holds with it.
+    ["home (owner)", "owner", async () => withEnv("COMPANION_OPEN", "1", async () => (await import("@/app/page")).default({ searchParams: Promise.resolve({}) as never }))],
     ["characters", null, async () => (await import("@/app/characters/page")).default({ searchParams: Promise.resolve({}) as never })],
     ["watch", null, async () => (await import("@/app/watch/page")).default({ searchParams: Promise.resolve({}) as never })],
     ["matches (owner)", "owner", async () => (await import("@/app/matches/page")).default({ searchParams: Promise.resolve({}) })],

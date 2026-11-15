@@ -71,6 +71,7 @@ const PAGES: Record<(typeof PUBLIC_PATHS)[number] | "/legal", () => Promise<Meta
   "/agents/league": meta(() => import("@/app/agents/league/page")),
   "/showcase": meta(() => import("@/app/showcase/page")),
   "/import": meta(() => import("@/app/import/page")),
+  "/step-in": meta(() => import("@/app/step-in/page")),
   "/alternatives/character-ai": meta(() => import("@/app/alternatives/character-ai/page")),
   "/pricing": meta(() => import("@/app/pricing/page")),
   "/faq": meta(() => import("@/app/faq/page")),

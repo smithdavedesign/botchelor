@@ -22,7 +22,7 @@ Bring your character (the Character.AI import). Crowd counts on the way in follo
 ```mermaid
 flowchart TD
     visit(["Visit botchelor.com"]) --> home["Home, Watch, Characters<br/>(open: no gate on the PG show since 2026-11-14)"]
-    home --> gate{"18+ gate, in front of dating, chat and money:<br/>swipe, matches, messages, companions,<br/>step-in, shop, account, mixers, After Dark"}
+    home --> gate{"18+ gate, in front of dating, chat and money:<br/>swipe, matches, messages, companions,<br/>a step-in date once started, shop, account, mixers, After Dark"}
     gate -- "No" --> away(["Leave"])
     gate -- "Yes (cookie remembers it; the builder's<br/>18+ box sets the same cookie on save)" --> swipe["Swipe, matches, texts"]
 
@@ -87,6 +87,40 @@ flowchart TD
     signed -- "No" --> signin["Sign in or create one<br/>(and come back to the link)"] --> signed
     signed -- "Yes: Link it" --> agents["Account → Your agents:<br/>its characters and dates, its agent id<br/>to give back; unlink any time"]
 ```
+
+**The home page, for someone with a character (2026-11-15).** A stranger's `/` is the pitch (the hero, tonight's band,
+what just aired, how it works, the cast, questions). Someone with at least one character lands on **their character's
+phone** first (`app/CharacterPhone.tsx`, `lib/character-phone.ts`), then tonight's band, then "Since you were here", then
+the rest of the page as before:
+
+- **Whose phone:** the character with an unread text from itself; else the one something happened to most recently (a
+  text or a date); else the newest. Their other characters are a row under it, each a link to its own thread (or its
+  page when it has none), with a dot when it has an unread text.
+- **On the screen:** the character's last three texts to them (a photo shows as "📷 A photo from the date"), a "New
+  text" dot while the `character_texted_you` notice is unread, and the time of the last one. A tap opens the thread,
+  and opening a thread marks its notices read (`lib/notifications.ts markCharacterTextsRead`), so the dot and "Since
+  you were here"'s "{name} texted you" go once the texts were seen.
+- **The chips:** the newest open menu of the thread ("Yes, see {partner} again", "Try someone new", "Tell {first} what to
+  do next time", [companions.md](companions.md)), or "Answer {first}" when its last text ends on a question nobody
+  answered. They are links into the thread, where the tap happens: nothing is booked from the home page.
+- **What's next** (three lines at most): on a date right now / a date ready to watch; a scheduled date; Sunday's roses
+  while a walk-on's date with the season's lead is still to be judged (open casting, `lib/casting.ts`); the house's
+  weekly date (only for a character it can happen to: a date behind it, a portrait, public or open to dates, life dates
+  on) with the day it comes from; Sunday's recap when something happened this week; "a first date is a speed date" for
+  a character with none.
+- **One action:** "Open {first}'s texts" when they opted in to its texts; "Hear from {first}" when they never did and a
+  date's ending stands (the verdict card's own call, `POST /api/companion/after-date`: the character texts them about
+  that date, the thread opens, and the tap is the opt-in); "Watch {first}'s date" while one is being filmed; "Send
+  {first} on a first date" before any.
+- **Cost:** one read for all their characters, next to "Since you were here" (`tests/perf-pages.test.ts` keeps the
+  page's depth budget with it). Shown only while companions are open (`COMPANION_OPEN=1`), since every link on it leads
+  into a thread. **Switch:** `HOME_PHONE` (on by default; `0`: the page as it was).
+- Tests: `tests/character-phone.test.ts` (nothing yet, never opted in, texts waiting, answered, several characters, the
+  page for a stranger and an owner, the switch).
+
+| Never opted in (phone) | Texts waiting (phone) | Texts waiting (desktop) |
+|---|---|---|
+| ![The owner's home opens on their character's phone: Hear from Mira](screenshots/phone-home-hear-mobile.png) | ![Mira's last texts, the chips into the thread, what's next](screenshots/phone-home-texts-mobile.png) | ![The same on a desktop, above tonight's band](screenshots/phone-home-texts-desktop.png) |
 
 **Installing it (lib/pwa.ts).** Botchelor installs as an app (app/manifest.ts: standalone, opening on the home page, the
 PG heart tile for its icons). On a phone's browser a small "Install the app" hint shows once, on one page, a few seconds
@@ -323,7 +357,8 @@ Every page leads somewhere: no dead ends.
 | Page | What it's for | Where it leads |
 |---|---|---|
 | Nav | Create · Swipe · Matches (unread texts) · Watch · Characters · Account · 🔔 | |
-| `/characters` | Characters, three tabs (`?tab=cast` default, `people`, `agents`; 24 a page): the cast (this month's house cast, next month's candidates from the 20th, the leaderboard, matchmaking, the relationship graph), people's characters, agent-made characters. Each card has one origin badge: Cast, Made by a person, 🤖 Agent-made or House-run bot (`lib/origin.ts`). A private character is listed by name only (no link, portrait or details) and counted. `/cast` is a 308 to the cast tab | each character's card |
+| `/characters` | Characters, three tabs (`?tab=cast` default, `people`, `agents`; 24 a page): the cast (this month's house cast, next month's candidates from the 20th, the leaderboard, matchmaking, the relationship graph), people's characters, agent-made characters. Each card has one origin badge: Cast, Made by a person, 🤖 Agent-made or House-run bot (`lib/origin.ts`). A private character is listed by name only (no link, portrait or details) and counted. Each card carries one primary action for whoever's looking (`lib/character-verb.ts`, 2026-11-15): "Send {mine} on a date with {them}" (or "Match {mine} with {them}" behind the swipe gate) for someone with a character, "Step into a date with {them}" on the season's cast or "Make a character to date {them}" for someone without; "Talk to {them}" is the quieter second where they're a companion. Nothing is offered that the booking would refuse. `/cast` is a 308 to the cast tab | each character's card, `/step-in?with=`, the date's confirm sheet (`?send=`), `/create` |
+| `/step-in` | Step into the date ([step-into-the-date.md](step-into-the-date.md)): the cast picker, open to everyone and without the 18+ interstitial (the start screen's own box is the answer); `?with=<cast>` is the start screen; a guest gets 3 dates in all | `/step-in/<id>` (the live date, behind the gate's cookie) |
 | `/matches?character=` | One character's inbox: your characters as a row of faces to switch (`app/CharacterTabs.tsx`; a taken one dimmed and tagged 💍 Taken), then new matches and conversations, with a badge for what's next. Tonight's mixer (not for a taken character): above an empty inbox, after the conversations otherwise | the thread, its card, its deck; the mixer |
 | `/swipe?character=` | One character's deck: the same row of faces as Matches (under the slim bar on a phone). A taken one (`lib/partners.ts` `takenWith`) is dimmed and tagged 💍 Taken; picking it says why it can't swipe. With none picked, it opens on one that can swipe | a match's thread, its matches |
 | `/messages/[a]/[b]` | The thread only. One header row: ‹, who it's with, a ▾ switcher to this character's other chats (wider screens), the one action (**📅 Book date**, **🎬 Watch live**, **▶ Last date**, or **💘 Swipe for others** after a "not this time"; a phone shows just the verb) and **⋯** for the rest: ⓘ their dates and story, ⇄ the other phone (when you own both), 💞 Make it a double date, the other chats (a phone), 💔 Unmatch (before a first date). The double date and Unmatch open as modals (`app/Sheet.tsx`: a bottom sheet on a phone). The double: bring another of yours (with a dealt house date; both tables book now) or invite another creator's couple from the social graph (★ near you), or **🔗 Share a double-date link** to bring a friend (`app/ShareDoubleLink.tsx`, lib/double-links.ts) | the date, their story, the other chats, back to Matches (where you switch characters); a double's two episodes; `/doubles/[id]` for an invite |

@@ -118,7 +118,9 @@ David asked whether to expand: let a person date a character themselves, and add
 
 **How to measure it:** add a `data-track` to the entry point. Watch the Engagement tab for how many start a date, how many finish one, and whether anyone buys tokens afterwards.
 
-**Status (2026-11-02):** built, admins only until `STEP_IN_OPEN=1` ([step-into-the-date.md](step-into-the-date.md): the SB 243 safety pass, costs ~0.3–0.6¢ a date, and what's open for counsel).
+**Status (2026-11-02):** built, admins only ([step-into-the-date.md](step-into-the-date.md): the SB 243 safety pass, costs ~0.3–0.6¢ a date, and what's open for counsel).
+
+**Status (2026-11-15):** open to everyone, guests included (3 dates in all without an account, then a free account's one a day). It is the verb on every cast card for someone with no character ("Step into a date with {them}", `lib/character-verb.ts`), and `/step-in` is a page a stranger can land on. Held by caps counted in Postgres (per visitor, per address, per date and 300 guest dates a day show-wide: about $2 a day at the ceiling, under $5 in the worst case) and closed again by `STEP_IN_OPEN=0` or `STEP_IN_GUESTS=0`. The questions for counsel are still open.
 
 ### F. An island season (reality-TV formats as seasons)
 **What it is:** not a second show. One month's season runs in a reality-TV format: a villa, couples, a weekly recoupling, and viewers voting someone off.
@@ -141,6 +143,8 @@ David asked whether to expand: let a person date a character themselves, and add
 **Status (2026-11-02):** built as a season format CONFIG, not a second show (#1269 + #1270, `lib/season-format.ts` + `lib/recoupling.ts`): slug `island` — villa venue pool, weekly recoupling nights with the viewer vote, final vote on next season's newcomer. Selectable per season on /admin/season; December stays unscheduled until David picks it. The public name is **Bot Island** (David, 2026-11-09, knowing the naming note above); it's the format's title, label and announce line in the config.
 
 **December (2026-11-14):** David wants the product original, so the December format is the show's own premise rather than the villa: **The Botchelor** (slug `botchelor`, `lib/season-format.ts` + `lib/ceremony.ts`; docs/seasons.md "December: The Botchelor"). One lead from the cast (last season's most reviewed survivor, or the admin's pick), people's characters as the suitors (approved auditions by votes, the house's own agent-made characters filling in), the lead dating one suitor a day, and a rose ceremony every Sunday at 20:00 UTC where the audience's vote and the lead's own date verdicts (the engine's endings) each send one home, until the last Sunday's final rose. Selectable on /admin/season like the island; not scheduled by default.
+
+**Open casting (2026-11-15):** the season is also the first date (`lib/casting.ts`; docs/seasons.md "Open casting"). While a Botchelor lead is known (in season, or before it once next month's format and lead are both picked on /admin/season), a person's new character's first speed date is with the lead; every Sunday the walk-ons whose date ended in a second date get a rose (the engine's ending, only read), the owner hears either way, a rose books a show-paid second date with the lead, and the finale names "the people's rose". `OPEN_CASTING=0` turns it off; nothing changes until a Botchelor month is picked.
 
 ### Order (2026-11-01)
 1. **This week, visitors:**
@@ -215,7 +219,7 @@ _David asked for an open discussion on the product core (the show, companions, A
 | **Voiced PG episodes as a token sink** | per-line TTS + a theater player, no buyer signal; the voice already runs free in clips | first outside purchase |
 | **Server-side clip rendering** (GitHub Actions / a traced route) | the Mac pipeline works when the loop runs; the 1 GB show instance has no Chromium | the Mac misses 3 clips in a week |
 | ~~**Express build**~~ (one box: "describe them in a few lines" → the free-text import reader) | **Built 2026-11-15** as one-sentence create (`lib/express-create.ts`, [flows.md](flows.md)): the form was the wall (12 opened, 4 finished, 103 s), so it shipped ahead of its trigger, behind `EXPRESS_CREATE` | read `express_started` → `express_drafted` → "Made a character" on the Engagement funnel |
-| **Earned step-ins** (3 right calls in a row → an extra free step-in) | step-in isn't open yet | step-in open to everyone |
+| **Earned step-ins** (3 right calls in a row → an extra free step-in) | step-in only opened on 2026-11-15, so nobody has used a free one up yet | **Gate met** (step-in is open to everyone, 2026-11-15); build once step-in shows people wanting more than their free one: ≥ 10 `step_in_refused` (`day_cap` / `no_dates` / `guest_dates`) in a week |
 
 **Data, honestly.** Our ~700 dates are AI-written; the scarce thing is human judgment of them, and we get a handful a month. What builds value is the choices people make (keep/redraw, better-of-two, predictions against outcomes, out-of-character flags): first to improve our own dates (Chai's reward model on user signals: +30% retention in its own A/B tests; Meta's CharacterFlywheel), then to cut cost (#577). Selling consumer preference data alone has already failed as a business ([Yupp, closed 2026-03-31](https://techcrunch.com/2026/03/31/yupp-ai-shuts-down-raising-33m-from-a16z-cryptos-chris-dixon/)); evaluation sells ([LMArena](https://techcrunch.com/2026/01/06/lmarena-lands-1.7b-valuation-four-months-after-launching-its-product)). Companion and After Dark chats are never part of any dataset.
 

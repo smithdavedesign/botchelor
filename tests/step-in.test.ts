@@ -126,21 +126,23 @@ async function playThrough(cookie: string, id: string, seeAgain?: boolean) {
 }
 
 describe("who can step into a date", () => {
-  it("is admins only until STEP_IN_OPEN=1, signed-in and past the 18+ gate", async () => {
-    expect(stepInOpen({})).toBe(false);
+  it("is open to everyone who's said they're 18+; STEP_IN_OPEN=0 puts it back to admins only", async () => {
+    // Open by default since 2026-11-15 (tests/step-in-open.test.ts has the guest path and the caps).
+    expect(stepInOpen({})).toBe(true);
     expect(stepInOpen({ STEP_IN_OPEN: "1" })).toBe(true);
-    // Signed out (a bare cookie, no account): sign in first.
-    expect((await start("bz_adult=1")).status).toBe(401);
-    // Signed in, not an admin, the switch off: not found (it doesn't announce itself).
+    expect(stepInOpen({ STEP_IN_OPEN: "0" })).toBe(false);
     const someone = await person();
-    expect((await start(someone.cookie)).status).toBe(404);
-    // Without the 18+ cookie: refused.
     const admin = await person({ admin: true });
+    // Without the 18+ answer (no gate cookie, no box ticked on the start screen): refused, whoever asks.
+    expect((await start(signedInCookie(someone.id))).status).toBe(403);
     expect((await start(signedInCookie(admin.id))).status).toBe(403);
-    expect((await start(admin.cookie)).status).toBe(201);
-    // The one switch opens it to every signed-in adult.
-    vi.stubEnv("STEP_IN_OPEN", "1");
     expect((await start(someone.cookie)).status).toBe(201);
+    // The switch off: not found to anyone but an admin (it doesn't announce itself).
+    vi.stubEnv("STEP_IN_OPEN", "0");
+    const other = await person();
+    expect((await start(other.cookie)).status).toBe(404);
+    expect((await start("bz_adult=1")).status).toBe(404);
+    expect((await start(admin.cookie)).status).toBe(201);
   });
 
   it("is only with this season's cast", async () => {
