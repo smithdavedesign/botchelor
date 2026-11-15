@@ -1,13 +1,24 @@
 "use client";
 
 import type { FormEvent } from "react";
+import Avatar from "./Avatar";
 import { ADULT_COOKIE, ADULT_COOKIE_MAX_AGE, safeFrom } from "@/lib/age";
+
+/** One of the pair on the card: enough to draw their face. */
+export type GateFace = { id: string; name: string; hue: number | null; portrait: string | null; house: boolean };
+/** The date drawn behind the gate (app/gate/page.tsx), shown on the card: both faces, "A × B" and its title. */
+export type GatePair = { a: GateFace; b: GateFace; title: string | null; target: boolean };
 
 /**
  * The 18+ entry lock: a full-screen overlay covering the page until the visitor confirms they're an adult.
  * Progressive enhancement — the plain form posts to /api/age and works with JavaScript off; with JS, it sets
  * the remembered cookie and navigates straight back, so there's no redirect round-trip. "Leave" sends anyone
  * under 18 away. A self-attestation (the standard age gate), not a security boundary.
+ *
+ * Since the PG show opened without it (2026-11-14, middleware.ts UNGATED_*), the gate meets visitors on their way to
+ * swiping, matches, companions, the shop and the like, so it sells (2026-11-14 design audit): the date behind it at the
+ * top of the card (both faces, "A × B", its title) and one line on what the show is, before the question. After Dark's
+ * gate keeps its own words and never shows the show's pair. On a phone the card is a bottom sheet, the show above it.
  */
 export default function AgeGate({
   from,
@@ -18,12 +29,14 @@ export default function AgeGate({
   from: string;
   /** The show is drawn blurred behind the question (app/gate/page.tsx), so the overlay lets it show through. */
   backdrop?: boolean;
-  /** The date their link was for, named on the card: what they're one tap from. */
-  behind?: { names: string; title: string | null } | null;
+  /** The date behind the gate, on the card; `target` when it's the date their link was for ("One tap from"). */
+  behind?: GatePair | null;
   /** After Dark's own host: its own words, saying plainly that it's explicit (2026-11-07 audit, item 21). */
   afterDark?: boolean;
 }) {
   const dest = safeFrom(from);
+  // The show's pair only: After Dark asks in its own words, with nothing of the show on its card.
+  const pair = afterDark ? null : behind;
 
   function confirm(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -36,7 +49,21 @@ export default function AgeGate({
   return (
     <div className={`age-gate${backdrop ? " has-backdrop" : ""}`} role="dialog" aria-modal="true" aria-labelledby="age-gate-title">
       <div className="age-gate-card">
+        {pair && (
+          <div className="age-gate-pair">
+            <span className="age-gate-faces" aria-hidden="true">
+              <Avatar seed={pair.a.id} name={pair.a.name} hue={pair.a.hue} house={pair.a.house} portraitSrc={pair.a.portrait} size={64} decorative round />
+              <Avatar seed={pair.b.id} name={pair.b.name} hue={pair.b.hue} house={pair.b.house} portraitSrc={pair.b.portrait} size={64} decorative round />
+            </span>
+            <p className="age-gate-pair-names">
+              {pair.target ? <>🎬 One tap from </> : null}
+              <strong>{`${pair.a.name} × ${pair.b.name}`}</strong>
+            </p>
+            {pair.title && <p className="age-gate-pair-title">“{pair.title}”</p>}
+          </div>
+        )}
         <p className="age-gate-brand">{afterDark ? "Botchelor After Dark" : "Botchelor"}</p>
+        {!afterDark && <p className="age-gate-lead">A comedy dating show where AI characters go on blind dates.</p>}
         <h1 id="age-gate-title">Are you 18 or older?</h1>
         {afterDark ? (
           <p>
@@ -48,12 +75,6 @@ export default function AgeGate({
           <p>
             Botchelor is a comedic blind-date show starring <strong>fictional adult characters</strong>, written by AI.
             It is for <strong>adults (18+) only</strong>.
-          </p>
-        )}
-        {behind && (
-          <p className="age-gate-behind">
-            🎬 One tap from <strong>{behind.names}</strong>
-            {behind.title ? <>: “{behind.title}”</> : null}
           </p>
         )}
         <form action="/api/age" method="post" className="age-gate-actions" onSubmit={confirm}>

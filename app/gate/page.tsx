@@ -35,6 +35,9 @@ async function behindTheGate(from: string): Promise<{ date: FeaturedDate; target
   }
 }
 
+/** A face for the gate's card (app/AgeGate.tsx GatePair). */
+const faceOf = (c: FeaturedDate["characters"][number]) => ({ id: c.id, name: c.name, hue: c.hue, portrait: c.portrait, house: c.house });
+
 /** The age-gate screen middleware redirects to. `from` is where the visitor was headed. */
 export default async function GatePage({ searchParams }: { searchParams: SearchParams }) {
   const { from } = await searchParams;
@@ -58,7 +61,7 @@ export default async function GatePage({ searchParams }: { searchParams: SearchP
       <AgeGate
         from={dest}
         backdrop={behind !== null}
-        behind={behind?.target && a && b ? { names: `${a.name} × ${b.name}`, title: behind.date.title } : null}
+        behind={behind && a && b ? { a: faceOf(a), b: faceOf(b), title: behind.date.title, target: behind.target } : null}
       />
     </>
   );

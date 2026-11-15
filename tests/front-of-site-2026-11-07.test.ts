@@ -19,6 +19,7 @@ import type { Turn } from "@/lib/conversation";
 import { clipLine, EXCERPT_LINES, episodeIdFrom, excerptLines, pickFeaturedDate } from "@/lib/featured-date";
 import type { CharacterRef, EpisodeView } from "@/lib/game";
 import { HOUSE_CHARACTERS } from "@/lib/house";
+import AgeGate from "@/app/AgeGate";
 import { api, episodeJson, newUserCookie, scriptedModel, scriptOutcome, startTestDb, validCharacter } from "./helpers";
 
 const turn = (side: "a" | "b", dialogue: string, act = 0): Turn => ({ side, act, dialogue, action: "", emotion: "warm", interest: 0.5 });
@@ -138,6 +139,37 @@ describe("the 18+ gate shows the show behind it (item 1)", () => {
     expect(home).toContain('action="/api/age"');
     const linked = renderToStaticMarkup(await GatePage({ searchParams: Promise.resolve({ from: `/episodes/${id}?play=1` }) }));
     expect(linked).toContain("One tap from <strong>Pell Ardent ×");
+    // 2026-11-14 design audit: the gate sells. The pair behind it sits at the top of the card (faces, "A × B", title),
+    // and one line says what the show is before the question; the legal sentence stays as it was.
+    for (const html of [home, linked]) {
+      expect(html).toContain('<div class="age-gate-pair">');
+      expect(html.indexOf('class="age-gate-pair"')).toBeLessThan(html.indexOf('id="age-gate-title"'));
+      const faces = html.slice(html.indexOf('class="age-gate-faces"'), html.indexOf('class="age-gate-pair-names"'));
+      expect(faces.match(/<(img|svg)\b/g)).toHaveLength(2);
+      expect(html).toContain(`× ${HOUSE_CHARACTERS[0].name}</strong>`);
+      expect(html.indexOf("A comedy dating show where AI characters go on blind dates.")).toBeLessThan(html.indexOf("Are you 18 or older?"));
+      expect(html).toContain("Botchelor is a comedic blind-date show starring <strong>fictional adult characters</strong>, written by AI.");
+    }
+  });
+
+  it("shows the show's pair only on the show's gate: After Dark's keeps its own words and no pair", () => {
+    const face = (id: string, name: string) => ({ id, name, hue: 200, portrait: null, house: false });
+    const behind = { a: face("c-a", "Juno Marlowe"), b: face("c-b", "Pell Ardent"), title: "The fountain incident", target: true };
+    const show = renderToStaticMarkup(createElement(AgeGate, { from: "/swipe", backdrop: true, behind }));
+    expect(show).toContain('class="age-gate-pair"');
+    expect(show).toContain("<strong>Juno Marlowe × Pell Ardent</strong>");
+    expect(show).toContain("“The fountain incident”");
+    const ad = renderToStaticMarkup(createElement(AgeGate, { from: "/after-dark", afterDark: true, behind }));
+    expect(ad).not.toContain("age-gate-pair");
+    expect(ad).not.toContain("Juno Marlowe");
+    expect(ad).not.toContain("A comedy dating show");
+    expect(ad).toContain("After Dark is <strong>explicit</strong>");
+    // Kept on both: the no-JS post, the way out, the dialog's name.
+    for (const html of [show, ad]) {
+      expect(html).toContain('action="/api/age" method="post"');
+      expect(html).toContain("No — take me away");
+      expect(html).toContain('role="dialog" aria-modal="true" aria-labelledby="age-gate-title"');
+    }
   });
 
   it("is the plain question when nothing has aired", async () => {
