@@ -398,7 +398,9 @@ David, 2026-11-13, on a GPT proposal for live "digital humans" (the review and t
   own portrait (collarbones up, mouth closed) and six stills edited from it (lips parted, mouth open, lips rounded,
   eyes closed, a smile, a gasp) on Replicate's Qwen image edit with its safety checker on, each through the PG check
   before it's kept; and a five-second loop of them still and natural (Wan 2.2 at 480p), kept once three of its frames
-  pass. About 26¢ a character, once.
+  pass. Plus a talking still the page never shows (the portrait with the mouth at rest, lips together, not smiling):
+  what Ditto animates on calls, because from the smiling portrait it talks through a grin (2026-11-15). About 29¢ a
+  character, once.
 - **On the call** (`app/companion/[id]/LiveFace.tsx`): the loop plays while they listen; while they talk, the mouth
   follows how loud their voice is right now, read off the same audio the call plays (`PcmPlayer.level()`; a
   taking-turns call's voice file is routed through the same analyser; the device's own voice can't be measured, so

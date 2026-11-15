@@ -7,6 +7,9 @@
  *  - **Six more stills** (FACE_STILLS), each an edit of that portrait with one thing changed: lips parted, mouth open,
  *    lips rounded; eyes closed; a smile; a gasp. The browser flips between them with the voice's loudness
  *    (lib/face-kit-shared.ts mouthFor), blinks, and shows a look when a line laughs or gasps.
+ *  - **The talking still** (TALK_STILL): the portrait with the mouth at rest, lips together, not smiling. Never shown;
+ *    Ditto animates it on calls (lib/live-face/ditto-clips.ts dittoSource), because from the smiling portrait it talks
+ *    through a grin. A kit drawn before it gets just this still on its next call.
  *  - **The loop:** five seconds of them still and natural, from the portrait itself, played while they listen
  *    (Replicate's Wan 2.2 image-to-video at 480p, the showcase's living portraits' model with its safety checker on).
  *
@@ -35,9 +38,9 @@ import { adultKeys, getAdultSettings } from "./adult/settings";
 import { frameAt, videoDuration } from "./media-tools/ffmpeg";
 import { checkPgPictureText } from "./safety";
 import { resizedWebp } from "./thumbs";
-import { FACE_PARTS, FACE_STILLS, type FaceKit, type FacePart, type FaceStill } from "./face-kit-shared";
+import { FACE_PARTS, FACE_STILLS, TALK_STILL, type FaceKit, type FacePart, type KitStill } from "./face-kit-shared";
 
-export { FACE_PARTS, FACE_STILLS, type FaceKit, type FacePart, type FaceStill } from "./face-kit-shared";
+export { FACE_PARTS, FACE_STILLS, TALK_STILL, type FaceKit, type FacePart, type FaceStill, type KitStill } from "./face-kit-shared";
 
 const SAME = "Make one photograph of the person in Picture 1: exactly the same person, the same face, features, hair, skin tone, clothes, framing, light and background.";
 
@@ -48,13 +51,14 @@ export const FACE_PORTRAIT_PROMPT =
   "mouth closed, eyes open, in a simple plain top, fully clothed, soft even light, a plain softly blurred background. Photorealistic. An adult, safe for work.";
 
 /** Each still's edit: the portrait, with one thing changed. */
-export const FACE_PROMPTS: Record<Exclude<FaceStill, "portrait">, string> = {
+export const FACE_PROMPTS: Record<Exclude<KitStill, "portrait">, string> = {
   mouth_small: `${SAME} Change only their mouth: lips slightly parted, as if in the middle of a soft word, the rest of the face relaxed. Photorealistic. An adult, safe for work.`,
   mouth_open: `${SAME} Change only their mouth: open as if saying "ah" mid-sentence, teeth just visible, jaw relaxed, eyes unchanged. Photorealistic. An adult, safe for work.`,
   mouth_round: `${SAME} Change only their mouth: lips rounded into a small "oh", as if mid-word, eyes unchanged. Photorealistic. An adult, safe for work.`,
   blink: `${SAME} Change only their eyes: both eyes gently closed in a natural blink, the mouth closed and relaxed as before. Photorealistic. An adult, safe for work.`,
   smile: `${SAME} Change only their expression: a warm, natural smile with the eyes smiling too. Photorealistic. An adult, safe for work.`,
   surprised: `${SAME} Change only their expression: pleasantly surprised, eyebrows raised, eyes a little wider, mouth slightly open. Photorealistic. An adult, safe for work.`,
+  talk: `${SAME} Change only their mouth: relaxed and at rest, the lips gently together and not smiling, as between sentences in a calm conversation, the eyes and everything else unchanged. Photorealistic. An adult, safe for work.`,
 };
 
 /** The loop's direction: still and natural, ending as it began, so it plays over the portrait and fades back into it. */
@@ -73,10 +77,10 @@ export const animeFace = (prompt: string): string =>
     .replace(/The person in the picture/g, "The anime character in the picture")
     .replace(/Photorealistic\./g, ANIME_FINISH);
 
-/** What one kit costs, about: seven Qwen edits and one Wan 2.2 clip at 480p (docs/costs.md). */
+/** What one kit costs, about: eight Qwen edits (the page's seven and the talking still) and one Wan 2.2 clip at 480p (docs/costs.md). */
 export const FACE_STILL_USD = 0.03;
 export const FACE_LOOP_USD = 0.05;
-export const FACE_KIT_USD = FACE_STILLS.length * FACE_STILL_USD + FACE_LOOP_USD;
+export const FACE_KIT_USD = (FACE_STILLS.length + 1) * FACE_STILL_USD + FACE_LOOP_USD;
 
 /** Kits started on calls across everyone: a few a day (about $3.50 at the default), never a burst. Admins' are uncounted. */
 export const FACE_KIT_LIMITS = { perHour: 4, perDay: 12 };
@@ -188,7 +192,7 @@ export async function makeFaceKit(db: Db, characterId: string, baseUrl: string, 
   const startedAt = Date.now();
 
   /** One still: the edit (Replicate's own safety checker on), the PG check, kept small as WebP. */
-  const still = async (part: FaceStill, prompt: string, from: string): Promise<string | null> => {
+  const still = async (part: KitStill, prompt: string, from: string): Promise<string | null> => {
     const set = (status: Row["status"], more: { error?: string; file?: { bytes: Buffer; mime: string } } = {}) => upsert(db, { character: characterId, source: source.id, part, status, model: editModel, ...more });
     try {
       const drawn = await runModel(token, editModel, { prompt, image: [from], aspect_ratio: "1:1", output_format: "png", go_fast: true }, { maxBytes: 25 * 1024 * 1024, timeoutMs: 150_000 });
@@ -243,7 +247,7 @@ export async function makeFaceKit(db: Db, characterId: string, baseUrl: string, 
   }
 
   // The stills, a few at a time, each marked making first so the page knows to wait.
-  const todo = FACE_STILLS.filter((p): p is Exclude<FaceStill, "portrait"> => p !== "portrait" && !done(p));
+  const todo = [...FACE_STILLS, TALK_STILL].filter((p): p is Exclude<KitStill, "portrait"> => p !== "portrait" && !done(p));
   for (const part of todo) await upsert(db, { character: characterId, source: source.id, part, status: "making", model: editModel });
   for (let i = 0; i < todo.length; i += AT_ONCE) await Promise.all(todo.slice(i, i + AT_ONCE).map((part) => still(part, styled(FACE_PROMPTS[part]), base)));
   track("face_kit", { character_id: characterId, made, queued, failed: failed.length, usd: Math.round((made * FACE_STILL_USD + (queued ? FACE_LOOP_USD : 0)) * 100) / 100, ms: Date.now() - startedAt });
