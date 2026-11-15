@@ -352,6 +352,44 @@ describe("live faces on Ditto (our second worker on Runpod)", () => {
     expect(end.status).toBe(200);
     expect((await t.db.query<{ face_provider: string; face_seconds: number }>(`select face_provider, face_seconds from companion_live_calls where id = $1`, [r.call.id])).rows[0]).toEqual({ face_provider: "ditto", face_seconds: 41 });
   });
+
+  it("under ditto:plan, through the call route: a member's call gets the face and its tick warms the worker; a non-member paying tokens gets the voice alone", async () => {
+    vi.stubEnv("LIVE_FACE_PROVIDER", "ditto:plan");
+    const asked = fakeDitto();
+    setDeepgramFetchForTests(async () => Response.json({ access_token: "dg-token", expires_in: 30 }));
+    const callAs = async (opts: { plan?: boolean; tokens?: number }) => {
+      const raw = newUserCookie();
+      const user = userIdOf(raw);
+      const id = await withKit(raw);
+      if (opts.tokens) await t.db.query(`insert into token_grants (id, user_id, episodes, granted_by) values ($1, $2, $3, 'test')`, [crypto.randomUUID(), user, opts.tokens]);
+      if (opts.plan) await grantPlan(t.db, user, "companion", "initial", { subscriptionId: `sub_${user.slice(0, 8)}` });
+      const cookie = `${signedInCookie(user)}; bz_adult=1`;
+      const opened = (await (await openRoute(new Request(`${BASE_URL}/api/companion`, { method: "POST", headers: { "content-type": "application/json", cookie }, body: JSON.stringify({ character_id: id }) }))).json()) as { thread_id: string };
+      const live = (body: unknown) => liveRoute(new Request(`${BASE_URL}/api/companion/${opened.thread_id}/live`, { method: "POST", headers: { "content-type": "application/json", cookie }, body: JSON.stringify(body) }), { params: Promise.resolve({ id: opened.thread_id }) });
+      return { live };
+    };
+    // The non-member buys 10 minutes with a token: the call starts, with no face and no worker woken.
+    const stranger = await callAs({ tokens: 2 });
+    const s = await stranger.live({ action: "start", buy: true });
+    expect(s.status).toBe(200);
+    const sr = (await s.json()) as { call: { id: string }; face: unknown };
+    expect(sr.call.id).toBeTruthy();
+    expect(sr.face ?? null).toBeNull();
+    expect((await stranger.live({ action: "tick", call_id: sr.call.id, seconds: 30 })).status).toBe(200);
+    await new Promise((ok) => setTimeout(ok, 10));
+    expect(asked).toHaveLength(0);
+    // The member: the face session on start (512-px chain from the kit), and the tick keeps the worker warm.
+    const member = await callAs({ plan: true });
+    const m = await member.live({ action: "start" });
+    expect(m.status).toBe(200);
+    const mr = (await m.json()) as { call: { id: string }; face: unknown };
+    expect(mr.face).toMatchObject({ provider: "ditto", px: 512 });
+    const before = asked.length;
+    expect((await member.live({ action: "tick", call_id: mr.call.id, seconds: 30 })).status).toBe(200);
+    await new Promise((ok) => setTimeout(ok, 10));
+    expect(asked.length).toBeGreaterThan(before);
+    expect(asked.some((a) => a.body?.input?.op === "warm")).toBe(true);
+  });
 });
 
 /** Ditto's endpoint, faked: /run takes a warm job, /runsync answers a clip (with a state when asked). What was asked is kept. */

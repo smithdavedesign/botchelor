@@ -134,6 +134,13 @@ Every model provider is prepaid with auto-recharge off, so the balance is the mo
 | Date | What | Amount |
 |---|---|---|
 | 2026-10-21 | MCP directory listings: [mcp.so](https://mcp.so) and [Glama](https://glama.ai/mcp/connectors/com.botchelor/botcherlor) (com.botchelor) | **$20** (David) |
+| 2026-11-13 | Botchelor LLC: Articles of Organization, California Secretary of State (bizfile) | **$70** (David) |
+| 2026-11-15 | Stripe's fee on the live test of the 15-date pack ($10 charged and refunded in full; Stripe keeps its fee) | **$0.56** |
+
+Both are on the `/costs` ledger (`money_entries`, added through `/api/admin/spend`).
+
+**Coming for the LLC:** the Statement of Information, **$20**, within 90 days of approval, and California's franchise tax,
+**$800 a year**. Neither is paid yet, so neither is on the ledger.
 
 ## Spent so far (2026-10-13 to 10-22)
 
