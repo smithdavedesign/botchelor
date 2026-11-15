@@ -104,6 +104,9 @@
   --text-2xl: clamp(1.5rem, 1.2rem + 1.4vw, 2rem);
   /* The display size: a page's h1, from a phone's 32px up with the viewport (docs/brand.md, Typography). */
   --text-display: clamp(2rem, 6vw, 3.1rem);
+  /* Eyebrows: small capitals over a section (.kicker and its kin). The same as --text-2xs on a desktop; on a phone it
+     stays at 13px while the steps around it lift to 14px (the phone type floor below). */
+  --text-eyebrow: clamp(0.75rem, 0.73rem + 0.2vw, 0.8rem);
   /*
    * Icon sizes: a glyph or an emoji that stands alone in a button or a tile (×, ‹, ★, ▾, an empty state's emoji). Fixed,
    * not fluid: an icon is drawn for the size of its target. An <Icon> beside words takes their size (1em) instead.
@@ -123,6 +126,21 @@
   --viz-3: #eb6834;
   --viz-4: #1baf7a;
   --viz-prev: #8f7f8e;
+}
+
+/*
+ * The phone type floor (2026-11-14 design audit): at 390px the small steps rendered at 12.5–13.6px, so trait chips,
+ * counts, meta lines, badges and captions all read below 14px. On a phone every body-adjacent step floors at 14px
+ * (0.875rem); only eyebrows (--text-eyebrow, uppercase and letterspaced) stay at 13px. Desktop sizes are unchanged.
+ * The steps stay fluid (tests/theme-contrast.test.ts) and keep their order: 2xs ≤ xs ≤ sm.
+ */
+@media (max-width: 720px) {
+  :root {
+    --text-2xs: clamp(0.875rem, 0.8rem + 0.2vw, 0.9rem);
+    --text-xs: clamp(0.875rem, 0.82rem + 0.2vw, 0.92rem);
+    --text-sm: clamp(0.9rem, 0.86rem + 0.2vw, 0.95rem);
+    --text-eyebrow: clamp(0.8125rem, 0.78rem + 0.2vw, 0.84rem);
+  }
 }
 
 /* Dark: the system's, unless the viewer picked Light on /account; or the viewer's own pick (lib/theme.ts writes
@@ -4031,6 +4049,21 @@ button.swipe-btn-nope:hover:not(:disabled) {
 }
 .swipe-empty-icon {
   font-size: 2.4rem;
+}
+/* The demo deck's answer (app/swipe/DemoDeck.tsx): what a real swipe would do, and the way to one. */
+.swipe-demo-done .swipe-demo-cta {
+  margin-top: var(--space-4);
+  font-weight: 600;
+}
+.swipe-demo-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+.swipe-demo-page .swipe-intro > .button {
+  margin-top: var(--space-2);
 }
 .swipe-match-overlay {
   position: fixed;
@@ -12265,6 +12298,27 @@ a.char-name-link:focus-visible .char-name-text {
 a.char-name-link:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
+}
+/*
+ * Tap targets (2026-11-14 design audit: a character's name link was 19px tall, "Start from a sample character" 16px). On
+ * a touch screen or a phone a name link is 44px tall; the negative margin gives the extra back to the line, so a list of
+ * names keeps its rhythm and only the target grows. .tap-link is the same for a link in a line of prose that is the
+ * line's action (the home hero's "Start from a sample character", "Bring your character"): 44px tall, its own line box.
+ * The whole-card target is .tap-card + a.stretch (above); the swipe deck's row of faces is .character-tab (below).
+ */
+@media (pointer: coarse), (max-width: 720px) {
+  a.char-name-link {
+    min-height: 2.75rem;
+    margin-block: -0.625rem;
+  }
+  a.tap-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.75rem;
+  }
+  a.character-tab {
+    min-height: 2.75rem;
+  }
 }
 .char-name.is-private {
   display: inline;

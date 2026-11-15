@@ -9,10 +9,11 @@ import CastPreview from "@/app/CastPreview";
 import CharacterTabs from "@/app/CharacterTabs";
 import { unreadTexts } from "@/lib/inbox";
 import { takenWith } from "@/lib/partners";
-import { deckFor, UNDO_MINUTES } from "@/lib/swipes";
+import { deckFor, demoDeck, UNDO_MINUTES } from "@/lib/swipes";
 import { withOrigins } from "@/lib/origin";
 import { twinsLast, twinsOfCharacter } from "@/lib/twins";
 import SwipeDeck from "./SwipeDeck";
+import DemoDeck from "./DemoDeck";
 import { pushKeys } from "@/lib/push";
 import Avatar from "@/app/Avatar";
 
@@ -47,17 +48,27 @@ export default async function SwipePage({ searchParams }: Props) {
   const viewerId = userIdFromCookieStore(await cookies());
   const mine = viewerId ? await listMyDatingProfiles(db, viewerId) : [];
   if (!viewerId || !mine.length) {
+    // No character yet: a real card from this season's cast to try (app/swipe/DemoDeck.tsx, which sends nothing), and
+    // the way to a real deck. Without a cast in the database, the faces stand in as before.
+    const demo = await demoDeck(db).catch(() => []);
+    const make = "/create?next=%2Fswipe";
     return (
-      <article>
-        <p className="kicker">Swipe</p>
-        <h1>Match before you date</h1>
-        <section className="card">
-          <p>Make a character first: you swipe for them, and if both characters want a date, it&apos;s on.</p>
-          <Link className="button" href="/create?next=%2Fswipe">
+      <article className="swipe-page swipe-demo-page">
+        <div className="swipe-intro">
+          <p className="kicker">Swipe</p>
+          <h1>Match before you date</h1>
+          <p className="muted">You swipe for your character. A like both ways is a match, and if both characters want a date, it&apos;s on. Try one from this season&apos;s cast:</p>
+          <Link className="button" href={make}>
             Make a character
           </Link>
-          <CastPreview line="This season's cast is in the deck, and they always like back:" />
-        </section>
+        </div>
+        {demo.length ? (
+          <DemoDeck cards={demo} makeHref={make} />
+        ) : (
+          <section className="card">
+            <CastPreview line="This season's cast is in the deck, and they always like back:" />
+          </section>
+        )}
       </article>
     );
   }

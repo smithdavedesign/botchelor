@@ -258,13 +258,57 @@
 .age-gate.has-backdrop {
   background: color-mix(in srgb, var(--paper) 45%, transparent);
 }
-.age-gate-behind {
-  margin: 0.75rem 0 0;
-  padding: 0.55rem 0.75rem;
+/* The date behind the gate, on the card (2026-11-14 design audit): both faces, "A × B", its title, at the top. */
+.age-gate-pair {
+  margin: 0 0 var(--space-4);
+  padding: var(--space-3);
   border-radius: var(--radius-md);
   background: var(--soft);
+}
+.age-gate-faces {
+  display: flex;
+  justify-content: center;
+}
+.age-gate-faces .avatar {
+  border: 3px solid var(--card);
+  box-shadow: var(--shadow);
+}
+.age-gate-faces .avatar + .avatar {
+  margin-left: -0.9rem;
+}
+.age-gate-card p.age-gate-pair-names {
+  margin: var(--space-2) 0 0;
   color: var(--ink);
-  font-size: var(--text-sm);
+}
+.age-gate-card p.age-gate-pair-title {
+  margin: var(--space-1) 0 0;
+  font-family: "Fraunces", Georgia, serif;
+  font-style: italic;
+  color: var(--ink);
+}
+/* On a phone the card is a bottom sheet: the blurred show stays in view above it. After Dark's gate too. */
+@media (max-width: 720px) {
+  .age-gate {
+    align-items: flex-end;
+    padding: 0;
+  }
+  .age-gate-card {
+    max-width: none;
+    max-height: 70vh;
+    max-height: 70dvh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: var(--space-5) var(--gutter) calc(var(--space-4) + env(safe-area-inset-bottom));
+    border-bottom: 0;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  }
+  .age-gate-pair {
+    margin-bottom: var(--space-3);
+    padding: var(--space-2);
+  }
+  .age-gate-actions {
+    margin: var(--space-4) 0 var(--space-3);
+  }
 }
 
 /* ---------------- /watch: the date first, the season as one line (app/watch/page.tsx) ---------------- */

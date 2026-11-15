@@ -234,14 +234,18 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
           </p>
           {myCharacters.length === 0 && (
             <p className="small">
-              In a hurry? <Link href="/create?sample=1">Start from a sample character</Link>.
+              In a hurry?{" "}
+              <Link className="tap-link" href="/create?sample=1">
+                Start from a sample character
+              </Link>
+              .
             </p>
           )}
           {/* The Character.AI rescue door (2026-11-14): one line under the sample, for a visitor with no character yet. */}
           {myCharacters.length === 0 && (
             <p className="small">
               Leaving Character.AI?{" "}
-              <Link href={IMPORT_CAI_PATH} data-track="hero-import">
+              <Link className="tap-link" href={IMPORT_CAI_PATH} data-track="hero-import">
                 Bring your character
               </Link>
               .

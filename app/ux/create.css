@@ -570,6 +570,22 @@
 .wizard-deck-card .swipe-body {
   touch-action: auto;
 }
+/* The example card while the form is empty (app/create/DeckPreview.tsx EXAMPLE): greyed and tagged, so it can't be
+   mistaken for theirs. */
+.wizard-deck-example {
+  opacity: 0.72;
+  filter: grayscale(0.5);
+}
+.wizard-deck-example-tag {
+  position: absolute;
+  top: var(--space-2);
+  left: var(--space-2);
+  z-index: 1;
+  margin: 0;
+}
+.wizard-deck-example-note {
+  margin: var(--space-2) 0 0;
+}
 .wizard-deck .wizard-picture-btn {
   margin-top: var(--space-2);
 }

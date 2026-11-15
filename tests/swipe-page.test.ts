@@ -10,12 +10,15 @@ vi.mock("next/navigation", async (original) => ({
   ...(await original<typeof import("next/navigation")>()),
   useRouter: () => ({ refresh() {}, push() {}, replace() {}, back() {}, prefetch() {} }),
 }));
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
 import MatchesPage from "@/app/matches/page";
 import SwipePage from "@/app/swipe/page";
 import { twinsLast } from "@/lib/twins";
 import { setSeasonCastForTests } from "@/lib/season-cast";
 import { api, HOUSE_PARTNER_ID, newUserCookie, startTestDb, userIdOf, validCharacter } from "./helpers";
+import { HOUSE_CHARACTERS } from "@/lib/house";
 
 // David, 2026-10-22: the swipe page picks whose deck it is the way /matches picks whose matches, with your characters'
 // faces instead of a drop-down, and a taken one (in a relationship, wanting one partner) easy to tell apart.
@@ -197,5 +200,34 @@ describe("the swipe page: whose deck, as faces", () => {
     expect(face(html, lexi)).toContain('class="character-tab is-taken"');
     expect(face(html, lexi)).toContain('aria-label="Lexi: taken (dating Dex), closed to other dates"');
     expect(face(html, wren)).toContain('aria-current="page"');
+  });
+});
+
+// 2026-11-14 design audit: without a character, /swipe was a sentence, a button and four small faces. Now a real deck
+// card from this season's cast to try, which sends nothing, and Make a character once it's swiped.
+describe("the swipe page without a character: a demo card", () => {
+  const house = HOUSE_CHARACTERS[0];
+
+  it("deals one of this season's cast as a real deck card, with Pass, Like and the way to a real deck", async () => {
+    const html = await swipePage();
+    expect(html).toContain('class="swipe-deck swipe-demo"');
+    expect(html).toContain(`aria-label="${house.name}, ${house.age}"`);
+    expect(html).toContain('class="swipe-card swipe-top');
+    expect(html).toContain(`aria-label="Pass on ${house.name}"`);
+    expect(html).toContain(`aria-label="Like ${house.name}"`);
+    expect(html).toContain(">On the show this season<");
+    expect(html).toContain('href="/create?next=%2Fswipe"');
+    expect(html).toContain("Match before you date");
+    // Not the full-screen deck: a visitor keeps the site's header and footer.
+    expect(html).not.toContain("swipe-fullscreen");
+  });
+
+  it("the demo deck never calls the API: no fetch, no /api path, and the prompt names who likes back", () => {
+    const src = readFileSync(join(__dirname, "..", "app", "swipe", "DemoDeck.tsx"), "utf8");
+    const code = src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+    expect(code).not.toMatch(/\bfetch\s*\(/);
+    expect(code).not.toMatch(/\/api\//);
+    expect(code).not.toMatch(/sendBeacon|XMLHttpRequest|useRouter|"use server"/);
+    expect(code).toContain("Make a character to swipe for real — {name} likes back.");
   });
 });
