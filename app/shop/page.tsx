@@ -4,7 +4,7 @@ import Link from "next/link";
 import Icon from "@/app/Icon";
 import { episodeAllowance, freshAllowance } from "@/lib/allowance";
 import { googleConfigured, sessionsSignable } from "@/lib/auth";
-import { CATALOG, formatPrice, frameClass, ON_SALE, PACK_5, type ItemKind } from "@/lib/catalog";
+import { CATALOG, formatPrice, frameClass, onSale, PACK_15, PACK_5, PACKS, type ItemKind } from "@/lib/catalog";
 import { getDb } from "@/lib/db";
 import { authFromCookieStore } from "@/lib/http";
 import { ownedSkus } from "@/lib/payments";
@@ -14,14 +14,16 @@ import { paymentLinkFromEnv, priceLabelFromEnv } from "@/lib/stripe";
 import { afterDarkHref, afterDarkOnly } from "@/lib/after-dark-host";
 import { canAfterDark } from "@/lib/adult/entitlement";
 import { companionOpen } from "@/lib/companion-shared";
+import { newsletterOpen } from "@/lib/newsletter";
 import { planLink, planPrice, PLANS } from "@/lib/paid-plans";
 import BuyButton from "./BuyButton";
+import PlusInterest from "./PlusInterest";
 import SignInToBuy from "./SignInToBuy";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = pageMetadata({
   title: "Shop · Botchelor",
-  description: `Top up when your free dates run out: "${PACK_5.name}" for ${formatPrice(PACK_5.price_cents)}, paid once on Stripe's own page. Everyone gets ${FREE_EPISODES_PER_SEASON} free dates a week, and nothing you buy changes points or rank.`,
+  description: `Top up when your free dates run out: "${PACK_5.name}" for ${formatPrice(PACK_5.price_cents)}, or "${PACK_15.name}" for ${formatPrice(PACK_15.price_cents)}, paid once on Stripe's own page. Everyone gets ${FREE_EPISODES_PER_SEASON} free dates a week, and nothing you buy changes points or rank.`,
   path: "/shop",
 });
 
@@ -61,6 +63,10 @@ type SearchParams = Promise<Record<string, string | string[] | undefined>>;
  * price as the headline, and the small print folded under them. Every behaviour from before stays: Buy or Sign in to buy,
  * the price label from Stripe's env, the thanks after checkout, "purchases open soon" while no link is set, the Companion
  * Plan's card while companions are open, the After Dark tokens note, and the owned notes.
+ *
+ * 2026-11-14: one tile per pack on sale (lib/catalog.ts onSale: each pack has its own Payment Link, and a pack with no link
+ * isn't shown; pack_5 is always shown, its Buy off until its link is set), "Best value" on the 15-pack, and the
+ * "Botchelor Plus" intent tile (lib/plus-interest.ts): a plan that doesn't exist yet, with one button that only counts.
  */
 export default async function ShopPage({ searchParams }: { searchParams: SearchParams }) {
   const { checkout } = await searchParams;
@@ -69,8 +75,10 @@ export default async function ShopPage({ searchParams }: { searchParams: SearchP
   const db = viewerId ? await getDb() : null;
   const owned = db && viewerId ? await ownedSkus(db, viewerId) : [];
   const dates = db && viewerId ? await episodeAllowance(db, viewerId) : freshAllowance();
-  const open = paymentLinkFromEnv() !== null;
-  const ownedOffSale = CATALOG.filter((i) => !ON_SALE.includes(i) && owned.includes(i.sku));
+  const env = process.env;
+  const open = paymentLinkFromEnv(env) !== null;
+  const tiles = onSale(env);
+  const ownedOffSale = CATALOG.filter((i) => !PACKS.includes(i) && owned.includes(i.sku));
   // Buying needs an account (app/api/checkout): an anonymous player's tokens would live in one browser's cookie.
   const signInToBuy = open && sessionsSignable() && !viewer?.authenticated;
   // One word for one thing (2026-10-31 UX audit: the nav said "dates left", this page "tokens", the pack "Episode pack"):
@@ -128,27 +136,32 @@ export default async function ShopPage({ searchParams }: { searchParams: SearchP
       {!open && <p className="notice">Purchases open soon. Everything else on Botchelor is free.</p>}
 
       <ul className="money-tiles">
-        {ON_SALE.map((item) => (
-          <li key={item.sku} className="card money-tile shop-item">
-            <Price amount={formatPrice(item.price_cents)} per="once" />
-            <strong className="money-tile-name">{item.name}</strong>
-            {/* A pack's name already says what it is ("5 more dates"). */}
-            {item.kind !== "episode_pack" && <span className="badge">{KIND_LABELS[item.kind]}</span>}
-            <p className="money-tile-what muted">{item.description}</p>
-            {owned.includes(item.sku) && <p className="notice">{OWNED_NOTES[item.kind]}</p>}
-            <div className="money-tile-act">
-              {signInToBuy ? (
-                <SignInToBuy sku={item.sku} label={`Buy ${item.name} · ${formatPrice(item.price_cents)}`} google={googleConfigured()} />
-              ) : (
-                <BuyButton
-                  sku={item.sku}
-                  label={priceLabelFromEnv(process.env, `Buy ${item.name} for ${formatPrice(item.price_cents)}`)}
-                  disabled={!open}
-                />
-              )}
-            </div>
-          </li>
-        ))}
+        {tiles.map((item) => {
+          const itemOpen = paymentLinkFromEnv(env, item.sku) !== null;
+          return (
+            <li key={item.sku} className="card money-tile shop-item" data-shop-sku={item.sku}>
+              <Price amount={formatPrice(item.price_cents)} per="once" />
+              <strong className="money-tile-name">{item.name}</strong>
+              {/* A pack's name already says what it is ("5 more dates"); the bigger pack gets its one word. */}
+              {item.kind !== "episode_pack" && <span className="badge">{KIND_LABELS[item.kind]}</span>}
+              {item.sku === PACK_15.sku && <span className="badge">Best value</span>}
+              <p className="money-tile-what muted">{item.description}</p>
+              {owned.includes(item.sku) && <p className="notice">{OWNED_NOTES[item.kind]}</p>}
+              <div className="money-tile-act">
+                {signInToBuy ? (
+                  <SignInToBuy sku={item.sku} label={`Buy ${item.name} · ${formatPrice(item.price_cents)}`} google={googleConfigured()} />
+                ) : (
+                  <BuyButton
+                    sku={item.sku}
+                    label={priceLabelFromEnv(env, `Buy ${item.name} for ${formatPrice(item.price_cents)}`, item.sku)}
+                    disabled={!itemOpen}
+                    place="shop"
+                  />
+                )}
+              </div>
+            </li>
+          );
+        })}
         {planTile && (
           <li className="card money-tile shop-item shop-plan" data-shop-plan="companion">
             <Price amount={plan.amount} per={plan.per} />
@@ -160,6 +173,12 @@ export default async function ShopPage({ searchParams }: { searchParams: SearchP
                 See the Companion Plan
               </Link>
             </div>
+          </li>
+        )}
+        {unit === "date" && (
+          // Not for sale: a $0 demand test for a plan (docs/ideas.md's parked table). The tile says so.
+          <li className="card money-tile shop-item shop-plus" data-shop-plus>
+            <PlusInterest place="shop" newsletter={newsletterOpen()} />
           </li>
         )}
         {ownedOffSale.map((item) => (

@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { episodeAllowance } from "@/lib/allowance";
-import { catalogItem, ON_SALE } from "@/lib/catalog";
+import { catalogItem, PACKS } from "@/lib/catalog";
 import { ownedSkus } from "@/lib/payments";
 import { FREE_EPISODES_PER_SEASON as FREE } from "@/lib/rules";
 import {
@@ -13,6 +13,7 @@ import {
 import {
   api,
   checkoutEvent,
+  FAKE_LINKS,
   FAKE_PAYMENT_LINK,
   FAKE_WEBHOOK_SECRET,
   grantByHand,
@@ -41,7 +42,7 @@ beforeEach(async () => {
 });
 
 const now = () => Math.floor(Date.now() / 1000);
-const PACK = ON_SALE[0];
+const PACK = PACKS[0];
 const packLeft = async (buyer: string) => (await episodeAllowance(t.db, userIdOf(buyer))).pack_left;
 
 async function orderStatus(orderId: string): Promise<string> {
@@ -355,5 +356,61 @@ describe("orders never leak who bought", () => {
     const payload = paidEvent();
     const res = await api.stripeWebhook(payload, await stripeSignature(payload));
     expect(await res.text()).not.toContain(userIdOf(buyer));
+  });
+});
+
+describe("one Payment Link per pack (2026-11-14)", () => {
+  it("reads STRIPE_LINK_<SKU> for each pack; only pack_5 falls back to STRIPE_PAYMENT_LINK", () => {
+    const env = { STRIPE_PAYMENT_LINK: FAKE_PAYMENT_LINK, STRIPE_LINK_PACK_15: FAKE_LINKS.pack_15.url };
+    expect(paymentLinkFromEnv(env, "pack_5")?.href).toBe(FAKE_PAYMENT_LINK);
+    expect(paymentLinkFromEnv(env, "pack_15")?.href).toBe(FAKE_LINKS.pack_15.url);
+    expect(paymentLinkFromEnv({ STRIPE_PAYMENT_LINK: FAKE_PAYMENT_LINK }, "pack_15")).toBeNull();
+    expect(paymentLinkFromEnv({ STRIPE_LINK_PACK_5: FAKE_LINKS.pack_15.url, STRIPE_PAYMENT_LINK: FAKE_PAYMENT_LINK }, "pack_5")?.href).toBe(FAKE_LINKS.pack_15.url);
+    expect(paymentLinkFromEnv({ STRIPE_LINK_PACK_15: "http://buy.stripe.com/plain" }, "pack_15")).toBeNull();
+  });
+
+  it("reads a label per pack, pack_5 also from the original STRIPE_PRICE_LABEL, and never the CHANGE_ME placeholder", () => {
+    const env = { STRIPE_PRICE_LABEL: "5 more · $4", STRIPE_PRICE_LABEL_PACK_15: "15 more · $10" };
+    expect(priceLabelFromEnv(env, "Buy", "pack_5")).toBe("5 more · $4");
+    expect(priceLabelFromEnv(env, "Buy", "pack_15")).toBe("15 more · $10");
+    expect(priceLabelFromEnv({ STRIPE_PRICE_LABEL: "5 more · $4" }, "Buy 15", "pack_15")).toBe("Buy 15");
+    expect(priceLabelFromEnv({ STRIPE_PRICE_LABEL_PACK_15: "CHANGE_ME" }, "Buy 15", "pack_15")).toBe("Buy 15");
+  });
+
+  it("hands out each pack's own link at checkout, and records the paying link on the order", async () => {
+    const deliver = async (payload: string) => api.stripeWebhook(payload, await stripeSignature(payload));
+    const buyer = newUserCookie();
+    const big = await startCheckout("pack_15", buyer);
+    expect(new URL(big.url).origin + new URL(big.url).pathname).toBe(FAKE_LINKS.pack_15.url);
+    expect((await deliver(big.paidEvent())).status).toBe(200);
+    const { rows } = await t.db.query<{ stripe_payment_link: string | null; status: string }>("select stripe_payment_link, status from orders where id = $1", [big.orderId]);
+    expect(rows[0]).toEqual({ stripe_payment_link: FAKE_LINKS.pack_15.id, status: "paid" });
+    expect(await packLeft(buyer)).toBe(15);
+  });
+
+  it("refuses a link known to sell the small pack when its session pays for a big-pack order, even at the big pack's price", async () => {
+    const deliver = async (payload: string) => api.stripeWebhook(payload, await stripeSignature(payload));
+    const buyer = newUserCookie();
+    // The small link's id is learnt from a real small-pack payment.
+    const small = await startCheckout("pack_5", buyer);
+    expect((await deliver(small.paidEvent())).status).toBe(200);
+    // A big-pack order paid by a session that names the small link (its price raised in Stripe, or a tampered reference).
+    const big = await startCheckout("pack_15", buyer);
+    const res = await deliver(big.paidEvent({ payment_link: FAKE_LINKS.pack_5.id, amount_total: 1000 }));
+    expect(res.status).toBe(200);
+    expect(await orderStatus(big.orderId)).toBe("pending");
+    expect(await packLeft(buyer)).toBe(5);
+    // A link nobody has paid on yet is unknown: the price floor alone judges it.
+    const other = await startCheckout("pack_15", buyer);
+    expect((await deliver(other.paidEvent({ payment_link: "plink_neverSeen", amount_total: 1000 }))).status).toBe(200);
+    expect(await packLeft(buyer)).toBe(20);
+  });
+
+  it("still refuses the small link's natural price on a big-pack order (the price floor)", async () => {
+    const deliver = async (payload: string) => api.stripeWebhook(payload, await stripeSignature(payload));
+    const buyer = newUserCookie();
+    const big = await startCheckout("pack_15", buyer);
+    expect((await deliver(big.paidEvent({ payment_link: FAKE_LINKS.pack_5.id, amount_total: 400 }))).status).toBe(200);
+    await expectNothingGranted(buyer, big.orderId);
   });
 });

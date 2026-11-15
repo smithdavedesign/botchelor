@@ -656,6 +656,12 @@ export function PrivacySections() {
           as words and is kept like a message, marked as said on a call; we never receive or keep your voice. On a live call we keep
           when it started and ended, its minutes and how many turns it had, for 90 days, to charge it and count it; never its sound.
         </li>
+        <li>
+          If you tap &ldquo;Tell me when it opens&rdquo; on the Botchelor Plus tile (a plan that doesn&apos;t exist yet; nothing is
+          sold or charged): that you did, where (the shop or the out-of-dates notice), when, and whether you left an email. The
+          address itself goes on the Sunday letter&apos;s list (below), the way the letter&apos;s own form puts it there, and nowhere
+          else. It&apos;s in your account export, and it goes when you delete your account.
+        </li>
       </ul>
 
       <h2 id="newsletter">The Sunday letter</h2>
@@ -789,6 +795,7 @@ export function PrivacySections() {
           <a href="#newsletter">above</a>); an unconfirmed sign-up 30 days; which letters went to you 90 days; whether each
           email bounced or was reported as spam, 14 days.
         </li>
+        <li>A tap on the Botchelor Plus tile: {RETENTION_DAYS.plus_interest} days, sooner if you delete your account.</li>
         <li>
           Reports from the report form: kept as the record of what was reported and what we did. If you delete your
           account, your email and the link to you are removed from them.

@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import Avatar from "../Avatar";
 import DateConfirm from "../DateConfirm";
+import OutOfDates, { outOfDatesFrom, type OutOfDatesData } from "../OutOfDates";
 import ModalSheet from "../Sheet";
 import CrisisNotice, { crisisFrom } from "../CrisisNotice";
 import { requestJson, watchLinkOf } from "../request";
@@ -1702,10 +1703,14 @@ export function SendPhase({ character, partners, openCharacters, swipeGate, toke
   const [pending, setPending] = useState<null | { partnerId: string | null; house: boolean; name: string | null }>(null);
   // A refusal that has a date to watch (date_in_progress: the pair's date is still being filmed): its link, by the error.
   const [watchLink, setWatchLink] = useState<string | null>(null);
+  // The out-of-dates wall (app/OutOfDates.tsx): the 429's offer (packs, the shop, the character's texts), shown in place
+  // of the plain refusal in the sheet and under the first-date card.
+  const [wall, setWall] = useState<OutOfDatesData | null>(null);
   const ask = (partnerId: string | null, name: string | null, house = false) => {
     setError(null);
     setWatchLink(null);
     setOutOfTokens(false);
+    setWall(null);
     setPending({ partnerId, house, name });
   };
   /** `opts.format` overrides the sheet's format pick: the instant first date plays in the configured first-date format. */
@@ -1713,6 +1718,7 @@ export function SendPhase({ character, partners, openCharacters, swipeGate, toke
     if (house && roleplay && !choiceReady(roleplay)) return setError("Finish your roleplay first (a title and a premise of a sentence or more), or take it off.");
     setBusy("episode");
     setError(null);
+    setWall(null);
     const chosenFormat = opts.format ?? format;
     const dateFields = {
       autonomy,
@@ -1747,6 +1753,8 @@ export function SendPhase({ character, partners, openCharacters, swipeGate, toke
         return;
       }
       setOutOfTokens(data.error === "episode_limit_reached");
+      // The wall (app/OutOfDates.tsx): what the 429 says is on sale and where else to go; null for any other refusal.
+      setWall(outOfDatesFrom(data));
       setWatchLink(watchLinkOf(data)?.href ?? null);
       setError(message);
     } catch {
@@ -1969,7 +1977,8 @@ export function SendPhase({ character, partners, openCharacters, swipeGate, toke
               {busy === "episode" ? "Starting the date…" : "▶ Start the date now"}
             </button>
             {busy === "episode" && <p className="muted small">The engine is deciding the outcome and the showrunner is writing it…</p>}
-            {error && !pending && (
+            {error && !pending && wall && <OutOfDates data={wall} first={first} />}
+            {error && !pending && !wall && (
               <p className="error small" role="alert">
                 {error} {outOfTokens && offer && <Link href="/shop">{offer}</Link>}
                 {watchLink && <Link href={watchLink}>Watch it</Link>}
@@ -2012,7 +2021,7 @@ export function SendPhase({ character, partners, openCharacters, swipeGate, toke
         busyLabel="Sending…"
         busy={busy === "episode"}
         disabled={Boolean(pending?.house && roleplay && !choiceReady(roleplay))}
-        error={error ? { text: error, shop: outOfTokens, link: watchLink ? { href: watchLink, label: "Watch it" } : undefined } : null}
+        error={error ? { text: error, shop: outOfTokens, link: watchLink ? { href: watchLink, label: "Watch it" } : undefined, wall, first } : null}
         onSend={() => pending && void sendOnDate(pending.partnerId, pending.house)}
       >
         <details className="ux-fold send-settings-fold">

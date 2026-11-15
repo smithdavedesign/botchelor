@@ -9,9 +9,10 @@ import { requestJson } from "@/app/request";
 /**
  * Starts buying one item: the server stores a pending order and answers with the owner's Stripe Payment
  * Link for it, and the browser goes there. `label` is the button text (STRIPE_PRICE_LABEL). The shop always shows it,
- * off while no Payment Link is set (app/shop/page.tsx; the UX audit's "a shop that always shows Buy").
+ * off while no Payment Link is set (app/shop/page.tsx; the UX audit's "a shop that always shows Buy"). `place` says
+ * where the click came from (the shop, or the out-of-dates wall) on the begin_checkout event.
  */
-export default function BuyButton({ sku, label, disabled }: { sku: string; label: string; disabled: boolean }) {
+export default function BuyButton({ sku, label, disabled, place = "shop" }: { sku: string; label: string; disabled: boolean; place?: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [signin, setSignin] = useState<string | null>(null);
@@ -19,7 +20,7 @@ export default function BuyButton({ sku, label, disabled }: { sku: string; label
   async function buy(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    trackConversion("begin_checkout", { sku });
+    trackConversion("begin_checkout", { sku, place });
     setBusy(true);
     setError(null);
     setSignin(null);

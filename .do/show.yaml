@@ -111,6 +111,14 @@ services:
       - key: STRIPE_PRICE_LABEL
         value: "CHANGE_ME"
         scope: RUN_AND_BUILD_TIME
+      # The 15-date pack's own Payment Link ($10 once) and button label (lib/stripe.ts, docs/hosting.md). Unset: the pack
+      # isn't on sale and its shop tile isn't shown. CHANGE_ME counts as unset.
+      - key: STRIPE_LINK_PACK_15
+        value: "CHANGE_ME"
+        scope: RUN_AND_BUILD_TIME
+      - key: STRIPE_PRICE_LABEL_PACK_15
+        value: "CHANGE_ME"
+        scope: RUN_AND_BUILD_TIME
       - key: OPERATOR_PASS_LINK
         value: "CHANGE_ME"
         scope: RUN_AND_BUILD_TIME

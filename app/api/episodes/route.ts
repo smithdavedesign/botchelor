@@ -6,7 +6,12 @@ import { releaseEpisode, reserveEpisode, reserveSecondDate, type Reservation } f
 import { releaseOperatorDate, reserveOperatorDate } from "@/lib/operator-pass";
 import { isCastDateRequest } from "@/lib/cast-date-request";
 import { portraitPathSql } from "@/lib/assets";
-import { PACK_5 } from "@/lib/catalog";
+import { onSale, PACK_5 } from "@/lib/catalog";
+import { companionOpen } from "@/lib/companion-shared";
+import { threadIdFor } from "@/lib/companion";
+import { newsletterOpen } from "@/lib/newsletter";
+import { planLink } from "@/lib/paid-plans";
+import { paymentLinkFromEnv } from "@/lib/stripe";
 import { jobUsability } from "@/lib/connections";
 import { getDb, type Db } from "@/lib/db";
 import { decideTraced } from "@/lib/engine";
@@ -470,11 +475,24 @@ export const POST = crisisAware("date_note", (body) => [str(body.note)], handle(
   const passDate = housePaid ? false : await reserveOperatorDate(db, sess.userId);
   const reservation = passDate || housePaid ? null : (secondDate ? await reserveSecondDate(db, sess.userId) : null) ?? (await reserveEpisode(db, sess.userId));
   if (!passDate && !reservation && !housePaid) {
+    // The wall sells (2026-11-14): this is the one moment anyone has shown intent to pay, so the refusal carries what's
+    // on sale and where else to go (app/OutOfDates.tsx renders it): the packs whose links are set, the shop, the
+    // Companion Plan while it's open, and the person's own companion thread with this character, if they have one.
+    const thread = await threadIdFor(db, sess.userId, own.id).catch(() => null);
+    const plan = companionOpen() && planLink("companion") !== null ? "/companion/plan" : undefined;
     return json(
       {
         error: "episode_limit_reached",
         resets_at: weekAt(new Date()).ends_at,
         shop_path: "/shop",
+        shop: "/shop",
+        // Only packs that can be bought now: pack_5 is always listed in the shop, but its link may still be unset.
+        packs: onSale()
+          .filter((p) => paymentLinkFromEnv(process.env, p.sku) !== null)
+          .map((p) => ({ sku: p.sku, name: p.name, price_cents: p.price_cents, episodes: p.episodes ?? 0 })),
+        ...(plan ? { plan } : {}),
+        ...(thread ? { thread: `/companion/${thread}` } : {}),
+        newsletter: newsletterOpen(),
         message: `No dates left: you've used this week's ${FREE_EPISODES_PER_SEASON} free ones (and any pack dates). Free dates come back Monday 00:00 UTC, or get ${PACK_5.name} in the shop. Packs add dates, never points.`,
       },
       429,
