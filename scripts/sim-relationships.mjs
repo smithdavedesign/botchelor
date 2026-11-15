@@ -20,7 +20,7 @@
  *   --lessons-ab   the last date twice from the same history (lib/character-lessons.ts): once on a copy of the database
  *                  with CHARACTER_LESSONS=0, once with the characters' lessons in their prompts. Saves the lessons each
  *                  character holds (lessons.json) and both dates (date-N-without-lessons-view.json beside
- *                  date-N-view.json), and in paid mode what the lessons step took off the key. The two dates have
+ *                  date-N-view.json), and what the lessons step cost (run.json lessons_step). The two dates have
  *                  different ids, so the engine may decide them differently: compare what is said, not how it ends.
  *
  * Tokens: each run makes both owners admins with a throwaway password and grants them free dates (/api/admin/tokens),
@@ -207,25 +207,16 @@ async function runPair(index, pair, browser) {
       // Air it (as whoever booked it), read the afterglow, run the day's texts.
       for (const who of [ownerA, ownerB]) if ((await post(base, `/api/episodes/${id}/reveal`, {}, who)).status === 200) break;
       const afterglow = (await post(base, `/api/episodes/${id}/afterglow`, {}, ownerA)).data;
-      const job = async (part) => (await get(base, `/api/jobs/daily?backfill=0${part ? `&part=${part}` : ""}`, ownerA, { "x-jobs-token": WATCH_ADMIN_TOKEN })).data;
-      let daily;
-      if (LESSONS_AB) {
-        // The job part by part, so what the lessons step (in the growth part) spends can be read off the key's balance.
-        daily = {};
-        for (const part of ["upkeep", "show", "people"]) Object.assign(daily, await job(part));
-        const before = await gatewayBalance();
-        Object.assign(daily, await job("growth"));
-        const l = daily.character_lessons;
-        if (l?.written) {
-          // The provider's balance can trail a call by a few seconds.
-          if (before !== null) await new Promise((ok) => setTimeout(ok, 8000));
-          const after = await gatewayBalance();
-          const spent = before !== null && after !== null ? Number((before - after).toFixed(6)) : null;
-          log.lessons_step = { after_date: n, ...l, balance_spent_usd: spent, balance_per_character_usd: spent !== null ? Number((spent / l.written).toFixed(6)) : null };
-          console.log(`  lessons step: ${l.written} written (${l.by_model} by the model, ${l.by_template} by template), ${l.input_tokens} tokens in / ${l.output_tokens} out${spent !== null ? `, $${spent} off the key` : ""}`);
-        }
-      } else {
-        daily = await job();
+      const daily = (await get(base, "/api/jobs/daily?backfill=0", ownerA, { "x-jobs-token": WATCH_ADMIN_TOKEN })).data;
+      // The job's lessons step, when it wrote any (lib/character-lessons-job.ts): how, and what the calls cost by the
+      // provider's own figure (the key's balance trails a call by longer than a run can wait, so it isn't read for this).
+      const l = daily?.character_lessons;
+      if (LESSONS_AB && l?.written) {
+        log.lessons_step = { after_date: n, ...l };
+        console.log(
+          `  lessons step: ${l.written} written (${l.by_model} by the model, ${l.by_template} by template), ${l.input_tokens} tokens in / ${l.output_tokens} out` +
+            `${l.cost_per_character_usd !== null ? `, ${(l.cost_per_character_usd * 100).toFixed(3)}¢ a character` : ""}`,
+        );
       }
       const edge = await relationship(base, ownerA, a.id, b.id);
       const edgeB = await relationship(base, ownerB, a.id, b.id);

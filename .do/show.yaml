@@ -129,7 +129,7 @@ services:
       # - key: CHARACTER_QUESTIONS
       #   value: "0"
       #   scope: RUN_AND_BUILD_TIME
-      # The characters' weekly lessons (lib/character-lessons.ts; docs/character-depth.md §11): on by default.
+      # The characters' weekly lessons (lib/character-lessons.ts; docs/character-depth.md §12): on by default.
       # Uncomment with "0" and nothing is written, carried in a prompt, shown or texted; the rows stay.
       # - key: CHARACTER_LESSONS
       #   value: "0"
