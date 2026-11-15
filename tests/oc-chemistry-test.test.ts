@@ -81,6 +81,19 @@ const sp = (query: string) => ({ searchParams: Promise.resolve(searchRecord(quer
 const renderTool = () => text(renderToStaticMarkup(createElement(ToolPage)));
 const renderResult = async (query: string) => text(renderToStaticMarkup(await ResultPage(sp(query))));
 const renderCreate = async (query: string) => text(renderToStaticMarkup(await CreatePage(sp(query))));
+/** /create's form with nothing carried in. A first character's /create opens on the one box since 2026-11-15
+ *  (EXPRESS_CREATE, lib/express-create.ts), so the form's own fields are read with that switched off. */
+const renderCreateForm = async (query = "") => {
+  // Set and put back by hand: vi.unstubAllEnvs() would also bring back the model keys beforeAll took away.
+  const before = process.env.EXPRESS_CREATE;
+  process.env.EXPRESS_CREATE = "0";
+  try {
+    return await renderCreate(query);
+  } finally {
+    if (before === undefined) delete process.env.EXPRESS_CREATE;
+    else process.env.EXPRESS_CREATE = before;
+  }
+};
 /** The query a visitor's form submits for two characters, field by field, the way the browser writes it. */
 function formQuery(a: Partial<OcSheet> & { name: string }, b: Partial<OcSheet> & { name: string }, extra: Record<string, string> = {}): string {
   const q = new URLSearchParams();
@@ -152,7 +165,7 @@ describe("1. the tool page: /tools/oc-chemistry-test", () => {
 
   it("takes each field with the same limit /create's builder does", async () => {
     const tool = renderTool();
-    const create = await renderCreate("");
+    const create = await renderCreateForm();
     for (const field of SHEET_FIELDS) {
       const builderMax = attr(inputNamed(create, field), "maxLength");
       expect(builderMax, `/create has a ${field} input`).toBeTruthy();
@@ -379,10 +392,12 @@ describe("4. 'Watch the real date', and what the test refuses", () => {
   });
 
   it("leaves /create as it was without a pair, and ignores a pair the filter refuses", async () => {
-    const plain = await renderCreate("");
+    const plain = await renderCreateForm();
     expect(attr(inputNamed(plain, "name"), "value")).toBe("");
     expect(plain).not.toContain("chemistry test");
-    const refused = await renderCreate(formQuery({ name: "Taylor Swift" }, DEX));
+    // A refused pair leaves the plain page: the one box by default, and the form's empty name with it switched off.
+    expect((await renderCreate(formQuery({ name: "Taylor Swift" }, DEX))).toLowerCase()).not.toContain("swift");
+    const refused = await renderCreateForm(formQuery({ name: "Taylor Swift" }, DEX));
     expect(attr(inputNamed(refused, "name"), "value")).toBe("");
     expect(refused.toLowerCase()).not.toContain("swift");
   });
