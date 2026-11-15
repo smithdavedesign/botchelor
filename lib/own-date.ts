@@ -30,6 +30,7 @@ import { movePlace, placeRefusedWhy } from "./places";
 import { airsWhen, airWindowMinutes } from "./air";
 import { track, trackDateQuality } from "./analytics";
 import { recordCrossSpecies } from "./agent-funnel";
+import { stampDateModels } from "./model-league";
 import { logTurnDraft } from "./turn-drafts";
 import { buildTurnMessages, parseTurnResult, TURN_TEMPERATURE, type Turn } from "./conversation";
 import { checkFieldsAnyLanguage, needsTranslation, UNREAD_MESSAGE } from "./language-check";
@@ -892,6 +893,8 @@ export async function startOwnDate(
   }
   track("episode_created", { episode_id: episodeId, ending: decided.ending, blind: false, performed_by: "agent", two_agent: partnerPerformer !== null });
   await recordCrossSpecies(db, episodeId, "own_date");
+  // The model league (lib/model-league.ts): both agents' declared model families, stamped as the date is booked.
+  await stampDateModels(db, episodeId);
   // Their nudges for each other are in this date's setup now, so they're used.
   await useNudges(db, a.id, b.id).catch(() => {});
   // Booked: the pair's "Book it" notices are done (lib/notifications.ts).
