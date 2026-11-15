@@ -425,6 +425,20 @@ async function main() {
       { name: "account-signed-in", path: "/account", as: "member" },
       { name: "account-keys", path: "/account/keys", as: "member" },
       { name: "directory", path: "/characters" },
+      // Every card's verb (lib/character-verb.ts): a stranger steps in or makes a character (above), an owner sends theirs.
+      { name: "directory-owner", path: "/characters", as: "owner" },
+      { name: "directory-people", path: "/characters?tab=people" },
+      {
+        // Step into the date, open to everyone: the cast picker a stranger lands on with no 18+ cookie, then the start
+        // screen with its own 18+ box (app/step-in/StepInSetup.tsx).
+        name: "step-in",
+        path: "/step-in",
+        as: "visitor",
+        walk: async (page) => {
+          await page.locator(".stepin-cast-pick").first().click();
+          await page.locator(".stepin-form").waitFor({ timeout: 20_000 });
+        },
+      },
       { name: "notifications", path: "/notifications", as: "owner" },
       { name: "graph", path: "/graph" },
       { name: "reunion", path: "/reunion" },
