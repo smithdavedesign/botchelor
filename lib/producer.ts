@@ -19,7 +19,8 @@
  *     situation vote offers two or three TWISTS of it instead of the dealt roleplays: who gets the date, where, or whose
  *     story gets asked about. A vote picks a situation, never an ending and never anyone's odds; with no beat, or one
  *     that can't be staged (a Botchelor season only dates the lead with a suitor still in), the dealt roleplays stand,
- *     and a day nobody votes makes no date, exactly as before.
+ *     and a day nobody votes makes no date, exactly as before. A day that already has votes when its beat is picked (a
+ *     missed night caught up later) keeps the ballot those votes were cast on.
  *  4. "Previously" and "Tonight": two template lines a day from the beat, and a one-line logline in the show's voice
  *     (the show's cheap model, one call, checked; the template when it fails). Shown where the show already has a daily
  *     line and offered to the clip pipeline (GET /api/story).
@@ -461,7 +462,11 @@ async function produce(db: Db, day: string, now: Date, opts: { model?: Model | n
   const who = [picked.a, picked.b, ...(picked.about && picked.about !== picked.a && picked.about !== picked.b ? [picked.about] : [])];
   const names = await namesOf(db, who);
   const nm: Names = (id) => names.get(id) ?? "someone";
-  const twists = beatTwists(picked, nm, stage, day);
+  // A day that already has votes keeps the ballot they were cast on (a missed night caught up at noon, the day this
+  // first deploys): the beat, its wants and its lines still stand; only the night's own pass, ahead of every vote, swaps
+  // the ballot for twists.
+  const voted = (await db.query(`select 1 from situation_votes where day = $1 limit 1`, [day])).rows.length > 0;
+  const twists = voted ? null : beatTwists(picked, nm, stage, day);
   const lines = beatLines(picked, nm, Boolean(twists));
   if (!checkShowText({ previously: lines.previously, tonight: lines.tonight, logline: lines.logline }).ok) return none("no_tension");
   const model = opts.model !== undefined ? opts.model : voiceEnabled ? getModel("minimal", false) : null;

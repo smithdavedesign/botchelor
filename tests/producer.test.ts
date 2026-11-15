@@ -380,6 +380,23 @@ describe("tonight's vote", () => {
     expect(notes[0].title).toBe(`Your pick won: ${twists[1].title}`);
   });
 
+  it("a beat picked on a day that already has votes leaves that day's ballot alone", async () => {
+    await rivalsForDex();
+    // A viewer voted on the dealt ballot this morning; the night's pass was missed and is caught up at noon.
+    const dealt = situationChoices(TODAY)[0].id;
+    await voteSituation(t.db, "early-bird", dealt, new Date("2026-11-12T08:00:00Z"));
+    expect(await runProducer(t.db, NOW, { model: null })).toMatchObject({ day: TODAY, beat: "rival_date", twists: 0 });
+    const beat = (await beatFor(t.db, TODAY))!;
+    expect(beat.choices).toBeNull();
+    expect(beat.tonight).toBe("Tonight: neither of them is backing down.");
+    const board = (await situationBoard(t.db, "early-bird", NOW))!;
+    expect(board.headline).toBeNull();
+    expect(board.my_pick).toBe(dealt);
+    // The night's pass for tomorrow is ahead of every vote, so tomorrow's ballot is the twists.
+    await t.db.query("delete from story_beats");
+    expect(await runProducer(t.db, NIGHT, { model: null })).toMatchObject({ day: TOMORROW, twists: 3 });
+  });
+
   it("a twist about whose story gets asked hands the one who asks that want when it wins", async () => {
     await hear(t.db, { holder: NELL, about: DEX, claim: "Dex has never owned a boat.", toldBy: SABLE, source: "scene:o1", isTrue: true });
     await hear(t.db, { holder: JUNE, about: DEX, claim: "Dex owns a boat he says he doesn't.", toldBy: SABLE, source: "scene:o2", isTrue: false });

@@ -291,7 +291,8 @@ empty).
    nobody votes still makes no date. **On a Botchelor season** the house only ever books the lead with a suitor still
    in (`stagedPair`): two suitors who both want the lead become "who gets tonight's date with her"; two suitors who
    should be put in a room can't be, so that day keeps the dealt ballot (the beat and its wants still stand). A suitor
-   sent home between the ballot and the date makes no date.
+   sent home between the ballot and the date makes no date. A day that already has votes when its beat is picked (a
+   missed night caught up later in the day) keeps the ballot those votes were cast on.
 4. **"Previously" and "Tonight".** Two template lines from the beat ("Previously: Dex found out what Sable has been
    saying." / "Tonight: Dex wants an answer, and you pick where Dex gets to ask.") and a one-line logline in the show's
    voice: one small call on the show's free model, checked (one line, names someone in the beat, the PG checks, says
