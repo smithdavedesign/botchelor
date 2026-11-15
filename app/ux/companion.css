@@ -381,9 +381,11 @@ body:has(.companion-fullscreen) .site-footer {
   display: flex;
   gap: 0.25rem;
 }
-/* Deleting one message (app/companion/[id]/messages): the memory page's list, with who and when on the first line, the
-   message's own words on a line of their own (they can be long, or one unbroken link), and the buttons under them. */
+/* Deleting one message (app/companion/[id]/messages): the memory page's list, with who, when and Delete on the first
+   line (the confirm wraps under them on a phone) and the message's own words below, on a line of their own: they can be
+   long, or one unbroken link. */
 .companion-delete-list .companion-fact-text {
+  order: 2;
   flex-basis: 100%;
   overflow-wrap: anywhere;
   white-space: pre-wrap;

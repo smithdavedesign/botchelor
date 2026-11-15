@@ -4,10 +4,9 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { requestJson } from "@/app/request";
+import When from "@/app/When";
 import type { DeletableMessage } from "@/lib/companion-message-delete";
 import type { CompanionCharacterRef } from "@/lib/companion-shared";
-
-const when = (iso: string) => new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 
 /**
  * The thread's messages as a plain list, newest first, each with a Delete that asks once (lib/companion-message-delete.ts).
@@ -73,9 +72,7 @@ export default function DeleteMessages({ threadId, character, initial }: { threa
                 {m.call ? "📞 " : ""}
                 {m.photo ? "📷 " : ""}
                 {m.voice ? "🔊 " : ""}
-                <time dateTime={m.at} suppressHydrationWarning>
-                  {when(m.at)}
-                </time>
+                <When iso={m.at} />
               </span>
               <span className="companion-fact-text">{m.photo ? `A photo: ${m.text}` : m.text}</span>
               {asking === m.id ? (

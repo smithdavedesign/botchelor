@@ -947,7 +947,14 @@ async function main() {
       await rows.filter({ hasText: target }).first().waitFor({ state: "detached", timeout: 10_000 });
       assert((await rows.count()) === before - 1, `one message should go (${before} → ${await rows.count()})`);
       await page.getByRole("status").filter({ hasText: "Deleted." }).waitFor({ timeout: 5_000 });
-      // Back in the chat it's gone, and still gone after a reload; the rest is there.
+      // The browser's own Back (what a phone's swipe does): the chat it returns to no longer shows it.
+      await page.goBack();
+      await page.waitForURL(`${base}${threadPath}`, { timeout: 15_000 });
+      await page.locator(".companion-thread .chat-bubble").first().waitFor({ timeout: 15_000 });
+      await page.waitForFunction((text) => ![...document.querySelectorAll(".companion-thread .chat-bubble")].some((b) => b.textContent?.includes(text)), target, { timeout: 10_000 });
+      // And by the page's own link: gone, and still gone after a reload; the rest is there.
+      await page.goForward();
+      await page.getByRole("heading", { name: "Delete messages" }).waitFor({ timeout: 15_000 });
       await page.getByRole("link", { name: `← Back to ${first}` }).click();
       await page.waitForURL(`${base}${threadPath}`, { timeout: 15_000 });
       await page.locator(".companion-thread .chat-bubble").first().waitFor({ timeout: 15_000 });
