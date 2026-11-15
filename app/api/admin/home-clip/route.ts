@@ -1,0 +1,60 @@
+import { airIfDue } from "@/lib/air";
+import { getDb } from "@/lib/db";
+import { getEpisodeView } from "@/lib/game";
+import { clipRefusal, homeHeroClipOn, LOOP_MAX_BYTES, LOOP_MAX_SECONDS, looksLikeJpeg, looksLikeMp4, POSTER_MAX_BYTES, saveHomeClip } from "@/lib/home-clip";
+import { handle, json } from "@/lib/http";
+import { frontierAuthorized } from "@/lib/model";
+
+export const dynamic = "force-dynamic";
+
+const REFUSALS = {
+  episode_not_found: "No such date.",
+  not_aired: "That date hasn't aired yet: only an aired date can be the home clip.",
+  not_public: "Only a public date between public characters can be the home clip.",
+} as const;
+
+/**
+ * Owner-only (the admin password, x-frontier-key): the day's clip for the home page (lib/home-clip.ts), sent by
+ * scripts/clips/daily-clip.mjs once the clip is rendered. A multipart form: `episode` (the date's id), `loop` (a small
+ * muted MP4), `poster` (a JPEG of its first frame), `width`, `height`, `seconds`, and optionally `day` (YYYY-MM-DD,
+ * else today). The route itself checks the date: aired, public, not hidden, both characters public; anything else is
+ * refused, whatever the caller says. One clip per date: sending a date's clip again replaces it.
+ */
+export const POST = handle(async (req: Request) => {
+  if (!frontierAuthorized(req)) return json({ error: "not_authorized", message: "Needs the admin password." }, 403);
+  if (!homeHeroClipOn()) return json({ error: "off", message: "HOME_HERO_CLIP is off." }, 404);
+  let form: FormData;
+  try {
+    form = await req.formData();
+  } catch {
+    return json({ error: "invalid_form", message: "Send a multipart form." }, 400);
+  }
+  const episodeId = String(form.get("episode") ?? "").trim();
+  if (!/^[\w-]{1,64}$/.test(episodeId)) return json({ error: "invalid_episode", message: "episode: the date's id." }, 400);
+  const loopFile = form.get("loop");
+  const posterFile = form.get("poster");
+  if (!(loopFile instanceof Blob) || !(posterFile instanceof Blob)) return json({ error: "missing_files", message: "loop (MP4) and poster (JPEG) are both needed." }, 400);
+  if (loopFile.size > LOOP_MAX_BYTES || posterFile.size > POSTER_MAX_BYTES) {
+    return json({ error: "too_large", message: `The loop is at most ${LOOP_MAX_BYTES} bytes and the poster ${POSTER_MAX_BYTES}.` }, 413);
+  }
+  const loop = Buffer.from(await loopFile.arrayBuffer());
+  const poster = Buffer.from(await posterFile.arrayBuffer());
+  if (!looksLikeMp4(loop) || !looksLikeJpeg(poster)) return json({ error: "invalid_files", message: "loop must be an MP4 and poster a JPEG." }, 400);
+  const width = Number(form.get("width"));
+  const height = Number(form.get("height"));
+  const seconds = Number(form.get("seconds"));
+  if (!(width >= 120 && width <= 1080 && height >= 120 && height <= 1920 && seconds > 0 && seconds <= LOOP_MAX_SECONDS)) {
+    return json({ error: "invalid_size", message: `width, height (up to 1080×1920) and seconds (up to ${LOOP_MAX_SECONDS}) are needed.` }, 400);
+  }
+  const given = String(form.get("day") ?? "").trim();
+  const day = /^\d{4}-\d{2}-\d{2}$/.test(given) ? given : new Date().toISOString().slice(0, 10);
+
+  const db = await getDb();
+  // As the date's own page does: a date whose window has closed airs when it's opened (lib/air.ts).
+  await airIfDue(db, episodeId).catch(() => null);
+  // As a stranger sees it: a private date is null here, an unaired one isn't revealed.
+  const refusal = clipRefusal(await getEpisodeView(db, episodeId, null));
+  if (refusal) return json({ error: refusal, message: REFUSALS[refusal] }, refusal === "episode_not_found" ? 404 : 409);
+  const { id } = await saveHomeClip(db, { episode_id: episodeId, day, loop, poster, width, height, seconds });
+  return json({ ok: true, id, episode_id: episodeId, day, loop: `/api/home-clip/${id}/loop.mp4`, poster: `/api/home-clip/${id}/poster.jpg` });
+});

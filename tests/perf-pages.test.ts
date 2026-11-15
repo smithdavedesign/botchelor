@@ -142,6 +142,7 @@ const BUDGET: Record<string, number> = {
   "couple (owner)": 11,
   relationships: 6,
   "home (owner)": 5,
+  "home (visitor)": 3,
   characters: 8,
   watch: 8,
   "matches (owner)": 8,
@@ -176,6 +177,8 @@ describe("heavy pages' round trips (2026-11-04 audit)", () => {
     // With companions open, as on prod: the owner's home then loads their character's phone too (lib/character-phone.ts:
     // one read next to "Since you were here"), and the budget holds with it.
     ["home (owner)", "owner", async () => withEnv("COMPANION_OPEN", "1", async () => (await import("@/app/page")).default({ searchParams: Promise.resolve({}) as never }))],
+    // A stranger's home: the day's clip (lib/home-clip.ts) rides in the same Promise.all as the boards, so it adds no depth.
+    ["home (visitor)", null, async () => (await import("@/app/page")).default({ searchParams: Promise.resolve({}) as never })],
     ["characters", null, async () => (await import("@/app/characters/page")).default({ searchParams: Promise.resolve({}) as never })],
     ["watch", null, async () => (await import("@/app/watch/page")).default({ searchParams: Promise.resolve({}) as never })],
     ["matches (owner)", "owner", async () => (await import("@/app/matches/page")).default({ searchParams: Promise.resolve({}) })],

@@ -23,6 +23,11 @@ import { CHARACTER_REJECTION_MESSAGES, checkSheetText, type RejectReason } from 
 export const EXPRESS_TEXT_MAX = 280;
 /** Less than this is not a description ("hi"); the button stays off. */
 export const EXPRESS_TEXT_MIN = 8;
+/**
+ * Where the home page's box leaves its sentence for /create (sessionStorage; app/HomeExpressBox.tsx), so what someone
+ * typed is never in an address the analytics see. Without script the form sends it as /create?say=… instead.
+ */
+export const EXPRESS_SAY_KEY = "bz_express_say";
 /** How long the route waits for the model before the form opens instead (the model's own timeout and retries run to a minute). */
 export const EXPRESS_TIMEOUT_MS = 12_000;
 /** How long the builder waits for the route: a little longer, so the server's own answer arrives first when it has one. */
@@ -330,4 +335,9 @@ export function expressDraftedEvent(o: { ready: boolean; invented_name: boolean;
 /** No draft: why. The form opened with their words in the bio. */
 export function expressFailedEvent(reason: ExpressFailure): ExpressEvent {
   return { name: "express_failed", props: { reason } };
+}
+
+/** The same event with where the sentence was typed, when that wasn't /create itself (the home page's box: "home"). */
+export function expressEventAt(ev: ExpressEvent, place: string | null): ExpressEvent {
+  return place ? { name: ev.name, props: { ...ev.props, place } } : ev;
 }
