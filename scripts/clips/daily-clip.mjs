@@ -7,10 +7,17 @@
 // (scripts/crowd/install.sh); by hand:  node scripts/clips/daily-clip.mjs [episode_id] [--silent]
 //   CLIPS_DIR (default ~/BotchelorClips), CROWD_BASE (default https://botchelor.com), CHROMIUM_PATH (default: the
 //   newest Chromium Playwright has cached), FFMPEG (default: ffmpeg on PATH).
+// The home page plays it too (lib/home-clip.ts, 2026-11-15): once the MP4 is written, a small muted web loop (the first
+// 10 to 14 seconds of lines, 480 px wide, H.264 faststart, well under 1.5 MB) and a poster are cut from it with the same
+// ffmpeg and sent to POST /api/admin/home-clip, which itself refuses anything but a publicly aired date. The admin
+// password is read when it's needed (FRONTIER_PASSWORD, else the keychain's vault/botchelor/FRONTIER_PASSWORD), never
+// written or printed; a failed upload is logged and the clip run still succeeds. HOME_CLIP_UPLOAD=0 skips it.
+// A clip already rendered:  node scripts/clips/daily-clip.mjs --upload <clip.mp4> --episode <id> [--from <seconds>] [--dry]
+//   (--from: where the loop starts in the clip, default 2; --dry: cut the files into CLIPS_DIR/web and send nothing).
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { voiceTrack } from "./voice.mjs";
 
@@ -75,6 +82,164 @@ export function chromiumPath() {
   throw new Error("No Chromium: set CHROMIUM_PATH (this script never downloads one).");
 }
 
+/* ------------------------------------------------------------------------------------------------------------
+ * The home page's web loop (lib/home-clip.ts)
+ * ------------------------------------------------------------------------------------------------------------ */
+
+/** The loop's size: a phone frame on the home page is at most this wide; 9:16 like the clip. */
+export const WEB_LOOP = { width: 480, height: 854, fps: 24, min: 10, max: 14, target: 12, maxBytes: 1_400_000 };
+/** Where a rendered clip's lines start when nobody measured it: the date's page shows for about two seconds first. */
+export const WEB_LOOP_FROM = 2;
+
+/**
+ * Which seconds of the clip the loop shows: from just after the first line's bubble appears (so the poster, the
+ * loop's first frame, already has a line on it), for 10 to 14 seconds, ending a second after a line landed when one
+ * fits (a cut mid-typing reads as a glitch), else 12. `marks`: when each line appeared, in seconds from the clip's
+ * start (null: not seen). No marks: from `from`. Never past the clip's end. Pure.
+ */
+export function webLoopWindow(marks, totalSeconds, from = WEB_LOOP_FROM) {
+  const seen = (marks ?? []).filter((t) => typeof t === "number" && t >= 0 && t < totalSeconds).sort((x, y) => x - y);
+  let start = seen.length ? seen[0] + 0.2 : from;
+  if (!(start >= 0) || start > totalSeconds - 3) start = 0;
+  const ends = seen.map((t) => t + 1 - start).filter((d) => d >= WEB_LOOP.min && d <= WEB_LOOP.max);
+  const seconds = Math.min(ends.length ? ends.at(-1) : WEB_LOOP.target, Math.max(1, totalSeconds - start));
+  return { start: Number(start.toFixed(2)), seconds: Number(seconds.toFixed(2)) };
+}
+
+const WEB_FIT = `scale=${WEB_LOOP.width}:${WEB_LOOP.height}:force_original_aspect_ratio=decrease,pad=${WEB_LOOP.width}:${WEB_LOOP.height}:(ow-iw)/2:(oh-ih)/2`;
+
+/** ffmpeg's arguments for the loop: muted, 480 px wide, H.264 a phone plays inline, faststart, a capped bitrate. Pure. */
+export function webLoopArgs({ src, out, start, seconds, crf = 26 }) {
+  return [
+    "-y", "-loglevel", "error", "-ss", String(start), "-t", String(seconds), "-i", src, "-an",
+    "-vf", `${WEB_FIT},fps=${WEB_LOOP.fps}`,
+    "-c:v", "libx264", "-profile:v", "main", "-pix_fmt", "yuv420p", "-preset", "slow", "-crf", String(crf),
+    // 700 kbit/s at most: 14 seconds is then about 1.2 MB whatever the picture does.
+    "-maxrate", "700k", "-bufsize", "1400k", "-movflags", "+faststart",
+    out,
+  ];
+}
+
+/** ffmpeg's arguments for the poster: the loop's own first frame, so the video starts where the picture was. Pure. */
+export function posterArgs({ src, out, start }) {
+  return ["-y", "-loglevel", "error", "-ss", String(start), "-i", src, "-frames:v", "1", "-vf", WEB_FIT, "-q:v", "5", out];
+}
+
+/** `--upload <clip.mp4> --episode <id> [--from <seconds>] [--dry]`, or null when this isn't that mode. Throws on a half-given one. Pure. */
+export function parseUpload(argv) {
+  const at = argv.indexOf("--upload");
+  if (at < 0) return null;
+  const val = (flag) => {
+    const i = argv.indexOf(flag);
+    const v = i < 0 ? undefined : argv[i + 1];
+    return v && !v.startsWith("--") ? v : undefined;
+  };
+  const file = val("--upload");
+  const episode = val("--episode");
+  if (!file || !episode) throw new Error("usage: daily-clip.mjs --upload <clip.mp4> --episode <id> [--from <seconds>] [--dry]");
+  const from = val("--from") === undefined ? WEB_LOOP_FROM : Number(val("--from"));
+  if (!Number.isFinite(from) || from < 0) throw new Error("--from: seconds into the clip, 0 or more");
+  return { file, episode, from, dry: argv.includes("--dry") };
+}
+
+/** The day in a clip's file name (2026-11-15-a-b.mp4), else null. Pure. */
+export const dayOfClip = (file) => /(?:^|\/)(\d{4}-\d{2}-\d{2})-[^/]*$/.exec(String(file))?.[1] ?? null;
+
+/**
+ * The admin password for the upload: FRONTIER_PASSWORD when the run has it, else the keychain's. Read when needed,
+ * handed straight to the request, never logged. `read`: the keychain lookup (tests pass their own). Null: none.
+ */
+export function adminKey(env = process.env, read = keychainKey) {
+  const given = env.FRONTIER_PASSWORD?.trim();
+  if (given) return given;
+  try {
+    return read()?.trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+function keychainKey() {
+  return execFileSync("/usr/bin/security", ["find-generic-password", "-s", "vault/botchelor/FRONTIER_PASSWORD", "-w"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 10_000 });
+}
+
+/** Cuts the loop and its poster from a rendered clip into `dir`. A loop that came out too heavy is cut again, coarser. */
+export function makeWebClip({ mp4, dir, name, window, ffmpeg = process.env.FFMPEG || "ffmpeg" }) {
+  mkdirSync(dir, { recursive: true });
+  const loop = join(dir, `${name}.mp4`);
+  const poster = join(dir, `${name}.jpg`);
+  for (const crf of [26, 30, 36]) {
+    execFileSync(ffmpeg, webLoopArgs({ src: mp4, out: loop, ...window, crf }));
+    if (statSync(loop).size <= WEB_LOOP.maxBytes) break;
+  }
+  execFileSync(ffmpeg, posterArgs({ src: mp4, out: poster, start: window.start }));
+  return { loop, poster, bytes: statSync(loop).size };
+}
+
+/**
+ * Sends the loop and poster to the show (POST /api/admin/home-clip). Returns { ok, status, error }: the route's own
+ * refusal (not aired, not public) comes back as its `error`. `send`: fetch (tests pass their own). Never throws.
+ */
+export async function uploadWebClip({ base, key, episode, day, loop, poster, seconds, send = fetch }) {
+  try {
+    const form = new FormData();
+    form.set("episode", episode);
+    if (day) form.set("day", day);
+    form.set("width", String(WEB_LOOP.width));
+    form.set("height", String(WEB_LOOP.height));
+    form.set("seconds", String(seconds));
+    form.set("loop", new Blob([readFileSync(loop)], { type: "video/mp4" }), "loop.mp4");
+    form.set("poster", new Blob([readFileSync(poster)], { type: "image/jpeg" }), "poster.jpg");
+    const res = await send(`${base}/api/admin/home-clip`, { method: "POST", headers: { "x-frontier-key": key, "user-agent": "botchelor-clip/1.0" }, body: form });
+    const body = await res.json().catch(() => ({}));
+    return { ok: res.ok && body.ok === true, status: res.status, error: res.ok ? null : String(body.error ?? `http_${res.status}`), id: body.id ?? null };
+  } catch (e) {
+    return { ok: false, status: 0, error: `network: ${String(e?.message ?? e).slice(0, 120)}`, id: null };
+  }
+}
+
+/**
+ * The whole step, for the daily run and for --upload: cut, then send. Logs what happened and returns it; never throws,
+ * so a clip that rendered is never failed by the home page's copy.
+ */
+export async function sendWebClip({ mp4, out, name, episode, day, window, base, dry = false }) {
+  try {
+    const made = makeWebClip({ mp4, dir: join(out, "web"), name, window });
+    console.log(`Web loop: ${made.loop} (${Math.round(made.bytes / 1024)} KB, ${window.seconds}s from ${window.start}s)`);
+    if (made.bytes > WEB_LOOP.maxBytes) {
+      console.error("home clip: the loop is still too heavy; not sent");
+      return { ok: false, error: "too_large" };
+    }
+    if (dry) return { ok: true, error: null, dry: true };
+    const key = adminKey();
+    if (!key) {
+      console.error("home clip: no admin password (FRONTIER_PASSWORD or the keychain); not sent");
+      return { ok: false, error: "no_key" };
+    }
+    const sent = await uploadWebClip({ base, key, episode, day, loop: made.loop, poster: made.poster, seconds: window.seconds });
+    if (sent.ok) console.log(`Home clip: sent (${sent.id})`);
+    else console.error(`home clip: not sent (${sent.status} ${sent.error})`);
+    return sent;
+  } catch (e) {
+    console.error(`home clip: skipped (${String(e?.message ?? e).slice(0, 200)})`);
+    return { ok: false, error: "failed" };
+  }
+}
+
+/** The clip's length in seconds, read from ffmpeg's own report of the file (no ffprobe needed). */
+function clipSeconds(mp4, ffmpeg = process.env.FFMPEG || "ffmpeg") {
+  let text = "";
+  try {
+    execFileSync(ffmpeg, ["-hide_banner", "-i", mp4], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  } catch (e) {
+    // ffmpeg with no output file exits non-zero after printing what the input is: that print is what we want.
+    text = String(e?.stderr ?? "");
+  }
+  const m = /Duration: (\d+):(\d+):(\d+(?:\.\d+)?)/.exec(text);
+  if (!m) throw new Error(`can't read ${mp4}`);
+  return Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3]);
+}
+
 const slug = (s) => String(s ?? "").toLowerCase().normalize("NFD").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40);
 
 function emit(status, message) {
@@ -91,6 +256,16 @@ async function main() {
   const home = process.env.CROWD_HOME || join(homedir(), ".botchelor-crowd");
   mkdirSync(out, { recursive: true });
   mkdirSync(home, { recursive: true });
+  // A clip already rendered: only the home page's copy of it (cut, then sent), nothing recorded again.
+  const upload = parseUpload(process.argv.slice(2));
+  if (upload) {
+    if (!existsSync(upload.file)) throw new Error(`no such clip: ${upload.file}`);
+    const window = webLoopWindow(null, clipSeconds(upload.file), upload.from);
+    const sent = await sendWebClip({ mp4: upload.file, out, name: basename(upload.file).replace(/\.mp4$/i, ""), episode: upload.episode, day: dayOfClip(upload.file), window, base, dry: upload.dry });
+    emit(sent.ok ? "ok" : "fail", `home clip ${upload.episode}: ${sent.ok ? (upload.dry ? "cut, not sent (--dry)" : "sent") : sent.error}`);
+    if (!sent.ok) process.exitCode = 1;
+    return;
+  }
   const doneFile = join(home, "clips.json");
   const done = existsSync(doneFile) ? JSON.parse(readFileSync(doneFile, "utf8")) : {};
   const headers = { "user-agent": "botchelor-clip/1.0", cookie: "bz_adult=1" };
@@ -188,8 +363,9 @@ async function main() {
   const totalSeconds = kept.at(-1).t + 2 - kept[0].t;
   // The voices (voice.mjs): each line at the second its bubble appeared, on one track; a silent run keeps no track.
   let voices = null;
+  // When each line's bubble appeared, in seconds from the clip's start: the voices land on them, and the web loop starts at the first.
+  const lineMarks = (episode.transcript ?? []).map((_, i) => marks.find((m) => m.n === i)?.t).map((t) => (t === undefined ? null : t - firstFrameAt));
   if (!silent) {
-    const lineMarks = (episode.transcript ?? []).map((_, i) => marks.find((m) => m.n === i)?.t).map((t) => (t === undefined ? null : t - firstFrameAt));
     const spoken = lineMarks.map((t, i) => (t === null || t < 0 || t > totalSeconds ? null : i)).filter((i) => i !== null);
     console.log(`Marks: ${marks.length} lines seen, ${spoken.length} inside the ${totalSeconds.toFixed(1)}s recording${spoken.length ? ` (first at ${lineMarks[spoken[0]].toFixed(1)}s)` : ""}`);
     try {
@@ -221,6 +397,11 @@ async function main() {
   renameSync(doneFile + ".tmp", doneFile);
   console.log(`Clip: ${mp4}\nCaption: ${join(out, `${name}.txt`)}`);
   emit("ok", `${mp4} (${a} × ${b})`);
+  // The home page's copy (lib/home-clip.ts): after everything above is safe on disk, and never able to fail the run.
+  if (process.env.HOME_CLIP_UPLOAD !== "0") {
+    const sent = await sendWebClip({ mp4, out, name, episode: episode.id, day, window: webLoopWindow(lineMarks, totalSeconds), base });
+    if (!sent.ok) emit("fail", `home clip ${episode.id}: ${sent.error}`);
+  }
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

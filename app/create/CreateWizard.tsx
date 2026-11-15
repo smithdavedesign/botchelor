@@ -81,10 +81,13 @@ import {
   EXPRESS_TEXT_MAX,
   EXPRESS_TEXT_MIN,
   expressDraftedEvent,
+  expressEventAt,
+  EXPRESS_SAY_KEY,
   expressFailedEvent,
   expressFailureLine,
   expressStartedEvent,
   isExpressFailure,
+  type ExpressEvent,
   type ExpressFailure,
 } from "@/lib/express-create";
 
@@ -287,6 +290,8 @@ export default function CreateWizard({
   returnTo = null,
   signedIn = false,
   express = false,
+  startSay = null,
+  startSaid = false,
   edit,
 }: {
   partners?: Partner[];
@@ -324,6 +329,13 @@ export default function CreateWizard({
    * the server drafts the sheet. Off (the default here, so the page decides): today's form.
    */
   express?: boolean;
+  /**
+   * The sentence typed into the home page's box (app/HomeExpressBox.tsx): the one box opens with it and drafts at once,
+   * as if "Meet them" had been tapped here. `startSaid`: it is waiting in this browser (sessionStorage EXPRESS_SAY_KEY);
+   * `startSay`: it came in the address (/create?say=…, the box without script). Ignored when the one box isn't offered.
+   */
+  startSay?: string | null;
+  startSaid?: boolean;
   /** Edit an existing character instead of creating one: every field is prefilled and every step open. */
   edit?: { id: string; initial: EditInitial };
 }) {
@@ -393,6 +405,12 @@ export default function CreateWizard({
   const expressOffered = express && firstCharacter && !startSample && !startCharacterId && !startName && !startPair && !startImported;
   const [expressOpen, setExpressOpen] = useState(expressOffered);
   const [expressText, setExpressText] = useState("");
+  // Where the sentence was typed when it wasn't here: the express events carry it (place: "home").
+  const expressPlace = useRef<string | null>(null);
+  const fromHome = expressOffered && (Boolean(startSay) || startSaid);
+  // The home page's sentence is in the box: draft it (once), from a render that has it.
+  const [saidReady, setSaidReady] = useState(false);
+  const saidStarted = useRef(false);
   const [expressName, setExpressName] = useState("");
   const [expressBusy, setExpressBusy] = useState(false);
   // Which example filled the box, if one did and it wasn't typed over (the started event says so).
@@ -454,6 +472,8 @@ export default function CreateWizard({
     // older draft.
     if (startName || startPair) return;
     if (startImported && applyImport()) return;
+    // A sentence from the home page starts that character fresh too.
+    if (fromHome) return;
     try {
       const raw = localStorage.getItem(DRAFT_KEY);
       if (!raw) return;
@@ -537,7 +557,11 @@ export default function CreateWizard({
   async function meetThem() {
     const text = expressText.trim();
     if (expressBusy || text.length < EXPRESS_TEXT_MIN) return;
-    const send = (ev: { name: string; props: Record<string, string | number | boolean | null> }) => queueEvent(ev.name, ev.props);
+    const place = expressPlace.current;
+    const send = (ev: ExpressEvent) => {
+      const at = expressEventAt(ev, place);
+      queueEvent(at.name, at.props);
+    };
     const failed = (reason: ExpressFailure, message?: string | null) => {
       send(expressFailedEvent(reason));
       openForm({ kind: "failed", line: expressFailureLine(reason, message) });
@@ -587,6 +611,32 @@ export default function CreateWizard({
       setExpressBusy(false);
     }
   }
+
+  // The home page's box (app/HomeExpressBox.tsx): the sentence arrived in the address, so draft it now, once, and take
+  // it out of the address (a reload or a shared link shouldn't draft it again).
+  useEffect(() => {
+    if (!fromHome) return;
+    let text = startSay ?? "";
+    try {
+      if (!text) text = sessionStorage.getItem(EXPRESS_SAY_KEY) ?? "";
+      sessionStorage.removeItem(EXPRESS_SAY_KEY);
+    } catch {
+      /* no storage: the box opens empty */
+    }
+    window.history.replaceState(null, "", window.location.pathname);
+    text = text.trim().slice(0, EXPRESS_TEXT_MAX);
+    if (!text) return;
+    expressPlace.current = "home";
+    setExpressText(text);
+    setSaidReady(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    if (!saidReady || saidStarted.current) return;
+    saidStarted.current = true;
+    void meetThem();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [saidReady]);
 
   /**
    * 🎲 on step 1 (2026-11-14 feedback: the hero's minute wasn't doable with a dozen blanks to fill): fills only what's

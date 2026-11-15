@@ -126,6 +126,10 @@ ignore it.
   cents a scene at paid list prices. `0` stops new ones without a deploy (a prize already won is still honoured);
   `HOUSE_SCENES=0` stops both. Commented in `.do/show.yaml`; the rules are in [seasons.md](seasons.md),
   "Confrontations and challenges".
+- **`CHARACTER_TALK`** (the show's app, not a secret; on unless it is `0`): the character page's Talk of the house
+  tab (`lib/character-talk.ts`): what the house said about them, their friction and who is after them, from public
+  sources only, with the ratings in the page's header. `0` puts the Audience tab back without a deploy. No model call.
+  Commented in `.do/show.yaml`; the rules are in [character-depth.md](character-depth.md), section 13.
 - **`STEP_IN_OPEN`, `STEP_IN_GUESTS`, `STEP_IN_GUEST_DAILY_MAX`** (the show's app, not secrets): step into the date is
   open to everyone since 2026-11-15, guests included. `STEP_IN_OPEN=0` puts it back to admins only; `STEP_IN_GUESTS=0`
   asks a visitor without an account to sign in first; `STEP_IN_GUEST_DAILY_MAX` (default `300`) is the guest dates a day
@@ -140,6 +144,10 @@ ignore it.
   [agents-and-people.md](agents-and-people.md)). `0` takes them out of every tool list, refuses a call
   (`code: "not_available"`), and drops `get_episode`'s `house_talk` pointer, their `/llms.txt` paragraph and their rows
   on `/agents/tools`. They only read, so turning it back on loses nothing. Commented in `.do/show.yaml`.
+- **`HOME_HERO_CLIP`**, **`HOME_EXPRESS_BOX`** (the show's app, not secrets; both on unless `0`): the day's clip in a
+  stranger's home hero (`lib/home-clip.ts`; `0`: the hero as it was, and `POST /api/admin/home-clip` answers 404) and the
+  one-sentence box under the hero's headline (`0`: "Make your character" is the main button again; it is also off
+  whenever `EXPRESS_CREATE` is). [flows.md](flows.md), "The home page, for a stranger".
 - **`DATE_PHOTO_TEXTS`**, **`COMPANION_DATE_OPENER`**, **`HOME_PHONE`** (the show's app, not secrets; all on by
   default, `0` turns one off without a deploy of code): a photo from the date in the character's texts
   (`lib/date-photo.ts`; off: texts go without one, the photos already sent stay), a cast character's opener written from

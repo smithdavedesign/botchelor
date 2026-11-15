@@ -90,8 +90,8 @@ describe("“date this character” at the top of a character page (lib/date-cta
     expect(top(html)).toMatch(/Send Ira on a date with \w+/);
     expect(top(html)).toMatch(/Ira goes\./);
     expect(top(html)).toContain(">Cast</span>"); // the origin badge
-    // The call to action is also kept further down, by the share card.
-    expect(html.match(/Send Ira on a date with/g)?.length).toBe(2);
+    // The call to action is also kept further down, by the share card, and under the Talk tab's "nobody is talking yet".
+    expect(html.match(/Send Ira on a date with/g)?.length).toBe(3);
   });
 
   it("a house character off this season, or someone else's character that's closed: says it's not taking dates", async () => {
@@ -226,10 +226,12 @@ describe("the character page in tabs (the design system's character page, 2026-1
   it("shows one part at a time: Profile open, the rest arrive hidden, one tab each", async () => {
     const html = await characterPage("house-juniper", null);
     const tabs = html.slice(html.indexOf('<div class="page-tabs" role="tablist"'));
-    for (const label of ["Profile", "Audience", "Dates"]) expect(tabs).toMatch(new RegExp(`role="tab"[^>]*>${label}</button>`));
+    for (const label of ["Profile", "Dates"]) expect(tabs).toMatch(new RegExp(`role="tab"[^>]*>${label}</button>`));
+    // Audience became Talk of the house (2026-11-15; tests/character-talk.test.ts has the tab's own tests and the switch).
+    expect(tabs).toMatch(/id="tab-talk"[^>]*>.*Talk of the house.*<\/button>/);
     expect(tabs).toMatch(/id="tab-profile"[^>]*aria-selected="true"/);
     expect(panelTag(html, "profile")).not.toContain("hidden");
-    for (const id of ["audience", "dates"]) expect(panelTag(html, id)).toContain("hidden");
+    for (const id of ["talk", "dates"]) expect(panelTag(html, id)).toContain("hidden");
     expect(html).not.toContain("page-jumps");
   });
 
@@ -237,8 +239,10 @@ describe("the character page in tabs (the design system's character page, 2026-1
     const html = await characterPage("house-juniper", null);
     const part = (id: string) => html.slice(html.indexOf(panelTag(html, id)!));
     expect(html.indexOf(panelTag(html, "profile")!)).toBeLessThan(html.indexOf('id="profile"'));
-    expect(html.indexOf('id="profile"')).toBeLessThan(html.indexOf(panelTag(html, "audience")!));
-    expect(part("audience")).toMatch(/^<div data-panel="audience"[^>]*>\s*<section class="card character-audience" id="audience"/);
+    expect(html.indexOf('id="profile"')).toBeLessThan(html.indexOf(panelTag(html, "talk")!));
+    // #audience is the reviews fold inside the Talk part now: the old link opens Talk and scrolls to it.
+    expect(part("talk")).toMatch(/^<div data-panel="talk"[^>]*>\s*<section class="card character-talk" id="talk"/);
+    expect(part("talk").slice(0, part("talk").indexOf('<div data-panel="dates"'))).toContain('<details class="card ux-fold character-audience talk-audience" id="audience">');
     expect(part("dates")).toMatch(/^<div data-panel="dates"[^>]*>\s*<section class="card" id="date-record"/);
   });
 });

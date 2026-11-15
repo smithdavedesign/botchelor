@@ -10,7 +10,7 @@ import { ceremonyHourUtc } from "@/lib/ceremony";
 import { createPairHref, readChemistry } from "@/lib/chemistry-test";
 import { listOpenCharacters } from "@/lib/dating";
 import { firstDateFormat } from "@/lib/first-date";
-import { expressCreateOn } from "@/lib/express-create";
+import { expressCreateOn, EXPRESS_TEXT_MAX } from "@/lib/express-create";
 import { getDb } from "@/lib/db";
 import { listMyCharacters } from "@/lib/game";
 import { PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
@@ -120,6 +120,9 @@ export default async function CreatePage({ searchParams }: { searchParams: Searc
       signedIn={auth?.authenticated === true}
       // One-sentence create (EXPRESS_CREATE, on unless "0"): a first character's first screen is one box.
       express={expressCreateOn(process.env)}
+      // The home page's sentence box (lib/home-clip.ts homeExpressBoxOn): the same limits as the box here.
+      startSay={typeof sp.say === "string" ? sp.say.trim().slice(0, EXPRESS_TEXT_MAX) || null : null}
+      startSaid={sp.said === "home"}
     />
     </CastingProvider>
   );
