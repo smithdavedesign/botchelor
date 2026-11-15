@@ -88,6 +88,18 @@ services:
       - key: COMPANION_OPEN
         value: "1"
         scope: RUN_AND_BUILD_TIME
+      # Step into the date is open to everyone, guests included (docs/step-into-the-date.md "The switches", 2026-11-15).
+      # Uncomment one to close it without a deploy of code: STEP_IN_OPEN "0" = admins only again; STEP_IN_GUESTS "0" =
+      # a visitor signs in first; STEP_IN_GUEST_DAILY_MAX = guest dates a day across the show (default 300, "0" = none).
+      # - key: STEP_IN_OPEN
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
+      # - key: STEP_IN_GUESTS
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
+      # - key: STEP_IN_GUEST_DAILY_MAX
+      #   value: "300"
+      #   scope: RUN_AND_BUILD_TIME
       # A newcomer's instant first date plays as a speed date by default (lib/first-date.ts firstDateFormat; docs/hosting.md).
       # Uncomment to pick another free format without a deploy; a premium or unknown id falls back to speed_date.
       # - key: FIRST_DATE_FORMAT
