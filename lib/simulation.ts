@@ -60,6 +60,7 @@ import { HOUSE_CHARACTERS } from "./house";
 import { hotTakesOf, type StoredHotTakes } from "./hot-takes";
 import { CLAIMS_KEPT, type StoredInner } from "./inner-life";
 import { secretsForDate, type DateSecret } from "./cast-secrets";
+import { stateFor, type StoryState } from "./story-state";
 
 export type CharacterForDate = { id: string; sheet: CharacterSheet };
 
@@ -188,6 +189,9 @@ export type DateParts = {
   /** Each cast member's own secrets still hidden this season (lib/cast-secrets.ts secretsForDate). Private to its side. */
   secretsA?: DateSecret[];
   secretsB?: DateSecret[];
+  /** Each side's story state about the other (lib/story-state.ts stateFor): its opinion, what it heard, its want. Private to its side. */
+  storyA?: StoryState | null;
+  storyB?: StoryState | null;
   /**
    * The season format's venue pool (lib/season-format.ts): the lobby's house dates deal from it when the season has
    * one (the island month's villa). Null/omitted deals from the whole library, exactly as before.
@@ -222,6 +226,9 @@ export function assembleDate(p: DateParts): BuiltDate {
   if (p.claimsB?.length) charB.claimsBefore = p.claimsB;
   if (p.secretsA?.length) charA.secrets = p.secretsA;
   if (p.secretsB?.length) charB.secrets = p.secretsB;
+  // The story state each carries about the other (lib/story-state.ts). Flavour only: the engine never reads it.
+  if (p.storyA) charA.story = p.storyA;
+  if (p.storyB) charB.story = p.storyB;
   // The plan they agreed to by text is tonight (David, 2026-10-18: "honoring their discussion in the texting"): it's
   // where the date happens, and each side knows it kept the plan. One plan per date: with it, a second date's older
   // plan (from its morning after) stays out of the prompts, so the venue and the premise can't come from two plans.
@@ -456,6 +463,8 @@ export async function buildDate(
       : [[], []];
   // A cast member's own secrets still hidden this season, to guard or let slip (living dates, lib/cast-secrets.ts).
   const [secretsA, secretsB] = await Promise.all([secretsForDate(db, a.id).catch(() => []), secretsForDate(db, b.id).catch(() => [])]);
+  // What each thinks of the other, has heard about them and wants this week (lib/story-state.ts; null with STORY_STATE=0).
+  const [storyA, storyB] = await Promise.all([stateFor(db, a.id, { withId: b.id }).catch(() => null), stateFor(db, b.id, { withId: a.id }).catch(() => null)]);
   const [lo] = pairKey(a.id, b.id);
   const texts = chain.some(isText) ? { a: promptTexts(chain, a.id === lo ? "lo" : "hi"), b: promptTexts(chain, b.id === lo ? "lo" : "hi") } : undefined;
   const names: Record<End, string> = a.id === lo ? { lo: a.sheet.name, hi: b.sheet.name } : { lo: b.sheet.name, hi: a.sheet.name };
@@ -481,7 +490,7 @@ export async function buildDate(
     venuePool: opts.venuePool ?? null, producerPick: opts.producerPick ?? null,
     extrasA: rowOf(a.id)?.extras ?? null, extrasB: rowOf(b.id)?.extras ?? null,
     hotTakesA: rowOf(a.id)?.hot_takes ?? null, hotTakesB: rowOf(b.id)?.hot_takes ?? null,
-    claimsA, claimsB, secretsA, secretsB,
+    claimsA, claimsB, secretsA, secretsB, storyA, storyB,
     overusedA, overusedB,
     thisWeekA: thisWeek(a.id, rowOf(a.id)?.this_week), thisWeekB: thisWeek(b.id, rowOf(b.id)?.this_week),
   });

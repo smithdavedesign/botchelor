@@ -3914,6 +3914,78 @@ create table if not exists adult_overnights (
   told_at timestamptz,
   primary key (episode_id, owner_id)
 );
+-- The story state (lib/story-state.ts, 2026-11-15): what a character thinks of people, what it has heard and from whom,
+-- and what it wants this week. Private to its holder (its own prompts, its owner's view), built only from the public
+-- aired record, never read by the engine. forgotten_at: its owner told it to forget (the row stays, so the same source
+-- never brings it back; clearing it is "remember it again").
+create table if not exists character_opinions (
+  holder_id text not null references characters (id) on delete cascade,
+  about_id text not null references characters (id) on delete cascade,
+  trust smallint not null default 0 check (trust between -2 and 2),
+  attraction smallint check (attraction between -2 and 2),  -- null for someone they aren't dating
+  take text not null check (char_length(take) <= 140),
+  basis text not null check (basis in ('firsthand', 'heard')),
+  source text,              -- the episode or scene it came from
+  source_at timestamptz,    -- when that aired
+  forgotten_at timestamptz,
+  updated_at timestamptz not null default now(),
+  primary key (holder_id, about_id)
+);
+create index if not exists character_opinions_about_idx on character_opinions (about_id);
+-- Something a character heard about someone (or a pair), from the public aired record only. told_by null: it watched
+-- the date air. is_true false: a retelling its writer marked untrue. One row per holder and source.
+create table if not exists character_heard (
+  id text primary key,
+  holder_id text not null references characters (id) on delete cascade,
+  about_id text not null references characters (id) on delete cascade,
+  about_b_id text references characters (id) on delete cascade,
+  claim text not null check (char_length(claim) <= 160),
+  told_by text references characters (id) on delete cascade,
+  source text not null,
+  is_true boolean not null default true,
+  heard_at timestamptz not null default now(),
+  used_at timestamptz,      -- it came up on a line (markUsed)
+  used_in text,             -- the episode or scene where it did
+  forgotten_at timestamptz,
+  unique (holder_id, source)
+);
+create index if not exists character_heard_holder_idx on character_heard (holder_id, about_id);
+create index if not exists character_heard_about_idx on character_heard (about_id);
+-- One want per holder per week (Monday to Monday, lib/season-window.ts). Rules write it; the producer may overwrite.
+create table if not exists character_wants (
+  holder_id text not null references characters (id) on delete cascade,
+  season_id text not null,
+  week_id text not null,
+  want text not null check (char_length(want) <= 140),
+  about_id text references characters (id) on delete set null,
+  kind text not null,       -- lib/story-state.ts WANT_KINDS (checked in code, so a later builder can add one)
+  set_by text not null check (set_by in ('rules', 'producer')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (holder_id, week_id)
+);
+-- "knows_you_said": the subject of a heard claim was told it to their face, with who said it (markUsed). The
+-- confrontation builder reads these and settles them (settled_at).
+create table if not exists character_knows_said (
+  id text primary key,
+  knower_id text not null references characters (id) on delete cascade,
+  said_by_id text not null references characters (id) on delete cascade,
+  repeated_by_id text not null references characters (id) on delete cascade,
+  heard_id text not null references character_heard (id) on delete cascade,
+  claim text not null,
+  is_true boolean not null,
+  source text not null,     -- the aired date or scene where the knower learned it
+  learned_at timestamptz not null default now(),
+  settled_at timestamptz,
+  settled_in text,
+  unique (knower_id, heard_id)
+);
+create index if not exists character_knows_said_knower_idx on character_knows_said (knower_id);
+-- One-off runs of the story state (its backfill): a key that has run never runs again.
+create table if not exists story_state_runs (
+  key text primary key,
+  ran_at timestamptz not null default now()
+);
 `;
 
 /** Idempotent: creates the tables and upserts the house characters, free and premium. */

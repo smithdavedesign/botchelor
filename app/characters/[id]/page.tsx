@@ -59,6 +59,8 @@ import { companionOpen } from "@/lib/companion-shared";
 import TalkButton from "@/app/companion/TalkButton";
 import { companionGuestFromCookies } from "@/lib/companion-access";
 import LearnedPanel from "./LearnedPanel";
+import StoryPanel from "./StoryPanel";
+import { storyView } from "@/lib/story-state";
 import AfterDarkTeaser from "@/app/AfterDarkTeaser";
 import AfterDarkPhotos, { afterDarkPhotosOf } from "./AfterDarkPhotos";
 import OriginBadge from "@/app/OriginBadge";
@@ -255,6 +257,19 @@ export default async function CharacterPage({ params, searchParams }: Props) {
   const playsP = isOwner && !c.house ? loadCharacter(db, id).then((l) => l?.signals ?? null) : Promise.resolve(null);
   // Owner only: what it's been told to forget.
   const forgottenP = isOwner && !c.house ? loadForgets(db, id).then((f) => describeForgets(db, id, f)) : Promise.resolve(null);
+  // Owner only: its story state (lib/story-state.ts): what it thinks of people, what it has heard, this week's want; and
+  // which of its sources are dates (linked) rather than scenes.
+  const storyP =
+    isOwner && !c.house
+      ? storyView(db, id)
+          .then(async (story) => {
+            if (!story) return null;
+            const sources = [...new Set([...story.thinks.map((o) => o.source), ...story.heard.map((h) => h.source)].filter((x): x is string => Boolean(x)))];
+            const episodes = sources.length ? (await db.query<{ id: string }>(`select id from episodes where id = any($1)`, [sources])).rows.map((r) => r.id) : [];
+            return { story, episodes };
+          })
+          .catch(() => null)
+      : Promise.resolve(null);
   // Owner only: the people it remembers, with their faces.
   const learnedPeopleP = firstP.then(([, , memory]) =>
     isOwner && !c.house && memory
@@ -289,6 +304,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
     plays,
     forgotten,
     learnedPeople,
+    storyState,
   ] = await Promise.all([
     firstP,
     shownExtrasP,
@@ -311,6 +327,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
     playsP,
     forgottenP,
     learnedPeopleP,
+    storyP,
   ]);
   const week = thisWeek(c.id, c.this_week);
   const origin = origins.get(id) ?? originOf({ house: c.house, agent: dating?.made_by === "agent" });
@@ -768,6 +785,12 @@ export default async function CharacterPage({ params, searchParams }: Props) {
             <details className="ux-fold character-learned">
               <summary>🔒 What {shortName(c.name)} has learned (only you see this)</summary>
               <LearnedPanel characterId={c.id} name={c.name} {...learned} />
+            </details>
+          )}
+          {storyState && (storyState.story.want || storyState.story.thinks.length > 0 || storyState.story.heard.length > 0 || storyState.story.forgotten.length > 0) && (
+            <details className="ux-fold character-learned">
+              <summary>🔒 What {shortName(c.name)} thinks and has heard (only you see this)</summary>
+              <StoryPanel characterId={c.id} name={c.name} story={storyState.story} episodes={storyState.episodes} />
             </details>
           )}
         </section>

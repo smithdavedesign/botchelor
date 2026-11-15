@@ -21,6 +21,7 @@ import { trimTo, type Turn } from "./conversation";
 import type { DateInput, Outcome, SideSetup } from "./engine";
 import { formatNote, type FormatContext, type FormatId } from "./formats";
 import { metBefore } from "./memory";
+import { storyPrompt } from "./story-state";
 import { ModelError, type ChatMessage, type Model } from "./model";
 import { agenda, endingLabel } from "./rules";
 import { checkFields } from "./safety";
@@ -102,6 +103,12 @@ export function buildReflectionMessages(
     the_show_format: formatNote(formatId, formatCtx),
     what_you_want_in_someone: meChar.persona.want,
     ...(history ? { you_had_met_them_before: history } : {}),
+    // What it thought of them and had heard going in, and its want this week (lib/story-state.ts): its own side only,
+    // so the reflection can say whether the date changed its mind.
+    ...(() => {
+      const story = storyPrompt(meChar.story);
+      return story ? { what_you_thought_and_had_heard_going_in: story } : {};
+    })(),
     ...(date.length ? { the_date: date.map((t) => ({ who: names[t.side === "a" ? 0 : 1], said: t.dialogue })) } : {}),
     how_it_ended: endingLabel(outcome.ending, input.date_number),
     your_feeling: feelingFor(sideIndex, outcome),
