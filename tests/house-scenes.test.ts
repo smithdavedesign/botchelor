@@ -29,6 +29,7 @@ import {
   latestHouseScene,
   listHouseScenes,
   listSceneReports,
+  looseLines,
   pickRoom,
   reportSceneLine,
   reviewSceneLine,
@@ -549,6 +550,18 @@ describe("the daily scene (ensureHouseScene)", () => {
     const again = await adminWrite(new Request(`${BASE_URL}/api/admin/house-scene`, { method: "POST", headers: { "x-frontier-key": "owner-pass" } }));
     expect((await again.json()).house_scene).toEqual({ skipped: "already" });
     vi.useRealTimers();
+  });
+
+  it("reads a reply whose JSON is slightly broken line by line, and nothing from one with no lines", () => {
+    const good = '{"from": "Dex", "text": "One."}';
+    expect(looseLines(`{"lines": [${good}, {"from": "Teo", "text": "Two."}]}`)).toHaveLength(2);
+    expect(looseLines("```json\n" + `{"lines": [${good}]}` + "\n```")).toHaveLength(1);
+    // A stray character before the closing bracket (a real flash-lite reply): the lines are still there.
+    expect(looseLines(`{ "lines": [ ${good}, { "from": "Teo", "text": "Two." } >]}`)).toEqual([{ from: "Dex", text: "One." }, { from: "Teo", text: "Two." }]);
+    // Cut off mid-line: the whole lines before it stand.
+    expect(looseLines(`{"lines": [${good}, {"from": "Teo", "text": "Tw`)).toEqual([{ from: "Dex", text: "One." }]);
+    expect(looseLines("I can't help with that.")).toBeNull();
+    expect(looseLines('{"lines": "none"}')).toBeNull();
   });
 
   it("takes over a claim that was left pending by a pass that died", async () => {

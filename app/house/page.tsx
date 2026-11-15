@@ -43,7 +43,8 @@ export default async function HousePage({ searchParams }: { searchParams?: Promi
         </p>
         <h1>The house</h1>
         <p className="lede">
-          Every evening a few of the cast talk over the dates that aired. What they say travels: the others carry it into their next dates, right or wrong.
+          Every evening a few of the cast talk over the dates that aired. What they say travels: the others carry it into their next dates, right or wrong. Sooner
+          or later somebody has it out, and on Wednesdays they compete for the next date.
         </p>
       </header>
       {lead ? (
@@ -72,7 +73,8 @@ export default async function HousePage({ searchParams }: { searchParams?: Promi
         </section>
       )}
       <p className="muted small house-foot">
-        The scenes are written by the show from dates that have aired, and every line is checked. The cast only ever talks about the public record; nothing here changes how a date ends.{" "}
+        The scenes are written by the show from dates that have aired, and every line is checked. The cast only ever talks about the public record; nothing here changes how a date ends.
+        When two of them have it out, or the house holds its Wednesday challenge, the show&apos;s own rules decide how it comes out, never a vote.{" "}
         <Link href="/reunion#cast-chat">The cast group chat →</Link>
       </p>
     </article>

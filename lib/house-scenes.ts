@@ -86,7 +86,8 @@ const PENDING_STALE_MS = 15 * 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const CODE_FENCE = /^```(?:json)?\s*([\s\S]*?)\s*```$/i;
 
-export const SCENE_KINDS = ["gossip"] as const;
+/** gossip: the daily scene (this file). confrontation, challenge: lib/house-conflict.ts. */
+export const SCENE_KINDS = ["gossip", "confrontation", "challenge"] as const;
 export type SceneKind = (typeof SCENE_KINDS)[number] | (string & {});
 
 /** Where in the house a scene happens: dealt by the day. */
@@ -141,6 +142,38 @@ export type SceneTell = { episode_id: string; about: string; about_b: string; cl
 export type SceneLine = { character_id: string; text: string; tell?: SceneTell; /** An admin took the line down for good. */ removed?: true };
 /** What a line told to whom, as stored (house_scenes.told): `line` is the line's number from 1, `source` the heard rows' source. */
 export type SceneTold = SceneTell & { line: number; by: string; to: string[]; source: string };
+
+/* What a confrontation or a challenge came out as (lib/house-conflict.ts decides and writes them; house_scenes.result). */
+export const OUTCOMES = ["cleared_the_air", "agreed_to_disagree", "worse_than_before"] as const;
+export type Outcome = (typeof OUTCOMES)[number];
+export const OUTCOME_LABELS: Record<Outcome, string> = {
+  cleared_the_air: "They cleared the air",
+  agreed_to_disagree: "They agreed to disagree",
+  worse_than_before: "It ended worse than it started",
+};
+export type ConfrontResult = {
+  kind: "confrontation";
+  outcome: Outcome;
+  /** Which kind of tension it was over (lib/story-state.ts TensionKind). */
+  over: string;
+  a: string;
+  b: string;
+  /** Someone else who was in the room, when anyone was. */
+  witness: string | null;
+  /** How each one's trust in the other moved. */
+  moved: { holder: string; about: string; from: number; to: number }[];
+  /** How many knows_you_said facts between the two it closed. */
+  settled: number;
+};
+export type ChallengeResult = {
+  kind: "challenge";
+  challenge: string;
+  title: string;
+  winner: string;
+  /** The one-on-one the winner gets: the day it is on, with whom, and which kind of prize. */
+  prize: { day: string; with: string | null; kind: "lead_date" | "first_pick" };
+};
+export type SceneResult = ConfrontResult | ChallengeResult;
 
 const first = (name: string) => shortName(name);
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -412,6 +445,26 @@ export function voicesTake(line: string, take: string, names: readonly string[])
 type RawLine = { from?: unknown; text?: unknown; retells?: unknown; faithful?: unknown; claim?: unknown };
 
 /**
+ * The checks every line of every kind of house scene passes (pure): it is from someone in the scene, 2 to 160
+ * characters, PG (lib/safety.ts), in English, not meme-speak, nothing about crime, health, money or sex, and it gives
+ * no hidden secret away. Null when it fails.
+ */
+export function basicLine(raw: unknown, speakers: readonly { id: string; name: string }[], hidden: readonly string[]): SceneLine | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as RawLine;
+  if (typeof r.from !== "string" || typeof r.text !== "string") return null;
+  const who = r.from.trim().toLowerCase();
+  const speaker = speakers.find((c) => first(c.name).toLowerCase() === who || c.name.toLowerCase() === who);
+  if (!speaker) return null;
+  const text = oneLine(r.text).replace(/^["'“”]+|["'“”]+$/g, "").trim();
+  if (text.length < 2 || text.length > SCENE_LINE_MAX) return null;
+  if (!checkSheetText({ text }).ok || !checkShowText({ text }).ok || needsTranslation(text)) return null;
+  if (isMemeSpeak(text) || sensitiveClaim(text)) return null;
+  if (hidden.some((s) => slipped(text, s))) return null;
+  return { character_id: speaker.id, text };
+}
+
+/**
  * The writer's lines, checked one by one, in order (pure). A line that fails any check is dropped; a retelling that
  * can't be tied to its fact's people loses the retelling and stays a plain line. At most one wrong retelling stands:
  * a second is dropped whole. Capped at SCENE_LINES_MAX.
@@ -422,17 +475,11 @@ export function checkSceneLines(raw: readonly unknown[], f: SceneFacts, hidden: 
   const known = [...f.speakers.map((c) => c.name), ...f.dates.flatMap((d) => [d.a_name, d.b_name])];
   for (const item of raw.slice(0, SCENE_LINES_MAX + 3)) {
     if (out.length >= SCENE_LINES_MAX) break;
-    if (!item || typeof item !== "object") continue;
+    const line = basicLine(item, f.speakers, hidden);
+    if (!line) continue;
     const r = item as RawLine;
-    if (typeof r.from !== "string" || typeof r.text !== "string") continue;
-    const who = r.from.trim().toLowerCase();
-    const speaker = f.speakers.find((c) => first(c.name).toLowerCase() === who || c.name.toLowerCase() === who);
-    if (!speaker) continue;
-    const text = oneLine(r.text).replace(/^["'“”]+|["'“”]+$/g, "").trim();
-    if (text.length < 2 || text.length > SCENE_LINE_MAX) continue;
-    if (!checkSheetText({ text }).ok || !checkShowText({ text }).ok || needsTranslation(text)) continue;
-    if (isMemeSpeak(text) || sensitiveClaim(text)) continue;
-    if (hidden.some((s) => slipped(text, s))) continue;
+    const text = line.text;
+    const speaker = f.speakers.find((c) => c.id === line.character_id)!;
     // Nobody in the room was on these dates, so nobody talks as if they were (lib/cast-chat.ts).
     if (misattributed({ character_id: speaker.id, text }, { dates: f.dates })) continue;
     // Never another character's private take in this one's mouth.
@@ -440,7 +487,6 @@ export function checkSceneLines(raw: readonly unknown[], f: SceneFacts, hidden: 
 
     const k = typeof r.retells === "number" && Number.isInteger(r.retells) ? r.retells : typeof r.retells === "string" && /^\d+$/.test(r.retells.trim()) ? Number(r.retells) : null;
     const d = k !== null ? f.dates[k - 1] : undefined;
-    const line: SceneLine = { character_id: speaker.id, text };
     if (r.faithful === false) {
       // The writer says this line is the wrong one: it stands only as the scene's one harmless wrong retelling of a
       // fact it names, in the writer's own plain sentence. Anything else is dropped whole, never kept as a plain line.
@@ -526,6 +572,30 @@ export function scenePrompt(f: SceneFacts): string {
   return lines.join("\n");
 }
 
+/**
+ * The writer's reply as its lines: the JSON it was asked for (fenced or not), and when that doesn't parse (a stray
+ * character, a cut-off tail: seen on flash-lite, 2026-11-15) every `{"from": ..., "text": ...}` object that does.
+ * Each line is still checked on its own afterwards. Null when there is nothing to read.
+ */
+export function looseLines(raw: string): unknown[] | null {
+  const body = raw.trim();
+  try {
+    const parsed = (JSON.parse(CODE_FENCE.exec(body)?.[1] ?? body) as { lines?: unknown }).lines;
+    if (Array.isArray(parsed)) return parsed;
+  } catch {
+    // fall through to the objects that do parse
+  }
+  const found: unknown[] = [];
+  for (const m of body.matchAll(/\{[^{}]*"from"[^{}]*\}/g)) {
+    try {
+      found.push(JSON.parse(m[0]));
+    } catch {
+      // one broken line doesn't lose the others
+    }
+  }
+  return found.length ? found : null;
+}
+
 /** The scene's writer: the show's free model (never the paid upgrade), thinking as little as it can. */
 export const houseWriter = (): Model => getModel(WRITER_REASONING, false);
 
@@ -543,14 +613,8 @@ export async function writeScene(model: Model, f: SceneFacts, hidden: readonly s
   } catch {
     return null;
   }
-  const body = raw.trim();
-  let parsed: unknown;
-  try {
-    parsed = (JSON.parse(CODE_FENCE.exec(body)?.[1] ?? body) as { lines?: unknown }).lines;
-  } catch {
-    return null;
-  }
-  if (!Array.isArray(parsed)) return null;
+  const parsed = looseLines(raw);
+  if (!parsed) return null;
   const lines = checkSceneLines(parsed, f, hidden);
   return isScene(lines) ? lines : null;
 }
@@ -633,6 +697,7 @@ export async function applyTold(db: Db, told: readonly SceneTold[], at: Date, en
  * source (and the knows_you_said facts hanging off them), and any 'heard' opinion built on it.
  */
 export async function retractLine(db: Db, sceneId: string, line: number): Promise<number> {
+  forgetLatestHouseScene();
   const source = sceneSource(sceneId, line);
   await db.query(`delete from character_opinions where basis = 'heard' and source = $1 and forgotten_at is null`, [source]);
   await db.query(`update character_heard set used_at = null, used_in = null where used_in = $1`, [source]);
@@ -677,6 +742,7 @@ type StoredScene = {
   cast_ids: string[];
   lines: SceneLine[];
   told: SceneTold[];
+  result?: SceneResult | null;
   source: string;
   model: string | null;
   cost_usd: string | number | null;
@@ -728,12 +794,7 @@ export async function tellOwners(db: Db, scene: Pick<StoredScene, "id" | "day" |
         // The character's own text: only to a thread whose person tapped "Hear from", and one a day per owner.
         const opted = await db.query(`select 1 from companion_threads where user_id = $1 and character_id = $2 and muted_proactive = false and paused_at is null`, [owner, mine.id]);
         if (!opted.rows.length) continue;
-        const today = await db.query(
-          `select 1 from companion_messages m join companion_threads th on th.id = m.thread_id
-            where th.user_id = $1 and m.action like 'house_scene:%' and m.created_at >= $2::timestamptz limit 1`,
-          [owner, `${now.toISOString().slice(0, 10)}T00:00:00Z`],
-        );
-        if (today.rows.length) continue;
+        if (await textedToday(db, owner, now)) continue;
         const ep = (
           await db.query<{ ending: Ending; booked: boolean }>(
             `select e.ending,
@@ -776,8 +837,11 @@ export type HouseSceneWritten =
   | { id: string; source: "model" | "template"; lines: number; told: number; cost_usd: number | null; notified: number; texted: number }
   | { skipped: "off" | "early" | "already" | "quiet" | "no_cast" };
 
+/** Whether the scenes' writer may be called (off in the shared test harness: lib/house-conflict.ts asks too). */
+export const houseVoiceOn = (): boolean => voiceEnabled;
+
 /** The producer's beat for a day (story_beats, written overnight by lib/producer.ts when it exists), or null. */
-async function beatFor(db: Db, day: string): Promise<Pick<Tension, "kind" | "a" | "b" | "about"> | null> {
+export async function beatFor(db: Db, day: string): Promise<Pick<Tension, "kind" | "a" | "b" | "about"> | null> {
   try {
     const { rows } = await db.query<{ kind: string | null; a_id: string | null; b_id: string | null; about_id: string | null }>(`select kind, a_id, b_id, about_id from story_beats where day = $1 limit 1`, [day]);
     const r = rows[0];
@@ -785,6 +849,61 @@ async function beatFor(db: Db, day: string): Promise<Pick<Tension, "kind" | "a" 
   } catch {
     return null; // no producer yet: the state's own tensions choose
   }
+}
+
+/**
+ * Claims a day's row for one kind of scene, so two passes can't both write it. True when this caller holds it: the
+ * row is new, or it was left 'pending' by a pass that died PENDING_STALE_MS ago.
+ */
+export async function claimScene(db: Db, id: string, day: string, kind: SceneKind, now: Date): Promise<boolean> {
+  const claimed = await db.query(
+    `insert into house_scenes (id, day, season_id, kind, place, source, created_at) values ($1, $2, $3, $4, 'kitchen', 'pending', $5)
+     on conflict (id) do update set created_at = excluded.created_at
+       where house_scenes.source = 'pending' and house_scenes.created_at < $6
+     returning id`,
+    [id, day, seasonIdOf(now), kind, now.toISOString(), new Date(now.getTime() - PENDING_STALE_MS).toISOString()],
+  );
+  return claimed.rows.length > 0;
+}
+
+/** A claimed row with nothing to write keeps the day: the job doesn't ask again. */
+export async function quietScene(db: Db, id: string, now: Date): Promise<void> {
+  await db.query(`update house_scenes set source = 'quiet', written_at = $2 where id = $1`, [id, now.toISOString()]);
+}
+
+/** Fills a claimed row: who, where, the checked lines, what they told, how it came out, and what the call would cost. */
+export async function storeScene(
+  db: Db,
+  id: string,
+  s: {
+    place: string;
+    cast: readonly string[];
+    lines: readonly SceneLine[];
+    told: readonly SceneTold[];
+    source: "model" | "template";
+    spent: { models: string[]; cost_usd: number | null; input_tokens: number; output_tokens: number };
+    tension: Pick<Tension, "kind" | "a" | "b" | "about"> | null;
+    result?: SceneResult | null;
+    now: Date;
+  },
+): Promise<void> {
+  await db.query(
+    `update house_scenes set place = $2, cast_ids = $3::jsonb, lines = $4::jsonb, told = $5::jsonb, source = $6, model = $7, cost_usd = $8,
+            input_tokens = $9, output_tokens = $10, tension = $11::jsonb, result = $12::jsonb, written_at = $13
+      where id = $1`,
+    [id, s.place, JSON.stringify(s.cast), JSON.stringify(s.lines), JSON.stringify(s.told), s.source, s.spent.models[0] ?? null, s.spent.cost_usd, s.spent.input_tokens, s.spent.output_tokens, JSON.stringify(s.tension), JSON.stringify(s.result ?? null), s.now.toISOString()],
+  );
+  forgetLatestHouseScene();
+}
+
+/** Whether a character of this owner's already texted them about the house today (one such text a day per owner). */
+export async function textedToday(db: Db, owner: string, now: Date): Promise<boolean> {
+  const { rows } = await db.query(
+    `select 1 from companion_messages m join companion_threads th on th.id = m.thread_id
+      where th.user_id = $1 and m.action like 'house_scene:%' and m.created_at >= $2::timestamptz limit 1`,
+    [owner, `${now.toISOString().slice(0, 10)}T00:00:00Z`],
+  );
+  return rows.length > 0;
 }
 
 /**
@@ -802,16 +921,9 @@ export async function ensureHouseScene(
   if (!opts.anyHour && now.getUTCHours() < houseSceneHourUtc(env)) return { skipped: "early" };
   const day = now.toISOString().slice(0, 10);
   const id = sceneIdOf(day);
-  const claimed = await db.query(
-    `insert into house_scenes (id, day, season_id, kind, place, source, created_at) values ($1, $2, $3, 'gossip', 'kitchen', 'pending', $4)
-     on conflict (id) do update set created_at = excluded.created_at
-       where house_scenes.source = 'pending' and house_scenes.created_at < $5
-     returning id`,
-    [id, day, seasonIdOf(now), now.toISOString(), new Date(now.getTime() - PENDING_STALE_MS).toISOString()],
-  );
-  if (!claimed.rows.length) return { skipped: "already" };
+  if (!(await claimScene(db, id, day, "gossip", now))) return { skipped: "already" };
   const quiet = async (why: "quiet" | "no_cast"): Promise<HouseSceneWritten> => {
-    await db.query(`update house_scenes set source = 'quiet', written_at = $2 where id = $1`, [id, now.toISOString()]);
+    await quietScene(db, id, now);
     return { skipped: why };
   };
   // Where the scene before this one stopped looking, and what the last few already told.
@@ -833,12 +945,7 @@ export async function ensureHouseScene(
   const roomIds = facts.speakers.map((s) => s.id);
   const told = toldBy(id, lines, roomIds);
   const spent = summarizeUsage(usage, model ? 1 : 0, now);
-  await db.query(
-    `update house_scenes set place = $2, cast_ids = $3::jsonb, lines = $4::jsonb, told = $5::jsonb, source = $6, model = $7, cost_usd = $8,
-            input_tokens = $9, output_tokens = $10, tension = $11::jsonb, written_at = $12
-      where id = $1`,
-    [id, facts.place, JSON.stringify(roomIds), JSON.stringify(lines), JSON.stringify(told), source, spent.models[0] ?? null, spent.cost_usd, spent.input_tokens, spent.output_tokens, JSON.stringify(facts.tension), now.toISOString()],
-  );
+  await storeScene(db, id, { place: facts.place, cast: roomIds, lines, told, source, spent, tension: facts.tension, now });
   const heard = await applyTold(db, told, now, new Map(facts.dates.map((d) => [d.episode_id, d.ending])));
   const owners = await tellOwners(db, { id, day, place: facts.place, lines, told }, now);
   return { id, source, lines: lines.length, told: heard, cost_usd: spent.cost_usd, ...owners };
@@ -853,7 +960,7 @@ export async function houseUpkeep(db: Db, now: Date = new Date()): Promise<{ ret
     `select id, told from house_scenes where source in ('model', 'template') and day >= $1 and jsonb_array_length(told) > 0`,
     [new Date(now.getTime() - 30 * DAY_MS).toISOString().slice(0, 10)],
   );
-  const episodes = [...new Set(rows.flatMap((r) => r.told.map((t) => t.episode_id)))];
+  const episodes = [...new Set(rows.flatMap((r) => r.told.map((t) => t.episode_id)).filter(Boolean))];
   if (!episodes.length) return { retracted: 0 };
   const gone = await goneEpisodes(db, episodes);
   let retracted = 0;
@@ -934,6 +1041,7 @@ export async function reviewSceneLine(db: Db, sceneId: string, line: number, dec
   if (!scene || line < 1 || line > scene.lines.length) return 0;
   const reviewed = (await db.query(`delete from house_scene_reports where scene_id = $1 and line = $2 returning scene_id`, [sceneId, line])).rows.length;
   if (!reviewed) return 0;
+  forgetLatestHouseScene();
   if (decision === "removed") {
     const lines = scene.lines.map((l, i) => (i === line - 1 ? { ...l, removed: true as const } : l));
     await db.query(`update house_scenes set lines = $2::jsonb where id = $1`, [sceneId, JSON.stringify(lines)]);
@@ -965,11 +1073,26 @@ export type HouseSceneView = {
   lines: SceneLineView[];
   /** The aired dates it talks about: the two names and the episode. */
   about: { episode_id: string; a: string; b: string }[];
+  /**
+   * How a confrontation or a challenge came out (lib/house-conflict.ts), in words for the page: the two and the result,
+   * or the winner and what they won. Null for the daily scene.
+   */
+  result: { kind: "confrontation"; a: string; b: string; outcome: Outcome; label: string } | { kind: "challenge"; title: string; winner: SceneFace; prize: string } | null;
 };
+
+const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] as const;
+/** A challenge's prize in words: "Nell's next date, on Thursday" or "first pick of Thursday's house date, with Dex". */
+export function prizeWords(prize: ChallengeResult["prize"], withName: string | null): string {
+  const on = WEEKDAYS[new Date(`${prize.day}T12:00:00Z`).getUTCDay()];
+  if (prize.kind === "lead_date") return `${withName ? first(withName) : "the lead"}'s next date, on ${on}`;
+  return `first pick of ${on}'s house date${withName ? `, with ${first(withName)}` : ""}`;
+}
 
 /** How many scenes a page of /house lists. */
 export const HOUSE_PAGE_SIZE = 7;
-const SCENE_COLS = `id, day, season_id, kind, place, cast_ids, lines, told, source, model, cost_usd, written_at, created_at`;
+const SCENE_COLS = `id, day, season_id, kind, place, cast_ids, lines, told, result, source, model, cost_usd, written_at, created_at`;
+/** The day's scenes in the order they matter: a challenge, then a confrontation, then the daily scene. */
+const KIND_ORDER = `case kind when 'challenge' then 0 when 'confrontation' then 1 else 2 end`;
 
 /**
  * Stored scenes as the page shows them. Left out: a line reported away or removed, a line whose speaker went private,
@@ -979,7 +1102,8 @@ const SCENE_COLS = `id, day, season_id, kind, place, cast_ids, lines, told, sour
 async function sceneViews(db: Db, rows: readonly StoredScene[]): Promise<HouseSceneView[]> {
   if (!rows.length) return [];
   const sceneIds = rows.map((r) => r.id);
-  const charIds = [...new Set(rows.flatMap((r) => [...r.cast_ids, ...r.lines.map((l) => l.character_id), ...r.told.flatMap((t) => [t.about, t.about_b])]))];
+  const resultIds = (r: StoredScene): string[] => (!r.result ? [] : r.result.kind === "confrontation" ? [r.result.a, r.result.b] : [r.result.winner, ...(r.result.prize.with ? [r.result.prize.with] : [])]);
+  const charIds = [...new Set(rows.flatMap((r) => [...r.cast_ids, ...r.lines.map((l) => l.character_id), ...r.told.flatMap((t) => [t.about, t.about_b]), ...resultIds(r)]))];
   const episodeIds = [...new Set(rows.flatMap((r) => r.lines.flatMap((l) => (l.tell ? [l.tell.episode_id] : []))))];
   const [chars, reports, gone] = await Promise.all([
     db.query<{ id: string; name: string; hue: number | null; portrait: string | null; house: boolean; visibility: string }>(
@@ -1006,6 +1130,14 @@ async function sceneViews(db: Db, rows: readonly StoredScene[]): Promise<HouseSc
     if (lines.length < 2) continue;
     const about = [...new Map(r.lines.flatMap((l) => (l.tell && !gone.has(l.tell.episode_id) && byId.has(l.tell.about) && byId.has(l.tell.about_b) ? [[l.tell.episode_id, l.tell] as const] : []))).values()];
     const place = housePlace(r.place);
+    // The result names its people only while they are still public.
+    let result: HouseSceneView["result"] = null;
+    if (r.result?.kind === "confrontation" && byId.has(r.result.a) && byId.has(r.result.b)) {
+      result = { kind: "confrontation", a: first(byId.get(r.result.a)!.name), b: first(byId.get(r.result.b)!.name), outcome: r.result.outcome, label: OUTCOME_LABELS[r.result.outcome] ?? OUTCOME_LABELS.agreed_to_disagree };
+    } else if (r.result?.kind === "challenge" && face(r.result.winner)) {
+      const partner = r.result.prize.with ? byId.get(r.result.prize.with)?.name ?? null : null;
+      result = { kind: "challenge", title: r.result.title, winner: face(r.result.winner)!, prize: prizeWords(r.result.prize, partner) };
+    }
     out.push({
       id: r.id,
       day: r.day,
@@ -1016,6 +1148,7 @@ async function sceneViews(db: Db, rows: readonly StoredScene[]): Promise<HouseSc
       cast: r.cast_ids.map(face).filter((c): c is SceneFace => c !== null),
       lines,
       about: about.map((t) => ({ episode_id: t.episode_id, a: byId.get(t.about)!.name, b: byId.get(t.about_b)!.name })),
+      result,
     });
   }
   return out;
@@ -1027,7 +1160,7 @@ export async function listHouseScenes(db: Db, opts: { limit?: number; offset?: n
   const limit = Math.min(Math.max(opts.limit ?? HOUSE_PAGE_SIZE, 1), 30);
   const where = `source in ('model', 'template') and jsonb_array_length(lines) > 0`;
   const [{ rows }, total] = await Promise.all([
-    db.query<StoredScene>(`select ${SCENE_COLS} from house_scenes where ${where} order by day desc, created_at desc limit $1 offset $2`, [limit, Math.max(opts.offset ?? 0, 0)]),
+    db.query<StoredScene>(`select ${SCENE_COLS} from house_scenes where ${where} order by day desc, ${KIND_ORDER}, created_at desc limit $1 offset $2`, [limit, Math.max(opts.offset ?? 0, 0)]),
     db.query<{ n: number }>(`select count(*)::int as n from house_scenes where ${where}`),
   ]);
   return { scenes: await sceneViews(db, rows), total: total.rows[0]?.n ?? 0 };
@@ -1040,18 +1173,39 @@ export async function houseScene(db: Db, id: string): Promise<HouseSceneView | n
   return (await sceneViews(db, rows))[0] ?? null;
 }
 
+/**
+ * The newest scene as this process last read it. Home asks on every render (the Tonight band's house line), and the
+ * answer changes a few times a day, so it is kept for a minute per day and dropped whenever this module writes
+ * (a scene stored, a line reported or reviewed, a retelling taken back). tests/perf-pages.test.ts holds home to its
+ * round trips; without this the line cost it one more.
+ */
+let latestMemo: { db: Db; day: string; at: number; scene: HouseSceneView | null } | null = null;
+const LATEST_FRESH_MS = 60_000;
+export function forgetLatestHouseScene(): void {
+  latestMemo = null;
+}
+
 /** The newest scene, while it's from the last SCENE_SHOWN_DAYS: the Tonight band's house line and Since you were here. */
 export async function latestHouseScene(db: Db, now: Date = new Date()): Promise<HouseSceneView | null> {
   if (!houseScenesOn()) return null;
+  const day = now.toISOString().slice(0, 10);
+  if (latestMemo && latestMemo.db === db && latestMemo.day === day && Date.now() - latestMemo.at < LATEST_FRESH_MS) return latestMemo.scene;
   const { rows } = await db.query<StoredScene>(
-    `select ${SCENE_COLS} from house_scenes where source in ('model', 'template') and jsonb_array_length(lines) > 0 and day >= $1 order by day desc, created_at desc limit 3`,
+    `select ${SCENE_COLS} from house_scenes where source in ('model', 'template') and jsonb_array_length(lines) > 0 and day >= $1 order by day desc, ${KIND_ORDER}, created_at desc limit 4`,
     [new Date(now.getTime() - SCENE_SHOWN_DAYS * DAY_MS).toISOString().slice(0, 10)],
   );
-  return (await sceneViews(db, rows))[0] ?? null;
+  const scene = (await sceneViews(db, rows))[0] ?? null;
+  latestMemo = { db, day, at: Date.now(), scene };
+  return scene;
 }
 
-/** One line about a scene for the Tonight band and Since you were here: who, where, about whom. */
-export function houseLine(s: Pick<HouseSceneView, "cast" | "place" | "about">): string {
+/**
+ * One line about a scene for the Tonight band and Since you were here: who was talking, where, about whom; for a
+ * confrontation who had it out and how it ended; for a challenge who won and what.
+ */
+export function houseLine(s: Pick<HouseSceneView, "cast" | "place" | "about" | "result">): string {
+  if (s.result?.kind === "confrontation") return `${s.result.a} and ${s.result.b} had it out ${s.place.at}: ${lowerFirst(s.result.label)}`;
+  if (s.result?.kind === "challenge") return `${s.result.winner.name} won ${s.result.title.replace(/^The /, "the ")}: ${s.result.prize}`;
   const who = s.cast.map((c) => c.name);
   const names = who.length > 2 ? `${who.slice(0, -1).join(", ")} and ${who[who.length - 1]}` : who.join(" and ");
   const d = s.about[0];

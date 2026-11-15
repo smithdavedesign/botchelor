@@ -1509,6 +1509,13 @@ main:has(> .couple-page) {
 .house-foot {
   margin: 0;
 }
+/* How a confrontation or a challenge came out: one line under the transcript, set off by a rule. */
+.house-result {
+  margin: var(--space-3) 0 0;
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--line);
+  font-size: var(--text-sm);
+}
 /* Report a line: folded away under the scene, so the transcript stays clean. The summary is the quiet line; the
    form's own controls keep the site's sizes (16px on a phone, so iOS doesn't zoom), one to a row, never wider than
    the card whatever the longest line in the list is. */

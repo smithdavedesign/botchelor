@@ -19,7 +19,7 @@ import { dateNumberSql } from "./date-number";
 import { decideTraced, seedFrom } from "./engine";
 import { track, trackDateQuality, trackEpisodeCost } from "./analytics";
 import { failureReason } from "./jobs";
-import { showCastIds, suitorInTurn } from "./season-cast";
+import { firstPickOn, showCastIds, suitorInTurn } from "./season-cast";
 import type { BoxScore, CharacterRef, DateSetup } from "./game";
 import { portraitPathSql } from "./assets";
 import { claimPaidDate } from "./limits";
@@ -1044,7 +1044,10 @@ export async function refreshLobby(
     const j = (i + 1 + (seedFrom("lobby-b", day, attempt + 2 * round) % (cast.length - 1))) % cast.length;
     // A Botchelor season (lib/ceremony.ts): the lead with the suitor whose turn it is, a later room the next suitor.
     const courting = def?.lead ? suitorInTurn(now, attempt + 2 * round) : null;
-    const [a, b] = courting ?? [cast[i], cast[j]];
+    // Any other format: the day's first house date goes to the week's challenge winner and their pick, when there is
+    // one (lib/season-cast.ts firstPickOn). The same number of dates as any day; only who is on the first changes.
+    const picked = !def?.lead && attempt === 0 && round === 0 ? firstPickOn(day, cast) : null;
+    const [a, b] = courting ?? picked ?? [cast[i], cast[j]];
     const result = await createTemplateParty(db, a, b, thumbs);
     if (!result || !result.ok) continue;
     const { rows } = await db.query<{ n: number }>(
