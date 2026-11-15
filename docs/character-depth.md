@@ -254,8 +254,20 @@ read them.
   left first, who said what, or an exaggeration of how it went. A reported-away line, or a date that stops being
   public, takes what it told with it. A character told something about a person it has no opinion of gets a `heard`
   opinion built on the claim; hearsay never replaces a firsthand one. A character who was there needs no row, so a
-  claim about the holder isn't stored (its owner hears instead: a notification, and the character's own text when they
-  opted in).
+  claim about the holder isn't stored (its owner hears instead: a notification).
+- **Word from the house** (`lib/house-texts.ts`, 2026-11-16). A character that texts someone about what the house
+  did (below, "Texts") then holds it: one heard row through the same `hear`, source `house:<scene id>` (or
+  `house:tonight-<day>` for the producer's line), `told_by` null. Nobody told it to its face and it watched no date
+  air, so prompts read it as "Word reached you from the house" and the owner's Story tab as "word from the house"
+  (`heardFrom`). The claim is the fact that something was said or done, in public-record words ("Juniper talked about
+  Lexi and Nell's date on the big sofa.", "Lexi and Dex had it out in the kitchen: they agreed to disagree.", "Dex won
+  the cook-off on the stairs; Lexi competed."), about whoever else it names. It is therefore true as stored whatever
+  the retelling was: whether a retelling was right stays in the scene's own `told`, and no text, prompt or view says.
+  Only written when a text went out; a character that already holds the scene (it was in the room, or the
+  confrontation moved its opinion of the other) keeps that and gets no second row. Nothing else is written (no
+  opinion, no want, no "knows you said" fact), so a date reads nothing beyond what `hear` always fed it, and these
+  rows never count as one side of an `opposing_claims` tension. A scene that stops naming the character in public (a
+  reported line, a date made private) takes the row with it (`houseWordUpkeep`, the daily job).
 - **Wants** come from rules (`wantFromRules`), the first that applies: it knows someone said something about it
   (settle the score); a suitor on a Botchelor season (win the lead's rose) and the lead (its favourite suitor, else
   protect its heart); bad blood (settle the score); an ex or someone who turned it down (win them back); someone it is
@@ -278,7 +290,11 @@ read them.
 - **Reflections** get the same block as "what you thought and had heard going in", so one can say the date changed its mind.
 - **Texts** (`lib/companion.ts`): a character talking with its own creator, or a house character talking with anyone,
   carries its latest opinions, the latest things it heard and its want, so a text can say what Sable said about it. A
-  person's cast character texting someone else shares only what it heard (the public record).
+  person's cast character texting someone else shares only what it heard (the public record). Since 2026-11-16 any
+  thread's prompt also carries a short **house block** for its character (`houseForPrompt`): the last public things
+  the house said about or did with it, at most three lines and 700 characters, from the last seven days, read from
+  `/house`'s own view. Public data, so it is the same for an owner and a stranger; an owner's Forget on the heard row
+  takes that item out of their thread's block. `HOUSE_TEXTS=0` removes it.
 - **`tensions(db, seasonId)`** ranks what the state holds among a season's cast, with the row ids behind each: someone
   knows what another said about them, two hold opposing claims about the same person, two want the same person, low
   trust both ways. For the producer and the confrontation builder; its lines carry public claims, never a private take.

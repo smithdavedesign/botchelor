@@ -39,7 +39,7 @@ export function SubscribeToUnlock() {
       <Link className={`button primary ${styles.unlock}`} href="/after-dark/subscribe">
         Subscribe to unlock
       </Link>
-      <span className="muted small">Adults only: the private side of this season. Shorts are included in the subscription.</span>
+      <span className="muted small">Adults only: the private side of this season. Episodes are included in the subscription.</span>
     </p>
   );
 }

@@ -21,7 +21,7 @@ export default function ShortsPanel({ a, b }: { a: { id: string; name: string };
   async function load() {
     const res = await fetch(`/api/admin/after-dark/shorts?a=${encodeURIComponent(a.id)}&b=${encodeURIComponent(b.id)}`).catch(() => null);
     const data = res?.ok ? ((await res.json()) as { panel: Panel }) : null;
-    if (!data) return setError("The Shorts panel didn't load. Try again.");
+    if (!data) return setError("The Episodes panel didn't load. Try again.");
     setError(null);
     setPanel(data.panel);
   }
@@ -29,7 +29,7 @@ export default function ShortsPanel({ a, b }: { a: { id: string; name: string };
   const published = panel?.nights.filter((n) => n.short?.published).length ?? null;
   return (
     <details className="ad-panel ad-shorts" onToggle={(e) => (e.currentTarget.open && !panel ? void load() : undefined)}>
-      <summary>📺 Shorts{published ? ` (${published} published)` : ""}</summary>
+      <summary>📺 Episodes{published ? ` (${published} published)` : ""}</summary>
       {error && (
         <p className="error" role="alert">
           {error}
@@ -42,7 +42,7 @@ export default function ShortsPanel({ a, b }: { a: { id: string; name: string };
       ) : (
         <>
           <p className="muted small">
-            Publish a whole night of theirs as a Short: subscribers watch it at <Link href="/after-dark/shorts">After Dark Shorts</Link>, everyone else sees a
+            Publish a whole night of theirs as an episode: subscribers watch it at <Link href="/after-dark/shorts">After Dark Episodes</Link>, everyone else sees a
             blurred teaser with the title. Your notes on each line (why, memory, facts) never go with it.
           </p>
           {panel.nights.length ? (
@@ -91,7 +91,7 @@ function Night({ night, panel, a, b, onShort }: { night: NightOption; panel: Pan
     return (
       <li className={styles.night}>
         <strong>{label}</strong>
-        <p className="muted small">Still going: 🌙 End the night files it as a whole night, then it can be a Short.</p>
+        <p className="muted small">Still going: 🌙 End the night files it as a whole night, then it can be an episode.</p>
       </li>
     );
   }
@@ -140,7 +140,7 @@ function Night({ night, panel, a, b, onShort }: { night: NightOption; panel: Pan
       )}
       <p className={styles.row}>
         <button type="button" className="primary" disabled={busy || !title.trim()} onClick={() => void publish()}>
-          {busy ? "Saving…" : short?.published ? "Save changes" : short ? "Save and publish again" : "Publish as a Short"}
+          {busy ? "Saving…" : short?.published ? "Save changes" : short ? "Save and publish again" : "Publish as an episode"}
         </button>
         {short?.published && (
           <button type="button" className="button-ghost" disabled={busy} onClick={() => void toggle()}>

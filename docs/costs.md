@@ -1,7 +1,7 @@
 # Botchelor: what it costs
 
 _Written 2026-10-21; updated 2026-10-24 (Venice's auto-pay, the scene writer measured: GLM-4.6 against DeepSeek V3.1,
-and admins' picture checks) 2026-10-30 (the move off Vercel: DigitalOcean, Bunny, Cloudflare; `docs/hosting.md`) and 2026-11-08 (Cloudflare Workers Paid). It covers what each operation costs, what the infrastructure costs every month, and what
+and admins' picture checks) 2026-10-30 (the move off Vercel: DigitalOcean, Bunny, Cloudflare; `docs/hosting.md`) 2026-11-08 (Cloudflare Workers Paid) and 2026-11-15 (a live call's minute, part by part). It covers what each operation costs, what the infrastructure costs every month, and what
 the project has spent so far. All amounts are in US dollars._
 
 The deeper write-ups are `docs/upgrade-cost.md` (a date's token cost, measured) and `docs/after-dark-costs.md`
@@ -34,6 +34,7 @@ have no billing API, so their top-ups are entered by hand.
 | A companion's voice note (docs/companions.md, P3) | One Kokoro call (Venice `tts-kokoro`, or Replicate's Kokoro), kept by its words so it's never made twice | **~0.04¢ on Venice, up to ~0.2¢ on Replicate**. The plan includes 30 a month; else 1 token buys 100 (~0.7¢ each in). At most 3,000 a day across everyone. |
 | A character's face kit for calls (docs/PRDs/digital-human.md, Tier 0; drawn once per approved portrait) | Eight Qwen image edits on Replicate (`qwen/qwen-image-edit-2511`, ~3¢ each; the eighth is the talking still Ditto animates, drawn alone for an older kit on its next call) plus one Wan 2.2 clip at 480p (~5¢), each still and three frames of the clip through the PG check (one Venice vision call each) | **~29¢ a character, once**. Started by a plan member's or admin's call, at most 12 a day across everyone (`FACE_KIT_PER_DAY`, ~$3 a day at the most); nothing a minute. |
 | A live face on a call, our own renderer (docs/PRDs/digital-human.md, Tier 1b; `LIVE_FACE_PROVIDER=musetalk:admins`, live for admins 2026-11-14) | MuseTalk 1.5 on a Runpod Serverless worker (`workers/live-face/`): a bundle built once per kit from its idle loop (~40 s of GPU), then one clip per piece of a reply (~2 s of GPU for a 2-s piece); a 24 GB worker is ~$0.75/h, the 4090 tier ~$1.34/h, billed by the second while it runs plus a 30-s idle timeout | **~1.3–2.2¢ a call minute while a call runs**, nothing between calls; ~1¢ a bundle; prepaid balance on Runpod is the cap (David loaded ~$25 on 2026-11-13). The spike that proved it cost under $2. A second worker image, Ditto on TensorRT (`workers/live-face-ditto/`, its own endpoint `LIVE_FACE_DITTO_ENDPOINT`, 2026-11-14), bills the same way with nothing to build per character; its spike cost $2.14, and admins' calls run on it from the evening of 2026-11-14 (`LIVE_FACE_PROVIDER=ditto:admins`), and admins' and Companion Plan members' from 2026-11-15 (`ditto:plan`; no separate charge, it rides on the plan's call minutes, so a call minute costs ~3.3¢ with the face against ~7¢ sold); a character's idle, nod and tilt (`lib/live-face/ditto-clips.ts`) are about a cent of GPU once, the first time a Ditto call starts for them. Cast video intros (`lib/cast-intros.ts`, David 2026-11-14 "the cast on the show only as a demo"): OmniHuman on fal at 14¢ a second, about $1.30 a character once, the show's cast only, admin-triggered. |
+| **A live call, a minute** (docs/companions.md, P6; shown on `/costs#call` from `lib/call-costs.ts`) | Deepgram Nova-3 hears the caller, the companion model writes the reply, Deepgram Aura-2 voices it, and for plan members and admins the face renderer above draws the moving face | **~1.1–1.8¢ with their voice, ~2.3–4¢ with the moving face too.** An estimate: see "A live call, a minute" below. |
 | A show portrait (looks builder, free to the user) | fal `flux/dev` plus one Hive check | **~1.3¢**. Capped at 3 per character and 150 a day (~$2 a day at most). |
 | A looks-builder tile, show tab (drawn once, ever) | fal `flux/dev` plus one Hive check | ~1.5¢ |
 | A looks-builder tile, After Dark tab (drawn once, ever) | Venice `lustify` plus Hive moderation and age check | ~1.4¢ |
@@ -55,6 +56,36 @@ have no billing API, so their top-ups are entered by hand.
 no caching. A 10 MB video re-downloaded on every view used 10 MB of Neon transfer each time. #499 lets the admin's
 browser keep finished files. Moving the bytes to object storage is in progress (see "In progress" in
 `docs/history/2026-10-19-to-21.md`).
+
+### A live call, a minute (2026-11-15)
+
+An outside review found `/costs` priced dates, texts, voice notes, pictures and video and said nothing of calls. It now
+has a block, `/costs#call`, built from `lib/call-costs.ts` (the sums are pinned by `tests/call-honesty.test.ts`). It is
+an **estimate and says so**: no provider bills by the call. The ledger (`money_entries`, read 2026-11-15) holds no
+Deepgram entry at all and Runpod only as the $25 top-up of 2026-11-13, so there is no bill to read a call's cost from.
+Each part is a published price times what our own calls used.
+
+**What our calls used** (production, read-only, 2026-11-10 to 11-15; two people, both of us testing):
+`companion_live_calls` held 58 calls, 48 minutes, 69 turns and 7,112 characters voiced by Aura (about 1.4 replies and
+150 characters a minute); 73 replies marked `on_call` had a recorded cost, $0.0691 in all (about 0.09¢ a reply, all on
+`deepseek-chat-v3.1:nitro` through OpenRouter). 22 calls showed Ditto's face for 253 s and 12 MuseTalk's for 60 s
+(clip play time, not GPU time).
+
+| Part | Price (read 2026-11-15) | Times | A minute |
+|---|---|---|---|
+| Speech in | Deepgram Nova-3 streaming, pay as you go: $0.0048 a minute in English, $0.0058 multilingual (`sttUrl` picks by the browser's language). The page showed them as cuts from $0.0077 and $0.0092, the prices the minutes were first costed on. | the line is open the whole minute (a pause closes it) | **0.5–0.6¢** |
+| The reply | measured: $0.0691 over 73 replies | 69 turns in 48 minutes | **about 0.1¢** |
+| The voice | Deepgram Aura-2, $0.030 per 1,000 characters | 148 characters a minute measured; 350 for a talkative minute (the figure the minutes were priced on) | **0.4–1.1¢** |
+| The moving face | Runpod Serverless, the endpoints' two 24 GB pools: $0.75 an hour (`AMPERE_24`) to $1.34 (`ADA_24`, the 4090) | a call keeps one worker warm (the live route's tick), so a call minute is a GPU minute | **1.3–2.2¢** |
+| **In all** | | with their voice / with the face too | **1.1–1.8¢ / 2.3–4¢** |
+
+What the estimate leaves out, and the page says: the idle time a worker stays warm after a call ends (the endpoint's
+idle timeout, a minute or so). Not on the page: a second or third worker a long reply can wake for a moment, and the
+face kit drawn once per character (~29¢, above). A call that takes turns has no line: the browser hears, so it costs
+the reply and, with the Deepgram key set, the Aura voice. To refresh the block: run the same counts, read the three
+pricing pages, and change `CALL_MEASURED` and `CALL_PRICES` (the test's expected strings will tell you what moved).
+A call minute sells for about 7–8¢ past the plan's included 20 (a token buys ten: 80¢ in the 5-pack, about 67¢ in the
+15-pack), so the margin holds with the face on.
 
 ## Infrastructure, per month
 

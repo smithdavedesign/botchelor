@@ -66,6 +66,7 @@ import { PICK_LINES_MAX, REEL_STALLED_MS, refilmTokens } from "./reel-timing";
 import { cancelPrediction, createPrediction, downloadOutput, getPrediction, isDone, noOutput, outputUrls, ReplicateError, runModel, type Prediction, type ReplicateFile } from "./replicate";
 import { dropForeignActions, eligiblePair, type SceneLine } from "./scenes";
 import { groupNights, type NightChapter } from "./nights";
+import { SHOWN_NIGHT_REEL } from "./gallery";
 import { adultKeys, DEFAULT_REPLICATE_VOICE_MODEL, getAdultSettings, type MediaProvider } from "./settings";
 import { padWav, wavSeconds } from "./wav";
 import { STAGES } from "./stages";
@@ -2543,6 +2544,27 @@ export async function listReels(db: Db, ownerId: string, x: string, y: string): 
     [ownerId, ...pair],
   );
   return withRatings(db, ownerId, rows.map(reelOf).sort((p, q) => q.created_at.localeCompare(p.created_at)));
+}
+
+/** A reel as the Gallery lists it: with the names of the two in it. */
+export type GalleryReel = Reel & { a_name: string | null; b_name: string | null };
+
+/**
+ * Every night's video of this person's, from every pair, newest first (the Gallery's Videos → Reels, lib/adult/gallery.ts
+ * SHOWN_NIGHT_REEL): each as one reel that plays its shots in order, not as loose clips. Their own only (an admin's own
+ * too: the house cast's nights are on their pages), with their 👍/👎 on each shot as the pair's page has them.
+ */
+export async function ownReels(db: Db, ownerId: string, limit = 120): Promise<GalleryReel[]> {
+  const { rows } = await db.query<ReelRow & { a_name: string | null; b_name: string | null }>(
+    `select r.*, ca.name as a_name, cb.name as b_name from (
+       select ${REEL_COLUMNS} from adult_reels where owner_id = $1 and ${SHOWN_NIGHT_REEL} order by created_at desc limit $2
+     ) r left join characters ca on ca.id = r.character_a left join characters cb on cb.id = r.character_b
+     order by r.created_at desc`,
+    [ownerId, limit],
+  );
+  const names = new Map(rows.map((r) => [r.id, { a_name: r.a_name, b_name: r.b_name }]));
+  const reels = await withRatings(db, ownerId, rows.map(reelOf));
+  return reels.map((r) => ({ ...r, ...(names.get(r.id) ?? { a_name: null, b_name: null }) }));
 }
 
 /** Each shot that came through with the viewer's 👍/👎 on it (lib/adult/steering.ts), for the page's rating buttons. */

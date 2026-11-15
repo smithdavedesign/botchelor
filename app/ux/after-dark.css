@@ -2163,6 +2163,35 @@ button.ad-studio-fold-head:active:not(:disabled) {
 .after-dark-gallery .ad-new-badge {
   font-weight: 600;
 }
+/* The Gallery's tabs and sections (2026-11-15, lib/adult/gallery.ts): Videos, Pictures, Faces; under Videos, each night's
+   reel as one card (ReelCards.tsx), then the clips. A reel that's playing takes the grid's whole width. */
+.ad-gallery-tabs {
+  margin-top: var(--space-3);
+}
+.ad-gallery-section > h2 {
+  margin: var(--space-4) 0 var(--space-1);
+}
+.ad-gallery-sources {
+  margin-bottom: var(--space-1);
+}
+.ad-reel-cards li.is-open {
+  grid-column: 1 / -1;
+}
+.ad-reel-cards li.is-open .after-dark-reel {
+  width: 100%;
+  margin: 0;
+}
+.ad-reel-card-wait {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  min-height: 8rem;
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px dashed var(--ad-line, var(--line));
+  border-radius: var(--radius-md);
+  text-align: center;
+}
 .ad-picture-pending {
   margin: 0 0 var(--space-3);
 }
@@ -2877,4 +2906,58 @@ button.ad-studio-fold-head:active:not(:disabled) {
 .verdict-after-dark a {
   color: var(--on-photo);
   text-decoration: underline;
+}
+
+/* The Studio door's page (2026-11-15, app/after-dark/studio/page.tsx): each character whose Studio is theirs to use, as
+   a card that opens it, then who's in. */
+.ad-studio-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(10.5rem, 1fr));
+  gap: var(--space-3);
+  margin: var(--space-3) 0 var(--space-4);
+  padding: 0;
+  list-style: none;
+}
+.ad-studio-cards li {
+  display: grid;
+  gap: var(--space-2);
+  justify-items: start;
+  align-content: start;
+}
+.after-dark-mode a.ad-studio-card-link {
+  display: grid;
+  gap: 0.25rem;
+  color: inherit;
+  text-decoration: none;
+}
+.ad-studio-card-name {
+  font-weight: 700;
+}
+
+/* The home's "Your latest" (2026-11-15, app/after-dark/page.tsx): the newest four they made, a tap from the Gallery. */
+.ad-home-latest {
+  margin: var(--space-4) 0;
+}
+.ad-home-latest-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.ad-home-latest-head h2 {
+  margin: 0;
+}
+.after-dark-gallery.ad-latest-strip {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-top: var(--space-2);
+}
+.ad-latest-strip a {
+  display: block;
+  width: 100%;
+}
+.ad-latest-strip img,
+.ad-latest-strip video {
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
 }

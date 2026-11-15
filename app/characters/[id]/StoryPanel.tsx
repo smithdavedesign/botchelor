@@ -78,7 +78,7 @@ export default function StoryPanel({ characterId, name, story, episodes }: { cha
           <ul className="list learned-list">
             {story.heard.map((h) => (
               <li key={h.id}>
-                <q>{h.claim}</q> — {h.told_by_name ? `${shortName(h.told_by_name)} told it` : "it watched this air"}, <When iso={h.heard_at} style="date" />
+                <q>{h.claim}</q> — {h.told_by_name ? `${shortName(h.told_by_name)} told it` : h.source.startsWith("house:") ? "word from the house" : "it watched this air"}, <When iso={h.heard_at} style="date" />
                 {h.used_at ? "; it has brought this up" : ""}
                 <Source source={h.source} episodes={episodes} /> {forgetButton("heard", h.item, "this")}
               </li>

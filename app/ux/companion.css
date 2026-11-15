@@ -1080,6 +1080,14 @@ body:has(.companion-fullscreen) .site-footer {
   color: inherit;
   opacity: 0.75;
 }
+/* Links on the ready screen (the notice above the Call button, the plan offer): the site's accent is unreadable on the
+   call's dark backdrop, so they take the screen's own text colour and stay underlined. */
+.companion-call-ready a {
+  color: inherit;
+}
+.companion-call-notice {
+  margin: 0;
+}
 .companion-call-how {
   font-size: var(--text-sm);
 }

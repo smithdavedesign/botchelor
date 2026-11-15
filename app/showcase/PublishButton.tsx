@@ -8,6 +8,14 @@ type PostState = { id: string; status: string } | null;
 type Profile = { handle: string; display_name: string; bio: string | null };
 
 /**
+ * Where a post of theirs is on the showcase (David, 2026-11-15: "the showcase page in after dark?"): its side (explicit
+ * on After Dark's, else the safe side), their own posts, newest first, the showcase's own order. A relative link: on
+ * After Dark's host it's sent on to the show's (lib/after-dark-host.ts afterDarkPageMove), query and all.
+ */
+export const postHref = (rating: string | null | undefined, handle?: string | null): string =>
+  `/showcase?${new URLSearchParams({ side: rating === "nsfw" ? "after_dark" : "pg", ...(handle ? { creator: handle } : {}) })}`;
+
+/**
  * 📣 Publish (lib/showcase.ts): one of their pictures or clips on the showcase under their creator handle, with a caption
  * if they like, or taken down again. The first time, they pick the handle here. It says plainly who will see it: an
  * explicit one admins only for now; one with someone else's character once that owner says yes.
@@ -30,6 +38,8 @@ export default function PublishButton({
   const [form, setForm] = useState({ handle: "", display_name: "", bio: "", caption: "", show_prompt: true });
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<{ text: string; error?: boolean } | null>(null);
+  // What publishing said about the post (lib/showcase.ts publish): its rating and their handle, for "See it".
+  const [where, setWhere] = useState<{ rating: string; handle: string } | null>(null);
 
   async function start() {
     setOpen(true);
@@ -58,6 +68,7 @@ export default function PublishButton({
     if (!res?.ok) return setNote({ text: res?.message ?? "That didn't reach the server.", error: true });
     const status = String(res.data.status);
     setNow({ id: String(res.data.post_id), status });
+    setWhere({ rating: String(res.data.rating ?? (source === "after_dark" ? "nsfw" : "pg")), handle: String(res.data.handle ?? profile?.handle ?? "") });
     setOpen(false);
     setNote({ text: status === "pending" ? "Waiting for the other character's owner to say yes: it goes up once they do." : source === "after_dark" ? "Published. Explicit posts are seen by admins only for now, until the show opens them." : "Published on the showcase." });
   }
@@ -76,7 +87,13 @@ export default function PublishButton({
     <div className="showcase-publish">
       {now ? (
         <p className="small">
-          {now.status === "pending" ? "📣 Waiting for their OK" : <><Link href="/showcase">📣 On the showcase</Link></>}{" "}
+          {now.status === "pending" ? (
+            "📣 Waiting for their OK"
+          ) : (
+            <Link href={postHref(where?.rating ?? (source === "after_dark" ? "nsfw" : "pg"), where?.handle || profile?.handle)} data-see-post>
+              📣 See it on the showcase
+            </Link>
+          )}{" "}
           <button type="button" className="linklike" disabled={busy} onClick={() => void takeDown()}>
             {now.status === "pending" ? "cancel" : "unpublish"}
           </button>

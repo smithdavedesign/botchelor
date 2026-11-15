@@ -121,6 +121,18 @@ export function faqs(env: Env = process.env): Faq[] {
           ],
         }
       : null,
+    // The same facts as the privacy notice's calls section (app/legal/sections.tsx #calls) and the call screen's line.
+    companions
+      ? {
+          id: "calls",
+          q: "What happens to my voice on a call with a companion?",
+          a: [
+            "We never receive or keep your audio. On a live call your browser sends it straight to Deepgram, which turns it into words; on a call that takes turns your browser's own speech recognition does (Google's in Chrome, Apple's in Safari). The words are saved in the conversation as messages, the same as ones you typed, and deleting the conversation deletes them. ",
+            { text: "What a call keeps", href: "/privacy#calls" },
+            ".",
+          ],
+        }
+      : null,
     {
       id: "visible",
       q: "Who can see my character?",

@@ -88,7 +88,7 @@ export default async function AfterDarkScenePage({ params, searchParams }: Props
             </p>
           ))}
           {absent.off.map((c) => (
-            <p key={c.id}>{c.name} is switched out of your After Dark. Switch them in on <Link href="/after-dark/characters">Characters</Link> to play this pair.</p>
+            <p key={c.id}>{c.name} is switched out of your After Dark. Switch them in under <Link href="/after-dark/studio#ad-whos-in">Who&apos;s in</Link> to play this pair.</p>
           ))}
           <p>
             <Link className="button primary" href="/after-dark">
@@ -146,16 +146,16 @@ export default async function AfterDarkScenePage({ params, searchParams }: Props
           {earlier.gone.length > 1 ? "have" : "has"} left the cast since, and this pair stays yours to play.
         </p>
       )}
-      {/* The Studio (lib/adult/studio.ts) for whichever of the two it's the viewer's to use on; in Make more instead, once
-          that's on for this viewer. */}
-      {!reading && ((!makeMore && studios.length > 0) || reader) && (
+      {/* The Studio (lib/adult/studio.ts) for whichever of the two it's the viewer's to use on. Here even with Make more
+          on, which lists it too (David, 2026-11-15: "shouldn't we have an easier way to get to the studio?"): one tap from
+          the night, not a menu's sixth item. */}
+      {!reading && (studios.length > 0 || reader) && (
         <p className="ad-studio-links">
-          {!makeMore &&
-            studios.map((c) => (
-              <Link key={c.id} className="button-ghost small" href={`/after-dark/studio/${c.id}`}>
-                🎨 {c.name.split(/\s+/)[0]}&apos;s Studio
-              </Link>
-            ))}
+          {studios.map((c) => (
+            <Link key={c.id} className="button-ghost small" href={`/after-dark/studio/${c.id}`}>
+              🎨 {c.name.split(/\s+/)[0]}&apos;s Studio
+            </Link>
+          ))}
           {/* The chapter reader (Reader.tsx), once it's on for this viewer. */}
           {reader && (
             <Link className="button-ghost small" href={`${base}?view=reader`} data-read-it>

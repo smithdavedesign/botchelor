@@ -6,6 +6,8 @@ import NavProgress from "./NavProgress";
 import { episodeAllowance, freshAllowance } from "@/lib/allowance";
 import { adTokenBalance, adTokensOn } from "@/lib/adult/tokens";
 import { afterDarkOnly, afterDarkOrigin } from "@/lib/after-dark-host";
+import { afterDarkDoors } from "@/lib/adult/doors";
+import { NO_AD_DOORS } from "@/lib/adult/door-links";
 import { analyticsConsent, CONSENT_COOKIE, consentDefaultScript } from "@/lib/consent";
 import { companionOpen } from "@/lib/companion-shared";
 import { getDb } from "@/lib/db";
@@ -139,7 +141,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   const socials = socialLinks(process.env, adHost);
   const support = contactEmail();
   const navChat = navChatOn();
-  const [, door, dates, unread, texts, hasCharacter, adTokens, seasonDef] = await Promise.all([
+  const [, door, dates, unread, texts, hasCharacter, adTokens, seasonDef, adDoors] = await Promise.all([
     // They're here (lib/activity.ts): their characters' likes wait for them rather than answering themselves. Throttled.
     db && viewerId ? touchOwner(db, viewerId).catch(() => {}) : null,
     // After Dark's link shows to someone it's open to (lib/adult/entitlement.ts), only where it's offered
@@ -159,6 +161,8 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
     db && viewerId && adHost && adTokensOn() ? adTokenBalance(db, viewerId).catch(() => null) : null,
     // The season's format for the arc under the header (app/SeasonStrip.tsx): one shared copy for every visitor.
     adHost ? null : shared("watch:season-format", async () => seasonFormatNow(await getDb())).catch(() => null),
+    // After Dark's header doors that depend on the viewer (lib/adult/doors.ts): the Studio's word, and the Showcase.
+    db && viewerId && adHost ? afterDarkDoors(db, viewerId).catch(() => NO_AD_DOORS) : NO_AD_DOORS,
   ]);
   const afterDark = door.door;
   // Google tags wait for consent in the EEA/UK/CH (Consent Mode v2); Vercel sets the visitor's country header.
@@ -204,7 +208,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
               <span>After Dark</span>
             </span>
           )}
-          <Nav tokens={adHost && viewerId ? (adTokens ?? dates.pack_left) : dates.left} meter={adHost ? (viewerId && afterDark ? "tokens" : "none") : "dates"} personal={Boolean(viewerId)} unread={unread} texts={texts} afterDark={afterDark} adHost={adHost} showHref={showHome()} hasCharacter={hasCharacter} prefetchShow={!adHost} companions={companionOpen()} chat={navChat} />
+          <Nav tokens={adHost && viewerId ? (adTokens ?? dates.pack_left) : dates.left} meter={adHost ? (viewerId && afterDark ? "tokens" : "none") : "dates"} personal={Boolean(viewerId)} unread={unread} texts={texts} afterDark={afterDark} adHost={adHost} showHref={showHome()} hasCharacter={hasCharacter} prefetchShow={!adHost} companions={companionOpen()} chat={navChat} adDoors={adDoors} />
         </header>
         {/* The season's arc runs under the header on the show's spectator pages (the design system's all-screens board). */}
         {!adHost && (

@@ -18,13 +18,11 @@ import {
   CHALLENGES,
   challengeScore,
   challengesOn,
-  challengeTextLines,
   challengeWinner,
   CONFRONT_MIN_WEIGHT,
   CONFRONTATIONS_A_WEEK,
   confrontationsOn,
   confrontPrompt,
-  confrontTextLines,
   decideOutcome,
   ensureChallenge,
   ensureConfrontation,
@@ -394,8 +392,10 @@ describe("the confrontation (ensureConfrontation)", () => {
     expect(notice).toEqual([{ title: `🏠 Lexi had it out with ${first(DEX)} in the house`, body: `${OUTCOME_LABELS[made.outcome]}.`, link: `/house?scene=${made.id}#scene-${made.id}` }]);
     const texts = (await t.db.query<{ text: string; action: string }>(`select text, action from companion_messages where thread_id = 'th-lexi' and role = 'character' order by created_at, id`)).rows;
     const place = (await houseScene(t.db, made.id))!.place.at;
-    expect(texts.map((x) => x.text)).toEqual(confrontTextLines(H(DEX).name, place, made.outcome));
-    expect(texts[0].text).toBe(`I had it out with ${first(DEX)} ${place}.`);
+    // The words are lib/house-texts.ts's (tests/house-texts.test.ts): who, where, and how it came out.
+    expect(texts.length).toBe(3);
+    expect(texts[0].text).toContain(first(DEX));
+    expect(texts[0].text).toContain(place);
     expect(texts.every((x) => x.action === `house_scene:${made.id}`)).toBe(true);
     // A house character has no owner to tell, and a second house text the same day doesn't go out.
     const later = await ensureChallenge(t.db, MON, { anyDay: true });
@@ -489,8 +489,6 @@ describe("the week's challenge (pure)", () => {
     expect(prizeWords({ day: "2026-11-12", with: RAFE, kind: "lead_date" }, "Rafe Calloway")).toBe("Rafe's next date, on Thursday");
     expect(prizeWords({ day: "2026-11-12", with: RAFE, kind: "first_pick" }, "Rafe Calloway")).toBe("first pick of Thursday's house date, with Rafe");
     expect(prizeWords({ day: "2026-11-12", with: null, kind: "first_pick" }, null)).toBe("first pick of Thursday's house date");
-    expect(challengeTextLines("The cook-off", "lead_date", "Nell Abiodun")).toEqual(["I won the cook-off.", "Nell's next date is mine. Tomorrow.", "Come and watch."]);
-    expect(challengeTextLines("Talent night", "first_pick", "Dex Okafor")[1]).toBe("First pick of tomorrow's house date is mine, and I'm picking Dex.");
   });
 });
 
@@ -627,7 +625,9 @@ describe("what winning gives: the next one-on-one", () => {
     const notice = (await t.db.query<{ title: string; body: string }>(`select title, body from notifications where user_id = 'owner-3' and kind = 'house_talk'`)).rows;
     expect(notice).toEqual([{ title: `🏆 Cato won ${def.title.replace(/^The /, "the ")}`, body: `The prize: ${first(LEAD)}'s next date, on Thursday.` }]);
     const texts = (await t.db.query<{ text: string }>(`select text from companion_messages where thread_id = 'th-cato' and role = 'character' order by created_at, id`)).rows.map((x) => x.text);
-    expect(texts).toEqual(challengeTextLines(def.title, "lead_date", H(LEAD).name));
+    // The words are lib/house-texts.ts's: it won, and what it won, as /house prints the prize.
+    expect(texts.length).toBe(3);
+    expect(texts.join(" ")).toContain(`${first(LEAD)}'s next date, on Thursday`);
     // The rotation reads the stored prize: Thursday's date with the lead is Cato's, and the day that was his goes to
     // whoever gave Thursday up.
     const stored = (await t.db.query<HousePrize>(`select day, winner_id as winner, with_id as "with", kind, title, scene_id as scene from house_prizes`)).rows;

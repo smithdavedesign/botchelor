@@ -30,10 +30,9 @@
  *    what, an exaggeration of how it went (HARMLESS). A wrong retelling that is anything else is dropped, not softened.
  *    A faithful retelling is stored as the public record's own words (lib/story-state.ts airedClaim), never the model's.
  *  - People's characters: a public character's public aired date is public record, so the house may talk about a
- *    walk-on or a suitor someone made. Their owner hears (tellOwners): a `house_talk` notification, and, when they
- *    opted in to the character's texts (companion_threads.muted_proactive = false), the character's own text about it
- *    from templates, with a link to the scene and the date's chips. One notification per owner per scene; at most one
- *    such text a day per owner.
+ *    walk-on or a suitor someone made. Their owner hears (tellOwners): a `house_talk` notification, one per owner per
+ *    scene. The character's own text about it is lib/house-texts.ts (textAboutScene, right after the scene is stored):
+ *    to every thread with a character the scene names whose person turned its texts on, from what /house shows.
  *  - A line can be reported (reportSceneLine; REPORT_HIDE_THRESHOLD reports hide it, as on the watch room's chat), and
  *    a reported-away line takes what it told with it (retractLine). So does a date that stops being public
  *    (houseUpkeep), and a speaker who went private.
@@ -709,31 +708,6 @@ export async function retractLine(db: Db, sceneId: string, line: number): Promis
 
 const lowerFirst = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
 
-/**
- * A claim about `name` in that character's own first person, when it starts with their name ("Dex left early." ->
- * "I left early"); null when it doesn't read that way (the text quotes it instead).
- */
-export function inFirstPerson(claim: string, name: string): string | null {
-  const m = new RegExp(`^${escapeRe(first(name))}\\s+(.+?)[.!]?$`, "i").exec(oneLine(claim));
-  if (!m || mentions(m[1], first(name))) return null;
-  const rest = m[1].replace(/^is\b/i, "am").replace(/^has\b/i, "have").replace(/^was\b/i, "was").replace(/^doesn'?t\b/i, "don't");
-  // "left before she'd finished" still reads; a claim that talks about "their" own things would not.
-  if (/\b(?:himself|herself|themself|themselves|his|their)\b/i.test(rest)) return null;
-  return `I ${rest}`;
-}
-
-/** The character's own text to its owner about what the house said (pure, templates): two or three bubbles. */
-export function houseTalkLines(o: { name: string; speaker: string; partner: string; place: string; claim: string; isTrue: boolean }): string[] {
-  const s = first(o.speaker);
-  if (!o.isTrue) {
-    const mine = inFirstPerson(o.claim, o.name);
-    return mine
-      ? [`Apparently ${s} is telling people ${lowerFirst(mine).replace(/^i /, "I ")}.`, "I did not.", "Go and hear it for yourself."]
-      : [`Apparently ${s} is telling people this about my date with ${first(o.partner)}: "${o.claim.replace(/"/g, "'")}"`, "That is not how it went.", "Go and hear it for yourself."];
-  }
-  return [`So the house was talking about my date with ${first(o.partner)}. ${s} brought it up ${o.place}.`, "They got it right, for once.", "Have a listen, and tell me what you would have said."];
-}
-
 type StoredScene = {
   id: string;
   day: string;
@@ -753,12 +727,11 @@ type StoredScene = {
 
 /**
  * The owners of people's characters a scene talked about hear: a `house_talk` notification each (one per owner per
- * scene), and, for an owner who opted in to their character's texts, the character's own text with a link to the scene
- * and the date's chips, at most one such text a day per owner. A wrong retelling is told before a faithful one.
- * Returns how many notifications and texts went out. Never throws.
+ * scene), a wrong retelling told before a faithful one. Returns how many went out. Never throws. The character's own
+ * text is textAboutScene's (lib/house-texts.ts).
  */
-export async function tellOwners(db: Db, scene: Pick<StoredScene, "id" | "day" | "place" | "lines" | "told">, now: Date = new Date()): Promise<{ notified: number; texted: number }> {
-  const done = { notified: 0, texted: 0 };
+export async function tellOwners(db: Db, scene: Pick<StoredScene, "id" | "day" | "place" | "lines" | "told">): Promise<{ notified: number }> {
+  const done = { notified: 0 };
   try {
     const told = [...scene.told].sort((x, y) => Number(x.is_true) - Number(y.is_true) || x.line - y.line);
     if (!told.length) return done;
@@ -782,47 +755,35 @@ export async function tellOwners(db: Db, scene: Pick<StoredScene, "id" | "day" |
         seen.add(owner);
         // Once per owner per scene (a rerun of the job, a line that came back from review).
         const had = await db.query(`select 1 from notifications where user_id = $1 and kind = 'house_talk' and link = $2 limit 1`, [owner, link]);
-        if (!had.rows.length) {
-          const line = scene.lines[t.line - 1]?.text ?? t.claim;
-          await notify(db, owner, {
-            kind: "house_talk",
-            title: `🏠 The house is talking about ${first(mine.name)}`,
-            body: `${first(by.name)}, ${housePlace(scene.place).at}: “${line}”`,
-            link,
-          });
-          done.notified++;
-        }
-        // The character's own text: only to a thread whose person tapped "Hear from", and one a day per owner.
-        const opted = await db.query(`select 1 from companion_threads where user_id = $1 and character_id = $2 and muted_proactive = false and paused_at is null`, [owner, mine.id]);
-        if (!opted.rows.length) continue;
-        if (await textedToday(db, owner, now)) continue;
-        const ep = (
-          await db.query<{ ending: Ending; booked: boolean }>(
-            `select e.ending,
-                    exists (select 1 from episodes n where ((n.character_a = e.character_a and n.character_b = e.character_b) or (n.character_a = e.character_b and n.character_b = e.character_a))
-                              and n.id <> e.id and n.created_at > e.created_at) as booked
-               from episodes e where e.id = $1`,
-            [t.episode_id],
-          )
-        ).rows[0];
-        const { postFromCharacter } = await import("./companion");
-        const { storedOffers } = await import("./companion-offers");
-        const posted = await postFromCharacter(db, {
-          userId: owner,
-          characterId: mine.id,
-          lines: houseTalkLines({ name: mine.name, speaker: by.name, partner: other.name, place: housePlace(scene.place).at, claim: t.claim, isTrue: t.is_true }),
-          now,
-          kind: "house_scene",
-          dedupeKey: `house_scene:${scene.id}`,
-          offers: ep ? storedOffers({ episodeId: t.episode_id, partnerId: other.id, partner: other.name, ending: ep.ending, booked: ep.booked }) : null,
-        }).catch(() => null);
-        if (posted) done.texted++;
+        if (had.rows.length) continue;
+        const line = scene.lines[t.line - 1]?.text ?? t.claim;
+        await notify(db, owner, {
+          kind: "house_talk",
+          title: `🏠 The house is talking about ${first(mine.name)}`,
+          body: `${first(by.name)}, ${housePlace(scene.place).at}: “${line}”`,
+          link,
+        });
+        done.notified++;
       }
     }
   } catch (err) {
     console.error("[house-scenes] could not tell the owners:", err instanceof Error ? err.message : "unknown");
   }
   return done;
+}
+
+/**
+ * Everyone a stored scene names texts the people who turned their texts on (lib/house-texts.ts houseTextsForScene: the
+ * owner first, anyone texting a cast member under the same opt-in, one house text a thread a day). Called right after a
+ * scene of any kind is stored. Returns how many texts went out; never throws, and 0 with HOUSE_TEXTS=0.
+ */
+export async function textAboutScene(db: Db, sceneId: string, now: Date = new Date(), env: Record<string, string | undefined> = process.env): Promise<number> {
+  try {
+    const { houseTextsForScene } = await import("./house-texts");
+    return (await houseTextsForScene(db, sceneId, now, { env })).sent;
+  } catch {
+    return 0;
+  }
 }
 
 /* ------------------------------------------------ the hourly job ------------------------------------------------ */
@@ -896,20 +857,10 @@ export async function storeScene(
   forgetLatestHouseScene();
 }
 
-/** Whether a character of this owner's already texted them about the house today (one such text a day per owner). */
-export async function textedToday(db: Db, owner: string, now: Date): Promise<boolean> {
-  const { rows } = await db.query(
-    `select 1 from companion_messages m join companion_threads th on th.id = m.thread_id
-      where th.user_id = $1 and m.action like 'house_scene:%' and m.created_at >= $2::timestamptz limit 1`,
-    [owner, `${now.toISOString().slice(0, 10)}T00:00:00Z`],
-  );
-  return rows.length > 0;
-}
-
 /**
  * The hourly lobby job's part: writes today's scene once, on the first pass at or after HOUSE_SCENE_HOUR_UTC. It claims
  * the day's row first (two passes can't both call the model), then fills it; a quiet day keeps an empty row so the job
- * doesn't ask again. Then the state (applyTold) and the owners (tellOwners).
+ * doesn't ask again. Then the state (applyTold), the owners (tellOwners) and the texts (textAboutScene).
  */
 export async function ensureHouseScene(
   db: Db,
@@ -947,8 +898,9 @@ export async function ensureHouseScene(
   const spent = summarizeUsage(usage, model ? 1 : 0, now);
   await storeScene(db, id, { place: facts.place, cast: roomIds, lines, told, source, spent, tension: facts.tension, now });
   const heard = await applyTold(db, told, now, new Map(facts.dates.map((d) => [d.episode_id, d.ending])));
-  const owners = await tellOwners(db, { id, day, place: facts.place, lines, told }, now);
-  return { id, source, lines: lines.length, told: heard, cost_usd: spent.cost_usd, ...owners };
+  const owners = await tellOwners(db, { id, day, place: facts.place, lines, told });
+  const texted = await textAboutScene(db, id, now, env);
+  return { id, source, lines: lines.length, told: heard, cost_usd: spent.cost_usd, ...owners, texted };
 }
 
 /**

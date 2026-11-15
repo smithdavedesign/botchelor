@@ -4,8 +4,9 @@
  * and only offered another date, whatever had happened meanwhile.
  *
  * Per character, the first of: an unread text from the character itself (its companion thread, lib/after-date-text.ts),
- * unread texts, new matches (lib/inbox.ts newsByCharacter), a text of its own still waiting on the person's word, a date
- * being filmed, a date ready to watch, the last date's ending; else no date yet. All $0 reads.
+ * unread texts, new matches (lib/inbox.ts newsByCharacter), a text of its own still waiting on the person's word (about a
+ * date, or about what the house said: lib/house-texts.ts), a date being filmed, a date ready to watch, the last date's
+ * ending; else no date yet. All $0 reads.
  */
 import type { Db } from "./db";
 import type { CharacterRef } from "./game";
@@ -56,6 +57,8 @@ type CompanionNews = {
   character_id: string;
   thread_id: string;
   at: Date | string;
+  /** The waiting text's tag (`day_after:<episode>`, `house_scene:<scene>`): which line it gets. */
+  action?: string | null;
 };
 
 /** How long a text from the character stays "waiting on your advice" with no answer, before the line drops. */
@@ -63,8 +66,9 @@ export const ADVICE_WAIT_DAYS = 7;
 
 /**
  * Each character's own unread text to its owner (a `character_texted_you` notification still unread, keyed by the
- * thread's link), and each character whose last text about a date (`after_date:`/`day_after:` tagged, within
- * ADVICE_WAIT_DAYS) got neither a reply in the thread nor a nudge for the next date (lib/between-dates.ts nudges).
+ * thread's link), and each character whose last text about a date (`after_date:`/`day_after:` tagged) or about the
+ * house (`house_scene:`/`house_tonight:`, lib/house-texts.ts), within ADVICE_WAIT_DAYS, got neither a reply in the
+ * thread nor a nudge for the next date (lib/between-dates.ts nudges).
  */
 async function companionNews(db: Db, userId: string, ids: readonly string[], now: Date): Promise<{ texted: Map<string, CompanionNews>; waiting: Map<string, CompanionNews> }> {
   const [texted, waiting] = await Promise.all([
@@ -77,9 +81,9 @@ async function companionNews(db: Db, userId: string, ids: readonly string[], now
       [userId, ids],
     ),
     db.query<CompanionNews>(
-      `select distinct on (t.character_id) t.character_id, t.id as thread_id, m.created_at as at
+      `select distinct on (t.character_id) t.character_id, t.id as thread_id, m.created_at as at, m.action
          from companion_threads t
-         join companion_messages m on m.thread_id = t.id and m.role = 'character' and m.action ~ '^(after_date|day_after):'
+         join companion_messages m on m.thread_id = t.id and m.role = 'character' and m.action ~ '^(after_date|day_after|house_scene|house_tonight):'
         where t.user_id = $1 and t.character_id = any($2::text[]) and m.created_at > $3::timestamptz - make_interval(days => $4::int)
           and not exists (select 1 from companion_messages u where u.thread_id = t.id and u.role = 'user' and u.created_at > m.created_at)
           and not exists (select 1 from nudges g where g.character_id = t.character_id and g.user_id = t.user_id and g.created_at > m.created_at)
@@ -108,7 +112,11 @@ export async function sinceYouWereHere(db: Db, userId: string, mine: readonly Ch
     if (n?.texts) return { character, news: plural(n.texts, "text"), action: "Read", href: matches, at: n.latest };
     if (n?.matches) return { character, news: plural(n.matches, "match"), action: "See who", href: matches, at: n.latest };
     const waiting = own.waiting.get(character.id);
-    if (waiting) return { character, news: `${first} is waiting on your advice`, action: "Reply", href: `/companion/${encodeURIComponent(waiting.thread_id)}`, at: new Date(waiting.at).toISOString() };
+    if (waiting) {
+      // What the house said about them is news of its own, not a question about a date.
+      const news = /^house_/.test(waiting.action ?? "") ? `${first} told you what the house is saying` : `${first} is waiting on your advice`;
+      return { character, news, action: "Reply", href: `/companion/${encodeURIComponent(waiting.thread_id)}`, at: new Date(waiting.at).toISOString() };
+    }
     const d = latest.get(character.id);
     if (!d) return { character, news: "No dates yet", action: "Send on a date", href: another, at: null };
     const at = new Date(d.created_at).toISOString();
