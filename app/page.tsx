@@ -244,7 +244,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
           </p>
         </section>
       )}
-      <section className="hero">
+      <section className={clip ? "hero has-clip" : "hero"}>
         <div className="hero-copy">
           {/* The promise (docs/ideas.md "The core, 2026-11-14"): your character has a love life, and you're in their corner. */}
           <p className="kicker">Your character&apos;s love life</p>

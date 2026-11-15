@@ -110,7 +110,7 @@ The home page plays the day's clip to a visitor with no character ([flows.md](fl
 stranger"), so the clip run sends the site a small copy once the MP4 is written:
 
 - **What is cut:** a muted web loop, the 10 to 14 seconds from the moment the first line appears (it ends a second
-  after a line lands), 480×854, H.264 with faststart, at most 700 kbit/s (in practice 70 to 300 KB, never over
+  after a line lands), 480×854, H.264 with faststart, at most 700 kbit/s (the first one came to 87 KB; never over
   1.4 MB: a heavier one is cut again, coarser), and a JPEG poster of the loop's own first frame. The same ffmpeg; both
   files stay in `~/BotchelorClips/web/`.
 - **Where it goes:** `POST /api/admin/home-clip` (a multipart form: `episode`, `loop`, `poster`, `width`, `height`,

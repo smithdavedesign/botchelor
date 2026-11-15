@@ -19,7 +19,7 @@ import type { Db } from "./db";
 import { dateNumberSql } from "./date-number";
 import { expressCreateOn } from "./express-create";
 import type { EpisodeView } from "./game";
-import { keepBytes, readBytes } from "./object-store";
+import { keepBytes, objectStore, readBytes } from "./object-store";
 import { endingLabel, REPORT_HIDE_THRESHOLD, type Ending } from "./rules";
 
 /** A clip this old or older is not "last night's" any more: the hero goes back to what it was. */
@@ -60,6 +60,7 @@ export type HomeClipInput = { episode_id: string; day: string; loop: Buffer; pos
 /** Keeps a clip: one per date (an upload for a date that has one replaces it). Returns its id. */
 export async function saveHomeClip(db: Db, c: HomeClipInput): Promise<{ id: string }> {
   const id = randomUUID();
+  const before = (await db.query<{ loop_key: string | null; poster_key: string | null }>(`select loop_key, poster_key from home_clips where episode_id = $1`, [c.episode_id])).rows[0];
   const loop = await keepBytes("clips", `${id}-loop`, c.loop, "video/mp4");
   const poster = await keepBytes("clips", `${id}-poster`, c.poster, "image/jpeg");
   await db.query(
@@ -70,6 +71,9 @@ export async function saveHomeClip(db: Db, c: HomeClipInput): Promise<{ id: stri
        seconds = excluded.seconds, created_at = now()`,
     [id, c.episode_id, c.day, loop.object_key, loop.data, poster.object_key, poster.data, Math.round(c.width), Math.round(c.height), c.seconds],
   );
+  // The clip it replaced leaves the store too (best effort: a file left behind is only a file nobody links to).
+  const store = before?.loop_key || before?.poster_key ? objectStore() : null;
+  for (const key of [before?.loop_key, before?.poster_key]) if (store && key) await store.remove(key).catch(() => {});
   return { id };
 }
 

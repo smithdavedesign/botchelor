@@ -223,6 +223,10 @@ describe("POST /api/admin/home-clip", () => {
     expect(res.status).toBe(302);
     expect(res.headers.get("location")).toBe(`https://media.example/${row.loop_key}?signed=1`);
     expect(res.headers.get("cache-control")).toBe("public, max-age=900");
+    // Sent again, the date's old files leave the store with the old row.
+    await send(form(d.id));
+    expect(kept.size).toBe(2);
+    expect(kept.has(row.loop_key)).toBe(false);
   });
 });
 
@@ -276,6 +280,7 @@ describe("the home hero", () => {
     as(null);
     const html = await home();
     expect(html).toContain('class="hero-art has-clip"');
+    expect(html).toContain('<section class="hero has-clip">');
     // Muted, looping, inline, nothing loaded before it plays: the poster is the first paint.
     expect(html).toMatch(/<video[^>]*class="home-clip-video"[^>]*>/);
     const video = /<video[^>]*>/.exec(html)![0];
@@ -303,6 +308,7 @@ describe("the home hero", () => {
     const plain = await home();
     expect(plain).not.toContain("home-clip");
     expect(plain).not.toContain("has-clip");
+    expect(plain).toContain('<section class="hero">');
     expect(plain).toContain('class="hero-art has-date"');
     expect(plain).not.toContain('class="home-date"');
 

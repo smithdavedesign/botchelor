@@ -504,13 +504,31 @@
   margin: 0;
 }
 @media (max-width: 720px) {
-  /* On a phone the clip leads, as the typed-in date did (the 2026-11-14 design audit), smaller so the headline is
-     still on the first screen under it. */
+  /* On a phone: the headline, the sentence box, then the clip, then the rest of the pitch. The first screen says what
+     this is, offers the one field, and shows the clip's top (where the lines appear). The copy's children become the
+     hero's own rows so the clip can sit between them. */
+  .hero.has-clip {
+    row-gap: 0;
+  }
+  .hero.has-clip .hero-copy {
+    display: contents;
+  }
+  .hero.has-clip .hero-copy > * {
+    order: 3;
+  }
+  .hero.has-clip .hero-copy > .kicker,
+  .hero.has-clip .hero-copy > h1 {
+    order: 0;
+  }
+  .hero.has-clip .hero-copy > .home-express {
+    order: 1;
+  }
   .hero-art.has-clip {
-    order: -1;
+    order: 2;
+    margin: var(--space-3) 0 var(--space-4);
   }
   .home-clip .phone {
-    width: min(100%, 13rem);
+    width: min(100%, 11rem);
   }
 }
 @media (max-width: 480px) {
