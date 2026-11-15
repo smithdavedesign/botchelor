@@ -15,6 +15,11 @@
  *  - The winner: most votes; a tie goes to the choice listed first (the dealt order), so it never depends on timing.
  *  - Cost: one lobby date a day, on the show's default model like every lobby room (it counts toward
  *    FRESH_ROOMS_PER_DAY, so a busy day makes no more rooms than before): at most ~5¢ a day, under $1.50 a month.
+ *  - The producer's twists (lib/producer.ts, 2026-11-15): on a day the producer staged a beat that the season's format
+ *    lets the house book, the ballot is two or three twists of that beat instead of the dealt roleplays: who gets the
+ *    date, where, or whose story gets asked about. Each twist names its own two; the winner's two get the date, at its
+ *    place when it has one, with no roleplay. Still a situation and never an ending: the engine decides the date as it
+ *    decides any other. No beat (or PRODUCER=0), and everything above stands as it was.
  */
 import { portraitPathSql } from "./portrait-sql";
 import { dareChoices, dareCounts, daredOf, dareWinnerOf, producerDareNote } from "./dares";
@@ -26,7 +31,9 @@ import { DATE_ROLEPLAYS, fillPremise, termsFor, type DateRoleplay, type DateRole
 import { firstPickOn, seasonCastIds, suitorInTurn } from "./season-cast";
 import type { SeasonFormatDef } from "./season-format";
 import { seasonFormatNow } from "./season-format-store";
-import { createTemplateParty } from "./watch";
+import { createTemplateParty, type TemplateOpts } from "./watch";
+import { beatFor, stagedPair, stageOf, twistsFor, type Twist } from "./producer";
+import { setWant } from "./story-state";
 
 /** How many situations each day's vote offers. */
 export const SITUATION_CHOICES = 3;
@@ -76,8 +83,9 @@ export type VoteResult = { ok: true; pick: string } | { ok: false; status: numbe
 /** One viewer's vote on today's situation (a second vote changes it). Only today's three choices count. */
 export async function voteSituation(db: Db, userId: string, pick: string, now: Date = new Date()): Promise<VoteResult> {
   const day = utcDay(now);
-  if (!situationChoices(day).some((c) => c.id === pick)) {
-    return { ok: false, status: 400, error: "not_on_the_ballot", message: "That isn't one of today's three situations." };
+  const twists = await twistsFor(db, day).catch(() => null);
+  if (!(twists ?? situationChoices(day)).some((c) => c.id === pick)) {
+    return { ok: false, status: 400, error: "not_on_the_ballot", message: "That isn't one of today's situations." };
   }
   await db.query(
     `insert into situation_votes (day, user_id, pick) values ($1, $2, $3)
@@ -103,6 +111,51 @@ export type SituationPlayed =
   | { played: true; day: string; pick: string | null; dare: string | null; party_id: string; room_path: string }
   | { played: false; day: string; reason: "already" | "no_votes" | "no_cast" | "failed" };
 
+export type SituationDeal =
+  | { ok: false; reason: "no_votes" | "no_cast" }
+  | {
+      ok: true;
+      /** The roleplay that won (the dealt ballot), or null: a twist won, or only the dare lane had votes. */
+      winner: DateRoleplayDef | null;
+      /** The producer's twist that won, on a day whose ballot was twists. */
+      twist: Twist | null;
+      dare: ReturnType<typeof dareWinnerOf>;
+      dared: string | null;
+      /** The two the date is for; `first` and `second` are the order it is booked in (the dared one goes first). */
+      pair: [string, string];
+      first: string;
+      second: string;
+      /** What createTemplateParty is called with: the roleplay, the dare's note, the twist's place. */
+      opts: TemplateOpts;
+      tally: Map<string, number>;
+      dareTally: Map<string, number>;
+      total: number;
+    };
+
+/**
+ * What a day's vote makes, as the votes stand: who the date is for, in which order, and with what. One place for it,
+ * so the hourly job (playVotedSituation, once the vote has closed) and the producer's night plans (lib/night-plans.ts,
+ * an hour before it closes) build the same date. Reads only.
+ */
+export async function situationDeal(db: Db, day: string): Promise<SituationDeal> {
+  const [tally, dareTally, twists] = await Promise.all([counts(db, day), dareCounts(db, day), twistsFor(db, day).catch(() => null)]);
+  const twist = twists ? winnerOf(twists, tally) : null;
+  const winner = twists ? null : winnerOf(situationChoices(day), tally);
+  // The ballot's dare lane (lib/dares.ts): its winner rides the same date. Either lane alone makes the night.
+  const dare = dareWinnerOf(dareChoices(day), dareTally);
+  if (!winner && !twist && !dare) return { ok: false, reason: "no_votes" };
+  // A twist names its own two; the dealt ballot (and a night only the dare lane voted on) is for the day's dealt pair.
+  // The twist's two must still be bookable when the date is made (a suitor may have gone home since the ballot was set).
+  const pair = twist ? stagedPair(twist.pair[0], twist.pair[1], await stageOf(db, closesAt(day))) : situationPair(day, await formatOfDay(db, day));
+  if (!pair) return { ok: false, reason: "no_cast" };
+  const dared = dare ? daredOf(day, pair) : null;
+  const roleplay: DateRoleplay | null = winner ? { ...termsFor(winner, pair[0]), agreed: "auto" } : null;
+  // The dared one goes in first (side A), so the dare rides its private note and the other side never sees it.
+  const [first, second]: [string, string] = dared && dared !== pair[0] ? [pair[1], pair[0]] : [pair[0], pair[1]];
+  const opts: TemplateOpts = { roleplay, dare: dare ? producerDareNote(dare.text) : null, ...(twist?.venue ? { venuePool: [twist.venue] } : {}) };
+  return { ok: true, winner, twist, dare, dared, pair, first, second, opts, tally, dareTally, total: [...tally.values()].reduce((n, v) => n + v, 0) };
+}
+
 /**
  * The hourly lobby run: once yesterday's vote has closed, make its date, once. A claim row first (so two runs can't both
  * make it); a date that couldn't be made drops the claim, so the next hour tries again. Only yesterday: a day the job
@@ -110,26 +163,18 @@ export type SituationPlayed =
  */
 export async function playVotedSituation(db: Db, now: Date = new Date()): Promise<SituationPlayed> {
   const day = utcDay(new Date(now.getTime() - 24 * 60 * 60 * 1000));
-  const [tally, dareTally] = await Promise.all([counts(db, day), dareCounts(db, day)]);
-  const choices = situationChoices(day);
-  const winner = winnerOf(choices, tally);
-  // The ballot's dare lane (lib/dares.ts): its winner rides the same date. Either lane alone makes the night.
-  const dare = dareWinnerOf(dareChoices(day), dareTally);
-  if (!winner && !dare) return { played: false, day, reason: "no_votes" };
-  const pair = situationPair(day, await formatOfDay(db, day));
-  if (!pair) return { played: false, day, reason: "no_cast" };
-  const dared = dare ? daredOf(day, pair) : null;
-  const total = [...tally.values()].reduce((s, n) => s + n, 0);
+  const deal = await situationDeal(db, day);
+  if (!deal.ok) return { played: false, day, reason: deal.reason };
+  const { winner, twist, dare, dared, pair, tally, dareTally, total } = deal;
   const claimed = await db.query(
-    `insert into situation_nights (day, a_id, b_id, pick, votes, total) values ($1, $2, $3, $4, $5, $6)
+    `insert into situation_nights (day, a_id, b_id, pick, votes, total, title, icon) values ($1, $2, $3, $4, $5, $6, $7, $8)
      on conflict (day) do nothing returning day`,
-    [day, pair[0], pair[1], winner?.id ?? null, winner ? (tally.get(winner.id) ?? 0) : 0, total],
+    [day, pair[0], pair[1], (twist ?? winner)?.id ?? null, twist || winner ? (tally.get((twist ?? winner)!.id) ?? 0) : 0, total, twist?.title ?? null, twist?.icon ?? null],
   );
   if (!claimed.rows.length) return { played: false, day, reason: "already" };
-  const roleplay: DateRoleplay | null = winner ? { ...termsFor(winner, pair[0]), agreed: "auto" } : null;
-  // The dared one goes in first (side A), so the dare rides its private note and the other side never sees it.
-  const [first, second]: [string, string] = dared && dared !== pair[0] ? [pair[1], pair[0]] : [pair[0], pair[1]];
-  const room = await createTemplateParty(db, first, second, { roleplay, dare: dare ? producerDareNote(dare.text) : null }).catch(() => null);
+  // A twist that is "whose story gets asked about": the one who asks carries it into the date as this week's want.
+  if (twist?.want) await setWant(db, { holder: twist.want.holder, want: twist.want.want, kind: twist.want.kind, about: twist.want.about, setBy: "producer", now }).catch(() => false);
+  const room = await createTemplateParty(db, deal.first, deal.second, deal.opts).catch(() => null);
   if (!room?.ok) {
     await db.query(`delete from situation_nights where day = $1 and party_id is null`, [day]);
     return { played: false, day, reason: "failed" };
@@ -148,18 +193,19 @@ export async function playVotedSituation(db: Db, now: Date = new Date()): Promis
   }
   const names = await namesOf(db, pair);
   const cast = pair.map((id) => ({ id, name: names.get(id) ?? "" }));
-  if (winner) {
+  const won = twist ?? winner;
+  if (won) {
     const voters = (await db.query<{ user_id: string; pick: string }>(`select user_id, pick from situation_votes where day = $1`, [day])).rows;
-    const body = `${cast[0].name} × ${cast[1].name}: ${fillPremise(termsFor(winner, pair[0]), cast)}`;
-    await notifyAll(db, voters.filter((v) => v.pick === winner.id).map((v) => v.user_id), {
+    const body = `${cast[0].name} × ${cast[1].name}: ${twist ? twist.premise : fillPremise(termsFor(winner!, pair[0]), cast)}`;
+    await notifyAll(db, voters.filter((v) => v.pick === won.id).map((v) => v.user_id), {
       kind: "situation_on",
-      title: `Your pick won: ${winner.title}`,
+      title: `Your pick won: ${won.title}`,
       body,
       link: room.room_path,
     });
-    await notifyAll(db, voters.filter((v) => v.pick !== winner.id).map((v) => v.user_id), {
+    await notifyAll(db, voters.filter((v) => v.pick !== won.id).map((v) => v.user_id), {
       kind: "situation_on",
-      title: `The viewers picked ${winner.title}`,
+      title: `The viewers picked ${won.title}`,
       body,
       link: room.room_path,
     });
@@ -181,7 +227,7 @@ export async function playVotedSituation(db: Db, now: Date = new Date()): Promis
       link: room.room_path,
     });
   }
-  return { played: true, day, pick: winner?.id ?? null, dare: dare?.id ?? null, party_id: room.id, room_path: room.room_path };
+  return { played: true, day, pick: won?.id ?? null, dare: dare?.id ?? null, party_id: room.id, room_path: room.room_path };
 }
 
 async function namesOf(db: Db, ids: string[]): Promise<Map<string, string>> {
@@ -197,6 +243,8 @@ export type SituationBoard = {
   day: string;
   closes_at: string;
   cast: [SituationCast, SituationCast];
+  /** On a day the producer staged a beat (lib/producer.ts): what the vote decides, in one line. Null: the dealt ballot, "what happens on their date?". */
+  headline: string | null;
   choices: SituationChoice[];
   my_pick: string | null;
   total: number;
@@ -207,7 +255,10 @@ export type SituationBoard = {
 /** The card's data for one viewer. null when the season has no cast to deal from. */
 export async function situationBoard(db: Db, viewerId: string | null, now: Date = new Date()): Promise<SituationBoard | null> {
   const day = utcDay(now);
-  const pair = situationPair(day, await formatOfDay(db, day));
+  // The producer's twists, when the day has them: each names its own two, so the card leads with the first twist's.
+  const beat = await beatFor(db, day).catch(() => null);
+  const twists = beat?.choices ?? null;
+  const pair = twists ? twists[0].pair : situationPair(day, await formatOfDay(db, day));
   if (!pair) return null;
   const [chars, tally, mine, lastRow] = await Promise.all([
     db.query<{ id: string; name: string; hue: number | null; portrait: string | null }>(`select c.id, c.name, c.avatar_hue as hue, ${portraitPathSql("c")} as portrait from characters c where c.id = any($1)`, [pair]),
@@ -215,8 +266,8 @@ export async function situationBoard(db: Db, viewerId: string | null, now: Date 
     viewerId
       ? db.query<{ pick: string }>(`select pick from situation_votes where day = $1 and user_id = $2`, [day, viewerId])
       : Promise.resolve({ rows: [] as { pick: string }[] }),
-    db.query<{ day: string; a_id: string; b_id: string; pick: string; votes: number; total: number; party_id: string }>(
-      `select day, a_id, b_id, pick, votes, total, party_id from situation_nights where party_id is not null and day < $1 order by day desc limit 1`,
+    db.query<{ day: string; a_id: string; b_id: string; pick: string; votes: number; total: number; party_id: string; title: string | null; icon: string | null }>(
+      `select day, a_id, b_id, pick, votes, total, party_id, title, icon from situation_nights where party_id is not null and day < $1 order by day desc limit 1`,
       [day],
     ),
   ]);
@@ -225,16 +276,21 @@ export async function situationBoard(db: Db, viewerId: string | null, now: Date 
   const b = byId.get(pair[1]);
   if (!a || !b) return null;
   const cast = [a, b].map((c) => ({ id: c.id, name: c.name }));
-  const choices = situationChoices(day).map((c) => ({
-    id: c.id,
-    title: c.title,
-    icon: c.icon,
-    premise: fillPremise(termsFor(c, a.id), cast),
-    votes: tally.get(c.id) ?? 0,
-  }));
+  const choices = twists
+    ? twists.map((c) => ({ id: c.id, title: c.title, icon: c.icon, premise: c.premise, votes: tally.get(c.id) ?? 0 }))
+    : situationChoices(day).map((c) => ({
+        id: c.id,
+        title: c.title,
+        icon: c.icon,
+        premise: fillPremise(termsFor(c, a.id), cast),
+        votes: tally.get(c.id) ?? 0,
+      }));
+  const said = beat?.tonight.replace(/^Tonight: /, "") ?? "";
+  const headline = twists && said ? said.charAt(0).toUpperCase() + said.slice(1) : null;
   let last: SituationBoard["last"] = null;
   const lr = lastRow.rows[0];
-  const lastDef = lr ? DATE_ROLEPLAYS.find((r) => r.id === lr.pick) : undefined;
+  // What won: a roleplay by its id, or a producer's twist by the title the night kept.
+  const lastDef = lr ? (DATE_ROLEPLAYS.find((r) => r.id === lr.pick) ?? (lr.title ? { title: lr.title, icon: lr.icon ?? "🎬" } : undefined)) : undefined;
   if (lr && lastDef) {
     const names = await namesOf(db, [lr.a_id, lr.b_id]);
     const myLast = viewerId
@@ -255,6 +311,7 @@ export async function situationBoard(db: Db, viewerId: string | null, now: Date 
   return {
     day,
     closes_at: closesAt(day).toISOString(),
+    headline,
     cast: [
       { id: a.id, name: a.name, hue: a.hue, portrait: a.portrait },
       { id: b.id, name: b.name, hue: b.hue, portrait: b.portrait },

@@ -33,6 +33,16 @@ function Items({ card }: { card: ShowSinceData }) {
           </Link>
         </li>
       )}
+      {card.story && (
+        <li>
+          <span aria-hidden="true">🎬</span> {card.story.previously} <strong>{card.story.tonight}</strong>{" "}
+          {card.story.vote && (
+            <Link href="/vote" data-track="since-story">
+              Vote
+            </Link>
+          )}
+        </li>
+      )}
       {card.chat && (
         <li>
           <span aria-hidden="true">📱</span> Leaked from the cast group chat: <strong>{card.chat.name}</strong> <em>“{card.chat.text}”</em>{" "}

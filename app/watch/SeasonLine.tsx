@@ -27,12 +27,15 @@ export default function SeasonLine({
   picked,
   recoupling,
   now,
+  story = null,
 }: {
   def: SeasonFormatDef | null;
   card: ThisWeekCard | null;
   picked: { title: string; votes: number; total: number } | null;
   recoupling: RecouplingBoard | null;
   now: number;
+  /** Today's story from the producer (lib/producer.ts storyToday): "Tonight: …" joins the line, "Previously: …" its body. */
+  story?: { previously: string; tonight: string } | null;
 }) {
   const at = new Date(now);
   const number = seasonNumber(seasonIdOf(at));
@@ -43,6 +46,7 @@ export default function SeasonLine({
     card?.label ?? null,
     // Plain words on the first screen (2026-11-07 audit, item 19): the name, then what it is.
     nightAhead ? `💘 The Recoupling, when everyone re-pairs, ${recouplingIn(nightAhead.runs_at, now)}` : null,
+    story?.tonight ?? null,
   ].filter(Boolean);
   return (
     <details className="season-line ux-fold" id="this-week" data-track-area="this-week">
@@ -50,6 +54,11 @@ export default function SeasonLine({
         <span className="season-line-text">{parts.join(" · ")}</span> <span className="muted small">What&apos;s on</span>
       </summary>
       <div className="season-line-body">
+        {story && (
+          <p>
+            {story.previously} <strong>{story.tonight}</strong>
+          </p>
+        )}
         {card?.announce && <p>{card.announce}</p>}
         {card?.announce && picked && (
           <p className="small watch-picked">

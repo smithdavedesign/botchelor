@@ -21,6 +21,8 @@ import { runWalkOnRoses } from "@/lib/casting";
 import { ensureCastSecrets } from "@/lib/cast-secrets";
 import { ensureCastChat } from "@/lib/cast-chat";
 import { storyUpkeep } from "@/lib/story-state";
+import { runProducer } from "@/lib/producer";
+import { nightPlansOn, writeNightPlans } from "@/lib/night-plans";
 import { ensureHouseScene, houseUpkeep } from "@/lib/house-scenes";
 import { ensureChallenge, ensureConfrontation } from "@/lib/house-conflict";
 import { runDueReveal } from "@/lib/weekly-reveal";
@@ -103,6 +105,20 @@ async function run(req: Request): Promise<Response> {
   // The week's challenge (lib/house-conflict.ts), on Wednesdays: the winner, decided by seeded rules, gets the next
   // one-on-one (the same dates in another order: none is added).
   const challenge = await ensureChallenge(db).catch(() => null);
+  // The producer (lib/producer.ts): once a night, on the 23:20 pass, tomorrow's beat from the story state, the wants of
+  // the people it is about and the vote's twists; a missed pass is caught up by the next. Rows, templates and one small
+  // call for the logline. It sets situations, never an outcome.
+  const producer = await runProducer(db).catch(() => null);
+  // The date plans for tomorrow's house dates (lib/night-plans.ts): written after the response, on calls sized to
+  // finish, because nobody is waiting. Each is claimed in the database first, so a later pass never writes it twice.
+  if (nightPlansOn()) {
+    const plans = () => writeNightPlans(db, new Date(), { budgetMs: 200_000 }).catch(() => null);
+    try {
+      after(plans);
+    } catch {
+      void plans(); // outside a request (a test): just run it
+    }
+  }
   // The show's Discord (lib/discord-posts.ts, docs/discord.md): the episode digest, Sunday's vote and the board, each
   // posted once, after everything above that changes them. Off until a webhook is set; at most a few posts of 5 seconds,
   // and left to the next pass when the run is already long.
@@ -130,7 +146,7 @@ async function run(req: Request): Promise<Response> {
   // Every character has a headshot (lib/default-portraits.ts): a few of those still without one are drawn each hour,
   // unless the run is already long (a template date above takes most of the 300 s).
   const portraits = Date.now() - started > LONG_RUN_MS ? { drawn: 0, failed: 0, left: -1 } : await portraitSweep(db).catch(() => ({ drawn: 0, failed: 0, left: -1 }));
-  return json({ ...lobby, portraits, overnight, situation, season_ballot: ballot, dare_verdicts: dareVerdicts.length, dare_points_settled: darePoints.reduce((n, d) => n + d.voters, 0), recoupling, ceremony, walk_ons: walkOns, reveal, season_pool: pool, secrets, cast_chat: castChat, story_state: storyState, house_scene: houseScene, house_upkeep: houseKept, confrontation, challenge, discord, newsletter, aired, stuck_generations: stuck, handed_over, sets_rechecked, sets_drawn, scheduled_dates: scheduled, mixers, ...away });
+  return json({ ...lobby, portraits, overnight, situation, season_ballot: ballot, dare_verdicts: dareVerdicts.length, dare_points_settled: darePoints.reduce((n, d) => n + d.voters, 0), recoupling, ceremony, walk_ons: walkOns, reveal, season_pool: pool, secrets, cast_chat: castChat, story_state: storyState, producer, house_scene: houseScene, house_upkeep: houseKept, confrontation, challenge, discord, newsletter, aired, stuck_generations: stuck, handed_over, sets_rechecked, sets_drawn, scheduled_dates: scheduled, mixers, ...away });
 }
 
 export const GET = handle(run);

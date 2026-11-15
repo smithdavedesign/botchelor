@@ -27,7 +27,8 @@ import { claimPaidDate } from "./limits";
 import { getDirectorModel, getModel, paidDefaultOn, type Model } from "./model";
 import { PROMPT_VERSION, countingModel } from "./pipeline";
 import { summarizeUsage } from "./pricing";
-import { planDate } from "./beats";
+import { planDate, rulesPlan } from "./beats";
+import { datePlanAtNightOn } from "./night-plans";
 import {
   DATE_VARIABLES,
   dateNumberOf,
@@ -123,7 +124,11 @@ async function conversationFor(db: Db, r: Row, actor: Model, director: Model): P
   // The chaperone and ex as stored (the graph may name a different ex today); the roleplay as snapshotted.
   const formatCtx = { ...formatContextOf(built), chaperone: r.setup?.chaperone, ex: r.setup?.ex };
   // Played from a beat sheet of the STORED outcome, like a fresh date (lib/beats.ts).
-  const plan = await planDate(director, built.input, outcome, characters, producer, venueId, format, formatCtx);
+  // With the plan at night (lib/night-plans.ts) the director isn't asked here either: its call was cut off on nearly
+  // every date, and each backfill then waited 50 s of the daily job for the rules plan it plays from anyway.
+  const plan = datePlanAtNightOn()
+    ? rulesPlan(built.input, outcome, characters, producer, venueId)
+    : await planDate(director, built.input, outcome, characters, producer, venueId, format, formatCtx);
   // A line's inner life (living dates) is never stored on it; a backfilled date keeps none (lib/inner-life.ts).
   const lines = await simulateConversation(actor, built.input, outcome, characters, producer, venueId, format, undefined, formatCtx, plan, undefined, undefined, {
     from: r.partial ? r.transcript : undefined,

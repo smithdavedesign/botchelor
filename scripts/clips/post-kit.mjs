@@ -16,7 +16,7 @@ import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node
 import { homedir, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { chromiumPath } from "./daily-clip.mjs";
+import { chromiumPath, fetchStory } from "./daily-clip.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 /** How long each card stays up, in seconds. */
@@ -37,7 +37,7 @@ export function placeOf(e) {
 
 const firstName = (name) => String(name ?? "").trim().split(/\s+/)[0] ?? "";
 
-/** The hook: a line written for this post, or the pair and the place. */
+/** The hook: a line written for this post (or the day's story logline, lib/producer.ts), or the pair and the place. */
 export function hookFor(e, override) {
   if (override?.trim()) return override.trim();
   const [a, b] = (e.characters ?? []).map((c) => firstName(c.name));
@@ -157,7 +157,10 @@ async function main() {
   const e = await (await fetch(`${base}/api/episodes/${id}`, { headers })).json();
   if (!e?.id) throw new Error(`no episode ${id}`);
   if (!e.revealed || e.visibility !== "public") throw new Error("only a public date that has aired makes a post");
-  const hook = hookFor(e, arg("hook"));
+  // The hook: the one written for this post, else the logline the date played under when it is the one the day's story
+  // is about (the producer's beat, GET /api/story), else the pair and the place.
+  const storyHook = arg("hook") ?? (await fetchStory(base, headers)).get(e.id) ?? null;
+  const hook = hookFor(e, storyHook);
   const reveal = revealFor(e);
   const dateSeconds = Number(arg("date-seconds") ?? DATE_SECONDS);
   if (!(dateSeconds >= 5 && dateSeconds <= 75)) throw new Error("--date-seconds is 5 to 75");
@@ -205,7 +208,7 @@ async function main() {
       "-map", "0:v", "-map", "[a]", "-c:v", "copy", "-c:a", "aac", "-b:a", "128k", "-shortest", join(out, "post.mp4"),
     ]);
     execFileSync("cp", [join(tmp, "hook.png"), join(out, "cover.png")]);
-    writeFileSync(join(out, "caption.txt"), postCaption(e, { hook: arg("hook"), tags: arg("tags") ?? "" }) + "\n");
+    writeFileSync(join(out, "caption.txt"), postCaption(e, { hook: storyHook, tags: arg("tags") ?? "" }) + "\n");
     writeFileSync(
       join(out, "checklist.md"),
       [

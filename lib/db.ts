@@ -4016,6 +4016,54 @@ create table if not exists story_state_runs (
   key text primary key,
   ran_at timestamptz not null default now()
 );
+-- The producer (lib/producer.ts): one row per UTC day it produced. The row is the day's claim (two passes can't both
+-- produce it) and the owner's skip. A staged beat names the tension it stages, who it is about, the evidence ids from
+-- lib/story-state.ts tensions(), the two daily lines, the logline, the vote's twists and, later, what came of it.
+create table if not exists story_beats (
+  day text primary key,
+  season_id text not null,
+  kind text not null,          -- lib/producer.ts BEAT_KINDS, or 'none'
+  status text not null,        -- pending | staged | played | missed | skipped | none
+  tension text,                -- lib/story-state.ts TensionKind
+  who jsonb not null default '[]'::jsonb,
+  about text,
+  evidence jsonb not null default '{}'::jsonb,
+  why text,                    -- for the owner only: it may say whether a claim is true
+  logline text,
+  logline_by text,             -- model | template
+  previously text,
+  tonight text,
+  choices jsonb,               -- the day's vote twists (lib/producer.ts Twist[]), or null: the dealt roleplays stand
+  wants jsonb,
+  outcome jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+-- The date plans written at night (lib/night-plans.ts): one per house date expected the next day. episode_id is the id
+-- reserved for that date (its seed), fit_key what the date must turn out to be for the plan to fit (the pair in order,
+-- the place, the situation and the engine's decision, hashed), plan the beat sheet in lib/beats.ts DatePlan shape (null
+-- when the model's didn't pass: that date plays from the rules plan).
+create table if not exists date_plans (
+  id text primary key,
+  day text not null,
+  slot text not null,          -- lobby | situation
+  a_id text not null references characters (id) on delete cascade,
+  b_id text not null references characters (id) on delete cascade,
+  episode_id text not null,
+  fit_key text not null,
+  plan jsonb,
+  model text,
+  ms integer,
+  usage jsonb,
+  used_at timestamptz,
+  fit boolean,
+  created_at timestamptz not null default now(),
+  unique (day, slot)
+);
+create index if not exists date_plans_pair_idx on date_plans (a_id, b_id, day);
+-- A voted night whose winner was one of the producer's twists keeps what it was called (a roleplay's comes from its id).
+alter table situation_nights add column if not exists title text;
+alter table situation_nights add column if not exists icon text;
 -- The daily house scene (lib/house-scenes.ts, 2026-11-15): a few of the cast talk in the show's house about a date that
 -- aired, and what each line retells becomes something the others heard (character_heard, source 'scene:<id>#<line>').
 -- One row a day and kind (id '<day>-<kind>'). lines: [{character_id, text, tell?, removed?}], every one checked before

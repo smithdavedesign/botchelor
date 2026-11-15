@@ -372,7 +372,7 @@ export async function ensureConfrontation(
   ).rows.flatMap((r) => (r.result ? [{ day: r.day, a: r.result.a, b: r.result.b, kind: r.tension?.kind ?? r.result.over, about: r.tension?.about ?? null }] : []));
   const all = await tensions(db, seasonId, { now }).catch(() => [] as Tension[]);
   // The producer's beat for the day goes first when it names two who are due; the state's own order after it.
-  const beat = await beatFor(db, day);
+  const beat = await beatFor(db, day, env);
   const ordered = beat ? [...all.filter((t) => samePair(t, beat)), ...all.filter((t) => !samePair(t, beat))] : all;
   const tension = pickConfrontation(day, ordered, [...cast.keys()], history);
   if (!tension) {

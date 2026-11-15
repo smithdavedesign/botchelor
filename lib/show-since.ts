@@ -17,6 +17,7 @@
  */
 import { backingSince, type BackingSince } from "./backing";
 import { latestCastChat } from "./cast-chat";
+import { storyToday } from "./producer";
 import { houseLine, latestHouseScene, scenePath } from "./house-scenes";
 import { newestOwnSlip, newestSecretOut, type SecretOut } from "./cast-secrets";
 import type { Db } from "./db";
@@ -71,6 +72,8 @@ export type ShowSince = {
   twist: { label: string; tease: string } | null;
   /** The cast group chat leaked since (lib/cast-chat.ts): its first message, and how many more on /watch. */
   chat: { code: string | null; name: string; text: string; more: number } | null;
+  /** Today's story from the producer (lib/producer.ts): what happened and what is coming. Rides along; never summons the card. */
+  story: { previously: string; tonight: string; vote: boolean } | null;
   /** The newest scene in the show's house written since (lib/house-scenes.ts): who was talking, its first line, and where to read it. */
   house: { who: string; name: string; text: string; path: string } | null;
   /** Overnight dates that aired since and ended in the two leaving together (lib/overnight.ts), public ones only. */
@@ -125,8 +128,8 @@ export async function showSince(db: Db, viewerId: string | null, now: Date = new
         where e.revealed_at > $1 and e.visibility = 'public'`,
       [at, viewerId],
     ),
-    db.query<{ pick: string; party_id: string }>(
-      `select pick, party_id from situation_nights where party_id is not null and created_at > $1 order by day desc limit 1`,
+    db.query<{ pick: string; party_id: string; title: string | null; icon: string | null }>(
+      `select pick, party_id, title, icon from situation_nights where party_id is not null and created_at > $1 order by day desc limit 1`,
       [at],
     ),
     // The diary cam's rule (lib/game.ts): a house character's take, or either side's when the host shared them. Never a
@@ -155,7 +158,8 @@ export async function showSince(db: Db, viewerId: string | null, now: Date = new
   const side = d ? ([0, 1] as const).find((i) => (i === 0 ? d.a_ok : d.b_ok) && d.lines?.[i]?.trim()) : undefined;
   const c = calls.rows[0];
   const n = night.rows[0];
-  const def = n ? DATE_ROLEPLAYS.find((r) => r.id === n.pick) : undefined;
+  // A roleplay by its id, or a producer's twist by the title the night kept (lib/producer.ts).
+  const def = n ? (DATE_ROLEPLAYS.find((r) => r.id === n.pick) ?? (n.title ? { title: n.title, icon: n.icon ?? "🎬" } : undefined)) : undefined;
   // The three that ride along (the week's twist, the cast chat, the house scene): side by side, not one after another.
   const [twist, chat, house] = await Promise.all([twistSince(db, since, now), chatSince(db, since, now), houseSince(db, since, now)]);
   const card: ShowSince = {
@@ -178,6 +182,9 @@ export async function showSince(db: Db, viewerId: string | null, now: Date = new
     twist,
     chat,
     house,
+    story: await storyToday(db, now)
+      .then((x) => (x ? { previously: x.previously, tonight: x.tonight, vote: x.vote } : null))
+      .catch(() => null),
     overnights: overnightDatesOn()
       ? (await overnightMarks(db, { since: at }, null, OVERNIGHTS_SHOWN).catch(() => [])).map((m) => ({ lo: m.lo, hi: m.hi, a: m.names[0], b: m.names[1], episode_path: `/episodes/${m.episode_id}` }))
       : [],

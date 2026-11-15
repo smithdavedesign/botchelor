@@ -28,9 +28,14 @@
  * line (lib/conversation.ts parseTurnResult, the critic) and the lease rules (lib/jobs.ts renewLease) are untouched,
  * and lines are still written one at a time, each after the last was checked and saved.
  *
+ * Since the plan at night (lib/night-plans.ts, DATE_PLAN_AT_NIGHT, on by default) step 1 holds for every format: no
+ * date asks the director in front of line 1. What stays particular to a fast date is steps 2 and 3. Only with
+ * DATE_PLAN_AT_NIGHT=0 does a date that isn't fast ask the director first again.
+ *
  * Switches (the show's app; no deploy of code to change one):
- *   FAST_FIRST_LINE    unset: speed dates only. "0"/"off": none (the old order, plan first). "all": every format. Or
- *                      a comma list of format ids ("speed_date,classic").
+ *   FAST_FIRST_LINE    unset: speed dates only. "0"/"off": none (hot takes awaited, the recap, texts and reflections
+ *                      one after another; the plan first too when DATE_PLAN_AT_NIGHT=0). "all": every format. Or a
+ *                      comma list of format ids ("speed_date,classic").
  *   SPEED_DATE_MODEL   unset: speed dates run on the show's model. A model id at the show's paid endpoint
  *                      (FRONTIER_LLM_BASE_URL/KEY) puts a speed date's actor calls (lines, answers, texts,
  *                      reflections) on it; the recap stays on the show's model. A call it fails falls back to the

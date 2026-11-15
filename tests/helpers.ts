@@ -49,6 +49,8 @@ import { setSeasonRecapVoiceEnabledForTests } from "@/lib/season-recap";
 import { setEpisodeTitleVoiceEnabledForTests } from "@/lib/episode-title";
 import { setDareJudgeEnabledForTests } from "@/lib/dare-verdict";
 import { setCastChatVoiceEnabledForTests } from "@/lib/cast-chat";
+import { setProducerVoiceEnabledForTests } from "@/lib/producer";
+import { setDatePlanAtNightForTests } from "@/lib/night-plans";
 import { forgetLatestHouseScene, setHouseSceneVoiceEnabledForTests } from "@/lib/house-scenes";
 import { setCharacterLessonsForTests } from "@/lib/character-lessons";
 import { setMatchChatEnabledForTests } from "@/lib/swipes";
@@ -139,6 +141,11 @@ export async function startTestDb() {
   setDareJudgeEnabledForTests(false);
   // The cast group chat (lib/cast-chat.ts) writes from templates here; tests/cast-chat.test.ts passes a model.
   setCastChatVoiceEnabledForTests(false);
+  // The producer's logline (lib/producer.ts) comes from its template here; tests/producer.test.ts passes a model.
+  setProducerVoiceEnabledForTests(false);
+  // The plan at night (lib/night-plans.ts) is off in tests by default: suites written before it script the director's
+  // plan as a date's first call. tests/night-plans.test.ts turns it on.
+  setDatePlanAtNightForTests(false);
   setHouseSceneVoiceEnabledForTests(false);
   // The characters' weekly lessons (lib/character-lessons.ts) are off here: a suite that runs the daily job with two
   // aired dates would otherwise write lessons and send a text it never scripted. tests/character-lessons.test.ts turns them on.

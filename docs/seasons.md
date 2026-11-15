@@ -251,6 +251,97 @@ the count under the empty-room rule ([show-style.md](show-style.md)). Tests: `te
 `POST /api/admin/season` with `{"action":"format","season_id":"<YYYY-MM-01>","slug":"botchelor"}` and then
 `{"action":"lead","season_id":"<YYYY-MM-01>","character_id":"<house id>"}`. Casting opens with the second call.
 
+## The producer: tomorrow's beat, picked overnight
+
+The drama wave, 2026-11-15, part 4. Reality TV is produced: someone decides tonight what tomorrow's episode is about.
+Ours is [`lib/producer.ts`](../lib/producer.ts). It runs once a night in the hourly lobby job, reads the story state
+([character-depth.md](character-depth.md), "Story state") and sets tomorrow's **situations**. It never sets an outcome:
+nothing it writes is read by the engine, the points, the odds or the endings.
+
+**When.** The hourly job runs at :20. The 23:20 UTC pass produces the next UTC day: after the day's airings, before
+that day's vote opens at 00:00 and before the house's first dates of the day (the voted date and the lobby's room, on
+the 00:20 pass). The day's row in `story_beats` is the claim, so it happens once; a pass that was missed (a deploy) is
+caught up by the next one, for the day it is by then. The first day of a season has no beat (the season's state starts
+empty).
+
+**What one run does.**
+
+1. **The beat** (`story_beats`: day, kind, who, about, the evidence ids, why, the lines, the twists, later what came of
+   it). `tensions(db, seasonId)` ranks the conflicts the cast's story state holds; `pickTension` takes the hottest,
+   deals a tie from the day, and steps a tension that was staged in the last two days behind one that wasn't. Rules
+   only.
+
+   | Tension (story state) | Beat kind | The house scene it suits (`beat.scene`) |
+   |---|---|---|
+   | someone knows what another said about them | `same_room`: two people who should be put in a room | confrontation |
+   | trust is gone both ways | `same_room` | confrontation |
+   | two hold different stories about the same person | `surface_claim`: a claim that should surface | kitchen |
+   | two want the same person | `rival_date`: a rival who should get the date | challenge |
+
+2. **Wants.** The two or three cast members the beat is about get this week's want overwritten
+   (`setWant(..., setBy: 'producer')`): "Find out whether Sable really said it, and hear it from Sable." The rules
+   (`ensureWants`) never write over a producer's want, so their next date and their texts lean into the beat for the
+   rest of the week. Where the truth of a claim could show, both sides get the same words.
+3. **Tonight's vote** ([`lib/situations.ts`](../lib/situations.ts)). When the beat can be staged, the day's ballot is
+   two or three **twists** of it instead of the three dealt roleplays: who gets the date (rivals), whose story gets
+   asked about (two stories), or where the two of them sit down (two who should share a room). Each twist names its own
+   two; the winner's two get the house's voted date, at the twist's place when it has one, with no roleplay; a twist
+   that is a question hands the one who asks that want. A vote picks a situation, never an ending and never anyone's
+   odds. With no beat, a beat that can't be staged, or `PRODUCER=0`, the dealt ballot stands exactly as before; a day
+   nobody votes still makes no date. **On a Botchelor season** the house only ever books the lead with a suitor still
+   in (`stagedPair`): two suitors who both want the lead become "who gets tonight's date with her"; two suitors who
+   should be put in a room can't be, so that day keeps the dealt ballot (the beat and its wants still stand). A suitor
+   sent home between the ballot and the date makes no date. A day that already has votes when its beat is picked (a
+   missed night caught up later in the day) keeps the ballot those votes were cast on.
+4. **"Previously" and "Tonight".** Two template lines from the beat ("Previously: Dex found out what Sable has been
+   saying." / "Tonight: Dex wants an answer, and you pick where Dex gets to ask.") and a one-line logline in the show's
+   voice: one small call on the show's free model, checked (one line, names someone in the beat, the PG checks, says
+   nothing about whether a claim is true), the template when it fails. Shown where the show already has a daily line:
+   the tonight band's facts on home, the season line on `/watch` (the "Tonight:" line on it, "Previously:" in its
+   fold), and "Since you were here". No new section on `/watch`.
+5. **The clip.** `GET /api/story` (public) gives the clip scripts today's lines and the aired public dates the last
+   four days' beats are about, each with the logline it played under: `scripts/clips/daily-clip.mjs` prefers one of
+   those over any other date and leads its caption with the logline; `scripts/clips/post-kit.mjs` uses the logline as
+   the hook unless one was written for the post.
+6. **What came of it.** Two nights later the beat is settled from rows (`beatOutcome`): whether the vote staged it,
+   dates between its people (their ending only once aired), claims from the evidence that came up on a date, "knows you
+   said" facts that were settled. `played` or `missed`.
+
+**What a viewer can never read from it.** Whether a claim is true stays server-side (the story state's rule): the
+public lines name people and the fact that something was said, in an order that doesn't depend on who is right, and a
+logline that says "lie" or "true" is thrown away. `why` and the evidence are the owner's view only. Everything is built
+from tensions, which are built from public aired dates between public characters.
+
+**The owner's view.** `/admin/season` → "The producer": the last seven days' beats, each with why it won, the rows
+behind it (the claims and whether they are true), the wants it set, the twists, and what came of it; the plans written
+at night; and **Skip tomorrow's beat** (that day gets no beat, no producer wants and no twists; Undo takes it back).
+`GET`/`POST /api/admin/producer` (`{"action":"skip"}` / `{"action":"unskip"}`). The producer never needs a person.
+
+**The house's scenes** ([`lib/house-scenes.ts`](../lib/house-scenes.ts) and
+[`lib/house-conflict.ts`](../lib/house-conflict.ts), "The house" below) read the day's beat through one function
+(`beatFor` in `lib/house-scenes.ts`, which reads the producer's `beatFor(db, day)`). The day's gossip scene, written
+at 18:20 UTC, seats the beat's two people first (on a date its `about` was on when there is one), then follows the
+state's own tensions. A confrontation puts the beat's pair first among the tensions that are due (its own rules still
+decide whether anything is due, and seeded rules decide how it comes out). So the beat picked at 23:20 the night before
+is what the house is overheard talking about, or having out, the next evening. A skipped day, a day with no beat, or
+`PRODUCER=0` leaves both to the tensions, as before. The producer's own `beatFor` also carries `scene` (kitchen |
+confrontation | challenge: the kind of scene the beat suits) and `evidence.heard` (the claims behind it).
+
+**The date plans written at night** are [`lib/night-plans.ts`](../lib/night-plans.ts): see
+[date-quality.md](date-quality.md), "Round: the plan at night".
+
+**Switches** (the show's app; no deploy of code): `PRODUCER=0` writes no beats, wants or vote twists and reads none
+(the story state's own `STORY_STATE=0` turns it off too). `DATE_PLAN_AT_NIGHT` (on) and `PRODUCER_PLANS` (off) are the
+plans'.
+
+**Cost.** Rows and templates, plus one logline call a night on the free model (about 250 tokens in, 40 out): $0 on the
+free tier, about 0.02¢ at paid Flash-Lite rates.
+
+**Tests.** `tests/producer.test.ts` (the pick: deterministic, once per day, the repeat rule, the skip; wants
+overwritten and not clobbered by the rules; twists and the dealt ballot with no beat; the Botchelor's limits; the
+lines; what came of it; the engine's input and decision unchanged), `tests/producer-lines.test.ts` (where the lines
+show, the clip picker and captions), `tests/night-plans.test.ts`.
+
 ## The house: the daily scene (2026-11-15)
 
 The second part of the drama wave ([`lib/house-scenes.ts`](../lib/house-scenes.ts); the story state it writes into is
@@ -267,8 +358,8 @@ never a date an earlier scene already told). An admin can ask for today's early:
 
 **Who is in the room** follows the story state: the hottest tension (`tensions`) whose two people were both off some
 aired date seats them, preferring a date its subject was on; otherwise the newest date the cast can talk about and a
-pair dealt by the day, with a third on about half the days. The producer's beat for the day (`story_beats`, part 4) is
-preferred when it exists. None of this touches a date: the engine alone decides endings.
+pair dealt by the day, with a third on about half the days. The producer's beat for the day (`beatFor`, "The producer" above) is
+preferred when there is one. None of this touches a date: the engine alone decides endings.
 
 **What the writer may know** is the cast chat's rule: public aired dates between public characters, not reported away;
 nothing unaired, nothing private, never a hidden secret. Plus each speaker's own story state as an unspoken
@@ -341,7 +432,7 @@ or writes points, odds or pairings beyond the order of dates the format already 
   after the gossip that caused it, never the same hour. **At most two a week** (Monday to Monday), the same two rest
   three days (so never two days running), and the same thing is had out **once a season**: the same two over the same
   tension, and one untrue story whoever confronts it. A pair that has never had it out goes before one that has; the
-  producer's beat for the day (`story_beats`) goes first when it names a pair that qualifies. Nothing due: no scene.
+  producer's beat for the day (`beatFor`, "The producer" above) goes first when it names a pair that qualifies. Nothing due: no scene.
 - **The scene.** Those two, six lines, somewhere in the house; on about half the days someone else is in the doorway
   and says nothing.
 - **How it ends** (`decideOutcome`): they cleared the air, they agreed to disagree, or it ended worse than it started.

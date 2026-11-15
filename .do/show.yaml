@@ -119,6 +119,23 @@ services:
       # - key: SPEED_DATE_REASONING
       #   value: "low"
       #   scope: RUN_AND_BUILD_TIME
+      # The producer (lib/producer.ts; docs/seasons.md "The producer"): on by default. The 23:20 UTC pass picks the
+      # next day's beat from the story state, the wants of the people it is about, the vote's twists and the day's
+      # "Previously" / "Tonight" lines. "0" writes and reads none of it.
+      # - key: PRODUCER
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
+      # The plan at night (lib/night-plans.ts; docs/date-quality.md "Round: the plan at night"): on by default, no
+      # date asks the director before its first line; a house date reads the plan stored for it, every other date
+      # plays from the rules plan at once. "0" restores the old order (the classic asks the director first).
+      # - key: DATE_PLAN_AT_NIGHT
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
+      # The night's writing of the next day's house date plan: off by default (measured: the stored plan earned the
+      # ending better and sounded less natural, no better overall). "1" turns it on.
+      # - key: PRODUCER_PLANS
+      #   value: "1"
+      #   scope: RUN_AND_BUILD_TIME
       # One-sentence create (lib/express-create.ts; docs/flows.md): on by default. Uncomment with "0" to put the form
       # back as /create's first step without a deploy.
       # - key: EXPRESS_CREATE

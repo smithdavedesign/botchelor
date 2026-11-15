@@ -19,8 +19,8 @@
  *    (the rule lib/story-state.ts companionStory keeps). Never another character's private take: a line that voices
  *    someone else's take is dropped.
  *  - Who is in the room and which date they talk about follows the state's hottest tension (lib/story-state.ts
- *    tensions) when one fits; the producer's beat for the day (story_beats, another builder's) is preferred when there
- *    is one. Neither ever touches a date: the engine alone decides endings.
+ *    tensions) when one fits; the producer's beat for the day (lib/producer.ts beatFor) is preferred when there is one.
+ *    Neither ever touches a date: the engine alone decides endings.
  *  - Every line is checked (checkSceneLines): a speaker in the scene, PG (lib/safety.ts), English, short, no meme-speak,
  *    no hidden secret, nobody claiming a date they weren't on (lib/cast-chat.ts misattributed), and nothing about crime,
  *    health, money or sex (SENSITIVE). The writer says per line which aired fact it retells and whether faithfully; what
@@ -50,6 +50,7 @@ import { getModel, type Model, type Usage } from "./model";
 import { shortName } from "./names";
 import { portraitPathSql } from "./portrait-sql";
 import { summarizeUsage } from "./pricing";
+import { beatFor as producersBeat } from "./producer";
 import { dateLabel, REPORT_HIDE_THRESHOLD, REPORT_REASONS, type Ending } from "./rules";
 import { checkSheetText, checkShowText } from "./safety";
 import { showCastIds } from "./season-cast";
@@ -840,15 +841,14 @@ export type HouseSceneWritten =
 /** Whether the scenes' writer may be called (off in the shared test harness: lib/house-conflict.ts asks too). */
 export const houseVoiceOn = (): boolean => voiceEnabled;
 
-/** The producer's beat for a day (story_beats, written overnight by lib/producer.ts when it exists), or null. */
-export async function beatFor(db: Db, day: string): Promise<Pick<Tension, "kind" | "a" | "b" | "about"> | null> {
-  try {
-    const { rows } = await db.query<{ kind: string | null; a_id: string | null; b_id: string | null; about_id: string | null }>(`select kind, a_id, b_id, about_id from story_beats where day = $1 limit 1`, [day]);
-    const r = rows[0];
-    return r?.a_id && r.b_id ? { kind: (r.kind ?? "rivals") as Tension["kind"], a: r.a_id, b: r.b_id, about: r.about_id } : null;
-  } catch {
-    return null; // no producer yet: the state's own tensions choose
-  }
+/**
+ * The producer's beat for a day (lib/producer.ts beatFor: story_beats, picked overnight), as the tension it stages: its
+ * two people are who the room seats first. Null with no beat that day, a skipped one, or PRODUCER=0: the state's own
+ * tensions choose.
+ */
+export async function beatFor(db: Db, day: string, env: Record<string, string | undefined> = process.env): Promise<Pick<Tension, "kind" | "a" | "b" | "about"> | null> {
+  const beat = await producersBeat(db, day, env).catch(() => null);
+  return beat && beat.who.length >= 2 ? { kind: beat.tension, a: beat.who[0], b: beat.who[1], about: beat.about } : null;
 }
 
 /**
@@ -931,7 +931,7 @@ export async function ensureHouseScene(
   const facts = await sceneFacts(db, now, {
     since: before[0] ? new Date(before[0].created_at) : undefined,
     skip: before.flatMap((r) => (r.told ?? []).map((t) => t.episode_id)),
-    beat: await beatFor(db, day),
+    beat: await beatFor(db, day, env),
   });
   if (!facts) return quiet(showCastIds(now).length < 2 ? "no_cast" : "quiet");
 

@@ -14,6 +14,8 @@ export type AnalyticsEvent =
   | "episode_generated" // the unit-economics event: model calls + latency for one date
   | "prediction_submitted"
   | "situation_vote" // a vote on tonight's situation (lib/situations.ts)
+  | "night_plan_read" // a house date read the plan the producer wrote for it at night: whether it still fit (lib/night-plans.ts)
+  | "night_plans_written" // the night's plans: how many, how many passed, how long (lib/night-plans.ts)
   | "season_format_vote" // a vote for next season's format (lib/season-vote.ts)
   | "recoupling_vote" // a vote on the recoupling night (lib/recoupling.ts)
   | "ceremony_vote" // a vote on who goes home at Sunday's rose ceremony (lib/ceremony.ts)
@@ -128,7 +130,7 @@ export function trackEpisodeCost(props: {
 export function trackDateQuality(
   episode_id: string,
   where: string,
-  plan: "director" | "rules" | null,
+  plan: "director" | "rules" | "producer" | null,
   q: {
     index: number; turns: number; profile_reading: number; self_labels: number; self_quotes: number; misgendered: number;
     abrupt_flips: number; repeated_openers: number; repeated_actions: number; name_tics: number; question_rate: number;
