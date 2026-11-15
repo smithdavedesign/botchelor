@@ -598,10 +598,18 @@
   height: 1.25rem;
   margin: 0;
 }
-/* One sentence, so two lines of room, never under the 64px a text box needs to be a comfortable target. */
+/* One sentence: the box grows to fit it where the browser can (field-sizing), and is never under the 64px a text box
+   needs to be a comfortable target. On a phone a sentence runs to four lines, so the box starts that tall for the
+   browsers that can't grow it (the first phone pass cut the third line off). */
 .import-history-body textarea {
   min-height: 4.5rem;
   margin-top: 0;
+  field-sizing: content;
+}
+@media (max-width: 640px) {
+  .import-history-body textarea {
+    min-height: 6.5rem;
+  }
 }
 .import-history-item.is-off .import-history-body {
   opacity: 0.55;
