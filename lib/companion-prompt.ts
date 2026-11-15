@@ -95,11 +95,18 @@ export function companionMessages(args: {
   yours?: boolean;
   /** With `yours`: the character's last date, to tell them about (lib/last-date.ts). */
   lastDate?: PromptLastDate | null;
+  /**
+   * With `lastDate`: the owner's standing note for the next date with that partner (a nudge, lib/between-dates.ts
+   * activeNudge), left from the thread's "For next time" or the couple's page. The one thing from the person that does
+   * reach a date, by that channel only; here the character may acknowledge it, never recite it.
+   */
+  activeNudge?: string | null;
 }): ChatMessage[] {
   const { character: c, length, now = new Date(), scene = null } = args;
   const call = args.call === true && !scene;
   const yours = args.yours === true;
   const lastDate = yours ? (args.lastDate ?? null) : null;
+  const nudge = lastDate ? (args.activeNudge?.trim() || null) : null;
   const first = c.name.trim().split(/\s+/)[0] || c.name;
   const self = characterSelfView(c);
   const life = showLife(c);
@@ -161,6 +168,9 @@ export function companionMessages(args: {
           "Your last date (they sent you on it; it's the thing they most want to hear about, from you):",
           `- With ${lastDate.partner}${lastDate.venue ? `, at ${lastDate.venue}` : ""}. How it ended: ${lastDate.endingLabel}.`,
           ...(lastDate.reflection ? [`- What you thought afterwards, in your own words: "${lastDate.reflection}"`] : []),
+          ...(nudge
+            ? [`- Their note for your next date with ${lastDate.partner} (it goes with you into that date; you can say you've got it, in your own words, without reciting it): "${nudge}"`]
+            : []),
         ]
       : []),
     ...(life.length ? ["", "Your life on the show lately (yours to bring up, as yourself):", ...life.map((l) => `- ${l}`)] : []),

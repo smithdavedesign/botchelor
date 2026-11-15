@@ -48,7 +48,8 @@ describe("the clip recorder's selectors", () => {
 describe("the filming stage (GeneratingPoller.tsx)", () => {
   it("shows the same verdict card, a Skip to the ending once the ending stands, and keeps the failed-date fallback", () => {
     expect(stage).toContain("<VerdictCard");
-    expect(stage).toContain("pending={!ready}");
+    // "Hear from" is greyed only while the ending isn't final (lib/after-date-text.ts takes a generating date with ending_final).
+    expect(stage).toContain("pending={!ready && final === null}");
     expect(stage).toContain("Skip to the ending");
     // Only an ending the job marked final counts; the booked one can still move.
     expect(stage).toContain("data.ending_final && data.ending");

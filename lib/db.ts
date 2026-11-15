@@ -1157,6 +1157,10 @@ create table if not exists companion_voice (
 alter table companion_messages add column if not exists voice_key text;
 -- Said on a voice call in the app (docs/companions.md, Calls): the person spoke it, or the reply was spoken aloud.
 alter table companion_messages add column if not exists on_call boolean not null default false;
+-- The menu under a text the character sent about one of its dates (lib/after-date-text.ts, lib/companion-offers.ts): which
+-- date, who the partner was and the chips offered (see them again, someone new, advice), plus "taken" once one was tapped.
+-- A menu, nothing personal; "action" stays the text's dedupe tag. Goes with the message (the thread's cascade).
+alter table companion_messages add column if not exists offers jsonb;
 -- A live call (docs/companions.md, P6; lib/companion-live.ts): one row a call, to charge it by the minute and count it.
 -- Never any audio and never the words (those are messages, marked on_call). first_ticket: the first minute's, given
 -- back when the call ends at once with nothing said. Kept 90 days.

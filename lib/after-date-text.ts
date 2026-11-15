@@ -1,4 +1,5 @@
 import { postFromCharacter, threadIdFor } from "./companion";
+import { storedOffers } from "./companion-offers";
 import { dateNumberSql } from "./date-number";
 import type { Db } from "./db";
 import type { SideOutcome } from "./engine";
@@ -18,6 +19,10 @@ import { venuePhrase } from "./venues";
  * PR5 of the same plan adds the two texts a character sends on its own, both only to a thread whose person tapped
  * "Hear from" once (companion_threads.muted_proactive = false, the opt-in) and both event-driven, never on silence:
  * the tease when a date airs (teaseAfterAir, from lib/air.ts) and the day-after text (dayAfterTexts, from the daily job).
+ *
+ * The question a text ends on is now also a menu (lib/companion-offers.ts): the after-date and day-after texts carry
+ * `offers` (see them again, someone new, advice), which the thread shows as chips and books through the show's own
+ * route. The tease carries none: a chip under it would give the ending away.
  */
 
 /** What the text is built from: a row of `episodes` with the two names, or an episode view's fields. */
@@ -82,6 +87,8 @@ const fail = (status: number, error: string, message: string): AfterDateFail => 
 type Row = {
   id: string;
   status: string;
+  /** The early verdict (lib/jobs.ts onOutcome): the ending stands while the date is still 'generating'. */
+  ending_final: boolean | null;
   ending: Ending;
   creator_id: string;
   venue: string | null;
@@ -98,11 +105,14 @@ type Row = {
 
 /**
  * The date and the side the person owns, or why not: the person must own the character on one side (the host of a date
- * between others has nobody of their own to hear from; anyone else isn't told the date exists), and the date must be ready.
+ * between others has nobody of their own to hear from; anyone else isn't told the date exists), and the ending must
+ * stand: the date is ready, or it is still 'generating' with the early verdict in (setup.ending_final, lib/jobs.ts), in
+ * which case the text is built from the ending and the debrief, since no reflection is written yet. That is what lets the
+ * verdict card's "Hear from" go the moment the card shows instead of ~20 s later.
  */
 async function load(db: Db, userId: string, episodeId: string): Promise<{ ok: true; row: Row; side: "a" | "b" } | AfterDateFail> {
   const { rows } = await db.query<Row>(
-    `select e.id, e.status, e.ending, e.creator_id, e.setup->>'venue' as venue, e.reflections, e.sides, ${dateNumberSql("e")} as date_number,
+    `select e.id, e.status, (e.setup->>'ending_final')::boolean as ending_final, e.ending, e.creator_id, e.setup->>'venue' as venue, e.reflections, e.sides, ${dateNumberSql("e")} as date_number,
             a.id as a_id, a.name as a_name, a.owner_id as a_owner, b.id as b_id, b.name as b_name, b.owner_id as b_owner
        from episodes e
        join characters a on a.id = e.character_a
@@ -114,9 +124,12 @@ async function load(db: Db, userId: string, episodeId: string): Promise<{ ok: tr
   if (!row) return fail(404, "not_found", "Not found.");
   const side: "a" | "b" | null = row.a_owner === userId ? "a" : row.b_owner === userId ? "b" : null;
   if (!side) return row.creator_id === userId ? fail(409, "no_character", "Neither of them is your character, so there's nobody to hear from.") : fail(404, "not_found", "Not found.");
-  if (row.status !== "ready") return fail(409, "not_ready", "The date is still being written. Hear from them once it's done.");
+  if (!endingStands(row)) return fail(409, "not_ready", "The date is still being written. Hear from them once it's done.");
   return { ok: true, row, side };
 }
+
+/** Whether a date's ending will not move: ready, or still being finished with the early verdict in. */
+export const endingStands = (e: { status: string; ending_final: boolean | null }): boolean => e.status === "ready" || (e.status === "generating" && e.ending_final === true);
 
 /** Which of the person's characters would text about this date (for a route's checks before anything is written). */
 export async function afterDateCharacter(db: Db, args: { userId: string; episodeId: string }): Promise<{ ok: true; character_id: string } | AfterDateFail> {
@@ -136,7 +149,9 @@ export async function sendAfterDateText(db: Db, args: { userId: string; episodeI
   const { row: r, side } = l;
   const characterId = side === "a" ? r.a_id : r.b_id;
   const lines = afterDateLines({ ending: r.ending, date_number: r.date_number, names: [r.a_name, r.b_name], venue: r.venue, reflections: r.reflections, sides: r.sides }, side);
-  const posted = await postFromCharacter(db, { userId: args.userId, characterId, lines, now: args.now, kind: "after_date", dedupeKey: `after_date:${r.id}` });
+  // The chips under the text (lib/companion-offers.ts): see them again where the ending allows, someone new, advice.
+  const offers = storedOffers({ episodeId: r.id, partnerId: side === "a" ? r.b_id : r.a_id, partner: side === "a" ? r.b_name : r.a_name, ending: r.ending });
+  const posted = await postFromCharacter(db, { userId: args.userId, characterId, lines, now: args.now, kind: "after_date", dedupeKey: `after_date:${r.id}`, offers });
   if (posted) return { ok: true, thread_id: posted.threadId, character_id: characterId, message_id: posted.messageId, sent: true };
   const existing = await threadIdFor(db, args.userId, characterId);
   if (existing) return { ok: true, thread_id: existing, character_id: characterId, message_id: null, sent: false };
@@ -201,6 +216,7 @@ type OptedInSide = {
   /** Whether the thread's character is side a of the date. */
   is_a: boolean;
   partner: string;
+  partner_id: string;
   booked: boolean;
 };
 
@@ -213,6 +229,7 @@ const OPTED_IN_SIDES_SQL = (where: string) => `
   select e.id as episode_id, e.ending, e.sides, t.id as thread_id, t.user_id, t.character_id,
          t.character_id = e.character_a as is_a,
          case when t.character_id = e.character_a then b.name else a.name end as partner,
+         case when t.character_id = e.character_a then b.id else a.id end as partner_id,
          exists (select 1 from episodes f where f.followup_of = e.id) as booked
     from episodes e
     join characters a on a.id = e.character_a
@@ -254,7 +271,9 @@ export async function dayAfterTexts(db: Db, now = new Date(), limit = 50): Promi
       theirs_wants: r.sides?.[me === 0 ? 1 : 0]?.wants_another ?? null,
       booked: r.booked,
     });
-    const posted = await postFromCharacter(db, { userId: r.user_id, characterId: r.character_id, lines, now, kind: "day_after", dedupeKey: `day_after:${r.episode_id}` }).catch(() => null);
+    // The chips: only advice once the next date is booked; otherwise what the question asks (lib/companion-offers.ts).
+    const offers = storedOffers({ episodeId: r.episode_id, partnerId: r.partner_id, partner: r.partner, ending: r.ending, booked: r.booked });
+    const posted = await postFromCharacter(db, { userId: r.user_id, characterId: r.character_id, lines, now, kind: "day_after", dedupeKey: `day_after:${r.episode_id}`, offers }).catch(() => null);
     if (posted) sent++;
   }
   return sent;
