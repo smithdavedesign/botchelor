@@ -284,6 +284,9 @@ describe("the checks", () => {
   it("takes a specific first-person line, and drops anything too long, not about itself, or not PG", () => {
     expect(checkLesson('  "I leave when people audit my stories."  ')).toBe("I leave when people audit my stories.");
     expect(checkLesson("1. I talk about bread when I'm scared of the question.")).toBe("I talk about bread when I'm scared of the question.");
+    // A list marker comes off the front; a number the sentence starts with stays (the stub sim's "2 more nights out…").
+    expect(checkLesson("- I talk about bread when I'm scared of the question.")).toBe("I talk about bread when I'm scared of the question.");
+    expect(checkLesson("2 nights in a row I left before dessert, and I meant it both times.")).toBe("2 nights in a row I left before dessert, and I meant it both times.");
     expect(checkLesson(`I ${"really ".repeat(20)}do go on.`)).toBeNull(); // over the cap
     expect(`I ${"really ".repeat(20)}do go on.`.length).toBeGreaterThan(LESSON_LINE_MAX);
     expect(checkLesson("I flirt.")).toBeNull(); // says nothing
@@ -426,6 +429,8 @@ describe("the writer: the free model, the paid fallback, then the template", () 
       }
     }
     expect(templateLessons(weeks[3])!.lines[0]).toMatch(/didn't sound like me/);
+    // A week the record has no pattern for yet says only that (the stub sim's week: one bad night, one that ended as friends).
+    expect(templateLessons({ ...base, dates: [d("Nell Hart", "disaster"), d("Dex Moreno", "friends")] })!.lines).toEqual(["Two more nights out, and I can't say yet what I do differently from one to the next."]);
     expect(templateLessons({ ...base, dates: [] })).toBeNull();
   });
 

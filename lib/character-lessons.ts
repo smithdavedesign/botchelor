@@ -447,7 +447,8 @@ export function sameLesson(a: string, b: string): boolean {
  */
 export function checkLesson(raw: unknown, not: readonly string[] = []): string | null {
   if (typeof raw !== "string") return null;
-  const text = oneLine(raw).replace(/^["'“”‘’\-–—•*\d.)\s]+/, "").replace(/["'“”‘’\s]+$/, "").trim();
+  // Off the front: quotes and a list marker ("1. ", "2) ", "- "), never a number the sentence starts with ("2 nights…").
+  const text = oneLine(raw).replace(/^(?:["'“”‘’\s]+|[-–—•*]\s+|\d{1,2}[.)]\s+)+/, "").replace(/["'“”‘’\s]+$/, "").trim();
   if (text.length < LESSON_LINE_MIN || text.length > LESSON_LINE_MAX) return null;
   if (!FIRST_PERSON.test(text)) return null;
   if (/^you\b/i.test(text) || /\byou (?:should|must|need to|have to|ought to)\b/i.test(text)) return null;
@@ -542,7 +543,9 @@ export function templateLessons(f: LessonFacts): LessonSet | null {
   const thought = [...f.dates].reverse().flatMap((d) => d.thoughts.slice(0, 1).map((t) => ({ d, t })))[0];
   if (thought) out.push(`With ${first(thought.d)} I thought ${quoted(thought.t, 58)} and never said it out loud.`);
 
-  if (!out.length && f.dates.length) out.push(`${f.dates.length === 1 ? "One more night" : `${f.dates.length} more nights`} out, and I still talk more than I ask.`);
+  // A week with no pattern in it yet says so, and nothing more: the template never claims a habit the record doesn't show.
+  const COUNT = ["", "One more night", "Two more nights", "Three more nights", "Four more nights", "Five more nights", "Six more nights"];
+  if (!out.length && f.dates.length) out.push(`${COUNT[Math.min(f.dates.length, 6)]} out, and I can't say yet what I do differently from one to the next.`);
 
   const next = f.flagged.length
     ? "Next time I say it the way I'd actually say it, not the way that sounds good."
