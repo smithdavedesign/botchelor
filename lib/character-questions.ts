@@ -48,16 +48,18 @@ const TEXT_TAG_SQL = "^[a-z][a-z0-9_]*:[A-Za-z0-9_.:-]+$";
 type Candidate = { thread_id: string; user_id: string; character_id: string; extras: CharacterExtras | null; traits: string[]; want: string };
 
 /**
- * The threads a question may go to today (one query): the owner's own character, opted in and not paused, with a
- * finished date on the show, fewer than MAX_QUESTIONS asked, never stopped, and no text from the character in the last
- * QUESTION_GAP_HOURS (a question, a thanks or a text about a date: at most one of them a day comes from this).
+ * The threads a question may go to today (one query): the owner's own character, opted in and not paused, not one of
+ * our own identities (`ours`: left out here, not after the limit, so our many test threads never crowd real ones out),
+ * with a finished date on the show, fewer than MAX_QUESTIONS asked, never stopped, and no text from the character in
+ * the last QUESTION_GAP_HOURS (a question, a thanks or a text about a date).
  */
-async function candidates(db: Db, now: Date, limit: number): Promise<Candidate[]> {
+async function candidates(db: Db, now: Date, limit: number, ours: readonly string[]): Promise<Candidate[]> {
   const { rows } = await db.query<Candidate>(
     `select t.id as thread_id, t.user_id, c.id as character_id, c.extras, c.traits, c.want
        from companion_threads t
        join characters c on c.id = t.character_id and c.owner_id = t.user_id and not c.is_house
       where t.muted_proactive = false and t.paused_at is null
+        and t.user_id <> all($7::text[])
         and exists (select 1 from episodes e
                      where (e.character_a = c.id or e.character_b = c.id) and e.status = 'ready'
                        and coalesce((e.setup->>'after_dark')::boolean, false) = false)
@@ -68,7 +70,7 @@ async function candidates(db: Db, now: Date, limit: number): Promise<Candidate[]
                            and m.created_at > $4::timestamptz - make_interval(hours => $5::int))
       order by t.last_at desc, t.id
       limit $6`,
-    [QUESTION_TAG_LIKE, MAX_QUESTIONS, TEXT_TAG_SQL, now.toISOString(), QUESTION_GAP_HOURS, limit],
+    [QUESTION_TAG_LIKE, MAX_QUESTIONS, TEXT_TAG_SQL, now.toISOString(), QUESTION_GAP_HOURS, limit, ours],
   );
   return rows;
 }
@@ -89,15 +91,15 @@ export type QuestionsRun = { sent: number; stopped: number; candidates: number }
  * the top). Never for our own identities (lib/our-traffic.ts loadOurIds), nor for a character on this month's cast as a
  * fan pick (its sheet is locked until the month ends, so an answer could not be saved). CHARACTER_QUESTIONS=0 sends none.
  */
-export async function sendCharacterQuestions(db: Db, now = new Date(), limit = 50): Promise<QuestionsRun> {
+export async function sendCharacterQuestions(db: Db, now = new Date(), limit = 200): Promise<QuestionsRun> {
   const run: QuestionsRun = { sent: 0, stopped: 0, candidates: 0 };
   if (!characterQuestionsOn()) return run;
-  const rows = await candidates(db, now, limit);
+  // Without the list of our own identities nothing is sent: a failed read must never text an admin's test threads.
+  const ours = await loadOurIds(db).catch(() => null);
+  if (!ours) return run;
+  const rows = await candidates(db, now, limit, ours);
   run.candidates = rows.length;
-  if (!rows.length) return run;
-  const ours = new Set(await loadOurIds(db).catch(() => [] as string[]));
   for (const r of rows) {
-    if (ours.has(r.user_id)) continue;
     const asked = await askedIn(db, r.thread_id);
     // Two in a row with no answer: that was the last one, for good. Marked on it so a later answer never restarts them.
     const tail = asked.slice(-UNANSWERED_STOP);

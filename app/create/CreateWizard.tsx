@@ -83,6 +83,7 @@ import {
   expressFailedEvent,
   expressFailureLine,
   expressStartedEvent,
+  isExpressFailure,
   type ExpressFailure,
 } from "@/lib/express-create";
 
@@ -547,7 +548,7 @@ export default function CreateWizard({
       const { ok, status, data } = await requestJson("/api/characters/draft", { text, ...(expressName.trim() ? { name: expressName.trim() } : {}) }, "POST", { timeoutMs: EXPRESS_CLIENT_TIMEOUT_MS });
       const d = data.draft as ImportedDraft | undefined;
       if (!ok || !d || typeof d !== "object" || !d.sheet) {
-        const reason = typeof data.reason === "string" ? (data.reason as ExpressFailure) : status === 429 ? "limited" : "model";
+        const reason: ExpressFailure = isExpressFailure(data.reason) ? data.reason : status === 429 ? "limited" : "model";
         failed(reason, typeof data.message === "string" && ["minor", "real_person", "unsafe"].includes(reason) ? data.message : null);
         return;
       }

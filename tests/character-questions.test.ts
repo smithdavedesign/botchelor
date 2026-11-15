@@ -223,9 +223,13 @@ describe("who gets one (the daily job's step)", () => {
     await t.db.query(`update companion_threads set muted_proactive = false where id = $1`, [freshThread.thread_id]);
     // Ours: a test-named character's owner (lib/our-traffic.ts OUR_TEST_NAMES) is skipped even when opted in.
     const ours = await setupEpisode("friends");
-    await optIn(ours.creator, ours.episode.id);
-    expect(await sendCharacterQuestions(t.db, day(1))).toMatchObject({ sent: 0 });
+    const oursThread = await optIn(ours.creator, ours.episode.id);
+    expect(await sendCharacterQuestions(t.db, day(1))).toEqual({ sent: 0, stopped: 0, candidates: 0 });
     expect((await t.db.query<{ n: number }>(`select count(*)::int as n from companion_messages where action like 'question:%'`)).rows[0].n).toBe(0);
+    // It was the name that made that owner ours: with a name of their own, the same thread gets its question.
+    await t.db.query(`update characters set name = 'Odile Marsh' where id = $1`, [ours.character.id]);
+    expect(await sendCharacterQuestions(t.db, day(1))).toEqual({ sent: 1, stopped: 0, candidates: 1 });
+    expect((await questions(oursThread)).length).toBe(1);
 
     // The switch: CHARACTER_QUESTIONS=0 sends none, even to someone who would get one.
     const o = await owner();

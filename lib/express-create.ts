@@ -64,16 +64,9 @@ export const EXPRESS_PROMPT =
   "Every character is an adult. Nothing sexual, no real people, no brand names, no famous characters.";
 
 /** Why a draft did not happen; each opens the usual form with one plain sentence (expressFailureLine). */
-export type ExpressFailure =
-  | "minor"
-  | "real_person"
-  | "unsafe"
-  | "limited"
-  | "model"
-  | "timeout"
-  | "network"
-  | "unreadable"
-  | "off";
+export const EXPRESS_FAILURES = ["minor", "real_person", "unsafe", "limited", "model", "timeout", "network", "unreadable", "off"] as const;
+export type ExpressFailure = (typeof EXPRESS_FAILURES)[number];
+export const isExpressFailure = (r: unknown): r is ExpressFailure => typeof r === "string" && (EXPRESS_FAILURES as readonly string[]).includes(r);
 
 const HERE_IS_THE_FORM = "so here's the form with your words in the bio.";
 
