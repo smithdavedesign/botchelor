@@ -352,15 +352,15 @@ describe("the owner's text (templates)", () => {
   it("answers a wrong claim in the character's own first person, and quotes one it can't turn", () => {
     expect(inFirstPerson("Lexi left before the second drink.", "Lexi Marlowe")).toBe("I left before the second drink");
     expect(inFirstPerson("Rafe told Lexi she talks too much.", "Lexi Marlowe")).toBeNull();
-    expect(houseTalkLines({ name: "Lexi Marlowe", speaker: "Sable Quist", partner: "Rafe Calloway", place: "the kitchen", claim: "Lexi left early.", isTrue: false })).toEqual([
+    expect(houseTalkLines({ name: "Lexi Marlowe", speaker: "Sable Quist", partner: "Rafe Calloway", place: "in the kitchen", claim: "Lexi left early.", isTrue: false })).toEqual([
       "Apparently Sable is telling people I left early.",
       "I did not.",
       "Go and hear it for yourself.",
     ]);
-    const quoted = houseTalkLines({ name: "Lexi Marlowe", speaker: "Sable Quist", partner: "Rafe Calloway", place: "the kitchen", claim: "Rafe told Lexi she talks too much.", isTrue: false });
+    const quoted = houseTalkLines({ name: "Lexi Marlowe", speaker: "Sable Quist", partner: "Rafe Calloway", place: "in the kitchen", claim: "Rafe told Lexi she talks too much.", isTrue: false });
     expect(quoted[0]).toContain('"Rafe told Lexi she talks too much."');
     expect(quoted[1]).toBe("That is not how it went.");
-    const fair = houseTalkLines({ name: "Lexi Marlowe", speaker: "Sable Quist", partner: "Rafe Calloway", place: "the kitchen", claim: "x", isTrue: true });
+    const fair = houseTalkLines({ name: "Lexi Marlowe", speaker: "Sable Quist", partner: "Rafe Calloway", place: "in the kitchen", claim: "x", isTrue: true });
     expect(fair[0]).toBe("So the house was talking about my date with Rafe. Sable brought it up in the kitchen.");
   });
   it("links a text about a scene to the scene, and a date's tease to the date", () => {
@@ -416,6 +416,13 @@ describe("what the writer may know (sceneFacts)", () => {
     expect(f.takes[DEX]).toEqual(["Rafe owes me a rematch at darts and knows it."]);
     expect(f.takes[fan]).toEqual(["Rafe performs sincerity like a magician performs sawing."]);
     expect(prompt).not.toMatch(/night light/i);
+  });
+
+  it("talks about a couple once: when two of their dates aired since, the newest is the news", async () => {
+    await episode(RAFE, JUNIPER, { ending: "friends", revealedAt: ago(9) });
+    const newest = await episode(JUNIPER, RAFE, { ending: "second_date", revealedAt: ago(2), venue: "cooking_class" });
+    const f = (await sceneFacts(t.db, NOW))!;
+    expect(f.dates.map((d) => d.episode_id)).toEqual([newest]);
   });
 
   it("is null on a quiet day, and with fewer than two of the cast free to talk", async () => {
@@ -580,7 +587,7 @@ describe("people's characters: the owner hears", () => {
     expect(notice.title).toBe("🏠 The house is talking about Lexi");
     expect(notice.link).toBe(`/house?scene=${SCENE}#scene-${SCENE}`);
     // The wrong retelling is what the owner is told about first.
-    expect(notice.body).toMatch(/^Marisol, in .+: “I heard Lexi was gone before the second drink\.”$/);
+    expect(notice.body).toMatch(/^Marisol, (in|on|at) the .+: “I heard Lexi was gone before the second drink\.”$/);
     // Never opted in to the character's texts: no thread is opened for them.
     expect((await t.db.query(`select 1 from companion_threads where user_id = 'owner-1'`)).rows).toEqual([]);
     // A rerun of the telling notifies nobody twice.
@@ -724,7 +731,7 @@ describe("where it shows", () => {
     const latest = (await latestHouseScene(t.db, NOW))!;
     expect(latest.id).toBe(SCENE);
     expect(latest.about).toEqual([{ episode_id: expect.any(String), a: "Rafe Calloway", b: "Juniper Vale" }]);
-    expect(houseLine(latest)).toMatch(new RegExp(`^(Dex and Marisol|Marisol and Dex) in the .+, on ${R} and ${J}'s date$`));
+    expect(houseLine(latest)).toMatch(new RegExp(`^(Dex and Marisol|Marisol and Dex) (in|on|at) the .+, on ${R} and ${J}'s date$`));
     // Three days on with nothing new, the band and the card let it go; the page still has it.
     expect(await latestHouseScene(t.db, new Date(NOW.getTime() + 4 * 24 * HOURS))).toBeNull();
 

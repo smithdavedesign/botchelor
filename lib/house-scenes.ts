@@ -91,12 +91,12 @@ export type SceneKind = (typeof SCENE_KINDS)[number] | (string & {});
 
 /** Where in the house a scene happens: dealt by the day. */
 export const HOUSE_PLACES = [
-  { id: "kitchen", label: "the kitchen", when: "late, over the washing-up" },
-  { id: "terrace", label: "the terrace", when: "after dark, under the string lights" },
-  { id: "stairs", label: "the stairs", when: "halfway up, voices low" },
-  { id: "sofa", label: "the big sofa", when: "with the show still on in the background" },
-  { id: "pool", label: "the edge of the pool", when: "feet in the water" },
-  { id: "laundry", label: "the laundry room", when: "folding other people's towels" },
+  { id: "kitchen", label: "the kitchen", at: "in the kitchen", when: "late, over the washing-up" },
+  { id: "terrace", label: "the terrace", at: "on the terrace", when: "after dark, under the string lights" },
+  { id: "stairs", label: "the stairs", at: "on the stairs", when: "halfway up, voices low" },
+  { id: "sofa", label: "the big sofa", at: "on the big sofa", when: "with the show still on in the background" },
+  { id: "pool", label: "the edge of the pool", at: "at the edge of the pool", when: "feet in the water" },
+  { id: "laundry", label: "the laundry room", at: "in the laundry room", when: "folding other people's towels" },
 ] as const;
 export type HousePlaceId = (typeof HOUSE_PLACES)[number]["id"];
 export const housePlace = (id: string | null | undefined) => HOUSE_PLACES.find((p) => p.id === id) ?? HOUSE_PLACES[0];
@@ -254,7 +254,14 @@ export async function sceneFacts(
   if (cast.length < 2) return null;
   const since = opts.since && now.getTime() - opts.since.getTime() <= SINCE_MAX_MS ? opts.since : new Date(now.getTime() - LOOKBACK_MS);
   const skip = new Set(opts.skip ?? []);
-  const dates = (await airedSince(db, since, now, castIds)).filter((d) => !skip.has(d.episode_id));
+  // One date a couple: when two of theirs aired since, the newest is the news (the list is newest first).
+  const pairs = new Set<string>();
+  const dates = (await airedSince(db, since, now, castIds)).filter((d) => {
+    const pair = [d.a, d.b].sort().join("|");
+    if (skip.has(d.episode_id) || pairs.has(pair)) return false;
+    pairs.add(pair);
+    return true;
+  });
   if (!dates.length) return null;
   // The producer's beat first, then the state's own tensions, hottest first (lib/story-state.ts): who is worth seating.
   const beats = [...(opts.beat ? [opts.beat] : []), ...(await tensions(db, seasonIdOf(now), { now }).catch(() => [] as Tension[]))];
@@ -658,7 +665,7 @@ export function houseTalkLines(o: { name: string; speaker: string; partner: stri
       ? [`Apparently ${s} is telling people ${lowerFirst(mine).replace(/^i /, "I ")}.`, "I did not.", "Go and hear it for yourself."]
       : [`Apparently ${s} is telling people this about my date with ${first(o.partner)}: "${o.claim.replace(/"/g, "'")}"`, "That is not how it went.", "Go and hear it for yourself."];
   }
-  return [`So the house was talking about my date with ${first(o.partner)}. ${s} brought it up in ${o.place}.`, "They got it right, for once.", "Have a listen, and tell me what you would have said."];
+  return [`So the house was talking about my date with ${first(o.partner)}. ${s} brought it up ${o.place}.`, "They got it right, for once.", "Have a listen, and tell me what you would have said."];
 }
 
 type StoredScene = {
@@ -713,7 +720,7 @@ export async function tellOwners(db: Db, scene: Pick<StoredScene, "id" | "day" |
           await notify(db, owner, {
             kind: "house_talk",
             title: `🏠 The house is talking about ${first(mine.name)}`,
-            body: `${first(by.name)}, in ${housePlace(scene.place).label}: “${line}”`,
+            body: `${first(by.name)}, ${housePlace(scene.place).at}: “${line}”`,
             link,
           });
           done.notified++;
@@ -741,7 +748,7 @@ export async function tellOwners(db: Db, scene: Pick<StoredScene, "id" | "day" |
         const posted = await postFromCharacter(db, {
           userId: owner,
           characterId: mine.id,
-          lines: houseTalkLines({ name: mine.name, speaker: by.name, partner: other.name, place: housePlace(scene.place).label, claim: t.claim, isTrue: t.is_true }),
+          lines: houseTalkLines({ name: mine.name, speaker: by.name, partner: other.name, place: housePlace(scene.place).at, claim: t.claim, isTrue: t.is_true }),
           now,
           kind: "house_scene",
           dedupeKey: `house_scene:${scene.id}`,
@@ -949,7 +956,8 @@ export type HouseSceneView = {
   id: string;
   day: string;
   kind: string;
-  place: { id: string; label: string; when: string };
+  /** `at` reads after a name ("on the stairs"). */
+  place: { id: string; label: string; at: string; when: string };
   /** "S2 · Night 15": the night it was said. */
   code: string | null;
   written_at: string;
@@ -1002,7 +1010,7 @@ async function sceneViews(db: Db, rows: readonly StoredScene[]): Promise<HouseSc
       id: r.id,
       day: r.day,
       kind: r.kind,
-      place: { id: place.id, label: place.label, when: place.when },
+      place: { id: place.id, label: place.label, at: place.at, when: place.when },
       code: episodeCode(new Date(`${r.day}T12:00:00Z`)),
       written_at: new Date(r.written_at ?? r.created_at).toISOString(),
       cast: r.cast_ids.map(face).filter((c): c is SceneFace => c !== null),
@@ -1047,5 +1055,5 @@ export function houseLine(s: Pick<HouseSceneView, "cast" | "place" | "about">): 
   const who = s.cast.map((c) => c.name);
   const names = who.length > 2 ? `${who.slice(0, -1).join(", ")} and ${who[who.length - 1]}` : who.join(" and ");
   const d = s.about[0];
-  return `${names} in ${s.place.label}${d ? `, on ${first(d.a)} and ${first(d.b)}'s date` : ""}`;
+  return `${names} ${s.place.at}${d ? `, on ${first(d.a)} and ${first(d.b)}'s date` : ""}`;
 }

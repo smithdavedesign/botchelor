@@ -1509,25 +1509,40 @@ main:has(> .couple-page) {
 .house-foot {
   margin: 0;
 }
-/* Report a line: folded away under the scene, so the transcript stays clean. */
+/* Report a line: folded away under the scene, so the transcript stays clean. The summary is the quiet line; the
+   form's own controls keep the site's sizes (16px on a phone, so iOS doesn't zoom), one to a row, never wider than
+   the card whatever the longest line in the list is. */
 .house-report {
   margin-top: var(--space-2);
-  font-size: var(--text-sm);
-  color: var(--muted);
 }
 .house-report > summary {
   display: inline-flex;
   align-items: center;
   min-height: 44px;
   cursor: pointer;
+  font-size: var(--text-sm);
+  color: var(--muted);
 }
 .house-report .report {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-2);
   margin-top: var(--space-2);
+  align-items: start;
+}
+.house-report .report label {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-1);
+  min-width: 0;
 }
 .house-report select {
+  width: 100%;
+  min-width: 0;
   max-width: 100%;
+}
+.house-report .report button {
+  justify-self: start;
 }
 /* The Reunion's one line about the house. */
 .house-link {
