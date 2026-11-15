@@ -69,6 +69,20 @@ ignore it.
   show's model (~1¢ each). `0` turns them off without a deploy; nothing books while `BOTCHELOR_PAUSE` is on or the paid
   model's daily date cap (`FRONTIER_DAILY_DATE_CAP`) is spent. Commented in `.do/show.yaml`; the rules are in
   [companions.md](companions.md), "Your character lives without you".
+- **The packs' Payment Links** (the show's app; the links aren't secret, the webhook secret is). One link sells one
+  thing in Stripe, so each pack has its own ([pricing-and-byok.md](pricing-and-byok.md)):
+
+  | Env | What | Default |
+  |---|---|---|
+  | `STRIPE_PAYMENT_LINK` (or `STRIPE_LINK_PACK_5`) | pack_5's link, "5 more dates" for $4 | unset: the shop says "purchases open soon" |
+  | `STRIPE_PRICE_LABEL` (or `STRIPE_PRICE_LABEL_PACK_5`) | pack_5's Buy button text | "Buy 5 more dates for $4" |
+  | `STRIPE_LINK_PACK_15` | pack_15's link, "15 more dates" for $10 (make it in Stripe: a $10 one-time Payment Link) | unset: the tile isn't shown and checkout answers 503 for it |
+  | `STRIPE_PRICE_LABEL_PACK_15` | pack_15's Buy button text | "Buy 15 more dates for $10" |
+  | `STRIPE_WEBHOOK_SECRET` | the one webhook endpoint both links' sessions report to | required for any grant |
+
+  The webhook grants a pack only when the session's amount covers the pack's list price and its link isn't one already
+  known to sell another pack (`lib/payments.ts grantOrder`), so a mixed-up env can't hand out the bigger pack for the
+  smaller price.
 - **Logs:** each app's Runtime Logs in the dashboard (Apps → the app → Runtime Logs). Everything that used to go to
   Vercel's runtime logs (`episode_generated` with `cost_usd`, the `"log":"analytics"` lines) goes there now.
 

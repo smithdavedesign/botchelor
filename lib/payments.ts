@@ -119,6 +119,10 @@ type OrderRow = { user_id: string; sku: string; kind: ItemKind; status: OrderSta
  *   cloned from the first, for repeatable items (packs); a one-time item is never granted twice.
  * - A duplicate or late delivery of a session finds its id already recorded (`stripe_session_id` is
  *   unique), so nothing doubles, even when two deliveries race.
+ * - Each pack has its own Payment Link (lib/stripe.ts), and the session names the link that made it (plink_…). The
+ *   app never sees the links' ids (no Stripe API), so it learns them from the orders they pay: once a link has paid for
+ *   one sku, a session on it for an order of another sku is a mismatch. Belt and braces with the price floor: a $4
+ *   link's session can't reach the $10 pack's floor anyway, and this catches a link whose price was changed in Stripe.
  */
 export async function grantOrder(db: Db, paid: PaidSession): Promise<GrantOutcome> {
   if (!paid.orderId || !ORDER_ID.test(paid.orderId)) return "unknown_order";
@@ -130,26 +134,40 @@ export async function grantOrder(db: Db, paid: PaidSession): Promise<GrantOutcom
   const priced =
     item !== undefined && paid.paymentLink !== null && paid.currency === CURRENCY && (paid.amountTotal ?? 0) >= item.price_cents;
   if (!priced) return "mismatch";
+  if (await linkSellsAnotherSku(db, paid.paymentLink!, order.sku)) return "mismatch";
 
   const filled = await db.query(
-    `update orders set status = 'paid', paid_at = now(), stripe_session_id = $2, amount_cents = $3, stripe_payment_intent = $4
+    `update orders set status = 'paid', paid_at = now(), stripe_session_id = $2, amount_cents = $3, stripe_payment_intent = $4,
+                       stripe_payment_link = $5
       where id = $1 and status = 'pending'
         and not exists (select 1 from orders where stripe_session_id = $2)
       returning id`,
-    [paid.orderId, paid.sessionId, paid.amountTotal, paid.paymentIntent ?? null],
+    [paid.orderId, paid.sessionId, paid.amountTotal, paid.paymentIntent ?? null, paid.paymentLink],
   );
   if (filled.rows.length) return "granted";
   if (await sessionRecorded(db, paid.sessionId)) return "already_paid";
   if (!isRepeatable(order.kind)) return "already_paid";
 
   const cloned = await db.query(
-    `insert into orders (id, user_id, sku, kind, amount_cents, currency, status, episodes, stripe_session_id, stripe_payment_intent, paid_at)
-     values ($1, $2, $3, $4, $5, $6, 'paid', $7, $8, $9, now())
+    `insert into orders (id, user_id, sku, kind, amount_cents, currency, status, episodes, stripe_session_id, stripe_payment_intent, stripe_payment_link, paid_at)
+     values ($1, $2, $3, $4, $5, $6, 'paid', $7, $8, $9, $10, now())
      on conflict (stripe_session_id) do nothing
      returning id`,
-    [crypto.randomUUID(), order.user_id, order.sku, order.kind, paid.amountTotal, CURRENCY, order.episodes, paid.sessionId, paid.paymentIntent ?? null],
+    [crypto.randomUUID(), order.user_id, order.sku, order.kind, paid.amountTotal, CURRENCY, order.episodes, paid.sessionId, paid.paymentIntent ?? null, paid.paymentLink],
   );
   return cloned.rows.length ? "granted" : "already_paid";
+}
+
+/**
+ * Whether this Payment Link is known to sell something other than `sku`: it has paid (or paid and been refunded) orders,
+ * none of them for this sku. A link nobody has paid on yet is unknown, and the price floor alone judges it.
+ */
+async function linkSellsAnotherSku(db: Db, paymentLink: string, sku: string): Promise<boolean> {
+  const { rows } = await db.query<{ sku: string }>(
+    "select distinct sku from orders where stripe_payment_link = $1 and status <> 'pending'",
+    [paymentLink],
+  );
+  return rows.length > 0 && !rows.some((r) => r.sku === sku);
 }
 
 async function sessionRecorded(db: Db, sessionId: string): Promise<boolean> {

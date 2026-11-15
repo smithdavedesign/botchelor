@@ -191,6 +191,8 @@ export async function startTestDb() {
         "language_seen",
         // Site engagement (lib/engagement.ts) and After Dark's invite requests (lib/adult/invites.ts).
         "web_events",
+        // The Plus intent tile's taps (lib/plus-interest.ts): keyed by visitor id, so nothing else removes them.
+        "plus_interest",
         // The show's Discord (lib/discord.ts): what it posted, keyed by time slot, week and season.
         "discord_posts",
         // Tonight's situation (lib/situations.ts): the house cast outlives a reset, so its nights would too.
@@ -556,10 +558,19 @@ export async function hmacHex(secret: string, message: string): Promise<string> 
  */
 export const FAKE_PAYMENT_LINK = "https://buy.stripe.com/test_botchelorSamplePack";
 export const FAKE_PAYMENT_LINK_ID = "plink_botchelorSamplePack";
+/** The 15-pack's own link (one link sells one thing in Stripe), set as STRIPE_LINK_PACK_15. */
+export const FAKE_PAYMENT_LINK_15 = "https://buy.stripe.com/test_botchelorSamplePack15";
+export const FAKE_PAYMENT_LINK_15_ID = "plink_botchelorSamplePack15";
+/** Each pack's link and the id Stripe puts on its sessions (payment_link). */
+export const FAKE_LINKS: Record<string, { url: string; id: string }> = {
+  pack_5: { url: FAKE_PAYMENT_LINK, id: FAKE_PAYMENT_LINK_ID },
+  pack_15: { url: FAKE_PAYMENT_LINK_15, id: FAKE_PAYMENT_LINK_15_ID },
+};
 
-/** Opens the shop for a test file: the Payment Link and the webhook secret, as the owner set them in Vercel. */
+/** Opens the shop for a test file: both packs' Payment Links and the webhook secret, as the owner set them on the app. */
 export function openPayments(stubEnv: (name: string, value: string) => unknown) {
   stubEnv("STRIPE_PAYMENT_LINK", FAKE_PAYMENT_LINK);
+  stubEnv("STRIPE_LINK_PACK_15", FAKE_PAYMENT_LINK_15);
   stubEnv("STRIPE_WEBHOOK_SECRET", FAKE_WEBHOOK_SECRET);
 }
 
@@ -598,8 +609,9 @@ export async function startCheckout(sku: string, cookie: string) {
   if (!orderId) throw new Error(`no client_reference_id on ${url}`);
   const sessionId = newSessionId();
   const price = catalogItem(sku)?.price_cents;
+  // The session names the pack's own link, as Stripe would (grantOrder refuses a link known to sell another pack).
   const paidEvent = (overrides: Record<string, unknown> = {}, type?: string) =>
-    checkoutEvent({ id: sessionId, client_reference_id: orderId, amount_total: price, ...overrides }, type);
+    checkoutEvent({ id: sessionId, client_reference_id: orderId, amount_total: price, payment_link: FAKE_LINKS[sku]?.id ?? FAKE_PAYMENT_LINK_ID, ...overrides }, type);
   return { orderId, url, sessionId, paidEvent };
 }
 

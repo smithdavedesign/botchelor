@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { formatPrice, PACK_5 } from "@/lib/catalog";
+import { formatPrice, onSale, PACK_5 } from "@/lib/catalog";
 import { COMPANION_EXTRAS, COMPANION_FAIR_USE_PER_MONTH, companionGuestReplies, companionGuestsOpen, companionOpen } from "@/lib/companion-shared";
 import { companionFreePerDay } from "@/lib/companion-plan";
 import { planLink, planPrice, PLANS } from "@/lib/paid-plans";
@@ -54,26 +54,27 @@ export default function PricingPage() {
           </Link>
         </li>
 
-        <li className="pricing-card" id="pack">
-          <h2>{PACK_5.name}</h2>
-          <p className="pricing-price">
-            {formatPrice(PACK_5.price_cents)} <span className="muted small">paid once</span>
-          </p>
-          <ul>
-            <li>
-              {PACK_5.episodes} more dates, used after the free ones
-            </li>
-            <li>They never expire</li>
-            <li>Not a subscription</li>
-          </ul>
-          {packOnSale ? (
-            <Link className="button" href="/shop" data-track="pricing-pack">
-              Get more dates
-            </Link>
-          ) : (
-            <p className="muted small">Not on sale yet.</p>
-          )}
-        </li>
+        {/* One card per pack on sale (lib/catalog.ts onSale): the 5-pack always, the 15-pack once its link is set. */}
+        {onSale().map((pack) => (
+          <li key={pack.sku} className="pricing-card" id={pack.sku === PACK_5.sku ? "pack" : pack.sku}>
+            <h2>{pack.name}</h2>
+            <p className="pricing-price">
+              {formatPrice(pack.price_cents)} <span className="muted small">paid once</span>
+            </p>
+            <ul>
+              <li>{pack.episodes} more dates, used after the free ones</li>
+              <li>They never expire</li>
+              <li>Not a subscription</li>
+            </ul>
+            {packOnSale ? (
+              <Link className="button" href="/shop" data-track="pricing-pack">
+                Get more dates
+              </Link>
+            ) : (
+              <p className="muted small">Not on sale yet.</p>
+            )}
+          </li>
+        ))}
 
         {companions && (
           <li className="pricing-card" id="companion-plan">

@@ -1485,6 +1485,10 @@ create index if not exists reports_reviewed_reporter_idx on reports_reviewed (re
 -- event can find its order (the event carries the payment, not the session).
 alter table orders add column if not exists stripe_payment_intent text;
 create index if not exists orders_payment_intent_idx on orders (stripe_payment_intent);
+-- 2026-11-14: the Payment Link (plink_…) that paid an order, now that each pack has its own link. Once a link has paid
+-- for one sku, a session on that link can't pay for another (lib/payments.ts grantOrder): a $4 link never buys the $10 pack.
+alter table orders add column if not exists stripe_payment_link text;
+create index if not exists orders_payment_link_idx on orders (stripe_payment_link) where stripe_payment_link is not null;
 
 -- Server errors (lib/errors.ts): a short row per unexpected error, reported by GET /api/health so the owner hears about
 -- them. Route patterns and cleaned messages only, never a request body. Pruned after a week by the daily job.
@@ -3765,6 +3769,18 @@ create table if not exists job_deals (
   dealt_at timestamptz not null default now()
 );
 create index if not exists job_deals_dealt_idx on job_deals (dealt_at);
+-- 2026-11-14: the "Botchelor Plus" intent tile (lib/plus-interest.ts): who tapped "Tell me when it opens", where (the shop
+-- or the out-of-dates wall), and whether they left an email. The address itself goes on the Sunday letter's list
+-- (newsletter_subscribers), never here. A $0 demand test (docs/ideas.md, the parked table): nothing is sold or charged.
+-- Rows go with the account (lib/account.ts) and after 400 days (lib/retention.ts).
+create table if not exists plus_interest (
+  user_id text not null,
+  place text not null,
+  with_email boolean not null default false,
+  created_at timestamptz not null default now(),
+  primary key (user_id, place)
+);
+create index if not exists plus_interest_created_idx on plus_interest (created_at);
 `;
 
 /** Idempotent: creates the tables and upserts the house characters, free and premium. */

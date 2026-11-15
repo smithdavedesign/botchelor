@@ -9,7 +9,7 @@ import { ALTERNATIVES, alternativePath } from "./alternatives";
 import { indexablePromptTags, promptTagPath } from "./prompts-library";
 import { closedSeasons } from "./season-ref";
 import { readName, shipPath } from "./ship-names";
-import { formatPrice, PACK_5 } from "./catalog";
+import { formatPrice, onSale } from "./catalog";
 import { BOILERPLATE, FOUNDER, socialLinks } from "./company";
 import { contactEmail } from "./legal-entity";
 import type { Db } from "./db";
@@ -128,22 +128,23 @@ export async function contentSitemap(db: Db, base: string = siteUrl()): Promise<
 }
 
 /**
- * What the show costs, for search engines: free dates every week, and the one pack on sale (REVENUE.md: $4 once), listed
- * only while purchases are open (STRIPE_PAYMENT_LINK set), as the shop shows its Buy button only then.
+ * What the show costs, for search engines: free dates every week, and each pack on sale (REVENUE.md: $4 once; the $10
+ * pack once its link is set), listed only while purchases are open (the small pack's link set), as the shop shows its
+ * Buy button only then.
  */
 export function siteOffers(env: Record<string, string | undefined> = process.env, base: string = siteUrl()): Record<string, unknown>[] {
   const free = { "@type": "Offer", name: `${FREE_EPISODES_PER_SEASON} free dates a week`, price: "0", priceCurrency: "USD" };
   if (!paymentLinkFromEnv(env)) return [free];
-  const pack = {
+  const packs = onSale(env).map((pack) => ({
     "@type": "Offer",
-    name: PACK_5.name,
-    description: `${PACK_5.episodes} more dates for ${formatPrice(PACK_5.price_cents)}, paid once. Not a subscription.`,
-    price: (PACK_5.price_cents / 100).toFixed(2),
+    name: pack.name,
+    description: `${pack.episodes} more dates for ${formatPrice(pack.price_cents)}, paid once. Not a subscription.`,
+    price: (pack.price_cents / 100).toFixed(2),
     priceCurrency: "USD",
     url: `${base}/shop`,
     availability: "https://schema.org/InStock",
-  };
-  return [free, pack];
+  }));
+  return [free, ...packs];
 }
 
 /**
