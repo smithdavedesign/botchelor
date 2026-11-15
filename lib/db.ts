@@ -3765,6 +3765,58 @@ create table if not exists job_deals (
   dealt_at timestamptz not null default now()
 );
 create index if not exists job_deals_dealt_idx on job_deals (dealt_at);
+-- The Botchelor (lib/season-format.ts 'botchelor', lib/ceremony.ts; David 2026-11-14): a season's cast can hold the
+-- lead ('lead', one house character) and the suitors ('suitor': people's characters, or the house's own agent-made ones).
+alter table season_casts drop constraint if exists season_casts_source_check;
+alter table season_casts add constraint season_casts_source_check check (source in ('dealt', 'survivor', 'new', 'fan', 'lead', 'suitor'));
+-- The admin's pick of a season's lead (/admin/season), read when the season picks its cast; no row = the most reviewed
+-- of last season's survivors.
+create table if not exists season_leads (
+  season_id text primary key,
+  character_id text not null,
+  created_at timestamptz not null default now()
+);
+-- Rose ceremonies (lib/ceremony.ts): one row a ceremony Sunday (held_on). The row opens the audience's vote with a frozen
+-- ballot (choices: the suitors still in); held_at is set when the hourly job runs it at CEREMONY_HOUR_UTC. The audience's
+-- pick and the lead's go home (eliminated_by_vote, eliminated_by_lead); remaining is who is left; on the finale final_rose
+-- names the lead's pick. lines: the ceremony in the show's voice, written from templates at the time.
+create table if not exists ceremonies (
+  season_id text not null,
+  held_on text not null,
+  week integer not null,
+  lead_id text not null,
+  choices jsonb not null,
+  finale boolean not null default false,
+  held_at timestamptz,
+  eliminated_by_vote text,
+  eliminated_by_lead text,
+  final_rose text,
+  votes integer,
+  total integer,
+  remaining jsonb,
+  lines jsonb,
+  created_at timestamptz not null default now(),
+  primary key (season_id, held_on)
+);
+-- One vote a viewer a ceremony ("Who goes home?"), changeable until the ceremony runs.
+create table if not exists ceremony_votes (
+  held_on text not null,
+  user_id text not null,
+  pick text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (held_on, user_id)
+);
+-- What a suitor leaves a Botchelor season with (lib/ceremony.ts): 'suitor' (went home at a ceremony), 'runner_up', or
+-- 'final_rose'. One a character a season, written once.
+create table if not exists suitor_badges (
+  season_id text not null,
+  character_id text not null,
+  badge text not null check (badge in ('suitor', 'runner_up', 'final_rose')),
+  week integer not null,
+  created_at timestamptz not null default now(),
+  primary key (season_id, character_id)
+);
 `;
 
 /** Idempotent: creates the tables and upserts the house characters, free and premium. */

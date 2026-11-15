@@ -36,10 +36,12 @@ export function seasonIdAt(now: Date): string {
 
 let override: string[] | null = null;
 let fanOverride: string[] | null = null;
-/** Tests pin the cast (null = the real rotation), and the fan picks with it (none unless given). */
-export function setSeasonCastForTests(ids: string[] | null, fans: string[] | null = null): void {
+let leadForTests: string | null = null;
+/** Tests pin the cast (null = the real rotation), the fan picks with it (none unless given), and a Botchelor lead. */
+export function setSeasonCastForTests(ids: string[] | null, fans: string[] | null = null, lead: string | null = null): void {
   override = ids;
   fanOverride = fans;
+  leadForTests = lead;
 }
 
 const ROSTER = HOUSE_CHARACTERS.map((c) => c.id);
@@ -60,8 +62,11 @@ function dealt(season: string, size: number): string[] {
   return ids.slice(0, size);
 }
 
-/** The stored cast this instance has loaded, and when (refreshSeasonCast): the house ids and the fan picks still on. */
-let stored: { season: string; ids: string[]; fans: string[]; at: number } | null = null;
+/**
+ * The stored cast this instance has loaded, and when (refreshSeasonCast): the house ids, the fan picks still on, and
+ * on a Botchelor season the lead (lib/ceremony.ts).
+ */
+let stored: { season: string; ids: string[]; fans: string[]; lead: string | null; at: number } | null = null;
 const FRESH_MS = 60_000;
 
 /** The house ids on this season's show, in billing order (the fan picks: seasonFanCastIds). */
@@ -73,7 +78,8 @@ export function seasonCastIds(now: Date = new Date(), env: Record<string, string
     .filter((id) => ROSTER.includes(id));
   if (pinned.length >= 2) return [...new Set(pinned)];
   const season = seasonIdAt(now);
-  if (stored?.season === season && stored.ids.length >= 2) return stored.ids;
+  // A classic cast always has HOUSE_MIN house places; a Botchelor season's house side is its one lead (lib/ceremony.ts).
+  if (stored?.season === season && stored.ids.length >= 1) return stored.ids;
   return dealt(season, seasonCastSize(env));
 }
 
@@ -96,18 +102,23 @@ export function isFanCast(id: string, now: Date = new Date()): boolean {
 /** How many of a season's cast stay on for the next (David: "top 2 survive a new season"). */
 export const SURVIVORS = 2;
 
-export type CastSlot = { character_id: string; slot: number; source: "dealt" | "survivor" | "new" | "fan" };
+export type CastSource = "dealt" | "survivor" | "new" | "fan" | "lead" | "suitor";
+export type CastSlot = { character_id: string; slot: number; source: CastSource };
 
-/** A season's stored cast by who's who: house characters, and the fan picks still on. */
-async function castKinds(db: Db, season: string): Promise<{ house: string[]; fans: string[] }> {
-  const { rows } = await db.query<{ character_id: string; is_house: boolean; is_on: boolean }>(
-    `select s.character_id, c.is_house,
+/** A season's stored cast by who's who: house characters, the fan picks (and suitors) still on, and the lead if any. */
+async function castKinds(db: Db, season: string): Promise<{ house: string[]; fans: string[]; lead: string | null }> {
+  const { rows } = await db.query<{ character_id: string; is_house: boolean; is_on: boolean; source: CastSource }>(
+    `select s.character_id, c.is_house, s.source,
             (s.withdrawn_at is null and c.visibility = 'public' and c.open_to_dates and c.owner_id is distinct from 'deleted') as is_on
        from season_casts s join characters c on c.id = s.character_id
       where s.season_id = $1 order by s.slot`,
     [season],
   );
-  return { house: rows.filter((r) => r.is_house).map((r) => r.character_id), fans: rows.filter((r) => !r.is_house && r.is_on).map((r) => r.character_id) };
+  return {
+    house: rows.filter((r) => r.is_house).map((r) => r.character_id),
+    fans: rows.filter((r) => !r.is_house && r.is_on).map((r) => r.character_id),
+    lead: rows.find((r) => r.source === "lead")?.character_id ?? null,
+  };
 }
 
 async function storedCast(db: Db, season: string): Promise<CastSlot[]> {
@@ -142,6 +153,14 @@ async function pickCast(db: Db, now: Date, size: number): Promise<CastSlot[]> {
   const lastCast = [...lastKinds.house, ...lastKinds.fans];
   const last = lastCast.length ? lastCast : dealt(lastId, size);
   const ranked = await popularity(db, last, lastStart, start);
+  // A lead format (The Botchelor): the lead, then the suitors; imported here, lib/season-format-store.ts reads the ballot.
+  const { seasonFormatSlug } = await import("./season-format-store");
+  const { seasonFormat } = await import("./season-format");
+  const def = seasonFormat(await seasonFormatSlug(db, season).catch(() => null));
+  if (def.lead) {
+    const houseRanked = ranked.map((p) => p.id).filter((id) => lastKinds.house.includes(id) || ROSTER.includes(id));
+    return pickLeadCast(db, season, def.lead, houseRanked.length ? houseRanked : dealt(lastId, size));
+  }
   const survivors = ranked.slice(0, Math.min(SURVIVORS, size)).map((p) => p.id);
   const fanSurvivors = survivors.filter((id) => lastKinds.fans.includes(id)).length;
   const { shortlist } = await import("./auditions");
@@ -153,6 +172,83 @@ async function pickCast(db: Db, now: Date, size: number): Promise<CastSlot[]> {
     ...fans.map((character_id, i) => ({ character_id, slot: survivors.length + i, source: "fan" as const })),
     ...added.map((character_id, i) => ({ character_id, slot: taken.length + i, source: "new" as const })),
   ];
+}
+
+/**
+ * A Botchelor season's cast (lib/season-format.ts LeadRule; lib/ceremony.ts): the lead, then the suitors.
+ *  - The lead: the admin's pick for the season (season_leads, /admin/season) when it names a public house character;
+ *    else the most reviewed of last season's house survivors (`houseRanked`, best first).
+ *  - The suitors, up to `places - 1`: the approved auditions by votes (lib/auditions.ts shortlist) first; then, when
+ *    fewer than `suitorsMin` qualify, the house's own agent-made characters (made over MCP by our own agents, never an
+ *    outside agent's) with the most public dates, until the places are full. The lead is never a suitor.
+ */
+async function pickLeadCast(db: Db, season: string, rule: { places: number; suitorsMin: number }, houseRanked: string[]): Promise<CastSlot[]> {
+  const lead = (await leadOverride(db, season)) ?? houseRanked[0] ?? dealt(season, 1)[0];
+  const { shortlist } = await import("./auditions");
+  const suitorPlaces = Math.max(rule.suitorsMin, rule.places - 1);
+  const fans = (await shortlist(db, season)).filter((id) => id !== lead).slice(0, suitorPlaces);
+  let suitors = fans;
+  if (suitors.length < suitorPlaces) {
+    const { loadOurIds } = await import("./our-traffic");
+    const ours = await loadOurIds(db).catch(() => [] as string[]);
+    const fill = (
+      await db.query<{ id: string }>(
+        `select c.id from characters c
+          where c.created_via = 'mcp' and not c.is_house and c.owner_id = any($1::text[]) and c.owner_id <> 'deleted'
+            and c.visibility = 'public' and c.open_to_dates and c.id <> all($2::text[])
+          order by (select count(*) from episodes e
+                     where (e.character_a = c.id or e.character_b = c.id) and e.status = 'ready' and e.visibility = 'public' and e.revealed_at is not null) desc,
+                   c.created_at, c.id
+          limit $3`,
+        [ours, [lead, ...suitors], suitorPlaces - suitors.length],
+      )
+    ).rows.map((r) => r.id);
+    suitors = [...suitors, ...fill];
+  }
+  return [{ character_id: lead, slot: 0, source: "lead" as const }, ...suitors.map((character_id, i) => ({ character_id, slot: i + 1, source: "suitor" as const }))];
+}
+
+/** The admin's pick of a season's lead (/admin/season), when it still names a public house character. */
+export async function leadOverride(db: Db, season: string): Promise<string | null> {
+  const { rows } = await db.query<{ character_id: string }>(
+    `select l.character_id from season_leads l join characters c on c.id = l.character_id
+      where l.season_id = $1 and c.is_house and c.premium_sku is null and c.visibility = 'public'`,
+    [season],
+  );
+  return rows[0]?.character_id ?? null;
+}
+
+/** Sets (or, with null, clears) the admin's pick of a season's lead; it takes effect when that season picks its cast. */
+export async function setLeadOverride(db: Db, season: string, characterId: string | null): Promise<void> {
+  if (!characterId) {
+    await db.query(`delete from season_leads where season_id = $1`, [season]);
+    return;
+  }
+  await db.query(`insert into season_leads (season_id, character_id) values ($1, $2) on conflict (season_id) do update set character_id = excluded.character_id`, [season, characterId]);
+}
+
+/**
+ * A Botchelor season's lead and the suitors still in, from the loaded cast (sync, like seasonCastIds): the lead is the
+ * house side, the suitors are the fan side still on (a suitor sent home leaves the cast like a withdrawal). Null when
+ * the loaded cast has no lead (every other format), so callers fall through to the classic pairing.
+ */
+export function leadAndSuitors(now: Date = new Date()): { lead: string; suitors: string[] } | null {
+  if (override) return leadForTests ? { lead: leadForTests, suitors: fanOverride ?? [] } : null;
+  const season = seasonIdAt(now);
+  if (stored?.season !== season || !stored.lead) return null;
+  return { lead: stored.lead, suitors: stored.fans };
+}
+
+/**
+ * The suitor whose turn it is on a Botchelor season's house dates: the season's days deal the suitors in order (day 1
+ * the first, day 2 the next…), `offset` for a day's later rooms, so every suitor dates the lead before Sunday. Null
+ * without a lead or with no suitor left.
+ */
+export function suitorInTurn(now: Date, offset = 0): [string, string] | null {
+  const cast = leadAndSuitors(now);
+  if (!cast || !cast.suitors.length) return null;
+  const day = Math.floor((now.getTime() - seasonWindow(now).start.getTime()) / (24 * 60 * 60 * 1000));
+  return [cast.lead, cast.suitors[(day + offset) % cast.suitors.length]];
 }
 
 /**
@@ -180,8 +276,8 @@ export async function refreshSeasonCast(db: Db, now: Date = new Date()): Promise
   const season = seasonIdOf(now);
   if (stored?.season === season && Date.now() - stored.at < FRESH_MS) return;
   await ensureSeasonCast(db, now);
-  const { house, fans } = await castKinds(db, season);
-  stored = { season, ids: house, fans, at: Date.now() };
+  const { house, fans, lead } = await castKinds(db, season);
+  stored = { season, ids: house, fans, lead, at: Date.now() };
 }
 
 /** Forget the loaded cast, so the next getDb loads it again (a fan pick that left the cast leaves at once here). */
@@ -222,7 +318,10 @@ export async function seasonCastCards(db: Db, now: Date = new Date()): Promise<C
     if (!r) return [];
     const house = HOUSE_CHARACTERS.find((c) => c.id === id);
     const fan = fans.includes(id);
-    return [{ id, name: r.name, age: r.age, bio: r.bio, traits: r.traits, archetype: house?.archetype ?? r.archetype ?? (fan ? "Fan pick" : "The newcomer"), hue: r.hue ?? house?.hue ?? 200, fan, portrait: r.portrait }];
+    // On a Botchelor season the cards bill who's who in the format: the lead, then the suitors (lib/ceremony.ts).
+    const cast = leadAndSuitors(now);
+    const role = cast ? (id === cast.lead ? "The lead" : "Suitor") : null;
+    return [{ id, name: r.name, age: r.age, bio: r.bio, traits: r.traits, archetype: role ?? house?.archetype ?? r.archetype ?? (fan ? "Fan pick" : "The newcomer"), hue: r.hue ?? house?.hue ?? 200, fan, portrait: r.portrait }];
   });
 }
 
