@@ -145,6 +145,8 @@ const UNGATED_PAGES: ReadonlySet<string> = new Set([
   "/accessibility",
   "/about",
   "/costs",
+  // Marketing in the open (2026-11-15): every channel and post and what it brought, like /costs.
+  "/marketing",
   // Everything on Botchelor (app/everything/page.tsx): the footer's old links in one list, nothing adult.
   "/everything",
 ]);

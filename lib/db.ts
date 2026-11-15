@@ -4129,6 +4129,13 @@ create table if not exists house_scene_reports (
   created_at timestamptz not null default now(),
   primary key (scene_id, line, reporter_id)
 );
+-- Marketing, in the open (/marketing, lib/public-marketing.ts, docs/marketing.md): the marketing loop's channels, posts
+-- and planned spend, sent after every run (POST /api/admin/marketing). One row, replaced whole each time.
+create table if not exists marketing_feed (
+  id text primary key,
+  data jsonb not null,
+  updated_at timestamptz not null default now()
+);
 `;
 
 /** Idempotent: creates the tables and upserts the house characters, free and premium. */

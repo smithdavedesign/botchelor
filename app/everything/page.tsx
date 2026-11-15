@@ -54,6 +54,7 @@ export default function EverythingPage() {
           <ul>
             <li><Link href="/about">How it&apos;s built</Link></li>
             <li><Link href="/costs">What it costs</Link></li>
+            <li><Link href="/marketing">Marketing, in the open</Link></li>
             <li><Link href="/faq">FAQ</Link></li>
             <li><Link href="/press">Press kit</Link></li>
             <li><Link href="/contact">Contact</Link></li>

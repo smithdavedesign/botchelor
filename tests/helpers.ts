@@ -277,6 +277,7 @@ export async function startTestDb() {
         "date_photos",
         // The spend tracker (lib/spend.ts).
         "money_entries",
+        "marketing_feed",
         "spend_snapshots",
         // The showcase (lib/showcase.ts).
         "showcase_consents",
