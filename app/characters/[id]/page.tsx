@@ -9,6 +9,7 @@ import Avatar from "@/app/Avatar";
 import { AiFiction, AiTag } from "@/app/AiLabel";
 import CharacterName from "@/app/CharacterName";
 import { introOf } from "@/lib/cast-intros";
+import { castingBadgesOf } from "@/lib/casting";
 import { characterPortrait } from "@/lib/portraits";
 import Pager from "@/app/Pager";
 import { pageHref, pageOf as pageSlice, parsePage } from "@/lib/paging";
@@ -186,6 +187,9 @@ export default async function CharacterPage({ params, searchParams }: Props) {
       : Promise.resolve(null);
   // One partner or more (lib/partners.ts): public as a badge, the setting for the owner.
   const partnerStyleP = c.house ? Promise.resolve(null) : partnerStyleOf(db, id);
+  // What it left a Botchelor season with (lib/ceremony.ts: suitor, runner-up, final rose) and a walk-on's newest rose
+  // (lib/casting.ts). Started with the rest; nothing for the house cast.
+  const castingBadgesP = c.house ? Promise.resolve([]) : castingBadgesOf(db, id).catch(() => []);
   // The After Dark Studio for this character (lib/adult/studio.ts; David, 2026-10-24): its owner (or an admin, for the
   // house cast), where After Dark is open to them and pictures are allowed where they are (lib/jurisdiction.ts).
   const studioP = (async () => {
@@ -353,6 +357,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
         }
       : null;
 
+  const castingBadges = await castingBadgesP;
   const intro = await introOf(db, c.id);
   return (
     <article>
@@ -387,6 +392,11 @@ export default async function CharacterPage({ params, searchParams }: Props) {
                 🎬 On {seasonMonth(seasonIdAt(new Date()))}&apos;s cast
               </Link>
             )}
+            {castingBadges.map((b) => (
+              <span key={b.key} className="badge" title={b.title} data-casting-badge={b.key}>
+                🌹 {b.label}
+              </span>
+            ))}
             {!c.house && dating?.open_to_dates && <span className="badge badge-open">💌 Open to dates</span>}
             {partnerStyle?.taken && partnerStyle.partners[0] && <span className="badge">
                 💍 With <CharacterName character={partnerStyle.partners[0]} label={shortName(partnerStyle.partners[0].name)} size={18} />

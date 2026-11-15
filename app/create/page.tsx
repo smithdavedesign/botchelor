@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
+import { CastingProvider, type CastingForClient } from "@/app/CastingContext";
 import { canAfterDark } from "@/lib/adult/entitlement";
 import { safeFrom } from "@/lib/age";
 import { episodeAllowance, freshAllowance } from "@/lib/allowance";
 import { formatPrice, PACK_5 } from "@/lib/catalog";
+import { castingLead, leadBilling } from "@/lib/casting";
+import { ceremonyHourUtc } from "@/lib/ceremony";
 import { createPairHref, readChemistry } from "@/lib/chemistry-test";
 import { listOpenCharacters } from "@/lib/dating";
 import { firstDateFormat } from "@/lib/first-date";
@@ -89,7 +92,11 @@ export default async function CreatePage({ searchParams }: { searchParams: Searc
   // Two characters from the OC chemistry test's "Watch the real date" (app/tools/oc-chemistry-test/result): the first
   // in the builder, the second alongside. Only a pair the test itself takes; anything else opens the builder as usual.
   const pair = readChemistry(sp);
+  // Open casting (lib/casting.ts): while a Botchelor lead is taking walk-ons, the send card's first date is with the lead.
+  const lead = await castingLead(db ?? (await getDb())).catch(() => null);
+  const casting: CastingForClient | null = lead ? { phase: lead.phase, billing: leadBilling(lead), lead: lead.lead, hour: ceremonyHourUtc() } : null;
   return (
+    <CastingProvider value={casting}>
     <CreateWizard
       returnTo={returnTo}
       partners={partners}
@@ -111,6 +118,7 @@ export default async function CreatePage({ searchParams }: { searchParams: Searc
       afterDarkOpen={afterDarkOpen}
       signedIn={auth?.authenticated === true}
     />
+    </CastingProvider>
   );
 }
 
