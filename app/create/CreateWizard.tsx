@@ -23,7 +23,7 @@ import LooksBuilder from "./LooksBuilder";
 import { looksAppearance } from "@/lib/looks";
 import FactsStep from "./FactsStep";
 import DeeperStep from "./DeeperStep";
-import DeckPreview from "./DeckPreview";
+import DeckPreview, { SHEET_EXAMPLE } from "./DeckPreview";
 import { findCliches } from "@/lib/originality";
 import { AVATAR_HUES, imageTraits, type ImageSignals } from "@/lib/avatar";
 import { languageName } from "@/lib/language";
@@ -183,6 +183,17 @@ const ALL_STEPS: readonly number[] = [S.identity, S.voice, S.look, S.details, S.
  */
 const quickTrack = (firstCharacter: boolean): readonly number[] =>
   firstCharacter ? FIRST_DATE_STEPS.map((name) => S[name]) : [S.identity, S.look, S.details, S.review];
+
+/**
+ * The step Next goes to, and names (2026-11-14 design audit: Next's label must always be the next step on the rail): the
+ * next one on the track, the step after the last staying the last. A step off the track (none should be) goes to the
+ * track's next step after it, never to a hidden one. Pure, so it's tested on its own (tests/creator-quick-track.test.ts).
+ */
+export function nextOnTrack(track: readonly number[], step: number): number {
+  const at = track.indexOf(step);
+  if (at >= 0) return track[Math.min(at + 1, track.length - 1)];
+  return track.find((s) => s > step) ?? track[track.length - 1];
+}
 
 /** The build steps, shown as a tappable progress rail. The ones that can be skipped say so (2026-10-31 UX audit). */
 function Stepper({
@@ -635,8 +646,7 @@ export default function CreateWizard({
   };
 
   // The step Next goes to: the next one on the track (the quick track skips Voice and the depth steps).
-  const at = track.indexOf(step);
-  const nextStep = at >= 0 ? track[Math.min(at + 1, track.length - 1)] : Math.min(step + 1, last);
+  const nextStep = nextOnTrack(track, step);
   function next() {
     if (!canAdvance) {
       setTriedNext(true);
@@ -998,6 +1008,7 @@ export default function CreateWizard({
                 name="name"
                 required
                 maxLength={40}
+                placeholder={SHEET_EXAMPLE.name}
                 value={sheet.name}
                 aria-invalid={nameClash || nameTooLong || undefined}
                 aria-describedby={[nameClash ? "name-taken" : "", "name-words"].filter(Boolean).join(" ")}
@@ -1028,11 +1039,11 @@ export default function CreateWizard({
             )}
             <label>
               Age (18 or older)
-              <input type="number" name="age" required min={18} max={1000} step={1} value={sheet.age} onChange={(e) => setField("age", e.target.value)} />
+              <input type="number" name="age" required min={18} max={1000} step={1} placeholder={SHEET_EXAMPLE.age} value={sheet.age} onChange={(e) => setField("age", e.target.value)} />
             </label>
             <label>
               Short bio
-              <textarea name="bio" required maxLength={500} rows={3} value={sheet.bio} onChange={(e) => setField("bio", e.target.value)} />
+              <textarea name="bio" required maxLength={500} rows={3} placeholder={SHEET_EXAMPLE.bio} value={sheet.bio} onChange={(e) => setField("bio", e.target.value)} />
             </label>
             {bioHint && <p className="hint-nudge">💡 {bioHint}</p>}
             {stock && <p className="hint-nudge">✨ {stock}</p>}
@@ -1046,6 +1057,7 @@ export default function CreateWizard({
                   required
                   maxLength={TRAIT_MAX}
                   aria-label={`Trait ${i + 1}`}
+                  placeholder={SHEET_EXAMPLE.traits[i]}
                   value={traits[i]}
                   onChange={(e) => setTraits((prev) => prev.map((t, j) => (j === i ? e.target.value : t)))}
                 />
@@ -1053,11 +1065,11 @@ export default function CreateWizard({
             </div>
             <label>
               What they want from a date
-              <input type="text" name="want" required maxLength={WANT_MAX} value={sheet.want} onChange={(e) => setField("want", e.target.value)} />
+              <input type="text" name="want" required maxLength={WANT_MAX} placeholder={SHEET_EXAMPLE.want} value={sheet.want} onChange={(e) => setField("want", e.target.value)} />
             </label>
             <label>
               Their dealbreaker <span className="muted">(kept secret — the audience tries to guess it)</span>
-              <input type="text" name="dealbreaker" required maxLength={DEALBREAKER_MAX} value={sheet.dealbreaker} onChange={(e) => setField("dealbreaker", e.target.value)} />
+              <input type="text" name="dealbreaker" required maxLength={DEALBREAKER_MAX} placeholder={SHEET_EXAMPLE.dealbreaker} value={sheet.dealbreaker} onChange={(e) => setField("dealbreaker", e.target.value)} />
             </label>
             <fieldset className="pronoun-pick">
               <legend>
@@ -1381,7 +1393,7 @@ export default function CreateWizard({
             <span className="wizard-edit-actions">
               {step < last && (
                 <button type="submit" className="secondary" disabled={!canAdvance}>
-                  Next<span className="wizard-next-label">: {labels[step + 1]}</span>
+                  Next<span className="wizard-next-label">: {labels[nextStep]}</span>
                 </button>
               )}
               <button type="button" onClick={() => void saveEdits()} disabled={busy !== null || !identityOk}>

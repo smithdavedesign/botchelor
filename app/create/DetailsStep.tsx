@@ -185,7 +185,7 @@ export default function DetailsStep({ extras, setExtras, name }: { extras: Chara
             </label>
             <label>
               Their answer
-              <textarea name={`extra_prompt_${i}`} maxLength={PROMPT_ANSWER_MAX} rows={2} value={p.answer} onChange={(e) => setPrompt(i, { answer: e.target.value })} />
+              <textarea name={`extra_prompt_${i}`} maxLength={PROMPT_ANSWER_MAX} rows={2} placeholder="Their answer, in their own words" value={p.answer} onChange={(e) => setPrompt(i, { answer: e.target.value })} />
             </label>
             <button type="button" className="link-button danger prompt-remove" onClick={() => removePrompt(i)}>
               Remove this prompt

@@ -48,3 +48,43 @@ describe("the creator's quick track", () => {
     expect(src).toMatch(/const sent = firstCharacter\s*\? fillProfile\(normaliseExtras\(extras\)/);
   });
 });
+
+// 2026-11-14 design audit: Next names the next VISIBLE step (the rail's next), on every track, depth opened or not; and
+// the form's fields carry examples as placeholders, never as values.
+describe("the creator's Next label and examples", () => {
+  // The step indexes (CreateWizard's S): identity 0, voice 1, look 2, details 3, facts 4, deeper 5, soul 6, review 7.
+  it("Next goes to, and names, the track's next step", async () => {
+    const { nextOnTrack } = await import("@/app/create/CreateWizard");
+    const first = [0, 2, 7];
+    const quick = [0, 2, 3, 7];
+    const all = [0, 1, 2, 3, 4, 5, 6, 7];
+    expect([0, 2].map((s) => nextOnTrack(first, s))).toEqual([2, 7]);
+    expect([0, 2, 3].map((s) => nextOnTrack(quick, s))).toEqual([2, 3, 7]);
+    // "Add depth" opens every step and lands on Voice: Next is Look, then each step in turn.
+    expect([1, 2, 3, 4, 5, 6].map((s) => nextOnTrack(all, s))).toEqual([2, 3, 4, 5, 6, 7]);
+    expect(nextOnTrack(quick, 7)).toBe(7);
+    // A step off the track never sends Next to a hidden step.
+    expect(nextOnTrack(quick, 1)).toBe(2);
+    expect(nextOnTrack(first, 3)).toBe(7);
+    const src = readFileSync("app/create/CreateWizard.tsx", "utf8");
+    expect(src).toContain("const nextStep = nextOnTrack(track, step);");
+    expect(src.match(/wizard-next-label">: \{labels\[nextStep\]\}/g)).toHaveLength(2);
+    expect(src).not.toContain("labels[step + 1]");
+  });
+
+  it("every field of who they are has an example placeholder and starts empty", async () => {
+    const { default: CreateWizard } = await import("@/app/create/CreateWizard");
+    const html = renderToStaticMarkup(createElement(CreateWizard, {}));
+    const field = (name: string) => html.match(new RegExp(`<(?:input|textarea)[^>]*name="${name}"[^>]*>`))?.[0] ?? "";
+    expect(field("name")).toContain('placeholder="e.g. Marisol Vane"');
+    expect(field("age")).toContain('placeholder="e.g. 31"');
+    expect(field("bio")).toMatch(/placeholder="e\.g\. [^"]+"/);
+    expect(field("trait1")).toContain('placeholder="e.g. dry"');
+    expect(field("trait2")).toContain('placeholder="e.g. loyal"');
+    expect(field("trait3")).toContain('placeholder="e.g. chaotic"');
+    expect(field("want")).toMatch(/placeholder="e\.g\. [^"]+"/);
+    expect(field("dealbreaker")).toMatch(/placeholder="e\.g\. [^"]+"/);
+    for (const n of ["name", "age", "trait1", "trait2", "trait3", "want", "dealbreaker"]) expect(field(n), n).toContain('value=""');
+    expect(html).not.toMatch(/<textarea[^>]*name="bio"[^>]*>[^<]+<\/textarea>/);
+  });
+});
