@@ -81,6 +81,8 @@ export const PUBLIC_PATHS = [
   "/agents/pricing",
   "/showcase",
   "/import",
+  // Step into the date's cast picker (2026-11-15): open to everyone, the one playable thing that needs no character.
+  "/step-in",
   "/alternatives/character-ai",
   // The company pages (2026-11-10, lib/company.ts).
   "/pricing",

@@ -102,10 +102,11 @@ const DOC_SOURCES = new Set(["llms.txt", "llms-full.txt", "mcp.json", "agents"])
  * in "/" covers the page itself and everything under it.
  *
  * What still meets the gate is everything that isn't on this list: the swipe deck, matches, messages and companions
- * (dating and chat), step-in, the shop, accounts, notifications, mixers, the double-date links, and every After Dark
+ * (dating and chat), a step-in date once it's started, the shop, accounts, notifications, mixers, the double-date links, and every After Dark
  * page (/after-dark/, /admin/after-dark/, lib/after-dark-host.ts: the same rule on its own host). A link from an open
  * page into one of those still meets the gate. A creator attests in the builder instead: saving a character with its
- * 18+ box ticked sets this same cookie (app/api/characters/route.ts), so the gate never asks them again.
+ * 18+ box ticked sets this same cookie (app/api/characters/route.ts), so the gate never asks them again; stepping into
+ * a date works the same way (app/api/step-in/route.ts: the start screen's box).
  */
 export const UNGATED_PREFIXES: readonly string[] = ["/tools/", "/ship/", "/alternatives/", "/episodes/", "/seasons/", "/couples/", "/characters/", "/creators/", "/agents/"];
 
@@ -122,6 +123,9 @@ const UNGATED_PAGES: ReadonlySet<string> = new Set([
   "/import",
   "/create",
   "/agents",
+  // Step into the date's cast picker and start screen (2026-11-15), opened as the builder was: its own "I'm 18 or
+  // over" box is the answer, and starting a date sets this cookie. The date itself (/step-in/<id>) stays behind it.
+  "/step-in",
   // The policy and company pages.
   "/terms",
   "/privacy",

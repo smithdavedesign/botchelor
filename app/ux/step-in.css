@@ -306,7 +306,51 @@
   text-decoration: none;
   color: inherit;
 }
-/* The entry on cast pages and the cast tab (admins until it's opened). */
+/* The picker as a page a stranger lands on (app/step-in/page.tsx): each face a card, one tap, two to a row on a phone. */
+.stepin-pick .stepin-cast {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+  margin: var(--space-4) 0;
+}
+.stepin-pick .stepin-cast-pick {
+  height: 100%;
+  align-content: start;
+  padding: var(--space-3);
+  text-align: center;
+}
+.stepin-cast-bio {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
+/* The start screen's 18+ box (the page is open without the gate) and a refusal's ways on. */
+.stepin-attest {
+  align-items: center;
+  min-height: var(--control-h);
+}
+.stepin-refusal .error {
+  margin: 0;
+}
+.stepin-refusal .cta-row {
+  margin-top: var(--space-2);
+}
+.stepin-shared {
+  margin-bottom: var(--space-3);
+}
+/* After the verdict: share it, and the way on. */
+.stepin-share {
+  margin-top: var(--space-3);
+}
+.stepin-next {
+  max-width: 46ch;
+  margin: var(--space-3) auto 0;
+  color: var(--stepin-muted);
+}
+.stepin-entry-or {
+  flex-basis: 100%;
+}
+/* The entry on cast pages and the cast tab. */
 .stepin-entry {
   display: flex;
   flex-wrap: wrap;
