@@ -21,13 +21,15 @@ export default function Circle({ circle, title, id = "circle" }: { circle: Circl
   const { center, around } = circle;
   const n = around.length;
   const spots = around.map((a, i) => {
-    // From the top, clockwise; two sit left and right so their names don't meet the centre's.
-    const deg = (n === 2 ? 180 : -90) + (360 / n) * i;
+    // From the top, clockwise; one or two sit beside the centre so their names don't meet its own.
+    const deg = (n <= 2 ? 180 : -90) + (360 / n) * i;
     const rad = (deg * Math.PI) / 180;
     return { ...a, x: Math.round(C + RING * Math.cos(rad)), y: Math.round(C - 8 + RING * Math.sin(rad)), r: R_AROUND };
   });
   const mid = { x: C, y: C - 8, r: R_CENTER };
   const headId = `${id}-head`;
+  // One or two people sit on the centre's own row: the drawing is that row, not a square that is mostly empty.
+  const box = n <= 2 ? `0 ${mid.y - R_CENTER - 10} ${SIZE} ${R_CENTER + R_AROUND + 56}` : `0 0 ${SIZE} ${SIZE}`;
   return (
     <section id={id} className="story-circle" aria-labelledby={headId} data-track-area="story-circle">
       <h2 id={headId} className="section">
@@ -35,7 +37,7 @@ export default function Circle({ circle, title, id = "circle" }: { circle: Circl
       </h2>
       <div className="story-circle-body">
         <TieList ties={around.map((a) => a.tie)} className="story-circle-list" />
-        <svg className="story-circle-svg" viewBox={`0 0 ${SIZE} ${SIZE}`} role="presentation" aria-hidden="true" focusable="false">
+        <svg className="story-circle-svg" viewBox={box} role="presentation" aria-hidden="true" focusable="false">
           {spots.map((s) => (
             <TieLine key={s.tie.id} tie={s.tie} from={mid} to={s} />
           ))}
