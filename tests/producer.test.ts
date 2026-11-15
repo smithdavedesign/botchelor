@@ -269,6 +269,14 @@ describe("the nightly run", () => {
     expect(await runProducer(t.db, NOW, { model: null })).toEqual({ day: TODAY, skipped: "already" });
   });
 
+  it("the night before a season's first day picks no beat: the new cast isn't settled until the 1st", async () => {
+    vi.setSystemTime(new Date("2026-11-30T23:20:00Z"));
+    await dexKnowsWhatSableSaid();
+    await rivalsForDex();
+    expect(await runProducer(t.db, new Date("2026-11-30T23:20:00Z"), { model: null })).toEqual({ day: "2026-12-01", beat: null, reason: "season_turn" });
+    expect(await beatFor(t.db, "2026-12-01")).toBeNull();
+  });
+
   it("PRODUCER=0 writes nothing and reads nothing", async () => {
     await dexKnowsWhatSableSaid();
     await runProducer(t.db, NOW, { model: null });

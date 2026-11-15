@@ -398,7 +398,7 @@ async function writeLogline(model: Model, lines: { previously: string; tonight: 
 
 export type ProducerRun =
   | { day: string; skipped: "off" | "already" | "owner" }
-  | { day: string; beat: null; reason: "no_tension" | "no_cast" }
+  | { day: string; beat: null; reason: "no_tension" | "no_cast" | "season_turn" }
   | { day: string; beat: BeatKind; tension: TensionKind; who: string[]; wants: number; twists: number; logline_by: "model" | "template" };
 
 async function namesOf(db: Db, ids: readonly string[]): Promise<Map<string, string>> {
@@ -444,14 +444,15 @@ export async function runProducer(db: Db, now: Date = new Date(), opts: { model?
 async function produce(db: Db, day: string, now: Date, opts: { model?: Model | null; env?: Env }): Promise<ProducerRun> {
   const at = noonOf(day);
   const season = seasonIdOf(at);
-  const none = async (reason: "no_tension" | "no_cast"): Promise<ProducerRun> => {
+  const none = async (reason: "no_tension" | "no_cast" | "season_turn"): Promise<ProducerRun> => {
     await db.query(`update story_beats set status = 'none', why = $2, updated_at = now() where day = $1`, [day, reason]);
     return { day, beat: null, reason };
   };
+  // The night before a season's first day its cast isn't settled yet (it is picked on the 1st): premiere day has no beat.
+  if (season !== seasonIdOf(now)) return none("season_turn");
   const stage = await stageOf(db, at);
   if (stage.cast.size < 2) return none("no_cast");
-  // The season the day falls in: on the 1st that is the new season, whose state starts empty (no beat on premiere day).
-  const list = await tensions(db, season, { now: season === seasonIdOf(now) ? now : at });
+  const list = await tensions(db, season, { now });
   const recent = new Set(
     (await db.query<{ tension: TensionKind; who: string[]; about: string | null }>(`select tension, who, about from story_beats where day >= $1 and day < $2 and tension is not null and status <> 'skipped'`, [dayAfter(day, -REPEAT_DAYS), day])).rows.map(
       (r) => tensionKey({ kind: r.tension, a: r.who?.[0] ?? "", b: r.who?.[1] ?? "", about: r.about }),
