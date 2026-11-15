@@ -1177,6 +1177,40 @@ body:has(.companion-fullscreen) .site-footer {
   cursor: default;
   opacity: 0.6;
 }
+/* The answer box under a question the character asked about its own sheet (lib/character-questions.ts): a label, one
+   field and Save, in the character's column like the chips, as wide as the column lets it be on a phone. */
+.companion-answer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: var(--space-1) var(--space-2) 0;
+  max-width: 26rem;
+}
+.companion-answer-label {
+  margin: 0;
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+.companion-answer-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.companion-answer-row input {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+}
+.companion-answer-row .button {
+  flex: none;
+  margin: 0;
+  min-height: var(--control-h);
+}
+.companion-answer-note {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--bad-text);
+}
 /* The composer as the "For next time" note: the toggle sits with the other actions; the standing note reads as a line. */
 .companion-next-time {
   margin: 0;
