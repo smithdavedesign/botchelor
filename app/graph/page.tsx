@@ -10,6 +10,8 @@ import { kindLabel } from "@/lib/kinds";
 import { breadcrumbJsonLd, itemListJsonLd, pageMetadata } from "@/lib/seo";
 import ConstellationApp from "./ConstellationApp";
 import ShowTabs from "@/app/ShowTabs";
+import StoryMap from "@/app/StoryMap";
+import { cachedStoryMap } from "@/lib/story-map";
 
 // Rendered per request (the site chrome reads the session), but the graph itself comes from a 60-second cache that a
 // visibility change, a report or moderation drops at once (lib/graph-cache.ts): crawlers no longer rebuild it each hit.
@@ -52,15 +54,15 @@ export default async function GraphPage({ searchParams }: { searchParams: Search
   const sp = await searchParams;
   const focusParam = sp.focus;
   // The same cached build for every ?focus=: the focus is applied in the browser (ConstellationApp initialFocus).
-  const { nodes, edges, stats, kinds } = await cachedConstellation();
+  // This week's story map (lib/story-map.ts) rides next to it: its own shared copy, null with STORY_MAP=0.
+  const [{ nodes, edges, stats, kinds }, week] = await Promise.all([cachedConstellation(), cachedStoryMap().catch(() => null)]);
   const byId = new Map(nodes.map((n) => [n.id, n]));
   const open = edges.filter((e) => !e.masked);
   const singles = nodes.filter((n) => n.degree === 0);
   const ledger = pageOf(edges, parsePage(sp.ledger), LEDGER_PAGE);
   const first = firstSky({ nodes, edges, stats, kinds });
 
-  return (
-    <article className="constellation-page page-wide">
+  const jsonLd = (
       <JsonLd
         data={[
           breadcrumbJsonLd([
@@ -73,9 +75,9 @@ export default async function GraphPage({ searchParams }: { searchParams: Search
           ),
         ]}
       />
-
-
-      <ShowTabs active="/graph" />
+  );
+  const sky = (
+    <>
       {/* The sky first: the page opens on it (2026-10-25); what it is and the numbers read under it. */}
       {/* The strongest pairs first; the rest of the sky loads when asked for (or when ?focus= names someone outside it). */}
       <ConstellationApp
@@ -83,11 +85,9 @@ export default async function GraphPage({ searchParams }: { searchParams: Search
         total={first.nodes.length === nodes.length && first.edges.length === edges.length ? null : { characters: nodes.length, pairs: edges.length }}
         initialFocus={typeof focusParam === "string" ? focusParam : null}
       />
-
-      <header className="constellation-header">
-        <p className="kicker">The social graph</p>
-        <h1>The Constellation</h1>
-        <p className="lede">{DESCRIPTION}</p>
+    </>
+  );
+  const numbers = (
         <ul className="constellation-stats" aria-label="The network right now">
           <li>
             <strong>{stats.characters}</strong> characters
@@ -125,8 +125,9 @@ export default async function GraphPage({ searchParams }: { searchParams: Search
             <strong>{stats.singles}</strong> waiting for a first date
           </li>
         </ul>
-      </header>
-
+  );
+  const tables = (
+    <>
       <section className="constellation-ledger" id="ledger">
         <h2>The ledger</h2>
         <p className="muted small">Every pair on the canvas, in plain text — the same public facts, no JavaScript needed.</p>
@@ -253,6 +254,57 @@ export default async function GraphPage({ searchParams }: { searchParams: Search
           someone on a date.
         </p>
       </section>
+    </>
+  );
+
+  // STORY_MAP=0: the page as it was, the sky first.
+  if (!week) {
+    return (
+      <article className="constellation-page page-wide">
+        {jsonLd}
+        <ShowTabs active="/graph" />
+        {sky}
+        <header className="constellation-header">
+          <p className="kicker">The social graph</p>
+          <h1>The Constellation</h1>
+          <p className="lede">{DESCRIPTION}</p>
+          {numbers}
+        </header>
+        {tables}
+      </article>
+    );
+  }
+
+  // This week first (three visitors in thirty days opened the old page and none scrolled past the sky): the story map
+  // under a title that says what it is, then everyone who ever dated, then the tables for whoever wants them.
+  return (
+    <article className="constellation-page page-wide has-story-map">
+      {jsonLd}
+      <ShowTabs active="/graph" />
+      <header className="constellation-header story-map-header">
+        <p className="kicker">
+          <Link href="/house">The house</Link> · The story map
+        </p>
+        <h1>Who&apos;s with whom this week</h1>
+        <p className="lede">
+          This season&apos;s cast and the last seven days: who has a date coming up, who agreed to another, who are rivals and who had it out in the house. Every line
+          links to what made it.
+        </p>
+      </header>
+      <StoryMap map={week} title={null} allTimeHref="#all-time" />
+      <section className="constellation-all-time" id="all-time" aria-labelledby="all-time-head">
+        <h2 id="all-time-head" className="section">
+          All time: the Constellation
+        </h2>
+        <p className="muted small">{DESCRIPTION}</p>
+        {sky}
+        {numbers}
+      </section>
+      {/* Open when a ledger page is asked for (its pager links here), folded otherwise. */}
+      <details className="constellation-fold ux-fold" id="tables" open={sp.ledger !== undefined}>
+        <summary>The ledger, who dates whom by kind, and what the network doesn&apos;t know yet</summary>
+        {tables}
+      </details>
     </article>
   );
 }

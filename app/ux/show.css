@@ -1509,6 +1509,247 @@ main:has(> .couple-page) {
 .house-foot {
   margin: 0;
 }
+/* ---------------- this week's story map (app/StoryMap.tsx, app/Circle.tsx; lib/story-map.ts) ----------------
+   On /house and at the top of /graph. In the page the ties' list comes first (a screen reader's and a phone's map);
+   from a tablet up the drawing is lifted above it. Lines take their colour and dash from the tokens, by kind, and the
+   same sample sits before each tie in the list and in the key, so colour never carries a tie alone. */
+.story-map,
+.story-circle {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.story-map > h2,
+.story-circle > h2,
+.story-map-lede,
+.story-map-foot,
+.story-map-more,
+.story-map-empty,
+.story-circle-more {
+  margin: 0;
+}
+.story-cast {
+  margin: 0;
+}
+.story-map-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.story-map-figure {
+  margin: 0;
+  padding: var(--space-2);
+}
+.story-map-svg,
+.story-circle-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.story-map-svg {
+  max-width: var(--page-read);
+  margin-inline: auto;
+}
+.story-circle-svg {
+  max-width: 19rem;
+  margin-inline: auto;
+}
+.story-ties {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+.story-ties > li {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.story-ties > li > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.story-swatch {
+  flex: 0 0 auto;
+  width: 1.75rem;
+  height: 0.5rem;
+  overflow: visible;
+}
+.story-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  padding: var(--space-2) var(--space-1) 0;
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+.story-key-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+/* A tie's line. The wide clear line under it is the pointer's target. */
+.story-tie-line {
+  fill: none;
+  stroke: var(--tie, var(--muted));
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+.story-tie-hit {
+  stroke: transparent;
+  stroke-width: 18;
+}
+.story-tie-label {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  fill: var(--ink);
+  /* The card's colour round the letters, so words stay readable where they cross a line. */
+  stroke: var(--card);
+  stroke-width: 5;
+  stroke-linejoin: round;
+  paint-order: stroke;
+}
+.story-tie:hover .story-tie-line,
+.story-face:hover .story-face-ring {
+  stroke-width: 5;
+}
+.story-tie-date_now {
+  --tie: var(--accent);
+}
+.story-tie-date_now .story-tie-line {
+  stroke-width: 5;
+}
+.story-tie-date_next {
+  --tie: var(--accent);
+}
+.story-tie-date_next .story-tie-line {
+  stroke-dasharray: 9 7;
+}
+.story-tie-rivals {
+  --tie: var(--warn);
+}
+.story-tie-rivals .story-tie-line {
+  stroke-dasharray: 12 6 2 6;
+}
+.story-tie-feuding {
+  --tie: var(--bad);
+}
+.story-tie-cleared {
+  --tie: var(--ok);
+}
+.story-tie-cleared .story-tie-line {
+  stroke-dasharray: 2 7;
+}
+.story-tie-together {
+  --tie: var(--ok);
+}
+.story-tie-second_date {
+  --tie: var(--accent-text);
+}
+.story-tie-second_date .story-tie-line {
+  stroke-dasharray: 5 6;
+}
+.story-tie-stories {
+  --tie: var(--field);
+}
+.story-tie-stories .story-tie-line {
+  stroke-dasharray: 12 5;
+}
+.story-tie-talked {
+  --tie: var(--field);
+}
+.story-tie-talked .story-tie-line {
+  stroke-width: 2;
+  stroke-dasharray: 1 6;
+}
+/* A face: the ring is the card's line; the cast's is inked, the lead's is the accent. */
+.story-face-ring {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 2;
+}
+.story-face.is-cast .story-face-ring {
+  stroke: var(--ink);
+}
+.story-face.is-lead .story-face-ring {
+  stroke: var(--accent);
+  stroke-width: 4;
+}
+.story-face-name {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  fill: var(--ink);
+  stroke: var(--card);
+  stroke-width: 4;
+  stroke-linejoin: round;
+  paint-order: stroke;
+}
+.story-face-initials {
+  font-weight: 700;
+}
+.story-circle-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+/* A phone: the drawing is half size, so the words on the lines go (the list above says them) and names grow. */
+@media (max-width: 699px) {
+  .story-map-svg .story-tie-label {
+    display: none;
+  }
+  .story-map-svg .story-face-name {
+    font-size: var(--text-xl);
+  }
+}
+@media (min-width: 700px) {
+  .story-map-figure {
+    order: -1;
+  }
+  .story-circle-body {
+    flex-direction: row;
+    align-items: center;
+  }
+  .story-circle-list {
+    flex: 1 1 0;
+  }
+  .story-circle-svg {
+    order: -1;
+    flex: 0 0 17rem;
+    margin-inline: 0;
+  }
+}
+/* A wide page (/graph): the drawing and its list side by side. */
+@media (min-width: 1000px) {
+  .has-story-map .story-map-body {
+    flex-direction: row;
+    align-items: flex-start;
+  }
+  .has-story-map .story-map-figure {
+    flex: 1 1 60%;
+    min-width: 0;
+  }
+  .has-story-map .story-map-list {
+    flex: 1 1 40%;
+    min-width: 0;
+  }
+}
+/* /graph with the story map first: the sky sits in its own section, the tables fold. */
+.constellation-all-time {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-5);
+}
+.constellation-all-time > h2,
+.constellation-all-time > p {
+  margin: 0;
+}
+.constellation-fold {
+  margin-top: var(--space-4);
+}
 /* How a confrontation or a challenge came out: one line under the transcript, set off by a rule. */
 .house-result {
   margin: var(--space-3) 0 0;
