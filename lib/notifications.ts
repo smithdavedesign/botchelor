@@ -69,6 +69,7 @@ export type NotificationKind =
   | "cast_date_won" // the weekly earned slot: a date between your character and a cast member, on the show (lib/cast-date.ts)
   | "secret_revealed" // Sunday's reveal you voted on: whose secret came out, and their date (lib/weekly-reveal.ts)
   | "season_pool" // the season closed: where you finished in the season pool (lib/season-pool.ts)
+  | "ceremony_held" // Sunday's rose ceremony on a Botchelor season: who went home, or your suitor's badge (lib/ceremony.ts)
   | "while_away"; // (agents) back after a while: what your characters did on their own, and that they're yours again (lib/away.ts)
 
 export type Notification = {
