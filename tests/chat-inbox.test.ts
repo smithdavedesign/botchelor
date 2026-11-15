@@ -232,8 +232,10 @@ describe("/chat", () => {
       expect(faces[i]).toContain(`href="/characters/${c.id}"`);
       expect(faces[i]).toContain(`<button type="button" class="button secondary small" data-track="verb-text">Text ${c.name.split(" ")[0]}</button>`);
     });
-    expect(html).toContain('<a class="button" data-track="chat-text-someone" href="/companion">Text someone</a>');
-    expect(html.match(/href="\/create\?next=%2Fchat"/g)).toHaveLength(2);
+    // Its own two ways on, once: no second set of buttons beside the heading.
+    expect(html).toContain('<a class="button secondary" data-track="chat-text-someone" href="/companion">Text someone</a>');
+    expect(html.match(/href="\/create\?next=%2Fchat"/g)).toHaveLength(1);
+    expect(html).not.toContain("chat-start");
     expect(html).not.toContain("Find a match");
     // Nothing to filter yet.
     expect(html).not.toContain("chat-filter");

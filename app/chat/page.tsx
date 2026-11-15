@@ -112,22 +112,25 @@ export default async function ChatPage({ searchParams }: Props = {}) {
     <article className="chat-page matches-page">
       <header className="matches-head">
         <h1>Chat</h1>
-        <p className="chat-start">
-          {textDoor && (
-            <Link className="button" href="/companion" data-track="chat-text-someone">
-              Text someone
-            </Link>
-          )}
-          {findMatch ? (
-            <Link className="button secondary" href={findMatch} data-track="chat-find-match">
-              Find a match
-            </Link>
-          ) : (
-            <Link className="button secondary" href="/create?next=%2Fchat" data-track="chat-make">
-              Make your character
-            </Link>
-          )}
-        </p>
+        {/* The ways to start something, beside a list; an empty inbox carries its own below, once. */}
+        {inbox.counts.all > 0 && (
+          <p className="chat-start">
+            {textDoor && (
+              <Link className="button" href="/companion" data-track="chat-text-someone">
+                Text someone
+              </Link>
+            )}
+            {findMatch ? (
+              <Link className="button secondary" href={findMatch} data-track="chat-find-match">
+                Find a match
+              </Link>
+            ) : (
+              <Link className="button secondary" href="/create?next=%2Fchat" data-track="chat-make">
+                Make your character
+              </Link>
+            )}
+          </p>
+        )}
       </header>
       <p className="muted small chat-lede">
         Every text in one place: the characters texting you, and {first ? `${inbox.characters.length > 1 ? "your characters'" : `${first}'s`} own threads` : "your character's own threads once you have one"}.
@@ -190,7 +193,7 @@ export default async function ChatPage({ searchParams }: Props = {}) {
               ))}
             </ul>
           )}
-          <p className="cta-row">
+          <p className="cta-row chat-empty-actions">
             {hasCharacter && findMatch ? (
               <Link className="button" href={findMatch} data-track="chat-find-match">
                 Find {first} a match
@@ -198,6 +201,11 @@ export default async function ChatPage({ searchParams }: Props = {}) {
             ) : (
               <Link className="button" href="/create?next=%2Fchat" data-track="chat-make">
                 Make your character
+              </Link>
+            )}
+            {textDoor && (
+              <Link className="button secondary" href="/companion" data-track="chat-text-someone">
+                Text someone
               </Link>
             )}
           </p>
