@@ -72,7 +72,8 @@ describe("the tease on air", () => {
     const { creator, thread, next } = await optedInWithNextDate("friends");
     await t.db.query(`update episodes set setup = jsonb_set(setup, '{met_via}', '"life"') where id = $1`, [next.id]);
     expect(await airEpisode(t.db, next.id, userIdOf(creator))).not.toBeNull();
-    const life = async () => (await t.db.query<{ thread_id: string; text: string }>(`select thread_id, text from companion_messages where action = $1 order by created_at, id`, [`life:${next.id}`])).rows;
+    // Its words (the photo that rides with it, lib/date-photo.ts, is a message of its own: tests/character-life.test.ts).
+    const life = async () => (await t.db.query<{ thread_id: string; text: string }>(`select thread_id, text from companion_messages where action = $1 and via <> 'photo' order by created_at, id`, [`life:${next.id}`])).rows;
     for (let i = 0; i < 50 && (await life()).length < 3; i++) await new Promise((r) => setTimeout(r, 20));
     await new Promise((r) => setTimeout(r, 40));
     const rows = await life();
