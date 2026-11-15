@@ -514,8 +514,10 @@ export function parsePlan(
   producer: ProducerId,
   venueId: PlaceId,
   // `guard`: more private words per side ([a's, b's]) the OTHER side's beats must not carry (the night plan: each
-  // side's want for the week). `source`: who wrote it, when it wasn't the director in front of the date.
-  opts: { source?: DatePlan["source"]; guard?: [string[], string[]] } = {},
+  // side's want for the week). `scenes`: words no scene may carry (the night plan: what either side has heard, which
+  // is its own to bring up); an act's scene that does falls back to that act's rules scene. `source`: who wrote it,
+  // when it wasn't the director in front of the date.
+  opts: { source?: DatePlan["source"]; guard?: [string[], string[]]; scenes?: string[] } = {},
 ): DatePlan | null {
   const trimmed = raw.trim();
   const unfenced = CODE_FENCE.exec(trimmed)?.[1] ?? trimmed;
@@ -540,7 +542,7 @@ export function parsePlan(
     source: opts.source ?? "director",
     spine: carriesPrivate(spine, [...secretsA, ...secretsB]) ? rules.spine : spine,
     acts: acts.map((x, i) => ({
-      scene: sceneLeaks ? rules.acts[i].scene : x.scene,
+      scene: sceneLeaks || (opts.scenes?.length && carriesPrivate(x.scene, opts.scenes)) ? rules.acts[i].scene : x.scene,
       a: aLeaks ? rules.acts[i].a : x.a,
       b: bLeaks ? rules.acts[i].b : x.b,
     })) as DatePlan["acts"],

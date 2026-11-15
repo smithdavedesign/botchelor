@@ -42,14 +42,14 @@ const userOf = (messages: ChatMessage[]) => messages.find((m) => m.role === "use
 describe("the switches", () => {
   afterEach(() => setDatePlanAtNightForTests(null));
 
-  it("DATE_PLAN_AT_NIGHT is on unless it is 0; the night's writing also needs the producer and PRODUCER_PLANS", () => {
+  it("DATE_PLAN_AT_NIGHT is on unless it is 0; the night's writing is off unless PRODUCER_PLANS is 1, and needs the other two", () => {
     setDatePlanAtNightForTests(null);
     expect(datePlanAtNightOn({})).toBe(true);
     expect(datePlanAtNightOn({ DATE_PLAN_AT_NIGHT: "0" })).toBe(false);
-    expect(nightPlansOn({})).toBe(true);
-    expect(nightPlansOn({ PRODUCER_PLANS: "0" })).toBe(false);
-    expect(nightPlansOn({ PRODUCER: "0" })).toBe(false);
-    expect(nightPlansOn({ DATE_PLAN_AT_NIGHT: "0" })).toBe(false);
+    expect(nightPlansOn({})).toBe(false);
+    expect(nightPlansOn({ PRODUCER_PLANS: "1" })).toBe(true);
+    expect(nightPlansOn({ PRODUCER_PLANS: "1", PRODUCER: "0" })).toBe(false);
+    expect(nightPlansOn({ PRODUCER_PLANS: "1", DATE_PLAN_AT_NIGHT: "0" })).toBe(false);
   });
 });
 
@@ -149,7 +149,7 @@ describe("with a database", () => {
     const rowOf = async (id: string) =>
       (await t.db.query<{ status: string; generated_with: { plan: string | null; timing: Record<string, number | boolean | null> } }>(`select status, generated_with from episodes where id = $1`, [id])).rows[0];
 
-    it("no format calls the director in front of line 1: classic, speed date and a twist format all start on the rules plan", async () => {
+    it("no format calls the director in front of line 1 (with no plans written, the default): classic, speed date and a twist format all start on the rules plan", async () => {
       for (const format of ["classic", "speed_date", "meet_the_parents"] as const) {
         const model = promptModel();
         const ep = await book(format, model);
@@ -183,6 +183,8 @@ describe("with a database", () => {
   describe("the house's date and the plan written for it", () => {
     const episodeOf = async (partyId: string) =>
       (await t.db.query<{ id: string; a: string; b: string; plan: string | null }>(`select e.id, e.character_a as a, e.character_b as b, e.generated_with->>'plan' as plan from watch_parties w join episodes e on e.id = w.episode_id where w.id = $1`, [partyId])).rows[0];
+    // The night's writing is off by default: these turn it on.
+    beforeEach(() => vi.stubEnv("PRODUCER_PLANS", "1"));
     const plans = async () =>
       (await t.db.query<{ slot: string; a_id: string; b_id: string; episode_id: string; plan: { source: string; acts: { scene: string }[] } | null; used: boolean; fit: boolean | null; model: string | null }>(
         `select slot, a_id, b_id, episode_id, plan, (used_at is not null) as used, fit, model from date_plans order by slot`,
@@ -275,12 +277,13 @@ describe("with a database", () => {
       expect(model.count("plan")).toBe(0);
     });
 
-    it("PRODUCER_PLANS=0 and DATE_PLAN_AT_NIGHT=0 write nothing; off, the house date asks the director first as before", async () => {
+    it("without PRODUCER_PLANS=1, or with DATE_PLAN_AT_NIGHT=0, nothing is written; off, the house date asks the director first as before", async () => {
       vi.useFakeTimers({ now: NIGHT, toFake: ["Date"] });
-      vi.stubEnv("PRODUCER_PLANS", "0");
+      vi.unstubAllEnvs();
       const writer = promptModel({ plan: () => nightPlan() });
       expect(await writeNightPlans(t.db, NIGHT, { model: writer })).toEqual({ day: DAY, skipped: "off" });
-      vi.unstubAllEnvs();
+      expect(writer.count("plan")).toBe(0);
+      vi.stubEnv("PRODUCER_PLANS", "1");
       await writeNightPlans(t.db, NIGHT, { model: writer });
       vi.stubEnv("DATE_PLAN_AT_NIGHT", "0");
       expect(await writeNightPlans(t.db, new Date("2026-11-13T23:20:00Z"), { model: writer })).toMatchObject({ skipped: "off" });
@@ -305,7 +308,8 @@ describe("with a database", () => {
       if (!deal.ok) throw new Error("no deal");
       vi.setSystemTime(NIGHT);
       const run = await writeNightPlans(t.db, NIGHT, { model: promptModel({ plan: () => nightPlan("VOTED") }) });
-      expect(run).toMatchObject({ written: [{ slot: "situation", a: deal.first, b: deal.second, ok: true }, { slot: "lobby", ok: true }] });
+      // One plan a night: the voted date's. The lobby only makes a room that day once somebody has started this one.
+      expect(run).toEqual({ day: DAY, written: [expect.objectContaining({ slot: "situation", a: deal.first, b: deal.second, ok: true })] });
       vi.setSystemTime(MORNING);
       const model = promptModel();
       setModelForTests(model);
@@ -351,6 +355,19 @@ describe("with a database", () => {
       expect(plan.source).toBe("producer");
       expect(plan.acts.map((x) => x.b)).toEqual(rules.acts.map((x) => x.b));
       expect(plan.acts[0].a).toBe("You ask what you came to ask.");
+    });
+
+    it("a scene that spells out what one of them heard is replaced by that act's rules scene; the rest of the plan stands", async () => {
+      vi.useFakeTimers({ now: new Date("2026-11-12T12:00:00Z"), toFake: ["Date"] });
+      await hear(t.db, { holder: DEX, about: SABLE, claim: "Sable left her last date at the table.", toldBy: NELL, source: "scene:n3", isTrue: true });
+      const date = (await buildTemplateDate(t.db, "00000000-0000-4000-8000-000000000080", DEX, SABLE))!;
+      const rules = rulesPlan(date.built.input, date.decided, date.built.characters, date.built.setup.producer, date.built.setup.venue);
+      const telling = planJson({
+        acts: [0, 1, 2].map((i) => ({ scene: i === 1 ? "Dex brings up that Sable left her last date at the table, and the room goes quiet." : `Scene ${i + 1} by the window.`, a: "You bring up what you heard, in your own words.", b: "You take your time." })),
+      });
+      const plan = (await writeNightPlan(promptModel({ plan: () => telling }), date.built, date.decided, null))!;
+      expect(plan.acts.map((x) => x.scene)).toEqual(["Scene 1 by the window.", rules.acts[1].scene, "Scene 3 by the window."]);
+      expect(plan.acts[1].a).toBe("You bring up what you heard, in your own words.");
     });
 
     it("the fit key moves with the pair's order, the place and the engine's decision, and holds still otherwise", async () => {

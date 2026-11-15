@@ -1008,13 +1008,14 @@ Spend: 22¢ on OPENROUTER_LOOP_KEY (16¢ generating 19 dates, 6¢ judging), smal
 
 | Env | Default | What |
 |---|---|---|
-| `FAST_FIRST_LINE` | unset: speed dates | `0`/`off`: no date starts fast (the old order). `all`: every format. Or a list of format ids. |
+| `FAST_FIRST_LINE` | unset: speed dates | `0`/`off`: no date starts fast. `all`: every format. Or a list of format ids. Since the plan at night (below) the director call is `DATE_PLAN_AT_NIGHT`'s: no format makes it while that is on. |
 | `HOT_TAKES_WAIT_MS` | `2500` | how long a fast date waits for a new character's hot takes |
 | `SPEED_DATE_MODEL` | unset: the show's model | a model id at the show's paid endpoint, for a speed date's actor calls |
 | `SPEED_DATE_REASONING` | unset: the model's default | `minimal`, `low`, `medium` or `high`, for a speed date's actor calls |
 
-**The classic date has the same 50 seconds in it** and is untouched here: it still asks the director twice and waits
-(its content was not this round's to change). `FAST_FIRST_LINE=all` takes the wait off every format; the dates would
+**The classic date had the same 50 seconds in it** and this round left it alone: it still asked the director twice and
+waited (its content was not this round's to change). The next round, "the plan at night", took the call out of every
+format's first line. What follows is how it stood on 2026-11-15, before that. `FAST_FIRST_LINE=all` takes the wait off every format; the dates would
 play from the rules plan, as 97% of them already do. The other way to spend those seconds is to let the plan land (a
 longer limit for that one call, at +40 to 77 s and +0.4 to 0.8¢ a date, or a director that thinks less). That's an
 owner's call about the classic date.
@@ -1022,7 +1023,7 @@ owner's call about the classic date.
 **Measuring it in production.** Every date written by a job now records when each part happened, on the episode:
 `generated_with.timing` = `{fast, queued_ms, setup_ms, first_line_ms, last_line_ms, verdict_ms, written_ms}`
 (`queued_ms` from the booking to the claim on the database's clock, the rest from the claim) and `generated_with.plan`
-(`director` or `rules`). After a day of speed dates (the 20:20 UTC mixer writes four to six):
+(`producer` or `rules`; `director` or `rules` with `DATE_PLAN_AT_NIGHT=0`). After a day of speed dates (the 20:20 UTC mixer writes four to six):
 
 ```sql
 select count(*) n, bool_and((t->>'fast')::boolean) all_fast,
@@ -1066,3 +1067,128 @@ SPEED_TIMING_OUT=<dir> SPEED_TIMING_LABEL=fast SPEED_TIMING_N=4 \
 LIVING_EVAL_KEY=… LIVING_EVAL_MODE=score LIVING_EVAL_A=<dir>/fast.json LIVING_EVAL_B=<dir>/low.json LIVING_EVAL_OUT=<dir> \
   npx vitest run --config scripts/eval/vitest.eval.mts scripts/eval/living-dates.eval.ts
 ```
+
+## Round: the plan at night (2026-11-15)
+
+The round above found the director's plan call cut off at the 25 s limit, twice, on about 97% of dates since
+mid-October: those dates waited 50 s and then played from the rules plan. Speed dates stopped asking. Every other
+format still asked. So no date had a story plan, and the classic spent 50 dead seconds in front of its first line.
+This round takes the call out of every date's critical path and moves the plan to the night before, where nobody is
+waiting. The code is [`lib/night-plans.ts`](../lib/night-plans.ts); the producer that runs it is in
+[seasons.md](seasons.md), "The producer".
+
+**At date time** (`DATE_PLAN_AT_NIGHT`, on by default). `generateDate` takes the plan it is to play from
+(`GenerateOptions.plan`): a stored plan, or `"rules"`. The job (`lib/jobs.ts`), the house's rooms (`lib/watch.ts`) and
+the backfill (`lib/backfill.ts`) pass one or the other, so **no format calls the director in front of line 1**: a date
+with a stored plan plays from it, every other date plays from the rules plan at once. `generated_with.plan` on the
+episode says which (`producer` | `rules`), on house rooms too now, and the timing record from the round above
+(`generated_with.timing`) is written as before. `DATE_PLAN_AT_NIGHT=0` restores the old order exactly: the classic and
+the other non-fast formats ask the director first, and `generated_with.plan` is `director` | `rules` again. (The eval
+harness and the timing harness call `generateDate` without `plan`, so their director arm is still there to measure.)
+
+**At night** (`PRODUCER_PLANS=1`; off by default, see the measurement). After the hourly job's 23:20 UTC pass has
+answered, the producer writes the beat sheet for the date the house itself will make the next day: the date the day's
+vote is staging when there are votes, otherwise the lobby's room (on a Botchelor season either is the lead with the
+suitor whose turn it is). One plan a night. It can do this because a house date's whole setup is dealt from its
+episode id:
+
+1. It reserves an episode id, builds the date exactly as `createTemplateParty` will (`buildTemplateDate`: the same
+   pair, order, thumbs, roleplay or twist), and lets the engine decide it.
+2. It asks the show's free model for the three acts, in `DatePlan`'s shape, from the engine's reasons (the same
+   `dateFacts` and outline the director always got) plus the house's story: the day's beat when it concerns these two,
+   and each side's own story state (what it heard about the other and from whom, how far it trusts them, its want for
+   the week). Sized to finish: no extended thinking (`minimal`), 1,800 output tokens at most, a 90 s limit, one retry.
+3. It stores the plan (`date_plans`) with the reserved id and a **fit key**: the pair in order, the place, the
+   situation, both agendas, any note, and the engine's decision with its reasons, hashed (the row never holds an
+   unaired ending in the clear, and the owner's view never shows a plan's words).
+4. When the house makes that date it takes the reserved id, builds and decides the date as it always has, and uses the
+   stored plan **only if the key still matches**. A date that turned out differently (a memory that moved overnight, a
+   dare added to the night, a vote that swung in its last hour) plays from the rules plan, and the row says so (`fit`).
+
+So the plan shapes how the conversation moves and never the ending: the engine decides every date at date time, as
+before, and a plan written for another decision is thrown away. That is `planDate`'s contract ("the engine has already
+decided"), held by a check instead of by order of calls. Dates somebody books (an owner's, an agent's, a rose date, a
+mixer's) get their id at booking, so they have no stored plan and play from the rules plan.
+
+**Privacy** holds as in `lib/beats.ts`: the night director sees both characters, each actor gets the public scene and
+its own beat, and `parsePlan`'s deterministic check replaces a side's beats that carry the other side's private words,
+here the other side's want for the week as well. What a character heard is a public claim, but that it heard it is its
+own: the prompt keeps it to that character's intention, and a scene that spells a claim out is replaced by that act's
+rules scene (the eval's writer did exactly that on one plan of three). The director is never told whether a claim is
+true.
+
+**Does a stored plan read better?** `scripts/eval/night-plan.eval.ts`: three fixed first dates between house
+characters, each side carrying a seeded story state (a claim it heard about the other, a want), each generated twice by
+the real pipeline on the show's model (Haiku 5.5): from the rules plan, and from a night plan written by Gemini 3.5
+Flash-Lite exactly as the producer asks. Scored by the repo's judge (`lib/judge.ts`, seven 1-to-5 scores) and the free
+metrics. Seven plans, six pairs of dates (one plan didn't pass its checks on either try, so that date has no night arm):
+
+| | Rules plan | Night plan | Pair by pair |
+|---|---|---|---|
+| Judge, mean of seven scores | 3.69 | 3.74 | ahead on 3, behind on 2, level on 1 (mean difference +0.05) |
+| Motivated (is the ending earned?) | 2.0 | **3.0** | ahead on 4, level on 2, never behind |
+| Natural | **3.67** | 3.0 | behind on 4, level on 2, never ahead |
+| Engaging / specific | 3.7 / 4.2 | 3.8 / 4.2 | level |
+| Free quality index | 85.7 | 88.0 | ahead on 3, behind on 3 |
+| Lines that brought up something heard | 0.8 a date | 0.7 a date | |
+| First line | 3.9 s | 4.0 s | (the classic waited 53 s before this round) |
+
+**It does not read better overall**, and six pairs can't tell +0.05 from nothing. What it changes is real and goes both
+ways. The rules plan's weak spot is the one the judge names on almost every date: a decided disaster that plays warm
+("the conversation is warm and playful throughout, with no visible friction, so the decided disaster ending is
+completely unmotivated"; "Mira closes with an invitation to walk her to the bus"). From a night plan the same date
+builds its no: on Rafe × Juniper, three times of three, it ends in nine lines instead of twelve warm ones. Juniper
+cross-examines Rafe's routine ("You answered a question about your heart with a number off a flour sack. Do you mean
+any of what you say, Rafe?") and, twice, he brings up what Dex told him ("Dex said you only came on this show to settle
+a bet. Did you?") and calls it. The price is that it reads more scripted (the judge: "the stage directions make the exchange read as
+scripted"; "the jokes trade too neatly"), and a character can lose its own material to the plan's (Juniper's gulls and
+sea went unused on all three of hers).
+
+By this round's own rule, that is not enough to turn it on: **the night's writing ships off** (`PRODUCER_PLANS` unset),
+and the director call stays out of every date's critical path either way. It is one env var to try on the live show,
+where the weekly reveal and the voted date are the dates that would get a plan; the thing to watch is the house rooms'
+`date_quality` line (`plan: "producer"` against `"rules"`) and the feedback on them. The finding worth more than the
+switch: **the rules plan's disasters are not earned** (motivated 2.0 of 5). That is the rules beats' to fix, with or
+without a model.
+
+**What the plan costs.** Seven plans: 3.2 to 4.1 s each, one call, about 2,400 tokens in and 600 out, no thinking. $0
+on the show's free tier; 0.22¢ at paid Flash-Lite rates (the one that failed twice, 0.45¢). A night with the writing on
+is one plan and one logline: under a quarter of a cent at paid rates. The plan the dates used to wait for cost 0.4¢, took
+37 to 40 s when it was allowed to finish, and didn't arrive.
+
+Spend: 20¢ on OPENROUTER_LOOP_KEY (13 dates, their judging, 7 plans), three small runs one at a time.
+
+**Switches** (the show's app, [hosting.md](hosting.md)):
+
+| Env | Default | What |
+|---|---|---|
+| `DATE_PLAN_AT_NIGHT` | on | `0`: the old order exactly. The director is asked in front of line 1 wherever it was (the classic), and no stored plan is read or written. |
+| `PRODUCER_PLANS` | off | `1`: the night's pass writes the next day's house date plan. |
+| `PRODUCER` | on | `0`: no beats, wants or twists, and no plans either. |
+
+**Checking it in production.** The first line of a classic date should drop from about 57 s to a few seconds:
+
+```sql
+select coalesce(e.setup->>'format', 'classic') fmt, e.generated_with->>'plan' plan, count(*) n,
+       round(percentile_cont(0.5) within group (order by (e.generated_with->'timing'->>'first_line_ms')::numeric) / 1000, 1) first_line_p50,
+       round(percentile_cont(0.9) within group (order by (e.generated_with->'timing'->>'first_line_ms')::numeric) / 1000, 1) first_line_p90
+  from episodes e
+ where e.status = 'ready' and e.generated_with->'timing' is not null and e.created_at > now() - interval '7 days'
+ group by 1, 2 order by 1, 2;
+-- with PRODUCER_PLANS=1: how many plans were written, used, and still fit their date
+select day, slot, plan is not null written, used_at is not null used, fit, ms, usage->>'cost_usd' cost from date_plans order by day desc limit 14;
+```
+
+**Running the eval** (about 3¢ a case; one call at a time, never the live show's quota):
+
+```sh
+NIGHT_EVAL_KEY="$(security find-generic-password -s vault/botchelor/OPENROUTER_LOOP_KEY -w)" NIGHT_EVAL_OUT=<dir> \
+  npx vitest run --config scripts/eval/vitest.eval.mts scripts/eval/night-plan.eval.ts
+# NIGHT_EVAL_CASES=rafe-juniper,teo-ines picks cases; NIGHT_EVAL_PLAN_MODEL / NIGHT_EVAL_MODEL the models; NIGHT_EVAL_MAX_USD the cap (0.25).
+```
+
+**Tests.** `tests/night-plans.test.ts`: the switches; `generateDate` from `"rules"`, from a stored plan and with
+neither; no director call before line 1 for the classic, the speed date and a twist format through the job, and the old
+order with `DATE_PLAN_AT_NIGHT=0`; `generated_with.plan`; a house date taking its reserved id and its plan, the engine's
+decision the same as without one, a date that turned out differently playing from the rules, a plan used once and only
+by its own pair on its own day; the night director's prompt; the want and the heard-claim guards; the fit key.

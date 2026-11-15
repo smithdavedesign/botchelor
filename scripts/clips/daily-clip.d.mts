@@ -8,6 +8,9 @@ export type FeedEpisode = {
   transcript?: unknown[];
   characters?: { name: string }[];
 };
-export function pickClip<T extends FeedEpisode>(episodes: T[], opts?: { clipped?: Set<string> }): T | null;
-export function captionFor(e: FeedEpisode, base: string): string;
+/** `prefer`: the episodes the day's story is about (the producer's beat, GET /api/story). */
+export function pickClip<T extends FeedEpisode>(episodes: T[], opts?: { clipped?: Set<string>; prefer?: Set<string> }): T | null;
+/** The show's story by episode id (the logline each aired date played under); empty when there is none. */
+export function fetchStory(base: string, headers?: Record<string, string>): Promise<Map<string, string>>;
+export function captionFor(e: FeedEpisode, base: string, logline?: string | null): string;
 export function chromiumPath(): string;

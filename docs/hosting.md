@@ -66,13 +66,32 @@ ignore it.
   premium or unknown id falls back to `speed_date`. Commented in `.do/show.yaml` beside the other switches.
 - **`FAST_FIRST_LINE`** (the show's app, not a secret; default: speed dates): which formats start fast
   (`lib/fast-date.ts`): no director call in front of the first line, a 2.5 s limit on a new character's hot takes
-  (`HOT_TAKES_WAIT_MS`), and the recap, texts and reflections written side by side. `0` or `off` puts every date back
-  on the old order without a deploy; `all` starts every format fast (the classic date waits 50 s on a plan that hasn't
-  been arriving: [date-quality.md](date-quality.md), "Round: the fast first date", which has the measurements and the
-  query to check the result). **`SPEED_DATE_MODEL`** and **`SPEED_DATE_REASONING`** (both unset: the show's model as
+  (`HOT_TAKES_WAIT_MS`), and the recap, texts and reflections written side by side. `0` or `off` makes no date fast;
+  `all` starts every format fast ([date-quality.md](date-quality.md), "Round: the fast first date", has the
+  measurements and the query to check the result). Since `DATE_PLAN_AT_NIGHT` (below, on by default) no format asks the
+  director before its first line, fast or not, so the classic no longer waits 50 s on a plan that wasn't arriving; the
+  old plan-first order needs `DATE_PLAN_AT_NIGHT=0` as well. **`SPEED_DATE_MODEL`** and **`SPEED_DATE_REASONING`** (both unset: the show's model as
   it is) put a speed date's lines, answers, texts and reflections on another model id at the show's paid endpoint, or
   on another thinking level (`minimal`, `low`, `medium`, `high`); the measurements there say leave them unset.
   Commented in `.do/show.yaml`.
+- **`PRODUCER`** (the show's app, not a secret; on unless `0`): the producer (`lib/producer.ts`,
+  [seasons.md](seasons.md), "The producer"). The hourly job's 23:20 UTC pass picks the next day's beat from the story
+  state, overwrites the wants of the two or three cast members it is about, offers the day's vote two or three twists of
+  it and writes the day's "Previously" / "Tonight" lines and logline. `0` writes none of it and reads none: the dealt
+  roleplays are the ballot again, and the lines disappear. `STORY_STATE=0` turns it off too (it has nothing to read).
+  To skip one day without touching the switch: `/admin/season` → The producer → Skip tomorrow's beat.
+- **`DATE_PLAN_AT_NIGHT`** (the show's app, not a secret; on unless `0`): no date of any format asks the director for a
+  plan in front of its first line (`lib/night-plans.ts`, [date-quality.md](date-quality.md), "Round: the plan at
+  night"). A house date reads the plan the producer stored for it the night before when there is one and it still fits;
+  every other date plays from the rules plan at once. `generated_with.plan` on the episode says which (`producer` |
+  `rules`). `0` restores the old order exactly: the classic and the other non-fast formats ask the director first again
+  (`generated_with.plan` is then `director` | `rules`), and no stored plan is read or written. With it on,
+  `FAST_FIRST_LINE` only decides the hot-takes wait and whether the recap, texts and reflections are written side by
+  side. **`PRODUCER_PLANS`** (off unless `1`): the night's writing of those plans, one small call on the show's free model
+  for the next day's house date (the voted date, or else the lobby's room). Off by default because the measurement did
+  not show a stored plan reading better than the rules plan overall (it earns the ending better and sounds less
+  natural: the numbers and the dates are in that round); `1` turns it on without a deploy, and `/admin/season` → The
+  producer lists each plan and whether its date used it. All three are commented in `.do/show.yaml`.
 - **`EXPRESS_CREATE`** (the show's app, not a secret; on unless `0`): one-sentence create, the one-box first screen of
   `/create` for a first character (`lib/express-create.ts`, [flows.md](flows.md)). `0` restores the form as the first
   step and `POST /api/characters/draft` answers 404.

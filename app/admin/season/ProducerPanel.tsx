@@ -83,7 +83,7 @@ export default function ProducerPanel() {
         Once a night (23:20 UTC) it reads the story state and picks tomorrow&apos;s beat: who should end up in a room, which claim should surface. It sets
         situations and never an outcome. {view.switches.producer ? "On." : "Off (PRODUCER=0)."}{" "}
         {view.switches.date_plan_at_night ? "No date waits on the director before its first line" : "Dates still ask the director first (DATE_PLAN_AT_NIGHT=0)"}
-        {view.switches.night_plans ? "; tomorrow's house dates get their plan written at night." : "; no plans are written at night."}
+        {view.switches.night_plans ? "; tomorrow's house date gets its plan written at night." : "; no plans are written at night (PRODUCER_PLANS=1 turns that on)."}
       </p>
       {error && (
         <p className="error" role="alert">

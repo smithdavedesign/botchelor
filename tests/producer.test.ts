@@ -273,7 +273,7 @@ describe("the nightly run", () => {
     await runProducer(t.db, NOW, { model: null });
     vi.stubEnv("PRODUCER", "0");
     expect(await runProducer(t.db, NIGHT, { model: null })).toEqual({ day: TOMORROW, skipped: "off" });
-    expect(await t.count("story_beats")).toBe(1);
+    expect((await t.db.query(`select 1 from story_beats`)).rows).toHaveLength(1);
     expect(await beatFor(t.db, TODAY)).toBeNull();
     expect(await storyToday(t.db, NOW)).toBeNull();
     expect((await situationBoard(t.db, "u1", NOW))!.headline).toBeNull();

@@ -37,7 +37,7 @@
  *  - PRODUCER=0 turns it off without a deploy of code: no beats, wants or vote choices are written, and none is read.
  *
  * Cost: rows and templates, plus one small call a night for the logline on the show's free model (about 250 tokens in,
- * 40 out: $0 on the free tier, under 0.01 cents at paid flash-lite rates).
+ * 40 out: $0 on the free tier, about 0.02 cents at paid Flash-Lite rates).
  */
 import type { Db } from "./db";
 import { seedFrom } from "./engine";
@@ -409,7 +409,8 @@ async function namesOf(db: Db, ids: readonly string[]): Promise<Map<string, stri
 /** What the season's format lets the voted date be on a day (lib/season-cast.ts, lib/season-format.ts). */
 export async function stageOf(db: Db, at: Date): Promise<Stage> {
   const def = await seasonFormatNow(db, at).catch(() => null);
-  const ls = def?.lead ? leadAndSuitors(at) : null;
+  // A lead format whose lead isn't loaded stages nothing: never two suitors, whatever the cast list says.
+  const ls = def?.lead ? (leadAndSuitors(at) ?? { lead: "", suitors: [] }) : null;
   return { cast: new Set(showCastIds(at)), lead: ls, venues: def?.venues ?? [] };
 }
 
@@ -429,6 +430,19 @@ export async function runProducer(db: Db, now: Date = new Date(), opts: { model?
     const was = (await db.query<{ status: BeatStatus }>(`select status from story_beats where day = $1`, [day])).rows[0]?.status;
     return { day, skipped: was === "skipped" ? "owner" : "already" };
   }
+  try {
+    return await produce(db, day, now, opts);
+  } catch (err) {
+    // A run that died part way frees the day, so the next hourly pass tries again instead of leaving it beatless.
+    await db.query(`delete from story_beats where day = $1 and status = 'pending'`, [day]).catch(() => {});
+    throw err;
+  }
+}
+
+/** The claimed day's work: the pick, the wants, the twists, the lines. */
+async function produce(db: Db, day: string, now: Date, opts: { model?: Model | null; env?: Env }): Promise<ProducerRun> {
+  const at = noonOf(day);
+  const season = seasonIdOf(at);
   const none = async (reason: "no_tension" | "no_cast"): Promise<ProducerRun> => {
     await db.query(`update story_beats set status = 'none', why = $2, updated_at = now() where day = $1`, [day, reason]);
     return { day, beat: null, reason };

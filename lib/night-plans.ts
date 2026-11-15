@@ -11,9 +11,11 @@
  *  - AT DATE TIME no format calls the director in front of line 1. The date reads the plan stored for it when there is
  *    one, and otherwise plays from the rules plan at once (lib/pipeline.ts `plan`; lib/jobs.ts, lib/watch.ts and
  *    lib/backfill.ts pass it). generated_with.plan says which: "producer" | "rules".
- *  - AT NIGHT (the hourly lobby job's producer pass, after its response: nobody is waiting) the producer writes the beat
- *    sheet for each date the house itself will make the next day: the date the day's vote is staging, and the lobby's
- *    room (on a Botchelor season both are the lead with the suitor whose turn it is). It can, because a house date's
+ *  - AT NIGHT, when PRODUCER_PLANS=1 (off by default: see nightPlansOn for what the measurement said), the hourly lobby
+ *    job's producer pass (after its response: nobody is waiting) writes the beat
+ *    sheet for the date the house itself will make the next day: the date the day's vote is staging when there are
+ *    votes, and otherwise the lobby's room (on a Botchelor season either is the lead with the suitor whose turn it
+ *    is). It can, because a house date's
  *    whole setup is dealt from its episode id: the producer reserves the id, builds the date exactly as
  *    lib/watch.ts will, lets the engine decide it, and asks the show's cheap model (no extended thinking, a small
  *    output, a generous timeout) for the three acts from the engine's reasons plus the story state: what each has
@@ -31,14 +33,16 @@
  * Privacy holds as in lib/beats.ts: the director is trusted and sees both characters; each actor gets the public scene
  * and its own beat; parsePlan's deterministic check drops a beat that carries the other side's private words, and here
  * also the other side's want for the week. What a character heard is a public claim; that it heard it stays in its own
- * beat (the prompt says so, and a scene that names the claim falls back to the rules scene).
+ * beat (the prompt says so, and a scene that spells the claim out is replaced by that act's rules scene: the eval's
+ * writer did exactly that on one plan of three).
  *
  * Switches: DATE_PLAN_AT_NIGHT=0 restores the old order exactly (the director is asked in front of line 1 wherever it
- * was, and no stored plan is read). PRODUCER_PLANS=0 stops the night's writing only (every date then plays from the
- * rules plan at once). PRODUCER=0 stops it too.
+ * was, and no stored plan is read). PRODUCER_PLANS=1 turns the night's writing on (without it every date plays from
+ * the rules plan at once). PRODUCER=0 stops the writing too.
  *
- * Cost: one call per plan, about 3,500 tokens in and 700 out, at most NIGHT_PLANS_MAX a night: $0 on the free tier,
- * about 0.06 cents a plan at paid flash-lite rates (under 0.2 cents a night).
+ * Cost when the writing is on: one plan a night, one call (measured on seven plans: 3.2 to 4.1 s, about 2,400 tokens in
+ * and 600 out, no thinking; one of the seven didn't pass its checks on either try and cost two calls): $0 on the free
+ * tier, 0.22 cents at paid Flash-Lite rates.
  */
 import { createHash, randomUUID } from "node:crypto";
 import { track } from "./analytics";
@@ -67,11 +71,16 @@ export function setDatePlanAtNightForTests(on: boolean | null): void {
 /** DATE_PLAN_AT_NIGHT: on unless it is "0". Off: the old order, the director in front of line 1, no stored plan read. */
 export const datePlanAtNightOn = (env: Env = process.env): boolean => override ?? env.DATE_PLAN_AT_NIGHT?.trim() !== "0";
 
-/** Whether the night's pass writes plans: DATE_PLAN_AT_NIGHT and PRODUCER on, and PRODUCER_PLANS not "0". */
-export const nightPlansOn = (env: Env = process.env): boolean => datePlanAtNightOn(env) && producerOn(env) && env.PRODUCER_PLANS?.trim() !== "0";
+/**
+ * Whether the night's pass writes plans: PRODUCER_PLANS is "1", with DATE_PLAN_AT_NIGHT and PRODUCER on. Off by
+ * default: over six paired dates the stored plan did not read better than the rules plan overall (the judge's mean
+ * 3.74 against 3.69; ahead on three dates, behind on two). It earned the ending better (motivated 3.0 against 2.0,
+ * never behind) and sounded less natural (3.0 against 3.67, never ahead). docs/date-quality.md has the dates.
+ */
+export const nightPlansOn = (env: Env = process.env): boolean => datePlanAtNightOn(env) && producerOn(env) && env.PRODUCER_PLANS?.trim() === "1";
 
-/** How many plans one night writes at most (the voted date and the lobby's room; a third leaves room for a retry day). */
-export const NIGHT_PLANS_MAX = 3;
+/** How many plans one night writes at most. Today it writes one: the voted date's, or else the lobby room's. */
+export const NIGHT_PLANS_MAX = 2;
 /** One plan call's limit: generous, because nobody is waiting (a date's own calls stop at 25 s). */
 export const NIGHT_PLAN_TIMEOUT_MS = 90_000;
 /** The plan is three acts of three short fields: this is room for all of it and no more. */
@@ -172,10 +181,12 @@ export type NightPlansRun = { day: string; skipped: "off" | "nothing_due" } | { 
 export async function writeNightPlan(model: Model, built: BuiltDate, decided: Outcome, beat: Beat | null, onUsage?: (u: Usage) => void, onModel?: (id: string) => void): Promise<DatePlan | null> {
   const messages = nightPlanMessages(built, decided, beat);
   const guard: [string[], string[]] = [built.characters[0].story?.want ? [built.characters[0].story.want.want] : [], built.characters[1].story?.want ? [built.characters[1].story.want.want] : []];
+  // What either has heard is its own to bring up: a scene (both see it) that spells a claim out is replaced.
+  const scenes = built.characters.flatMap((c) => bringable(c.story).map((h) => h.claim));
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       const raw = await model.complete(messages, { temperature: PLAN_TEMPERATURE, maxTokens: NIGHT_PLAN_MAX_TOKENS, onUsage, onModel });
-      const plan = parsePlan(raw, built.input, decided, built.characters, built.setup.producer, built.setup.venue, { source: "producer", guard });
+      const plan = parsePlan(raw, built.input, decided, built.characters, built.setup.producer, built.setup.venue, { source: "producer", guard, scenes });
       if (plan) return plan;
     } catch {
       /* one more try, then this date plays from the rules plan */
@@ -193,9 +204,9 @@ export async function writeNightPlans(db: Db, now: Date = new Date(), opts: { mo
   const day = producedDay(now);
   if (!nightPlansOn(opts.env)) return { day, skipped: "off" };
   const started = Date.now();
-  // The slots already claimed for the day: most passes stop here, on one small query.
+  // The day's plan already claimed: most passes stop here, on one small query.
   const have = new Set((await db.query<{ slot: string }>(`select slot from date_plans where day = $1`, [day])).rows.map((r) => r.slot));
-  if (have.has("situation") && have.has("lobby")) return { day, skipped: "nothing_due" };
+  if (have.size) return { day, skipped: "nothing_due" };
   // Loaded here, not at the top: lib/watch.ts reads this module at date time.
   const [{ buildTemplateDate, lobbyDeal, templateRoomsOn }, { situationDeal }] = await Promise.all([import("./watch"), import("./situations")]);
   const due: { slot: "situation" | "lobby"; a: string; b: string; opts: Parameters<typeof buildTemplateDate>[4]; beatDay: string }[] = [];
@@ -203,11 +214,14 @@ export async function writeNightPlans(db: Db, now: Date = new Date(), opts: { mo
   const voteDay = dayOf(new Date(Date.parse(`${day}T00:00:00Z`) - 24 * 60 * 60 * 1000));
   const made = await db.query(`select 1 from situation_nights where day = $1`, [voteDay]);
   const deal = made.rows.length ? null : await situationDeal(db, voteDay).catch(() => null);
-  if (deal?.ok && !have.has("situation")) due.push({ slot: "situation", a: deal.first, b: deal.second, opts: deal.opts, beatDay: voteDay });
-  // The lobby's room for the day: the round it will be dealt as is how many of the day's rooms come before it.
-  const rooms = await templateRoomsOn(db, day);
-  const lobby = have.has("lobby") ? null : await lobbyDeal(db, new Date(`${day}T12:00:00Z`), 2 * (rooms + (deal?.ok ? 1 : 0))).catch(() => null);
-  if (lobby) due.push({ slot: "lobby", a: lobby.a, b: lobby.b, opts: lobby.thumbs, beatDay: day });
+  if (deal?.ok) due.push({ slot: "situation", a: deal.first, b: deal.second, opts: deal.opts, beatDay: voteDay });
+  // Otherwise the lobby's room for the day, which the day is sure to get (the daily job makes one when the day has no
+  // room yet, lib/watch.ts refreshLobby). On a day with a voted date the lobby only makes a room once somebody has
+  // started that one, so no plan is spent on it. The round it is dealt as is how many of the day's rooms come before it.
+  if (!due.length && !made.rows.length) {
+    const lobby = await lobbyDeal(db, new Date(`${day}T12:00:00Z`), 2 * (await templateRoomsOn(db, day))).catch(() => null);
+    if (lobby) due.push({ slot: "lobby", a: lobby.a, b: lobby.b, opts: lobby.thumbs, beatDay: day });
+  }
   if (!due.length) return { day, skipped: "nothing_due" };
   const model = opts.model ?? getModel("minimal", false, NIGHT_PLAN_TIMEOUT_MS);
   const written: NightPlanWritten[] = [];
