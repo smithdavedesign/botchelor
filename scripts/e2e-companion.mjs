@@ -391,6 +391,25 @@ async function main() {
     const res = await ctx.request.post(`${base}/api/auth/register`, { data: { handle, password: "a-long-e2e-password-1", attest: true } });
     assert(res.ok(), `register ${handle}: HTTP ${res.status()}`);
   };
+  /**
+   * The line above 📞 Call (app/companion/[id]/CallNotice.tsx): shown before the microphone is used, for the way of
+   * calling that's picked, with the privacy notice's calls section a tap away, inside the screen's width.
+   */
+  async function callNotice(call, starts, width) {
+    const notice = call.locator('[data-testid="call-notice"]');
+    await notice.waitFor({ timeout: 5_000 });
+    const text = ((await notice.textContent()) ?? "").replace(/\s+/g, " ");
+    assert(text.startsWith(starts), `the call's notice should start "${starts}", got "${text}"`);
+    assert(text.includes("the words are saved as messages in this chat. Deleting the conversation deletes them."), `the call's notice should say the words are kept and how they go: "${text}"`);
+    const link = notice.getByRole("link", { name: "What a call keeps" });
+    assert((await link.getAttribute("href")) === "/privacy#calls" && (await link.getAttribute("target")) === "_blank", "the notice should open the privacy notice's calls section in a new tab");
+    const box = await notice.boundingBox();
+    assert(box && box.x >= 0 && box.x + box.width <= width, `the call's notice should fit a ${width}px screen (it spans ${box?.x}–${box && box.x + box.width})`);
+    // Above the button, so it's read before the tap that turns the microphone on.
+    const go = await call.locator(".companion-call-go").boundingBox();
+    assert(box && go && box.y + box.height <= go.y, "the call's notice should sit above the Call button");
+  }
+
   // After the bubbles' fade-in (globals.css chat-in, 0.22 s), so a screenshot shows them as a reader does.
   const shot = async (page, name) => {
     await page.waitForTimeout(400);
@@ -610,9 +629,11 @@ async function main() {
       assert(await liveChoice.isChecked(), "a live call should be the first choice where it's on");
       assert(((await call.textContent()) ?? "").includes("Live · free for you"), "the live choice should say what it costs");
       assert(((await call.textContent()) ?? "").includes("goes from your browser to Deepgram"), "a live call should say where the voice goes");
+      await callNotice(call, "Your audio isn't kept: Deepgram turns it into words", 1280);
       await shot(page, "companion-call-ready-desktop");
       // v1, taking turns.
       await call.getByRole("radio", { name: /Taking turns/ }).check();
+      await callNotice(call, "Your audio never reaches us: your browser turns it into words", 1280);
       // Taking turns, the reply is said in their call voice (Aura, made on the server), not the device's.
       assert(((await call.textContent()) ?? "").includes(`${first}'s call voice · free`), "taking turns should offer their call voice");
       await call.getByRole("button", { name: `📞 Call ${first}` }).click();
@@ -750,6 +771,9 @@ async function main() {
         assert(!(await call.locator(".companion-call-how").evaluate((d) => d.open)), "how calls work should start closed once read");
         const storedMode = await p.evaluate(() => localStorage.getItem("bz_call_mode"));
         assert(await call.getByRole("radio", { name: /Taking turns/ }).isChecked(), `the way picked last time should be picked again (stored: ${storedMode})`);
+        // "How calls work" is folded now, so the line above the button is all a returning caller sees: it must be there.
+        await callNotice(call, "Your audio never reaches us: your browser turns it into words", 390);
+        await shot(p, "companion-call-ready-phone");
         await call.getByRole("button", { name: `📞 Call ${first}` }).tap();
         await call.locator(".companion-call-said").waitFor({ timeout: 20_000 });
         await p.locator(".companion-call.is-speaking").waitFor();
@@ -843,6 +867,8 @@ async function main() {
         const call = p.getByRole("dialog", { name: `Call with ${first}` });
         await call.waitFor({ timeout: 10_000 });
         assert(await call.getByRole("radio", { name: /^Live/ }).isChecked(), "live, picked last time, should be picked again");
+        await callNotice(call, "Your audio isn't kept: Deepgram turns it into words", 390);
+        await shot(p, "companion-live-ready-phone");
         await call.getByRole("button", { name: `📞 Call ${first}` }).tap();
         await p.locator(".companion-call.is-listening").waitFor({ timeout: 15_000 });
         await p.evaluate(() => window.__dg.say("calling live from my phone"));

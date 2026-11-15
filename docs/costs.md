@@ -84,7 +84,8 @@ idle timeout, a minute or so). Not on the page: a second or third worker a long 
 face kit drawn once per character (~29¢, above). A call that takes turns has no line: the browser hears, so it costs
 the reply and, with the Deepgram key set, the Aura voice. To refresh the block: run the same counts, read the three
 pricing pages, and change `CALL_MEASURED` and `CALL_PRICES` (the test's expected strings will tell you what moved).
-A call minute sells for 8¢ past the plan's included 20 (a token for ten), so the margin holds with the face on.
+A call minute sells for about 7–8¢ past the plan's included 20 (a token buys ten: 80¢ in the 5-pack, about 67¢ in the
+15-pack), so the margin holds with the face on.
 
 ## Infrastructure, per month
 
