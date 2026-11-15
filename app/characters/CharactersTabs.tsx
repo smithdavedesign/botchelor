@@ -7,7 +7,7 @@ import { TAB_LABEL, tabHref, TABS, type Tab } from "@/lib/origin";
  * companion page now?"; the design system's proposal: companions inside Characters). Plain links: crawlable, no script.
  * The counts are /characters' own; the directory shows the tabs without them.
  */
-export default function CharactersTabs({ current, counts, companions }: { current: Tab | "companions"; counts?: Record<Tab, number>; companions: boolean }) {
+export default function CharactersTabs({ current, counts, companions }: { current: Tab | "companions" | null; counts?: Record<Tab, number>; companions: boolean }) {
   return (
     <nav className="segmented" aria-label="Characters">
       {TABS.map((t) => (

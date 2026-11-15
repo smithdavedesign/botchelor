@@ -11202,7 +11202,29 @@ main:has(> .episode-page) {
     box-shadow: 0 18px 50px -24px rgba(20, 8, 30, 0.55);
   }
 }
+/* A scrim under the words (design audit 2026-11-14: the logline ran across a drum kit): darker where the text sits, at
+   the bottom (and on a wide screen, the left), so it reads on any venue photo. --photo-bg is the same in both themes. */
+.episode-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    0deg,
+    color-mix(in srgb, var(--photo-bg) 62%, transparent) 0%,
+    color-mix(in srgb, var(--photo-bg) 40%, transparent) 55%,
+    transparent 85%
+  );
+}
+@media (min-width: 761px) {
+  .episode-hero::before {
+    background:
+      linear-gradient(90deg, color-mix(in srgb, var(--photo-bg) 50%, transparent) 0%, color-mix(in srgb, var(--photo-bg) 20%, transparent) 50%, transparent 72%),
+      linear-gradient(0deg, color-mix(in srgb, var(--photo-bg) 55%, transparent) 0%, color-mix(in srgb, var(--photo-bg) 30%, transparent) 55%, transparent 85%);
+  }
+}
 .episode-hero-inner {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
@@ -11406,28 +11428,70 @@ main:has(> .episode-page) {
 .episode-predict {
   scroll-margin-top: 5rem;
 }
-details.episode-read {
+/* The date, line by line (app/episodes/[id]/TranscriptRead.tsx, design audit 2026-11-14): on the page from the start,
+   its first exchange showing and the rest behind "Read the whole date". Every line is in the page; while the fold under
+   them is closed, only the first four show (TRANSCRIPT_PREVIEW_LINES) and no walk-out (that's the ending), fading out
+   at the cut. Without :has() every line shows. */
+.episode-read {
   scroll-margin-top: 5rem;
 }
-details.episode-read > summary {
+.episode-read > h2 {
+  margin: 0 0 0.2rem;
+}
+.episode-read-lede {
+  margin: 0 0 var(--space-3);
+}
+.episode-read.has-more:has(> .episode-read-more:not([open])) .chat-thread > .chat-item:nth-child(n + 5),
+.episode-read.has-more:has(> .episode-read-more:not([open])) .chat-walkout {
+  display: none;
+}
+.episode-read.has-more:has(> .episode-read-more:not([open])) .chat-thread {
+  -webkit-mask-image: linear-gradient(180deg, var(--ink) calc(100% - 4rem), transparent);
+  mask-image: linear-gradient(180deg, var(--ink) calc(100% - 4rem), transparent);
+}
+.episode-read-more {
+  margin-top: var(--space-2);
+}
+.episode-read-more > summary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--control-h);
+  padding: 0 var(--space-4);
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--line));
+  border-radius: var(--radius-pill);
+  color: var(--accent-text);
+  font-weight: 700;
   cursor: pointer;
   list-style: none;
 }
-details.episode-read > summary::-webkit-details-marker {
+.episode-read-more > summary::-webkit-details-marker {
   display: none;
 }
-details.episode-read > summary h2 {
-  margin: 0 0 0.2rem;
+.episode-read-more > summary:hover {
+  background: color-mix(in srgb, var(--accent) 8%, var(--card));
 }
-details.episode-read > summary h2::before {
-  content: "▸ ";
-  color: var(--accent-text);
+.episode-read-more .episode-read-more-show::after {
+  content: " ▾";
 }
-details.episode-read[open] > summary h2::before {
-  content: "▾ ";
+.episode-read-more .episode-read-more-hide::after {
+  content: " ▴";
 }
-details.episode-read[open] > summary {
-  margin-bottom: var(--space-3);
+.episode-read-more .episode-read-more-hide,
+.episode-read-more[open] .episode-read-more-show {
+  display: none;
+}
+.episode-read-more[open] .episode-read-more-hide {
+  display: inline;
+}
+/* The diary cam is a fold under the date, quieter than it (the audit: three folds of one weight hid the date). */
+details.diary-cam:not([open]) {
+  padding: var(--space-3) var(--space-4);
+  background: color-mix(in srgb, var(--paper-2) 60%, var(--card));
+  box-shadow: none;
+}
+details.diary-cam > summary {
+  font-size: var(--text-md);
 }
 section.make-your-own {
   display: flex;
@@ -12661,6 +12725,110 @@ details > summary.small {
 .dir-job + .chips,
 .dir-basics + .chips {
   margin-top: 0.5rem;
+}
+
+/* /characters, photo-forward (design audit 2026-11-14): the portrait is the card's top, a square edge to edge; the
+   name under it; badges, age, stars and traits smaller below. The name's link (.stretch) covers the card, so the whole
+   card is one tap; Talk sits above that link (.tap-card), its own target. Two to a row on a phone (app/ux/show.css). */
+.characters-hub .gallery > .card.dir-card {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+.characters-hub .dir-portrait {
+  margin: 0;
+  background: var(--soft);
+}
+.characters-hub .dir-portrait .avatar-fill {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  object-position: center 20%;
+}
+.characters-hub .dir-card-body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  padding: var(--space-3);
+}
+.characters-hub .dir-card-body > * {
+  margin: 0;
+}
+.characters-hub .dir-name {
+  display: block;
+  font-family: "Fraunces", Georgia, serif;
+  font-size: var(--text-lg);
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+.characters-hub .dir-name strong {
+  display: inline;
+}
+.characters-hub .dir-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+.characters-hub .dir-badges .badge {
+  margin: 0;
+}
+.characters-hub .dir-card .dir-stars {
+  white-space: nowrap;
+}
+.characters-hub .dir-card .chips {
+  margin: var(--space-1) 0 0;
+}
+/* Talk sits at the card's foot, so a row of cards lines its buttons up. */
+.characters-hub .dir-card .dir-talk {
+  margin-top: auto;
+  padding-top: var(--space-2);
+}
+/* A private character keeps its initials tile, faded with the rest of its card (no link, no details). */
+.characters-hub .dir-card.is-private .dir-portrait {
+  opacity: 0.6;
+}
+/* More, smaller squares on a wide screen than the old text cards had (the cast's own grid keeps its balanced count). */
+@media (min-width: 641px) {
+  .characters-hub .gallery:not(.grid-balanced) {
+    grid-template-columns: repeat(auto-fill, minmax(11.5rem, 1fr));
+  }
+}
+@media (max-width: 640px) {
+  .characters-hub .dir-card-body {
+    padding: var(--space-2) var(--space-3) var(--space-3);
+  }
+  .characters-hub .dir-name {
+    font-size: var(--text-md);
+  }
+}
+
+/* Find a character (app/characters/page.tsx SearchForm): a box and its button on one row, at every width. */
+.characters-search {
+  display: flex;
+  gap: var(--space-2);
+  align-items: stretch;
+  max-width: 36rem;
+  margin: var(--space-3) 0;
+}
+.characters-search input {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+}
+.characters-search button {
+  flex: 0 0 auto;
+  margin: 0;
+}
+.characters-results h2 {
+  margin-bottom: var(--space-1);
+}
+.characters-results-empty {
+  margin: var(--space-4) 0;
 }
 
 /* ---------- The PG Studio (app/characters/[id]/studio): safe photo shoots ---------- */

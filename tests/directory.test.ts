@@ -14,7 +14,7 @@ vi.mock("next/navigation", async (original) => ({
 import { renderToStaticMarkup } from "react-dom/server";
 import CharactersPage from "@/app/characters/page";
 import CastPage from "@/app/cast/page";
-import { DIRECTORY_PAGE, directoryEntries, listTab, offSeasonHouse, tabCounts } from "@/lib/directory";
+import { DIRECTORY_PAGE, DIRECTORY_QUERY_MAX, directoryEntries, likeWord, listTab, offSeasonHouse, parseDirectoryQuery, searchDirectory, tabCounts } from "@/lib/directory";
 import { ALL_HOUSE_CHARACTERS, HOUSE_CHARACTERS } from "@/lib/house";
 import { originsOf, parseTab, tabHref, tabOf } from "@/lib/origin";
 import { setSeasonCastForTests } from "@/lib/season-cast";
@@ -260,5 +260,91 @@ describe("a private character", () => {
     expect(stranger).toContain("Quiet Type");
     expect(stranger).toMatch(/keeps this character private/);
     expect(await board(hidden.cookie)).not.toMatch(/keeps this character private/);
+  });
+});
+
+// Design audit 2026-11-14: "294 characters and no way to find one". A GET search (?q=) on /characters, by name, trait,
+// bio, job or hometown, under the directory's own rules: never a private character, never a deleted account's.
+describe("finding a character on /characters (lib/directory.ts searchDirectory)", () => {
+  it("reads ?q= as one squashed, trimmed, bounded string", () => {
+    expect(parseDirectoryQuery(undefined)).toBe("");
+    expect(parseDirectoryQuery(["  Mira   Quell ", "other"])).toBe("Mira Quell");
+    expect(parseDirectoryQuery("x".repeat(200))).toHaveLength(DIRECTORY_QUERY_MAX);
+  });
+
+  it("escapes LIKE's wildcards so a search matches them literally", () => {
+    expect(likeWord("50%")).toBe("%50\\%%");
+    expect(likeWord("a_b")).toBe("%a\\_b%");
+    expect(likeWord("back\\slash")).toBe("%back\\\\slash%");
+    expect(likeWord("MiRa")).toBe("%mira%");
+  });
+
+  it("finds by name, trait and bio words (every word must match), names first", async () => {
+    const mira = await made("Mira Quell");
+    const other = (await (await api.createCharacter(validCharacter({ name: "Tobias Wren", bio: "A baker who once met Mira at a map fair.", traits: ["shy", "kind", "punctual"] }), newUserCookie())).json()).id as string;
+    const ids = async (q: string) => (await searchDirectory(t.db, q)).entries.map((e) => e.id);
+    expect(await ids("mira")).toEqual([mira.id, other]); // the name match before the bio mention
+    expect(await ids("cartographer tuesdays")).toEqual([mira.id]);
+    expect(await ids("punctual")).toEqual([other]);
+    expect(await ids("cartographer punctual")).toEqual([]);
+    expect(await ids(HOUSE_CHARACTERS[0].name)).toContain(HOUSE_CHARACTERS[0].id); // the cast is in too
+    expect(await ids("   ")).toEqual([]);
+  });
+
+  it("treats % and _ as plain characters, not wildcards", async () => {
+    await made("Mira Quell");
+    expect((await searchDirectory(t.db, "%")).entries).toEqual([]);
+    expect((await searchDirectory(t.db, "_")).entries).toEqual([]);
+    expect((await searchDirectory(t.db, "m_ra")).entries).toEqual([]);
+    const pct = await made("Ninety% Nell");
+    expect((await searchDirectory(t.db, "ninety%")).entries.map((e) => e.id)).toEqual([pct.id]);
+  });
+
+  it("never lists a private character (not even by name) or a deleted account's", async () => {
+    const hidden = await made("Quiet Zephyrine");
+    expect((await api.editCharacter(hidden.id, { visibility: "private" }, hidden.cookie)).status).toBe(200);
+    const gone = await made("Gone Zephyrine");
+    await t.db.query(`update characters set owner_id = 'deleted' where id = $1`, [gone.id]);
+    const open = await made("Open Zephyrine");
+    expect((await searchDirectory(t.db, "zephyrine")).entries.map((e) => e.id)).toEqual([open.id]);
+    const html = await render({ q: "zephyrine" });
+    expect(html).toContain(`/characters/${open.id}`);
+    expect(html).not.toContain("Quiet Zephyrine");
+    expect(html).not.toContain("Gone Zephyrine");
+  });
+
+  it("stops at the limit and says there are more", async () => {
+    for (const n of ["Alpha", "Beta", "Gamma"]) await made(`${n} Quorra`);
+    const { entries, more } = await searchDirectory(t.db, "quorra", 2);
+    expect(entries.map((e) => e.name)).toEqual(["Alpha Quorra", "Beta Quorra"]);
+    expect(more).toBe(true);
+    expect((await searchDirectory(t.db, "quorra", 3)).more).toBe(false);
+  });
+
+  it("renders a GET form on every tab, and results as the same photo cards (no tab current), or a way to make one", async () => {
+    const html = await render();
+    expect(html).toContain('<form class="characters-search" role="search" action="/characters" method="get">');
+    expect(html).toContain('name="q"');
+    const mira = await made("Mira Quell");
+    const found = await render({ q: "mira" });
+    expect(found).toContain("1 character matches “mira”");
+    expect(found).toContain('value="mira"');
+    expect(found).toContain('<li class="card tap-card dir-card">');
+    expect(found).toContain(`href="/characters/${mira.id}"`);
+    expect(found).not.toMatch(/class="segmented-tab" aria-current="page"/);
+    expect(found).not.toMatch(/This season: /);
+    const none = await render({ q: "nobody-by-this-name" });
+    expect(none).toContain("Nobody matches “nobody-by-this-name”");
+    expect(none).toContain('<a href="/create">make the character you were looking for</a>');
+  });
+
+  it("draws each card photo-forward: a square portrait on top, the name a link over the whole card, Talk its own target", async () => {
+    setSeasonCastForTests(["house-juniper"]);
+    const html = await render({ tab: "cast" });
+    const card = html.slice(html.indexOf('<li class="card tap-card dir-card">'), html.indexOf("</li>", html.indexOf('<li class="card tap-card dir-card">')));
+    expect(card).toMatch(/^<li class="card tap-card dir-card"><div class="dir-portrait"><(img|svg)[^>]*class="avatar[^"]* avatar-fill"/);
+    expect(card).toMatch(/width="320" height="320"/);
+    expect(card).toMatch(/<a class="char-name stretch dir-name char-name-link" href="\/characters\/house-juniper">/);
+    expect(card.indexOf("dir-portrait")).toBeLessThan(card.indexOf("dir-name"));
   });
 });

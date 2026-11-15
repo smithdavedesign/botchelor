@@ -21,6 +21,13 @@ type Props = {
   decorative?: boolean;
   /** A circle instead of the rounded tile (the small inline face before a name). */
   round?: boolean;
+  /**
+   * Fill the box it sits in (a photo-forward card, /characters): no inline size or corner, so the stylesheet sizes it
+   * (.avatar-fill); `size` still sets the width/height attributes (no layout shift) and the picture's resolution.
+   */
+  fill?: boolean;
+  /** Load at once (a card in the first row) instead of lazily. */
+  eager?: boolean;
 };
 
 /**
@@ -28,7 +35,7 @@ type Props = {
  * OC shows its generated portrait when it has one, and otherwise the gradient tile with a soft motif and its
  * initials. Pure (no hooks, no client directive), so it renders in both server and client components.
  */
-export default function Avatar({ seed, name, hue, size = 48, house = false, portraitSrc = null, photoSrc = null, decorative = false, round = false }: Props) {
+export default function Avatar({ seed, name, hue, size = 48, house = false, portraitSrc = null, photoSrc = null, decorative = false, round = false, fill = false, eager = false }: Props) {
   const r = round ? "50%" : size * 0.28;
   // A house character's reviewed file first: its ledger row (when it has one) only redirects to that same file.
   // Then an OC's BYOK-generated portrait (the owner's own, provider-moderated).
@@ -44,9 +51,9 @@ export default function Avatar({ seed, name, hue, size = 48, house = false, port
         width={size}
         height={size}
         decoding="async"
-        loading="lazy"
-        className={`avatar avatar-portrait${house ? " avatar-house" : ""}${photoSrc ? " avatar-photo" : ""}`}
-        style={{ borderRadius: r, width: size, height: size, background: `linear-gradient(135deg, ${p.from}, ${p.to})` }}
+        loading={eager ? "eager" : "lazy"}
+        className={`avatar avatar-portrait${house ? " avatar-house" : ""}${photoSrc ? " avatar-photo" : ""}${fill ? " avatar-fill" : ""}`}
+        style={fill ? { background: `linear-gradient(135deg, ${p.from}, ${p.to})` } : { borderRadius: r, width: size, height: size, background: `linear-gradient(135deg, ${p.from}, ${p.to})` }}
       />
     );
   }
@@ -60,10 +67,10 @@ export default function Avatar({ seed, name, hue, size = 48, house = false, port
       role={decorative ? undefined : "img"}
       aria-label={decorative ? undefined : `${name} avatar`}
       aria-hidden={decorative ? true : undefined}
-      className={`avatar${house ? " avatar-house" : ""}`}
+      className={`avatar${house ? " avatar-house" : ""}${fill ? " avatar-fill" : ""}`}
       // The same gradient as a background: the fill's url(#id) resolves to the first element with that id, and when
       // that one sits in a hidden subtree (the theater's scene on a phone) the tile would otherwise render empty.
-      style={{ borderRadius: r, flex: "0 0 auto", background: `linear-gradient(135deg, ${p.from}, ${p.to})` }}
+      style={fill ? { background: `linear-gradient(135deg, ${p.from}, ${p.to})` } : { borderRadius: r, flex: "0 0 auto", background: `linear-gradient(135deg, ${p.from}, ${p.to})` }}
     >
       <defs>
         <linearGradient id={id} x1="0" y1="0" x2="1" y2="1">
@@ -71,7 +78,7 @@ export default function Avatar({ seed, name, hue, size = 48, house = false, port
           <stop offset="100%" stopColor={p.to} />
         </linearGradient>
       </defs>
-      <rect width="100" height="100" rx={round ? 50 : 28} fill={`url(#${id})`} />
+      <rect width="100" height="100" rx={fill ? 0 : round ? 50 : 28} fill={`url(#${id})`} />
       <circle cx="78" cy="22" r="30" fill={p.soft} opacity="0.25" />
       <circle cx="20" cy="86" r="22" fill="#000" opacity="0.08" />
       <text
