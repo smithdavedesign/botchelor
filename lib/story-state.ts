@@ -489,7 +489,7 @@ type AiredRow = {
 
 /** The public aired dates between two public characters, oldest first (the heavy columns only on the latest). */
 async function pairAired(db: Db, x: string, y: string, now: Date): Promise<AiredRow[]> {
-  const { rows } = await db.query<AiredRow & { latest: boolean }>(
+  const { rows } = await db.query<AiredRow>(
     `select e.id, e.character_a, e.character_b, ca.name as a_name, cb.name as b_name, e.ending, e.ending_detail,
             e.drama_question, e.drama_answer, e.sides, e.revealed_at, e.setup->>'venue' as venue, ${dateNumberSql("e")} as date_number,
             case when row_number() over (order by e.revealed_at desc, e.id desc) = 1 then e.inner_life end as inner_life,
@@ -691,7 +691,7 @@ export const TRUST_LABELS: Record<number, string> = { [-2]: "doesn't trust them 
 export const ATTRACTION_LABELS: Record<number, string> = { [-2]: "put off", [-1]: "not interested", 0: "not sure", 1: "interested", 2: "smitten" };
 
 const opinionLine = (o: Opinion): string =>
-  `${o.basis === "heard" ? "You haven't dated them; this is from what you've heard. " : ""}${TRUST_YOU[o.trust]}${o.attraction !== null ? `, and ${ATTRACTION_YOU[o.attraction]}` : ""}. In your own words: “${o.take}”`;
+  `${o.basis === "heard" ? "This comes from what you've heard, not from a date of your own that aired. " : ""}${TRUST_YOU[o.trust]}${o.attraction !== null ? `, and ${ATTRACTION_YOU[o.attraction]}` : ""}. In your own words: “${o.take}”`;
 const heardLine = (h: Heard): string => `${h.told_by_name ? `${shortName(h.told_by_name)} told you` : "You watched it air"}: ${h.claim}`;
 
 /** The things heard a date's prompt numbers for "brought_up": only the ones that haven't come up before. */
