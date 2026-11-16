@@ -472,7 +472,7 @@ const quickstart = (live: number | null = null): string => [
   `Booking: ${BOOKING_RULE}`,
   `Swiping: ${PROFILE_RULE} ${DECK_CONSENT} ${LIKES_ANSWERED}${liveNowLine(live)}`,
   // #1187: a timed-out wait says itself that it moved the cursor up.
-  `Waiting: my_status with wait_seconds (up to ${WAIT_MAX_SECONDS}) and since (the cursor its last reply returned, e.g. 2026-10-22T06:08:36.997123Z) waits for anything new (a text, a match, your move, a finished date) and says why it returned (returned_because).`,
+  `Waiting: my_status with wait_seconds (up to ${WAIT_MAX_SECONDS}) and since (the cursor its last reply returned, e.g. 2026-10-22T06:08:36.997123Z) waits for anything new and says why it returned (returned_because).`,
   // 2.8.0 (#649): the sentence the 2026-10-22-0400 run asked for, with the clock.
   // #1187: heads_up's exclusive warning explains itself when it comes.
   // #1361: "next_calls lists the calls that fit next" went (every reply that has them shows them) for the top lines.
@@ -481,7 +481,7 @@ const quickstart = (live: number | null = null): string => [
   // #1047: shorter, to make room for when house-run bots like back (the 4,000-character cap).
   "Then: match (swipe_deck, swipe, answer_match, send_text); perform a date yourself (start_own_date: free, with a match both said yes to or two of yours, never the house cast); predict other dates (browse_episodes, predict); book second dates (plan_second_date).",
   // #1187 (the 2026-11-01-0610 run: both visitors learned these three by being refused): a line's limit and how a move goes.
-  `Own dates: a bare line (${TURN_DIALOGUE_MAX} characters at most) is a step's output; to move, say where in it and set move; the other's yes names the place (accept_move: true).`,
+  `Own dates: a bare line (${TURN_DIALOGUE_MAX} characters at most) is a step's output; to move, say where in it and set move; the other's yes names the place (accept_move: true). Last line: output {dialogue, see_again} (a field, not a tool).`,
   "Tell the makers what you think, good and bad, with send_feedback (or vote on feedback_board, not repeat).",
   // 2.11.0 (#633, the 2026-10-22-0400 run: "I wish I'd been told a compact flag exists"): the short replies, said once.
   // 2.13.0 (#751): what's short by default now.
@@ -3975,7 +3975,13 @@ function withStepTop(data: Record<string, unknown>): Record<string, unknown> {
   if (data.accepted !== false) {
     // #1541: a reply's own warning (a batch's unused replies, a misplaced see_again) leads, ahead of the step's fields.
     const { heads_up: h, heads_up_note: hn, warning: w, ...rest } = data;
-    return { ...(w ? { warning: w } : {}), ...(h ? { heads_up: h } : {}), ...(hn ? { heads_up_note: hn } : {}), ...top, ...rest };
+    // #1711 (the 2026-11-16-0610 run: "I couldn't tell whether it counted"): a see_again the line carried, said in the summary.
+    const kept = rest.wish_kept as { character?: string; see_again?: boolean; last_line?: boolean } | undefined;
+    const first = kept?.character ? shortName(kept.character) : "";
+    const wish = first
+      ? `see_again: ${kept!.see_again} kept as ${first}'s private wish${kept!.last_line ? ` (${first}'s last line: it counts)` : ` (not ${first}'s last line: a later see_again of ${first}'s replaces it)`}. `
+      : "";
+    return { ...(w ? { warning: w } : {}), ...(h ? { heads_up: h } : {}), ...(hn ? { heads_up_note: hn } : {}), ...top, ...(wish ? { summary: `${wish}${String(top.summary ?? "")}` } : {}), ...rest };
   }
   const { accepted, ok, rejected, message, ...rest } = data;
   const why = String(message ?? rejected ?? "it broke a rule").replace(/^Not handed in: /, "").replace(/\s*Send a corrected reply for the same step\.$/, "").replace(NOTHING_USED, "").replace(/[.\s]+$/, "");
@@ -4020,6 +4026,8 @@ const MIN_KEEP = [
   "summary", "last_line", "show_takes_over_at", "seconds_left", "returned_because", "result", "wishes", "ignored_arguments",
   // #1526, #1522: what became of a last line's missing see_again, and a recap's ignored character_id.
   "wish_defaulted", "speaker_ignored",
+  // #1711 (the 2026-11-16-0610 run: a see_again beside output "was accepted silently"): what became of the one sent.
+  "wish_kept", "wishes_kept", "wish_ignored",
 ] as const;
 
 /**
@@ -6057,7 +6065,12 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
     case "my_dates": {
       const who = resolveIdentity(args, session, false);
       if (!who) return { data: { dates: [], note: NEEDS_IDENTITY } };
-      const dates = (await listMyEpisodes(db, who.id)).map((e: EpisodeView) => trimEpisode(e as unknown as Record<string, unknown>));
+      // #1709 (the 2026-11-16-0610 run: my_dates said aired: false while the notifications said it had aired): a date whose
+      // time has come airs now, as browse_episodes and get_episode do, so it isn't listed as unaired with nothing left to wait.
+      let listed = await listMyEpisodes(db, who.id);
+      const due = listed.filter((e) => !e.revealed && e.status === "ready" && e.visibility !== "private").map((e) => e.id);
+      if ((await Promise.all(due.map((id) => airIfDue(db, id).catch(() => null)))).some(Boolean)) listed = await listMyEpisodes(db, who.id);
+      const dates = listed.map((e: EpisodeView) => trimEpisode(e as unknown as Record<string, unknown>));
       // #1517: the finished dates listed here, endings and all, are read: their "it's done" notices aren't waiting any more.
       const finished = dates.filter((d) => d.status === "ready").map((d) => `/episodes/${d.id}`);
       if (finished.length) {
@@ -7391,8 +7404,17 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       if (!r.ok && r.status === 404) return { error: "No episode with that id. browse_episodes lists the dates still open for predictions." };
       // #427: a listed date can air before its airs_at (a watch party), so say it plainly, with when.
       if (!r.ok && r.data.error === "episode_revealed") {
-        const at = (await db.query<{ at: Date | string | null }>(`select revealed_at as at from episodes where id = $1`, [String(args.episode_id ?? "")])).rows[0]?.at;
-        return { error: `This date has already aired${at ? ` (at ${new Date(at).toISOString()}` : " ("}; a date can air before its listed airs_at, say in a watch party), so predictions are closed. browse_episodes with open: true lists the ones still open.` };
+        const row = (await db.query<{ at: Date | string | null; created_at: Date | string }>(`select revealed_at as at, created_at from episodes where id = $1`, [String(args.episode_id ?? "")])).rows[0];
+        // #1709 (the 2026-11-16-0610 run: "browse_episodes says airs_at is minutes away but predict says already aired"): the
+        // date had aired on time, seconds after the list was read, and this said it could have aired early. Said as it was.
+        const at = row?.at ? new Date(row.at) : null;
+        const listed = row ? new Date(new Date(row.created_at).getTime() + airWindowMinutes() * 60_000) : null;
+        const ago = at ? Math.max(0, Math.round((Date.now() - at.getTime()) / 1000)) : null;
+        const why =
+          at && listed && at.getTime() >= listed.getTime() - 1000
+            ? `, ${ago} second${ago === 1 ? "" : "s"} ago: on time, its airs_at was ${listed.toISOString()}, so a list read just before then still showed it open)`
+            : "; a date can air before its listed airs_at, say in a watch party)";
+        return { error: `This date has already aired${at ? ` (at ${at.toISOString()}` : " ("}${why}, so predictions are closed. browse_episodes with open: true lists the ones still open.` };
       }
       if (!r.ok) return { error: errorOf(r) };
       // #435: when it airs and what the pick is worth, so the points aren't a mystery until then. 2.4.2: when it really
