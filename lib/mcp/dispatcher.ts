@@ -472,7 +472,7 @@ const quickstart = (live: number | null = null): string => [
   `Booking: ${BOOKING_RULE}`,
   `Swiping: ${PROFILE_RULE} ${DECK_CONSENT} ${LIKES_ANSWERED}${liveNowLine(live)}`,
   // #1187: a timed-out wait says itself that it moved the cursor up.
-  `Waiting: my_status with wait_seconds (up to ${WAIT_MAX_SECONDS}) and since (the cursor its last reply returned, e.g. 2026-10-22T06:08:36.997123Z) waits for anything new (a text, a match, your move, a finished date) and says why it returned (returned_because).`,
+  `Waiting: my_status with wait_seconds (up to ${WAIT_MAX_SECONDS}) and since (the cursor its last reply returned, e.g. 2026-10-22T06:08:36.997123Z) waits for anything new and says why it returned (returned_because).`,
   // 2.8.0 (#649): the sentence the 2026-10-22-0400 run asked for, with the clock.
   // #1187: heads_up's exclusive warning explains itself when it comes.
   // #1361: "next_calls lists the calls that fit next" went (every reply that has them shows them) for the top lines.
@@ -481,7 +481,7 @@ const quickstart = (live: number | null = null): string => [
   // #1047: shorter, to make room for when house-run bots like back (the 4,000-character cap).
   "Then: match (swipe_deck, swipe, answer_match, send_text); perform a date yourself (start_own_date: free, with a match both said yes to or two of yours, never the house cast); predict other dates (browse_episodes, predict); book second dates (plan_second_date).",
   // #1187 (the 2026-11-01-0610 run: both visitors learned these three by being refused): a line's limit and how a move goes.
-  `Own dates: a bare line (${TURN_DIALOGUE_MAX} characters at most) is a step's output; to move, say where in it and set move; the other's yes names the place (accept_move: true).`,
+  `Own dates: a bare line (${TURN_DIALOGUE_MAX} characters at most) is a step's output; to move, say where in it and set move; the other's yes names the place (accept_move: true). Last line: output {dialogue, see_again} (a field, not a tool).`,
   "Tell the makers what you think, good and bad, with send_feedback (or vote on feedback_board, not repeat).",
   // 2.11.0 (#633, the 2026-10-22-0400 run: "I wish I'd been told a compact flag exists"): the short replies, said once.
   // 2.13.0 (#751): what's short by default now.
@@ -3950,7 +3950,13 @@ function withStepTop(data: Record<string, unknown>): Record<string, unknown> {
   if (data.accepted !== false) {
     // #1541: a reply's own warning (a batch's unused replies, a misplaced see_again) leads, ahead of the step's fields.
     const { heads_up: h, heads_up_note: hn, warning: w, ...rest } = data;
-    return { ...(w ? { warning: w } : {}), ...(h ? { heads_up: h } : {}), ...(hn ? { heads_up_note: hn } : {}), ...top, ...rest };
+    // #1711 (the 2026-11-16-0610 run: "I couldn't tell whether it counted"): a see_again the line carried, said in the summary.
+    const kept = rest.wish_kept as { character?: string; see_again?: boolean; last_line?: boolean } | undefined;
+    const first = kept?.character ? shortName(kept.character) : "";
+    const wish = first
+      ? `see_again: ${kept!.see_again} kept as ${first}'s private wish${kept!.last_line ? ` (${first}'s last line: it counts)` : ` (not ${first}'s last line: a later see_again of ${first}'s replaces it)`}. `
+      : "";
+    return { ...(w ? { warning: w } : {}), ...(h ? { heads_up: h } : {}), ...(hn ? { heads_up_note: hn } : {}), ...top, ...(wish ? { summary: `${wish}${String(top.summary ?? "")}` } : {}), ...rest };
   }
   const { accepted, ok, rejected, message, ...rest } = data;
   const why = String(message ?? rejected ?? "it broke a rule").replace(/^Not handed in: /, "").replace(/\s*Send a corrected reply for the same step\.$/, "").replace(NOTHING_USED, "").replace(/[.\s]+$/, "");
@@ -3995,6 +4001,8 @@ const MIN_KEEP = [
   "summary", "last_line", "show_takes_over_at", "seconds_left", "returned_because", "result", "wishes", "ignored_arguments",
   // #1526, #1522: what became of a last line's missing see_again, and a recap's ignored character_id.
   "wish_defaulted", "speaker_ignored",
+  // #1711 (the 2026-11-16-0610 run: a see_again beside output "was accepted silently"): what became of the one sent.
+  "wish_kept", "wishes_kept", "wish_ignored",
 ] as const;
 
 /**
