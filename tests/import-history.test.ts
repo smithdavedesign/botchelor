@@ -15,6 +15,7 @@ vi.mock("next/navigation", async (original) => ({
 vi.mock("@/lib/sets", async (orig) => ({ ...((await orig()) as object), inBackground: () => {} }));
 
 import { POST as readRoute } from "@/app/api/characters/import/history/route";
+import { HISTORY_ANSWER_TOKENS, HISTORY_THINKING_TOKENS } from "@/lib/import-history-reader";
 import { POST as rememberRoute } from "@/app/api/characters/[id]/import-history/route";
 import { GET as memoryGet } from "@/app/api/companion/[id]/memory/route";
 import AlternativePage from "@/app/alternatives/AlternativePage";
@@ -53,7 +54,7 @@ import {
 } from "@/lib/import-history";
 import { drawImportOpener, rememberImported, screenUsLines } from "@/lib/import-history-server";
 import { IMPORT_HISTORY_LIMITS } from "@/lib/limits";
-import { getModel, setFrontierModelForTests, setModelForTests, type ChatMessage } from "@/lib/model";
+import { frontierModelFromEnv, getModel, ModelError, setFrontierModelForTests, setModelForTests, type ChatMessage } from "@/lib/model";
 import { api, BASE_URL, jsonRequest, newUserCookie, scriptedModel, signedInCookie, startTestDb, TEST_SESSION_SECRET, validCharacter } from "./helpers";
 
 let t: Awaited<ReturnType<typeof startTestDb>>;
@@ -503,6 +504,40 @@ describe("POST /api/characters/import/history", () => {
     expect(res.status).toBe(200);
     expect(paid).toHaveBeenCalledTimes(1);
     expect(free.calls).toHaveLength(0);
+  });
+
+  it("asks for no thinking and room for the answer; a model that must think is asked once more with room for both", async () => {
+    const asked: (number | undefined)[] = [];
+    const paid = vi.fn(async (_m: ChatMessage[], o?: { maxTokens?: number }) => {
+      asked.push(o?.maxTokens);
+      if (asked.length === 1) throw new ModelError("model returned HTTP 400 (reasoning is mandatory for this model)", 400);
+      return GOOD_REPLY;
+    });
+    setFrontierModelForTests({ complete: paid });
+    expect((await read({ text: PASTE })).status).toBe(200);
+    expect(asked).toEqual([HISTORY_ANSWER_TOKENS, HISTORY_THINKING_TOKENS]);
+    // Any other refusal is not retried.
+    const refused = vi.fn(async () => {
+      throw new ModelError("model returned HTTP 402", 402);
+    });
+    setFrontierModelForTests({ complete: refused });
+    expect((await read({ text: PASTE })).status).toBe(503);
+    expect(refused).toHaveBeenCalledTimes(1);
+  });
+
+  it("the paid reader's calls carry the no-thinking setting; the retry's don't", () => {
+    const env = { FRONTIER_LLM_BASE_URL: "https://example.invalid/v1", FRONTIER_LLM_API_KEY: "k", FRONTIER_LLM_MODEL: "paid-model" };
+    const bodies: Record<string, unknown>[] = [];
+    const fetchImpl = (async (_url: unknown, init?: { body?: unknown }) => {
+      bodies.push(JSON.parse(String(init?.body)));
+      return new Response(JSON.stringify({ choices: [{ message: { content: "{}" } }] }), { status: 200 });
+    }) as unknown as typeof fetch;
+    return (async () => {
+      await frontierModelFromEnv(env, fetchImpl, { reasoning: { effort: "none" } })!.complete([{ role: "user", content: "x" }]);
+      await frontierModelFromEnv(env, fetchImpl)!.complete([{ role: "user", content: "x" }]);
+      expect(bodies[0].reasoning).toEqual({ effort: "none" });
+      expect(bodies[1].reasoning).toBeUndefined();
+    })();
   });
 
   it("with no paid model it fails like an outage, without falling back to the free one", async () => {
