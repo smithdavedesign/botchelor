@@ -121,6 +121,9 @@ import { kindLabel } from "../kinds";
 import { FORGET_KINDS } from "../memory";
 import { loadLessons } from "../character-lessons";
 import { STORY_FORGET_KINDS, storyView } from "../story-state";
+import { isOcTool, runOcTool } from "./oc-tools";
+import { OC_NAME_KINDS, OC_NAME_STYLES } from "../oc-names";
+import { OC_QUESTION_THEMES } from "../oc-questions";
 import { getHouseScene, getHouseTalk, getStorySoFar, HOUSE_TOOL_NAMES, HOUSE_TOOLS_OFF, isHouseTool, mcpHouseOn, myStoryState, sceneAbout } from "./house";
 import { CROWD_CLIENT_PREFIX, crowdMinutesToWake, HOUSE_BOT_CLIENT_PREFIX, houseBotRefusal } from "../house-bots";
 import { siteUrl } from "../site";
@@ -270,7 +273,9 @@ export const MCP_PROTOCOL_VERSION = "2025-06-18";
 // get_house_scene, get_house_talk, get_story_so_far and my_story_state, and get_episode's house_talk pointer on an aired
 // date of yours the house talked about: new tools and one new field, nothing else changed. The versions are data now
 // (lib/mcp/changelog.ts, shown at /agents/changelog; a test holds its newest entry to this version): add the entry there.
-export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.31.0" } as const;
+// 2.32.0 (2026-11-16): the site's four free OC tools over MCP (lib/mcp/oc-tools.ts), outside the core list: ship_names,
+// oc_chemistry_test, oc_names and oc_question, the /tools pages' own code: new tools, nothing else changed.
+export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.32.0" } as const;
 
 /** Where every tool is listed: the default list is the core (2026-10-20: 53 tools were ~14k tokens in every agent's context). */
 export const ALL_TOOLS_HINT = "/api/mcp?tools=all";
@@ -648,6 +653,10 @@ export const TOOL_COSTS: Record<ToolName, string> = {
   get_house_talk: FREE,
   get_story_so_far: FREE,
   my_story_state: FREE,
+  ship_names: FREE,
+  oc_chemistry_test: FREE,
+  oc_names: FREE,
+  oc_question: FREE,
 };
 
 /** Which tools carry a free-path rate limit (lib/rate-limit.ts). Buckets map to tool names. */
@@ -672,6 +681,7 @@ const RATE_LIMIT_BY_TOOL: Partial<Record<ToolName, RateLimitBucket>> = {
  */
 const toolCategory = (name: ToolName): string => {
   if (isHouseTool(name)) return "house";
+  if (isOcTool(name)) return "oc-tools";
   if (/^(my_|list_|get_|search_|browse_|find_|export_|link_|request_)/.test(name)) return "discovery";
   if (/^(swipe|answer_match|my_matches)/.test(name)) return "swipes";
   if (/_text$|^read_texts$|^send_text$|^leave_nudge$/.test(name)) return "texting";
@@ -780,6 +790,9 @@ export const ENUM_SOURCES: Record<string, readonly unknown[]> = {
   "companion.length": REPLY_LENGTHS,
   "companion.reason": COMPANION_REPORT_REASONS,
   "companion.place": [...SCENE_PLACES, SCENE_TEXTING],
+  "oc_names.style": OC_NAME_STYLES,
+  "oc_names.kind": OC_NAME_KINDS,
+  "oc_question.theme": OC_QUESTION_THEMES.map((t) => t.id),
 };
 /**
  * Tools that work for anyone but are never listed, asked for by name only: request_after_dark until After Dark opens to
@@ -8890,6 +8903,15 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       // An identity only widens it to the caller's own private character (which the house never names anyway).
       const who = resolveIdentity(args, session, false);
       const out = await getHouseTalk(db, args, who?.id ?? null);
+      return "error" in out ? out : { data: out.data, identity: who ?? undefined };
+    }
+    // The free OC tools (2.32.0, lib/mcp/oc-tools.ts): the /tools pages' own code. No identity needed; one given is echoed.
+    case "ship_names":
+    case "oc_chemistry_test":
+    case "oc_names":
+    case "oc_question": {
+      const who = resolveIdentity(args, session, false);
+      const out = runOcTool(name, args);
       return "error" in out ? out : { data: out.data, identity: who ?? undefined };
     }
     case "get_story_so_far": {

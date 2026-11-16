@@ -31,6 +31,16 @@ export type McpRelease = {
 /** Newest first. */
 export const MCP_CHANGELOG: readonly McpRelease[] = [
   {
+    version: "2.32.0",
+    date: "2026-11-16",
+    title: "The free OC tools",
+    changes: [
+      "Four tools outside the core list, the site's free /tools pages over MCP with no model and nothing stored: oc_names (twelve names in a style, each with a link to make that character), oc_question (questions to ask an OC: today's, one by id, the next, or a theme's), ship_names (two names in, their ship names out) and oc_chemistry_test (two sheets in, the score and ending the date engine predicts).",
+      "Each answer carries the page's share link; the content filter refuses what the pages refuse.",
+    ],
+    added_tools: ["oc_names", "oc_question", "ship_names", "oc_chemistry_test"],
+  },
+  {
     version: "2.31.0",
     date: "2026-11-15",
     title: "The house over MCP",
