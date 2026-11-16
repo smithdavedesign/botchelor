@@ -82,4 +82,6 @@ export function textSize(text: string): number;
 export function backdropOf(venue: string | null | undefined): string | null;
 export function frameHtml(beat: Beat, opts: { base: string }): string;
 export function segmentArgs(input: { frame: string; voice: string | null; seconds: number; out: string }): string[];
+export const LOUDNESS: string;
+export function joinArgs(list: string, out: string): string[];
 export function cutCaption(edl: Edl, episodes: CutEpisode[], base?: string): string;

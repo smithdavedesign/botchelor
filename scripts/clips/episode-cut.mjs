@@ -288,6 +288,15 @@ export function segmentArgs({ frame, voice, seconds, out }) {
   ];
 }
 
+/**
+ * The ffmpeg arguments that join the segments (pure): pictures copied as they are, the sound brought to the loudness
+ * short video plays at (-14 LUFS, peaks under -1.5 dB), so a cut isn't the quiet one in someone's feed.
+ */
+export const LOUDNESS = "loudnorm=I=-14:TP=-1.5:LRA=11";
+export function joinArgs(list, out) {
+  return ["-y", "-loglevel", "error", "-f", "concat", "-safe", "0", "-i", list, "-c:v", "copy", "-af", LOUDNESS, "-c:a", "aac", "-b:a", "160k", "-ar", "48000", "-ac", "2", "-movflags", "+faststart", out];
+}
+
 /** The caption to paste (pure): the editor's hook and question, where to watch, the AI line, tags (the loop re-tags ?s=). */
 export function cutCaption(edl, episodes, base = "https://botchelor.com") {
   const host = new URL(base).host;
@@ -390,7 +399,7 @@ async function main() {
     }
     const list = join(tmp, "parts.txt");
     writeFileSync(list, parts.map((p) => `file '${p}'`).join("\n") + "\n");
-    execFileSync(ffmpeg, ["-y", "-loglevel", "error", "-f", "concat", "-safe", "0", "-i", list, "-c", "copy", "-movflags", "+faststart", join(out, "post.mp4")]);
+    execFileSync(ffmpeg, joinArgs(list, join(out, "post.mp4")));
     copyFileSync(frames[edl.cover ?? 0], join(out, "cover.png"));
     writeFileSync(join(out, "caption.txt"), cutCaption(edl, episodes, base) + "\n");
     writeFileSync(join(out, "edl.json"), JSON.stringify(edl, null, 2) + "\n");

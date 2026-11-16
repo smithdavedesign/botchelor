@@ -11,6 +11,7 @@ import {
   endingLabel,
   frameHtml,
   HOST_VOICE,
+  joinArgs,
   LEAD_IN,
   LEAD_OUT,
   pickText,
@@ -155,6 +156,13 @@ describe("timing and voices", () => {
     expect(spoken).toContain(`adelay=${Math.round(LEAD_IN * 1000)}|${Math.round(LEAD_IN * 1000)}`);
     expect(spoken).toContain("-t 4.200");
     expect(spoken).toContain("1080x1920");
+  });
+
+  it("joins the segments with the pictures untouched and the sound brought to short video's loudness", () => {
+    const args = joinArgs("parts.txt", "post.mp4");
+    expect(args.slice(args.indexOf("-c:v"), args.indexOf("-c:v") + 2)).toEqual(["-c:v", "copy"]);
+    expect(args[args.indexOf("-af") + 1]).toMatch(/^loudnorm=I=-14:TP=-1\.5/);
+    expect(args.at(-1)).toBe("post.mp4");
   });
 });
 
