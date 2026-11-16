@@ -1088,12 +1088,13 @@ h2 {
   font-size: var(--text-sm);
 }
 
-.footer-badges {
-  margin: 1rem 0 0;
+.home-badges {
+  margin: 2rem 0 0;
+  text-align: center;
 }
 
-.footer-badges img {
-  display: block;
+.home-badges img {
+  display: inline-block;
   max-width: 100%;
   height: auto;
 }
