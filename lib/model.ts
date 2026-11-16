@@ -498,9 +498,13 @@ export function namedModel(name: string, env: Record<string, string | undefined>
 export const frontierConfigured = (env: Record<string, string | undefined> = process.env): boolean =>
   Boolean(env.FRONTIER_LLM_BASE_URL && env.FRONTIER_LLM_API_KEY && env.FRONTIER_LLM_MODEL);
 
-export function frontierModelFromEnv(env: Record<string, string | undefined> = process.env, fetchImpl?: typeof fetch): Model | null {
+/**
+ * `extraBody`: fields sent with every call on this instance (the endpoint's own, e.g. OpenRouter's
+ * `reasoning: { effort: "none" }` for a call that must not spend its token allowance thinking).
+ */
+export function frontierModelFromEnv(env: Record<string, string | undefined> = process.env, fetchImpl?: typeof fetch, extraBody?: Record<string, unknown>): Model | null {
   if (!frontierConfigured(env)) return null;
-  return openAICompatibleModel({ baseUrl: env.FRONTIER_LLM_BASE_URL!, apiKey: env.FRONTIER_LLM_API_KEY!, model: env.FRONTIER_LLM_MODEL!, fetchImpl });
+  return openAICompatibleModel({ baseUrl: env.FRONTIER_LLM_BASE_URL!, apiKey: env.FRONTIER_LLM_API_KEY!, model: env.FRONTIER_LLM_MODEL!, fetchImpl, extraBody });
 }
 
 /** True only when a frontier password is set and the request carries the matching x-frontier-key header. */
@@ -515,8 +519,8 @@ let testFrontierModel: Model | null = null;
 export function setFrontierModelForTests(model: Model | null): void {
   testFrontierModel = model;
 }
-export function getFrontierModel(): Model | null {
-  return testFrontierModel ?? frontierModelFromEnv();
+export function getFrontierModel(extraBody?: Record<string, unknown>): Model | null {
+  return testFrontierModel ?? frontierModelFromEnv(process.env, undefined, extraBody);
 }
 
 /**

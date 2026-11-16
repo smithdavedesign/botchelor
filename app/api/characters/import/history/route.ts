@@ -14,7 +14,8 @@ import {
   type HistoryFailure,
 } from "@/lib/import-history";
 import { IMPORT_HISTORY_ALL_LIMITS, IMPORT_HISTORY_IP_LIMITS, IMPORT_HISTORY_LIMITS, overLimit, visitorKey } from "@/lib/limits";
-import { getFrontierModel, getModel, ModelError, type Model } from "@/lib/model";
+import { HISTORY_ANSWER_TOKENS, HISTORY_THINKING_TOKENS, historyReader } from "@/lib/import-history-reader";
+import { ModelError } from "@/lib/model";
 
 const Body = z.object({
   text: z.string().trim().min(HISTORY_MIN, "Paste a little more of their history first.").max(HISTORY_READ_MAX),
@@ -40,17 +41,6 @@ async function readHistoryBody(req: Request): Promise<unknown> {
   }
 }
 
-/**
- * Who reads a history (the owner's call, 2026-11-15): the show's PAID model, and nothing when there is none. A history
- * is someone's private chat log, and a free tier's terms may let its provider use what it is sent; the paid model's do
- * not. So there is no quiet fall back to the free model: without a paid model the reading fails the way an outage
- * does, and the character comes in without its history. IMPORT_HISTORY_MODEL=free puts it back on the free model
- * (a local setup with no paid key, the visual harness).
- */
-export function historyReader(env: Record<string, string | undefined> = process.env): Model | null {
-  if (env.IMPORT_HISTORY_MODEL === "free") return getModel("low", false);
-  return getFrontierModel();
-}
 
 /**
  * Why a reading failed, for the log: the kind, the provider's status and how long the answer was. Never a word of the
@@ -74,14 +64,16 @@ async function ask(name: string, text: string): Promise<string | "timeout" | nul
       return null;
     }
     // No sampling settings: the paid model is called the way the show's other calls on it are (some models refuse a
-    // temperature), and the prompt, not the temperature, is what keeps it to copying. Room for eight lines and their JSON.
-    const call = reader.complete(
-      [
-        { role: "system", content: historyPrompt(name) },
-        { role: "user", content: text },
-      ],
-      { maxTokens: 1000 },
-    );
+    // temperature), and the prompt, not the temperature, is what keeps it to copying.
+    const messages = [
+      { role: "system" as const, content: historyPrompt(name) },
+      { role: "user" as const, content: text },
+    ];
+    const call = reader.complete(messages, { maxTokens: HISTORY_ANSWER_TOKENS }).catch((err: unknown) => {
+      const thinker = err instanceof ModelError && err.status === 400 ? historyReader(process.env, true) : null;
+      if (!thinker) throw err;
+      return thinker.complete(messages, { maxTokens: HISTORY_THINKING_TOKENS });
+    });
     // A call that fails after we stopped waiting must not become an unhandled rejection.
     call.catch(() => {});
     const answer = await Promise.race([call, late]);
@@ -106,7 +98,7 @@ async function ask(name: string, text: string): Promise<string | "timeout" | nul
  * at most eight one-sentence lines, each typed by where it would go (the character's facts, the companion memory, the
  * voice) and already past that place's check; `dropped` is how many the reader offered that weren't (a count).
  *
- * The text is read once, here, by the show's paid model (historyReader), and nothing of it is kept: no table, no log line, no analytics
+ * The text is read once, here, by the show's paid model (lib/import-history-reader.ts), and nothing of it is kept: no table, no log line, no analytics
  * prop (the page's events carry counts). The page has already cut it to HISTORY_READ_MAX. Nothing is saved by this route
  * at all: the person edits the list, and what they keep rides the character's own save and the memory write.
  *
