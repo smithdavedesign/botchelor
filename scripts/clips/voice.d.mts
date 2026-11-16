@@ -9,6 +9,7 @@ export function sayable(text: string): string;
 export function fitPlan(marks: number[], durations: number[], end?: number): VoicePlan[];
 export function mixArgs(plan: VoicePlan[], total: number): string;
 export function veniceKey(): string | null;
+export function veniceLine(words: string, voice: string, file: string, key: string, speed?: number): Promise<void>;
 export function soundSeconds(file: string): number;
 export function speakLines(lines: { side: "a" | "b"; text: string }[], characters: { id: string; pronouns?: string | null }[], dir: string, opts?: { log?: (s: string) => void }): Promise<{ files: (string | null)[]; engine: "kokoro" | "say" }>;
 export function voiceTrack(input: { lines: { side: "a" | "b"; text: string }[]; characters: { id: string; pronouns?: string | null }[]; marks: number[]; totalSeconds: number; dir: string; log?: (s: string) => void }): Promise<{ track: string; engine: "kokoro" | "say"; spoken: number }>;

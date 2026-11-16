@@ -110,6 +110,7 @@ describe("with the switch off (no AFTER_DARK_ORIGIN): exactly today's behaviour"
     expect(await config.redirects!()).toEqual([
       { source: "/reels", destination: "/showcase", permanent: false },
       { source: "/messages", destination: "/matches", permanent: false },
+      { source: "/december", destination: "/casting?utm_source=clip&utm_medium=clip&utm_campaign=december", permanent: false },
     ]);
     expect(await config.headers!()).toEqual([
       // The security headers on every response (lib/security-headers.ts), which don't depend on the switch.
