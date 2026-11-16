@@ -34,6 +34,9 @@ import PhoneTabBar from "./PhoneTabBar";
 import SeasonBanner from "./SeasonBanner";
 import SeasonStrip from "./SeasonStrip";
 import { seasonFormatNow } from "@/lib/season-format-store";
+import { seasonPageLiveOn } from "@/lib/season-page";
+import { seasonPath } from "@/lib/season-ref";
+import { seasonIdOf } from "@/lib/season-window";
 import { shared } from "@/lib/shared-cache";
 import JsonLd from "./JsonLd";
 import Nav from "./Nav";
@@ -210,10 +213,11 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
           )}
           <Nav tokens={adHost && viewerId ? (adTokens ?? dates.pack_left) : dates.left} meter={adHost ? (viewerId && afterDark ? "tokens" : "none") : "dates"} personal={Boolean(viewerId)} unread={unread} texts={texts} afterDark={afterDark} adHost={adHost} showHref={showHome()} hasCharacter={hasCharacter} prefetchShow={!adHost} companions={companionOpen()} chat={navChat} adDoors={adDoors} />
         </header>
-        {/* The season's arc runs under the header on the show's spectator pages (the design system's all-screens board). */}
+        {/* The season's arc runs under the header on the show's spectator pages (the design system's all-screens board).
+            A lead season's (The Botchelor) counts to the final rose and opens its own page (docs/season-page.md). */}
         {!adHost && (
           <SeasonStrip>
-            <SeasonBanner format={seasonDef?.title ?? null} />
+            <SeasonBanner format={seasonDef?.title ?? null} def={seasonDef} href={seasonDef?.lead && seasonPageLiveOn() ? seasonPath(seasonIdOf(new Date())) : undefined} />
           </SeasonStrip>
         )}
         <main id="main">{children}</main>

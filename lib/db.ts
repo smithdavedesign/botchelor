@@ -4236,6 +4236,14 @@ create table if not exists premieres (
   note text,
   created_at timestamptz not null default now()
 );
+-- The season page's starters (lib/season-page.ts, docs/season-page.md): up to three of the lead's dates an admin pinned
+-- for a lead season's "Start here" box (/admin/season), in order. A pin shows only while it passes the automatic picks'
+-- checks (aired, public, both characters public, not hidden, featurable by the story check).
+create table if not exists season_starters (
+  season_id text primary key,
+  episode_ids jsonb not null default '[]'::jsonb,
+  updated_at timestamptz not null default now()
+);
 `;
 
 /** Idempotent: creates the tables and upserts the house characters, free and premium. */

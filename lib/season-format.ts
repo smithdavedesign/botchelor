@@ -382,3 +382,54 @@ export function nextCeremonySunday(def: SeasonFormatDef, now: Date): string | nu
   const today = dayId(now);
   return ceremonySundays(def, now).find((d) => d >= today) ?? null;
 }
+
+const NUMBER_WORDS = ["no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];
+/** "five" for 5, as the season page says counts. */
+export const countWord = (n: number): string => NUMBER_WORDS[n] ?? String(n);
+
+/** How many suitors a lead format casts (lib/season-cast.ts pickLeadCast): its places but the lead's, at least suitorsMin. */
+export const suitorPlaces = (def: SeasonFormatDef): number => (def.lead ? Math.max(def.lead.suitorsMin, def.lead.places - 1) : 0);
+
+/**
+ * One line on Classic vs a lead format (brief E, docs/season-page.md), from SEASON_FORMATS' own titles so it can't
+ * drift: "Most months are Classic Botchelor: everyone's characters on blind dates, nobody steering. December is The
+ * Botchelor: one lead, five suitors, and a rose ceremony every Sunday." Null without a lead. The season page says it,
+ * and so does /watch's season line while the month runs.
+ */
+export function formatContrast(def: SeasonFormatDef, month: string): string | null {
+  if (!def.lead) return null;
+  return `Most months are ${seasonFormat(DEFAULT_SEASON_FORMAT).title}: everyone's characters on blind dates, nobody steering. ${month} is ${def.title}: one lead, ${countWord(suitorPlaces(def))} suitors, and a rose ceremony every Sunday.`;
+}
+
+export type SeasonArc = {
+  /** Tonight's night of the season (1-based) and how many nights it has. */
+  night: number;
+  nights: number;
+  /** How far through the season tonight is, 0–100. */
+  pct: number;
+  /** Whole days from today to the finale (0: tonight), or, once a lead format's finale has passed, to the season's end. */
+  left: number;
+  /** What `left` counts to: the finale, or (after a lead format's final rose) the season's last night. */
+  to: "finale" | "end";
+};
+
+/**
+ * Where the season stands, as the arc under the header draws it (app/SeasonBanner.tsx) and the season page's hero
+ * (app/seasons/[slug]/SeasonLive.tsx): the night of the month, how far through it is, and the days to the finale. A
+ * season's finale is its last night, except on a lead format (The Botchelor), whose finale is its last ceremony Sunday,
+ * the final rose (lib/ceremony.ts): the arc counts to that, and to the season's end once it has passed.
+ */
+export function seasonArc(now: Date, def: SeasonFormatDef | null = null): SeasonArc {
+  const { start, end } = seasonWindow(now);
+  const nights = Math.round((end.getTime() - start.getTime()) / DAY_MS);
+  const night = Math.min(nights, seasonDayOf(now));
+  const pct = Math.max(0, Math.min(100, Math.round((night / nights) * 100)));
+  const sundays = def ? ceremonySundays(def, now) : [];
+  const finale = sundays[sundays.length - 1];
+  if (finale) {
+    const days = Math.round((Date.parse(`${finale}T00:00:00Z`) - Date.parse(`${dayId(now)}T00:00:00Z`)) / DAY_MS);
+    if (days >= 0) return { night, nights, pct, left: days, to: "finale" };
+    return { night, nights, pct, left: nights - night, to: "end" };
+  }
+  return { night, nights, pct, left: nights - night, to: "finale" };
+}

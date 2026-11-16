@@ -413,7 +413,35 @@ async function main() {
       .then((d) => d.invites?.[0]?.code ?? null)
       .catch(() => null);
 
-    // Each route: who opens it, and an optional walk through its states (each state is audited separately).
+    // The coming season as a lead season (The Botchelor) for its own page (app/seasons/[slug]/SeasonLive.tsx), set the
+    // way the admin sets it and put back after, so no other route sees a lead season.
+    const adminSeason = (body) =>
+      fetch(`${base}/api/admin/season`, {
+        method: "POST",
+        headers: { origin: base, "content-type": "application/json", "x-frontier-key": ADMIN_PASSWORD },
+        body: JSON.stringify(body),
+      }).then((r) => {
+        if (!r.ok) throw new Error(`/api/admin/season ${body.action} → ${r.status}`);
+      });
+    const nextMonth = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth() + 1, 1));
+    const nextSeasonId = nextMonth.toISOString().slice(0, 10);
+    const nextSeasonSlug = `${nextMonth.toLocaleString("en-US", { month: "long", timeZone: "UTC" }).toLowerCase()}-${nextMonth.getUTCFullYear()}`;
+    const leadSeason = {
+      before: async () => {
+        const lead = await fetch(`${base}/api/admin/season`, { headers: { "x-frontier-key": ADMIN_PASSWORD } })
+          .then((r) => r.json())
+          .then((d) => d.leads?.[0]?.id);
+        await adminSeason({ action: "format", season_id: nextSeasonId, slug: "botchelor" });
+        if (lead) await adminSeason({ action: "lead", season_id: nextSeasonId, character_id: lead });
+      },
+      after: async () => {
+        await adminSeason({ action: "lead", season_id: nextSeasonId, character_id: null });
+        await adminSeason({ action: "format", season_id: nextSeasonId, slug: "classic" });
+      },
+    };
+
+    // Each route: who opens it, and an optional walk through its states (each state is audited separately). `before` and
+    // `after` set up and put back what the route needs, around each pass of it.
     const routes = [
       // The swipe deck: the PG show pages open without the gate since 2026-11-14 (middleware.ts), the deck still meets it.
       { name: "gate", path: "/swipe", as: "visitor" },
@@ -639,6 +667,8 @@ async function main() {
       { name: "notifications", path: "/notifications", as: "owner" },
       { name: "graph", path: "/graph" },
       { name: "reunion", path: "/reunion" },
+      // A lead season's own page, the month before it starts (docs/season-page.md).
+      { name: "season-live", path: `/seasons/${nextSeasonSlug}`, ...leadSeason },
       { name: "house", path: "/house" },
       { name: "ship", path: "/ship/juniper/teo" },
       { name: "tool-chemistry", path: "/tools/oc-chemistry-test" },
@@ -742,6 +772,7 @@ async function main() {
           };
 
           try {
+            if (route.before) await route.before();
             await page.goto(base + route.path);
             await audit(route.name);
             if (route.walk === "wizard") {
@@ -762,6 +793,7 @@ async function main() {
             report.push({ variant, state: route.name, url: route.path, file: "", findings: [{ rule: "crawl", level: "error", el: "", detail: String(err).slice(0, 300) }] });
             console.log(`  ✗ ${variant.padEnd(13)} ${route.name}: ${err}`);
           }
+          if (route.after) await route.after().catch((err) => console.log(`  ✗ ${variant.padEnd(13)} ${route.name} (putting it back): ${err}`));
           await page.close();
         }
         for (const ctx of Object.values(contexts)) await ctx.close();
