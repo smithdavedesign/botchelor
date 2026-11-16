@@ -481,7 +481,7 @@ export async function storyMap(db: Db, now: Date = new Date(), env: Env = proces
         )
       ).rows
     : [];
-  return shapeStoryMap({ now, season_id: season, cast, lead, people, beats: beats.rows, pairs: pairs.rows.map((p) => ({ ...p, stage: shownStage(isStage(p.stage) ? p.stage : null, isStage(p.shown) ? p.shown : null, env) })), rooms: roomRows, scenes });
+  return shapeStoryMap({ now, season_id: season, cast, lead, people, beats: beats.rows, pairs: pairs.rows.map((p) => ({ ...p, stage: shownStage(isStage(p.stage) ? p.stage : null, isStage(p.shown) ? p.shown : null, env, p.dates) })), rooms: roomRows, scenes });
 }
 
 /* ------------------------------------------------ the shared copy ------------------------------------------------ */

@@ -287,10 +287,16 @@ export function shownStageOf(dates: readonly StageDate[], marks: StageMarks = {}
   return stagesV2On(env) ? stageSteps(dates, marks).now : stageOf(dates.map((d) => d.ending));
 }
 
-/** The stage to show from a stored pair of them: the shown one when the switch is on and it was stored, else the base. */
-export function shownStage(base: Stage | null | undefined, shown: Stage | null | undefined, env: Env = process.env): Stage | null {
+/**
+ * The stage to show from a stored pair of them: the shown one when the switch is on and it was stored, else the base.
+ * `dates` (the layer's date count, where the reader has it) covers a row the backfill hasn't reached: one date that
+ * ended badly reads "didn't click" from the first minute, never as a feud.
+ */
+export function shownStage(base: Stage | null | undefined, shown: Stage | null | undefined, env: Env = process.env, dates?: number): Stage | null {
   if (!stagesV2On(env)) return base ? baseOf(base) : null;
-  return (shown && isStage(shown) ? shown : base) ?? null;
+  if (shown && isStage(shown)) return shown;
+  if (base === "bad_blood" && dates === 1) return "didnt_click";
+  return base ?? null;
 }
 
 /** A step up worth telling: further along than before, and at least sparks. */

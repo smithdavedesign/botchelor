@@ -648,7 +648,7 @@ export async function backfillShownStages(db: Db, opts: { limit?: number; env?: 
     `select character_a as lo, character_b as hi, stage, public_stage, dates, public_dates from relationships
       where (stage is not null and shown_stage is null) or (public_stage is not null and public_shown_stage is null)
       order by character_a, character_b limit $1`,
-    [opts.limit ?? 500],
+    [opts.limit ?? 2000],
   );
   if (!pairs.length) return 0;
   const los = pairs.map((p) => p.lo);

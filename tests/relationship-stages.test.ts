@@ -231,6 +231,10 @@ describe("labels, lines and ranks", () => {
     expect(shownStage("going_steady", "official", OFF)).toBe("going_steady");
     expect(shownStage("bad_blood", null, ON)).toBe("bad_blood");
     expect(shownStage(null, null, ON)).toBeNull();
+    // A row the backfill hasn't reached, where the reader knows the count: one bad date never reads as a feud.
+    expect(shownStage("bad_blood", null, ON, 1)).toBe("didnt_click");
+    expect(shownStage("bad_blood", null, ON, 2)).toBe("bad_blood");
+    expect(shownStage("bad_blood", null, OFF, 1)).toBe("bad_blood");
   });
 });
 

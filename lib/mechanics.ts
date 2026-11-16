@@ -236,7 +236,7 @@ export async function listRelationshipEdges(db: Db, limit = 40): Promise<Relatio
   );
   // The stage as it is shown (lib/relationship-stages.ts): the fuller reading, or the base one with the switch off.
   return rows.map(({ public_stage, public_shown_stage, ...r }) => {
-    const stage = shownStage(public_stage, public_shown_stage);
+    const stage = shownStage(public_stage, public_shown_stage, process.env, r.dates);
     return { ...r, stage: stage ? STAGE_LABELS[stage] : relationshipStage(r.dates, r.second_dates, r.last_ending) };
   });
 }

@@ -456,7 +456,7 @@ export async function constellation(db: Db, now = new Date()): Promise<GraphData
       masked: false,
       dates: e.dates,
       second_dates: e.second_dates,
-      stage: ((st) => (st ? STAGE_LABELS[st] : null))(shownStage(e.public_stage, e.public_shown_stage)),
+      stage: ((st) => (st ? STAGE_LABELS[st] : null))(shownStage(e.public_stage, e.public_shown_stage, process.env, e.dates)),
       last_at,
       weight: publicWeight({ dates: e.dates, second_dates: e.second_dates, last_at }, now),
       first_at: f?.first_at ?? null,
