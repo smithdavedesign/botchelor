@@ -89,7 +89,7 @@ describe("the clips' captions carry the credit", () => {
   });
 
   it("an episode cut credits every credited character across its dates, once each", () => {
-    const edl = { n: 7, name: "Test", hook: "Hook.", question: "Q?", segments: [] };
+    const edl = { n: 7, name: "Test", episodes: ["e1", "e2"], hook: "Hook.", question: "Q?", segments: [] };
     const eps = [
       { id: "e1", characters: [wren, house] },
       { id: "e2", characters: [house, wren] },
