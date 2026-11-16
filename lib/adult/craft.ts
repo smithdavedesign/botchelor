@@ -258,6 +258,22 @@ export function wrongPossessives(text: string, kinds: readonly [PronounKind | nu
     .map((p) => text.slice(p.at, p.end));
 }
 
+/** A penis, named: "cock", "dick". */
+const PENIS = /\b(cocks?|dicks?|penis(es)?|erections?)\b/i;
+/** What lets two people without one have one in a scene. */
+const TOY = /\b(strap[- ]?ons?|harness|dildos?|toys?)\b/i;
+
+/**
+ * A penis in a line when neither of them is he/him and no strap-on or toy is in the scene (Lexi × Juniper on prod,
+ * 2026-11-16: "Tell me how bad you want my cock inside you." from Lexi, both women). The word as written, else null.
+ * Only when both sheets give pronouns; `scene` is the night's text so far.
+ */
+export function bodyNeitherHas(text: string, kinds: readonly [PronounKind | null, PronounKind | null], scene = ""): string | null {
+  if (!kinds[0] || !kinds[1] || kinds.includes("he")) return null;
+  if (TOY.test(text) || TOY.test(scene)) return null;
+  return PENIS.exec(text)?.[0] ?? null;
+}
+
 /**
  * The place text with a wrong possessive put right: one that fits neither of them, or (when they're in one of their
  * homes) a place that's the other's. It becomes the home's owner's name ("Sable's apartment entrance"), else the

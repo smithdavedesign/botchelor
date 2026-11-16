@@ -42,7 +42,7 @@ import {
 import { agreedMove, historyPhrase, isPublicPlace as isPublicSet, MAX_SCENE_MOVES, narratedMove, placeLocked, proposesMove, repeatOf, saysCatchphrase, settlePlace, shownMove, withoutOpening, withoutPart, withoutPhrase, type MoveLog, type PlaceStop } from "./continuity";
 import { loadChain } from "../text-chain";
 import { placeParts, venuePhrase } from "../venues";
-import { activeLimit, climaxesIn, climaxIn, linesAtPlace, objectOf, possessiveNames, possessiveOf, pronounKind, recentClimax, repairPlacePronouns, THRESHOLD_LINES, thresholdOf } from "./craft";
+import { activeLimit, bodyNeitherHas, climaxesIn, climaxIn, linesAtPlace, objectOf, possessiveNames, possessiveOf, pronounKind, recentClimax, repairPlacePronouns, THRESHOLD_LINES, thresholdOf } from "./craft";
 import { stageShown, stagesFor, withoutSteerCopy } from "./stage-floor";
 import { textModelHistory, writtenBy, type WrittenBy } from "./model-log";
 import { fileSteps, flagStep, logStep, markRewound, stepIndexOf, stepsOf, unfileSteps, type StepRow } from "./steps";
@@ -1853,6 +1853,8 @@ export type StepFlags = {
   move_retry?: boolean;
   move_unagreed?: string;
   wrong_speaker?: number;
+  /** Lines dropped for a penis when neither of them is he/him and no strap-on or toy is in the scene (bodyNeitherHas). */
+  body_dropped?: number;
   steer_followed?: "yes" | "partly" | "no";
 };
 
@@ -2078,6 +2080,13 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
         misplaced++;
         flags.wrong_speaker = (flags.wrong_speaker ?? 0) + 1;
         drops.push({ who: l.who, text: l.text, reason: `its action is the other one's ("${wrong}…"): under the wrong speaker` });
+        continue;
+      }
+      // 2026-11-16 (Lexi × Juniper, DeepSeek): "my cock" from one of two women. A body neither of them has goes.
+      const body = bodyNeitherHas(unselfed, [pronounKind(a?.pronouns), pronounKind(b?.pronouns)], [steer ?? "", ...whispered, ...night.map((x) => x.text), ...inScene.map((x) => x.text)].join(" "));
+      if (body) {
+        flags.body_dropped = (flags.body_dropped ?? 0) + 1;
+        drops.push({ who: l.who, text: l.text, reason: `gives one of them a body neither has ("${body}")` });
         continue;
       }
       // The steer acted out, never quoted (lib/adult/stage-floor.ts): an action that copies it goes, a line that does is dropped.
@@ -3462,7 +3471,12 @@ export async function sceneNotes(db: Db, ownerId: string, x: string, y: string):
     [ownerId, scene.a.id, scene.b.id],
   );
   // What was asked at each step, and what came of it or the error (lib/adult/steps.ts); and which model wrote each chapter.
-  const [steps, history] = await Promise.all([stepsOf(db, ownerId, scene.a.id, scene.b.id), textModelHistory(db)]);
+  const [steps, history, ca, cb] = await Promise.all([stepsOf(db, ownerId, scene.a.id, scene.b.id), textModelHistory(db), loadCharacter(db, scene.a.id), loadCharacter(db, scene.b.id)]);
+  // A move's label is the set's name ("his apartment"), put right for who they are, and whose home it is when it's one.
+  const pronouns = { a: ca?.pronouns, b: cb?.pronouns };
+  const homeAt = (set: string | null) => scene.place_history.find((h) => h.set === set)?.home ?? null;
+  const label = (to: string | null) => (to ? (repairPlacePronouns(to, pronouns, names, homeAt(to)).text ?? to) : to);
+  const moves = scene.moves.map((m) => ({ ...m, from: label(m.from), to: label(m.to) ?? m.to }));
   const wrote = (s: readonly StepRow[]) => s.filter((x) => x.kind === "write" && x.status === "ok" && !x.rewound);
   // The show's roleplay, or one of the owner's own (lib/studio/library.ts), as the writer was given it.
   const rid = scene.roleplay?.id ?? null;
@@ -3471,7 +3485,7 @@ export async function sceneNotes(db: Db, ownerId: string, x: string, y: string):
     a: scene.a,
     b: scene.b,
     current: {
-      chapter: scene.chapter, place: scene.place, set_place: scene.set_place, roleplay: roleplayNote(chapterRoleplay, scene.roleplay ?? null, names), place_history: scene.place_history, moves: scene.moves,
+      chapter: scene.chapter, place: scene.place, set_place: scene.set_place, roleplay: roleplayNote(chapterRoleplay, scene.roleplay ?? null, names), place_history: scene.place_history, moves,
       steps: steps.running, lines: notesOf(scene.lines, names, steps.running), written_by: writtenBy(wrote(steps.running), new Date().toISOString(), history),
     },
     nights: rows.map((r) => {
