@@ -14,6 +14,12 @@ export const metadata: Metadata = pageMetadata({
 });
 
 const day = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+/** A post's date, short: the year only when it isn't this year. */
+const short = (iso: string) => {
+  const d = new Date(iso);
+  const year = d.getUTCFullYear() === new Date().getUTCFullYear() ? undefined : "numeric";
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year, timeZone: "UTC" });
+};
 const usd = (n: number) => `$${n.toFixed(2).replace(/\.00$/, "")}`;
 const num = (n: number | null | undefined) => (n == null ? "—" : n.toLocaleString("en-US"));
 
@@ -64,7 +70,6 @@ function PostsTable({ m }: { m: PublicMarketing }) {
             <th scope="col">Date</th>
             <th scope="col">Where</th>
             <th scope="col">What</th>
-            <th scope="col">Kind</th>
             <th scope="col" className="num">Score there</th>
             <th scope="col" className="num">Replies</th>
             <th scope="col" className="num">Visitors</th>
@@ -76,8 +81,15 @@ function PostsTable({ m }: { m: PublicMarketing }) {
         <tbody>
           {posts.map((p) => (
             <tr key={p.id}>
-              <td>{day(p.at)}</td>
-              <td>{p.channel_name}</td>
+              <td className="marketing-date">
+                <time dateTime={p.at} title={day(p.at)}>
+                  {short(p.at)}
+                </time>
+              </td>
+              <td className="marketing-where">
+                {p.channel_name}
+                <span className="muted small">{TYPE_LABEL[p.type]}</span>
+              </td>
               <td className="marketing-what">
                 {p.url ? (
                   <a href={p.url} rel="nofollow noopener" target="_blank">
@@ -88,7 +100,6 @@ function PostsTable({ m }: { m: PublicMarketing }) {
                 )}
                 {p.note && <span className="muted small">{p.note}</span>}
               </td>
-              <td>{TYPE_LABEL[p.type]}</td>
               <td className="num">{num(p.score)}</td>
               <td className="num">{num(p.comments)}</td>
               {p.type === "answer" ? (
