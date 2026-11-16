@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { bucket, percent, type Interval } from "@/lib/chart";
 import type { Insights, QualitySummary, QualityTableRow } from "@/lib/insights";
 import type { QualityRunKind } from "@/lib/quality-runs";
+import type { StoryCheckCounts, StoryCounts } from "@/lib/story-check";
 import type { ReadinessGate, TrainingReadiness } from "@/lib/training-readiness";
 import { TimeChart, type Marker } from "./charts";
 import { KpiCard } from "./Kpis";
@@ -54,6 +55,7 @@ export default function QualityTab({ data, interval, adminFetch }: { data: Insig
         Runs posted from the developer&apos;s Mac (POST /api/admin/quality and /api/admin/sim-ratings): our own evaluations, so the
         segment and our-traffic filters don&apos;t apply. This period against the previous {data.query.days} days:
       </p>
+      {adminFetch && <StoryCheckLine adminFetch={adminFetch} />}
       <div className="table-scroll">
         <table className="board">
           <thead>
@@ -163,6 +165,46 @@ export default function QualityTab({ data, interval, adminFetch }: { data: Insig
 }
 
 const count = (x: number) => x.toLocaleString("en-US");
+
+/** One window of the story check's verdicts, as a phrase: "41 of 120 aired dates checked: 30 consistent, …, $0.02". */
+function storyPhrase(c: StoryCounts): string {
+  const parts = [
+    `${count(c.consistent)} consistent`,
+    `${count(c.hidden_truth)} hidden truth`,
+    `${count(c.reversal)} reversal`,
+    `${count(c.contradicts)} contradicting (not featured)`,
+    ...(c.repaired ? [`${count(c.repaired)} finale${c.repaired === 1 ? "" : "s"} repaired`] : []),
+    ...(c.by_rules ? [`${count(c.by_rules)} by the $0 rules`] : []),
+  ];
+  return `${count(c.checked)} of ${count(c.aired)} aired dates checked: ${parts.join(", ")}; $${c.cost_usd.toFixed(2)}`;
+}
+
+/** The story check's line on the Quality tab (exported for tests/story-check.test.ts). */
+export function storyCheckText(data: StoryCheckCounts): string {
+  return `Story check${data.on ? "" : " (off)"}: last 7 days ${storyPhrase(data.last_7)}. Last 30 days ${storyPhrase(data.last_30)}.${data.repair ? "" : " Repairs are off."}`;
+}
+
+/**
+ * The story check's counts (lib/story-check.ts: does each aired date's ending make sense against its lines?), as one
+ * quiet line: the last 7 and 30 days by when the dates aired, whatever the filters above say. Contradicting dates are
+ * kept off the featured places.
+ */
+function StoryCheckLine({ adminFetch }: { adminFetch: AdminFetch }) {
+  const [data, setData] = useState<StoryCheckCounts | null>(null);
+  useEffect(() => {
+    let live = true;
+    adminFetch("/api/admin/story-check")
+      .then(async (res) => {
+        if (live && res.ok) setData(await res.json());
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [adminFetch]);
+  if (!data) return null;
+  return <p className="muted small">{storyCheckText(data)}</p>;
+}
 /** A gate as "x of y" (lib/training-readiness.ts gateText; repeated here so the page doesn't import server code). */
 const gateValue = (g: ReadinessGate) => (g.kind === "majority" ? `${count(g.have)} of ${count(g.need)} (needs more than half)` : `${count(g.have)} of ${count(g.need)}`);
 

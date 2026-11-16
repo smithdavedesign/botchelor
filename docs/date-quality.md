@@ -1358,3 +1358,5 @@ side's want, dealbreaker or agenda; where the turn sits (a third in, never the f
 it fits); each line's own note and nothing else; the prompt with and without a turn; `generateDate` with the switch on
 and off (the engine's decision deep-frozen and unchanged, the same lines and ending from a model that answers from the
 lines, no call added, a stored plan left alone, a speed date, the characters' own answers applied by their own rules).
+
+The story check (does each aired date's ending make sense against its lines; contradicting dates kept off the featured places): docs/story-check.md.

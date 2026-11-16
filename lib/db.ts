@@ -4196,6 +4196,25 @@ create table if not exists casting_invites (
   character_id text references characters (id) on delete set null
 );
 create index if not exists casting_invites_created_idx on casting_invites (created_at desc);
+-- The story check (lib/story-check.ts, docs/story-check.md): one row per aired public date judged for whether its
+-- ending makes sense against its lines and recap. verdict: consistent, hidden_truth, reversal, or contradicts (never
+-- featured: lib/story-check-gate.ts). reason: one line, admin-only. repaired: the recap's finale was rewritten from
+-- facts on record; finale_before keeps the finale it replaced (audit, undo). model: the judge's id, or 'rules' (the
+-- free fallback). Tokens and cost as the show's other paid background calls keep them (cost_usd: the provider's own
+-- figure, else list price, else null).
+create table if not exists story_checks (
+  episode_id text primary key references episodes (id) on delete cascade,
+  verdict text not null check (verdict in ('consistent', 'hidden_truth', 'reversal', 'contradicts')),
+  reason text not null default '',
+  repaired boolean not null default false,
+  finale_before text,
+  model text,
+  prompt_version text,
+  input_tokens integer,
+  output_tokens integer,
+  cost_usd numeric(10, 6),
+  checked_at timestamptz not null default now()
+);
 `;
 
 /** Idempotent: creates the tables and upserts the house characters, free and premium. */
