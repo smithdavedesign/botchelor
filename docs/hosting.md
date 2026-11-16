@@ -186,7 +186,9 @@ ignore it.
   `lib/date-photo.ts`; off: the thread and the couple page's phone are as they were, and making a date photo writes a
   📷 text again). `CHARACTER_GIFTS`: small gifts between characters after some aired public dates
   (`lib/character-gifts.ts`; off: none is written, shown, told to an owner or handed to the house scene; the rows
-  stay). Neither calls a model. The rules are in [relationship-graph.md](relationship-graph.md), "What they send each
+  stay). **`CHARACTER_GIFTS_RATE`** (a number, 1 when unset) multiplies how often a gift comes: 0.5 halves the chances,
+  2 doubles them; it never makes one where the rules say never, and the one-a-week cap still holds. Neither calls a
+  model. The rules are in [relationship-graph.md](relationship-graph.md), "What they send each
   other". Commented in `.do/show.yaml`.
 - **`COMPANION_MESSAGE_DELETE`** (the show's app, not a secret; on by default, `0` turns it off without a deploy of
   code): deleting one message of a companion conversation (`lib/companion-message-delete.ts`). Off: "Delete messages…"

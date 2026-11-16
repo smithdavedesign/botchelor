@@ -92,7 +92,8 @@ export function giftOnAir(db: Db, episodeId: string): void {
  * one this week, this date already has one, or a line didn't pass the PG check. Safe to call twice.
  */
 export async function giftAfterAir(db: Db, episodeId: string, opts: { now?: Date; env?: Record<string, string | undefined> } = {}): Promise<CharacterGift | null> {
-  if (!characterGiftsOn(opts.env ?? process.env)) return null;
+  const env = opts.env ?? process.env;
+  if (!characterGiftsOn(env)) return null;
   const now = opts.now ?? new Date();
   const ep = (
     await db.query<AiredRow>(
@@ -117,7 +118,7 @@ export async function giftAfterAir(db: Db, episodeId: string, opts: { now?: Date
   if (recent.rows.length) return null;
   // How they stand on the public record after this date (lib/relationships.ts: read, never written here).
   const facts: GiftFacts = { episode_id: ep.id, ending: ep.ending, stage: rel?.public.stage ?? null, dates: Math.max(1, rel?.public.dates ?? 1), injured: injuredSide(ep) };
-  if (!giftHappens(facts)) return null;
+  if (!giftHappens(facts, env)) return null;
 
   const side = giftGiver(facts);
   const giver = side === "a" ? ep.a : ep.b;

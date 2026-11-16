@@ -8,7 +8,7 @@ import { giftAfterAir, giftOnAir, giftsFor, giftTextLines, injuredSide, nudgeOpi
 import { openThread } from "@/lib/companion";
 import {
   characterGiftsOn, coldStage, GIFT_EVERY_DAYS, GIFT_NAME_MAX, GIFT_NOTE_MAX, GIFT_REPLIES, giftCandidates, giftChance, giftClaim, giftGiver, giftHappens, giftOccasion,
-  giftReaction, giftReply, GIFTS, giftsOnAir, pickGift, setGiftsOnAirForTests, steadyStage, type GiftFacts,
+  giftRate, giftReaction, giftReply, GIFTS, giftsOnAir, pickGift, setGiftsOnAirForTests, steadyStage, type GiftFacts,
 } from "@/lib/gift-catalog";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import { sceneFacts, scenePrompt, sensitiveClaim, templateScene, type SceneFacts } from "@/lib/house-scenes";
@@ -104,6 +104,18 @@ describe("the rules (lib/gift-catalog.ts)", () => {
       expect(n / 3000).toBeLessThanOrEqual(hi);
       expect(giftHappens({ ...f, episode_id: "date-7" })).toBe(giftHappens({ ...f, episode_id: "date-7" }));
     }
+  });
+
+  it("CHARACTER_GIFTS_RATE scales the chances, and never makes a gift where the rules say never", () => {
+    expect([giftRate({}), giftRate({ CHARACTER_GIFTS_RATE: "0.5" }), giftRate({ CHARACTER_GIFTS_RATE: "nonsense" }), giftRate({ CHARACTER_GIFTS_RATE: "-3" }), giftRate({ CHARACTER_GIFTS_RATE: "0" })]).toEqual([1, 0.5, 1, 1, 0]);
+    const share = (f: GiftFacts, rate: string) => Array.from({ length: 2000 }, (_, i) => giftHappens({ ...f, episode_id: `rate-${i}` }, { CHARACTER_GIFTS_RATE: rate })).filter(Boolean).length / 2000;
+    const first = facts({ stage: "just_met", dates: 1 });
+    expect(share(first, "0")).toBe(0);
+    expect(share(first, "100")).toBe(1);
+    expect(share(first, "2")).toBeGreaterThan(0.15);
+    expect(share(first, "2")).toBeLessThan(0.25);
+    expect(share(facts({ ending: "disaster", injured: null }), "100")).toBe(0);
+    expect(share(facts({ ending: "friends", stage: "bad_blood" }), "100")).toBe(0);
   });
 
   it("who: never the side that was walked out on or turned down; otherwise either of them", () => {

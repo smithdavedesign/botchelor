@@ -16,7 +16,8 @@
  *  - HOW IT LANDS (`giftReaction`): touched, amused or unimpressed, by the occasion, how the pair stands and the
  *    receiver's tone (lib/sheet-tone.ts: its public sheet, never its private soul).
  *
- * CHARACTER_GIFTS=0 turns it off without a deploy of code: none is written, and none is shown.
+ * CHARACTER_GIFTS=0 turns it off without a deploy of code: none is written, and none is shown. CHARACTER_GIFTS_RATE
+ * makes them rarer or more frequent (`giftRate`).
  */
 import { seedFrom } from "./engine";
 import type { Ending } from "./rules";
@@ -208,8 +209,20 @@ export function giftChance(f: GiftFacts): number {
   return f.stage === "dating" ? 0.4 : 0.25;
 }
 
-/** Whether this date brings one: the chance, dealt by the date's id (the same date, the same answer). */
-export const giftHappens = (f: GiftFacts): boolean => seedFrom("character-gift", f.episode_id) % 1000 < Math.round(giftChance(f) * 1000);
+/**
+ * CHARACTER_GIFTS_RATE: how often gifts come, as a multiple of the chances above (1 when unset; 0.5 halves them, 2
+ * doubles them, a large number makes one certain wherever the rules allow one at all). It never makes a gift where
+ * the rules say never, and the weekly cap still holds. The visual gate sets it high so a seeded couple has one to show.
+ */
+export function giftRate(env: Record<string, string | undefined> = process.env): number {
+  const raw = env.CHARACTER_GIFTS_RATE?.trim();
+  const n = raw ? Number(raw) : 1;
+  return Number.isFinite(n) && n >= 0 ? Math.min(1000, n) : 1;
+}
+
+/** Whether this date brings one: the chance (times the rate), dealt by the date's id (the same date, the same answer). */
+export const giftHappens = (f: GiftFacts, env: Record<string, string | undefined> = process.env): boolean =>
+  seedFrom("character-gift", f.episode_id) % 1000 < Math.round(Math.min(1, giftChance(f) * giftRate(env)) * 1000);
 
 /** Who gives it: never the wronged side; otherwise dealt by the date. */
 export function giftGiver(f: Pick<GiftFacts, "episode_id" | "injured">): "a" | "b" {

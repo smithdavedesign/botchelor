@@ -242,6 +242,10 @@ services:
       # - key: CHARACTER_GIFTS
       #   value: "0"
       #   scope: RUN_AND_BUILD_TIME
+      # How often a gift comes, as a multiple of the built-in chances (1 when unset; "0.5" halves them).
+      # - key: CHARACTER_GIFTS_RATE
+      #   value: "0.5"
+      #   scope: RUN_AND_BUILD_TIME
       # Deleting one message of a companion conversation (lib/companion-message-delete.ts; docs/hosting.md): on by
       # default. "0" takes "Delete messages…" out of the thread's Settings, answers not-found on its page and route, and
       # the privacy notice and FAQ say only the whole conversation can be deleted.

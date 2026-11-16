@@ -514,6 +514,8 @@ concrete thing with a one-line note, and the other says one line back: "🎁 Jun
   - "Right now" and Talk of the house don't show it: both are shaped from what the character page already loaded, and a
     gift would be a new read there.
 - **Switch:** `CHARACTER_GIFTS=0`: none is written and none is shown or told (the rows stay).
+  `CHARACTER_GIFTS_RATE` multiplies the chances above (1 when unset): rarer or more frequent without a deploy of code,
+  never where the rules say never, and never past one a week.
 - **Cost:** $0. Rows and templates, no model call.
 
 Ten that the rules dealt (real output of `pickGift`, `giftReaction` and `giftReply` for the first date id that brings
