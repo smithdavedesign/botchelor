@@ -713,6 +713,9 @@ async function main() {
       { name: "after-dark-account", path: "/after-dark/account", as: "adult-admin" },
       // Signed in but not subscribed: an admin is sent on to the hub (and /admin/after-dark is only a redirect there).
       { name: "after-dark-subscribe", path: "/after-dark/subscribe", as: "member" },
+      // The same person at the Gallery and the Studio (2026-11-16): the locked preview and the way in, not a not-found.
+      { name: "after-dark-gallery-locked", path: "/after-dark/gallery", as: "member" },
+      { name: "after-dark-studio-locked", path: "/after-dark/studio?source=pg-studio", as: "member" },
       { name: "admin-after-dark-settings", path: "/admin/after-dark/settings", as: "adult-admin" },
       // Its other tabs (2026-10-31 UX audit, E3): every price and cap in one tab, and the Studio's.
       { name: "admin-after-dark-settings-prices", path: "/admin/after-dark/settings?tab=prices", as: "adult-admin" },
