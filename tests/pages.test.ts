@@ -115,6 +115,8 @@ describe("launch checks: robots.txt, sitemap and og:image", () => {
         "/prompts",
         "/about",
         "/costs",
+        // What the show has posted and where its visitors come from (#1678).
+        "/marketing",
         "/safety",
         "/agents/pricing",
         "/agents/league",
