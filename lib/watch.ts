@@ -704,12 +704,17 @@ export async function listLobby(db: Db, now: Date = new Date(), limit = 24): Pro
         -- An always-on room is only worth opening if its date plays line by line; one whose conversation
         -- couldn't be produced stays reachable by link but isn't offered (the daily job backfills it).
         and (w.kind <> 'template' or jsonb_array_length(e.transcript) > 0)
-      order by (w.kind = 'template') desc, w.created_at desc
+      -- A premiere still to come or playing (the Sunday premiere, lib/sunday-premiere.ts, or a creator's) first, so the
+      -- always-on rooms never push it off the list.
+      order by (w.kind = 'premiere' and w.starts_at is not null and w.starts_at > $4::timestamptz - ($5::int * interval '1 second')) desc,
+               (w.kind = 'template') desc, w.created_at desc
       limit $3`,
-    [WATCH_PRESENCE_WINDOW_SECONDS, REPORT_HIDE_THRESHOLD, limit],
+    [WATCH_PRESENCE_WINDOW_SECONDS, REPORT_HIDE_THRESHOLD, limit, now.toISOString(), LAST_AT],
   );
   return rows.map((r) => {
-    const clock = watchClock(r.starts_at, now);
+    // A premiere whose start is still ahead is coming up, not playing: it starts for everyone at once.
+    const ahead = r.kind === "premiere" && r.starts_at !== null && new Date(r.starts_at).getTime() > now.getTime() + 1000;
+    const clock = ahead ? watchClock(null, now) : watchClock(r.starts_at, now);
     return {
       id: r.id,
       kind: r.kind,
@@ -719,7 +724,7 @@ export async function listLobby(db: Db, now: Date = new Date(), limit = 24): Pro
         { id: r.a_id, name: r.a_name, house: r.a_house, hue: r.a_hue, portrait: r.a_portrait },
         { id: r.b_id, name: r.b_name, house: r.b_house, hue: r.b_hue, portrait: r.b_portrait },
       ] as [CharacterRef, CharacterRef],
-      phase_label: clock.started ? (clock.ended ? "Aftermath" : clock.phase_label) : "Tap in to start",
+      phase_label: ahead ? "Coming up" : clock.started ? (clock.ended ? "Aftermath" : clock.phase_label) : "Tap in to start",
       started: clock.started,
       ended: clock.ended,
       watching: r.watching,

@@ -25,7 +25,7 @@
  */
 import { track } from "./analytics";
 import { markShowPaidRequest } from "./cast-date-request";
-import { ceremonyHourUtc, ceremonyRunsAt, houseOf, suitorBadgesOf } from "./ceremony";
+import { CEREMONY_RUNS_AT_MINUTE, ceremonyHourUtc, ceremonyRunsAt, houseOf, suitorBadgesOf } from "./ceremony";
 import type { StoredOffers } from "./companion-offers";
 import { crowdLine, isInsider } from "./crowd-threshold";
 import type { Db } from "./db";
@@ -500,7 +500,8 @@ export async function castingBadgesOf(db: Db, characterId: string): Promise<Cast
   ];
 }
 
-export type CastingNote = { first: string; lead: string; hour: number };
+/** `hour` and `minute` (UTC): when Sunday's roses are handed out, the job's pass at the ceremony hour (lib/ceremony.ts ceremonyRunsAt). */
+export type CastingNote = { first: string; lead: string; hour: number; minute: number };
 
 /**
  * The verdict card's line for the owner of a casting date that no Sunday has judged yet (app/episodes/[id]/
@@ -515,5 +516,5 @@ export async function castingNote(db: Db, episodeId: string, viewerId: string | 
     [episodeId, CASTING_MET_VIA, viewerId],
   );
   const r = rows[0];
-  return r ? { first: shortName(r.first), lead: shortName(r.lead), hour: ceremonyHourUtc(env) } : null;
+  return r ? { first: shortName(r.first), lead: shortName(r.lead), hour: ceremonyHourUtc(env), minute: CEREMONY_RUNS_AT_MINUTE } : null;
 }

@@ -22,6 +22,7 @@ import { pickFeaturedDate } from "@/lib/featured-date";
 import RecouplingCard from "./RecouplingCard";
 import BotchelorCard from "./BotchelorCard";
 import { ceremonyBoard } from "@/lib/ceremony";
+import { nextPremiere } from "@/lib/sunday-premiere";
 import WeeklyReveal from "@/app/WeeklyReveal";
 import { revealBoard } from "@/lib/weekly-reveal";
 import { recouplingBoard } from "@/lib/recoupling";
@@ -141,7 +142,7 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
   // Someone signed out sees what everyone does: from a few seconds' shared copy (lib/shared-cache.ts). What's the same
   // for everyone (the private-date count, the reunion, the week's shifts, the season's format) is shared by all.
   const mine = <T,>(key: string, load: () => Promise<T>) => forViewer(viewerId, key, load);
-  const [rooms, privateDates, airing, latest, profileName, situation, dares, record, showNews, seasonDef, recoupling, ballot, reveal, insider, ceremony, story] = await Promise.all([
+  const [rooms, privateDates, airing, latest, profileName, situation, dares, record, showNews, seasonDef, recoupling, ballot, reveal, insider, ceremony, story, premiere] = await Promise.all([
     mine("lobby", () => listLobby(db)),
     shared("watch:private-dates", () => countRecentPrivateDates(db)),
     mine("home:airing", () => listAiringSoon(db, viewerId, airWindowMinutes())),
@@ -163,6 +164,8 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
     mine("watch:ceremony", () => ceremonyBoard(db, viewerId)).catch(() => null),
     // Today's story from the producer (lib/producer.ts): "Tonight: …" on the season line. The same for everyone.
     shared("story:today", () => storyToday(db)).catch(() => null),
+    // The Sunday premiere (lib/sunday-premiere.ts): the Botchelor card's line, and the pilot's on its day. The same for everyone.
+    shared("premiere:next", () => nextPremiere(db)).catch(() => null),
   ]);
   // Their shared calls link carries their display name when it's theirs alone (lib/share-record-name.ts).
   const sharer = profileName && record?.called ? await sharerOf(db, viewerId).catch(() => null) : null;
@@ -238,6 +241,15 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
           story={story}
         />
         {showNews && <ShowSince card={showNews} />}
+        {/* The pilot (lib/sunday-premiere.ts), on its day until its room opens: then the room is listed below. A lead
+            season's weekly premiere is on the Botchelor card all week. */}
+        {premiere?.kind === "pilot" && premiere.state === "scheduled" && premiere.sunday === new Date(now).toISOString().slice(0, 10) && (
+          <p className="muted small" data-premiere="pilot">
+            <span aria-hidden="true">📺</span> <strong>Tonight&apos;s pilot:</strong> meet {premiere.lead.name},{" "}
+            {new Date(`${premiere.season_id}T12:00:00Z`).toLocaleDateString("en-US", { month: "long", timeZone: "UTC" })}&apos;s lead, on a first date at{" "}
+            {premiere.time_words}, {startsIn(premiere.at, now)}, live in one room for everyone. Its room opens here about 40 minutes before.
+          </p>
+        )}
         {/* Tonight's listings (docs/show-style.md). */}
         {live.length ? null : (
           // Nothing live: one line, not a heading over an empty space.
@@ -283,7 +295,7 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
           </h2>
           {recoupling && recoupling.choices.length > 0 && <RecouplingCard board={recoupling} now={now} />}
           {/* A Botchelor season (lib/ceremony.ts): the house and Sunday's rose ceremony, where the Recoupling would sit. */}
-          {ceremony && <BotchelorCard board={ceremony} now={now} />}
+          {ceremony && <BotchelorCard board={ceremony} now={now} premiere={premiere} />}
           {lead && <WeeklyReveal board={reveal} now={now} />}
           <div className="watch-votes">
             {situation && <SituationVote board={situation} now={now} />}

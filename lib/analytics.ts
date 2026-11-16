@@ -19,6 +19,7 @@ export type AnalyticsEvent =
   | "season_format_vote" // a vote for next season's format (lib/season-vote.ts)
   | "recoupling_vote" // a vote on the recoupling night (lib/recoupling.ts)
   | "ceremony_vote" // a vote on who goes home at Sunday's rose ceremony (lib/ceremony.ts)
+  | "premiere_built" // the Sunday premiere's room was built: its kind, tries and the notices it sent (lib/sunday-premiere.ts)
   | "reveal_vote" // a vote on Sunday's reveal (lib/weekly-reveal.ts)
   | "cast_backed" // a viewer backed a cast member for the month (lib/backing.ts)
   | "audition" // an owner put their character up for next month's cast (lib/auditions.ts)

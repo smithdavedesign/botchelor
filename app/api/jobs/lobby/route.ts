@@ -17,6 +17,7 @@ import { judgePendingDares } from "@/lib/dare-verdict";
 import { settleDueDares } from "@/lib/dare-points";
 import { runDueRecoupling } from "@/lib/recoupling";
 import { runDueCeremony } from "@/lib/ceremony";
+import { runSundayPremiere } from "@/lib/sunday-premiere";
 import { runWalkOnRoses } from "@/lib/casting";
 import { ensureCastSecrets } from "@/lib/cast-secrets";
 import { ensureCastChat } from "@/lib/cast-chat";
@@ -53,6 +54,10 @@ async function run(req: Request): Promise<Response> {
   const db = await getDb();
   // Agents' dates whose prediction window has closed (lib/air.ts) air here, if their host didn't come back for them.
   const aired = (await airDueDates(db).catch(() => [])).length;
+  // The Sunday premiere (lib/sunday-premiere.ts, docs/sunday-premiere.md), Sundays only: the pass the hour before builds
+  // its room and tells people; the first pass after its decision airs it if no viewer's room has. First, so nothing
+  // above it in a long pass can starve the build, and so the date has aired before the ceremony below reads the week.
+  const premiere = await runSundayPremiere(db).catch(() => null);
   // Two-agent dates nobody is reading, waiting on a move quiet past the hand-over: the show's model takes that side.
   const handed_over = await autoplayQuietOwnDates(db).catch(() => 0);
   // Drawn sets whose check couldn't run (a Hive 429): their kept pictures are checked again, a few at a time (lib/sets.ts).
@@ -155,7 +160,7 @@ async function run(req: Request): Promise<Response> {
   // Every character has a headshot (lib/default-portraits.ts): a few of those still without one are drawn each hour,
   // unless the run is already long (a template date above takes most of the 300 s).
   const portraits = Date.now() - started > LONG_RUN_MS ? { drawn: 0, failed: 0, left: -1 } : await portraitSweep(db).catch(() => ({ drawn: 0, failed: 0, left: -1 }));
-  return json({ ...lobby, portraits, overnight, situation, season_ballot: ballot, dare_verdicts: dareVerdicts.length, dare_points_settled: darePoints.reduce((n, d) => n + d.voters, 0), recoupling, ceremony, walk_ons: walkOns, reveal, season_pool: pool, secrets, cast_chat: castChat, story_state: storyState, stages_filled: stagesFilled, house_texts: houseTexts, producer, house_scene: houseScene, house_upkeep: houseKept, confrontation, challenge, discord, newsletter, aired, stuck_generations: stuck, handed_over, sets_rechecked, sets_drawn, scheduled_dates: scheduled, mixers, ...away });
+  return json({ ...lobby, portraits, overnight, situation, season_ballot: ballot, dare_verdicts: dareVerdicts.length, dare_points_settled: darePoints.reduce((n, d) => n + d.voters, 0), recoupling, premiere, ceremony, walk_ons: walkOns, reveal, season_pool: pool, secrets, cast_chat: castChat, story_state: storyState, stages_filled: stagesFilled, house_texts: houseTexts, producer, house_scene: houseScene, house_upkeep: houseKept, confrontation, challenge, discord, newsletter, aired, stuck_generations: stuck, handed_over, sets_rechecked, sets_drawn, scheduled_dates: scheduled, mixers, ...away });
 }
 
 export const GET = handle(run);

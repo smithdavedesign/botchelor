@@ -105,7 +105,7 @@ const NEXT = seasonIdOf(nextSeasonStart(NOW));
 const SUNDAY = (() => {
   const d = new Date(NOW);
   d.setUTCDate(d.getUTCDate() + ((7 - d.getUTCDay()) % 7));
-  d.setUTCHours(21, 20, 0, 0);
+  d.setUTCHours(23, 20, 0, 0);
   return d;
 })();
 async function preseason() {
@@ -180,12 +180,12 @@ describe("who a new character's first date goes to (castingLead)", () => {
   it("in season: this month's lead, until the season's last roses are handed out", async () => {
     await decemberSeason();
     const c = await castingLead(t.db, dec(2), {});
-    expect(c).toMatchObject({ phase: "season", season_id: DEC, month: "December", lead: { id: LEAD, name: LEAD_NAME }, roses_at: "2026-12-06T20:20:00.000Z" });
+    expect(c).toMatchObject({ phase: "season", season_id: DEC, month: "December", lead: { id: LEAD, name: LEAD_NAME }, roses_at: "2026-12-06T23:20:00.000Z" });
     expect(leadBilling(c!)).toBe("this season's Botchelor");
     expect(castingHeroLine(c!)).toBe(`Their first date is with ${LEAD_FIRST}, this season's Botchelor: nobody steers it, roses are handed out on Sunday, and they text you whether they got one.`);
     // The finale Sunday, before the pass: still open. After it no Sunday is left in the season, so casting has closed.
-    expect((await castingLead(t.db, dec(27, 12), {}))?.roses_at).toBe("2026-12-27T20:20:00.000Z");
-    expect(await castingLead(t.db, dec(27, 21), {})).toBeNull();
+    expect((await castingLead(t.db, dec(27, 12), {}))?.roses_at).toBe("2026-12-27T23:20:00.000Z");
+    expect(await castingLead(t.db, new Date(Date.UTC(2026, 11, 27, 23, 30)), {})).toBeNull();
     expect(await castingLead(t.db, dec(30), {})).toBeNull();
     // A Botchelor month with no lead on its cast yet holds nothing.
     await t.db.query(`delete from season_casts where season_id = $1`, [DEC]);
@@ -198,7 +198,7 @@ describe("who a new character's first date goes to (castingLead)", () => {
     expect(await castingLead(t.db, nov(16), {})).toBeNull();
     await setLeadOverride(t.db, DEC, LEAD);
     const c = await castingLead(t.db, nov(16), {});
-    expect(c).toMatchObject({ phase: "preseason", season_id: DEC, month: "December", lead: { id: LEAD }, roses_at: "2026-11-22T20:20:00.000Z" });
+    expect(c).toMatchObject({ phase: "preseason", season_id: DEC, month: "December", lead: { id: LEAD }, roses_at: "2026-11-22T23:20:00.000Z" });
     expect(leadBilling(c!)).toBe("December's Botchelor");
     // The lead alone, with the format back to classic: closed again.
     await setSeasonFormat(t.db, DEC, "classic");
@@ -217,11 +217,13 @@ describe("who a new character's first date goes to (castingLead)", () => {
     expect(await castingLead(t.db, nov(16), { OPEN_CASTING: "1" })).not.toBeNull();
   });
 
-  it("the roses are handed out on Sunday's pass at the ceremony hour", () => {
-    expect(nextRosesAt(dec(2), {}).toISOString()).toBe("2026-12-06T20:20:00.000Z");
-    expect(nextRosesAt(dec(6, 20), {}).toISOString()).toBe("2026-12-06T20:20:00.000Z");
-    expect(nextRosesAt(dec(6, 21), {}).toISOString()).toBe("2026-12-13T20:20:00.000Z");
-    expect(nextRosesAt(dec(2), { CEREMONY_HOUR_UTC: "18" }).toISOString()).toBe("2026-12-06T18:20:00.000Z");
+  it("the roses are handed out on Sunday's pass at the ceremony hour: the Sunday premiere's (23), or as before with it off", () => {
+    expect(nextRosesAt(dec(2), {}).toISOString()).toBe("2026-12-06T23:20:00.000Z");
+    expect(nextRosesAt(dec(6, 23), {}).toISOString()).toBe("2026-12-06T23:20:00.000Z");
+    expect(nextRosesAt(new Date(Date.UTC(2026, 11, 6, 23, 30)), {}).toISOString()).toBe("2026-12-13T23:20:00.000Z");
+    expect(nextRosesAt(dec(2), { CEREMONY_HOUR_UTC: "18" }).toISOString()).toBe("2026-12-06T23:20:00.000Z");
+    expect(nextRosesAt(dec(2), { CEREMONY_HOUR_UTC: "18", SUNDAY_PREMIERE: "0" }).toISOString()).toBe("2026-12-06T18:20:00.000Z");
+    expect(nextRosesAt(dec(2), { SUNDAY_PREMIERE: "0" }).toISOString()).toBe("2026-12-06T20:20:00.000Z");
   });
 
   it("/admin/season: picking next season's format and lead opens casting at once, and the panel says so", async () => {
@@ -325,7 +327,7 @@ describe("Sunday's roses for the walk-ons (runWalkOnRoses)", () => {
 
     // Not on a weekday, and not before the hour.
     expect(await runWalkOnRoses(t.db, new Date(SUNDAY.getTime() + DAY))).toBeNull();
-    expect(await runWalkOnRoses(t.db, new Date(Date.UTC(SUNDAY.getUTCFullYear(), SUNDAY.getUTCMonth(), SUNDAY.getUTCDate(), 19, 20)))).toBeNull();
+    expect(await runWalkOnRoses(t.db, new Date(Date.UTC(SUNDAY.getUTCFullYear(), SUNDAY.getUTCMonth(), SUNDAY.getUTCDate(), 22, 20)))).toBeNull();
 
     scriptOutcome({ ending: "friends" });
     scriptedModel([episodeJson()]);
@@ -368,7 +370,7 @@ describe("Sunday's roses for the walk-ons (runWalkOnRoses)", () => {
     expect(await roseTexts(quiet.character.id)).toEqual([]);
 
     // Once: the next hourly pass that Sunday judges nobody, books nothing and tells nobody again.
-    const again = await runWalkOnRoses(t.db, new Date(SUNDAY.getTime() + 3600_000));
+    const again = await runWalkOnRoses(t.db, new Date(SUNDAY.getTime() + 20 * 60_000));
     expect(again).toMatchObject({ judged: 0, roses: 0, booked: 0, texted: 0 });
     expect(await roses()).toHaveLength(3);
     expect(await notices(won.owner)).toHaveLength(1);
@@ -403,7 +405,7 @@ describe("Sunday's roses for the walk-ons (runWalkOnRoses)", () => {
     expect(told.body).toContain("coming this week");
     expect(told.link).toBe(`/characters/${won.character.id}`);
     // Still paused an hour later: nothing. Then on Monday, with the show back, the waiting date is booked (any pass does it).
-    expect((await runWalkOnRoses(t.db, new Date(SUNDAY.getTime() + 3600_000)))?.booked).toBe(0);
+    expect((await runWalkOnRoses(t.db, new Date(SUNDAY.getTime() + 20 * 60_000)))?.booked).toBe(0);
     vi.stubEnv("BOTCHELOR_PAUSE", "");
     scriptOutcome({ ending: "second_date" });
     scriptedModel([episodeJson()]);
@@ -491,8 +493,8 @@ describe("the finale: the people's rose", () => {
     await optIn(early.owner, early.character.id);
 
     // Not the finale: week 3's pass hands out no people's rose.
-    expect((await runWalkOnRoses(t.db, dec(20, 21), {}))?.peoples_rose).toBeNull();
-    const run = await runWalkOnRoses(t.db, dec(27, 21), {});
+    expect((await runWalkOnRoses(t.db, dec(20, 23), {}))?.peoples_rose).toBeNull();
+    const run = await runWalkOnRoses(t.db, dec(27, 23), {});
     // early and late tie on roses (2) and record (3 + 3 + 1); early walked on first. sour's record is worse.
     expect(run).toMatchObject({ season_id: DEC, held_on: "2026-12-27", phase: "season", peoples_rose: early.character.id });
     expect((await t.db.query(`select character_id, badge, week from suitor_badges where season_id = $1`, [DEC])).rows).toEqual([{ character_id: early.character.id, badge: "peoples_rose", week: 4 }]);
@@ -501,7 +503,7 @@ describe("the finale: the people's rose", () => {
     expect((await roseTexts(early.character.id)).map((m) => m.text)).toEqual(["The people's rose. That's me.", "Thank you for sending me in."]);
     for (const other of [sour, late, once]) expect(await notices(other.owner)).toHaveLength(0);
     // Once.
-    expect((await runWalkOnRoses(t.db, dec(27, 22), {}))?.peoples_rose).toBeNull();
+    expect((await runWalkOnRoses(t.db, new Date(Date.UTC(2026, 11, 27, 23, 50)), {}))?.peoples_rose).toBeNull();
     expect(await notices(early.owner)).toHaveLength(1);
 
     // The ceremony's summary and the card name it; the character page keeps the badge.
@@ -524,7 +526,7 @@ describe("the finale: the people's rose", () => {
     const hidden = await veteran([[6, "second_date"], [13, "second_date"]], 2);
     await t.db.query(`update characters set visibility = 'private' where id = $1`, [hidden.character.id]);
     const roseless = await veteran([[6, "friends"], [13, "friends"]], 2);
-    expect((await runWalkOnRoses(t.db, dec(27, 21), {}))?.peoples_rose).toBeNull();
+    expect((await runWalkOnRoses(t.db, dec(27, 23), {}))?.peoples_rose).toBeNull();
     expect((await ceremonySummary(t.db, DEC)).peoples_rose).toBeNull();
     expect(await notices(roseless.owner)).toHaveLength(0);
   });
@@ -583,12 +585,12 @@ describe("the surfaces", () => {
     const w = await newcomer();
     const date = await walkOn(w, "friends");
     const first = w.character.name.split(" ")[0];
-    expect(await castingNote(t.db, date.body.id, w.owner)).toEqual({ first, lead: LEAD_FIRST, hour: 20 });
+    expect(await castingNote(t.db, date.body.id, w.owner)).toEqual({ first, lead: LEAD_FIRST, hour: 23, minute: 20 });
     expect(await castingNote(t.db, date.body.id, "someone-else")).toBeNull();
     expect(await castingNote(t.db, date.body.id, null)).toBeNull();
     expect(await castingNote(t.db, date.body.id, w.owner, { OPEN_CASTING: "0" })).toBeNull();
     const get = async (cookie?: string) => (await (await castingGet(new Request(`${BASE_URL}/api/casting/walk-on?episode=${date.body.id}`, { headers: cookie ? { cookie } : {} }))).json()) as { note: unknown };
-    expect((await get(w.cookie)).note).toEqual({ first, lead: LEAD_FIRST, hour: 20 });
+    expect((await get(w.cookie)).note).toEqual({ first, lead: LEAD_FIRST, hour: 23, minute: 20 });
     expect((await get()).note).toBeNull();
     // Who the first date goes to, for anyone.
     const open = (await (await castingGet(new Request(`${BASE_URL}/api/casting/walk-on`))).json()) as { casting: { phase: string; lead: { id: string } } | null };
@@ -630,7 +632,7 @@ describe("the surfaces", () => {
       signedIn: false,
       firstCharacter: true,
     };
-    const casting: CastingForClient = { phase: "preseason", billing: "December's Botchelor", lead: { id: LEAD, name: LEAD_NAME, hue: 200, portrait: null }, hour: 20 };
+    const casting: CastingForClient = { phase: "preseason", billing: "December's Botchelor", lead: { id: LEAD, name: LEAD_NAME, hue: 200, portrait: null }, hour: 23, minute: 20 };
     const card = (value: CastingForClient | null, extra: Record<string, unknown> = {}) => {
       const html = renderToStaticMarkup(createElement(CastingProvider, { value, children: createElement(SendPhase, { ...props, ...extra }) }));
       return html.slice(html.indexOf("data-first-date"), html.indexOf("send-more-ways"));
@@ -638,7 +640,7 @@ describe("the surfaces", () => {
     const on = card(casting);
     expect(on).toContain(`First date: ${LEAD_FIRST}, December&#x27;s Botchelor. Roses on Sunday.`);
     expect(on).toContain(`Leopold walks on for a date with ${LEAD_FIRST}, for a speed date: 6 lines`);
-    expect(on).toContain(`On Sunday at 20:00 UTC ${LEAD_FIRST} hands out roses, and you hear whether Leopold got one.`);
+    expect(on).toContain(`On Sunday at 23:20 UTC ${LEAD_FIRST} hands out roses, and you hear whether Leopold got one.`);
     expect(on).toContain("▶ Start the date now");
     expect(on).not.toContain("meets Nell");
     expect(card({ ...casting, phase: "season", billing: "this season's Botchelor" })).toContain(`First date: ${LEAD_FIRST}, this season&#x27;s Botchelor. Roses on Sunday.`);
