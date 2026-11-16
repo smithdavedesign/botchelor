@@ -28,6 +28,10 @@ import { bare, BOOKING_RULE, COMPACT_CARDS, CONVERSATION_TURNS, EXCLUSIVE_POINTE
 import { EXAMPLE_CALLS } from "../agents";
 import { WHILE_AWAY_MODES } from "../activity";
 import { withArgDocs } from "./arg-docs";
+import { DEALBREAKER_MAX, NAME_MAX, TRAIT_MAX, WANT_MAX } from "../field-limits";
+import { SHIP_NAME_MAX } from "../ship-names";
+import { OC_NAME_KINDS, OC_NAME_STYLES, OC_NAMES_MAX_BATCH } from "../oc-names";
+import { OC_QUESTION_THEMES } from "../oc-questions";
 import { COMPANION_ACTIONS, COMPANION_MESSAGE_MAX, COMPANION_REPORT_REASONS, COMPANION_TOOL_DESCRIPTION, REPLY_LENGTHS, SCENE_PLACES, SCENE_TEXTING } from "../companion-shared";
 
 /**
@@ -78,6 +82,19 @@ export const BROWSE_MINE = ["include", "only", "exclude"] as const;
 export const BROWSE_STATUSES = ["open", "aired"] as const;
 /** #1532: create_character's compact. */
 export const CREATE_COMPACT = ["min"] as const;
+
+/** A character as the OC chemistry test reads it (lib/chemistry-test.ts): what /create asks for first. */
+const OC_SHEET = (who: string): JsonSchema => ({
+  type: "object",
+  description: `The ${who} character: name, three traits, a want and a dealbreaker (what create_character asks for first).`,
+  required: ["name", "traits", "want", "dealbreaker"],
+  properties: {
+    name: str(NAME_MAX),
+    traits: { type: "array", items: str(TRAIT_MAX), minItems: 3, maxItems: 3, description: "Exactly three traits." },
+    want: str(WANT_MAX),
+    dealbreaker: str(DEALBREAKER_MAX),
+  },
+});
 
 const RAW_TOOL_DEFS = [
   /* ---- the show ---- */
@@ -1315,6 +1332,67 @@ const RAW_TOOL_DEFS = [
       },
     },
     annotations: WRITE,
+  },
+  // The free OC tools (2.32.0, lib/mcp/oc-tools.ts): the /tools pages' own code, no model, no identity, nothing stored.
+  {
+    name: "ship_names",
+    title: "Ship name generator",
+    description:
+      "Two character names in, their ship names out, best first (Draco + Harry: Drarry), with the share link. " +
+      "Original characters only: well-known real people and filtered words are refused. The same two names always give the same list.",
+    inputSchema: {
+      type: "object",
+      required: ["a", "b"],
+      properties: { a: str(SHIP_NAME_MAX, "The first name."), b: str(SHIP_NAME_MAX, "The second name."), agent_id: AGENT_ID },
+    },
+    annotations: READ,
+  },
+  {
+    name: "oc_chemistry_test",
+    title: "OC chemistry test",
+    description:
+      "Two character sheets in; a 0-100 chemistry score, the ending the show's date engine predicts for their first date (second_date, friends or disaster) and three reasons out, with the share link. " +
+      "No model and no luck, so the same pair always gets the same answer; a real date (create_character, go_on_date) can still go either way.",
+    inputSchema: {
+      type: "object",
+      required: ["a", "b"],
+      properties: { a: OC_SHEET("first"), b: OC_SHEET("second"), agent_id: AGENT_ID },
+    },
+    annotations: READ,
+  },
+  {
+    name: "oc_names",
+    title: "OC name generator",
+    description:
+      "Twelve original character names in a style (fantasy, modern, scifi, gothic, cozy; left out: a mix), each with a link to make that character. " +
+      "The same style, kind and batch always give the same names; the next batch gives twelve more.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        style: { type: "string", enum: [...OC_NAME_STYLES], description: "The style. Left out: a mix of all five." },
+        kind: { type: "string", enum: [...OC_NAME_KINDS], default: "any", description: "Feminine, masculine or neutral names, or any." },
+        batch: { type: "integer", minimum: 1, maximum: OC_NAMES_MAX_BATCH, default: 1, description: "Which page of names." },
+        agent_id: AGENT_ID,
+      },
+    },
+    annotations: READ,
+  },
+  {
+    name: "oc_question",
+    title: "Questions to ask your OC",
+    description:
+      `Questions to ask an original character, from ${OC_QUESTION_THEMES.length} themes (${OC_QUESTION_THEMES.map((t) => t.id).join(", ")}). ` +
+      "Nothing: today's question. id: that one. after: the next one (ask me another). theme: every question in it.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: str(24, "One question by its id, e.g. love-3."),
+        after: str(24, "The question after this id: a different theme each time."),
+        theme: { type: "string", enum: OC_QUESTION_THEMES.map((t) => t.id), description: "Every question in one theme." },
+        agent_id: AGENT_ID,
+      },
+    },
+    annotations: READ,
   },
 ] as const;
 

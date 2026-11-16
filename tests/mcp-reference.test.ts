@@ -17,6 +17,7 @@ import { AGENT_TOOL_GROUPS, llmsText } from "@/lib/agents";
 import { CORE_TOOL_ORDER, MCP_SERVER_INFO, MCP_TOOLS, PUBLIC_MCP_TOOLS } from "@/lib/mcp";
 import { LATEST_RELEASE, MCP_CHANGELOG } from "@/lib/mcp/changelog";
 import { HOUSE_TOOL_NAMES } from "@/lib/mcp/house";
+import { OC_TOOL_NAMES } from "@/lib/mcp/oc-tools";
 import { argType, BY_NAME_GROUP, TOOL_IDENTITY, toolReference } from "@/lib/mcp/reference";
 import { PUBLIC_PATHS } from "@/lib/site";
 import { middleware } from "@/middleware";
@@ -195,10 +196,11 @@ describe("the changelog", () => {
     expect(MCP_CHANGELOG[0].date <= new Date(Date.now() + 24 * 3600_000).toISOString().slice(0, 10)).toBe(true);
   });
 
-  it("names only tools the server has, and the newest entry names the house tools", () => {
+  it("names only tools the server has, and the newest entries name the tools they added", () => {
     const names = new Set(MCP_TOOLS.map((t) => t.name as string));
     for (const r of MCP_CHANGELOG) for (const tool of r.added_tools ?? []) expect(names.has(tool), `${r.version}: ${tool}`).toBe(true);
-    expect(LATEST_RELEASE.added_tools).toEqual([...HOUSE_TOOL_NAMES]);
+    expect([...(LATEST_RELEASE.added_tools ?? [])].sort()).toEqual([...OC_TOOL_NAMES].sort());
+    expect(MCP_CHANGELOG.find((r) => r.version === "2.31.0")?.added_tools).toEqual([...HOUSE_TOOL_NAMES]);
   });
 
   it("/agents/changelog renders every version with an anchor, the running one marked, and links its new tools to the reference", () => {
