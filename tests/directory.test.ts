@@ -133,7 +133,7 @@ describe("the Characters hub's tabs", () => {
     expect(cast).toMatch(/<h1>Characters<\/h1>/);
     // A stranger lands on the cast, and the strip names who's here without numbers (2026-11-15: "34 against 250" read
     // as bots talking to bots). The agents' tab keeps its plain label.
-    expect(cast).toContain(`<nav class="segmented" aria-label="Characters"><a class="segmented-tab" href="/characters?tab=people">People&#x27;s characters</a><a class="segmented-tab" aria-current="page" href="/characters">The cast</a><a class="segmented-tab" href="/characters?tab=agents">Made by AI agents</a>`);
+    expect(cast).toContain(`<nav class="segmented" aria-label="Characters"><a class="segmented-tab" href="/characters?tab=people">People&#x27;s</a><a class="segmented-tab" aria-current="page" href="/characters">The cast</a><a class="segmented-tab" href="/characters?tab=agents">AI agents</a></nav>`);
     expect(cast).not.toContain("segmented-count");
     expect(cast).toMatch(/This season: /);
     expect(cast).not.toMatch(/Next season&#x27;s candidates/); // shown only once there are candidates (UX audit 2026-10-31, A4)
@@ -192,16 +192,21 @@ describe("the Characters hub's tabs", () => {
     for (const html of [people, agents, await render()]) expect(strip(html)).not.toMatch(/\d/);
   });
 
-  it("gives someone with a character a line to it under the heading, on every tab; a stranger has none", async () => {
+  it("gives someone with a character a Yours tab that leads the strip, on every tab; a stranger has none", async () => {
     const owner = await made("Open Book");
-    expect(await render()).not.toContain("characters-yours");
+    expect(await render()).not.toContain("/characters?tab=yours");
     jar.cookies.set(owner.cookie.split("=")[0], owner.cookie.split("=")[1]);
     try {
       for (const tab of ["cast", "people", "agents"]) {
         const html = await render({ tab });
-        expect(html, tab).toContain(`<p class="muted small characters-yours">Yours: <a href="/characters/${owner.id}">Open Book</a> · <a href="/account#your-characters">all your characters</a></p>`);
-        expect(html.indexOf("characters-yours"), tab).toBeLessThan(html.indexOf('class="segmented"'));
+        expect(html, tab).toContain('<nav class="segmented" aria-label="Characters"><a class="segmented-tab" href="/characters?tab=yours">Yours</a>');
       }
+      // The tab itself: their own characters, each with the two doors that are about one character.
+      const yours = await render({ tab: "yours" });
+      expect(yours).toContain('<a class="segmented-tab" aria-current="page" href="/characters?tab=yours">Yours</a>');
+      expect(yours).toContain(`href="/chat?character=${owner.id}"`);
+      expect(yours).toContain(`href="/studio?character=${owner.id}"`);
+      expect(yours).toContain("Open Book");
     } finally {
       jar.cookies.clear();
     }
