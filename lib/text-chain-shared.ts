@@ -139,6 +139,15 @@ export const isKeepsake = (item: ChainItem): item is ChainKeepsake => item.kind 
 export const publicKeepsakes = (items: readonly ChainItem[]): (ChainDate | ChainKeepsake)[] =>
   items.filter((i): i is ChainDate | ChainKeepsake => i.kind === "date" || isKeepsake(i));
 
+/**
+ * A house couple's thread, for anyone: the dates, the keepsakes and each date's morning-after texts, with who went
+ * quiet. Only for two characters nobody owns (the caller checks): the show wrote both sides and there is no owner whose
+ * texts these are. Still never a text between dates (those can speak of a date that hasn't aired), a held morning
+ * after or a match. Meant, like `publicKeepsakes`, for a chain loaded on the public layer, where every date has aired.
+ */
+export const publicHouseThread = (items: readonly ChainItem[]): ChainItem[] =>
+  items.filter((i) => i.kind === "date" || isKeepsake(i) || (i.kind === "text" && i.source === "afterglow") || (i.kind === "event" && i.event === "ghosted"));
+
 /** One page of the chain, oldest first. `cursor` asks for the page before it; null at the start of their texts. */
 export type ChainPage = { items: ChainItem[]; cursor: string | null; has_more: boolean };
 

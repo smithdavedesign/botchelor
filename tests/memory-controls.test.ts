@@ -232,7 +232,7 @@ describe("3. which models wrote each date", () => {
     const ep = await (await api.createEpisode({ character_id: oc, partner_id: HOUSE_PARTNER_ID }, creator)).json();
     const row = (await t.db.query<Any>(`select generated_with from episodes where id = $1`, [ep.id])).rows[0];
     // ...with which plan it played from (none: the harness has no conversation) and when each part happened (lib/fast-date.ts).
-    expect(row.generated_with).toEqual({ actor: ["google/test-model"], director: ["google/test-model"], byok: [], prompts: PROMPT_VERSION, plan: null, timing: expect.objectContaining({ fast: false }) });
+    expect(row.generated_with).toEqual({ actor: ["google/test-model"], director: ["google/test-model"], byok: [], prompts: PROMPT_VERSION, plan: null, turn: null, timing: expect.objectContaining({ fast: false }) });
     // Never in a viewer's episode view.
     expect(JSON.stringify(await (await api.getEpisode(ep.id, creator)).json())).not.toContain("google/test-model");
     setModelForTests(null);

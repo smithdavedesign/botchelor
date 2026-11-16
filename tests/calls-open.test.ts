@@ -49,7 +49,7 @@ describe("/calls", () => {
     expect(html).toContain("<h1>Call the ending</h1>");
     expect(html).toContain('<h2 id="open-calls">');
     expect(html).toContain("Nothing is on the air right now.");
-    expect(html).toContain('class="card tap-card open-calls-next" data-track="share-record-lobby" href="/watch"');
+    expect(html).toContain('class="card tap-card open-calls-next open-calls-empty" data-track="share-record-lobby" href="/watch"');
     expect(html).not.toContain('class="card tap-card open-call"');
     expect(html).not.toContain("Nothing is waiting to air right now");
     expect(html).toContain('data-track="share-record-cta" href="/watch#airing-soon"');

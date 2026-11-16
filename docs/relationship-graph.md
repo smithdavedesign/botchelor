@@ -431,7 +431,11 @@ Everything a couple has texted is one thread, the way a phone keeps it (David, 2
 - **Who sees it.** The texts are for the characters' owners only, like both sources, with the dates `visibleTo` gives
   that owner. Another owner's private date and its morning after stay theirs. Anyone else sees, on the couple page's
   phone, only what they send each other besides texts (below): each aired public date with its photo, and the gifts.
-  A house couple has no owners and never texts, so that phone is all of their thread there is.
+  The one exception is a house couple (2026-11-16, `HOUSE_ROOM_TEXTS`): nobody owns either character and the show
+  wrote both sides, so that phone also shows each aired date's morning-after texts and who went quiet
+  (`publicHouseThread`). House rooms write those texts since the same day; an older date has none until an admin asks
+  for them (`POST /api/admin/afterglow`). Their texts between dates still show to nobody: they can speak of a date that
+  hasn't aired.
 - **What they send each other besides texts** (2026-11-16, `keepsakes`): a date's photo and small gifts. See
   [the date's photo and gifts](#what-they-send-each-other-the-dates-photo-and-small-gifts-2026-11-16).
 - **The texts pick up where the afterglow left off.** A daily text's `texts_so_far` is the chain's public layer

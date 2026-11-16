@@ -18,7 +18,8 @@ import { SHARE_IMAGE } from "@/lib/seo";
 import { planFromChain } from "@/lib/simulation";
 import { venueName } from "@/lib/venues";
 import VenuePhoto from "@/app/VenuePhoto";
-import { chainPage, isKeepsake, loadChain, PUBLIC_VIEWER, publicKeepsakes } from "@/lib/text-chain";
+import { chainPage, loadChain, PUBLIC_VIEWER, publicHouseThread, publicKeepsakes, type ChainItem } from "@/lib/text-chain";
+import { houseRoomTextsOn } from "@/lib/afterglow";
 import NudgeForm from "./NudgeForm";
 import PublicThread from "./PublicThread";
 import ThreadPreview from "./ThreadPreview";
@@ -69,7 +70,9 @@ async function load(a: string, b: string) {
   const chainP = owner ? loadChain(db, a, b, { userId: viewerId, owner: true }, { keepsakes: true }) : Promise.resolve(null);
   // Anyone else: the dates that aired publicly, with those photos and gifts and never a text (publicKeepsakes), when
   // both characters are public. Beside the page's other reads, like the owner's chain: no round trip of its own.
-  const sentP = !owner && listed && !ca.private && !cb.private ? loadChain(db, a, b, PUBLIC_VIEWER, { keepsakes: true }).then(publicKeepsakes, () => []) : Promise.resolve([]);
+  // A house couple (nobody owns either) also shows each aired date's morning-after texts: the show wrote both sides.
+  const openTexts = !texted && houseRoomTextsOn();
+  const sentP: Promise<ChainItem[]> = !owner && listed && !ca.private && !cb.private ? loadChain(db, a, b, PUBLIC_VIEWER, { keepsakes: true }).then(openTexts ? publicHouseThread : publicKeepsakes, () => []) : Promise.resolve([]);
   // Owners: what they can do next for this couple (lib/date-proposals.ts), with the plan they agreed to by text since
   // their last date, which is where the next date will happen (lib/plans.ts), or else the plan from their latest date.
   const nextP = chainP.then(async (fullChain) => {
@@ -96,7 +99,7 @@ async function load(a: string, b: string) {
   const chain = fullChain ? chainPage(fullChain) : null;
   // Each date's place, for its photo in Their dates (the view carries the venue's name only).
   const placeOf = new Map(rel!.history.map((h) => [h.episode_id, h.venue] as const));
-  return { ca, cb, view, owner, mine, seeing: { [a]: seeingA, [b]: seeingB } as Record<string, string[]>, chain, sent: sent.some(isKeepsake) ? sent : [], texted, nudges, follow, arc, next, roleplay, placeOf };
+  return { ca, cb, view, owner, mine, seeing: { [a]: seeingA, [b]: seeingB } as Record<string, string[]>, chain, sent: sent.some((i) => i.kind !== "date") ? sent : [], texted, nudges, follow, arc, next, roleplay, placeOf };
 }
 
 /**

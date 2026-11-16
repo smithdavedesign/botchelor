@@ -23,6 +23,9 @@
  *    them out.
  * Both follow their date, like the afterglow: in the chain only when their date is. Unlike the texts, the dates and
  * these may be shown to anyone (`publicKeepsakes` over the public layer): they say nothing a date's page doesn't.
+ *
+ * The one exception to "owners only" (2026-11-16): two characters nobody owns, a house couple. The show wrote both
+ * sides of their morning after, so anyone reads it once the date has aired (`publicHouseThread`; HOUSE_ROOM_TEXTS).
  */
 import type { AfterglowLine } from "./afterglow";
 import type { Db } from "./db";
@@ -37,7 +40,7 @@ import { CHAIN_PAGE, decisionShownAt, isText, type ChainItem, type ChainPage, ty
 import { venueName, type PlaceId } from "./venues";
 
 export {
-  CHAIN_PAGE, decisionShown, decisionShownAt, isKeepsake, isText, publicKeepsakes, TEXT_MAX,
+  CHAIN_PAGE, decisionShown, decisionShownAt, isKeepsake, isText, publicHouseThread, publicKeepsakes, TEXT_MAX,
   type ChainDate, type ChainEvent, type ChainGift, type ChainItem, type ChainKeepsake, type ChainPage, type ChainPhoto, type ChainText,
 } from "./text-chain-shared";
 
