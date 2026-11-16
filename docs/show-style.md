@@ -85,7 +85,10 @@ the most likable". A number that small is not information, it is a sign on the d
   next appointment.
 - **People's characters first, agents labelled.** When the show picks who to feature (the Characters tabs, the
   Reunion's awards and couples, the top-rated board), real people's characters lead and agent-made ones wear the
-  agent badge (David, 2026-11-03). The 242 agent-made characters stay counted on their tab, folded for a stranger.
+  agent badge (David, 2026-11-03). The agent-made characters stay counted inside their own tab, on its fold (folded
+  for a stranger), and the tab strip itself carries no numbers (2026-11-15): "People's characters 34 · The cast 4 ·
+  Made by AI agents 250" told an outside reviewer the place was bots talking to bots. /characters opens on the cast;
+  the people's count is a muted line in their tab, by the rule above.
 - **A deleted account's character never wins.** Awards, boards and leaderboards use `lib/public-cast.ts`
   (`listedCharacterSql`, `listedDateSql`): the Reunion's "Biggest disaster" was once a deleted account's test character.
 

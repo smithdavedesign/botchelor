@@ -122,7 +122,7 @@ describe("the Characters hub's tabs", () => {
     expect([tabHref("cast"), tabHref("people"), tabHref("agents", 2)]).toEqual(["/characters", "/characters?tab=people", "/characters?tab=agents&page=2"]);
   });
 
-  it("renders the three tabs as links with counts, the chosen one current, each card with its origin badge", async () => {
+  it("renders the three tabs as links with no counts, the chosen one current, each card with its origin badge", async () => {
     const person = await made("Open Book");
     const hidden = await made("Quiet Type");
     await api.editCharacter(hidden.id, { visibility: "private" }, hidden.cookie);
@@ -131,9 +131,10 @@ describe("the Characters hub's tabs", () => {
 
     const cast = await render();
     expect(cast).toMatch(/<h1>Characters<\/h1>/);
-    expect(cast).toMatch(/class="segmented-tab" aria-current="page" href="\/characters">The cast <span class="segmented-count">\d+<\/span>/);
-    expect(cast).toContain(`class="segmented-tab" href="/characters?tab=people">People&#x27;s characters <span class="segmented-count">2</span>`);
-    expect(cast).toContain(`class="segmented-tab" href="/characters?tab=agents">Made by AI agents <span class="segmented-count">2</span>`);
+    // A stranger lands on the cast, and the strip names who's here without numbers (2026-11-15: "34 against 250" read
+    // as bots talking to bots). The agents' tab keeps its plain label.
+    expect(cast).toContain(`<nav class="segmented" aria-label="Characters"><a class="segmented-tab" href="/characters?tab=people">People&#x27;s characters</a><a class="segmented-tab" aria-current="page" href="/characters">The cast</a><a class="segmented-tab" href="/characters?tab=agents">Made by AI agents</a>`);
+    expect(cast).not.toContain("segmented-count");
     expect(cast).toMatch(/This season: /);
     expect(cast).not.toMatch(/Next season&#x27;s candidates/); // shown only once there are candidates (UX audit 2026-10-31, A4)
     expect(cast).toMatch(/The relationship graph/); // what /cast had moved here
@@ -163,6 +164,49 @@ describe("the Characters hub's tabs", () => {
     for (const html of [cast, agents]) expect(html).not.toContain("Quiet Type");
   });
 
+  it("says how many inside each tab's own page, never on the strip: people's by the empty-room rule, the agents' on their fold", async () => {
+    // The strip's words, without its tags (an apostrophe's entity has digits of its own).
+    const strip = (html: string) => (/<nav class="segmented"[\s\S]*?<\/nav>/.exec(html)?.[0] ?? "0").replace(/<[^>]+>/g, " ").replace(/&#x27;/g, "'");
+    const owner = await made("Open Book");
+    await made("Second Sight");
+    await agentMade("Ada Lumen");
+    // A stranger, two people's characters: under CROWD_MIN, so no number at all (lib/crowd-threshold.ts).
+    let people = await render({ tab: "people" });
+    expect(people).toContain("Original characters people built on the site.");
+    expect(people).not.toMatch(/\d+ characters? people built/);
+    // From the threshold up, the count is the tab's own muted line.
+    vi.stubEnv("CROWD_MIN", "2");
+    people = await render({ tab: "people" });
+    expect(people).toContain('<p class="muted">2 characters people built on the site. <a href="/create">Make your own</a>.');
+    vi.unstubAllEnvs();
+    // Someone with a character sees it from 1.
+    jar.cookies.set(owner.cookie.split("=")[0], owner.cookie.split("=")[1]);
+    try {
+      expect(await render({ tab: "people" })).toContain("2 characters people built on the site.");
+    } finally {
+      jar.cookies.clear();
+    }
+    // The agents' count is on their fold, labelled as what it is.
+    const agents = await render({ tab: "agents" });
+    expect(agents).toContain("<summary>1 character made by AI agents</summary>");
+    for (const html of [people, agents, await render()]) expect(strip(html)).not.toMatch(/\d/);
+  });
+
+  it("gives someone with a character a line to it under the heading, on every tab; a stranger has none", async () => {
+    const owner = await made("Open Book");
+    expect(await render()).not.toContain("characters-yours");
+    jar.cookies.set(owner.cookie.split("=")[0], owner.cookie.split("=")[1]);
+    try {
+      for (const tab of ["cast", "people", "agents"]) {
+        const html = await render({ tab });
+        expect(html, tab).toContain(`<p class="muted small characters-yours">Yours: <a href="/characters/${owner.id}">Open Book</a> · <a href="/account#your-characters">all your characters</a></p>`);
+        expect(html.indexOf("characters-yours"), tab).toBeLessThan(html.indexOf('class="segmented"'));
+      }
+    } finally {
+      jar.cookies.clear();
+    }
+  });
+
   it("pages a long tab at 24, newest first", async () => {
     const first = await made("Ira Fenn");
     // The rest straight into the table: 24 more of the same person's characters, each newer than the last.
@@ -187,7 +231,7 @@ describe("the Characters hub's tabs", () => {
   it("the cast tab is this month's house cast, with the rest of the house folded under Off this season", async () => {
     setSeasonCastForTests([HOUSE_CHARACTERS[0].id, HOUSE_CHARACTERS[1].id]);
     const html = await render();
-    expect(html).toContain(`class="segmented-tab" aria-current="page" href="/characters">The cast <span class="segmented-count">2</span>`);
+    expect(html).toContain(`class="segmented-tab" aria-current="page" href="/characters">The cast</a>`);
     expect(html).toMatch(/<summary>Off this season \(\d+\)<\/summary>/);
     expect(html).toContain(`/characters/${HOUSE_CHARACTERS[2].id}`);
   });

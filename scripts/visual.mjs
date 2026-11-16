@@ -409,6 +409,10 @@ async function main() {
       { name: "league", path: `/leagues/${data.league.id}` },
       { name: "shop", path: "/shop" },
       { name: "agents", path: "/agents" },
+      // What the bots are saying (app/BotReviews.tsx): every review, and the gripes with where each stands (fixed, open
+      // or not a bug) and the tally over the filter.
+      { name: "reviews", path: "/reviews" },
+      { name: "reviews-gripes", path: "/reviews?said=gripe" },
       // The model league (lib/model-league.ts): its day-one empty state, the exact call in a code box on a phone.
       { name: "agents-league", path: "/agents/league" },
       // The MCP tool reference and changelog (lib/mcp/reference.ts, lib/mcp/changelog.ts): long lists of code-ish text on a phone.
@@ -534,6 +538,8 @@ async function main() {
       { name: "character-talk-reviews", path: "/characters/house-teo#audience" },
       ...(newcomer?.id ? [{ name: "character-talk-new", path: `/characters/${newcomer.id}#talk` }] : []),
       { name: "directory-people", path: "/characters?tab=people" },
+      // The agents' tab: its count is on its own fold, never in the tab strip.
+      { name: "directory-agents", path: "/characters?tab=agents" },
       {
         // Step into the date, open to everyone: the cast picker a stranger lands on with no 18+ cookie, then the start
         // screen with its own 18+ box (app/step-in/StepInSetup.tsx).
