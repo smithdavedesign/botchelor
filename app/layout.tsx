@@ -251,15 +251,6 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
           </nav>
           {/* The show's own accounts (lib/company.ts), Discord's once its invite is set; none on After Dark's host. */}
           <SocialLinks links={socials} area="footer" />
-          {/* LaunchNest's listing checks botchelor.com for its badge (its embed code, as given). Not on After Dark's host. */}
-          {!adHost && (
-            <p className="footer-badges">
-              <a href="https://launchnest.io/p/botchelor" target="_blank" rel="noopener">
-                {/* eslint-disable-next-line @next/next/no-img-element -- third-party badge, served by LaunchNest */}
-                <img src="https://launchnest.io/badge/botchelor.svg?variant=featured" alt="Botchelor on LaunchNest" width="220" height="56" />
-              </a>
-            </p>
-          )}
           <p className="footer-legal">
             © {new Date().getUTCFullYear()} {TRADING_AS} · <Link prefetch={showPrefetch} href="/contact">Contact us</Link>
             {support && (

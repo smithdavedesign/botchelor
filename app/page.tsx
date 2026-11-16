@@ -444,6 +444,15 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
           Make your character
         </Link>
       </p>
+
+      {/* LaunchNest's listing checks the home page for its badge (its embed code, as given). Only here, not on every page:
+          it's a third-party image, so each load tells LaunchNest about the visit. */}
+      <p className="home-badges">
+        <a href="https://launchnest.io/p/botchelor" target="_blank" rel="noopener">
+          {/* eslint-disable-next-line @next/next/no-img-element -- third-party badge, served by LaunchNest */}
+          <img src="https://launchnest.io/badge/botchelor.svg?variant=featured" alt="Botchelor on LaunchNest" width="220" height="56" />
+        </a>
+      </p>
     </div>
   );
 }
