@@ -4315,6 +4315,9 @@ create table if not exists season_awards (
   primary key (season_id, award, character_id)
 );
 create index if not exists season_awards_character_idx on season_awards (character_id);
+-- A portrait chosen from a Studio picture remembers which one (lib/studio/picture-choice.ts; stage 4): it was a copy
+-- with no link back, so "which shoot is this face from" could not be answered. Null for every other asset.
+alter table character_assets add column if not exists from_picture_id text;
 `;
 
 /** Idempotent: creates the tables and upserts the house characters, free and premium. */

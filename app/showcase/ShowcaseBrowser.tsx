@@ -5,6 +5,7 @@ import { actLabel, placeLabel, shapeLabel } from "@/lib/showcase-labels";
 import FilterForm from "./FilterForm";
 import ShowcaseGrid from "./ShowcaseGrid";
 import { shared } from "@/lib/shared-cache";
+import { characterCredits, characterCreditsOn, creditLine } from "@/lib/profile/credits";
 
 type Key = keyof Omit<Filters, "page">;
 
@@ -24,8 +25,22 @@ export default async function ShowcaseBrowser({ db, viewer, base, filters: asked
   const f = { ...filters, ...fixed };
   // Someone signed out sees what everyone with the same ratings does: from a few seconds' shared copy (lib/shared-cache.ts).
   const alike = viewer.id || viewer.admin ? null : `showcase:${viewer.ratings.join(",")}:${viewer.adult ? 1 : 0}:${viewer.bot ? 1 : 0}:${JSON.stringify(f)}`;
-  const load = () => Promise.all([listShowcase(db, viewer, f), showcaseFacets(db, viewer, { ...f, page: undefined })]);
-  const [{ posts, more }, facets] = await (alike ? shared(alike, load) : load());
+  // The page, its counts, and under each character's name the most telling thing it has been in (lib/profile/credits.ts:
+  // one statement for every character on the page, the public record only).
+  const load = async () => {
+    const [list, counts] = await Promise.all([listShowcase(db, viewer, f), showcaseFacets(db, viewer, { ...f, page: undefined })]);
+    const ids = [...new Set(list.posts.map((p) => p.character.id))];
+    const lines: Record<string, string> = {};
+    if (ids.length && characterCreditsOn()) {
+      const all = await characterCredits(db, ids).catch(() => new Map());
+      for (const id of ids) {
+        const line = creditLine(all.get(id));
+        if (line) lines[id] = line;
+      }
+    }
+    return [list, counts, lines] as const;
+  };
+  const [{ posts, more }, facets, credits] = await (alike ? shared(alike, load) : load());
   const query = (patch: Partial<Record<Key | "page", string | number | boolean | undefined>>, keep: Filters = filters, skipFixed = true) => {
     const q = new URLSearchParams();
     const next: Record<string, unknown> = { ...keep, page: undefined, ...patch };
@@ -134,7 +149,7 @@ export default async function ShowcaseBrowser({ db, viewer, base, filters: asked
         )}
       </nav>
       {posts.length ? (
-        <ShowcaseGrid posts={posts} admin={viewer.admin} reels={query({}, f, false)} />
+        <ShowcaseGrid posts={posts} admin={viewer.admin} reels={query({}, f, false)} credits={credits} />
       ) : (
         <p className="muted showcase-empty">Nothing here yet{Object.keys(filters).some((k) => k !== "page" && filters[k as Key] !== undefined) ? " with those filters" : ""}. Creators publish from their Studio: 📣 on any picture or clip.</p>
       )}

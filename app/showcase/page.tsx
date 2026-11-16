@@ -4,7 +4,11 @@ import Icon from "@/app/Icon";
 import { myRequests } from "@/lib/showcase-social";
 import { getDb } from "@/lib/db";
 import { pageMetadata } from "@/lib/seo";
-import { parseFilters } from "@/lib/showcase";
+import { parseFilters, sideOf } from "@/lib/showcase";
+import { galleryShowClipsOn, listShowClips } from "@/lib/home-clip";
+import { shortName } from "@/lib/names";
+import { shared } from "@/lib/shared-cache";
+import ShowClips from "./ShowClips";
 import ShowcaseBrowser from "./ShowcaseBrowser";
 import { reelsQuery } from "./reels/reel-shared";
 import { pageViewer } from "./viewer";
@@ -44,7 +48,16 @@ export default async function ShowcasePage({ searchParams }: Props) {
   const db = await getDb();
   const viewer = await pageViewer(db);
   const sp = await searchParams;
-  const studio = await studioDoor(db, viewer.id);
+  const filters = parseFilters(sp);
+  // The show's own clips lead the safe side's first page (lib/home-clip.ts listShowClips): with no filter, or with a
+  // character picked (then that character's dates). Any other filter is about creators' posts, so the row steps aside.
+  const others = Object.entries(filters).filter(([k, v]) => v !== undefined && k !== "character" && k !== "page" && k !== "sort");
+  const lead = galleryShowClipsOn() && sideOf(filters) === "pg" && (filters.page ?? 1) === 1 && others.length === 0;
+  const [studio, clips, clipOf] = await Promise.all([
+    studioDoor(db, viewer.id),
+    lead ? shared(`showcase:show-clips:${filters.character ?? ""}`, () => listShowClips(db, { limit: 6, characterId: filters.character ?? null })).catch(() => []) : Promise.resolve([]),
+    lead && filters.character ? db.query<{ name: string }>(`select name from characters where id = $1 and visibility = 'public'`, [filters.character]).then((r) => r.rows[0]?.name ?? null, () => null) : Promise.resolve(null),
+  ]);
   return (
     <div className="showcase-page page-wide">
       {/* The Studio door's first room (app/studio/StudioTabs.tsx, 2026-11-16): what everyone made, beside where it's made. */}
@@ -63,7 +76,8 @@ export default async function ShowcasePage({ searchParams }: Props) {
           📣 Someone wants to share a picture with one of your characters. <Link href="/showcase/requests">See what&apos;s waiting on you</Link>
         </p>
       )}
-      <ShowcaseBrowser db={db} viewer={viewer} base="/showcase" filters={parseFilters(sp)} />
+      <ShowClips clips={clips} of={clipOf ? shortName(clipOf) : null} />
+      <ShowcaseBrowser db={db} viewer={viewer} base="/showcase" filters={filters} />
       {/* The way in, under the grid (the design system's Reels): anyone's characters can be here. */}
       <aside className="showcase-cta card">
         <div>
