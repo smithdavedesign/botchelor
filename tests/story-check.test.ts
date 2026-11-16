@@ -6,6 +6,7 @@
 // `featurable: false` public. A fake model throughout: never a real call.
 import { readFileSync } from "node:fs";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { storyCheckText } from "@/app/admin/analytics/QualityTab";
 import { GET as countsRoute, POST as checkRoute } from "@/app/api/admin/story-check/route";
 import { POST as uploadClip } from "@/app/api/admin/home-clip/route";
 import type { Turn } from "@/lib/conversation";
@@ -594,6 +595,11 @@ describe("the admin route", () => {
     expect(counts.last_30).toMatchObject({ aired: 2, checked: 2, consistent: 1, reversal: 1, repaired: 1, written_contradicts_share: 0.5 });
     expect(counts.last_30.cost_usd).toBeCloseTo(0.0016, 6);
     expect(await storyCheckCounts(t.db)).toMatchObject({ on: true, repair: true });
+    // The same counts, as the quiet line on /admin/analytics → Quality.
+    expect(storyCheckText(counts)).toBe(
+      "Story check: last 7 days 1 of 1 aired dates checked: 0 consistent, 0 hidden truth, 1 reversal, 0 contradicting (not featured), 1 finale repaired; $0.00. " +
+        "Last 30 days 2 of 2 aired dates checked: 1 consistent, 0 hidden truth, 1 reversal, 0 contradicting (not featured), 1 finale repaired; $0.00.",
+    );
 
     expect((await post({ episode_id: "no-such-date" })).status).toBe(404);
     expect((await post({ episode_id: bad, undo: true })).status).toBe(200);

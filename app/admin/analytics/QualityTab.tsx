@@ -172,10 +172,16 @@ function storyPhrase(c: StoryCounts): string {
     `${count(c.consistent)} consistent`,
     `${count(c.hidden_truth)} hidden truth`,
     `${count(c.reversal)} reversal`,
-    `${count(c.contradicts)} contradict${c.repaired ? ` (${count(c.repaired)} more repaired)` : ""}`,
+    `${count(c.contradicts)} contradicting (not featured)`,
+    ...(c.repaired ? [`${count(c.repaired)} finale${c.repaired === 1 ? "" : "s"} repaired`] : []),
+    ...(c.by_rules ? [`${count(c.by_rules)} by the $0 rules`] : []),
   ];
-  const rules = c.by_rules ? `, ${count(c.by_rules)} by the $0 rules` : "";
-  return `${count(c.checked)} of ${count(c.aired)} aired dates checked: ${parts.join(", ")}${rules}, $${c.cost_usd.toFixed(2)}`;
+  return `${count(c.checked)} of ${count(c.aired)} aired dates checked: ${parts.join(", ")}; $${c.cost_usd.toFixed(2)}`;
+}
+
+/** The story check's line on the Quality tab (exported for tests/story-check.test.ts). */
+export function storyCheckText(data: StoryCheckCounts): string {
+  return `Story check${data.on ? "" : " (off)"}: last 7 days ${storyPhrase(data.last_7)}. Last 30 days ${storyPhrase(data.last_30)}.${data.repair ? "" : " Repairs are off."}`;
 }
 
 /**
@@ -197,12 +203,7 @@ function StoryCheckLine({ adminFetch }: { adminFetch: AdminFetch }) {
     };
   }, [adminFetch]);
   if (!data) return null;
-  return (
-    <p className="muted small">
-      Story check{data.on ? "" : " (off)"}: last 7 days {storyPhrase(data.last_7)}; last 30 days {storyPhrase(data.last_30)}.
-      {data.repair ? "" : " Repairs are off."}
-    </p>
-  );
+  return <p className="muted small">{storyCheckText(data)}</p>;
 }
 /** A gate as "x of y" (lib/training-readiness.ts gateText; repeated here so the page doesn't import server code). */
 const gateValue = (g: ReadinessGate) => (g.kind === "majority" ? `${count(g.have)} of ${count(g.need)} (needs more than half)` : `${count(g.have)} of ${count(g.need)}`);
