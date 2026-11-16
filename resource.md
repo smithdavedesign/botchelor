@@ -6,6 +6,10 @@ Every dashboard, console and listing used for this project. Links only, no secre
 - [botchelor.com](https://botchelor.com)
 - [MCP endpoint](https://botchelor.com/api/mcp)
 - [Health check](https://botchelor.com/api/health)
+- [What it costs](https://botchelor.com/costs): the public cost ledger (lib/public-costs.ts, docs/costs.md)
+- [Marketing, in the open](https://botchelor.com/marketing): every channel and post, how each did and what it brought (lib/public-marketing.ts, docs/marketing.md)
+- [For agents](https://botchelor.com/agents): the MCP server's front page, tool reference and changelog
+- Admin (admin account only): [/admin/analytics](https://botchelor.com/admin/analytics) (engagement, sources, funnel) and [/admin/spend](https://botchelor.com/admin/spend) (money in and out)
 
 ## Code and planning
 - [GitHub repo](https://github.com/smithdavedesign/botchelor)
@@ -17,7 +21,10 @@ Every dashboard, console and listing used for this project. Links only, no secre
 - [Tab Manager](https://tabmanager.io/)
 
 ## Hosting, infrastructure and media
-- [Vercel deployments](https://vercel.com/david-smiths-projects-fe129786/botchelor/deployments)
+- [DigitalOcean apps](https://cloud.digitalocean.com/apps): the show and After Dark run here since 2026-10-30, plus the scheduled jobs
+- [Neon console](https://console.neon.tech/): the Postgres database
+- [Runpod console](https://www.console.runpod.io/): the GPU endpoint for live video calls (Ditto); auto-pay tops up $25 below $15
+- [Vercel deployments](https://vercel.com/david-smiths-projects-fe129786/botchelor/deployments): the old host, before the move to DigitalOcean
 - [DigitalOcean API tokens](https://cloud.digitalocean.com/account/api/tokens?i=bcb315)
 - [Bunny dashboard (billing)](https://dash.bunny.net/auth/login?returnUrl=%2Faccount%2Fbilling)
 - [Bunny login](https://dash.bunny.net/auth/login)
@@ -36,11 +43,33 @@ Every dashboard, console and listing used for this project. Links only, no secre
 - [OpenAI API keys](https://platform.openai.com/api-keys)
 - [Google AI Studio API keys](https://aistudio.google.com/api-keys)
 - [Google AI Studio billing](https://aistudio.google.com/billing?billing=011B5F-2D20A4-B63801)
+- [Hive moderation](https://thehive.ai/): image safety checks for portraits and After Dark pictures
+- [Didit](https://didit.me/): age checks, only where the law asks for one
+- [Simli](https://app.simli.com/): talking faces for calls (free plan)
+- Kokoro voices on Venice: the voices in the daily clips (same Venice key)
 
 ## Email and payments
 - support@botchelor.com: forwards to the owner's Gmail ([Cloudflare Email Routing](https://dash.cloudflare.com/)); the site's `CONTACT_EMAIL` on both DigitalOcean apps
 - [Resend](https://resend.com/login)
 - [Stripe dashboard (payments)](https://dashboard.stripe.com/login?redirect=%2Facct_1UR4AVAFlr4wKG3U%2Fpayments)
+
+## Social accounts
+Posted to by the marketing loop (`~/idea-factory/bin/idea-market.js`, calendar `ideas/botchelor/marketing.json`); the full log is public at [/marketing](https://botchelor.com/marketing).
+- [Reddit u/Outside_Sir_9341](https://www.reddit.com/user/Outside_Sir_9341/submitted/)
+- [X @botchelorLLC](https://x.com/botchelorLLC)
+- [Bluesky @botchelor.bsky.social](https://bsky.app/profile/botchelor.bsky.social)
+- [Threads @botchelor](https://www.threads.com/@botchelor) (since 2026-11-15; signed in through Instagram)
+- [Instagram @botchelor](https://www.instagram.com/botchelor/) (Reels)
+- [TikTok @botchelorcom](https://www.tiktok.com/@botchelorcom)
+- [YouTube @Botchelor](https://www.youtube.com/@Botchelor) (Shorts)
+- [Discord server](https://discord.gg/8VDdRF9YU) (the weekly digest posts in #general)
+- [Chub @botchelor](https://chub.ai/users/botchelor): five of the show's cast as character cards
+
+## Launch sites and directories
+- [Uneed](https://www.uneed.best/tool/botchelor): listed 2026-11-15, free launch slot 2027-06-22 (fast-track $19.99 planned, not paid)
+- [DevHunt: Botchelor MCP](https://devhunt.org/tool/botchelor-mcp): listed 2026-11-15, free queue (~2031; basic launch $19 planned, not paid)
+- Peerlist: project page saved 2026-11-15; the Launchpad needs the owner's ID verification first
+- Product Hunt: launch planned for Tue 2026-12-01 with December's season (`~/idea-factory/ideas/botchelor/PRODUCTHUNT.md`)
 
 ## Google, analytics and SEO
 - [Google Cloud OAuth clients (project botchelor)](https://console.cloud.google.com/auth/clients?project=botchelor)
@@ -72,7 +101,7 @@ Submitted 2026-11-08, waiting for review (each emails the owner's Gmail when liv
 Not submitted: PulseMCP blocks automated browsers but imports the official registry; Smithery stopped taking submissions on 2026-10-31 (now curated by Arcade).
 
 ## Posts that stayed up
-The full log, removals included, is `~/idea-factory/ideas/botchelor/launch-log.json`. Reddit account: [u/Outside_Sir_9341](https://www.reddit.com/user/Outside_Sir_9341/submitted/).
+Every post, removals included, with scores and what it brought: [botchelor.com/marketing](https://botchelor.com/marketing). The source logs are `~/idea-factory/ideas/botchelor/launch-log.json` and `marketing-queue.json`. Highlights:
 - 2026-10-20 [r/mcp: a dating simulation for bots](https://www.reddit.com/r/mcp/comments/1xadyv8/botchelor_a_dating_simulation_for_bots/) and [our comment there](https://www.reddit.com/r/mcp/comments/1xadyv8/comment/19riaazpfzmbl/?context=1)
 - 2026-10-24 [r/SillyTavernAI](https://www.reddit.com/r/SillyTavernAI/comments/1xeebiw/created_a_blinddate_show_for_your_oc_where_you/) (best so far: 6 points, 11 comments)
 - 2026-10-24 [Show HN](https://news.ycombinator.com/item?id=50223284)
@@ -83,3 +112,7 @@ The full log, removals included, is `~/idea-factory/ideas/botchelor/launch-log.j
 - 2026-11-03 [r/aichapp](https://www.reddit.com/r/aichapp/comments/1xmfexa/im_the_dev_your_oc_goes_on_a_blind_date_you_cant/)
 - 2026-11-08 [r/mcp: agents can audition for the monthly cast](https://www.reddit.com/r/mcp/comments/1xr89t5/botchelor_update_agents_can_now_audition_their/)
 - 2026-11-09 [r/JanitorAI_Refuges: blind-date show plus 1-on-1 chat](https://www.reddit.com/r/JanitorAI_Refuges/comments/1xs0xkz/im_the_dev_a_blinddate_show_for_your_oc_plus_1on1/) (self ads once every 7 days)
+- 2026-11-11 [TikTok: first daily clip](https://www.tiktok.com/@botchelorcom/video/7706986449412951326); from then on one clip a day on TikTok, [YouTube Shorts](https://www.youtube.com/@Botchelor/shorts) and [Instagram Reels](https://www.instagram.com/botchelor/reels/)
+- 2026-11-13 [r/modelcontextprotocol: a remote MCP server with a 3-tool default list](https://www.reddit.com/r/modelcontextprotocol/comments/1xvcbqg/i_built_a_remote_mcp_server_where_the_default/)
+- 2026-11-15 [Threads: first post](https://www.threads.com/@botchelor/post/DfxgWZjGTGa)
+- Daily since 2026-11-10: [Bluesky](https://bsky.app/profile/botchelor.bsky.social) and [X](https://x.com/botchelorLLC)
