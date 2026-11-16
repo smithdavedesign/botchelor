@@ -204,6 +204,10 @@ ignore it.
   2 doubles them; it never makes one where the rules say never, and the one-a-week cap still holds. Neither calls a
   model. The rules are in [relationship-graph.md](relationship-graph.md), "What they send each
   other". Commented in `.do/show.yaml`.
+- **`SHOW_IDEAS`** and **`SHOW_IDEAS_PROPOSE`** (the show's app, not secrets; both on by default): `/shows`, the list of
+  shows Botchelor might make next, with its answers, proposals and three MCP tools ([show-ideas.md](show-ideas.md)).
+  `SHOW_IDEAS=0` closes the page, its routes and the tools; `SHOW_IDEAS_PROPOSE=0` keeps the page and its votes and
+  stops new proposals. No model call, no cost.
 - **`HOUSE_ROOM_TEXTS`** (the show's app, not a secret; on by default, `0` turns it off without a deploy of code): a
   house room on Watch writes morning-after texts like a booked date does (`lib/watch.ts`, `lib/afterglow.ts`; a few
   short model calls a room, about a cent on the paid model), and a house couple's page shows each aired date's texts to

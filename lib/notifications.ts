@@ -61,6 +61,7 @@ export type NotificationKind =
   | "key_failed" // your own key stopped working (invalid, out of credit): what to do, and what happens meanwhile
   | "likes_waiting" // your characters have likes waiting and don't answer for themselves while you're away (never who; lib/away.ts)
   | "situation_on" // the house date whose situation you voted for is on (lib/situations.ts)
+  | "show_idea" // (admins) someone proposed a show idea, waiting to be listed or declined (lib/show-ideas.ts)
   | "season_vote" // the season turned: how the format vote you cast went (lib/season-vote.ts announceBallotResult)
   | "backing_settled" // the season closed: how the cast member you backed ended it (lib/backing.ts)
   | "dare_on" // the house date carrying the dare you voted on is on (lib/dares.ts)

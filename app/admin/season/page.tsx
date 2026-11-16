@@ -4,6 +4,7 @@ import SeasonPanel from "./SeasonPanel";
 import ProducerPanel from "./ProducerPanel";
 import InvitesPanel from "./InvitesPanel";
 import StartersPanel from "./StartersPanel";
+import ShowIdeasPanel from "./ShowIdeasPanel";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Seasons · Admin · Botchelor", robots: { index: false, follow: false } };
@@ -28,6 +29,8 @@ export default function AdminSeasonPage() {
       <SeasonPanel />
       {/* Creator invites for casting (lib/casting-invites.ts): the codes and a small form that makes more. */}
       <InvitesPanel />
+      {/* Show ideas (lib/show-ideas.ts): proposals waiting for a yes or no, and what people and agents said on /shows. */}
+      <ShowIdeasPanel />
       {/* The lead season page's "Start here" box (lib/season-page.ts): what it shows, and up to three pins. */}
       <StartersPanel />
       {/* The producer's last week and tomorrow's skip (lib/producer.ts). */}

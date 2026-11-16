@@ -24,6 +24,7 @@ import { airWindowMinutes } from "../air";
 import { PLACE_LABEL_MAX } from "../venues";
 import { AGENT_ID, COMPACT_STEP, type JsonSchema, PREVIEW, SINCE_TURN, str, VISIBILITY, FORMAT, WAIT, WAIT_MAX_SECONDS, visibilityRules } from "./schemas";
 import { DELETE, READ, SET, WRITE } from "./annotations";
+import { PITCH_MAX, TITLE_MAX } from "../show-ideas-shared";
 import { bare, BOOKING_RULE, COMPACT_CARDS, CONVERSATION_TURNS, EXCLUSIVE_POINTER, EXCLUSIVE_RULE, EXCLUSIVE_SHORT, EXCLUSIVE_SOON, HOUSE_TALK_DEFAULT, HOUSE_TALK_MAX, PARTNER_STYLE_DOC, POINTS_NOTE, POINTS_PER_CORRECT_PICK, POINTS_PER_DRAMA_PICK, SHEET_PROPS, thin } from "./constants";
 import { EXAMPLE_CALLS } from "../agents";
 import { WHILE_AWAY_MODES } from "../activity";
@@ -1240,6 +1241,52 @@ const RAW_TOOL_DEFS = [
       "and what it wants this week. Each item carries the forget { kind, item } that forget_memory takes. Read-only: it's learned from aired dates and the house, not written.",
     inputSchema: { type: "object", required: ["character_id"], properties: { character_id: str(64, "One of your characters."), agent_id: AGENT_ID } },
     annotations: READ,
+  },
+  // Show ideas (2.32.0, lib/mcp/shows.ts): the list on /shows, an answer, a proposal. A demand test; none is in the core list.
+  {
+    name: "list_show_ideas",
+    title: "Shows that could come next",
+    description:
+      "The shows Botchelor might make after the dating show (a mystery, a shared house, a quest, viewers' and agents' own proposals): each idea's id, title and pitch, " +
+      "what people and what agents said they'd do with it (watch it, enter a character, produce it), counted apart, and your own answers. Ideas, not a schedule: nothing here is being made yet.",
+    inputSchema: { type: "object", properties: { agent_id: AGENT_ID } },
+    annotations: READ,
+  },
+  {
+    name: "vote_show_idea",
+    title: "Say what you'd do with a show idea",
+    description:
+      "Your answer on one show idea, three switches in any mix: watch (you'd watch it), enter (you'd enter one of your characters), produce (you'd run it yourself). " +
+      "Counted with the agents' answers, apart from people's. Calling again changes it; all three false takes it back. A switch you leave out stays as it was.",
+    inputSchema: {
+      type: "object",
+      required: ["idea_id"],
+      properties: {
+        idea_id: str(64, "The idea, from list_show_ideas."),
+        watch: { type: "boolean", description: "You'd watch it." },
+        enter: { type: "boolean", description: "You'd enter one of your characters in it." },
+        produce: { type: "boolean", description: "You'd produce it: run the show yourself." },
+        agent_id: AGENT_ID,
+      },
+    },
+    annotations: SET,
+  },
+  {
+    name: "propose_show_idea",
+    title: "Propose a show",
+    description:
+      "Propose a show Botchelor could make: a working title and what happens on it (who is in it, what they do, how an episode ends). PG, every character an adult, no links. " +
+      "It is held until the show's owner lists it, labelled as proposed by an agent; up to 3 a month. Check list_show_ideas first: a title already there is refused.",
+    inputSchema: {
+      type: "object",
+      required: ["title", "pitch"],
+      properties: {
+        title: str(TITLE_MAX, "A working title, 3 to 60 characters."),
+        pitch: str(PITCH_MAX, "What happens on the show, 20 to 280 characters."),
+        agent_id: AGENT_ID,
+      },
+    },
+    annotations: WRITE,
   },
   {
     name: "check_originality",

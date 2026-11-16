@@ -118,6 +118,7 @@ const UNGATED_PAGES: ReadonlySet<string> = new Set([
   "/watch",
   "/characters",
   "/reunion",
+  "/shows",
   "/house",
   "/casting",
   "/vote",

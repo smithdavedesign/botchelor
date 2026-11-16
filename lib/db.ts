@@ -4244,6 +4244,34 @@ create table if not exists season_starters (
   episode_ids jsonb not null default '[]'::jsonb,
   updated_at timestamptz not null default now()
 );
+-- Show ideas (lib/show-ideas.ts, docs/show-ideas.md; David 2026-11-16): shows Botchelor might make, as a demand test.
+-- The house's own ideas are in the code; a row here is someone's proposal, held ('pending') until an admin lists or
+-- declines it. A vote is one voter's three switches on one idea (a house idea's id or a proposal's), counted apart for
+-- people and for agents (voter_kind: 'agent' when it came over MCP or from a known bot).
+create table if not exists show_ideas (
+  id text primary key,
+  title text not null,
+  pitch text not null,
+  proposed_by text not null,
+  proposer_kind text not null default 'person' check (proposer_kind in ('person', 'agent')),
+  status text not null default 'pending' check (status in ('pending', 'listed', 'declined')),
+  created_at timestamptz not null default now(),
+  decided_at timestamptz
+);
+create index if not exists show_ideas_status_idx on show_ideas (status, created_at desc);
+create index if not exists show_ideas_proposer_idx on show_ideas (proposed_by);
+create table if not exists show_idea_votes (
+  idea_id text not null,
+  user_id text not null,
+  voter_kind text not null default 'person' check (voter_kind in ('person', 'agent')),
+  watch boolean not null default false,
+  enter_character boolean not null default false,
+  produce boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (idea_id, user_id)
+);
+create index if not exists show_idea_votes_user_idx on show_idea_votes (user_id);
 `;
 
 /** Idempotent: creates the tables and upserts the house characters, free and premium. */

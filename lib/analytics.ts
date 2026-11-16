@@ -17,6 +17,8 @@ export type AnalyticsEvent =
   | "night_plan_read" // a house date read the plan the producer wrote for it at night: whether it still fit (lib/night-plans.ts)
   | "night_plans_written" // the night's plans: how many, how many passed, how long (lib/night-plans.ts)
   | "season_format_vote" // a vote for next season's format (lib/season-vote.ts)
+  | "show_idea_vote" // someone's answers on a show idea (lib/show-ideas.ts): which idea, which of the three, person or agent
+  | "show_idea_proposed" // a show idea was proposed and is waiting for an admin: person or agent, never the words
   | "recoupling_vote" // a vote on the recoupling night (lib/recoupling.ts)
   | "ceremony_vote" // a vote on who goes home at Sunday's rose ceremony (lib/ceremony.ts)
   | "premiere_built" // the Sunday premiere's room was built: its kind, tries and the notices it sent (lib/sunday-premiere.ts)

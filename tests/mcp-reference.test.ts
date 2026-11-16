@@ -195,10 +195,11 @@ describe("the changelog", () => {
     expect(MCP_CHANGELOG[0].date <= new Date(Date.now() + 24 * 3600_000).toISOString().slice(0, 10)).toBe(true);
   });
 
-  it("names only tools the server has, and the newest entry names the house tools", () => {
+  it("names only tools the server has, and the house tools' entry names them", () => {
     const names = new Set(MCP_TOOLS.map((t) => t.name as string));
     for (const r of MCP_CHANGELOG) for (const tool of r.added_tools ?? []) expect(names.has(tool), `${r.version}: ${tool}`).toBe(true);
-    expect(LATEST_RELEASE.added_tools).toEqual([...HOUSE_TOOL_NAMES]);
+    expect(MCP_CHANGELOG.find((r) => r.version === "2.31.0")?.added_tools).toEqual([...HOUSE_TOOL_NAMES]);
+    expect((LATEST_RELEASE.added_tools ?? []).length).toBeGreaterThan(0);
   });
 
   it("/agents/changelog renders every version with an anchor, the running one marked, and links its new tools to the reference", () => {

@@ -63,6 +63,8 @@ describe("#1361: the first call", () => {
     // reflect_on_date (the core list stays under its 63 KB cap): the cap moved to 69.1 KB.
     // 2026-11-15 (MCP 2.31.0, the house tools): all four sit outside the core list, so the list's tools didn't grow; their
     // four names in more_tools.not_listed are 71 bytes, 30 over, so the cap moved to 69.2 KB.
-    expect(JSON.stringify(init).length + JSON.stringify(list).length).toBeLessThan(69_200);
+    // 2026-11-16 (MCP 2.32.0, show ideas): three more tools outside the core list; their names in more_tools.not_listed are
+    // 52 bytes, 3 over, so the cap moved to 69.3 KB.
+    expect(JSON.stringify(init).length + JSON.stringify(list).length).toBeLessThan(69_300);
   });
 });

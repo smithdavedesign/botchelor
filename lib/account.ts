@@ -67,6 +67,8 @@ export type AccountExport = {
   /** Their votes on tonight's situation (lib/situations.ts). */
   situation_votes: Record<string, unknown>[];
   season_format_votes: Record<string, unknown>[];
+  show_idea_votes: Record<string, unknown>[];
+  show_ideas_proposed: Record<string, unknown>[];
   notification_mutes: Record<string, unknown>[];
   recoupling_votes: Record<string, unknown>[];
   /** The cast members they backed by season (lib/backing.ts), and how each pick ended. */
@@ -273,6 +275,9 @@ export async function exportAccount(db: Db, userId: string): Promise<AccountExpo
     arc_predictions: await q("select character_lo, character_hi, target, pick, created_at, resolved_at, outcome from arc_predictions where user_id = $1", [userId]),
     situation_votes: await q("select day, pick, created_at, updated_at from situation_votes where user_id = $1 order by day", [userId]),
     season_format_votes: await q("select season_id, pick, created_at, updated_at from season_format_votes where user_id = $1 order by season_id", [userId]),
+    // Show ideas (lib/show-ideas.ts): what they said they'd want, and the ideas they proposed.
+    show_idea_votes: await q("select idea_id, watch, enter_character, produce, created_at, updated_at from show_idea_votes where user_id = $1 order by created_at", [userId]),
+    show_ideas_proposed: await q("select id, title, pitch, status, created_at from show_ideas where proposed_by = $1 order by created_at", [userId]),
     notification_mutes: await q("select type, created_at from notification_mutes where user_id = $1 order by type", [userId]),
     recoupling_votes: await q("select night_at, pick, created_at, updated_at from recoupling_votes where user_id = $1 order by night_at", [userId]),
     cast_backings: await q("select season_id, character_id, created_at, updated_at, won, settled_at from cast_backings where user_id = $1 order by season_id", [userId]),
@@ -611,6 +616,9 @@ export async function deleteAccount(db: Db, userId: string): Promise<AccountDele
   await run("delete from arc_predictions where user_id = $1", [userId]);
   await run("delete from situation_votes where user_id = $1", [userId]);
   await run("delete from season_format_votes where user_id = $1", [userId]);
+  // Show ideas (lib/show-ideas.ts): their answers, the ideas they proposed, and everyone's answers on those ideas.
+  await run("delete from show_idea_votes where user_id = $1 or idea_id in (select id from show_ideas where proposed_by = $1)", [userId]);
+  await run("delete from show_ideas where proposed_by = $1", [userId]);
   await run("delete from notification_mutes where user_id = $1", [userId]);
   await run("delete from recoupling_votes where user_id = $1", [userId]);
   await run("delete from cast_backings where user_id = $1", [userId]);

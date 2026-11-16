@@ -29,6 +29,8 @@ const OPEN = [
   "/episodes/3f2a9c1e-1b2c-4d5e-8f90-1234567890ab",
   "/episodes/3f2a9c1e-1b2c-4d5e-8f90-1234567890ab?play=1",
   "/seasons/2026-11",
+  // The show on air and the ideas for what could come next (lib/show-ideas.ts): a PG landing page.
+  "/shows",
   "/couples/aaaa/bbbb",
   "/characters",
   "/characters?tab=people",

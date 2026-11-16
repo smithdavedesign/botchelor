@@ -226,6 +226,8 @@ const CALL_SITES = [
   "app/characters/page.tsx",
   "app/reunion/page.tsx",
   "app/seasons/[slug]/page.tsx",
+  "app/shows/ShowIdeas.tsx",
+  "app/shows/page.tsx",
   "app/watch/BotchelorCard.tsx",
   "app/watch/RecouplingCard.tsx",
   "app/watch/page.tsx",

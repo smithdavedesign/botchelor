@@ -667,6 +667,8 @@ async function main() {
       { name: "notifications", path: "/notifications", as: "owner" },
       { name: "graph", path: "/graph" },
       { name: "reunion", path: "/reunion" },
+      // The show on air and the ideas for what could come next (lib/show-ideas.ts).
+      { name: "shows", path: "/shows" },
       // A lead season's own page, the month before it starts (docs/season-page.md).
       { name: "season-live", path: `/seasons/${nextSeasonSlug}`, ...leadSeason },
       { name: "house", path: "/house" },

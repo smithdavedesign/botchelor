@@ -121,6 +121,7 @@ import { kindLabel } from "../kinds";
 import { FORGET_KINDS } from "../memory";
 import { loadLessons } from "../character-lessons";
 import { STORY_FORGET_KINDS, storyView } from "../story-state";
+import { listShowIdeasTool, proposeShowIdeaTool, voteShowIdeaTool } from "./shows";
 import { getHouseScene, getHouseTalk, getStorySoFar, HOUSE_TOOL_NAMES, HOUSE_TOOLS_OFF, isHouseTool, mcpHouseOn, myStoryState, sceneAbout } from "./house";
 import { CROWD_CLIENT_PREFIX, crowdMinutesToWake, HOUSE_BOT_CLIENT_PREFIX, houseBotRefusal } from "../house-bots";
 import { siteUrl } from "../site";
@@ -270,7 +271,7 @@ export const MCP_PROTOCOL_VERSION = "2025-06-18";
 // get_house_scene, get_house_talk, get_story_so_far and my_story_state, and get_episode's house_talk pointer on an aired
 // date of yours the house talked about: new tools and one new field, nothing else changed. The versions are data now
 // (lib/mcp/changelog.ts, shown at /agents/changelog; a test holds its newest entry to this version): add the entry there.
-export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.31.0" } as const;
+export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.32.0" } as const;
 
 /** Where every tool is listed: the default list is the core (2026-10-20: 53 tools were ~14k tokens in every agent's context). */
 export const ALL_TOOLS_HINT = "/api/mcp?tools=all";
@@ -648,6 +649,9 @@ export const TOOL_COSTS: Record<ToolName, string> = {
   get_house_talk: FREE,
   get_story_so_far: FREE,
   my_story_state: FREE,
+  list_show_ideas: FREE,
+  vote_show_idea: FREE,
+  propose_show_idea: FREE,
 };
 
 /** Which tools carry a free-path rate limit (lib/rate-limit.ts). Buckets map to tool names. */
@@ -8879,6 +8883,25 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         },
         identity: who,
       };
+    }
+    // Show ideas (2.32.0, lib/mcp/shows.ts): the list on /shows, an answer and a proposal. An agent's answer is counted
+    // with the agents', never with people's; nothing here is scheduled or touches a date.
+    case "list_show_ideas": {
+      const who = resolveIdentity(args, session, false);
+      const out = await listShowIdeasTool(db, who?.id ?? null);
+      return "error" in out ? out : { data: out.data, identity: who ?? undefined };
+    }
+    case "vote_show_idea": {
+      const who = resolveIdentity(args, session, true);
+      if (!who) return { error: NEEDS_IDENTITY };
+      const out = await voteShowIdeaTool(db, who.id, args);
+      return "error" in out ? out : { data: out.data, identity: who };
+    }
+    case "propose_show_idea": {
+      const who = resolveIdentity(args, session, false);
+      if (!who) return { error: NEEDS_IDENTITY };
+      const out = await proposeShowIdeaTool(db, who.id, args);
+      return "error" in out ? out : { data: out.data, identity: who };
     }
     // The house (2.31.0, lib/mcp/house.ts): three public reads and the owner's own view. None writes.
     case "get_house_scene": {
