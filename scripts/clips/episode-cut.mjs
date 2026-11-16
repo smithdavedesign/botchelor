@@ -17,7 +17,7 @@
 import { execFileSync } from "node:child_process";
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { chromiumPath } from "./daily-clip.mjs";
 import { sayLine, sayable, soundSeconds, veniceKey, veniceLine, voiceFor } from "./voice.mjs";
@@ -316,8 +316,6 @@ export function cutCaption(edl, episodes, base = "https://botchelor.com") {
     .join("\n");
 }
 
-const slug = (s) => String(s ?? "").toLowerCase().normalize("NFD").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40);
-
 async function speak(beat, file, key, log, speed = VOICE_SPEED) {
   const words = spokenText(beat);
   if (!words) return null;
@@ -358,12 +356,15 @@ async function main() {
     episodes.push(e);
   }
   const beats = resolveBeats(edl, episodes);
-  const idx = String(edl.n ?? "").padStart(2, "0");
-  const names = episodes[0].characters.map((c) => slug(firstName(c.name)));
-  const day = new Date().toISOString().slice(0, 10);
-  // "zz-cut": sorts after any kit made the same day, so the marketing loop's latestKit() picks this one up next.
-  const out = process.argv.includes("--out") ? process.argv[process.argv.indexOf("--out") + 1] : join(process.env.CLIPS_DIR || join(homedir(), "BotchelorClips"), "posts", `${day}-zz-cut${idx}-${names.join("-")}`);
+  // Staged in cuts/, never posts/: the marketing loop (idea-factory cutKit) releases one a day, in name order, as that
+  // day's video kit. A folder in posts/ would go to the follower channels (Shorts, Reels) at once.
+  const out = process.argv.includes("--out")
+    ? process.argv[process.argv.indexOf("--out") + 1]
+    : join(process.env.CLIPS_DIR || join(homedir(), "BotchelorClips"), "cuts", basename(edlFile).replace(/\.json$/, ""));
   mkdirSync(out, { recursive: true });
+  // A folder is ready to release once its checklist is written, and that's written last: clear an old one so a
+  // re-render isn't released half-made.
+  rmSync(join(out, "checklist.md"), { force: true });
   const tmp = mkdtempSync(join(tmpdir(), "botchelor-cut-"));
   const log = (m) => console.error(m);
   try {

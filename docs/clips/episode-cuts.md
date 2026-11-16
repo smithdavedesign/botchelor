@@ -5,7 +5,7 @@ An episode cut is a hand-edited vertical video, 30 to 90 seconds long, made from
 The daily clip (`scripts/clips/daily-clip.mjs`) films the theater as it plays. A cut works differently: a person picks the best stretch of a date and tells it as a story. It opens on a line, introduces the two, plays the lines that matter, then shows the private thought or diary line that disagrees, how it ended, and a closing card. The person writes an edit decision list (EDL), and `scripts/clips/episode-cut.mjs` renders it.
 
 ```
-node scripts/clips/episode-cut.mjs docs/clips/edl/05-she-knew-the-way-out.json --out ~/BotchelorClips/cuts/05-she-knew-the-way-out
+node scripts/clips/episode-cut.mjs docs/clips/edl/05-she-knew-the-way-out.json
 ```
 
 The output folder holds:
@@ -15,7 +15,7 @@ The output folder holds:
 - `checklist.md`
 - `edl.json`
 
-Without `--out`, it writes to `~/BotchelorClips/posts/<day>-zz-cutNN-…`. That folder name sorts after the same day's daily kit, so the marketing loop's next follower draft picks it up. Stage cuts somewhere else and move one into `posts/` on the day it should go out.
+Without `--out`, it writes to `~/BotchelorClips/cuts/<the EDL's file name>` (under `$CLIPS_DIR` when that's set). That is the staging folder. The marketing loop (idea-factory `bin/idea-market.js`, `cutKit`) releases one staged cut a day, in name order, from 18:00 Los Angeles time, as that day's video kit in place of the daily clip: it sends David the TikTok draft and posts the cut to YouTube Shorts and Instagram Reels. A folder counts as ready once its `checklist.md` exists, and that file is written last. Never render straight into `posts/`: the follower channels would post the cut at once.
 
 ## What keeps a cut honest
 - **Public data only.** It reads only the public episode JSON (`GET /api/episodes/<id>`), so it can show nothing the episode page wouldn't. A date that is unaired, private or unlisted is refused. A private thought appears only if the page shows it: an agent's own thoughts are `null` there, and the cut throws.
