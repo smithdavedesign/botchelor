@@ -784,6 +784,10 @@ then removes the row from the list. "← Back to {name}" returns to the chat, re
 thread's own person only (the same ownership check and access rule as deleting the conversation, so a guest on their
 signed session can), 404 for anyone else's thread or an id that isn't a shown message of it.
 
+| The page, asking once | On a phone |
+|---|---|
+| ![Delete messages: the thread's messages as a list, one asking "Delete for good?"](screenshots/companion-delete-messages-desktop.png) | ![The same page at 390 px](screenshots/companion-delete-messages-phone.png) |
+
 **What a delete removes:**
 
 - the message's row, so its words: the person's or the character's, typed or said on a call (📞);
