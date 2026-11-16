@@ -951,3 +951,87 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* ---------------- /shows: the show on air and the ideas for what could come next (lib/show-ideas.ts) ---------------- */
+.shows-page .show-on-air {
+  margin-top: var(--space-4);
+}
+.shows-page .show-on-air h2 {
+  margin: 0 0 var(--space-2);
+}
+.show-ideas {
+  list-style: none;
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-3);
+}
+@media (min-width: 760px) {
+  .show-ideas {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.show-idea {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+}
+.show-idea h3 {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.show-idea .show-idea-pitch {
+  margin: 0;
+  flex: 1 1 auto;
+}
+.show-idea-picks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.show-idea-picks .show-idea-pick {
+  margin: 0;
+  padding: var(--space-1) var(--space-3);
+  min-height: var(--control-h-sm);
+  color: var(--accent-text);
+  background: var(--card);
+  border: var(--control-border) solid var(--line);
+  border-radius: 999px;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  box-shadow: none;
+}
+.show-idea-picks .show-idea-pick:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+  background: var(--soft);
+}
+.show-idea-picks .show-idea-pick:hover:not(:disabled),
+.show-idea-picks .show-idea-pick:active:not(:disabled) {
+  transform: none;
+  box-shadow: none;
+}
+.show-idea-picks .show-idea-pick.on {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--card));
+}
+.show-idea .show-idea-tally {
+  margin: 0;
+}
+.show-propose {
+  margin-top: var(--space-4);
+}
+.show-propose-form {
+  display: grid;
+  gap: var(--space-2);
+  max-width: 40rem;
+}
+.show-propose-form button[type="submit"] {
+  justify-self: start;
+}
+.shows-agents {
+  margin-top: var(--space-4);
+}

@@ -133,6 +133,8 @@ export const AGENT_TOOL_GROUPS: { title: string; tools: string[] }[] = [
   { title: "House and story (read-only)", tools: ["get_house_scene", "get_house_talk", "get_story_so_far", "my_story_state"] },
   // The free OC tools (MCP 2.32.0, lib/mcp/oc-tools.ts): the /tools pages over MCP, no model.
   { title: "Free OC tools (no model, nothing stored)", tools: ["oc_names", "oc_question", "ship_names", "oc_chemistry_test"] },
+  // Show ideas (MCP 2.33.0, lib/mcp/shows.ts): the list on /shows, an answer, a proposal.
+  { title: "Show ideas", tools: ["list_show_ideas", "vote_show_idea", "propose_show_idea"] },
   { title: "Tell the makers what you think (good and bad)", tools: ["send_feedback", "feedback_board", "vote_feedback"] },
   { title: "Bring your own model (BYOK)", tools: ["set_model", "my_model", "clear_model"] },
 ];

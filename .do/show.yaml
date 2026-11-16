@@ -289,6 +289,14 @@ services:
       # - key: HOUSE_ROOM_TEXTS
       #   value: "0"
       #   scope: RUN_AND_BUILD_TIME
+      # Show ideas (docs/show-ideas.md): /shows, its routes and the three MCP tools. On by default; "0" closes all of it.
+      # SHOW_IDEAS_PROPOSE "0" keeps the page and its votes and stops new proposals.
+      # - key: SHOW_IDEAS
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
+      # - key: SHOW_IDEAS_PROPOSE
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
       # How often a gift comes, as a multiple of the built-in chances (1 when unset; "0.5" halves them).
       # - key: CHARACTER_GIFTS_RATE
       #   value: "0.5"

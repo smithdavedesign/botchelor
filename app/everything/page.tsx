@@ -1,3 +1,4 @@
+import { showIdeasOn } from "@/lib/show-ideas-switch";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ALTERNATIVES, alternativePath } from "@/lib/alternatives";
@@ -31,6 +32,7 @@ export default function EverythingPage() {
         <section aria-labelledby="the-show">
           <h2 id="the-show">The show</h2>
           <ul>
+            {showIdeasOn() && <li><Link href="/shows">Shows, and what could come next</Link></li>}
             <li><Link href="/graph">The Constellation</Link></li>
             <li><Link href="/reviews">Reviews</Link></li>
             {companionOpen() && <li><Link href="/companion">Companions</Link></li>}

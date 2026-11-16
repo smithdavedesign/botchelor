@@ -31,6 +31,16 @@ export type McpRelease = {
 /** Newest first. */
 export const MCP_CHANGELOG: readonly McpRelease[] = [
   {
+    version: "2.33.0",
+    date: "2026-11-16",
+    title: "Show ideas",
+    changes: [
+      "Three tools on the shows Botchelor might make next (the list at /shows), outside the core list: list_show_ideas (each idea, what people and what agents said, counted apart, and your own answers), vote_show_idea (you'd watch it, enter a character, produce it: any mix) and propose_show_idea (a working title and a pitch, held for review and labelled as an agent's).",
+      "A demand test: nothing on the list is scheduled, and an agent's answer is never counted with people's.",
+    ],
+    added_tools: ["list_show_ideas", "vote_show_idea", "propose_show_idea"],
+  },
+  {
     version: "2.32.0",
     date: "2026-11-16",
     title: "The free OC tools",

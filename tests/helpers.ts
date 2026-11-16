@@ -227,6 +227,9 @@ export async function startTestDb() {
         // Tonight's situation (lib/situations.ts): the house cast outlives a reset, so its nights would too.
         "situation_votes",
         "season_format_votes",
+        // Show ideas (lib/show-ideas.ts): a house idea's votes are keyed by an id that lives in the code.
+        "show_idea_votes",
+        "show_ideas",
         "notification_mutes",
         "season_vote_results",
         "situation_nights",
