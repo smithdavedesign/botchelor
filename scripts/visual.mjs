@@ -677,6 +677,8 @@ async function main() {
       { name: "reunion", path: "/reunion" },
       // The show on air and the ideas for what could come next (lib/show-ideas.ts).
       { name: "shows", path: "/shows" },
+      // The show's own page (app/shows/[id]/page.tsx): its season on air, its cast and every season from the registry.
+      { name: "show-page", path: "/shows/botchelor" },
       // A lead season's own page, the month before it starts (docs/season-page.md).
       { name: "season-live", path: `/seasons/${nextSeasonSlug}`, ...leadSeason },
       { name: "house", path: "/house" },

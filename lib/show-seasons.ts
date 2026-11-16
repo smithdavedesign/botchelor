@@ -24,11 +24,11 @@ import { DEFAULT_SEASON_FORMAT, SEASON_FORMAT_SLUGS, type SeasonFormatSlug } fro
 import { seasonNumber } from "./season-ref";
 import { ballotWinner, seasonBallotTally } from "./season-vote";
 import { nextSeasonStart, seasonIdOf, seasonWindow } from "./season-window";
+import { SHOW_ID } from "./show-id";
 
 type Env = Record<string, string | undefined>;
 
-/** The one show there is. A column that names a show defaults to it. */
-export const SHOW_ID = "botchelor";
+export { SHOW_ID };
 
 export const seasonKeysOn = (env: Env = process.env): boolean => env.SEASON_KEYS?.trim() !== "0";
 
@@ -149,6 +149,33 @@ export async function seasonKeyHealth(db: Db): Promise<SeasonKeyHealth> {
   ]);
   const ep = e.rows[0] ?? { aired: 0, stamped: 0, mismatched: 0 };
   return { seasons: s.rows[0]?.seasons ?? 0, frozen: s.rows[0]?.frozen ?? 0, aired: ep.aired, stamped: ep.stamped, unstamped: ep.aired - ep.stamped, mismatched: ep.mismatched };
+}
+
+export type ShowSeason = { id: string; show_id: string; number: number | null; starts_at: string; ends_at: string; format: string | null; format_source: string | null };
+
+/** A show, or null: the registry's row. */
+export async function getShow(db: Db, id: string): Promise<{ id: string; title: string; status: string; house: boolean } | null> {
+  const r = (await db.query<{ id: string; title: string; status: string; producer_id: string | null }>(`select id, title, status, producer_id from shows where id = $1`, [id])).rows[0];
+  return r ? { id: r.id, title: r.title, status: r.status, house: r.producer_id === null } : null;
+}
+
+/**
+ * A show's seasons from the registry, newest first: the answer to "which season is on air for this show" that does
+ * not come from today's date. The seam a second show reads through; Botchelor's are the calendar's months.
+ */
+export async function showSeasons(db: Db, showId: string = SHOW_ID, opts: { numbered?: boolean } = {}): Promise<ShowSeason[]> {
+  const { rows } = await db.query<Omit<ShowSeason, "starts_at" | "ends_at"> & { starts_at: Date | string; ends_at: Date | string }>(
+    `select id, show_id, number, starts_at, ends_at, format, format_source from show_seasons
+      where show_id = $1 ${opts.numbered ? "and number is not null" : ""} order by starts_at desc`,
+    [showId],
+  );
+  return rows.map((r) => ({ ...r, starts_at: new Date(r.starts_at).toISOString(), ends_at: new Date(r.ends_at).toISOString() }));
+}
+
+/** The season of a show on air at `now`, from the registry; null when it has none (between seasons, or not written yet). */
+export async function currentSeason(db: Db, showId: string = SHOW_ID, now: Date = new Date()): Promise<ShowSeason | null> {
+  const at = now.getTime();
+  return (await showSeasons(db, showId)).find((s) => Date.parse(s.starts_at) <= at && Date.parse(s.ends_at) > at) ?? null;
 }
 
 /** The hourly pass for stages 1 and 2: the registry, then a batch of the backfill. */

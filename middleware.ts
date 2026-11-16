@@ -109,7 +109,7 @@ const DOC_SOURCES = new Set(["llms.txt", "llms-full.txt", "mcp.json", "agents"])
  * 18+ box ticked sets this same cookie (app/api/characters/route.ts), so the gate never asks them again; stepping into
  * a date works the same way (app/api/step-in/route.ts: the start screen's box).
  */
-export const UNGATED_PREFIXES: readonly string[] = ["/tools/", "/ship/", "/alternatives/", "/episodes/", "/seasons/", "/couples/", "/characters/", "/creators/", "/agents/", "/casting/invite/"];
+export const UNGATED_PREFIXES: readonly string[] = ["/tools/", "/ship/", "/alternatives/", "/episodes/", "/seasons/", "/couples/", "/characters/", "/creators/", "/agents/", "/casting/invite/", "/shows/"];
 
 const UNGATED_PAGES: ReadonlySet<string> = new Set([
   // The PG show (2026-11-14): the front door, the feed and its tabs, the cast, the reunion, the house, casting, the vote, calls,

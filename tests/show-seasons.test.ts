@@ -145,3 +145,34 @@ describe("a date knows its season", () => {
     expect(body.season_keys.seasons).toBeGreaterThanOrEqual(2);
   });
 });
+
+describe("a show's seasons, read from the registry (stage 8)", () => {
+  it("lists a show's numbered seasons newest first and finds the one on air without asking the calendar", async () => {
+    const { currentSeason, getShow, showSeasons } = await import("@/lib/show-seasons");
+    const now = at("2026-11-16T12:00:00Z");
+    const ep = (await setupEpisode()).episode;
+    await aired(ep.id, "2026-10-14T20:00:00Z");
+    await ensureShowSeasons(t.db, now);
+    expect((await showSeasons(t.db, SHOW_ID, { numbered: true })).map((s) => s.id)).toEqual(["2026-12-01", "2026-11-01", "2026-10-19"]);
+    expect((await showSeasons(t.db)).length).toBe(4);
+    expect((await currentSeason(t.db, SHOW_ID, now))?.id).toBe("2026-11-01");
+    expect(await currentSeason(t.db, "another-show", now)).toBeNull();
+    expect(await getShow(t.db, SHOW_ID)).toMatchObject({ id: SHOW_ID, title: "Botchelor", house: true });
+    expect(await getShow(t.db, "nope")).toBeNull();
+  });
+
+  it("a pair's story is computed from this show's dates only: another show's date cannot change it", async () => {
+    const { loadRelationship, refreshRelationship } = await import("@/lib/relationships");
+    const made = await setupEpisode("second_date");
+    await t.db.query(`update episodes set revealed_at = now(), status = 'ready', visibility = 'public' where id = $1`, [made.episode.id]);
+    const pair = (await t.db.query<{ character_a: string; character_b: string }>(`select character_a, character_b from episodes where id = $1`, [made.episode.id])).rows[0];
+    await refreshRelationship(t.db, pair.character_a, pair.character_b);
+    expect((await loadRelationship(t.db, pair.character_a, pair.character_b))?.all.dates).toBe(1);
+    // The same date, as if it had happened on another show: this show's edge no longer counts it.
+    await t.db.query(`insert into shows (id, title) values ('another-show', 'Another show')`);
+    await t.db.query(`update episodes set show_id = 'another-show' where id = $1`, [made.episode.id]);
+    await refreshRelationship(t.db, pair.character_a, pair.character_b);
+    expect((await loadRelationship(t.db, pair.character_a, pair.character_b))?.all.dates ?? 0).toBe(0);
+    await t.db.query(`delete from shows where id = 'another-show'`).catch(() => {});
+  });
+});
