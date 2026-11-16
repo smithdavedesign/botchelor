@@ -410,7 +410,7 @@ async function send(db: Db, events: readonly HouseEvent[], now: Date, limit: num
          from companion_threads t join characters c on c.id = t.character_id
         where t.character_id = any($1) and t.muted_proactive = false and t.paused_at is null and c.visibility = 'public'
           and not exists (select 1 from notification_mutes nm where nm.user_id = t.user_id and nm.type = 'texts')
-        order by (t.user_id = c.owner_id) desc, t.last_at desc, t.id`,
+        order by (t.user_id = c.owner_id) desc nulls last, t.last_at desc, t.id`,
       [[...new Set(events.map((e) => e.me.id))]],
     )
   ).rows;

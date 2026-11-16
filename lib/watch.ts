@@ -19,6 +19,7 @@ import { dateNumberSql } from "./date-number";
 import { decideTraced, seedFrom } from "./engine";
 import { track, trackDateQuality, trackEpisodeCost } from "./analytics";
 import { failureReason } from "./jobs";
+import { houseRoomTextsOn, isAfterglowEnabled } from "./afterglow";
 import { firstPickOn, showCastIds, suitorInTurn } from "./season-cast";
 import type { BoxScore, CharacterRef, DateSetup } from "./game";
 import { portraitPathSql } from "./assets";
@@ -911,7 +912,7 @@ export async function createTemplateParty(db: Db, aId: string, bId: string, opts
   const plan = datePlanAtNightOn() ? ((await planIfFits(db, night, built, decided).catch(() => null)) ?? ("rules" as const)) : undefined;
   // The shared pipeline (lib/pipeline.ts): the recap, plus the turn-by-turn conversation so template rooms
   // play the date line by line too. Pre-generated system content; the conversation is best-effort and gated
-  // off in tests. Template rooms have no owners, so no afterglow.
+  // off in tests. The morning-after texts too (HOUSE_ROOM_TEXTS): a house couple's are for anyone once the date airs.
   const t0 = Date.now();
   // Template rooms share the paid default's daily cap with everyone's dates (lib/limits.ts).
   const paid = paidDefaultOn() ? await claimPaidDate(db) : false;
@@ -920,7 +921,7 @@ export async function createTemplateParty(db: Db, aId: string, bId: string, opts
       formatId: built.setup.format ?? DEFAULT_FORMAT,
       formatCtx: formatContextOf(built),
       conversation: isConversationEnabled(),
-      afterglow: false,
+      afterglow: isAfterglowEnabled() && houseRoomTextsOn(),
       // Template rooms have no owner, so a reflection would never be shown; skip it to spare the lobby's quota.
       reflection: false,
       ...(plan ? { plan } : {}),
@@ -962,9 +963,9 @@ export async function createTemplateParty(db: Db, aId: string, bId: string, opts
   await db.query(
     `insert into episodes (id, creator_id, character_a, character_b, setting, goals, scenes, twist, finale, ending,
                            drama_question, drama_answer, seed, box_score, sides, best_line, confessionals, setup, transcript, generated_with, engine_trace,
-                           turn_meta, inner_life)
+                           turn_meta, inner_life, afterglow)
      values ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8, $9, $10, $11, $12, $13, $14::jsonb, $15::jsonb, $16, $17::jsonb, $18::jsonb, $19::jsonb, $20::jsonb, $21::jsonb,
-             $22::jsonb, $23::jsonb)`,
+             $22::jsonb, $23::jsonb, $24::jsonb)`,
     [
       episodeId,
       SYSTEM_CREATOR_ID,
@@ -991,8 +992,11 @@ export async function createTemplateParty(db: Db, aId: string, bId: string, opts
       JSON.stringify(transcript.map(() => ({ at, by: "show" }))),
       // Living dates: the lines' private thoughts, shown once the room airs it (lib/inner-life.ts).
       gen.inner ? JSON.stringify(gen.inner) : null,
+      // The morning after (lib/afterglow.ts), held like any date's until the room airs it. Empty with the switch off.
+      JSON.stringify(gen.afterglow),
     ],
   );
+  if (gen.afterglowError) console.warn("[watch] morning-after texts cut short for", episodeId, `(kept ${gen.afterglow.length}):`, failureReason(gen.afterglowError));
   if (gen.slips.length) await recordSlips(db, episodeId, gen.slips).catch(() => {});
   await rememberDate(db, a.id, b.id).catch(() => {});
   // M14: learned memory is recomputed when the room airs the date (below), not now — a template date is

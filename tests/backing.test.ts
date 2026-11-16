@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { GET as getBacking, POST as postBacking } from "@/app/api/backing/route";
 import { backCastMember, backingBadges, backingBoard, backingLockAt, backingSince, PICKS_CLOSED_MESSAGE, recouplingOutcome, settleDueBackings, settleSeasonBackings } from "@/lib/backing";
 import { getPointsBreakdown } from "@/lib/game";
@@ -69,12 +69,20 @@ describe("backing a cast member", () => {
   });
 
   it("votes over the API with the visitor's cookie, and shows the board back", async () => {
-    const cookie = newUserCookie();
-    const res = await postBacking(jsonRequest("/api/backing", { character_id: CAST[0] }, { cookie }));
-    expect(res.status).toBe(201);
-    const board = await (await getBacking(new Request("http://localhost:3000/api/backing", { headers: { cookie } }))).json();
-    expect(board.my_pick).toBe(CAST[0]);
-    expect((await postBacking(jsonRequest("/api/backing", { character_id: "nope" }, { cookie }))).status).toBe(400);
+    // The route reads the real clock, and the book closes at mid-month: run on a day it is open, whatever today is
+    // (the suite failed from the 16th of each month on).
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(EARLY);
+    try {
+      const cookie = newUserCookie();
+      const res = await postBacking(jsonRequest("/api/backing", { character_id: CAST[0] }, { cookie }));
+      expect(res.status).toBe(201);
+      const board = await (await getBacking(new Request("http://localhost:3000/api/backing", { headers: { cookie } }))).json();
+      expect(board.my_pick).toBe(CAST[0]);
+      expect((await postBacking(jsonRequest("/api/backing", { character_id: "nope" }, { cookie }))).status).toBe(400);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

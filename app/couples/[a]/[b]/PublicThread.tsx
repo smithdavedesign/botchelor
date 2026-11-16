@@ -3,7 +3,7 @@ import PhoneFrame from "@/app/PhoneFrame";
 import type { CharacterRef } from "@/lib/game";
 import { shortName } from "@/lib/names";
 import type { End } from "@/lib/relationships";
-import type { ChainDate, ChainKeepsake } from "@/lib/text-chain-shared";
+import type { ChainItem } from "@/lib/text-chain-shared";
 import Thread from "./Thread";
 
 /** How much of it the phone holds: the newest dates and what came with them. The whole list of dates is on the page. */
@@ -12,9 +12,10 @@ export const PUBLIC_THREAD_ITEMS = 12;
 /**
  * What two characters have sent each other, for anyone watching them (2026-11-16): each aired public date with its
  * photo (the real one an owner made, else the show's snapshot) and the small gifts between them
- * (lib/text-chain.ts publicKeepsakes). Never a text: those stay their owners', and the bar at the bottom says so. A
- * house couple has no owners and no texts, so this is all of their thread there is. Server-rendered, no script: it
- * opens on the newest by laying out from the bottom (app/ux/show.css).
+ * (lib/text-chain.ts publicKeepsakes). Never an owner's text: those stay their owners', and the bar at the bottom says
+ * so. A house couple has no owners, so its thread also carries each aired date's morning-after texts
+ * (publicHouseThread, HOUSE_ROOM_TEXTS): the page passes them in. Server-rendered, no script: it opens on the newest by
+ * laying out from the bottom (app/ux/show.css).
  */
 export default function PublicThread({
   items,
@@ -22,7 +23,7 @@ export default function PublicThread({
   today,
   texted,
 }: {
-  items: readonly (ChainDate | ChainKeepsake)[];
+  items: readonly ChainItem[];
   characters: Record<End, CharacterRef>;
   today: string;
   /** Someone owns one of them, so they text, and those texts are private. */

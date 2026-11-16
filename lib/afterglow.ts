@@ -278,3 +278,14 @@ export function setAfterglowEnabledForTests(on: boolean): void {
 export function isAfterglowEnabled(): boolean {
   return afterglowEnabled;
 }
+
+/**
+ * House rooms write morning-after texts too (David, 2026-11-16, of a house couple's date he had watched: "did we
+ * remove the text the morning after?"). They never had any: a house couple has no owner and the texts were the
+ * owners' alone, so a house couple's thread was dates and photos with nothing said. Now the room writes them like a
+ * booked date does, and a house couple's are read by anyone once the date has aired (lib/text-chain-shared.ts
+ * publicHouseThread). HOUSE_ROOM_TEXTS=0: rooms write none and the couple page shows none, as before.
+ */
+export function houseRoomTextsOn(env: Record<string, string | undefined> = process.env): boolean {
+  return env.HOUSE_ROOM_TEXTS !== "0";
+}

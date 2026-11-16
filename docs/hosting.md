@@ -204,6 +204,12 @@ ignore it.
   2 doubles them; it never makes one where the rules say never, and the one-a-week cap still holds. Neither calls a
   model. The rules are in [relationship-graph.md](relationship-graph.md), "What they send each
   other". Commented in `.do/show.yaml`.
+- **`HOUSE_ROOM_TEXTS`** (the show's app, not a secret; on by default, `0` turns it off without a deploy of code): a
+  house room on Watch writes morning-after texts like a booked date does (`lib/watch.ts`, `lib/afterglow.ts`; a few
+  short model calls a room, about a cent on the paid model), and a house couple's page shows each aired date's texts to
+  anyone (`lib/text-chain-shared.ts` `publicHouseThread`). Off: rooms write none and the couple page shows photos and
+  gifts only; texts already written stay stored. A date made before the switch has none until
+  `POST /api/admin/afterglow {"episode_id"}` writes them. [relationship-graph.md](relationship-graph.md), "Who sees it".
 - **`COMPANION_MESSAGE_DELETE`** (the show's app, not a secret; on by default, `0` turns it off without a deploy of
   code): deleting one message of a companion conversation (`lib/companion-message-delete.ts`). Off: "Delete messages…"
   leaves the thread's Settings menu, `/companion/<id>/messages` and `DELETE /api/companion/:id/messages/:messageId`

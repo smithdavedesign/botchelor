@@ -16,7 +16,8 @@ import { loadThread } from "@/lib/inbox";
 import { pairKey, type End } from "@/lib/relationships";
 import { ENDING_LABELS, REPORT_HIDE_THRESHOLD } from "@/lib/rules";
 import { toneOf, TONES } from "@/lib/sheet-tone";
-import { loadChain, loadChainsFor, PUBLIC_VIEWER, publicKeepsakes, type ChainItem, type ChainPhoto } from "@/lib/text-chain";
+import { loadChain, loadChainsFor, PUBLIC_VIEWER, publicHouseThread, publicKeepsakes, type ChainItem, type ChainPhoto } from "@/lib/text-chain";
+import { houseRoomTextsOn } from "@/lib/afterglow";
 import { api, BASE_URL, episodeJson, HOUSE_PARTNER_ID, newUserCookie, scriptedModel, scriptOutcome, startTestDb, userIdOf, validCharacter } from "./helpers";
 
 type Line = { side: "a" | "b"; text: string };
@@ -258,6 +259,34 @@ describe("the photo and a gift on the phone (app/couples/[a]/[b])", () => {
     const owned = text(renderToStaticMarkup(PublicThread({ items: publicKeepsakes(items), characters, today: "2026-11-16", texted: true })));
     expect(owned).toContain("Their texts are private");
     expect(owned).toContain('href="/create"');
+  });
+
+  it("a house couple's thread also carries each aired date's morning-after texts and who went quiet, never a text between dates", () => {
+    const at = "2026-11-16T00:22:57.000Z";
+    const all: ChainItem[] = [
+      ...items,
+      { kind: "text", id: `${at}#001#a:ep-1`, at, day: "2026-11-16", who: "hi", text: "The giraffe asked after you.", source: "afterglow", episode_id: "ep-1" },
+      { kind: "text", id: `${at}#002#a:ep-1`, at, day: "2026-11-16", who: "lo", text: "Tell it I'm free Thursday.", source: "afterglow", episode_id: "ep-1" },
+      { kind: "event", id: `${at}#003#g:ep-1`, at, day: "2026-11-16", event: "ghosted", who: "lo", episode_id: "ep-1" },
+      { kind: "event", id: `${at}#001#h:ep-2`, at, day: "2026-11-16", event: "afterglow_held", count: 4, airs: at, episode_id: "ep-2" },
+      { kind: "event", id: `${at}#000#m`, at, day: "2026-11-16", event: "matched" },
+      { kind: "text", id: "2026-11-17T09:00:00.000Z#001#t:2026-11-17:1", at: "2026-11-17T09:00:00.000Z", day: "2026-11-17", who: "lo", text: "About last night's date that nobody has seen yet.", source: "between", episode_id: null },
+    ];
+    const open = publicHouseThread(all);
+    expect(open.map((i) => (i.kind === "event" ? i.event : i.kind === "text" ? i.source : i.kind))).toEqual(["date", "photo", "gift", "afterglow", "afterglow", "ghosted"]);
+    // What everyone else's couples show is unchanged: no text at all.
+    expect(publicKeepsakes(all).some((i) => (i as ChainItem).kind === "text")).toBe(false);
+    const html = text(renderToStaticMarkup(PublicThread({ items: open, characters, today: "2026-11-16", texted: false })));
+    expect(html).toContain("The giraffe asked after you.");
+    expect(html).toContain("Tell it I'm free Thursday.");
+    expect(html).not.toContain("nobody has seen yet");
+    expect(html).not.toContain("phone-msg-me");
+  });
+
+  it("HOUSE_ROOM_TEXTS=0 turns the house rooms' texts off; anything else leaves them on", () => {
+    expect(houseRoomTextsOn({})).toBe(true);
+    expect(houseRoomTextsOn({ HOUSE_ROOM_TEXTS: "1" })).toBe(true);
+    expect(houseRoomTextsOn({ HOUSE_ROOM_TEXTS: "0" })).toBe(false);
   });
 
   it("the owner's phone puts the sender's photo on the sender's side, and the preview counts a photo and a gift among the newest", () => {

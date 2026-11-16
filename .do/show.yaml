@@ -278,6 +278,11 @@ services:
       # - key: CHARACTER_GIFTS
       #   value: "0"
       #   scope: RUN_AND_BUILD_TIME
+      # House rooms write morning-after texts, and a house couple's page shows them to anyone once the date aired
+      # (docs/hosting.md; on by default, "0" turns both off without a deploy of code).
+      # - key: HOUSE_ROOM_TEXTS
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
       # How often a gift comes, as a multiple of the built-in chances (1 when unset; "0.5" halves them).
       # - key: CHARACTER_GIFTS_RATE
       #   value: "0.5"
