@@ -1192,3 +1192,5 @@ neither; no director call before line 1 for the classic, the speed date and a tw
 order with `DATE_PLAN_AT_NIGHT=0`; `generated_with.plan`; a house date taking its reserved id and its plan, the engine's
 decision the same as without one, a date that turned out differently playing from the rules, a plan used once and only
 by its own pair on its own day; the night director's prompt; the want and the heard-claim guards; the fit key.
+
+The story check (does each aired date's ending make sense against its lines; contradicting dates kept off the featured places): docs/story-check.md.

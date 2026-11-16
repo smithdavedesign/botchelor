@@ -24,10 +24,11 @@ export const isStoryVerdict = (v: unknown): v is StoryVerdict => typeof v === "s
 /**
  * A SQL condition on episodes row `e`: the date may be featured, i.e. no story check found it contradicting (an
  * unchecked date passes). `{ passed: true }`: only a date the check has passed (the season page's starters). With the
- * switch off, always true. One correlated lookup on story_checks' key: no round trip of its own.
+ * switch off, true for every date. One correlated lookup on story_checks' key: no round trip of its own. Never a bare
+ * constant, so it can stand in an ORDER BY too (Postgres refuses `order by true`).
  */
 export function featurableSql(e: string, opts: { passed?: boolean } = {}, env: Env = process.env): string {
-  if (!storyCheckOn(env)) return "true";
+  if (!storyCheckOn(env)) return `(${e}.id is not null)`;
   return opts.passed
     ? `exists (select 1 from story_checks sc where sc.episode_id = ${e}.id and sc.verdict <> 'contradicts')`
     : `not exists (select 1 from story_checks sc where sc.episode_id = ${e}.id and sc.verdict = 'contradicts')`;
@@ -35,10 +36,11 @@ export function featurableSql(e: string, opts: { passed?: boolean } = {}, env: E
 
 /**
  * A SQL boolean on `e` for an ORDER BY: true when the check has passed the date. Ranked after a list's own score, it
- * puts a checked-and-passing date first among equals (lib/game.ts listStandoutDates). False for all with the switch off.
+ * puts a checked-and-passing date first among equals (lib/game.ts listStandoutDates). False for every date with the
+ * switch off (an expression, not a bare `false`, which an ORDER BY refuses).
  */
 export function storyPassedSql(e: string, env: Env = process.env): string {
-  return storyCheckOn(env) ? featurableSql(e, { passed: true }, env) : "false";
+  return storyCheckOn(env) ? featurableSql(e, { passed: true }, env) : `(${e}.id is null)`;
 }
 
 /**

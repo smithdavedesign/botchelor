@@ -285,13 +285,14 @@ describe("the judge's answer and what it reads", () => {
     // Side a is a person's character (its thoughts and confessional stay private unless the host shares them); side b is
     // the house's (its diary cam and thoughts air with the date).
     const transcript = [...RUDIGER_LINES];
+    // Line 2 is side a's (the person's), line 11 side b's (the house's).
     const inner: StoredInner = {
       v: 1,
-      lines: transcript.map((_, i) => (i === 3 ? { thought: "SECRET-A-THOUGHT he will never call" } : i === 11 ? { thought: "VISIBLE-B-THOUGHT this was lovely, and it is over" } : null)),
+      lines: transcript.map((_, i) => (i === 2 ? { thought: "SECRET-A-THOUGHT she will never call" } : i === 11 ? { thought: "VISIBLE-B-THOUGHT this was lovely, and it is over" } : null)),
       choices: { a: { see_again: "no", reason: "SECRET-A-REASON not ready" }, b: { see_again: "maybe", reason: "VISIBLE-B-REASON too soon" } },
     };
-    transcript[0] = turn("a", OPENING[0]);
-    transcript[3] = turn("b", OPENING[3]);
+    expect(transcript[2].side).toBe("a");
+    expect(transcript[11].side).toBe("b");
     const id = await airedDate({ transcript, inner, confessionals: ["SECRET-A-CONFESSIONAL I may be in love", "VISIBLE-B-DIARY cautiously thrilled"] });
     const f = storyFacts(await strangerView(id))!;
     const text = factsText(f);
@@ -503,7 +504,7 @@ describe("a contradicting date is never featured", () => {
     await saveHomeClip(t.db, { episode_id: id, day: "2026-11-15", loop: MP4, poster: JPEG, width: 480, height: 854, seconds: 12 });
     expect(await latestHomeClip(t.db)).toBeNull();
     vi.stubEnv("STORY_CHECK", "0");
-    expect(featurableSql("e")).toBe("true");
+    expect(featurableSql("e")).toBe("(e.id is not null)");
     expect((await latestHomeClip(t.db))?.episode_id).toBe(id);
     expect((await strangerView(id)).featurable).toBeUndefined();
     expect((await listStandoutDates(t.db, null)).map((e) => e.id)).toEqual([id]);
