@@ -1,0 +1,22 @@
+{
+  "n": 5,
+  "name": "She knew the way out",
+  "direction": "confessional",
+  "episodes": ["4bec5555-8e60-459d-ab21-e790c5af53fe"],
+  "hook": "December's Botchelor knew the way out the whole time.",
+  "question": "Nell or Sable: who's in more trouble here? 🌹",
+  "tags": "#confession #romance",
+  "segments": [
+    { "kind": "cold", "line": 8, "keep": [1, 3] },
+    { "kind": "title", "kicker": "Meet December's Botchelor", "title": "Lost in a furniture maze, on purpose", "sub": "Date four. Nell guards a museum at night. Sable can't stand a pause.", "say": "Nell and Sable, lost in a furniture superstore. Or are they?" },
+    { "kind": "line", "line": 4, "keep": [2, 3] },
+    { "kind": "line", "line": 5, "keep": [1, 2] },
+    { "kind": "line", "line": 6, "keep": [2, 3] },
+    { "kind": "line", "line": 7, "keep": [0, 1, 2, 3] },
+    { "kind": "line", "line": 8 },
+    { "kind": "line", "line": 9, "keep": [0, 1, 2] },
+    { "kind": "diary", "side": "b" },
+    { "kind": "reveal", "sub": "Nell left first anyway." },
+    { "kind": "card", "kicker": "December on Botchelor", "title": "Nell is December's Botchelor.", "sub": "Sable has other plans. Several.", "url": "botchelor.com/december", "say": "Nell is December's Botchelor. Sable, meanwhile, has other plans." }
+  ]
+}

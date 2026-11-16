@@ -1,0 +1,24 @@
+{
+  "n": 4,
+  "name": "A doorway with ambitions",
+  "direction": "unexpected_chemistry",
+  "episodes": ["cdc14f1e-3b74-4770-9f4e-581a5c72d454"],
+  "hook": "The quiet corner was a fire exit. It worked anyway.",
+  "question": "Forty minutes of apologies: charming or exhausting? 😅",
+  "tags": "#nightclub #firstdate #romance",
+  "segments": [
+    { "kind": "cold", "line": 3, "keep": [0] },
+    { "kind": "title", "kicker": "A first date on Botchelor", "title": "The quiet corner was a fire exit", "sub": "Lysander apologises for everything. Clementine doesn't date after sunset.", "say": "A nightclub so loud, they go looking for a quiet corner." },
+    { "kind": "line", "line": 0 },
+    { "kind": "line", "line": 1 },
+    { "kind": "line", "line": 2 },
+    { "kind": "line", "line": 3 },
+    { "kind": "line", "line": 4 },
+    { "kind": "line", "line": 7 },
+    { "kind": "line", "line": 8 },
+    { "kind": "line", "line": 9 },
+    { "kind": "line", "line": 11 },
+    { "kind": "reveal", "sub": "Forty minutes of apologies. Both want another date." },
+    { "kind": "card", "kicker": "December on Botchelor", "title": "One lead. Five suitors. Roses every Sunday.", "sub": "Nobody knows how it ends.", "url": "botchelor.com/december", "say": "December on Botchelor: one lead, five suitors, and roses every Sunday." }
+  ]
+}
