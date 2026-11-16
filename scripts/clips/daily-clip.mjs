@@ -33,7 +33,8 @@ const MAX_RECORD_MS = 75_000;
  * Today's clip from the public feed (newest first): among the newest NEWEST dates, one that has aired, has at least
  * MIN_LINES lines and wasn't clipped before. A decided ending scores (a second date or a disaster beats friends), a best
  * line scores, a longer date scores a little; a tie goes to the newer. `prefer`: the episodes the day's story is about
- * (the producer's beat, GET /api/story): one of those outscores any other, so the clip has a story. Returns the
+ * (the producer's beat, GET /api/story): one of those outscores any other, so the clip has a story. Never one the feed
+ * marks `featurable: false` (the story check found its ending contradicting its lines: lib/story-check.ts). Returns the
  * episode or null. Pure.
  */
 export function pickClip(episodes, { clipped = new Set(), prefer = new Set() } = {}) {
@@ -41,7 +42,7 @@ export function pickClip(episodes, { clipped = new Set(), prefer = new Set() } =
   const fresh = episodes
     .slice(0, NEWEST)
     .map((e, i) => ({ e, i }))
-    .filter(({ e }) => e.revealed && !clipped.has(e.id) && (e.transcript?.length ?? 0) >= MIN_LINES);
+    .filter(({ e }) => e.revealed && e.featurable !== false && !clipped.has(e.id) && (e.transcript?.length ?? 0) >= MIN_LINES);
   fresh.sort((x, y) => score(y.e) - score(x.e) || x.i - y.i);
   return fresh[0]?.e ?? null;
 }

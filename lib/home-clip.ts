@@ -21,6 +21,7 @@ import { expressCreateOn } from "./express-create";
 import type { EpisodeView } from "./game";
 import { keepBytes, objectStore, readBytes } from "./object-store";
 import { endingLabel, REPORT_HIDE_THRESHOLD, type Ending } from "./rules";
+import { featurableSql, isFeaturable } from "./story-check-gate";
 
 /** A clip this old or older is not "last night's" any more: the hero goes back to what it was. */
 export const CLIP_FRESH_DAYS = 14;
@@ -42,12 +43,14 @@ export function homeExpressBoxOn(env: Record<string, string | undefined> = proce
 /**
  * Why a date can't be the home clip, or null when it can: it has aired, it's public, it isn't hidden by reports, and
  * neither character is private. `view` is the date as a stranger sees it (getEpisodeView with no viewer; null: no such
- * date, or a private one).
+ * date, or a private one). And the story check (lib/story-check-gate.ts) hasn't found its ending contradicting its
+ * lines: such a date is never featured.
  */
-export function clipRefusal(view: EpisodeView | null): "episode_not_found" | "not_aired" | "not_public" | null {
+export function clipRefusal(view: EpisodeView | null): "episode_not_found" | "not_aired" | "not_public" | "story_contradicts" | null {
   if (!view) return "episode_not_found";
   if (view.visibility !== "public" || view.hidden || view.characters.some((c) => c.private)) return "not_public";
   if (!view.revealed) return "not_aired";
+  if (!isFeaturable(view)) return "story_contradicts";
   return null;
 }
 
@@ -100,7 +103,11 @@ export type HomeClip = {
   ending: string | null;
 };
 
-/** The newest clip of the last CLIP_FRESH_DAYS whose date is still public, or null. One query. */
+/**
+ * The newest clip of the last CLIP_FRESH_DAYS whose date is still public and featurable (the story check hasn't found
+ * its ending contradicting its lines: lib/story-check-gate.ts), or null. One query: an older fresh clip stands in for a
+ * contradicting newest one.
+ */
 export async function latestHomeClip(db: Db, now: Date = new Date()): Promise<HomeClip | null> {
   const row = (
     await db.query<{ id: string; episode_id: string; width: number; height: number; seconds: string; a_name: string; b_name: string; ending: Ending | null; date_number: number | null }>(
@@ -109,7 +116,7 @@ export async function latestHomeClip(db: Db, now: Date = new Date()): Promise<Ho
          join episodes e on e.id = c.episode_id
          join characters a on a.id = e.character_a
          join characters b on b.id = e.character_b
-        where c.created_at > $2::timestamptz - make_interval(days => $3::int) and ${STILL_PUBLIC}
+        where c.created_at > $2::timestamptz - make_interval(days => $3::int) and ${STILL_PUBLIC} and ${featurableSql("e")}
         order by c.created_at desc
         limit 1`,
       [REPORT_HIDE_THRESHOLD, now.toISOString(), CLIP_FRESH_DAYS],
