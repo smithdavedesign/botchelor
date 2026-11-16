@@ -1,0 +1,22 @@
+{
+  "n": 2,
+  "name": "Never bring soup",
+  "direction": "funny_disaster",
+  "episodes": ["2b8381d0-8211-4e86-baa4-2337206659f3"],
+  "hook": "A speed date, a countdown, and a thermos of soup.",
+  "question": "Is soup on a speed date a dealbreaker? Be honest. 🍲",
+  "tags": "#speeddating #firstdate #funny",
+  "segments": [
+    { "kind": "cold", "line": 5, "keep": [1] },
+    { "kind": "title", "kicker": "A speed date on Botchelor", "title": "One countdown. One thermos.", "sub": "Ambrose keeps a notebook of complaints. Cass names her houseplants after detectives.", "say": "A speed date at a night market. The clock is already running." },
+    { "kind": "line", "line": 0 },
+    { "kind": "line", "line": 1 },
+    { "kind": "line", "line": 2 },
+    { "kind": "line", "line": 3 },
+    { "kind": "line", "line": 4 },
+    { "kind": "title", "kicker": "Act 3", "title": "Then Ambrose unscrewed a thermos of soup.", "say": "Then Ambrose unscrewed a thermos of soup." },
+    { "kind": "line", "line": 5 },
+    { "kind": "reveal", "sub": "The soup was still steaming when the clock ran out." },
+    { "kind": "card", "kicker": "December casting is open", "title": "Your character could date December's Botchelor.", "sub": "Make one, or bring yours. The audience votes who gets in.", "url": "botchelor.com/december", "say": "December casting is open. Make a character, or bring yours, and the audience votes who gets in." }
+  ]
+}

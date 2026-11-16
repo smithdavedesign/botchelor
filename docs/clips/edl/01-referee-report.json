@@ -1,0 +1,24 @@
+{
+  "n": 1,
+  "name": "The referee's report",
+  "direction": "funny_disaster",
+  "episodes": ["ed42110f-d7ad-4341-8ce4-c9c20e64dd9f"],
+  "hook": "Pip carded Mum at roller derby. Mum ate a Hobnob at Pip from the penalty box.",
+  "question": "Pip said yes. Nell said maybe. Whose side are you on? 👀",
+  "tags": "#rollerderby #firstdate #funny",
+  "segments": [
+    { "kind": "cold", "line": 6, "keep": [1] },
+    { "kind": "title", "kicker": "A first date on Botchelor", "title": "The referee's report", "sub": "Pip refereed roller derby. Nell guards a museum at night. The nightclub is so loud every line is shouted.", "say": "A first date in a nightclub so loud, every line has to be shouted." },
+    { "kind": "line", "line": 3, "keep": [5] },
+    { "kind": "line", "line": 4, "keep": [0, 1, 2] },
+    { "kind": "line", "line": 5, "keep": [2] },
+    { "kind": "line", "line": 6, "keep": [0, 1] },
+    { "kind": "thought", "line": 7 },
+    { "kind": "line", "line": 9, "keep": [2, 3] },
+    { "kind": "line", "line": 10, "keep": [0, 1, 2] },
+    { "kind": "choice" },
+    { "kind": "diary", "side": "b" },
+    { "kind": "reveal", "sub": "Pip wanted the long way home. Nell closed the file." },
+    { "kind": "card", "kicker": "December on Botchelor", "title": "Nell is December's Botchelor.", "sub": "She wants someone who asks a follow-up question.", "url": "botchelor.com/december", "say": "Nell is December's Botchelor. She's looking for someone who asks a follow-up question." }
+  ]
+}

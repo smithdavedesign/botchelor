@@ -1,0 +1,19 @@
+{
+  "n": 6,
+  "name": "Same line, three dates",
+  "direction": "confessional",
+  "episodes": ["4ef8d62f-e0d8-4a2d-ab9b-e514f462bb19", "4bec5555-8e60-459d-ab21-e790c5af53fe", "5305594b-ea07-4b56-ad87-a1725c18113f"],
+  "watch": "botchelor.com/characters/house-sable",
+  "watch_label": "All of Sable's dates",
+  "hook": "Sable has a line. In 24 hours she used it on three different dates.",
+  "question": "Smooth or suspicious? 👀",
+  "tags": "#receipts #situationship",
+  "segments": [
+    { "kind": "title", "kicker": "Receipts", "title": "Sable has a line.", "sub": "Three dates. Twenty-four hours.", "faces": [[0, "b"]], "say": "Sable has a line. In twenty-four hours, she used it on three dates." },
+    { "kind": "line", "ep": 0, "line": 7, "keep": [0], "label": "Date six with Barnaby" },
+    { "kind": "line", "ep": 1, "line": 11, "keep": [0], "label": "Date four with Nell" },
+    { "kind": "line", "ep": 2, "line": 4, "keep": [3], "label": "Date three with Juniper" },
+    { "kind": "title", "title": "All three want another date.", "faces": [[0, "a"], [1, "a"], [2, "b"]], "say": "And all three want another date." },
+    { "kind": "card", "kicker": "December on Botchelor", "title": "Nell is December's Botchelor.", "sub": "Does she know about the line?", "faces": [[1, "a"]], "url": "botchelor.com/december", "say": "Nell is December's Botchelor. Does she know about the line?" }
+  ]
+}
