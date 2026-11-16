@@ -9,7 +9,7 @@ type Tab = NavLink & { icon: IconName };
 
 /**
  * The phone's tab bar (the 2026-11-14 design audit: "on mobile everything hides behind a hamburger; a four-item bottom
- * bar would cut taps on the phone-first surfaces"): Watch · Chat · Characters · You, always four, the header's own
+ * bar would cut taps on the phone-first surfaces"): Watch · Chat · Characters · Studio · You, the header's own
  * doors (app/Nav.tsx; lib/nav-chat.ts). Chat is current on every thread list (/chat, /matches, /companion). The
  * hamburger keeps everything else.
  *
@@ -20,7 +20,14 @@ export function tabBarTabs(companions: boolean, chat = true): readonly Tab[] {
   const watch: Tab = { href: "/watch", label: "Watch", icon: "tv" };
   const you: Tab = { href: "/account", label: "You", icon: "user" };
   if (chat) {
-    return [watch, { href: "/chat", label: "Chat", icon: "chat", also: ["/matches", "/swipe", "/messages", "/companion"] }, { href: "/characters", label: "Characters", icon: "users" }, you];
+    return [
+      watch,
+      { href: "/chat", label: "Chat", icon: "chat", also: ["/matches", "/swipe", "/messages", "/companion"] },
+      { href: "/characters", label: "Characters", icon: "users" },
+      // The fifth (2026-11-16): the Gallery and My studio (app/studio/StudioTabs.tsx).
+      { href: "/studio", label: "Studio", icon: "sparkles", also: ["/showcase", "/reels"] },
+      you,
+    ];
   }
   const characters: Tab = { href: "/characters", label: "Characters", icon: "users", also: companions ? [] : ["/companion"] };
   const companion: Tab = { href: "/companion", label: "Companions", icon: "chat" };

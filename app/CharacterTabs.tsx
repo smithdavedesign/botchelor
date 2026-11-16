@@ -30,6 +30,7 @@ export default function CharacterTabs({
   news,
   taken,
   takenNote,
+  all,
 }: {
   characters: Character[];
   current: string;
@@ -43,8 +44,19 @@ export default function CharacterTabs({
   taken?: Map<string, { name: string }[]>;
   /** What being taken rules out on this page, for a taken one's label: "can't swipe". */
   takenNote?: string;
+  /**
+   * Chat's row (lib/current-character.ts): a first entry for every character at once, current while none is picked
+   * (`current` is then ""). The other pages are always about one character and leave this out.
+   */
+  all?: { href: string; label: string };
 }) {
   if (characters.length < 2) return null;
+  const allTab = (className: string) =>
+    all ? (
+      <Link key="all" href={all.href} className={`${className} character-tab-all`} aria-current={current === "" ? "page" : undefined}>
+        <span className="character-tab-name">{all.label}</span>
+      </Link>
+    ) : null;
   const about = (c: Character) => {
     const n = news?.get(c.id);
     const count = (n?.texts ?? 0) + (n?.matches ?? 0);
@@ -84,24 +96,27 @@ export default function CharacterTabs({
   if (characters.length <= TABS_ROW_MAX) {
     return (
       <nav className="character-tabs" aria-label={label}>
+        {allTab("character-tab")}
         {characters.map((c) => tab(c, "character-tab", 28))}
       </nav>
     );
   }
 
+  // With "all" picked (Chat), nobody is the one on screen: the summary says so and every character with news counts.
+  const onAll = Boolean(all) && current === "";
   const me = characters.find((c) => c.id === current) ?? characters[0];
-  const elsewhere = characters.filter((c) => c.id !== me.id && about(c).count > 0);
+  const elsewhere = characters.filter((c) => (onAll || c.id !== me.id) && about(c).count > 0);
   // With news first, the rest as they were.
   const order = [...characters].sort((x, y) => Number(about(y).count > 0) - Number(about(x).count > 0));
   const mine = about(me);
   return (
     <nav className="character-switch" aria-label={label}>
       {/* Keyed by the one on screen, so picking another opens its page with the grid closed. */}
-      <details key={me.id} className="character-switch-menu">
-        <summary className="character-tab character-switch-current" aria-label={`${label}: ${shortName(me.name)}. ${characters.length} characters, tap to switch`}>
-          <Avatar seed={me.id} name={me.name} hue={me.hue} portraitSrc={me.portrait} size={32} />
-          <span className="character-tab-name">{shortName(me.name)}</span>
-          {mine.partners && (
+      <details key={onAll ? "all" : me.id} className="character-switch-menu">
+        <summary className="character-tab character-switch-current" aria-label={`${label}: ${onAll ? all!.label : shortName(me.name)}. ${characters.length} characters, tap to switch`}>
+          {!onAll && <Avatar seed={me.id} name={me.name} hue={me.hue} portraitSrc={me.portrait} size={32} />}
+          <span className="character-tab-name">{onAll ? all!.label : shortName(me.name)}</span>
+          {!onAll && mine.partners && (
             <span className="badge character-tab-taken" aria-hidden="true">
               💍 Taken
             </span>
@@ -114,7 +129,10 @@ export default function CharacterTabs({
             ▾
           </span>
         </summary>
-        <div className="character-grid">{order.map((c) => tab(c, "character-tile", 48))}</div>
+        <div className="character-grid">
+          {allTab("character-tile")}
+          {order.map((c) => tab(c, "character-tile", 48))}
+        </div>
       </details>
     </nav>
   );

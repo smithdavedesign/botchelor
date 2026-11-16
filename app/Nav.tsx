@@ -22,6 +22,8 @@ const LINKS: readonly NavLink[] = [
   { href: "/watch", label: "Watch" },
   { href: "/chat", label: "Chat", also: ["/matches", "/swipe", "/messages", "/companion"] },
   { href: "/characters", label: "Characters" },
+  // The fifth door (2026-11-16): the Gallery (/showcase, what everyone made) and My studio (/studio), one place to show and make.
+  { href: "/studio", label: "Studio", also: ["/showcase", "/reels"] },
   { href: "/account", label: "Account" },
 ];
 

@@ -114,7 +114,9 @@ describe("the merged inbox (loadChat)", () => {
     // Their own character texting them is a thread with them, like any other.
     expect(inbox.rows[2]).toMatchObject({ kind: "you", title: "Ira", who: { id: me.id } });
     expect(inbox.counts).toEqual({ all: 3, you: 2, dating: 1 });
-    expect(inbox.characters).toEqual([{ id: me.id, name: "Ira Fenn" }]);
+    // Each with what the face row draws (lib/current-character.ts): its colour and portrait.
+    expect(inbox.characters).toMatchObject([{ id: me.id, name: "Ira Fenn" }]);
+    expect(Object.keys(inbox.characters[0]).sort()).toEqual(["hue", "id", "name", "portrait"]);
     expect(filterChat(inbox.rows, "you").map((r) => r.kind)).toEqual(["you", "you"]);
     expect(filterChat(inbox.rows, "dating").map((r) => r.title)).toEqual(["Ira and Dex"]);
     expect(filterChat(inbox.rows, "all")).toHaveLength(3);
