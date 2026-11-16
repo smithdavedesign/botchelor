@@ -1416,6 +1416,10 @@ details.recap-toggle[open] .recap-toggle-hide {
 .season-arc-format {
   margin-left: auto;
 }
+/* Next month's format beside this month's (app/SeasonBanner.tsx `next`): the pair sits together at the end. */
+.season-arc-format + .season-arc-next {
+  margin-left: 0;
+}
 .season-arc-short {
   display: none;
 }

@@ -2,7 +2,7 @@ import Link from "next/link";
 import Icon from "@/app/Icon";
 import { seasonArc, type SeasonFormatDef } from "@/lib/season-format";
 import { isMonthlySeason, seasonBanner, seasonNumber } from "@/lib/season-ref";
-import { seasonIdOf, seasonLabel } from "@/lib/season-window";
+import { nextSeasonStart, seasonIdOf, seasonLabel } from "@/lib/season-window";
 
 const days = (n: number) => `${n} ${n === 1 ? "day" : "days"}`;
 
@@ -14,17 +14,23 @@ const days = (n: number) => `${n} ${n === 1 ? "day" : "days"}`;
  *
  * On a lead format (`def`, The Botchelor) the finale it counts to is the final rose (lib/season-format.ts seasonArc),
  * and the layout passes the season's own page as `href` (docs/season-page.md): /reunion stays in the show's tabs.
+ *
+ * `next`: next month's format, when it is a different one (the layout passes it only for a lead format). Beside this
+ * month's chip it reads "Classic Botchelor · December: The Botchelor", so a home page that bills Nell as December's
+ * Botchelor under a "Classic Botchelor" strip says which is which (GPT review, 2026-11-16).
  */
 export default function SeasonBanner({
   now = new Date(),
   format = null,
   def = null,
   href = "/reunion",
+  next = null,
 }: {
   now?: Date;
   format?: string | null;
   def?: SeasonFormatDef | null;
   href?: string;
+  next?: string | null;
 }) {
   const closed = seasonBanner(now);
   if (closed) {
@@ -44,7 +50,8 @@ export default function SeasonBanner({
   const { night, nights, left, pct, to } = seasonArc(now, def);
   // After a lead format's final rose the season still has nights left: the arc counts those, not a finale to come.
   const after = to === "end";
-  const label = `Season ${number}, ${seasonLabel(id)}, night ${night} of ${nights}, ${after ? `${days(left)} left in the season` : left === 0 ? "the finale is tonight" : `${days(left)} to the finale`}`;
+  const nextMonth = next && next !== format ? seasonLabel(seasonIdOf(nextSeasonStart(now))).split(" ")[0] : null;
+  const label = `Season ${number}, ${seasonLabel(id)}, night ${night} of ${nights}, ${after ? `${days(left)} left in the season` : left === 0 ? "the finale is tonight" : `${days(left)} to the finale`}${nextMonth ? `; ${nextMonth} is ${next}` : ""}`;
   return (
     <Link href={href} className="season-arc" aria-label={label} data-track="season-arc">
       <span className="season-arc-name">
@@ -79,6 +86,11 @@ export default function SeasonBanner({
         )}
       </span>
       {format && <span className="chip season-arc-format">{format}</span>}
+      {nextMonth && (
+        <span className="chip season-arc-format season-arc-next">
+          {nextMonth}: {next}
+        </span>
+      )}
     </Link>
   );
 }

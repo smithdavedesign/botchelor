@@ -338,8 +338,8 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
       {!creator && tonight}
       {!creator && showNews && <ShowSince card={showNews} />}
 
-      {situation && <SituationVote board={situation} now={Date.now()} />}
-      {dares && <DareVote board={dares} />}
+      {situation && <SituationVote board={situation} now={Date.now()} insider={creator} />}
+      {dares && <DareVote board={dares} insider={creator} />}
       {record && (record.called > 0 || airing.length > 0) && <CallsLine record={record} airing={airing.length} href="/watch#airing-soon" nameless={viewerId !== null && profileName === null} sharer={sharer} where="home" />}
 
       {aired && aired.items.length > 0 && (

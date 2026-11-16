@@ -4,6 +4,7 @@ import Link from "next/link";
 import Avatar from "./Avatar";
 import { requestJson } from "./request";
 import { useAction } from "./useAction";
+import { showCrowd, tallyLine } from "@/lib/crowd-threshold";
 import type { DareBoard } from "@/lib/dares";
 import { VERDICT_WORDS } from "@/lib/dare-words";
 import { POINTS_PER_DARE } from "@/lib/rules";
@@ -12,9 +13,10 @@ import { POINTS_PER_DARE } from "@/lib/rules";
  * Tonight's dare (lib/dares.ts): the ballot's second lane. Viewers back one of three producer dares; the winner is
  * slipped to one side of tomorrow's house date, and the other side never knows. The counts show once you've voted.
  */
-export default function DareVote({ board }: { board: DareBoard }) {
+export default function DareVote({ board, insider = false }: { board: DareBoard; insider?: boolean }) {
   const { busy, error, run } = useAction();
   const voted = board.my_pick !== null;
+  const tally = voted && showCrowd(board.total, { insider });
   const vote = (pick: string) => run(() => requestJson("/api/dare", { pick }));
   return (
     <section id="dare" className="card situation dare" aria-labelledby="dare-head">
@@ -27,7 +29,7 @@ export default function DareVote({ board }: { board: DareBoard }) {
           <h2 id="dare-head">Dare {board.target.name} to…</h2>
           <p className="muted small">
             The producers slip the winning dare to {board.target.name} — their date won&apos;t know.{" "}
-            {voted ? `${board.total} ${board.total === 1 ? "vote" : "votes"} so far.` : "Vote to see how it's going."} If your dare wins, you
+            {voted ? tallyLine(board.total, { insider }) : "Vote to see how it's going."} If your dare wins, you
             score when it airs: +{POINTS_PER_DARE.went_through} if they go through with it, +{POINTS_PER_DARE.sort_of} if they sort of do.
           </p>
         </div>
@@ -50,7 +52,7 @@ export default function DareVote({ board }: { board: DareBoard }) {
                   <span aria-hidden="true">😈</span> {c.text}
                   {mine && <span className="chip">Your dare</span>}
                 </span>
-                {voted && (
+                {tally && (
                   <span className="situation-bar">
                     <span style={{ width: `${share}%` }} aria-hidden="true" />
                     <em>

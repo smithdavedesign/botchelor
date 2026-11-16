@@ -296,14 +296,14 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
           <h2 id="vote-now" className="watch-block-head">
             Vote before it airs
           </h2>
-          {recoupling && recoupling.choices.length > 0 && <RecouplingCard board={recoupling} now={now} />}
+          {recoupling && recoupling.choices.length > 0 && <RecouplingCard board={recoupling} now={now} insider={insider} />}
           {/* A Botchelor season (lib/ceremony.ts): the house and Sunday's rose ceremony, where the Recoupling would sit. */}
-          {ceremony && <BotchelorCard board={ceremony} now={now} premiere={premiere} />}
-          {lead && <WeeklyReveal board={reveal} now={now} />}
+          {ceremony && <BotchelorCard board={ceremony} now={now} premiere={premiere} insider={insider} />}
+          {lead && <WeeklyReveal board={reveal} now={now} insider={insider} />}
           <div className="watch-votes">
-            {situation && <SituationVote board={situation} now={now} />}
-            {dares && <DareVote board={dares} />}
-            {reveal && !lead && <WeeklyReveal board={reveal} now={now} />}
+            {situation && <SituationVote board={situation} now={now} insider={insider} />}
+            {dares && <DareVote board={dares} insider={insider} />}
+            {reveal && !lead && <WeeklyReveal board={reveal} now={now} insider={insider} />}
           </div>
           {airing.length === 0 && record && record.called > 0 && <CallsLine record={record} airing={0} nameless={viewerId !== null && profileName === null} sharer={sharer} where="watch" />}
           {airing.length > 0 && (

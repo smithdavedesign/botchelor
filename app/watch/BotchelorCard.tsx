@@ -5,6 +5,7 @@ import Avatar from "@/app/Avatar";
 import { requestJson } from "@/app/request";
 import { useAction } from "@/app/useAction";
 import { countdown } from "@/lib/countdown";
+import { showCrowd, tallyLine } from "@/lib/crowd-threshold";
 import type { CeremonyBoard, SuitorState } from "@/lib/ceremony";
 import type { NextPremiere } from "@/lib/premiere-clock";
 
@@ -29,10 +30,21 @@ const dayWord = (day: string, now: number): string =>
  * format; a classic season never renders it. The Sunday premiere (lib/sunday-premiere.ts), the lead's last-chance date
  * live in one room before the roses, is one line under the ceremony's.
  */
-export default function BotchelorCard({ board, now, premiere = null }: { board: CeremonyBoard; now: number; premiere?: NextPremiere | null }) {
+export default function BotchelorCard({
+  board,
+  now,
+  premiere = null,
+  insider = false,
+}: {
+  board: CeremonyBoard;
+  now: number;
+  premiere?: NextPremiere | null;
+  insider?: boolean;
+}) {
   const { busy, error, run } = useAction();
   const vote = (pick: string) => run(() => requestJson("/api/ceremony", { pick }));
   const voted = board.vote?.my_pick != null;
+  const tally = voted && showCrowd(board.vote?.total ?? 0, { insider });
   const inPlay = board.suitors.filter((s) => s.state === "in").length;
   return (
     <section id="rose-ceremony" className="card botchelor-card" aria-labelledby="botchelor-head" data-track-area="rose-ceremony">
@@ -67,14 +79,14 @@ export default function BotchelorCard({ board, now, premiere = null }: { board: 
         <>
           <p className="muted small">
             <strong>Who goes home?</strong> Your vote sends one suitor home on {utcTime(board.vote.closes_at)}; {board.lead.name}&apos;s own dates send
-            another. {voted ? `${board.vote.total} ${board.vote.total === 1 ? "vote" : "votes"} so far.` : "Vote to see how it's going."}
+            another. {voted ? tallyLine(board.vote.total, { insider }) : "Vote to see how it's going."}
           </p>
           <p className="botchelor-ballot">
             {board.vote.choices.map((c) => (
               <span key={c.id}>
                 <button type="button" className={board.vote?.my_pick === c.id ? "primary small" : "button-ghost small"} disabled={busy} data-track="ceremony-vote" onClick={() => vote(c.id)}>
                   {c.name}
-                  {voted ? ` · ${c.votes}` : ""}
+                  {tally ? ` · ${c.votes}` : ""}
                 </button>{" "}
               </span>
             ))}
@@ -116,7 +128,7 @@ export default function BotchelorCard({ board, now, premiere = null }: { board: 
         <div className="botchelor-last">
           <p className="small">
             <strong>{board.last.finale ? "The finale" : `Week ${board.last.week}'s ceremony`}</strong>
-            {board.last.total > 0 ? <span className="muted"> · {board.last.total} {board.last.total === 1 ? "vote" : "votes"}</span> : null}
+            {showCrowd(board.last.total, { insider }) ? <span className="muted"> · {board.last.total} {board.last.total === 1 ? "vote" : "votes"}</span> : null}
           </p>
           {board.last.lines.map((line, i) => (
             <p key={i} className="small botchelor-line">

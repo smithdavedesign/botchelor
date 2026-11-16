@@ -208,7 +208,12 @@ describe("the show's pages", () => {
     expect(before).toContain("Vote to see how it&#x27;s going.");
     await voteSeasonFormat(t.db, userIdOf(cookie), "ex_files");
     const after = renderToStaticMarkup(await ReunionPage({ searchParams: Promise.resolve({}) }));
-    expect(after).toContain("3 votes so far: Bot Island is ahead.");
+    // Three votes to a viewer with no character: the empty-room rule says the vote is in, not "3 votes".
+    expect(after).toContain("Your vote&#x27;s in.");
+    expect(after).not.toContain("3 votes so far");
+    vi.stubEnv("CROWD_MIN", "3");
+    const crowd = renderToStaticMarkup(await ReunionPage({ searchParams: Promise.resolve({}) }));
+    expect(crowd).toContain("3 votes so far: Bot Island is ahead.");
   });
 
   it("an aired date offers to talk with them after it; signed out (guests off), a sign-in link per character", async () => {

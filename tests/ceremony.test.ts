@@ -206,7 +206,9 @@ describe("the ceremony (lib/ceremony.ts runCeremony)", () => {
 
     const row = (await t.db.query<{ eliminated_by_vote: string; eliminated_by_lead: string; votes: number; total: number; remaining: string[]; lines: string[] }>(`select * from ceremonies`)).rows[0];
     expect(row).toMatchObject({ eliminated_by_vote: "suitor-2", eliminated_by_lead: "suitor-4", votes: 2, total: 3, remaining: ["suitor-1", "suitor-3", "suitor-5"] });
-    expect(row.lines.join(" ")).toContain("2 of 3 votes sent Bea home");
+    // Three votes is a quiet room (lib/crowd-threshold.ts): the stored line, read by everyone, carries no count; the row does.
+    expect(row.lines.join(" ")).toContain("The audience spoke first and sent Bea home.");
+    expect(row.lines.join(" ")).not.toContain("2 of 3");
     expect(row.lines.join(" ")).toContain("Dex's date at a cooking class was a disaster");
 
     // Off the cast at once, like a withdrawal; the rest stay.
