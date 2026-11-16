@@ -11,6 +11,8 @@ import { userIdFromCookieStore } from "@/lib/http";
 import { HOUSE_MIN, SURVIVORS, seasonCastCards, seasonCastSize, type CastCard } from "@/lib/season-cast";
 import { seasonFormat, type SeasonFormatDef } from "@/lib/season-format";
 import { seasonFormatSlug } from "@/lib/season-format-store";
+import { seasonPageLiveOn } from "@/lib/season-page";
+import { seasonPath } from "@/lib/season-ref";
 import { pageMetadata } from "@/lib/seo";
 import CastingBoard from "./CastingBoard";
 
@@ -113,6 +115,14 @@ export default async function CastingPage() {
             ? `These are characters people made, applying to be the suitors on ${board.label}'s ${def.title}: one lead from the house, and a rose ceremony every Sunday. Vote for the one you want to watch: one vote a viewer, and voting again moves it.`
             : `These are characters people made, auditioning for the ${board.label} cast. Vote for the one you want to watch: one vote a viewer, and voting again moves it.`}
         </p>
+        {/* The lead season's own page (docs/season-page.md): one quiet line, for whoever came to vote not knowing the show. */}
+        {def.lead && seasonPageLiveOn() && (
+          <p className="small casting-what">
+            <Link href={seasonPath(board.season_id)} data-track="casting-season-page">
+              What is {def.title}? →
+            </Link>
+          </p>
+        )}
       </header>
       <div className="casting-layout">
         <div className="casting-main">

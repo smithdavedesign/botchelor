@@ -127,6 +127,22 @@ const as = (cookie: string | null) => {
 
 const report: Record<string, { depth: number; queries: number; ms: number }> = {};
 
+/** A lead season's own page (lib/season-page.ts): its format, then everything else at once (3 on 2026-11-15, the premiere's two inside). */
+const SEASON_PAGE_BUDGET = 4;
+/**
+ * Makes the coming season a lead season with the house lead picked (straight into the tables, unslowed), for the season
+ * page's entry: it runs last, so no other page sees a lead season.
+ */
+async function comingLeadSeason(): Promise<string> {
+  const { nextSeasonStart, seasonIdOf } = await import("@/lib/season-window");
+  const { seasonRef } = await import("@/lib/season-ref");
+  const id = seasonIdOf(nextSeasonStart(new Date()));
+  await t.db.query(`insert into season_formats (season_id, slug) values ($1, 'botchelor') on conflict (season_id) do update set slug = excluded.slug`, [id]);
+  await t.db.query(`insert into season_leads (season_id, character_id) values ($1, $2) on conflict (season_id) do update set character_id = excluded.character_id`, [id, HOUSE_CHARACTERS[0].id]);
+  return seasonRef(id).path.split("/").pop()!;
+}
+let seasonSlug = "";
+
 /**
  * The most round trips in a row each page may wait on (2026-11-04, after the audit; before it: layout 5, character
  * owner 29, visitor 14, date owner 25, visitor 10, couple owner 25, home 11). A little room over today's, so a page
@@ -154,6 +170,7 @@ const BUDGET: Record<string, number> = {
   // (its reads at once, then the people; the lead's lookup beside them). On prod every view shares one cached build.
   house: 5,
   graph: 5,
+  "season page": SEASON_PAGE_BUDGET,
 };
 
 /** Runs `run` with one environment variable set, and puts it back. */
@@ -195,6 +212,15 @@ describe("heavy pages' round trips (2026-11-04 audit)", () => {
     ["notifications (owner)", "owner", async () => (await import("@/app/notifications/page")).default({ searchParams: Promise.resolve({}) })],
     ["house", null, async () => (await import("@/app/house/page")).default({ searchParams: Promise.resolve({}) })],
     ["graph", null, async () => (await import("@/app/graph/page")).default({ searchParams: Promise.resolve({}) })],
+    // Last: it makes the coming season a lead season (The Botchelor), so its page is the live one.
+    [
+      "season page",
+      null,
+      async () => {
+        seasonSlug ||= await comingLeadSeason();
+        return (await import("@/app/seasons/[slug]/page")).default({ params: Promise.resolve({ slug: seasonSlug }), searchParams: Promise.resolve({}) });
+      },
+    ],
   ];
   for (const [name, who, run] of pages) {
     it(name, async () => {

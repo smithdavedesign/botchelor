@@ -197,6 +197,12 @@ services:
       # - key: CASTING_INVITES
       #   value: "0"
       #   scope: RUN_AND_BUILD_TIME
+      # The lead season's own page (lib/season-page.ts; docs/season-page.md): /seasons/<month> for The Botchelor's month,
+      # watch-first before it starts and while it runs (/december lands there). On by default; "0" puts the page back
+      # as before (the Reunion while it runs; next month's sends to /casting) without a deploy.
+      # - key: SEASON_PAGE_LIVE
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
       # The navigation of 2026-11-15 (lib/nav-chat.ts; docs/flows.md "Navigation"): Watch · Chat · Characters, and the
       # show tabs Watch · House · Reels · Reunion. On by default. "0" brings back the header, the phone's tab bar and
       # the show tabs as they were, without a deploy of code (/chat still works).

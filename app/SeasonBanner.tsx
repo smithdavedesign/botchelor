@@ -1,18 +1,31 @@
 import Link from "next/link";
 import Icon from "@/app/Icon";
-import { seasonDayOf } from "@/lib/season-format";
+import { seasonArc, type SeasonFormatDef } from "@/lib/season-format";
 import { isMonthlySeason, seasonBanner, seasonNumber } from "@/lib/season-ref";
-import { seasonIdOf, seasonLabel, seasonWindow } from "@/lib/season-window";
+import { seasonIdOf, seasonLabel } from "@/lib/season-window";
 
-const DAY_MS = 24 * 60 * 60 * 1000;
+const days = (n: number) => `${n} ${n === 1 ? "day" : "days"}`;
 
 /**
  * The season in the chrome, on home and /watch. For the first week of a month: "Season 1 is over: watch the recap"
  * (David 2026-11-01; lib/season-ref.ts BANNER_DAYS), linking the season that just closed to its finale page. The rest
  * of the month: the arc (the design system, 2026-11-11): which season, which night, how far through the month, this
  * season's format when the page knows it, linking to the Reunion. Pure dates, no database.
+ *
+ * On a lead format (`def`, The Botchelor) the finale it counts to is the final rose (lib/season-format.ts seasonArc),
+ * and the layout passes the season's own page as `href` (docs/season-page.md): /reunion stays in the show's tabs.
  */
-export default function SeasonBanner({ now = new Date(), format = null }: { now?: Date; format?: string | null }) {
+export default function SeasonBanner({
+  now = new Date(),
+  format = null,
+  def = null,
+  href = "/reunion",
+}: {
+  now?: Date;
+  format?: string | null;
+  def?: SeasonFormatDef | null;
+  href?: string;
+}) {
   const closed = seasonBanner(now);
   if (closed) {
     return (
@@ -28,14 +41,12 @@ export default function SeasonBanner({ now = new Date(), format = null }: { now?
   const id = seasonIdOf(now);
   const number = seasonNumber(id);
   if (!isMonthlySeason(id) || number === null) return null;
-  const { start, end } = seasonWindow(now);
-  const nights = Math.round((end.getTime() - start.getTime()) / DAY_MS);
-  const night = Math.min(nights, seasonDayOf(now));
-  const left = nights - night;
-  const pct = Math.max(0, Math.min(100, Math.round((night / nights) * 100)));
-  const label = `Season ${number}, ${seasonLabel(id)}, night ${night} of ${nights}, ${left === 0 ? "the finale is tonight" : `${left} ${left === 1 ? "day" : "days"} to the finale`}`;
+  const { night, nights, left, pct, to } = seasonArc(now, def);
+  // After a lead format's final rose the season still has nights left: the arc counts those, not a finale to come.
+  const after = to === "end";
+  const label = `Season ${number}, ${seasonLabel(id)}, night ${night} of ${nights}, ${after ? `${days(left)} left in the season` : left === 0 ? "the finale is tonight" : `${days(left)} to the finale`}`;
   return (
-    <Link href="/reunion" className="season-arc" aria-label={label} data-track="season-arc">
+    <Link href={href} className="season-arc" aria-label={label} data-track="season-arc">
       <span className="season-arc-name">
         <span className="season-arc-long">Season {number}</span>
         <span className="season-arc-short">S{number}</span>
@@ -52,12 +63,18 @@ export default function SeasonBanner({ now = new Date(), format = null }: { now?
         <span style={{ width: `${pct}%` }} />
       </span>
       <span className="season-arc-left">
-        {left === 0 ? (
+        {after ? (
+          left === 0 ? (
+            "Last night"
+          ) : (
+            `${days(left)} left`
+          )
+        ) : left === 0 ? (
           "Finale tonight"
         ) : (
           <>
-            <span className="season-arc-long">{`${left} ${left === 1 ? "day" : "days"} to the finale`}</span>
-            <span className="season-arc-short">{`${left} ${left === 1 ? "day" : "days"} left`}</span>
+            <span className="season-arc-long">{`${days(left)} to the finale`}</span>
+            <span className="season-arc-short">{`${days(left)} left`}</span>
           </>
         )}
       </span>
