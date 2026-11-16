@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DATE_STARTED_AT_KEY, msSinceDateStarted, stampDateStarted } from "@/lib/engagement-keys";
+import { DATE_STARTED_AT_KEY, msSinceDateStarted, stampDateStarted, theaterLeftProps } from "@/lib/engagement-keys";
 import { ENGAGEMENT_FUNNEL } from "@/lib/engagement";
 
 function memory() {
@@ -34,5 +34,19 @@ describe("the funnel's new step (lib/engagement.ts)", () => {
     const step = ENGAGEMENT_FUNNEL.find((s) => s.key === "after_date_text")!;
     expect(step.label).toBe("Heard from their character");
     expect([...step.events]).toEqual(["after_date_text_opened"]);
+  });
+});
+
+describe("where a viewer left the theater (theaterLeftProps)", () => {
+  it("says how far they got and how long they stayed, from a clip's link or the Watch button", () => {
+    expect(theaterLeftProps({ line: 3, of: 16, openedAt: 1_000, now: 44_400, via: "exit", auto: true })).toEqual({ via: "exit", line: 3, of: 16, pct: 19, secs: 43, auto: true });
+    expect(theaterLeftProps({ line: 0, of: 16, openedAt: 1_000, now: 2_000, via: "hidden", auto: false })).toEqual({ via: "hidden", line: 0, of: 16, pct: 0, secs: 1, auto: false });
+  });
+
+  it("never says more lines than the date has, a negative time, or more than an hour", () => {
+    expect(theaterLeftProps({ line: 40, of: 16, openedAt: 0, now: 10_000, via: "exit", auto: false })).toMatchObject({ line: 16, pct: 100 });
+    expect(theaterLeftProps({ line: 2, of: 0, openedAt: 0, now: 10_000, via: "exit", auto: false })).toMatchObject({ line: 0, of: 0, pct: 0 });
+    expect(theaterLeftProps({ line: 1, of: 10, openedAt: 5_000, now: 1_000, via: "exit", auto: false }).secs).toBe(0);
+    expect(theaterLeftProps({ line: 1, of: 10, openedAt: 0, now: 9_000_000, via: "hidden", auto: false }).secs).toBe(3600);
   });
 });
