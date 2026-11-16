@@ -10,6 +10,7 @@ export const SHOW_WORD_REDIRECTS: readonly SiteRedirect[] = [
   { source: "/reels", destination: "/showcase", permanent: false },
   { source: "/messages", destination: "/matches", permanent: false },
   // The short address the December clips print on their end cards (scripts/clips/episode-cut.mjs, docs/clips/): it goes
-  // where December is happening now, the casting board until the season page takes over.
-  { source: "/december", destination: "/casting", permanent: false },
+  // where December is happening now, the casting board until the season page takes over. People type it from a video,
+  // so it carries its own utm tags (as /vote does) for the engagement log to count them.
+  { source: "/december", destination: "/casting?utm_source=clip&utm_medium=clip&utm_campaign=december", permanent: false },
 ];

@@ -70,4 +70,4 @@ The voices are Kokoro on Venice, at speed 1.1 (`VOICE_SPEED`). The key comes fro
 | 5 | confessional | Nell × Sable, "One Leftover Screw" | Nell is December's Botchelor |
 | 6 | confessional | Sable's line on three dates in 24 hours | Does Nell know? |
 
-Every closing card points to `botchelor.com/december`. That is a 307 in `lib/site-redirects.ts`: it goes to `/casting` until the December season page exists, then to that page.
+Every closing card points to `botchelor.com/december`. That is a 307 in `lib/site-redirects.ts`: it goes to `/casting` until the December season page exists, then to that page. People type it from a video, so the redirect adds `utm_source=clip&utm_medium=clip&utm_campaign=december`, the way `/vote` does for the daily clips. The engagement log then counts those visits under campaign "december".
