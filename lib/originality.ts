@@ -453,6 +453,44 @@ export function nameAndJobClose(sheet: SheetDraft, other: Compared): string[] | 
   return job.length ? job : null;
 }
 
+/** A sheet field matchedFields compares, as agents name it. */
+export type MatchedField = { field: "name" | "job" | "bio" | "traits" | "want" | "dealbreaker" | "details"; words: string[] };
+
+/**
+ * #1712 (the 2026-11-16 runs: "four refusals on a weak name/want overlap"; "say which fields matched"): which fields of two
+ * sheets overlap, each with the words they share as this sheet wrote them, and how strong that is: weak (one field), close
+ * (two) or strong (three or more). Pure; what a look-alike refusal shows beside its why.
+ */
+export function matchedFields(sheet: SheetDraft, other: Compared): { matched: MatchedField[]; strength: "weak" | "close" | "strong" } {
+  const out: MatchedField[] = [];
+  const nameWords = [
+    ...(firstNamesClose(sheet.name, other.name) ? [firstName(sheet.name)] : []),
+    ...(surnamesClose(sheet.name, other.name) ? [surname(sheet.name)] : []),
+  ]
+    .filter(Boolean)
+    // As the sheet wrote it ("Thaddeus", not "thaddeus").
+    .map((w) => (sheet.name ?? "").split(/\s+/).find((x) => x.toLowerCase().replace(/[^a-z]/g, "") === w.replace(/[^a-z]/g, "")) ?? w);
+  if (nameWords.length) out.push({ field: "name", words: nameWords });
+  const job = sharedJob(sheet, other);
+  if (job.length) out.push({ field: "job", words: job });
+  const fieldsOf = (d: SheetDraft): Record<Exclude<MatchedField["field"], "name" | "job">, SheetDraft> => ({
+    bio: { bio: d.bio },
+    traits: { traits: d.traits },
+    want: { want: d.want },
+    dealbreaker: { dealbreaker: d.dealbreaker },
+    details: { extras: d.extras ? { ...d.extras, occupation: undefined } : null },
+  });
+  const mine = fieldsOf(sheet);
+  const theirs = fieldsOf(other);
+  for (const field of Object.keys(mine) as (keyof typeof mine)[]) {
+    const a = conceptTerms(mine[field]);
+    const b = conceptTerms(theirs[field]);
+    const shared = [...a].filter((t) => b.has(t) && !t.includes(" "));
+    if (shared.length) out.push({ field, words: [...new Set(shared.map((t) => asWritten(t, sheet)))].slice(0, 4) });
+  }
+  return { matched: out, strength: out.length >= 3 ? "strong" : out.length === 2 ? "close" : "weak" };
+}
+
 /** Lines of work to offer instead, a spread of them: one that no recent character shares a word with is suggested. */
 export const JOB_IDEAS = [
   "a piano tuner", "a lock restorer", "a beekeeper", "a ferry engineer", "a typeface designer", "a cheese cave keeper", "a bell founder",
