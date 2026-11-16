@@ -77,6 +77,13 @@ export function staticSitemap(base: string = siteUrl()): MetadataRoute.Sitemap {
   }));
 }
 
+/**
+ * A couple's own pages (/couples/a/b and its ship page) go in the sitemap once they've aired this many dates. With one
+ * date the couple page mostly repeats that episode, and Search Console (2026-11-15) had 440 such couples' pages
+ * "Discovered/Crawled - currently not indexed", crowding out /pricing and the landings. The pages stay up and linked.
+ */
+export const SITEMAP_MIN_COUPLE_DATES = 2;
+
 /** The episodes and characters worth indexing. Bounded well under the 50,000-URL sitemap limit. */
 export async function contentSitemap(db: Db, base: string = siteUrl()): Promise<MetadataRoute.Sitemap> {
   const episodes = await db.query<{ id: string; at: Date | string }>(
@@ -104,7 +111,8 @@ export async function contentSitemap(db: Db, base: string = siteUrl()): Promise<
   const couples = await db.query<{ a: string; b: string; at: Date | string | null; name_a: string; name_b: string }>(
     `select r.character_a as a, r.character_b as b, r.public_last_at as at, ca.name as name_a, cb.name as name_b
        from relationships r join characters ca on ca.id = r.character_a join characters cb on cb.id = r.character_b
-      where r.public_dates > 0 order by r.public_last_at desc nulls last limit 5000`,
+      where r.public_dates >= $1 order by r.public_last_at desc nulls last limit 5000`,
+    [SITEMAP_MIN_COUPLE_DATES],
   );
   // Creators with a handle (lib/showcase.ts) and at least one PG post: their page lists what they published.
   const creators = await db.query<{ handle: string; at: Date | string }>(

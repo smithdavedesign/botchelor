@@ -177,6 +177,9 @@ describe("the Character.AI landing", () => {
     expect(html).toContain('href="/import"');
     expect(html).toContain("Copy its creator fields (Name, Tagline, Description, Greeting, Definition)");
     expect(html).not.toMatch(/bankrupt|chapter 11|shut(?:ting)? down/i);
+    // The switching pages link each other, never themselves.
+    expect(html).toContain('href="/alternatives/janitor-ai"');
+    expect(html).not.toContain('href="/alternatives/character-ai"');
     // The other landings keep the plain door.
     expect(alternativeBySlug("janitor-ai")!.importHref).toBeUndefined();
   });

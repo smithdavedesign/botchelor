@@ -11,6 +11,7 @@ import type { Db } from "./db";
 import { closedSeasons } from "./season-ref";
 import { seasonWindow } from "./season-window";
 import { REPORT_HIDE_THRESHOLD } from "./rules";
+import { SITEMAP_MIN_COUPLE_DATES } from "./seo";
 import { siteUrl } from "./site";
 import { isProductionDeploy } from "./deploy";
 
@@ -55,7 +56,7 @@ export async function recentPublicUrls(db: Db, since: Date, base: string = siteU
       [since.toISOString(), REPORT_HIDE_THRESHOLD],
     ),
     db.query<{ id: string }>(`select id from characters where open_to_dates and created_at >= $1 limit 5000`, [since.toISOString()]),
-    db.query<{ a: string; b: string }>(`select character_a as a, character_b as b from relationships where public_dates > 0 and public_last_at >= $1 limit 5000`, [since.toISOString()]),
+    db.query<{ a: string; b: string }>(`select character_a as a, character_b as b from relationships where public_dates >= $2 and public_last_at >= $1 limit 5000`, [since.toISOString(), SITEMAP_MIN_COUPLE_DATES]),
   ]);
   return [
     ...episodes.rows.map((r) => `${base}/episodes/${r.id}`),
