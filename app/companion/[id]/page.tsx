@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { notFound } from "next/navigation";
+import { lockedDoors } from "@/lib/adult/locked-picture";
+import { ADULT_COOKIE } from "@/lib/age";
 import { getDb } from "@/lib/db";
 import { authFromCookieStore } from "@/lib/http";
 import { getThread } from "@/lib/companion";
@@ -38,22 +40,33 @@ async function aboutCharacter(db: Awaited<ReturnType<typeof getDb>>, characterId
 }
 
 /** Your thread with a companion (lib/companion.ts), live. */
-export default async function CompanionThreadPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function CompanionThreadPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ preview?: string | string[] }> }) {
   const { id } = await params;
   const store = await cookies();
   const db = await getDb();
   // Signed in, or a guest trying a companion before making an account (lib/companion-access.ts).
-  const access = await companionAccessFromCookies(db, authFromCookieStore(store), store);
+  const signedIn = authFromCookieStore(store);
+  const access = await companionAccessFromCookies(db, signedIn, store);
   if (!access) notFound();
   const r = await getThread(db, access.userId, id);
   if (!r.ok) notFound();
-  const [allowance, extras, admin, faceKit] = await Promise.all([
+  // The locked pictures in this thread (lib/locked-picture.ts), by the date each is about.
+  const lockedDates = r.view.messages.flatMap((m) => (m.locked ? [{ episodeId: m.locked.episode }] : []));
+  const [allowance, extras, admin, faceKit, doors] = await Promise.all([
     companionAllowance(db, access.userId, new Date(), process.env, { guest: access.guest }),
     // What voice notes cost this person (lib/companion-extras.ts); a guest gets none and is asked to sign in.
     access.guest ? null : extrasState(db, access.userId),
     access.guest ? false : isAdmin(db, access.userId),
     // Their face for a call (lib/face-kit.ts), when they have one.
     faceKitOf(db, r.view.character.id),
+    // What each locked tile is for this viewer, here, now (lib/adult/locked-picture.ts: After Dark's own rules; nothing
+    // for a guest, without the 18+ answer, or where its pictures aren't allowed), and the note the texts' job reads.
+    // ?preview=visitor: an admin sees the tile as someone After Dark isn't open to.
+    access.guest
+      ? {}
+      : Promise.all([headers(), searchParams]).then(([h, q]) =>
+          lockedDoors(db, signedIn, new Headers(h), store, store.get(ADULT_COOKIE)?.value === "1", lockedDates, { remember: true, asVisitor: q.preview === "visitor" }),
+        ),
     // Their own character's texts are read once the thread is open (the home phone's "New text" dot goes by this).
     r.view.character.yours ? markCharacterTextsRead(db, access.userId, companionThreadHref(id)) : 0,
   ]);
@@ -78,6 +91,7 @@ export default async function CompanionThreadPage({ params }: { params: Promise<
       callVoice={callVoiceOn(process.env)}
       faceKit={faceKit}
       messageDelete={companionMessageDelete()}
+      lockedDoors={doors}
     />
   );
 }

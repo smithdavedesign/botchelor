@@ -222,6 +222,12 @@ ignore it.
   a viewer After Dark already admits who owns one of the two ([after-dark.md](after-dark.md), "The night continues"). `0`
   removes the button on the show and its page and route on After Dark's host; set it on both. Neither touches
   `public_door`. Commented in `.do/show.yaml` and `.do/app.yaml`.
+- **`LOCKED_PICTURE_TEXTS`** (the show's app, not a secret; default on): a character's text about a picture it kept
+  from a night, with a locked, blurred tile that opens in After Dark for an entitled adult and leads everyone else to
+  the way in (`lib/locked-picture.ts`; [companions.md](companions.md), "A picture they kept, locked";
+  [after-dark.md](after-dark.md), "A picture they kept, locked in the show's texts"). `0` sends nothing, shows the ones
+  already in a thread as plain texts, and 404s the tile, without a deploy. The show's side holds PG pixels only (the
+  character's own PG portrait, blurred), and nothing here touches `public_door`. Commented in `.do/show.yaml`.
 - **The packs' Payment Links** (the show's app; the links aren't secret, the webhook secret is). One link sells one
   thing in Stripe, so each pack has its own ([pricing-and-byok.md](pricing-and-byok.md)):
 

@@ -31,7 +31,7 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { join } from "node:path";
 import { chromium } from "playwright-core";
-import { appEnv, build, client, freePort, persona, ROOT, seedDataset, startApp, startShowrunner, stopApp } from "./harness.mjs";
+import { appEnv, build, CAST, client, freePort, persona, ROOT, seedDataset, startApp, startShowrunner, stopApp } from "./harness.mjs";
 
 const OUT = join(ROOT, ".data", "visual");
 const DATA_DIR = join(ROOT, ".data", "visual-db");
@@ -358,6 +358,40 @@ async function main() {
       scenePath = html.match(/href="(\/after-dark\/(?!studio\/|shorts\/)[^/"?]+\/[^/"?]+)"/)?.[1] ?? (cast.length === 2 ? `/after-dark/${cast[0]}/${cast[1]}` : scenePath);
       await ctx.close();
     }
+    // The locked picture in a character's texts (lib/locked-picture.ts): the admin's own character goes on a date built
+    // to end in another (the seeded season's Pernilla sheet against Rafe), it airs, the admin turns that thread's texts
+    // on and switches the character into After Dark, and the owner-only preview route writes the text. The thread is
+    // then audited twice: as someone After Dark is open to, and (?preview=visitor) as someone it isn't.
+    let lockedThread = null;
+    try {
+      const ctx = await browser.newContext();
+      await ctx.addCookies([{ name: "bz_adult", value: "1", url: base }]);
+      await adminSignIn(ctx.request);
+      const post = async (path, data) => {
+        const res = await ctx.request.post(base + path, { headers: { origin: base }, ...(data === undefined ? {} : { data }) });
+        if (!res.ok()) throw new Error(`${path} → ${res.status()}`);
+        return res.json();
+      };
+      const { soul, ...sheet } = CAST[10];
+      const mine = await post("/api/characters", { ...sheet, name: "Petra Lindqvist", ...(soul ? { soul } : {}), attest: true, keep_name: true });
+      let ended = null;
+      for (let i = 0; i < 3 && !ended; i++) {
+        const ep = await post("/api/episodes", { character_id: mine.id, partner_id: "house-rafe", autonomy: "guided", strategy: "genuine_chemistry", agenda: "find_funny", game_budget: 100, note: "Say what you actually think of the pastry." });
+        await post(`/api/episodes/${ep.id}/reveal`, {});
+        if (ep.ending === "second_date") ended = ep.id;
+      }
+      if (!ended) throw new Error("no date of theirs ended in another date");
+      const thread = (await post("/api/companion", { character_id: mine.id })).thread_id;
+      await post(`/api/companion/${thread}`, { action: "texts", on: true });
+      await post("/api/admin/after-dark/switch", { character_id: mine.id, on: true });
+      const sent = await post(`/api/admin/locked-picture?episode=${ended}`);
+      if (!sent.locked_picture?.sent) throw new Error(`the preview wrote nothing (${JSON.stringify(sent.locked_picture)})`);
+      lockedThread = thread;
+      await ctx.close();
+      console.log("Locked picture: seeded");
+    } catch (e) {
+      console.log(`Locked picture: not seeded (${String(e?.message ?? e).slice(0, 160)})`);
+    }
     const writeScene = async (page) => {
       // The page opens on the theater (2026-10-25): the scene is written there.
       // A new night waits on its start card (#896): Start it, then steer the next lines from the bar.
@@ -611,6 +645,13 @@ async function main() {
       { name: "tool-ship-names", path: "/tools/ship-name-generator" },
       // (Its Creator invites fold, list and "Make N invites" form, is audited open with the rest: openDetails.)
       { name: "admin-season", path: "/admin/season", as: "admin" },
+      // A character's text with its locked picture (lib/locked-picture.ts), in both states of the tile.
+      ...(lockedThread
+        ? [
+            { name: "companion-locked-picture", path: `/companion/${lockedThread}`, as: "adult-admin" },
+            { name: "companion-locked-picture-visitor", path: `/companion/${lockedThread}?preview=visitor`, as: "adult-admin" },
+          ]
+        : []),
       // The invite page (no 18+ wall): as a stranger meets it, as a signed-in creator with characters, and a made-up code.
       ...(inviteCode
         ? [
