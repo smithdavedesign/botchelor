@@ -6,6 +6,7 @@
  */
 import type { Metadata, MetadataRoute } from "next";
 import { ALTERNATIVES, alternativePath } from "./alternatives";
+import { OC_NAME_STYLES, ocNamesHref } from "./oc-names";
 import { indexablePromptTags, promptTagPath } from "./prompts-library";
 import { closedSeasons } from "./season-ref";
 import { readName, shipPath } from "./ship-names";
@@ -63,9 +64,9 @@ const POLICY_PATHS: ReadonlySet<string> = new Set(["/terms", "/privacy", "/conte
 // /import and the Character.AI landing are the rescue door (2026-11-14): as findable as the agents page.
 const PRIORITY: Record<string, number> = { "/": 1, "/create": 0.9, "/watch": 0.9, "/agents": 0.8, "/import": 0.8, "/alternatives/character-ai": 0.8, "/characters": 0.7 };
 
-/** The search landings beside PUBLIC_PATHS: the other /alternatives pages and the prompt tag pages (2026-11-11). */
+/** The search landings beside PUBLIC_PATHS: the other /alternatives pages, the prompt tag pages (2026-11-11) and the OC name generator's style pages. */
 export function landingPaths(): string[] {
-  return [...ALTERNATIVES.filter((a) => !(PUBLIC_PATHS as readonly string[]).includes(alternativePath(a.slug))).map((a) => alternativePath(a.slug)), ...indexablePromptTags().map((t) => promptTagPath(t.id))];
+  return [...ALTERNATIVES.filter((a) => !(PUBLIC_PATHS as readonly string[]).includes(alternativePath(a.slug))).map((a) => alternativePath(a.slug)), ...indexablePromptTags().map((t) => promptTagPath(t.id)), ...OC_NAME_STYLES.map((s) => ocNamesHref(s))];
 }
 
 export function staticSitemap(base: string = siteUrl()): MetadataRoute.Sitemap {

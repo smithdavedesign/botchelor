@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Icon from "@/app/Icon";
-import { queueEvent } from "@/app/engagement";
+import { flush, queueEvent } from "@/app/engagement";
 import Scene from "@/app/Scene";
 import ChatThread from "@/app/ChatThread";
 import { useReplay } from "@/app/useReplay";
@@ -12,7 +12,7 @@ import type { Turn } from "@/lib/conversation";
 import type { CharacterRef } from "@/lib/game";
 import { placeAt, type PlaceId } from "@/lib/venues";
 import CharacterName from "@/app/CharacterName";
-import { dateWatchedLive, msSinceDateStarted } from "@/lib/engagement-keys";
+import { dateWatchedLive, msSinceDateStarted, theaterLeftProps } from "@/lib/engagement-keys";
 import ShareEnding from "./ShareEnding";
 import VerdictCard from "./VerdictCard";
 
@@ -82,8 +82,29 @@ export default function EpisodeTheater(props: Props) {
   );
 }
 
-function Playback({ episodeId, characters, venue, transcript, endingLabel, justFilmed, startAt, roleplay, verdict, onExit }: Props & { onExit: () => void }) {
+function Playback({ episodeId, characters, venue, transcript, endingLabel, justFilmed, startAt, roleplay, verdict, autoOpen, onExit }: Props & { onExit: () => void }) {
   const replay = useReplay(transcript, true, { startAt });
+  // Where a viewer gave up (lib/engagement-keys.ts theaterLeftProps): once per opening, by Exit or the tab going away,
+  // and never once the ending played. The ref reads the line on screen at that moment, not at the last render's closure.
+  const openedAt = useRef(Date.now());
+  const left = useRef(false);
+  const at = useRef({ line: 0, done: false });
+  at.current = { line: replay.shown.length, done: replay.done };
+  const leave = (via: "exit" | "hidden") => {
+    if (left.current || at.current.done) return;
+    left.current = true;
+    queueEvent("theater_left", theaterLeftProps({ line: at.current.line, of: transcript.length, openedAt: openedAt.current, now: Date.now(), via, auto: Boolean(autoOpen) }));
+    if (via === "hidden") flush();
+  };
+  const leaveRef = useRef(leave);
+  leaveRef.current = leave;
+  useEffect(() => {
+    const onHide = () => {
+      if (document.visibilityState === "hidden") leaveRef.current("hidden");
+    };
+    document.addEventListener("visibilitychange", onHide);
+    return () => document.removeEventListener("visibilitychange", onHide);
+  }, []);
   const [convo, setConvo] = useState(true);
   // The aha moment (2026-11-07 product review, item 5): the replay reached the ending. Once per mount, never on exit.
   // Honest about how (the 2026-11-14 core plan): whether they skipped to it, and for the creator's own just-filmed date how
@@ -159,7 +180,14 @@ function Playback({ episodeId, characters, venue, transcript, endingLabel, justF
             >
               📜
             </button>
-            <button type="button" className="secondary small" onClick={onExit}>
+            <button
+              type="button"
+              className="secondary small"
+              onClick={() => {
+                leave("exit");
+                onExit();
+              }}
+            >
               Exit
             </button>
           </div>
