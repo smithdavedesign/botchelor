@@ -6032,7 +6032,12 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
     case "my_dates": {
       const who = resolveIdentity(args, session, false);
       if (!who) return { data: { dates: [], note: NEEDS_IDENTITY } };
-      const dates = (await listMyEpisodes(db, who.id)).map((e: EpisodeView) => trimEpisode(e as unknown as Record<string, unknown>));
+      // #1709 (the 2026-11-16-0610 run: my_dates said aired: false while the notifications said it had aired): a date whose
+      // time has come airs now, as browse_episodes and get_episode do, so it isn't listed as unaired with nothing left to wait.
+      let listed = await listMyEpisodes(db, who.id);
+      const due = listed.filter((e) => !e.revealed && e.status === "ready" && e.visibility !== "private").map((e) => e.id);
+      if ((await Promise.all(due.map((id) => airIfDue(db, id).catch(() => null)))).some(Boolean)) listed = await listMyEpisodes(db, who.id);
+      const dates = listed.map((e: EpisodeView) => trimEpisode(e as unknown as Record<string, unknown>));
       // #1517: the finished dates listed here, endings and all, are read: their "it's done" notices aren't waiting any more.
       const finished = dates.filter((d) => d.status === "ready").map((d) => `/episodes/${d.id}`);
       if (finished.length) {
@@ -7366,8 +7371,17 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       if (!r.ok && r.status === 404) return { error: "No episode with that id. browse_episodes lists the dates still open for predictions." };
       // #427: a listed date can air before its airs_at (a watch party), so say it plainly, with when.
       if (!r.ok && r.data.error === "episode_revealed") {
-        const at = (await db.query<{ at: Date | string | null }>(`select revealed_at as at from episodes where id = $1`, [String(args.episode_id ?? "")])).rows[0]?.at;
-        return { error: `This date has already aired${at ? ` (at ${new Date(at).toISOString()}` : " ("}; a date can air before its listed airs_at, say in a watch party), so predictions are closed. browse_episodes with open: true lists the ones still open.` };
+        const row = (await db.query<{ at: Date | string | null; created_at: Date | string }>(`select revealed_at as at, created_at from episodes where id = $1`, [String(args.episode_id ?? "")])).rows[0];
+        // #1709 (the 2026-11-16-0610 run: "browse_episodes says airs_at is minutes away but predict says already aired"): the
+        // date had aired on time, seconds after the list was read, and this said it could have aired early. Said as it was.
+        const at = row?.at ? new Date(row.at) : null;
+        const listed = row ? new Date(new Date(row.created_at).getTime() + airWindowMinutes() * 60_000) : null;
+        const ago = at ? Math.max(0, Math.round((Date.now() - at.getTime()) / 1000)) : null;
+        const why =
+          at && listed && at.getTime() >= listed.getTime() - 1000
+            ? `, ${ago} second${ago === 1 ? "" : "s"} ago: on time, its airs_at was ${listed.toISOString()}, so a list read just before then still showed it open)`
+            : "; a date can air before its listed airs_at, say in a watch party)";
+        return { error: `This date has already aired${at ? ` (at ${at.toISOString()}` : " ("}${why}, so predictions are closed. browse_episodes with open: true lists the ones still open.` };
       }
       if (!r.ok) return { error: errorOf(r) };
       // #435: when it airs and what the pick is worth, so the points aren't a mystery until then. 2.4.2: when it really
