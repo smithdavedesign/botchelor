@@ -194,6 +194,12 @@ services:
       # - key: STORY_MAP
       #   value: "0"
       #   scope: RUN_AND_BUILD_TIME
+      # Where a couple stands, the fuller reading (lib/relationship-stages.ts; docs/relationship-graph.md "Stages"):
+      # didn't click, keeping it casual, official, moved in, engaged, married, broke up, back together. On by default;
+      # shown and told only, no rule reads it. "0" shows the seven base stages everywhere, without a deploy of code.
+      # - key: RELATIONSHIP_STAGES_V2
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
       # Talk of the house on a character's page (lib/character-talk.ts; docs/character-depth.md, section 13): on by
       # default. "0" puts the Audience tab back without a deploy.
       # - key: CHARACTER_TALK

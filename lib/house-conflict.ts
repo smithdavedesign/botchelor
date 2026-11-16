@@ -428,6 +428,9 @@ export async function ensureConfrontation(
     result,
     now,
   });
+  // The pair's shown stage reads this result (lib/relationship-stages.ts: a date that didn't click plus a confrontation
+  // that didn't clear the air is bad blood). Only a pair that has dated has an edge; never fails the scene.
+  await import("./relationships").then(({ refreshRelationship }) => refreshRelationship(db, a.id, b.id)).catch(() => null);
   const owners = await tellParticipants(db, { id, people: [a, b], title: (me, other) => `🏠 ${first(me.name)} had it out with ${first(other.name)} in the house`, body: `${OUTCOME_LABELS[outcome]}.` });
   const texted = await textAboutScene(db, id, now, env);
   return { id, source: written ? "model" : "template", outcome, over: tension.kind, moved: effects.moved.length, settled: effects.settled, cost_usd: spent.cost_usd, ...owners, texted };

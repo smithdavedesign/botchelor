@@ -24,9 +24,11 @@ import { needsTranslation } from "./language-check";
 import { getModel, type Model } from "./model";
 import { shortName } from "./names";
 import { inSpanSql, seasonAwards, type ReunionAward, type ReunionChar } from "./reunion";
-import { STAGE_LABELS, type Stage } from "./relationships";
+import { APART_STAGES, shownStage, TOGETHER_STAGES } from "./relationship-stages";
+import { eventStageSql, STAGE_LABELS, type Stage } from "./relationships";
 import type { Ending } from "./rules";
 import { checkFields } from "./safety";
+import { computeFinale, type FinaleNews } from "./season-finale";
 import { isMonthlySeason, seasonNumber, seasonRef, type SeasonRef } from "./season-ref";
 import { seasonWindow } from "./season-window";
 import { venuePhrase } from "./venues";
@@ -73,13 +75,21 @@ export type SeasonRecapData = {
   arrivals: RecapChar[];
   /** The season's first spark: the first new couple whose first date ended with both wanting another. */
   first_spark: (RecapPair & { day: number; place: string | null }) | null;
-  /** Couples who moved to dating or going steady this season, and couples who broke (from a spark or more to exes or bad blood). */
+  /**
+   * Couples who became one this season (dating or further along, in the shown stage's words: lib/relationship-stages.ts),
+   * and couples who broke (from a spark or more to exes, broke up, divorced or bad blood).
+   */
   formed: (RecapPair & { label: string })[];
   broken: (RecapPair & { label: string })[];
   golden: RecapCouple | null;
   couples: RecapCouple[];
   rewatch: RecapEpisode[];
   awards: ReunionAward[];
+  /**
+   * The finale's proposal (lib/season-finale.ts): at most one long-steady couple engaged, at most one earlier
+   * engagement married. Absent on a recap frozen before it existed, and when nothing qualified both are null.
+   */
+  finale?: FinaleNews | null;
 };
 
 export type SeasonRecap = { data: SeasonRecapData; narrative: string; narrative_by: "model" | "template"; frozen_at: string | null };
@@ -151,6 +161,10 @@ const SEASON_DATES = `episodes e
     join characters b on b.id = greatest(e.character_a, e.character_b)
    where ${inSpanSql("e")} and a.visibility = 'public' and b.visibility = 'public'`;
 
+/** A stage move that makes a couple, and one that breaks one (a date that didn't click breaks nothing). */
+const FORMED: readonly Stage[] = TOGETHER_STAGES;
+const BROKEN: readonly Stage[] = [...APART_STAGES, "bad_blood"];
+
 const dayOf = (at: Date | string, start: Date) => Math.floor((new Date(at).getTime() - start.getTime()) / DAY_MS) + 1;
 /** A confessional sometimes starts with its speaker's name ("Rafe: He asked..."): the goodbye drops it. */
 const unlabelled = (line: string, name: string) => line.replace(new RegExp(`^\\s*${shortName(name).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*:\\s*`, "i"), "").trim();
@@ -199,7 +213,8 @@ export async function computeRecapData(db: Db, seasonId: string): Promise<Season
   const w = [start.toISOString(), end.toISOString()];
   const nextId = end.toISOString().slice(0, 10);
 
-  const [numbers, dates, rewatch, moves, arrivals, cast, awards] = await Promise.all([
+  const moved = eventStageSql("r");
+  const [numbers, dates, rewatch, moves, arrivals, cast, awards, finale] = await Promise.all([
     db.query<Omit<RecapNumbers, "debuts">>(
       `select count(*)::int as aired,
               count(distinct (a.id, b.id))::int as couples,
@@ -227,19 +242,21 @@ export async function computeRecapData(db: Db, seasonId: string): Promise<Season
         limit ${REWATCH_SHOWN}`,
       w,
     ),
+    // Stage moves on the public layer, in the reading the switch shows (a row where only the other reading moved isn't one).
     db.query<CharCols & { to_stage: Stage }>(
       `select * from (
-         select distinct on (r.character_a, r.character_b) ${charCols("a", "a")}, ${charCols("b", "b")}, r.to_stage, r.at
+         select distinct on (r.character_a, r.character_b) ${charCols("a", "a")}, ${charCols("b", "b")}, ${moved.to} as to_stage, r.at
            from relationship_events r
            join characters a on a.id = r.character_a
            join characters b on b.id = r.character_b
-          where r.layer = 'public' and r.at >= $1::timestamptz and r.at < $2::timestamptz
+          where r.layer = 'public' and r.kind is null and r.at >= $1::timestamptz and r.at < $2::timestamptz
             and a.visibility = 'public' and b.visibility = 'public'
-            and (r.to_stage in ('dating', 'going_steady')
-                 or (r.to_stage in ('exes', 'bad_blood') and r.from_stage in ('sparks', 'dating', 'going_steady')))
+            and ${moved.from} is distinct from ${moved.to}
+            and (${moved.to} = any($3)
+                 or (${moved.to} = any($4) and ${moved.from} = any($5)))
           order by r.character_a, r.character_b, r.at desc
        ) x order by at`,
-      w,
+      [...w, FORMED, BROKEN, [...FORMED, "sparks"]],
     ),
     db.query<{ id: string; name: string; house: boolean; hue: number | null; portrait: string | null; n: number; total: number }>(
       `with debuts as (
@@ -259,6 +276,8 @@ export async function computeRecapData(db: Db, seasonId: string): Promise<Season
     castOf(db, seasonId, nextId, start, end),
     // The season's awards (lib/reunion.ts), and on a Botchelor season the final rose first (lib/ceremony.ts).
     Promise.all([seasonAwards(db, { start, end }), finalRoseAward(db, seasonId).catch(() => null)]).then(([list, rose]) => (rose ? [rose, ...list] : list)),
+    // The finale's proposal, when a couple qualifies (most seasons: nobody). Never fails the recap.
+    computeFinale(db, seasonId).catch(() => null),
   ]);
 
   // Each couple's dates, oldest first, then the busiest couples' lines.
@@ -271,11 +290,11 @@ export async function computeRecapData(db: Db, seasonId: string): Promise<Season
   }
   const stages = new Map<string, Stage | null>();
   if (byPair.size) {
-    const { rows } = await db.query<{ lo: string; hi: string; stage: Stage | null }>(
-      `select character_a as lo, character_b as hi, public_stage as stage from relationships where (character_a, character_b) in (select * from unnest($1::text[], $2::text[]))`,
+    const { rows } = await db.query<{ lo: string; hi: string; stage: Stage | null; shown: Stage | null }>(
+      `select character_a as lo, character_b as hi, public_stage as stage, public_shown_stage as shown from relationships where (character_a, character_b) in (select * from unnest($1::text[], $2::text[]))`,
       [[...byPair.values()].map((p) => p.pair.a.id), [...byPair.values()].map((p) => p.pair.b.id)],
     );
-    for (const r of rows) stages.set(`${r.lo}|${r.hi}`, r.stage);
+    for (const r of rows) stages.set(`${r.lo}|${r.hi}`, shownStage(r.stage, r.shown));
   }
   const couples: RecapCouple[] = [...byPair.entries()]
     .map(([key, { pair, dates: ds, before }]) => {
@@ -305,8 +324,8 @@ export async function computeRecapData(db: Db, seasonId: string): Promise<Season
     cast,
     arrivals: arrivals.rows.map((r) => ({ id: r.id, name: r.name, house: r.house, hue: r.hue, portrait: r.portrait })),
     first_spark: spark ? { ...spark.pair, day: dayOf(spark.dates[0].at, start), place: placeOf(spark.dates[0].venue) } : null,
-    formed: moves.rows.filter((m) => m.to_stage === "dating" || m.to_stage === "going_steady").map((m) => ({ ...pairOf(m), label: STAGE_LABELS[m.to_stage] })),
-    broken: moves.rows.filter((m) => m.to_stage === "exes" || m.to_stage === "bad_blood").map((m) => ({ ...pairOf(m), label: STAGE_LABELS[m.to_stage] })),
+    formed: moves.rows.filter((m) => FORMED.includes(m.to_stage)).map((m) => ({ ...pairOf(m), label: STAGE_LABELS[m.to_stage] })),
+    broken: moves.rows.filter((m) => BROKEN.includes(m.to_stage)).map((m) => ({ ...pairOf(m), label: STAGE_LABELS[m.to_stage] })),
     golden: couples.find((c) => c.second_dates > 0) ?? null,
     couples,
     rewatch: rewatch.rows.map((r) => ({
@@ -319,6 +338,7 @@ export async function computeRecapData(db: Db, seasonId: string): Promise<Season
       best_line: r.best_line ? trimTo(r.best_line, 160) : null,
     })),
     awards,
+    ...(finale ? { finale } : {}),
   };
 }
 
@@ -344,6 +364,8 @@ export function recapFacts(d: SeasonRecapData): string[] {
       `The golden couple was ${firsts(d.golden)}: ${countWord(d.golden.dates)} ${d.golden.dates === 1 ? "date" : "dates"}, ${countWord(d.golden.second_dates)} of them ending in a yes to another.`,
     );
   }
+  if (d.finale?.married) facts.push(`${firsts(d.finale.married)}, engaged since an earlier finale, got married at this one.`);
+  if (d.finale?.engaged) facts.push(`At the finale, ${firsts(d.finale.engaged)} got engaged.`);
   facts.push(
     `In all, ${d.numbers.aired} dates aired between ${d.numbers.couples} pairings: ${d.numbers.second_dates} wanted a second date and ${d.numbers.disasters} were disasters.`,
   );
@@ -447,6 +469,8 @@ export async function getSeasonRecap(db: Db, seasonId: string, opts: { now?: Dat
   if (saved) {
     // The season's backings settle with its finale (lib/backing.ts): same close, same public record. Never the page.
     await import("./backing").then(({ settleSeasonBackings }) => settleSeasonBackings(db, seasonId)).catch(() => {});
+    // The finale's proposal goes on the record with the freeze, once: the pair's milestone, stage and notices.
+    if (data.finale?.engaged || data.finale?.married) await import("./season-finale").then(({ recordFinale }) => recordFinale(db, seasonId, data.finale)).catch(() => {});
     return { status: "closed", recap: asRecap(saved)! };
   }
   // Someone else's stale-claim takeover landed first: theirs is the season's.

@@ -22,7 +22,7 @@ import { houseLine, latestHouseScene, scenePath } from "./house-scenes";
 import { newestOwnSlip, newestSecretOut, type SecretOut } from "./cast-secrets";
 import type { Db } from "./db";
 import { RETURN_GAP_HOURS } from "./activity";
-import { STAGE_LABELS, type Stage } from "./relationships";
+import { eventStageSql, STAGE_LABELS, type Stage } from "./relationships";
 import { DATE_ROLEPLAYS } from "./roleplays";
 import { twistOf, twistWeekStart } from "./season-format";
 import { seasonFormatNow } from "./season-format-store";
@@ -99,17 +99,19 @@ export async function showSince(db: Db, viewerId: string | null, now: Date = new
   const floor = new Date(now.getTime() - LOOKBACK_DAYS * 24 * 60 * 60 * 1000);
   const since = visit > floor ? visit : floor;
   const at = since.toISOString();
+  // The stage a pair moved to, in the reading the switch shows (lib/relationship-stages.ts).
+  const moved = eventStageSql("r");
   const [aired, moves, calls, followed, night, diaryRows, shifts] = await Promise.all([
     db.query<{ n: number }>(`select count(*)::int as n from episodes where revealed_at > $1 and visibility = 'public'`, [at]),
     db.query<{ lo: string; hi: string; a: string; b: string; to_stage: string; following: boolean }>(
       `select * from (
-         select distinct on (r.character_a, r.character_b) r.character_a as lo, r.character_b as hi, ca.name as a, cb.name as b, r.to_stage,
+         select distinct on (r.character_a, r.character_b) r.character_a as lo, r.character_b as hi, ca.name as a, cb.name as b, ${moved.to} as to_stage,
                 exists (select 1 from couple_follows f where f.user_id = $2 and f.character_lo = r.character_a and f.character_hi = r.character_b) as following,
                 r.at
            from relationship_events r
            join characters ca on ca.id = r.character_a
            join characters cb on cb.id = r.character_b
-          where r.layer = 'public' and r.at > $1 and r.to_stage is not null
+          where r.layer = 'public' and r.kind is null and r.at > $1 and ${moved.to} is not null and ${moved.from} is distinct from ${moved.to}
             and ca.visibility = 'public' and cb.visibility = 'public'
           order by r.character_a, r.character_b, r.at desc
        ) x order by following desc, at desc limit $3`,

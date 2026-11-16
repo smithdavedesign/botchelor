@@ -10,6 +10,7 @@ import type { Db } from "./db";
 import { seedFrom } from "./engine";
 import { DELETED_OWNER, POINTS_PER_DEALBREAKER_PICK, POINTS_PER_MATCHMAKER, type Ending } from "./rules";
 import { seasonCastIds } from "./season-cast";
+import { shownStage } from "./relationship-stages";
 import { healRelationships, STAGE_LABELS, type Stage } from "./relationships";
 
 export const DEALBREAKER_OPTIONS = 4;
@@ -223,9 +224,9 @@ export function relationshipStage(dates: number, secondDates: number, lastEnding
  */
 export async function listRelationshipEdges(db: Db, limit = 40): Promise<RelationshipEdge[]> {
   await healRelationships(db);
-  const { rows } = await db.query<Omit<RelationshipEdge, "stage"> & { public_stage: Stage | null }>(
+  const { rows } = await db.query<Omit<RelationshipEdge, "stage"> & { public_stage: Stage | null; public_shown_stage: Stage | null }>(
     `select r.character_a as a_id, r.character_b as b_id, ca.name as a, cb.name as b, r.public_dates as dates,
-            r.public_second_dates as second_dates, r.public_last_ending as last_ending, r.public_stage
+            r.public_second_dates as second_dates, r.public_last_ending as last_ending, r.public_stage, r.public_shown_stage
        from relationships r
        join characters ca on ca.id = r.character_a
        join characters cb on cb.id = r.character_b
@@ -233,10 +234,11 @@ export async function listRelationshipEdges(db: Db, limit = 40): Promise<Relatio
       order by r.public_last_at desc nulls last limit $1`,
     [limit],
   );
-  return rows.map(({ public_stage, ...r }) => ({
-    ...r,
-    stage: public_stage ? STAGE_LABELS[public_stage] : relationshipStage(r.dates, r.second_dates, r.last_ending),
-  }));
+  // The stage as it is shown (lib/relationship-stages.ts): the fuller reading, or the base one with the switch off.
+  return rows.map(({ public_stage, public_shown_stage, ...r }) => {
+    const stage = shownStage(public_stage, public_shown_stage, process.env, r.dates);
+    return { ...r, stage: stage ? STAGE_LABELS[stage] : relationshipStage(r.dates, r.second_dates, r.last_ending) };
+  });
 }
 
 export { POINTS_PER_DEALBREAKER_PICK, POINTS_PER_MATCHMAKER };

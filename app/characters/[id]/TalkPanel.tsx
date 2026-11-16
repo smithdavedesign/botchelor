@@ -70,7 +70,7 @@ export default function TalkPanel({ name, talk, verb, children }: Props) {
                   {talk.friction.map((f) => (
                     <li key={f.key} className="row-2line">
                       <span className="row-2line-head">
-                        <span aria-hidden="true">{f.kind === "challenge" ? "🏆" : f.kind === "bad_blood" ? "🔥" : "⚡"}</span>
+                        <span aria-hidden="true">{f.kind === "challenge" ? "🏆" : f.kind === "bad_blood" ? "🔥" : f.kind === "breakup" ? "💔" : "⚡"}</span>
                         <span>
                           {f.text}
                           {f.result && <strong> {f.result}</strong>}
@@ -79,7 +79,7 @@ export default function TalkPanel({ name, talk, verb, children }: Props) {
                       <span className="muted row-2line-meta">
                         {f.day && <>{dayWords(f.day)} · </>}
                         <Link href={f.href} data-track="character-talk" data-track-where={f.kind}>
-                          {f.kind === "bad_blood" ? "See them together" : f.kind === "story" ? "In the house" : "See the scene"}
+                          {f.kind === "bad_blood" || f.kind === "breakup" ? "See them together" : f.kind === "story" ? "In the house" : "See the scene"}
                         </Link>
                       </span>
                     </li>
