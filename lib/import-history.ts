@@ -306,15 +306,49 @@ function firstSentence(text: string): string {
  * HISTORY_ITEMS_MAX in all, and every one passed through screenHistoryItem. `dropped` counts what was left out (a
  * number only: what the lines said is not kept anywhere). Null when the reply can't be read at all.
  */
-export function itemsFromReply(raw: string): { items: HistoryItem[]; dropped: number } | null {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw.trim().replace(/^```(?:json)?\s*|\s*```$/g, ""));
-  } catch {
-    return null;
+/**
+ * The list inside a reader's answer, however it was wrapped. The free model answers with bare JSON; the paid one
+ * (the reader since 2026-11-15) may fence it, put a sentence before or after it, or be cut off mid-list by the token
+ * cap. So: the answer as it is, then from its first bracket to its last, then every whole `{...}` line object that
+ * can be read on its own (a cut-off list keeps what it finished). Null only when there is nothing to read.
+ */
+export function listFromReply(raw: string): unknown[] | null {
+  const text = raw.trim().replace(/^```(?:json)?\s*|\s*```$/g, "").trim();
+  const listOf = (parsed: unknown): unknown[] | null => {
+    const list = Array.isArray(parsed) ? parsed : parsed && typeof parsed === "object" ? (parsed as { items?: unknown }).items : null;
+    return Array.isArray(list) ? list : null;
+  };
+  const tryParse = (s: string): unknown[] | null => {
+    try {
+      return listOf(JSON.parse(s));
+    } catch {
+      return null;
+    }
+  };
+  const whole = tryParse(text);
+  if (whole) return whole;
+  const starts = [text.indexOf("{"), text.indexOf("[")].filter((i) => i >= 0);
+  const end = Math.max(text.lastIndexOf("}"), text.lastIndexOf("]"));
+  if (starts.length && end > Math.min(...starts)) {
+    const inner = tryParse(text.slice(Math.min(...starts), end + 1));
+    if (inner) return inner;
   }
-  const list = Array.isArray(parsed) ? parsed : parsed && typeof parsed === "object" ? (parsed as { items?: unknown }).items : null;
-  if (!Array.isArray(list)) return null;
+  // Cut off, or wrapped past repair: the line objects that are whole. Lines hold no braces of their own.
+  const salvaged: unknown[] = [];
+  for (const m of text.matchAll(/\{[^{}]*\}/g)) {
+    try {
+      const o = JSON.parse(m[0]) as Record<string, unknown>;
+      if (o && typeof o === "object" && "about" in o && "text" in o) salvaged.push(o);
+    } catch {
+      /* not one of the lines */
+    }
+  }
+  return salvaged.length ? salvaged : null;
+}
+
+export function itemsFromReply(raw: string): { items: HistoryItem[]; dropped: number } | null {
+  const list = listFromReply(raw);
+  if (!list) return null;
   const items: HistoryItem[] = [];
   const seen = new Set<string>();
   let dropped = 0;

@@ -14,7 +14,7 @@ import {
   type HistoryFailure,
 } from "@/lib/import-history";
 import { IMPORT_HISTORY_ALL_LIMITS, IMPORT_HISTORY_IP_LIMITS, IMPORT_HISTORY_LIMITS, overLimit, visitorKey } from "@/lib/limits";
-import { getFrontierModel, getModel, type Model } from "@/lib/model";
+import { getFrontierModel, getModel, ModelError, type Model } from "@/lib/model";
 
 const Body = z.object({
   text: z.string().trim().min(HISTORY_MIN, "Paste a little more of their history first.").max(HISTORY_READ_MAX),
@@ -52,6 +52,15 @@ export function historyReader(env: Record<string, string | undefined> = process.
   return getFrontierModel();
 }
 
+/**
+ * Why a reading failed, for the log: the kind, the provider's status and how long the answer was. Never a word of the
+ * paste or of the answer (the page promises the paste is not logged), and never the provider's own message, which can
+ * quote what it was sent. Without this a failed reading left no trace at all (the first live one, 2026-11-16).
+ */
+function logFailure(fail: "no_reader" | "threw" | "unreadable" | "timeout", extra: { status?: number; chars?: number } = {}): void {
+  console.log(JSON.stringify({ log: "import_history", fail, ...extra, at: new Date().toISOString() }));
+}
+
 /** The model's answer, "timeout" after HISTORY_TIMEOUT_MS (its own timeout and retries can run to a minute), or null when it failed. */
 async function ask(name: string, text: string): Promise<string | "timeout" | null> {
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -60,18 +69,26 @@ async function ask(name: string, text: string): Promise<string | "timeout" | nul
   });
   try {
     const reader = historyReader();
-    if (!reader) return null;
+    if (!reader) {
+      logFailure("no_reader");
+      return null;
+    }
+    // No sampling settings: the paid model is called the way the show's other calls on it are (some models refuse a
+    // temperature), and the prompt, not the temperature, is what keeps it to copying. Room for eight lines and their JSON.
     const call = reader.complete(
       [
         { role: "system", content: historyPrompt(name) },
         { role: "user", content: text },
       ],
-      { temperature: 0, maxTokens: 700 },
+      { maxTokens: 1000 },
     );
     // A call that fails after we stopped waiting must not become an unhandled rejection.
     call.catch(() => {});
-    return await Promise.race([call, late]);
-  } catch {
+    const answer = await Promise.race([call, late]);
+    if (answer === "timeout") logFailure("timeout");
+    return answer;
+  } catch (err) {
+    logFailure("threw", err instanceof ModelError && err.status ? { status: err.status } : {});
     return null;
   } finally {
     clearTimeout(timer);
@@ -108,6 +125,7 @@ export const POST = handle(async (req: Request) => {
   const raw = await ask(name, text);
   if (raw === "timeout") return refuse(503, "timeout");
   const read = raw === null ? null : itemsFromReply(raw);
+  if (raw !== null && !read) logFailure("unreadable", { chars: raw.length });
   if (!read) return refuse(503, "model");
   return json({ items: read.items, dropped: read.dropped }, 200, sess);
 });
