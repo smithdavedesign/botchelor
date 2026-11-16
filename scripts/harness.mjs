@@ -269,6 +269,9 @@ export function appEnv(showrunnerPort, dataDir) {
     // The whole house roster on this season's show (lib/season-cast.ts deals 4 a week), so the seeded season
     // can date the house characters it names whatever week the script runs.
     BOTCHELOR_SEASON_CAST_SIZE: "99",
+    // No gift between characters unless a script asks (lib/gift-catalog.ts giftRate): one is dealt by a date's random
+    // id, and with it a text to an opted-in owner, so a run would differ from the next. The visual gate turns it up.
+    CHARACTER_GIFTS_RATE: "0",
     NEXT_TELEMETRY_DISABLED: "1",
   };
 }

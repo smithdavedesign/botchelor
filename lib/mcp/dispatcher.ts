@@ -4959,6 +4959,11 @@ function chainMarker(item: Exclude<ChainItem, ChainText>): Record<string, unknow
       number: item.number, venue: venueShown(item.venue), ending: item.ending_label, aired: item.aired, episode_id: item.episode_id, day: item.day,
     };
   }
+  // A date's photo or a gift (lib/text-chain.ts keepsakes): the agent tools don't ask for them yet, so these never
+  // come up; the shape is here so a reader that starts asking gets a marker, not a broken event.
+  if (item.kind === "photo" || item.kind === "gift") {
+    return { id: item.id, kind: item.kind, from: "show", text: item.kind === "photo" ? `📷 ${item.alt}` : `🎁 ${item.name}`, at: item.at, day: item.day, episode_id: item.episode_id };
+  }
   const text =
     item.event === "matched"
       ? "💘 They matched"

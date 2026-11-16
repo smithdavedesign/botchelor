@@ -318,6 +318,14 @@ read them.
   `what_it_has_heard`, `this_week_it_wants`) and forget with `forget_memory` (`kind` opinion or heard).
 - **`STORY_STATE=0`** turns it off without a deploy of code: nothing is written and no prompt carries a block.
 
+**A gift's nudge (2026-11-16).** A small gift between two characters (`lib/character-gifts.ts`,
+[relationship-graph.md](relationship-graph.md)) may move one number here: when the receiver was touched, its trust in
+the giver goes up by one, never past the top of the scale. It is written through `setOpinion` on the firsthand opinion
+that very date gave the receiver, with the date's own source and time, so every rule above still holds: a forgotten
+opinion stays forgotten, a date taken off the air takes the nudge with it, and the pair's next aired date rebuilds the
+opinion from what happened on it. An amused or unimpressed receiver's opinion doesn't move, and nothing else in the
+state is touched.
+
 **Backfill.** Once, from the hourly job (`storyUpkeep`): firsthand opinions from the last 30 days of public aired
 dates the current cast was on, the latest date of each pair. No model call; it works inside 45 seconds a pass and
 picks up where it left off.
