@@ -94,12 +94,23 @@ export function queueEvent(name: string, props: Props = {}, at?: string): void {
     const path = at ?? currentPath();
     // Starts (or renews) the visit now, so its source is read from the address it landed on, not a later page's.
     sessionState();
-    queue.push({ e: name, path, props, t: Date.now() });
+    queue.push({ e: name, path, props: name === "date_watched" ? withEpisode(props) : props, t: Date.now() });
     if (queue.length >= MAX_QUEUE) flush();
     else if (!timer) timer = setTimeout(flush, FLUSH_MS);
   } catch {
     /* analytics must never break the page */
   }
+}
+
+/**
+ * "Watched it end" names its date (2026-11-16): the stored path is /episodes/:id for every date, so nothing said WHICH
+ * date ended, and "came back for the same character" (lib/character-return.ts) couldn't be counted. All three places
+ * that fire it are on the date's own page, so the id is read off the address here, once.
+ */
+function withEpisode(props: Props): Props {
+  if (props.episode_id !== undefined) return props;
+  const id = /^\/episodes\/([A-Za-z0-9-]{8,64})(?:\/|$)/.exec(window.location.pathname)?.[1];
+  return id ? { ...props, episode_id: id } : props;
 }
 
 /** Send what's queued: sendBeacon (survives the page closing), else a keepalive fetch. */

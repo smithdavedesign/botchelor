@@ -9,6 +9,9 @@ const SECTIONS: { key: MetricDef["section"]; title: string }[] = [
   { key: "feedback", title: "Line votes" },
 ];
 
+/** What a person did with a character (lib/character-return.ts), in the table's words. */
+const ACT_LABEL = { watch: "watched a date end", message: "messaged them", book: "booked a date", advice: "left advice" } as const;
+
 const pct = (num: number, den: number) => `${Math.round((num / den) * 100)}%`;
 const num1 = (n: number | null) => (n === null ? "—" : Number.isInteger(n) ? String(n) : n.toFixed(1));
 
@@ -94,6 +97,43 @@ export default function RealUse({ data }: { data: RealUseData }) {
           </div>
         ))}
       </div>
+      <h3>Who came back for their character, last {longest.days} days</h3>
+      <p className="muted small">
+        The people behind &ldquo;Came back for their character&rdquo;, newest first. Read these one by one while the numbers are small: a
+        share over a handful of people is a direction, not proof.
+      </p>
+      {data.returns.length === 0 ? (
+        <p className="muted small">Nobody new has watched their character&apos;s date to its ending or messaged a character yet.</p>
+      ) : (
+        <div className="table-scroll">
+          <table className="board">
+            <thead>
+              <tr>
+                <th>Person</th>
+                <th>Character</th>
+                <th>Came from</th>
+                <th>First</th>
+                <th>Came back</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.returns.map((r) => (
+                <tr key={`${r.user}:${r.first_at}`}>
+                  <td title={r.user}>{r.user.slice(0, 8)}</td>
+                  <td>{r.name ?? r.character.slice(0, 8)}</td>
+                  <td>{r.source ?? "—"}</td>
+                  <td>
+                    {short(r.first_at)} · {ACT_LABEL[r.first_kind]}
+                  </td>
+                  <td className={r.returned_at ? undefined : "muted small"}>
+                    {r.returned_at && r.returned_kind ? `${short(r.returned_at)} · ${ACT_LABEL[r.returned_kind]}` : r.pending ? "first day is today" : "not within 7 days"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </>
   );
 }
