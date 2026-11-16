@@ -15,10 +15,10 @@ vi.mock("next/navigation", () => ({ usePathname: () => nav.path }));
 describe("Characters' tabs", () => {
   afterEach(() => vi.unstubAllEnvs());
 
-  it("carry a fourth tab that says what it does, Text someone, when companions are open", () => {
+  it("carry a fourth tab that says what it does, Text someone, when companions are open (Reels is the fifth since 2026-11-16)", () => {
     const html = renderToStaticMarkup(createElement(CharactersTabs, { current: "cast", companions: true }));
-    expect(html.match(/class="segmented-tab"/g)).toHaveLength(4);
-    expect(html).toMatch(/<a class="segmented-tab" href="\/companion">Text someone<\/a><\/nav>$/);
+    expect(html.match(/class="segmented-tab"/g)).toHaveLength(5);
+    expect(html).toMatch(/<a class="segmented-tab" href="\/companion">Text someone<\/a><a class="segmented-tab" href="\/showcase">Reels<\/a><\/nav>$/);
     expect(html).not.toContain("Companions");
     expect(html).toMatch(/aria-current="page" href="\/characters">The cast/);
   });
@@ -33,7 +33,7 @@ describe("Characters' tabs", () => {
 
   it("NAV_CHAT=0: the tab is Companions again", () => {
     vi.stubEnv("NAV_CHAT", "0");
-    expect(renderToStaticMarkup(createElement(CharactersTabs, { current: "cast", companions: true }))).toMatch(/href="\/companion">Companions<\/a><\/nav>$/);
+    expect(renderToStaticMarkup(createElement(CharactersTabs, { current: "cast", companions: true }))).toMatch(/href="\/companion">Companions<\/a><a class="segmented-tab" href="\/showcase">Reels<\/a><\/nav>$/);
   });
 });
 

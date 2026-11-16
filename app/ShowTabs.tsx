@@ -6,16 +6,20 @@ import { navChatOn } from "@/lib/nav-chat";
  * strip, so the rooms of the show read as one place instead of separate destinations. The nav keeps a single Watch
  * door; this strip does the rest. Plain links, no JavaScript.
  *
- * Since 2026-11-15 (lib/nav-chat.ts) the rooms are Watch · House · Reels · Reunion: the house is where the show's
- * story is told every day and was in no tab; Reviews (1 visitor in 30 days) and the Constellation (3, nobody
- * scrolling) left the strip and stay reachable from /everything and the pages that link them. Their pages still pass
- * their own address as `active`: the Constellation is the house's map, so House is current there; Reviews marks none.
+ * Since 2026-11-15 (lib/nav-chat.ts) the house is a room: it is where the show's story is told every day and was in no
+ * tab; Reviews (1 visitor in 30 days) and the Constellation (3, nobody scrolling) left the strip and stay reachable
+ * from /everything and the pages that link them. Their pages still pass their own address as `active`: the
+ * Constellation is the house's map, so House is current there; Reviews marks none.
+ *
+ * Since 2026-11-16 (David: "I would assume we have shows and seasons here") the rooms are Watch · House · Season, all
+ * three about the season on air. Reels was a format, not a room of this season (3 visitors in 30 days from here): it
+ * is a tab of Characters now (app/characters/CharactersTabs.tsx), beside the people who make them. "Reunion" read as
+ * if the season were over on night 16; the tab says Season, and /reunion keeps its address.
  */
 const TABS = [
   { href: "/watch", label: "Watch" },
   { href: "/house", label: "House" },
-  { href: "/showcase", label: "Reels" },
-  { href: "/reunion", label: "Reunion" },
+  { href: "/reunion", label: "Season" },
 ] as const;
 
 /** The strip before 2026-11-15, with NAV_CHAT=0. */
