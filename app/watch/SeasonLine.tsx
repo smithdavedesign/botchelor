@@ -28,6 +28,7 @@ export default function SeasonLine({
   recoupling,
   now,
   story = null,
+  seasonPage = null,
 }: {
   def: SeasonFormatDef | null;
   card: ThisWeekCard | null;
