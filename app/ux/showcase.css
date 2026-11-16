@@ -495,7 +495,6 @@ a.showcase-reels-link {
 
 /* ---------------- the Studio's way in: one character in several scenes (app/studio/page.tsx) ---------------- */
 .studio-promise {
-  font-family: var(--font-display, inherit);
   font-size: var(--text-lg);
   font-weight: 700;
   margin: 0 0 var(--space-2);
