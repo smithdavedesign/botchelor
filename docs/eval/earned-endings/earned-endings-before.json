@@ -1,6 +1,6 @@
 {
   "model": "anthropic/claude-haiku-5.5",
-  "spent_usd": 0.0596,
+  "spent_usd": 0.11,
   "results": [
     {
       "case": "rafe-juniper",
@@ -525,6 +525,465 @@
         "amused",
         "charmed",
         "comfortable"
+      ]
+    },
+    {
+      "case": "sable-orin",
+      "arm": "before",
+      "decided": "friends",
+      "ending": "friends",
+      "index": 82,
+      "judge": {
+        "in_character_a": 4,
+        "in_character_b": 5,
+        "natural": 4,
+        "motivated": 3,
+        "specific": 4,
+        "distinct": 5,
+        "engaging": 4,
+        "profile_reading": false,
+        "misgendering": false,
+        "abrupt_turn": false,
+        "note": "Orin's dry, number-exact fact-checking is unmistakable, and the nineteen-minute counting and 'nine seconds, exact' bit give the scene real texture. The biggest problem is that the 'just friends' ending is never dramatized: the only hint of romance, 'the elbow I'll consider', cuts against the decided outcome, and nothing in the talk builds toward a friendship landing."
+      },
+      "judge_mean": 4.14,
+      "own_answers": {
+        "a": "maybe",
+        "b": "yes",
+        "would_end": "friends"
+      },
+      "model_calls": 16,
+      "cost_usd": 0.01015,
+      "turn": null,
+      "transcript": [
+        {
+          "n": 1,
+          "who": "Sable Quist",
+          "said": "Oh good, you're here! The street musician has been murdering the same song for twenty minutes and I was starting to think I'd been stood up by a ghost. Orin, right? Do you know that song, or are you as lost as I am?",
+          "did": "waves at the musician"
+        },
+        {
+          "n": 2,
+          "who": "Orin Fletcher",
+          "said": "Orin, yes. I don't know the song, but I'm fairly sure it's in the wrong key. And it's nineteen minutes, not twenty. I counted, because I was early and had nothing else to do. You said you thought you'd been stood up by a ghost.",
+          "did": "adjusts reading glasses on chain"
+        },
+        {
+          "n": 3,
+          "who": "Sable Quist",
+          "said": "Nineteen minutes! You had a stopwatch going while you waited for me, and you're telling me that like it's a normal hobby? I love it. Also, you're early to everything, aren't you? Be honest, what did you do with the other nineteen minutes of nothing?",
+          "did": "laughs, clapping along off-beat"
+        },
+        {
+          "n": 4,
+          "who": "Orin Fletcher",
+          "said": "Mostly I read the opening hours on the shuttered shops. Two of them are wrong, and one has been closed since March but still says it opens at nine. Back to your ghost: was that a figure of speech, or did you mean it literally?",
+          "did": "nods at the shop window"
+        },
+        {
+          "n": 5,
+          "who": "Sable Quist",
+          "said": "Figure of speech! Mostly. The ghost was a metaphor for the dark, and the musician's one song. Also, you have to report those shop hours, that's a public service. Now, a test: I'm about to propose something, and you say yes before I explain. Ready? Go.",
+          "did": "bounces on heels"
+        },
+        {
+          "n": 6,
+          "who": "Orin Fletcher",
+          "said": "No, I won't say yes first. That's agreeing to a contract I haven't read. Explain, and I'll give you a yes or no within eleven seconds, exact. Also, the shop that's closed since March is, I'm reliably informed by the window, still 'open at nine.' I'll report it.",
+          "did": "taps glasses"
+        },
+        {
+          "n": 7,
+          "who": "Sable Quist",
+          "said": "Eleven seconds, exact, and you've already started negotiating the terms! Fine, no contract, just the plan: we take the long way home past every shop you think is lying, and you choose one to report in person. Yes or no? I'm counting, so go!",
+          "did": "spins a party hat"
+        },
+        {
+          "n": 8,
+          "who": "Orin Fletcher",
+          "said": "Yes, in nine seconds, which I'll allow counts as exact. My one condition: the shop that's been shut since the spring goes first, and you're the one who tells the man inside his sign is lying.",
+          "did": "checks watch"
+        },
+        {
+          "n": 9,
+          "who": "Sable Quist",
+          "said": "Nine seconds, exact enough! Deal. The closed shop goes first, and I'm telling that man his sign is lying, loudly. You're coming in as my witness, and you're allowed to correct my pronunciation of 'March.'"
+        },
+        {
+          "n": 10,
+          "who": "Orin Fletcher",
+          "said": "Witnesses don't go inside. We stand on the pavement and take notes. For the record, you said 'March' correctly twice just now, so I'm logging that too. The sign says nine, the shop has been shut since spring, and I'll be the one holding the stopwatch.",
+          "did": "gestures at the window"
+        },
+        {
+          "n": 11,
+          "who": "Sable Quist",
+          "said": "A stopwatch-holder, and I get to be the one who's wrong about shop hours? Fine, I accept the demotion. Walk with me, the closed shop first, then you can list every other lying sign on the way home. I'll bring the glitter, you bring the stopwatch.",
+          "did": "holds out elbow"
+        },
+        {
+          "n": 12,
+          "who": "Orin Fletcher",
+          "said": "I'll take the stopwatch. The elbow I'll consider after the first lying sign. Which shop is first, and does 'nine' mean a.m. or p.m.? It matters for the report.",
+          "did": "starts the stopwatch"
+        }
+      ],
+      "feelings": [
+        "curious",
+        "amused",
+        "amused",
+        "amused",
+        "amused",
+        "amused",
+        "amused",
+        "amused",
+        "amused",
+        "amused",
+        "comfortable",
+        "amused"
+      ]
+    },
+    {
+      "case": "imogen-kaz",
+      "arm": "before",
+      "decided": "friends",
+      "ending": "friends",
+      "index": 94,
+      "judge": {
+        "in_character_a": 4,
+        "in_character_b": 3,
+        "natural": 3,
+        "motivated": 2,
+        "specific": 4,
+        "distinct": 4,
+        "engaging": 4,
+        "profile_reading": false,
+        "misgendering": false,
+        "abrupt_turn": false,
+        "note": "Kaz drifts from her 'short, physical, blunt' sheet into polished, wordy wit, and the 'just friends' ending is never set up, since the banter stays flirtatious throughout. The best moment is Imogen's 'Half a flapjack is a rumour, not a meal' and her 'Nobody on this wall gets a free knot' line, which sound like only her."
+      },
+      "judge_mean": 3.43,
+      "own_answers": {
+        "a": "yes",
+        "b": "yes",
+        "would_end": "friends"
+      },
+      "model_calls": 15,
+      "cost_usd": 0.00977,
+      "turn": null,
+      "transcript": [
+        {
+          "n": 1,
+          "who": "Imogen Strand",
+          "said": "Right, you've got chalk on both hands and a face like you've been out in weather. Have you eaten? Be honest, I can tell from here if you're running on coffee.",
+          "did": "hands over a rope"
+        },
+        {
+          "n": 2,
+          "who": "Kaz Lindqvist",
+          "said": "Coffee and half a flapjack from the car, if we're being honest. Also, you've got flour up to the elbows. Did you come straight from a bake, or do you always show up to a climbing wall in an apron?",
+          "did": "holds up chalky palms"
+        },
+        {
+          "n": 3,
+          "who": "Imogen Strand",
+          "said": "Half a flapjack is a rumour, not a meal. I run a soup window that opens at two in the morning, so the flour's an occupational hazard. Here, eat this clementine before you climb anything. What do you do that leaves you that chalky and that hungry?",
+          "did": "tosses a clementine over"
+        },
+        {
+          "n": 4,
+          "who": "Kaz Lindqvist",
+          "said": "Cranes, mostly. I climb them before the site wakes up, no rope, just me and the view. Catching your clementine means you've earned a question: who's out at two in the morning wanting soup?",
+          "did": "catches the clementine one-handed"
+        },
+        {
+          "n": 5,
+          "who": "Imogen Strand",
+          "said": "No rope, up a crane? That's not a hobby, that's a cry for help. Night workers, mostly: cabbies, nurses, a lad who's been on the same bin lorry since forever. They come for the soup and never say thanks, which suits me fine."
+        },
+        {
+          "n": 6,
+          "who": "Kaz Lindqvist",
+          "said": "A cry for help, from the woman running a soup window at two in the morning? Fair enough, I'll take it. But 'they never say thanks, which suits me fine.' Why does that suit you? Sounds like you'd rather feed people than be looked at while you do it.",
+          "did": "peels the clementine"
+        },
+        {
+          "n": 7,
+          "who": "Imogen Strand",
+          "said": "Sharp. It suits me because thanks makes me stand still and be looked at, and there's a queue of cabbies behind them. Now, you've peeled that clementine very slowly for someone who's been running on coffee and half a flapjack. Eat a segment. I'm not asking.",
+          "did": "nods at the clementine"
+        },
+        {
+          "n": 8,
+          "who": "Kaz Lindqvist",
+          "said": "You're not asking, you're telling. Fine, I'll eat a segment, but only because you've said it like a shift leader. Question back: do you ever climb anything yourself, or do you stay at the bottom handing out soup and clementines?",
+          "did": "eats a segment"
+        },
+        {
+          "n": 9,
+          "who": "Imogen Strand",
+          "said": "Once a week on the bottom wall at the leisure centre, until the window ate my Thursdays. Mostly I hold the rope for other people, which is the same job with better shoes. So you're going up with no rope at all.",
+          "did": "nods at the wall"
+        },
+        {
+          "n": 10,
+          "who": "Kaz Lindqvist",
+          "said": "No rope on a crane, but on this wall the rules change. You've spent your Thursdays holding other people up, so try it from the top for once. I'll hold your rope and do it badly, and you can tell me exactly how badly.",
+          "did": "wipes chalk on jeans"
+        },
+        {
+          "n": 11,
+          "who": "Imogen Strand",
+          "said": "Deal, but only after you finish that clementine. And you check my figure-eight yourself before I trust you with my weight. Nobody on this wall gets a free knot, including you.",
+          "did": "tightens harness straps"
+        },
+        {
+          "n": 12,
+          "who": "Kaz Lindqvist",
+          "said": "Clementine's gone, so I'm legally allowed to touch your harness now. Figure-eight's good. Your loops are neat, which means you've tied it a thousand times while looking at someone else's knot. Tie mine next, and don't go easy because I'm the one with the clementine.",
+          "did": "checks the figure-eight"
+        }
+      ],
+      "feelings": [
+        "curious",
+        "amused",
+        "amused",
+        "amused",
+        "amused",
+        "curious",
+        "amused",
+        "curious",
+        "amused",
+        "comfortable",
+        "amused",
+        "comfortable"
+      ]
+    },
+    {
+      "case": "dex-marisol",
+      "arm": "before",
+      "decided": "second_date",
+      "ending": "second_date",
+      "index": 81,
+      "judge": {
+        "in_character_a": 4,
+        "in_character_b": 4,
+        "natural": 4,
+        "motivated": 3,
+        "specific": 5,
+        "distinct": 4,
+        "engaging": 4,
+        "profile_reading": false,
+        "misgendering": false,
+        "abrupt_turn": false,
+        "note": "Dex's paragraph-length answers run against his 'slow, plain-words' voice, and the second-date spark is asserted more than built. The best moment is the comma and the widow's tears, where Dex hears the care in the story and Marisol admits she's been slipping love stories into obituaries."
+      },
+      "judge_mean": 4,
+      "own_answers": {
+        "a": "yes",
+        "b": "yes",
+        "would_end": "second_date"
+      },
+      "model_calls": 20,
+      "cost_usd": 0.01252,
+      "turn": null,
+      "transcript": [
+        {
+          "n": 1,
+          "who": "Dex Okafor",
+          "said": "Hi, Marisol. Sorry, I'm the guy who keeps knocking on the table. It's a habit. Is the host always this rough on a first date, or did we just get unlucky with the front row?",
+          "did": "knocks twice on wood"
+        },
+        {
+          "n": 2,
+          "who": "Marisol Pine",
+          "said": "Unlucky, I think. He's picked on the front row twice, and I'm a little offended he skipped me. Is the knocking for luck, or do you just like the table to answer back? Also, you came straight from the wheel, didn't you? Nobody gets clay up to the elbows any other way.",
+          "did": "tucks the pen behind my ear"
+        },
+        {
+          "n": 3,
+          "who": "Dex Okafor",
+          "said": "Luck, mostly. I spent years getting set on fire for a living, so I knock on wood now. And yes, pottery. The clay's been up to my elbows since noon. Now I'm curious about the pen. Is that for the front row, or just for emergencies?",
+          "did": "knocks once, softly"
+        },
+        {
+          "n": 4,
+          "who": "Marisol Pine",
+          "said": "Emergencies, mostly. I write obituaries for the town paper, so the pen is for the dead. Which makes you the most interesting man I've met since Tuesday. Was the fire a real job, or a bad decision somebody paid you for?",
+          "did": "taps the pen once"
+        },
+        {
+          "n": 5,
+          "who": "Dex Okafor",
+          "said": "Bit of both, I think. Somebody paid me, so it was a real job. Whether it was a good decision is still between me and my eyebrows. Obituaries, though. That's a heavy pen. Do people tell you the good stories before they go, or do you find out after?"
+        },
+        {
+          "n": 6,
+          "who": "Marisol Pine",
+          "said": "Mostly the families tell me, and they always tell it wrong. Too many 'he loved the Lakers.' The good stories come from whoever's left behind, usually crying in a grocery line over a rotisserie chicken. Also, your eyebrows are safe with me. I have one that does the same job.",
+          "did": "lifts one eyebrow"
+        },
+        {
+          "n": 7,
+          "who": "Dex Okafor",
+          "said": "A grocery line is a fair place to find out who someone was. Nobody performs over a rotisserie chicken. *knocks on wood* Marisol, do you ever meet the people before you write them up, or is it all secondhand, like the Lakers guy?",
+          "did": "knocks softly on wood"
+        },
+        {
+          "n": 8,
+          "who": "Marisol Pine",
+          "said": "Almost never, which is the honest answer. I mostly meet the living, the ones who call the paper. Once a widow made me sit in her kitchen and read her husband's obit aloud before she'd let it run. I changed one comma. She cried about the comma."
+        },
+        {
+          "n": 9,
+          "who": "Dex Okafor",
+          "said": "Changing one comma and making her cry about it. I don't think people expect that kind of care from an obituary. I'd guess it wasn't the comma she minded. It was that somebody sat there and heard the whole thing. Anyway, I'd rather hear about you."
+        },
+        {
+          "n": 10,
+          "who": "Marisol Pine",
+          "said": "Nobody's ever called a comma care before. Don't do that to me this early, I'm trying to stay unimpressed. Fine, I'll tell you about me, but you owe me first. How does a person get paid to be set on fire, and did anyone ever cry over that one too?"
+        },
+        {
+          "n": 11,
+          "who": "Dex Okafor",
+          "said": "Mostly they hire you to look like someone else falling down a staircase, and you say yes because the pay beats the staircase. Nobody cried over the fire. My landlady cried when I said I'd stop. Your turn, and I'm holding you to the comma thing.",
+          "did": "knocks on wood"
+        },
+        {
+          "n": 12,
+          "who": "Marisol Pine",
+          "said": "Fine, a staircase with a paycheck, I respect that. My turn, and you'll have to earn it: for six years I've been slipping a love story into every obituary I write. Nobody's noticed. Don't you dare make a face like that's sweet.",
+          "did": "tugs turtleneck collar"
+        }
+      ],
+      "feelings": [
+        "curious",
+        "amused",
+        "amused",
+        "amused",
+        "amused",
+        "amused",
+        "amused",
+        "amused",
+        "charmed",
+        "charmed",
+        "charmed",
+        "charmed"
+      ]
+    },
+    {
+      "case": "sable-orin-2",
+      "arm": "before",
+      "decided": "second_date",
+      "ending": "second_date",
+      "index": 79,
+      "judge": {
+        "in_character_a": 4,
+        "in_character_b": 4,
+        "natural": 3,
+        "motivated": 3,
+        "specific": 4,
+        "distinct": 5,
+        "engaging": 4,
+        "profile_reading": false,
+        "misgendering": false,
+        "abrupt_turn": false,
+        "note": "The voices are strongly separated: Sable's dares and exclamations against Orin's checked numbers and 'Puns round up', which ties to his dealbreaker. The weakness is the ending: the conversation builds toward a second date through the 'do the conga again' hook, but Orin's departure and the wanting-more beat are never dramatised, so the outcome feels asserted rather than shown."
+      },
+      "judge_mean": 3.86,
+      "own_answers": {
+        "a": "yes",
+        "b": "yes",
+        "would_end": "second_date"
+      },
+      "model_calls": 20,
+      "cost_usd": 0.01243,
+      "turn": null,
+      "transcript": [
+        {
+          "n": 1,
+          "who": "Sable Quist",
+          "said": "Okay, the host just roasted us both before we'd said a word, so we're officially bonded. I'm Sable! Also, you brought a pencil for emergencies. What counts as an emergency? Because I'm already picturing a napkin situation."
+        },
+        {
+          "n": 2,
+          "who": "Orin Fletcher",
+          "said": "A napkin situation counts. So does a bill that doesn't add up, or a crossword with two correct answers. Last month I checked a waiter's arithmetic in pencil. He thanked me, which I didn't expect. Sable, how many glitter colours are you wearing, and can you actually count them?"
+        },
+        {
+          "n": 3,
+          "who": "Sable Quist",
+          "said": "Oh, you're testing me! Okay, counting: gold on the eyelids, silver on the cheekbones, a pink streak I'm not sure is glitter or leftover confetti. That's four, maybe five. I'm not counting the shoe, that's cheating. And a waiter's sum checked in pencil?",
+          "did": "holds up five fingers"
+        },
+        {
+          "n": 4,
+          "who": "Orin Fletcher",
+          "said": "Four, maybe five is a range, not a count. I'll take the five fingers. The shoe is a cheat, agreed. The waiter, though: he thanked me, but that doesn't tell you whether he was wrong or I was. Sable, which one was it?",
+          "did": "tilts glasses down the chain"
+        },
+        {
+          "n": 5,
+          "who": "Sable Quist",
+          "said": "Ooh, a real question with a real answer! Honestly? I was too busy counting my own glitter to notice. But I'd bet on the waiter, because nobody's arithmetic survives a long night. Does that pencil ever get used on anything that isn't a bill?",
+          "did": "reaches for the pencil"
+        },
+        {
+          "n": 6,
+          "who": "Orin Fletcher",
+          "said": "Fair enough, I'll stop asking for proof on your waiter. Tell me the worst bill you've ever been handed, and whether you paid it without looking.",
+          "did": "taps the menu twice"
+        },
+        {
+          "n": 7,
+          "who": "Sable Quist",
+          "said": "Oh, the worst bill! A diner had the nerve to charge me eleven hundred dollars for 'a small cake' after I'd thrown a surprise party for a stranger's grandma. I paid it without looking, because I was wearing a party hat and didn't want to be rude.",
+          "did": "slaps the table"
+        },
+        {
+          "n": 8,
+          "who": "Orin Fletcher",
+          "said": "A cake that costs eleven hundred needs an itemised receipt. Did they show you one, or did you just hand over the number? And the grandma: did you ever find out her name?"
+        },
+        {
+          "n": 9,
+          "who": "Sable Quist",
+          "said": "No itemised receipt, Orin! I was wearing a party hat, I was in no state to audit anything. I just handed over the number and cried a little into my cake. And yes, I got the grandma's name: Mavis. She made me do the conga through three aisles of a supermarket.",
+          "did": "plucks the pencil back"
+        },
+        {
+          "n": 10,
+          "who": "Orin Fletcher",
+          "said": "Three aisles is a specific number, and I respect specifics. Did Mavis lead the conga, or were you the one being led? Also, I want my pencil back.",
+          "did": "holds out a palm for the pencil"
+        },
+        {
+          "n": 11,
+          "who": "Sable Quist",
+          "said": "Mavis led, obviously. She had the hips and the authority, and I was just the poor soul following her hat. Pencil's yours, but first you have to write something on my hat. Your name, a phone number, a terrible pun, I don't mind. Dare accepted, Orin?",
+          "did": "holds out the pencil"
+        },
+        {
+          "n": 12,
+          "who": "Orin Fletcher",
+          "said": "I accept the dare, but I won't write a pun. Puns round up. I'll write 'Mavis led. Verified.' and my name, spelled correctly. Then I want to hear the conga again, with the aisles in order, because you'll tell it differently and I'll check.",
+          "did": "takes the pencil"
+        }
+      ],
+      "feelings": [
+        "amused",
+        "amused",
+        "amused",
+        "amused",
+        "amused",
+        "amused",
+        "amused",
+        "amused",
+        "amused",
+        "charmed",
+        "amused",
+        "charmed"
       ]
     }
   ]
