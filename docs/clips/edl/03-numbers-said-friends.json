@@ -1,0 +1,23 @@
+{
+  "n": 3,
+  "name": "The numbers said just friends",
+  "direction": "unexpected_chemistry",
+  "episodes": ["0b3c46d6-4a9b-42d5-99cf-396f004b2f80"],
+  "hook": "The numbers said just friends. Then Hester said the thing about silence.",
+  "question": "Would you have said yes to Barnaby? ⏱️",
+  "tags": "#hotairballoon #firstdate #romance",
+  "segments": [
+    { "kind": "cold", "line": 7, "keep": [0] },
+    { "kind": "title", "kicker": "A first date on Botchelor", "title": "A balloon going sideways", "sub": "Hester tunes tubas. Barnaby restores music boxes.", "say": "A hot air balloon, going the wrong way." },
+    { "kind": "line", "line": 0 },
+    { "kind": "line", "line": 1, "keep": [1] },
+    { "kind": "line", "line": 3, "keep": [1, 2] },
+    { "kind": "line", "line": 4, "keep": [0, 1] },
+    { "kind": "line", "line": 6, "keep": [1, 2, 3] },
+    { "kind": "line", "line": 7, "keep": [0] },
+    { "kind": "thought", "line": 7 },
+    { "kind": "choice" },
+    { "kind": "reveal", "sub": "The numbers said just friends. Both said yes anyway." },
+    { "kind": "card", "kicker": "Meanwhile on Botchelor", "title": "Barnaby and Sable have agreed to a seventh date.", "sub": "Nobody knows how it ends.", "faces": [[0, "b"]], "url": "botchelor.com/december", "say": "Meanwhile, Barnaby and Sable have agreed to a seventh date." }
+  ]
+}
