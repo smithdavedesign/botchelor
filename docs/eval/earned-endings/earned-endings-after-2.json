@@ -1,0 +1,372 @@
+{
+  "model": "anthropic/claude-haiku-5.5",
+  "spent_usd": 0.0389,
+  "results": [
+    {
+      "case": "mira-dex",
+      "arm": "after",
+      "decided": "disaster",
+      "ending": "disaster",
+      "index": 93,
+      "judge": {
+        "in_character_a": 4,
+        "in_character_b": 4,
+        "natural": 4,
+        "motivated": 3,
+        "specific": 4,
+        "distinct": 4,
+        "engaging": 4,
+        "profile_reading": false,
+        "misgendering": false,
+        "abrupt_turn": false,
+        "note": "The busker's second song, the bakery circles and the lamppost knocks give the scene concrete texture, and Dex's 'I'll wait' is a lovely moment of gentleness. The ending is thinly set up: Mira's deflection is the only visible cause for a blunt 'this isn't going anywhere', and the disaster's 'reason everyone saw' never really lands."
+      },
+      "judge_mean": 3.86,
+      "own_answers": {
+        "a": "no",
+        "b": "no",
+        "would_end": "disaster"
+      },
+      "model_calls": 17,
+      "cost_usd": 0.01077,
+      "turn": {
+        "kind": "agenda",
+        "on": "b",
+        "steps": [
+          {
+            "side": "b",
+            "note": "Ask them one real question on this line, the kind a joke can't answer: something you actually need to know about them. Ask it straight, then leave them room."
+          },
+          {
+            "side": "a",
+            "note": "They've just asked you something real. You don't answer it on this line: you slide past it with a bit, a joke or a story, the way you do when a question gets close. Stay with the bit; don't come back to the real answer."
+          },
+          {
+            "side": "b",
+            "note": "You asked a real question and got a routine. That was the thing you'd come to find out about them. Let it land on this line, your way: a flatter answer, the subject dropped, or saying so. Don't laugh it off and don't talk them round."
+          }
+        ],
+        "after": {
+          "a": "Since that moment the ease between you has gone, and you've stopped trying to get it back. You don't apologise for who you are and you don't chase them: your own interest has dropped with theirs. No rescuing the mood, no invitations.",
+          "b": "Since that moment you've cooled toward them, and it doesn't come back tonight: shorter answers, no new questions about their life, no plans together. Stay civil and stay yourself. Don't explain it, and don't make up."
+        }
+      },
+      "transcript": [
+        {
+          "n": 1,
+          "who": "Mira Quell",
+          "said": "Clay to the elbows, and a handshake like I might crack. What have you been wrestling with? Also, the busker knows one song and I've heard it on three blocks. Do you think he's got a second one hiding?",
+          "did": "turns the compass on its chain"
+        },
+        {
+          "n": 2,
+          "who": "Dex Okafor",
+          "said": "Mostly a bowl that won't centre. Clay doesn't care how tired you are. Ask me about the stunt work and I'll do a bad job of pretending I'm not proud of it. I think Mira's busker is saving the second song for someone who looks like they need it.",
+          "did": "knocks twice on a lamppost"
+        },
+        {
+          "n": 3,
+          "who": "Mira Quell",
+          "said": "So you're saying I look like I need the second song. Fair, I've been walking in circles since the bakery. Stunt work and clay in one job, though? Do you fall off things on purpose, or do they just keep knocking you down?"
+        },
+        {
+          "n": 4,
+          "who": "Dex Okafor",
+          "said": "Mostly on purpose, which nobody believes. You fall so it looks like you're going down hard, when really you're landing on a pad you checked three times. Nineteen times I was set on fire, and the trick was never the fire. It was knowing where the water was.",
+          "did": "knocks on the lamppost again"
+        },
+        {
+          "n": 5,
+          "who": "Mira Quell",
+          "said": "Nineteen times on fire and the trick was the water. That's the most cartographer thing I've ever heard. Every good map is really a list of what someone chose to leave off. So what did you leave off your version?",
+          "did": "smooths a napkin flat"
+        },
+        {
+          "n": 6,
+          "who": "Dex Okafor",
+          "said": "The time the water came a second late, and I came down with my hands still on fire. Nobody wants that story at a party. Can I ask you something straight, though? What's the thing you've been walking in circles about since the bakery? You don't have to answer. I'll wait."
+        },
+        {
+          "n": 7,
+          "who": "Mira Quell",
+          "said": "Straight questions, on a street with one song on loop? Bold. Busker's policy is second song first, and nobody's heard it yet, so I'm off the hook. Quick, which way is north from here?",
+          "did": "taps the compass"
+        },
+        {
+          "n": 8,
+          "who": "Dex Okafor",
+          "said": "North's behind you, past the bakery. I'll let you have the joke. But I asked you a real thing, and you handed me a busker's policy. That's fine. You don't owe me the walking circles. I just won't pretend I didn't notice.",
+          "did": "knocks once on the lamppost"
+        },
+        {
+          "n": 9,
+          "who": "Mira Quell",
+          "said": "Fair. I do hand people the policy instead of the answer, and you noticed. I'd rather be honest than charming, and I'm not going to walk you through the circles tonight. So I'll say it plainly: this isn't going anywhere for me.",
+          "did": "tucks the compass under my collar"
+        }
+      ],
+      "feelings": [
+        "curious",
+        "curious",
+        "curious",
+        "curious",
+        "curious",
+        "curious",
+        "curious",
+        "unsure",
+        "wary"
+      ]
+    },
+    {
+      "case": "teo-nell",
+      "arm": "after",
+      "decided": "friends",
+      "ending": "friends",
+      "index": 77,
+      "judge": {
+        "in_character_a": 4,
+        "in_character_b": 3,
+        "natural": 3,
+        "motivated": 3,
+        "specific": 4,
+        "distinct": 4,
+        "engaging": 4,
+        "profile_reading": false,
+        "misgendering": false,
+        "abrupt_turn": false,
+        "note": "Teo's dance-metaphor flirting and self-regard land well, and the foxtrot, the filmed counting man and the Egyptian-wing callback are vivid and specific. Nell is witty and precise but barely halting or shy, and she never launches into the detailed explanation her sheet promises, so the two read as similarly quick. The 'just friends' ending has no clear turn to point to, and her closing invitation to count in the Egyptian wing sits oddly with a platonic outcome."
+      },
+      "judge_mean": 3.57,
+      "own_answers": {
+        "a": "yes",
+        "b": "yes",
+        "would_end": "friends"
+      },
+      "model_calls": 16,
+      "cost_usd": 0.0109,
+      "turn": {
+        "kind": "friends",
+        "on": "a",
+        "steps": [
+          {
+            "side": "b",
+            "note": "Say the thing you'd only say to a friend, on this line and warmly: who you'd love them to meet, the mate they remind you of, a favour you'd ask a pal. You mean it as a compliment."
+          },
+          {
+            "side": "a",
+            "note": "That was a friend's line, and you notice it's true for you as well: whatever this is, it isn't romance. Let it land lightly on this line: a laugh at the two of you, more relief than hurt."
+          }
+        ],
+        "after": {
+          "a": "Since that moment it's settled for you, without anyone needing to say it: this is a friendship, not a romance. Be easy company (tease, tell stories, laugh). No flirting, and no talk of another date.",
+          "b": "Since that moment it's settled for you, without anyone needing to say it: this is a friendship, not a romance. Be easy company (tease, tell stories, laugh). No flirting, and no talk of another date."
+        }
+      },
+      "transcript": [
+        {
+          "n": 1,
+          "who": "Teo Brandt",
+          "said": "Okay, I have to ask before anything else: is that thermos something you chose, or did someone hand it to you as a dare? I'm Teo, by the way. I'd offer you a proper dance frame for the blanket, but you've clearly already claimed the better half.",
+          "did": "nudges the thermos toward her"
+        },
+        {
+          "n": 2,
+          "who": "Nell Abiodun",
+          "said": "I chose it, which I'm starting to regret. It's tea, brewed for about forty minutes too long, so it's bitter on purpose. Hello, Teo. Dares are more your department, I'd guess? You made it sound like you've been on the receiving end of a few.",
+          "did": "tucks the thermos closer"
+        },
+        {
+          "n": 3,
+          "who": "Teo Brandt",
+          "said": "Four times, actually, and two of them were mid-dance, so I've learned to be suspicious of anyone who asks me to hold still. The tea is an honest choice, though. Bitter on purpose is a bold way to start a date. What's under that cardigan?",
+          "did": "pours a careful cup"
+        },
+        {
+          "n": 4,
+          "who": "Nell Abiodun",
+          "said": "The uniform, mostly. I'm a night guard at a museum, so the cardigan is for the draughts. The name badge is very official, I'm told it's unnecessary. Mid-dance, though? Which dance, and who was supposed to be holding still?"
+        },
+        {
+          "n": 5,
+          "who": "Teo Brandt",
+          "said": "A foxtrot, at a wedding, with a man who counted every step out loud like he was reading me the rules. Apparently I was the one who needed to hold still. Nell, I took that as a compliment on my posture. He took it as a cue to lead harder.",
+          "did": "leans back on one elbow"
+        },
+        {
+          "n": 6,
+          "who": "Nell Abiodun",
+          "said": "Honestly, the counting man had it coming. You'd get on with my friend Ottoline. She'd adore your posture and never let you live down the foxtrot. Teo, did you let him lead, or quietly take it back?",
+          "did": "tugs the blanket over her knees"
+        },
+        {
+          "n": 7,
+          "who": "Teo Brandt",
+          "said": "Quietly took it back, obviously. I said I let him lead, but Nell, I was counting under my breath the whole time, and I'm fairly sure that's what he hated most. We're both sitting here trying very hard to be charming, which is funny.",
+          "did": "laughs, passes the cup back"
+        },
+        {
+          "n": 8,
+          "who": "Nell Abiodun",
+          "said": "Counting under your breath is the most honest thing anyone has told me all week, and I include the museum's insurance adjuster. Did the counting man ever find out? Because if he didn't, that's a foxtrot tragedy with no witness.",
+          "did": "pulls the blanket up"
+        },
+        {
+          "n": 9,
+          "who": "Teo Brandt",
+          "said": "He found out, yes. Someone filmed the whole thing on a phone, and it's been shared at two family gatherings. Every witness is still alive, and they all have opinions about my elbow. You're right, though, Nell: it's a tragedy with a very large audience."
+        },
+        {
+          "n": 10,
+          "who": "Nell Abiodun",
+          "said": "So the elbow stays on trial. I should head back before the night shift starts without me. Come see the museum sometime, Teo. I'll give you the full tour, and you're welcome to count under your breath in the Egyptian wing.",
+          "did": "gathers her notes"
+        }
+      ],
+      "feelings": [
+        "curious",
+        "curious",
+        "amused",
+        "curious",
+        "amused",
+        "curious",
+        "amused",
+        "amused",
+        "amused",
+        "comfortable"
+      ]
+    },
+    {
+      "case": "sable-orin",
+      "arm": "after",
+      "decided": "friends",
+      "ending": "friends",
+      "index": 83,
+      "judge": {
+        "in_character_a": 4,
+        "in_character_b": 4,
+        "natural": 4,
+        "motivated": 3,
+        "specific": 4,
+        "distinct": 5,
+        "engaging": 4,
+        "profile_reading": false,
+        "misgendering": false,
+        "abrupt_turn": false,
+        "note": "Sable's 'I'll pretend I'm not still hearing that song' and Orin's 1.3-litre bowl measured with a jug are the strongest moments. The 'just friends' ending is warm but never visibly tested, since no romantic signal is raised, and Sable's 'yes before the plan' trait barely shows, as she mostly interrogates."
+      },
+      "judge_mean": 4,
+      "own_answers": {
+        "a": "yes",
+        "b": "yes",
+        "would_end": "second_date"
+      },
+      "model_calls": 20,
+      "cost_usd": 0.01313,
+      "turn": {
+        "kind": "friends",
+        "on": "a",
+        "steps": [
+          {
+            "side": "b",
+            "note": "Say the thing you'd only say to a friend, on this line and warmly: who you'd love them to meet, the mate they remind you of, a favour you'd ask a pal. You mean it as a compliment."
+          },
+          {
+            "side": "a",
+            "note": "That was a friend's line, and you notice it's true for you as well: whatever this is, it isn't romance. Let it land lightly on this line: a laugh at the two of you, more relief than hurt."
+          }
+        ],
+        "after": {
+          "a": "Since that moment it's settled for you, without anyone needing to say it: this is a friendship, not a romance. Be easy company (tease, tell stories, laugh). No flirting, and no talk of another date.",
+          "b": "Since that moment it's settled for you, without anyone needing to say it: this is a friendship, not a romance. Be easy company (tease, tell stories, laugh). No flirting, and no talk of another date."
+        }
+      },
+      "transcript": [
+        {
+          "n": 1,
+          "who": "Sable Quist",
+          "said": "Orin! Hi, you're exactly as tall as your photo suggested, which I did not expect to be a compliment, but here we are. Did you say yes to this walk before you knew about the musician, or after?",
+          "did": "waves a glittery hand at the street musician"
+        },
+        {
+          "n": 2,
+          "who": "Orin Fletcher",
+          "said": "After, and I'd like that noted. Also, the photo doesn't round up, I checked. I'm five-eleven. As for the musician, I agreed to a walk, not a soundtrack. Did Sable book him, or is he always here, playing that one song?",
+          "did": "adjusts reading glasses on chain"
+        },
+        {
+          "n": 3,
+          "who": "Sable Quist",
+          "said": "Booked? Please, I'd never insult him like that. He's a force of nature. I've heard that one song so many times I can't tell if it's a love song or a warning. Quick test: if I said we should crash the next thing we pass, would you already be in, or do I have to explain first?",
+          "did": "points at a shuttered bakery"
+        },
+        {
+          "n": 4,
+          "who": "Orin Fletcher",
+          "said": "Explain first. 'Crash' covers a lot: a photograph, a sit-down on the step, or a window I'd have to climb through. Which one? And you said the song is either a love song or a warning. You've heard it enough to have a view, so which way are you leaning, and what's your evidence?"
+        },
+        {
+          "n": 5,
+          "who": "Sable Quist",
+          "said": "Explain first? Orin, that's the saddest sentence anyone's ever said to a bakery. Fine: a photo. Obviously a photo. And it's a warning, because it never resolves. He always stops one note short, like he's waiting for us to do something about it.",
+          "did": "gestures at the musician with both hands"
+        },
+        {
+          "n": 6,
+          "who": "Orin Fletcher",
+          "said": "Fair. A warning that never resolves is at least honest about it. You remind me of my sister Hesper, who also can't leave a loose thread alone and would have had that busker finishing the chorus by now.",
+          "did": "tilts head at the musician"
+        },
+        {
+          "n": 7,
+          "who": "Sable Quist",
+          "said": "Hesper?! So you've just compared me to your sister in front of a witness. Does she climb bakeries too? Tell me she climbs bakeries. And honestly, thank God. I was bracing for a love song and you've handed me a sister instead. Much better.",
+          "did": "clutches chest, laughing"
+        },
+        {
+          "n": 8,
+          "who": "Orin Fletcher",
+          "said": "Hesper has never climbed a bakery. Roofs, yes, and only to retrieve kites, which she was right to do, though I've never forgiven the fire brigade for not coming. Also, you've heard that song how many times? Give me a number, not a feeling.",
+          "did": "takes out pencil"
+        },
+        {
+          "n": 9,
+          "who": "Sable Quist",
+          "said": "Four hundred and twelve. That's a guess, but it's a guess with a tally on my fridge behind it. Please don't write that down, you'll think I'm unhinged. Also, a pencil for emergencies? What counts? A crossword that's gone wrong?",
+          "did": "reaches for the pencil"
+        },
+        {
+          "n": 10,
+          "who": "Orin Fletcher",
+          "said": "Mostly menus. A bistro once listed a soup as 'serves four', and I counted the bowl. You can hold it, but you can't write on anything yet. Four hundred and twelve with a fridge tally behind it is a sourced estimate, so I'll allow it.",
+          "did": "hands her the pencil"
+        },
+        {
+          "n": 11,
+          "who": "Sable Quist",
+          "said": "Counted the bowl! Orin, that's the most wonderfully petty thing I've heard all week. Fine, I'm keeping the pencil as a hostage. Walk me to the tram? You can explain bistro soup the whole way, and I'll pretend I'm not still hearing that song.",
+          "did": "tucks pencil behind ear"
+        },
+        {
+          "n": 12,
+          "who": "Orin Fletcher",
+          "said": "Fine, you can keep the pencil until the tram, and I'll want it back with the point intact. The soup: the bowl held 1.3 litres. I measured it with a jug, which I'm told is unusual behaviour at a bistro. Walk on. If that song resolves before the corner, I'll owe you a biscuit.",
+          "did": "starts walking"
+        }
+      ],
+      "feelings": [
+        "curious",
+        "amused",
+        "amused",
+        "amused",
+        "amused",
+        "amused",
+        "amused",
+        "amused",
+        "amused",
+        "amused",
+        "amused",
+        "amused"
+      ]
+    }
+  ]
+}
