@@ -211,7 +211,7 @@ export default async function MarketingPage() {
     .catch(() => null);
   const spend = m?.feed?.spend ?? [];
   return (
-    <article className="legal-page costs-page marketing-page">
+    <article className="legal-page costs-page marketing-page page-wide">
       <h1>Marketing, in the open</h1>
       <p>
         Botchelor is built and run by one person with a team of AI agents, and the marketing is no different: an automated
