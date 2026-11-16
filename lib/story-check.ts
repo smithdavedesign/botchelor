@@ -19,7 +19,8 @@
  *   thought or a see-again answer the page shows). The new finale must pass the PG check (lib/safety.ts), must not
  *   contradict the ending (lib/house-scenes.ts checkEnding), and a second judgement must pass it; only then is it
  *   written, and story_checks.finale_before keeps the one it replaced. Otherwise the date keeps its finale and stays
- *   contradicts, off the featured places.
+ *   contradicts, off the featured places. A repaired date stays off them too unless STORY_CHECK_FEATURE_REPAIRED=1
+ *   (they show its lines and its ending, not its finale).
  * - **The sweep** (STORY_CHECK, on unless "0"): the hourly lobby job checks aired public dates with no row yet, the
  *   featured ones first (the home clips, the dates the home page's standout list picks from), then the newest, back
  *   STORY_CHECK_BACKFILL_DAYS (30); at most STORY_CHECK_PER_HOUR (30) a pass, within a time budget. Each row keeps its

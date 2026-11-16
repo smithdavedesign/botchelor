@@ -376,9 +376,9 @@ export type EpisodeView = EpisodeJson & {
   /** Creators only: where the mutual identity reveal stands. */
   identity?: { consented: boolean; consents: number; needed: number };
   /**
-   * The story check (lib/story-check.ts) found this date's lines and recap disagree with how it ended: it is never
-   * featured (the home excerpt, the 18+ gate, the home clip, the daily clip). Only ever false, and absent otherwise:
-   * never the verdict or its reason, which are the admin's.
+   * The story check (lib/story-check.ts) found this date's lines and recap disagree with how it ended (or had to mend
+   * its finale): it is never featured (the home excerpt, the 18+ gate, the home clip, the daily clip). Only ever false,
+   * and absent otherwise: never the verdict or its reason, which are the admin's.
    */
   featurable?: false;
   /** One table of a group night (a double date or a mixer): the episode page links the rest. */
@@ -584,6 +584,8 @@ type EpisodeRow = {
   date_number: number | null;
   /** The story check's verdict (lib/story-check.ts), or null while unchecked. Read here, never sent: see featurable. */
   story_verdict: string | null;
+  /** Whether the story check repaired the date's finale (also kept off the featured places by default). */
+  story_repaired: boolean | null;
 };
 
 /**
@@ -615,7 +617,7 @@ select e.id, e.setting, e.goals, e.scenes, e.twist, e.finale, e.ending, e.drama_
        ${dateNumberSql("e")} as date_number,
        e.group_id is not null as grouped,
        (select gn.kind from group_nights gn where gn.id = e.group_id) as group_kind,
-       stc.verdict as story_verdict
+       stc.verdict as story_verdict, stc.repaired as story_repaired
   from episodes e
   join characters a on a.id = e.character_a
   join characters b on b.id = e.character_b
@@ -702,8 +704,8 @@ function toView(row: EpisodeRow): EpisodeView {
     is_host: row.is_host,
     visibility: row.visibility,
     hidden: row.hidden,
-    // A contradicting date is kept off the featured places (lib/story-check-gate.ts); nothing at all for any other.
-    ...featurableFlag(row.story_verdict),
+    // A contradicting (or repaired) date is kept off the featured places (lib/story-check-gate.ts); nothing for any other.
+    ...featurableFlag(row.story_verdict, row.story_repaired),
     ...(row.grouped ? { double: true, ...(row.group_kind === "mixer" || row.group_kind === "double" ? { group_kind: row.group_kind } : {}) } : {}),
     blocked: row.blocked,
     my_pick: row.my_pick,

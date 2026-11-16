@@ -107,7 +107,8 @@ export function momentLines(transcript: readonly Turn[], bestLine: string | null
  * best first (listStandoutDates in lib/game.ts) and the excerpt is the moment around the best line: the first ranked
  * date with two faces and a moment, else the first with a moment, else the first usable one from its opening.
  *
- * Never a date the story check found contradicting (`featurable: false`, lib/story-check-gate.ts): a stranger's first
+ * Never a date the story check found contradicting as written (`featurable: false`, lib/story-check-gate.ts: still
+ * contradicting, or mended by a repair, since an excerpt shows the lines and the ending, not the finale): a stranger's first
  * look at the show mustn't be a date whose lines say "next time?" over "A disaster". An unchecked date still counts.
  * Among equals the list's own order decides, and listStandoutDates ranks a checked-and-passing date first among equal
  * scores, so the hero prefers one the check has passed.

@@ -369,7 +369,15 @@ describe("checking one date", () => {
     expect(await allButFinale(id)).toEqual(before);
     const view = await strangerView(id);
     expect(view.finale).toBe(GOOD_FINALE);
-    expect(view.featurable).toBeUndefined();
+    // Its own page reads right now, but the featured places show its lines and its ending, not its finale: it stays off
+    // them unless STORY_CHECK_FEATURE_REPAIRED=1.
+    expect(view.featurable).toBe(false);
+    expect(featurableFlag("reversal", true)).toEqual({ featurable: false });
+    vi.stubEnv("STORY_CHECK_FEATURE_REPAIRED", "1");
+    expect((await strangerView(id)).featurable).toBeUndefined();
+    expect((await listStandoutDates(t.db, null)).map((e) => e.id)).toEqual([id]);
+    vi.stubEnv("STORY_CHECK_FEATURE_REPAIRED", "");
+    expect(await listStandoutDates(t.db, null)).toEqual([]);
     // The public JSON shows the new finale (nothing caches the old one).
     const json = await (await api.getEpisode(id)).json();
     expect(json.finale).toBe(GOOD_FINALE);

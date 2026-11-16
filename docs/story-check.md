@@ -72,19 +72,23 @@ Otherwise nothing on the date changes and it stays `contradicts`. Lines, twist, 
 everything else are never touched. The shared page copies (lib/shared-cache.ts) are dropped when a finale changes or a
 date's featurability does, so the episode page, the feed and the home page show it at once.
 
+A repaired date's own page reads right, but it stays off the featured places by default: they show a date's lines and
+how it ended, not its finale (the home clip that started this would play the same warm lines over "A disaster" with a
+mended finale). STORY_CHECK_FEATURE_REPAIRED=1 features repaired dates too.
+
 An admin can undo a repair (below): the old finale goes back and the date is `contradicts` again.
 
 ## Off the featured places
 
-A `contradicts` date is never featured:
+A `contradicts` date is never featured, nor (unless STORY_CHECK_FEATURE_REPAIRED=1) a repaired one:
 - **the home excerpt and the 18+ gate's pick** (`pickFeaturedDate` in lib/featured-date.ts skips it; the home page's
   standout list leaves it out in SQL and ranks a checked-and-passing date first among equal scores);
 - **the home clip** (`latestHomeClip` plays the newest fresh clip whose date isn't contradicting: an older clip stands
   in; `POST /api/admin/home-clip` refuses one with `story_contradicts`, 409);
 - **the daily clip** (`scripts/clips/daily-clip.mjs` `pickClip` skips a date the feed marks `featurable: false`).
 
-The public episode JSON (feed and page) carries `featurable: false` on a contradicting date and nothing otherwise:
-never the verdict or its reason. An unchecked date is featurable, so nothing goes empty while the backfill runs. For
+The public episode JSON (feed and page) carries `featurable: false` on a contradicting (or repaired) date and nothing
+otherwise: never the verdict or its reason. An unchecked date is featurable, so nothing goes empty while the backfill runs. For
 other surfaces (the season page's starters): `featurableSql(alias)` / `featurableSql(alias, { passed: true })` and
 `isFeaturable(view)` from lib/story-check.ts.
 
@@ -110,6 +114,7 @@ All on by default (commented in .do/show.yaml):
 |---|---|---|
 | `STORY_CHECK` | on | `"0"`: no sweep, the admin route refuses checks, and every surface features as before (no date is marked). |
 | `STORY_CHECK_REPAIR` | on | `"0"`: judge only, never rewrite a finale. |
+| `STORY_CHECK_FEATURE_REPAIRED` | off | `"1"`: a repaired date may be featured again. |
 | `STORY_CHECK_PER_HOUR` | 30 | Dates judged a pass. `"0"` judges none. |
 | `STORY_CHECK_BACKFILL_DAYS` | 30 | How far back the sweep reaches. |
 
@@ -152,7 +157,8 @@ model judges the subtler ones; its counts are on the admin line once the sweep h
 is the stranger's view (a person's private thought, reason and confessional never in it); a check stores its model,
 version and cost and changes nothing; the rules when the model is missing or fails twice; only aired public dates are
 checked; the repair changes the finale and nothing else, is refused when the new finale fails the PG check or
-contradicts the ending, puts nothing in when the second judgement still fails, and can be undone; `featurable: false`
+contradicts the ending, puts nothing in when the second judgement still fails, keeps a repaired date off the
+featured places unless STORY_CHECK_FEATURE_REPAIRED=1, and can be undone; `featurable: false`
 alone on the public JSON; the home excerpt, the standout list, the home clip (and its upload route) and the daily clip
 skip a contradicting date, and everything is featured as before with STORY_CHECK=0; the sweep's order, its per-pass
 cap, its stop on a 429, its analytics line; the lobby job calls it; the admin route's checks, undo, backfill and counts.

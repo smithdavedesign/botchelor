@@ -34,7 +34,7 @@ const MAX_RECORD_MS = 75_000;
  * MIN_LINES lines and wasn't clipped before. A decided ending scores (a second date or a disaster beats friends), a best
  * line scores, a longer date scores a little; a tie goes to the newer. `prefer`: the episodes the day's story is about
  * (the producer's beat, GET /api/story): one of those outscores any other, so the clip has a story. Never one the feed
- * marks `featurable: false` (the story check found its ending contradicting its lines: lib/story-check.ts). Returns the
+ * marks `featurable: false` (the story check found its ending contradicting its lines as written: lib/story-check.ts). Returns the
  * episode or null. Pure.
  */
 export function pickClip(episodes, { clipped = new Set(), prefer = new Set() } = {}) {

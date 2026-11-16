@@ -251,7 +251,8 @@ services:
       # against their lines on the show's paid model (~0.04¢ a date), mends a contradicting recap finale when the record
       # allows, and keeps the rest off the home excerpt, the 18+ gate, the home clip and the daily clip. All on by
       # default. STORY_CHECK "0": no sweep, every date featured as before; STORY_CHECK_REPAIR "0": judge only, never
-      # rewrite a finale; STORY_CHECK_PER_HOUR: dates judged a pass (30); STORY_CHECK_BACKFILL_DAYS: how far back (30).
+      # rewrite a finale; STORY_CHECK_PER_HOUR: dates judged a pass (30); STORY_CHECK_BACKFILL_DAYS: how far back (30);
+      # STORY_CHECK_FEATURE_REPAIRED "1": a date whose finale was repaired may be featured again (off: it isn't).
       # - key: STORY_CHECK
       #   value: "0"
       #   scope: RUN_AND_BUILD_TIME
@@ -263,6 +264,9 @@ services:
       #   scope: RUN_AND_BUILD_TIME
       # - key: STORY_CHECK_BACKFILL_DAYS
       #   value: "30"
+      #   scope: RUN_AND_BUILD_TIME
+      # - key: STORY_CHECK_FEATURE_REPAIRED
+      #   value: "1"
       #   scope: RUN_AND_BUILD_TIME
       # The After Dark bridge (lib/adult/bridge.ts; docs/hosting.md): one line on the creator's verdict card after a
       # second date, to the invite request. On by default; "0" takes it away without a deploy.

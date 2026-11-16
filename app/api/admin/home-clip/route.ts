@@ -11,7 +11,7 @@ const REFUSALS = {
   episode_not_found: "No such date.",
   not_aired: "That date hasn't aired yet: only an aired date can be the home clip.",
   not_public: "Only a public date between public characters can be the home clip.",
-  story_contradicts: "The story check found that date's ending contradicts its lines (lib/story-check.ts): it isn't featured.",
+  story_contradicts: "The story check found that date's ending contradicting its lines as written (lib/story-check.ts): it isn't featured.",
 } as const;
 
 /**

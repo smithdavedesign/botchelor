@@ -1,12 +1,15 @@
 /**
  * The story check's gate (lib/story-check.ts, docs/story-check.md): which aired dates may be featured. Pure, no server
- * imports: the switch, the verdicts, and the SQL and view tests every featured surface shares (the home excerpt and the
- * 18+ gate through lib/featured-date.ts, the home clip in lib/home-clip.ts, the daily clip through the feed's
+ * imports: the switches, the verdicts, and the SQL and view tests every featured surface shares (the home excerpt and
+ * the 18+ gate through lib/featured-date.ts, the home clip in lib/home-clip.ts, the daily clip through the feed's
  * `featurable`, and the season page's starters).
  *
- * A date the check found contradicting (its lines and recap disagree with how it ended) is never featured. An
- * unchecked date still is, so nothing goes empty while the backfill runs. STORY_CHECK=0 makes every date featurable
- * again, as before the check, without a deploy of code.
+ * A date the check found contradicting (its lines and recap disagree with how it ended) is never featured. Nor, by
+ * default, is one whose finale the check had to repair: the featured places show a date's lines and how it ended, not
+ * its finale, so a mended finale doesn't mend what they show (the home clip that started this would play the same warm
+ * lines over "A disaster"). Its own page reads right. STORY_CHECK_FEATURE_REPAIRED=1 features repaired dates too.
+ * An unchecked date is featurable, so nothing goes empty while the backfill runs. STORY_CHECK=0 makes every date
+ * featurable again, as before the check, without a deploy of code.
  */
 
 export const STORY_VERDICTS = ["consistent", "hidden_truth", "reversal", "contradicts"] as const;
@@ -19,19 +22,26 @@ export function storyCheckOn(env: Env = process.env): boolean {
   return env.STORY_CHECK?.trim() !== "0";
 }
 
+/** STORY_CHECK_FEATURE_REPAIRED ("1"; off by default): a date whose finale the check repaired may be featured. */
+export function featureRepairedOn(env: Env = process.env): boolean {
+  return env.STORY_CHECK_FEATURE_REPAIRED?.trim() === "1";
+}
+
 export const isStoryVerdict = (v: unknown): v is StoryVerdict => typeof v === "string" && (STORY_VERDICTS as readonly string[]).includes(v);
 
 /**
- * A SQL condition on episodes row `e`: the date may be featured, i.e. no story check found it contradicting (an
- * unchecked date passes). `{ passed: true }`: only a date the check has passed (the season page's starters). With the
- * switch off, true for every date. One correlated lookup on story_checks' key: no round trip of its own. Never a bare
- * constant, so it can stand in an ORDER BY too (Postgres refuses `order by true`).
+ * A SQL condition on episodes row `e`: the date may be featured, i.e. no story check found it contradicting, nor (unless
+ * STORY_CHECK_FEATURE_REPAIRED) repaired it; an unchecked date passes. `{ passed: true }`: only a date the check has
+ * passed as written (the season page's starters). With STORY_CHECK off, true for every date. One correlated lookup on
+ * story_checks' key: no round trip of its own. Never a bare constant, so it can stand in an ORDER BY too (Postgres
+ * refuses `order by true`).
  */
 export function featurableSql(e: string, opts: { passed?: boolean } = {}, env: Env = process.env): string {
   if (!storyCheckOn(env)) return `(${e}.id is not null)`;
+  const repaired = featureRepairedOn(env) ? "" : " or sc.repaired";
   return opts.passed
-    ? `exists (select 1 from story_checks sc where sc.episode_id = ${e}.id and sc.verdict <> 'contradicts')`
-    : `not exists (select 1 from story_checks sc where sc.episode_id = ${e}.id and sc.verdict = 'contradicts')`;
+    ? `exists (select 1 from story_checks sc where sc.episode_id = ${e}.id and not (sc.verdict = 'contradicts'${repaired}))`
+    : `not exists (select 1 from story_checks sc where sc.episode_id = ${e}.id and (sc.verdict = 'contradicts'${repaired}))`;
 }
 
 /**
@@ -44,11 +54,13 @@ export function storyPassedSql(e: string, env: Env = process.env): string {
 }
 
 /**
- * What lib/game.ts puts on a date's public view for its stored verdict: `featurable: false` for a contradicting one
- * while the switch is on, nothing otherwise. Never the verdict itself or its reason (those are the admin's).
+ * What lib/game.ts puts on a date's public view for its stored check: `featurable: false` for a contradicting one, or
+ * a repaired one (unless STORY_CHECK_FEATURE_REPAIRED), while STORY_CHECK is on; nothing otherwise. Never the verdict
+ * itself or its reason (those are the admin's).
  */
-export function featurableFlag(verdict: string | null | undefined, env: Env = process.env): { featurable?: false } {
-  return verdict === "contradicts" && storyCheckOn(env) ? { featurable: false } : {};
+export function featurableFlag(verdict: string | null | undefined, repaired: boolean | null | undefined = false, env: Env = process.env): { featurable?: false } {
+  if (!storyCheckOn(env)) return {};
+  return verdict === "contradicts" || (repaired === true && !featureRepairedOn(env)) ? { featurable: false } : {};
 }
 
 /** A date as a page has it (an EpisodeView, or the feed's JSON): featurable unless the check marked it not. */

@@ -44,7 +44,7 @@ export function homeExpressBoxOn(env: Record<string, string | undefined> = proce
  * Why a date can't be the home clip, or null when it can: it has aired, it's public, it isn't hidden by reports, and
  * neither character is private. `view` is the date as a stranger sees it (getEpisodeView with no viewer; null: no such
  * date, or a private one). And the story check (lib/story-check-gate.ts) hasn't found its ending contradicting its
- * lines: such a date is never featured.
+ * lines as written (contradicting still, or mended by a repair): such a date is never featured.
  */
 export function clipRefusal(view: EpisodeView | null): "episode_not_found" | "not_aired" | "not_public" | "story_contradicts" | null {
   if (!view) return "episode_not_found";
@@ -105,8 +105,8 @@ export type HomeClip = {
 
 /**
  * The newest clip of the last CLIP_FRESH_DAYS whose date is still public and featurable (the story check hasn't found
- * its ending contradicting its lines: lib/story-check-gate.ts), or null. One query: an older fresh clip stands in for a
- * contradicting newest one.
+ * its ending contradicting its lines as written: lib/story-check-gate.ts), or null. One query: an older fresh clip
+ * stands in for a contradicting newest one.
  */
 export async function latestHomeClip(db: Db, now: Date = new Date()): Promise<HomeClip | null> {
   const row = (
