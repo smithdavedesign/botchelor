@@ -31,6 +31,7 @@ import {
 import { backfillShownStages, computeRelationship, eventStageSql, loadRelationship, pairContext, pairKey, refreshRelationship, storedStages, viewRelationship, type RelEpisode } from "@/lib/relationships";
 import type { Ending } from "@/lib/rules";
 import { checkShowText } from "@/lib/safety";
+import { pruneKeptData } from "@/lib/retention";
 import { wantFromRules, firsthandOpinion } from "@/lib/story-state";
 import { shapeStoryMap, TIE_KINDS } from "@/lib/story-map";
 import { startTestDb } from "./helpers";
@@ -514,6 +515,18 @@ describe("the backfill is silent and invents nothing", () => {
     expect(heard.filter((x) => x.kind === "couple_date")).toHaveLength(1);
     expect((await events(A, c)).filter((r) => r.layer === "public")).toEqual([]);
     expect((await stored(A, c)).public_shown_stage).toBe("didnt_click");
+  });
+});
+
+describe("a finale's mark outlives the timeline's retention", () => {
+  it("the 400-day prune keeps an engagement row and drops the stage moves around it", async () => {
+    const [lo, hi] = pairKey(A, B);
+    const old = new Date("2025-01-01T00:00:00Z").toISOString();
+    await t.db.query(`insert into relationship_events (character_a, character_b, layer, kind, at) values ($1, $2, 'public', 'engaged', $3)`, [lo, hi, old]);
+    await t.db.query(`insert into relationship_events (character_a, character_b, layer, from_stage, to_stage, at) values ($1, $2, 'public', 'sparks', 'dating', $3)`, [lo, hi, old]);
+    await t.db.query(`insert into relationship_events (character_a, character_b, layer, kind, at) values ($1, $2, 'public', 'overnight', $3)`, [lo, hi, old]);
+    await pruneKeptData(t.db, new Date("2026-11-16T00:00:00Z"));
+    expect((await events()).map((e) => e.kind ?? e.to_stage)).toEqual(["engaged"]);
   });
 });
 
