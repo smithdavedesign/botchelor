@@ -393,7 +393,9 @@ as a short list the person edits, never as a transcript:
 - **One reading** (`POST /api/characters/import/history { text, name? }`): one call on the show's **paid** model
   (never a free tier: a history is a private chat log, and a free tier's terms may let its provider use what it is sent;
   with no paid model the reading fails like an outage; `IMPORT_HISTORY_MODEL=free` for a local setup), which copies and
-  never invents. At most **20,000 characters** are read (about 5,000 tokens; a card's own
+  never invents. The call asks the paid model for **no reasoning** (`reasoning.effort: none`, lib/import-history-reader.ts):
+  its reasoning counts against the call's token allowance, and the first live readings spent the whole allowance thinking
+  and came back empty. A model that cannot switch reasoning off is asked once more with room for both. At most **20,000 characters** are read (about 5,000 tokens; a card's own
   parts take at most 8,000 of them): a longer paste is cut to its start and its most recent part, and the page says how
   much was read. Out come at most **eight** lines, each one sentence (140 characters), each of one kind:
   `character` (what they know, their world, someone important, an unfinished storyline, a like or dislike), `us` (what

@@ -35,7 +35,7 @@ export const EXPRESS_DRAFT_IP_LIMITS = { perHour: 10, perDay: 30 };
 export const EXPRESS_DRAFT_ALL_LIMITS = { perHour: 60, perDay: 300 };
 /**
  * "Bring their history" (POST /api/characters/import/history, lib/import-history.ts): one call each on the show's PAID
- * model (a private chat log never goes to a free tier; the route's historyReader), up to about 5,000 tokens in and 700
+ * model (a private chat log never goes to a free tier; lib/import-history-reader.ts), up to about 5,000 tokens in and 700
  * out: somewhere under a cent a reading. Capped the three ways one-sentence create is: per visitor, per address and
  * across everyone, and the across-everyone cap is what bounds the spend: 60 a day keeps a flood to roughly the 40 cents
  * a day the owner agreed to (2026-11-15); the key's own monthly cap at the provider is the hard limit. Past any of them
