@@ -363,6 +363,9 @@ async function main() {
     // on and switches the character into After Dark, and the owner-only preview route writes the text. The thread is
     // then audited twice: as someone After Dark is open to, and (?preview=visitor) as someone it isn't.
     let lockedThread = null;
+    // The same date's page for its owner, whose character texted them about it: "… texted you about this"
+    // (lib/chat-date-links.ts), and in the thread above "About your date with …" under that text.
+    let lockedEpisode = null;
     try {
       const ctx = await browser.newContext();
       await ctx.addCookies([{ name: "bz_adult", value: "1", url: base }]);
@@ -387,6 +390,7 @@ async function main() {
       const sent = await post(`/api/admin/locked-picture?episode=${ended}`);
       if (!sent.locked_picture?.sent) throw new Error(`the preview wrote nothing (${JSON.stringify(sent.locked_picture)})`);
       lockedThread = thread;
+      lockedEpisode = ended;
       await ctx.close();
       console.log("Locked picture: seeded");
     } catch (e) {
@@ -692,6 +696,7 @@ async function main() {
         ? [
             { name: "companion-locked-picture", path: `/companion/${lockedThread}`, as: "adult-admin" },
             { name: "companion-locked-picture-visitor", path: `/companion/${lockedThread}?preview=visitor`, as: "adult-admin" },
+            { name: "episode-texted-about", path: `/episodes/${lockedEpisode}`, as: "adult-admin" },
           ]
         : []),
       // The invite page (no 18+ wall): as a stranger meets it, as a signed-in creator with characters, and a made-up code.
