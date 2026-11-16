@@ -11,7 +11,8 @@
  * Privacy is owner-controlled (see lib/game.ts). Each owner always knows their OWN AI's verdict (the
  * private debrief), but the thread itself and the *mutual* verdict — was the chemistry mutual? — unlock
  * only once every real owner opts in, a mutual-consent reveal that mirrors the identity reveal. Best
- * effort: if a line can't be produced the thread comes back empty and the episode is unaffected.
+ * effort: a text that can't be produced ends the exchange there; the texts already written are kept when they are
+ * an exchange (afterglowWorthKeeping), and otherwise the thread comes back empty. The episode is unaffected either way.
  */
 import { z } from "zod";
 import { characterBlindView, characterSelfView, type Character } from "./character";
@@ -39,7 +40,7 @@ export class AfterglowError extends Error {
   }
 }
 
-/** One text plus one retry, then the whole thread gives up (the caller just stores an empty thread). */
+/** One text plus one retry; then the exchange ends at the texts already written (afterglowWorthKeeping). */
 export const AFTERGLOW_ATTEMPTS = 2;
 /** A text is a text: shorter than a date line. */
 export const AFTERGLOW_TEXT_MAX = 200;
@@ -141,26 +142,67 @@ export function buildAfterglowMessages(
   };
 }
 
-/** Parses one text: must be JSON, match the schema, and pass the content filter. Longer than `max`, it's trimmed. */
-export function parseAfterglowLine(raw: string, side: "a" | "b", max = AFTERGLOW_TEXT_MAX): AfterglowLine | null {
+/** Why a reply wasn't a text, for the logs (never the reply itself): not JSON, not the {"text"} shape, or not PG. */
+export type AfterglowReject = "not_json" | "shape" | "unsafe";
+
+/**
+ * The JSON object in a reply: the reply itself, inside a code fence, or wrapped in a sentence ("Here's my text: {...}").
+ * The free model answers bare JSON; a paid one may dress it up (listFromReply in lib/import-history.ts met that), and a
+ * dressed-up text is still a text. Not seen in these texts on production: on 2026-11-16 no booked date of the last 30
+ * days had lost its thread; the dates without one were the lobby's house rooms, which write none (lib/watch.ts).
+ */
+function objectIn(raw: string): unknown {
   const trimmed = raw.trim();
   const unfenced = CODE_FENCE.exec(trimmed)?.[1] ?? trimmed;
-  let json: unknown;
   try {
-    json = JSON.parse(unfenced);
+    return JSON.parse(unfenced);
   } catch {
-    return null;
+    /* not bare JSON: look inside it */
   }
+  const start = unfenced.indexOf("{");
+  const end = unfenced.lastIndexOf("}");
+  if (start < 0 || end <= start) return undefined;
+  try {
+    return JSON.parse(unfenced.slice(start, end + 1));
+  } catch {
+    return undefined;
+  }
+}
+
+/** One reply read as a text, or why it isn't one. Longer than `max`, it's trimmed; it must pass the content filter. */
+export function readAfterglowLine(raw: string, side: "a" | "b", max = AFTERGLOW_TEXT_MAX): { line: AfterglowLine } | { why: AfterglowReject } {
+  const json = objectIn(raw);
+  if (json === undefined) return { why: "not_json" };
   const parsed = LineOutput.safeParse(json);
-  if (!parsed.success) return null;
+  if (!parsed.success) return { why: "shape" };
   const text = trimTo(parsed.data.text, max);
-  if (!checkFields({ text }).ok) return null;
-  return { side, text };
+  if (!checkFields({ text }).ok) return { why: "unsafe" };
+  return { line: { side, text } };
+}
+
+/** Parses one text: JSON (bare, fenced or inside a sentence) of the right shape that passes the content filter, or null. */
+export function parseAfterglowLine(raw: string, side: "a" | "b", max = AFTERGLOW_TEXT_MAX): AfterglowLine | null {
+  const read = readAfterglowLine(raw, side, max);
+  return "line" in read ? read.line : null;
 }
 
 /**
- * Runs the morning-after thread as a turn-by-turn exchange. Returns the thread, or throws AfterglowError
- * if a text can't be produced (the caller then stores an empty thread; the episode is unaffected).
+ * Whether texts that stop short are still an exchange worth showing. Both of them have texted: one text nobody answered
+ * reads as being ignored, and two from one side would be marked "ghosted" (lib/text-chain.ts), which this isn't. When
+ * one side is silent by the date's own ending (ghosted, lib/ending-detail.ts), the other's first text is the whole
+ * point, so one is enough.
+ */
+export function afterglowWorthKeeping(thread: readonly AfterglowLine[], silent?: "a" | "b" | null): boolean {
+  if (silent) return thread.length >= 1;
+  return thread.some((t) => t.side === "a") && thread.some((t) => t.side === "b");
+}
+
+/**
+ * Runs the morning-after thread as a turn-by-turn exchange and returns it. A text that can't be produced (after its one
+ * retry) ends the exchange there: nobody texts past a text that was never sent, so the turn order, and with it "ghosted"
+ * and "they haven't replied", keep meaning what they mean. What was already written is kept when it is an exchange
+ * (afterglowWorthKeeping) and `onCut` is told why it stopped; otherwise it throws AfterglowError (the caller then stores
+ * an empty thread). Until 2026-11-16 one failed text threw the whole thread away.
  */
 export async function simulateAfterglow(
   model: Model,
@@ -177,6 +219,8 @@ export async function simulateAfterglow(
   actorForSide?: (side: "a" | "b") => Model | null,
   /** More endings (lib/ending-detail.ts ghostSide): the side that never texts back, so the other's texts go unanswered. */
   silent?: "a" | "b" | null,
+  /** Told once, with the content-free reasons, when the thread is kept but stops short of its length. */
+  onCut?: (reasons: string[]) => void,
 ): Promise<AfterglowLine[]> {
   const thread: AfterglowLine[] = [];
   const reasons: string[] = [];
@@ -195,10 +239,15 @@ export async function simulateAfterglow(
         reasons.push(err instanceof ModelError ? err.message : "model_error");
         continue;
       }
-      line = parseAfterglowLine(raw, side);
-      if (!line) reasons.push(`afterglow_${i}_invalid`);
+      const read = readAfterglowLine(raw, side);
+      if ("line" in read) line = read.line;
+      else reasons.push(`afterglow_${i}_${read.why}`);
     }
-    if (!line) throw new AfterglowError(reasons);
+    if (!line) {
+      if (!afterglowWorthKeeping(thread, silent)) throw new AfterglowError(reasons);
+      onCut?.(reasons);
+      return thread;
+    }
     // The same repetition critic as a date's lines (lib/text-critic.ts): one revision, kept only if it parses.
     const before = thread.map((t) => ({ from: characters[t.side === "a" ? 0 : 1].name, text: t.text }));
     const note = critiqueText(before, line.text, me, them);
