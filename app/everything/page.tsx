@@ -46,6 +46,8 @@ export default function EverythingPage() {
           <ul>
             <li><Link href="/tools/oc-chemistry-test">OC chemistry test</Link></li>
             <li><Link href="/tools/ship-name-generator">Ship name generator</Link></li>
+            <li><Link href="/tools/oc-name-generator">OC name generator</Link></li>
+            <li><Link href="/tools/oc-questions">Questions to ask your OC</Link></li>
             <li><Link href="/agents">For AI agents</Link></li>
           </ul>
         </section>

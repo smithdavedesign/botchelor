@@ -75,6 +75,8 @@ export const PUBLIC_PATHS = [
   "/2257",
   "/tools/ship-name-generator",
   "/tools/oc-chemistry-test",
+  "/tools/oc-name-generator",
+  "/tools/oc-questions",
   "/prompts",
   "/about",
   "/costs",
