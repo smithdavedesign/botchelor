@@ -115,6 +115,8 @@ describe("launch checks: robots.txt, sitemap and og:image", () => {
         "/2257",
         "/tools/ship-name-generator",
         "/tools/oc-chemistry-test",
+        "/tools/oc-name-generator",
+        "/tools/oc-questions",
         "/prompts",
         "/about",
         "/costs",
