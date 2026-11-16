@@ -1,4 +1,5 @@
 import { characterSelfView, type Character, type PromptLessons } from "./character";
+import { standingWords } from "./memory";
 import type { ChatMessage } from "./model";
 import type { ReplyLength } from "./companion-shared";
 
@@ -56,7 +57,7 @@ function showLife(c: Character): string[] {
   for (const ch of (m.chapters ?? []).slice(0, 2)) out.push(`${ch.label}: ${ch.line}`);
   for (const p of (m.people ?? []).slice(0, 4)) {
     const when = p.last_at ? ` (last date ${p.last_at.slice(0, 10)})` : "";
-    out.push(`${p.name}: ${p.dates} date${p.dates === 1 ? "" : "s"}, ${p.status.replace(/_/g, " ")}${when}${p.they_said ? `. They said: "${p.they_said}"` : ""}`);
+    out.push(`${p.name}: ${p.dates} date${p.dates === 1 ? "" : "s"}, ${standingWords(p)}${when}${p.they_said ? `. They said: "${p.they_said}"` : ""}`);
   }
   return out;
 }

@@ -24,7 +24,8 @@ import type { Db } from "./db";
 import type { SideOutcome, SoulSignals } from "./engine";
 import { endingLabel, type DramaAnswer, type DramaQuestion, type Ending } from "./rules";
 import type { Turn } from "./conversation";
-import { stageOf, type Stage } from "./relationships";
+import { baseOf, MORE_STAGES, shownStageOf, STAGE_LABELS, stagesV2On, stageWords, STANDING_LINES } from "./relationship-stages";
+import type { Stage } from "./relationships";
 import { contentWords, EVERYDAY_WORDS } from "./quality";
 import { checkFields } from "./safety";
 import { weekIdOf as seasonIdAt } from "./season-window";
@@ -142,6 +143,42 @@ export const PAIR_STATUS_LABELS: Record<PairStatus, string> = {
   bad_blood: "🔥 Bad blood",
 };
 
+type Env = Record<string, string | undefined>;
+/** A pair's status as it is told: bad blood only where there was cause (lib/relationship-stages.ts). */
+export type ShownPairStatus = PairStatus | "didnt_click";
+
+/**
+ * The status to tell from a stored one. One date that ended badly between two people with no history is "didn't
+ * click", not bad blood: read off the stored status and the date count, so a memory stored before this reads right
+ * without a rebuild. With RELATIONSHIP_STAGES_V2=0, the stored status as it is.
+ */
+export const shownPairStatus = (status: PairStatus, dates: number | undefined, env: Env = process.env): ShownPairStatus =>
+  stagesV2On(env) && status === "bad_blood" && dates === 1 ? "didnt_click" : status;
+
+/**
+ * A remembered person's stage as it is shown now (the couple's shown stage, from this character's aired dates with
+ * them), or null when the memory holds none. Switch off: the base stage the stored one stands for.
+ */
+export function personStage(p: Pick<PersonMemory, "status" | "stage" | "dates">, env: Env = process.env): Stage | null {
+  if (!p.stage) return null;
+  if (!stagesV2On(env)) return baseOf(p.stage);
+  return p.stage === "bad_blood" && p.dates === 1 ? "didnt_click" : p.stage;
+}
+const moreStage = (p: Pick<PersonMemory, "status" | "stage" | "dates">, env: Env = process.env): Stage | null => {
+  const stage = personStage(p, env);
+  return stage && (MORE_STAGES as readonly string[]).includes(stage) ? stage : null;
+};
+/** How two stand, as a label: the fuller stage when it says more than the status does ("🌙 Keeping it casual"), else the status's. */
+export const personLabel = (p: Pick<PersonMemory, "status" | "stage" | "dates">, env: Env = process.env): string => {
+  const more = moreStage(p, env);
+  return more ? STAGE_LABELS[more] : PAIR_STATUS_LABELS[p.status];
+};
+/** The same mid-sentence, for a prompt: "keeping it casual", "didn't click", "seeing". PG, and only what the public record holds. */
+export const standingWords = (p: Pick<PersonMemory, "status" | "stage" | "dates">, env: Env = process.env): string => {
+  const more = moreStage(p, env);
+  return more ? stageWords(more) : p.status.replace(/_/g, " ");
+};
+
 /** What a character remembers of one person it has dated. */
 export type PersonMemory = {
   id: string;
@@ -150,7 +187,7 @@ export type PersonMemory = {
   dates: number;
   /** Public: from the endings of their aired dates. */
   status: PairStatus;
-  /** The same reading as the couple's stage in the relationship graph (lib/relationships.ts stageOf), so the two agree. */
+  /** The same reading as the couple's shown stage in the relationship graph (lib/relationship-stages.ts), so the two agree: read it through personStage. */
   stage?: Stage;
   last_ending: Ending;
   last_venue: PlaceId | null;
@@ -311,6 +348,8 @@ export type MemoryEpisode = {
   other_house: boolean;
   /** The date played a roleplay (setup.roleplay; lib/date-roleplays.ts): its lines were a role's, not the character's own. */
   roleplay?: boolean | null;
+  /** setup.overnight: an overnight date (lib/overnight.ts), for the pair's shown stage. */
+  overnight?: boolean | null;
 };
 
 /** The episodes a character has learned from: its AIRED dates (same aired-only rule as the public record). */
@@ -635,7 +674,7 @@ export async function pairMemory(db: Db, selfId: string, otherId: string, creato
   const { rows } = await db.query<MemoryEpisode>(
     `select e.id, e.ending, e.sides, e.transcript, e.reflections, (e.character_a = $1) as is_a,
             coalesce(e.revealed_at, e.created_at) as revealed_at, e.drama_question, e.drama_answer, e.setup->>'venue' as venue,
-            o.id as other_id, o.name as other_name, o.is_house as other_house
+            o.id as other_id, o.name as other_name, o.is_house as other_house, (e.setup->>'overnight') = 'true' as overnight
        from episodes e
        join characters o on o.id = $2
       where ((e.character_a = $1 and e.character_b = $2) or (e.character_a = $2 and e.character_b = $1))
@@ -660,7 +699,8 @@ export async function updateCharacterMemory(db: Db, characterId: string): Promis
     db.query<MemoryEpisode>(
       `select e.id, e.ending, e.sides, e.transcript, e.reflections, (e.character_a = $1) as is_a,
               e.revealed_at, e.drama_question, e.drama_answer, e.setup->>'venue' as venue,
-              o.id as other_id, o.name as other_name, o.is_house as other_house, e.setup ? 'roleplay' as roleplay
+              o.id as other_id, o.name as other_name, o.is_house as other_house, e.setup ? 'roleplay' as roleplay,
+              (e.setup->>'overnight') = 'true' as overnight
          from episodes e
          join characters o on o.id = case when e.character_a = $1 then e.character_b else e.character_a end
         where ${MEMORY_EPISODES_WHERE}
@@ -811,6 +851,7 @@ type Dated = {
   turned_down: "you" | "them" | null;
   they_said: string | null;
   you_said: string | null;
+  overnight?: boolean;
 };
 
 /**
@@ -845,6 +886,7 @@ function toDated(r: MemoryEpisode): Dated {
     at,
     season: seasonIdAt(at),
     venue: r.venue,
+    ...(r.overnight ? { overnight: true } : {}),
     other: { id: r.other_id, name: r.other_name, house: r.other_house },
     wanted_more: r.sides?.[r.is_a ? 0 : 1]?.wants_another ?? null,
     turned_down: rejected === me ? "you" : rejected === them ? "them" : null,
@@ -877,7 +919,7 @@ function rememberPeople(dated: Dated[], forgets: Forgets = new Set()): PersonMem
         house: last.other.house,
         dates: ds.length,
         status: pairStatus(ds.map((d) => d.ending)),
-        ...(stageOf(ds.map((d) => d.ending)) ? { stage: stageOf(ds.map((d) => d.ending))! } : {}),
+        ...((stage) => (stage ? { stage } : {}))(shownStageOf(ds.map((d) => ({ ending: d.ending, at: d.at.toISOString(), ...(d.overnight ? { overnight: true } : {}) })))),
         last_ending: last.ending,
         last_venue: last.venue,
         last_at: last.at.toISOString(),
@@ -970,6 +1012,11 @@ const STANDING: Record<PairStatus, string> = {
   just_met: "You met once; it was friendly, nothing more yet.",
   bad_blood: "Last time went badly.",
 };
+/** Where the character stands with someone, to itself: the fuller stage's line when there is one ("You're keeping it casual."). */
+const standingLine = (p: PersonMemory): string => {
+  const more = moreStage(p);
+  return more ? STANDING_LINES[more] : STANDING[p.status];
+};
 
 /**
  * What this character remembers of the person it's about to meet, for its own prompt — or null when they've
@@ -982,7 +1029,7 @@ export function metBefore(memory: CharacterMemory | null | undefined, otherId: s
     times: p.dates,
     // Their last date was their p.dates-th: a happy one reads "A third date" after two (lib/rules endingLabel).
     last_time: `${venuePhrase(p.last_venue)}; it ended: ${endingLabel(p.last_ending, p.dates)}`,
-    where_you_stand: STANDING[p.status],
+    where_you_stand: standingLine(p),
     ...(p.turned_down === "you" ? { how_it_ended_for_you: "They turned you down." } : p.turned_down === "them" ? { how_it_ended_for_you: "You turned them down." } : {}),
     ...(p.wanted_more !== null ? { how_you_left_it: p.wanted_more ? "You wanted to see them again." : "You didn't want to see them again." } : {}),
     ...(p.they_said ? { something_they_said: p.they_said } : {}),
@@ -1051,5 +1098,5 @@ export function sharedHistory(memory: CharacterMemory | null | undefined, otherI
 
 /** The public face of the people a character has dated: names and how they stand, never the private feeling. */
 export function connections(memory: CharacterMemory | null | undefined): { id: string; name: string; house: boolean; dates: number; status: PairStatus; label: string; turned_down: "you" | "them" | null }[] {
-  return (memory?.people ?? []).map((p) => ({ id: p.id, name: p.name, house: p.house, dates: p.dates, status: p.status, label: PAIR_STATUS_LABELS[p.status], turned_down: p.turned_down }));
+  return (memory?.people ?? []).map((p) => ({ id: p.id, name: p.name, house: p.house, dates: p.dates, status: p.status, label: personLabel(p), turned_down: p.turned_down }));
 }

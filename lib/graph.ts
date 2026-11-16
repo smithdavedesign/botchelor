@@ -15,7 +15,8 @@ import type { Db } from "./db";
 import { publicDateSql } from "./date-number";
 import { originSql, type Origin } from "./origin";
 import { KIND_IDS, KINDS, kindLabel, type KindId } from "./kinds";
-import { healRelationships, stageOf, tieStrength, type Stage, STAGE_LABELS } from "./relationships";
+import { shownStage, stageOf, stageSteps, stagesV2On } from "./relationship-stages";
+import { healRelationships, tieStrength, type Stage, STAGE_LABELS } from "./relationships";
 import { DELETED_OWNER, REPORT_HIDE_THRESHOLD, type DramaAnswer, type DramaQuestion, type Ending } from "./rules";
 
 export type GraphNode = {
@@ -303,12 +304,17 @@ const COARSE_MET: Record<string, MetVia> = {
 export const coarseMetVia = (raw: string | null | undefined): MetVia | null => (raw ? (COARSE_MET[raw] ?? null) : null);
 
 
-/** A pair's public dates (oldest first) as a timeline with the stage after each: the latest TIMELINE_KEPT of them. */
-export function publicTimeline(dates: readonly { at: string; ending: Ending }[]): PairTimeline {
+/**
+ * A pair's public dates (oldest first) as a timeline with the stage after each: the latest TIMELINE_KEPT of them. The
+ * stage is the shown one (lib/relationship-stages.ts: an overnight date they left together counts), or the base one
+ * with RELATIONSHIP_STAGES_V2=0.
+ */
+export function publicTimeline(dates: readonly { at: string; ending: Ending; overnight?: boolean }[], env: Record<string, string | undefined> = process.env): PairTimeline {
   const endings: Ending[] = [];
-  const steps = dates.map((d) => {
+  const shown = stagesV2On(env) ? stageSteps(dates).steps : null;
+  const steps = dates.map((d, i) => {
     endings.push(d.ending);
-    const stage = stageOf(endings);
+    const stage = shown ? shown[i] : stageOf(endings);
     return { at: d.at, ending: d.ending, stage: stage ? STAGE_LABELS[stage] : null };
   });
   return { timeline: steps.slice(-TIMELINE_KEPT), total: steps.length, truncated: steps.length > TIMELINE_KEPT };
@@ -322,8 +328,8 @@ export function publicTimeline(dates: readonly { at: string; ending: Ending }[])
 export async function pairTimeline(db: Db, x: string, y: string): Promise<PairTimeline | null> {
   if (!(await publicPair(db, x, y))) return null;
   const [lo, hi] = x < y ? [x, y] : [y, x];
-  const dates = await db.query<{ ending: Ending; at: string | Date }>(
-    `select e.ending, e.revealed_at as at
+  const dates = await db.query<{ ending: Ending; at: string | Date; overnight: boolean | null }>(
+    `select e.ending, e.revealed_at as at, (e.setup->>'overnight') = 'true' as overnight
        from episodes e
       where ((e.character_a = $1 and e.character_b = $2) or (e.character_a = $2 and e.character_b = $1)) and e.ending is not null
         and ${publicDateSql("e", "$3")}
@@ -331,7 +337,7 @@ export async function pairTimeline(db: Db, x: string, y: string): Promise<PairTi
     [lo, hi, REPORT_HIDE_THRESHOLD],
   );
   if (!dates.rows.length) return null;
-  return publicTimeline(dates.rows.map((d) => ({ at: new Date(d.at).toISOString(), ending: d.ending })));
+  return publicTimeline(dates.rows.map((d) => ({ at: new Date(d.at).toISOString(), ending: d.ending, ...(d.overnight ? { overnight: true } : {}) })));
 }
 
 /** Both are public characters still on the show: the cheap check (two primary keys) before any of their dates is read. */
@@ -351,6 +357,7 @@ type EdgeRow = {
   dates: number;
   second_dates: number;
   public_stage: Stage | null;
+  public_shown_stage: Stage | null;
   last_at: string | Date | null;
 };
 export type PublicDateRow = {
@@ -406,7 +413,7 @@ export async function constellation(db: Db, now = new Date()): Promise<GraphData
     // The public layer's columns only: the stored detail (history, facts, jokes, plans) is never read here.
     db.query<EdgeRow>(
       `select r.character_a as a_id, r.character_b as b_id, r.public_dates as dates,
-              r.public_second_dates as second_dates, r.public_stage, r.public_last_at as last_at
+              r.public_second_dates as second_dates, r.public_stage, r.public_shown_stage, r.public_last_at as last_at
          from relationships r
          join characters ca on ca.id = r.character_a and ca.owner_id is distinct from $1
          join characters cb on cb.id = r.character_b and cb.owner_id is distinct from $1
@@ -449,7 +456,7 @@ export async function constellation(db: Db, now = new Date()): Promise<GraphData
       masked: false,
       dates: e.dates,
       second_dates: e.second_dates,
-      stage: e.public_stage ? STAGE_LABELS[e.public_stage] : null,
+      stage: ((st) => (st ? STAGE_LABELS[st] : null))(shownStage(e.public_stage, e.public_shown_stage)),
       last_at,
       weight: publicWeight({ dates: e.dates, second_dates: e.second_dates, last_at }, now),
       first_at: f?.first_at ?? null,
