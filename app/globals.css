@@ -13498,7 +13498,10 @@ button.thread-menu-item:hover:not(:disabled) {
 .marketing-summary div { padding: var(--space-2); border: 1px solid var(--line); border-radius: var(--radius-md); }
 .marketing-summary dd { margin: 0; font-size: var(--text-xl); font-weight: 600; font-variant-numeric: tabular-nums; }
 .marketing-page .table-scroll { max-width: 100%; }
-.marketing-what { min-width: 16rem; }
+.marketing-what { min-width: 14rem; }
+.marketing-date { white-space: nowrap; }
+.marketing-where { min-width: 8rem; }
+.marketing-where span { display: block; }
 .marketing-what span { display: block; }
 .marketing-note { min-width: 14rem; }
 
