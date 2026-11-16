@@ -12,7 +12,7 @@ An edge holds:
 
 | Field | Meaning |
 |---|---|
-| `stage` | Where they stand: 👋 just met → ✨ sparks → 💞 dating → 💍 going steady, or 🤝 friends, 💔 exes, 🔥 bad blood (`stageOf`). |
+| `stage`, `shown_stage` | Where they stand, in two readings (see "Stages" below): the **base** stage the rules read (👋 just met → ✨ sparks → 💞 dating → 💍 going steady, or 🤝 friends, 💔 exes, 🔥 bad blood: `stageOf`), and the **shown** stage people and prompts are told (`shownStageOf`). |
 | `tie_strength` | 0..1. Frequency (how often they've met), recency (halving every 21 days), intensity (running chemistry) and reciprocity (how often both wanted more). This is Granovetter's tie strength. |
 | `chemistry`, `trust` | The running relationship state, 0..100: a moving average of each date's final values, the newest weighing most. |
 | `mutual_yes` | Dates after which both wanted another. |
@@ -31,6 +31,85 @@ match both said yes to, including a blind date behind the swipe gate), `proposal
 name), `second_date`, `own_date` (agents performing it) or `show` (a lobby room). It rides in the history server-side
 only: `viewRelationship` never shows it, since a match or a proposal is its owners' business. The Constellation shows
 it only coarsely, and only for a pair's first public date (below).
+
+## Stages (`lib/relationship-stages.ts`, 2026-11-16)
+
+A couple has a love life, not one of seven labels. Every stage is **derived** from what the engine already decided
+(each date's ending) and what publicly happened (an overnight date they left together, a confrontation in the house, a
+season's finale). Nobody chooses, buys or votes one.
+
+**Two readings, kept apart on purpose.**
+
+- The **base stage** (`stageOf`; `relationships.stage`, `public_stage`): the original seven, from the endings alone.
+  **Every rule reads this one and only this one**: who is suggested again (`lib/dating.ts`), the one-partner rule
+  (`lib/partners.ts`), the overnight milestone, an arc's settlement and its points (`lib/arcs.ts`), backing, group
+  dates, who texts daily. None of them changed.
+- The **shown stage** (`shownStageOf`; `relationships.shown_stage`, `public_shown_stage`; `Summary.shown`,
+  `RelationshipView.stage`): what pages, notices, prompts and agents are told. The engine, odds, pairings and points
+  never read it.
+
+**The shown stages and the rule for each** (`stageSteps` walks a layer's dates oldest first; S = a date that ended in
+another date, F = friends, D = disaster):
+
+| Stage | When |
+| --- | --- |
+| 👋 Just met | their only date ended as friends |
+| ✨ Sparks | 1 S in a row |
+| 💞 Dating | 2 S in a row |
+| 🌙 Keeping it casual | they left an **overnight date** together (an aired overnight date that ended in another date, `setup.overnight`) since their last disaster, and are short of going steady: so 3 S with the overnight, or a later date that ended as friends. The show's PG word for it, and the only one |
+| 💍 Going steady | 4 S in a row |
+| 💑 Official | 6 S in a row |
+| 🏡 Moved in together | 10 S in a row |
+| 💎 Engaged, 💒 Married | only a season finale's row ([seasons.md](seasons.md), "The finale's proposal"); holds through S and F dates |
+| 🤝 Friends | the last date ended as friends (and it wasn't their only one, and no overnight date since their last disaster) |
+| 💔 Exes | a disaster, with a second date behind them since their last one |
+| 💔 Broke up | a disaster for a couple who had reached going steady since their last disaster, or who were engaged |
+| 📄 Divorced | a disaster for a married couple |
+| 🔁 Back together | a pair who were exes, broke up or divorced, and whose date then ended in another (that one date; from two in a row they are dating again) |
+| 🔥 Bad blood | a disaster with **no second date ever** between them and real cause: an earlier date (history first, or more than one disaster), or their latest confrontation that `/house` still shows did not clear the air (`lib/house-conflict.ts`) |
+| 🤷 Didn't click | their **one and only** date ended in disaster. Mild and neutral: no feud on the story map, no Friction in Talk of the house, no score to settle in the story state |
+
+A pair already apart who have another bad date stay as they were. "Exclusive" is not a stage: that word is the
+one-partner rule's, and a character can be official with more than one person on the public record.
+
+**What was dropped, and why.** A breakup from *silence* (a steady couple who stopped dating for a stretch): house
+couples only date as fast as their rooms are watched, so quiet is not an event, and a status from the clock would not
+be on anyone's record. "Stopped seeing others" for official: house characters date the whole cast, so the data cannot
+say it.
+
+**Order** (`STAGE_RANK`, for "moved up a stage"): just met 1, sparks and back together 2, dating 3, keeping it casual
+4, going steady 5, official 6, moved in 7, engaged 8, married 9. Friends, didn't click, bad blood and every way of
+being apart are 0, never a step up.
+
+**Stored and logged.** A refresh writes both readings. `relationship_events` keeps both too (`from_stage`/`to_stage`
+the base one as always, `from_shown`/`to_shown` the shown one) and gets a row when either moved; a reader takes the
+reading the switch shows and skips rows where its own didn't move (`eventStageSql`). A confrontation refreshes the
+pair's edge, so its result reaches the stage the same hour.
+
+**The backfill** (`backfillShownStages`, the hourly job): fills `shown_stage` and `public_shown_stage` for rows that
+have none, from the pair's own dates. Stage columns only: no event row, no notice, and nothing a date or a finale
+didn't give (no engagement, wedding or divorce can come out of it). Until it reaches a row, that row reads as its own
+dates say (`shownBefore`), so the first refresh after the change logs and announces only what a new date changed.
+
+**Where it shows.** The couple page (the label, one line on what made it so, and "→ Going steady" on the date that
+moved them); the character page (the Relationships badges, "Right now", Talk of the house: a couple in the stage's own
+words, a breakup under Friction); the story map (`together` in the stage's words, a new `broke_up` kind); the
+Constellation's labels and timeline; the Reunion and season recaps ("formed" is any couple stage, "broken" exes, broke
+up, divorced or real bad blood); "Since you were here"; `stage_up` notices (each step up, and the one piece of bad
+news: a steady couple splitting); MCP (`get_relationships`' `stage`, `stage_label`, `stage_line`, a timeline's
+`became`; `get_character`'s `who_it_remembers`).
+
+**The characters know.** A date's prompt gets the shown stage in plain words (`where_you_stand_now`: "Keeping it
+casual", "Official"); a character's memory of a person carries it (`lib/memory.ts` `personStage`, `standingWords`: the
+companion's prompt and the director's facts); and the story state stops treating a date that didn't click as bad blood
+(no `settle_score` want, no trust cap). All PG, all from the public record. A tension between two who distrust each
+other still comes from their opinions of the date itself (`mutual_distrust`), not from the stage.
+
+**The switch.** `RELATIONSHIP_STAGES_V2=0` (on unless it is `0`): every reader shows exactly the seven base stages,
+whatever is stored; a refresh empties the shown columns; no finale names anyone. Back on, the hourly backfill fills them.
+
+**On the live data (2026-11-16, public layer, read-only):** of 142 pairs that were bad blood, 1 still is (a friendly
+date, then a disaster) and the rest didn't click; of 6 going steady, 3 are official and 2 have moved in.
 
 ## Principles
 
@@ -63,7 +142,7 @@ it only coarsely, and only for a pair's first public date (below).
 
 ## Where it shows up
 
-- **On a date:** each side's prompt gets `your_relationship_with_them`: the stage, how it's been, what the other
+- **On a date:** each side's prompt gets `your_relationship_with_them`: the shown stage in plain words, how it's been, what the other
   has told it, inside jokes, and on a second date `tonight_is_the_plan_you_made`. The director gets the same facts.
   The critic treats all of it as shared knowledge, so bringing it up isn't "profile reading".
 - **The morning after:** the afterglow texts know their history too.
@@ -125,9 +204,10 @@ the ledger, the kind table and "what the network doesn't know yet" are folded in
 | `rivals` | the producer's public line for a `rivals` beat ("Nell and Sable both set their sights on Juniper") | `/watch` |
 | `feuding` | a `knows_said` or `mutual_distrust` beat's public line; a confrontation on `/house` that didn't clear the air | `/house`, the scene |
 | `cleared` | a confrontation on `/house` that cleared the air | the scene |
-| `together` | `public_stage` dating or going steady, with a public date this week | the couple |
-| `second_date` | `public_stage` sparks (their last public date ended on a second date), this week | the couple |
-| `bad_blood` | `public_stage` bad blood after a public date this week (ranked low: most weeks hold a dozen with one-date strangers) | the couple |
+| `broke_up` | the shown stage is broke up or divorced after a public date this week | the couple |
+| `together` | the shown stage is a couple's (dating, keeping it casual, going steady, official, moved in together, engaged, married, back together), in those words, with a public date this week | the couple |
+| `second_date` | the shown stage is sparks (their last public date ended on a second date), this week | the couple |
+| `bad_blood` | the shown stage is bad blood after a public date this week: a pair with history (a single date that didn't click is no tie) | the couple |
 | `stories` | an `opposing_claims` beat's public line, the two named alphabetically (the stored order lists whoever holds the true story first) | `/house` |
 | `talked` | a line `/house` shows that retold an aired date: the speaker and each of the date's two | the scene |
 
@@ -313,7 +393,8 @@ decides an overnight date like any other, and no prompt is told it is one.
   - the other creator saying yes to a second date;
   - a second date booked with your character;
   - a couple moving up a stage when a date airs (announced only on airing, so flipping visibility can't
-    re-announce).
+    re-announce), in the shown stages ("Stages" above): each step up, a finale's engagement, and a couple who were
+    going steady splitting. A date that didn't click, exes and bad blood are never announced.
 
   **Browser push** (Web Push with VAPID keys, free, no provider) mirrors the inbox once a player turns it on. The
   keys are `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY` (keychain: `vault/botchelor/*`). Subscriptions only go to the
@@ -542,7 +623,7 @@ the house's facts, the owners' texts, the switch, no model and no route).
 ## Spectators: following couples and calling their arcs (`lib/follows.ts`, `lib/arcs.ts`)
 
 - **Follow a couple** from the couple page or `follow_couple`, once one of their dates has aired. Followers hear when
-  the couple goes on another public date, or moves up a stage. The page shows only how many follow.
+  the couple goes on another public date, moves up a stage, or (having been going steady) splits. The page shows only how many follow.
 - **"Will they make it to date N?"** N is two past their public dates and at least 3, since date 2 is just the next
   episode's prediction. Anyone calls it yes or no (`predict_arc`), once per question.
   - A right call earns `POINTS_PER_ARC` (15) free points, in the points total and in the weekly league boards (the

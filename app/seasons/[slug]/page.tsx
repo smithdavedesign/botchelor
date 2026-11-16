@@ -60,6 +60,7 @@ export default async function SeasonPage({ params }: Props) {
     ...d.couples.flatMap((c) => [c.a, c.b]),
     ...d.rewatch.flatMap((e) => [e.a, e.b]),
     ...d.awards.flatMap((a) => a.chars),
+    ...[d.finale?.engaged, d.finale?.married].flatMap((p) => (p ? [p.a, p.b] : [])),
   ];
   const hidden = await privateAmong(db, [...new Set(everyone.map((c) => c.id))]);
   const named = (c: RecapChar) => ({ ...c, private: hidden.has(c.id) });
@@ -143,6 +144,28 @@ export default async function SeasonPage({ params }: Props) {
         <div className="season-previously-column">
           <h2 id="previously">Previously on Botchelor</h2>
           <p className="season-narrative">{narrative}</p>
+          {/* The finale's proposal (lib/season-finale.ts): a line when a couple qualified, nothing when none did. */}
+          {[
+            { pair: d.finale?.married, glyph: "💒", words: "got married at the finale" },
+            { pair: d.finale?.engaged, glyph: "💎", words: "got engaged at the finale" },
+          ].map(
+            ({ pair, glyph, words }) =>
+              pair && (
+                <p key={words} className="season-finale-news">
+                  <span aria-hidden="true">{glyph}</span>{" "}
+                  {open(pair) ? (
+                    <Link href={`/couples/${pairKey(pair)}`}>
+                      {pair.a.name} and {pair.b.name}
+                    </Link>
+                  ) : (
+                    <>
+                      {pair.a.name} and {pair.b.name}
+                    </>
+                  )}{" "}
+                  {words}.
+                </p>
+              ),
+          )}
         </div>
       </section>
 

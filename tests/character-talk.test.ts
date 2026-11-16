@@ -254,6 +254,8 @@ const panelTag = (html: string, id: string) => html.match(new RegExp(`<div data-
 
 /** A house with a week of story around Rafe, and everything a viewer may not see planted beside it. */
 async function seed() {
+  // History first, then the disaster: bad blood with cause (one date that ended badly "didn't click", and is no friction).
+  await episode(RAFE, JUNIPER, { ending: "friends" });
   const aired = await episode(RAFE, JUNIPER, { ending: "disaster" });
   const unaired = await episode(RAFE, MARISOL, { revealedAt: null });
   const hiddenDate = await episode(RAFE, TEO, { visibility: "private" });

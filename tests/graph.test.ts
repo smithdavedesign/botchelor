@@ -340,7 +340,12 @@ describe("Tier 3: what the Constellation adds, and that a private character stil
     expect(long).toMatchObject({ total: 34, truncated: true });
     expect(long.timeline).toHaveLength(TIMELINE_KEPT);
     expect(long.timeline[0].at).toBe(new Date(Date.UTC(2026, 8, 5)).toISOString());
-    expect(long.timeline.every((step) => step.stage === "💍 Going steady")).toBe(true);
+    // The shown stage (lib/relationship-stages.ts): the kept 30 start at their fifth date, and ten in a row is moved in.
+    expect(long.timeline.slice(0, 2).map((step) => step.stage)).toEqual(["💍 Going steady", "💑 Official"]);
+    expect(long.timeline.slice(5).every((step) => step.stage === "🏡 Moved in together")).toBe(true);
+    // RELATIONSHIP_STAGES_V2=0: the seven base stages, as before.
+    const base = publicTimeline(Array.from({ length: 34 }, (_, i) => ({ at: new Date(Date.UTC(2026, 8, 1 + i)).toISOString(), ending: "second_date" as const })), { RELATIONSHIP_STAGES_V2: "0" });
+    expect(base.timeline.every((step) => step.stage === "💍 Going steady")).toBe(true);
   });
 
   it("how their first public date came about: coarse, and every recorded way has an answer", () => {
