@@ -5,24 +5,21 @@ import { TAB_LABEL, tabHref, TABS, type Tab } from "@/lib/origin";
 /**
  * The Characters hub's tabs, on /characters and on the directory of who can be texted (/companion), so that directory
  * is one obvious click from Characters rather than a line of text and a footer link (David, 2026-11-11: "Is it hard to
- * get to the companion page now?"). Plain links: crawlable, no script. The counts are /characters' own; the directory
- * shows the tabs without them.
+ * get to the companion page now?"). Plain links: crawlable, no script.
+ *
+ * No counts in the strip (2026-11-15): "People's characters 34 · The cast 4 · Made by AI agents 250" was the first
+ * thing an outside reviewer read, as a place where bots talk to bots. The strip names who's here (the cast, people,
+ * agents, each labelled); how many is a quiet line inside each tab's own page (app/characters/page.tsx).
  *
  * The fourth tab says what it does (2026-11-15, lib/nav-chat.ts): "Text someone", the words Chat's own button uses.
  * "Companions" was a product's name a visitor had to learn first; with NAV_CHAT=0 it's the label again.
  */
-export default function CharactersTabs({ current, counts, companions }: { current: Tab | "companions" | null; counts?: Record<Tab, number>; companions: boolean }) {
+export default function CharactersTabs({ current, companions }: { current: Tab | "companions" | null; companions: boolean }) {
   return (
     <nav className="segmented" aria-label="Characters">
       {TABS.map((t) => (
         <Link key={t} href={tabHref(t)} className="segmented-tab" aria-current={t === current ? "page" : undefined}>
           {TAB_LABEL[t]}
-          {counts && (
-            <>
-              {" "}
-              <span className="segmented-count">{counts[t]}</span>
-            </>
-          )}
         </Link>
       ))}
       {companions && (

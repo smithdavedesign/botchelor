@@ -10,7 +10,7 @@ import Pager from "@/app/Pager";
 import JsonLd from "@/app/JsonLd";
 import OriginBadge from "@/app/OriginBadge";
 import { forViewer, shared } from "@/lib/shared-cache";
-import { isInsider } from "@/lib/crowd-threshold";
+import { crowdLine, isInsider } from "@/lib/crowd-threshold";
 import { getDb } from "@/lib/db";
 import TalkButton from "@/app/companion/TalkButton";
 import CharactersTabs from "./CharactersTabs";
@@ -205,6 +205,12 @@ function SearchForm({ q }: { q: string }) {
  * real people's characters over bots whenever the show picks who to feature); the agent-made list is folded for a
  * stranger, open for someone with a character of their own (lib/crowd-threshold.ts isInsider). Above the tabs, a
  * search (?q=) across all of them (design audit 2026-11-14).
+ *
+ * What a stranger meets is a show with a cast and a community, not a database (2026-11-15: an outside reviewer read
+ * the strip's "34 against 250" as bots talking to bots). So: the hub opens on the cast, the season's faces, who the
+ * show is about and who a newcomer's first date is with; the strip carries no numbers (CharactersTabs); each made-by
+ * tab says how many in a quiet line of its own (people's by the empty-room rule, the agents' on their fold); and
+ * someone with a character gets a line to it under the heading, so "mine" is never a hunt through a tab.
  */
 export default async function CharactersPage({ searchParams }: Props) {
   const sp = await searchParams;
@@ -227,7 +233,6 @@ export default async function CharactersPage({ searchParams }: Props) {
     viewerCharacter(db, viewerId).catch(() => null),
     stepInAccessFromCookies(db, auth, store).catch(() => null),
   ]);
-  const count: Record<Tab, number> = { cast: season.length, people: counts.people, agents: counts.agents };
   const viewer: Viewer = { userId: viewerId, mine, stepIn: stepIn?.kind === "member" || stepIn?.kind === "guest", stepInEntry: stepIn !== null && (mine !== null || stepIn.kind === "sign_in") };
 
   return (
@@ -243,10 +248,16 @@ export default async function CharactersPage({ searchParams }: Props) {
         </Link>
       </div>
       <p className="muted">Everyone on the show: the cast, and the characters people and AI agents made.</p>
+      {/* An owner's way to their own (lib/character-verb.ts viewerCharacter: their newest), whichever tab is open. */}
+      {mine && (
+        <p className="muted small characters-yours">
+          Yours: <Link href={`/characters/${mine.id}`}>{mine.name}</Link> · <Link href="/account#your-characters">all your characters</Link>
+        </p>
+      )}
       {/* The companions' directory is the fourth tab (David, 2026-11-11), not a line under three. */}
       <SearchForm q={q} />
       {/* A search is across every tab, so no tab is the current one while it shows. */}
-      <CharactersTabs current={q ? null : tab} counts={count} companions={companionOpen()} />
+      <CharactersTabs current={q ? null : tab} companions={companionOpen()} />
       {/* Awaited here, not rendered as async components, so the whole page is one server render (and testable). */}
       {q ? await searchResults(q, viewer) : tab === "cast" ? await castTab({ season, thisId, castIds, now, pairsPage: parsePage(sp.pairs), viewer }) : await madeByTab({ tab, page: pageOf(sp.page), privateCount: counts.private, viewer, insider })}
     </article>
@@ -487,13 +498,16 @@ async function madeByTab({ tab, page, privateCount, viewer, insider }: { tab: "p
   const list = await forViewer(viewer.userId, `characters:${tab}:${page}`, () => listTab(db, tab, page));
   const verbs = await cardVerbs(viewer, list.entries.filter((e) => !e.private).map((e) => e.id));
   const what = tab === "people" ? "characters made by people" : "characters made by AI agents";
+  // How many people's characters, said here and not on the tab; to a stranger only from CROWD_MIN up (the empty-room
+  // rule, lib/crowd-threshold.ts: "2 characters" is a sign saying nobody's here).
+  const peopleCount = tab === "people" ? crowdLine(list.total, { one: "character", many: "characters" }, { insider }) : "";
   return (
     <section>
       <JsonLd data={itemListJsonLd(`Botchelor: ${what}`, list.entries.filter((e) => !e.private).map((e) => ({ name: e.name, path: `/characters/${e.id}` })))} />
       <p className="muted">
         {tab === "people" ? (
           <>
-            Original characters people built on the site. <Link href="/create">Make your own</Link>.
+            {peopleCount ? `${peopleCount} people built on the site.` : "Original characters people built on the site."} <Link href="/create">Make your own</Link>.
           </>
         ) : (
           <>
@@ -510,8 +524,8 @@ async function madeByTab({ tab, page, privateCount, viewer, insider }: { tab: "p
       </p>
       {list.entries.length ? (
         tab === "agents" ? (
-          // Folded for a stranger (the count stays on the tab), open for someone with a character: people's characters
-          // lead; the bots are there for whoever wants them. A later page is wanted, so it opens.
+          // Folded for a stranger (the count is here, on the fold, never in the tab strip), open for someone with a
+          // character: people's characters lead; the bots are there for whoever wants them. A later page is wanted, so it opens.
           <details className="ux-fold agents-fold" open={insider || page > 1}>
             <summary>
               {list.total} {list.total === 1 ? "character" : "characters"} made by AI agents
