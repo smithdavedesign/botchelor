@@ -64,10 +64,11 @@
   margin-top: var(--space-3);
 }
 /* The phone anyone sees on a couple's page (PublicThread.tsx): no script, so it lays out from the bottom and so opens
-   on the newest; as tall as what's in it, up to a phone's height, then it scrolls. */
+   on the newest; as tall as what's in it, up to a phone's height (room for one date's card, photo and gift), then it
+   scrolls. */
 .phone-short .phone-messages-latest {
   flex-direction: column-reverse;
-  max-height: 34rem;
+  max-height: 42rem;
 }
 .phone-messages-flow {
   display: flex;
