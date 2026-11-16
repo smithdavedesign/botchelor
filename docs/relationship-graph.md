@@ -564,9 +564,10 @@ concrete thing with a one-line note, and the other says one line back: "🎁 Jun
 - **Only the public record.** A gift is written only for a date that aired publicly between two public characters and
   wasn't reported away, from public facts: where the date was, how it ended, how the pair stands on the public layer
   (read through `loadRelationship`, never written), both public sheets, and a line from the aired transcript.
-- **When** (`giftChance`, dealt by the date's id, so the same date always answers the same): 10% after a first date,
-  25% for a pair finding its feet, 40% dating, 60% going steady (or any steadier stage), 12% when they parted as
-  friends, never for a pair on bad terms. After a disaster, only when the record says who was wronged (walked out on,
+- **When** (`giftChance`, dealt by the date's id, so the same date always answers the same), by where the pair stands
+  as the show says it (the shown stage): 10% after a first date, 25% for a pair finding its feet or keeping it casual,
+  40% dating or back together, 60% steady (going steady, official, moved in, engaged, married), 12% when they parted
+  as friends, never for a pair apart or on bad terms (exes, broke up, divorced, bad blood, didn't click). After a disaster, only when the record says who was wronged (walked out on,
   or turned down), and then 15%: a peace offering from the other one. A stage this code doesn't know is read by its
   name, else as an ordinary couple. At most **one a pair in 7 days**, one a date.
 - **Who** (`giftGiver`): never the side that was walked out on or turned down, whatever the ending; otherwise dealt by

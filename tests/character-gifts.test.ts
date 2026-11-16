@@ -82,9 +82,13 @@ describe("the rules (lib/gift-catalog.ts)", () => {
     expect(giftChance(facts({ stage: "sparks", dates: 2 }))).toBe(0.25);
     expect(giftChance(facts({ stage: "dating", dates: 3 }))).toBe(0.4);
     expect(giftChance(facts({ stage: "going_steady", dates: 5 }))).toBe(0.6);
+    // The longer list of stages (lib/relationship-stages.ts): steady ones, the ones apart, and the ones in between.
+    for (const stage of ["official", "moved_in", "engaged", "married"]) expect(giftChance(facts({ stage, dates: 6 })), stage).toBe(0.6);
+    for (const stage of ["broke_up", "divorced", "didnt_click"]) expect(giftChance(facts({ stage, dates: 3 })), stage).toBe(0);
+    expect(giftChance(facts({ stage: "back_together", dates: 5 }))).toBe(0.4);
+    expect(giftChance(facts({ stage: "casual", dates: 3 }))).toBe(0.25);
     // A stage this file has never heard of is read by its name, or as an ordinary couple: never a crash.
     expect(giftChance(facts({ stage: "exclusive", dates: 4 }))).toBe(0.6);
-    expect(giftChance(facts({ stage: "moved_in", dates: 6 }))).toBe(0.6);
     expect(giftChance(facts({ stage: "keeping_it_casual", dates: 3 }))).toBe(0.25);
     expect(giftChance(facts({ stage: "broken_up", dates: 3 }))).toBe(0);
     expect(giftChance(facts({ stage: null, dates: 3 }))).toBe(0.25);

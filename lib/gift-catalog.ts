@@ -20,6 +20,7 @@
  * makes them rarer or more frequent (`giftRate`).
  */
 import { seedFrom } from "./engine";
+import { APART_STAGES, isStage, STEADY_STAGES } from "./relationship-stages";
 import type { Ending } from "./rules";
 import type { Tone } from "./sheet-tone";
 import type { GiftReaction } from "./text-chain-shared";
@@ -170,8 +171,9 @@ export type GiftFacts = {
   episode_id: string;
   ending: Ending;
   /**
-   * How the pair stands on the public record after this date (lib/relationships.ts public stage). A plain string: the
-   * stages grow, and one this file doesn't know is read by what its name says, or as an ordinary couple.
+   * How the pair stands on the public record after this date, as it is shown (lib/relationships.ts public `shown`,
+   * lib/relationship-stages.ts). A plain string: the stages grow, and one this file doesn't know is read by what its
+   * name says, or as an ordinary couple.
    */
   stage: string | null;
   /** Their public aired dates so far, this one included. */
@@ -180,13 +182,19 @@ export type GiftFacts = {
   injured: "a" | "b" | null;
 };
 
-const COLD_STAGE = /blood|^ex(?:es)?$|broke|split|divorc|feud/i;
-const STEADY_STAGE = /steady|exclusive|moved|living|engag|married|partner/i;
+const COLD_STAGE = /blood|^ex(?:es)?$|broke|split|divorc|feud|didnt/i;
+const STEADY_STAGE = /steady|official|exclusive|moved|living|engag|married|partner/i;
 
-/** The pair is on bad terms: no gifts but a peace offering. */
-export const coldStage = (stage: string | null): boolean => Boolean(stage && COLD_STAGE.test(stage));
+/**
+ * The pair is apart or on bad terms: no gifts but a peace offering. The stages the show has
+ * (lib/relationship-stages.ts) are read from its own lists; a later one this file hasn't met, by its name.
+ */
+export const coldStage = (stage: string | null): boolean =>
+  Boolean(stage && (isStage(stage) ? APART_STAGES.includes(stage) || stage === "bad_blood" || stage === "didnt_click" : COLD_STAGE.test(stage)));
 /** The pair is an established couple: gifts come most often, and land best. */
-export const steadyStage = (stage: string | null): boolean => Boolean(stage && STEADY_STAGE.test(stage));
+export const steadyStage = (stage: string | null): boolean => Boolean(stage && (isStage(stage) ? STEADY_STAGES.includes(stage) : STEADY_STAGE.test(stage)));
+/** Seeing each other in earnest, short of steady: dating, or back together. Keeping it casual is not. */
+const datingStage = (stage: string | null): boolean => stage === "dating" || stage === "back_together";
 
 /** Which kind of gift this date could bring. */
 export const giftOccasion = (f: Pick<GiftFacts, "ending" | "dates">): GiftOccasion =>
@@ -196,9 +204,10 @@ export const giftOccasion = (f: Pick<GiftFacts, "ending" | "dates">): GiftOccasi
  * The chance (0..1) that this date brings a gift.
  *  - a disaster: 0.15, and only when the record says who was wronged (the other one sends a peace offering); when
  *    it simply went badly for both, nobody sends anything;
- *  - a pair on bad terms otherwise: never;
+ *  - a pair apart or on bad terms otherwise (exes, broke up, divorced, bad blood, didn't click): never;
  *  - friends: 0.12;
- *  - a second date wanted: 0.1 after a first date, 0.25 for a pair finding its feet, 0.4 dating, 0.6 steady.
+ *  - a second date wanted: 0.1 after a first date, 0.25 for a pair finding its feet or keeping it casual, 0.4 dating
+ *    or back together, 0.6 steady (going steady, official, moved in, engaged, married).
  */
 export function giftChance(f: GiftFacts): number {
   if (f.ending === "disaster") return f.injured ? 0.15 : 0;
@@ -206,7 +215,7 @@ export function giftChance(f: GiftFacts): number {
   if (f.ending === "friends") return 0.12;
   if (f.dates <= 1) return 0.1;
   if (steadyStage(f.stage)) return 0.6;
-  return f.stage === "dating" ? 0.4 : 0.25;
+  return datingStage(f.stage) ? 0.4 : 0.25;
 }
 
 /**

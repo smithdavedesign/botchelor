@@ -116,8 +116,9 @@ export async function giftAfterAir(db: Db, episodeId: string, opts: { now?: Date
     ]),
   ]);
   if (recent.rows.length) return null;
-  // How they stand on the public record after this date (lib/relationships.ts: read, never written here).
-  const facts: GiftFacts = { episode_id: ep.id, ending: ep.ending, stage: rel?.public.stage ?? null, dates: Math.max(1, rel?.public.dates ?? 1), injured: injuredSide(ep) };
+  // How they stand on the public record after this date, as the show says it (lib/relationships.ts: the shown stage,
+  // read and never written here; a gift is flavour, not one of the rules that read the base stage).
+  const facts: GiftFacts = { episode_id: ep.id, ending: ep.ending, stage: rel?.public.shown ?? rel?.public.stage ?? null, dates: Math.max(1, rel?.public.dates ?? 1), injured: injuredSide(ep) };
   if (!giftHappens(facts, env)) return null;
 
   const side = giftGiver(facts);
