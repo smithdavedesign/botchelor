@@ -12,13 +12,14 @@
  *                   Best-effort: a failure leaves it empty.
  *   3. recap      — the narration, written FROM the conversation when there is one, so the recap and the lines
  *                   agree and the best line is a line that was actually said. Fails closed: no recap, no episode.
- *   4. afterglow  — the morning-after texts, which now remember the date. Best-effort.
+ *   4. afterglow  — the morning-after texts, which now remember the date. Best-effort: a failed text ends the
+ *                   exchange there and the texts before it are kept.
  *
  * The engine has already decided the outcome. The one thing that can still move it, with `wishes` on: once the
  * conversation is in, each character's own last read of the other (its interest) weighs in, one step at most and only
  * when both agree (lib/wishes.ts); the recap, afterglow and reflections then follow the ending as it stands.
  */
-import { simulateAfterglow, type AfterglowLine } from "./afterglow";
+import { AfterglowError, simulateAfterglow, type AfterglowLine } from "./afterglow";
 import { planDate, rulesPlan, type DatePlan } from "./beats";
 import type { Character } from "./character";
 import { bestLine, ConversationError, simulateConversation, type Turn } from "./conversation";
@@ -151,6 +152,7 @@ export type GeneratedDate = {
   conversationError: unknown;
   /** When it did: the lines said before it failed (J1), for the episode to keep and the backfill to finish from. */
   partialTranscript: Turn[];
+  /** Why the morning-after texts stopped short or weren't written, when they did (content-free; for the logs). */
   afterglowError: unknown;
 };
 
@@ -305,11 +307,14 @@ export async function generateDate(
   const ghost = ghostSide(seeAgain, built.seed);
   let afterglow: AfterglowLine[] = [];
   let afterglowError: unknown = null;
-  // The morning-after texts. Best-effort: a failure is kept for the logs and the date goes on without them.
+  // The morning-after texts. Best-effort: a text that fails ends the exchange there and the texts before it are kept
+  // (lib/afterglow.ts); why it stopped, or why there are none, is kept for the logs and the date goes on.
   const text = async (): Promise<void> => {
     if (!opts.afterglow) return;
     try {
-      afterglow = await simulateAfterglow(actor.model, built.input, outcome, characters, venueId, opts.formatId, opts.talk?.texts, opts.formatCtx, transcript, keyForSide, ghost);
+      afterglow = await simulateAfterglow(actor.model, built.input, outcome, characters, venueId, opts.formatId, opts.talk?.texts, opts.formatCtx, transcript, keyForSide, ghost, (reasons) => {
+        afterglowError = new AfterglowError(reasons);
+      });
     } catch (err) {
       afterglowError = err;
     }
