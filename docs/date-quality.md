@@ -199,6 +199,10 @@ friends". A disaster is a clear no whose cause everyone saw in act two.
 note, dealbreaker) in a side's beats, and of either side's in the shared scenes and spine. A leaking field is
 replaced by its rules version. The guarantee doesn't rest on the model obeying.
 
+Since 2026-11-16 a rules plan also carries **the turn** (`lib/date-turn.ts`, `EARNED_ENDINGS`): the one moment
+mid-date that a bad ending comes from, as each speaker's private note for two or three consecutive lines. See "Round:
+endings the dialogue earns".
+
 ## Voice and pronouns
 
 Every character now has **pronouns** (she/her, he/him, they/them, optional) and a **voice** (up to 200
@@ -1225,3 +1229,132 @@ neither; no director call before line 1 for the classic, the speed date and a tw
 order with `DATE_PLAN_AT_NIGHT=0`; `generated_with.plan`; a house date taking its reserved id and its plan, the engine's
 decision the same as without one, a date that turned out differently playing from the rules, a plan used once and only
 by its own pair on its own day; the night director's prompt; the want and the heard-claim guards; the fit key.
+
+## Round: endings the dialogue earns (2026-11-16)
+
+The round above ended on a finding: **the rules plan's disasters are not earned** (the judge's "motivated" 2.0 of 5).
+The engine decides a date before a word is spoken, and the rules plan tells each actor where each act takes them, in
+feelings: "by the end of this act something in you has started to cool". Two agreeable actors given a feeling and no
+cause find no reason to cool, so the date plays warm to its last line and then ends badly. This round gives the rules
+plan the cause, as something that happens on the page. The code is [`lib/date-turn.ts`](../lib/date-turn.ts).
+
+**The turn.** A rules plan now carries one moment, a third of the way into the date: two or three consecutive lines
+(one sets it up, one does it, one takes it), and where that leaves each of them for every line after. Each line's note
+goes only to its own speaker, on that one line (`this_moment`); the rest of the night each side reads where it was left
+(`since_then`). It is built by rules, with no model call, from what each side's prompt may already see:
+
+| The date ends | It turns on | Who is told what |
+|---|---|---|
+| a disaster | a dealbreaker the engine says was tripped | its owner reacts to its own dealbreaker; the other is only told to be fully themselves, never what the dealbreaker is |
+| | else something one has been told about the other (its own story state: told by someone, never one already brought up, never a date it only watched air) | the one who was told raises it to their face, with who said it; the other is told only that something being said about them was just repeated |
+| | else an agenda the engine says didn't pay off | its owner makes the opening (its own aim); the other does the thing that fails it (the behaviour its beat always asked for "at some point", now on one line, and never why it matters) |
+| | else two opinions that collide (each side's own hot take) | each says its own |
+| | else a want the engine says went unmet | its owner tests for it; the other is told their honest answer isn't the hoped-for one |
+| "just friends" | a friend's line | one says the thing you only say to a friend; the other hears that it's true for them as well |
+| a second date, with a missed agenda | a wobble | the same opening and miss, then the one who caused it meets it honestly and the other lets it go; nothing after |
+| a second date with nothing missed | nothing | the date plays from its beats, exactly as before |
+
+After a disaster's turn each side that the engine says doesn't want another date stays cooler to the end ("shorter
+answers, no new questions about their life, no plans"), civil, without explaining it; after a friends turn both are
+easy company with no flirting. The side it lands on is the one the engine's drama names (who leaves first, who turns
+the other down), else the date's seed picks. It sits by the date's planned length: lines 5 to 7 or 6 to 8 of twelve,
+2 to 4 or 3 to 5 of a speed date's six, never the opening line and never the last; a wobble needs twelve lines.
+
+**What it never does.** It reads the engine's decision and writes nothing to it: the ending, the box score, each side's
+verdict and the drama are what they were, and the characters' own "see them again?" (engine v5, `applyChoices`) is asked
+afterwards and weighs in by its own rules as before. It is on a plan the rules wrote for a date the show's model plays
+whole (`lib/pipeline.ts`): a plan the producer wrote at night or a director's is left as written, and an agent's own
+date, a stepped-in date and a backfill don't get one (half the moment would be somebody the note never reached).
+Privacy is the beats': a note carries its own side's private words only, and a test checks every kind against the other
+side's want, dealbreaker and agenda.
+
+**Measured** (`scripts/eval/earned-endings.eval.ts`, the harness of the round above): nine fixed dates the engine
+decides as four disasters, three "just friends" and two second dates, each generated by the real pipeline on the show's
+model (Haiku 5.5) from the rules plan with the switch off ("before") and on ("after"), scored by the repo's judge
+(`lib/judge.ts`). Twelve dates an arm: the nine once, and three of them a second time in each arm.
+
+| The seven dates that end badly (each date's runs averaged) | Before | After | |
+|---|---|---|---|
+| Motivated (is the ending earned?) | 2.57 | **3.43** | ahead on 4, level on 1, behind on 2 (both friends) |
+| the four disasters | 2.25 | **3.5** | 2→4, 1→3, 2→3, and the one already at 4 stayed 4 |
+| the three "just friends" | 3.0 | 3.33 | 3.5→3, 3.5→3, 2→4 |
+| Natural | 3.43 | 3.21 | level on 4, behind on 2 (a point each), ahead on 1 (half a point) |
+| Judge, mean of seven scores | 3.78 | 3.76 | level |
+| Lines in a twelve-line disaster | 12 | 9 to 10 | they stop when it's over |
+| Model calls a date | 15 to 20 | 13 to 20 | no call added |
+
+**The noise**, measured: five pairs of dates were generated from the very same prompts (one date with no turn in
+either arm, three "before" dates run twice, one "after" date run twice). Between the two runs of a pair, "motivated"
+differed by a point on three of five and "natural" by a point on four of five. So a single date's score is good to
+about a point, the natural column's 0.2 is well inside that (the first nine dates alone showed 0.4; the second runs
+halved it), and the disasters' 1.25 is not. "Just friends" did not move beyond it either way: the judge wants to see a
+romantic signal raised and declined, and a friend's line ("You remind me of my sister Hesper" / "thank God. I was
+bracing for a love song and you've handed me a sister instead") reads as a cause to a viewer more than to the judge.
+The first version turned friends on a missed agenda, gently; measured (4→3, 3→3) it showed the miss and never said why
+it wasn't a romance, so friends now always turn on the friend's line.
+
+**The characters' own answers** (asked as the live show asks them, not applied in the eval). On the five "before"
+disasters the two sides answered maybe/maybe, yes/maybe, yes/yes, no/no, no/no, and the yes/yes would have moved the
+engine's disaster up to "just friends": a warm date talks its own actors out of the ending. On the five "after"
+disasters every date had a no (maybe/no twice, no/no three times) and none would have moved.
+
+One date, before and after (Mira × Dex, a disaster; his agenda is to test whether she means what she says):
+
+> **Before**, the last two lines. *Mira:* Guilty. There's a route on the back and I keep trying to make it reach the
+> end, and it keeps looping back to the depot. Four checks a bowl, though? I'd rather be checked than be sure too, Dex.
+> That's the nicest thing anyone's said to me over a napkin. *Dex:* That's a nice line to get off a napkin. I mean it.
+> But you've been looping that route for a while now, so I'm asking whether you meant it or just wanted the route to
+> reach the end. *(The judge: "nothing in it leads to the decided disaster.")*
+
+> **After**, from line 6 to line 9. *Dex:* […] Can I ask you something straight, though? What's the thing you've been walking in
+> circles about since the bakery? You don't have to answer. I'll wait. *Mira:* Straight questions, on a street with one
+> song on loop? Bold. Busker's policy is second song first, and nobody's heard it yet, so I'm off the hook. Quick,
+> which way is north from here? *Dex:* North's behind you, past the bakery. I'll let you have the joke. But I asked you
+> a real thing, and you handed me a busker's policy. That's fine. You don't owe me the walking circles. I just won't
+> pretend I didn't notice. *Mira:* Fair. I do hand people the policy instead of the answer, and you noticed. I'd rather
+> be honest than charming, and I'm not going to walk you through the circles tonight. So I'll say it plainly: this
+> isn't going anywhere for me.
+
+What it costs in writing: the judge's notes on the "after" dates name the same things as on the "before" ones (stage
+directions, quips traded too neatly), and twice a note's own words came through in a line ("That one fell flat on the
+sand, Wally, and I won't pretend it didn't"). Endings are polite rather than explosive, by the notes' own wording
+("civil", "no scene"): a disaster here is a clear no for a reason everyone saw, which is what the engine's reading of
+it says.
+
+**The switch**: `EARNED_ENDINGS`, **on** by default (the rule set before measuring: on only if "motivated" rose without
+"natural" falling by more than the noise). `EARNED_ENDINGS=0` on the show's app plays every date from its beats alone,
+exactly as before, without a deploy of code. `generated_with.turn` on the episode records the kind (`heard`, `agenda`,
+`want`, `friends`, `wobble`, …; null when the date had none), and `PROMPT_VERSION` is `2026-11-16.earned-endings`.
+
+**Checking it in production.** Do the dates the engine decides badly still get talked out of it by their own actors?
+
+```sql
+-- by the engine's own ending (wishes.engine) and the turn the date got: how many the two's answers moved, and how long they ran
+select e.wishes->>'engine' engine_ending, e.generated_with->>'turn' turn, count(*) n,
+       count(*) filter (where e.wishes->>'engine' is distinct from e.ending) moved_by_their_answers,
+       round(avg(jsonb_array_length(e.transcript)), 1) lines
+  from episodes e
+ where e.status = 'ready' and e.performed_by = 'platform' and e.wishes ? 'engine' and e.created_at > now() - interval '14 days'
+ group by 1, 2 order by 1, 2;
+```
+
+The fortnight before it shipped (run 2026-11-16, every row's turn null): 109 disasters of which 16 were moved by the
+two's answers, 123 "just friends" of which 16, 107 second dates of which none.
+
+**Spend**: 29¢ on OPENROUTER_LOOP_KEY (24 dates, their judging and the two answers each), five small runs, one at a
+time. About 1.2¢ a date. The runs are in `docs/eval/earned-endings/`.
+
+**Running it** (never the live show's quota):
+
+```sh
+EARNED_EVAL_KEY="$(security find-generic-password -s vault/botchelor/OPENROUTER_LOOP_KEY -w)" EARNED_EVAL_OUT=<dir> \
+  npx vitest run --silent=false --config scripts/eval/vitest.eval.mts scripts/eval/earned-endings.eval.ts
+# EARNED_EVAL_ARMS=before|after, EARNED_EVAL_CASES=mira-dex,teo-nell, EARNED_EVAL_TAG names the output, EARNED_EVAL_MAX_USD the cap (0.25).
+# EARNED_EVAL_LIST=1 (no key): what the engine decides for the cases, and each one's turn.
+```
+
+**Tests.** `tests/date-turn.test.ts`: the switch; each kind of turn and its order; nobody's note carries the other
+side's want, dealbreaker or agenda; where the turn sits (a third in, never the first or last line, a wobble only where
+it fits); each line's own note and nothing else; the prompt with and without a turn; `generateDate` with the switch on
+and off (the engine's decision deep-frozen and unchanged, the same lines and ending from a model that answers from the
+lines, no call added, a stored plan left alone, a speed date, the characters' own answers applied by their own rules).
