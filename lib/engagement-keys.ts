@@ -63,3 +63,17 @@ export function msSinceDateStarted(now: number = Date.now(), storage: Storage | 
     return null;
   }
 }
+
+/**
+ * Where a viewer left the theater (the 2026-11-16 Monday read): in 30 days the few outside viewers who pressed Watch all
+ * left within 45 seconds and nobody reached an ending, but nothing said at which line. `theater_left` carries how far
+ * they got (`line` of `of`, `pct`) and how long they stayed (`secs`, capped at an hour), `via` "exit" (the Exit
+ * button) or "hidden" (the tab went away), and `auto` when ?play=1 opened it (a clip's or a season page's link) rather
+ * than the Watch button. Once per opening, never after the ending (that's `date_watched`). Pure.
+ */
+export function theaterLeftProps(input: { line: number; of: number; openedAt: number; now: number; via: "exit" | "hidden"; auto: boolean }) {
+  const of = Math.max(0, Math.floor(input.of));
+  const line = Math.min(of, Math.max(0, Math.floor(input.line)));
+  const secs = Math.min(3600, Math.max(0, Math.round((input.now - input.openedAt) / 1000)));
+  return { via: input.via, line, of, pct: of ? Math.round((100 * line) / of) : 0, secs, auto: input.auto };
+}
