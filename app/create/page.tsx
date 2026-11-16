@@ -6,6 +6,7 @@ import { safeFrom } from "@/lib/age";
 import { episodeAllowance, freshAllowance } from "@/lib/allowance";
 import { formatPrice, PACK_5 } from "@/lib/catalog";
 import { castingLead, leadBilling } from "@/lib/casting";
+import { INVITE_COOKIE, inviteFromCookie, invitePath, isInvitePath } from "@/lib/casting-invite-shared";
 import { ceremonyHourUtc } from "@/lib/ceremony";
 import { createPairHref, readChemistry } from "@/lib/chemistry-test";
 import { listOpenCharacters } from "@/lib/dating";
@@ -37,7 +38,8 @@ type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 /** The dedicated character / AI-agent builder. A stepped wizard, not a wall of fields. */
 export default async function CreatePage({ searchParams }: { searchParams: SearchParams }) {
   const sp = await searchParams;
-  const auth = authFromCookieStore(await cookies());
+  const cookieStore = await cookies();
+  const auth = authFromCookieStore(cookieStore);
   const viewerId = auth?.userId ?? null;
   const db = viewerId ? await getDb() : null;
   const owned = db && viewerId ? await ownedSkus(db, viewerId) : [];
@@ -89,7 +91,10 @@ export default async function CreatePage({ searchParams }: { searchParams: Searc
     ? priceLabelFromEnv(process.env, `${PACK_5.name} for ${formatPrice(PACK_5.price_cents)}`)
     : null;
 
-  const returnTo = await backTo(db ?? (await getDb()), typeof sp.next === "string" ? sp.next : null);
+  // No ?next=, but a casting invite they opened (lib/casting-invite-shared.ts INVITE_COOKIE: the import's way here
+  // carries none): back to it once the character is made.
+  const castingInvite = inviteFromCookie(cookieStore.get(INVITE_COOKIE)?.value);
+  const returnTo = await backTo(db ?? (await getDb()), typeof sp.next === "string" ? sp.next : castingInvite ? invitePath(castingInvite) : null);
   // Two characters from the OC chemistry test's "Watch the real date" (app/tools/oc-chemistry-test/result): the first
   // in the builder, the second alongside. Only a pair the test itself takes; anything else opens the builder as usual.
   const pair = readChemistry(sp);
@@ -144,6 +149,8 @@ async function backTo(db: Awaited<ReturnType<typeof getDb>>, next: string | null
     if (name) return { href, label: `Back to ${name.split(/\s+/)[0]}` };
   }
   if (href.startsWith("/couples/")) return { href, label: "Back to the couple" };
+  // A creator's casting invite (lib/casting-invites.ts): back to it, where one click applies with the new character.
+  if (isInvitePath(href)) return { href, label: "Back to your casting invite" };
   // A "date my OC" link (lib/date-invites.ts): back to it, where one click makes the match.
   const invite = /^\/date\/([a-z0-9]+)/.exec(href)?.[1];
   if (invite) {

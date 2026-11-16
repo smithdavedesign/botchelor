@@ -29,6 +29,11 @@ export default function CastingBoard({ board, viewer }: { board: Board; viewer: 
                 <Avatar seed={a.character_id} name={a.name} hue={a.hue} size={96} portraitSrc={a.portrait} decorative />
                 <strong>{a.name}</strong>
               </Link>
+              {a.creator_handle && a.creator_name && (
+                <p className="small muted casting-credit">
+                  by <Link href={`/creators/${a.creator_handle}`}>{a.creator_name}</Link>
+                </p>
+              )}
               <p className="muted small casting-bio">{a.bio}</p>
               <p className="small">
                 {a.status === "approved" && <span className="chip">Shortlisted</span>}{" "}

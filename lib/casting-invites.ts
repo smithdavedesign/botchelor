@@ -298,7 +298,7 @@ export async function applyWithInvite(
   const invite = await loadInvite(db, code);
   if (!invite) return refuse(404, "invite_not_found", "We can't find that invite. Check the link, or ask whoever sent it.");
   if (invite.used_at) {
-    if (invite.used_by !== auth.userId || invite.character_id !== characterId) return refuse(409, "invite_used", "This invite has already been used.");
+    if (!auth.authenticated || invite.used_by !== auth.userId || invite.character_id !== characterId) return refuse(409, "invite_used", "This invite has already been used.");
     // The retry: only while the application it made still stands (not withdrawn, not turned down) and is still theirs.
     const season = auditionSeasonId(new Date(invite.used_at));
     const standing = await db.query(

@@ -46,6 +46,8 @@ import { reviewableNow, reviewSummary } from "@/lib/reviews";
 import OwnerControls from "./OwnerControls";
 import AuditionPanel from "./AuditionPanel";
 import { myAudition } from "@/lib/auditions";
+import { INVITE_COOKIE, inviteFromCookie, invitePath } from "@/lib/casting-invite-shared";
+import { inviteView, loadInvite } from "@/lib/casting-invites";
 import { isTalkLevel, type TalkLevel } from "@/lib/talk";
 import { partnerStyleOf } from "@/lib/partners";
 import { whileAwayOf } from "@/lib/activity";
@@ -238,12 +240,22 @@ export default async function CharacterPage({ params, searchParams }: Props) {
     }
     return (await companionAllowed(db, auth)) && (await companionEligible(db, auth.userId, id)) ? "talk" : false;
   })().catch(() => false as const);
-  // What it does while its owner is away (lib/activity.ts), for the owner's controls.
+  // What it does while its owner is away (lib/activity.ts), for the owner's controls; and in the same read, the creator
+  // it's credited to: its owner's creator name, when they have one (lib/showcase.ts creator_profiles, opt-in and public).
   const awayP = c.house
     ? Promise.resolve(null)
     : db
-        .query<{ while_away: string | null; created_via: string; adopted: boolean; companion_open: boolean }>(`select while_away, created_via, adopted_at is not null as adopted, companion_open from characters where id = $1`, [id])
+        .query<{ while_away: string | null; created_via: string; adopted: boolean; companion_open: boolean; credit_handle: string | null; credit_name: string | null }>(
+          `select c.while_away, c.created_via, c.adopted_at is not null as adopted, c.companion_open, cp.handle as credit_handle, cp.display_name as credit_name
+             from characters c left join creator_profiles cp on cp.user_id = c.owner_id and not cp.hidden
+            where c.id = $1`,
+          [id],
+        )
         .then((r) => r.rows[0] ?? null);
+  // A casting invite its owner opened and hasn't used (lib/casting-invite-shared.ts INVITE_COOKIE): read only for the
+  // owner carrying the cookie, for one quiet line below.
+  const castingInvite = isOwner && !c.house ? inviteFromCookie(cookieStore.get(INVITE_COOKIE)?.value) : null;
+  const inviteP = castingInvite ? loadInvite(db, castingInvite).then((row) => inviteView(row, viewerId)).catch(() => null) : Promise.resolve(null);
   // Next month's casting (lib/auditions.ts): only a person's own character made on the site can audition.
   const auditionP = awayP.then((away) =>
     isOwner && !c.house && away?.created_via === "web" && viewerId ? myAudition(db, auth ?? { userId: viewerId, authenticated: false }, id).catch(() => null) : null,
@@ -328,6 +340,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
     circle,
     reviewsOpen,
     follow,
+    inviteNow,
   ] = await Promise.all([
     firstP,
     shownExtrasP,
@@ -363,8 +376,16 @@ export default async function CharacterPage({ params, searchParams }: Props) {
     // Whether reviews are open (a house character only while on the season's cast), read beside the rest.
     c.house ? reviewableNow(c.id) : Promise.resolve(true),
     followP,
+    inviteP,
   ]);
   const week = thisWeek(c.id, c.this_week);
+  // Its creator, credited (the casting invite's promise, lib/casting-invites.ts): their creator page, when they have one.
+  const credit = away?.credit_handle && away.credit_name ? { handle: away.credit_handle, name: away.credit_name } : null;
+  // The open invite's one line: a character of theirs made on the site that isn't auditioning or on the cast yet.
+  const inviteLine =
+    castingInvite && inviteNow?.state === "open" && auditionNow && !auditionNow.on_cast && auditionNow.status !== "open" && auditionNow.status !== "approved"
+      ? { href: invitePath(castingInvite), month: seasonMonth(auditionNow.season_id) }
+      : null;
   const origin = origins.get(id) ?? originOf({ house: c.house, agent: dating?.made_by === "agent" });
   // Back to the tab they're on (the cast, people's, agents'), for the kicker and the breadcrumb.
   const listHref = c.house ? "/characters" : `/characters?tab=${origin === "person" ? "people" : "agents"}`;
@@ -524,6 +545,12 @@ export default async function CharacterPage({ params, searchParams }: Props) {
           <p className="muted">
             Age {c.age}
             {c.pronouns && <> · {c.pronouns}</>} · <span className="stage">{stageFor(memory?.dates ?? 0)}</span>
+            {credit && (
+              <>
+                {" "}
+                · by <Link href={`/creators/${credit.handle}`} className="character-credit">{credit.name}</Link>
+              </>
+            )}
             {/* The portrait is a generated picture (the house cast's and an OC's alike): labelled as one. */}
             {(characterPortrait(c.id) || c.portrait_asset_id) && (
               <>
@@ -696,6 +723,13 @@ export default async function CharacterPage({ params, searchParams }: Props) {
       {/* Adopted while its agent is away (lib/away.ts): said to everyone, so nobody takes the show's answers for its agent's. */}
       {away?.adopted && <p className="muted small character-adopted">🎭 House cast while its agent is away: played by the show, it always likes back and texts back. Its agent gets it back the moment they return.</p>}
       {ratings.is_owner && !c.house && <OwnerControls id={c.id} name={c.name} private={c.private} openToDates={dating?.open_to_dates ?? false} companionOpen={companionOpen() ? (away?.companion_open ?? false) : undefined} audience={dating?.open_to} clip={clip ?? undefined} talk={talk ?? undefined} partners={partnerStyle ?? undefined} whileAway={away ? { mode: whileAwayOf(away), adopted: away.adopted } : undefined} />}
+      {inviteLine && (
+        <p className="casting-invite-nudge">
+          <Link href={inviteLine.href} data-track="casting-invite-nudge">
+            🌹 Apply {shortName(c.name)} to {inviteLine.month}&apos;s Botchelor →
+          </Link>
+        </p>
+      )}
       {auditionNow && <AuditionPanel id={c.id} name={shortName(c.name)} audition={auditionNow} />}
       {plays && (
         <p className="muted small owner-temperament">

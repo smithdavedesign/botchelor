@@ -167,6 +167,12 @@ services:
       # - key: OPEN_CASTING
       #   value: "0"
       #   scope: RUN_AND_BUILD_TIME
+      # Creator invites for casting (lib/casting-invites.ts; docs/casting-invites.md): a code from /admin/season skips
+      # the three-date wait, applies shortlisted and books the audition date with the lead. On by default; "0" makes
+      # every invite page say invites are closed and refuses every application, without a deploy.
+      # - key: CASTING_INVITES
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
       # The navigation of 2026-11-15 (lib/nav-chat.ts; docs/flows.md "Navigation"): Watch · Chat · Characters, and the
       # show tabs Watch · House · Reels · Reunion. On by default. "0" brings back the header, the phone's tab bar and
       # the show tabs as they were, without a deploy of code (/chat still works).

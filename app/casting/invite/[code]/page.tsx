@@ -103,8 +103,11 @@ function Offer({ casting, def, label }: { casting: Casting | null; def: SeasonFo
   );
 }
 
-/** The person who used this invite: how their application stands, and the date with the lead (or its retry). */
-async function Yours({ db, code, view, auth }: { db: Db; code: string; view: Extract<InviteView, { state: "yours" }>; auth: Auth }) {
+/**
+ * The person who used this invite: how their application stands, and the date with the lead (or its retry). Read here
+ * and returned as markup (not an async component), so the page renders in one pass.
+ */
+async function yours(db: Db, code: string, view: Extract<InviteView, { state: "yours" }>, auth: Auth) {
   const season = auditionSeasonId(new Date(view.used_at));
   const characterId = view.character_id;
   const [character, audition, casting] = await Promise.all([
@@ -165,8 +168,9 @@ export default async function CastingInvitePage({ params }: Props) {
   const { code } = await params;
   const db = await getDb();
   const auth = authFromCookieStore(await cookies());
-  const view = inviteView(await loadInvite(db, code).catch(() => null), auth?.userId ?? null);
-  if (view.state === "yours" && auth) return <Yours db={db} code={code} view={view} auth={auth} />;
+  // Whose it is (and its retry) only on a signed-in session: an account applied it.
+  const view = inviteView(await loadInvite(db, code).catch(() => null), auth?.authenticated ? auth.userId : null);
+  if (view.state === "yours" && auth) return await yours(db, code, view, auth);
   if (view.state !== "open") return <Gone code={code} state={view.state === "yours" ? "used" : view.state} />;
 
   const now = new Date();

@@ -2,7 +2,9 @@
 // creator by hand. Applying with it skips the three public dates an audition needs (and only that), goes in approved, and
 // books the character's audition date with the casting lead at once, paid by the show. One code, one character.
 import { randomUUID } from "node:crypto";
+import { renderToStaticMarkup } from "react-dom/server";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { beaconPath } from "@/app/funnel";
 import { GET as adminGet, POST as adminPost } from "@/app/api/admin/casting-invites/route";
 import { POST as inviteApply } from "@/app/api/casting/invite/[code]/route";
 import { POST as auditionPost } from "@/app/api/characters/[id]/audition/route";
@@ -10,7 +12,7 @@ import { claimAdmin } from "@/lib/admins";
 import { episodeAllowance } from "@/lib/allowance";
 import { auditionBlocks, auditionSeasonId } from "@/lib/auditions";
 import { CASTING_MET_VIA } from "@/lib/casting";
-import { INVITE_COOKIE, inviteFromCookie, invitePath, isInviteCode } from "@/lib/casting-invite-shared";
+import { INVITE_COOKIE, INVITE_TERMS, inviteFromCookie, invitePath, isInviteCode } from "@/lib/casting-invite-shared";
 import {
   applyWithInvite,
   castingDateWith,
@@ -31,6 +33,19 @@ import { setSeasonFormat, setSeasonFormatForTests } from "@/lib/season-format-st
 import { nextSeasonStart, seasonIdOf, seasonLabel } from "@/lib/season-window";
 import { BASE_URL, episodeJson, jsonRequest, scriptedModel, scriptOutcome, signedInCookie, startTestDb, TEST_SESSION_SECRET } from "./helpers";
 
+// The pages read their cookies through next/headers, and their buttons the router: both stood in for here.
+const jar = vi.hoisted(() => ({ cookies: new Map<string, string>() }));
+vi.mock("next/headers", () => ({
+  cookies: async () => ({ get: (name: string) => (jar.cookies.has(name) ? { name, value: jar.cookies.get(name)! } : undefined) }),
+  headers: async () => new Headers(),
+}));
+vi.mock("next/navigation", async (original) => ({
+  ...(await original<typeof import("next/navigation")>()),
+  useRouter: () => ({ refresh() {}, push() {}, replace() {}, back() {}, prefetch() {} }),
+  usePathname: () => "/",
+  useSearchParams: () => new URLSearchParams(),
+}));
+
 let t: Awaited<ReturnType<typeof startTestDb>>;
 beforeAll(async () => {
   t = await startTestDb();
@@ -43,6 +58,7 @@ let logs: string[] = [];
 beforeEach(async () => {
   await t.reset();
   await t.db.query(`delete from casting_invites`);
+  jar.cookies.clear();
   vi.stubEnv("SESSION_SECRET", TEST_SESSION_SECRET);
   vi.stubEnv("SITE_URL", "https://botchelor.com");
   vi.stubEnv("VERCEL_PROJECT_PRODUCTION_URL", "");
@@ -468,5 +484,84 @@ describe("the switch and the page's states", () => {
     expect(inviteFromCookie(code)).toBe(code);
     expect(inviteFromCookie("not a code")).toBeNull();
     expect(inviteFromCookie(undefined)).toBeNull();
+  });
+});
+
+describe("the invite page (/casting/invite/[code])", () => {
+  const render = async (code: string) => {
+    const Page = (await import("@/app/casting/invite/[code]/page")).default;
+    return renderToStaticMarkup(await Page({ params: Promise.resolve({ code }) }));
+  };
+  /** As the browser sends it: the signed session cookie only. */
+  const signIn = (cookie: string) => {
+    const [name, value] = cookie.split("=");
+    jar.cookies.set(name, value);
+  };
+  const unescape = (html: string) => html.replace(/&#x27;/g, "'").replace(/&quot;/g, '"').replace(/&amp;/g, "&");
+
+  it("is never indexed, and a code that can't be used says so in one line, with the way to the casting", async () => {
+    const { metadata } = await import("@/app/casting/invite/[code]/page");
+    expect(metadata.robots).toEqual({ index: false, follow: false });
+    const unknown = await render("zzzzzzzzzz");
+    expect(unknown).toContain("We can&#x27;t find that invite");
+    expect(unknown).toContain('href="/casting"');
+    expect(unknown).not.toContain("Apply with");
+    const old = await oneCode(1);
+    await t.db.query(`update casting_invites set expires_at = now() - interval '1 minute' where code = $1`, [old]);
+    expect(await render(old)).toContain("This invite has expired");
+    vi.stubEnv("CASTING_INVITES", "0");
+    expect(await render(await oneCode())).toContain("Creator invites are closed right now");
+  });
+
+  it("shows the lead, the offer and the terms; a visitor without a character makes or brings one, and the builder comes back", async () => {
+    await preseason();
+    const code = await oneCode();
+    const html = unescape(await render(code));
+    const lead = HOUSE_CHARACTERS[5];
+    const first = lead.name.split(/\s+/)[0];
+    expect(html).toContain(`You're invited to ${new Date(`${NEXT}T00:00:00Z`).toLocaleDateString("en-US", { month: "long", timeZone: "UTC" })}'s The Botchelor`);
+    expect(html).toContain(lead.name);
+    expect(html).toContain("five suitors, a rose ceremony every Sunday, and the audience votes");
+    expect(html).toContain(`skips the usual three-date wait and goes straight on an audition date with ${first}`);
+    expect(html).toContain(INVITE_TERMS);
+    expect(html).toContain('href="/terms"');
+    expect(html).toContain('href="/content-policy"');
+    expect(html).toContain(`href="/create?next=${encodeURIComponent(invitePath(code))}"`);
+    expect(html).toContain('href="/import"');
+    expect(html).toContain(`/account?next=${encodeURIComponent(invitePath(code))}`);
+    expect(html).not.toContain("Apply with");
+    // The analytics count every invite as one page, never its code.
+    expect(beaconPath(invitePath(code))).toBe("/casting/invite");
+    expect(beaconPath("/gate", `?from=${encodeURIComponent(invitePath(code))}`)).toBe("/casting/invite");
+  });
+
+  it("a signed-in owner picks a character that can apply; after applying, the page is theirs: shortlisted, and the date", async () => {
+    await preseason();
+    const code = await oneCode();
+    const a = await creator();
+    const thin = await creator({ portrait: false });
+    await t.db.query(`update characters set owner_id = $1 where id = $2`, [a.owner, thin.id]);
+    signIn(a.cookie);
+    const before = unescape(await render(code));
+    expect(before).toContain(`Apply with ${a.name.split(/\s+/)[0]}`);
+    expect(before).toContain("Your creator name (optional)");
+    // Only the ones that can apply are offered.
+    expect(before).not.toContain(thin.name);
+    scriptDate();
+    expect((await applyAs(code, a)).status).toBe(201);
+    const after = unescape(await render(code));
+    expect(after).toContain(`${a.name.split(/\s+/)[0]} is in`);
+    expect(after).toContain(`Shortlisted for ${seasonLabel(auditionSeasonId())}`);
+    expect(after).toMatch(/href="\/episodes\/[^"]+\?play=1"/);
+    // Anyone else opening it sees a used invite.
+    jar.cookies.clear();
+    expect(await render(code)).toContain("This invite has been used");
+    // A person whose characters can't apply yet hears why, and can start a new one.
+    const other = await creator({ portrait: false });
+    signIn(other.cookie);
+    const blocked = unescape(await render(await oneCode()));
+    expect(blocked).toContain(`${other.name}</a>: It needs a portrait first.`);
+    expect(blocked).toContain("Make your character");
+    expect(blocked).not.toContain("Apply with");
   });
 });
