@@ -15,6 +15,7 @@ import { contactEmail } from "./legal-entity";
 import type { Db } from "./db";
 import { FREE_EPISODES_PER_SEASON, REPORT_HIDE_THRESHOLD } from "./rules";
 import { seasonCastIds } from "./season-cast";
+import { liveSeasonPaths } from "./season-page";
 import { PUBLIC_PATHS, siteUrl } from "./site";
 import { LEAGUE_PATH, modelLeagueOn } from "./model-family";
 import { paymentLinkFromEnv } from "./stripe";
@@ -120,7 +121,11 @@ export async function contentSitemap(db: Db, base: string = siteUrl()): Promise<
   });
   // Every closed season's finale (lib/season-ref.ts): the page never changes once the month ends.
   const seasons = closedSeasons().map((s) => ({ url: `${base}${s.path}`, changeFrequency: "yearly" as const, priority: 0.6 }));
+  // A lead season's own page while it's this month's or the next's (lib/season-page.ts, docs/season-page.md): it
+  // changes every day, and it's where the December clips send people.
+  const live = (await liveSeasonPaths(db).catch(() => [])).map((s) => ({ url: `${base}${s.path}`, changeFrequency: "daily" as const, priority: 0.8 }));
   return [
+    ...live,
     ...characters.rows.map((r) => ({ url: `${base}/characters/${r.id}`, lastModified: new Date(r.at), changeFrequency: "weekly" as const, priority: 0.6 })),
     ...couples.rows.map((r) => ({ url: `${base}/couples/${r.a}/${r.b}`, ...(r.at ? { lastModified: new Date(r.at) } : {}), changeFrequency: "weekly" as const, priority: 0.5 })),
     ...episodes.rows.map((r) => ({ url: `${base}/episodes/${r.id}`, lastModified: new Date(r.at), changeFrequency: "monthly" as const, priority: 0.6 })),

@@ -11,6 +11,7 @@ import { privateAmong } from "@/lib/directory";
 import { ENDING_LABELS } from "@/lib/rules";
 import { seasonCastCards } from "@/lib/season-cast";
 import { getSeasonRecap, type RecapChar, type RecapPair } from "@/lib/season-recap";
+import { liveSeasonFormat, loadSeasonLive, seasonLiveMeta, seasonPageLiveOn, seasonPagePhase } from "@/lib/season-page";
 import { seasonIdFromSlug, seasonRef } from "@/lib/season-ref";
 import { seasonIdOf } from "@/lib/season-window";
 import { pageMetadata } from "@/lib/seo";
@@ -20,16 +21,32 @@ import { userIdFromCookieStore } from "@/lib/http";
 import { PoolBoardList } from "@/app/SeasonPool";
 import { freezeSeasonPool, poolBoard } from "@/lib/season-pool";
 import { heroVenue, venueIdForPlace } from "../season-visuals";
+import SeasonLive from "./SeasonLive";
 
 export const dynamic = "force-dynamic";
 
-type Props = { params: Promise<{ slug: string }> };
+type Props = { params: Promise<{ slug: string }>; searchParams?: Promise<Record<string, string | string[] | undefined>> };
 
-// From the slug alone, so the metadata never races the page to freeze the season (lib/season-recap.ts).
+/** The request's query again ("?utm_source=clip&…", or nothing), for a redirect that keeps it. */
+async function queryOf(searchParams: Props["searchParams"]): Promise<string> {
+  const q = new URLSearchParams();
+  for (const [k, v] of Object.entries((await searchParams) ?? {})) for (const x of Array.isArray(v) ? v : v === undefined ? [] : [v]) q.append(k, x);
+  const s = q.toString();
+  return s ? `?${s}` : "";
+}
+
+// From the slug and the season's format alone, so the metadata never races the page to freeze the season (lib/season-recap.ts).
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const id = seasonIdFromSlug((await params).slug);
   if (!id) return { title: "Season not found · Botchelor", robots: { index: false, follow: false } };
   const s = seasonRef(id);
+  // A season not closed yet: a lead season's live page (lib/season-page.ts) is indexed while it's this season or the
+  // next; any other is the Reunion's or not found yet, so it only says its name.
+  if (seasonPagePhase(id)) {
+    const live = seasonPageLiveOn() ? await liveSeasonFormat(await getDb(), id).catch(() => null) : null;
+    if (live) return pageMetadata({ ...seasonLiveMeta(s, live.def, live.phase), path: s.path });
+    return { title: `Season ${s.number}, ${s.label} · Botchelor`, robots: { index: false, follow: true } };
+  }
   return pageMetadata({
     title: `Season ${s.number}, ${s.label}: the finale · Botchelor`,
     description: `Previously on Botchelor: how ${s.label} went. Every couple's season in a line, the dates to rewatch, the awards, and who stayed and who left.`,
@@ -43,11 +60,20 @@ const pairKey = (p: RecapPair) => (p.a.id < p.b.id ? `${p.a.id}/${p.b.id}` : `${
  * A closed season's finale (lib/season-recap.ts): frozen on its first read after the season ends, so this page reads
  * the same forever, apart from "Season N starts now" at the bottom, which is live (the season after it, and tonight's
  * vote). A season still running is the Reunion's (/reunion); a month that was never a season is not found.
+ *
+ * Except a lead season (The Botchelor), this month's or the next: its own watch-first page (SeasonLive.tsx,
+ * docs/season-page.md) until it closes. SEASON_PAGE_LIVE=0 puts it back as above, but for the next month's, which then
+ * sends to /casting (with the query, so the clips' /december keeps its utm tags) rather than a dead end.
  */
-export default async function SeasonPage({ params }: Props) {
+export default async function SeasonPage({ params, searchParams }: Props) {
   const id = seasonIdFromSlug((await params).slug);
   if (!id) notFound();
   const db = await getDb();
+  const live = await liveSeasonFormat(db, id).catch(() => null);
+  if (live) {
+    if (seasonPageLiveOn()) return <SeasonLive data={await loadSeasonLive(db, id, live.phase, live.def)} />;
+    if (live.phase === "preseason") redirect(`/casting${await queryOf(searchParams)}`);
+  }
   const result = await getSeasonRecap(db, id);
   if (result.status === "running") redirect("/reunion");
   if (result.status !== "closed") notFound();

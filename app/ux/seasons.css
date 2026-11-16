@@ -836,3 +836,110 @@
     padding: var(--space-3);
   }
 }
+
+/* ---------------- a lead season's own page (app/seasons/[slug]/SeasonLive.tsx; docs/season-page.md): the dark title card
+   (.season-now) with the premise, three dates to start with (Watch's cards, .watch-latest-list), the lead and the
+   suitors side by side from 900px (the suitors as casting's slots), and when things happen. Phone first: the hero stays
+   short, so the first date is on the first screen at 390px. Tokens only. ---------------- */
+.season-live-hero {
+  margin: var(--space-3) 0 var(--space-4);
+}
+.season-live-hero h1 {
+  margin: var(--space-1) 0 0;
+  color: var(--on-photo);
+  font-size: var(--text-2xl);
+  line-height: 1.15;
+  text-wrap: balance;
+}
+.season-live-hero .season-now-note {
+  margin-top: var(--space-2);
+}
+.season-live-hero .season-now-clock {
+  margin-top: var(--space-2);
+  font-size: var(--text-md);
+}
+.season-live-starters {
+  margin: 0 0 var(--space-5);
+}
+.season-live-starters h2 {
+  margin: 0;
+}
+.season-live-starters > p {
+  margin: var(--space-1) 0 0;
+}
+.season-live-cast {
+  display: grid;
+  gap: var(--space-4);
+  margin: 0 0 var(--space-4);
+}
+.season-live-cast > .card,
+.season-live-when {
+  margin: 0;
+}
+.season-live-cast h2,
+.season-live-when h2 {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-xl);
+}
+.season-live-lead-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+}
+.season-live-lead-row .avatar {
+  flex: none;
+}
+.season-live-lead-text {
+  min-width: 0;
+}
+.season-live-lead-text p {
+  margin: 0 0 var(--space-2);
+}
+.season-live-faces {
+  margin: var(--space-3) 0;
+}
+/* A suitor who went home stays in the list, quieter. */
+.casting-slot.is-out {
+  opacity: 0.6;
+}
+.season-live-schedule {
+  display: grid;
+  gap: var(--space-3);
+  margin: var(--space-2) 0 var(--space-3);
+  padding: 0;
+  list-style: none;
+}
+.season-live-schedule li {
+  display: grid;
+  grid-template-columns: minmax(0, 13rem) minmax(0, 1fr);
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+}
+.season-live-time {
+  font-weight: 700;
+}
+.season-live-contrast {
+  max-width: 60ch;
+  margin: 0;
+}
+.season-live-more {
+  margin: var(--space-4) 0 0;
+}
+/* /casting's one quiet line to the lead season's page. */
+.casting-what {
+  margin: var(--space-2) 0 0;
+}
+@media (min-width: 900px) {
+  .season-live-cast {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: start;
+  }
+  .season-live-hero h1 {
+    font-size: var(--text-display);
+  }
+}
+@media (max-width: 560px) {
+  .season-live-schedule li {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

@@ -218,6 +218,8 @@ export async function startTestDb() {
         "ceremonies",
         "suitor_badges",
         "season_leads",
+        // The season page's pinned starters (lib/season-page.ts): keyed by season.
+        "season_starters",
         // Open casting (lib/casting.ts): Sunday's roses for the walk-ons.
         "walk_on_roses",
         // Tonight's situation (lib/situations.ts): the house cast outlives a reset, so its nights would too.

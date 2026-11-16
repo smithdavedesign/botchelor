@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { RecouplingBoard } from "@/lib/recoupling";
-import type { SeasonFormatDef, ThisWeekCard } from "@/lib/season-format";
+import { formatContrast, type SeasonFormatDef, type ThisWeekCard } from "@/lib/season-format";
 import { seasonBanner, seasonNumber } from "@/lib/season-ref";
 import { seasonIdOf } from "@/lib/season-window";
 
@@ -36,10 +36,14 @@ export default function SeasonLine({
   now: number;
   /** Today's story from the producer (lib/producer.ts storyToday): "Tonight: …" joins the line, "Previously: …" its body. */
   story?: { previously: string; tonight: string } | null;
+  /** A lead season's own page (lib/season-page.ts), when it's live: the line on how the month differs links it. */
+  seasonPage?: string | null;
 }) {
   const at = new Date(now);
   const number = seasonNumber(seasonIdOf(at));
   const closed = seasonBanner(at);
+  // A lead format's month (The Botchelor): one line on how it differs from the classic months (docs/season-page.md).
+  const contrast = def ? formatContrast(def, at.toLocaleDateString("en-US", { month: "long", timeZone: "UTC" })) : null;
   const nightAhead = recoupling && Date.parse(recoupling.runs_at) > now ? recoupling : null;
   const parts = [
     `📺 ${number ? `Season ${number}` : "This season"}${def ? `: ${def.title}` : ""}`,
@@ -66,6 +70,19 @@ export default function SeasonLine({
           </p>
         )}
         {card?.tease && <p className="muted small">{card.tease}</p>}
+        {contrast && (
+          <p className="small">
+            {contrast}
+            {seasonPage && (
+              <>
+                {" "}
+                <Link href={seasonPage} data-track="season-line-page">
+                  The season&apos;s page →
+                </Link>
+              </>
+            )}
+          </p>
+        )}
         {recoupling?.last && (
           <p className="small">
             <Link href={recoupling.last.room_path}>Watch the last Recoupling →</Link>

@@ -28,6 +28,8 @@ import { recouplingBoard } from "@/lib/recoupling";
 import { ballotResult } from "@/lib/season-vote";
 import { seasonIdOf } from "@/lib/season-window";
 import { thisWeekOn } from "@/lib/season-format";
+import { seasonPageLiveOn } from "@/lib/season-page";
+import { seasonPath } from "@/lib/season-ref";
 import { seasonFormatNow } from "@/lib/season-format-store";
 import { showSince } from "@/lib/show-since";
 import { dareBoard } from "@/lib/dares";
@@ -236,6 +238,7 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
           recoupling={recoupling}
           now={now}
           story={story}
+          seasonPage={seasonDef?.lead && seasonPageLiveOn() ? seasonPath(seasonIdOf(new Date(now))) : null}
         />
         {showNews && <ShowSince card={showNews} />}
         {/* Tonight's listings (docs/show-style.md). */}
