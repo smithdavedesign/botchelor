@@ -224,24 +224,30 @@ async function pickLeadCast(db: Db, season: string, rule: { places: number; suit
   const suitorPlaces = Math.max(rule.suitorsMin, rule.places - 1);
   const fans = (await shortlist(db, season)).filter((id) => id !== lead).slice(0, suitorPlaces);
   let suitors = fans;
-  if (suitors.length < suitorPlaces) {
-    const { loadOurIds } = await import("./our-traffic");
-    const ours = await loadOurIds(db).catch(() => [] as string[]);
-    const fill = (
-      await db.query<{ id: string }>(
-        `select c.id from characters c
-          where c.created_via = 'mcp' and not c.is_house and c.owner_id = any($1::text[]) and c.owner_id <> 'deleted'
-            and c.visibility = 'public' and c.open_to_dates and c.id <> all($2::text[])
-          order by (select count(*) from episodes e
-                     where (e.character_a = c.id or e.character_b = c.id) and e.status = 'ready' and e.visibility = 'public' and e.revealed_at is not null) desc,
-                   c.created_at, c.id
-          limit $3`,
-        [ours, [lead, ...suitors], suitorPlaces - suitors.length],
-      )
-    ).rows.map((r) => r.id);
-    suitors = [...suitors, ...fill];
-  }
+  if (suitors.length < suitorPlaces) suitors = [...suitors, ...(await houseSuitorFill(db, [lead, ...suitors], suitorPlaces - suitors.length))];
   return [{ character_id: lead, slot: 0, source: "lead" as const }, ...suitors.map((character_id, i) => ({ character_id, slot: i + 1, source: "suitor" as const }))];
+}
+
+/**
+ * The house's own suitors, for the places approved auditions leave open: the house's agent-made characters (ours, public,
+ * open to dates) with the most aired public dates, `n` of them, never one of `taken`. The Sunday premiere's pilot
+ * (lib/sunday-premiere.ts) takes the first when the shortlist is empty, so the pilot's suitor is the cast's first fill.
+ */
+export async function houseSuitorFill(db: Db, taken: readonly string[], n: number): Promise<string[]> {
+  if (n <= 0) return [];
+  const { loadOurIds } = await import("./our-traffic");
+  const ours = await loadOurIds(db).catch(() => [] as string[]);
+  const { rows } = await db.query<{ id: string }>(
+    `select c.id from characters c
+      where c.created_via = 'mcp' and not c.is_house and c.owner_id = any($1::text[]) and c.owner_id <> 'deleted'
+        and c.visibility = 'public' and c.open_to_dates and c.id <> all($2::text[])
+      order by (select count(*) from episodes e
+                 where (e.character_a = c.id or e.character_b = c.id) and e.status = 'ready' and e.visibility = 'public' and e.revealed_at is not null) desc,
+               c.created_at, c.id
+      limit $3`,
+    [ours, [...taken], n],
+  );
+  return rows.map((r) => r.id);
 }
 
 /** The admin's pick of a season's lead (/admin/season), when it still names a public house character. */

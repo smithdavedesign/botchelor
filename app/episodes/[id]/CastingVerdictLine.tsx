@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-type Note = { first: string; lead: string; hour: number };
+type Note = { first: string; lead: string; hour: number; minute?: number };
 
 /**
  * The verdict card's one line for a casting date (lib/casting.ts: a new character's first date with the season's lead):
@@ -26,7 +26,7 @@ export default function CastingVerdictLine({ episodeId }: { episodeId: string })
   if (!note) return null;
   return (
     <p className="muted small" data-casting-line>
-      Roses are handed out Sunday at {String(note.hour).padStart(2, "0")}:00 UTC. {note.first} will text you.
+      Roses are handed out Sunday at {String(note.hour).padStart(2, "0")}:{String(note.minute ?? 0).padStart(2, "0")} UTC. {note.first} will text you.
     </p>
   );
 }

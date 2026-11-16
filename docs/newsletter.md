@@ -1,7 +1,8 @@
 # The Sunday letter
 
-One email a week from the show, after Sunday's reveal: whose secret came out, the week's best dates, the best callers
-and when the next vote opens. Anyone can sign up, with or without an account: in the site footer, or on
+One email a week from the show, after Sunday's reveal: whose secret came out, the week's best dates, the best callers,
+next Sunday's premiere when there is one ([sunday-premiere.md](sunday-premiere.md): when, and whose date, never how it
+ends) and when the next vote opens. Anyone can sign up, with or without an account: in the site footer, or on
 [/newsletter](https://botchelor.com/newsletter).
 
 Built and half on: with `RESEND_API_KEY` set, sign-ups and confirmations work, but **no letter goes out until

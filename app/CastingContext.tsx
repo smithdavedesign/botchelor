@@ -12,8 +12,9 @@ export type CastingForClient = {
   /** "this season's Botchelor" or "December's Botchelor" (lib/casting.ts leadBilling). */
   billing: string;
   lead: { id: string; name: string; hue: number | null; portrait: string | null };
-  /** The hour (UTC) Sunday's roses are handed out. */
+  /** The hour (UTC) Sunday's roses are handed out, on the job's pass at `minute` past (lib/ceremony.ts ceremonyRunsAt). */
   hour: number;
+  minute: number;
 };
 
 const CastingContext = createContext<CastingForClient | null>(null);

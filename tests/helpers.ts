@@ -216,6 +216,8 @@ export async function startTestDb() {
         // The rose ceremony (lib/ceremony.ts): its Sundays, votes, badges and the admin's lead pick.
         "ceremony_votes",
         "ceremonies",
+        // The Sunday premiere (lib/sunday-premiere.ts): keyed by Sunday, which outlives a reset.
+        "premieres",
         "suitor_badges",
         "season_leads",
         // Open casting (lib/casting.ts): Sunday's roses for the walk-ons.

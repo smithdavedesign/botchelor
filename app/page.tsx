@@ -43,6 +43,7 @@ import { storyToday } from "@/lib/producer";
 import { latestHouseScene } from "@/lib/house-scenes";
 import EpisodeShelf from "./EpisodeShelf";
 import { listLobby } from "@/lib/watch";
+import { nextPremiere } from "@/lib/sunday-premiere";
 import ShowSince from "./ShowSince";
 import { showSince } from "@/lib/show-since";
 import { dareBoard } from "@/lib/dares";
@@ -122,7 +123,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
   );
   // Their character's phone (lib/character-phone.ts): one read next to "Since you were here", no round trip of its own.
   const phoneP = myCharactersP.then((mine) => (db && viewerId && mine.length ? characterPhone(db, viewerId, mine).catch(() => null) : null));
-  const [owned, tokens, myCharacters, [since, unread], phone, profileName, sharer, showNews, [aired, standout, sky, situation, dares, record, airing, rooms, onSeason, reveal, seasonDef, ceremony, house, story, clipRow]] = await Promise.all([
+  const [owned, tokens, myCharacters, [since, unread], phone, profileName, sharer, showNews, [aired, standout, sky, situation, dares, record, airing, rooms, onSeason, reveal, seasonDef, ceremony, house, story, clipRow, premiere]] = await Promise.all([
     db && viewerId ? ownedSkus(db, viewerId) : Promise.resolve<string[]>([]),
     db && viewerId ? episodeAllowance(db, viewerId) : freshAllowance(),
     myCharactersP,
@@ -166,6 +167,9 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
       // The day's clip for a stranger's hero (lib/home-clip.ts): the same for everyone, so from the shared copy; an owner's
       // home (their character's phone) doesn't show it and doesn't read it.
       myCharactersP.then((mine) => (mine.length || !homeHeroClipOn() ? null : shared("home:clip", () => latestHomeClip(conn)).catch(() => null))),
+      // The Sunday premiere (lib/sunday-premiere.ts): the tonight band's slot on its day, before its room opens. Only read
+      // on a Sunday (UTC), the same for everyone.
+      new Date().getUTCDay() === 0 ? shared("premiere:next", () => nextPremiere(conn)).catch(() => null) : null,
     ]),
   ]);
 
@@ -195,7 +199,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
   const expressBox = !creator && homeExpressBoxOn();
   // The band is there for a first visit too, on a quiet night as well (the design system's visitor home, all-screens
   // board, 2026-11-11): what just aired, what's open for predictions, and what's live, as proof the show is on.
-  const tonight = <TonightBand rooms={rooms} airing={airing} situation={situation} reveal={reveal} ceremony={ceremony} latest={airedEpisodes[0] ?? null} house={house} now={Date.now()} insider={creator} story={story} />;
+  const tonight = <TonightBand rooms={rooms} airing={airing} situation={situation} reveal={reveal} ceremony={ceremony} latest={airedEpisodes[0] ?? null} house={house} now={Date.now()} insider={creator} story={story} premiere={premiere} />;
 
   return (
     <div className="home page-wide">

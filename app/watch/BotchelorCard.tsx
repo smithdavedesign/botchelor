@@ -6,10 +6,11 @@ import { requestJson } from "@/app/request";
 import { useAction } from "@/app/useAction";
 import { countdown } from "@/lib/countdown";
 import type { CeremonyBoard, SuitorState } from "@/lib/ceremony";
+import type { NextPremiere } from "@/lib/premiere-clock";
 
 const STATE_WORD: Record<SuitorState, string> = { in: "still in", out: "went home", final_rose: "the final rose", runner_up: "runner-up" };
 
-/** "Sunday, 8 pm UTC": the fixed time the ceremony is held, the same for everyone (a countdown sits beside it). */
+/** "Sunday, 11:20 pm UTC": the fixed time the ceremony is held, the same for everyone (a countdown sits beside it). */
 const utcTime = (iso: string): string => {
   const d = new Date(iso);
   const h = d.getUTCHours();
@@ -25,9 +26,10 @@ const dayWord = (day: string, now: number): string =>
  * The Botchelor (lib/ceremony.ts): the lead, the suitors with their roses or how they left, the audience's vote on who
  * goes home while it's open (counts once you've voted, like the situation vote), the countdown to Sunday's ceremony, and
  * the last ceremony in the show's words, and the walk-ons (open casting, lib/casting.ts). Only on a season running the
- * format; a classic season never renders it.
+ * format; a classic season never renders it. The Sunday premiere (lib/sunday-premiere.ts), the lead's last-chance date
+ * live in one room before the roses, is one line under the ceremony's.
  */
-export default function BotchelorCard({ board, now }: { board: CeremonyBoard; now: number }) {
+export default function BotchelorCard({ board, now, premiere = null }: { board: CeremonyBoard; now: number; premiere?: NextPremiere | null }) {
   const { busy, error, run } = useAction();
   const vote = (pick: string) => run(() => requestJson("/api/ceremony", { pick }));
   const voted = board.vote?.my_pick != null;
@@ -87,6 +89,29 @@ export default function BotchelorCard({ board, now }: { board: CeremonyBoard; no
               : `The next rose ceremony ${countdown(board.next.runs_at, now)} (${utcTime(board.next.runs_at)}). The vote opens on Thursday; ${board.lead.name}'s dates decide the other rose.`}
         </p>
       ) : null}
+      {premiere?.kind === "weekly" && premiere.lead.id === board.lead.id && (
+        <p className="muted small" data-premiere={premiere.state}>
+          <span aria-hidden="true">📺</span> <strong>{premiere.finale ? "The finale's premiere" : "Sunday's premiere"}</strong>
+          {premiere.state === "live" ? " is on now" : `, ${premiere.time_words}, ${countdown(premiere.at, now)}`}: {board.lead.name}&apos;s{" "}
+          {premiere.finale ? "last date before the final rose" : "last-chance date"}
+          {premiere.suitor ? (
+            <>
+              {" "}
+              with <Link href={`/characters/${premiere.suitor.id}`}>{premiere.suitor.name}</Link>
+            </>
+          ) : (
+            ", with the suitor in most danger"
+          )}
+          , live in one room for everyone{premiere.roses_at ? `, then ${premiere.finale ? "the final rose" : "the roses"}` : ""}.{" "}
+          {premiere.room_path ? (
+            <Link href={premiere.room_path} data-track="premiere-room">
+              {premiere.state === "live" ? "Watch it live →" : "Its room →"}
+            </Link>
+          ) : (
+            "Its room opens on Watch about 40 minutes before."
+          )}
+        </p>
+      )}
       {board.last && (
         <div className="botchelor-last">
           <p className="small">

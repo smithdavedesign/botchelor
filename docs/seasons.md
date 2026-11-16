@@ -161,8 +161,11 @@ suitor").
 picks the roleplay and dares still ride. Venues come from the format's courtship pool; the twist calendar is first
 impressions, the hard question, hometowns (meet the parents), the final rose.
 
-**The rose ceremony** (`runDueCeremony`, from the hourly lobby job; Sundays from the season's third day, held at
-`CEREMONY_HOUR_UTC`, default 20, on the job's :20 pass):
+**The rose ceremony** (`runDueCeremony`, from the hourly lobby job; Sundays from the season's third day, held on the
+job's :20 pass at the ceremony hour, `ceremonyHourUtc`: with the Sunday premiere on (the default) it is the premiere's
+hour, `PREMIERE_HOUR_UTC` (23), so **23:20 UTC**, after the premiere's decision, and `CEREMONY_HOUR_UTC` can only move
+it later; with `SUNDAY_PREMIERE=0` it is `CEREMONY_HOUR_UTC`, else 20, as before. A Sunday whose pass the job missed
+is held on Monday's passes before 06:00 UTC):
 - **The vote**, "Who goes home?", opens on Thursday (`VOTE_OPEN_DAYS = 3`) with the suitors still in frozen as the
   ballot; one changeable vote a viewer (`POST /api/ceremony`), counts shown once you have voted. Most votes goes home;
   a tie goes to the ballot's order.
@@ -180,6 +183,10 @@ impressions, the hard question, hometowns (meet the parents), the final rose.
 - Sunday's reveal (`lib/weekly-reveal.ts`) needs two house cast members for its ballot, so on a Botchelor season (one
   house member, the lead) it opens no vote: the rose ceremony is Sunday's appointment instead. The Recoupling has no
   night on this format (`recoupling.nights: "none"`).
+- **The Sunday premiere** ([sunday-premiere.md](sunday-premiere.md)): before each ceremony, at 23:00 UTC, the lead's
+  last-chance date with the suitor in most danger (the bottom of the lead's verdicts so far that week, a tie going to
+  whoever the lead saw least) plays in one room on Watch for everyone at once, and the ceremony at 23:20 counts it.
+  The Sunday before the season, the pilot: "Meet the lead", a first date with the top of the casting shortlist.
 - The ceremony is a row (`ceremonies`: week, choices, eliminated_by_vote, eliminated_by_lead, final_rose, votes, total,
   remaining, lines) and templates, $0. `/watch` shows **The Botchelor card** (the lead, the suitors with their roses or
   how they left, the open vote, the countdown, the last ceremony in the show's words); the tonight band points at the
@@ -217,8 +224,8 @@ post's `?meet=` link still names its own cast member. Any number of walk-ons can
 lead can't be dated (an unmatch, no lead, the switch) the booking falls back to the usual blind date, silently. It
 spends one of the person's free dates, as the instant date always did.
 
-**Sunday's roses** (`runWalkOnRoses`, from the hourly lobby job right after the ceremony; Sundays from
-`CEREMONY_HOUR_UTC` on, in the preseason too):
+**Sunday's roses** (`runWalkOnRoses`, from the hourly lobby job right after the ceremony; Sundays from the ceremony
+hour on, 23:20 UTC with the Sunday premiere on, in the preseason too):
 - Every walk-on (never one of that season's suitors) whose newest finished date with the lead no pass has judged gets
   **a rose if and only if that date ended in a second date**. One row a character a Sunday (`walk_on_roses`:
   `season_id` (the lead's season), `held_on`, `character_id`, `episode_id`, `rose`, `next_episode_id`), claimed before
@@ -241,7 +248,7 @@ spends one of the person's free dates, as the instant date always did.
   25 booked a pass.
 
 **Where it shows.** The builder's instant card; one line on the verdict card of a casting date ("Roses are handed out
-Sunday at 20:00 UTC. {first} will text you.", its own component reading `GET /api/casting/walk-on?episode=`); a
+Sunday at 23:20 UTC. {first} will text you.", the ceremony's pass, its own component reading `GET /api/casting/walk-on?episode=`); a
 "Rose, week N" badge on the character's page (a rose from before the season reads "Casting rose"), next to what it
 left a season with as a suitor; a stranger's home hero sub line; and "Walk-ons this week" on the Botchelor card, with
 the count under the empty-room rule ([show-style.md](show-style.md)). Tests: `tests/casting.test.ts`.

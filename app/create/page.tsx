@@ -7,7 +7,7 @@ import { episodeAllowance, freshAllowance } from "@/lib/allowance";
 import { formatPrice, PACK_5 } from "@/lib/catalog";
 import { castingLead, leadBilling } from "@/lib/casting";
 import { INVITE_COOKIE, inviteFromCookie, invitePath, isInvitePath } from "@/lib/casting-invite-shared";
-import { ceremonyHourUtc } from "@/lib/ceremony";
+import { CEREMONY_RUNS_AT_MINUTE, ceremonyHourUtc } from "@/lib/ceremony";
 import { createPairHref, readChemistry } from "@/lib/chemistry-test";
 import { listOpenCharacters } from "@/lib/dating";
 import { firstDateFormat } from "@/lib/first-date";
@@ -100,7 +100,7 @@ export default async function CreatePage({ searchParams }: { searchParams: Searc
   const pair = readChemistry(sp);
   // Open casting (lib/casting.ts): while a Botchelor lead is taking walk-ons, the send card's first date is with the lead.
   const lead = await castingLead(db ?? (await getDb())).catch(() => null);
-  const casting: CastingForClient | null = lead ? { phase: lead.phase, billing: leadBilling(lead), lead: lead.lead, hour: ceremonyHourUtc() } : null;
+  const casting: CastingForClient | null = lead ? { phase: lead.phase, billing: leadBilling(lead), lead: lead.lead, hour: ceremonyHourUtc(), minute: CEREMONY_RUNS_AT_MINUTE } : null;
   return (
     <CastingProvider value={casting}>
     <CreateWizard
