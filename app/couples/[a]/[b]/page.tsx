@@ -14,6 +14,7 @@ import { getPublicCharacter, type CharacterRef, type PublicCharacter } from "@/l
 import { authFromCookieStore, userIdFromCookieStore } from "@/lib/http";
 import { activeNudge, alsoSeeing } from "@/lib/between-dates";
 import { loadRelationship, pairKey, viewRelationship } from "@/lib/relationships";
+import { showsCloseness } from "@/lib/relationship-stages";
 import { SHARE_IMAGE } from "@/lib/seo";
 import { planFromChain } from "@/lib/simulation";
 import { venueName } from "@/lib/venues";
@@ -216,7 +217,7 @@ export default async function CouplePage({ params, searchParams }: Props) {
           {view.second_dates > 0 && ` · ${view.second_dates === view.dates && view.dates > 1 ? "all" : view.second_dates} ended in a second date`}
           {view.second_dates > 0 && ` · ${followedUp === 0 ? "none booked yet" : `${followedUp} booked`}`}
         </p>
-        <Meter label="Closeness" value={view.tie} word={closeness(view.tie)} />
+        {showsCloseness(view.stage) && <Meter label="Closeness" value={view.tie} word={closeness(view.tie)} />}
         {view.chemistry !== null && <Meter label="Chemistry" value={view.chemistry / 100} word={String(Math.round(view.chemistry))} />}
         {view.trust !== null && <Meter label="Trust" value={view.trust / 100} word={String(Math.round(view.trust))} />}
         {complicated.length > 0 && (

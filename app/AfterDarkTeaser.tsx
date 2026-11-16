@@ -51,8 +51,8 @@ export default async function AfterDarkTeaser({ pair, character }: { pair?: [str
       ))}
       {!open && (
         <p>
-          {/* David, 2026-10-22: no way to subscribe yet (no adult processor), so no button that leads nowhere. Pun his. */}
-          <span className="badge ad-teaser-soon">Cumming soon</span> <span className="muted small">Adults only: the private side of this season.</span>
+          {/* David, 2026-10-22: no way to subscribe yet (no adult processor), so no button that leads nowhere. Plain "Coming soon" since 2026-11-16 (his call: the pun sat on public PG pages). */}
+          <span className="badge ad-teaser-soon">Coming soon</span> <span className="muted small">Adults only: the private side of this season.</span>
         </p>
       )}
     </section>
