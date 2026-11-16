@@ -41,12 +41,30 @@ export type ActBeat = {
   b: string;
 };
 
+/**
+ * The turn (lib/date-turn.ts): the one moment, mid-date, that the decided ending comes from, as a few consecutive lines
+ * (each speaker's private note for that one line) and where it leaves each side for every line after. Only on a rules
+ * plan, only when EARNED_ENDINGS is on. Like the beats, a note carries only its own side's private words.
+ */
+export type DateTurn = {
+  /** What it turns on: an engine fact (a tripped dealbreaker, a missed agenda, an unmet want) or the two's own material. */
+  kind: "dealbreaker" | "heard" | "agenda" | "takes" | "want" | "friends" | "wobble";
+  /** The side it lands on (the one who cools, or doubts). */
+  on: "a" | "b";
+  /** The lines of the moment, in order, alternating from the first one's side. */
+  steps: { side: "a" | "b"; note: string }[];
+  /** Where it leaves each side, for every line after it. Absent for a wobble: that one is over when its lines are. */
+  after?: { a: string; b: string };
+};
+
 export type DatePlan = {
   /** Who wrote it: the director in front of the date, the rules, or the producer the night before (lib/night-plans.ts). */
   source: "director" | "rules" | "producer";
   /** One sentence: what this date is really about. */
   spine: string;
   acts: [ActBeat, ActBeat, ActBeat];
+  /** The moment the ending comes from (lib/date-turn.ts); absent on most plans. */
+  turn?: DateTurn;
 };
 
 type Side = 0 | 1;
@@ -69,7 +87,7 @@ const AGENDA_GOALS: Record<AgendaId, string> = {
  * happens on screen. The behaviour goes to the other side's beat; the goal itself stays private (nothing here
  * names it). Second person, starting with a plain verb, so `thirdPerson` can turn it into a fact.
  */
-const AGENDA_CAUSES: Record<AgendaId, { met: string; missed: string }> = {
+export const AGENDA_CAUSES: Record<AgendaId, { met: string; missed: string }> = {
   find_adventurous: { met: "say yes to a spontaneous idea", missed: "turn down a spontaneous idea" },
   test_sincerity: { met: "give a straight, sincere answer to a real question", missed: "dodge a real question with a bit" },
   find_funny: { met: "get a real laugh", missed: "tell jokes that fall flat" },

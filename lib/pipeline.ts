@@ -21,6 +21,7 @@
  */
 import { AfterglowError, simulateAfterglow, type AfterglowLine } from "./afterglow";
 import { planDate, rulesPlan, type DatePlan } from "./beats";
+import { earnedEndingsOn, withTurn } from "./date-turn";
 import type { Character } from "./character";
 import { bestLine, ConversationError, simulateConversation, type Turn } from "./conversation";
 import type { Outcome } from "./engine";
@@ -226,6 +227,9 @@ export async function generateDate(
         : opts.fast || opts.plan === "rules"
           ? rulesPlan(built.input, decided, characters, producer, venueId)
           : await planDate(director.model, built.input, decided, characters, producer, venueId, opts.formatId, opts.formatCtx);
+    // Earned endings (lib/date-turn.ts, EARNED_ENDINGS): a plan the rules wrote also carries the moment the decided
+    // ending comes from. It reads `decided` and never writes it; a director's or the producer's plan is left as written.
+    if (plan.source === "rules" && earnedEndingsOn()) plan = withTurn(plan, built.input, decided, characters);
     const converse = (from?: Turn[]) =>
       simulateConversation(actor.model, built.input, decided, characters, producer, venueId, opts.formatId, opts.talk?.date, opts.formatCtx, plan ?? undefined, keyForSide, onTurn, {
         moves: opts.moves,
