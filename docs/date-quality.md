@@ -1278,7 +1278,7 @@ model (Haiku 5.5) from the rules plan with the switch off ("before") and on ("af
 | Motivated (is the ending earned?) | 2.57 | **3.43** | ahead on 4, level on 1, behind on 2 (both friends) |
 | the four disasters | 2.25 | **3.5** | 2→4, 1→3, 2→3, and the one already at 4 stayed 4 |
 | the three "just friends" | 3.0 | 3.33 | 3.5→3, 3.5→3, 2→4 |
-| Natural | 3.43 | 3.21 | level on 4, behind on 3 by half a point to a point |
+| Natural | 3.43 | 3.21 | level on 4, behind on 2 (a point each), ahead on 1 (half a point) |
 | Judge, mean of seven scores | 3.78 | 3.76 | level |
 | Lines in a twelve-line disaster | 12 | 9 to 10 | they stop when it's over |
 | Model calls a date | 15 to 20 | 13 to 20 | no call added |
@@ -1306,7 +1306,7 @@ One date, before and after (Mira × Dex, a disaster; his agenda is to test wheth
 > But you've been looping that route for a while now, so I'm asking whether you meant it or just wanted the route to
 > reach the end. *(The judge: "nothing in it leads to the decided disaster.")*
 
-> **After**, lines 6 to 9. *Dex:* Can I ask you something straight, though? What's the thing you've been walking in
+> **After**, from line 6 to line 9. *Dex:* […] Can I ask you something straight, though? What's the thing you've been walking in
 > circles about since the bakery? You don't have to answer. I'll wait. *Mira:* Straight questions, on a street with one
 > song on loop? Bold. Busker's policy is second song first, and nobody's heard it yet, so I'm off the hook. Quick,
 > which way is north from here? *Dex:* North's behind you, past the bakery. I'll let you have the joke. But I asked you
