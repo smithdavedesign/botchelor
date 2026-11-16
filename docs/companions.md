@@ -962,6 +962,14 @@ and the picture is in After Dark. The rules After Dark applies (who is entitled,
 - **Switch:** `LOCKED_PICTURE_TEXTS` (on by default; `0` sends nothing, shows the old ones as plain texts, 404s the
   tile and drops the prompt line).
 - Tests: `tests/locked-picture.test.ts`.
+- Proof in a real browser: `npm run e2e:visual` seeds one (`scripts/visual.mjs`: the admin's own character, a date that
+  ended in another, the preview route) and audits the thread in both states of the tile, phone and desktop, light and
+  dark (`companion-locked-picture`, `companion-locked-picture-visitor`). The character there has no portrait, so the
+  tile is its avatar's colours; a character with one gets its blurred PG portrait.
+
+| Not in After Dark (phone) | After Dark open to them (phone) | Not in After Dark (desktop) |
+|---|---|---|
+| ![The locked tile under the text: In After Dark, adults only, Ask for an invite, and the line that it is only the lock](screenshots/locked-picture-way-in-mobile.webp) | ![The same tile with Open in After Dark](screenshots/locked-picture-open-mobile.webp) | ![The thread on a desktop with the locked tile and Ask for an invite](screenshots/locked-picture-way-in-desktop.webp) |
 
 ## Still to build
 
