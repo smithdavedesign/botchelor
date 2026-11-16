@@ -1088,6 +1088,16 @@ h2 {
   font-size: var(--text-sm);
 }
 
+.footer-badges {
+  margin: 1rem 0 0;
+}
+
+.footer-badges img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
 /* ---------------- hero ---------------- */
 
 .hero {
