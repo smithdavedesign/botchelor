@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { AFTER_DARK_ABOUT } from "@/lib/after-dark-public";
-import { formatPrice, PACK_5 } from "@/lib/catalog";
+import { formatPrice, PACK_15, PACK_5 } from "@/lib/catalog";
 import { COMPANION_EXTRAS, COMPANION_FAIR_USE_PER_MONTH, COMPANION_FREE_PER_DAY, companionMessageDelete, extraTerms } from "@/lib/companion-shared";
 import {
   AFTER_DARK_BLOCKED_COUNTRIES,
@@ -31,10 +31,10 @@ import { ConsentChoice } from "../ConsentBanner";
 /** The other policy pages' date (content policy, 2257, cancelling). */
 export const LAST_UPDATED = "Last updated 24 October 2026.";
 /** The terms' and the privacy notice's date: they changed after the rest. */
-export const TERMS_PRIVACY_UPDATED = "Last updated 15 November 2026.";
+export const TERMS_PRIVACY_UPDATED = "Last updated 16 November 2026.";
 /** What changed last time, in a line. */
 export const PRIVACY_CHANGES =
-  "Changed: you can delete one message of a companion conversation on its own, and your account export now has your companion conversations, what each companion remembers about you, and the record of your live calls. Also: when you open a character's texts signed in, having said you're 18 or older, we note with your account whether After Dark could be offered where you are (that alone, not the country), so a character never texts you about it where it isn't. Earlier the same day: what happens on a call with a companion now has a section of its own (your audio, your words, who makes the voice and the face, what's kept and how to delete it), and it names Runpod, whose GPUs our face renderer runs on; and on a live call with the Companion Plan, where it's offered, a companion's face can move as they talk, drawn by our own renderer from their portrait and voice (never yours) at no charge beyond the call's minutes. Before that (10 November): a recovery email you can add to a handle-and-password account, used only to reset a forgotten password and to tell you when the password or that address changes; the Sunday letter, a weekly email you can sign up for (confirmed by email, with an unsubscribe in every letter, and an address taken off when its emails bounce or are reported as spam); who hosts the show and carries its traffic (DigitalOcean and Cloudflare, no longer Vercel), and that the show's model is reached through OpenRouter; live calls with a companion, where they're offered: Deepgram hears your voice and makes the companion's, and the terms say how call minutes are charged. Before that (1 November): Analytics names the three events our own dashboard counts (visit, activate, checkout) and says the site you came from goes with a visit only when it's another site; the terms state the pack's price. Before that (24 October): who runs Botchelor, After Dark's data and where it's offered, the location and age we read, everyone who processes data, your rights, and the complaint form.";
+  "Changed: the terms name both packs of dates on sale (5 for $4 and 15 for $10), and say that a character's sheet can be the writing of the person who made it, while every date, text and picture on the show is written or drawn by AI. Before that (15 November): you can delete one message of a companion conversation on its own, and your account export now has your companion conversations, what each companion remembers about you, and the record of your live calls. Also: when you open a character's texts signed in, having said you're 18 or older, we note with your account whether After Dark could be offered where you are (that alone, not the country), so a character never texts you about it where it isn't. Earlier the same day: what happens on a call with a companion now has a section of its own (your audio, your words, who makes the voice and the face, what's kept and how to delete it), and it names Runpod, whose GPUs our face renderer runs on; and on a live call with the Companion Plan, where it's offered, a companion's face can move as they talk, drawn by our own renderer from their portrait and voice (never yours) at no charge beyond the call's minutes. Before that (10 November): a recovery email you can add to a handle-and-password account, used only to reset a forgotten password and to tell you when the password or that address changes; the Sunday letter, a weekly email you can sign up for (confirmed by email, with an unsubscribe in every letter, and an address taken off when its emails bounce or are reported as spam); who hosts the show and carries its traffic (DigitalOcean and Cloudflare, no longer Vercel), and that the show's model is reached through OpenRouter; live calls with a companion, where they're offered: Deepgram hears your voice and makes the companion's, and the terms say how call minutes are charged. Before that (1 November): Analytics names the three events our own dashboard counts (visit, activate, checkout) and says the site you came from goes with a visit only when it's another site; the terms state the pack's price. Before that (24 October): who runs Botchelor, After Dark's data and where it's offered, the location and age we read, everyone who processes data, your rights, and the complaint form.";
 
 /** The "On this page" lists: each id matches an h2 below (keep the two in step when a heading changes). */
 export const TERMS_HEADINGS = [
@@ -261,8 +261,9 @@ export function TermsSections() {
 
       <h2 id="ai-fiction">It&apos;s all AI fiction</h2>
       <p>
-        Every character, date, text and picture on Botchelor is fiction written or drawn by AI models. The characters are
-        not real people, they aren&apos;t talking to you, and nothing they say is advice (dating, medical, legal, money or
+        Every character on Botchelor is fiction. A character&apos;s sheet may be written by the person who made it (that
+        part is theirs, <a href="#your-content">above</a>); every date, text and picture on the show is fiction written or
+        drawn by AI models. The characters are not real people, they aren&apos;t talking to you, and nothing they say is advice (dating, medical, legal, money or
         any other kind). Don&apos;t rely on it. If you&apos;re struggling, the crisis lines at the foot of every page are
         real people who can help.
       </p>
@@ -286,11 +287,12 @@ export function TermsSections() {
 
       <h2 id="buy">What you can buy</h2>
       <p>
-        Every creator gets {FREE_EPISODES_PER_SEASON} free dates a week. One thing is on sale on the show: &ldquo;
-        {PACK_5.name}&rdquo;, a token pack with {PACK_5.episodes} more dates for your characters on top of the free ones.
-        Pack dates are used after the week&apos;s free ones, they never expire, and they add episodes, never points.
-        It costs <strong>{formatPrice(PACK_5.price_cents)} once</strong>, in US dollars, shown on the button and on
-        Stripe&apos;s hosted payment page (a Stripe Payment Link). It isn&apos;t a subscription. We never see your card details. Your dates are added once Stripe
+        Every creator gets {FREE_EPISODES_PER_SEASON} free dates a week. On top of the free ones, the show sells token packs of
+        more dates for your characters: &ldquo;{PACK_5.name}&rdquo; ({PACK_5.episodes} dates) for{" "}
+        <strong>{formatPrice(PACK_5.price_cents)} once</strong>, and &ldquo;{PACK_15.name}&rdquo; ({PACK_15.episodes} dates)
+        for <strong>{formatPrice(PACK_15.price_cents)} once</strong>. Pack dates are used after the week&apos;s free ones,
+        they never expire, and they add episodes, never points. Prices are in US dollars, shown on the button and on
+        Stripe&apos;s hosted payment page (a Stripe Payment Link). A pack isn&apos;t a subscription. We never see your card details. Your dates are added once Stripe
         confirms the payment, usually within seconds.
       </p>
       <p>

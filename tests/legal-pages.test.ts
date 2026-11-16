@@ -72,6 +72,9 @@ describe("the terms", () => {
     expect(html).toMatch(/non-exclusive,\s+royalty-free licence/);
     expect(html).toMatch(/No promise of originality/);
     expect(html).toMatch(/fiction written or drawn by AI models/);
+    // A creator's own sheet is theirs; the dates are AI's (GPT review, 2026-11-16). Both packs are named with their prices.
+    expect(html).toMatch(/sheet may be written by the person who made it/);
+    expect(html).toMatch(/\(15 dates\)\s+for (?:<strong>)?\$10/);
   });
 
   it("explain the subscription: renews monthly, cancel online, access to the end of the period, a yearly reminder", () => {
@@ -143,9 +146,10 @@ describe("the privacy notice", () => {
     expect(strip(render(PrivacyPage))).toContain(`The log of an agent's tool calls: ${MCP_CALLS_KEEP_DAYS} days.`);
   });
 
-  it("is dated 15 November 2026, with what changed (and the 10 November changes kept under it)", () => {
-    expect(render(PrivacyPage)).toMatch(/Last updated 15 November 2026\./);
-    expect(render(PrivacyPage)).toMatch(/Changed: you can delete one message of a companion conversation on its own, and your account export now has your companion conversations/);
+  it("is dated 16 November 2026, with what changed (and the earlier changes kept under it)", () => {
+    expect(render(PrivacyPage)).toMatch(/Last updated 16 November 2026\./);
+    expect(render(PrivacyPage)).toMatch(/Changed: the terms name both packs of dates on sale \(5 for \$4 and 15 for \$10\)/);
+    expect(render(PrivacyPage)).toMatch(/Before that \(15 November\): you can delete one message of a companion conversation on its own, and your account export now has your companion conversations/);
     expect(render(PrivacyPage)).toMatch(/Earlier the same day: what happens on a call with a companion now has a section of its own/);
     expect(render(PrivacyPage)).toMatch(/; and on a live call with the Companion Plan/);
     expect(render(PrivacyPage)).toMatch(/Before that \(10 November\): a recovery email you can add to a handle-and-password account/);
@@ -157,7 +161,7 @@ describe("the privacy notice", () => {
     expect(render(PrivacyPage)).toMatch(/Claude, reached through OpenRouter/);
     expect(render(PrivacyPage)).not.toMatch(/Vercel hosts|AI Gateway/);
     expect(render(PrivacyPage)).toMatch(/Before that \(1 November\): Analytics names the three events/);
-    expect(render(TermsPage)).toMatch(/Last updated 15 November 2026\./);
+    expect(render(TermsPage)).toMatch(/Last updated 16 November 2026\./);
   });
 });
 
