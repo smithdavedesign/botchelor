@@ -283,6 +283,8 @@ export async function startTestDb() {
         "showcase_consents",
         "showcase_likes",
         "creator_follows",
+        // People following a character (lib/character-follows.ts): the house cast outlives a reset, so its followers would.
+        "character_follows",
         "showcase_thumbs",
         "show_portrait_tries",
         "showcase_retwins",

@@ -72,6 +72,7 @@ const ACTIVITY = `
   union all select user_id, created_at from predictions
   union all select user_id, created_at from arc_predictions
   union all select user_id, created_at from couple_follows
+  union all select user_id, created_at from character_follows
   union all select user_id, read_at from notifications where read_at is not null`;
 
 export async function relationshipMetrics(db: Db, now = new Date(), windowDays = 30): Promise<RelationshipMetrics> {

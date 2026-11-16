@@ -730,6 +730,17 @@ create table if not exists couple_follows (
   primary key (user_id, character_lo, character_hi)
 );
 create index if not exists couple_follows_pair on couple_follows (character_lo, character_hi);
+-- People follow one character (lib/character-follows.ts): they hear when something public happens to it, and, where they
+-- may text it, its event-driven texts are on for them. texts_on: this follow switched those texts on (they were off),
+-- so unfollowing switches them off again and leaves a choice made in the thread's own Settings alone.
+create table if not exists character_follows (
+  user_id text not null,
+  character_id text not null references characters (id) on delete cascade,
+  texts_on boolean not null default false,
+  created_at timestamptz not null default now(),
+  primary key (user_id, character_id)
+);
+create index if not exists character_follows_character on character_follows (character_id);
 -- Arc predictions (lib/arcs.ts): "will they make it to date N?", resolved from the public record. Free points, never prizes.
 create table if not exists arc_predictions (
   user_id text not null,
