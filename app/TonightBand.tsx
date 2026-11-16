@@ -6,6 +6,7 @@ import type { CeremonyBoard } from "@/lib/ceremony";
 import type { SituationBoard } from "@/lib/situations";
 import type { RevealBoard } from "@/lib/weekly-reveal";
 import type { LobbyEntry } from "@/lib/watch";
+import type { NextPremiere } from "@/lib/premiere-clock";
 import { houseLine, type HouseSceneView } from "@/lib/house-scenes";
 
 /** "in 2h 10m", "in 4 min": server-rendered relative time (the page is dynamic; no ticking JS). */
@@ -42,6 +43,7 @@ export default function TonightBand({
   now,
   insider = false,
   story = null,
+  premiere = null,
 }: {
   rooms: LobbyEntry[];
   airing: AiringSoon[];
@@ -58,9 +60,14 @@ export default function TonightBand({
   insider?: boolean;
   /** Today's story from the producer (lib/producer.ts storyToday): its "Tonight:" line joins the facts under the slots. */
   story?: { tonight: string; previously?: string } | null;
+  /**
+   * The Sunday premiere (lib/sunday-premiere.ts nextPremiere): a slot on its day until its room opens, the pass the hour
+   * before; from then the room is an upcoming one in `rooms` and takes the premiere slot below.
+   */
+  premiere?: NextPremiere | null;
 }) {
   const live = rooms.find((r) => r.status === "live") ?? null;
-  const premiere = rooms.find((r) => r.status === "upcoming") ?? null;
+  const upcoming = rooms.find((r) => r.status === "upcoming") ?? null;
   const soon = airing[0] ?? null;
   const slots: Slot[] = [];
   if (live) {
@@ -84,14 +91,24 @@ export default function TonightBand({
       href: soon.share_path,
     });
   }
-  if (!live && premiere) {
+  if (!live && upcoming) {
     slots.push({
       key: "premiere",
       label: "Tonight's premiere",
-      faces: premiere.characters,
-      names: `${premiere.characters[0].name} × ${premiere.characters[1].name}`,
-      line: `Starts ${inWords(premiere.starts_at, now)}`,
-      href: premiere.room_path,
+      faces: upcoming.characters,
+      names: `${upcoming.characters[0].name} × ${upcoming.characters[1].name}`,
+      line: `Starts ${inWords(upcoming.starts_at, now)}`,
+      href: upcoming.room_path,
+    });
+  } else if (!live && premiere?.state === "scheduled" && premiere.sunday === new Date(now).toISOString().slice(0, 10)) {
+    const pilot = premiere.kind === "pilot";
+    slots.push({
+      key: "premiere",
+      label: pilot ? "Tonight's pilot" : "Tonight's premiere",
+      faces: [premiere.lead],
+      names: pilot ? `Meet ${premiere.lead.name}` : `${premiere.lead.name}'s ${premiere.finale ? "last date before the final rose" : "last-chance date"}`,
+      line: `Starts ${inWords(premiere.at, now)} · ${premiere.time_words}`,
+      href: pilot ? "/watch#on-now" : "/watch#rose-ceremony",
     });
   }
   if (reveal && reveal.state === "open" && reveal.choices.length >= 2) {

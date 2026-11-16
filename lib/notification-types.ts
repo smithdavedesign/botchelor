@@ -74,6 +74,7 @@ const TYPE_OF: Record<NotificationKind, NotificationType> = {
   secret_revealed: "show",
   season_pool: "show",
   ceremony_held: "show",
+  premiere: "show",
   house_talk: "show",
   showcase_request: "creator",
   showcase_post: "creator",

@@ -16,6 +16,14 @@ type Botchelor = {
   };
   next_season: { runs: boolean; override: string | null; override_name: string | null };
   casting?: { switched_on: boolean; now: { phase: "season" | "preseason"; month: string; lead: { id: string; name: string }; roses_at: string } | null };
+  premiere?: {
+    switched_on: boolean;
+    pilot_on: boolean;
+    hour: number;
+    next: { sunday: string; time_words: string; kind: "pilot" | "weekly"; lead: { name: string }; suitor: { name: string } | null; room_path: string | null; state: string } | null;
+    would_pick: { id: string; name: string } | null;
+    last: { sunday: string; built: boolean; note: string | null; tries: number } | null;
+  } | null;
 };
 type Candidate = {
   character_id: string;
@@ -41,6 +49,34 @@ type View = {
   botchelor?: Botchelor;
   note?: string | null;
 };
+
+/** The Sunday premiere's quiet line (lib/sunday-premiere.ts premiereAdminView): the next one, its suitor, whether it's built. */
+function PremiereStatus({ p }: { p: NonNullable<Botchelor["premiere"]> }) {
+  const { next, would_pick: pick, last } = p;
+  const who = next?.suitor ? next.suitor.name : pick ? `${pick.name} if picked now` : "nobody to pick yet";
+  return (
+    <p className="small" data-premiere-status={!p.switched_on ? "off" : next ? (next.room_path ? "built" : "scheduled") : "none"}>
+      <strong>Sunday premiere</strong> (lib/sunday-premiere.ts):{" "}
+      {!p.switched_on ? (
+        "switched off (SUNDAY_PREMIERE=0)."
+      ) : next ? (
+        <>
+          {next.kind === "pilot" ? "the pilot" : "next"}, {next.sunday} at {next.time_words}: {next.lead.name} with {who};{" "}
+          {next.room_path ? (
+            <>
+              built (<Link href={next.room_path}>its room</Link>, {next.state}).
+            </>
+          ) : (
+            "not built yet (the :20 pass the hour before builds it)."
+          )}
+        </>
+      ) : (
+        `none ahead (no lead season with its lead picked${p.pilot_on ? "" : "; the pilot is off"}).`
+      )}
+      {last && !last.built && last.note ? ` Last: ${last.sunday} not built (${last.note}, ${last.tries} ${last.tries === 1 ? "try" : "tries"}).` : ""}
+    </p>
+  );
+}
 
 const SOURCE: Record<Slot["source"], string> = { dealt: "dealt", survivor: "stayed on", new: "new", fan: "fan pick", lead: "the lead", suitor: "suitor" };
 
@@ -263,6 +299,7 @@ export default function SeasonPanel() {
                   : "closed. It opens when this season runs as The Botchelor, or as soon as next season is set to The Botchelor and its lead is picked above (the default lead is only known on the 1st)."}
             </p>
           )}
+          {view.botchelor.premiere && <PremiereStatus p={view.botchelor.premiere} />}
           {view.botchelor.this_season.lead && (
             <p>
               <strong>Lead now:</strong> <CharacterName character={view.botchelor.this_season.lead} />

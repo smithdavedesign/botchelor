@@ -174,6 +174,23 @@ services:
       # - key: OPEN_CASTING
       #   value: "0"
       #   scope: RUN_AND_BUILD_TIME
+      # The Sunday premiere (lib/sunday-premiere.ts; docs/sunday-premiere.md): on every ceremony Sunday of a lead season
+      # the lead's last-chance date premieres in one room on Watch at PREMIERE_HOUR_UTC, and the ceremony moves to that
+      # hour's :20 pass so it counts the date; the Sunday before a lead season, the pilot. One house date a week (~5¢)
+      # plus the pilot. On by default; "0" turns all of it off and puts the ceremony back at 20:20 UTC (or
+      # CEREMONY_HOUR_UTC), without a deploy of code.
+      # - key: SUNDAY_PREMIERE
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
+      # The premiere's hour (UTC), 1 to 23 (the pass the hour before builds it, on the Sunday too). Default 23: 6 pm US
+      # Eastern, 3 pm Pacific in winter.
+      # - key: PREMIERE_HOUR_UTC
+      #   value: "23"
+      #   scope: RUN_AND_BUILD_TIME
+      # The pilot ("Meet the lead", the Sunday before a lead season): on with the premiere; "0" leaves it out.
+      # - key: PREMIERE_PILOT
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
       # Creator invites for casting (lib/casting-invites.ts; docs/casting-invites.md): a code from /admin/season skips
       # the three-date wait, applies shortlisted and books the audition date with the lead. On by default; "0" makes
       # every invite page say invites are closed and refuses every application, without a deploy.

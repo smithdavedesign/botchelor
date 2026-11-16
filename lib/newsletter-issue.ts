@@ -28,6 +28,7 @@ import {
 import { sendEmail } from "./email";
 import { siteUrl } from "./site";
 import { BOARD_DAYS, callersBoard, type CallersBoard } from "./streaks";
+import { letterPremiere, type LetterPremiere } from "./sunday-premiere";
 import { venuePhrase } from "./venues";
 import { revealBoard, revealDayOf, revealTimes, VOTE_CLOSE_HOUR_UTC, type RevealResult } from "./weekly-reveal";
 
@@ -94,19 +95,27 @@ async function revealSettled(db: Db, week: string, now: Date): Promise<boolean> 
   return now.getTime() >= Date.parse(`${week}T00:00:00Z`) + DAY_MS;
 }
 
-export type LetterContent = { week_id: string; reveal: RevealResult | null; dates: DropItem[]; callers: CallersBoard | null };
+export type LetterContent = {
+  week_id: string;
+  reveal: RevealResult | null;
+  dates: DropItem[];
+  callers: CallersBoard | null;
+  /** Next Sunday's premiere (lib/sunday-premiere.ts), one line before what's next; absent when there is none. */
+  premiere?: LetterPremiere | null;
+};
 
 /** What a week's letter says: that Sunday's reveal, the best dates since the last one aired, the best callers. Null with nothing to say. */
 export async function letterContent(db: Db, week: string, now: Date): Promise<LetterContent | null> {
   const from = new Date(revealTimes(week).airs_at.getTime() - 7 * DAY_MS);
-  const [board, dates, callers] = await Promise.all([
+  const [board, dates, callers, premiere] = await Promise.all([
     revealBoard(db, null, now).catch(() => null),
     bestAired(db, from, now, BEST_DATES, now).catch(() => [] as DropItem[]),
     callersBoard(db, null, now).catch(() => null),
+    letterPremiere(db, week, now).catch(() => null),
   ]);
   const reveal = board?.last?.week_id === week ? board.last : null;
   if (!reveal && !dates.length) return null;
-  return { week_id: week, reveal, dates, callers: callers?.top.length ? callers : null };
+  return { week_id: week, reveal, dates, callers: callers?.top.length ? callers : null, ...(premiere ? { premiere } : {}) };
 }
 
 /** A link from the letter: absolute, and tagged for the engagement log (utm_source=newsletter, utm_medium=email, the week). */
@@ -188,6 +197,16 @@ function boardPart(c: CallersBoard, link: (path: string) => string): Part {
   };
 }
 
+/** Next Sunday's premiere, in a line (lib/sunday-premiere.ts): when, and whose date. Nothing about how it ends. */
+function premierePart(p: LetterPremiere): Part {
+  const day = weekDay.format(new Date(`${p.sunday}T12:00:00Z`));
+  const line =
+    p.kind === "pilot"
+      ? `Next ${day}: the pilot. Meet ${p.lead}, ${p.month}'s lead on ${p.format_title}, on a first date live in one room on Watch at ${p.time_words}.`
+      : `Next ${day}: the premiere. ${p.lead}'s ${p.finale ? "last date before the final rose" : "last-chance date of the week"}, live in one room on Watch at ${p.time_words}.`;
+  return { html: `<p style="margin:24px 0 0">${escapeHtml(line)}</p>`, text: line };
+}
+
 /** What's next, in a line: when the next vote opens. */
 function nextPart(week: string, link: (path: string) => string): Part {
   const opens = revealTimes(isoDay(Date.parse(`${week}T00:00:00Z`) + 7 * DAY_MS)).opens_at;
@@ -209,6 +228,7 @@ export function renderLetter(c: LetterContent, base: string = siteUrl()): { id: 
     c.reveal ? revealPart(c.reveal, link) : null,
     c.dates.length ? datesPart(c.dates, link) : null,
     c.callers ? boardPart(c.callers, link) : null,
+    c.premiere ? premierePart(c.premiere) : null,
     nextPart(c.week_id, link),
   ].filter((p): p is Part => p !== null);
   return {

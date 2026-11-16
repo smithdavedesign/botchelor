@@ -261,7 +261,7 @@ describe("open casting (lib/casting.ts): Sunday's roses", () => {
     await t.db.query(`update episodes set setup = setup || '{"met_via":"casting"}'::jsonb where id = $1`, [episode.id]);
     const waiting = (await phoneFor(creator))!;
     expect(waiting.next.find((n) => n.key === "roses")).toEqual({ key: "roses", text: `Sunday's roses: ${firstOf(H0.name)} decides whether Mira gets one`, href: `/episodes/${episode.id}`, at: null });
-    // On the Sunday itself, before the pass (20:20 UTC): today's.
+    // On the Sunday itself, before the pass (23:20 UTC, the ceremony hour with the Sunday premiere on): today's.
     expect((await phoneFor(creator, new Date("2026-11-15T12:00:00Z")))!.next.find((n) => n.key === "roses")?.text).toBe(`Today's roses: ${firstOf(H0.name)} decides whether Mira gets one`);
     expect((await phoneFor(creator, NOW, { COMPANION_OPEN: "1", OPEN_CASTING: "0" }))!.next.some((n) => n.key === "roses")).toBe(false);
     // Judged: the row is gone (the character's own text tells them which way it went).
