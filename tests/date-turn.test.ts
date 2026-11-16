@@ -130,21 +130,27 @@ describe("which turn a date gets", () => {
     expect(turnFor(met.built.input, met.decided, met.characters)!.on).toBe("b");
   });
 
-  it('"just friends": a missed agenda lands lightly; with none, one says a friend\'s line and both hear it; nobody cools', () => {
+  it('"just friends": one says a friend\'s line and both hear it (the one whose agenda missed, when one did); nobody cools', () => {
     const friends = (o: Partial<SideOutcome> = {}) => side({ wants_another: true, satisfied: true, ...o });
     const missed = date("friends", [friends(), friends({ agenda_met: false })]);
     const t = turnFor(missed.built.input, missed.decided, missed.characters)!;
-    expect(t.kind).toBe("agenda");
-    expect(t.steps[2].note).toContain("this isn't a romance");
+    expect(t.kind).toBe("friends");
+    // B was the one let down, so B says it and A hears it.
+    expect(t.steps.map((s) => s.side)).toEqual(["b", "a"]);
+    expect(t.steps[0].note).toContain("only say to a friend");
+    expect(t.steps[1].note).toContain("it isn't romance");
     expect(t.after!.a).toContain("this is a friendship, not a romance");
+    expect(t.after!.b).toContain("this is a friendship, not a romance");
     expect(JSON.stringify(t)).not.toContain("cooled toward them");
+    // A side the engine says doesn't want to see them again is pleasant and makes no plans.
+    const cool = date("friends", [friends({ wants_another: false }), friends()]);
+    expect(turnFor(cool.built.input, cool.decided, cool.characters)!.after!.a).toContain("make no plans");
 
     const none = date("friends", [friends(), friends()]);
     const f = turnFor(none.built.input, none.decided, none.characters)!;
     expect(f.kind).toBe("friends");
     expect(f.steps).toHaveLength(2);
     expect(f.steps[0].side).not.toBe(f.steps[1].side);
-    expect(f.steps[0].note).toContain("only say to a friend");
   });
 
   it("a date that ends well: no turn, unless an agenda missed, and then a wobble that is met and let go (nothing after it)", () => {

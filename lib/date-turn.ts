@@ -18,8 +18,9 @@
  *     thing that fails it, as its beat always asked, now on one line);
  *   - two opinions that collide (each side's own hot take, lib/hot-takes.ts);
  *   - a want the engine says went unmet (the side whose want it is tests for it).
- * A date that ends "just friends" turns the same way, more gently, or on a friend's line when the facts give no reason;
- * a date that ends well and had an agenda miss gets a small wobble that is met and let go. No model call.
+ * A date that ends "just friends" turns on a friend's line: one of them says the thing you only say to a friend, and
+ * both hear that it's true. A date that ends well and had an agenda miss gets a small wobble that is met and let go.
+ * No model call.
  *
  * What it never does: decide anything. The outcome is read, never written; the turn exists only on a plan written by the
  * rules for a date the show's own model plays whole (lib/pipeline.ts), behind EARNED_ENDINGS. The characters' own answers
@@ -36,10 +37,13 @@ import { shortName } from "./names";
 type Env = Record<string, string | undefined>;
 
 /**
- * EARNED_ENDINGS: "1" on, "0" off; unset, the default below. The default follows the eval (docs/date-quality.md): on
- * only if "motivated" rose without "natural" falling by more than the noise between two runs of the same date.
+ * EARNED_ENDINGS: "0" off, "1" on; unset, the default below. On, by the eval's own rule (docs/date-quality.md, "Round:
+ * endings the dialogue earns"; 12 dates an arm on the show's model): over the seven dates that end badly the judge's
+ * "motivated" rose from 2.57 to 3.43 (the four disasters 2.25 to 3.5; every one that scored 2 or less scored 3 or 4),
+ * and "natural" went from 3.43 to 3.21, inside what two runs of the very same prompts differ by (a point, on four of
+ * five such pairs). "0" plays every date from its beats alone, exactly as before.
  */
-export const EARNED_ENDINGS_DEFAULT = false;
+export const EARNED_ENDINGS_DEFAULT = true;
 export function earnedEndingsOn(env: Env = process.env): boolean {
   const v = env.EARNED_ENDINGS?.trim();
   return v === "1" ? true : v === "0" ? false : EARNED_ENDINGS_DEFAULT;
@@ -87,10 +91,9 @@ const AGENDA_TURN: Record<AgendaId, { setup: string; miss: string; land: string 
   },
 };
 
-/** How the moment lands, by where the date is going: a blow, a light "not a romance", or a doubt that will be met. */
-const LANDS: Record<Outcome["ending"], string> = {
+/** How a missed agenda lands, by where the date is going: a blow, or a doubt that will be met. */
+const LANDS: Record<"disaster" | "second_date", string> = {
   disaster: " Let it land on this line, your way: a flatter answer, the subject dropped, or saying so. Don't laugh it off and don't talk them round.",
-  friends: " It's no great blow: it just tells you this isn't a romance. Let it land lightly on this line, and stay friendly.",
   second_date: " It gives you a moment's real doubt. Let it show on this line; don't pretend it didn't happen.",
 };
 
@@ -141,9 +144,9 @@ export function turnFor(input: DateInput, outcome: Outcome, characters: [Charact
   const both: Side[] = [0, 1];
   const missed = both.filter((s) => !outcome.sides[s].agenda_met);
   const withAfter = (kind: DateTurn["kind"], on: Side, steps: DateTurn["steps"]): DateTurn => ({ kind, on: letter(on), steps, after: { a: afterFor(outcome, 0, on), b: afterFor(outcome, 1, on) } });
-  const agendaTurn = (on: Side): DateTurn["steps"] => {
+  const agendaTurn = (on: Side, ending: "disaster" | "second_date"): DateTurn["steps"] => {
     const t = AGENDA_TURN[sides[on].agendaId];
-    return [step(on, t.setup), step(other(on), t.miss), step(on, t.land + LANDS[outcome.ending])];
+    return [step(on, t.setup), step(other(on), t.miss), step(on, t.land + LANDS[ending])];
   };
 
   if (outcome.ending === "second_date") {
@@ -154,7 +157,7 @@ export function turnFor(input: DateInput, outcome: Outcome, characters: [Charact
       kind: "wobble",
       on: letter(on),
       steps: [
-        ...agendaTurn(on),
+        ...agendaTurn(on, "second_date"),
         step(other(on), "Something you just did landed wrong with them, and you felt it. Meet it on this line: own it honestly, in your own way, without grovelling or explaining it away."),
         step(on, "They met you honestly. Let the doubt go on this line, and let it show that you like them more for how they handled it."),
       ],
@@ -162,10 +165,11 @@ export function turnFor(input: DateInput, outcome: Outcome, characters: [Charact
   }
 
   if (outcome.ending === "friends") {
-    const on = pick(missed, outcome);
-    if (on !== null) return withAfter("agenda", on, agendaTurn(on));
-    // Nothing in the facts says why it isn't a romance: one of them says a friend's thing, and both hear it.
-    const says: Side = (outcome.seed ?? 0) % 2 === 0 ? 0 : 1;
+    // "Just friends" isn't a date that went wrong, so it doesn't turn on a miss: one of them says a friend's thing, and
+    // both hear it. (The first version turned it on a missed agenda, gently. Measured, that showed the miss and still
+    // never said why it wasn't a romance: 4 -> 3 and 3 -> 3 for "motivated", against 2 -> 4 for the friend's line.)
+    // Said by the one the facts say was let down (an agenda that missed), else by the one the date's seed picks.
+    const says: Side = pick(missed, outcome) ?? ((outcome.seed ?? 0) % 2 === 0 ? 0 : 1);
     return withAfter("friends", other(says), [
       step(says, "Say the thing you'd only say to a friend, on this line and warmly: who you'd love them to meet, the mate they remind you of, a favour you'd ask a pal. You mean it as a compliment."),
       step(other(says), "That was a friend's line, and you notice it's true for you as well: whatever this is, it isn't romance. Let it land lightly on this line: a laugh at the two of you, more relief than hurt."),
@@ -194,7 +198,7 @@ export function turnFor(input: DateInput, outcome: Outcome, characters: [Charact
   }
   // Then an agenda the engine says didn't pay off.
   const agendaOn = pick(missed, outcome);
-  if (agendaOn !== null) return withAfter("agenda", agendaOn, agendaTurn(agendaOn));
+  if (agendaOn !== null) return withAfter("agenda", agendaOn, agendaTurn(agendaOn, "disaster"));
   // Then two opinions that collide: each says its own.
   const clash = collidingTakes(characters[0].hotTakes ?? [], characters[1].hotTakes ?? []);
   if (clash) {
