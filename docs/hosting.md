@@ -92,6 +92,12 @@ ignore it.
   not show a stored plan reading better than the rules plan overall (it earns the ending better and sounds less
   natural: the numbers and the dates are in that round); `1` turns it on without a deploy, and `/admin/season` → The
   producer lists each plan and whether its date used it. All three are commented in `.do/show.yaml`.
+- **`EARNED_ENDINGS`** (the show's app, not a secret; on unless `0`): a date played from the rules plan carries the
+  moment its decided ending comes from, a third of the way in (`lib/date-turn.ts`, [date-quality.md](date-quality.md),
+  "Round: endings the dialogue earns"): a disaster turns on a tripped dealbreaker, something heard, a missed agenda,
+  two opinions or an unmet want; "just friends" on a friend's line; a second date with a missed agenda gets a wobble
+  that is met. No model call, and nothing the engine decided changes. `generated_with.turn` on the episode says which
+  kind. `0` plays every date from its beats alone, as before. Commented in `.do/show.yaml`.
 - **`EXPRESS_CREATE`** (the show's app, not a secret; on unless `0`): one-sentence create, the one-box first screen of
   `/create` for a first character (`lib/express-create.ts`, [flows.md](flows.md)). `0` restores the form as the first
   step and `POST /api/characters/draft` answers 404.

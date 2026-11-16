@@ -1,0 +1,348 @@
+{
+  "model": "anthropic/claude-haiku-5.5",
+  "spent_usd": 0.0396,
+  "results": [
+    {
+      "case": "mira-dex",
+      "arm": "before",
+      "decided": "disaster",
+      "ending": "disaster",
+      "index": 82,
+      "judge": {
+        "in_character_a": 4,
+        "in_character_b": 4,
+        "natural": 3,
+        "motivated": 1,
+        "specific": 4,
+        "distinct": 4,
+        "engaging": 4,
+        "profile_reading": false,
+        "misgendering": false,
+        "abrupt_turn": false,
+        "note": "The decided ending is a disaster with a clear, visible no, but the dialogue stays warm and playful throughout, so nothing in the conversation builds toward that. The best moments are the napkin test and the 'here, probably' joke, which give both characters distinct, specific voices."
+      },
+      "judge_mean": 3.43,
+      "own_answers": {
+        "a": "yes",
+        "b": "yes",
+        "would_end": "friends"
+      },
+      "model_calls": 20,
+      "cost_usd": 0.01281,
+      "turn": null,
+      "transcript": [
+        {
+          "n": 1,
+          "who": "Mira Quell",
+          "said": "Fair warning, I'm a cartographer, so I'll be reading you like a map. You've got clay up to the elbows, which means you didn't come straight from work. What are you making, and do you still know which way is north once you've been on this street a while?",
+          "did": "tugs the compass chain"
+        },
+        {
+          "n": 2,
+          "who": "Dex Okafor",
+          "said": "Bowls, mostly. The kiln at the studio has a grudge against my mugs, so I've been making a lot of bowls to make up for it. North, I'm less sure about. I've been on this street ten minutes and I've already walked past the same shuttered bakery twice.",
+          "did": "knocks on wood"
+        },
+        {
+          "n": 3,
+          "who": "Mira Quell",
+          "said": "Twice? Then that bakery is a landmark with commitment issues. Be honest, did you circle back on purpose, or did the street just fool you? I'd rather know which kind of lost you are.",
+          "did": "sketches a loop on a napkin"
+        },
+        {
+          "n": 4,
+          "who": "Dex Okafor",
+          "said": "The street fooled me. I'd like to say I was being clever, but I spent years getting set on fire for a living, so I don't trust my own plans much. Do cartographers ever get lost on purpose, or is that against the job?"
+        },
+        {
+          "n": 5,
+          "who": "Mira Quell",
+          "said": "Wait, you got paid to be on fire? I need that story before we loop past the bakery a third time. And getting lost on purpose is basically fieldwork. Some of my favorite blocks exist only because I refused to correct a wrong turn."
+        },
+        {
+          "n": 6,
+          "who": "Dex Okafor",
+          "said": "Stunt double. Mostly I was the guy who got set on fire so the actor didn't have to. Nineteen times, on paper. The first one was a mess, the rest I got better at. Don't ask about the paperwork. Fieldwork, you said? So if I follow you down a bad turn, Mira, that counts as a job?"
+        },
+        {
+          "n": 7,
+          "who": "Mira Quell",
+          "said": "Ha, I'll allow it as a trial run, but I'm not paying you in bakery. Nineteen times on fire and you still lost track of one street? Honestly, I'm starting to think the bakery is the real stuntman here.",
+          "did": "slides a napkin across the table"
+        },
+        {
+          "n": 8,
+          "who": "Dex Okafor",
+          "said": "The bakery has been through more than I have, so I'll take the compliment. Is that napkin a way out, or a map back to the bakery? If it's the second one, I might need a minute before I trust it."
+        },
+        {
+          "n": 9,
+          "who": "Mira Quell",
+          "said": "It's a way out. Turn it upside down, since that's my test for everyone. The bakery's the X in the corner, and the arrow goes past it. Ha, I'm already laughing at that, and you haven't even read it yet.",
+          "did": "spins the napkin around"
+        },
+        {
+          "n": 10,
+          "who": "Dex Okafor",
+          "said": "Okay, I'm turning it upside down, slowly, because I've been set on fire enough to respect a test. The arrow goes past the bakery and stops at a word I can't read. Is that 'home,' or did you just draw a squiggle to see if I'd panic?",
+          "did": "turns the napkin slowly"
+        },
+        {
+          "n": 11,
+          "who": "Mira Quell",
+          "said": "It says 'here, probably.' Cartographers write that on the edges of anything we haven't checked. Ha, I'm laughing again, and that joke is mostly for me. But you did read it upside down, so you pass. Now, the paperwork for nineteen fires. Which part made you flinch?",
+          "did": "taps the squiggle"
+        },
+        {
+          "n": 12,
+          "who": "Dex Okafor",
+          "said": "The emergency contact line. Every form asks who to call, and I always wrote my mom, which made the nurse ask why I wasn't putting a stuntman's friend down. Honestly, though, the flinch is birthday candles. Don't ask me to explain."
+        }
+      ],
+      "feelings": [
+        "curious",
+        "curious",
+        "curious",
+        "curious",
+        "curious",
+        "charmed",
+        "amused",
+        "charmed",
+        "amused",
+        "charmed",
+        "amused",
+        "charmed"
+      ]
+    },
+    {
+      "case": "teo-nell",
+      "arm": "before",
+      "decided": "friends",
+      "ending": "friends",
+      "index": 94,
+      "judge": {
+        "in_character_a": 4,
+        "in_character_b": 4,
+        "natural": 4,
+        "motivated": 3,
+        "specific": 4,
+        "distinct": 4,
+        "engaging": 4,
+        "profile_reading": false,
+        "misgendering": false,
+        "abrupt_turn": false,
+        "note": "The ending is only thinly set up: the warmth builds, but nothing in the exchange makes the romance go flat, so 'just friends' arrives on Nell's 'easy company' line rather than from a visible turn. The best moment is Nell's correction of the Roman bust (a nineteenth-century copy, a letter, a form, a note from the curator), which is vivid and exactly her."
+      },
+      "judge_mean": 3.86,
+      "own_answers": {
+        "a": "yes",
+        "b": "yes",
+        "would_end": "friends"
+      },
+      "model_calls": 16,
+      "cost_usd": 0.011,
+      "turn": null,
+      "transcript": [
+        {
+          "n": 1,
+          "who": "Teo Brandt",
+          "said": "Fair warning, I've been told I talk a beat too long. So, the thermos first: I'm told it's cocoa. I'm choosing to believe that. And the notes. Every pocket, Nell?",
+          "did": "holds out the thermos"
+        },
+        {
+          "n": 2,
+          "who": "Nell Abiodun",
+          "said": "Cocoa is generous, but I'll take the thermos on trust. And it's three pockets with notes, not every pocket. The left one is pencils, which is a different category. Do you always warn people before you talk, or did you save that for me?",
+          "did": "takes the thermos carefully"
+        },
+        {
+          "n": 3,
+          "who": "Teo Brandt",
+          "said": "Only for people who make me feel like I need a disclaimer. You're the first, so consider yourself warned in advance. Fair on the pencils, I'd never mix them up with the notes. But what are the notes? A list of people who owe you a favour, or a list of things you're going to fix?",
+          "did": "pours two cups, carefully"
+        },
+        {
+          "n": 4,
+          "who": "Nell Abiodun",
+          "said": "Neither, though the favour list is closer. They're corrections to the museum placards. Gallery four says the bust is Roman. It isn't, it's a nineteenth-century copy, and I've been quietly fixing that for three years. Sorry, that was a tangent.",
+          "did": "tucks a pencil away"
+        },
+        {
+          "n": 5,
+          "who": "Teo Brandt",
+          "said": "Don't apologise. That's the best tangent anyone has brought to a cold beach. Three years of quietly fixing a bust? Does the museum know, or are you an invisible curator with a pencil? Be honest: is it more satisfying than winning an argument, or just lonelier?",
+          "did": "passes her a cup"
+        },
+        {
+          "n": 6,
+          "who": "Nell Abiodun",
+          "said": "The museum knows. I wrote to them, and they sent back a form. Then the curator quietly stuck a note on the bust, which I'm choosing to count as a victory. Winning an argument is over in a minute. This is slower, and nobody claps. So, lonelier, I suppose.",
+          "did": "pulls the blanket closer"
+        },
+        {
+          "n": 7,
+          "who": "Teo Brandt",
+          "said": "Quiet applause, Nell, the library kind. I'd know a bit about unrewarded work myself. I teach ballroom, and the lead gets all the attention while the other person quietly keeps the whole thing moving. Does anyone ever thank you for the bust, or only for the pencil?",
+          "did": "claps softly, twice"
+        },
+        {
+          "n": 8,
+          "who": "Nell Abiodun",
+          "said": "Mostly the pencil, I think. The bust just stands there being correct, and the pencil gets to go home with people. You teach ballroom, though. When the lead gets all the attention, does the follow ever get thanked, or is that just how the floor works?",
+          "did": "a small smile into the cup"
+        },
+        {
+          "n": 9,
+          "who": "Teo Brandt",
+          "said": "Mostly no. The follow gets a nod and a 'lovely, wasn't it' while the lead takes a bow. I'll stop there before I turn your beach into a lecture on frame and posture. Gallery four, though: does the bust know it's been demoted, or is it blissfully unaware?",
+          "did": "pulls the thermos back"
+        },
+        {
+          "n": 10,
+          "who": "Nell Abiodun",
+          "said": "Blissfully unaware, I think. It was never a Roman, so it can't be demoted, only mislabelled, which is a much gentler fate. Speaking of floors, if the follow never gets a bow, do you at least teach them to lead the lead back? Asking for the thermos.",
+          "did": "pushes glasses up"
+        },
+        {
+          "n": 11,
+          "who": "Teo Brandt",
+          "said": "Ha. Teaching follows to lead the lead back is the secret syllabus, Nell, and I'm not sure I'm qualified to admit to it. Mostly I just try to stop people counting out loud. You, though, took the thermos without a flinch."
+        },
+        {
+          "n": 12,
+          "who": "Nell Abiodun",
+          "said": "Brave of you to hand me a thermos of unknown contents and then go quiet about it. I'm on my second cup, so I'm either trusting you or I've lost the will to fight. Honestly, you're easy company, Teo.",
+          "did": "pours more cocoa"
+        }
+      ],
+      "feelings": [
+        "curious",
+        "amused",
+        "amused",
+        "amused",
+        "amused",
+        "amused",
+        "amused",
+        "amused",
+        "amused",
+        "comfortable",
+        "amused",
+        "comfortable"
+      ]
+    },
+    {
+      "case": "sable-orin",
+      "arm": "before",
+      "decided": "friends",
+      "ending": "friends",
+      "index": 86,
+      "judge": {
+        "in_character_a": 4,
+        "in_character_b": 5,
+        "natural": 3,
+        "motivated": 4,
+        "specific": 5,
+        "distinct": 5,
+        "engaging": 4,
+        "profile_reading": false,
+        "misgendering": false,
+        "abrupt_turn": false,
+        "note": "Orin's fact-checking follow-ups (\"which year, since March comes round every year?\", \"how many fish?\") are the standout, and the Dennis-and-unnamed-fish story gives the rapport real specifics. The weak spot is the parenthetical stage directions and the rapid quip exchanges, which make the dialogue read like a script at times; Sable's voice is loud but sometimes generic in its exclamations."
+      },
+      "judge_mean": 4.29,
+      "own_answers": {
+        "a": "yes",
+        "b": "yes",
+        "would_end": "second_date"
+      },
+      "model_calls": 18,
+      "cost_usd": 0.01166,
+      "turn": null,
+      "transcript": [
+        {
+          "n": 1,
+          "who": "Sable Quist",
+          "said": "Orin! Hi! You have a pencil for emergencies, which tells me you've been in at least one emergency where a pencil saved the day. Was it a crossword? A tent? Tell me everything, I'm already invested."
+        },
+        {
+          "n": 2,
+          "who": "Orin Fletcher",
+          "said": "Neither a crossword nor a tent. It was a eulogy, and the date on it was wrong. I fixed it in the margin with that pencil, and I'll admit the timing was poor. Your turn: is the glitter a statement, or has it just never lost a fight?"
+        },
+        {
+          "n": 3,
+          "who": "Sable Quist",
+          "said": "Wait, a eulogy with the wrong date, and you caught it with a pencil? That's a heist, not a funeral. Did the person get their send-off in the end, or did the margin win? Also, the glitter has been through a lot. Yes or no to the street song, before I make up a plan.",
+          "did": "tugs his sleeve"
+        },
+        {
+          "n": 4,
+          "who": "Orin Fletcher",
+          "said": "The send-off happened on the correct day, so the margin won in the end. Yes to the song, provisionally. Do you know its name? I'd like to check it isn't the one that's always playing near the bus station.",
+          "did": "adjusts reading glasses"
+        },
+        {
+          "n": 5,
+          "who": "Sable Quist",
+          "said": "The margin wins! I love that. No idea what the song's called, and I'm not going to ask in case it's the bus station one and we're sworn enemies now. Do you always check the name before you say yes to something?",
+          "did": "peers at the street musician"
+        },
+        {
+          "n": 6,
+          "who": "Orin Fletcher",
+          "said": "Not always. I once agreed to a dessert without reading its name, and it turned out to be a bread pudding. Your turn: you said the glitter has been through a lot. Name one specific incident, with a date, and I'll tell you if it holds up.",
+          "did": "taps pencil twice"
+        },
+        {
+          "n": 7,
+          "who": "Sable Quist",
+          "said": "Bread pudding! That's a betrayal with a name tag. Fine: 9th of March, I threw a surprise party in a dentist's waiting room for a total stranger, Ruthie. The glitter went into the fish tank. The fish still sparkle. Does that hold up?",
+          "did": "bounces on heels"
+        },
+        {
+          "n": 8,
+          "who": "Orin Fletcher",
+          "said": "It holds up on the date, which is more than most dinner companions manage. Two follow-ups. Which year, since March comes round every year? And how many fish? 'The fish still sparkle' is a claim about a tank, and I'd like a count.",
+          "did": "writes in the margin"
+        },
+        {
+          "n": 9,
+          "who": "Sable Quist",
+          "said": "Last year, and I'm not going to pretend the fish are a theory. Three of them: two named Dennis and one I refuse to name, because she's been through enough. Does he audit everyone's party stories, or is this a special honour for people who carry pencils?",
+          "did": "waves a hat at him"
+        },
+        {
+          "n": 10,
+          "who": "Orin Fletcher",
+          "said": "I don't audit. I verify, which is a different hobby with fewer friends. Two Dennises and one unnamed fish is a count I can live with. Did Ruthie get her party, or was the dentist's waiting room the only one who came?"
+        },
+        {
+          "n": 11,
+          "who": "Sable Quist",
+          "said": "Ruthie got her party! Full house: the dentist, two receptionists, and her cat, who wasn't invited but turned up anyway, like a plus-one who smells cake. Honestly, Orin, you're the first person I've told who didn't ask me to be less loud about it. Walk me past the bus station?",
+          "did": "falls into step beside him"
+        },
+        {
+          "n": 12,
+          "who": "Orin Fletcher",
+          "said": "Ruthie's cat is now on the record as a verified gatecrasher. Lead on, then. I'll keep your pace, and if the street musician turns out to know only the one song, I'll hold it against him, not you. Tell me about the fish once we're past the shutters.",
+          "did": "matches her pace"
+        }
+      ],
+      "feelings": [
+        "curious",
+        "amused",
+        "curious",
+        "amused",
+        "curious",
+        "amused",
+        "curious",
+        "amused",
+        "amused",
+        "amused",
+        "comfortable",
+        "comfortable"
+      ]
+    }
+  ]
+}

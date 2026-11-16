@@ -136,6 +136,13 @@ services:
       # - key: PRODUCER_PLANS
       #   value: "1"
       #   scope: RUN_AND_BUILD_TIME
+      # Earned endings (lib/date-turn.ts; docs/date-quality.md "Round: endings the dialogue earns"): on by default, a
+      # date played from the rules plan carries the moment its decided ending comes from, mid-date (measured: the
+      # judge's "motivated" on disasters 2.25 -> 3.5, "natural" inside the noise). "0" plays every date from its beats
+      # alone, as before. Never changes an ending.
+      # - key: EARNED_ENDINGS
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
       # One-sentence create (lib/express-create.ts; docs/flows.md): on by default. Uncomment with "0" to put the form
       # back as /create's first step without a deploy.
       # - key: EXPRESS_CREATE

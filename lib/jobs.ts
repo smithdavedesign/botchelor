@@ -381,7 +381,7 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
     // The stored lines' (empty when nothing came out, like the transcript; a backfill fills both later).
     const turnMeta = metaOf(kept, new Date().toISOString());
     timing.written_ms = Date.now() - t0;
-    const generatedWith = { ...gen.generatedWith, ...(row.use_frontier ? { frontier: true } : {}), ...(partial ? { transcript_partial: true } : {}), plan: gen.plan?.source ?? null, timing };
+    const generatedWith = { ...gen.generatedWith, ...(row.use_frontier ? { frontier: true } : {}), ...(partial ? { transcript_partial: true } : {}), plan: gen.plan?.source ?? null, turn: gen.plan?.turn?.kind ?? null, timing };
 
     // The ending as it stands once the wishes weighed in (the engine's own, unless they tipped it), with its drama and sides.
     const saved = await db.query<{ id: string }>(

@@ -21,6 +21,7 @@
  */
 import { AfterglowError, simulateAfterglow, type AfterglowLine } from "./afterglow";
 import { planDate, rulesPlan, type DatePlan } from "./beats";
+import { earnedEndingsOn, withTurn } from "./date-turn";
 import type { Character } from "./character";
 import { bestLine, ConversationError, simulateConversation, type Turn } from "./conversation";
 import type { Outcome } from "./engine";
@@ -47,7 +48,7 @@ import type { SecretSlip } from "./cast-secrets";
  * is handed). Recorded on every generated date with the models that wrote it, so a change in quality can be traced
  * to a prompt or a model. Bump it whenever a prompt or its data changes.
  */
-export const PROMPT_VERSION = "2026-11-15.story-state";
+export const PROMPT_VERSION = "2026-11-16.earned-endings";
 
 /** Which models wrote a date, by role (whichever actually answered, fallbacks included), and with which prompts. */
 export type GeneratedWith = { actor: string[]; director: string[]; byok: string[]; prompts: string };
@@ -226,6 +227,9 @@ export async function generateDate(
         : opts.fast || opts.plan === "rules"
           ? rulesPlan(built.input, decided, characters, producer, venueId)
           : await planDate(director.model, built.input, decided, characters, producer, venueId, opts.formatId, opts.formatCtx);
+    // Earned endings (lib/date-turn.ts, EARNED_ENDINGS): a plan the rules wrote also carries the moment the decided
+    // ending comes from. It reads `decided` and never writes it; a director's or the producer's plan is left as written.
+    if (plan.source === "rules" && earnedEndingsOn()) plan = withTurn(plan, built.input, decided, characters);
     const converse = (from?: Turn[]) =>
       simulateConversation(actor.model, built.input, decided, characters, producer, venueId, opts.formatId, opts.talk?.date, opts.formatCtx, plan ?? undefined, keyForSide, onTurn, {
         moves: opts.moves,
