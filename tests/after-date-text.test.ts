@@ -5,6 +5,7 @@ import { POST as afterDateRoute } from "@/app/api/companion/after-date/route";
 import { afterDateCharacter, afterDateLines, allowsSecondDate, dayAfterLines, dayAfterTexts, sendAfterDateText, teaseAfterAir, teaseLines, type AfterDateEpisode, type DayAfterState } from "@/lib/after-date-text";
 import { signSession } from "@/lib/auth";
 import { companionNotice, getThread, openThread, setCompanionModelForTests, threadIdFor } from "@/lib/companion";
+import { deletableMessages, deleteMessage } from "@/lib/companion-message-delete";
 import { offersFor } from "@/lib/companion-offers";
 import type { SideOutcome } from "@/lib/engine";
 import { HOUSE_CHARACTERS } from "@/lib/house";
@@ -365,6 +366,29 @@ describe("dayAfterTexts (the daily job)", () => {
     ]);
     // The booked next date itself is not in its window yet (booked now): nothing about it.
     expect((await tagged(plannedThread, "day_after:")).length).toBe(3);
+  });
+
+  it("never sends a text again after the person deleted it, one message at a time (lib/companion-message-delete.ts)", async () => {
+    const { creator, episode } = await personsDate("second_date");
+    const me = userIdOf(creator);
+    const thread = await optIn(creator, episode.id);
+    await bookedAt(episode.id, hoursAgo(NOW, 24));
+    expect(await dayAfterTexts(t.db, NOW)).toBe(1);
+    // They delete every bubble of both texts (the photo too), from the page under the thread's Settings.
+    for (const m of (await deletableMessages(t.db, me, thread))!) expect(await deleteMessage(t.db, me, thread, m.id)).toMatchObject({ ok: true });
+    // Only the AI notices are left to see (one before each text).
+    const view = await getThread(t.db, me, thread);
+    expect(view.ok && view.view.messages.map((m) => m.role)).toEqual(["system", "system"]);
+    // What stays is one blank marker a text: its tag and when, none of its words.
+    const kept = (await t.db.query<{ text: string; action: string }>(`select text, action from companion_messages where thread_id = $1 and role = 'character' order by action`, [thread])).rows;
+    expect(kept).toEqual([{ text: "", action: `after_date:${episode.id}` }, { text: "", action: `day_after:${episode.id}` }]);
+    // So neither is ever written again: not by the job, not by the Hear-from tap, not by the airing's tease.
+    expect(await dayAfterTexts(t.db, NOW)).toBe(0);
+    expect(await sendAfterDateText(t.db, { userId: me, episodeId: episode.id })).toMatchObject({ ok: true, sent: false });
+    await t.db.query(`update episodes set revealed_at = now() where id = $1`, [episode.id]);
+    expect(await teaseAfterAir(t.db, episode.id)).toBe(0);
+    const after = await getThread(t.db, me, thread);
+    expect(after.ok && after.view.messages.map((m) => m.role)).toEqual(["system", "system"]);
   });
 });
 

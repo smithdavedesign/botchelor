@@ -171,6 +171,12 @@ ignore it.
   its last aired date (`lib/cast-opener.ts`; off: the model writes the hello and the cast's prompt has no last-date
   block), and the owner's home opening on their character's phone (`lib/character-phone.ts`; off: the home page as it
   was). The rules are in [companions.md](companions.md) and [flows.md](flows.md).
+- **`COMPANION_MESSAGE_DELETE`** (the show's app, not a secret; on by default, `0` turns it off without a deploy of
+  code): deleting one message of a companion conversation (`lib/companion-message-delete.ts`). Off: "Delete messages…"
+  leaves the thread's Settings menu, `/companion/<id>/messages` and `DELETE /api/companion/:id/messages/:messageId`
+  answer not-found, and the privacy notice and the FAQ say only the whole conversation can be deleted (they read the
+  same switch). Deleting the conversation is unaffected. [companions.md](companions.md), "Deleting one message, and the
+  export". Commented in `.do/show.yaml`.
 - **`AD_BRIDGE`** (the show's app, not a secret; default on): the After Dark bridge, one line on the creator's verdict
   card when their character's date ended in a second date, linking the invite request with `source=verdict`
   (`lib/adult/bridge.ts`; [after-dark.md](after-dark.md), "The bridge from the show's verdict card"). `0` takes the

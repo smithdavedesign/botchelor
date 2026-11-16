@@ -98,7 +98,8 @@ Never someone else's character or an outside agent's: their makers never agreed 
 - **Access** (`app/api/companion/access.ts`): signed in, past the 18+ gate, admins until `COMPANION_OPEN=1`; anyone
   else gets a 404. 150 messages an hour and 800 a day per person (abuse only; the plan sets the real limits).
 - **Privacy:** in the terms (`#companions`) and the privacy notice (what's stored, how long, processors). Never used
-  for training. Deleting the account deletes every thread.
+  for training. Deleting the account deletes every thread; a person can delete a thread, or one message of it
+  ("Deleting one message", below), and their account export carries their threads and call records.
 - **Safety:** [safety-protocol.md](safety-protocol.md), published at `/safety#companions` once open.
 - **Reports** (`lib/companion-reports.ts`): a reported reply waits on `/admin/reports` with the four messages before
   it, nothing more of the conversation, for "Fine" or "A real miss" (`report_reviewed_at`, `report_decision`); the
@@ -754,7 +755,7 @@ behaviour behind them):
 | The caller's audio never reaches us. Live: the browser streams the microphone to Deepgram's socket with a 30-second token. Taking turns: the browser's own `SpeechRecognition` (Chrome → Google, Safari → Apple). | `app/companion/[id]/live-audio.ts` (`Mic`, `listen`), `CompanionCall.tsx` (`liveOpen`, `listen`) |
 | Deepgram is asked to keep nothing for training, on listening and on the voice. Its docs say an opted-out request's data is kept only as long as it takes to process. | `lib/companion-live.ts` `sttUrl`, `speakAura` (`mip_opt_out=true`) |
 | What was said reaches us as text and is kept as a message marked 📞, like a typed one; a line that trips the self-harm check or the PG line isn't kept. | `lib/companion.ts` `takeIn` → `screen` → `addMessage` (`on_call`) |
-| The words can be deleted only with the conversation (or the account). The last message can be rewritten (`editLast`); there is no delete for one message. | `deleteThread` (messages cascade), `lib/account.ts` |
+| The words can be deleted one message at a time (Settings → "Delete messages…"), with the conversation, or with the account. The last message can also be rewritten (`editLast`). | `lib/companion-message-delete.ts` `deleteMessage`, `deleteThread` (messages cascade), `lib/account.ts` |
 | The companion's voice is Aura, made on the server from checked words and streamed through, never stored. Picking "their own voice" on a taking-turns call makes each reply a voice note (Kokoro on Venice or Replicate), which is stored with the thread. | `speakAura`, `lib/companion-call-voice.ts`, `lib/companion-voice.ts` |
 | The moving face is rendered by our worker on Runpod from the character's kit still and the character's Aura audio. Nothing of the caller is sent, and clips are streamed, not stored. | `lib/live-face/ditto.ts` `speakInput`, the live route's `DittoChain` |
 | A live call's row holds times, minutes, turns, voiced characters, the face's renderer and seconds, and the first minute's ticket: no sound, no words. Gone after 90 days or with the account; **not** with the conversation. | `companion_live_calls`, `pruneLiveCalls`, `deleteAccount` |
@@ -763,12 +764,90 @@ behaviour behind them):
   after the first call), for the way of calling that's picked, with "What a call keeps" opening `/privacy#calls` in a
   new tab. It's copy only: nothing to tick, nothing that delays the call.
 - **`/privacy#calls`** ("Calls with a companion"): the table above in plain words; the processors list now names
-  Runpod, and "How long we keep it" has the 90 days.
+  Runpod, and "How long we keep it" has the 90 days. "Deleting it" says how one message is deleted and what that leaves.
 - **`/faq`**: "What happens to my voice on a call with a companion?" (while companions are open).
 - **`/costs#call`**: what a minute costs us, part by part ([costs.md](costs.md), "A live call, a minute").
-- **Known gaps, told to the owner rather than papered over:** no single-message delete; the account export
-  (`exportAccount`) leaves out companion conversations and call records; Runpod's own retention of a job's input (the
-  character's audio) isn't something our code controls.
+- **Known gaps, told to the owner rather than papered over:** Runpod's own retention of a job's input (the
+  character's audio) isn't something our code controls. The two others that were here on 2026-11-15 (no
+  single-message delete; the export left out conversations and call records) are closed: next section.
+
+### Deleting one message, and the export (built 2026-11-15)
+
+The owner approved closing both gaps with one instruction: **not on the main UI, it is too noisy.** So the chat looks
+exactly as it did: no delete on a bubble, nothing new in the header.
+
+**Where it lives.** The thread's ⚙️ Settings menu has one more entry, "Delete messages…", above "Delete this
+conversation". It opens `/companion/<id>/messages` (`app/companion/[id]/messages`, noindex, like the memory page): what
+the two said, newest first, each with **Delete**, which asks once ("Delete for good?" → "Yes, delete" / "Keep") and
+then removes the row from the list. "← Back to {name}" returns to the chat, read again from the server.
+`DELETE /api/companion/:id/messages/:messageId` does it (`lib/companion-message-delete.ts` `deleteMessage`): the
+thread's own person only (the same ownership check and access rule as deleting the conversation, so a guest on their
+signed session can), 404 for anyone else's thread or an id that isn't a shown message of it.
+
+| The page, asking once | On a phone |
+|---|---|
+| ![Delete messages: the thread's messages as a list, one asking "Delete for good?"](screenshots/companion-delete-messages-desktop.png) | ![The same page at 390 px](screenshots/companion-delete-messages-phone.png) |
+
+**What a delete removes:**
+
+- the message's row, so its words: the person's or the character's, typed or said on a call (📞);
+- its voice note's audio, file and all, unless another reply says the same words in the same voice (one file is shared
+  by a hash of voice and words; `forgetUnusedVoices`);
+- the earlier draws of a reply it replaced (a regenerate keeps the old draw hidden under `replaced_by`: hidden words
+  are still words, so they go with the reply; they are never listed and can't be deleted on their own);
+- the person's report on it (the report is columns on the row, so it leaves `/admin/reports` too; the page says so
+  before they confirm), and its chips or answer box;
+- the `character_texted_you` notification that quoted a text's first line, which also clears that text's unread dot
+  in Chat and on the home page. An email or a push already sent can't be taken back.
+
+**What it leaves, on purpose:**
+
+- **The AI notice and a scene's line** (role `system`) can't be deleted on their own (409 `kept`), and the page
+  doesn't list them. The notice has to stay shown (`putNotice`: New York GBL Art. 47, at the start and every three
+  hours), and a scene's line is what a redraw and an edit stop at (`lastReply`). They go with the conversation.
+- **A blank marker for a text the character sent first.** Those texts carry their dedupe tag in
+  `companion_messages.action` (`after_date:<episode>`, `day_after:…`, `tease:…`, `house_scene:<scene>`,
+  `house_tonight:<day>`, `question:<field>`, `lessons:…`, `offer:…`), and every job looks for the tag in
+  `companion_messages` before it writes; the house's one-a-day cap and the questions' limits read those rows too.
+  Deleting the last row that carries a tag would send the same text again. So that one row stays, blanked: `text` empty,
+  no photo, voice, report, cost or chips, and `replaced_by` set to its own id, which hides it from every reader the way
+  a redrawn reply is hidden (the thread, the prompt, memory, the inbox, the phone, reports, "since you were here"). It
+  holds the tag and when the text was sent, nothing else. A question's marker keeps its small menu (the field, whether
+  it was answered, whether questions were stopped), so a stop still holds. The earlier bubbles of a text are simply
+  deleted, since another row still carries the tag. Markers go with the conversation and show in the export as
+  `deleted_text_markers`.
+- **Memory.** Facts already drawn from the message stay on the memory page, where they are the person's to change or
+  forget (the delete page says so in one line, with the link). The rolling summary may hold a message it has covered
+  (`summary_upto`), so deleting such a message drops the summary and the next reply's follow-up writes it again from
+  what is left (`updateSummary`); a newer message can't be in it, so the summary stays. No model is called at delete
+  time.
+- **The thread itself** keeps working: `last_at`, the notice clock and the scene don't move; a thread with nothing
+  left but its notice is the same state as one whose opener never came. A paused (crisis) thread can be deleted from,
+  as the whole conversation can, and stays paused.
+- **The record of a live call** (`companion_live_calls`) is not a message: it stays its 90 days.
+
+**The switch.** `COMPANION_MESSAGE_DELETE` (default on; `0`): the Settings entry goes, the page and the route answer
+not-found, and the privacy notice's calls section, its retention and rights lines and the FAQ go back to saying only
+the whole conversation can be deleted (`companionMessageDelete` is read where the copy is written, so the copy is true
+in either state; the call screen's line, "You can delete them later, in this chat's ⚙️ Settings.", is true in both).
+Counted as `companion_message_delete` (whose message, whether it was said on a call, whether a marker stayed; never
+the words). Not over MCP yet: the `companion` tool still deletes whole threads only.
+
+**The export** (`lib/account.ts` `exportAccount`, `GET /api/me/export`) gained two lists:
+
+- `companion_conversations`, a thread each: `thread_id`, `character_id`, `character`, `started_at`, `last_at`,
+  `reply_length`, `texts_on`, `paused`, `scene`, `roleplay`, `notes` (the rolling summary), `messages` (each with
+  `said_by` `you` / `character` / `notice`, `text`, `at`, `on_call`, and where they apply `photo`, `voice_note`,
+  `scene`, `roleplay`, `action`, `about` (a sent-first text's tag), `reported`, `redrawn` for a hidden earlier draw),
+  `memory` (the facts: `kind`, `text`, `pinned`, `edited_by_you`, `at`) and `deleted_text_markers` (`about`, `at`).
+  Never a model id, a cost, or audio.
+- `companion_calls`: `thread_id`, `started_at`, `ended_at`, `last_at`, `minutes`, `turns`, `voiced_characters`,
+  `face_provider`, `face_seconds`, `first_minute_paid_with`. No words or sound exist there.
+
+Only the person's own threads are read, and nothing of After Dark (its tables are never touched by the export).
+Tests: `tests/companion-message-delete.test.ts`, the dedupe cases in `tests/after-date-text.test.ts` and
+`tests/house-texts.test.ts`, the pinned sentences in `tests/call-honesty.test.ts`; `npm run e2e:companion` deletes a
+message in a browser at desktop and phone width.
 
 ### Turning it on
 

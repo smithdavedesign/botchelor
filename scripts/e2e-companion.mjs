@@ -15,7 +15,8 @@
  *   its microphone are faked): what they say streams in, the reply streams back piece by piece in its own voice, talking
  *   over it stops it, both kept marked 📞, on a desktop and a phone; the 💬 Transcript shows your line, your words in
  *   progress, their streamed line and "(cut off)" where you talked over them (both kinds of call, at 390 and 360 px)
- *   → the list shows the thread → deleting it takes it away.
+ *   → Settings → "Delete messages…" deletes one message from a page of its own (desktop and phone), and the chat has no
+ *   delete on its bubbles → the list shows the thread → deleting it takes it away.
  *
  * Exits non-zero if any step fails. Set CHROMIUM_PATH; SKIP_BUILD=1 reuses the last build; SHOTS=1 writes the
  * screenshots to docs/screenshots/ (else .data/e2e-companion/).
@@ -400,7 +401,7 @@ async function main() {
     await notice.waitFor({ timeout: 5_000 });
     const text = ((await notice.textContent()) ?? "").replace(/\s+/g, " ");
     assert(text.startsWith(starts), `the call's notice should start "${starts}", got "${text}"`);
-    assert(text.includes("the words are saved as messages in this chat. Deleting the conversation deletes them."), `the call's notice should say the words are kept and how they go: "${text}"`);
+    assert(text.includes("the words are saved as messages in this chat. You can delete them later, in this chat's ⚙️ Settings."), `the call's notice should say the words are kept and where they're deleted: "${text}"`);
     const link = notice.getByRole("link", { name: "What a call keeps" });
     assert((await link.getAttribute("href")) === "/privacy#calls" && (await link.getAttribute("target")) === "_blank", "the notice should open the privacy notice's calls section in a new tab");
     // Readable on the call's dark backdrop: the link takes the line's own colour, not the site's accent.
@@ -913,6 +914,79 @@ async function main() {
         await shot(p, "companion-call-transcript-phone");
         await call.getByRole("button", { name: "End call" }).tap();
         await call.waitFor({ state: "detached", timeout: 10_000 });
+      } finally {
+        await phone.close();
+      }
+    });
+
+    await step("Settings → Delete messages…: one message goes for good from a page of its own, and the chat has no delete on its bubbles", async () => {
+      await page.goto(`${base}${threadPath}`);
+      const target = "so, about the wedding";
+      await bubble(target).first().waitFor({ timeout: 15_000 });
+      // The chat itself is as it was: nothing on a bubble deletes it (the owner's call: too noisy).
+      assert((await page.locator(".companion-thread").getByRole("button", { name: /delete/i }).count()) === 0, "no bubble should carry a delete");
+      await page.locator(".companion-menu summary").click();
+      await page.getByRole("link", { name: "Delete messages…" }).click();
+      await page.waitForURL(`${base}${threadPath}/messages`, { timeout: 15_000 });
+      await page.getByRole("heading", { name: "Delete messages" }).waitFor({ timeout: 15_000 });
+      assert((await page.getByRole("link", { name: "the memory page" }).getAttribute("href")) === `${threadPath}/memory`, "the page should point at the memory page");
+      const rows = page.locator(".companion-delete-list li");
+      const row = rows.filter({ hasText: target }).first();
+      await row.waitFor({ timeout: 10_000 });
+      const before = await rows.count();
+      // The AI notice is never listed.
+      assert((await rows.filter({ hasText: "is an AI character, not a real person" }).count()) === 0, "the AI notice should not be listed");
+      // It asks once, and Keep backs out.
+      await row.getByRole("button", { name: /^Delete/ }).click();
+      await row.getByText("Delete for good?").waitFor({ timeout: 5_000 });
+      await shot(page, "companion-delete-messages-desktop");
+      await row.getByRole("button", { name: "Keep" }).click();
+      assert((await rows.count()) === before, "Keep should delete nothing");
+      await row.getByRole("button", { name: /^Delete/ }).click();
+      await row.getByRole("button", { name: "Yes, delete" }).click();
+      await rows.filter({ hasText: target }).first().waitFor({ state: "detached", timeout: 10_000 });
+      assert((await rows.count()) === before - 1, `one message should go (${before} → ${await rows.count()})`);
+      await page.getByRole("status").filter({ hasText: "Deleted." }).waitFor({ timeout: 5_000 });
+      // The browser's own Back (what a phone's swipe does): the chat it returns to no longer shows it.
+      await page.goBack();
+      await page.waitForURL(`${base}${threadPath}`, { timeout: 15_000 });
+      await page.locator(".companion-thread .chat-bubble").first().waitFor({ timeout: 15_000 });
+      await page.waitForFunction((text) => ![...document.querySelectorAll(".companion-thread .chat-bubble")].some((b) => b.textContent?.includes(text)), target, { timeout: 10_000 });
+      // And by the page's own link: gone, and still gone after a reload; the rest is there.
+      await page.goForward();
+      await page.getByRole("heading", { name: "Delete messages" }).waitFor({ timeout: 15_000 });
+      await page.getByRole("link", { name: `← Back to ${first}` }).click();
+      await page.waitForURL(`${base}${threadPath}`, { timeout: 15_000 });
+      await page.locator(".companion-thread .chat-bubble").first().waitFor({ timeout: 15_000 });
+      assert((await bubble(target).count()) === 0, "the deleted message should be gone from the chat");
+      await page.reload();
+      await page.locator(".companion-thread .chat-bubble").first().waitFor({ timeout: 15_000 });
+      assert((await bubble(target).count()) === 0, "the deleted message should stay gone after a reload");
+      assert((await page.locator(".companion-thread .chat-bubble").count()) > 3, "the rest of the conversation should still be there");
+
+      // On a phone: the page fits 390 px, and the confirm's buttons are on screen.
+      const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2, storageState: await admin.storageState() });
+      try {
+        const p = await phone.newPage();
+        await p.goto(`${base}${threadPath}`);
+        await p.locator(".companion-menu summary").tap();
+        await p.getByRole("link", { name: "Delete messages…" }).tap();
+        await p.getByRole("heading", { name: "Delete messages" }).waitFor({ timeout: 15_000 });
+        const pRows = p.locator(".companion-delete-list li");
+        await pRows.first().waitFor({ timeout: 10_000 });
+        assert((await p.evaluate(() => document.documentElement.scrollWidth)) <= 391, "the delete page should fit the phone");
+        const firstRow = pRows.first();
+        await firstRow.getByRole("button", { name: /^Delete/ }).tap();
+        const yes = firstRow.getByRole("button", { name: "Yes, delete" });
+        await yes.waitFor({ timeout: 5_000 });
+        const yesBox = await yes.boundingBox();
+        const keepBox = await firstRow.getByRole("button", { name: "Keep" }).boundingBox();
+        assert(yesBox && keepBox && yesBox.x >= 0 && keepBox.x + keepBox.width <= 390, "the confirm's buttons should be inside the phone's width");
+        assert((await p.evaluate(() => document.documentElement.scrollWidth)) <= 391, "the confirm should not widen the page");
+        await shot(p, "companion-delete-messages-phone");
+        const n = await pRows.count();
+        await yes.tap();
+        await p.waitForFunction((want) => document.querySelectorAll(".companion-delete-list li").length === want, n - 1, { timeout: 10_000 });
       } finally {
         await phone.close();
       }

@@ -7,6 +7,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { loadChat } from "@/lib/chat-inbox";
 import { getThread, setTexts } from "@/lib/companion";
+import { deletableMessages, deleteMessage } from "@/lib/companion-message-delete";
 import { companionMessages, HOUSE_BLOCK_LINES, HOUSE_BLOCK_MAX, houseBlock } from "@/lib/companion-prompt";
 import { textLink } from "@/lib/companion-shared";
 import { crisisIntent } from "@/lib/crisis";
@@ -310,6 +311,41 @@ describe("a scene that names a character", () => {
     // Two days on it is no longer news.
     await t.db.query(`delete from companion_messages`);
     expect(await houseTextsSweep(t.db, new Date(NOW.getTime() + 40 * HOURS))).toMatchObject({ sent: 0 });
+  });
+
+  it("never sends a house text again after the person deleted it, nor a second one that day, nor nags about it", async () => {
+    const { lexi } = await walkOn();
+    await optIn("th-lexi", "owner-1", lexi);
+    expect(await ensureHouseScene(t.db, NOW)).toMatchObject({ texted: 1 });
+    // They delete every bubble of it, one message at a time (lib/companion-message-delete.ts).
+    for (const m of (await deletableMessages(t.db, "owner-1", "th-lexi"))!) expect(await deleteMessage(t.db, "owner-1", "th-lexi", m.id)).toMatchObject({ ok: true });
+    // One blank marker stays: the scene's tag and when, none of the words, and nobody is shown it.
+    expect(await texts("th-lexi")).toEqual([{ text: "", action: `house_scene:${SCENE}`, offers: null }]);
+    const thread = await getThread(t.db, "owner-1", "th-lexi");
+    expect(thread.ok && thread.view.messages.map((m) => m.role)).toEqual(["system"]);
+    // The scene again, the hourly catch-up, the daily one: nothing.
+    expect(await houseTextsForScene(t.db, SCENE, NOW)).toMatchObject({ sent: 0 });
+    expect(await houseTextsSweep(t.db, new Date(NOW.getTime() + HOURS))).toMatchObject({ sent: 0 });
+    expect(await houseTextsSweep(t.db, new Date(NOW.getTime() + 22 * HOURS))).toMatchObject({ sent: 0 });
+    expect(await texts("th-lexi")).toHaveLength(1);
+    // The day's one text is still spent: a second scene the same day doesn't text either.
+    const row = (a: string, b: string) => ({ kind: "confrontation", outcome: "agreed_to_disagree", over: "mutual_distrust", a, b, witness: null, moved: [], settled: 0 });
+    const fight = sceneIdOf(DAY, "confrontation");
+    await storedScene(fight, DAY, "confrontation", [lexi, DEX], row(lexi, DEX));
+    expect(await houseTextsForScene(t.db, fight, new Date(NOW.getTime() + HOURS))).toMatchObject({ sent: 0 });
+    expect(await texts("th-lexi")).toHaveLength(1);
+    // And the home page stops saying they texted or are waiting on an answer: there is nothing to answer.
+    expect((await t.db.query(`select 1 from notifications where user_id = 'owner-1' and kind = 'character_texted_you'`)).rows).toHaveLength(0);
+    const chat = await loadChat(t.db, { userId: "owner-1", withYou: true }, NOW);
+    expect(chat.rows.find((r) => r.key === "you:th-lexi")).toMatchObject({ unread: 0 });
+    const since = await sinceYouWereHere(t.db, "owner-1", [{ id: lexi, name: "Lexi Marlowe" } as CharacterRef], NOW);
+    expect(JSON.stringify(since)).not.toContain("texted you");
+    expect(JSON.stringify(since)).not.toContain("what the house is saying");
+    // Tomorrow's scene is another day and another text: deleting one never turns the texts off.
+    const tomorrow = new Date(NOW.getTime() + 24 * HOURS);
+    const again = sceneIdOf("2026-11-13", "confrontation");
+    await storedScene(again, "2026-11-13", "confrontation", [lexi, DEX], row(lexi, DEX), tomorrow);
+    expect(await houseTextsForScene(t.db, again, tomorrow)).toMatchObject({ sent: 1, by_kind: { confronted: 1 } });
   });
 
   it("says nothing to a thread that isn't opted in, is paused, or whose person muted texts", async () => {

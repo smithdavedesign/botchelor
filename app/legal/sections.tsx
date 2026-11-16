@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { AFTER_DARK_ABOUT } from "@/lib/after-dark-public";
 import { formatPrice, PACK_5 } from "@/lib/catalog";
-import { COMPANION_EXTRAS, COMPANION_FAIR_USE_PER_MONTH, COMPANION_FREE_PER_DAY, extraTerms } from "@/lib/companion-shared";
+import { COMPANION_EXTRAS, COMPANION_FAIR_USE_PER_MONTH, COMPANION_FREE_PER_DAY, companionMessageDelete, extraTerms } from "@/lib/companion-shared";
 import {
   AFTER_DARK_BLOCKED_COUNTRIES,
   AFTER_DARK_BLOCKED_US_STATES,
@@ -34,7 +34,7 @@ export const LAST_UPDATED = "Last updated 24 October 2026.";
 export const TERMS_PRIVACY_UPDATED = "Last updated 15 November 2026.";
 /** What changed last time, in a line. */
 export const PRIVACY_CHANGES =
-  "Changed: what happens on a call with a companion now has a section of its own (your audio, your words, who makes the voice and the face, what's kept and how to delete it), and it names Runpod, whose GPUs our face renderer runs on. Earlier the same day: on a live call with the Companion Plan, where it's offered, a companion's face can move as they talk, drawn by our own renderer from their portrait and voice (never yours) at no charge beyond the call's minutes. Before that (10 November): a recovery email you can add to a handle-and-password account, used only to reset a forgotten password and to tell you when the password or that address changes; the Sunday letter, a weekly email you can sign up for (confirmed by email, with an unsubscribe in every letter, and an address taken off when its emails bounce or are reported as spam); who hosts the show and carries its traffic (DigitalOcean and Cloudflare, no longer Vercel), and that the show's model is reached through OpenRouter; live calls with a companion, where they're offered: Deepgram hears your voice and makes the companion's, and the terms say how call minutes are charged. Before that (1 November): Analytics names the three events our own dashboard counts (visit, activate, checkout) and says the site you came from goes with a visit only when it's another site; the terms state the pack's price. Before that (24 October): who runs Botchelor, After Dark's data and where it's offered, the location and age we read, everyone who processes data, your rights, and the complaint form.";
+  "Changed: you can delete one message of a companion conversation on its own, and your account export now has your companion conversations, what each companion remembers about you, and the record of your live calls. Earlier the same day: what happens on a call with a companion now has a section of its own (your audio, your words, who makes the voice and the face, what's kept and how to delete it), and it names Runpod, whose GPUs our face renderer runs on; and on a live call with the Companion Plan, where it's offered, a companion's face can move as they talk, drawn by our own renderer from their portrait and voice (never yours) at no charge beyond the call's minutes. Before that (10 November): a recovery email you can add to a handle-and-password account, used only to reset a forgotten password and to tell you when the password or that address changes; the Sunday letter, a weekly email you can sign up for (confirmed by email, with an unsubscribe in every letter, and an address taken off when its emails bounce or are reported as spam); who hosts the show and carries its traffic (DigitalOcean and Cloudflare, no longer Vercel), and that the show's model is reached through OpenRouter; live calls with a companion, where they're offered: Deepgram hears your voice and makes the companion's, and the terms say how call minutes are charged. Before that (1 November): Analytics names the three events our own dashboard counts (visit, activate, checkout) and says the site you came from goes with a visit only when it's another site; the terms state the pack's price. Before that (24 October): who runs Botchelor, After Dark's data and where it's offered, the location and age we read, everyone who processes data, your rights, and the complaint form.";
 
 /** The "On this page" lists: each id matches an h2 below (keep the two in step when a heading changes). */
 export const TERMS_HEADINGS = [
@@ -578,6 +578,9 @@ export function TermsSections() {
 }
 
 export function PrivacySections() {
+  // One message of a companion conversation can be deleted on its own (lib/companion-message-delete.ts) unless the
+  // switch is off: the notice says what the code does either way (tests/call-honesty.test.ts pins both).
+  const oneMessage = companionMessageDelete();
   return (
     <>
       <h2 id="who-is-responsible">Who is responsible</h2>
@@ -662,6 +665,7 @@ export function PrivacySections() {
           or another character. A message that set off the self-harm check isn&apos;t kept at all. On a call, what you say reaches us
           as words and is kept like a message, marked as said on a call; we never receive or keep your voice. On a live call we keep
           when it started and ended, its minutes and how many turns it had, for 90 days, to charge it and count it; never its sound.
+          Your conversations, what each companion remembers and the record of your live calls are in your account export.
         </li>
         <li>
           If you tap &ldquo;Tell me when it opens&rdquo; on the Botchelor Plus tile (a plan that doesn&apos;t exist yet; nothing is
@@ -706,11 +710,25 @@ export function PrivacySections() {
           <strong>The record of a live call.</strong> When it started and ended, its minutes, how many turns it had, how
           many characters were voiced and how long the face showed, to charge it and count it: never sound, never words.
           It&apos;s deleted after 90 days, or sooner with your account. Deleting the conversation doesn&apos;t delete it.
+          It&apos;s in your account export.
         </li>
         <li>
           <strong>Deleting it.</strong> &ldquo;Delete this conversation&rdquo;, in the conversation&apos;s menu, deletes every
-          message in it, said or typed, with what the companion remembered and its voice notes. You can rewrite your last
-          message, but there&apos;s no way yet to delete one message on its own. Deleting your account deletes all of it.
+          message in it, said or typed, with what the companion remembered and its voice notes.{" "}
+          {oneMessage ? (
+            <>
+              &ldquo;Delete messages&rdquo;, in the same menu, deletes one message at a time, yours or the companion&apos;s,
+              said or typed: its words are gone for good, with its voice note and any earlier version of a reply you had
+              written again. A fact the companion already noted from it stays on its memory page until you change or delete
+              it there, and the companion&apos;s running notes on the conversation are written again without it. The
+              &ldquo;AI character&rdquo; notices and a scene&apos;s opening line go only with the conversation. If a companion
+              texted you first about something on the show and you delete that text, we keep a blank marker of what it was
+              about (which date or scene, and when), with none of its words, so the same text isn&apos;t sent again.
+            </>
+          ) : (
+            <>You can rewrite your last message, but there&apos;s no way yet to delete one message on its own.</>
+          )}{" "}
+          Deleting your account deletes all of it.
         </li>
       </ul>
 
@@ -825,8 +843,9 @@ export function PrivacySections() {
         </li>
         <li>Your 👍 and 👎 on lines, and your choice on training: until you delete your account.</li>
         <li>
-          A companion conversation and what the companion remembers: until you delete the conversation, the memory (a fact
-          at a time, or all of it), or your account.
+          A companion conversation and what the companion remembers: until you delete {oneMessage ? "a message, " : ""}the
+          conversation, the memory (a fact at a time, or all of it), or your account.
+          {oneMessage && " The blank marker a deleted text leaves (what it was about and when, never its words) goes with the conversation."}
         </li>
         <li>
           The history of your predictions, reviews and nudges, the cards decks showed, how pairings changed over time, the
@@ -978,13 +997,15 @@ export function PrivacySections() {
       <p>Wherever you live, you can:</p>
       <ul>
         <li>
-          <strong>get a copy</strong> of your data (your account page has an export) and take it elsewhere;
+          <strong>get a copy</strong> of your data (your account page has an export, which includes your companion
+          conversations, what each companion remembers about you and the record of your live calls) and take it elsewhere;
         </li>
         <li>
           <strong>correct</strong> it (edit your characters and settings, or ask us);
         </li>
         <li>
-          <strong>delete</strong> it (delete a character or your whole account from your account page, or ask us);
+          <strong>delete</strong> it (delete a character or your whole account from your account page, a companion
+          conversation{oneMessage ? " or one message in it" : ""} from the conversation&apos;s menu, or ask us);
         </li>
         <li>
           <strong>object</strong> to what we do on our legitimate interests, or ask us to restrict it;

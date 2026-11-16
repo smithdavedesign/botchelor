@@ -89,6 +89,7 @@ export default function CompanionChat({
   callVoice = false,
   faceKit = null,
   about = null,
+  messageDelete = false,
 }: {
   initial: CompanionThreadView;
   /** Who they are, beside the thread; null renders the thread alone (older callers, tests). */
@@ -107,6 +108,8 @@ export default function CompanionChat({
   callVoice?: boolean;
   /** The character's face kit (lib/face-kit.ts), when they have one: their face comes to life on a call. */
   faceKit?: FaceKit | null;
+  /** One message can be deleted on its own (lib/companion-message-delete.ts): the Settings entry that opens its page. */
+  messageDelete?: boolean;
 }) {
   const router = useRouter();
   const [view, setView] = useState(initial);
@@ -596,6 +599,14 @@ export default function CompanionChat({
             {!c.yours && (
               <p>
                 <Link href={`/characters/${c.id}`}>{first}&apos;s profile</Link>
+              </p>
+            )}
+            {/* One message at a time, on a page of its own (./messages): never a control on the bubbles (the owner's call: too noisy). */}
+            {messageDelete && (
+              <p>
+                <Link href={`/companion/${view.id}/messages`} data-track="companion-delete-messages">
+                  Delete messages…
+                </Link>
               </p>
             )}
             <p>
