@@ -10,7 +10,8 @@ import type { CrisisResources } from "@/lib/crisis";
 import type { CharacterRef } from "@/lib/game";
 import { shortName } from "@/lib/names";
 import type { End } from "@/lib/relationships";
-import { dayLabel, isText, type ChainDate, type ChainItem, type ChainPage } from "@/lib/text-chain-shared";
+import { isText, type ChainItem, type ChainPage } from "@/lib/text-chain-shared";
+import Thread from "./Thread";
 import ThreadMenu from "./ThreadMenu";
 
 type Props = {
@@ -49,8 +50,8 @@ const POLL_MAX_MS = 300_000;
 const HINT_MAX = 140;
 
 /**
- * A couple's text chain on a phone (lib/text-chain.ts; David, 2026-10-17): every date as a marker, the morning-after
- * texts right after it, then their texts between dates. It opens on the newest text and scrolls up through the whole
+ * A couple's text chain on a phone (lib/text-chain.ts; David, 2026-10-17): every date as a marker, its photo and the
+ * morning-after texts right after it, then their texts between dates and the small gifts (app/couples/[a]/[b]/Thread.tsx). It opens on the newest text and scrolls up through the whole
  * history, a page at a time. Full screen fills the screen: the browser's own full screen where it allows it (desktop,
  * Android), a fixed overlay elsewhere (iPhone Safari). The characters' owners only.
  */
@@ -452,110 +453,5 @@ export default function TextPhone({ pair, characters, mine, canFlip, stageLabel,
         </p>
       )}
     </section>
-  );
-}
-
-/**
- * The thread: a day label when the day changes, each date as a card, "the morning after" before its texts, and
- * the texts as bubbles (this phone's character on the right), grouped while one of them keeps texting.
- */
-/**
- * A moment in the thread that isn't a text: the match, the yes to a date, a date's morning-after texts waiting for it to
- * air (David, 2026-11-02: they "don't show in the text thread"), and one side never answering them ("a label saying
- * ghosted").
- */
-function eventLine(item: Extract<ChainItem, { kind: "event" }>, characters: Record<End, CharacterRef>): string {
-  switch (item.event) {
-    case "matched":
-      return "💘 It's a match";
-    case "date_agreed":
-      return "📅 They agreed to a date";
-    case "afterglow_held": {
-      const n = item.count ?? 0;
-      return `🌅 ${n === 1 ? "A text" : `${n} texts`} from the morning after: here once the date airs`;
-    }
-    case "ghosted":
-      return `👻 ${shortName(characters[item.who ?? "lo"].name)} never replied`;
-  }
-}
-
-function Thread({ items, me, characters, today }: { items: ChainItem[]; me: End; characters: Record<End, CharacterRef>; today: string }) {
-  const startsMorning = (i: number) => {
-    const t = items[i];
-    if (t?.kind !== "text" || t.source !== "afterglow") return false;
-    const p = items[i - 1];
-    return !(p?.kind === "text" && p.source === "afterglow" && p.episode_id === t.episode_id);
-  };
-  // Something is drawn between items i-1 and i: a new day, a date, a moment (a match, a yes), or the start of a morning after.
-  const breakBefore = (i: number) => i === 0 || items[i].day !== items[i - 1].day || items[i].kind !== "text" || items[i - 1].kind !== "text" || startsMorning(i);
-  const sameSender = (i: number, j: number) => {
-    const x = items[i];
-    const y = items[j];
-    return x?.kind === "text" && y?.kind === "text" && x.who === y.who;
-  };
-
-  const out: ReactNode[] = [];
-  items.forEach((item, i) => {
-    if (i === 0 || item.day !== items[i - 1].day) {
-      out.push(
-        <p key={`day:${item.id}`} className="phone-day">
-          {dayLabel(item.day, today)}
-        </p>,
-      );
-    }
-    if (item.kind === "date") {
-      out.push(<DateCard key={item.id} date={item} />);
-      return;
-    }
-    if (item.kind === "event") {
-      out.push(
-        <p key={item.id} className="phone-note phone-event">
-          {eventLine(item, characters)}
-        </p>,
-      );
-      return;
-    }
-    if (startsMorning(i)) {
-      out.push(
-        <p key={`morning:${item.id}`} className="phone-note">
-          ☀️ The morning after
-        </p>,
-      );
-    }
-    const starts = breakBefore(i) || !sameSender(i - 1, i);
-    const ends = i === items.length - 1 || breakBefore(i + 1) || !sameSender(i, i + 1);
-    const mineSide = item.who === me;
-    const c = characters[item.who];
-    out.push(
-      <div key={item.id} className={`phone-msg ${mineSide ? "phone-msg-me" : "phone-msg-them"}${starts ? " starts" : ""}${ends ? " ends" : ""}`}>
-        {!mineSide &&
-          <Avatar seed={c.id} name={c.name} hue={c.hue} house={c.house} portraitSrc={c.portrait} size={26} />}
-        <p className="phone-bubble">
-          <span className="sr-only">{shortName(c.name)}: </span>
-          {/* A photo sent from the Studio (lib/adult/shares.ts): dressed, checked, a show asset like a portrait. */}
-          {item.photo && (
-            // eslint-disable-next-line @next/next/no-img-element -- an approved show asset, sized by the bubble
-            <img className="phone-photo" src={item.photo} alt={`A photo from ${shortName(c.name)}`} loading="lazy" />
-          )}
-          {item.text}
-        </p>
-      </div>,
-    );
-  });
-  return <>{out}</>;
-}
-
-function DateCard({ date }: { date: ChainDate }) {
-  return (
-    <div className="phone-date">
-      <p className="phone-date-title">
-        🎬 Date {date.number} · {date.venue}
-      </p>
-      <p className="phone-date-ending">
-        Ending: {date.ending_label}
-        {!date.aired && <span className="badge">not aired yet</span>}
-      </p>
-      <Link href={`/episodes/${date.episode_id}`}>▶ Watch it</Link>
-    </div>
   );
 }

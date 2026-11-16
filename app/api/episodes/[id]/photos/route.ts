@@ -20,7 +20,12 @@ export const GET = handle(async (req: Request, ctx: Ctx) => {
 
 const Input = z.object({ style: z.enum(DATE_PHOTO_STYLE_IDS) }).strict();
 
-/** Makes a date photo of the two of them; the first that passes goes into their texts. */
+/**
+ * Makes a date photo of the two of them. What passes is kept with the date, and the newest kept one is the date's
+ * photo in the pair's texts from then on (lib/text-chain.ts reads `date_photos`: one of the two sends it right after
+ * the date, where the show's composed snapshot was), for whoever may see that date there. When the maker's own
+ * character was on the date and its texts are on, it also sends them the photo once (`texted` in the reply).
+ */
 export const POST = handle(async (req: Request, ctx: Ctx) => {
   const { id } = await ctx.params;
   const input = parseBody(Input, await readJson(req), "invalid_date_photo");

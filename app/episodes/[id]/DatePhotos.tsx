@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { requestJson } from "@/app/request";
 import { AiTag } from "@/app/AiLabel";
@@ -7,12 +8,22 @@ import type { DatePhoto, DatePhotoState } from "@/lib/studio/date-photos";
 
 /**
  * 📸 Date photos (lib/studio/date-photos.ts): a PG picture of the two of them from this date, for the owner of one of
- * them. Kept with the date; the first of each goes into their texts.
+ * them. Kept with the date; the newest is the date's photo in their texts (lib/text-chain.ts), and the panel says where
+ * that is and who sees it (David, 2026-11-16: "I took an image of the post date, I think it should show in the text
+ * messages").
  */
 export default function DatePhotos({ episodeId, state, styles }: { episodeId: string; state: DatePhotoState; styles: readonly { id: string; label: string }[] }) {
   const [photos, setPhotos] = useState<DatePhoto[]>(state.photos);
   const [busy, setBusy] = useState(false);
-  const [note, setNote] = useState<{ text: string; error?: boolean } | null>(null);
+  const [note, setNote] = useState<{ text: string; error?: boolean; made?: boolean } | null>(null);
+  const first = (name: string) => name.split(/\s+/)[0];
+  const thread = state.thread;
+  // Where the newest photo shows, in words: their texts, and who reads them there.
+  const where = !thread
+    ? "It stays with the date"
+    : thread.public
+      ? `It stays with the date, and the newest one is the photo of this date in ${first(state.mine)} and ${first(state.partner)}'s texts, where anyone watching the two of them sees it`
+      : `It stays with the date, and the newest one is the photo of this date in ${first(state.mine)} and ${first(state.partner)}'s texts, where only their owners see it`;
 
   async function make(style: string) {
     setBusy(true);
@@ -23,14 +34,16 @@ export default function DatePhotos({ episodeId, state, styles }: { episodeId: st
     if (!res.ok) return setNote({ text: res.message, error: true });
     const made = (res.data.photos as DatePhoto[]) ?? [];
     setPhotos((p) => [...p, ...made]);
-    setNote(made.length ? { text: `📷 ${made.length === 1 ? "It's" : "They're"} here, and in ${state.partner.split(/\s+/)[0]}'s texts.` } : { text: String(res.data.message ?? "Nothing came through."), error: true });
+    if (!made.length) return setNote({ text: String(res.data.message ?? "Nothing came through."), error: true });
+    const texted = res.data.texted === true ? ` ${first(state.mine)} texted it to you too.` : "";
+    setNote({ text: `📷 ${made.length === 1 ? "It's" : "They're"} here${thread ? `, and ${made.length === 1 ? "it's" : "the newest is"} now the photo of this date in their texts` : ""}.${texted}`, made: true });
   }
 
   return (
     <section className="card date-photos" aria-label="Date photos">
       <h2>📸 Date photos</h2>
       <p className="muted">
-        A photo of {state.mine.split(/\s+/)[0]} and {state.partner.split(/\s+/)[0]} from this date, {state.tokens_note} each. It stays with the date and goes into their texts; it never goes on a profile or the showcase.
+        A photo of {first(state.mine)} and {first(state.partner)} from this date, {state.tokens_note} each. {where}; it never goes on a profile or the showcase.
       </p>
       <div className="date-photo-styles">
         {styles.map((s) => (
@@ -42,6 +55,17 @@ export default function DatePhotos({ episodeId, state, styles }: { episodeId: st
       {note && (
         <p className={note.error ? "error" : "notice"} role={note.error ? "alert" : "status"}>
           {note.text}
+          {note.made && thread?.href && (
+            <>
+              {" "}
+              <Link href={thread.href}>See it in their texts</Link>
+            </>
+          )}
+        </p>
+      )}
+      {!note?.made && photos.length > 0 && thread?.href && (
+        <p className="small">
+          <Link href={thread.href}>📷 See the newest in their texts</Link>
         </p>
       )}
       {photos.length > 0 && (

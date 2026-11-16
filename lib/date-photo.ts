@@ -12,14 +12,24 @@
  * In a thread it is one message of its own: companion_messages.via = 'photo', media_url = the snapshot's path, text =
  * its alt text, and the same tag as the text it came with (so it is sent once, with it). DATE_PHOTO_TEXTS=0 stops new
  * ones (lib/companion-shared.ts datePhotoTexts).
+ *
+ * The same photo is in the COUPLE's thread too (2026-11-16; the owner made two real photos of a date and they showed in
+ * no thread): one of the two sends it right after the date's marker (lib/text-chain.ts, a `photo` item), with a short
+ * line from templates in the sender's tone. The real photo when an approved PG one exists (the newest), else this
+ * snapshot, so making a real one upgrades it in place. It follows its date: anyone sees it once the date aired publicly
+ * between public characters, its owners before that, nobody else for a private or unlisted one. DATE_PHOTO_IN_CHAIN=0
+ * takes it out of the thread without a deploy of code. And when an owner makes a real photo of their own character's
+ * date, that character sends it to them once, where its texts are on (`realPhotoText`, tag `date_photo:<episode id>`).
  */
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { approvedPortraitId, getApprovedAsset } from "./assets";
 import { datePhotoPath, datePhotoTexts } from "./companion-shared";
 import type { Db } from "./db";
+import { seedFrom } from "./engine";
 import { characterPortrait, venueBackdrop } from "./portraits";
 import { REPORT_HIDE_THRESHOLD } from "./rules";
+import { toneOf, type Tone, type ToneSheet } from "./sheet-tone";
 import { withResizeSlot } from "./thumbs";
 import { venuePhrase } from "./venues";
 
@@ -42,6 +52,42 @@ export function textPhoto(ep: { id: string; names: readonly [string, string]; ve
   if (!datePhotoTexts(env)) return null;
   return { url: datePhotoPath(ep.id), alt: datePhotoAlt(ep) };
 }
+
+/* ------------------------------------------- the photo in the couple's thread ------------------------------------------- */
+
+/** DATE_PHOTO_IN_CHAIN: on unless it is "0". Off: the couple's thread has no photo items (lib/text-chain.ts). */
+export const datePhotoInChain = (env: Record<string, string | undefined> = process.env): boolean => env.DATE_PHOTO_IN_CHAIN?.trim() !== "0";
+
+/** Which of the two sends the date's photo: dealt by the date, so it never changes for that date. */
+export const photoSender = (episodeId: string): "a" | "b" => (seedFrom("date-photo", episodeId) % 2 === 0 ? "a" : "b");
+
+/**
+ * What the sender says with the photo, by its tone (lib/sheet-tone.ts). None of them says or hints how the date went:
+ * the line shows to an owner before the date airs, and under a date a visitor may not have watched. `{place}` is the
+ * venue's phrase ("a safari jeep at dawn"); a line that needs one is skipped for a date without a venue.
+ */
+export const PHOTO_LINES: Record<Tone, readonly string[]> = {
+  warm: ["Look at us.", "From {place}. I wanted you to have it.", "Sending you this one. It's a good picture of you."],
+  wry: ["Photographic evidence. We were both there.", "For the record: {place}, two witnesses.", "Exhibit A."],
+  reserved: ["This came out better than I expected.", "Here. From {place}.", "You should have a copy."],
+  plain: ["Found this from the date.", "From {place}.", "Sending you this before I forget."],
+};
+
+/** The sender's line with the date's photo (pure): dealt by the date from its tone's lines. No model call. */
+export function datePhotoLine(ep: { id: string; venue: string | null }, sender: ToneSheet): string {
+  const lines = PHOTO_LINES[toneOf(sender)].filter((l) => ep.venue || !l.includes("{place}"));
+  const line = lines[seedFrom("date-photo-line", ep.id) % lines.length];
+  return line.replace("{place}", ep.venue ? venuePhrase(ep.venue) : "");
+}
+
+/** What the owner's own character says when it sends them the real photo they made (pure). Never the ending. */
+export const REAL_PHOTO_LINES: Record<Tone, readonly string[]> = {
+  warm: ["Look at us.", "I'm keeping this one."],
+  wry: ["Look at us.", "Suspiciously photogenic, the pair of us."],
+  reserved: ["Look at us.", "It came out better than I expected."],
+  plain: ["Look at us.", "The real one, not the show's snapshot."],
+};
+export const realPhotoLines = (sender: ToneSheet): string[] => [...REAL_PHOTO_LINES[toneOf(sender)]];
 
 export type DatePhotoSide = { id: string; name: string; hue: number | null; house: boolean; /** Its portrait may be drawn for this viewer (a private character's only for its owner). */ showFace: boolean };
 

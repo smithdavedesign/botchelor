@@ -14,16 +14,32 @@
  *
  * The chain also goes into the prompts: a date's characters, its morning after and the next texts all know the history
  * (`promptTexts`), from the dates the date's creator may use (`usableFor`) and every text between dates.
+ *
+ * What they send each other besides texts (2026-11-16), for the readers that ask (`keepsakes`: the phone, the couple
+ * page), never a prompt:
+ *  - each date's photo, right after its marker and before the morning after (`photo`; lib/date-photo.ts): the newest
+ *    approved real photo an owner made of it, else the show's composed snapshot. DATE_PHOTO_IN_CHAIN=0 leaves them out;
+ *  - small gifts between the two (`gift`; lib/character-gifts.ts), where they were given. CHARACTER_GIFTS=0 leaves
+ *    them out.
+ * Both follow their date, like the afterglow: in the chain only when their date is. Unlike the texts, the dates and
+ * these may be shown to anyone (`publicKeepsakes` over the public layer): they say nothing a date's page doesn't.
  */
 import type { AfterglowLine } from "./afterglow";
 import type { Db } from "./db";
 import { pairKey, timelineLabel, usableFor, visibleTo, type End, type Viewer } from "./relationships";
 import { REPORT_HIDE_THRESHOLD, type Ending } from "./rules";
 import { airWindowMinutes } from "./air";
-import { CHAIN_PAGE, decisionShownAt, isText, type ChainItem, type ChainPage, type ChainText } from "./text-chain-shared";
+import { characterGiftsOn } from "./gift-catalog";
+import { datePhotoPath } from "./companion-shared";
+import { datePhotoAlt, datePhotoInChain, datePhotoLine, photoSender } from "./date-photo";
+import type { ToneSheet } from "./sheet-tone";
+import { CHAIN_PAGE, decisionShownAt, isText, type ChainItem, type ChainPage, type ChainText, type GiftReaction } from "./text-chain-shared";
 import { venueName, type PlaceId } from "./venues";
 
-export { CHAIN_PAGE, decisionShown, decisionShownAt, isText, TEXT_MAX, type ChainDate, type ChainEvent, type ChainItem, type ChainPage, type ChainText } from "./text-chain-shared";
+export {
+  CHAIN_PAGE, decisionShown, decisionShownAt, isKeepsake, isText, publicKeepsakes, TEXT_MAX,
+  type ChainDate, type ChainEvent, type ChainGift, type ChainItem, type ChainKeepsake, type ChainPage, type ChainPhoto, type ChainText,
+} from "./text-chain-shared";
 
 /** Anyone who isn't an owner: the public layer (aired, public, unhidden dates). */
 export const PUBLIC_VIEWER: Viewer = { userId: null, owner: false };
@@ -61,34 +77,81 @@ type ChainEpisode = {
   air_after: string | Date | null;
   venue: PlaceId | null;
   followup_of: string | null;
+  /** A date that carried an After Dark memory: the show draws no snapshot of it (lib/date-photo.ts datePhotoFacts). */
+  after_dark: boolean;
+  /** Only when the date's photo is asked for (CHAIN_PHOTOS): its real photos, newest first, and the two public sheets. */
+  photos?: string[] | null;
+  a_name?: string;
+  a_traits?: string[];
+  a_voice?: string | null;
+  b_name?: string;
+  b_traits?: string[];
+  b_voice?: string | null;
+};
+
+/**
+ * What a date's photo needs, read with the date itself (no round trip of its own): its real photos
+ * (lib/studio/date-photos.ts), newest first, approved and rated pg as the companion thread asks, and the two public
+ * sheets the alt text and the sender's line are written from.
+ */
+const CHAIN_PHOTOS = {
+  columns: `,
+         (select array_agg(d.asset_id order by d.created_at desc, d.asset_id)
+            from date_photos d join character_assets pa on pa.id = d.asset_id and pa.review_status = 'approved' and pa.content_rating = 'pg'
+           where d.episode_id = e.id) as photos,
+         ca.name as a_name, ca.traits as a_traits, ca.voice as a_voice, cb.name as b_name, cb.traits as b_traits, cb.voice as b_voice`,
+  joins: ` join characters ca on ca.id = e.character_a join characters cb on cb.id = e.character_b`,
 };
 
 /** A pair's dates, or one character's (loadChainsFor); `threshold` is the reports-to-hide parameter's placeholder. */
-const chainEpisodes = (threshold: string) => `
+const chainEpisodes = (threshold: string, photos = false) => `
   select e.id, e.created_at, e.revealed_at, e.visibility, e.creator_id, e.partner_performer, e.character_a, e.character_b, e.ending, e.afterglow,
-         e.ending_detail, e.air_after, e.setup->>'venue' as venue, e.followup_of,
-         (select count(*)::int from reports r where r.episode_id = e.id) >= ${threshold} as hidden
-    from episodes e
+         e.ending_detail, e.air_after, e.setup->>'venue' as venue, e.followup_of, coalesce((e.setup->>'after_dark')::boolean, false) as after_dark,
+         (select count(*)::int from reports r where r.episode_id = e.id) >= ${threshold} as hidden${photos ? CHAIN_PHOTOS.columns : ""}
+    from episodes e${photos ? CHAIN_PHOTOS.joins : ""}
    where e.status = 'ready' and e.varies_episode_id is null`;
-const CHAIN_EPISODES = `${chainEpisodes("$3")}
+const OF_PAIR = `
      and ((e.character_a = $1 and e.character_b = $2) or (e.character_a = $2 and e.character_b = $1))`;
+const CHAIN_EPISODES = `${chainEpisodes("$3")}${OF_PAIR}`;
+const CHAIN_EPISODES_WITH_PHOTOS = `${chainEpisodes("$3", true)}${OF_PAIR}`;
 
 type ChainTextRow = { who: End; text: string; day: string; seq: number; created_at: string | Date; via: string | null; photo: string | null };
 type ChainMatchRow = { matched_at: string | Date; agreed_at: string | Date | null };
 const TEXT_COLUMNS = `who, text, to_char(day, 'YYYY-MM-DD') as day, seq, created_at, via, photo`;
 
+type GiftRow = { id: string; episode_id: string; giver: End; name: string; note: string; reaction: GiftReaction; reply: string; created_at: string | Date };
+/** What the keepsakes are built from besides the dates themselves: whether each date's photo is wanted, and the gifts. */
+type Keepsakes = { photos: boolean; gifts: GiftRow[] };
+
+export type ChainOptions = {
+  /**
+   * Also the things they send each other: each date's photo and the gifts (see the header). For a reader that shows
+   * the thread to someone; a prompt never asks (it reads texts only), and `loadChainsFor` never has them.
+   */
+  keepsakes?: boolean;
+  env?: Record<string, string | undefined>;
+};
+
 /**
  * The whole chain between two characters, oldest first, with the dates `layer` allows. It doesn't check who's asking:
- * callers show it to the characters' owners only (the couple page, the texts route, the agent tools).
+ * callers show the texts to the characters' owners only (the couple page, the texts route, the agent tools).
  */
-export async function loadChain(db: Db, x: string, y: string, layer: ChainLayer): Promise<ChainItem[]> {
+export async function loadChain(db: Db, x: string, y: string, layer: ChainLayer, opts: ChainOptions = {}): Promise<ChainItem[]> {
   const [lo, hi] = pairKey(x, y);
-  const [eps, texts, match] = await Promise.all([
-    db.query<ChainEpisode>(CHAIN_EPISODES, [lo, hi, REPORT_HIDE_THRESHOLD]),
+  const env = opts.env ?? process.env;
+  const wanted = Boolean(opts.keepsakes) && !("usableBy" in layer);
+  const photosOn = wanted && datePhotoInChain(env);
+  const giftsOn = wanted && characterGiftsOn(env);
+  // The keepsakes ride the chain's own round trip: the photos with the dates, the gifts as one read beside them.
+  const [eps, texts, match, gifts] = await Promise.all([
+    db.query<ChainEpisode>(photosOn ? CHAIN_EPISODES_WITH_PHOTOS : CHAIN_EPISODES, [lo, hi, REPORT_HIDE_THRESHOLD]),
     db.query<ChainTextRow>(`select ${TEXT_COLUMNS} from couple_texts where character_lo = $1 and character_hi = $2`, [lo, hi]),
     db.query<ChainMatchRow>(`select matched_at, agreed_at from matches where character_lo = $1 and character_hi = $2`, [lo, hi]),
+    giftsOn
+      ? db.query<GiftRow>(`select id, episode_id, giver, name, note, reaction, reply, created_at from character_gifts where character_lo = $1 and character_hi = $2`, [lo, hi])
+      : Promise.resolve({ rows: [] as GiftRow[] }),
   ]);
-  return buildChain(lo, eps.rows, texts.rows, match.rows[0], layer);
+  return buildChain(lo, eps.rows, texts.rows, match.rows[0], layer, wanted ? { photos: photosOn, gifts: gifts.rows } : null);
 }
 
 /**
@@ -114,11 +177,11 @@ export async function loadChainsFor(db: Db, characterId: string, layer: ChainLay
   for (const t of texts.rows) of(otherOf(t.lo, t.hi)).texts.push(t);
   for (const m of matches.rows) of(otherOf(m.lo, m.hi)).match = m;
   const out = new Map<string, ChainItem[]>();
-  for (const [other, rows] of by) out.set(other, buildChain(pairKey(characterId, other)[0], rows.eps, rows.texts, rows.match, layer));
+  for (const [other, rows] of by) out.set(other, buildChain(pairKey(characterId, other)[0], rows.eps, rows.texts, rows.match, layer, null));
   return out;
 }
 
-function buildChain(lo: string, eps: ChainEpisode[], texts: ChainTextRow[], m: ChainMatchRow | undefined, layer: ChainLayer): ChainItem[] {
+function buildChain(lo: string, eps: ChainEpisode[], texts: ChainTextRow[], m: ChainMatchRow | undefined, layer: ChainLayer, keepsakes: Keepsakes | null): ChainItem[] {
   const allowed = (e: ChainEpisode) => {
     const h = {
       public: e.revealed_at !== null && e.visibility === "public" && !e.hidden,
@@ -135,6 +198,9 @@ function buildChain(lo: string, eps: ChainEpisode[], texts: ChainTextRow[], m: C
   const ledOn = new Set(seen.flatMap((e) => (e.followup_of && ids.has(e.followup_of) ? [e.followup_of] : [])));
 
   const items: ChainItem[] = [];
+  // The real photos now shown as their date's photo: the 📷 text that used to carry one (lib/studio/date-photos.ts,
+  // before 2026-11-16) would show it twice.
+  const shownAssets = new Set<string>();
   seen.forEach((e, i) => {
     const at = iso(e.created_at);
     const day = at.slice(0, 10);
@@ -149,6 +215,29 @@ function buildChain(lo: string, eps: ChainEpisode[], texts: ChainTextRow[], m: C
       ending_label: timelineLabel(e, ledOn.has(e.id), Boolean(e.followup_of && ids.has(e.followup_of)), i + 1),
       aired: e.revealed_at !== null,
     });
+    // The date's photo, from one of them, right behind the marker ("d:" sorts before "p:" in the same moment) and
+    // before the morning after. It never says how the date went, so it isn't held like the afterglow below: an owner
+    // sees it before the date airs. Whether anyone else sees it is the layer's call on the date itself.
+    if (keepsakes?.photos && e.a_name !== undefined && e.b_name !== undefined && !e.after_dark) {
+      const sheet = (name: string, traits: unknown, voice: string | null | undefined): ToneSheet & { name: string } => ({ name, traits: Array.isArray(traits) ? (traits as string[]) : [], voice: voice ?? null });
+      const a = sheet(e.a_name, e.a_traits, e.a_voice);
+      const b = sheet(e.b_name, e.b_traits, e.b_voice);
+      const side = photoSender(e.id);
+      const real = e.photos?.[0] ?? null;
+      if (real) shownAssets.add(real);
+      items.push({
+        kind: "photo",
+        id: chainId(at, 0, `p:${e.id}`),
+        at,
+        day,
+        who: (side === "a") === (e.character_a === lo) ? "lo" : "hi",
+        episode_id: e.id,
+        src: real ? `/api/assets/${real}` : datePhotoPath(e.id),
+        real: real !== null,
+        alt: datePhotoAlt({ names: [a.name, b.name], venue: e.venue, at }),
+        text: datePhotoLine({ id: e.id, venue: e.venue }, side === "a" ? a : b),
+      });
+    }
     // The morning after, right behind its date. Side "a" is the episode's character_a, which may be either end.
     // #981 (two visitors: "a house character's text gave away the ending before the date aired"): held until the date
     // airs. A private one never airs, so its texts come at once. Only as shown: the show's own reads (usableBy: what the
@@ -175,7 +264,13 @@ function buildChain(lo: string, eps: ChainEpisode[], texts: ChainTextRow[], m: C
       items.push({ kind: "event", id: chainId(at, lines.length + 1, `g:${e.id}`), at, day, event: "ghosted", who: quiet, episode_id: e.id });
     }
   });
-  for (const t of texts) items.push(betweenText(t));
+  for (const t of texts) if (!(t.via === "photo" && t.photo && shownAssets.has(t.photo))) items.push(betweenText(t));
+  // A gift follows the date it came after: in the chain only when that date is (lib/character-gifts.ts).
+  for (const g of keepsakes?.gifts ?? []) {
+    if (!ids.has(g.episode_id)) continue;
+    const at = iso(g.created_at);
+    items.push({ kind: "gift", id: chainId(at, 500, `gift:${g.id}`), at, day: at.slice(0, 10), who: g.giver, episode_id: g.episode_id, name: g.name, note: g.note, reaction: g.reaction, reply: g.reply });
+  }
   // How they met, when it was the swipe deck (lib/swipes.ts): the match, and when both said yes to a date: after
   // they've texted (decisionShownAt: talk, then decide), not before.
   const sorted = () => items.sort((p, q) => (p.id < q.id ? -1 : p.id > q.id ? 1 : 0));

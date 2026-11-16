@@ -231,6 +231,9 @@ async function main() {
   const app = await startApp(await freePort(), {
     ...appEnv(showrunner.address().port, DATA_DIR),
     FRONTIER_PASSWORD: ADMIN_PASSWORD,
+    // Every seeded couple the rules allow a gift gets one (lib/gift-catalog.ts giftRate), so the couple pages are
+    // audited with a photo and a gift in their thread, not one run in ten.
+    CHARACTER_GIFTS_RATE: "100",
     ADULT_MODE: "1",
     ADULT_LLM_BASE_URL: `http://127.0.0.1:${adult.address().port}/v1`,
     ADULT_LLM_API_KEY: "local-stub",

@@ -2107,6 +2107,23 @@ create table if not exists date_photos (
   created_at timestamptz not null default now()
 );
 create index if not exists date_photos_episode on date_photos (episode_id, created_at);
+-- A small gift from one character to the other (lib/character-gifts.ts, 2026-11-16): fiction between the two, written by
+-- rules after one of their dates aired publicly. One a date; it goes when its date does. giver: which end gave it; item:
+-- the catalogue id (lib/gift-catalog.ts); reaction and reply: how the other took it. Never read by the engine.
+create table if not exists character_gifts (
+  id text primary key,
+  episode_id text not null unique references episodes (id) on delete cascade,
+  character_lo text not null references characters (id) on delete cascade,
+  character_hi text not null references characters (id) on delete cascade,
+  giver text not null check (giver in ('lo', 'hi')),
+  item text not null,
+  name text not null,
+  note text not null,
+  reaction text not null check (reaction in ('touched', 'amused', 'unimpressed')),
+  reply text not null,
+  created_at timestamptz not null default now()
+);
+create index if not exists character_gifts_pair on character_gifts (character_lo, character_hi, created_at);
 -- A scene picture's brief (lib/adult/picture-brief.ts): what the chapter says at the picture's moment (where they are,
 -- what each has on, what's happening, the mood), read once by the fast writer and kept by what it read.
 create table if not exists adult_picture_briefs (

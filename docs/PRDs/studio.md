@@ -262,7 +262,9 @@ The PG Studio plan's last two steps. All of it follows the PG Studio's `open_to`
 - **Date photos** (`lib/studio/date-photos.ts`, `/api/episodes/<id>/photos`, on the date page): a selfie together, a
   photo-booth strip, a slow dance or the two of them there, from both portraits in safe mode, pg only, priced like a
   shoot and refunded when nothing passes. Never in a Studio gallery (so never on a profile or the showcase with the other
-  owner's character in it): kept with the date for its owners, and the first goes into the pair's texts.
+  owner's character in it): kept with the date, and the newest is the date's photo in the pair's texts (2026-11-16:
+  `lib/text-chain.ts`, where the composed snapshot was; seen by whoever may see that date there, which for a date that
+  aired publicly between public characters is anyone on the couple's page).
 - **After Dark teasers in normal mode** (`app/characters/[id]/AfterDarkPhotos.tsx`): on the owner's own character page,
   "🌙 N After Dark photos" as server-blurred teasers (`/api/teasers`), never to bots or where After Dark is blocked, with
   the way in or to subscribe.

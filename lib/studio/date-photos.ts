@@ -6,8 +6,13 @@
  * The rules (the plan's, for someone else's character in a picture):
  *  - only the owner of one of the two can make one, and only of a date that's ready;
  *  - it is never kept in their Studio gallery, so it can't be pinned to a profile or posted on the showcase with the other
- *    one's face in it. It lives with the date, seen by the two owners only, and goes into the pair's texts as a 📷 photo,
- *    which both owners already read;
+ *    one's face in it. It lives with the date, and the newest approved one is the date's photo in the pair's texts
+ *    (lib/text-chain.ts: one of the two sends it right after the date, in the composed snapshot's place). It is seen by
+ *    whoever may see that date there: the owners, and once the date has aired publicly between two public characters,
+ *    anyone on the couple's page (David, 2026-11-16: his two photos of a house couple's date showed in no thread);
+ *  - when the maker's own character was on the date and they turned its texts on, that character sends it to them
+ *    once (`realPhotoText`: postFromCharacter, tagged `date_photo:<episode id>`); a snapshot already in that thread
+ *    for the date shows the real one from then on (lib/companion.ts getThread);
  *  - both faces are already public (a house portrait, or the newest approved pg portrait), and a pg rating only.
  *
  * Priced like a shoot (`studio.pg.price`), refunded when nothing passes; free for admins. Open to whoever the PG Studio
@@ -18,6 +23,10 @@ import { refundBoughtTokens, spendBoughtTokens } from "../allowance";
 import { recordAsset, reviewAsset } from "../assets";
 import { insertText } from "../between-dates";
 import { loadCharacter, type Character } from "../character";
+import { postFromCharacter } from "../companion";
+import { datePhotoPath, datePhotoTexts } from "../companion-shared";
+import { datePhotoAlt, datePhotoInChain, realPhotoLines } from "../date-photo";
+import { publicDateSql } from "../date-number";
 import type { Db } from "../db";
 import { notify } from "../notifications";
 import { pairKey } from "../relationships";
@@ -42,14 +51,28 @@ const DRAWS = 2;
 const fail = (status: number, error: string, message: string): PgFail => ({ ok: false, status, error, message });
 
 export type DatePhoto = { asset_id: string; url: string; style: DatePhotoStyle; created_at: string };
-export type DatePhotoState = { mine: string; partner: string; price: number; free: boolean; tokens_note: string; photos: DatePhoto[] };
+/** Where the newest photo shows in the pair's texts, for this viewer: the link, and who else sees it there. */
+export type DatePhotoThread = {
+  /** The thread (an owner's phone) or the couple's page (anyone else who may see it there); null when this viewer has nowhere to see it. */
+  href: string | null;
+  /** The date aired publicly between two public characters: anyone sees the photo on the couple's page. */
+  public: boolean;
+};
+export type DatePhotoState = { mine: string; partner: string; price: number; free: boolean; tokens_note: string; photos: DatePhoto[]; /** Null with DATE_PHOTO_IN_CHAIN=0. */ thread: DatePhotoThread | null };
 
-type Pair = { episode: { id: string; setting: string }; mine: Character; partner: Character };
+type Pair = { episode: { id: string; setting: string; venue: string | null; created_at: Date | string; public: boolean }; mine: Character; partner: Character };
 
 /** The date and which of its two is the viewer's (one they can open the PG Studio for); or why not. */
 async function pairOf(db: Db, viewer: string | null, episodeId: string): Promise<{ ok: true; pair: Pair; config: PgConfig; admin: boolean } | PgFail> {
   if (!viewer) return fail(401, "sign_in", "Sign in first.");
-  const ep = (await db.query<{ id: string; setting: string; character_a: string; character_b: string; status: string }>(`select id, setting, character_a, character_b, status from episodes where id = $1`, [episodeId])).rows[0];
+  const ep = (
+    await db.query<{ id: string; setting: string; character_a: string; character_b: string; status: string; venue: string | null; created_at: Date | string; public: boolean }>(
+      `select e.id, e.setting, e.character_a, e.character_b, e.status, e.setup->>'venue' as venue, e.created_at,
+              (${publicDateSql("e")} and not exists (select 1 from characters c where c.id in (e.character_a, e.character_b) and c.visibility <> 'public')) as public
+         from episodes e where e.id = $1`,
+      [episodeId],
+    )
+  ).rows[0];
   if (!ep || ep.status !== "ready") return fail(404, "not_found", "No finished date with that id.");
   // Both sides and the access rules in one go (pgAccessFor), not pgAccess for each side then the partner in turn.
   const [settings, admin, ca, cb] = await Promise.all([getAdultSettings(db), isAdmin(db, viewer), loadCharacter(db, ep.character_a), loadCharacter(db, ep.character_b)]);
@@ -81,7 +104,39 @@ export async function datePhotoState(db: Db, viewer: string | null, episodeId: s
     free: p.admin,
     tokens_note: p.admin ? "free for admins" : `${p.config.price} token${p.config.price === 1 ? "" : "s"}`,
     photos: rows.map((r) => ({ asset_id: r.asset_id, url: `/api/assets/${r.asset_id}`, style: r.style, created_at: new Date(r.created_at).toISOString() })),
+    thread: threadOf(viewer!, p.pair),
   };
+}
+
+/**
+ * Where this viewer sees the date's photo in the pair's texts (lib/text-chain.ts): an owner of either character on the
+ * thread's phone; anyone else (an admin making one of a house couple's date) on the couple's page, once the date has
+ * aired publicly between two public characters. Null with DATE_PHOTO_IN_CHAIN=0.
+ */
+function threadOf(viewer: string, pair: Pair, env: Record<string, string | undefined> = process.env): DatePhotoThread | null {
+  if (!datePhotoInChain(env)) return null;
+  const [lo, hi] = pairKey(pair.mine.id, pair.partner.id);
+  const owns = pair.mine.ownerId === viewer || pair.partner.ownerId === viewer;
+  return { href: owns ? `/messages/${lo}/${hi}` : pair.episode.public ? `/couples/${lo}/${hi}#texts` : null, public: pair.episode.public };
+}
+
+/**
+ * The maker's own character sends them the real photo, once (see the header). Only where they turned that
+ * character's texts on (a thread with it, `muted_proactive` false, not paused): making a photo is not an opt-in to
+ * texts. Not skipped for our own accounts: the person made the photo themselves, like the "Hear from" tap
+ * (lib/after-date-text.ts sendAfterDateText), unlike a job's text. The message carries the snapshot's path, which the
+ * thread shows as the newest real photo (lib/companion.ts getThread). DATE_PHOTO_TEXTS=0 stops it. Returns whether it
+ * was sent.
+ */
+async function realPhotoText(db: Db, owner: string, pair: Pair, now: Date = new Date(), env: Record<string, string | undefined> = process.env): Promise<boolean> {
+  if (!datePhotoTexts(env) || pair.mine.ownerId !== owner || pair.mine.house) return false;
+  const on = await db.query(`select 1 from companion_threads where user_id = $1 and character_id = $2 and muted_proactive = false and paused_at is null`, [owner, pair.mine.id]);
+  if (!on.rows.length) return false;
+  // The names in the date's own order don't matter to the alt text's reader: the owner's character first.
+  const photo = { url: datePhotoPath(pair.episode.id), alt: datePhotoAlt({ names: [pair.mine.name, pair.partner.name], venue: pair.episode.venue, at: pair.episode.created_at }) };
+  const lines = realPhotoLines({ traits: pair.mine.persona.traits, voice: pair.mine.voice });
+  const posted = await postFromCharacter(db, { userId: owner, characterId: pair.mine.id, lines, now, kind: "date_photo", dedupeKey: `date_photo:${pair.episode.id}`, photo }).catch(() => null);
+  return posted !== null;
 }
 
 /** Where the date was, as picture words: its setting when that's PG words, else a plain evening out. */
@@ -100,9 +155,13 @@ export function datePhotoPrompt(style: DatePhotoStyle, mine: Character, partner:
   return [`A photograph of two people: ${who(mine, 1)} and ${who(partner, 2)}, keeping both faces exactly.`, `${words.charAt(0).toUpperCase()}${words.slice(1)}.`, `At ${placeWordsOf(setting)}.`, `Only the two of them in the picture. ${PG_TAIL}`].join(" ");
 }
 
-export type DatePhotoResult = { ok: true; photos: DatePhoto[]; refunded: boolean; message: string | null } | PgFail;
+export type DatePhotoResult = { ok: true; photos: DatePhoto[]; refunded: boolean; message: string | null; /** Their own character texted it to them (realPhotoText). */ texted: boolean } | PgFail;
 
-/** Makes a date photo, keeps what passes with the date, and sends the first into the pair's texts. */
+/**
+ * Makes a date photo and keeps what passes with the date. The newest kept one becomes the date's photo in the pair's
+ * texts by being there (lib/text-chain.ts reads `date_photos`), and the maker's own character sends it to them where
+ * its texts are on. With DATE_PHOTO_IN_CHAIN=0 the first goes into the texts as a 📷 text, as before.
+ */
 export async function makeDatePhoto(db: Db, viewer: string | null, episodeId: string, style: DatePhotoStyle, baseUrl: string): Promise<DatePhotoResult> {
   const p = await pairOf(db, viewer, episodeId);
   if (!p.ok) return p;
@@ -150,10 +209,13 @@ export async function makeDatePhoto(db: Db, viewer: string | null, episodeId: st
   }
   const refunded = kept.length === 0 && tokens > 0;
   if (refunded) await refundBoughtTokens(db, owner, tokens);
+  let texted = false;
   if (kept.length) {
-    // The first in their texts, as a 📷 photo from the viewer's character: both owners read the thread already.
     const [lo, hi] = pairKey(pair.mine.id, pair.partner.id);
-    await insertText(db, lo, hi, pair.mine.id === lo ? "lo" : "hi", "📷", "photo", new Date(), kept[0].asset_id);
+    // In their texts it is the date's own photo now (the chain reads date_photos). Only with that switched off does it
+    // still go in as a 📷 text from the viewer's character, which would otherwise show the same picture twice.
+    if (!datePhotoInChain()) await insertText(db, lo, hi, pair.mine.id === lo ? "lo" : "hi", "📷", "photo", new Date(), kept[0].asset_id);
+    texted = await realPhotoText(db, owner, pair).catch(() => false);
     const to = pair.partner.ownerId;
     if (to && to !== owner) {
       await notify(db, to, { kind: "texted", title: `📷 ${pair.mine.name} sent ${pair.partner.name} a photo from your date`.slice(0, 125), link: `/messages/${lo}/${hi}` });
@@ -163,6 +225,7 @@ export async function makeDatePhoto(db: Db, viewer: string | null, episodeId: st
     ok: true,
     photos: kept,
     refunded,
+    texted,
     message: kept.length ? null : `Nothing came through${lastError ? ` (${lastError})` : ""}.${refunded ? " Your tokens are back." : ""}`,
   };
 }
