@@ -128,11 +128,15 @@ function pick(sides: Side[], outcome: Outcome): Side | null {
 
 const step = (s: Side, note: string) => ({ side: letter(s), note });
 
-/** What this side has heard about the other that it could raise: its own story state, never used before, told by someone first. */
+/**
+ * What this side has heard about the other that it could put to them: its own story state, never brought up before, and
+ * told to it by someone. A date it watched air, or word from the house, is public record: there is nothing to ask
+ * "is it true?" about, and nobody is stung to hear it, so those never make a turn. `n` is its number in the prompt's list.
+ */
 function heardAbout(c: Character): { heard: Heard; n: number } | null {
   const list = bringable(c.story);
-  const i = Math.max(0, list.findIndex((h) => h.told_by_name));
-  return list[i] ? { heard: list[i], n: i + 1 } : null;
+  const i = list.findIndex((h) => h.told_by_name);
+  return i >= 0 ? { heard: list[i], n: i + 1 } : null;
 }
 
 /**
@@ -189,9 +193,8 @@ export function turnFor(input: DateInput, outcome: Outcome, characters: [Charact
   const heardBy = pick(both.filter((s) => heardAbout(characters[s])), outcome);
   if (heardBy !== null) {
     const { heard, n } = heardAbout(characters[heardBy])!;
-    const from = heard.told_by_name ? `what ${shortName(heard.told_by_name)} told you about them` : "what you heard about them";
     return withAfter("heard", heardBy, [
-      step(heardBy, `Bring up ${from}, on this line and to their face: "${heard.claim}" Say where you heard it, and ask whether it's true. It has been on your mind all night, and how they answer matters to you. (When "what_youve_heard_about_them" is in your data it is number ${n} there: put ${n} in "brought_up".)`),
+      step(heardBy, `Bring up what ${shortName(heard.told_by_name)} told you about them, on this line and to their face: "${heard.claim}" Say where you heard it, and ask whether it's true. It has been on your mind all night, and how they answer matters to you. (When "what_youve_heard_about_them" is in your data it is number ${n} there: put ${n} in "brought_up".)`),
       step(other(heardBy), "They've just repeated something that's being said about you, and asked you to account for it. It stings to be discussed behind your back and put on trial at dinner. Answer on this line as yourself, as you see it; you don't owe them reassurance, and you let them see that it stung."),
       step(heardBy, "Their answer doesn't settle it for you: how they took it told you as much as what they said. Let that show on this line. You don't take the question back and you don't smooth it over."),
     ]);

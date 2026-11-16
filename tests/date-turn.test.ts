@@ -102,6 +102,9 @@ describe("which turn a date gets", () => {
     // Something already brought up on an earlier date isn't raised again: the date turns on something else.
     characters[1].story!.heard[0].used_at = "2026-11-14T00:00:00Z";
     expect(turnFor(built.input, decided, characters)!.kind).not.toBe("heard");
+    // A date it watched air is public record, not something to put to them: no turn is made of it either.
+    characters[1].story = heardOf(characters[1], characters[0], "Rafe and Mira's first date: they parted as friends.", null);
+    expect(turnFor(built.input, decided, characters)!.kind).not.toBe("heard");
   });
 
   it("two opinions that collide: each says its own, and neither note carries the other's", () => {

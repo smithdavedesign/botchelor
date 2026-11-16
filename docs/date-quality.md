@@ -1246,7 +1246,7 @@ goes only to its own speaker, on that one line (`this_moment`); the rest of the 
 | The date ends | It turns on | Who is told what |
 |---|---|---|
 | a disaster | a dealbreaker the engine says was tripped | its owner reacts to its own dealbreaker; the other is only told to be fully themselves, never what the dealbreaker is |
-| | else something one has heard about the other (its own story state, never one already brought up) | the one who heard it raises it to their face, with who said it; the other is told only that something being said about them was just repeated |
+| | else something one has been told about the other (its own story state: told by someone, never one already brought up, never a date it only watched air) | the one who was told raises it to their face, with who said it; the other is told only that something being said about them was just repeated |
 | | else an agenda the engine says didn't pay off | its owner makes the opening (its own aim); the other does the thing that fails it (the behaviour its beat always asked for "at some point", now on one line, and never why it matters) |
 | | else two opinions that collide (each side's own hot take) | each says its own |
 | | else a want the engine says went unmet | its owner tests for it; the other is told their honest answer isn't the hoped-for one |
