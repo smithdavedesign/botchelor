@@ -673,6 +673,8 @@ async function main() {
       { name: "ship", path: "/ship/juniper/teo" },
       { name: "tool-chemistry", path: "/tools/oc-chemistry-test" },
       { name: "tool-ship-names", path: "/tools/ship-name-generator" },
+      { name: "tool-oc-names", path: "/tools/oc-name-generator/fantasy" },
+      { name: "tool-oc-questions", path: "/tools/oc-questions?q=love-2" },
       // (Its Creator invites fold, list and "Make N invites" form, is audited open with the rest: openDetails.)
       { name: "admin-season", path: "/admin/season", as: "admin" },
       // A character's text with its locked picture (lib/locked-picture.ts), in both states of the tile.
