@@ -80,6 +80,7 @@ export type AnalyticsEvent =
   | "step_in_refused" // a start that a cap turned away (lib/step-in.ts): which cap, and whether a guest; never who
   | "step_in_line_withheld" // a cast line on a step-in date was never said (it voiced self-harm): the episode and why
   | "data_pruned" // the daily job's retention prune (lib/retention.ts): rows removed per table
+  | "story_check" // one pass of the story check (lib/story-check.ts): verdict counts, repairs, tokens and cost; never a date or its words
   | "plus_interest"; // a tap on the "Botchelor Plus" intent tile (lib/plus-interest.ts): where, and whether an email was left
 
 type Props = Record<string, string | number | boolean | null | undefined>;

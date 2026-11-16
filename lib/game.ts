@@ -46,6 +46,7 @@ import { placesOf } from "./moves";
 import type { Turn } from "./conversation";
 import type { AfterglowLine, AfterglowVerdict } from "./afterglow";
 import { isDefaultFormat, type FormatId } from "./formats";
+import { featurableFlag, featurableSql, storyPassedSql } from "./story-check-gate";
 
 // The rules moved to lib/rules.ts (client-safe); M1 code and tests import them from here.
 export { ENDING_LABELS, ENDINGS, POINTS_PER_CORRECT_PICK, pointsFor, type Ending };
@@ -374,6 +375,12 @@ export type EpisodeView = EpisodeJson & {
   debrief?: Debrief;
   /** Creators only: where the mutual identity reveal stands. */
   identity?: { consented: boolean; consents: number; needed: number };
+  /**
+   * The story check (lib/story-check.ts) found this date's lines and recap disagree with how it ended (or had to mend
+   * its finale): it is never featured (the home excerpt, the 18+ gate, the home clip, the daily clip). Only ever false,
+   * and absent otherwise: never the verdict or its reason, which are the admin's.
+   */
+  featurable?: false;
   /** One table of a group night (a double date or a mixer): the episode page links the rest. */
   double?: boolean;
   /** Which group night: a double date (two couples at one table) or a mixer (a room of singles, one pairing each). */
@@ -575,6 +582,10 @@ type EpisodeRow = {
   blocked: boolean;
   /** Which date it is for the couple (lib/date-number.ts dateNumberSql), or null for a first date. */
   date_number: number | null;
+  /** The story check's verdict (lib/story-check.ts), or null while unchecked. Read here, never sent: see featurable. */
+  story_verdict: string | null;
+  /** Whether the story check repaired the date's finale (also kept off the featured places by default). */
+  story_repaired: boolean | null;
 };
 
 /**
@@ -605,10 +616,12 @@ select e.id, e.setting, e.goals, e.scenes, e.twist, e.finale, e.ending, e.drama_
        exists (select 1 from blocks bl where bl.blocker_id = $1::text and bl.via_episode_id = e.id) as blocked,
        ${dateNumberSql("e")} as date_number,
        e.group_id is not null as grouped,
-       (select gn.kind from group_nights gn where gn.id = e.group_id) as group_kind
+       (select gn.kind from group_nights gn where gn.id = e.group_id) as group_kind,
+       stc.verdict as story_verdict, stc.repaired as story_repaired
   from episodes e
   join characters a on a.id = e.character_a
   join characters b on b.id = e.character_b
+  left join story_checks stc on stc.episode_id = e.id
   cross join lateral (select count(*)::int as n from reports r where r.episode_id = e.id) rep
   cross join lateral (select (a.owner_id is not null)::int + (b.owner_id is not null)::int as n) need
   cross join lateral (
@@ -691,6 +704,8 @@ function toView(row: EpisodeRow): EpisodeView {
     is_host: row.is_host,
     visibility: row.visibility,
     hidden: row.hidden,
+    // A contradicting (or repaired) date is kept off the featured places (lib/story-check-gate.ts); nothing for any other.
+    ...featurableFlag(row.story_verdict, row.story_repaired),
     ...(row.grouped ? { double: true, ...(row.group_kind === "mixer" || row.group_kind === "double" ? { group_kind: row.group_kind } : {}) } : {}),
     blocked: row.blocked,
     my_pick: row.my_pick,
@@ -820,25 +835,36 @@ export type FeedItem =
 
 export type FeedPage = { items: FeedItem[]; page: number; pages: number; total: number; per_page: number };
 
+/** How far back, and how many, the home page's standout list ranks (listStandoutDates). */
+export const STANDOUT_DAYS = 7;
+export const STANDOUT_LIMIT = 12;
+/**
+ * The standout list's score for episodes row `e`: chemistry at the end, a second date, and the two characters' review
+ * stars. Shared with the story check's sweep (lib/story-check.ts), which checks the dates this list would pick from first.
+ */
+export const STANDOUT_SCORE_SQL = `(coalesce((e.box_score -> 'chemistry' ->> 'final')::numeric, 0)
+             + case when e.ending = 'second_date' then 15 else 0 end
+             + 10 * coalesce((select avg(cr.stars) from character_reviews cr where cr.character_id in (e.character_a, e.character_b)) - 3, 0))`;
+
 /**
  * The home page's and the 18+ gate's sample date (2026-11-11 bounce review, David: "yes do 1-4"): the best-rated aired
  * public dates of the last `days`, best first, where the newest date used to be shown whatever it was like (that week's
  * was a spatula and a tea urn, hard to follow cold). Nobody rates a date directly yet (watch reactions were all zero),
  * so it ranks by what every aired date has: chemistry at the end, a second date, and the two characters' review stars
  * (lib/reviews.ts). The same filters as Watch's list. lib/featured-date.ts picks one and cuts its best moment.
+ *
+ * The story check (lib/story-check-gate.ts): a date whose ending contradicts its lines is left out, and among equal
+ * scores a date the check has passed comes first, so the hero prefers a checked one while the backfill runs.
  */
-export async function listStandoutDates(db: Db, viewerId: string | null, days = 7, limit = 12): Promise<EpisodeView[]> {
+export async function listStandoutDates(db: Db, viewerId: string | null, days = STANDOUT_DAYS, limit = STANDOUT_LIMIT): Promise<EpisodeView[]> {
   const { rows: keys } = await db.query<{ id: string }>(
     `select e.id
        from episodes e
        join characters a on a.id = e.character_a
        join characters b on b.id = e.character_b
        cross join lateral (select count(*)::int as n from reports r where r.episode_id = e.id) rep
-      where ${PUBLIC_FEED_WHERE} and e.revealed_at > now() - make_interval(days => $3::int) and ${NOT_THE_VIEWERS}
-      order by coalesce((e.box_score -> 'chemistry' ->> 'final')::numeric, 0)
-             + case when e.ending = 'second_date' then 15 else 0 end
-             + 10 * coalesce((select avg(cr.stars) from character_reviews cr where cr.character_id in (e.character_a, e.character_b)) - 3, 0) desc,
-               e.revealed_at desc, e.id
+      where ${PUBLIC_FEED_WHERE} and e.revealed_at > now() - make_interval(days => $3::int) and ${NOT_THE_VIEWERS} and ${featurableSql("e")}
+      order by ${STANDOUT_SCORE_SQL} desc, ${storyPassedSql("e")} desc, e.revealed_at desc, e.id
       limit $4`,
     [viewerId, REPORT_HIDE_THRESHOLD, days, limit],
   );

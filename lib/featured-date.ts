@@ -12,6 +12,7 @@ import type { Turn } from "./conversation";
 import { episodeCode } from "./episode-title";
 import type { CharacterRef, EpisodeView } from "./game";
 import type { Ending } from "./rules";
+import { isFeaturable } from "./story-check-gate";
 import type { PlaceId } from "./venues";
 
 /** How many lines the excerpt shows: enough for a back-and-forth, short enough to read in a few seconds. */
@@ -105,6 +106,12 @@ export function momentLines(transcript: readonly Turn[], bestLine: string | null
  * By default the list is newest first (Watch's lead) and the excerpt is the opening. With `best`, the list is ranked
  * best first (listStandoutDates in lib/game.ts) and the excerpt is the moment around the best line: the first ranked
  * date with two faces and a moment, else the first with a moment, else the first usable one from its opening.
+ *
+ * Never a date the story check found contradicting as written (`featurable: false`, lib/story-check-gate.ts: still
+ * contradicting, or mended by a repair, since an excerpt shows the lines and the ending, not the finale): a stranger's first
+ * look at the show mustn't be a date whose lines say "next time?" over "A disaster". An unchecked date still counts.
+ * Among equals the list's own order decides, and listStandoutDates ranks a checked-and-passing date first among equal
+ * scores, so the hero prefers one the check has passed.
  */
 export function pickFeaturedDate(episodes: readonly EpisodeView[], n = EXCERPT_LINES, opts: { best?: boolean } = {}): FeaturedDate | null {
   const usable = episodes.filter(
@@ -112,6 +119,7 @@ export function pickFeaturedDate(episodes: readonly EpisodeView[], n = EXCERPT_L
       e.revealed &&
       e.visibility === "public" &&
       !e.hidden &&
+      isFeaturable(e) &&
       !e.characters.some((c) => c.private) &&
       excerptLines(e.transcript ?? [], n).length >= n,
   );
