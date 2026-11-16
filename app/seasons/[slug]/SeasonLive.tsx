@@ -70,7 +70,7 @@ function ScheduleWhen({ line }: { line: ScheduleLine }) {
  * screen at 390 px. Every part with nothing to show is left out, never an empty box.
  */
 export default function SeasonLive({ data }: { data: SeasonLiveData }) {
-  const { season, month, def, phase, arc, lead, starters, casting, suitors, schedule, contrast } = data;
+  const { season, month, def, phase, arc, lead, starters, casting, suitors, schedule, contrast, premiere } = data;
   const leadShort = lead?.short ?? "the lead";
   return (
     <article className="season-live page-wide">
@@ -92,6 +92,7 @@ export default function SeasonLive({ data }: { data: SeasonLiveData }) {
             </>
           )}
         </p>
+        {premiere && <PremiereLine premiere={premiere} />}
       </header>
 
       {starters.length > 0 && (
@@ -218,5 +219,23 @@ export default function SeasonLive({ data }: { data: SeasonLiveData }) {
         <Link href="/watch">Watch what&apos;s on →</Link> · <Link href="/reunion">The Reunion →</Link> · <Link href="/seasons">Every season →</Link>
       </p>
     </article>
+  );
+}
+
+/** The next Sunday premiere (lib/sunday-premiere.ts nextPremiere): when, and its room once the job has built it. */
+function PremiereLine({ premiere }: { premiere: NonNullable<SeasonLiveData["premiere"]> }) {
+  const name = premiere.kind === "pilot" ? "The pilot, Meet the lead" : premiere.finale ? "The finale's premiere" : "Sunday's premiere";
+  return (
+    <p className="season-live-premiere" data-track-area="season-premiere">
+      <span className="chip">{premiere.state === "live" ? "Live now" : "Next"}</span> {name}
+      {premiere.suitor ? `: ${premiere.lead.name.split(" ")[0]} and ${premiere.suitor.name.split(" ")[0]}` : ""} ·{" "}
+      <When iso={premiere.at} style="day-time" />
+      {premiere.room_path && (
+        <>
+          {" "}
+          · <Link href={premiere.room_path}>{premiere.state === "live" ? "Watch now →" : "Take your seat →"}</Link>
+        </>
+      )}
+    </p>
   );
 }

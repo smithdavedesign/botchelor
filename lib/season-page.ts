@@ -14,6 +14,7 @@ import type { Db } from "./db";
 import { STANDOUT_SCORE_SQL } from "./game";
 import { shortName } from "./names";
 import { portraitPathSql } from "./portrait-sql";
+import { premiereAt, sundayPremiereOn, type NextPremiere } from "./premiere-clock";
 import { DELETED_OWNER, REPORT_HIDE_THRESHOLD, type Ending } from "./rules";
 import { seasonMonth } from "./season-cast";
 import { ceremonySundays, formatContrast, seasonArc, seasonFormat, suitorPlaces, type SeasonArc, type SeasonFormatDef } from "./season-format";
@@ -21,6 +22,7 @@ import { seasonFormatSlug } from "./season-format-store";
 import { isMonthlySeason, seasonRef, type SeasonRef } from "./season-ref";
 import { nextSeasonStart, seasonIdOf, seasonWindow } from "./season-window";
 import { featurableSql, storyPassedSql } from "./story-check-gate";
+import { nextPremiere } from "./sunday-premiere";
 
 type Env = Record<string, string | undefined>;
 
@@ -267,7 +269,7 @@ async function seasonSuitors(db: Db, seasonId: string): Promise<SuitorCard[]> {
 }
 
 export type ScheduleLine = {
-  key: "start" | "dates" | "vote" | "ceremony" | "finale";
+  key: "start" | "pilot" | "dates" | "vote" | "premiere" | "ceremony" | "finale";
   /** When: words ("Every day"), or a moment the viewer's own clock shows (app/When.tsx, lib/when.ts). */
   when: { words: string } | { iso: string; style: "day-time" | "weekly" };
   what: string;
@@ -284,9 +286,19 @@ export type ScheduleLine = {
  *  - the rose ceremony on those Sundays (lib/season-format.ts ceremonySundays) at the ceremony's hour (ceremonyRunsAt:
  *    CEREMONY_HOUR_UTC, the job's :20 pass);
  *  - the finale, the last of them: the lead's final rose, by the season's record.
- * Brief F's Sunday premiere joins as one more line here (nextPremiere(now), lib/sunday-premiere.ts) once it ships.
+ *  - the Sunday premiere (lib/sunday-premiere.ts): on each of those Sundays at PREMIERE_HOUR_UTC (premiereAt), before
+ *    the roses; preseason, the pilot ("Meet the lead") when `next` (nextPremiere) is this season's pilot, so a pilot
+ *    the job won't air (back-to-back lead seasons, PREMIERE_PILOT=0, no lead picked) is never promised.
  */
-export function seasonSchedule(def: SeasonFormatDef, seasonId: string, phase: SeasonPagePhase, lead: string | null, now: Date = new Date(), env: Env = process.env): ScheduleLine[] {
+export function seasonSchedule(
+  def: SeasonFormatDef,
+  seasonId: string,
+  phase: SeasonPagePhase,
+  lead: string | null,
+  now: Date = new Date(),
+  env: Env = process.env,
+  next: NextPremiere | null = null,
+): ScheduleLine[] {
   if (!def.lead) return [];
   const start = new Date(`${seasonId}T00:00:00Z`);
   const sundays = ceremonySundays(def, start);
@@ -298,6 +310,9 @@ export function seasonSchedule(def: SeasonFormatDef, seasonId: string, phase: Se
   const who = lead ?? "The lead";
   const whose = lead ? `${lead}'s` : "the lead's";
   const out: ScheduleLine[] = [];
+  if (next?.kind === "pilot" && next.season_id === seasonId) {
+    out.push({ key: "pilot", when: { iso: next.at, style: "day-time" }, what: `The pilot, Meet the lead: ${who} goes on a first date, live for everyone at once. No ceremony.` });
+  }
   if (phase === "preseason") {
     out.push({ key: "start", when: { iso: start.toISOString(), style: "day-time" }, what: "Casting closes and the season starts: the shortlisted applicants with the most votes become the suitors." });
   }
@@ -305,6 +320,12 @@ export function seasonSchedule(def: SeasonFormatDef, seasonId: string, phase: Se
     out.push({ key: "dates", when: { words: "Every day" }, what: `${who} dates the suitors in turn, so each one gets a date before Sunday.` });
     if (weekly) {
       out.push({ key: "vote", when: { iso: ceremonyVoteOpensAt(weekly).toISOString(), style: "weekly" }, what: "The vote on who goes home opens: one vote each, and you can change it until the ceremony." });
+    }
+    const premiereSunday = sundays.find((d) => d >= today) ?? null;
+    if (premiereSunday && sundayPremiereOn(env)) {
+      out.push({ key: "premiere", when: { iso: premiereAt(premiereSunday, env).toISOString(), style: "weekly" }, what: `The Sunday premiere: ${whose} last date before the roses, live for everyone at once.` });
+    }
+    if (weekly) {
       out.push({ key: "ceremony", when: { iso: ceremonyRunsAt(weekly, env).toISOString(), style: "weekly" }, what: `The rose ceremony: one suitor goes home by your vote and one by how ${whose} dates went, until two are left.` });
     }
   }
@@ -345,6 +366,8 @@ export type SeasonLiveData = {
   suitors: SuitorCard[] | null;
   schedule: ScheduleLine[];
   contrast: string | null;
+  /** The next Sunday premiere when it is this season's (the pilot in preseason, then each Sunday's), else null. */
+  premiere: NextPremiere | null;
 };
 
 /**
@@ -353,12 +376,14 @@ export type SeasonLiveData = {
  * stored cast). A part that fails to load is left out, never the page.
  */
 export async function loadSeasonLive(db: Db, seasonId: string, phase: SeasonPagePhase, def: SeasonFormatDef, now: Date = new Date(), env: Env = process.env): Promise<SeasonLiveData> {
-  const [lead, pool, board, suitors] = await Promise.all([
+  const [lead, pool, board, suitors, next] = await Promise.all([
     seasonLead(db, seasonId).catch(() => null),
     starterPool(db, seasonId).catch(() => [] as Starter[]),
     phase === "preseason" ? castingBoard(db, null, now).catch(() => null) : null,
     phase === "season" ? seasonSuitors(db, seasonId).catch(() => [] as SuitorCard[]) : null,
+    nextPremiere(db, now, env).catch(() => null),
   ]);
+  const premiere = next && next.season_id === seasonId ? next : null;
   const places = suitorPlaces(def);
   const month = seasonMonth(seasonId);
   const auditions = board && board.season_id === seasonId ? board.auditions : null;
@@ -373,8 +398,9 @@ export async function loadSeasonLive(db: Db, seasonId: string, phase: SeasonPage
     starters: pickStarters(pool),
     casting: phase === "preseason" ? { places, auditions: auditions ? auditions.slice(0, places) : null, total: auditions?.length ?? 0 } : null,
     suitors,
-    schedule: seasonSchedule(def, seasonId, phase, lead?.short ?? null, now, env),
+    schedule: seasonSchedule(def, seasonId, phase, lead?.short ?? null, now, env, premiere),
     contrast: formatContrast(def, month),
+    premiere,
   };
 }
 

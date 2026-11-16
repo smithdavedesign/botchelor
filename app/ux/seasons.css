@@ -858,6 +858,14 @@
   margin-top: var(--space-2);
   font-size: var(--text-md);
 }
+.season-live-hero .season-live-premiere {
+  margin: var(--space-2) 0 0;
+  color: var(--on-photo);
+  font-size: var(--text-sm);
+}
+.season-live-hero .season-live-premiere a {
+  color: var(--on-photo);
+}
 .season-live-starters {
   margin: 0 0 var(--space-5);
 }

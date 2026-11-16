@@ -13,7 +13,7 @@ import { seasonCastCards } from "@/lib/season-cast";
 import { getSeasonRecap, type RecapChar, type RecapPair } from "@/lib/season-recap";
 import { liveSeasonFormat, loadSeasonLive, seasonLiveMeta, seasonPageLiveOn, seasonPagePhase } from "@/lib/season-page";
 import { seasonIdFromSlug, seasonRef } from "@/lib/season-ref";
-import { seasonIdOf } from "@/lib/season-window";
+import { seasonIdOf, seasonWindow } from "@/lib/season-window";
 import { pageMetadata } from "@/lib/seo";
 import { venueName } from "@/lib/venues";
 import { cookies } from "next/headers";
@@ -41,8 +41,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!id) return { title: "Season not found · Botchelor", robots: { index: false, follow: false } };
   const s = seasonRef(id);
   // A season not closed yet: a lead season's live page (lib/season-page.ts) is indexed while it's this season or the
-  // next; any other is the Reunion's or not found yet, so it only says its name.
-  if (seasonPagePhase(id)) {
+  // next; any other (this month's classic season, or one further ahead) is the Reunion's for now, so it only says its name.
+  if (seasonPagePhase(id) || Date.now() < seasonWindow(new Date(`${id}T00:00:00Z`)).end.getTime()) {
     const live = seasonPageLiveOn() ? await liveSeasonFormat(await getDb(), id).catch(() => null) : null;
     if (live) return pageMetadata({ ...seasonLiveMeta(s, live.def, live.phase), path: s.path });
     return { title: `Season ${s.number}, ${s.label} · Botchelor`, robots: { index: false, follow: true } };
