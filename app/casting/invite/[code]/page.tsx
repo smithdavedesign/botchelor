@@ -61,7 +61,7 @@ function Terms() {
       <h2 id="invite-terms">The terms</h2>
       <p className="small">{INVITE_TERMS}</p>
       <p className="small muted">
-        The site&apos;s own apply too: <Link href="/terms">Terms</Link> · <Link href="/content-policy">Content policy</Link>
+        The site&apos;s own rules apply too: <Link href="/terms">Terms</Link> · <Link href="/content-policy">Content policy</Link>
       </p>
     </section>
   );

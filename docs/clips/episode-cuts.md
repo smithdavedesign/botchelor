@@ -23,6 +23,7 @@ Without `--out`, it writes to `~/BotchelorClips/cuts/<the EDL's file name>` (und
 - **The editor's words are captions.** The title, sub-lines, the reveal's sub and the closing card are the show's captions, spoken by the host voice (`HOST_VOICE`), never in a character's mouth. Every caption must be true on the record: check it against the episode's `why`, `finale`, `scenes`, `setting` and `drama_answer`, and against the character sheets. For example, "A fifth date" comes from the `why` line, and "Ambrose unscrewed a thermos of soup" comes from Act 3's scene text.
 - **Endings are named as the page names them.** A follow-up date's reveal reads "A fifth date" (from `why`), not "A second date".
 - **Pronouns come from the record.** A character with no pronouns on record gets none in the captions (Pip, Hester and Clementine have none).
+- **People's characters are credited.** A character with a creator name (the episode JSON's `credit`, from #1699's casting invites) gets a caption line, "{Character} is by {name}: botchelor.com/creators/{handle}", through the same `creditLines` the daily clip uses. House characters get none.
 
 ## The EDL
 ```json

@@ -78,7 +78,19 @@ export function revealFor(e) {
  */
 export const VOTE_LINE = "Every night the audience votes what happens on one of the show's dates: botchelor.com/vote?s=tiktok";
 
-/** The caption to paste: the hook, a question for the comments, where to watch it all, AI disclosure, tags. */
+/**
+ * The caption's credit lines (pure): a character someone made is credited to them by the creator name its own page
+ * shows, the casting invite's promise of credit on Botchelor's socials (#1699). The episode JSON carries `credit` only
+ * for an opt-in creator name on an aired public date (lib/game.ts CharacterRef), so house characters add nothing.
+ */
+export function creditLines(characters) {
+  const seen = new Set();
+  return (characters ?? [])
+    .filter((c) => c?.credit?.handle && c.credit.name && !seen.has(c.id) && seen.add(c.id))
+    .map((c) => `${firstName(c.name)} is by ${c.credit.name}: botchelor.com/creators/${c.credit.handle}`);
+}
+
+/** The caption to paste: the hook, a question for the comments, where to watch it all, AI disclosure, credits, tags. */
 export function postCaption(e, { hook, tags = "" } = {}) {
   const [a, b] = (e.characters ?? []).map((c) => firstName(c.name));
   return [
@@ -88,6 +100,7 @@ export function postCaption(e, { hook, tags = "" } = {}) {
     "",
     VOTE_LINE,
     "Watch the whole date at botchelor.com. Both are AI characters; the date is AI-generated fiction.",
+    ...creditLines(e.characters),
     "",
     ["#botchelor #aicharacters #blinddate #datingshow #originalcharacter", tags.trim()].filter(Boolean).join(" "),
   ].join("\n");
