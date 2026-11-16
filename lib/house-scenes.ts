@@ -36,6 +36,8 @@
  *  - A line can be reported (reportSceneLine; REPORT_HIDE_THRESHOLD reports hide it, as on the watch room's chat), and
  *    a reported-away line takes what it told with it (retractLine). So does a date that stops being public
  *    (houseUpkeep), and a speaker who went private.
+ *  - A small gift that followed an aired date (lib/character-gifts.ts) rides beside that date's fact as one public
+ *    sentence, so the room may talk about it. It is never a claim anyone "heard" (nothing is stored from it).
  *  - HOUSE_SCENES=0 turns it off without a deploy of code: no scene is written, and the page says the house is quiet.
  */
 import { misattributed, isMemeSpeak } from "./cast-chat";
@@ -117,6 +119,11 @@ export type SceneDate = {
   date_number: number | null;
   rejected: "a" | "b" | null;
   walked_out: "a" | "b" | null;
+  /**
+   * A small gift that followed it (lib/character-gifts.ts), as one public sentence ("Sable sent Juniper a postcard of a
+   * giraffe."): the writer may mention it. Flavour only: it is never a stored claim, and the checks ignore it.
+   */
+  gift?: string;
 };
 
 export type SceneFacts = {
@@ -296,6 +303,10 @@ export async function sceneFacts(
     return true;
   });
   if (!dates.length) return null;
+  // A gift that followed one of them is part of what the house saw (CHARACTER_GIFTS=0: none).
+  // Loaded here, not at the top: the gifts' writer imports the companion threads, which import this file.
+  const gifts = await import("./character-gifts").then((m) => m.giftsFor(db, dates.map((d) => d.episode_id))).catch(() => new Map<string, string>());
+  for (const d of dates) if (gifts.has(d.episode_id) && !sensitiveClaim(gifts.get(d.episode_id)!)) d.gift = gifts.get(d.episode_id);
   // The producer's beat first, then the state's own tensions, hottest first (lib/story-state.ts): who is worth seating.
   const beats = [...(opts.beat ? [opts.beat] : []), ...(await tensions(db, seasonIdOf(now), { now }).catch(() => [] as Tension[]))];
   const room = pickRoom(day, cast, dates, beats);
@@ -562,7 +573,7 @@ export function scenePrompt(f: SceneFacts): string {
   const lines = [`Where: ${place.label}, ${place.when}.`];
   lines.push(`In the scene (only these people speak): ${f.speakers.map((c) => `${first(c.name)} — ${c.bio.slice(0, 90)}`).join("; ")}.`);
   lines.push("Aired facts:");
-  f.dates.forEach((d, i) => lines.push(`${i + 1}. ${factLine(d)}`));
+  f.dates.forEach((d, i) => lines.push(`${i + 1}. ${factLine(d)}${d.gift ? ` Afterwards, ${d.gift}` : ""}`));
   const noted = f.speakers.filter((c) => f.notes[c.id]?.length);
   if (noted.length) {
     lines.push("Undercurrents (unspoken):");
@@ -645,7 +656,8 @@ export function templateScene(f: SceneFacts): SceneLine[] {
     text: d.ending === "second_date" ? "I watched it twice. You could see it coming from the first hello." : d.ending === "friends" ? "I watched it. Nobody was unhappy, nobody was swept off their feet." : "I watched it through my fingers.",
   });
   if (d2) out.push({ character_id: (s3 ?? s1).id, text: `And then ${gossip(d2)}`, tell: tell(d2) });
-  else if (s3) out.push({ character_id: s3.id, text: `Has anyone asked ${first(d.a_name)} about it yet? I'm not going to be the one.` });
+  // A gift that followed the date is the better gossip, when there was one (lib/character-gifts.ts).
+  else if (s3) out.push({ character_id: s3.id, text: d.gift ? `And afterwards, ${d.gift} Nobody tell me that means nothing.` : `Has anyone asked ${first(d.a_name)} about it yet? I'm not going to be the one.` });
   out.push({ character_id: s2.id === out[out.length - 1].character_id ? s1.id : s2.id, text: `I'm saying nothing to ${first(d.b_name)} until somebody else brings it up.` });
   if (out.length < SCENE_LINES_MIN) out.push({ character_id: s1.id, text: "Somebody will. In this house, somebody always does." });
   return out.filter((l) => checkSheetText({ text: l.text }).ok && checkShowText({ text: l.text }).ok && !sensitiveClaim(l.text));

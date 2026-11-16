@@ -351,6 +351,16 @@ is a life you can watch: dates that really happened. So a character's text about
 - **A real photo wins.** When the owner made a date photo in the PG Studio (`lib/studio/date-photos.ts`, `date_photos`),
   the thread shows the newest approved one in the snapshot's place (`lib/companion.ts getThread`, owner's threads only,
   resolved when the thread is read, so a photo made later still shows).
+- **And the character sends it** (2026-11-16; the owner made two and found them in no thread). When an owner makes a
+  real photo of a date their own character was on, and they turned that character's texts on (a thread with it,
+  "Hear from" tapped, not paused), the character texts it to them once: "Look at us." and a second line in its own
+  tone (`REAL_PHOTO_LINES`, read off its public sheet), with the photo as its own message
+  (`postFromCharacter`, kind `date_photo`, tagged `date_photo:<episode id>`: once a date, however many photos they
+  make; the newest shows in its place). Never the ending. Making a photo is not an opt-in: with texts off or no
+  thread, nothing is sent. Our own accounts are not skipped here, unlike the day-after text: the person made the photo
+  themselves, like the "Hear from" tap. An admin's photo of a house couple's date texts nobody (neither is their
+  character). `DATE_PHOTO_TEXTS=0` stops it. The same photo is also the date's photo in the couple's own thread:
+  [relationship-graph.md](relationship-graph.md), "What they send each other".
 - **On the page** (`app/companion/[id]/DatePhoto.tsx`, `app/ux/phone.css`): the image has its 4:5 width and height on
   the element, so the thread doesn't jump when it loads; the alt text is on the image; one tap anywhere on it opens the
   date ("▶ Watch the date" sits on it). It has no voice note and no Report button (it is two approved portraits and a
@@ -369,6 +379,15 @@ is a life you can watch: dates that really happened. So a character's text about
 | The snapshot | In the owner's thread (phone) | A cast character's opener (phone) |
 |---|---|---|
 | ![A date's snapshot: the place, both portraits, their names, the place and the day](screenshots/phone-date-photo.webp) | ![The after-date text with its photo in the thread](screenshots/phone-thread-photo-mobile.png) | ![Rafe opens with his last aired date, its photo and Watch the date](screenshots/phone-cast-opener-mobile.png) |
+
+### When there was a gift (built 2026-11-16)
+
+A small gift between two characters (`lib/character-gifts.ts`, [relationship-graph.md](relationship-graph.md), "What
+they send each other") is told to the owners the same way every event text is: each owner whose own character gave or
+got it, and who turned that character's texts on, hears it from that character in three short bubbles, from templates
+("Sable left me a postcard of a giraffe." / "The note said: …" / "It made me laugh."), tagged `gift:<id>` so it is sent
+once. Never to a house character's thread, never to our own accounts (a job's text, like the day-after one), never on
+silence. It carries no chips and asks for nothing. `CHARACTER_GIFTS=0` stops the gifts, and with them these.
 
 ### A cast character opens with what happened to it (built 2026-11-15)
 

@@ -48,6 +48,44 @@
   outline-offset: 2px;
 }
 
+/* ---------------- the date's photo and gifts in a couple's thread ---------------- */
+/* app/couples/[a]/[b]/Thread.tsx: the photo with the sender's line under it, on the sender's side of the phone. */
+.phone-photo-msg {
+  display: grid;
+  gap: 2px;
+  justify-items: start;
+  min-width: 0;
+}
+.phone-msg-me .phone-photo-msg {
+  justify-items: end;
+}
+/* A gift's line stands a little apart from the texts before it; the note and the reply follow as bubbles. */
+.phone-note.phone-gift {
+  margin-top: var(--space-3);
+}
+/* The phone anyone sees on a couple's page (PublicThread.tsx): no script, so it lays out from the bottom and so opens
+   on the newest; as tall as what's in it, up to a phone's height (room for one date's card, photo and gift), then it
+   scrolls. */
+.phone-short .phone-messages-latest {
+  flex-direction: column-reverse;
+  max-height: 42rem;
+}
+.phone-messages-flow {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+/* The same photo in the owner's preview of the thread (ThreadPreview.tsx): small, above the sender's line. */
+.thread-preview-photo {
+  display: block;
+  width: 6rem;
+  height: auto;
+  aspect-ratio: 4 / 5;
+  object-fit: cover;
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-1);
+}
+
 /* ---------------- the home page: your character's phone ---------------- */
 .char-phone {
   display: grid;

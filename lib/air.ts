@@ -14,6 +14,7 @@ import { callRecord, NO_CALLS, runNote } from "./streaks";
 import { titleEpisodeOnAir } from "./episode-title";
 import { teaseAfterAir } from "./after-date-text";
 import { lifeTextAfterAir } from "./character-life";
+import { giftOnAir } from "./character-gifts";
 import type { Db } from "./db";
 import type { DramaAnswer, Ending } from "./rules";
 import { updateCharacterMemory } from "./memory";
@@ -86,6 +87,9 @@ export async function airEpisode(db: Db, id: string, hostId: string, opts: { air
   // A mixer's house fillers and the house itself (lib/mixer-fill.ts) hear nothing of the night: no step up, no aired.
   const quiet = await mixerQuietUsers(db, id).catch(() => [] as string[]);
   const toldStage = await refreshAndAnnounce(db, revealed.character_a, revealed.character_b, { episodeId: id, quiet }).catch(() => new Set<string>());
+  // A small gift between the two, some of the time (lib/character-gifts.ts: seeded rules from the public record, no
+  // model, nothing the engine reads). After the edge is refreshed: how they stand now is one of its rules. Not waited on.
+  giftOnAir(db, id);
   // 2.9.0 (#654): botchelor://feed/airing moved on (it left next and joined just_aired): tell its subscribers.
   markResourceUpdated("botchelor://feed/airing");
   await notifyPredictors(db, id).catch(() => {});

@@ -75,7 +75,7 @@ describe("a couple's text chain (lib/text-chain.ts)", () => {
     const second = await date(creator, character.id, "2026-10-12T19:00:00Z", [{ side: "b", text: "Round two was better." }]);
 
     const chain = await loadChain(t.db, character.id, HOUSE_PARTNER_ID, { userId, owner: true });
-    expect(chain.map((i) => (i.kind === "date" ? `date ${i.number}` : i.kind === "event" ? i.event : `${i.who === me ? "me" : "them"}, ${i.source}: ${i.text}`))).toEqual([
+    expect(chain.map((i) => (i.kind === "date" ? `date ${i.number}` : i.kind === "event" ? i.event : i.kind === "text" ? `${i.who === me ? "me" : "them"}, ${i.source}: ${i.text}` : i.kind))).toEqual([
       "date 1",
       "me, afterglow: Last night was fun.",
       "them, afterglow: It really was.",
@@ -229,7 +229,8 @@ describe("a couple's text chain (lib/text-chain.ts)", () => {
     const earlier = await (await get(creator, newest.cursor)).json();
     expect(earlier).toMatchObject({ has_more: false, cursor: null });
     expect(earlier.items[0]).toMatchObject({ kind: "date", number: 1 });
-    const whole = await loadChain(t.db, lo, hi, { userId: userIdOf(creator), owner: true });
+    // The phone's list has each date's photo and the gifts too (tests/text-chain-keepsakes.test.ts).
+    const whole = await loadChain(t.db, lo, hi, { userId: userIdOf(creator), owner: true }, { keepsakes: true });
     expect([...earlier.items, ...newest.items].map((i: ChainItem) => i.id)).toEqual(whole.map((i) => i.id));
 
     expect((await get(newUserCookie())).status).toBe(403);

@@ -29,7 +29,8 @@ export const GET = handle(async (req: Request, ctx: Ctx) => {
     return json({ error: "owners_only", message: "Only the characters' owners can read their texts." }, 403, sess);
   }
   const params = new URL(req.url).searchParams;
-  const items = await loadChain(db, lo, hi, { userId: sess.userId, owner: true });
+  // With each date's photo and the gifts (lib/text-chain.ts keepsakes): the phone pages and polls the same list it opened on.
+  const items = await loadChain(db, lo, hi, { userId: sess.userId, owner: true }, { keepsakes: true });
   const after = params.get("after")?.slice(0, 200) || null;
   if (after) return json({ items: chainAfter(items, after), cursor: null, has_more: false }, 200, sess);
   return json(chainPage(items, params.get("before")?.slice(0, 200) || null), 200, sess);
