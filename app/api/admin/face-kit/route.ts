@@ -8,10 +8,10 @@ import { requestBase } from "@/lib/site";
 
 export const dynamic = "force-dynamic";
 
-const Input = z.object({ character_id: z.string().min(1).max(120) });
+const Input = z.object({ character_id: z.string().min(1).max(120), redo: z.boolean().optional() });
 
 /**
- * An admin draws a character's face kit (lib/face-kit.ts), or redraws its failed parts: `POST { character_id }` starts
+ * An admin draws a character's face kit (lib/face-kit.ts), or redraws its failed parts: `POST { character_id }` (`redo: true` throws the kit away and starts over from their portrait) starts
  * it after the response (seven edits and a clip queued), uncounted against the day's few. `GET ?character=` is the kit
  * as the page sees it.
  */
@@ -23,7 +23,7 @@ export const POST = handle(async (req: Request) => {
   const blocked = await faceKitBlocked(db, input.character_id, base);
   if (blocked) return json({ error: blocked.error, message: blocked.message }, blocked.status);
   inBackground(async () => {
-    const made = await makeFaceKit(db, input.character_id, base);
+    const made = await makeFaceKit(db, input.character_id, base, { redo: input.redo });
     const wrong = made.ok ? made.failed : [made.message];
     if (wrong.length) console.error(`[face-kit] ${input.character_id}: ${wrong.join("; ").slice(0, 400)}`);
   });

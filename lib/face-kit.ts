@@ -177,7 +177,7 @@ export async function faceKitBlocked(db: Db, characterId: string, baseUrl: strin
  * loop queued from it (collected by collectFaceKits as the page polls) and the stills a few at a time (each checked).
  * What's ready stays; a failed part is tried again. A new portrait starts the rest over.
  */
-export async function makeFaceKit(db: Db, characterId: string, baseUrl: string, opts: { count?: boolean } = {}): Promise<FaceKitResult> {
+export async function makeFaceKit(db: Db, characterId: string, baseUrl: string, opts: { count?: boolean; redo?: boolean } = {}): Promise<FaceKitResult> {
   const blocked = await faceKitBlocked(db, characterId, baseUrl, opts);
   if (blocked) return blocked;
   const source = (await faceSource(db, characterId, baseUrl))!;
@@ -185,11 +185,31 @@ export async function makeFaceKit(db: Db, characterId: string, baseUrl: string, 
   const token = keys.replicate!;
   const styled = (prompt: string) => (source.anime ? animeFace(prompt) : prompt);
   const editModel = settings.replicate_keyframe_model;
+  // `redo`: start over from the portrait as it is now (a kit drawn the old way, or one that lost what makes them them).
+  if (opts.redo) await db.query(`delete from face_kits where character_id = $1`, [characterId]);
   let have = await rowsFor(db, characterId, source.id);
   const done = (part: FacePart) => have.some((r) => r.part === part && r.status !== "failed");
   const failed: string[] = [];
   let made = 0;
   const startedAt = Date.now();
+
+  /** The approved portrait itself as the kit's portrait (square from the top, WebP, PG-checked), or null. */
+  const ownPortrait = async (d: Db, character: string, src: { id: string; url: string }): Promise<string | null> => {
+    try {
+      const res = await fetch(src.url, { signal: AbortSignal.timeout(20_000) });
+      const mime = res.headers.get("content-type")?.split(";")[0] ?? "";
+      if (!res.ok || !mime.startsWith("image/")) return null;
+      const bytes = Buffer.from(await res.arrayBuffer());
+      if (bytes.length > 25 * 1024 * 1024) return null;
+      const small = await resizedWebp(bytes, STILL_WIDTH, { square: true, top: true });
+      if (!small) return null;
+      const v = await checkRating(d, { base64: small.toString("base64"), mime: "image/webp" });
+      if (!v.ok || v.rating !== "pg") return null;
+      return await upsert(d, { character, source: src.id, part: "portrait", status: "ready", model: "base", file: { bytes: small, mime: "image/webp" } });
+    } catch {
+      return null;
+    }
+  };
 
   /** One still: the edit (Replicate's own safety checker on), the PG check, kept small as WebP. */
   const still = async (part: KitStill, prompt: string, from: string): Promise<string | null> => {
@@ -220,7 +240,9 @@ export async function makeFaceKit(db: Db, characterId: string, baseUrl: string, 
   let portrait = have.find((r) => r.part === "portrait" && r.status === "ready")?.id ?? null;
   if (!portrait) {
     await upsert(db, { character: characterId, source: source.id, part: "portrait", status: "making", model: editModel });
-    portrait = await still("portrait", styled(FACE_PORTRAIT_PROMPT), source.url);
+    // Their own approved portrait, as it is: the edit below strips an outfit and anything not a plain face (ears, tails,
+    // a kimono), so it's only the fallback when the picture can't be read or doesn't pass the PG check by itself.
+    portrait = (await ownPortrait(db, characterId, source)) ?? (await still("portrait", styled(FACE_PORTRAIT_PROMPT), source.url));
     if (!portrait) {
       track("face_kit", { character_id: characterId, made: 0, failed: failed.length, ms: Date.now() - startedAt });
       return { ok: true, made: 0, queued: false, failed };
