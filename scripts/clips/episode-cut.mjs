@@ -20,6 +20,7 @@ import { homedir, tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { chromiumPath } from "./daily-clip.mjs";
+import { creditLines } from "./post-kit.mjs";
 import { sayLine, sayable, soundSeconds, veniceKey, veniceLine, voiceFor } from "./voice.mjs";
 
 /** The frame: drawn at 405×720 CSS px, scaled past 1080×1920 so the push-in never upsamples. */
@@ -309,6 +310,7 @@ export function cutCaption(edl, episodes, base = "https://botchelor.com") {
     "",
     `${edl.watch_label ?? "Watch the whole date"}: ${watch}${watch.includes("?") ? "&" : "?"}s=tiktok`,
     "Every character is AI, and every date is AI-generated fiction.",
+    ...creditLines(episodes.flatMap((e) => e.characters ?? [])),
     "",
     tags.join(" "),
   ]

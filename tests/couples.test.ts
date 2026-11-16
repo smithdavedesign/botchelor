@@ -105,10 +105,13 @@ describe("couples on the site, in matchmaking and over MCP", () => {
     expect(JSON.stringify(owner.relationships)).not.toContain(ownerId);
   });
 
-  it("the sitemap lists couples whose dates aired publicly", async () => {
+  it("the sitemap lists couples once two of their dates have aired publicly", async () => {
     const { character } = await airedDate("friends", [false, false]);
-    const urls = (await contentSitemap(t.db, "https://botchelor.com")).map((u) => u.url);
     const [lo, hi] = [character.id, HOUSE_PARTNER_ID].sort();
-    expect(urls).toContain(`https://botchelor.com/couples/${lo}/${hi}`);
+    const couple = `https://botchelor.com/couples/${lo}/${hi}`;
+    // One date: the couple page mostly repeats the episode, so it stays out (SITEMAP_MIN_COUPLE_DATES).
+    expect((await contentSitemap(t.db, "https://botchelor.com")).map((u) => u.url)).not.toContain(couple);
+    await t.db.query(`update relationships set public_dates = 2 where character_a = $1 and character_b = $2`, [lo, hi]);
+    expect((await contentSitemap(t.db, "https://botchelor.com")).map((u) => u.url)).toContain(couple);
   });
 });

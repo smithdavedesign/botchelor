@@ -75,6 +75,13 @@ says otherwise:
 - "by your creator name": the site credits a person through their creator page (`creator_profiles`, lib/showcase.ts:
   opt-in, public, never a login name or email). The invite form sets one when they have none. The credit shows on the
   character's page ("by {name}", linked) and on its casting card.
+  - On the socials, the clips credit it themselves. The episode JSON gives a person's character a `credit` ({handle,
+    name}) on an aired public date when its owner has a visible creator name (lib/game.ts `CharacterRef.credit`).
+  - The daily clip's caption and an episode cut's caption add "{Character} is by {name}:
+    botchelor.com/creators/{handle}" (scripts/clips/post-kit.mjs `creditLines`). The marketing loop posts the caption
+    as written, so Shorts and Reels carry it, and so does TikTok when David pastes it.
+  - Owners' real names still appear only with every owner's consent, as before. The credit is the public persona
+    their own page already shows.
 - "it leaves the casting at once; delete it, and nothing new is made with it": withdrawing (its page's audition panel)
   takes it out of the auditions and off the cast, but a public character still gets the house's life dates
   (lib/character-life.ts), and a casting date it already had is still judged on Sunday (a rose books one more date).

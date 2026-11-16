@@ -85,6 +85,11 @@ describe("the footer", () => {
     expect(layout).toContain("<SocialLinks links={socials}");
     expect(layout).toMatch(/className="footer-legal"[\s\S]*©/);
   });
+
+  it("links every switching page from /everything (the footer row stays at 10 links)", () => {
+    expect(everything).toContain("ALTERNATIVES.map");
+    expect(everything).toContain('href="/import"');
+  });
 });
 
 describe("the Organization in every page's JSON-LD", () => {

@@ -69,6 +69,13 @@ export type CharacterRef = {
   private?: boolean;
   /** How they're referred to (the sheet's public field): the daily clip picks a voice by it (scripts/clips/voice.mjs). */
   pronouns?: string | null;
+  /**
+   * Who it's credited to: its owner's creator name (lib/showcase.ts creator_profiles, opt-in, public, not hidden), the
+   * same credit its own page shows (#1699). Present only on an aired public date with a public character, so the clips
+   * made from it can keep the casting invite's promise of credit on Botchelor's socials (scripts/clips/post-kit.mjs,
+   * episode-cut.mjs). It is a public persona, not the person: their profile name still needs every owner's consent.
+   */
+  credit?: { handle: string; name: string };
 };
 export type CreatorRef = { character_id: string; name: string };
 
@@ -557,6 +564,8 @@ type EpisodeRow = {
   a_portrait: string | null;
   a_agent: boolean;
   a_private: boolean;
+  a_credit_handle?: string | null;
+  a_credit_name?: string | null;
   b_id: string;
   b_name: string;
   b_house: boolean;
@@ -565,6 +574,8 @@ type EpisodeRow = {
   b_portrait: string | null;
   b_agent: boolean;
   b_private: boolean;
+  b_credit_handle?: string | null;
+  b_credit_name?: string | null;
   is_creator: boolean;
   is_host: boolean;
   /** Both characters are the viewer's (#469). */
@@ -603,6 +614,7 @@ select e.id, e.setting, e.goals, e.scenes, e.twist, e.finale, e.ending, e.drama_
        (a.visibility = 'private' and a.owner_id is distinct from $1::text) as a_private,
        b.id as b_id, b.name as b_name, b.is_house as b_house, b.avatar_hue as b_hue, b.pronouns as b_pronouns, ${portraitPathSql("b")} as b_portrait, b.created_via = 'mcp' as b_agent,
        (b.visibility = 'private' and b.owner_id is distinct from $1::text) as b_private,
+       cra.handle as a_credit_handle, cra.display_name as a_credit_name, crb.handle as b_credit_handle, crb.display_name as b_credit_name,
        coalesce($1::text in (a.owner_id, b.owner_id), false) as is_creator,
        coalesce(e.creator_id = $1::text, false) as is_host,
        coalesce($1::text = a.owner_id and $1::text = b.owner_id, false) as owns_both,
@@ -630,6 +642,8 @@ select e.id, e.setting, e.goals, e.scenes, e.twist, e.finale, e.ending, e.drama_
   ) cons
   left join profiles pa on pa.user_id = a.owner_id and need.n > 0 and cons.n >= need.n
   left join profiles pb on pb.user_id = b.owner_id and need.n > 0 and cons.n >= need.n
+  left join creator_profiles cra on cra.user_id = a.owner_id and not cra.hidden and a.visibility = 'public' and e.visibility = 'public' and e.revealed_at is not null
+  left join creator_profiles crb on crb.user_id = b.owner_id and not crb.hidden and b.visibility = 'public' and e.visibility = 'public' and e.revealed_at is not null
   left join predictions p on p.episode_id = e.id and p.user_id = $1::text`;
 
 function debriefFrom(side: SideOutcome, setup: DateSetup | null, mySide: 0 | 1): Debrief {
@@ -644,10 +658,15 @@ function debriefFrom(side: SideOutcome, setup: DateSetup | null, mySide: 0 | 1):
   };
 }
 
+/** A character's credit for the view, or nothing (the key is left off, so views without one are unchanged). */
+function creditOf(handle: string | null | undefined, name: string | null | undefined): { credit?: { handle: string; name: string } } {
+  return handle && name ? { credit: { handle, name } } : {};
+}
+
 function toView(row: EpisodeRow): EpisodeView {
   const characters: [CharacterRef, CharacterRef] = [
-    { id: row.a_id, name: row.a_name, house: row.a_house, hue: row.a_hue, portrait: row.a_portrait, agent: row.a_agent, pronouns: row.a_pronouns ?? null, ...(row.a_private ? { private: true } : {}) },
-    { id: row.b_id, name: row.b_name, house: row.b_house, hue: row.b_hue, portrait: row.b_portrait, agent: row.b_agent, pronouns: row.b_pronouns ?? null, ...(row.b_private ? { private: true } : {}) },
+    { id: row.a_id, name: row.a_name, house: row.a_house, hue: row.a_hue, portrait: row.a_portrait, agent: row.a_agent, pronouns: row.a_pronouns ?? null, ...(row.a_private ? { private: true } : {}), ...creditOf(row.a_credit_handle, row.a_credit_name) },
+    { id: row.b_id, name: row.b_name, house: row.b_house, hue: row.b_hue, portrait: row.b_portrait, agent: row.b_agent, pronouns: row.b_pronouns ?? null, ...(row.b_private ? { private: true } : {}), ...creditOf(row.b_credit_handle, row.b_credit_name) },
   ];
   const identityRevealed = row.needed > 0 && row.consents >= row.needed;
   const creators = identityRevealed
