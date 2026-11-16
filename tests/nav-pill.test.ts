@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import Nav from "@/app/Nav";
 import ShowTabs from "@/app/ShowTabs";
 import CharactersTabs from "@/app/characters/CharactersTabs";
+import StudioTabs from "@/app/studio/StudioTabs";
 import { navChatOn } from "@/lib/nav-chat";
 
 vi.mock("next/navigation", () => ({ usePathname: () => "/" }));
@@ -64,7 +65,7 @@ describe("the nav: Watch · Chat · Characters · Account", () => {
 
   it("shows the same doors to someone with a character and to a newcomer, who also gets the create button", () => {
     const owner = renderToStaticMarkup(createElement(Nav, { tokens: 3, hasCharacter: true }));
-    expect(labels(owner).slice(0, 4)).toEqual(["Watch /watch", "Chat /chat", "Characters /characters", "Account /account"]);
+    expect(labels(owner).slice(0, 5)).toEqual(["Watch /watch", "Chat /chat", "Characters /characters", "Studio /studio", "Account /account"]);
     for (const gone of ["/graph", "/showcase", "/swipe", "/companion", "/matches"]) expect(owner).not.toContain(`href="${gone}"`);
     expect(owner).not.toContain("Dating");
     const newcomer = renderToStaticMarkup(createElement(Nav, { tokens: 3, hasCharacter: false }));
@@ -114,13 +115,27 @@ describe("the show's tabs: Watch · House · Season", () => {
     expect(current(strip("/reunion"))).toBe("Season");
   });
 
-  it("Reels is a tab of Characters, not of the show (2026-11-16), and its page wears Characters' tabs", () => {
-    const html = renderToStaticMarkup(createElement(CharactersTabs, { current: "reels", companions: true }));
-    expect(tabs(html).at(-1)).toBe("Reels /showcase");
-    expect(current(html)).toBe("Reels");
+  it("Reels left both strips for the Studio door (2026-11-16): the Gallery and My studio, one place to show and make", () => {
+    const gallery = renderToStaticMarkup(createElement(StudioTabs, { current: "gallery" }));
+    expect(tabs(gallery)).toEqual(["Gallery /showcase", "My studio /studio"]);
+    expect(current(gallery)).toBe("Gallery");
+    expect(current(renderToStaticMarkup(createElement(StudioTabs, { current: "studio" })))).toBe("My studio");
     const page = readFileSync("app/showcase/page.tsx", "utf8");
-    expect(page).toContain('<CharactersTabs current="reels"');
+    expect(page).toContain('<StudioTabs current="gallery" />');
     expect(page).not.toContain("<ShowTabs");
+    expect(page).not.toContain("<CharactersTabs");
+    // The old address of a character's Studio goes to the new place with that character picked.
+    expect(readFileSync("app/characters/[id]/studio/page.tsx", "utf8")).toContain("redirect(`/studio?character=${encodeURIComponent(id)}`)");
+  });
+
+  it("Characters' tabs are who's here: Yours first for an owner, absent for anyone else; no Text someone, no Reels", () => {
+    const render = (props: Parameters<typeof CharactersTabs>[0]) => renderToStaticMarkup(createElement(CharactersTabs, props)).replace(/&#x27;/g, "'");
+    const owner = render({ current: "yours", companions: true, yours: true });
+    expect(tabs(owner)).toEqual(["Yours /characters?tab=yours", "People's /characters?tab=people", "The cast /characters", "AI agents /characters?tab=agents"]);
+    expect(current(owner)).toBe("Yours");
+    const visitor = render({ current: "cast", companions: true });
+    expect(tabs(visitor)).toEqual(["People's /characters?tab=people", "The cast /characters", "AI agents /characters?tab=agents"]);
+    expect(current(visitor)).toBe("The cast");
   });
 
   it("still takes the two pages that left it: the Constellation reads as the house's, Reviews marks none", () => {

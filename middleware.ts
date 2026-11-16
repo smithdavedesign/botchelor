@@ -119,6 +119,8 @@ const UNGATED_PAGES: ReadonlySet<string> = new Set([
   "/characters",
   "/reunion",
   "/shows",
+  // My studio (app/studio/page.tsx): the Studio door. PG words for a visitor (the way in), an owner's own PG Studio otherwise.
+  "/studio",
   "/house",
   "/casting",
   "/vote",

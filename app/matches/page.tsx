@@ -11,6 +11,8 @@ import { characterToOpen, listThreads, newsByCharacter, type Thread } from "@/li
 import { shortName } from "@/lib/names";
 import { takenWith } from "@/lib/partners";
 import CharacterTabs from "@/app/CharacterTabs";
+import RememberCharacter from "@/app/RememberCharacter";
+import { pickCharacter, rememberedCharacter } from "@/lib/current-character";
 import MixerJoin from "@/app/MixerJoin";
 import CastPreview from "@/app/CastPreview";
 import Pager from "@/app/Pager";
@@ -67,7 +69,8 @@ const filedAway = (t: Thread) => t.over && !t.new_match && t.unread === 0;
 export default async function MatchesPage({ searchParams }: Props) {
   const { character, page, show, all } = await searchParams;
   const db = await getDb();
-  const viewerId = userIdFromCookieStore(await cookies());
+  const store = await cookies();
+  const viewerId = userIdFromCookieStore(store);
   const mine = viewerId ? await listMyDatingProfiles(db, viewerId) : [];
   if (!viewerId || !mine.length) {
     return (
@@ -87,7 +90,10 @@ export default async function MatchesPage({ searchParams }: Props) {
   // ones are marked on the faces, the same as on /swipe.
   const ids = mine.map((c) => c.id);
   const [news, taken] = await Promise.all([newsByCharacter(db, viewerId, ids), takenWith(db, ids)]);
-  const me = mine.find((c) => c.id === character) ?? characterToOpen(mine, news) ?? mine[0];
+  // The address first; then whoever has news (never hidden behind a remembered face); then the character they were last
+  // working with on Chat, the Studio or the deck (lib/current-character.ts); then the newest.
+  const withNews = [...news.values()].some((n) => n.texts + n.matches > 0) ? characterToOpen(mine, news) : undefined;
+  const me = mine.find((c) => c.id === character) ?? withNews ?? pickCharacter(mine, null, rememberedCharacter(store)) ?? mine[0];
   const everyone = (await listThreads(db, viewerId, me.id)) ?? { fresh: [], conversations: [] };
   // Two lists, one at a time (David, 2026-11-11: "Show N that didn't work out" mixed them back in with everyone, so it
   // didn't filter): the open ones, and the ones that didn't work out (?show=over; ?all=1 is the old link to it).
@@ -134,6 +140,7 @@ export default async function MatchesPage({ searchParams }: Props) {
 
   return (
     <article className="matches-page">
+      <RememberCharacter id={me.id} />
       {/* 2026-10-31 UX audit: the name was said three times up here. With two or more characters the tabs below say whose
           matches these are; with one, the heading does, and its face opens their card. */}
       <header className="matches-head">

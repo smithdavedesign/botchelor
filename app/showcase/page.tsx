@@ -8,15 +8,14 @@ import { parseFilters } from "@/lib/showcase";
 import ShowcaseBrowser from "./ShowcaseBrowser";
 import { reelsQuery } from "./reels/reel-shared";
 import { pageViewer } from "./viewer";
-import CharactersTabs from "@/app/characters/CharactersTabs";
-import { companionOpen } from "@/lib/companion-shared";
+import StudioTabs from "@/app/studio/StudioTabs";
 import { pgAccess } from "@/lib/studio/pg";
 import type { Db } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = pageMetadata({
-  title: "Reels: pictures and clips from Botchelor's creators",
+  title: "Gallery: reels, clips and pictures from Botchelor's creators",
   description: "Pictures, clips and date reels of original characters, published by the people who made them. Filter by character, creator, pose, place and more.",
   path: "/showcase",
 });
@@ -48,11 +47,11 @@ export default async function ShowcasePage({ searchParams }: Props) {
   const studio = await studioDoor(db, viewer.id);
   return (
     <div className="showcase-page page-wide">
-      {/* A tab of Characters since 2026-11-16 (it was one of the show's): what their creators made, beside who made them. */}
-      <CharactersTabs current="reels" companions={companionOpen()} />
+      {/* The Studio door's first room (app/studio/StudioTabs.tsx, 2026-11-16): what everyone made, beside where it's made. */}
+      <StudioTabs current="gallery" />
       <div className="showcase-head">
-        {/* "Reels", the word on the tab (app/characters/CharactersTabs.tsx) and the one people type (/reels comes here). */}
-        <h1>Reels</h1>
+        {/* "Gallery" on the tab; /reels still comes here, and the full-screen view keeps that word. */}
+        <h1>Gallery</h1>
         {/* The same posts and filters, one a screen (app/showcase/reels). */}
         <Link href={`/showcase/reels${reelsQuery(sp)}`} className="button secondary small showcase-reels-link">
           <Icon name="play" /> Watch full screen
@@ -73,9 +72,9 @@ export default async function ShowcasePage({ searchParams }: Props) {
             {studio ? `Shoot pictures of ${studio.name} in the Studio, then share the ones you like.` : "Share a picture or a date reel from any of your characters' pages."}
           </p>
         </div>
-        {/* The Studio is one character's (2026-11-16: a door here, not a tab of its own, which would be empty for a visitor). */}
+        {/* Straight to their own Studio (app/studio/page.tsx), when it would open for them. */}
         {studio ? (
-          <Link className="button small" href={`/characters/${studio.id}/studio`} data-track="reels-studio">
+          <Link className="button small" href={`/studio?character=${encodeURIComponent(studio.id)}`} data-track="reels-studio">
             Open {studio.name}&apos;s Studio
           </Link>
         ) : (

@@ -86,11 +86,11 @@ describe("the phone's tab bar", () => {
   const labels = (html: string) => [...html.matchAll(/class="tabbar-label">([^<]+)</g)].map((m) => m[1]);
   const current = (html: string) => /aria-current="page"[^>]*>[\s\S]*?class="tabbar-label">([^<]+)</.exec(html)?.[1] ?? null;
 
-  it("has four tabs, always: Watch · Chat · Characters · You, the header's doors", () => {
-    expect(tabBarTabs(true).map((t) => t.href)).toEqual(["/watch", "/chat", "/characters", "/account"]);
-    expect(tabBarTabs(false).map((t) => t.href)).toEqual(["/watch", "/chat", "/characters", "/account"]);
-    expect(labels(renderToStaticMarkup(createElement(PhoneTabBar, { companions: true })))).toEqual(["Watch", "Chat", "Characters", "You"]);
-    expect(labels(renderToStaticMarkup(createElement(PhoneTabBar, {})))).toEqual(["Watch", "Chat", "Characters", "You"]);
+  it("has five tabs, always: Watch · Chat · Characters · Studio · You, the header's doors", () => {
+    expect(tabBarTabs(true).map((t) => t.href)).toEqual(["/watch", "/chat", "/characters", "/studio", "/account"]);
+    expect(tabBarTabs(false).map((t) => t.href)).toEqual(["/watch", "/chat", "/characters", "/studio", "/account"]);
+    expect(labels(renderToStaticMarkup(createElement(PhoneTabBar, { companions: true })))).toEqual(["Watch", "Chat", "Characters", "Studio", "You"]);
+    expect(labels(renderToStaticMarkup(createElement(PhoneTabBar, {})))).toEqual(["Watch", "Chat", "Characters", "Studio", "You"]);
   });
 
   it("marks the tab you're on by the header's rule: Chat on every list of threads", () => {

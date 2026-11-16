@@ -84,8 +84,8 @@ const EAGER_CARDS = 4;
  * it, each its own target.
  * `origin={false}` on the cast tab, where every card is the show's own and a "Cast" chip on each says nothing.
  */
-function Entry({ e, badge, origin = true, talk = false, eager = false, actions }: { e: DirectoryEntry; badge?: string; origin?: boolean; talk?: boolean; eager?: boolean; actions?: CardActions }) {
-  if (e.private) {
+function Entry({ e, badge, origin = true, talk = false, eager = false, actions, own = false }: { e: DirectoryEntry; badge?: string; origin?: boolean; talk?: boolean; eager?: boolean; actions?: CardActions; /** The viewer's own, on the Yours tab: its doors, not a date verb. */ own?: boolean }) {
+  if (e.private && !own) {
     return (
       <li className="card dir-card is-private">
         <div className="dir-portrait">
@@ -158,7 +158,18 @@ function Entry({ e, badge, origin = true, talk = false, eager = false, actions }
             date, step into one yourself, or make a character to date them), and Text as the quieter second for anyone
             they can text (app/companion/TalkButton.tsx opens the thread). Each its own target above the card's link;
             your own character's card has no date verb, only Text. */}
-        {(verb || text) && (
+        {/* Your own (the Yours tab): the two doors that are about one character, opened on this one (lib/current-character.ts). */}
+        {own && (
+          <div className="dir-actions">
+            <Link className="button dir-verb" href={`/chat?character=${encodeURIComponent(e.id)}`} prefetch={false} data-track="yours-chat">
+              Chats
+            </Link>
+            <Link className="button secondary" href={`/studio?character=${encodeURIComponent(e.id)}`} prefetch={false} data-track="yours-studio">
+              Studio
+            </Link>
+          </div>
+        )}
+        {!own && (verb || text) && (
           <div className="dir-actions">
             {verb && (
               <Link className="button dir-verb" href={verb.href} prefetch={false} data-track={verb.track} data-track-from="card" data-track-verb={verb.kind}>
@@ -233,6 +244,8 @@ export default async function CharactersPage({ searchParams }: Props) {
     viewerCharacter(db, viewerId).catch(() => null),
     stepInAccessFromCookies(db, auth, store).catch(() => null),
   ]);
+  // ?tab=yours, for someone who has a character (anyone else gets the cast, as an unknown tab always did).
+  const yours = one(sp.tab) === "yours" && mine !== null;
   const viewer: Viewer = { userId: viewerId, mine, stepIn: stepIn?.kind === "member" || stepIn?.kind === "guest", stepInEntry: stepIn !== null && (mine !== null || stepIn.kind === "sign_in") };
 
   return (
@@ -248,18 +261,12 @@ export default async function CharactersPage({ searchParams }: Props) {
         </Link>
       </div>
       <p className="muted">Everyone on the show: the cast, and the characters people and AI agents made.</p>
-      {/* An owner's way to their own (lib/character-verb.ts viewerCharacter: their newest), whichever tab is open. */}
-      {mine && (
-        <p className="muted small characters-yours">
-          Yours: <Link href={`/characters/${mine.id}`}>{mine.name}</Link> · <Link href="/account#your-characters">all your characters</Link>
-        </p>
-      )}
-      {/* The companions' directory is the fourth tab (David, 2026-11-11), not a line under three. */}
       <SearchForm q={q} />
-      {/* A search is across every tab, so no tab is the current one while it shows. */}
-      <CharactersTabs current={q ? null : tab} companions={companionOpen()} />
+      {/* A search is across every tab, so no tab is the current one while it shows. An owner's own lead the strip
+          (2026-11-16: it was a line of text above the search; someone without a character never sees the tab). */}
+      <CharactersTabs current={q ? null : yours ? "yours" : tab} companions={companionOpen()} yours={mine !== null} />
       {/* Awaited here, not rendered as async components, so the whole page is one server render (and testable). */}
-      {q ? await searchResults(q, viewer) : tab === "cast" ? await castTab({ season, thisId, castIds, now, pairsPage: parsePage(sp.pairs), viewer }) : await madeByTab({ tab, page: pageOf(sp.page), privateCount: counts.private, viewer, insider })}
+      {q ? await searchResults(q, viewer) : yours && viewerId ? await yoursTab(viewerId) : tab === "cast" ? await castTab({ season, thisId, castIds, now, pairsPage: parsePage(sp.pairs), viewer }) : await madeByTab({ tab, page: pageOf(sp.page), privateCount: counts.private, viewer, insider })}
     </article>
   );
 }
@@ -555,6 +562,25 @@ async function madeByTab({ tab, page, privateCount, viewer, insider }: { tab: "p
 }
 
 /** A search's results (?q=), with the same cards: every tab at once, at most DIRECTORY_SEARCH_LIMIT. */
+/** Yours: every character the viewer owns, newest first, each with its own doors (its chats, its Studio). Private ones in full: they're theirs. */
+async function yoursTab(viewerId: string) {
+  const db = await getDb();
+  const ids = (await db.query<{ id: string }>(`select c.id from characters c where c.owner_id = $1 and not c.is_house order by c.created_at desc, c.id limit 50`, [viewerId])).rows.map((r) => r.id);
+  const entries = await directoryEntries(db, ids, { own: true });
+  return (
+    <section>
+      <p className="muted">
+        {entries.length === 1 ? "Your character." : `Your ${entries.length} characters.`} Open one&apos;s chats or its Studio from here, or <Link href="/create">make another</Link>.
+      </p>
+      <ul className="gallery">
+        {entries.map((e, i) => (
+          <Entry key={e.id} e={e} own eager={i < EAGER_CARDS} badge={e.private ? "Private" : undefined} origin={false} />
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 async function searchResults(q: string, viewer: Viewer) {
   const talk = companionOpen();
   const { entries, more } = await searchDirectory(await getDb(), q);

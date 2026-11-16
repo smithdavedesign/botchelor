@@ -54,10 +54,28 @@ export type ChatInbox = {
   /** Rows of each kind, before any filter. */
   counts: Record<ChatFilter, number>;
   /** The viewer's characters, newest first (lib/dating.ts listMyDatingProfiles). */
-  characters: { id: string; name: string }[];
+  characters: { id: string; name: string; hue: number | null; portrait: string | null }[];
   /** Characters of theirs whose threads aren't listed here (past CHAT_CHARACTERS): /matches has every one. */
   unlisted: number;
 };
+
+/**
+ * The rows that are one of the viewer's characters' (lib/current-character.ts: Chat's face row is a filter): its own
+ * threads with other characters, and the viewer's thread with it.
+ */
+export const rowsOfCharacter = (rows: readonly ChatRow[], characterId: string): ChatRow[] => rows.filter((r) => r.mine?.id === characterId || (r.kind === "you" && r.who.id === characterId));
+
+/** What's new for each of the viewer's characters in these rows: unread texts and unopened matches (the face row's counts). */
+export function newsOfRows(rows: readonly ChatRow[], characterIds: readonly string[]): Map<string, { texts: number; matches: number; latest: string | null }> {
+  const out = new Map<string, { texts: number; matches: number; latest: string | null }>();
+  for (const id of characterIds) {
+    const mine = rowsOfCharacter(rows, id);
+    const texts = mine.reduce((n, r) => n + r.unread, 0);
+    const matches = mine.filter((r) => r.new_match).length;
+    if (texts || matches) out.set(id, { texts, matches, latest: mine.find((r) => r.unread > 0 || r.new_match)?.at ?? null });
+  }
+  return out;
+}
 
 /**
  * How many of a person's characters have their threads merged in: each costs a handful of reads (lib/inbox.ts
@@ -152,7 +170,7 @@ export async function loadChat(db: Db, viewer: { userId: string; withYou: boolea
   return {
     rows: rows.slice(0, CHAT_MAX),
     counts: { all: rows.length, you, dating: rows.length - you },
-    characters: characters.map((c) => ({ id: c.id, name: c.name })),
+    characters: characters.map((c) => ({ id: c.id, name: c.name, hue: c.hue, portrait: c.portrait })),
     unlisted: Math.max(0, characters.length - listed.length),
   };
 }

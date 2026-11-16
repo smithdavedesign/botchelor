@@ -31,6 +31,8 @@ const OPEN = [
   "/seasons/2026-11",
   // The show on air and the ideas for what could come next (lib/show-ideas.ts): a PG landing page.
   "/shows",
+  // The Studio door (app/studio/page.tsx): a visitor reads the way in without the interstitial.
+  "/studio",
   "/couples/aaaa/bbbb",
   "/characters",
   "/characters?tab=people",

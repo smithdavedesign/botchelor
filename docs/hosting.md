@@ -126,7 +126,7 @@ ignore it.
   it without a deploy: first dates are the usual ones again and no roses are handed out. Commented in `.do/show.yaml`;
   the rules are in [seasons.md](seasons.md), "Open casting".
 - **`NAV_CHAT`** (the show's app, not a secret; on unless it is `0`): the navigation of 2026-11-15 (`lib/nav-chat.ts`):
-  Watch · Chat · Characters · Account in the header and the phone's tab bar, and Watch · House · Season · Shows as the
+  Watch · Chat · Characters · Studio · Account in the header and the phone's tab bar, and Watch · House · Season · Shows as the
   show's tabs. `0` brings back the header, tab bar and show tabs as they were, without a deploy of code; `/chat` still
   works. Commented in `.do/show.yaml`; described in [flows.md](flows.md), "Navigation".
 - **`HOUSE_SCENES`** (the show's app, not a secret; on unless it is `0`): the daily house scene

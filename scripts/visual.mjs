@@ -556,6 +556,14 @@ async function main() {
       // with a character's threads for its owner, and with the phone's menu open: Watch · Chat · Characters · Account.
       { name: "chat-none", path: "/chat" },
       { name: "chat", path: "/chat", as: "owner" },
+      // One of the owner's characters picked from the face row (lib/current-character.ts): the list narrowed to it.
+      { name: "chat-character", path: `/chat?character=${swiper.id}`, as: "owner" },
+      // The Studio door (app/studio): the way in for a visitor, an owner's own Studio, and their characters on Yours.
+      { name: "studio-none", path: "/studio" },
+      // An owner on an anonymous session is asked to sign in; signed in ("member"), it is their Studio with the face row.
+      { name: "studio-signin", path: `/studio?character=${swiper.id}`, as: "owner" },
+      { name: "studio", path: `/studio?character=${swiper.id}`, as: "member" },
+      { name: "characters-yours", path: "/characters?tab=yours", as: "owner" },
       {
         name: "chat-menu",
         path: "/chat",

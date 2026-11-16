@@ -7,6 +7,8 @@ import { userIdFromCookieStore } from "@/lib/http";
 import { shortName } from "@/lib/names";
 import CastPreview from "@/app/CastPreview";
 import CharacterTabs from "@/app/CharacterTabs";
+import RememberCharacter from "@/app/RememberCharacter";
+import { rememberedCharacter } from "@/lib/current-character";
 import { unreadTexts } from "@/lib/inbox";
 import { takenWith } from "@/lib/partners";
 import { deckFor, demoDeck, UNDO_MINUTES } from "@/lib/swipes";
@@ -45,7 +47,8 @@ async function withTwins<T extends { id: string }>(db: Awaited<ReturnType<typeof
 export default async function SwipePage({ searchParams }: Props) {
   const { character } = await searchParams;
   const db = await getDb();
-  const viewerId = userIdFromCookieStore(await cookies());
+  const store = await cookies();
+  const viewerId = userIdFromCookieStore(store);
   const mine = viewerId ? await listMyDatingProfiles(db, viewerId) : [];
   if (!viewerId || !mine.length) {
     // No character yet: a real card from this season's cast to try (app/swipe/DemoDeck.tsx, which sends nothing), and
@@ -75,7 +78,9 @@ export default async function SwipePage({ searchParams }: Props) {
   // A taken one (lib/partners.ts: with someone and wanting one partner) is out of the deck (lib/swipes.ts cantSwipe), so
   // without one asked for, the deck opens on one that can swipe. Picking a taken one still says why it can't.
   const [taken, texts] = await Promise.all([takenWith(db, mine.map((c) => c.id)), unreadTexts(db, viewerId).catch(() => 0)]);
-  const me = mine.find((c) => c.id === character) ?? mine.find((c) => !taken.has(c.id)) ?? mine[0];
+  // The address first; then the character they were last working with (lib/current-character.ts) when it can swipe.
+  const remembered = mine.find((c) => c.id === rememberedCharacter(store) && !taken.has(c.id));
+  const me = mine.find((c) => c.id === character) ?? remembered ?? mine.find((c) => !taken.has(c.id)) ?? mine[0];
   const deck = await deckFor(db, viewerId, me.id);
   // Dealing isn't seeing: the deck reports each card as it comes on top, under this visit's id (lib/swipes.ts logShownCard).
   const serveId = crypto.randomUUID();
@@ -86,6 +91,7 @@ export default async function SwipePage({ searchParams }: Props) {
 
   return (
     <article className="swipe-page swipe-fullscreen">
+      <RememberCharacter id={me.id} />
       <div className="swipe-topbar">
         <Link href="/" className="swipe-topbar-btn" aria-label="Close the deck">
           ✕

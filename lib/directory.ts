@@ -47,10 +47,10 @@ const SELECT = `select c.id, c.name, c.traits, c.avatar_hue as hue, c.is_house a
 const shown = (e: DirectoryEntry): DirectoryEntry => (e.private ? { ...e, traits: [], portrait: null, reviews: 0, stars: null, age: null, pronouns: null, occupation: null, hometown: null, companion: false } : e);
 
 /** These characters, in this order (a season's cast, its candidates); a private one by name only. */
-export async function directoryEntries(db: Db, ids: string[]): Promise<DirectoryEntry[]> {
+export async function directoryEntries(db: Db, ids: string[], opts: { /** The viewer's own characters (the Yours tab): a private one in full. Only ever with ids the caller has checked are theirs. */ own?: boolean } = {}): Promise<DirectoryEntry[]> {
   if (!ids.length) return [];
   const { rows } = await db.query<DirectoryEntry>(`${SELECT} where c.id = any($1)`, [ids]);
-  const byId = new Map(rows.map((r) => [r.id, shown(r)]));
+  const byId = new Map(rows.map((r) => [r.id, opts.own ? r : shown(r)]));
   return ids.flatMap((id) => (byId.has(id) ? [byId.get(id)!] : []));
 }
 

@@ -185,7 +185,8 @@ export default function PgStudio({ initial }: { initial: PgState }) {
         {(
           [
             ["shoot", "📸 Shoot"],
-            ["gallery", `🖼 Gallery (${state.pictures.length})`],
+            // "Pictures", not "Gallery": the Studio door's own Gallery tab sits right above this one (app/studio/StudioTabs.tsx).
+            ["gallery", `🖼 Pictures (${state.pictures.length})`],
             ["identity", "🪪 Identity"],
             ["create", "✨ Create"],
           ] as const

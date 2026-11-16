@@ -15,25 +15,23 @@ vi.mock("next/navigation", () => ({ usePathname: () => nav.path }));
 describe("Characters' tabs", () => {
   afterEach(() => vi.unstubAllEnvs());
 
-  it("carry a fourth tab that says what it does, Text someone, when companions are open (Reels is the fifth since 2026-11-16)", () => {
+  it("carry no way to text since 2026-11-16: Chat is the door and every card has its own Text button", () => {
     const html = renderToStaticMarkup(createElement(CharactersTabs, { current: "cast", companions: true }));
-    expect(html.match(/class="segmented-tab"/g)).toHaveLength(5);
-    expect(html).toMatch(/<a class="segmented-tab" href="\/companion">Text someone<\/a><a class="segmented-tab" href="\/showcase">Reels<\/a><\/nav>$/);
-    expect(html).not.toContain("Companions");
+    expect(html.match(/class="segmented-tab"/g)).toHaveLength(3);
+    expect(html).not.toContain('href="/companion"');
+    expect(html).not.toContain("Text someone");
     expect(html).toMatch(/aria-current="page" href="\/characters">The cast/);
   });
 
-  it("mark it current on the directory and leave it out when companions are closed", () => {
-    const here = renderToStaticMarkup(createElement(CharactersTabs, { current: "companions", companions: true }));
-    expect(here).toMatch(/aria-current="page" href="\/companion">Text someone/);
-    expect(here).not.toMatch(/aria-current="page" href="\/characters"/);
-    const closed = renderToStaticMarkup(createElement(CharactersTabs, { current: "cast", companions: false }));
-    expect(closed).not.toContain('href="/companion"');
+  it("aren't worn by the directory of who can be texted: that page is Chat's", () => {
+    expect(renderToStaticMarkup(createElement(CharactersTabs, { current: "companions", companions: true }))).toBe("");
   });
 
-  it("NAV_CHAT=0: the tab is Companions again", () => {
+  it("NAV_CHAT=0: there is no Chat door, so Companions is the last tab again and the directory wears the strip", () => {
     vi.stubEnv("NAV_CHAT", "0");
-    expect(renderToStaticMarkup(createElement(CharactersTabs, { current: "cast", companions: true }))).toMatch(/href="\/companion">Companions<\/a><a class="segmented-tab" href="\/showcase">Reels<\/a><\/nav>$/);
+    expect(renderToStaticMarkup(createElement(CharactersTabs, { current: "cast", companions: true }))).toMatch(/href="\/companion">Companions<\/a><\/nav>$/);
+    expect(renderToStaticMarkup(createElement(CharactersTabs, { current: "companions", companions: true }))).toMatch(/aria-current="page" href="\/companion">Companions/);
+    expect(renderToStaticMarkup(createElement(CharactersTabs, { current: "cast", companions: false }))).not.toContain('href="/companion"');
   });
 });
 
