@@ -39,7 +39,7 @@ The season format ballot (`lib/season-vote.ts`) is a different thing: it decides
 | What | Where |
 |---|---|
 | The page | `/shows` (`app/shows/`): the show on air, the ideas, the proposal form. PG, no 18+ wall, in the sitemap |
-| Links to it | `/everything`, the Season page (`/reunion`) |
+| Links to it | The fourth show tab (Watch · House · Season · Shows), one line on the home page, one line on an owner's own character page ("Which new shows would you enter {Name} in?"), `/everything` |
 | Answer | `POST /api/shows` `{ idea_id, watch?, enter?, produce? }`; `GET /api/shows` is the list as the viewer sees it |
 | Propose | `POST /api/shows/propose` `{ title, pitch }` |
 | Review | `/admin/season` → Show ideas; `GET`/`POST /api/admin/show-ideas` `{ id, action: list \| decline \| hold }` |

@@ -11,7 +11,6 @@ import { recapTeasers } from "@/lib/season-recap";
 import { closedSeasons, lastClosedSeason, seasonNumber } from "@/lib/season-ref";
 import { seasonIdOf, seasonLabel } from "@/lib/season-window";
 import ShowTabs from "@/app/ShowTabs";
-import { showIdeasOn } from "@/lib/show-ideas-switch";
 import SeasonFormatVote from "@/app/SeasonFormatVote";
 import { cookies } from "next/headers";
 import { userIdFromCookieStore } from "@/lib/http";
@@ -115,14 +114,6 @@ export default async function ReunionPage({ searchParams }: { searchParams?: Pro
       </div>
       <OpenOnHash />
       {ballot && <SeasonFormatVote ballot={ballot} now={now.getTime()} insider={insider} />}
-      {showIdeasOn() && (
-        <p className="house-link">
-          <span aria-hidden="true">📺</span> Other shows Botchelor could make next: a mystery, a shared house, a quest.{" "}
-          <Link href="/shows" data-track="shows" data-track-where="reunion">
-            Say which you&apos;d want →
-          </Link>
-        </p>
-      )}
       {past.length > 0 && (
         <section className="reunion-seasons" aria-labelledby="seasons">
           <h2 id="seasons" className="section">

@@ -103,7 +103,12 @@ describe("the show's tabs: Watch · House · Season", () => {
   afterEach(() => vi.unstubAllEnvs());
 
   it("carries the house, and no longer Reviews or the Constellation", () => {
+    expect(tabs(strip("/watch"))).toEqual(["Watch /watch", "House /house", "Season /reunion", "Shows /shows"]);
+    expect(current(strip("/shows"))).toBe("Shows");
+    // The fourth tab is the show ideas' (lib/show-ideas.ts): gone with its switch.
+    vi.stubEnv("SHOW_IDEAS", "0");
     expect(tabs(strip("/watch"))).toEqual(["Watch /watch", "House /house", "Season /reunion"]);
+    vi.unstubAllEnvs();
     expect(current(strip("/watch"))).toBe("Watch");
     expect(current(strip("/house"))).toBe("House");
     expect(current(strip("/reunion"))).toBe("Season");
@@ -134,7 +139,7 @@ describe("the show's tabs: Watch · House · Season", () => {
 
   it("NAV_CHAT=0 brings the old strip back", () => {
     vi.stubEnv("NAV_CHAT", "0");
-    expect(tabs(strip("/graph"))).toEqual(["Watch /watch", "Reels /showcase", "Reunion /reunion", "Reviews /reviews", "Constellation /graph"]);
+    expect(tabs(strip("/graph"))).toEqual(["Watch /watch", "Reels /showcase", "Reunion /reunion", "Reviews /reviews", "Constellation /graph", "Shows /shows"]);
     expect(current(strip("/graph"))).toBe("Constellation");
     expect(current(strip("/house"))).toBeNull();
   });
