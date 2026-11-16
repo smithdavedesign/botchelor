@@ -5,7 +5,7 @@
  * A gift is fiction between two characters: a named, concrete little thing with a one-line note, and the receiver's
  * one-line reaction. Nobody pays for one and no person can send one: the show writes it, by seeded rules, after one of
  * the pair's dates aired publicly. It is never read by the engine and never moves points, odds, pairings, an ending or
- * a relationship's stage; nothing here implies a milestone either (no rings, no keys).
+ * a relationship's stage; nothing here implies a milestone either (no rings, no key to anyone's door).
  *
  *  - WHEN (`giftChance`): rarely after a first date, more often the steadier the pair, seldom between friends, and
  *    after a disaster only as a peace offering from the one who caused it. Dealt by the date's id, so the same date
@@ -66,7 +66,7 @@ export type GiftItem = {
 
 const PEACE: readonly GiftOccasion[] = ["peace"];
 
-/** The gifts. Small, concrete, PG; nothing bought to impress, nothing that marks a milestone. */
+/** The gifts. Small, concrete, PG; nothing bought to impress, nothing that marks a milestone (tests/character-gifts.test.ts). */
 export const GIFTS: readonly GiftItem[] = [
   // Where the date was.
   { id: "cocktail_umbrella", venues: ["rooftop_bar"], name: "a paper cocktail umbrella, pressed flat in an envelope", note: "Rescued this from your glass before they cleared the table.", tones: { wry: "Recovered from the scene. Yours, I believe." } },
