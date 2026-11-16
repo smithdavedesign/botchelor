@@ -51,6 +51,37 @@ export const TEXT_TAG = /^[a-z][a-z0-9_]*:[A-Za-z0-9_.:-]+$/;
 export const isTextTag = (action: string | null | undefined): boolean => Boolean(action && TEXT_TAG.test(action));
 
 /**
+ * The kinds of text whose tag's ref is a date (an episode id): the Hear-from text, the day after, the tease when it
+ * airs, the cast's opener, an overnight, a date it went on by itself, its real photo, and the locked picture kept from
+ * that night. Every other kind is about something else (`house_scene:<scene id>`, `gift:<gift id>`, `offer:<message
+ * id>`, `question:<field>`, `rose:<season>-<day>`, …).
+ */
+export const DATE_TEXT_KINDS = ["after_date", "day_after", "tease", "opener", "overnight", "life", "date_photo", "locked_picture"] as const;
+const DATE_TEXT_REF = "[A-Za-z0-9_-]{1,64}";
+const DATE_TEXT_TAG = new RegExp(`^(?:${DATE_TEXT_KINDS.join("|")}):(${DATE_TEXT_REF})$`);
+/**
+ * The date a text's tag names, or null for any other tag and for a scene's stage direction (pure). It is what
+ * companion_messages.episode_id is set from when the text is written (lib/companion.ts writeText), so "the texts about
+ * this date" is a key and not a string match; the tag stays the dedupe key.
+ */
+export const tagEpisode = (tag: string | null | undefined): string | null => (tag ? (DATE_TEXT_TAG.exec(tag)?.[1] ?? null) : null);
+/** The same tags as a SQL pattern (lib/chat-date-links.ts backfillMessageEpisodes); the id is what follows the first colon. */
+export const DATE_TEXT_TAG_SQL = `'^(${DATE_TEXT_KINDS.join("|")}):${DATE_TEXT_REF}$'`;
+
+/**
+ * CHAT_DATE_LINKS=0 hides the two reads of that key: the "About your date with …" link under a text in a thread, and
+ * "… texted you about this" on the date's page (its owner only). The column is written either way.
+ */
+export function chatDateLinks(env: Record<string, string | undefined> = process.env): boolean {
+  return env.CHAT_DATE_LINKS?.trim() !== "0";
+}
+/** The link's words: the person's own character's date is "your date"; a cast member's is that character's own. */
+export function aboutDateLabel(o: { yours: boolean; character: string; partner: string }): string {
+  const first = (name: string) => name.trim().split(/\s+/)[0] || name;
+  return o.yours ? `About your date with ${first(o.partner)}` : `About ${first(o.character)}'s date with ${first(o.partner)}`;
+}
+
+/**
  * A photo from a date in the character's texts (lib/date-photo.ts): companion_messages.via = 'photo', media_url the
  * stateless snapshot route below, and the message's text its alt text. DATE_PHOTO_TEXTS=0 stops new ones being sent;
  * the ones already in a thread stay.
@@ -299,6 +330,12 @@ export type CompanionMessageView = {
   photo?: { src: string; href: string } | null;
   /** A link under the bubble: the date this text is about, to watch, or the house scene it is about (textLink). Absent: none. */
   link?: { href: string; label: string } | null;
+  /**
+   * The last bubble of a text about a date this viewer may open (companion_messages.episode_id; lib/chat-date-links.ts):
+   * one small link to it, "About your date with Nell". Absent: any other text, a date they may not open, a text that
+   * already carries `link` to the same date, and with CHAT_DATE_LINKS=0.
+   */
+  about?: { href: string; label: string } | null;
   /**
    * The last bubble of a locked-picture text (lib/locked-picture.ts): the date it is about. The page draws the locked
    * tile under it when this viewer may see one (lib/adult/locked-picture.ts lockedDoors), else it stays a plain text.
