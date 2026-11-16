@@ -16,7 +16,6 @@ import { pageHref, pageOf as pageSlice, parsePage } from "@/lib/paging";
 import { portraitPathSql, withPortraits } from "@/lib/assets";
 import JsonLd from "@/app/JsonLd";
 import { breadcrumbJsonLd, characterJsonLd } from "@/lib/seo";
-import { CopyLink } from "@/app/couples/[a]/[b]/CoupleActions";
 import { getDatingProfile } from "@/lib/dating";
 import { hasExtras, moodLabel, profileComplete, profileMissing, type CharacterExtras } from "@/lib/extras";
 import { archetypeLabel, goalLabel } from "@/lib/kinds";
@@ -40,7 +39,7 @@ import { getCharacterRatings } from "@/lib/ratings";
 import { loadOvernightMarks, OvernightMarksList } from "./OvernightMarks";
 import { relationshipsOf, viewRelationship } from "@/lib/relationships";
 import { authFromCookieStore, userIdFromCookieStore } from "@/lib/http";
-import { endingLabel } from "@/lib/rules";
+import { DELETED_OWNER, endingLabel } from "@/lib/rules";
 import RatingButtons from "./RatingButtons";
 import Reviews from "./Reviews";
 import { reviewableNow, reviewSummary } from "@/lib/reviews";
@@ -65,6 +64,10 @@ import TalkPanel from "./TalkPanel";
 import Circle from "@/app/Circle";
 import { loadCircle } from "@/lib/story-map";
 import { characterTalk } from "@/lib/character-talk";
+import { characterFollowOn, characterFollowState } from "@/lib/character-follows";
+import { characterNowOn, shapeNow } from "@/lib/character-now";
+import { FollowToggle, HeaderMore } from "./HeaderActions";
+import RightNow from "./RightNow";
 import { storyView } from "@/lib/story-state";
 import AfterDarkTeaser from "@/app/AfterDarkTeaser";
 import AfterDarkPhotos, { afterDarkPhotosOf } from "./AfterDarkPhotos";
@@ -113,11 +116,15 @@ export default async function CharacterPage({ params, searchParams }: Props) {
   // Their circle (lib/story-map.ts) starts with the page's first read: the week's map is one shared copy, and on a cold
   // one its reads overlap the page's early ones, not the wide one below (tests/perf-pages.test.ts).
   const circleP = loadCircle(db, id).catch(() => null);
+  const cookieStore = await cookies();
+  const viewerId = userIdFromCookieStore(cookieStore);
+  // How many follow them and whether this viewer does (lib/character-follows.ts): one read, started beside the page's
+  // first one for the same reason as the circle's, so it never joins the wide wave below. Null with CHARACTER_FOLLOW=0.
+  const followP = characterFollowOn() ? characterFollowState(db, id, viewerId).catch(() => null) : Promise.resolve(null);
   const c = await getPublicCharacter(db, id);
   if (!c) notFound();
-  const viewerId = userIdFromCookieStore(await cookies());
   // The roleplay picker's ✨ Yours is the Create library, accounts only.
-  const signedIn = authFromCookieStore(await cookies())?.authenticated === true;
+  const signedIn = authFromCookieStore(cookieStore)?.authenticated === true;
   // A private character (its owner's choice): everyone but the owner sees only its name.
   if (c.private && c.owner_id !== viewerId) {
     return (
@@ -135,7 +142,6 @@ export default async function CharacterPage({ params, searchParams }: Props) {
   // database round trips in a row, ~70 ms each from New York to the database in Oregon). The owner is known from the
   // character itself, so nothing waits on the ratings to find out.
   const isOwner = Boolean(viewerId) && c.owner_id === viewerId;
-  const cookieStore = await cookies();
   const auth = authFromCookieStore(cookieStore);
   const firstP = Promise.all([
     getCharacterDatesPage(db, id, viewerId, parsePage(sp.dates)),
@@ -321,6 +327,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
     talkOfHouse,
     circle,
     reviewsOpen,
+    follow,
   ] = await Promise.all([
     firstP,
     shownExtrasP,
@@ -355,6 +362,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
     c.private ? Promise.resolve(null) : circleP,
     // Whether reviews are open (a house character only while on the season's cast), read beside the rest.
     c.house ? reviewableNow(c.id) : Promise.resolve(true),
+    followP,
   ]);
   const week = thisWeek(c.id, c.this_week);
   const origin = origins.get(id) ?? originOf({ house: c.house, agent: dating?.made_by === "agent" });
@@ -382,6 +390,15 @@ export default async function CharacterPage({ params, searchParams }: Props) {
   );
   // Text, the small second action in the header (lib/character-verb.ts): anyone they may text, their own included.
   const text = textVerb(companion === "talk" ? "open" : companion === "signin" ? "sign_in" : "closed", { id: c.id, name: c.name, textable: Boolean(companion) });
+  // Follow (lib/character-follows.ts): anyone but its owner, on a public character whose creator is still here. An
+  // owner already hears everything, so their own page shows no control.
+  const canFollow = follow !== null && !c.private && !ratings.is_owner && c.owner_id !== DELETED_OWNER;
+  // "Right now" (lib/character-now.ts): shaped from what was read above for everyone, nothing of its own. Null when
+  // there is nothing to say, and then nothing is rendered. The newest aired date is the date record's first page's.
+  const now =
+    characterNowOn() && !c.private
+      ? shapeNow({ character: { id: c.id, name: c.name, private: c.private }, circle, talk: talkOfHouse, week, lastDate: datesPage === 1 ? (episodes[0] ?? null) : null, today: new Date().toISOString().slice(0, 10) })
+      : null;
   // Stepping in leads when it's their verb (no character of their own, or theirs can't go); otherwise it's the quieter
   // second under the date.
   const stepInLeads = verb?.kind === "step_in";
@@ -522,16 +539,21 @@ export default async function CharacterPage({ params, searchParams }: Props) {
               {c.extras.hometown && <>from {c.extras.hometown}</>}
             </p>
           )}
-          {text && (
-            <p className="contestant-text">
-              {text.signIn ? (
-                <Link className="button secondary small" href={text.signIn} data-track={text.track} data-track-from="character">
-                  {text.label}
-                </Link>
-              ) : (
-                <TalkButton characterId={text.characterId} name={shortName(c.name)} label={text.label} className="button secondary small" track={text.track} />
-              )}
-            </p>
+          {/* One row of small actions: Text, Follow, and ⋯ for what is rarely used (the link to share, which was a row
+              of its own under the header). */}
+          {(text || canFollow || !c.private) && (
+            <div className="contestant-actions">
+              {text &&
+                (text.signIn ? (
+                  <Link className="button secondary small" href={text.signIn} data-track={text.track} data-track-from="character">
+                    {text.label}
+                  </Link>
+                ) : (
+                  <TalkButton characterId={text.characterId} name={shortName(c.name)} label={text.label} className="button secondary small" track={text.track} />
+                ))}
+              {canFollow && follow && <FollowToggle characterId={c.id} name={shortName(c.name)} following={follow.following} texts={companion === "talk" && auth?.authenticated === true} />}
+              {!c.private && <HeaderMore path={`/characters/${c.id}`} title={`${c.name} on Botchelor`} name={shortName(c.name)} followers={follow?.followers ?? 0} />}
+            </div>
           )}
           {/* The crowd's read of them, in the header since Audience became Talk of the house (2026-11-15): the same
               counts and owner rule, the "never changes points" line behind its ⓘ. */}
@@ -549,6 +571,8 @@ export default async function CharacterPage({ params, searchParams }: Props) {
           )}
         </div>
       </div>
+      {/* What is going on with them this minute, before anything else on the page; nothing at all when nothing is. */}
+      {now && <RightNow name={shortName(c.name)} now={now} />}
       {intro && (
         <figure className="intro-card">
           {/* Their hello (lib/cast-intros.ts): a short OmniHuman clip in their own voice, rendered once; muted until played, like the reels. */}
@@ -557,13 +581,6 @@ export default async function CharacterPage({ params, searchParams }: Props) {
             {c.name} says hello{intro.seconds ? ` · ${Math.round(intro.seconds)} s` : ""} · <AiTag label="AI-generated video" />
           </figcaption>
         </figure>
-      )}
-      {/* Share them: the phone's share sheet, else the link copied (it was a whole card at the bottom, a cut-off URL field
-          on a phone). */}
-      {!c.private && (
-        <p className="small character-share">
-          <CopyLink path={`/characters/${c.id}`} title={`${c.name} on Botchelor`} />
-        </p>
       )}
       <AiFiction />
       {/* One primary action (lib/character-verb.ts): send theirs on a date, or step into one themselves, or make a

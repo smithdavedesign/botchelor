@@ -537,6 +537,24 @@ async function main() {
       { name: "character-talk", path: "/characters/house-nell#talk" },
       { name: "character-talk-reviews", path: "/characters/house-teo#audience" },
       ...(newcomer?.id ? [{ name: "character-talk-new", path: `/characters/${newcomer.id}#talk` }] : []),
+      // The header's row (app/characters/[id]/HeaderActions.tsx): the lead's page opens on Right now; ⋯ open (the link
+      // to share), then followed: the toggle reads Following and the line under the row says what the tap did.
+      {
+        name: "character-menu",
+        path: "/characters/house-nell",
+        walk: async (page) => {
+          await page.locator(".contestant-actions .thread-menu > button").click();
+          await page.locator('.contestant-actions [role="menu"]:not([hidden])').waitFor({ timeout: 10_000 });
+        },
+      },
+      {
+        name: "character-follow",
+        path: "/characters/house-nell",
+        walk: async (page) => {
+          await page.locator('.contestant-actions [data-track="character-follow"]').click();
+          await page.locator('.contestant-actions [data-track="character-follow"][aria-pressed="true"]').waitFor({ timeout: 10_000 });
+        },
+      },
       { name: "directory-people", path: "/characters?tab=people" },
       // The agents' tab: its count is on its own fold, never in the tab strip.
       { name: "directory-agents", path: "/characters?tab=agents" },

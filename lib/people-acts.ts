@@ -16,6 +16,7 @@ export const PEOPLE_ACTS_SQL = `
   union all select rater_id, created_at from character_ratings
   union all select reviewer_id, created_at from character_reviews where via = 'web'
   union all select user_id, created_at from couple_follows
+  union all select user_id, created_at from character_follows
   union all select user_id, created_at from line_feedback
   union all select user_id, created_at from watch_messages
   union all select user_id, created_at from watch_reactions

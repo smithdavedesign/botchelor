@@ -5141,10 +5141,7 @@ details.recap-toggle[open] > summary {
 .owner-next .cta-row {
   margin-top: var(--space-2);
 }
-/* Under the header: Share (or Copy link). The audience's two halves in one card. */
-.character-share {
-  margin: var(--space-2) 0 0;
-}
+/* The audience's two halves in one card. */
 .character-audience h3 {
   margin-top: var(--space-5);
 }

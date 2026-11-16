@@ -147,6 +147,15 @@ ignore it.
   tab (`lib/character-talk.ts`): what the house said about them, their friction and who is after them, from public
   sources only, with the ratings in the page's header. `0` puts the Audience tab back without a deploy. No model call.
   Commented in `.do/show.yaml`; the rules are in [character-depth.md](character-depth.md), section 13.
+- **`CHARACTER_FOLLOW`** (the show's app, not a secret; on unless it is `0`): follow a character
+  (`lib/character-follows.ts`): the Follow toggle in a character page's header, the notices its followers get when a
+  date of theirs airs or the house talks about them, and the character's texts switched on for a follower who may
+  text it. Rows and templates: no model call. `0` hides the control, refuses the route and sends no follower a notice,
+  without a deploy; the follows stay, and texts a follow switched on stay on the thread's own switch. Commented in `.do/show.yaml`; the rules are in
+  [character-depth.md](character-depth.md), section 14.
+- **`CHARACTER_NOW`** (the show's app, not a secret; on unless it is `0`): the "Right now" lines under a character
+  page's header (`lib/character-now.ts`), shaped from what the page already reads for everyone. `0` hides them without
+  a deploy. No read of its own, no model call. Commented in `.do/show.yaml`; section 14 as well.
 - **`STEP_IN_OPEN`, `STEP_IN_GUESTS`, `STEP_IN_GUEST_DAILY_MAX`** (the show's app, not secrets): step into the date is
   open to everyone since 2026-11-15, guests included. `STEP_IN_OPEN=0` puts it back to admins only; `STEP_IN_GUESTS=0`
   asks a visitor without an account to sign in first; `STEP_IN_GUEST_DAILY_MAX` (default `300`) is the guest dates a day

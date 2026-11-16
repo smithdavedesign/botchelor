@@ -160,6 +160,8 @@ export async function loadFacts(db: Db, sinceDays: number, now = new Date()): Pr
        union all
        select user_id, created_at, 'watch', null from couple_follows where created_at >= $1
        union all
+       select user_id, created_at, 'watch', null from character_follows where created_at >= $1
+       union all
        select rater_id, created_at, 'watch', null from character_ratings where created_at >= $1`,
       [since, writes],
     )

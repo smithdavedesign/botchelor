@@ -61,6 +61,8 @@ export type AccountExport = {
   unmatches: Record<string, unknown>[];
   /** The couples they follow, their arc predictions, their notifications and where browser push goes (host only). */
   couple_follows: Record<string, unknown>[];
+  /** The characters they follow (lib/character-follows.ts), and whether the follow switched that character's texts on. */
+  character_follows: Record<string, unknown>[];
   arc_predictions: Record<string, unknown>[];
   /** Their votes on tonight's situation (lib/situations.ts). */
   situation_votes: Record<string, unknown>[];
@@ -267,6 +269,7 @@ export async function exportAccount(db: Db, userId: string): Promise<AccountExpo
       [userId],
     ),
     couple_follows: await q("select character_lo, character_hi, created_at from couple_follows where user_id = $1", [userId]),
+    character_follows: await q("select character_id, texts_on, created_at from character_follows where user_id = $1 order by created_at", [userId]),
     arc_predictions: await q("select character_lo, character_hi, target, pick, created_at, resolved_at, outcome from arc_predictions where user_id = $1", [userId]),
     situation_votes: await q("select day, pick, created_at, updated_at from situation_votes where user_id = $1 order by day", [userId]),
     season_format_votes: await q("select season_id, pick, created_at, updated_at from season_format_votes where user_id = $1 order by season_id", [userId]),
@@ -427,6 +430,8 @@ async function forgetEverything(db: Db, characterIds: string[]): Promise<void> {
   await db.query("delete from swipes where swiper = any($1) or target = any($1)", [characterIds]);
   await db.query("delete from matches where character_lo = any($1) or character_hi = any($1)", [characterIds]);
   await db.query("delete from unmatches where character_lo = any($1) or character_hi = any($1)", [characterIds]);
+  // Nobody follows a character whose creator left (lib/character-follows.ts): its sheet stays for the dates it aired in.
+  await db.query("delete from character_follows where character_id = any($1)", [characterIds]);
   // The data plan's logs about them (lib/db.ts, Tier 1): the decks they saw and were shown in, and their pairs' timelines.
   await db.query("delete from swipe_impressions where viewer = any($1) or card = any($1)", [characterIds]);
   await db.query("delete from relationship_events where character_a = any($1) or character_b = any($1)", [characterIds]);
@@ -602,6 +607,7 @@ export async function deleteAccount(db: Db, userId: string): Promise<AccountDele
   await run("delete from email_prefs where user_id = $1", [userId]);
   await run("delete from email_sends where user_id = $1", [userId]);
   await run("delete from couple_follows where user_id = $1", [userId]);
+  await run("delete from character_follows where user_id = $1", [userId]);
   await run("delete from arc_predictions where user_id = $1", [userId]);
   await run("delete from situation_votes where user_id = $1", [userId]);
   await run("delete from season_format_votes where user_id = $1", [userId]);

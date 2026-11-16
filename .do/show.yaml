@@ -193,6 +193,16 @@ services:
       # - key: CHARACTER_TALK
       #   value: "0"
       #   scope: RUN_AND_BUILD_TIME
+      # Follow a character (lib/character-follows.ts; docs/character-depth.md, section 14): on by default. "0" hides
+      # the control, refuses the route and tells no follower anything, without a deploy of code.
+      # - key: CHARACTER_FOLLOW
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
+      # "Right now" under a character page's header (lib/character-now.ts; the same section): on by default. "0"
+      # hides the lines without a deploy of code.
+      # - key: CHARACTER_NOW
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
       # Confrontations and the weekly challenge (lib/house-conflict.ts; docs/seasons.md "Confrontations and
       # challenges"): on by default. "0" stops new ones without a deploy.
       # - key: CONFRONTATIONS

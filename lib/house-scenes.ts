@@ -775,15 +775,26 @@ export async function tellOwners(db: Db, scene: Pick<StoredScene, "id" | "day" |
 /**
  * Everyone a stored scene names texts the people who turned their texts on (lib/house-texts.ts houseTextsForScene: the
  * owner first, anyone texting a cast member under the same opt-in, one house text a thread a day). Called right after a
- * scene of any kind is stored. Returns how many texts went out; never throws, and 0 with HOUSE_TEXTS=0.
+ * scene of any kind is stored. Returns how many texts went out; never throws, and 0 with HOUSE_TEXTS=0. The people who
+ * follow someone the scene names then get their notice (lib/character-follows.ts tellFollowersOfScene).
  */
 export async function textAboutScene(db: Db, sceneId: string, now: Date = new Date(), env: Record<string, string | undefined> = process.env): Promise<number> {
+  let sent = 0;
   try {
     const { houseTextsForScene } = await import("./house-texts");
-    return (await houseTextsForScene(db, sceneId, now, { env })).sent;
+    sent = (await houseTextsForScene(db, sceneId, now, { env })).sent;
   } catch {
-    return 0;
+    sent = 0;
   }
+  // Then the people who follow someone it names (lib/character-follows.ts): one notice each, after the texts, so a
+  // follower the character just texted about it isn't told twice.
+  try {
+    const { tellFollowersOfScene } = await import("./character-follows");
+    await tellFollowersOfScene(db, sceneId, env);
+  } catch {
+    // Never in the way of the pass that wrote the scene.
+  }
+  return sent;
 }
 
 /* ------------------------------------------------ the hourly job ------------------------------------------------ */

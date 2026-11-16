@@ -6,6 +6,7 @@ import { shortName } from "./names";
 import type { Db } from "./db";
 import { settleCommitment, warnWhenSparksOut } from "./partners";
 import { resolveArcs } from "./arcs";
+import { pairCharacterFollowers } from "./character-follows";
 import { followerIds } from "./follows";
 import { notifyAll, ownersOf } from "./notifications";
 import { overnightAired } from "./overnight";
@@ -19,6 +20,8 @@ const RANK: Partial<Record<Stage, number>> = { just_met: 1, sparks: 2, dating: 3
  * Refreshes a pair's edge after one of their dates airs, then tells people about it:
  *  - a move up a stage ("Mira & Rafe: 💞 Dating") to the characters' owners and the couple's followers;
  *  - otherwise, a new public date to its followers ("Mira & Rafe went on another date");
+ *  - the same two notices to whoever follows either character (lib/character-follows.ts), once a person, when both
+ *    characters are public: the pair's first public date reads "went on a date";
  * records an overnight date's milestone (lib/overnight.ts), and settles the arc predictions the new public record
  * decides (lib/arcs.ts). Only on airing, so making a date
  * private and public again can't re-announce anything. Returns who was told of a step up (#1032: they need no "aired" notice too).
@@ -33,7 +36,9 @@ export async function refreshAndAnnounce(db: Db, x: string, y: string, opts: { e
     (await db.query<{ id: string; name: string }>(`select id, name from characters where id = any($1)`, [[lo, hi]])).rows.map((r) => [r.id, shortName(r.name)]),
   );
   const couple = `${names.get(lo)} & ${names.get(hi)}`;
-  const [owners, followers] = await Promise.all([ownersOf(db, [lo, hi]), followerIds(db, lo, hi)]);
+  const [owners, coupleFollowers, fans] = await Promise.all([ownersOf(db, [lo, hi]), followerIds(db, lo, hi), pairCharacterFollowers(db, lo, hi).catch(() => [] as string[])]);
+  // The couple's followers and either character's: each person hears once (notifyAll sends to each id once).
+  const followers = [...new Set([...coupleFollowers, ...fans])];
   const steppedUp = after !== null && (RANK[after] ?? 0) >= 2 && (RANK[after] ?? 0) > (RANK[before ?? "bad_blood"] ?? 0);
   const told = new Set<string>();
   if (steppedUp) {
@@ -66,9 +71,11 @@ export async function refreshAndAnnounce(db: Db, x: string, y: string, opts: { e
     // A followed couple's new date, when it's in the public record (aired, public, not hidden).
     const aired = rel?.history.find((h) => h.episode_id === opts.episodeId && h.public);
     if (aired) {
+      // A character's follower can be here for the pair's first public date; a couple's follower never is.
+      const firstDate = (rel?.history.filter((h) => h.public).length ?? 0) <= 1;
       await notifyAll(db, followers, {
         kind: "couple_date",
-        title: `${couple} went on another date`,
+        title: firstDate ? `${couple} went on a date` : `${couple} went on another date`,
         // Its own date number (a follow-up's), so a happy third date reads "A fourth date", as on its page.
         body: `It ended: ${endingLabel(aired.ending, aired.date_number)}.`,
         link: `/episodes/${opts.episodeId}`,

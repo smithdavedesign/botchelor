@@ -279,8 +279,8 @@ describe("the head of a character's page", () => {
     // One filled button: the builder's own filled "Make a character" isn't there too.
     expect(html).not.toContain("💌 Make a character to date");
     // Text, one small button in the header (the card further down still explains what a thread with them is).
-    expect(html).toContain(`<p class="contestant-text"><button type="button" class="button secondary small" data-track="verb-text">Text ${first(CAST.name)}</button></p>`);
-    expect(html.indexOf("contestant-text")).toBeLessThan(html.indexOf("Step into a date with"));
+    expect(html).toContain(`<div class="contestant-actions"><button type="button" class="button secondary small" data-track="verb-text">Text ${first(CAST.name)}</button>`);
+    expect(html.indexOf("contestant-actions")).toBeLessThan(html.indexOf("Step into a date with"));
   });
 
   it("someone with characters sends one, named, and can switch who goes; step-in is the outlined second", async () => {
