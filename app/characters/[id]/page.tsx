@@ -49,6 +49,7 @@ import { reviewableNow, reviewSummary } from "@/lib/reviews";
 import OwnerControls from "./OwnerControls";
 import AuditionPanel from "./AuditionPanel";
 import { myAudition } from "@/lib/auditions";
+import { showIdeasOn } from "@/lib/show-ideas-switch";
 import { INVITE_COOKIE, inviteFromCookie, invitePath } from "@/lib/casting-invite-shared";
 import { inviteView, loadInvite } from "@/lib/casting-invites";
 import { isTalkLevel, type TalkLevel } from "@/lib/talk";
@@ -745,6 +746,14 @@ export default async function CharacterPage({ params, searchParams }: Props) {
         <p className="casting-invite-nudge">
           <Link href={inviteLine.href} data-track="casting-invite-nudge">
             🌹 Apply {shortName(c.name)} to {inviteLine.month}&apos;s Botchelor →
+          </Link>
+        </p>
+      )}
+      {/* Its owner only (lib/show-ideas.ts): "I'd enter a character" is the answer the list most wants, so ask where one is. */}
+      {ratings.is_owner && !c.house && showIdeasOn() && (
+        <p className="casting-invite-nudge">
+          <Link href="/shows" data-track="shows" data-track-where="character">
+            📺 Which new shows would you enter {shortName(c.name)} in? →
           </Link>
         </p>
       )}

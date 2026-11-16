@@ -16,6 +16,7 @@ import { balancedColumns } from "@/lib/grid-balance";
 import { countNotifications } from "@/lib/notifications";
 import { sinceYouWereHere } from "@/lib/since";
 import { characterPhone } from "@/lib/character-phone";
+import { showIdeasOn } from "@/lib/show-ideas-switch";
 import CharacterPhone from "./CharacterPhone";
 import When from "@/app/When";
 import { cachedConstellation } from "@/lib/graph-cache";
@@ -352,6 +353,16 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
               latest and /watch has the rest (the audit, 2026-11-11, 2.1: six cards, two of them the same mixer). */}
           <EpisodeShelf items={aired.items.slice(0, 3)} />
         </section>
+      )}
+
+      {/* The shows that could come next (lib/show-ideas.ts): one quiet line, the demand test's way in from the front door. */}
+      {showIdeasOn() && (
+        <p className="house-link home-shows-link">
+          <span aria-hidden="true">📺</span> One show is on air. More could come next: a mystery, a shared house, a quest.{" "}
+          <Link href="/shows" data-track="shows" data-track-where="home">
+            Say which you&apos;d want →
+          </Link>
+        </p>
       )}
 
       <section className="home-how">

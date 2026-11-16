@@ -11,6 +11,7 @@ import { seasonRef } from "@/lib/season-ref";
 import { seasonIdOf } from "@/lib/season-window";
 import { breadcrumbJsonLd, pageMetadata } from "@/lib/seo";
 import { listShowIdeas, showIdeasOn, showProposalsOn } from "@/lib/show-ideas";
+import ShowTabs from "@/app/ShowTabs";
 import ShowIdeas from "./ShowIdeas";
 
 export const dynamic = "force-dynamic";
@@ -37,6 +38,7 @@ export default async function ShowsPage() {
   const running = seasonRef(seasonIdOf(now));
   return (
     <article className="shows-page page-wide">
+      <ShowTabs active="/shows" />
       <JsonLd
         data={[
           breadcrumbJsonLd([
