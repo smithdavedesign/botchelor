@@ -365,6 +365,16 @@ async function main() {
       await bar.getByRole("button", { name: "Next" }).click();
       await page.locator(".theater .chat-thread").getByText("kettle").first().waitFor({ state: "attached", timeout: 30_000 });
     };
+    // A creator's casting invite (lib/casting-invites.ts), made the way the admin makes one, so its page is audited open
+    // (best effort: without it, only the page for a code that isn't one).
+    const inviteCode = await fetch(`${base}/api/admin/casting-invites`, {
+      method: "POST",
+      headers: { origin: base, "content-type": "application/json", "x-frontier-key": ADMIN_PASSWORD },
+      body: JSON.stringify({ count: 1, note: "visual audit" }),
+    })
+      .then((r) => r.json())
+      .then((d) => d.invites?.[0]?.code ?? null)
+      .catch(() => null);
 
     // Each route: who opens it, and an optional walk through its states (each state is audited separately).
     const routes = [
@@ -597,6 +607,24 @@ async function main() {
       { name: "tool-chemistry", path: "/tools/oc-chemistry-test" },
       { name: "tool-ship-names", path: "/tools/ship-name-generator" },
       { name: "admin-season", path: "/admin/season", as: "admin" },
+      {
+        // Its Creator invites fold open: the list and the small "Make N invites" form.
+        name: "admin-season-invites",
+        path: "/admin/season",
+        as: "admin",
+        walk: async (page) => {
+          await page.locator("#creator-invites > summary").click();
+          await page.locator(".admin-invites-make").waitFor();
+        },
+      },
+      // The invite page (no 18+ wall): as a stranger meets it, as a signed-in creator with characters, and a made-up code.
+      ...(inviteCode
+        ? [
+            { name: "casting-invite", path: `/casting/invite/${inviteCode}`, as: "visitor" },
+            { name: "casting-invite-member", path: `/casting/invite/${inviteCode}`, as: "member" },
+          ]
+        : []),
+      { name: "casting-invite-invalid", path: "/casting/invite/Ab3_x-9QzK", as: "visitor" },
       { name: "after-dark", path: "/after-dark", as: "adult-admin" },
       { name: "after-dark-scene", path: scenePath, as: "adult-admin", walk: writeScene },
       { name: "after-dark-theater", path: `${scenePath}?play=1`, as: "adult-admin" },

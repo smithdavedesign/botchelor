@@ -724,8 +724,22 @@
   gap: var(--space-2);
   margin: var(--space-3) 0;
 }
+/* "Make [3] invites" reads as one line: the number sits inside its words, not stacked under them. */
+.admin-invites-make label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+}
+.admin-invites-make input {
+  margin: 0;
+}
 .admin-invites-make input[type="number"] {
   width: 4.5rem;
+}
+.admin-invites-make input[type="text"] {
+  flex: 1 1 14rem;
+  width: auto;
 }
 .admin-invites-made,
 .admin-invites-list {
