@@ -44,6 +44,7 @@ import {
   HISTORY_READ_MAX,
   importMemoriesOn,
   itemsFromReply,
+  listFromReply,
   pasteText,
   screenHistoryItem,
   trimNote,
@@ -339,6 +340,27 @@ describe("the reader's list", () => {
     expect(historyDestination("us", "Marisol Vane")).toBe("Marisol's memory of you (only you two see it)");
     expect(historyDestination("character", "Marisol Vane")).toMatch(/Marisol's own facts \(private/);
     expect(historyDestination("voice", "")).toBe("how they talk");
+  });
+});
+
+describe("an answer however it is wrapped (the paid model's habits)", () => {
+  const line = { about: "us", text: "They fixed the radio together in March." };
+  const two = [line, { about: "character", topic: "world", text: "She keeps bees on the roof." }];
+  it("reads a fenced answer, one with a sentence round it, and a bare list", () => {
+    expect(listFromReply("```json\n" + JSON.stringify({ items: two }) + "\n```")).toHaveLength(2);
+    expect(listFromReply(`Here is what I found:\n\n${JSON.stringify({ items: two })}\n\nLet me know if you want more.`)).toHaveLength(2);
+    expect(listFromReply(JSON.stringify(two))).toHaveLength(2);
+  });
+  it("keeps the whole lines of an answer the token cap cut off", () => {
+    const cut = JSON.stringify({ items: [...two, { about: "us", text: "They never finished this sen" }] }).slice(0, -22);
+    const kept = listFromReply(cut);
+    expect(kept).toHaveLength(2);
+    expect(itemsFromReply(cut)?.items.map((i) => i.text)).toEqual(two.map((x) => x.text));
+  });
+  it("has nothing to read in prose, an empty answer, or JSON that isn't a list of lines", () => {
+    expect(listFromReply("I couldn't find anything worth keeping.")).toBeNull();
+    expect(listFromReply("")).toBeNull();
+    expect(listFromReply('{"note": "no items here"}')).toBeNull();
   });
 });
 

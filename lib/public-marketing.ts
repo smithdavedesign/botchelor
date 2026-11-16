@@ -142,7 +142,6 @@ export async function saveFeed(db: Db, feed: MarketingFeed): Promise<void> {
      on conflict (id) do update set data = excluded.data, updated_at = excluded.updated_at`,
     [JSON.stringify(feed), feed.updated_at],
   );
-  clearMarketingCache();
 }
 
 export async function loadFeed(db: Db): Promise<MarketingFeed | null> {
@@ -230,23 +229,29 @@ export type PublicMarketing = {
   since: string | null;
 };
 
-/** The page reads every visit's first row, so its numbers are kept for ten minutes (a new feed clears them). */
+/**
+ * Every visit's first row is the costly read, so the arrivals are kept for ten minutes. The log itself (one row) is read
+ * every time: a new log shows at once on every server, not only on the one that took it.
+ */
 const CACHE_MS = 10 * 60_000;
-let cached: { at: number; value: PublicMarketing } | null = null;
+let cached: { at: number; arrivals: Arrival[] } | null = null;
 export function clearMarketingCache(): void {
   cached = null;
+}
+async function arrivalsCached(db: Db, now: number): Promise<Arrival[]> {
+  if (cached && now - cached.at < CACHE_MS) return cached.arrivals;
+  const arrivals = await loadArrivals(db);
+  cached = { at: now, arrivals };
+  return arrivals;
 }
 
 /** Everything the page shows. Never throws for a missing feed: the page says the log hasn't arrived yet. */
 export async function publicMarketing(db: Db, now = Date.now()): Promise<PublicMarketing> {
-  if (cached && now - cached.at < CACHE_MS) return cached.value;
-  const value = await buildPublicMarketing(db);
-  cached = { at: now, value };
-  return value;
+  const [feed, arrivals] = await Promise.all([loadFeed(db), arrivalsCached(db, now)]);
+  return buildPublicMarketing(feed, arrivals);
 }
 
-async function buildPublicMarketing(db: Db): Promise<PublicMarketing> {
-  const [feed, arrivals] = await Promise.all([loadFeed(db), loadArrivals(db)]);
+function buildPublicMarketing(feed: MarketingFeed | null, arrivals: Arrival[]): PublicMarketing {
   const posts = feed?.posts ?? [];
   const { byPost, bySource } = creditPosts(posts, arrivals);
   const credited = [...byPost.values()].reduce<Leads>(
