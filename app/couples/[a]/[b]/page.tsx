@@ -194,6 +194,8 @@ export default async function CouplePage({ params, searchParams }: Props) {
           ))}
         </p>
         {view.stage_label && <p className="ending">{view.stage_label}</p>}
+        {/* What on the record made it so (lib/relationship-stages.ts): one quiet line, nothing to press. */}
+        {view.stage_line && <p className="muted small couple-stage-line">{view.stage_line}</p>}
         <p className="muted">
           {view.dates === 1 ? "One date" : `${view.dates} dates`}
           {view.first_at && (
@@ -271,6 +273,8 @@ export default async function CouplePage({ params, searchParams }: Props) {
                     <p className="couple-date-venue">{t.venue}</p>
                     <p className="couple-date-tags">
                       <span className="badge couple-date-ending">{t.ending_label}</span>
+                      {/* Where that date left them, when it moved them somewhere (going steady, broke up, back together). */}
+                      {t.became && <span className="badge couple-date-became">→ {t.became}</span>}
                       {t.second_date_of && <span className="badge">planned together</span>}
                       {t.roleplay && <span className="badge">🎭 {t.roleplay}</span>}
                       {!t.aired && <span className="badge">not aired yet</span>}

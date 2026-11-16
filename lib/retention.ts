@@ -32,7 +32,9 @@ const PRUNE_SQL: Record<PrunedTable, string> = {
   choice_history: `delete from choice_history where at < $1 and kind <> 'ml_consent'`,
   swipe_impressions: `delete from swipe_impressions where at < $1`,
   turn_drafts: `delete from turn_drafts where created_at < $1`,
-  relationship_events: `delete from relationship_events where at < $1`,
+  // A finale's engagement or wedding is where the couple stands, not a log line (lib/relationship-stages.ts reads it):
+  // it stays while the two characters do.
+  relationship_events: `delete from relationship_events where at < $1 and (kind is null or kind not in ('engaged', 'married'))`,
   episode_variations: `delete from episode_variations where created_at < $1`,
   language_seen: `delete from language_seen where day < $1::date`,
   web_events: `delete from web_events where at < $1`,

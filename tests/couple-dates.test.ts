@@ -60,5 +60,7 @@ describe("a couple's dates", () => {
     const photo = venueBackdrop(rows[0].venue);
     if (photo) expect(list).toContain(`src="${photo}"`);
     expect(html).not.toContain("couple-timeline");
+    // Under the stage, one line on what made it so (lib/relationship-stages.ts).
+    expect(html).toContain('<p class="ending">✨ Sparks</p><p class="muted small couple-stage-line">Their last date ended with both wanting another.</p>');
   });
 });

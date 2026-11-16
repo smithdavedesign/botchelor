@@ -32,6 +32,7 @@ import { houseScenesOn, listHouseScenes, scenePath, type Outcome } from "./house
 import { shortName } from "./names";
 import { portraitPathSql } from "./portrait-sql";
 import { producerOn } from "./producer";
+import { isStage, shownStage, stageWords, TOGETHER_STAGES } from "./relationship-stages";
 import { REPORT_HIDE_THRESHOLD } from "./rules";
 import { leadAndSuitors, showCastIds } from "./season-cast";
 import { seasonIdOf } from "./season-window";
@@ -56,11 +57,13 @@ const DELETED_OWNER = "deleted";
 
 /**
  * What a tie is. `date_now` and `date_next`: a public booking. `rivals`, `feuding`, `stories`: the producer's public
- * line, or (feuding) a public confrontation. `cleared`: they had it out and it ended well. `bad_blood`: a public date
- * this week left the pair on bad terms (the public stage); it ranks under the house's own stories, since most weeks
- * hold a dozen of them with one-date strangers.
+ * line, or (feuding) a public confrontation. `cleared`: they had it out and it ended well. `broke_up`: a couple who
+ * were going steady or more split this week (or divorced). `together`: a couple, in the shown stage's own words
+ * (dating, keeping it casual, going steady, official, moved in together, engaged, married, back together).
+ * `bad_blood`: a public date this week left a pair with history on bad terms (the shown stage, lib/relationship-stages.ts:
+ * a single date that didn't click is no tie at all); it ranks under the house's own stories.
  */
-export const TIE_KINDS = ["date_now", "rivals", "feuding", "date_next", "cleared", "together", "second_date", "bad_blood", "stories", "talked"] as const;
+export const TIE_KINDS = ["date_now", "rivals", "feuding", "date_next", "cleared", "broke_up", "together", "second_date", "bad_blood", "stories", "talked"] as const;
 export type TieKind = (typeof TIE_KINDS)[number];
 /** One word or two for the key under the map. */
 export const TIE_KIND_LABELS: Record<TieKind, string> = {
@@ -69,6 +72,7 @@ export const TIE_KIND_LABELS: Record<TieKind, string> = {
   feuding: "Feuding",
   date_next: "Date coming up",
   cleared: "Cleared the air",
+  broke_up: "Broke up",
   together: "Together",
   second_date: "Second date agreed",
   bad_blood: "Bad blood",
@@ -130,6 +134,7 @@ export type RawPerson = { id: string; name: string; hue: number | null; portrait
 export type RawBeat = { day: string; tension: string | null; who: string[] | null; about: string | null; previously: string | null };
 /** A pair's public layer (relationships.public_*). */
 export type RawPair = { a: string; b: string; stage: string | null; dates: number; second_dates: number; last_at: string | Date | null };
+// `stage`: the pair's public stage as it is SHOWN (storyMap resolves it: lib/relationship-stages.ts shownStage).
 /** A room the lobby lists. `public`: the date is public (the read asks for nothing else; the shaper checks it again). */
 export type RawRoom = { id: string; a: string; b: string; starts_at: string | Date | null; created_at: string | Date; public: boolean; ended: boolean };
 /**
@@ -302,9 +307,12 @@ export function shapeStoryMap(f: StoryFacts): StoryMap {
     const [x, y] = byName(p.a, p.b);
     const both = `${nm(x)} and ${nm(y)}`;
     const href = pairPath(x, y);
-    if (p.stage === "going_steady" || p.stage === "dating") {
-      const label = p.stage === "going_steady" ? "going steady" : "dating";
+    if (isStage(p.stage) && TOGETHER_STAGES.includes(p.stage)) {
+      const label = stageWords(p.stage);
       add("together", x, y, null, at, href, { label, text: `${both}: ${label}`, when: `last date ${onDay(at, f.now)}` });
+    } else if (p.stage === "broke_up" || p.stage === "divorced") {
+      const label = p.stage === "divorced" ? "divorced" : "broke up";
+      add("broke_up", x, y, null, at, href, { label, text: `${both}: ${label}`, when: onDay(at, f.now) });
     } else if (p.stage === "sparks") {
       add("second_date", x, y, null, at, href, { label: "second date agreed", text: `${both}: agreed to a second date`, when: onDay(at, f.now) });
     } else if (p.stage === "bad_blood") {
@@ -401,14 +409,14 @@ export async function storyMap(db: Db, now: Date = new Date(), env: Env = proces
       : none<RawBeat>(),
     // The public layer's columns only, as lib/graph.ts reads them.
     db
-      .query<RawPair>(
-        `select r.character_a as a, r.character_b as b, r.public_stage as stage, r.public_dates as dates, r.public_second_dates as second_dates, r.public_last_at as last_at
+      .query<RawPair & { shown: string | null }>(
+        `select r.character_a as a, r.character_b as b, r.public_stage as stage, r.public_shown_stage as shown, r.public_dates as dates, r.public_second_dates as second_dates, r.public_last_at as last_at
            from relationships r
           where r.public_dates > 0 and r.public_last_at >= $2 and (r.character_a = any($1) or r.character_b = any($1))
           order by r.public_last_at desc limit 200`,
         [cast, from.toISOString()],
       )
-      .catch(() => none<RawPair>()),
+      .catch(() => none<RawPair & { shown: string | null }>()),
     // The rooms /watch lists (lib/watch.ts listLobby), cut to public dates with one of the cast on them.
     db
       .query<{ id: string; a: string; b: string; starts_at: string | Date | null; created_at: string | Date }>(
@@ -473,7 +481,7 @@ export async function storyMap(db: Db, now: Date = new Date(), env: Env = proces
         )
       ).rows
     : [];
-  return shapeStoryMap({ now, season_id: season, cast, lead, people, beats: beats.rows, pairs: pairs.rows, rooms: roomRows, scenes });
+  return shapeStoryMap({ now, season_id: season, cast, lead, people, beats: beats.rows, pairs: pairs.rows.map((p) => ({ ...p, stage: shownStage(isStage(p.stage) ? p.stage : null, isStage(p.shown) ? p.shown : null, env, p.dates) })), rooms: roomRows, scenes });
 }
 
 /* ------------------------------------------------ the shared copy ------------------------------------------------ */

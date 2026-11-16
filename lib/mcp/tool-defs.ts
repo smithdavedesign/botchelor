@@ -917,7 +917,8 @@ const RAW_TOOL_DEFS = [
     title: "A character's relationships",
     description:
       "The relationship graph: who a character has dated and where each pairing stands (just met, sparks, dating, going steady, friends, exes, " +
-      "bad blood), how close they are (tie strength, 0..1: how often, how recently, how warm, how mutual), every date between them, their " +
+      "bad blood; and, derived the same way from how their dates ended, didn't click, keeping it casual, official, moved in together, engaged, " +
+      "married, broke up, back together, divorced: `stage_line` says what made it so), how close they are (tie strength, 0..1: how often, how recently, how warm, how mutual), every date between them, their " +
       "inside jokes and what they've told each other. Pass `with` for one couple. Public dates for anyone; if you own one of the two, also " +
       "your own private dates, the plans they made in their morning-after texts, and their latest texts as one thread (`texts`: the " +
       "morning after each date, then their texts between dates; the whole thread is on the couple page's phone).",

@@ -10,15 +10,15 @@ import { pairCharacterFollowers } from "./character-follows";
 import { followerIds } from "./follows";
 import { notifyAll, ownersOf } from "./notifications";
 import { overnightAired } from "./overnight";
-import { pairKey, refreshRelationship, STAGE_LABELS, viewRelationship, type Stage } from "./relationships";
+import { justSplit, STAGE_NEWS, steppedUp as movedUp } from "./relationship-stages";
+import { pairKey, refreshRelationship, STAGE_LABELS, storedStages, viewRelationship } from "./relationships";
 import { endingLabel } from "./rules";
-
-/** How far along a romance a stage is; friends, exes and bad blood aren't a step up. */
-const RANK: Partial<Record<Stage, number>> = { just_met: 1, sparks: 2, dating: 3, going_steady: 4 };
 
 /**
  * Refreshes a pair's edge after one of their dates airs, then tells people about it:
- *  - a move up a stage ("Mira & Rafe: 💞 Dating") to the characters' owners and the couple's followers;
+ *  - a move up a stage ("Mira & Rafe: 💞 Dating"; how far along each stage is: lib/relationship-stages.ts STAGE_RANK) to
+ *    the characters' owners and the couple's followers, and the one piece of bad news, a couple who were going steady
+ *    or more splitting ("💔 Broke up"); a date that didn't click, exes and bad blood are never announced;
  *  - otherwise, a new public date to its followers ("Mira & Rafe went on another date");
  *  - the same two notices to whoever follows either character (lib/character-follows.ts), once a person, when both
  *    characters are public: the pair's first public date reads "went on a date";
@@ -28,10 +28,11 @@ const RANK: Partial<Record<Stage, number>> = { just_met: 1, sparks: 2, dating: 3
  */
 export async function refreshAndAnnounce(db: Db, x: string, y: string, opts: { episodeId?: string; quiet?: readonly string[] } = {}): Promise<Set<string>> {
   const [lo, hi] = pairKey(x, y);
-  const prior = (await db.query<{ public_stage: Stage | null; stage: Stage | null }>(`select public_stage, stage from relationships where character_a = $1 and character_b = $2`, [lo, hi])).rows[0];
-  const before = prior?.public_stage ?? null;
+  // The stage as it is shown (the base stage with RELATIONSHIP_STAGES_V2=0). A row the backfill hasn't reached reads as
+  // its own dates say, so the new rules alone never announce anything: only what this date changed.
+  const before = (await storedStages(db, lo, hi)).public_shown;
   const rel = await refreshRelationship(db, lo, hi);
-  const after = rel?.public.stage ?? null;
+  const after = rel?.public.shown ?? null;
   const names = new Map(
     (await db.query<{ id: string; name: string }>(`select id, name from characters where id = any($1)`, [[lo, hi]])).rows.map((r) => [r.id, shortName(r.name)]),
   );
@@ -39,10 +40,10 @@ export async function refreshAndAnnounce(db: Db, x: string, y: string, opts: { e
   const [owners, coupleFollowers, fans] = await Promise.all([ownersOf(db, [lo, hi]), followerIds(db, lo, hi), pairCharacterFollowers(db, lo, hi).catch(() => [] as string[])]);
   // The couple's followers and either character's: each person hears once (notifyAll sends to each id once).
   const followers = [...new Set([...coupleFollowers, ...fans])];
-  const steppedUp = after !== null && (RANK[after] ?? 0) >= 2 && (RANK[after] ?? 0) > (RANK[before ?? "bad_blood"] ?? 0);
+  const steppedUp = movedUp(before, after) || justSplit(before, after);
   const told = new Set<string>();
   if (steppedUp) {
-    const body = after === "sparks" ? "Their first date ended in a second date." : after === "dating" ? "Two second dates in a row: they're dating." : "They've become a fixture.";
+    const body = STAGE_NEWS[after!] ?? "They've become a fixture.";
     const notice = { kind: "stage_up" as const, title: `${couple}: ${STAGE_LABELS[after!]}`, body, link: `/couples/${lo}/${hi}` };
     // #1033: the step up is the public record's (aired, public dates), but an owner's get_relationships counts every date
     // they can see (unaired, unlisted, their private ones), so it could say Friends beside a Sparks notice. An owner

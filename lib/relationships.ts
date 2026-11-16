@@ -26,6 +26,25 @@ import { contentWords, tokens } from "./quality";
 import { ENDING_LABELS, endingLabel, REPORT_HIDE_THRESHOLD, type Ending } from "./rules";
 import { checkFields } from "./safety";
 import { venueFor } from "./places";
+import { overnightDatesOn } from "./overnight-shared";
+import {
+  isStage,
+  shownStageOf,
+  STAGE_LABELS,
+  STAGE_LINES,
+  stageName,
+  stageOf,
+  stagesV2On,
+  stageSteps,
+  type BaseStage,
+  type Stage,
+  type StageDate,
+  type StageMarks,
+} from "./relationship-stages";
+
+export { STAGE_LABELS, stageOf, type BaseStage, type Stage, type StageMarks };
+
+type Env = Record<string, string | undefined>;
 import { venue as venueOf, type PlaceId, type VenueId } from "./venues";
 
 /** The canonical (sorted) key for a pair: one unordered pair is one edge. */
@@ -64,6 +83,8 @@ export type HistoryItem = {
   met_via?: MetVia;
   /** The roleplay they played that night (its title; lib/date-roleplays.ts): its lines were in character, never facts. */
   roleplay?: string;
+  /** An overnight date (setup.overnight, lib/overnight.ts): one that ended in another date is the pair's overnight milestone. */
+  overnight?: true;
 };
 
 /** Something one of them said about themselves on a date. `about` is the end that said it. */
@@ -75,15 +96,10 @@ export type Plan = { text: string; by: End; episode_id: string; status: "open" |
 /** A text between dates (couple_texts), as the graph reads it: which end sent it, and when. */
 export type RelText = { who: End; text: string; at: string };
 
-export type Stage = "just_met" | "sparks" | "dating" | "going_steady" | "friends" | "exes" | "bad_blood";
-export const STAGE_LABELS: Record<Stage, string> = {
-  just_met: "👋 Just met",
-  sparks: "✨ Sparks",
-  dating: "💞 Dating",
-  going_steady: "💍 Going steady",
-  friends: "🤝 Friends",
-  exes: "💔 Exes",
-  bad_blood: "🔥 Bad blood",
+/** The dates of one layer as the shown stage reads them (lib/relationship-stages.ts): when each aired, and the overnight ones. */
+export const stageDates = (items: readonly Pick<HistoryItem, "ending" | "at" | "aired_at" | "overnight">[], env: Env = process.env): StageDate[] => {
+  const nights = overnightDatesOn(env);
+  return items.map((h) => ({ ending: h.ending, at: h.aired_at ?? h.at, ...(h.overnight && nights ? { overnight: true } : {}) }));
 };
 
 /** The numbers an edge is ranked and shown by, for one layer of its history. */
@@ -98,7 +114,10 @@ export type Summary = {
   /** Running chemistry and trust across their dates (the latest weighs most), 0..100; null before any. */
   chemistry: number | null;
   trust: number | null;
-  stage: Stage | null;
+  /** The BASE stage, from the endings alone: the one every rule reads (suggestions, one partner, arcs, overnight). */
+  stage: BaseStage | null;
+  /** The stage as it is SHOWN and told (lib/relationship-stages.ts): the base stage when RELATIONSHIP_STAGES_V2=0. */
+  shown: Stage | null;
   /** 0..1, as of `last_at` (recency is applied again at read time by `tieNow`). */
   tie: number;
 };
@@ -112,6 +131,8 @@ export type Relationship = {
   facts: Fact[];
   jokes: Joke[];
   plans: Plan[];
+  /** What happened to them besides their dates, on the public record: a finale's engagement or wedding, a feud in the house. */
+  marks: StageMarks;
 };
 
 /* ------------------------------------------------- the pure core ------------------------------------------------- */
@@ -139,6 +160,8 @@ export type RelEpisode = {
   met_via?: MetVia | null;
   /** The title of the roleplay the date played (setup.roleplay), or null. */
   roleplay?: string | null;
+  /** setup.overnight: an overnight date (lib/overnight.ts). */
+  overnight?: boolean | null;
 };
 
 const iso = (d: string | Date | null): string | null => (d === null ? null : new Date(d).toISOString());
@@ -155,20 +178,6 @@ export const PLANS_KEPT = 6;
 export const HISTORY_KEPT = 30;
 
 /**
- * Where a pair stands, from its endings (oldest first). Second dates in a row climb sparks → dating → going steady;
- * a friendly ending is friends; a disaster after something real is exes, and before it bad blood.
- */
-export function stageOf(endings: Ending[]): Stage | null {
-  if (!endings.length) return null;
-  const last = endings[endings.length - 1];
-  let streak = 0;
-  for (let i = endings.length - 1; i >= 0 && endings[i] === "second_date"; i--) streak++;
-  if (last === "second_date") return streak >= 4 ? "going_steady" : streak >= 2 ? "dating" : "sparks";
-  if (last === "friends") return endings.length === 1 ? "just_met" : "friends";
-  return endings.includes("second_date") ? "exes" : "bad_blood";
-}
-
-/**
  * Tie strength, 0..1: frequency (how often they've met), recency (halving every TIE_HALF_LIFE_DAYS), intensity (the
  * running chemistry) and reciprocity (how often it was mutual; second dates stand in for it on the public layer).
  */
@@ -182,8 +191,8 @@ export function tieStrength(s: Pick<Summary, "dates" | "second_dates" | "mutual_
   return round(clamp(0.3 * frequency + 0.25 * recency + 0.25 * intensity + 0.2 * reciprocity, 0, 1), 3);
 }
 
-/** The summary of one layer of a pair's history (oldest first). */
-export function summarize(items: HistoryItem[], publicLayer: boolean): Summary {
+/** The summary of one layer of a pair's history (oldest first). `marks`: the pair's finale marks and feud, for the shown stage. */
+export function summarize(items: HistoryItem[], publicLayer: boolean, marks: StageMarks = {}, env: Env = process.env): Summary {
   let chemistry: number | null = null;
   let trust: number | null = null;
   for (const it of items) {
@@ -201,6 +210,7 @@ export function summarize(items: HistoryItem[], publicLayer: boolean): Summary {
     chemistry: chemistry === null ? null : round(chemistry),
     trust: trust === null ? null : round(trust),
     stage: stageOf(items.map((i) => i.ending)),
+    shown: shownStageOf(stageDates(items, env), marks, env),
     tie: 0,
   };
   s.tie = s.last_at ? tieStrength(s, new Date(s.last_at), publicLayer) : 0;
@@ -369,7 +379,15 @@ function settlePlans(plans: Plan[], dates: { id: string; transcript: Turn[] }[])
  * dates (and texts) always give the same edge. `names` (lo, hi) keep the characters' own names out of the inside
  * jokes. `texts` are their texts between dates (couple_texts): a plan they make by text counts for the date before it.
  */
-export function computeRelationship(lo: string, hi: string, eps: RelEpisode[], names: [string, string] = ["", ""], texts: RelText[] = []): Relationship {
+export function computeRelationship(
+  lo: string,
+  hi: string,
+  eps: RelEpisode[],
+  names: [string, string] = ["", ""],
+  texts: RelText[] = [],
+  marks: StageMarks = {},
+  env: Env = process.env,
+): Relationship {
   const sorted = [...eps].sort((x, y) => new Date(x.created_at).getTime() - new Date(y.created_at).getTime() || x.id.localeCompare(y.id));
   const history: HistoryItem[] = sorted.map((e) => {
     const loIsA = e.character_a === lo;
@@ -392,6 +410,7 @@ export function computeRelationship(lo: string, hi: string, eps: RelEpisode[], n
       ...(e.date_number != null ? { date_number: e.date_number } : {}),
       ...(e.met_via ? { met_via: e.met_via } : {}),
       ...(e.roleplay ? { roleplay: e.roleplay } : {}),
+      ...(e.overnight ? { overnight: true as const } : {}),
     };
   });
   const endOf = (e: RelEpisode) => (side: "a" | "b"): End => ((side === "a") === (e.character_a === lo) ? "lo" : "hi");
@@ -415,12 +434,13 @@ export function computeRelationship(lo: string, hi: string, eps: RelEpisode[], n
   return {
     lo,
     hi,
-    all: summarize(history, false),
-    public: summarize(history.filter((h) => h.public), true),
+    all: summarize(history, false, marks, env),
+    public: summarize(history.filter((h) => h.public), true, marks, env),
     history: history.slice(-HISTORY_KEPT),
     facts: keptFacts,
     jokes: findJokes(dates, names),
     plans,
+    marks,
   };
 }
 
@@ -430,19 +450,102 @@ const REL_EPISODES = `
   select e.id, e.created_at, e.revealed_at, e.visibility, e.creator_id, e.partner_performer, e.character_a, e.character_b, e.ending,
          e.sides, e.box_score, e.transcript, e.afterglow, e.setup->>'venue' as venue, e.followup_of,
          (e.setup->>'date_number')::int as date_number, e.setup->>'met_via' as met_via, e.setup->'roleplay'->>'title' as roleplay,
+         (e.setup->>'overnight') = 'true' as overnight,
          (select count(*)::int from reports r where r.episode_id = e.id) >= $3 as hidden
     from episodes e
    where e.status = 'ready' and e.varies_episode_id is null
      and ((e.character_a = $1 and e.character_b = $2) or (e.character_a = $2 and e.character_b = $1))`;
 
+/** A pair's stored stages, as read before a refresh: the base ones, the shown ones, and (only when a shown one is missing) its dates. */
+type StoredStages = {
+  stage: BaseStage | null;
+  public_stage: BaseStage | null;
+  shown_stage: Stage | null;
+  public_shown_stage: Stage | null;
+  history: HistoryItem[] | null;
+};
+const STORED_STAGES = `select stage, public_stage, shown_stage, public_shown_stage,
+         case when shown_stage is null or public_shown_stage is null then detail->'history' end as history
+    from relationships where character_a = $1 and character_b = $2`;
+
+/**
+ * The stage a stored row shows on one layer. A row from before the shown stage was stored (or refreshed while the
+ * switch was off) says what its own dates say, so the first refresh after it logs and announces only what a new date
+ * changed, never the new rules themselves.
+ */
+function shownBefore(row: StoredStages | undefined, layer: "all" | "public", marks: StageMarks, env: Env): Stage | null {
+  if (!row) return null;
+  const base = layer === "all" ? row.stage : row.public_stage;
+  if (!stagesV2On(env)) return base;
+  const stored = layer === "all" ? row.shown_stage : row.public_shown_stage;
+  if (stored && isStage(stored)) return stored;
+  if (!base) return null;
+  const items = (row.history ?? []).filter((h) => layer === "all" || h.public);
+  return items.length ? shownStageOf(stageDates(items, env), marks, env) : base;
+}
+
+/** Where a pair stands in the stored row right now, both readings on both layers (lib/relationship-events.ts reads it before an airing). */
+export async function storedStages(
+  db: Db,
+  x: string,
+  y: string,
+  env: Env = process.env,
+): Promise<{ stage: BaseStage | null; public_stage: BaseStage | null; shown: Stage | null; public_shown: Stage | null }> {
+  const [lo, hi] = pairKey(x, y);
+  const [row, marks] = await Promise.all([db.query<StoredStages>(STORED_STAGES, [lo, hi]).then((q) => q.rows[0]), loadStageMarks(db, [[lo, hi]], env).then((m) => m.get(`${lo}|${hi}`) ?? {})]);
+  return { stage: row?.stage ?? null, public_stage: row?.public_stage ?? null, shown: shownBefore(row, "all", marks, env), public_shown: shownBefore(row, "public", marks, env) };
+}
+
+/**
+ * What happened to each pair besides their dates (lib/relationship-stages.ts StageMarks), from the public record: a
+ * finale's engagement or wedding (relationship_events), and whether their latest confrontation that /house still
+ * shows (a model's or a template's scene with lines left) did not clear the air. Keyed "lo|hi". Nothing is read when
+ * the switch is off.
+ */
+export async function loadStageMarks(db: Db, pairs: readonly (readonly [string, string])[], env: Env = process.env): Promise<Map<string, StageMarks>> {
+  const out = new Map<string, StageMarks>();
+  if (!stagesV2On(env) || !pairs.length) return out;
+  const los = pairs.map((p) => p[0]);
+  const his = pairs.map((p) => p[1]);
+  const feuds = env.HOUSE_SCENES?.trim() !== "0" && env.CONFRONTATIONS?.trim() !== "0";
+  const [finale, scenes] = await Promise.all([
+    db
+      .query<{ lo: string; hi: string; kind: "engaged" | "married"; at: string | Date }>(
+        `select character_a as lo, character_b as hi, kind, max(at) as at from relationship_events
+          where kind in ('engaged', 'married') and layer = 'public' and (character_a, character_b) in (select * from unnest($1::text[], $2::text[]))
+          group by character_a, character_b, kind`,
+        [los, his],
+      )
+      .catch(() => ({ rows: [] })),
+    feuds
+      ? db
+          .query<{ lo: string; hi: string; outcome: string | null }>(
+            `select distinct on (lo, hi) lo, hi, outcome from (
+               select least(s.result->>'a', s.result->>'b') as lo, greatest(s.result->>'a', s.result->>'b') as hi, s.result->>'outcome' as outcome, s.day, s.created_at
+                 from house_scenes s
+                where s.kind = 'confrontation' and s.source in ('model', 'template') and jsonb_array_length(s.lines) > 0 and s.result is not null
+             ) c
+              where (lo, hi) in (select * from unnest($1::text[], $2::text[]))
+              order by lo, hi, day desc, created_at desc`,
+            [los, his],
+          )
+          .catch(() => ({ rows: [] }))
+      : { rows: [] as { lo: string; hi: string; outcome: string | null }[] },
+  ]);
+  const at = (key: string) => out.get(key) ?? out.set(key, {}).get(key)!;
+  for (const r of finale.rows) at(`${r.lo}|${r.hi}`)[r.kind === "engaged" ? "engaged_at" : "married_at"] = new Date(r.at).toISOString();
+  for (const r of scenes.rows) if (r.outcome && r.outcome !== "cleared_the_air") at(`${r.lo}|${r.hi}`).feud = true;
+  return out;
+}
+
 /**
  * Recomputes and stores one pair's edge from its dates; deletes it when no date between them is left. Idempotent.
  * Call it whenever a date between them is stored, airs, changes visibility or is removed.
  */
-export async function refreshRelationship(db: Db, x: string, y: string): Promise<Relationship | null> {
+export async function refreshRelationship(db: Db, x: string, y: string, env: Env = process.env): Promise<Relationship | null> {
   if (x === y) return null;
   const [lo, hi] = pairKey(x, y);
-  const [{ rows }, nameRows, textRows, beforeRows] = await Promise.all([
+  const [{ rows }, nameRows, textRows, beforeRows, allMarks] = await Promise.all([
     db.query<RelEpisode>(REL_EPISODES, [lo, hi, REPORT_HIDE_THRESHOLD]),
     db.query<{ id: string; name: string }>(`select id, name from characters where id = any($1)`, [[lo, hi]]),
     // Their texts between dates, for the plans: only the start of each (a plan is at most PLAN_MAX characters), newest 2000.
@@ -451,65 +554,140 @@ export async function refreshRelationship(db: Db, x: string, y: string): Promise
       [lo, hi],
     ),
     // The stages before this refresh, so a change is appended to the pair's timeline (relationship_events).
-    db.query<{ stage: Stage | null; public_stage: Stage | null }>(`select stage, public_stage from relationships where character_a = $1 and character_b = $2`, [lo, hi]),
+    db.query<StoredStages>(STORED_STAGES, [lo, hi]),
+    loadStageMarks(db, [[lo, hi]], env),
   ]);
-  const before = beforeRows.rows[0] ?? { stage: null, public_stage: null };
+  const marks = allMarks.get(`${lo}|${hi}`) ?? {};
+  const prior = beforeRows.rows[0];
+  const before = { stage: prior?.stage ?? null, public_stage: prior?.public_stage ?? null, shown: shownBefore(prior, "all", marks, env), public_shown: shownBefore(prior, "public", marks, env) };
   if (!rows.length) {
     await db.query(`delete from relationships where character_a = $1 and character_b = $2`, [lo, hi]);
-    await logStageEvents(db, lo, hi, before, { stage: null, public_stage: null }, { all: null, public: null });
+    await logStageEvents(db, lo, hi, before, { stage: null, public_stage: null, shown: null, public_shown: null }, { all: null, public: null }, env);
     return null;
   }
   const name = (id: string) => nameRows.rows.find((r) => r.id === id)?.name ?? "";
   const texts = textRows.rows.map((t) => ({ who: t.who, text: t.text, at: new Date(t.created_at).toISOString() }));
-  const rel = computeRelationship(lo, hi, rows, [name(lo), name(hi)], texts);
+  const rel = computeRelationship(lo, hi, rows, [name(lo), name(hi)], texts, marks, env);
   const a = rel.all;
   const p = rel.public;
+  // Off, the shown columns are emptied: nothing reads them, and the hourly backfill fills them again when it is back on.
+  const on = stagesV2On(env);
   await db.query(
     `insert into relationships
        (character_a, character_b, dates, second_dates, last_ending, mutual_yes, chemistry, trust, stage, tie_strength, first_at, last_at,
-        public_dates, public_second_dates, public_last_ending, public_stage, public_tie, public_last_at, detail, computed_at, updated_at)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19::jsonb, now(), now())
+        public_dates, public_second_dates, public_last_ending, public_stage, public_tie, public_last_at, detail, shown_stage, public_shown_stage,
+        computed_at, updated_at)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19::jsonb, $20, $21, now(), now())
      on conflict (character_a, character_b) do update set
        dates = excluded.dates, second_dates = excluded.second_dates, last_ending = excluded.last_ending,
        mutual_yes = excluded.mutual_yes, chemistry = excluded.chemistry, trust = excluded.trust, stage = excluded.stage,
        tie_strength = excluded.tie_strength, first_at = excluded.first_at, last_at = excluded.last_at,
        public_dates = excluded.public_dates, public_second_dates = excluded.public_second_dates,
        public_last_ending = excluded.public_last_ending, public_stage = excluded.public_stage, public_tie = excluded.public_tie,
-       public_last_at = excluded.public_last_at, detail = excluded.detail, computed_at = now(), updated_at = now()`,
+       public_last_at = excluded.public_last_at, detail = excluded.detail, shown_stage = excluded.shown_stage,
+       public_shown_stage = excluded.public_shown_stage, computed_at = now(), updated_at = now()`,
     [
       lo, hi, a.dates, a.second_dates, a.last_ending, a.mutual_yes, a.chemistry, a.trust, a.stage, a.tie, a.first_at, a.last_at,
       p.dates, p.second_dates, p.last_ending, p.stage, p.tie, p.last_at,
-      JSON.stringify({ history: rel.history, facts: rel.facts, jokes: rel.jokes, plans: rel.plans }),
+      JSON.stringify({ history: rel.history, facts: rel.facts, jokes: rel.jokes, plans: rel.plans, ...(Object.keys(marks).length ? { marks } : {}) }),
+      on ? a.shown : null, on ? p.shown : null,
     ],
   );
   const newest = rel.history[rel.history.length - 1]?.episode_id ?? null;
   const newestPublic = [...rel.history].reverse().find((h) => h.public)?.episode_id ?? null;
-  await logStageEvents(db, lo, hi, before, { stage: a.stage, public_stage: p.stage }, { all: newest, public: newestPublic });
+  await logStageEvents(db, lo, hi, before, { stage: a.stage, public_stage: p.stage, shown: a.shown, public_shown: p.shown }, { all: newest, public: newestPublic }, env);
   return rel;
 }
 
+type LayerStages = { stage: BaseStage | null; public_stage: BaseStage | null; shown: Stage | null; public_shown: Stage | null };
+
 /**
  * The pair's timeline (relationship_events): one row per layer whose stage changed in this refresh — first met,
- * became exes, rekindled — so a stage is a history, not just its latest value. Best effort: a failed append never
- * breaks a refresh. The 'all' layer can reflect private dates, so like the edge's own all-dates columns it's for owners
- * and the engine, never a public page.
+ * became exes, rekindled — so a stage is a history, not just its latest value. A row keeps both readings: the base
+ * stage (from_stage, to_stage, as always) and the shown one (from_shown, to_shown; null with the switch off), and is
+ * written when either moved, so a reader of either skips the rows where its own didn't. Best effort: a failed append
+ * never breaks a refresh. The 'all' layer can reflect private dates, so like the edge's own all-dates columns it's for
+ * owners and the engine, never a public page.
  */
-async function logStageEvents(
-  db: Db,
-  lo: string,
-  hi: string,
-  before: { stage: Stage | null; public_stage: Stage | null },
-  after: { stage: Stage | null; public_stage: Stage | null },
-  episodes: { all: string | null; public: string | null },
-): Promise<void> {
-  const changes: [layer: "all" | "public", from: Stage | null, to: Stage | null, episode: string | null][] = [];
-  if (before.stage !== after.stage) changes.push(["all", before.stage, after.stage, episodes.all]);
-  if (before.public_stage !== after.public_stage) changes.push(["public", before.public_stage, after.public_stage, episodes.public]);
-  for (const [layer, from, to, episode] of changes) {
+async function logStageEvents(db: Db, lo: string, hi: string, before: LayerStages, after: LayerStages, episodes: { all: string | null; public: string | null }, env: Env): Promise<void> {
+  const on = stagesV2On(env);
+  const layers = [
+    { layer: "all", from: before.stage, to: after.stage, fromShown: before.shown, toShown: after.shown, episode: episodes.all },
+    { layer: "public", from: before.public_stage, to: after.public_stage, fromShown: before.public_shown, toShown: after.public_shown, episode: episodes.public },
+  ] as const;
+  for (const c of layers) {
+    if (c.from === c.to && (!on || c.fromShown === c.toShown)) continue;
     await db
-      .query(`insert into relationship_events (character_a, character_b, layer, from_stage, to_stage, episode_id) values ($1, $2, $3, $4, $5, $6)`, [lo, hi, layer, from, to, episode])
+      .query(`insert into relationship_events (character_a, character_b, layer, from_stage, to_stage, from_shown, to_shown, episode_id) values ($1, $2, $3, $4, $5, $6, $7, $8)`, [
+        lo, hi, c.layer, c.from, c.to, on ? c.fromShown : null, on ? c.toShown : null, c.episode,
+      ])
       .catch(() => {});
   }
+}
+
+/**
+ * The stage a relationship_events row moved from and to, as SQL over alias `r`: the shown reading when the switch is
+ * on (a row from before it, or written while it was off, has only the base one), else the base one. A reader adds
+ * `${from} is distinct from ${to}`: a row where only the other reading moved is not its news.
+ */
+export const eventStageSql = (alias: string, env: Env = process.env): { from: string; to: string } =>
+  stagesV2On(env)
+    ? { from: `coalesce(${alias}.from_shown, ${alias}.from_stage)`, to: `coalesce(${alias}.to_shown, ${alias}.to_stage)` }
+    : { from: `${alias}.from_stage`, to: `${alias}.to_stage` };
+
+/**
+ * The backfill: fills the shown stage of rows that have none (every row when this ships; rows refreshed while the
+ * switch was off), from the pairs' own dates under the same rules as a refresh. Stage columns only: no event row, no
+ * notice, nothing else of the edge recomputed, and nothing a date or a finale didn't give (an engagement is a finale's
+ * row, and there are none to find). Idempotent, `limit` pairs a call; the hourly job calls it until none are left.
+ */
+export async function backfillShownStages(db: Db, opts: { limit?: number; env?: Env } = {}): Promise<number> {
+  const env = opts.env ?? process.env;
+  if (!stagesV2On(env)) return 0;
+  const { rows: pairs } = await db.query<{ lo: string; hi: string; stage: BaseStage | null; public_stage: BaseStage | null; dates: number; public_dates: number }>(
+    `select character_a as lo, character_b as hi, stage, public_stage, dates, public_dates from relationships
+      where (stage is not null and shown_stage is null) or (public_stage is not null and public_shown_stage is null)
+      order by character_a, character_b limit $1`,
+    [opts.limit ?? 2000],
+  );
+  if (!pairs.length) return 0;
+  const los = pairs.map((p) => p.lo);
+  const his = pairs.map((p) => p.hi);
+  const [eps, marks] = await Promise.all([
+    db.query<{ lo: string; hi: string; id: string; created_at: string | Date; revealed_at: string | Date | null; visibility: string; ending: Ending; overnight: boolean | null; hidden: boolean }>(
+      `select least(e.character_a, e.character_b) as lo, greatest(e.character_a, e.character_b) as hi, e.id, e.created_at, e.revealed_at, e.visibility, e.ending,
+              (e.setup->>'overnight') = 'true' as overnight,
+              (select count(*)::int from reports r where r.episode_id = e.id) >= $3 as hidden
+         from episodes e
+        where e.status = 'ready' and e.varies_episode_id is null and e.ending is not null
+          and (least(e.character_a, e.character_b), greatest(e.character_a, e.character_b)) in (select * from unnest($1::text[], $2::text[]))`,
+      [los, his, REPORT_HIDE_THRESHOLD],
+    ),
+    loadStageMarks(db, pairs.map((p) => [p.lo, p.hi] as const), env),
+  ]);
+  const byPair = new Map<string, typeof eps.rows>();
+  for (const e of eps.rows) byPair.set(`${e.lo}|${e.hi}`, [...(byPair.get(`${e.lo}|${e.hi}`) ?? []), e]);
+  const shown: (string | null)[] = [];
+  const publicShown: (string | null)[] = [];
+  for (const p of pairs) {
+    const key = `${p.lo}|${p.hi}`;
+    const items = (byPair.get(key) ?? [])
+      .sort((x, y) => new Date(x.created_at).getTime() - new Date(y.created_at).getTime() || x.id.localeCompare(y.id))
+      .map((e) => ({ ending: e.ending, at: iso(e.created_at)!, aired_at: iso(e.revealed_at), ...(e.overnight ? { overnight: true as const } : {}), public: e.revealed_at !== null && e.visibility === "public" && !e.hidden }));
+    const m = marks.get(key) ?? {};
+    // A stale row (its dates are gone, or no longer public, and nothing refreshed it) is read from what it stores: its
+    // base stage, and one date that ended badly "didn't click". Never left empty, to be picked up again and again.
+    const stale = (stage: BaseStage | null, count: number): Stage | null => (stage === "bad_blood" && count === 1 ? "didnt_click" : stage);
+    shown.push(shownStageOf(stageDates(items, env), m, env) ?? stale(p.stage, p.dates));
+    publicShown.push(shownStageOf(stageDates(items.filter((i) => i.public), env), m, env) ?? stale(p.public_stage, p.public_dates));
+  }
+  await db.query(
+    `update relationships r set shown_stage = coalesce(r.shown_stage, v.shown), public_shown_stage = coalesce(r.public_shown_stage, v.public_shown)
+       from (select * from unnest($1::text[], $2::text[], $3::text[], $4::text[]) as t(lo, hi, shown, public_shown)) v
+      where r.character_a = v.lo and r.character_b = v.hi`,
+    [los, his, shown, publicShown],
+  );
+  return pairs.length;
 }
 
 /** Refreshes the edge of the pair in one date (after it airs, changes visibility, or is reported or moderated). */
@@ -527,43 +705,51 @@ type RelRow = {
   mutual_yes: number;
   chemistry: number | null;
   trust: number | null;
-  stage: Stage | null;
+  stage: BaseStage | null;
   tie_strength: number;
   first_at: Date | string | null;
   last_at: Date | string | null;
   public_dates: number;
   public_second_dates: number;
   public_last_ending: Ending | null;
-  public_stage: Stage | null;
+  public_stage: BaseStage | null;
   public_tie: number;
   public_last_at: Date | string | null;
-  detail: { history: HistoryItem[]; facts: Fact[]; jokes: Joke[]; plans: Plan[] } | null;
+  detail: { history: HistoryItem[]; facts: Fact[]; jokes: Joke[]; plans: Plan[]; marks?: StageMarks } | null;
   computed_at: Date | string | null;
+  shown_stage: Stage | null;
+  public_shown_stage: Stage | null;
 };
 
-function fromRow(r: RelRow): Relationship {
+function fromRow(r: RelRow, env: Env = process.env): Relationship {
   const d = r.detail ?? { history: [], facts: [], jokes: [], plans: [] };
+  const marks = d.marks ?? {};
+  // The stored shown stage, or (a row the backfill hasn't reached) what its own dates say.
+  const shown = (layer: "all" | "public") =>
+    shownBefore({ stage: r.stage, public_stage: r.public_stage, shown_stage: r.shown_stage, public_shown_stage: r.public_shown_stage, history: d.history }, layer, marks, env);
   return {
     lo: r.character_a,
     hi: r.character_b,
     all: {
       dates: r.dates, second_dates: r.second_dates, mutual_yes: r.mutual_yes, last_ending: r.last_ending,
-      first_at: iso(r.first_at), last_at: iso(r.last_at), chemistry: r.chemistry, trust: r.trust, stage: r.stage, tie: r.tie_strength,
+      first_at: iso(r.first_at), last_at: iso(r.last_at), chemistry: r.chemistry, trust: r.trust, stage: r.stage, shown: shown("all"), tie: r.tie_strength,
     },
     public: {
       dates: r.public_dates, second_dates: r.public_second_dates, mutual_yes: 0, last_ending: r.public_last_ending,
       first_at: d.history.find((h) => h.public)?.at ?? null, last_at: iso(r.public_last_at), chemistry: summarize(d.history.filter((h) => h.public), true).chemistry,
-      trust: summarize(d.history.filter((h) => h.public), true).trust, stage: r.public_stage, tie: r.public_tie,
+      trust: summarize(d.history.filter((h) => h.public), true).trust, stage: r.public_stage, shown: shown("public"), tie: r.public_tie,
     },
     history: d.history,
     facts: d.facts,
     jokes: d.jokes,
     plans: d.plans,
+    marks,
   };
 }
 
 const REL_COLUMNS = `character_a, character_b, dates, second_dates, last_ending, mutual_yes, chemistry, trust, stage, tie_strength, first_at,
-  last_at, public_dates, public_second_dates, public_last_ending, public_stage, public_tie, public_last_at, detail, computed_at`;
+  last_at, public_dates, public_second_dates, public_last_ending, public_stage, public_tie, public_last_at, detail, computed_at,
+  shown_stage, public_shown_stage`;
 
 /** One pair's edge, or null when they've never dated. Rows from before the graph was derived heal on first read. */
 export async function loadRelationship(db: Db, x: string, y: string): Promise<Relationship | null> {
@@ -591,7 +777,7 @@ export async function relationshipsOf(db: Db, characterId: string): Promise<Rela
     `select ${REL_COLUMNS} from relationships where $1 in (character_a, character_b) order by tie_strength desc, last_at desc nulls last`,
     [characterId],
   );
-  return rows.map(fromRow);
+  return rows.map((r) => fromRow(r));
 }
 
 /* ----------------------------------------------------- layers ----------------------------------------------------- */
@@ -616,8 +802,11 @@ export const usableFor = (h: Pick<HistoryItem, "public" | "creator" | "performer
   h.public || h.creator === creatorId || (h.performer !== undefined && h.performer === creatorId);
 
 export type RelationshipView = {
+  /** The stage as it is shown (lib/relationship-stages.ts): one of the base seven with RELATIONSHIP_STAGES_V2=0. A rule reads the endings, never this. */
   stage: Stage | null;
   stage_label: string | null;
+  /** One line on what made it so ("Six dates in a row have ended in another: they're official."); null with the switch off. */
+  stage_line: string | null;
   dates: number;
   /** Dates that ended in a second date (the engine's ending). */
   second_dates: number;
@@ -628,7 +817,7 @@ export type RelationshipView = {
   tie: number;
   chemistry: number | null;
   trust: number | null;
-  timeline: { episode_id: string; at: string; ending: Ending; ending_label: string; led_to?: string; venue: string; aired: boolean; second_date_of: string | null; date_number: number | null; roleplay: string | null }[];
+  timeline: { episode_id: string; at: string; ending: Ending; ending_label: string; led_to?: string; venue: string; aired: boolean; second_date_of: string | null; date_number: number | null; roleplay: string | null; became?: string }[];
   jokes: string[];
   /** What each has told the other, by character id. */
   told: Record<string, string[]>;
@@ -665,21 +854,35 @@ export const outcomeText = (label: string): string => {
   return next ? `wants ${next}` : label;
 };
 
+/** Stages a date's own ending already says: the timeline adds no word for them. */
+const QUIET_STEPS: ReadonlySet<Stage> = new Set(["just_met", "sparks", "friends"]);
+
+/**
+ * The shown stage of what a viewer sees of an edge, counting only dates that have aired (an owner's view also counts
+ * unaired ones: get_relationships says which is which).
+ */
+export function airedStage(rel: Relationship, v: Viewer, env: Env = process.env): Stage | null {
+  return shownStageOf(stageDates(rel.history.filter((h) => visibleTo(h, v) && h.aired_at !== null), env), rel.marks, env);
+}
+
 /** What a viewer sees of an edge. Spectators get the public layer only; an owner gets all the pair's dates and the plans. */
-export function viewRelationship(rel: Relationship, v: Viewer, now = new Date()): RelationshipView | null {
+export function viewRelationship(rel: Relationship, v: Viewer, now = new Date(), env: Env = process.env): RelationshipView | null {
   const seen = rel.history.filter((h) => visibleTo(h, v));
   if (!seen.length) return null;
   const ids = new Set(seen.map((h) => h.episode_id));
   const publicOnly = !v.owner;
-  const s = summarize(seen, publicOnly);
+  const s = summarize(seen, publicOnly, rel.marks, env);
+  // The stage after each date the viewer sees, so a date that changed where they stand says so ("Going steady").
+  const steps = stagesV2On(env) ? stageSteps(stageDates(seen, env), rel.marks).steps : null;
   const idOf = (end: End) => (end === "lo" ? rel.lo : rel.hi);
   const told: Record<string, string[]> = { [rel.lo]: [], [rel.hi]: [] };
   for (const f of rel.facts.filter((f) => ids.has(f.episode_id))) told[idOf(f.about)].push(f.text);
   const ledOn = new Set(seen.flatMap((h) => (h.followup_of && ids.has(h.followup_of) ? [h.followup_of] : [])));
   const numbers = new Map<string, number>();
   return {
-    stage: s.stage,
-    stage_label: s.stage ? STAGE_LABELS[s.stage] : null,
+    stage: s.shown,
+    stage_label: s.shown ? STAGE_LABELS[s.shown] : null,
+    stage_line: steps && s.shown ? STAGE_LINES[s.shown] : null,
     dates: s.dates,
     second_dates: s.second_dates,
     second_dates_had: seen.filter((h) => h.followup_of && (ids.has(h.followup_of) || (h.date_number ?? 2) > 1)).length,
@@ -711,6 +914,8 @@ export function viewRelationship(rel: Relationship, v: Viewer, now = new Date())
         date_number: n > 1 ? n : null,
         // The roleplay it played (its title): billing, like the venue, on the date's own page from the start.
         roleplay: h.roleplay ?? null,
+        // Where this date left them, when it moved them somewhere worth a word (a first date, sparks and friends say it in their ending).
+        ...(steps && i > 0 && steps[i] !== steps[i - 1] && !QUIET_STEPS.has(steps[i]) ? { became: stageName(steps[i]) } : {}),
       };
     }),
     jokes: rel.jokes.filter((j) => j.episode_ids.some((id) => ids.has(id))).map((j) => j.phrase),
@@ -750,14 +955,15 @@ export function pairContext(rel: Relationship | null, selfId: string, creatorId:
   if (!usable.length) return null;
   const ids = new Set(usable.map((h) => h.episode_id));
   const me: End = selfId === rel.lo ? "lo" : "hi";
-  const s = summarize(usable, false);
+  const s = summarize(usable, false, rel.marks);
   const told = rel.facts.filter((f) => f.about !== me && ids.has(f.episode_id)).map((f) => f.text).slice(0, 4);
   const jokes = rel.jokes.filter((j) => j.episode_ids.some((id) => ids.has(id))).map((j) => j.phrase);
   const plan = followupOf && ids.has(followupOf) ? rel.plans.filter((p) => p.episode_id === followupOf) : [];
   const feeling = FEELING(s.chemistry);
   const played = [...new Set(usable.flatMap((h) => (h.roleplay ? [h.roleplay] : [])))].slice(-4);
   return {
-    ...(s.stage ? { where_you_stand_now: STAGE_LABELS[s.stage].replace(/^\S+\s/, "") } : {}),
+    // The shown stage in plain words ("Keeping it casual", "Official"): the public record's own, PG, and never the engine's input.
+    ...(s.shown ? { where_you_stand_now: stageName(s.shown) } : {}),
     times_together: s.dates,
     ...(feeling ? { how_its_been: feeling } : {}),
     ...(told.length ? { things_they_have_told_you: told } : {}),

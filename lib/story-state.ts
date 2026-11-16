@@ -60,7 +60,7 @@ import { slipped } from "./cast-secrets";
 import { dateNumberSql, publicDateSql } from "./date-number";
 import type { Db } from "./db";
 import { FEELING_LEAN, type FeelingName, type SeeAgain, type StoredInner } from "./inner-life";
-import { pairStatus, type PairStatus, type PersonMemory } from "./memory";
+import { pairStatus, shownPairStatus, type PersonMemory, type ShownPairStatus } from "./memory";
 import { shortName } from "./names";
 import { dateLabel, endingDetailOf, type DramaAnswer, type DramaQuestion, type Ending } from "./rules";
 import { checkShowText } from "./safety";
@@ -183,8 +183,8 @@ export type FirsthandFacts = {
   strength: number | null;
   /** Its own "see them again?" (lib/choices.ts), or the engine's read of it when the date had no choices. */
   seeAgain: SeeAgain | null;
-  /** How the pair stands after this date (lib/memory.ts pairStatus). */
-  status: PairStatus;
+  /** How the pair stands after this date, as it is told (lib/memory.ts pairStatus, shownPairStatus). */
+  status: ShownPairStatus;
   /** "you": this side was turned down; "them": it turned the other down. */
   turnedDown: "you" | "them" | null;
   /** Who walked out, when someone did. */
@@ -243,6 +243,7 @@ export function firsthandOpinion(f: FirsthandFacts): { trust: number; attraction
   if (f.feeling && COLD_TRUST.includes(f.feeling)) trust -= 1;
   if (f.turnedDown === "you") trust -= 1;
   if (f.walkedOut === "them") trust -= 1;
+  // Bad blood as it is told (lib/memory.ts shownPairStatus): one date that didn't click caps nothing.
   if (f.status === "bad_blood") trust = Math.min(trust, -1);
   if (f.status === "seeing") trust = Math.max(trust, 1);
   trust = clampScale(trust);
@@ -507,7 +508,7 @@ async function pairAired(db: Db, x: string, y: string, now: Date): Promise<Aired
 }
 
 /** One side's facts from an aired date, for firsthandOpinion. */
-function factsOf(ep: AiredRow, side: "a" | "b", status: PairStatus): FirsthandFacts {
+function factsOf(ep: AiredRow, side: "a" | "b", status: ShownPairStatus): FirsthandFacts {
   const idx = side === "a" ? 0 : 1;
   const lines = ep.inner_life?.lines ?? [];
   const spoke = ep.transcript ?? [];
@@ -580,7 +581,7 @@ export async function afterAired(db: Db, episodeId: string, opts: { now?: Date }
     return done;
   }
 
-  const status = pairStatus(aired.map((r) => r.ending));
+  const status = shownPairStatus(pairStatus(aired.map((r) => r.ending)), aired.length);
   const at = new Date(latest.revealed_at);
   for (const side of ["a", "b"] as const) {
     const o = firsthandOpinion(factsOf(latest, side, status));
@@ -765,7 +766,8 @@ export type WantFacts = {
   /** Someone the holder knows said something about it, newest first (unsettled). */
   knows: { said_by_id: string; said_by_name: string }[];
   /** Everyone it has dated (lib/memory.ts people), most recent first. */
-  people: Pick<PersonMemory, "id" | "name" | "status" | "last_ending" | "turned_down" | "wanted_more">[];
+  /** `dates` (the stored memory has it): with it, one date that ended badly reads "didn't click", not bad blood. */
+  people: (Pick<PersonMemory, "id" | "name" | "status" | "last_ending" | "turned_down" | "wanted_more"> & { dates?: number })[];
   /** Its own opinions (not forgotten), most recent first. */
   opinions: Pick<Opinion, "about_id" | "about_name" | "trust" | "attraction" | "basis">[];
   /** By person: another cast member who is interested in them too (attraction 1 or more). */
@@ -798,7 +800,8 @@ export function wantFromRules(f: WantFacts): { want: string; kind: WantKind; abo
     if (fav) return { kind: "pursue", about_id: fav.s.id, want: `See more of ${n(fav.s.name)} before Sunday's rose.` };
     return { kind: "protect", about_id: null, want: "Work out who is really here for you before Sunday's rose." };
   }
-  const bad = f.people.find((p) => p.status === "bad_blood" && (opinionOfId(p.id)?.trust ?? -1) <= -1);
+  // Bad blood as it is told: a single date that didn't click is no score to settle (it falls through to "prove").
+  const bad = f.people.find((p) => shownPairStatus(p.status, p.dates) === "bad_blood" && (opinionOfId(p.id)?.trust ?? -1) <= -1);
   if (bad) return { kind: "settle_score", about_id: bad.id, want: `Settle things with ${n(bad.name)} after how your last date went.` };
   const back = f.people.find((p) => (p.status === "exes" && (opinionOfId(p.id)?.attraction ?? 0) >= 0) || (p.turned_down === "you" && p.wanted_more === true));
   if (back) return { kind: "win_back", about_id: back.id, want: back.turned_down === "you" ? `Change ${n(back.name)}'s mind after being turned down.` : `Win ${n(back.name)} back.` };

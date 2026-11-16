@@ -246,7 +246,7 @@ export async function exportAccount(db: Db, userId: string): Promise<AccountExpo
       [userId],
     ),
     relationship_events: await q(
-      `select e.character_a, e.character_b, e.layer, e.kind, e.from_stage, e.to_stage, e.episode_id, e.at from relationship_events e
+      `select e.character_a, e.character_b, e.layer, e.kind, e.from_stage, e.to_stage, e.from_shown, e.to_shown, e.episode_id, e.at from relationship_events e
         where exists (select 1 from characters c where c.id in (e.character_a, e.character_b) and c.owner_id = $1 and not c.is_house)
         order by e.at`,
       [userId],
