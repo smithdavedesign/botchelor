@@ -27,6 +27,8 @@ export type AnalyticsEvent =
   | "life_date_booked" // the house took an owned character out with a cast member, house-paid (lib/character-life.ts)
   | "casting_date" // a person's new character walked on: its first date went to the season's lead (lib/casting.ts)
   | "rose_date_booked" // a walk-on's Sunday rose booked its second date with the lead, show-paid (lib/casting.ts)
+  | "casting_invites_made" // the admin made creator invite codes (lib/casting-invites.ts): how many
+  | "casting_invite_used" // an invite applied a character, or its date was tried again (lib/casting-invites.ts): the code, the character, whether the lead's date booked
   | "dare_vote" // a vote on tonight's dare (lib/dares.ts)
   | "purchase_completed"
   | "purchase_refunded" // a full refund made in Stripe took the pack's unused dates back
