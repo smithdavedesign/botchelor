@@ -709,6 +709,9 @@ export default function CompanionChat({
                       <Avatar seed={c.id} name={c.name} hue={c.hue} house={c.house} portraitSrc={c.portrait} size={36} />
                     ))}
                   <div className="chat-col">
+                    {/* Who's talking, at the top of each run (as the show's own threads do, app/ChatThread.tsx): a thread
+                        opened from Chat otherwise only says so in its header. */}
+                    {shown[i - 1]?.role !== m.role && <span className="chat-name">{m.role === "user" ? "You" : c.name}</span>}
                     {m.action && <span className="companion-action">{m.action}</span>}
                     {m.photo ? (
                       // A photo from one of their dates (./DatePhoto.tsx): the message's text is its alt text.
@@ -815,6 +818,7 @@ export default function CompanionChat({
             <li className="chat-item">
               <div className="chat-row chat-row-b">
                 <div className="chat-col">
+                  {shown[shown.length - 1]?.role !== "user" && <span className="chat-name">You</span>}
                   <p className="chat-bubble">{pending}</p>
                 </div>
               </div>
@@ -825,6 +829,7 @@ export default function CompanionChat({
               <div className="chat-row chat-row-a">
                 <Avatar seed={c.id} name={c.name} hue={c.hue} house={c.house} portraitSrc={c.portrait} size={36} />
                 <div className="chat-col">
+                  {shown[shown.length - 1]?.role !== "character" && <span className="chat-name">{c.name}</span>}
                   <p className="chat-bubble chat-typing" aria-hidden>
                     <span />
                     <span />
