@@ -74,7 +74,7 @@ Real use is near zero (48 visitors in the 30 days to 2026-11-14), and every soci
 live room's "1 watching" (them), "2 players have points", a best-callers board of two names, "2 viewers called them
 the most likable". A number that small is not information, it is a sign on the door saying *nobody's here*.
 
-- **A crowd count shows to a stranger only from `CROWD_MIN` people (default 5) up.** Below that the room, the award,
+- **A crowd count shows to a stranger only from `CROWD_MIN` people (default 10 since 2026-11-16; it was 5, and "10 viewers" still read as an empty room) up.** Below that the room, the award,
   the board's invitation and the call to play stay, and the number goes: "● Live" instead of "● 1 watching", "Called
   the most likable of the season" instead of "2 viewers called them", the best-callers board becomes "Call the ending
   before a date airs and your name goes up here".
