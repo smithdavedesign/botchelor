@@ -9,7 +9,10 @@ import Avatar from "@/app/Avatar";
 import { AiFiction, AiTag } from "@/app/AiLabel";
 import CharacterName from "@/app/CharacterName";
 import { introOf } from "@/lib/cast-intros";
-import { castingBadgesOf } from "@/lib/casting";
+import { castingBadgesOf, castingLead, type Casting } from "@/lib/casting";
+import { seasonPageLiveOn } from "@/lib/season-page";
+import { seasonPath } from "@/lib/season-ref";
+import { shared } from "@/lib/shared-cache";
 import { characterPortrait } from "@/lib/portraits";
 import Pager from "@/app/Pager";
 import { pageHref, pageOf as pageSlice, parsePage } from "@/lib/paging";
@@ -212,6 +215,9 @@ export default async function CharacterPage({ params, searchParams }: Props) {
   // What it left a Botchelor season with (lib/ceremony.ts: suitor, runner-up, final rose) and a walk-on's newest rose
   // (lib/casting.ts). Started with the rest; nothing for the house cast.
   const castingBadgesP = c.house ? Promise.resolve([]) : castingBadgesOf(db, id).catch(() => []);
+  // The Botchelor's lead (lib/casting.ts castingLead, the home hero's same shared read): a house character, so only the
+  // house cast asks. Their card says so ("December's lead"), not "Contestant card" (GPT review, 2026-11-16).
+  const castingLeadP: Promise<Casting | null> = c.house ? shared("casting-lead", () => castingLead(db)).catch(() => null) : Promise.resolve(null);
   // The After Dark Studio for this character (lib/adult/studio.ts; David, 2026-10-24): its owner (or an admin, for the
   // house cast), where After Dark is open to them and pictures are allowed where they are (lib/jurisdiction.ts).
   const studioP = (async () => {
@@ -494,6 +500,8 @@ export default async function CharacterPage({ params, searchParams }: Props) {
       : null;
 
   const castingBadges = await castingBadgesP;
+  const leading = await castingLeadP.then((l) => (l?.lead.id === c.id ? l : null));
+  const leadWords = leading ? (leading.phase === "season" ? "This season's lead" : `${leading.month}'s lead`) : null;
   const intro = await introOf(db, c.id);
   return (
     <article>
@@ -508,7 +516,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
         ]}
       />
       <p className="kicker">
-        <Link href={listHref}>← Characters</Link> · Contestant card
+        <Link href={listHref}>← Characters</Link> · {leading ? "The Botchelor · lead card" : "Contestant card"}
       </p>
       <div className="contestant">
         <Avatar seed={c.id} name={c.name} hue={c.hue} house={c.house} size={96} portraitSrc={c.portrait_asset_id ? `/api/assets/${c.portrait_asset_id}` : null} />
@@ -526,6 +534,16 @@ export default async function CharacterPage({ params, searchParams }: Props) {
             {!c.house && isFanCast(c.id) && (
               <Link href="/casting" className="badge badge-open">
                 🎬 On {seasonMonth(seasonIdAt(new Date()))}&apos;s cast
+              </Link>
+            )}
+            {leading && leadWords && (
+              <Link
+                href={seasonPageLiveOn() ? seasonPath(leading.season_id) : "/casting"}
+                className="badge badge-open"
+                title="The Botchelor: one lead, suitors made by people, and a rose ceremony every Sunday"
+                data-track="lead-badge"
+              >
+                🌹 {leadWords}
               </Link>
             )}
             {castingBadges.map((b) => (

@@ -41,6 +41,15 @@ export function crowdLine(count: number, words: string | { one: string; many: st
   return `${count} ${noun}`;
 }
 
+/**
+ * A ballot's tally once you've voted: "N votes so far." for a crowd or to an insider, else "Your vote's in." (a
+ * stranger's lone vote read "1 vote so far" and a 100% bar: the empty room again). Ballots hide their share bars and
+ * per-choice counts by the same test (`showCrowd(total, opts)`).
+ */
+export function tallyLine(total: number, opts: CrowdOptions = {}): string {
+  return showCrowd(total, opts) ? `${total} ${total === 1 ? "vote" : "votes"} so far.` : "Your vote's in.";
+}
+
 /** An insider: someone with a character of their own on the show (the nav's own test, app/layout.tsx). */
 export async function isInsider(db: Db, viewerId: string | null): Promise<boolean> {
   if (!viewerId) return false;

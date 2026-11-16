@@ -6,13 +6,22 @@ import { join, relative } from "node:path";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import BackCast from "@/app/BackCast";
+import CastingBoard from "@/app/casting/CastingBoard";
 import SeasonPoolPanel, { PoolBoardList } from "@/app/SeasonPool";
+import SituationVote from "@/app/SituationVote";
 import TonightBand from "@/app/TonightBand";
 import { CallersBoardPanel } from "@/app/YourCalls";
-import { CROWD_MIN_DEFAULT, crowdLine, crowdMin, showCrowd } from "@/lib/crowd-threshold";
+import { CROWD_MIN_DEFAULT, crowdLine, crowdMin, showCrowd, tallyLine } from "@/lib/crowd-threshold";
+import type { CastingBoard as AuditionBoard } from "@/lib/auditions";
+import type { BackingBoard } from "@/lib/backing";
 import type { PoolBoard, PoolStanding } from "@/lib/season-pool";
 import type { CallersBoard } from "@/lib/streaks";
 import type { LobbyEntry } from "@/lib/watch";
+import type { SituationBoard } from "@/lib/situations";
+
+// The ballots are client components with useAction (useRouter): outside the app router, a stand-in.
+vi.mock("next/navigation", async (original) => ({ ...((await original()) as object), useRouter: () => ({ push: () => {}, refresh: () => {} }) }));
 
 afterEach(() => vi.unstubAllEnvs());
 
@@ -41,6 +50,12 @@ describe("showCrowd and crowdLine", () => {
       expect(crowdMin(), junk).toBe(CROWD_MIN_DEFAULT);
     }
     expect(showCrowd(3, { min: 3 })).toBe(true);
+  });
+
+  it("a ballot's tally once you've voted: the count for a crowd or an insider, else that your vote is in", () => {
+    expect(tallyLine(1)).toBe("Your vote's in.");
+    expect(tallyLine(1, { insider: true })).toBe("1 vote so far.");
+    expect(tallyLine(7)).toBe("7 votes so far.");
   });
 
   it("puts the count in words, or nothing at all", () => {
@@ -116,6 +131,71 @@ describe("the counts on the way in", () => {
   });
 });
 
+describe("the votes on the way in (GPT review 2026-11-16: \"Last vote: 1 of 1\", \"Most backed: 2 viewers\", \"0 votes\")", () => {
+  const face = (id: string, name: string) => ({ id, name, hue: 10, portrait: null });
+  const situation = (total: number, my_pick: string | null = null): SituationBoard => ({
+    day: "2026-11-16",
+    closes_at: new Date(Date.now() + 5 * 3_600_000).toISOString(),
+    cast: [face("j", "Juniper Vale"), face("s", "Sable Quist")],
+    headline: null,
+    choices: [{ id: "x", title: "The rivals share a table", icon: "👀", premise: "They sit down.", votes: total }],
+    my_pick,
+    total,
+    last: { day: "2026-11-15", title: "Sable gets the date", icon: "💘", votes: total, total, cast: ["Juniper Vale", "Sable Quist"], room_path: "/watch/r", my_pick: null, won: false },
+  });
+  const sit = (board: SituationBoard, insider = false) => renderToStaticMarkup(createElement(SituationVote, { board, now: Date.now(), insider }));
+
+  it("the last vote names what won, and by how many only for a crowd or to an insider", () => {
+    expect(sit(situation(1))).toContain("Sable gets the date</strong> won");
+    expect(sit(situation(1))).not.toContain("1 of 1");
+    expect(sit(situation(1), true)).toContain("won with 1 of 1");
+    expect(sit(situation(12))).toContain("won with 12 of 12");
+  });
+
+  it("a stranger's lone vote reads as in, with no 100% bar", () => {
+    const lone = sit(situation(1, "x"));
+    expect(lone).toContain("Your vote&#x27;s in.");
+    expect(lone).not.toContain("1 vote so far");
+    expect(lone).not.toContain("situation-bar");
+    expect(sit(situation(1, "x"), true)).toContain("1 vote so far.");
+    expect(sit(situation(9, "x"))).toContain("situation-bar");
+  });
+
+  it("the most backed is named, its count only for a crowd or to an insider", () => {
+    const board = (total: number): BackingBoard => ({
+      season: "2026-11",
+      label: "November 2026",
+      locks_at: new Date(Date.now() + 86_400_000).toISOString(),
+      locked: false,
+      cast: [{ ...face("n", "Nell Abiodun"), backers: Math.min(total, 2) }],
+      my_pick: null,
+      total,
+      most: { id: "n", name: "Nell Abiodun", backers: Math.min(total, 2) },
+    });
+    const back = (b: BackingBoard, insider = false) => renderToStaticMarkup(createElement(BackCast, { board: b, insider }));
+    expect(back(board(2))).toContain("Most backed this month: <strong>Nell Abiodun</strong>.");
+    expect(back(board(2))).not.toContain("2 viewers");
+    expect(back(board(2))).not.toContain("2 backing");
+    expect(back(board(2), true)).toContain("(2 viewers)");
+    expect(back(board(20))).toContain("(2 viewers of 20)");
+  });
+
+  it("an audition's votes show for a crowd or to an insider; its dates aired always", () => {
+    const board = (votes: number): AuditionBoard => ({
+      season_id: "2026-12",
+      label: "December 2026",
+      closes_at: new Date(Date.now() + 86_400_000).toISOString(),
+      auditions: [{ character_id: "a", name: "Ambrose Fenn", bio: "Runs a library.", hue: 10, portrait: null, status: "open", votes, aired: 6, creator_handle: null, creator_name: null }],
+      my_vote: null,
+    });
+    const cast = (b: AuditionBoard, insider = false) => renderToStaticMarkup(createElement(CastingBoard, { board: b, viewer: null, insider }));
+    expect(cast(board(0))).toContain("6 dates aired");
+    expect(cast(board(0))).not.toContain("0 votes");
+    expect(cast(board(1), true)).toContain("1 vote · ");
+    expect(cast(board(8))).toContain("8 votes · ");
+  });
+});
+
 /* ------------------------------ the call sites, pinned ------------------------------ */
 
 const ROOT = join(__dirname, "..");
@@ -131,16 +211,26 @@ const sources = () => [...walk(join(ROOT, "app")), ...walk(join(ROOT, "lib"))].m
 
 /** Every file that applies the rule. Adding a count? Guard it with the helper and add its file here. */
 const CALL_SITES = [
+  "app/BackCast.tsx",
+  "app/DareVote.tsx",
   "app/ReunionPanel.tsx",
+  "app/SeasonFormatVote.tsx",
   "app/SeasonPool.tsx",
+  "app/SituationVote.tsx",
   "app/TonightBand.tsx",
+  "app/WeeklyReveal.tsx",
   "app/YourCalls.tsx",
   "app/calls/page.tsx",
+  "app/casting/CastingBoard.tsx",
+  "app/casting/page.tsx",
   "app/characters/page.tsx",
   "app/reunion/page.tsx",
   "app/seasons/[slug]/page.tsx",
+  "app/watch/BotchelorCard.tsx",
+  "app/watch/RecouplingCard.tsx",
   "app/watch/page.tsx",
   "lib/casting.ts",
+  "lib/ceremony.ts",
   "lib/watch.ts",
 ];
 

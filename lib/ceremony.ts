@@ -26,6 +26,7 @@
  */
 import { portraitPathSql } from "./portrait-sql";
 import { premiereHourUtc, sundayPremiereOn } from "./premiere-clock";
+import { showCrowd } from "./crowd-threshold";
 import type { Db } from "./db";
 import { shortName } from "./names";
 import { notify, notifyAll } from "./notifications";
@@ -323,7 +324,12 @@ export async function runCeremony(db: Db, def: SeasonFormatDef, heldOn: string, 
     if (voted) {
       goneByVote = voted.id;
       votes = tally.get(voted.id) ?? 0;
-      lines.push(`The audience spoke first: ${votes} of ${total} ${total === 1 ? "vote" : "votes"} sent ${nameOf(goneByVote)} home.`);
+      // The lines are stored and read by everyone: the count only for a crowd (the empty-room rule, lib/crowd-threshold.ts).
+      lines.push(
+        showCrowd(total)
+          ? `The audience spoke first: ${votes} of ${total} ${total === 1 ? "vote" : "votes"} sent ${nameOf(goneByVote)} home.`
+          : `The audience spoke first and sent ${nameOf(goneByVote)} home.`,
+      );
     } else {
       lines.push(`Nobody voted this week, so ${leadName}'s dates had to speak for everyone.`);
     }

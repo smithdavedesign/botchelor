@@ -217,9 +217,13 @@ describe("Sunday's reveal: on the page", () => {
     expect(html).toContain("1 of 3 secrets out");
     expect(html).toContain("Vote to see how it&#x27;s going.");
     expect(html).not.toContain("67%");
-    const voted = renderToStaticMarkup(createElement(WeeklyReveal, { board: { ...open, my_pick: "house-nell" }, now }));
+    // Three votes: an insider sees the shares and the count; a stranger only that their vote is in (the empty-room rule).
+    const voted = renderToStaticMarkup(createElement(WeeklyReveal, { board: { ...open, my_pick: "house-nell" }, now, insider: true }));
     expect(voted).toContain("67%");
     expect(voted).toContain("3 votes so far.");
+    const stranger = renderToStaticMarkup(createElement(WeeklyReveal, { board: { ...open, my_pick: "house-nell" }, now }));
+    expect(stranger).toContain("Your vote&#x27;s in.");
+    expect(stranger).not.toContain("67%");
   });
 
   it("puts the open vote in home's tonight band", () => {

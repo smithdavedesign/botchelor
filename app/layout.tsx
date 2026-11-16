@@ -36,7 +36,7 @@ import SeasonStrip from "./SeasonStrip";
 import { seasonFormatNow } from "@/lib/season-format-store";
 import { seasonPageLiveOn } from "@/lib/season-page";
 import { seasonPath } from "@/lib/season-ref";
-import { seasonIdOf } from "@/lib/season-window";
+import { nextSeasonStart, seasonIdOf } from "@/lib/season-window";
 import { shared } from "@/lib/shared-cache";
 import JsonLd from "./JsonLd";
 import Nav from "./Nav";
@@ -144,7 +144,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   const socials = socialLinks(process.env, adHost);
   const support = contactEmail();
   const navChat = navChatOn();
-  const [, door, dates, unread, texts, hasCharacter, adTokens, seasonDef, adDoors] = await Promise.all([
+  const [, door, dates, unread, texts, hasCharacter, adTokens, seasonDef, adDoors, nextDef] = await Promise.all([
     // They're here (lib/activity.ts): their characters' likes wait for them rather than answering themselves. Throttled.
     db && viewerId ? touchOwner(db, viewerId).catch(() => {}) : null,
     // After Dark's link shows to someone it's open to (lib/adult/entitlement.ts), only where it's offered
@@ -166,6 +166,8 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
     adHost ? null : shared("watch:season-format", async () => seasonFormatNow(await getDb())).catch(() => null),
     // After Dark's header doors that depend on the viewer (lib/adult/doors.ts): the Studio's word, and the Showcase.
     db && viewerId && adHost ? afterDarkDoors(db, viewerId).catch(() => NO_AD_DOORS) : NO_AD_DOORS,
+    // Next month's format, for the arc's "December: The Botchelor" beside this month's (app/SeasonBanner.tsx `next`).
+    adHost ? null : shared("watch:season-format-next", async () => seasonFormatNow(await getDb(), nextSeasonStart(new Date()))).catch(() => null),
   ]);
   const afterDark = door.door;
   // Google tags wait for consent in the EEA/UK/CH (Consent Mode v2); Vercel sets the visitor's country header.
@@ -217,7 +219,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
             A lead season's (The Botchelor) counts to the final rose and opens its own page (docs/season-page.md). */}
         {!adHost && (
           <SeasonStrip>
-            <SeasonBanner format={seasonDef?.title ?? null} def={seasonDef} href={seasonDef?.lead && seasonPageLiveOn() ? seasonPath(seasonIdOf(new Date())) : undefined} />
+            <SeasonBanner format={seasonDef?.title ?? null} def={seasonDef} next={nextDef?.lead && nextDef.slug !== seasonDef?.slug ? nextDef.title : null} href={seasonDef?.lead && seasonPageLiveOn() ? seasonPath(seasonIdOf(new Date())) : undefined} />
           </SeasonStrip>
         )}
         <main id="main">{children}</main>

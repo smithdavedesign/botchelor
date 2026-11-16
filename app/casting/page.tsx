@@ -5,6 +5,7 @@ import Avatar from "@/app/Avatar";
 import Icon from "@/app/Icon";
 import { AUDITION_MIN_DATES, castingBoard } from "@/lib/auditions";
 import { auditionWords } from "@/lib/audition-words";
+import { isInsider } from "@/lib/crowd-threshold";
 import { getDb } from "@/lib/db";
 import { listMyCharacters } from "@/lib/game";
 import { userIdFromCookieStore } from "@/lib/http";
@@ -93,7 +94,7 @@ function CastingSlots({ label, cast, size, open, hasOwn, def }: { label: string;
 export default async function CastingPage() {
   const viewer = userIdFromCookieStore(await cookies());
   const db = await getDb();
-  const board = await castingBoard(db, viewer);
+  const [board, insider] = await Promise.all([castingBoard(db, viewer), isInsider(db, viewer)]);
   // Next season's format (lib/season-format.ts): on The Botchelor the open places are the lead's suitors (lib/ceremony.ts).
   const def = seasonFormat(await seasonFormatSlug(db, board.season_id).catch(() => null));
   const words = auditionWords(def.lead);
@@ -126,7 +127,7 @@ export default async function CastingPage() {
       </header>
       <div className="casting-layout">
         <div className="casting-main">
-          {board.auditions.length ? <CastingBoard board={board} viewer={viewer} /> : <CastingSlots label={board.label} cast={cast} size={size} open={open} hasOwn={own.length > 0} def={def} />}
+          {board.auditions.length ? <CastingBoard board={board} viewer={viewer} insider={insider} /> : <CastingSlots label={board.label} cast={cast} size={size} open={open} hasOwn={own.length > 0} def={def} />}
         </div>
         <aside className="casting-rail" aria-label="How casting works">
           <section className="card casting-rules">

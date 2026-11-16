@@ -4,17 +4,20 @@ import Avatar from "./Avatar";
 import { requestJson } from "./request";
 import { useAction } from "./useAction";
 import type { BackingBoard } from "@/lib/backing";
+import { showCrowd } from "@/lib/crowd-threshold";
 
 const day = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 
 /**
  * Back a cast member for the month (lib/backing.ts): the season's cast as faces, one pick per viewer, changeable until
- * mid-month. /watch shows the card; the character page shows BackThem below. Counts are shown, never who backed whom.
+ * mid-month. /watch shows the card; the character page shows BackThem below. Counts are shown, never who backed whom,
+ * and only for a crowd or to an insider (the empty-room rule, lib/crowd-threshold.ts: "2 viewers" said nobody's here).
  */
-export default function BackCast({ board }: { board: BackingBoard }) {
+export default function BackCast({ board, insider = false }: { board: BackingBoard; insider?: boolean }) {
   const { busy, error, run } = useAction();
   const back = (id: string) => run(() => requestJson("/api/backing", { character_id: id }));
   const mine = board.my_pick;
+  const counts = showCrowd(board.total, { insider });
   return (
     <section id="back-cast" className="card back-cast" aria-labelledby="back-cast-head">
       <p className="kicker">Back a cast member · {board.label}</p>
@@ -41,7 +44,7 @@ export default function BackCast({ board }: { board: BackingBoard }) {
             >
               <Avatar seed={c.id} name={c.name} hue={c.hue} house size={48} portraitSrc={c.portrait} decorative />
               <span className="small">{c.name}</span>
-              {mine === c.id ? <span className="chip">Your pick</span> : c.backers > 0 ? <span className="muted small">{c.backers} backing</span> : null}
+              {mine === c.id ? <span className="chip">Your pick</span> : counts && c.backers > 0 ? <span className="muted small">{c.backers} backing</span> : null}
             </button>
           </li>
         ))}
@@ -49,8 +52,8 @@ export default function BackCast({ board }: { board: BackingBoard }) {
       {error && <p className="error small">{error}</p>}
       {board.most && (
         <p className="muted small">
-          Most backed this month: <strong>{board.most.name}</strong> ({board.most.backers} {board.most.backers === 1 ? "viewer" : "viewers"}
-          {board.total > board.most.backers ? ` of ${board.total}` : ""}).
+          Most backed this month: <strong>{board.most.name}</strong>
+          {counts ? ` (${board.most.backers} ${board.most.backers === 1 ? "viewer" : "viewers"}${board.total > board.most.backers ? ` of ${board.total}` : ""})` : ""}.
         </p>
       )}
     </section>

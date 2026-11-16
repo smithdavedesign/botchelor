@@ -6,6 +6,7 @@ import Reveal from "./Reveal";
 import { requestJson } from "./request";
 import { useAction } from "./useAction";
 import { countdown } from "@/lib/countdown";
+import { showCrowd, tallyLine } from "@/lib/crowd-threshold";
 import type { RevealBoard, RevealResult } from "@/lib/weekly-reveal";
 import Icon from "@/app/Icon";
 
@@ -19,12 +20,12 @@ const utcTime = (iso: string): string => {
 };
 
 /** The result line: whose secret came out, by how many votes (or that the producers picked), and their date. */
-export function RevealResultLine({ last }: { last: RevealResult }) {
+export function RevealResultLine({ last, insider = false }: { last: RevealResult; insider?: boolean }) {
   return (
     <p className="situation-last small weekly-reveal-result">
       <Icon name="unlock" /> <strong>{last.name}&apos;s secret is out:</strong> “{last.secret}”{" "}
       <span className="muted">
-        {last.producers_pick ? "Nobody voted, so the producers picked." : `${last.votes} of ${last.total} ${last.total === 1 ? "vote" : "votes"}.`}
+        {last.producers_pick ? "Nobody voted, so the producers picked." : showCrowd(last.total, { insider }) ? `${last.votes} of ${last.total} ${last.total === 1 ? "vote" : "votes"}.` : "The audience voted it out."}
       </span>{" "}
       {last.room_path ? (
         <Link href={last.room_path} data-track="reveal-room">
@@ -42,9 +43,10 @@ export function RevealResultLine({ last }: { last: RevealResult }) {
  * the secret airs, and the winner goes on a live date with the cast member they've dated most, who has heard it. The
  * counts show once you've voted. /watch shows the card; home's tonight band links to it while the vote is open.
  */
-export default function WeeklyReveal({ board, now }: { board: RevealBoard; now: number }) {
+export default function WeeklyReveal({ board, now, insider = false }: { board: RevealBoard; now: number; insider?: boolean }) {
   const { busy, error, run } = useAction();
   const voted = board.my_pick !== null;
+  const tally = voted && showCrowd(board.total, { insider });
   const vote = (pick: string) => run(() => requestJson("/api/weekly-reveal", { pick }));
   // The countdown that matters now: to the close, to the result, or to the next vote.
   const when =
@@ -68,7 +70,7 @@ export default function WeeklyReveal({ board, now }: { board: RevealBoard; now: 
             <p className="muted small">
               Most votes wins. At {utcTime(board.airs_at)} their next secret comes out, and they go on a date with the cast member
               they&apos;ve dated most, who has heard it. Watch it live: the characters still decide how it ends.{" "}
-              {voted ? `${board.total} ${board.total === 1 ? "vote" : "votes"} so far.` : "Vote to see how it's going."}
+              {voted ? tallyLine(board.total, { insider }) : "Vote to see how it's going."}
             </p>
           ) : board.state === "soon" ? (
             <p className="muted small">
@@ -100,7 +102,7 @@ export default function WeeklyReveal({ board, now }: { board: RevealBoard; now: 
                   <span className="situation-premise">
                     {c.out} of {c.total} secrets out
                   </span>
-                  {voted && (
+                  {tally && (
                     <span className="situation-bar">
                       <span style={{ width: `${share}%` }} aria-hidden="true" />
                       <em>
@@ -134,10 +136,10 @@ export default function WeeklyReveal({ board, now }: { board: RevealBoard; now: 
           line={`${board.last.name.split(" ")[0]}'s secret is out`}
           detail={`“${board.last.secret}”`}
         >
-          <RevealResultLine last={board.last} />
+          <RevealResultLine last={board.last} insider={insider} />
         </Reveal>
       )}
-      {board.last && board.state === "open" && <RevealResultLine last={board.last} />}
+      {board.last && board.state === "open" && <RevealResultLine last={board.last} insider={insider} />}
     </section>
   );
 }

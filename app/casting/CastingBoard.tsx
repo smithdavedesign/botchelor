@@ -5,11 +5,17 @@ import Avatar from "@/app/Avatar";
 import { requestJson } from "@/app/request";
 import { useAction } from "@/app/useAction";
 import type { CastingBoard as Board } from "@/lib/auditions";
+import { showCrowd } from "@/lib/crowd-threshold";
 
-/** The auditions as cards, each with its votes and a vote button (one vote a viewer, moved by voting again). */
-export default function CastingBoard({ board, viewer }: { board: Board; viewer: string | null }) {
+/**
+ * The auditions as cards, each with its votes and a vote button (one vote a viewer, moved by voting again). The vote
+ * counts show for a crowd or to an insider (the empty-room rule, lib/crowd-threshold.ts: "0 votes" under the only
+ * applicant told a creator nobody was watching); the dates aired always show.
+ */
+export default function CastingBoard({ board, viewer, insider = false }: { board: Board; viewer: string | null; insider?: boolean }) {
   const { busy, error, run } = useAction();
   const vote = (id: string) => run(() => requestJson("/api/casting", { character_id: id }));
+  const counts = showCrowd(board.auditions.reduce((s, a) => s + a.votes, 0), { insider });
   if (!board.auditions.length) {
     return (
       <section className="card">
@@ -38,7 +44,8 @@ export default function CastingBoard({ board, viewer }: { board: Board; viewer: 
               <p className="small">
                 {a.status === "approved" && <span className="chip">Shortlisted</span>}{" "}
                 <span className="muted">
-                  {a.votes} vote{a.votes === 1 ? "" : "s"} · {a.aired} dates aired
+                  {counts ? `${a.votes} vote${a.votes === 1 ? "" : "s"} · ` : ""}
+                  {a.aired} {a.aired === 1 ? "date" : "dates"} aired
                 </span>
               </p>
               <button

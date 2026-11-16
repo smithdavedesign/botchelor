@@ -109,11 +109,11 @@ export default async function ReunionPage({ searchParams }: { searchParams?: Pro
       </p>
       {shifts && <ChemistryShiftsPanel shifts={shifts} />}
       <div className="reunion-games">
-        {backing && <BackCast board={backing} />}
+        {backing && <BackCast board={backing} insider={insider} />}
         <SeasonPoolPanel standing={pool} revealed={poolRevealed} now={now.getTime()} insider={insider} />
       </div>
       <OpenOnHash />
-      {ballot && <SeasonFormatVote ballot={ballot} now={now.getTime()} />}
+      {ballot && <SeasonFormatVote ballot={ballot} now={now.getTime()} insider={insider} />}
       {past.length > 0 && (
         <section className="reunion-seasons" aria-labelledby="seasons">
           <h2 id="seasons" className="section">

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { requestJson } from "@/app/request";
 import { useAction } from "@/app/useAction";
+import { showCrowd, tallyLine } from "@/lib/crowd-threshold";
 import type { RecouplingBoard } from "@/lib/recoupling";
 
 /** "tonight", "in 3 days", "in 5h": the countdown to the night, from the server's clock (the page is dynamic). */
@@ -20,9 +21,10 @@ function runsIn(iso: string, now: number): string {
  * The Recoupling (lib/recoupling.ts): the countdown to the season's one-room night, the audience's one vote before it
  * (counts show once you've voted, like the situation vote), and the last night's room to watch.
  */
-export default function RecouplingCard({ board, now }: { board: RecouplingBoard; now: number }) {
+export default function RecouplingCard({ board, now, insider = false }: { board: RecouplingBoard; now: number; insider?: boolean }) {
   const { busy, error, run } = useAction();
   const voted = board.my_pick !== null;
+  const tally = voted && showCrowd(board.total, { insider });
   const vote = (pick: string) => run(() => requestJson("/api/recoupling", { pick }));
   const upcoming = Date.parse(board.runs_at) > now && board.choices.length > 0;
   return (
@@ -33,7 +35,7 @@ export default function RecouplingCard({ board, now }: { board: RecouplingBoard;
         <>
           <p className="muted small">
             {board.ask} Most votes becomes the producer&apos;s nudge on the night — the characters still decide everything.{" "}
-            {voted ? `${board.total} ${board.total === 1 ? "vote" : "votes"} so far.` : "Vote to see how it's going."}
+            {voted ? tallyLine(board.total, { insider }) : "Vote to see how it's going."}
           </p>
           <p className="watch-recoupling-choices">
             {board.choices.map((c) => (
@@ -46,7 +48,7 @@ export default function RecouplingCard({ board, now }: { board: RecouplingBoard;
                   onClick={() => vote(c.id)}
                 >
                   {c.label}
-                  {voted ? ` · ${c.votes}` : ""}
+                  {tally ? ` · ${c.votes}` : ""}
                 </button>{" "}
               </span>
             ))}

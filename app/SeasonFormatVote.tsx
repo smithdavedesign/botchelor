@@ -2,6 +2,7 @@
 
 import { requestJson } from "./request";
 import { useAction } from "./useAction";
+import { showCrowd } from "@/lib/crowd-threshold";
 import type { SeasonBallot } from "@/lib/season-vote";
 
 /** "in 12 days", "in 5h": how long the ballot stays open. */
@@ -15,9 +16,10 @@ function closesIn(iso: string, now: number): string {
  * Next season's show (lib/season-vote.ts): every format on one ballot, one vote a viewer, changeable until the month
  * ends; the winner is next month's format. Counts show once you've voted, like tonight's situation.
  */
-export default function SeasonFormatVote({ ballot, now }: { ballot: SeasonBallot; now: number }) {
+export default function SeasonFormatVote({ ballot, now, insider = false }: { ballot: SeasonBallot; now: number; insider?: boolean }) {
   const { busy, error, run } = useAction();
   const voted = ballot.my_pick !== null;
+  const tally = voted && showCrowd(ballot.total, { insider });
   const vote = (pick: string) => run(() => requestJson("/api/season-vote", { pick }));
   const leading = ballot.choices.find((c) => c.slug === ballot.leading);
   return (
@@ -27,9 +29,11 @@ export default function SeasonFormatVote({ ballot, now }: { ballot: SeasonBallot
       <p className="muted small">
         Every format is the same cast with a different twist. Most votes wins (at least {ballot.min_votes} votes, or it&apos;s a classic month); voting closes in{" "}
         {closesIn(ballot.closes_at, now)}.{" "}
-        {voted
-          ? `${ballot.total} ${ballot.total === 1 ? "vote" : "votes"} so far${leading ? `: ${leading.title} is ahead.` : "."}`
-          : "Vote to see how it's going."}
+        {!voted
+          ? "Vote to see how it's going."
+          : tally
+            ? `${ballot.total} ${ballot.total === 1 ? "vote" : "votes"} so far${leading ? `: ${leading.title} is ahead.` : "."}`
+            : "Your vote's in."}
       </p>
       <ul className="situation-choices season-vote-choices">
         {ballot.choices.map((c) => {
@@ -44,7 +48,7 @@ export default function SeasonFormatVote({ ballot, now }: { ballot: SeasonBallot
                   {mine && <span className="chip">Your pick</span>}
                 </span>
                 <span className="situation-premise">{c.pitch}</span>
-                {voted && (
+                {tally && (
                   <span className="situation-bar">
                     <span style={{ width: `${share}%` }} aria-hidden="true" />
                     <em>
