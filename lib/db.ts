@@ -4147,6 +4147,17 @@ create table if not exists marketing_feed (
   data jsonb not null,
   updated_at timestamptz not null default now()
 );
+-- Relationships that go somewhere (lib/relationship-stages.ts, 2026-11-16). stage and public_stage stay the BASE
+-- stage, the seven every rule reads. Beside each, the stage as it is SHOWN (keeping it casual, official, moved in,
+-- engaged, married, broke up, back together, divorced, didn't click): derived at the same refresh, null until a row is
+-- refreshed or the hourly backfill reaches it (lib/relationships.ts backfillShownStages: stage columns only, no event,
+-- no notice), and never read when RELATIONSHIP_STAGES_V2=0. A stage event keeps both readings the same way; a finale's
+-- engagement or wedding is a milestone row (kind 'engaged' / 'married', episode_id null, at the season's close: at
+-- most one of each kind a finale, lib/season-finale.ts).
+alter table relationships add column if not exists shown_stage text;
+alter table relationships add column if not exists public_shown_stage text;
+alter table relationship_events add column if not exists from_shown text;
+alter table relationship_events add column if not exists to_shown text;
 `;
 
 /** Idempotent: creates the tables and upserts the house characters, free and premium. */

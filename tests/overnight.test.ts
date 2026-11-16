@@ -1066,7 +1066,7 @@ describe("one fact back: ids and a timestamp", () => {
     expect(await recordNightTogether(t.db, smuggled, at)).toBe(true);
     expect(await recordNightTogether(t.db, smuggled, at)).toBe(false);
     const row = (await t.db.query<Any>(`select * from relationship_events where kind = 'night_together'`)).rows[0];
-    expect(Object.keys(row).sort()).toEqual(["at", "character_a", "character_b", "episode_id", "from_stage", "id", "kind", "layer", "to_stage"]);
+    expect(Object.keys(row).sort()).toEqual(["at", "character_a", "character_b", "episode_id", "from_shown", "from_stage", "id", "kind", "layer", "to_shown", "to_stage"]);
     expect(new Date(row.at).toISOString()).toBe(at.toISOString());
     expect(JSON.stringify(row)).not.toMatch(/SECRET/);
   });

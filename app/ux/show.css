@@ -1797,6 +1797,13 @@ main:has(> .couple-page) {
 .story-tie-together {
   --tie: var(--ok);
 }
+/* A couple who were going steady split: the couple's line, broken, in the colour of a feud. */
+.story-tie-broke_up {
+  --tie: var(--bad);
+}
+.story-tie-broke_up .story-tie-line {
+  stroke-dasharray: 10 5;
+}
 .story-tie-second_date {
   --tie: var(--accent-text);
 }

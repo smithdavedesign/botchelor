@@ -22,6 +22,7 @@
  * brand-new one). CHARACTER_NOW=0 turns the lines off without a deploy of code.
  */
 import type { CharacterTalk, TalkAfter, TalkFriction, TalkSaid } from "./character-talk";
+import { stageWords, TOGETHER_STAGES, WITH_PHRASES } from "./relationship-stages";
 import { shortName } from "./names";
 import { endingLabel, type Ending } from "./rules";
 import type { CircleData, StoryTie } from "./story-map";
@@ -92,6 +93,7 @@ const TIE_ICONS: Record<StoryTie["kind"], string> = {
   feuding: "⚡",
   date_next: "📅",
   cleared: "🤝",
+  broke_up: "💔",
   together: "💞",
   second_date: "💞",
   bad_blood: "🔥",
@@ -113,8 +115,13 @@ function tieWords(t: StoryTie, meId: string, me: string, other: string): string 
       return `A date with ${other} coming up`;
     case "cleared":
       return `Cleared the air with ${other}`;
-    case "together":
-      return t.label === "going steady" ? `Going steady with ${other}` : `Dating ${other}`;
+    case "together": {
+      // The map's label is the shown stage's words ("keeping it casual"): the same stage, as this character's own line.
+      const stage = TOGETHER_STAGES.find((s) => stageWords(s) === t.label);
+      return (stage && WITH_PHRASES[stage]?.(other)) ?? `Dating ${other}`;
+    }
+    case "broke_up":
+      return t.label === "divorced" ? `Divorced from ${other}` : `Broke up with ${other}`;
     case "second_date":
       return `Second date agreed with ${other}`;
     case "bad_blood":
@@ -125,6 +132,9 @@ function tieWords(t: StoryTie, meId: string, me: string, other: string): string 
       return t.a === meId ? `Talked about ${other} in the house` : `${other} talked about ${me} in the house`;
   }
 }
+
+/** Bad blood and a breakup are standings on the public graph, told with the ties; the rest of the friction happened on a day. */
+const isStanding = (f: TalkFriction): boolean => f.kind === "bad_blood" || f.kind === "breakup";
 
 /** "now" and "coming up" are already in the words. */
 const tieWhen = (t: StoryTie): string | null => (t.when === "now" || t.when === "coming up" ? null : t.when);
@@ -174,10 +184,10 @@ export function shapeNow(input: NowInput): CharacterNow | null {
   }
   for (const f of talk?.friction ?? []) {
     if (ties.length >= NOW_TIES_MAX) break;
-    if (f.kind !== "bad_blood" || !f.other || seen.has(f.other.id)) continue;
+    if (!isStanding(f) || !f.other || seen.has(f.other.id)) continue;
     seen.add(f.other.id);
     withWhom.set(`friction:${f.key}`, f.other.id);
-    ties.push({ key: `friction:${f.key}`, kind: "tie", icon: "🔥", text: unstop(f.text), href: f.href, when: null, track: "bad_blood" });
+    ties.push({ key: `friction:${f.key}`, kind: "tie", icon: f.kind === "breakup" ? "💔" : "🔥", text: unstop(f.text), href: f.href, when: null, track: f.kind });
   }
 
   // The newest thing that happened. The talk's lists are newest first; bad blood is a standing, told above.
@@ -186,7 +196,7 @@ export function shapeNow(input: NowInput): CharacterNow | null {
   const happened: Happened[] = [];
   const said = talk?.said[0];
   if (said) happened.push({ day: said.day, line: { key: `said:${said.key}`, kind: "latest", icon: "🏠", text: saidWords(said), href: said.href, when: null, track: "said" } });
-  const event = talk?.friction.find((f) => f.kind !== "bad_blood" && f.day);
+  const event = talk?.friction.find((f) => !isStanding(f) && f.day);
   if (event) happened.push({ day: event.day!, line: { key: `event:${event.key}`, kind: "latest", icon: event.kind === "challenge" ? "🏆" : "⚡", text: frictionWords(event), href: event.href, when: null, track: event.kind } });
   if (lastDate && !lastDate.partner.private) {
     happened.push({
