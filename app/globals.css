@@ -13496,7 +13496,7 @@ button.thread-menu-item:hover:not(:disabled) {
 /* Marketing in the open (app/marketing, 2026-11-15): six numbers, then wide tables that scroll inside their box on a phone. */
 .marketing-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: var(--space-2); margin: var(--space-3) 0 var(--space-2); }
 .marketing-summary div { padding: var(--space-2); border: 1px solid var(--line); border-radius: var(--radius-md); }
-.marketing-summary dd { margin: 0; font-size: 1.5em; font-weight: 600; font-variant-numeric: tabular-nums; }
+.marketing-summary dd { margin: 0; font-size: var(--text-xl); font-weight: 600; font-variant-numeric: tabular-nums; }
 .marketing-page .table-scroll { max-width: 100%; }
 .marketing-what { min-width: 16rem; }
 .marketing-what span { display: block; }
