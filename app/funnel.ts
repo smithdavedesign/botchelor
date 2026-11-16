@@ -8,6 +8,7 @@
  * set (the owner's own browsers), or when the visitor declined analytics cookies.
  */
 import { safeFrom } from "@/lib/age";
+import { INVITE_PAGE, isInvitePath } from "@/lib/casting-invite-shared";
 import { SHARE_REF } from "@/lib/episode-share";
 
 export const SIGNAL_URL = "https://idea-factory.1426davejobs.workers.dev/api/ideas/signal";
@@ -52,35 +53,46 @@ export function externalReferrer(referrer: string, origin: string): string | nul
 /**
  * The page an event counts for: this page, or on the 18+ gate the page the visitor was headed to (its `from`), so a
  * visitor from search who meets the gate first still counts for the page they came for. A ship name page counts as
- * /ship: its address holds the two names someone typed, and nothing typed goes to the beacon.
+ * /ship: its address holds the two names someone typed, and nothing typed goes to the beacon. A creator's casting
+ * invite counts as /casting/invite: its address is a private code (lib/casting-invite-shared.ts).
  */
 export function beaconPath(pathname: string, search = ""): string {
   let path = pathname;
   const from = pathname === "/gate" ? new URLSearchParams(search).get("from") : null;
   if (from) path = safeFrom(from).split(/[?#]/)[0] || "/";
+  if (isInvitePath(path)) return INVITE_PAGE;
   return path === "/ship" || path.startsWith("/ship/") ? "/ship" : path;
 }
+
+/** A visit that starts on a creator's casting invite (lib/casting-invites.ts): its link carries no tag, the page is the tag. */
+export const CASTING_INVITE_REF = "casting_invite";
 
 /**
  * The tags a link may carry (?ref=…) and the only ones sent: an episode's share links (lib/episode-share.ts), a
  * creator's date link (`invite`, lib/date-invites.ts), a bring-a-friend double link (`double`, lib/double-links.ts) and
- * an owner's share of a date that went well (`owner`, lib/episode-share.ts). Each becomes its own source
- * (lib/engagement.ts sourceOf), so the weekly report can say which kind of share brings people.
+ * an owner's share of a date that went well (`owner`, lib/episode-share.ts); and a casting invite's page, which tags
+ * itself (`casting_invite`). Each becomes its own source (lib/engagement.ts sourceOf), so the weekly report can say
+ * which kind of share brings people.
  */
-export const BEACON_REFS: readonly string[] = [SHARE_REF, "invite", "double", "owner"];
+export const BEACON_REFS: readonly string[] = [SHARE_REF, "invite", "double", "owner", CASTING_INVITE_REF];
 
 /**
  * The tag a visit came with: this page's ?ref, or on the 18+ gate the ?ref of the page the visitor was headed to (the
- * gate keeps it in `from`). Only a known tag, so nothing typed into an address reaches the beacon; otherwise null.
+ * gate keeps it in `from`). Only a known tag, so nothing typed into an address reaches the beacon; otherwise a casting
+ * invite's page tags itself, and anything else is null.
  */
 export function beaconRef(pathname: string, search = ""): string | null {
   let query = search;
+  let path = pathname;
   if (pathname === "/gate") {
     const from = new URLSearchParams(search).get("from");
-    query = from ? (safeFrom(from).split("#")[0].split("?")[1] ?? "") : "";
+    const target = from ? safeFrom(from).split("#")[0] : "";
+    path = target.split("?")[0];
+    query = target.split("?")[1] ?? "";
   }
   const ref = new URLSearchParams(query).get("ref");
-  return ref && BEACON_REFS.includes(ref) ? ref : null;
+  if (ref && BEACON_REFS.includes(ref)) return ref;
+  return isInvitePath(path) ? CASTING_INVITE_REF : null;
 }
 
 /** Set by <FunnelBeacon> from the server: whether this is production, and this visitor's consent default. */

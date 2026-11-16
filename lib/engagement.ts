@@ -8,6 +8,7 @@
  * becomes a source), never an IP. The browser sends nothing from automated browsers, the owner's own, previews, or when
  * analytics cookies are turned off (app/funnel.ts trackingAllowed); this file drops bots and malformed rows again.
  */
+import { INVITE_PAGE, isInvitePath } from "./casting-invite-shared";
 import { addDays, daysBetween } from "./chart";
 import type { Db } from "./db";
 import { loadOurIds } from "./our-traffic";
@@ -47,12 +48,14 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * A path as the dashboards count it: no query or hash, every id replaced by :id (so /characters/<uuid> is one page),
- * a ship-name page as /ship (its address holds the names someone typed), at most 120 characters.
+ * a ship-name page as /ship (its address holds the names someone typed), a casting invite as /casting/invite (its
+ * address is a private code), at most 120 characters.
  */
 export function normalizePath(raw: string): string {
   let path = String(raw ?? "").split(/[?#]/)[0] || "/";
   if (!path.startsWith("/")) path = `/${path}`;
   if (path === "/ship" || path.startsWith("/ship/")) return "/ship";
+  if (isInvitePath(path)) return INVITE_PAGE;
   const parts = path.split("/").map((seg) => {
     if (!seg) return seg;
     let s = seg;
@@ -109,8 +112,11 @@ const SOURCES: [RegExp, string][] = [
   [/(^|\.)github\.com$/, "github"],
 ];
 
-/** A link's ?ref tag (app/funnel.ts BEACON_REFS) as a source: which kind of share the visitor followed. */
-const REF_SOURCES: Readonly<Record<string, string>> = { share: "share_link", invite: "date_link", double: "double_link", owner: "owner_share" };
+/**
+ * A link's ?ref tag (app/funnel.ts BEACON_REFS) as a source: which kind of share the visitor followed. A visit that
+ * starts on a creator's casting invite (lib/casting-invites.ts) is the "invite" source: which invites became applicants.
+ */
+const REF_SOURCES: Readonly<Record<string, string>> = { share: "share_link", invite: "date_link", double: "double_link", owner: "owner_share", casting_invite: "invite" };
 
 /**
  * Where a visit came from, in one word: utm_source when the link was tagged, a share link's ref, our name for the
