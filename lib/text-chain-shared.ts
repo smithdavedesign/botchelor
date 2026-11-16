@@ -75,7 +75,69 @@ export function decisionShownAt(matchedAt: string, items: readonly ChainItem[]):
 /** Whether a match's answers show yet (decisionShownAt). */
 export const decisionShown = (matchedAt: string, items: readonly ChainItem[], now = Date.now()): boolean => new Date(decisionShownAt(matchedAt, items)).getTime() <= now;
 
-export type ChainItem = ChainDate | ChainText | ChainEvent;
+/**
+ * The photo of a date, sent by one of the two (lib/text-chain.ts, DATE_PHOTO_IN_CHAIN): the newest approved real photo
+ * an owner made of it (lib/studio/date-photos.ts) when there is one, else the snapshot the show composes from the place
+ * and the two portraits (lib/date-photo.ts). It sits right after its date's marker, before the morning-after texts.
+ * Neither the picture, its alt text nor the line says how the date ended.
+ */
+export type ChainPhoto = {
+  kind: "photo";
+  id: string;
+  at: string;
+  day: string;
+  /** The end that sent it (seeded by the date, lib/date-photo.ts photoSender). */
+  who: End;
+  episode_id: string;
+  /** Where the picture is served: /api/assets/<id> (a real one) or /api/og/date-photo/<episode id> (the snapshot). */
+  src: string;
+  /** An owner's real photo, not the composed snapshot. */
+  real: boolean;
+  /** Who, where, when: never the ending. */
+  alt: string;
+  /** The sender's short line with it, from templates in its own tone (no model call). */
+  text: string;
+};
+
+/** How the receiver took a gift (lib/character-gifts.ts). */
+export type GiftReaction = "touched" | "amused" | "unimpressed";
+
+/**
+ * A small gift from one character to the other (lib/character-gifts.ts, CHARACTER_GIFTS): fiction between the two,
+ * written by rules after one of their dates aired publicly. Nobody pays for one and no person can send one.
+ */
+export type ChainGift = {
+  kind: "gift";
+  id: string;
+  at: string;
+  day: string;
+  /** The end that gave it. */
+  who: End;
+  /** The date it followed. */
+  episode_id: string;
+  /** What it is, with its article ("a jar of wildflower honey"). */
+  name: string;
+  /** The giver's one-line note. */
+  note: string;
+  reaction: GiftReaction;
+  /** The receiver's one line back. */
+  reply: string;
+};
+
+export type ChainItem = ChainDate | ChainText | ChainEvent | ChainPhoto | ChainGift;
+
+/** A date's photo or a gift: what they send each other besides texts. */
+export type ChainKeepsake = ChainPhoto | ChainGift;
+export const isKeepsake = (item: ChainItem): item is ChainKeepsake => item.kind === "photo" || item.kind === "gift";
+
+/**
+ * What of a chain anyone may see: the dates and the keepsakes (each date's photo, the gifts), never a text, a held
+ * morning after, a match or who went quiet. The texts stay the owners' (docs/relationship-graph.md, "Their texts").
+ * Meant for a chain loaded on the public layer (lib/text-chain.ts PUBLIC_VIEWER), which holds only dates that aired
+ * publicly and weren't reported away; a keepsake follows its date, so it is in that chain only when its date is.
+ */
+export const publicKeepsakes = (items: readonly ChainItem[]): (ChainDate | ChainKeepsake)[] =>
+  items.filter((i): i is ChainDate | ChainKeepsake => i.kind === "date" || isKeepsake(i));
 
 /** One page of the chain, oldest first. `cursor` asks for the page before it; null at the start of their texts. */
 export type ChainPage = { items: ChainItem[]; cursor: string | null; has_more: boolean };

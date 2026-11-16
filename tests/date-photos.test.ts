@@ -7,6 +7,8 @@ import { datePhotoPrompt, placeWordsOf } from "@/lib/studio/date-photos";
 import { setPgStudioFetchForTests, setPgStudioPausesForTests } from "@/lib/studio/pg";
 import { loadCharacter } from "@/lib/character";
 import { HOUSE_CHARACTERS } from "@/lib/house";
+import { pairKey } from "@/lib/relationships";
+import { loadChain, PUBLIC_VIEWER, publicKeepsakes } from "@/lib/text-chain";
 import { api, BASE_URL, signedInCookie, startTestDb, TEST_SESSION_SECRET, validCharacter } from "./helpers";
 
 // Date photos (2026-10-30): a PG picture of the two of them from a finished date, kept with the date and sent in their texts.
@@ -81,7 +83,7 @@ describe("a date photo", () => {
     expect(drawn).toHaveLength(0);
   });
 
-  it("draws both faces in safe mode, keeps only pg, sends the first in their texts, and lists it with the date", async () => {
+  it("draws both faces in safe mode, keeps only pg, becomes the date's photo in their texts, and lists it with the date", async () => {
     const me = await dated();
     await tokens(me.uid, 1);
     const drawn = venice(["CLOTHED", "REVEALING"]);
@@ -91,12 +93,53 @@ describe("a date photo", () => {
     expect(drawn[0].body).toMatchObject({ safe_mode: true });
     expect((drawn[0].body.images as string[]).length).toBe(2);
     expect(String(drawn[0].body.prompt)).toMatch(/photo-booth strip.*At a rooftop bar at sunset\./);
-    const text = (await t.db.query<{ text: string; photo: string }>(`select text, photo from couple_texts`)).rows;
-    expect(text).toEqual([{ text: "📷", photo: r.photos[0].asset_id }]);
+    // In their texts it is the date's own photo (lib/text-chain.ts reads date_photos), where the snapshot was: no 📷
+    // text is written any more, which would show the same picture twice.
+    expect((await t.db.query(`select 1 from couple_texts`)).rows).toEqual([]);
+    const chain = await loadChain(t.db, me.id, HOUSE_CHARACTERS[0].id, { userId: me.uid, owner: true }, { keepsakes: true });
+    expect(chain.filter((i) => i.kind === "photo")).toMatchObject([{ episode_id: me.ep, src: `/api/assets/${r.photos[0].asset_id}`, real: true }]);
+    // The maker has no thread with their character whose texts are on: nothing is texted to them.
+    expect(r.texted).toBe(false);
+    expect((await t.db.query(`select 1 from companion_messages`)).rows).toEqual([]);
     // Never in their Studio gallery (so never on a profile or the showcase with the other face in it).
     expect((await t.db.query(`select 1 from studio_pg_pictures`)).rows).toHaveLength(0);
     const listed = await (await get(me.ep, me.cookie)).json();
     expect(listed.photos.map((p: { asset_id: string }) => p.asset_id)).toEqual([r.photos[0].asset_id]);
+    // The panel is told where it went: the owner's thread, and that anyone sees it there (an aired public date).
+    const [lo, hi] = pairKey(me.id, HOUSE_CHARACTERS[0].id);
+    expect(listed.thread).toEqual({ href: `/messages/${lo}/${hi}`, public: true });
+  });
+
+  it("DATE_PHOTO_IN_CHAIN=0: the first goes into their texts as a 📷 text, as it did, and the panel names no thread", async () => {
+    vi.stubEnv("DATE_PHOTO_IN_CHAIN", "0");
+    const me = await dated();
+    await tokens(me.uid, 1);
+    venice(["CLOTHED"]);
+    const r = await (await post(me.ep, { style: "selfie" }, me.cookie)).json();
+    expect((await t.db.query<{ text: string; photo: string }>(`select text, photo from couple_texts`)).rows).toEqual([{ text: "📷", photo: r.photos[0].asset_id }]);
+    expect((await (await get(me.ep, me.cookie)).json()).thread).toBeNull();
+  });
+
+  it("an admin's photo of a house couple's date shows on the couple's page, the only thread a house couple has", async () => {
+    const admin = crypto.randomUUID();
+    await t.db.query(`insert into admins (user_id) values ($1)`, [admin]);
+    const [a, b] = [HOUSE_CHARACTERS[0].id, HOUSE_CHARACTERS[1].id];
+    const ep = crypto.randomUUID();
+    await t.db.query(
+      `insert into episodes (id, creator_id, character_a, character_b, setting, goals, scenes, twist, finale, ending, revealed_at, transcript, status, visibility)
+       values ($1, 'system', $2, $3, 'a safari jeep at dawn', '{}'::jsonb, '[]'::jsonb, '', '', 'second_date', now(), '[]'::jsonb, 'ready', 'public')`,
+      [ep, a, b],
+    );
+    venice(["CLOTHED"]);
+    const r = await (await post(ep, { style: "there" }, signedInCookie(admin))).json();
+    expect(r.photos.length).toBeGreaterThan(0);
+    const [lo, hi] = pairKey(a, b);
+    expect((await (await get(ep, signedInCookie(admin))).json()).thread).toEqual({ href: `/couples/${lo}/${hi}#texts`, public: true });
+    // Anyone's view of the pair (the public layer): the date, then its photo, the real one and the newest.
+    const seen = publicKeepsakes(await loadChain(t.db, a, b, PUBLIC_VIEWER, { keepsakes: true }));
+    expect(seen.map((i) => i.kind)).toEqual(["date", "photo"]);
+    expect(seen[1]).toMatchObject({ kind: "photo", real: true });
+    expect(r.photos.map((p: { asset_id: string }) => `/api/assets/${p.asset_id}`)).toContain((seen[1] as { src: string }).src);
   });
 
   it("gives the token back when nothing passes", async () => {

@@ -18,8 +18,9 @@ import { SHARE_IMAGE } from "@/lib/seo";
 import { planFromChain } from "@/lib/simulation";
 import { venueName } from "@/lib/venues";
 import VenuePhoto from "@/app/VenuePhoto";
-import { chainPage, loadChain } from "@/lib/text-chain";
+import { chainPage, isKeepsake, loadChain, PUBLIC_VIEWER, publicKeepsakes } from "@/lib/text-chain";
 import NudgeForm from "./NudgeForm";
+import PublicThread from "./PublicThread";
 import ThreadPreview from "./ThreadPreview";
 import { ArcCard, CopyLink, FollowButton } from "./CoupleActions";
 import NextDate from "./NextDate";
@@ -64,7 +65,11 @@ async function load(a: string, b: string) {
   const [lo] = pairKey(a, b);
   // Owners: the couple's whole text chain (lib/text-chain.ts), the newest page first. Nobody owns a house couple's
   // characters, so nobody texts there; anywhere else a spectator learns the texts are the owners'.
-  const chainP = owner ? loadChain(db, a, b, { userId: viewerId, owner: true }) : Promise.resolve(null);
+  // With the things they send each other besides texts: each date's photo and the small gifts (lib/text-chain.ts).
+  const chainP = owner ? loadChain(db, a, b, { userId: viewerId, owner: true }, { keepsakes: true }) : Promise.resolve(null);
+  // Anyone else: the dates that aired publicly, with those photos and gifts and never a text (publicKeepsakes), when
+  // both characters are public. Beside the page's other reads, like the owner's chain: no round trip of its own.
+  const sentP = !owner && listed && !ca.private && !cb.private ? loadChain(db, a, b, PUBLIC_VIEWER, { keepsakes: true }).then(publicKeepsakes, () => []) : Promise.resolve([]);
   // Owners: what they can do next for this couple (lib/date-proposals.ts), with the plan they agreed to by text since
   // their last date, which is where the next date will happen (lib/plans.ts), or else the plan from their latest date.
   const nextP = chainP.then(async (fullChain) => {
@@ -76,10 +81,11 @@ async function load(a: string, b: string) {
         : [];
     return owner ? nextDate(db, viewerId, a, b, last?.episode_id ?? null, plan, agreed ? venueName(agreed.place) : null) : null;
   });
-  const [[seeingA, seeingB], fullChain, nudges, [follow, arc], next, roleplay] = await Promise.all([
+  const [[seeingA, seeingB], fullChain, sent, nudges, [follow, arc], next, roleplay] = await Promise.all([
     // Between dates (lib/between-dates.ts): who else each is seeing (public), and for owners their texts and nudges.
     Promise.all([alsoSeeing(db, a, b), alsoSeeing(db, b, a)]),
     chainP,
+    sentP,
     owner ? Promise.all(mine.map(async (id) => ({ id, note: await activeNudge(db, id, id === a ? b : a) }))) : [],
     listed ? Promise.all([followState(db, viewerId, a, b), arcQuestion(db, viewerId, a, b)]) : [null, null],
     nextP,
@@ -90,7 +96,7 @@ async function load(a: string, b: string) {
   const chain = fullChain ? chainPage(fullChain) : null;
   // Each date's place, for its photo in Their dates (the view carries the venue's name only).
   const placeOf = new Map(rel!.history.map((h) => [h.episode_id, h.venue] as const));
-  return { ca, cb, view, owner, mine, seeing: { [a]: seeingA, [b]: seeingB } as Record<string, string[]>, chain, texted, nudges, follow, arc, next, roleplay, placeOf };
+  return { ca, cb, view, owner, mine, seeing: { [a]: seeingA, [b]: seeingB } as Record<string, string[]>, chain, sent: sent.some(isKeepsake) ? sent : [], texted, nudges, follow, arc, next, roleplay, placeOf };
 }
 
 /**
@@ -160,7 +166,7 @@ export default async function CouplePage({ params, searchParams }: Props) {
     if (!match) notFound();
     return <MatchPage {...match} />;
   }
-  const { ca, cb, view, owner, mine, seeing, chain, texted, nudges, follow, arc, next, roleplay, placeOf } = data;
+  const { ca, cb, view, owner, mine, seeing, chain, sent, texted, nudges, follow, arc, next, roleplay, placeOf } = data;
   const followedUp = view.timeline.filter((t) => t.second_date_of).length;
   const latest = [...view.timeline].reverse().find((t) => t.aired) ?? view.timeline.at(-1) ?? null;
   const complicated = [ca, cb].filter((c) => seeing[c.id]?.length);
@@ -309,7 +315,10 @@ export default async function CouplePage({ params, searchParams }: Props) {
             />
           )}
 
-          {!owner && texted && (
+          {/* Anyone watching: each aired date's photo and the gifts between them, never a text (PublicThread). */}
+          {!owner && sent.length > 0 && <PublicThread items={sent} characters={{ lo: refOf(ca), hi: refOf(cb) }} today={new Date().toISOString().slice(0, 10)} texted={texted} />}
+
+          {!owner && texted && sent.length === 0 && (
             // No card around it: the phone is the frame (a card inside a card had a ragged edge).
             <section className="phone-card couple-texts-locked">
               <h2>Their texts</h2>

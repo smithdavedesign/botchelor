@@ -341,7 +341,8 @@ export async function loadThread(db: Db, viewerId: string | null, a: string, b: 
     getPublicCharacter(db, hi),
     matchView(db, lo, hi),
     loadRelationship(db, lo, hi),
-    loadChain(db, lo, hi, { userId: viewerId, owner: true }),
+    // With each date's photo and the gifts: this is the phone's first page (lib/text-chain.ts keepsakes).
+    loadChain(db, lo, hi, { userId: viewerId, owner: true }, { keepsakes: true }),
     hasJobKey(db, viewerId, "text"),
   ]);
   if (!ca || !cb) return null;
