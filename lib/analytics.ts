@@ -53,6 +53,7 @@ export type AnalyticsEvent =
   | "overnight_yes" // an owner said yes to an overnight date that also needs the other owner's yes (lib/overnight.ts)
   | "overnight_booked" // an overnight date was booked: by an owner (through the second-date flow) or by the house (lib/overnight-house.ts)
   | "overnight_continued" // an After Dark viewer continued an overnight date's night there (lib/adult/overnight.ts); ids only
+  | "locked_picture_sent" // a character's locked-picture text went out (lib/locked-picture-texts.ts): what set it off and which tile they'll see; never the words or who
   | "show_date_free" // a show-model date fell through to the free model (the frontier wasn't configured): the episode, and whether that's unexpected
   | "scene_requested" // a finished date went somewhere the library has no set for (lib/scenes.ts): the place, normalized, and how (plan or move)
   | "date_link_accepted" // someone took a character's "date my OC" link (lib/date-invites.ts): the code, both characters

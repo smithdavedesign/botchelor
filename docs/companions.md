@@ -932,6 +932,64 @@ next to `day_after_texts`) and the upkeep of what the characters hold (`house_wo
 today the texts reach owners; a person texting a house character has no control to turn them on yet (the sender is
 ready for it: it only reads `muted_proactive`). Tests: `tests/house-texts.test.ts`.
 
+### A picture they kept, locked (built 2026-11-16)
+
+A character can text "I took one picture. It's yours if you want it." with a locked tile under it: the show stays PG,
+and the picture is in After Dark. The rules After Dark applies (who is entitled, regions, the way in) are in
+[after-dark.md](after-dark.md), "A picture they kept, locked in the show's texts"; this is the show's half
+(`lib/locked-picture.ts` the words and rules, `lib/locked-picture-texts.ts` the sender).
+
+- **What sets it off** (`lockedPictureTrigger`; derived from what the engine decided and what publicly happened, and
+  never read by the engine, the odds or the points):
+  - `overnight`: an overnight date aired and the engine ended it in another date, so they left together. Always.
+  - `steady`: an ordinary date that ended in another date, between a couple SHOWN as going steady or more (going
+    steady, official, moved in, engaged, married) or as keeping it casual (`lib/relationships.ts storedStages`). One
+    such date in five, decided by the date's id (`steadyRoll`), because overnight dates are rare.
+  - Never: any other ending, a private date, a date someone stepped into, a date that hasn't aired.
+- **Who hears**, as the house texts do: every thread with either character whose person turned on "Let {name} text you
+  first" and that isn't paused, the owner first; someone texting a cast member only when the date is public, unhidden
+  and both characters are public. Never someone who muted Texts as a notification type, our own identities
+  (`loadOurIds`), an owner the airing keeps quiet (a mixer's fillers), a guest, or anyone After Dark's rules say may not
+  be told (a blocked or text-only place, no 18+ answer, and the rest: after-dark.md). No new consent and no new
+  notification type: it is one more text under the existing opt-in and the existing Texts mute.
+- **How often.** Once a thread a date (`locked_picture:<episode id>`), one text a person a date (their own character's
+  when both sides text them), at most one such text a thread in 7 days, at most 20 an airing.
+- **The words** are templates, two bubbles, three variants a trigger, dealt by the date and the character, with the
+  partner's first name. None says what happened or what the picture shows, and none names After Dark:
+  - overnight: "Last night with {p} isn't for the show." / "I took one picture. It's yours if you want it."; "One more
+    thing about the overnight date with {p}." / "There's a picture from after. It stays off the show, but you can have
+    it."; "The cameras stayed behind last night. My phone didn't." / "One picture of the night with {p}. It's yours if
+    you want it."
+  - steady: "You saw the date with {p}. You didn't see after." / "I kept one picture. It isn't for the show, but it's
+    yours if you want it."; "After the date with {p}, the cameras went home." / "I took one picture of the rest of the
+    night. It's yours if you want it."; "Some of tonight with {p} was just for us." / "There's one picture from after.
+    Not for the show. Yours if you want it."
+  Every line goes through `postFromCharacter`: the PG check, the crisis list, the AI notice when due, never a paused
+  thread, and the `character_texted_you` notice (the first bubble is its body).
+- **In the thread** they are ordinary text messages (`via = 'text'`, no `media_url`: nothing about a picture is stored).
+  `getThread` marks the last bubble of the text (`locked: { episode }`), and the page draws the tile under it
+  (`app/companion/[id]/LockedPicture.tsx`, `app/ux/phone.css`) only when the server says this viewer may see one, on
+  this request (`lockedDoors`). Otherwise the two bubbles are plain texts.
+- **The tile is PG pixels only**: the character's own approved PG portrait, blurred on the server beyond any detail
+  (`GET /api/locked-picture/<character id>`: signed-in people only, a private character's only for its owner, kept in
+  the browser a day), with a lock, "In After Dark · adults only", one button and one plain line that says the tile is
+  only the lock. A character without a portrait gets its avatar's two colours, blurred.
+- **The character can answer "what picture?"** While such a text is under 14 days old the thread's prompt carries one
+  line (`lockedPictureForPrompt`): it kept one picture from a night with them, it isn't for the show, it sits behind
+  the lock under that text on the show's separate adults-only side; it never describes the picture or the night, can't
+  send it or another here, and doesn't push. The line names no product.
+- **Switch:** `LOCKED_PICTURE_TEXTS` (on by default; `0` sends nothing, shows the old ones as plain texts, 404s the
+  tile and drops the prompt line).
+- Tests: `tests/locked-picture.test.ts`.
+- Proof in a real browser: `npm run e2e:visual` seeds one (`scripts/visual.mjs`: the admin's own character, a date that
+  ended in another, the preview route) and audits the thread in both states of the tile, phone and desktop, light and
+  dark (`companion-locked-picture`, `companion-locked-picture-visitor`). The character there has no portrait, so the
+  tile is its avatar's colours; a character with one gets its blurred PG portrait.
+
+| Not in After Dark (phone) | After Dark open to them (phone) | Not in After Dark (desktop) |
+|---|---|---|
+| ![The locked tile under the text: In After Dark, adults only, Ask for an invite, and the line that it is only the lock](screenshots/locked-picture-way-in-mobile.webp) | ![The same tile with Open in After Dark](screenshots/locked-picture-open-mobile.webp) | ![The thread on a desktop with the locked tile and Ask for an invite](screenshots/locked-picture-way-in-desktop.webp) |
+
 ## Still to build
 
 - **P3, the rest (voice notes are built, above):** PG selfies from `lib/studio/date-photos.ts` with the face reference.

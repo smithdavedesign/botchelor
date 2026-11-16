@@ -314,6 +314,12 @@ services:
       # - key: OVERNIGHT_AFTER_DARK
       #   value: "0"
       #   scope: RUN_AND_BUILD_TIME
+      # The locked picture in a character's texts (lib/locked-picture.ts; docs/hosting.md): a PG line with a blurred,
+      # locked tile that opens in After Dark for an entitled adult and leads everyone else to the way in. On by default;
+      # "0" sends nothing and shows the ones already sent as plain texts, without a deploy.
+      # - key: LOCKED_PICTURE_TEXTS
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
       # Copied from the old Vercel project's values (not secret, but deployment-specific).
       - key: CONTACT_EMAIL
         value: "CHANGE_ME"

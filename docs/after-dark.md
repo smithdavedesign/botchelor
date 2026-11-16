@@ -384,6 +384,64 @@ carries one button: **"Continue the night in After Dark"** (`lib/adult/overnight
   continued stay ordinary nights, and nothing more is told to the show. `OVERNIGHT_DATES=0` turns the show's half off
   too.
 
+### A picture they kept, locked in the show's texts (2026-11-16)
+
+David, 2026-11-16: "put in PG text but blur it, use it as a marketing opportunity to get subscribers." After a couple
+leaves an overnight date together (and, one date in five, after a steady couple's date ends in another), the character
+texts the people it texts two PG bubbles, for example "Last night with Nell isn't for the show." / "I took one picture.
+It's yours if you want it.", with a **locked tile** under them. Whoever After Dark is open to opens the couple's night
+there; everyone else is one tap from the way in. The show's half (who is sent it, the words, the caps) is in
+[companions.md](companions.md), "A picture they kept, locked"; this is After Dark's half (`lib/adult/locked-picture.ts`).
+
+- **The show side holds PG pixels only.** The tile is a locked door, never the picture. Its pixels are the sending
+  character's own approved PG portrait, shrunk to 12×15 and blown back up, blurred, on the server
+  (`GET /api/locked-picture/<character id>`, `lib/locked-picture-tile.ts`, `lib/teaser-image.ts blurredTeaser`), with a
+  lock and "In After Dark · adults only" printed over it in HTML. **No After Dark image is generated for it, stored for
+  it or served with it**, to anyone, and that code imports nothing of After Dark's and reads no After Dark table
+  (`tests/locked-picture.test.ts` reads every statement the route asks). No copy says the blur is the picture: the line
+  under the tile says "This tile is only the lock, not the picture." This keeps the show PG and keeps the show's payment
+  processor (Stripe, which doesn't allow adult content) out of adult content: the Companion Plan is never mentioned and
+  buys nothing here.
+- **No new picture, no new cost.** The "one picture" is the night's own first picture in After Dark, drawn there by the
+  existing pipeline when an entitled adult continues the night (the chapter's automatic picture, or the one they ask
+  for), under every existing check, allowance and price. This feature draws nothing and adds no way to draw.
+- **The tap, entitled** (`lockedDoors`, state `open`, button "Open in After Dark"): the overnight continuation's own
+  entry (`/after-dark/overnight/<episode id>`, `viewerContinue`: every one of its rules) when the date is theirs to
+  continue; else the pair's night (`/after-dark/<a>/<b>`) when both are in their After Dark; else After Dark's front
+  page. Through `afterDarkHref`, so it follows After Dark to its own host.
+- **The tap, not entitled** (state `way_in`): the bridge's own destination, `invitePath("locked_picture")` =
+  `/after-dark/subscribe?source=locked_picture`. Today that page is the invite request, the free taste and the waitlist
+  (button "Ask for an invite", or "See your invite request" once they have asked; the line says "After Dark is the
+  show's adult side: 18+, optional and separate from the show. It's invite only for now."). The day a processor is set
+  up the same page sells the subscription, and the button reads "See After Dark" with no code change (`billingOn`).
+  **`public_door` is never read or changed.**
+- **Who gets a tile at all** (`doorKind`, pure, every one): the switch on; After Dark on at all; a signed-in account,
+  never a guest; the 18+ answer on this browser; not a crawler or agent; somewhere After Dark's **pictures** are allowed
+  (`mediaAllowed`: never a blocked or unknown place, and never a text-only one, where there is no picture to open);
+  then either After Dark open to them with pictures (not a taste) and the device not PIN-locked, or not open to them
+  with the bridge on (`AD_BRIDGE`) and no declined invite request. Anyone else sees the two bubbles as plain texts.
+- **Who is sent the text** (`whoMayBeSent`): the same rules, asked without a request. The job that writes texts has no
+  place or cookie to read, so the show notes on the account row what After Dark's rules said the last time that person
+  opened one of their threads having said they're 18+: `accounts.after_dark_seen_mode` (`open`, `text_only` or
+  `blocked`: the mode alone, never a country, a state or an address) and `after_dark_seen_at`. A text goes only to an
+  account seen `open` within 30 days. For someone After Dark is already open to, After Dark's own rule for work without
+  a request also has to say yes (`mediaAllowedFor`), and both characters have to be in THEIR After Dark: an owner whose
+  character isn't switched in is not sent it (that yes is theirs, and this never asks for it). For everyone, the pair's
+  night has to be able to open at all: each of the two is in After Dark for everyone (this season's cast, the open agent
+  cast) or is that person's own, and neither is drawn in anime. A text about a night with another person's character is
+  never sent: there is no consent for that character to be in someone else's After Dark.
+- **Counting, without content.** Sent: the server's `locked_picture_sent` (what set it off, which tile, whether it is
+  their own character). Shown: the engagement log's `ad_locked_picture_shown` (the state). Tapped: the link's
+  `ad-locked-picture` (`data-track`, with the state). Reached the way in: the invite request keeps
+  `source = locked_picture`, counted on `/invites/review` beside `verdict`.
+- **Switch.** `LOCKED_PICTURE_TEXTS=0` (the show's app): nothing is sent, the texts already in a thread read as plain
+  lines, the tile route answers 404 and the prompt carries no line. `AD_BRIDGE=0` also stops it for people who aren't
+  in After Dark (the show then points nobody at the way in).
+- **To see it** (an admin's own account is otherwise left out, like every text): turn "Let them text you first" on in
+  your thread with a character of yours that is switched into After Dark, then
+  `POST /api/admin/locked-picture?character=<its id>` (its latest aired date that ended in another date), and open the
+  thread. `?preview=visitor` on the thread's address shows the tile as someone After Dark isn't open to.
+
 ### Reviewer pass (2026-10-30)
 
 A processor's compliance team asks for a premium login to review the subscriber experience. CCBill asked on 2026-10-30.

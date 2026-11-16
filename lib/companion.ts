@@ -38,6 +38,8 @@ import { castOpenerLines, castOpenerTag } from "./cast-opener";
 import { openQuestion, type StoredQuestion } from "./character-question-fields";
 import { textPhoto, type TextPhoto } from "./date-photo";
 import { lastAiredDateOf, lastDateOf } from "./last-date";
+import { lockedPictureEpisode, lockedPictureTextsOn } from "./locked-picture";
+import { lockedPictureForPrompt } from "./locked-picture-texts";
 import { fallbackModel, getModel, openAICompatibleModel, type Model, type Usage } from "./model";
 import { houseForPrompt } from "./house-texts";
 import { notify } from "./notifications";
@@ -434,6 +436,9 @@ export async function getThread(db: Db, userId: string, threadId: string): Promi
   // the house scene a text is about (lib/companion-shared.ts textLink).
   const lastOfTag = new Map<string, string>();
   for (const m of msgs) if (m.role === "character" && m.via !== "photo" && textLink(m.action)) lastOfTag.set(m.action!, m.id);
+  // The locked tile goes under the last bubble of a locked-picture text (lib/locked-picture.ts), while the switch is on.
+  const lastLocked = new Map<string, string>();
+  if (lockedPictureTextsOn()) for (const m of msgs) if (m.role === "character" && lockedPictureEpisode(m.action)) lastLocked.set(m.action!, m.id);
   // The chips: on the newest text whose menu is still open, and only while no newer date of theirs exists.
   const open = ref.yours ? await openOffers(db, ref.id, msgs).catch(() => null) : null;
   // The answer box: under the newest question the character asked about its own sheet, until it's answered.
@@ -460,6 +465,7 @@ export async function getThread(db: Db, userId: string, threadId: string): Promi
         ...(asked && asked.messageId === m.id ? { question: asked.view } : {}),
         ...photoOf(m, realPhotos),
         ...(m.action && lastOfTag.get(m.action) === m.id ? { link: textLink(m.action)! } : {}),
+        ...(m.action && lastLocked.get(m.action) === m.id ? { locked: { episode: lockedPictureEpisode(m.action)! } } : {}),
       })),
       reply_length: t.reply_length,
       texts: !t.muted_proactive,
@@ -714,6 +720,8 @@ async function speak(
   const story = await companionStory(db, character, yours, now).catch(() => []);
   // What the house said about it lately (lib/house-texts.ts): public, so it can talk about it when they ask.
   const house = await houseForPrompt(db, character, yours, now);
+  // A locked-picture text it sent lately (lib/locked-picture-texts.ts): one line, so "what picture?" has a PG answer.
+  const lockedPicture = await lockedPictureForPrompt(db, t.id, character.id, now);
   // A safe draw that only says something again: used when the redraw doesn't come back better (never a deflection).
   let safeRepeat: { bubbles: string[]; action: string | null } | null = null;
   const again = (x: string) => `${x.slice(0, 300)} (you've said this before: say something new)`;
@@ -722,7 +730,7 @@ async function speak(
     let raw: string;
     try {
       raw = await model.complete(
-        companionMessages({ character, turns, facts, summary: t.summary, length: t.reply_length, avoid, now, insteadOf, cue: opts.cue, scene, call, yours, lastDate, activeNudge: nudge, photos, lessons, story, house }),
+        companionMessages({ character, turns, facts, summary: t.summary, length: t.reply_length, avoid, now, insteadOf, cue: opts.cue, scene, call, yours, lastDate, activeNudge: nudge, photos, lessons, story, house, lockedPicture }),
         {
           temperature: 0.9,
           frequencyPenalty: 0.3,
@@ -934,6 +942,7 @@ export async function liveReply(db: Db, turn: LiveTurn, sink: LiveSink): Promise
   const story = await companionStory(db, character, yours, now).catch(() => []);
   // What the house said about it lately (lib/house-texts.ts): public, so it can talk about it when they ask.
   const house = await houseForPrompt(db, character, yours, now);
+  const lockedPicture = await lockedPictureForPrompt(db, t.id, character.id, now);
   const usage: Usage[] = [];
   let served = null as string | null;
   const parts: string[] = [];
@@ -962,7 +971,7 @@ export async function liveReply(db: Db, turn: LiveTurn, sink: LiveSink): Promise
   };
   try {
     const stream = model.stream(
-      companionMessages({ character, turns, facts, summary: t.summary, length: t.reply_length, avoid, now, call: true, live: true, yours, lastDate, activeNudge: nudge, photos, lessons, story, house }),
+      companionMessages({ character, turns, facts, summary: t.summary, length: t.reply_length, avoid, now, call: true, live: true, yours, lastDate, activeNudge: nudge, photos, lessons, story, house, lockedPicture }),
       { temperature: 0.9, frequencyPenalty: 0.3, maxTokens: 250, onUsage: (u) => usage.push(u), onModel: (id) => (served = id), signal },
     );
     reading: for await (const piece of stream) {
