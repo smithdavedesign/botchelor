@@ -103,6 +103,11 @@ export function companionMessages(args: {
    */
   photos?: readonly string[];
   /**
+   * One line while the character's locked-picture text is recent in this thread (lib/locked-picture-texts.ts
+   * lockedPictureForPrompt): where the picture is, and that it is never described. PG, and it names no product.
+   */
+  lockedPicture?: string | null;
+  /**
    * With `lastDate`: the owner's standing note for the next date with that partner (a nudge, lib/between-dates.ts
    * activeNudge), left from the thread's "For next time" or the couple's page. The one thing from the person that does
    * reach a date, by that channel only; here the character may acknowledge it, never recite it.
@@ -206,6 +211,7 @@ export function companionMessages(args: {
     ...(photos.length
       ? ["", "Photos you sent them (snapshots from your dates; the show takes them, so you can't send one on request):", ...photos.map((p) => `- ${p}`)]
       : []),
+    ...(args.lockedPicture ? ["", `A picture you mentioned: ${args.lockedPicture}`] : []),
     ...(life.length ? ["", "Your life on the show lately (yours to bring up, as yourself):", ...life.map((l) => `- ${l}`)] : []),
     ...(lessons
       ? [

@@ -258,6 +258,11 @@ the count under the empty-room rule ([show-style.md](show-style.md)). Tests: `te
 `POST /api/admin/season` with `{"action":"format","season_id":"<YYYY-MM-01>","slug":"botchelor"}` and then
 `{"action":"lead","season_id":"<YYYY-MM-01>","character_id":"<house id>"}`. Casting opens with the second call.
 
+**Creator invites** (2026-11-15, [casting-invites.md](casting-invites.md)): a code the owner sends a creator by hand
+(`/admin/season` → Creator invites). Applying a character with it skips the three public dates an audition asks for
+(and nothing else), goes in shortlisted, and books its audition date with the lead at once, show-paid: its casting
+date, which Sunday's roses judge like any walk-on's. `CASTING_INVITES=0` closes them.
+
 ## The producer: tomorrow's beat, picked overnight
 
 The drama wave, 2026-11-15, part 4. Reality TV is produced: someone decides tonight what tomorrow's episode is about.

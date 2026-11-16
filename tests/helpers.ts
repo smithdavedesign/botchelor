@@ -277,6 +277,8 @@ export async function startTestDb() {
         // Profile photos (lib/studio/profile-photos.ts).
         "profile_photos",
         "date_photos",
+        // Gifts between characters (lib/character-gifts.ts): the house cast outlives a reset, so a house couple's would.
+        "character_gifts",
         // The spend tracker (lib/spend.ts).
         "money_entries",
         "marketing_feed",

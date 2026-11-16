@@ -136,6 +136,13 @@ services:
       # - key: PRODUCER_PLANS
       #   value: "1"
       #   scope: RUN_AND_BUILD_TIME
+      # Earned endings (lib/date-turn.ts; docs/date-quality.md "Round: endings the dialogue earns"): on by default, a
+      # date played from the rules plan carries the moment its decided ending comes from, mid-date (measured: the
+      # judge's "motivated" on disasters 2.25 -> 3.5, "natural" inside the noise). "0" plays every date from its beats
+      # alone, as before. Never changes an ending.
+      # - key: EARNED_ENDINGS
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
       # One-sentence create (lib/express-create.ts; docs/flows.md): on by default. Uncomment with "0" to put the form
       # back as /create's first step without a deploy.
       # - key: EXPRESS_CREATE
@@ -182,6 +189,12 @@ services:
       #   scope: RUN_AND_BUILD_TIME
       # The pilot ("Meet the lead", the Sunday before a lead season): on with the premiere; "0" leaves it out.
       # - key: PREMIERE_PILOT
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
+      # Creator invites for casting (lib/casting-invites.ts; docs/casting-invites.md): a code from /admin/season skips
+      # the three-date wait, applies shortlisted and books the audition date with the lead. On by default; "0" makes
+      # every invite page say invites are closed and refuses every application, without a deploy.
+      # - key: CASTING_INVITES
       #   value: "0"
       #   scope: RUN_AND_BUILD_TIME
       # The navigation of 2026-11-15 (lib/nav-chat.ts; docs/flows.md "Navigation"): Watch · Chat · Characters, and the
@@ -256,6 +269,19 @@ services:
       # - key: HOME_PHONE
       #   value: "0"
       #   scope: RUN_AND_BUILD_TIME
+      # What two characters send each other besides texts (docs/hosting.md; both on by default, "0" turns one off
+      # without a deploy of code): each date's photo in the couple's thread (lib/text-chain.ts, lib/date-photo.ts), and
+      # small gifts between characters after some aired public dates (lib/character-gifts.ts). No model call in either.
+      # - key: DATE_PHOTO_IN_CHAIN
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
+      # - key: CHARACTER_GIFTS
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
+      # How often a gift comes, as a multiple of the built-in chances (1 when unset; "0.5" halves them).
+      # - key: CHARACTER_GIFTS_RATE
+      #   value: "0.5"
+      #   scope: RUN_AND_BUILD_TIME
       # Deleting one message of a companion conversation (lib/companion-message-delete.ts; docs/hosting.md): on by
       # default. "0" takes "Delete messages…" out of the thread's Settings, answers not-found on its page and route, and
       # the privacy notice and FAQ say only the whole conversation can be deleted.
@@ -270,6 +296,27 @@ services:
       # - key: HOME_EXPRESS_BOX
       #   value: "0"
       #   scope: RUN_AND_BUILD_TIME
+      # The story check (lib/story-check.ts; docs/story-check.md): the hourly lobby job judges aired dates' endings
+      # against their lines on the show's paid model (~0.04¢ a date), mends a contradicting recap finale when the record
+      # allows, and keeps the rest off the home excerpt, the 18+ gate, the home clip and the daily clip. All on by
+      # default. STORY_CHECK "0": no sweep, every date featured as before; STORY_CHECK_REPAIR "0": judge only, never
+      # rewrite a finale; STORY_CHECK_PER_HOUR: dates judged a pass (30); STORY_CHECK_BACKFILL_DAYS: how far back (30);
+      # STORY_CHECK_FEATURE_REPAIRED "1": a date whose finale was repaired may be featured again (off: it isn't).
+      # - key: STORY_CHECK
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
+      # - key: STORY_CHECK_REPAIR
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
+      # - key: STORY_CHECK_PER_HOUR
+      #   value: "30"
+      #   scope: RUN_AND_BUILD_TIME
+      # - key: STORY_CHECK_BACKFILL_DAYS
+      #   value: "30"
+      #   scope: RUN_AND_BUILD_TIME
+      # - key: STORY_CHECK_FEATURE_REPAIRED
+      #   value: "1"
+      #   scope: RUN_AND_BUILD_TIME
       # The After Dark bridge (lib/adult/bridge.ts; docs/hosting.md): one line on the creator's verdict card after a
       # second date, to the invite request. On by default; "0" takes it away without a deploy.
       # - key: AD_BRIDGE
@@ -282,6 +329,12 @@ services:
       #   value: "0"
       #   scope: RUN_AND_BUILD_TIME
       # - key: OVERNIGHT_AFTER_DARK
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
+      # The locked picture in a character's texts (lib/locked-picture.ts; docs/hosting.md): a PG line with a blurred,
+      # locked tile that opens in After Dark for an entitled adult and leads everyone else to the way in. On by default;
+      # "0" sends nothing and shows the ones already sent as plain texts, without a deploy.
+      # - key: LOCKED_PICTURE_TEXTS
       #   value: "0"
       #   scope: RUN_AND_BUILD_TIME
       # Copied from the old Vercel project's values (not secret, but deployment-specific).

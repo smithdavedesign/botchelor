@@ -28,6 +28,8 @@ export type AnalyticsEvent =
   | "life_date_booked" // the house took an owned character out with a cast member, house-paid (lib/character-life.ts)
   | "casting_date" // a person's new character walked on: its first date went to the season's lead (lib/casting.ts)
   | "rose_date_booked" // a walk-on's Sunday rose booked its second date with the lead, show-paid (lib/casting.ts)
+  | "casting_invites_made" // the admin made creator invite codes (lib/casting-invites.ts): how many
+  | "casting_invite_used" // an invite applied a character, or its date was tried again (lib/casting-invites.ts): the code, the character, whether the lead's date booked
   | "dare_vote" // a vote on tonight's dare (lib/dares.ts)
   | "purchase_completed"
   | "purchase_refunded" // a full refund made in Stripe took the pack's unused dates back
@@ -52,6 +54,7 @@ export type AnalyticsEvent =
   | "overnight_yes" // an owner said yes to an overnight date that also needs the other owner's yes (lib/overnight.ts)
   | "overnight_booked" // an overnight date was booked: by an owner (through the second-date flow) or by the house (lib/overnight-house.ts)
   | "overnight_continued" // an After Dark viewer continued an overnight date's night there (lib/adult/overnight.ts); ids only
+  | "locked_picture_sent" // a character's locked-picture text went out (lib/locked-picture-texts.ts): what set it off and which tile they'll see; never the words or who
   | "show_date_free" // a show-model date fell through to the free model (the frontier wasn't configured): the episode, and whether that's unexpected
   | "scene_requested" // a finished date went somewhere the library has no set for (lib/scenes.ts): the place, normalized, and how (plan or move)
   | "date_link_accepted" // someone took a character's "date my OC" link (lib/date-invites.ts): the code, both characters
@@ -79,6 +82,7 @@ export type AnalyticsEvent =
   | "step_in_refused" // a start that a cap turned away (lib/step-in.ts): which cap, and whether a guest; never who
   | "step_in_line_withheld" // a cast line on a step-in date was never said (it voiced self-harm): the episode and why
   | "data_pruned" // the daily job's retention prune (lib/retention.ts): rows removed per table
+  | "story_check" // one pass of the story check (lib/story-check.ts): verdict counts, repairs, tokens and cost; never a date or its words
   | "plus_interest"; // a tap on the "Botchelor Plus" intent tile (lib/plus-interest.ts): where, and whether an email was left
 
 type Props = Record<string, string | number | boolean | null | undefined>;

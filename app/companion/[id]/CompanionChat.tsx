@@ -37,9 +37,11 @@ import {
 import type { CharacterRef } from "@/lib/game";
 import { venueName, type VenueId } from "@/lib/venues";
 import type { FaceKit } from "@/lib/face-kit-shared";
+import type { LockedDoor } from "@/lib/locked-picture";
 import AnswerBox from "./AnswerBox";
 import CompanionCall, { callSupported, liveSupported, type CallStats, type CallTurn, type CallVoice } from "./CompanionCall";
 import DatePhoto from "./DatePhoto";
+import LockedPicture from "./LockedPicture";
 
 type Extras = Record<CompanionExtraKind, CompanionExtraState> | null;
 /** Who they are, for the panel beside the thread (the page reads it): their job, the first line of their bio, their week on the show. */
@@ -90,6 +92,7 @@ export default function CompanionChat({
   faceKit = null,
   about = null,
   messageDelete = false,
+  lockedDoors = null,
 }: {
   initial: CompanionThreadView;
   /** Who they are, beside the thread; null renders the thread alone (older callers, tests). */
@@ -110,6 +113,11 @@ export default function CompanionChat({
   faceKit?: FaceKit | null;
   /** One message can be deleted on its own (lib/companion-message-delete.ts): the Settings entry that opens its page. */
   messageDelete?: boolean;
+  /**
+   * The locked pictures in this thread (lib/locked-picture.ts), by date: what each tile is for this viewer, decided on
+   * the server when the page loaded. A date that isn't here, or null: its text stays a plain line.
+   */
+  lockedDoors?: Record<string, LockedDoor> | null;
 }) {
   const router = useRouter();
   const [view, setView] = useState(initial);
@@ -725,6 +733,10 @@ export default function CompanionChat({
                         )}
                         {m.text}
                       </p>
+                    )}
+                    {m.locked && lockedDoors?.[m.locked.episode] && (
+                      // A picture they kept from that night, locked (./LockedPicture.tsx): a blurred PG tile and the way in.
+                      <LockedPicture characterId={c.id} door={lockedDoors[m.locked.episode]} />
                     )}
                     {m.link && (
                       // The date this text is about (the cast's opener, the tease): one tap to watch it.

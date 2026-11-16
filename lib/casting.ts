@@ -199,7 +199,7 @@ export type WalkOnRun = {
 };
 
 /** Whether this person opted in to their character's texts: a thread with muted_proactive off, not paused. */
-async function optedIn(db: Db, ownerId: string, characterId: string): Promise<boolean> {
+export async function optedIn(db: Db, ownerId: string, characterId: string): Promise<boolean> {
   const { rows } = await db.query(`select 1 from companion_threads where user_id = $1 and character_id = $2 and muted_proactive = false and paused_at is null`, [ownerId, characterId]);
   return rows.length > 0;
 }
@@ -212,6 +212,19 @@ async function optedIn(db: Db, ownerId: string, characterId: string): Promise<bo
  */
 const roseRequests = new WeakSet<Request>();
 export const isRoseRequest = (req: Request): boolean => roseRequests.has(req);
+
+/**
+ * The same mark for another module's in-process booking of the lead by name: an invited creator's audition date
+ * (lib/casting-invites.ts) books the way a rose's date does. `audition`: that date is the character's casting date
+ * itself (`setup.met_via = 'casting'`), so Sunday's roses judge it like a walk-on's first date.
+ */
+const auditionRequests = new WeakSet<Request>();
+export function markLeadRequest(req: Request, opts: { audition?: boolean } = {}): Request {
+  roseRequests.add(req);
+  if (opts.audition) auditionRequests.add(req);
+  return req;
+}
+export const isAuditionRequest = (req: Request): boolean => auditionRequests.has(req);
 
 /**
  * A rose's second date with the lead, booked through the ordinary booking route as the owner on a show-paid request

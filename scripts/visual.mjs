@@ -31,7 +31,7 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { join } from "node:path";
 import { chromium } from "playwright-core";
-import { appEnv, build, client, freePort, persona, ROOT, seedDataset, startApp, startShowrunner, stopApp } from "./harness.mjs";
+import { appEnv, build, CAST, client, freePort, persona, ROOT, seedDataset, startApp, startShowrunner, stopApp } from "./harness.mjs";
 
 const OUT = join(ROOT, ".data", "visual");
 const DATA_DIR = join(ROOT, ".data", "visual-db");
@@ -231,6 +231,9 @@ async function main() {
   const app = await startApp(await freePort(), {
     ...appEnv(showrunner.address().port, DATA_DIR),
     FRONTIER_PASSWORD: ADMIN_PASSWORD,
+    // Every seeded couple the rules allow a gift gets one (lib/gift-catalog.ts giftRate), so the couple pages are
+    // audited with a photo and a gift in their thread, not one run in ten.
+    CHARACTER_GIFTS_RATE: "100",
     ADULT_MODE: "1",
     ADULT_LLM_BASE_URL: `http://127.0.0.1:${adult.address().port}/v1`,
     ADULT_LLM_API_KEY: "local-stub",
@@ -355,6 +358,40 @@ async function main() {
       scenePath = html.match(/href="(\/after-dark\/(?!studio\/|shorts\/)[^/"?]+\/[^/"?]+)"/)?.[1] ?? (cast.length === 2 ? `/after-dark/${cast[0]}/${cast[1]}` : scenePath);
       await ctx.close();
     }
+    // The locked picture in a character's texts (lib/locked-picture.ts): the admin's own character goes on a date built
+    // to end in another (the seeded season's Pernilla sheet against Rafe), it airs, the admin turns that thread's texts
+    // on and switches the character into After Dark, and the owner-only preview route writes the text. The thread is
+    // then audited twice: as someone After Dark is open to, and (?preview=visitor) as someone it isn't.
+    let lockedThread = null;
+    try {
+      const ctx = await browser.newContext();
+      await ctx.addCookies([{ name: "bz_adult", value: "1", url: base }]);
+      await adminSignIn(ctx.request);
+      const post = async (path, data) => {
+        const res = await ctx.request.post(base + path, { headers: { origin: base }, ...(data === undefined ? {} : { data }) });
+        if (!res.ok()) throw new Error(`${path} → ${res.status()}`);
+        return res.json();
+      };
+      const { soul, ...sheet } = CAST[10];
+      const mine = await post("/api/characters", { ...sheet, name: "Petra Lindqvist", ...(soul ? { soul } : {}), attest: true, keep_name: true });
+      let ended = null;
+      for (let i = 0; i < 3 && !ended; i++) {
+        const ep = await post("/api/episodes", { character_id: mine.id, partner_id: "house-rafe", autonomy: "guided", strategy: "genuine_chemistry", agenda: "find_funny", game_budget: 100, note: "Say what you actually think of the pastry." });
+        await post(`/api/episodes/${ep.id}/reveal`, {});
+        if (ep.ending === "second_date") ended = ep.id;
+      }
+      if (!ended) throw new Error("no date of theirs ended in another date");
+      const thread = (await post("/api/companion", { character_id: mine.id })).thread_id;
+      await post(`/api/companion/${thread}`, { action: "texts", on: true });
+      await post("/api/admin/after-dark/switch", { character_id: mine.id, on: true });
+      const sent = await post(`/api/admin/locked-picture?episode=${ended}`);
+      if (!sent.locked_picture?.sent) throw new Error(`the preview wrote nothing (${JSON.stringify(sent.locked_picture)})`);
+      lockedThread = thread;
+      await ctx.close();
+      console.log("Locked picture: seeded");
+    } catch (e) {
+      console.log(`Locked picture: not seeded (${String(e?.message ?? e).slice(0, 160)})`);
+    }
     const writeScene = async (page) => {
       // The page opens on the theater (2026-10-25): the scene is written there.
       // A new night waits on its start card (#896): Start it, then steer the next lines from the bar.
@@ -365,6 +402,16 @@ async function main() {
       await bar.getByRole("button", { name: "Next" }).click();
       await page.locator(".theater .chat-thread").getByText("kettle").first().waitFor({ state: "attached", timeout: 30_000 });
     };
+    // A creator's casting invite (lib/casting-invites.ts), made the way the admin makes one, so its page is audited open
+    // (best effort: without it, only the page for a code that isn't one).
+    const inviteCode = await fetch(`${base}/api/admin/casting-invites`, {
+      method: "POST",
+      headers: { origin: base, "content-type": "application/json", "x-frontier-key": ADMIN_PASSWORD },
+      body: JSON.stringify({ count: 1, note: "visual audit" }),
+    })
+      .then((r) => r.json())
+      .then((d) => d.invites?.[0]?.code ?? null)
+      .catch(() => null);
 
     // Each route: who opens it, and an optional walk through its states (each state is audited separately).
     const routes = [
@@ -596,7 +643,23 @@ async function main() {
       { name: "ship", path: "/ship/juniper/teo" },
       { name: "tool-chemistry", path: "/tools/oc-chemistry-test" },
       { name: "tool-ship-names", path: "/tools/ship-name-generator" },
+      // (Its Creator invites fold, list and "Make N invites" form, is audited open with the rest: openDetails.)
       { name: "admin-season", path: "/admin/season", as: "admin" },
+      // A character's text with its locked picture (lib/locked-picture.ts), in both states of the tile.
+      ...(lockedThread
+        ? [
+            { name: "companion-locked-picture", path: `/companion/${lockedThread}`, as: "adult-admin" },
+            { name: "companion-locked-picture-visitor", path: `/companion/${lockedThread}?preview=visitor`, as: "adult-admin" },
+          ]
+        : []),
+      // The invite page (no 18+ wall): as a stranger meets it, as a signed-in creator with characters, and a made-up code.
+      ...(inviteCode
+        ? [
+            { name: "casting-invite", path: `/casting/invite/${inviteCode}`, as: "visitor" },
+            { name: "casting-invite-member", path: `/casting/invite/${inviteCode}`, as: "member" },
+          ]
+        : []),
+      { name: "casting-invite-invalid", path: "/casting/invite/Ab3_x-9QzK", as: "visitor" },
       { name: "after-dark", path: "/after-dark", as: "adult-admin" },
       { name: "after-dark-scene", path: scenePath, as: "adult-admin", walk: writeScene },
       { name: "after-dark-theater", path: `${scenePath}?play=1`, as: "adult-admin" },

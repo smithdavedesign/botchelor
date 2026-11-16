@@ -647,6 +647,116 @@
 .audition-panel {
   border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
 }
+/* A suitor's credit on its casting card: its creator's name, linked to their creator page. */
+.casting-credit {
+  margin: 0;
+}
+
+/* ---------------- a creator's casting invite (app/casting/invite/[code]; lib/casting-invites.ts): the lead, the offer, the
+   terms, the one next step; the owner's one line on their character's page; the admin's fold. Tokens only. ---------------- */
+.casting-invite > h1 {
+  margin-bottom: var(--space-3);
+}
+.casting-invite-lead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin: 0 0 var(--space-4);
+}
+.casting-invite-lead .avatar {
+  flex: none;
+}
+.casting-invite-lead p {
+  margin: 0;
+}
+.casting-invite-terms {
+  margin: var(--space-4) 0;
+  background: color-mix(in srgb, var(--accent) 6%, var(--card));
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--line));
+}
+.casting-invite-terms h2 {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-lg);
+}
+.casting-invite-terms p:last-child {
+  margin-bottom: 0;
+}
+.casting-invite-action {
+  margin-top: var(--space-4);
+}
+.casting-invite-apply {
+  display: grid;
+  gap: var(--space-3);
+  justify-items: start;
+}
+.casting-invite-apply label {
+  display: grid;
+  gap: var(--space-1);
+}
+.casting-invite-apply p {
+  margin: 0;
+}
+.casting-invite-credit {
+  display: grid;
+  gap: var(--space-2);
+  width: 100%;
+  max-width: 28rem;
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+.casting-invite-credit legend {
+  padding: 0 var(--space-1);
+}
+.casting-invite-blocks {
+  display: grid;
+  gap: var(--space-1);
+  padding-left: 1.2rem;
+}
+.casting-invite-nudge {
+  margin: var(--space-3) 0;
+}
+.admin-invites-make {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: var(--space-3) 0;
+}
+/* "Make [3] invites" reads as one line: the number sits inside its words, not stacked under them. */
+.admin-invites-make label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+}
+.admin-invites-make input {
+  margin: 0;
+}
+.admin-invites-make input[type="number"] {
+  width: 4.5rem;
+}
+.admin-invites-make input[type="text"] {
+  flex: 1 1 14rem;
+  width: auto;
+}
+.admin-invites-made,
+.admin-invites-list {
+  display: grid;
+  gap: var(--space-2);
+  padding-left: 1.2rem;
+}
+.admin-invites-made code,
+.admin-invites-list code {
+  word-break: break-all;
+}
+@media (max-width: 480px) {
+  .casting-invite-lead {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
 
 /* ---------------- casting with no auditions yet (app/casting/page.tsx CastingSlots; the lift, 2026-11-13): the places as
    slots, this month's cast in the taken ones, the open places dashed, and one button. Tokens only. ---------------- */

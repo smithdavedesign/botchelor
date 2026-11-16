@@ -9,6 +9,7 @@ import { setAfterglowEnabledForTests } from "@/lib/afterglow";
 import { parsePlan, rulesPlan } from "@/lib/beats";
 import { setChoicesAskedForTests } from "@/lib/choices";
 import { setConversationEnabledForTests } from "@/lib/conversation";
+import { withTurn } from "@/lib/date-turn";
 import { fixedEngine } from "@/lib/engine";
 import { buildEvalDate, EVAL_CASES } from "@/lib/eval";
 import { HOUSE_CHARACTERS } from "@/lib/house";
@@ -68,7 +69,9 @@ describe("generateDate: which plan a date plays from", () => {
     expect(model.count("plan")).toBe(0);
     expect(model.seen[0].kind).toBe("line");
     expect(gen.plan?.source).toBe("rules");
-    expect(gen.plan).toEqual(rulesPlan(built.input, decided, built.characters, built.setup.producer, built.setup.venue));
+    // The rules plan, with the moment its ending comes from (lib/date-turn.ts, EARNED_ENDINGS: on by default).
+    expect(gen.plan).toEqual(withTurn(rulesPlan(built.input, decided, built.characters, built.setup.producer, built.setup.venue), built.input, decided, built.characters));
+    expect(gen.plan?.turn?.kind).toBe("friends");
   });
 
   it("a stored plan: no director call, and the actors are handed its beats", async () => {

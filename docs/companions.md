@@ -351,6 +351,16 @@ is a life you can watch: dates that really happened. So a character's text about
 - **A real photo wins.** When the owner made a date photo in the PG Studio (`lib/studio/date-photos.ts`, `date_photos`),
   the thread shows the newest approved one in the snapshot's place (`lib/companion.ts getThread`, owner's threads only,
   resolved when the thread is read, so a photo made later still shows).
+- **And the character sends it** (2026-11-16; the owner made two and found them in no thread). When an owner makes a
+  real photo of a date their own character was on, and they turned that character's texts on (a thread with it,
+  "Hear from" tapped, not paused), the character texts it to them once: "Look at us." and a second line in its own
+  tone (`REAL_PHOTO_LINES`, read off its public sheet), with the photo as its own message
+  (`postFromCharacter`, kind `date_photo`, tagged `date_photo:<episode id>`: once a date, however many photos they
+  make; the newest shows in its place). Never the ending. Making a photo is not an opt-in: with texts off or no
+  thread, nothing is sent. Our own accounts are not skipped here, unlike the day-after text: the person made the photo
+  themselves, like the "Hear from" tap. An admin's photo of a house couple's date texts nobody (neither is their
+  character). `DATE_PHOTO_TEXTS=0` stops it. The same photo is also the date's photo in the couple's own thread:
+  [relationship-graph.md](relationship-graph.md), "What they send each other".
 - **On the page** (`app/companion/[id]/DatePhoto.tsx`, `app/ux/phone.css`): the image has its 4:5 width and height on
   the element, so the thread doesn't jump when it loads; the alt text is on the image; one tap anywhere on it opens the
   date ("▶ Watch the date" sits on it). It has no voice note and no Report button (it is two approved portraits and a
@@ -369,6 +379,15 @@ is a life you can watch: dates that really happened. So a character's text about
 | The snapshot | In the owner's thread (phone) | A cast character's opener (phone) |
 |---|---|---|
 | ![A date's snapshot: the place, both portraits, their names, the place and the day](screenshots/phone-date-photo.webp) | ![The after-date text with its photo in the thread](screenshots/phone-thread-photo-mobile.png) | ![Rafe opens with his last aired date, its photo and Watch the date](screenshots/phone-cast-opener-mobile.png) |
+
+### When there was a gift (built 2026-11-16)
+
+A small gift between two characters (`lib/character-gifts.ts`, [relationship-graph.md](relationship-graph.md), "What
+they send each other") is told to the owners the same way every event text is: each owner whose own character gave or
+got it, and who turned that character's texts on, hears it from that character in three short bubbles, from templates
+("Sable left me a postcard of a giraffe." / "The note said: …" / "It made me laugh."), tagged `gift:<id>` so it is sent
+once. Never to a house character's thread, never to our own accounts (a job's text, like the day-after one), never on
+silence. It carries no chips and asks for nothing. `CHARACTER_GIFTS=0` stops the gifts, and with them these.
 
 ### A cast character opens with what happened to it (built 2026-11-15)
 
@@ -912,6 +931,64 @@ next to `day_after_texts`) and the upkeep of what the characters hold (`house_wo
 **What isn't there yet.** Only the "Hear from" tap turns a thread's texts on, and only an owner sees that button, so
 today the texts reach owners; a person texting a house character has no control to turn them on yet (the sender is
 ready for it: it only reads `muted_proactive`). Tests: `tests/house-texts.test.ts`.
+
+### A picture they kept, locked (built 2026-11-16)
+
+A character can text "I took one picture. It's yours if you want it." with a locked tile under it: the show stays PG,
+and the picture is in After Dark. The rules After Dark applies (who is entitled, regions, the way in) are in
+[after-dark.md](after-dark.md), "A picture they kept, locked in the show's texts"; this is the show's half
+(`lib/locked-picture.ts` the words and rules, `lib/locked-picture-texts.ts` the sender).
+
+- **What sets it off** (`lockedPictureTrigger`; derived from what the engine decided and what publicly happened, and
+  never read by the engine, the odds or the points):
+  - `overnight`: an overnight date aired and the engine ended it in another date, so they left together. Always.
+  - `steady`: an ordinary date that ended in another date, between a couple SHOWN as going steady or more (going
+    steady, official, moved in, engaged, married) or as keeping it casual (`lib/relationships.ts storedStages`). One
+    such date in five, decided by the date's id (`steadyRoll`), because overnight dates are rare.
+  - Never: any other ending, a private date, a date someone stepped into, a date that hasn't aired.
+- **Who hears**, as the house texts do: every thread with either character whose person turned on "Let {name} text you
+  first" and that isn't paused, the owner first; someone texting a cast member only when the date is public, unhidden
+  and both characters are public. Never someone who muted Texts as a notification type, our own identities
+  (`loadOurIds`), an owner the airing keeps quiet (a mixer's fillers), a guest, or anyone After Dark's rules say may not
+  be told (a blocked or text-only place, no 18+ answer, and the rest: after-dark.md). No new consent and no new
+  notification type: it is one more text under the existing opt-in and the existing Texts mute.
+- **How often.** Once a thread a date (`locked_picture:<episode id>`), one text a person a date (their own character's
+  when both sides text them), at most one such text a thread in 7 days, at most 20 an airing.
+- **The words** are templates, two bubbles, three variants a trigger, dealt by the date and the character, with the
+  partner's first name. None says what happened or what the picture shows, and none names After Dark:
+  - overnight: "Last night with {p} isn't for the show." / "I took one picture. It's yours if you want it."; "One more
+    thing about the overnight date with {p}." / "There's a picture from after. It stays off the show, but you can have
+    it."; "The cameras stayed behind last night. My phone didn't." / "One picture of the night with {p}. It's yours if
+    you want it."
+  - steady: "You saw the date with {p}. You didn't see after." / "I kept one picture. It isn't for the show, but it's
+    yours if you want it."; "After the date with {p}, the cameras went home." / "I took one picture of the rest of the
+    night. It's yours if you want it."; "Some of tonight with {p} was just for us." / "There's one picture from after.
+    Not for the show. Yours if you want it."
+  Every line goes through `postFromCharacter`: the PG check, the crisis list, the AI notice when due, never a paused
+  thread, and the `character_texted_you` notice (the first bubble is its body).
+- **In the thread** they are ordinary text messages (`via = 'text'`, no `media_url`: nothing about a picture is stored).
+  `getThread` marks the last bubble of the text (`locked: { episode }`), and the page draws the tile under it
+  (`app/companion/[id]/LockedPicture.tsx`, `app/ux/phone.css`) only when the server says this viewer may see one, on
+  this request (`lockedDoors`). Otherwise the two bubbles are plain texts.
+- **The tile is PG pixels only**: the character's own approved PG portrait, blurred on the server beyond any detail
+  (`GET /api/locked-picture/<character id>`: signed-in people only, a private character's only for its owner, kept in
+  the browser a day), with a lock, "In After Dark · adults only", one button and one plain line that says the tile is
+  only the lock. A character without a portrait gets its avatar's two colours, blurred.
+- **The character can answer "what picture?"** While such a text is under 14 days old the thread's prompt carries one
+  line (`lockedPictureForPrompt`): it kept one picture from a night with them, it isn't for the show, it sits behind
+  the lock under that text on the show's separate adults-only side; it never describes the picture or the night, can't
+  send it or another here, and doesn't push. The line names no product.
+- **Switch:** `LOCKED_PICTURE_TEXTS` (on by default; `0` sends nothing, shows the old ones as plain texts, 404s the
+  tile and drops the prompt line).
+- Tests: `tests/locked-picture.test.ts`.
+- Proof in a real browser: `npm run e2e:visual` seeds one (`scripts/visual.mjs`: the admin's own character, a date that
+  ended in another, the preview route) and audits the thread in both states of the tile, phone and desktop, light and
+  dark (`companion-locked-picture`, `companion-locked-picture-visitor`). The character there has no portrait, so the
+  tile is its avatar's colours; a character with one gets its blurred PG portrait.
+
+| Not in After Dark (phone) | After Dark open to them (phone) | Not in After Dark (desktop) |
+|---|---|---|
+| ![The locked tile under the text: In After Dark, adults only, Ask for an invite, and the line that it is only the lock](screenshots/locked-picture-way-in-mobile.webp) | ![The same tile with Open in After Dark](screenshots/locked-picture-open-mobile.webp) | ![The thread on a desktop with the locked tile and Ask for an invite](screenshots/locked-picture-way-in-desktop.webp) |
 
 ## Still to build
 

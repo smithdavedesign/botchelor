@@ -92,6 +92,12 @@ ignore it.
   not show a stored plan reading better than the rules plan overall (it earns the ending better and sounds less
   natural: the numbers and the dates are in that round); `1` turns it on without a deploy, and `/admin/season` → The
   producer lists each plan and whether its date used it. All three are commented in `.do/show.yaml`.
+- **`EARNED_ENDINGS`** (the show's app, not a secret; on unless `0`): a date played from the rules plan carries the
+  moment its decided ending comes from, a third of the way in (`lib/date-turn.ts`, [date-quality.md](date-quality.md),
+  "Round: endings the dialogue earns"): a disaster turns on a tripped dealbreaker, something heard, a missed agenda,
+  two opinions or an unmet want; "just friends" on a friend's line; a second date with a missed agenda gets a wobble
+  that is met. No model call, and nothing the engine decided changes. `generated_with.turn` on the episode says which
+  kind. `0` plays every date from its beats alone, as before. Commented in `.do/show.yaml`.
 - **`EXPRESS_CREATE`** (the show's app, not a secret; on unless `0`): one-sentence create, the one-box first screen of
   `/create` for a first character (`lib/express-create.ts`, [flows.md](flows.md)). `0` restores the form as the first
   step and `POST /api/characters/draft` answers 404.
@@ -188,6 +194,16 @@ ignore it.
   its last aired date (`lib/cast-opener.ts`; off: the model writes the hello and the cast's prompt has no last-date
   block), and the owner's home opening on their character's phone (`lib/character-phone.ts`; off: the home page as it
   was). The rules are in [companions.md](companions.md) and [flows.md](flows.md).
+- **`DATE_PHOTO_IN_CHAIN`**, **`CHARACTER_GIFTS`** (the show's app, not secrets; both on by default, `0` turns one
+  off without a deploy of code): what two characters send each other besides texts. `DATE_PHOTO_IN_CHAIN`: each date's
+  photo in the couple's thread, the real one an owner made or the show's snapshot (`lib/text-chain.ts`,
+  `lib/date-photo.ts`; off: the thread and the couple page's phone are as they were, and making a date photo writes a
+  📷 text again). `CHARACTER_GIFTS`: small gifts between characters after some aired public dates
+  (`lib/character-gifts.ts`; off: none is written, shown, told to an owner or handed to the house scene; the rows
+  stay). **`CHARACTER_GIFTS_RATE`** (a number, 1 when unset) multiplies how often a gift comes: 0.5 halves the chances,
+  2 doubles them; it never makes one where the rules say never, and the one-a-week cap still holds. Neither calls a
+  model. The rules are in [relationship-graph.md](relationship-graph.md), "What they send each
+  other". Commented in `.do/show.yaml`.
 - **`COMPANION_MESSAGE_DELETE`** (the show's app, not a secret; on by default, `0` turns it off without a deploy of
   code): deleting one message of a companion conversation (`lib/companion-message-delete.ts`). Off: "Delete messages…"
   leaves the thread's Settings menu, `/companion/<id>/messages` and `DELETE /api/companion/:id/messages/:messageId`
@@ -206,6 +222,12 @@ ignore it.
   a viewer After Dark already admits who owns one of the two ([after-dark.md](after-dark.md), "The night continues"). `0`
   removes the button on the show and its page and route on After Dark's host; set it on both. Neither touches
   `public_door`. Commented in `.do/show.yaml` and `.do/app.yaml`.
+- **`LOCKED_PICTURE_TEXTS`** (the show's app, not a secret; default on): a character's text about a picture it kept
+  from a night, with a locked, blurred tile that opens in After Dark for an entitled adult and leads everyone else to
+  the way in (`lib/locked-picture.ts`; [companions.md](companions.md), "A picture they kept, locked";
+  [after-dark.md](after-dark.md), "A picture they kept, locked in the show's texts"). `0` sends nothing, shows the ones
+  already in a thread as plain texts, and 404s the tile, without a deploy. The show's side holds PG pixels only (the
+  character's own PG portrait, blurred), and nothing here touches `public_door`. Commented in `.do/show.yaml`.
 - **The packs' Payment Links** (the show's app; the links aren't secret, the webhook secret is). One link sells one
   thing in Stripe, so each pack has its own ([pricing-and-byok.md](pricing-and-byok.md)):
 

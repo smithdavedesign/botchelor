@@ -1470,6 +1470,12 @@ create index if not exists user_feedback_user_idx on user_feedback (user_id);
 create index if not exists user_feedback_new_idx on user_feedback (created_at) where status = 'new';
 -- When an account was shown the one-time beta prompt (lib/user-feedback-shared.ts), so another device doesn't ask again.
 alter table accounts add column if not exists beta_prompt_at timestamptz;
+-- The locked picture in a character's texts (lib/locked-picture.ts): what After Dark's regional rules said the last time
+-- this account opened one of its threads having said it is 18+ ('open', 'text_only' or 'blocked': the mode alone, never
+-- a country, a state or an address), and when. A job writes those texts with no request to read a place from, and sends
+-- one only to an account seen 'open' lately (lib/adult/locked-picture.ts whoMayBeSent). Gone with the account.
+alter table accounts add column if not exists after_dark_seen_mode text;
+alter table accounts add column if not exists after_dark_seen_at timestamptz;
 -- The beta prompt asks "has this person had a date of theirs air?" on page loads, until it has been shown.
 create index if not exists episodes_creator_idx on episodes (creator_id);
 
@@ -2101,6 +2107,23 @@ create table if not exists date_photos (
   created_at timestamptz not null default now()
 );
 create index if not exists date_photos_episode on date_photos (episode_id, created_at);
+-- A small gift from one character to the other (lib/character-gifts.ts, 2026-11-16): fiction between the two, written by
+-- rules after one of their dates aired publicly. One a date; it goes when its date does. giver: which end gave it; item:
+-- the catalogue id (lib/gift-catalog.ts); reaction and reply: how the other took it. Never read by the engine.
+create table if not exists character_gifts (
+  id text primary key,
+  episode_id text not null unique references episodes (id) on delete cascade,
+  character_lo text not null references characters (id) on delete cascade,
+  character_hi text not null references characters (id) on delete cascade,
+  giver text not null check (giver in ('lo', 'hi')),
+  item text not null,
+  name text not null,
+  note text not null,
+  reaction text not null check (reaction in ('touched', 'amused', 'unimpressed')),
+  reply text not null,
+  created_at timestamptz not null default now()
+);
+create index if not exists character_gifts_pair on character_gifts (character_lo, character_hi, created_at);
 -- A scene picture's brief (lib/adult/picture-brief.ts): what the chapter says at the picture's moment (where they are,
 -- what each has on, what's happening, the mood), read once by the fast writer and kept by what it read.
 create table if not exists adult_picture_briefs (
@@ -4158,6 +4181,40 @@ alter table relationships add column if not exists shown_stage text;
 alter table relationships add column if not exists public_shown_stage text;
 alter table relationship_events add column if not exists from_shown text;
 alter table relationship_events add column if not exists to_shown text;
+-- Creator invites for casting (lib/casting-invites.ts, docs/casting-invites.md): one code, one character. An invited
+-- creator's character skips the three-date wait, is pre-approved and goes straight on an audition date with the lead.
+-- season_id: the season auditions were for when the code was made; note: the admin's own (who it is for), never shown
+-- publicly. Used once: used_at, used_by (the owner) and the character are set together, with the approved audition.
+create table if not exists casting_invites (
+  code text primary key,
+  season_id text not null,
+  note text,
+  created_at timestamptz not null default now(),
+  expires_at timestamptz not null default now() + interval '30 days',
+  used_at timestamptz,
+  used_by text,
+  character_id text references characters (id) on delete set null
+);
+create index if not exists casting_invites_created_idx on casting_invites (created_at desc);
+-- The story check (lib/story-check.ts, docs/story-check.md): one row per aired public date judged for whether its
+-- ending makes sense against its lines and recap. verdict: consistent, hidden_truth, reversal, or contradicts (never
+-- featured: lib/story-check-gate.ts). reason: one line, admin-only. repaired: the recap's finale was rewritten from
+-- facts on record; finale_before keeps the finale it replaced (audit, undo). model: the judge's id, or 'rules' (the
+-- free fallback). Tokens and cost as the show's other paid background calls keep them (cost_usd: the provider's own
+-- figure, else list price, else null).
+create table if not exists story_checks (
+  episode_id text primary key references episodes (id) on delete cascade,
+  verdict text not null check (verdict in ('consistent', 'hidden_truth', 'reversal', 'contradicts')),
+  reason text not null default '',
+  repaired boolean not null default false,
+  finale_before text,
+  model text,
+  prompt_version text,
+  input_tokens integer,
+  output_tokens integer,
+  cost_usd numeric(10, 6),
+  checked_at timestamptz not null default now()
+);
 -- The Sunday premiere (lib/sunday-premiere.ts, docs/sunday-premiere.md): one row a Sunday that premieres the lead's date
 -- in a shared room (kind 'weekly' on a ceremony Sunday, 'pilot' the Sunday before a lead season). The job's pass the hour
 -- before claims it (claimed_at; tries counts the builds), picks the suitor, builds the date the way template rooms are

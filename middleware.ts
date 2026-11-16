@@ -98,8 +98,9 @@ const DOC_SOURCES = new Set(["llms.txt", "llms-full.txt", "mcp.json", "agents"])
  * The PG show, open without the gate (David, 2026-11-14, reversing the 2026-10-16 "whole site gated" call): the pages a
  * spectator reads or a creator builds on hold no chat, no dating and no money. First the search landings (David,
  * 2026-11-11: the ship-name generator and the chemistry test, the ship pages they make, /alternatives), then the show
- * itself: aired dates, seasons, couples, characters and creators, the agents' pages, and the builder. A prefix ending
- * in "/" covers the page itself and everything under it.
+ * itself: aired dates, seasons, couples, characters and creators, the agents' pages, and the builder; and a creator's
+ * casting invite (/casting/invite/<code>, lib/casting-invites.ts), opened like /casting. A prefix ending in "/" covers
+ * the page itself and everything under it.
  *
  * What still meets the gate is everything that isn't on this list: the swipe deck, matches, messages and companions
  * (dating and chat), a step-in date once it's started, the shop, accounts, notifications, mixers, the double-date links, and every After Dark
@@ -108,7 +109,7 @@ const DOC_SOURCES = new Set(["llms.txt", "llms-full.txt", "mcp.json", "agents"])
  * 18+ box ticked sets this same cookie (app/api/characters/route.ts), so the gate never asks them again; stepping into
  * a date works the same way (app/api/step-in/route.ts: the start screen's box).
  */
-export const UNGATED_PREFIXES: readonly string[] = ["/tools/", "/ship/", "/alternatives/", "/episodes/", "/seasons/", "/couples/", "/characters/", "/creators/", "/agents/"];
+export const UNGATED_PREFIXES: readonly string[] = ["/tools/", "/ship/", "/alternatives/", "/episodes/", "/seasons/", "/couples/", "/characters/", "/creators/", "/agents/", "/casting/invite/"];
 
 const UNGATED_PAGES: ReadonlySet<string> = new Set([
   // The PG show (2026-11-14): the front door, the feed and its tabs, the cast, the reunion, the house, casting, the vote, calls,

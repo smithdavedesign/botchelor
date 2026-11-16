@@ -986,7 +986,7 @@ export async function createTemplateParty(db: Db, aId: string, bId: string, opts
       JSON.stringify(built.setup),
       JSON.stringify(transcript),
       // Which plan it played from, like a booked date's (lib/jobs.ts): "producer" | "rules", or "director" with the switch off.
-      JSON.stringify({ ...gen.generatedWith, plan: gen.plan?.source ?? null }),
+      JSON.stringify({ ...gen.generatedWith, plan: gen.plan?.source ?? null, turn: gen.plan?.turn?.kind ?? null }),
       trace ? JSON.stringify(trace) : null,
       JSON.stringify(transcript.map(() => ({ at, by: "show" }))),
       // Living dates: the lines' private thoughts, shown once the room airs it (lib/inner-life.ts).
