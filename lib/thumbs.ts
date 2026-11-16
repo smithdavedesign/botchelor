@@ -18,13 +18,13 @@ export async function withResizeSlot<T>(fn: () => Promise<T>): Promise<T> {
 }
 
 /**
- * A WebP copy at `width` (a square crop with `square`, else the picture's own shape), or null: sharp (installed with
+ * A WebP copy at `width` (a square crop with `square`, kept from the top with `top`, else the picture's own shape), or null: sharp (installed with
  * Next) unavailable or failing. A failure never breaks the picture, it just sends the full one.
  */
-export async function resizedWebp(bytes: Buffer, width: number, opts: { square?: boolean } = {}): Promise<Buffer | null> {
+export async function resizedWebp(bytes: Buffer, width: number, opts: { square?: boolean; top?: boolean } = {}): Promise<Buffer | null> {
   try {
     const { default: sharp } = await import("sharp");
-    const size = opts.square ? { width, height: width, fit: "cover" as const, withoutEnlargement: true } : { width, withoutEnlargement: true };
+    const size = opts.square ? { width, height: width, fit: "cover" as const, position: opts.top ? "top" : "centre", withoutEnlargement: true } : { width, withoutEnlargement: true };
     return await withResizeSlot(() => sharp(bytes).resize(size).webp({ quality: 80 }).toBuffer());
   } catch {
     return null;
