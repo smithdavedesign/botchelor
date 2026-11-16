@@ -444,8 +444,10 @@ depend on a character of their own. People could follow a couple (`lib/follows.t
 - **Data rights:** the account export lists `character_follows`; deleting the account deletes them; a character that
   is deleted, or kept only for the dates it aired in after its creator left, loses its followers
   (`lib/account.ts`).
-- **`CHARACTER_FOLLOW=0`** hides the control, refuses the route (404) and tells no follower anything, without a deploy
-  of code. The rows stay, so turning it back on loses nothing.
+- **`CHARACTER_FOLLOW=0`** hides the control, refuses the route (404) and sends no follower a notice, without a deploy
+  of code. The rows stay, so turning it back on loses nothing. Texts a follow had switched on stay on the thread's own
+  switch (Settings → "Let {name} text you first"), where a person can turn them off meanwhile; `HOUSE_TEXTS=0` stops
+  the house's texts for everyone.
 
 **Right now** (`lib/character-now.ts` `shapeNow`, `app/characters/[id]/RightNow.tsx`). Two or three short lines under
 the header, above everything else on the page:

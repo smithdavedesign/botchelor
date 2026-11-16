@@ -25,7 +25,8 @@
  * characters; a scene as /house shows it, lib/house-scenes.ts HouseSceneView). Nothing here reads the story state.
  *
  * CHARACTER_FOLLOW=0 turns it off without a deploy of code: the control is hidden, the route refuses, and no follower
- * is told anything (the rows stay, so turning it back on loses nothing).
+ * is sent a notice (the rows stay, so turning it back on loses nothing). Texts a follow had switched on stay on the
+ * thread's own switch (Settings, "Let {name} text you first"), which is where a person turns them off meanwhile.
  */
 import type { Db } from "./db";
 import { notifyAll } from "./notifications";

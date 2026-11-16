@@ -150,8 +150,8 @@ ignore it.
 - **`CHARACTER_FOLLOW`** (the show's app, not a secret; on unless it is `0`): follow a character
   (`lib/character-follows.ts`): the Follow toggle in a character page's header, the notices its followers get when a
   date of theirs airs or the house talks about them, and the character's texts switched on for a follower who may
-  text it. Rows and templates: no model call. `0` hides the control, refuses the route and tells no follower anything,
-  without a deploy; the follows stay. Commented in `.do/show.yaml`; the rules are in
+  text it. Rows and templates: no model call. `0` hides the control, refuses the route and sends no follower a notice,
+  without a deploy; the follows stay, and texts a follow switched on stay on the thread's own switch. Commented in `.do/show.yaml`; the rules are in
   [character-depth.md](character-depth.md), section 14.
 - **`CHARACTER_NOW`** (the show's app, not a secret; on unless it is `0`): the "Right now" lines under a character
   page's header (`lib/character-now.ts`), shaped from what the page already reads for everyone. `0` hides them without
