@@ -86,7 +86,7 @@ import { runCompanionTool } from "../companion-mcp";
 import { COMPANION_ACTIONS, COMPANION_REPORT_REASONS, companionOpen, REPLY_LENGTHS, SCENE_PLACES, SCENE_TEXTING } from "../companion-shared";
 import { listThreads, markPairNoticesRead, markTextsRead, sweepAnsweredTexts, unreadTextsByPair } from "../inbox";
 import { rescueStuckJob } from "../jobs";
-import { findLookalikes, type Lookalike, lookAlikeGateOn, recentAgentTwins, type SheetDraft, TWIN_WARN_HOURS, unusedJobs } from "../originality";
+import { findLookalikes, type Lookalike, lookAlikeGateOn, matchedFields, recentAgentTwins, type SheetDraft, TWIN_WARN_HOURS, unusedJobs } from "../originality";
 import { originalityWithConcepts } from "../originality-concept";
 import { twinsOfCharacter as twinsOf } from "../twins";
 import { pairNames, shortName } from "../names";
@@ -1247,6 +1247,9 @@ async function gatingLookAlikes(db: Db, similar: Lookalike[], notice: RecentTwin
   return all.filter((x) => !mine.has(x.id));
 }
 
+/** #1712: why look-alikes are common, said in a look-alike refusal (the quickstart is at its cap). */
+const SAME_MODEL_NOTE = "Agents on the same model often reach for the same names and jobs (a Quillfeather, a lighthouse keeper), so start from an odd one.";
+
 /** What check_only (and a refused save) says about the gate: keep_look_alike is the way to save it as it is. */
 const KEEP_LOOK_ALIKE_NOTE = "create_character refuses this sheet as it is: change its job or hook (try_names and try_instead are free), or pass keep_look_alike: true to create it anyway.";
 
@@ -1268,17 +1271,39 @@ async function lookAlikeRefusal(
   const tryNames = opts.wanted && !opts.nameTaken ? await opts.freeNames() : [];
   const tryJobs = recentTwins?.jobs.length ? recentTwins.jobs : await unusedJobs(db, draft, 3, agentId).catch(() => []);
   const shown = recentTwins ? { ...recentTwins, twins: recentTwins.twins.filter((t) => gated.some((g) => g.id === t.id)) } : null;
-  const [text0, runners] = await Promise.all([twinWarningText(gated, shown, false, { db, agentId }), lookAlikeRunners(db, gated.map((x) => x.id))]);
+  const [text0, runners, sheets] = await Promise.all([
+    twinWarningText(gated, shown, false, { db, agentId }),
+    lookAlikeRunners(db, gated.map((x) => x.id)),
+    db
+      .query<{ id: string; name: string; bio: string; traits: string[]; want: string; dealbreaker: string; extras: CharacterExtras | null }>(
+        `select id, name, bio, traits, want, dealbreaker, extras from characters where id = any($1)`,
+        [gated.map((x) => x.id)],
+      )
+      .then((q) => new Map(q.rows.map((r) => [r.id, r])))
+      .catch(() => new Map<string, never>()),
+  ]);
+  // #1712 (the 2026-11-16 runs: "say which fields matched", "a weak name/want overlap"): each look-alike's matched fields,
+  // with the words shared, and how strong the match is, so a weak one reads as weak.
+  const matches = new Map(gated.flatMap((x) => (sheets.has(x.id) ? [[x.id, matchedFields(draft, sheets.get(x.id)!)] as const] : [])));
+  const matchedText = gated
+    .map((x) => {
+      const m = matches.get(x.id);
+      return m?.matched.length ? `${x.name}: ${m.matched.map((f) => `${f.field} (${f.words.join(", ")})`).join(", ")}, a ${m.strength} match` : null;
+    })
+    .filter(Boolean);
   const text = text0 ?? `Nothing is saved yet, and it reads a lot like ${gated[0].name}.`;
   return {
     error:
-      `${text.replace(/^Nothing is saved yet, and/, "Nothing was saved because")}${tryNames.length ? ` Names nobody's first name matches: ${tryNames.join(", ")}.` : ""}` +
-      `${tryJobs.length && !recentTwins?.jobs.length ? ` Jobs nobody has: ${tryJobs.join(", ")}.` : ""} To create it as it is anyway, call again with keep_look_alike: true.`,
+      `${text.replace(/^Nothing is saved yet, and/, "Nothing was saved because")}${matchedText.length ? ` What matched: ${matchedText.join("; ")}.` : ""}${tryNames.length ? ` Names nobody's first name matches: ${tryNames.join(", ")}.` : ""}` +
+      `${tryJobs.length && !recentTwins?.jobs.length ? ` Jobs nobody has: ${tryJobs.join(", ")}.` : ""} ${SAME_MODEL_NOTE} To create it as it is anyway, call again with keep_look_alike: true.`,
     code: "look_alike",
     details: {
       saved: false,
       // #1346: who runs each one (run_by, house_bot, agent_active), as check_only's look_alikes and every card say it.
-      look_alikes: gated.map((x) => ({ id: x.id, name: x.name, ...(runners.get(x.id) ?? {}), why: x.why })),
+      look_alikes: gated.map((x) => {
+        const m = matches.get(x.id);
+        return { id: x.id, name: x.name, ...(runners.get(x.id) ?? {}), why: x.why, ...(m?.matched.length ? { matched: m.matched, match_strength: m.strength } : {}) };
+      }),
       ...(recentTwins?.archetype ? { shared_archetype: recentTwins.archetype } : {}),
       ...(tryNames.length ? { try_names: tryNames } : {}),
       ...(tryJobs.length ? { try_instead: tryJobs } : {}),
