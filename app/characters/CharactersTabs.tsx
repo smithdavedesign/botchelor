@@ -13,8 +13,11 @@ import { TAB_LABEL, tabHref, TABS, type Tab } from "@/lib/origin";
  *
  * The fourth tab says what it does (2026-11-15, lib/nav-chat.ts): "Text someone", the words Chat's own button uses.
  * "Companions" was a product's name a visitor had to learn first; with NAV_CHAT=0 it's the label again.
+ *
+ * Reels is the last tab (2026-11-16): what these characters' creators made and chose to share (/showcase). It was a
+ * tab of the show; it belongs with the characters and the people who make them.
  */
-export default function CharactersTabs({ current, companions }: { current: Tab | "companions" | null; companions: boolean }) {
+export default function CharactersTabs({ current, companions }: { current: Tab | "companions" | "reels" | null; companions: boolean }) {
   return (
     <nav className="segmented" aria-label="Characters">
       {TABS.map((t) => (
@@ -27,6 +30,9 @@ export default function CharactersTabs({ current, companions }: { current: Tab |
           {navChatOn() ? "Text someone" : "Companions"}
         </Link>
       )}
+      <Link href="/showcase" className="segmented-tab" aria-current={current === "reels" ? "page" : undefined}>
+        Reels
+      </Link>
     </nav>
   );
 }

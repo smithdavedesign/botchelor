@@ -189,7 +189,10 @@ export async function seasonAwards(db: Db, span: SeasonSpan): Promise<ReunionAwa
     });
   }
 
-  const surprising = (await topRatedCharacters(db, "surprising", 1, span))[0];
+  // One character, one of the two viewer awards (2026-11-16: Barnaby held three of the four cards): the most surprising
+  // who isn't already the fan favourite, when there is one.
+  const surprises = await topRatedCharacters(db, "surprising", 2, span);
+  const surprising = surprises.find((s) => s.id !== likable?.id) ?? surprises[0];
   if (surprising) {
     out.push({
       title: "🤯 Full of surprises",

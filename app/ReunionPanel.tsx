@@ -122,9 +122,10 @@ export default function ReunionPanel({
   return (
     <section className="reunion-panel">
       <p className="kicker">{season ?? "Season special"}</p>
-      <Title>The Reunion</Title>
+      {/* A running season's page is "so far" (2026-11-16: "The Reunion" on night 16 read as if it were over). */}
+      <Title>{season ? "The season so far" : "The Reunion"}</Title>
       <p className="muted reunion-stats">
-        The cast back under the lights{season ? ", this season so far" : ""}. <strong>{reunion.stats.aired}</strong> dates aired ·{" "}
+        {season ? "Awards, couples and confessionals as they stand" : "The cast back under the lights"}. <strong>{reunion.stats.aired}</strong> dates aired ·{" "}
         <strong>{reunion.stats.couples}</strong> {reunion.stats.couples === 1 ? "pairing" : "pairings"} ·{" "}
         <strong>{reunion.stats.second_dates}</strong> second dates
       </p>

@@ -7,6 +7,7 @@ import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import Nav from "@/app/Nav";
 import ShowTabs from "@/app/ShowTabs";
+import CharactersTabs from "@/app/characters/CharactersTabs";
 import { navChatOn } from "@/lib/nav-chat";
 
 vi.mock("next/navigation", () => ({ usePathname: () => "/" }));
@@ -57,7 +58,7 @@ describe("the header's date meter", () => {
 
 // Three doors and the account, the same for everyone (2026-11-15, lib/nav-chat.ts): Watch · Chat · Characters ·
 // Account. Chat is one door for every thread: what was Dating (/matches, the deck, a thread) and what was Companions
-// (/companion). The show's other rooms live under Watch, on the ShowTabs strip: Watch · House · Reels · Reunion.
+// (/companion). The show's other rooms live under Watch, on the ShowTabs strip: Watch · House · Season.
 describe("the nav: Watch · Chat · Characters · Account", () => {
   const labels = (html: string) => [...(html.match(/<div id="nav-menu"[\s\S]*$/)?.[0] ?? "").matchAll(/<a[^>]*href="(\/[a-z]*)"[^>]*>([A-Z][a-z]+)/g)].map((m) => `${m[2]} ${m[1]}`);
 
@@ -95,17 +96,26 @@ describe("the nav: Watch · Chat · Characters · Account", () => {
   });
 });
 
-describe("the show's tabs: Watch · House · Reels · Reunion", () => {
+describe("the show's tabs: Watch · House · Season", () => {
   const strip = (active: Parameters<typeof ShowTabs>[0]["active"]) => renderToStaticMarkup(createElement(ShowTabs, { active }));
   const tabs = (html: string) => [...html.matchAll(/href="([^"]+)"[^>]*>([^<]+)</g)].map((m) => `${m[2]} ${m[1]}`);
   const current = (html: string) => /aria-current="page"[^>]*>([^<]+)</.exec(html)?.[1] ?? null;
   afterEach(() => vi.unstubAllEnvs());
 
   it("carries the house, and no longer Reviews or the Constellation", () => {
-    expect(tabs(strip("/watch"))).toEqual(["Watch /watch", "House /house", "Reels /showcase", "Reunion /reunion"]);
+    expect(tabs(strip("/watch"))).toEqual(["Watch /watch", "House /house", "Season /reunion"]);
     expect(current(strip("/watch"))).toBe("Watch");
     expect(current(strip("/house"))).toBe("House");
-    expect(current(strip("/showcase"))).toBe("Reels");
+    expect(current(strip("/reunion"))).toBe("Season");
+  });
+
+  it("Reels is a tab of Characters, not of the show (2026-11-16), and its page wears Characters' tabs", () => {
+    const html = renderToStaticMarkup(createElement(CharactersTabs, { current: "reels", companions: true }));
+    expect(tabs(html).at(-1)).toBe("Reels /showcase");
+    expect(current(html)).toBe("Reels");
+    const page = readFileSync("app/showcase/page.tsx", "utf8");
+    expect(page).toContain('<CharactersTabs current="reels"');
+    expect(page).not.toContain("<ShowTabs");
   });
 
   it("still takes the two pages that left it: the Constellation reads as the house's, Reviews marks none", () => {
