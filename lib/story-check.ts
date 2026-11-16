@@ -343,6 +343,7 @@ const JUDGE_SYSTEM = [
   '- "reversal": the final action explains it: the recap\'s twist or finale, who left first, a walk-out or a ghosting turns an apparently good date bad, or an apparently bad one good.',
   '- "contradicts": none of these; a viewer would feel the writer and the outcome disagree.',
   'Be fair to the writer. "Just friends" fits warm lines and plans to meet again as friends. A disaster can follow a warm date when something on record turns it. Say "contradicts" only when a viewer would be confused: for example the last lines plan the next date or say "in love", the recap ends happy, and nothing on record explains "A disaster".',
+  "Two things are not explanations on their own. Someone leaves first on every date: who left first counts only when the lines or the recap make the leaving the turn. The box score's why line says what the numbers did, not what a viewer saw: the story itself (the lines, the recap, a thought, an answer, a confessional) has to show it.",
   'Answer only with JSON: {"verdict": "consistent" | "hidden_truth" | "reversal" | "contradicts", "reason": "one short sentence naming what decided it"}',
 ].join("\n");
 

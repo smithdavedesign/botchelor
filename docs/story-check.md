@@ -42,6 +42,8 @@ names, the place, the ending with its kind (walk-out, ghosted…) and who left f
 own "why" line without its arithmetic, the recap's acts, the last 8 spoken lines with speaker and emotion, the private
 thoughts and "see them again?" answers on the sides the page shows them for (a person's own character's stay private
 unless the host shared the confessionals), the confessionals or diary cam the page shows, the twist and the finale.
+It is told that two things explain nothing on their own: who left first (someone does on every date; it counts when
+the lines or the recap make the leaving the turn) and the box score's why line (the numbers, not what a viewer saw).
 
 **The $0 fallback** (`rulesVerdict`), when no paid model is configured or both tries fail: `contradicts` only for the
 glaring shape, else `consistent`; the row says `model = 'rules'`. Glaring: a disaster whose whole last act is warm
