@@ -16,6 +16,7 @@ import {
   justSplit,
   shownStage,
   shownStageOf,
+  showsCloseness,
   STAGE_LABELS,
   STAGE_LINES,
   STAGE_RANK,
@@ -203,6 +204,12 @@ describe("labels, lines and ranks", () => {
     // The PG word for friends with benefits, and nothing more explicit anywhere.
     expect(STAGE_LABELS.casual).toBe("🌙 Keeping it casual");
     expect(JSON.stringify([STAGE_LABELS, STAGE_LINES, STANDING_LINES])).not.toMatch(/benefit|hook|sex|slept|bed\b/i);
+  });
+
+  it("the Closeness meter is left out where its word would contradict the stage (one recent bad date read 'Growing')", () => {
+    for (const s of ["didnt_click", "bad_blood", "exes", "broke_up", "divorced"] as Stage[]) expect(showsCloseness(s)).toBe(false);
+    for (const s of STAGES.filter((s) => !["didnt_click", "bad_blood", "exes", "broke_up", "divorced"].includes(s))) expect(showsCloseness(s)).toBe(true);
+    expect(showsCloseness(null)).toBe(true);
   });
 
   it("the seven base labels are unchanged", () => {

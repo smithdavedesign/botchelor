@@ -131,6 +131,12 @@ export const STEADY_STAGES: readonly Stage[] = ["going_steady", "official", "mov
 /** No longer a couple, having been one. */
 export const APART_STAGES: readonly Stage[] = ["exes", "broke_up", "divorced"];
 export const isTogether = (s: Stage | null | undefined): boolean => !!s && TOGETHER_STAGES.includes(s);
+/**
+ * Whether a couple's page shows the Closeness meter beside this stage. The tie it draws counts how often and how
+ * recently they met, so one recent date reads "Growing" even when it ended badly: beside "Didn't click", bad blood or
+ * any way of being apart that word contradicts the stage, and the meter is left out (chemistry and trust still show).
+ */
+export const showsCloseness = (s: Stage | null | undefined): boolean => !s || !(s === "didnt_click" || s === "bad_blood" || APART_STAGES.includes(s));
 
 /**
  * How far along a romance a stage is, for "moved up a stage" and "strongest tie": higher is further. Friends, a date
