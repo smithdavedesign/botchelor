@@ -121,6 +121,24 @@ describe("the date's photo in the couple's thread", () => {
     expect([pending, suggestive, first]).not.toContain(after.src.split("/").pop());
   });
 
+  it("a date that carried an After Dark memory has no snapshot to show, and shows a real photo like any other date", async () => {
+    const { creator, userId, character } = await owner();
+    const plain = await date(creator, character.id, "2026-10-10T19:00:00Z", []);
+    const carried = await date(creator, character.id, "2026-10-11T19:00:00Z", []);
+    await t.db.query(`update episodes set setup = setup || '{"after_dark": true}'::jsonb where id = $1`, [carried.id]);
+    // The snapshot's route draws none of these (lib/date-photo.ts datePhotoFacts), so there is nothing to point at.
+    const view = (layer: Parameters<typeof loadChain>[3]) => loadChain(t.db, character.id, HOUSE_PARTNER_ID, layer, { keepsakes: true });
+    expect(photos(await view({ userId, owner: true })).map((p) => p.episode_id)).toEqual([plain.id]);
+    expect(kinds(publicKeepsakes(await view(PUBLIC_VIEWER)))).toEqual(["date", "photo", "date"]);
+    // The owner makes a real one: it shows at that date, for the owner and for anyone watching the pair.
+    const asset = await realPhoto(carried.id, character.id, userId);
+    for (const layer of [{ userId, owner: true }, PUBLIC_VIEWER]) {
+      const seen = photos(await view(layer));
+      expect(seen.map((p) => p.episode_id)).toEqual([plain.id, carried.id]);
+      expect(seen[1]).toMatchObject({ src: `/api/assets/${asset}`, real: true });
+    }
+  });
+
   it("the 📷 text that used to carry the photo isn't shown beside it; an older one's stays", async () => {
     const { creator, userId, character, lo, hi, me } = await owner();
     const ep = await date(creator, character.id, "2026-10-10T19:00:00Z", []);

@@ -77,7 +77,7 @@ type ChainEpisode = {
   air_after: string | Date | null;
   venue: PlaceId | null;
   followup_of: string | null;
-  /** A date that carried an After Dark memory: the show draws no snapshot of it (lib/date-photo.ts datePhotoFacts). */
+  /** A date that carried an After Dark memory: the show draws no snapshot of it (lib/date-photo.ts datePhotoFacts), so only a real photo shows. */
   after_dark: boolean;
   /** Only when the date's photo is asked for (CHAIN_PHOTOS): its real photos, newest first, and the two public sheets. */
   photos?: string[] | null;
@@ -218,12 +218,17 @@ function buildChain(lo: string, eps: ChainEpisode[], texts: ChainTextRow[], m: C
     // The date's photo, from one of them, right behind the marker ("d:" sorts before "p:" in the same moment) and
     // before the morning after. It never says how the date went, so it isn't held like the afterglow below: an owner
     // sees it before the date airs. Whether anyone else sees it is the layer's call on the date itself.
-    if (keepsakes?.photos && e.a_name !== undefined && e.b_name !== undefined && !e.after_dark) {
+    // A date that carried an After Dark memory (setup.after_dark: a show date like any other, with a PG note in its
+    // prompts) has no composed snapshot, because the snapshot's route draws none of those (lib/date-photo.ts
+    // datePhotoFacts). A real photo an owner made of it is theirs to show all the same: it is a pg-checked picture of a
+    // date on the show, and nothing of After Dark's is read for it. The first version left these dates out altogether,
+    // and the very photos this was built for (a house couple whose every date carries the flag) stayed in no thread.
+    const real = e.photos?.[0] ?? null;
+    if (keepsakes?.photos && e.a_name !== undefined && e.b_name !== undefined && (real || !e.after_dark)) {
       const sheet = (name: string, traits: unknown, voice: string | null | undefined): ToneSheet & { name: string } => ({ name, traits: Array.isArray(traits) ? (traits as string[]) : [], voice: voice ?? null });
       const a = sheet(e.a_name, e.a_traits, e.a_voice);
       const b = sheet(e.b_name, e.b_traits, e.b_voice);
       const side = photoSender(e.id);
-      const real = e.photos?.[0] ?? null;
       if (real) shownAssets.add(real);
       items.push({
         kind: "photo",
