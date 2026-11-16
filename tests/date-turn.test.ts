@@ -380,7 +380,7 @@ describe("generateDate: both switch states", () => {
     const gen = await generateDate({ actor: model, director: model }, built, decided, options({ wishes: true, engineVersion: 5 }));
     expect(decided).toEqual(before);
     // Whatever the answers were, the ending is the one applyChoices gives for them: nothing else moved it.
-    const choices = gen.inner!.choices!;
-    expect(gen.outcome).toEqual(applyChoices(decided, choices, 5));
+    const { a, b } = gen.inner!.choices!;
+    expect(gen.outcome).toEqual(applyChoices(decided, { a: a!, b: b! }, 5));
   });
 });
