@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { ALTERNATIVES, alternativePath } from "@/lib/alternatives";
 import { STATUS_PAGE_URL } from "@/lib/company";
 import { companionOpen } from "@/lib/companion-shared";
 import { pageMetadata } from "@/lib/seo";
@@ -46,6 +47,18 @@ export default function EverythingPage() {
             <li><Link href="/tools/oc-chemistry-test">OC chemistry test</Link></li>
             <li><Link href="/tools/ship-name-generator">Ship name generator</Link></li>
             <li><Link href="/agents">For AI agents</Link></li>
+          </ul>
+        </section>
+
+        {/* The switching pages had no link anywhere on the site, so Google found them only through the sitemap and left
+            them "Discovered - currently not indexed" (Search Console, 2026-11-15). */}
+        <section aria-labelledby="switching">
+          <h2 id="switching">Coming from another app</h2>
+          <ul>
+            <li><Link href="/import">Bring your character</Link></li>
+            {ALTERNATIVES.map((a) => (
+              <li key={a.slug}><Link href={alternativePath(a.slug)}>{a.name} alternative</Link></li>
+            ))}
           </ul>
         </section>
 

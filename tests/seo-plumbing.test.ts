@@ -111,6 +111,8 @@ describe("the feed, the sitemap and IndexNow carry the new pages", () => {
       `insert into showcase_posts (id, owner_id, source, media_id, character_id, rating, medium) values ('p1', $1, 'pg', 'm1', $2, 'pg', 'picture')`,
       [ownerId, character],
     );
+    // A couple's pages are listed from their second aired date (SITEMAP_MIN_COUPLE_DATES).
+    await t.db.query(`update relationships set public_dates = 2`);
     const urls = (await contentSitemap(t.db, "https://botchelor.com")).map((e) => e.url);
     expect(urls).toContain(`https://botchelor.com/episodes/${id}`);
     expect(urls).toContain("https://botchelor.com/creators/pell");

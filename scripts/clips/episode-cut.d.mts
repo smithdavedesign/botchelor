@@ -1,6 +1,6 @@
 /** Types for scripts/clips/episode-cut.mjs, which stays plain JS so it runs with no build step. */
 
-type CutCharacter = { id: string; name: string; pronouns?: string | null; portrait?: string | null };
+type CutCharacter = { id: string; name: string; pronouns?: string | null; portrait?: string | null; credit?: { handle: string; name: string } };
 type CutEpisode = {
   id: string;
   title?: string | null;
