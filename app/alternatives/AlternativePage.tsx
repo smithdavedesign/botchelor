@@ -1,6 +1,6 @@
 import Link from "next/link";
 import JsonLd from "@/app/JsonLd";
-import { alternativeFaq, alternativePath, type Alternative } from "@/lib/alternatives";
+import { ALTERNATIVES, alternativeFaq, alternativePath, type Alternative } from "@/lib/alternatives";
 import { IMPORT_PATH } from "@/lib/import-character";
 import { HISTORY_ITEMS_MAX, importMemoriesOn } from "@/lib/import-history";
 import { breadcrumbJsonLd } from "@/lib/seo";
@@ -108,6 +108,16 @@ export default function AlternativePage({ alt }: { alt: Alternative }) {
         <Link className="button" href={IMPORT_PATH}>
           Bring your character
         </Link>
+        {/* The switching pages link each other, so a crawler that finds one finds them all (Search Console 2026-11-15). */}
+        <p className="meta">
+          Coming from somewhere else?{" "}
+          {ALTERNATIVES.filter((a) => a.slug !== alt.slug).map((a, i) => (
+            <span key={a.slug}>
+              {i > 0 && " · "}
+              <Link href={alternativePath(a.slug)}>{a.name}</Link>
+            </span>
+          ))}
+        </p>
       </section>
     </>
   );
