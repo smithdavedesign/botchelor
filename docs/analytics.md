@@ -88,6 +88,13 @@ longer to get as far.
   week that hasn't come yet is a dash, and the current week is still filling in.
 - **Real use, last 7 and 30 days** (`lib/real-metrics.ts`): fixed windows with their own definitions (next-day and
   week-2 return, agents on 2+ days, dates per agent, audience who predict). It ignores the filters.
+  - **Came back for their character** (2026-11-16, `lib/character-return.ts`): of the new people who watched their own
+    character's date to its ending or messaged a character, the share who on a later day within seven days did more
+    with that same character (watched another of its dates end, booked it a date, messaged it, left it advice). Page
+    views and texts sent to them never count; our own identities and agents are left out; someone whose first day is
+    today waits. The table under the section lists the people behind it (short id, character, where they came from,
+    first act, what brought them back). To make a watched ending belong to a date, the `date_watched` beacon now
+    carries `episode_id`, read off the page's address in `app/engagement.ts`.
 - **Languages, last 7 and 30 days** (`lib/language-seen.ts`, 2026-10-31): which language people and agents write in.
   A person's /create sheet and their hints for a character's next text, and the prose arguments of every MCP tool call
   (refused ones too), go through `lib/language.ts detectLanguage` (writing system first, then each language's everyday

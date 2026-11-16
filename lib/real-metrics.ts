@@ -25,6 +25,7 @@
  */
 import type { Db } from "./db";
 import { WRITE_TOOLS } from "./agent-analytics";
+import { characterReturn, describeReturns, loadCharacterActs, type CharacterAct, type ReturnDetail } from "./character-return";
 import { loadOurIds } from "./our-traffic";
 import { listQualityRuns, type QualityRun } from "./quality-runs";
 import { DELETED_OWNER } from "./rules";
@@ -121,6 +122,8 @@ export type Facts = {
   firstCreator: Map<string, Date>;
   /** An agent's first write, ever: a write tool that worked, a character it made, a date it booked or played. */
   firstAgentWrite: Map<string, Date>;
+  /** What people did with a character, ever (lib/character-return.ts). */
+  characterActs: CharacterAct[];
 };
 
 export async function loadFacts(db: Db, sinceDays: number, now = new Date()): Promise<Facts> {
@@ -223,7 +226,9 @@ export async function loadFacts(db: Db, sinceDays: number, now = new Date()): Pr
     ...dates.flatMap((d) => (d.partner ? [d.partner] : [])),
     ...firstAgentWrite.keys(),
   ]);
-  const unknown = [...new Set([...events.map((e) => e.id), ...dates.map((d) => d.creator)])].filter((id) => !agents.has(id));
+  // Everyone behind an act with a character is checked too: an agent can message a character without making one.
+  const characterActs = await loadCharacterActs(db);
+  const unknown = [...new Set([...events.map((e) => e.id), ...dates.map((d) => d.creator), ...characterActs.map((a) => a.user)])].filter((id) => !agents.has(id));
   if (unknown.length) {
     const seen = await db.query<{ id: string }>(
       `select agent_id as id from mcp_sessions where agent_id = any($1)
@@ -243,13 +248,14 @@ export async function loadFacts(db: Db, sinceDays: number, now = new Date()): Pr
     votes,
     firstCreator,
     firstAgentWrite,
+    characterActs,
   };
 }
 
 export type RealWindow = {
   days: number;
   since: string;
-  people: { new_creators: Metric; active: Metric; next_day_return: Metric; week2_return: Metric };
+  people: { new_creators: Metric; active: Metric; next_day_return: Metric; week2_return: Metric; character_return: Metric };
   agents: { new_players: Metric; active: Metric; multi_day: Metric; next_day_return: Metric; dates_per_agent: Metric };
   dates: { booked: Metric; show_model: Metric; own_date: Metric; two_agent: Metric; second_date_rate: Metric; per_active_person: Metric };
   engagement: { predictions: Metric; audience_predicting: Metric; reviews: Metric; texts_people: Metric; texts_agents: Metric };
@@ -295,6 +301,7 @@ export function computeWindow(f: Facts, days: number): RealWindow {
   for (const [id, first] of f.firstCreator) if (inWindow(first) && real(id) && !isAgent(id)) newCreators.set(id, dayIndex(first));
   const nextDay = returnRate(newCreators, activeDays, today, { from: 1, to: 7, minAge: 1 });
   const week2 = returnRate(newCreators, activeDays, today, { from: 7, to: 13, minAge: 14 });
+  const sameCharacter = characterReturn(f.characterActs, { now: f.now, days, real: (id) => real(id) && !isAgent(id) });
 
   // Agents.
   const newAgents = new Map<string, number>();
@@ -336,6 +343,7 @@ export function computeWindow(f: Facts, days: number): RealWindow {
       active: count(activePeople.length),
       next_day_return: share(nextDay.num, nextDay.den),
       week2_return: days >= 14 ? share(week2.num, week2.den) : { kind: "na", why: "30-day window only" },
+      character_return: share(sameCharacter.num, sameCharacter.den),
     },
     agents: {
       new_players: count(newAgents.size),
@@ -403,6 +411,7 @@ export const METRIC_DEFS: MetricDef[] = [
   { section: "people", key: "active", label: "Active people", definition: "People (not agents) who did anything: made a character, booked a date, swiped, texted, predicted or reviewed." },
   { section: "people", key: "next_day_return", label: "Next-day return", definition: "New creators, joined before today, active again on a later day within 7 days of their first. Rises as recent ones come back." },
   { section: "people", key: "week2_return", label: "Week-2 return", definition: "New creators at least 14 days in, active again 7 to 13 days after their first day." },
+  { section: "people", key: "character_return", label: "Came back for their character", definition: "New people who watched their own character's date to its ending, or messaged a character, and on a later day within 7 days did something more with that same character: watched another of its dates end, booked it a date, messaged it, or left it advice. Page views and texts sent to them never count; someone whose first day is today isn't counted yet." },
   { section: "agents", key: "new_players", label: "New agents (players)", definition: "Agents whose first write ever (a write tool that worked, a character, a date) came in the window." },
   { section: "agents", key: "active", label: "Active agents", definition: "Agents that wrote something in the window: a write tool that worked, a character, a date, a swipe, a text." },
   { section: "agents", key: "multi_day", label: "Active on 2+ days", definition: "Active agents that wrote something on two or more different days." },
@@ -425,7 +434,16 @@ export const METRIC_DEFS: MetricDef[] = [
   { section: "feedback", key: "voters", label: "People who voted", definition: "Distinct people behind those votes." },
 ];
 
-export type RealUse = { generated_at: string; min_n: number; windows: RealWindow[]; defs: MetricDef[]; sims: SimRating[]; quality: QualityRun[] };
+export type RealUse = {
+  generated_at: string;
+  min_n: number;
+  windows: RealWindow[];
+  defs: MetricDef[];
+  sims: SimRating[];
+  quality: QualityRun[];
+  /** The people behind "Came back for their character" over the longest window, newest first (admin only). */
+  returns: ReturnDetail[];
+};
 
 /** The whole section: both windows from one load, the definitions, the last 10 simulated runs and the last 10 quality runs. */
 export async function realUse(db: Db, now = new Date()): Promise<RealUse> {
@@ -434,6 +452,7 @@ export async function realUse(db: Db, now = new Date()): Promise<RealUse> {
     generated_at: now.toISOString(),
     min_n: MIN_N,
     windows: WINDOWS.map((d) => computeWindow(facts, d)),
+    returns: await describeReturns(db, characterReturn(facts.characterActs, { now, days: Math.max(...WINDOWS), real: (id) => !facts.ours.has(id) && !facts.agents.has(id) }).rows),
     defs: METRIC_DEFS,
     sims: await listSimRatings(db, 10),
     quality: await listQualityRuns(db, { limit: 10 }),
