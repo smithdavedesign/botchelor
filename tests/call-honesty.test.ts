@@ -181,7 +181,7 @@ describe("the privacy notice's calls section", () => {
     expect(html).toContain("A companion conversation and what the companion remembers: until you delete a message, the conversation, the memory (a fact at a time, or all of it), or your account.");
     expect(html).toContain("The blank marker a deleted text leaves (what it was about and when, never its words) goes with the conversation.");
     expect(html).toContain("a companion conversation or one message in it from the conversation's menu, or ask us");
-    expect(html).toMatch(/Changed: you can delete one message of a companion conversation on its own, and your account export now has your companion conversations, what each companion remembers about you, and the record of your live calls\./);
+    expect(html).toMatch(/Before that \(15 November\): you can delete one message of a companion conversation on its own, and your account export now has your companion conversations, what each companion remembers about you, and the record of your live calls\./);
   });
 
   it("says the export has the conversations and the call records", () => {
