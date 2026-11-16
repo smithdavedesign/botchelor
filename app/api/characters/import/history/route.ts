@@ -57,7 +57,7 @@ export function historyReader(env: Record<string, string | undefined> = process.
  * paste or of the answer (the page promises the paste is not logged), and never the provider's own message, which can
  * quote what it was sent. Without this a failed reading left no trace at all (the first live one, 2026-11-16).
  */
-function logFailure(fail: "no_reader" | "threw" | "unreadable" | "timeout", extra: { status?: number; chars?: number } = {}): void {
+function logFailure(fail: "no_reader" | "threw" | "unreadable" | "timeout", extra: { status?: number; chars?: number; error?: string; why?: string } = {}): void {
   console.log(JSON.stringify({ log: "import_history", fail, ...extra, at: new Date().toISOString() }));
 }
 
@@ -88,7 +88,13 @@ async function ask(name: string, text: string): Promise<string | "timeout" | nul
     if (answer === "timeout") logFailure("timeout");
     return answer;
   } catch (err) {
-    logFailure("threw", err instanceof ModelError && err.status ? { status: err.status } : {});
+    // A provider's refusal carries its own words, which can quote what it was sent: the status only. With no status
+    // the message is one our own code wrote ("model returned no text (finish_reason: …)", "model request failed (…)"),
+    // so it can be logged; anything else is named, not quoted.
+    logFailure(
+      "threw",
+      err instanceof ModelError ? (err.status ? { status: err.status } : { why: err.message.slice(0, 120) }) : { error: err instanceof Error ? err.name : typeof err },
+    );
     return null;
   } finally {
     clearTimeout(timer);
