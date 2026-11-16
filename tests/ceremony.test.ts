@@ -96,9 +96,13 @@ describe("the format (lib/season-format.ts 'botchelor')", () => {
     expect(recouplingNightDays(CLASSIC, DEC(10))).toEqual(["2026-12-31"]);
   });
 
-  it("holds the ceremony at the hour CEREMONY_HOUR_UTC names (20 by default), on the job's :20 pass; the vote opens on Thursday", () => {
-    expect(ceremonyRunsAt("2026-12-06").toISOString()).toBe("2026-12-06T20:20:00.000Z");
-    expect(ceremonyRunsAt("2026-12-06", { CEREMONY_HOUR_UTC: "18" }).toISOString()).toBe("2026-12-06T18:20:00.000Z");
+  it("holds the ceremony on the job's :20 pass at the Sunday premiere's hour (23; CEREMONY_HOUR_UTC can only move it later), or at CEREMONY_HOUR_UTC (20 by default) with SUNDAY_PREMIERE=0; the vote opens on Thursday", () => {
+    expect(ceremonyRunsAt("2026-12-06").toISOString()).toBe("2026-12-06T23:20:00.000Z");
+    expect(ceremonyRunsAt("2026-12-06", { CEREMONY_HOUR_UTC: "18" }).toISOString()).toBe("2026-12-06T23:20:00.000Z");
+    expect(ceremonyRunsAt("2026-12-06", { PREMIERE_HOUR_UTC: "21" }).toISOString()).toBe("2026-12-06T21:20:00.000Z");
+    expect(ceremonyRunsAt("2026-12-06", { PREMIERE_HOUR_UTC: "21", CEREMONY_HOUR_UTC: "22" }).toISOString()).toBe("2026-12-06T22:20:00.000Z");
+    expect(ceremonyRunsAt("2026-12-06", { SUNDAY_PREMIERE: "0" }).toISOString()).toBe("2026-12-06T20:20:00.000Z");
+    expect(ceremonyRunsAt("2026-12-06", { SUNDAY_PREMIERE: "0", CEREMONY_HOUR_UTC: "18" }).toISOString()).toBe("2026-12-06T18:20:00.000Z");
     expect(ceremonyVoteOpensAt("2026-12-06").toISOString()).toBe("2026-12-03T00:00:00.000Z");
   });
 });
@@ -136,7 +140,7 @@ describe("the vote (lib/ceremony.ts)", () => {
     const board = (await ceremonyBoard(t.db, "fan-1", DEC(4)))!;
     expect(board.vote).toMatchObject({ held_on: "2026-12-06", my_pick: "suitor-2", total: 1 });
     expect(board.vote!.choices.find((c) => c.id === "suitor-2")!.votes).toBe(1);
-    expect(board.next).toMatchObject({ held_on: "2026-12-06", runs_at: "2026-12-06T20:20:00.000Z", week: 1, finale: false });
+    expect(board.next).toMatchObject({ held_on: "2026-12-06", runs_at: "2026-12-06T23:20:00.000Z", week: 1, finale: false });
     expect(board.suitors.every((s) => s.state === "in")).toBe(true);
     expect(board.lead.id).toBe(LEAD);
   });
@@ -196,8 +200,8 @@ describe("the ceremony (lib/ceremony.ts runCeremony)", () => {
     await t.db.query(`insert into companion_threads (id, user_id, character_id) values ('th-2', 'owner-2', 'suitor-2')`);
 
     expect(await runDueCeremony(t.db, DEC(5, 21))).toBeNull(); // Saturday
-    expect(await runDueCeremony(t.db, DEC(6, 19))).toBeNull(); // Sunday, before the hour
-    const run = await runDueCeremony(t.db, DEC(6, 20, ));
+    expect(await runDueCeremony(t.db, DEC(6, 22))).toBeNull(); // Sunday, before the hour (the premiere's, 23)
+    const run = await runDueCeremony(t.db, DEC(6, 23));
     expect(run).toMatchObject({ held: true, held_on: "2026-12-06", week: 1, finale: false, went_home: ["suitor-2", "suitor-4"], final_rose: null });
 
     const row = (await t.db.query<{ eliminated_by_vote: string; eliminated_by_lead: string; votes: number; total: number; remaining: string[]; lines: string[] }>(`select * from ceremonies`)).rows[0];
@@ -221,7 +225,8 @@ describe("the ceremony (lib/ceremony.ts runCeremony)", () => {
     expect(texts[0].text).toBe(SENT_HOME_LINES[0]);
 
     // Once: the next pass finds it held, and nothing is written twice.
-    expect(await runDueCeremony(t.db, DEC(6, 21))).toMatchObject({ held: false, reason: "already" });
+    expect(await runDueCeremony(t.db, new Date(Date.UTC(2026, 11, 6, 23, 40)))).toMatchObject({ held: false, reason: "already" });
+    expect(await runDueCeremony(t.db, DEC(7, 0))).toBeNull(); // Monday's catch-up finds it held
     expect((await t.db.query(`select count(*)::int as n from suitor_badges`)).rows[0]).toEqual({ n: 2 });
     expect((await t.db.query(`select count(*)::int as n from notifications where kind = 'ceremony_held'`)).rows[0]).toEqual({ n: 5 });
 
@@ -308,9 +313,23 @@ describe("the ceremony (lib/ceremony.ts runCeremony)", () => {
     ]);
   });
 
+  it("with SUNDAY_PREMIERE=0 the ceremony is held at the hour it always was; a Sunday no pass held is held on Monday's passes before 06:00 UTC", async () => {
+    setSeasonFormatForTests("botchelor");
+    await house(5);
+    expect(await runDueCeremony(t.db, DEC(6, 20))).toBeNull(); // the premiere's hour is 23
+    expect(await runDueCeremony(t.db, DEC(6, 20), { SUNDAY_PREMIERE: "0" })).toMatchObject({ held: true, held_on: "2026-12-06", week: 1 });
+    await t.reset();
+    await house(5);
+    // The 23:20 pass never ran (a deploy, a timeout): Monday's first passes hold it, and only before 06:00.
+    expect(await runDueCeremony(t.db, DEC(7, 6))).toBeNull();
+    expect(await runDueCeremony(t.db, DEC(7, 0))).toMatchObject({ held: true, held_on: "2026-12-06", week: 1 });
+    expect(await runDueCeremony(t.db, DEC(7, 1))).toBeNull(); // held: nothing again
+    expect(await runDueCeremony(t.db, DEC(8, 0))).toBeNull(); // a Tuesday is never a catch-up
+  });
+
   it("a season without a lead holds nothing and shows nothing: the classic page is unchanged", async () => {
     setSeasonCastForTests(HOUSE_CHARACTERS.slice(0, 4).map((c) => c.id));
-    expect(await runDueCeremony(t.db, DEC(6, 20))).toBeNull();
+    expect(await runDueCeremony(t.db, DEC(6, 23))).toBeNull();
     expect(await ceremonyBoard(t.db, null, DEC(6))).toBeNull();
     expect(await ensureCeremonyVote(t.db, CLASSIC, DEC(3, 1))).toBeNull();
     expect((await t.db.query(`select count(*)::int as n from ceremonies`)).rows[0]).toEqual({ n: 0 });

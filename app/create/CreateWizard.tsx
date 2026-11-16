@@ -2301,7 +2301,7 @@ export function SendPhase({ character, partners, openCharacters, swipeGate, toke
               {firstFormat === "speed_date"
                 ? `, for a speed date: ${firstLines} lines, ${WRITE_TIME_SPEED}. It plays as you watch, and nobody can steer how it ends.`
                 : `, for a ${showFormat(firstFormat).label.toLowerCase()}: ${firstLines} lines. It plays as you watch, and nobody can steer how it ends.`}
-              {casting ? ` On Sunday at ${String(casting.hour).padStart(2, "0")}:00 UTC ${shortName(casting.lead.name)} hands out roses, and you hear whether ${first} got one.` : ""}
+              {casting ? ` On Sunday at ${String(casting.hour).padStart(2, "0")}:${String(casting.minute).padStart(2, "0")} UTC ${shortName(casting.lead.name)} hands out roses, and you hear whether ${first} got one.` : ""}
             </p>
             <button
               type="button"

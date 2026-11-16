@@ -4215,6 +4215,27 @@ create table if not exists story_checks (
   cost_usd numeric(10, 6),
   checked_at timestamptz not null default now()
 );
+-- The Sunday premiere (lib/sunday-premiere.ts, docs/sunday-premiere.md): one row a Sunday that premieres the lead's date
+-- in a shared room (kind 'weekly' on a ceremony Sunday, 'pilot' the Sunday before a lead season). The job's pass the hour
+-- before claims it (claimed_at; tries counts the builds), picks the suitor, builds the date the way template rooms are
+-- built and records the room (party_id, its watch_parties row turned 'premiere' with starts_at). notified_at: its
+-- notices went out, once. note: why a Sunday has no room (no suitor, the show paused, no date came back).
+create table if not exists premieres (
+  held_on text primary key,
+  season_id text not null,
+  kind text not null check (kind in ('pilot', 'weekly')),
+  lead_id text not null,
+  suitor_id text,
+  starts_at timestamptz not null,
+  party_id text,
+  episode_id text,
+  claimed_at timestamptz,
+  built_at timestamptz,
+  notified_at timestamptz,
+  tries integer not null default 0,
+  note text,
+  created_at timestamptz not null default now()
+);
 `;
 
 /** Idempotent: creates the tables and upserts the house characters, free and premium. */

@@ -2,7 +2,8 @@
  * The rose ceremony (lib/season-format.ts 'botchelor'; David 2026-11-14: December's format is the show's own premise,
  * run original). On a Botchelor season one lead from the cast dates people's characters, the suitors, all week
  * (lib/season-cast.ts leadAndSuitors: the lobby's house dates and tonight's situation deal the lead with a suitor in
- * turn), and every Sunday at CEREMONY_HOUR_UTC the hourly lobby job holds a ceremony:
+ * turn), and every Sunday at the ceremony hour the hourly lobby job holds a ceremony (ceremonyHourUtc: with the Sunday
+ * premiere on, the premiere's hour, so its :20 pass comes after the premiere's decision; lib/sunday-premiere.ts):
  *
  *  - Two go home a week until two remain, then the last Sunday is the finale. (a) The audience's vote, "Who goes home?",
  *    open from Thursday (VOTE_OPEN_DAYS before) until the ceremony, one changeable vote a viewer, the ballot frozen
@@ -24,6 +25,7 @@
  *    Sunday roses, outside the house: the card's "Walk-ons this week" line and the finale's "people's rose" come from there.
  */
 import { portraitPathSql } from "./portrait-sql";
+import { premiereHourUtc, sundayPremiereOn } from "./premiere-clock";
 import type { Db } from "./db";
 import { shortName } from "./names";
 import { notify, notifyAll } from "./notifications";
@@ -39,12 +41,25 @@ import { venuePhrase } from "./venues";
 /** How many days before a Sunday its vote opens (Thursday). */
 export const VOTE_OPEN_DAYS = 3;
 /** The hourly job's pass that holds the ceremony runs at :20. */
-const RUNS_AT_MINUTE = 20;
-/** The hour (UTC) the ceremony is held on Sundays; the env CEREMONY_HOUR_UTC moves it. */
+export const CEREMONY_RUNS_AT_MINUTE = 20;
+const RUNS_AT_MINUTE = CEREMONY_RUNS_AT_MINUTE;
+/** The ceremony's hour with the Sunday premiere switched off (SUNDAY_PREMIERE=0) and no CEREMONY_HOUR_UTC: as it always was. */
+const CLASSIC_CEREMONY_HOUR = 20;
+/**
+ * The hour (UTC) the ceremony is held on Sundays. With the Sunday premiere on (lib/premiere-clock.ts, the default) it is
+ * the premiere's hour, PREMIERE_HOUR_UTC (23): the :20 pass comes after the premiere's decision (:04), so the lead's
+ * verdicts see that date. CEREMONY_HOUR_UTC may move it later, never before the premiere. With SUNDAY_PREMIERE=0 it is
+ * CEREMONY_HOUR_UTC, else 20, as before. Walk-on roses (lib/casting.ts) and every line that says when the roses are read it.
+ */
 export function ceremonyHourUtc(env: Record<string, string | undefined> = process.env): number {
-  const n = Number(env.CEREMONY_HOUR_UTC?.trim());
-  return Number.isInteger(n) && n >= 0 && n <= 23 ? n : 20;
+  const raw = env.CEREMONY_HOUR_UTC?.trim();
+  const n = raw ? Number(raw) : Number.NaN;
+  const set = Number.isInteger(n) && n >= 0 && n <= 23 ? n : null;
+  if (!sundayPremiereOn(env)) return set ?? CLASSIC_CEREMONY_HOUR;
+  return Math.max(set ?? 0, premiereHourUtc(env));
 }
+/** A ceremony Sunday whose pass the job missed (one pass a Sunday at 23:20) is held on Monday's passes before this hour (UTC). */
+export const CEREMONY_CATCH_UP_HOURS = 6;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const dayId = (d: Date): string => d.toISOString().slice(0, 10);
@@ -203,6 +218,18 @@ export async function leadVerdicts(db: Db, lead: string, suitors: readonly strin
   return [...by.values()].sort((x, y) => x.score - y.score || x.see_again - y.see_again || y.dates - x.dates || (order.get(y.suitor) ?? 0) - (order.get(x.suitor) ?? 0));
 }
 
+/**
+ * Where a Sunday's verdicts start: the last ceremony held this season before that Sunday, else the season's start. The
+ * finale weighs the whole season. The ceremony reads it, and so does the Sunday premiere (lib/sunday-premiere.ts) when it
+ * picks the suitor in most danger, so both judge the same week.
+ */
+export async function verdictsSince(db: Db, seasonId: string, heldOn: string, finale: boolean, now: Date): Promise<Date> {
+  const { start } = seasonWindow(now);
+  if (finale) return start;
+  const last = (await db.query<{ held_at: string | Date }>(`select held_at from ceremonies where season_id = $1 and held_at is not null and held_on < $2 order by held_on desc limit 1`, [seasonId, heldOn])).rows[0];
+  return last ? new Date(last.held_at) : start;
+}
+
 /** A venue's phrase without its trouble ("a basement jazz bar"), as lib/season-recap.ts placeOf shortens it. */
 const placeShort = (venue: string): string => {
   const phrase = venuePhrase(venue);
@@ -259,9 +286,7 @@ export async function runCeremony(db: Db, def: SeasonFormatDef, heldOn: string, 
   if (!claimed.rows.length) return { held: false, reason: "already" };
 
   // The week: since the last ceremony held this season, else the season's start. The finale weighs the whole season.
-  const { start } = seasonWindow(now);
-  const last = (await db.query<{ held_at: string | Date }>(`select held_at from ceremonies where season_id = $1 and held_at is not null and held_on < $2 order by held_on desc limit 1`, [seasonId, heldOn])).rows[0];
-  const since = finale || !last ? start : new Date(last.held_at);
+  const since = await verdictsSince(db, seasonId, heldOn, finale, now);
   const names = await namesOf(db, [lead, ...suitors]);
   const nameOf = (id: string) => shortName(names.get(id) ?? "someone");
   const leadName = nameOf(lead);
@@ -387,15 +412,20 @@ export async function runCeremony(db: Db, def: SeasonFormatDef, heldOn: string, 
 
 /**
  * The hourly lobby job's part: open the next Sunday's vote once it's Thursday, and hold today's ceremony at the
- * ceremony hour. Null when the season's format has no lead or nothing was due.
+ * ceremony hour. A Sunday whose ceremony no pass held (at 23 there is one pass a Sunday, and a pass can fail) is held on
+ * Monday's passes before CEREMONY_CATCH_UP_HOURS, in the same season. Null when the season's format has no lead or
+ * nothing was due.
  */
 export async function runDueCeremony(db: Db, now: Date = new Date(), env: Record<string, string | undefined> = process.env): Promise<CeremonyRun | null> {
   const def = await seasonFormatNow(db, now);
   if (!def.lead) return null;
   await ensureCeremonyVote(db, def, now).catch(() => null);
   const heldOn = nextCeremonySunday(def, now);
-  if (!heldOn || heldOn !== dayId(now) || now.getUTCHours() < ceremonyHourUtc(env)) return null;
-  return runCeremony(db, def, heldOn, now);
+  if (heldOn && heldOn === dayId(now) && now.getUTCHours() >= ceremonyHourUtc(env)) return runCeremony(db, def, heldOn, now);
+  const yesterday = dayId(new Date(now.getTime() - DAY_MS));
+  if (now.getUTCDay() !== 1 || now.getUTCHours() >= CEREMONY_CATCH_UP_HOURS || !ceremonySundays(def, now).includes(yesterday)) return null;
+  const missed = await rowOf(db, yesterday);
+  return missed?.held_at ? null : runCeremony(db, def, yesterday, now);
 }
 
 export type CeremonyFace = { id: string; name: string; hue: number | null; portrait: string | null; house: boolean };
