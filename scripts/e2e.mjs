@@ -551,7 +551,10 @@ async function main() {
       await spage.locator(".gallery .meta a").first().click();
       await spage.waitForURL(/\/characters\//);
       assert((await spage.locator(".contestant .avatar").count()) > 0, "contestant card avatar missing");
-      assert((await spage.locator(".character-share button").count()) > 0, "the share button is missing on the card");
+      // Share sits behind ⋯ in the header's row since 2026-11-16 (app/characters/[id]/HeaderActions.tsx).
+      await spage.locator(".contestant-actions .thread-menu > button").click();
+      assert((await spage.locator('.contestant-actions [role="menuitem"]').count()) > 0, "the share item is missing from the card's ⋯ menu");
+      await spage.keyboard.press("Escape");
       // Audience rating: a spectator (who doesn't own this contestant) toggles a rating chip on.
       await spage.locator(".ratings .rating-chip").first().click();
       await spage.locator(".rating-chip.on").first().waitFor({ timeout: 10_000 });

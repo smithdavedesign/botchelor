@@ -1024,6 +1024,66 @@ details.recap-toggle[open] .recap-toggle-hide {
   }
 }
 
+/* The header's one row of small actions (2026-11-16): Text, Follow, and ⋯ for what is rarely used (the link to share
+   was a row of its own under the header). One line at 390px; a note about what a tap did takes the row under it. */
+.contestant-actions {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+.contestant-actions > p {
+  flex-basis: 100%;
+  margin: 0;
+}
+/* ⋯ is the thread page's menu button (app/couples/[a]/[b]/ThreadMenu.tsx), round and as tall as its neighbours. */
+.contestant-actions button.phone-head-btn {
+  min-width: var(--control-h-sm);
+  min-height: var(--control-h-sm);
+  border-radius: var(--radius-pill);
+  color: var(--muted);
+  font-size: var(--text-md);
+}
+/* Its menu drops under the row from the row's left edge: on a phone the row is the page's width. */
+.contestant-actions .thread-menu-panel {
+  left: 0;
+  right: auto;
+  width: min(19rem, 100%);
+}
+.thread-menu-note {
+  margin: 0;
+  padding: var(--space-1) var(--space-3);
+}
+
+/* "Right now" under a character's header (app/characters/[id]/RightNow.tsx): two or three lines, no card and no
+   heading of its own size, set off by a rule on its left so it reads as the page's lead and not as one more box. */
+.character-now {
+  margin: var(--space-4) 0 0;
+  padding: var(--space-1) 0 var(--space-1) var(--space-3);
+  border-left: 3px solid var(--accent);
+}
+.character-now .kicker {
+  margin: 0 0 var(--space-1);
+}
+.character-now ul {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.character-now li {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  line-height: 1.4;
+}
+.character-now-more {
+  margin: var(--space-2) 0 0;
+}
+
 /* Talk of the house (app/characters/[id]/TalkPanel.tsx): what was said about them in the house's own thread look,
    then friction and who is after whom as two-line rows, like the Dates tab's. */
 .character-talk h3 {

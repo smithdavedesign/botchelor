@@ -264,12 +264,10 @@
   margin-top: var(--space-4);
 }
 
-/* Text, the small second action (lib/character-verb.ts): in a character page's header and under a face on Chat. A link
-   in its place (sign in first) is the same size as the button. */
-.contestant-text {
-  margin: var(--space-2) 0 0;
-}
-:is(.contestant-text, .chat-cast-face) :is(a.button, button) {
+/* Text, the small second action (lib/character-verb.ts): in a character page's header row (.contestant-actions,
+   app/ux/show.css) and under a face on Chat. A link in its place (sign in first) is the same size as the button. */
+.contestant-actions > :is(a.button, button.small),
+.chat-cast-face :is(a.button, button) {
   --control-h: var(--control-h-sm);
   margin-top: 0;
   padding-inline: var(--space-4);

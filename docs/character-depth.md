@@ -406,6 +406,74 @@ the place of the Audience tab, which was two rating buttons and a reviews form o
 - **`CHARACTER_TALK=0`** puts the Audience tab back as it was (ratings and reviews in it) without a deploy of code.
 - **Tests:** `tests/character-talk.test.ts`.
 
+## 14. Follow a character, and "Right now" at the top of its page (2026-11-16)
+
+An outside review's best point: a profile should answer "what is going on in this character's life right now?" at
+once, and following a character should be one explicit action, so a person has a reason to come back that doesn't
+depend on a character of their own. People could follow a couple (`lib/follows.ts`) and a creator, never one character.
+
+**Follow** (`lib/character-follows.ts`, `character_follows`, `POST` / `DELETE /api/characters/[id]/follow`,
+`app/characters/[id]/HeaderActions.tsx`). One compact toggle in the header's row, **🔔 Follow** / **Following ✓**.
+
+- **Who can be followed, and by whom:** a public character whose creator is still here, by anyone on a session, the
+  way a couple is followed (a visitor with no session is given a signed one). Never your own character (an owner
+  already hears everything: their page shows no control), never a private one. Following is private: the page shows a
+  count behind ⋯ once somebody follows, never who.
+- **What a follower hears,** one notice a person an event, in the words couples' followers and owners already get:
+
+  | When | Notice (kind → the type it is muted under) |
+  |---|---|
+  | A public date of theirs airs and both characters are public | `couple_date` → Matches & dates: "Nell & Rafe went on a date" for the pair's first public date, "went on another date" after, with how it ended and the link to the date |
+  | That date agreed a second one, or made them a couple or a fixture | `stage_up` → Matches & dates, instead of the line above: "Nell & Rafe: ✨ Sparks" |
+  | A house scene talks about them, or they are in a confrontation or the week's challenge | `house_talk` → The show, right after the scene is stored, linked to the scene: who said what, how the confrontation came out, who won |
+
+  Someone who follows both people of a date, or the couple as well, hears it once. An owner of either character hears
+  as the owner, not also as a follower. A muted type still lands in the inbox, already read: no bell, push or email.
+- **The character may text them.** Where the follower may text the character (`companionAllowed` and
+  `companionEligible`, the Text button's own rule: an account, and the house cast, the show's open cast), the thread is
+  found, or opened the way "Hear from" opens one (the AI notice, no opener, no model call), and its texts are switched
+  on (`companion_threads.muted_proactive = false`). The house's texts (`lib/house-texts.ts`;
+  [companions.md](companions.md), "When the house talks about them") then arrive in Chat under their own rules: at most one a thread a day, never to a
+  paused thread, never to someone who muted Texts. A follower the character texted about a scene is not also sent the
+  `house_talk` notice for it: the text's own notice (`character_texted_you`) is the one. A visitor without an account
+  gets this only in a conversation they already have, since a guest has few to spend. The control's tooltip and the
+  line under the row after the tap both say the texts are on: nobody is texted who wasn't told.
+- **Unfollowing** stops the notices and switches the texts off again when the follow is what switched them on
+  (`character_follows.texts_on`); texts a person had turned on themselves in the thread's Settings stay as they chose.
+  It never deletes a conversation or a message.
+- **Data rights:** the account export lists `character_follows`; deleting the account deletes them; a character that
+  is deleted, or kept only for the dates it aired in after its creator left, loses its followers
+  (`lib/account.ts`).
+- **`CHARACTER_FOLLOW=0`** hides the control, refuses the route (404) and tells no follower anything, without a deploy
+  of code. The rows stay, so turning it back on loses nothing.
+
+**Right now** (`lib/character-now.ts` `shapeNow`, `app/characters/[id]/RightNow.tsx`). Two or three short lines under
+the header, above everything else on the page:
+
+- **Who they are seeing, after or feuding with:** the two strongest ties of their circle this week (`lib/story-map.ts`),
+  in their own words ("Rivals with Juniper for Sable, since Sunday", "Dating Sable", "Cleared the air with Dex"), one a
+  person, each a link to what made it. A character outside this week's map falls back to the Talk tab's standing rows:
+  a couple or an agreed second date on the public graph, who is after them (a producer's line at most 14 days old),
+  bad blood.
+- **The latest thing that happened:** the newest of a line said about them, a confrontation or challenge they were in,
+  the producer's line, and their latest aired public date, linked to the scene or the date. Never what a tie line
+  already said (the scene a tie links to, the date behind a pair's standing).
+- **This week** (`lib/life.ts`) fills a spare line when there is one. On its own it is not news.
+- **See the talk →** opens the Talk tab, when there is something in it.
+- **Empty is nothing at all:** no box, no heading. Most people's characters, and every brand-new one.
+- **Public only, and nothing is read for it:** it is shaped from what the page already loaded for everyone (the
+  circle, Talk of the house, the public date record, the week's line), so it can't show what those don't: nothing from
+  the story state, never an unaired or private date, never a date whose other half is private to someone else. The
+  same lines for every viewer, the owner included.
+- **`CHARACTER_NOW=0`** hides the lines without a deploy of code.
+
+**The header got quieter, not busier.** Text, Follow and ⋯ share one row; the link to share or copy, which was a row of
+its own under the header, sits behind ⋯ (the thread page's menu, `app/couples/[a]/[b]/ThreadMenu.tsx`) with the
+follower count. The follow state is one read started beside the page's first query, so the page's round trips
+(`tests/perf-pages.test.ts`) are what they were.
+
+- **Tests:** `tests/character-follow.test.ts`.
+
 ## The house cast
 `lib/house-kits.ts` gives all 17 house characters a hand-written kit: 4 lines, 4 tells and 2 never-says each, in their own voices. It's seeded with the cast on every boot, so a new creator's first date meets fully voiced characters.
 
