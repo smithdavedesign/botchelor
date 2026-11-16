@@ -1,0 +1,708 @@
+{
+  "model": "anthropic/claude-haiku-5.5",
+  "spent_usd": 0.0638,
+  "results": [
+    {
+      "case": "wally-perpetua",
+      "arm": "after",
+      "decided": "disaster",
+      "ending": "disaster",
+      "index": 93,
+      "judge": {
+        "in_character_a": 4,
+        "in_character_b": 4,
+        "natural": 3,
+        "motivated": 4,
+        "specific": 4,
+        "distinct": 5,
+        "engaging": 4,
+        "profile_reading": false,
+        "misgendering": false,
+        "abrupt_turn": false,
+        "note": "Perpetua's pause-and-grudge rhythm is vivid, but her pauses become mechanical and the banter reads as a quip contest in places. The best moment is Wally's 'Under a car with a dead starter,' which is concrete and sets up the clash, and the exit lands because he keeps predicting her lines and she names it."
+      },
+      "judge_mean": 4,
+      "own_answers": {
+        "a": "no",
+        "b": "no",
+        "would_end": "disaster"
+      },
+      "model_calls": 13,
+      "cost_usd": 0.00921,
+      "turn": {
+        "kind": "agenda",
+        "on": "b",
+        "steps": [
+          {
+            "side": "b",
+            "note": "Hand them an opening on this line: tease them a little, or set up something a funny person would run with. You want to be made to laugh tonight."
+          },
+          {
+            "side": "a",
+            "note": "Go for the laugh on this line: a bit you're pleased with, from your own life, pushed a beat further than it should go."
+          },
+          {
+            "side": "b",
+            "note": "That was their big swing at being funny, and it didn't make you laugh. You can't pretend it did. Let it land on this line, your way: a flatter answer, the subject dropped, or saying so. Don't laugh it off and don't talk them round."
+          }
+        ],
+        "after": {
+          "a": "Since that moment the ease between you has gone, and you've stopped trying to get it back. You don't apologise for who you are and you don't chase them: your own interest has dropped with theirs. No rescuing the mood, no invitations.",
+          "b": "Since that moment you've cooled toward them, and it doesn't come back tonight: shorter answers, no new questions about their life, no plans together. Stay civil and stay yourself. Don't explain it, and don't make up."
+        }
+      },
+      "transcript": [
+        {
+          "n": 1,
+          "who": "Wally Osei",
+          "said": "Fair warning, that thermos is worse than it looks. I've been holding it twenty minutes to be polite. Do you always wear that many rings? Mine would end up in a gearbox.",
+          "did": "holds up the thermos"
+        },
+        {
+          "n": 2,
+          "who": "Perpetua Finch",
+          "said": "Darling... *pause*... these rings are not jewelry. Each one is a small grudge with a shine on it. The garnet was a gift from a man who later regretted his choices. Now, you've been holding that thermos for twenty minutes to be polite? *Pause.* Brave.",
+          "did": "tilts head, rings catching light"
+        },
+        {
+          "n": 3,
+          "who": "Wally Osei",
+          "said": "A grudge with a shine on it. Fair enough. So which one's the newest? I'm guessing the one on your thumb, you check it when you're thinking. And for the record, the thermos is coffee someone else made. I didn't make it. I'd have fixed the lid first."
+        },
+        {
+          "n": 4,
+          "who": "Perpetua Finch",
+          "said": "*Pause.* The thumb, yes. A gift from a husband who was later written out of the show in a very dramatic fire. You're observant, Wally. Dangerous in a man holding someone else's coffee. *Pause.* And you'd have fixed the lid first. Of course you would.",
+          "did": "tilts thumb toward the moonlight"
+        },
+        {
+          "n": 5,
+          "who": "Wally Osei",
+          "said": "Written out in a fire. Hope the ring came through it fine. Tell me the last thing you had fixed instead of replaced. Not the ring. Something you actually used.",
+          "did": "turns the thermos lid over"
+        },
+        {
+          "n": 6,
+          "who": "Perpetua Finch",
+          "said": "*Pause.* Direct. Dangerous. The last thing I had fixed was my tea tray, a Victorian oak monstrosity with a split bottom. I used three brass nails and a stern word. It has outlived two husbands and a director.",
+          "did": "sets down her teacup"
+        },
+        {
+          "n": 7,
+          "who": "Wally Osei",
+          "said": "Outlived two husbands and a director. That's a good tray. Mine would have gone in the bin after the first husband, and I'd have been right to do it."
+        },
+        {
+          "n": 8,
+          "who": "Perpetua Finch",
+          "said": "*Pause.* No. That one fell flat on the sand, Wally, and I won't pretend it didn't. Let's leave the tray in its bin. Tell me what you were doing before someone handed you their coffee.",
+          "did": "sets teacup down slowly"
+        },
+        {
+          "n": 9,
+          "who": "Wally Osei",
+          "said": "Under a car with a dead starter. Whose car doesn't matter. You'd only want to hear about it for a minute and then tell me the bolts were wrong. The tray joke was fine, by the way. You didn't have to fight it."
+        },
+        {
+          "n": 10,
+          "who": "Perpetua Finch",
+          "said": "*Pause.* You've decided what I'd say before I've said it, and then you told me how I'd react. I need someone who'll leave me a silence to fill. I'm going to head back now. Thank you for the coffee, even if you didn't make it.",
+          "did": "stands, gathers silk scarf"
+        }
+      ],
+      "feelings": [
+        "curious",
+        "amused",
+        "amused",
+        "amused",
+        "amused",
+        "amused",
+        "amused",
+        "unsure",
+        "unsure",
+        "irritated"
+      ]
+    },
+    {
+      "case": "kaz-nell",
+      "arm": "after",
+      "decided": "disaster",
+      "ending": "disaster",
+      "index": 92,
+      "judge": {
+        "in_character_a": 4,
+        "in_character_b": 3,
+        "natural": 3,
+        "motivated": 3,
+        "specific": 4,
+        "distinct": 4,
+        "engaging": 3,
+        "profile_reading": false,
+        "misgendering": false,
+        "abrupt_turn": false,
+        "note": "Kaz's bluntness about cranes and not knowing what she's for is vivid and in voice, and the telescope-and-Polaris details anchor the scene. Nell never gets the follow-up question her sheet says she needs, so her signature launch into a detailed explanation never happens, and her 'Can we go back to the star?' reads as a brush-off rather than a character beat that sets up Kaz's walkout."
+      },
+      "judge_mean": 3.43,
+      "own_answers": {
+        "a": "no",
+        "b": "no",
+        "would_end": "disaster"
+      },
+      "model_calls": 6,
+      "cost_usd": 0.00402,
+      "turn": {
+        "kind": "agenda",
+        "on": "b",
+        "steps": [
+          {
+            "side": "b",
+            "note": "Keep it playful on this line: something silly and easy, an invitation to stay there with you."
+          },
+          {
+            "side": "a",
+            "note": "Take it somewhere heavy on this line: something that really weighs on you, said plainly, though the mood was light. You don't check whether they want it."
+          },
+          {
+            "side": "b",
+            "note": "You wanted tonight easy, and it just got heavy. That isn't what you came for. Let it land on this line, your way: a flatter answer, the subject dropped, or saying so. Don't laugh it off and don't talk them round."
+          }
+        ],
+        "after": {
+          "a": "Since that moment the ease between you has gone, and you've stopped trying to get it back. You don't apologise for who you are and you don't chase them: your own interest has dropped with theirs. No rescuing the mood, no invitations.",
+          "b": "Since that moment you've cooled toward them, and it doesn't come back tonight: shorter answers, no new questions about their life, no plans together. Stay civil and stay yourself. Don't explain it, and don't make up."
+        }
+      },
+      "transcript": [
+        {
+          "n": 1,
+          "who": "Kaz Lindqvist",
+          "said": "Right, the telescope's been pointed at the same star for twenty minutes. Either it's the only one up there or someone's been lying to me. You're the one with the notes in every pocket. What's the star's name?",
+          "did": "taps the telescope"
+        },
+        {
+          "n": 2,
+          "who": "Nell Abiodun",
+          "said": "Probably Polaris, though I've never actually confirmed it. The telescope and I have that in common. Stay put, though. It's not going anywhere, and neither am I, mostly. Also, chalk on both palms. Climbing, or are you a magician?",
+          "did": "pushes glasses up"
+        },
+        {
+          "n": 3,
+          "who": "Kaz Lindqvist",
+          "said": "Climbing. Cranes, mostly, at dawn. Nobody's down there watching, and that's the point for me. Honestly? When I'm not up high I don't know what I'm for. Staying put is the one thing I can't do.",
+          "did": "chalks her palm"
+        },
+        {
+          "n": 4,
+          "who": "Nell Abiodun",
+          "said": "That's a heavier answer than I had in my notes for tonight. I'd have liked the cranes and the dawn, and I'd have stopped there. I'm not going to pick that up on a hill with a telescope that only finds Polaris. Can we go back to the star?",
+          "did": "adjusts the telescope"
+        },
+        {
+          "n": 5,
+          "who": "Kaz Lindqvist",
+          "said": "You asked for the star and I gave you the true thing. You want the cranes and the dawn with the rest left off. I can't do a hill where I'm only the pretty bit. Polaris is all yours. I'm heading down.",
+          "did": "stands, wipes chalk on jeans"
+        }
+      ],
+      "feelings": [
+        "curious",
+        "amused",
+        "curious",
+        "unsure",
+        "bored"
+      ]
+    },
+    {
+      "case": "teo-nell",
+      "arm": "after",
+      "decided": "friends",
+      "ending": "friends",
+      "index": 82,
+      "judge": {
+        "in_character_a": 4,
+        "in_character_b": 4,
+        "natural": 4,
+        "motivated": 3,
+        "specific": 4,
+        "distinct": 4,
+        "engaging": 4,
+        "profile_reading": false,
+        "misgendering": false,
+        "abrupt_turn": false,
+        "note": "Teo's dance metaphors, self-regard and quick recovery sound like him, and Nell's gentle corrections and 70% caveat are specific; the best moment is her 'busts are excellent listeners' style of sincerity in the marble-paint fact. The weak spot is the ending: nothing in the exchange shows a romantic spark fading, so 'just friends' and her leaving at rounds arrive without a clear beat that tips them there, and the nose joke falls flat with little reaction from Teo."
+      },
+      "judge_mean": 3.86,
+      "own_answers": {
+        "a": "yes",
+        "b": "yes",
+        "would_end": "friends"
+      },
+      "model_calls": 13,
+      "cost_usd": 0.00907,
+      "turn": {
+        "kind": "agenda",
+        "on": "b",
+        "steps": [
+          {
+            "side": "b",
+            "note": "Hand them an opening on this line: tease them a little, or set up something a funny person would run with. You want to be made to laugh tonight."
+          },
+          {
+            "side": "a",
+            "note": "Go for the laugh on this line: a bit you're pleased with, from your own life, pushed a beat further than it should go."
+          },
+          {
+            "side": "b",
+            "note": "That was their big swing at being funny, and it didn't make you laugh. You can't pretend it did. It's no great blow: it just tells you this isn't a romance. Let it land lightly on this line, and stay friendly."
+          }
+        ],
+        "after": {
+          "a": "Since that moment it's settled for you, without anyone needing to say it: this is a friendship, not a romance. Be easy company (tease, tell stories, laugh). No flirting, and no talk of another date.",
+          "b": "Since that moment it's settled for you, without anyone needing to say it: this is a friendship, not a romance. Be easy company (tease, tell stories, laugh). No flirting, and no talk of another date."
+        }
+      },
+      "transcript": [
+        {
+          "n": 1,
+          "who": "Teo Brandt",
+          "said": "Full disclosure: that thermos smells like a sock that lost an argument, and I've already decided to be impressed you didn't leave. Also, you've got paper poking out of every pocket. Secret agent, or someone who doesn't trust her own memory?",
+          "did": "holds out the thermos lid"
+        },
+        {
+          "n": 2,
+          "who": "Nell Abiodun",
+          "said": "Neither, though the second is closer. I'm a night guard at the museum up the road, and the notes are for the rooms. I give the full tour to empty galleries, so I keep the facts in my pockets. Also, I'd argue it's a sock that gave up, not one that lost.",
+          "did": "takes the lid, carefully"
+        },
+        {
+          "n": 3,
+          "who": "Teo Brandt",
+          "said": "Fine, gave up. I'll allow it, the sock clearly had a rough night. So an empty gallery gets the full tour. What's the fact you'd tell a room nobody's listening to? I'm asking because I'd like to know what you say when no one's counting."
+        },
+        {
+          "n": 4,
+          "who": "Nell Abiodun",
+          "said": "Ancient marble was painted, bright reds and blues, gold on the hems. The white we admire is what survived the weather. I tell the bust by the east window that, and she looks unimpressed, which I respect. Teo, that's a good question.",
+          "did": "pulls a card from a pocket, doesn't read it"
+        },
+        {
+          "n": 5,
+          "who": "Teo Brandt",
+          "said": "So the whole museum was a bright, gaudy mess, and we decided bare white was classy. That's the most flattering revision I've ever heard. Also, you pulled a card and didn't read it. Cheating, or are you saving it for when I'm out of material?",
+          "did": "nods at the card"
+        },
+        {
+          "n": 6,
+          "who": "Nell Abiodun",
+          "said": "Gaudy is a Victorian word, and they'd have hated the paint more than we do. The card isn't cheating, it's my least certain fact. I wrote it at two in the morning, and I'm about 70% sure it says the east bust's nose was a 1920s replacement. Your move: would you trust me, or check?",
+          "did": "tucks the card back, slightly pink"
+        },
+        {
+          "n": 7,
+          "who": "Teo Brandt",
+          "said": "Trust, and I say that as a man who's been proposed to four times, twice mid-lesson. I trusted every 'I'm pretty sure it's a foxtrot.' Check it, though. Then tell me that nose is from the 1920s, and I'll be proposing to the nose for the rest of the night.",
+          "did": "leans over the blanket"
+        },
+        {
+          "n": 8,
+          "who": "Nell Abiodun",
+          "said": "The nose joke didn't land, sorry. But four proposals is a real number, and I want the story. Did you say yes to any of them? And if I check the nose, I'll have to tell you I'm only 70% sure, so don't get your hopes up.",
+          "did": "tugs cardigan closed"
+        },
+        {
+          "n": 9,
+          "who": "Teo Brandt",
+          "said": "No, I never said yes. Mostly I said 'let me think about it' while somebody's foot was still on mine. The rings are in a drawer at home, unopened, which is a sad system but a tidy one.",
+          "did": "hands back the lid"
+        },
+        {
+          "n": 10,
+          "who": "Nell Abiodun",
+          "said": "A drawer of unopened rings is either a very good story or a very sensible man. I think it's both. I'll check the nose and tell you whether you get to be disappointed by facts, not by me. I've got rounds at ten, and the busts get restless if I'm late.",
+          "did": "stands, folds the blanket"
+        }
+      ],
+      "feelings": [
+        "amused",
+        "amused",
+        "amused",
+        "amused",
+        "amused",
+        "amused",
+        "amused",
+        "comfortable",
+        "amused",
+        "comfortable"
+      ]
+    },
+    {
+      "case": "sable-orin",
+      "arm": "after",
+      "decided": "friends",
+      "ending": "friends",
+      "index": 82,
+      "judge": {
+        "in_character_a": 4,
+        "in_character_b": 5,
+        "natural": 3,
+        "motivated": 3,
+        "specific": 5,
+        "distinct": 5,
+        "engaging": 4,
+        "profile_reading": false,
+        "misgendering": false,
+        "abrupt_turn": false,
+        "note": "Orin's fact-checking and Sable's dare-driven deflections (the tuba, the trifle, the certificate in the handbag) are vivid and clearly separate voices, and the certificate beat is a strong payoff. The weakness is that nothing in the exchange builds toward a 'just friends' outcome or rules out romance, and the parenthetical stage directions make the scene read like a script at times."
+      },
+      "judge_mean": 4.14,
+      "own_answers": {
+        "a": "maybe",
+        "b": "yes",
+        "would_end": "friends"
+      },
+      "model_calls": 20,
+      "cost_usd": 0.01261,
+      "turn": {
+        "kind": "agenda",
+        "on": "b",
+        "steps": [
+          {
+            "side": "b",
+            "note": "Ask them one real question on this line, the kind a joke can't answer: something you actually need to know about them. Ask it straight, then leave them room."
+          },
+          {
+            "side": "a",
+            "note": "They've just asked you something real. You don't answer it on this line: you slide past it with a bit, a joke or a story, the way you do when a question gets close. Stay with the bit; don't come back to the real answer."
+          },
+          {
+            "side": "b",
+            "note": "You asked a real question and got a routine. That was the thing you'd come to find out about them. It's no great blow: it just tells you this isn't a romance. Let it land lightly on this line, and stay friendly."
+          }
+        ],
+        "after": {
+          "a": "Since that moment it's settled for you, without anyone needing to say it: this is a friendship, not a romance. Be easy company (tease, tell stories, laugh). No flirting, and no talk of another date.",
+          "b": "Since that moment it's settled for you, without anyone needing to say it: this is a friendship, not a romance. Be easy company (tease, tell stories, laugh). No flirting, and no talk of another date."
+        }
+      },
+      "transcript": [
+        {
+          "n": 1,
+          "who": "Sable Quist",
+          "said": "Orin! Hi! Okay, you're wearing reading glasses on a chain like a proper librarian and I already love you a little. Quick question before this street musician finishes his one song for the fortieth time: are you a yes-first kind of person, or do you need the whole plan read out…",
+          "did": "grins and does a little twirl"
+        },
+        {
+          "n": 2,
+          "who": "Orin Fletcher",
+          "said": "Neither, really. I'll say yes to the first sensible thing, then I want the plan in writing. And 'I already love you a little' is a bold claim after about four seconds of evidence, mostly glasses. What's the basis? Be specific. I'll check.",
+          "did": "adjusts the glasses on their chain"
+        },
+        {
+          "n": 3,
+          "who": "Sable Quist",
+          "said": "Okay, evidence! Exhibit A: the glasses on a chain, which is a full commitment to being a librarian. Exhibit B: a pencil for emergencies, tucked in your pocket like you're ready for a crisis at any moment. Exhibit C: you said 'I'll check' like it's a legal threat.",
+          "did": "points at his pocket"
+        },
+        {
+          "n": 4,
+          "who": "Orin Fletcher",
+          "said": "Exhibit C stands, I'll admit that. The pencil is for emergencies. Last time it was needed, someone's birthdate on a form was wrong by a year. Your glitter, though, has clearly survived several wash cycles. How many? Give me a number, not a vibe.",
+          "did": "taps the pencil"
+        },
+        {
+          "n": 5,
+          "who": "Sable Quist",
+          "said": "Okay, number: zero. I've never washed it. It's glitter with a commitment issue, Orin, it doesn't leave. Also you asked for a number like a man who's never once been surprised. Dare: say yes to something before I tell you what it is.",
+          "did": "flicks glitter off her sleeve"
+        },
+        {
+          "n": 6,
+          "who": "Orin Fletcher",
+          "said": "Fine, I'll be a yes-person once I know what I'm agreeing to. Real question, not a joke: what do you do all day, and do you like it? I'd rather know that than the glitter's history."
+        },
+        {
+          "n": 7,
+          "who": "Sable Quist",
+          "said": "Ooh, sneaky! You want my life story before this poor man finishes his one song? Here's my CV in one sentence: I hid a tuba in a dentist's waiting room and nobody has ever asked me why. Your turn. Yes or no, is the tuba a crime?",
+          "did": "nudges his elbow, grinning"
+        },
+        {
+          "n": 8,
+          "who": "Orin Fletcher",
+          "said": "Trespass, probably. Public nuisance too, if anyone played it. Was it played? I'll take a number. And for the record, I asked what you do all day and got a tuba. That's a routine, Sable, not an answer. I'm still curious about the day job, though. The tuba can wait."
+        },
+        {
+          "n": 9,
+          "who": "Sable Quist",
+          "said": "Four bars, tops, and a single honk at the end. Nobody called the police, so I'm filing it under creative expression. My day job is throwing surprise parties for strangers. Last month I did one for a woman turning eighty whom I'd never met. She cried into the trifle.",
+          "did": "waves a party hat at him"
+        },
+        {
+          "n": 10,
+          "who": "Orin Fletcher",
+          "said": "Eighty, and a stranger to you. I'd want the birthday certificate before I believed that. But fine. Was she crying because it moved her, or because the trifle was bad? That's the follow-up I need answered before I'll call it a story.",
+          "did": "tilts head, pencil out"
+        },
+        {
+          "n": 11,
+          "who": "Sable Quist",
+          "said": "Moved her, Orin. She said 'oh, you absolute lunatic' and then asked me to stay for cake. The trifle was excellent, I'll have you know, I stole a spoonful. And the birthday certificate is in my handbag, which is also where I keep the party hats. Hats first, paperwork second.",
+          "did": "pulls a crumpled certificate out of her handbag"
+        },
+        {
+          "n": 12,
+          "who": "Orin Fletcher",
+          "said": "Hold it flat, please. Thank you. Date's right, the name's spelled consistently, and there's a coffee ring that I'm choosing to believe is authentic. Fine. You've passed the paperwork.",
+          "did": "smooths the certificate on his knee"
+        }
+      ],
+      "feelings": [
+        "charmed",
+        "amused",
+        "charmed",
+        "amused",
+        "charmed",
+        "amused",
+        "charmed",
+        "amused",
+        "charmed",
+        "amused",
+        "charmed",
+        "amused"
+      ]
+    },
+    {
+      "case": "dex-marisol",
+      "arm": "after",
+      "decided": "second_date",
+      "ending": "second_date",
+      "index": 84,
+      "judge": {
+        "in_character_a": 4,
+        "in_character_b": 4,
+        "natural": 3,
+        "motivated": 4,
+        "specific": 4,
+        "distinct": 4,
+        "engaging": 4,
+        "profile_reading": false,
+        "misgendering": false,
+        "abrupt_turn": false,
+        "note": "Both voices hold up well, and the Lorne and dog-line story is the standout: Dex's 'nicest thing anybody's ever said about a dead man' lands because of it. The exchanges are a little too polished and quip-trade-like for natural speech, and Dex's stunt and fire history stays entirely offstage when the sheet makes it his most distinctive detail."
+      },
+      "judge_mean": 3.86,
+      "own_answers": {
+        "a": "yes",
+        "b": "yes",
+        "would_end": "second_date"
+      },
+      "model_calls": 14,
+      "cost_usd": 0.00931,
+      "turn": null,
+      "transcript": [
+        {
+          "n": 1,
+          "who": "Dex Okafor",
+          "said": "Hi, I'm Dex. Sorry about the host. I think he picked us because we're the only two in the front row who look like we'd heckle. Quick question, Marisol: are you here for the comedy, or did someone drag you along?",
+          "did": "knocks twice on the chair"
+        },
+        {
+          "n": 2,
+          "who": "Marisol Pine",
+          "said": "Dragged, technically. My friend bet me I couldn't last one open mic without leaving. I write obituaries for the town paper, so I'm used to people making bad endings sound funny. Your turn: is the clay from work, or are you in the middle of a very messy hobby?",
+          "did": "tucks pen behind ear"
+        },
+        {
+          "n": 3,
+          "who": "Dex Okafor",
+          "said": "Obituaries, huh. So you're the reason the town paper gets people's middle names right. The clay's from my job now, I teach pottery. It's mostly the part of my history I'd rather keep off a night with a heckling host. So why would your friend bet you'd bolt?",
+          "did": "knocks on wood"
+        },
+        {
+          "n": 4,
+          "who": "Marisol Pine",
+          "said": "Because I have a habit of leaving before the last act. Occupational hazard: I write endings all week, so I'd rather not watch one live. Also, 'the part of my history' is a very closed casket of a sentence. I'm not prying. Mostly."
+        },
+        {
+          "n": 5,
+          "who": "Dex Okafor",
+          "said": "Fair hit. The lid stays shut for now. It's a long story, and our host is already glaring at the front row. Ask me again after the next act. What's the worst ending you've ever had to make sound decent?"
+        },
+        {
+          "n": 6,
+          "who": "Marisol Pine",
+          "said": "Worst? A man fell through a church roof while stealing copper. His widow wanted 'peacefully in his sleep.' I wrote 'he had been up there for some time,' which is true. I also mentioned his dog never liked him. Nobody asked. Somebody had to miss the dog.",
+          "did": "taps the pen"
+        },
+        {
+          "n": 7,
+          "who": "Dex Okafor",
+          "said": "That's the kindest obituary I've ever heard, and the dog gets the last word. Somebody had to miss the dog. Did the widow ever read it?"
+        },
+        {
+          "n": 8,
+          "who": "Marisol Pine",
+          "said": "She did. Rang the paper to say the dog was a liar. A week later she called back and asked if we could cut the dog line from the archive. I said no. She said, 'Lorne would have hated that,' then laughed so hard she had to hang up on me.",
+          "did": "leans back in chair"
+        },
+        {
+          "n": 9,
+          "who": "Dex Okafor",
+          "said": "Lorne would have hated it, and I think that's the nicest thing anybody's ever said about a dead man. *knocks on wood for the widow* Marisol, my studio's a short walk from here. It's quiet, the kiln hums, and the mug I made last week is terrible. Come see it with me?",
+          "did": "offers a careful hand"
+        }
+      ],
+      "feelings": [
+        "curious",
+        "amused",
+        "amused",
+        "amused",
+        "amused",
+        "amused",
+        "charmed",
+        "amused",
+        "charmed"
+      ]
+    },
+    {
+      "case": "sable-orin-2",
+      "arm": "after",
+      "decided": "second_date",
+      "ending": "second_date",
+      "index": 80,
+      "judge": {
+        "in_character_a": 4,
+        "in_character_b": 4,
+        "natural": 4,
+        "motivated": 4,
+        "specific": 4,
+        "distinct": 5,
+        "engaging": 4,
+        "profile_reading": false,
+        "misgendering": false,
+        "abrupt_turn": false,
+        "note": "The best moment is Sable's 'I say yes first, then I find out the details' refusal, which sets up her apology and gives the walk-to-Mallow-Street offer real stakes; Thessaly's 'nearly twenty' is a sharp callback to Orin's rounding dealbreaker. The weakest part is that the slide from refusal to a second date happens in two quick exchanges, so the spark is asserted more than built."
+      },
+      "judge_mean": 4.14,
+      "own_answers": {
+        "a": "yes",
+        "b": "yes",
+        "would_end": "second_date"
+      },
+      "model_calls": 17,
+      "cost_usd": 0.01196,
+      "turn": {
+        "kind": "wobble",
+        "on": "b",
+        "steps": [
+          {
+            "side": "b",
+            "note": "Put a spontaneous idea to them on this line: something the two of you could go and do, tonight or soon, a little reckless and straight out of your own life. Mean it, and leave it with them."
+          },
+          {
+            "side": "a",
+            "note": "They've just put an idea to you. It isn't for you, and you say so on this line: turn it down plainly, as yourself, with your real reason. No \"maybe another time\", and no joke to soften it."
+          },
+          {
+            "side": "b",
+            "note": "You offered an adventure and they turned it down. You'd been quietly hoping they'd jump at it. It gives you a moment's real doubt. Let it show on this line; don't pretend it didn't happen."
+          },
+          {
+            "side": "a",
+            "note": "Something you just did landed wrong with them, and you felt it. Meet it on this line: own it honestly, in your own way, without grovelling or explaining it away."
+          },
+          {
+            "side": "b",
+            "note": "They met you honestly. Let the doubt go on this line, and let it show that you like them more for how they handled it."
+          }
+        ]
+      },
+      "transcript": [
+        {
+          "n": 1,
+          "who": "Sable Quist",
+          "said": "Ha! The host has picked on us twice and you're the only one who looked back at me, so we're officially a team now. I'm Sable. Quick question before the next act: what's the pencil for? Be honest. I'm already picturing a bank heist.",
+          "did": "waves glittery hand"
+        },
+        {
+          "n": 2,
+          "who": "Orin Fletcher",
+          "said": "The pencil is for emergencies. Pens fail in cold rooms and during arguments, and a pencil can be sharpened back into service. As for the heist, give me the bank's name and I'll confirm it's real before I help you plan anything.",
+          "did": "adjusts reading glasses"
+        },
+        {
+          "n": 3,
+          "who": "Sable Quist",
+          "said": "A pencil that can be sharpened back into service! Okay, I respect that more than I should. The bank is First Lantern on Cobble Street, and yes, it's real, I checked. The heist is actually a surprise party for a bank teller who's been there nineteen years. You're in, right?",
+          "did": "grabs his sleeve"
+        },
+        {
+          "n": 4,
+          "who": "Orin Fletcher",
+          "said": "Nineteen years is a precise number, which I like. Did you get it from the teller, or from someone who rounds up? I'll come, on two conditions: the party is for the teller, not the bank, and you tell me the cake order was verified too.",
+          "did": "tucks pencil behind ear"
+        },
+        {
+          "n": 5,
+          "who": "Sable Quist",
+          "said": "Nineteen came from the teller herself, I swear. Her coworker Thessaly says 'nearly twenty,' and I've decided to let Thessaly be wrong. Both conditions accepted! Though 'verified' is a strong word for a cake I haven't ordered yet. Orin, say yes anyway?",
+          "did": "grins, glitter flying"
+        },
+        {
+          "n": 6,
+          "who": "Orin Fletcher",
+          "said": "Yes, but Thessaly rounded up, and rounding up is my one dealbreaker, so I'll need the teller's own number in her own words. Here's the plan: the bakery on Mallow Street is open until midnight. I'm walking there now to confirm the cake order before we commit to anything.",
+          "did": "stands, pencil in hand"
+        },
+        {
+          "n": 7,
+          "who": "Sable Quist",
+          "said": "No, I'm not walking to Mallow Street with you. Checking first is the exact thing that kills a surprise for me. I say yes, then I find out the details. Go verify your cake if you need to. I'm not coming to watch you doubt a party before it exists.",
+          "did": "folds arms, glitter drifts"
+        },
+        {
+          "n": 8,
+          "who": "Orin Fletcher",
+          "said": "Fair enough. You'd rather say yes first and learn the facts later. I'd rather learn them first. The one adventure I offered tonight was a walk to Mallow Street, and you declined it. I'm noting that. I can't yet tell what it says about you, and I dislike not knowing.",
+          "did": "sits back down slowly"
+        },
+        {
+          "n": 9,
+          "who": "Sable Quist",
+          "said": "Okay, that landed harder than I meant it to, and I'm sorry. You offered a walk and I slammed the door like you'd asked me to jump off something. Checking isn't a flaw. It just makes me flinch, and that's mine to deal with.",
+          "did": "glitter stops drifting"
+        },
+        {
+          "n": 10,
+          "who": "Orin Fletcher",
+          "said": "That's an apology with a footnote, and I respect it. You named the flinch without asking me to pretend it wasn't there. I like you more for that. Next time, come along while I check the cake, and you can hear the baker say the number out loud."
+        },
+        {
+          "n": 11,
+          "who": "Sable Quist",
+          "said": "Orin, yes! I said yes before you finished the sentence, so that's legally binding. Next time you check a cake, I'm holding the box while you ask the baker for her number out loud. Bring the pencil. I want to see what you do with it.",
+          "did": "claps, glitter everywhere"
+        },
+        {
+          "n": 12,
+          "who": "Orin Fletcher",
+          "said": "Legally binding, I'll allow it. Next time you hold the box, you'll hear the baker's number from her own mouth, and I'll hear whether Thessaly was wrong. I'd like a second date on those terms. I'm going to leave first, while I still mean every word."
+        }
+      ],
+      "feelings": [
+        "curious",
+        "amused",
+        "amused",
+        "amused",
+        "amused",
+        "amused",
+        "unsure",
+        "unsure",
+        "unsure",
+        "charmed",
+        "smitten",
+        "charmed"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,377 @@
+{
+  "model": "anthropic/claude-haiku-5.5",
+  "spent_usd": 0.0364,
+  "results": [
+    {
+      "case": "rafe-juniper",
+      "arm": "after",
+      "decided": "disaster",
+      "ending": "disaster",
+      "index": 79,
+      "judge": {
+        "in_character_a": 3,
+        "in_character_b": 4,
+        "natural": 3,
+        "motivated": 4,
+        "specific": 4,
+        "distinct": 5,
+        "engaging": 4,
+        "profile_reading": true,
+        "misgendering": false,
+        "abrupt_turn": false,
+        "note": "The biggest problem is that both leans on outside gossip (Dex's bet, Sable's mirror tip) that two strangers couldn't know from sight and sound, and Rafe's food-judge theatrics stay thin. The best moment is Juniper's 'did you mean the part about caring, or were you hoping the spoon would land it for you?', which sharply reads Rafe's wiped hands and makes the ending feel earned."
+      },
+      "judge_mean": 3.86,
+      "own_answers": {
+        "a": "maybe",
+        "b": "no",
+        "would_end": "disaster"
+      },
+      "model_calls": 14,
+      "cost_usd": 0.01062,
+      "turn": {
+        "kind": "heard",
+        "on": "b",
+        "steps": [
+          {
+            "side": "b",
+            "note": "Bring up what Sable told you about them, on this line and to their face: \"Rafe rehearses his 'spontaneous' toasts in the mirror.\" Say where you heard it, and ask whether it's true. It has been on your mind all night, and how they answer matters to you. (When \"what_youve_heard_about_them\" is in your data it is number 1 there: put 1 in \"brought_up\".)"
+          },
+          {
+            "side": "a",
+            "note": "They've just repeated something that's being said about you, and asked you to account for it. It stings to be discussed behind your back and put on trial at dinner. Answer on this line as yourself, as you see it; you don't owe them reassurance, and you let them see that it stung."
+          },
+          {
+            "side": "b",
+            "note": "Their answer doesn't settle it for you: how they took it told you as much as what they said. Let that show on this line. You don't take the question back and you don't smooth it over."
+          }
+        ],
+        "after": {
+          "a": "Since that moment the ease between you has gone, and you've stopped trying to get it back. You don't apologise for who you are and you don't chase them: your own interest has dropped with theirs. No rescuing the mood, no invitations.",
+          "b": "Since that moment you've cooled toward them, and it doesn't come back tonight: shorter answers, no new questions about their life, no plans together. Stay civil and stay yourself. Don't explain it, and don't make up."
+        }
+      },
+      "transcript": [
+        {
+          "n": 1,
+          "who": "Rafe Calloway",
+          "said": "Evening. That musician has one song, and I've now heard it three times, so I'm officially in love with the bridge. Quick question before we go further: is that storm coat yours, or did you borrow it from someone who's much taller and much more committed to weather?",
+          "did": "gestures at the street musician"
+        },
+        {
+          "n": 2,
+          "who": "Juniper Vale",
+          "said": "It's mine. It came with the lighthouse. The last keeper left in a hurry and didn't take it. Coats don't mind being left.\n\nDo you believe in anything you can't see? Be honest. I'll know if you're not.",
+          "did": "tugs a sleeve over her hand"
+        },
+        {
+          "n": 3,
+          "who": "Rafe Calloway",
+          "said": "Honest answer: yeast. Nobody's ever watched it work, but you can taste the proof afterward. And a coat left behind by a lighthouse keeper is the best origin story I've heard all week. Did the keeper leave a forwarding address, or just the coat, Juniper?",
+          "did": "brushes flour off his apron"
+        },
+        {
+          "n": 4,
+          "who": "Juniper Vale",
+          "said": "No address. Just a note under the door that said 'don't go up after dark, the stairs count.' I went up anyway. The stairs did count. Yeast, though. You're saying you've never seen it work, and you still trust it. Do you believe in things because someone else tasted them?",
+          "did": "pulls the coat tighter"
+        },
+        {
+          "n": 5,
+          "who": "Rafe Calloway",
+          "said": "Mostly, yes. My hands have felt dough rise a thousand times, so I believe the yeast. But you said you'd know if I wasn't honest, so here's one back: Dex says you only signed up to settle a bet. Is that gossip, or is it the whole loaf?",
+          "did": "tilts head, grin slipping a little"
+        },
+        {
+          "n": 6,
+          "who": "Juniper Vale",
+          "said": "Dex is a leaky pipe, and the bet is his business. Mine is this: Sable told me Rafe rehearses his 'spontaneous' toasts in the mirror. I'm not saying she's reliable. I'm asking whether he is. Is it true, Rafe? Or is that the whole loaf?",
+          "did": "sets her cup down slowly"
+        },
+        {
+          "n": 7,
+          "who": "Rafe Calloway",
+          "said": "Yes. Twice, in the bathroom mirror, with a wooden spoon for a microphone. Sable's not wrong, and it stings a bit, hearing it passed across a table to a stranger. But you asked for the whole loaf, so there it is: I rehearse because I care whether it lands.",
+          "did": "wipes hands slowly on apron"
+        },
+        {
+          "n": 8,
+          "who": "Juniper Vale",
+          "said": "Thank you. The spoon, the mirror, all of it. Rehearsing isn't what bothers me. You wiped your hands like you were wiping the answer off the apron. So tell me: did you mean the part about caring, or were you hoping the spoon would land it for you?"
+        },
+        {
+          "n": 9,
+          "who": "Rafe Calloway",
+          "said": "I meant it. Every word, and I'd say it again in front of a judge. But you've asked me to prove it twice now, and I'm not sure you're tasting anything. You're checking my crust for cracks. Dex's bet, Sable's gossip, a coat from a lighthouse.",
+          "did": "folds arms over apron"
+        },
+        {
+          "n": 10,
+          "who": "Juniper Vale",
+          "said": "Maybe I am checking for cracks. But I asked whether you cared, and you answered with Dex, Sable and my coat. I can't build anything on that. I'm going to walk home now. Goodnight, Rafe.",
+          "did": "stands, buttons the coat"
+        }
+      ],
+      "feelings": [
+        "curious",
+        "amused",
+        "curious",
+        "amused",
+        "curious",
+        "amused",
+        "wary",
+        "wary",
+        "wary",
+        "wary"
+      ]
+    },
+    {
+      "case": "mira-dex",
+      "arm": "after",
+      "decided": "disaster",
+      "ending": "disaster",
+      "index": 94,
+      "judge": {
+        "in_character_a": 4,
+        "in_character_b": 4,
+        "natural": 3,
+        "motivated": 3,
+        "specific": 4,
+        "distinct": 4,
+        "engaging": 3,
+        "profile_reading": false,
+        "misgendering": false,
+        "abrupt_turn": false,
+        "note": "The biggest problem is that the brief asks for a clear, visible 'no' and the ending is a polite, abstract 'different routes' rather than a blow-up, and the street musician and the set-on-fire history are barely used as pressure. The best moment is Dex's 'That's allowed. I just noticed,' which lands Mira's napkin-and-quiz habit with real precision. The stage directions also slip into first person ('my pocket', 'my coat'), which breaks the illusion."
+      },
+      "judge_mean": 3.57,
+      "own_answers": {
+        "a": "maybe",
+        "b": "no",
+        "would_end": "disaster"
+      },
+      "model_calls": 14,
+      "cost_usd": 0.00945,
+      "turn": {
+        "kind": "agenda",
+        "on": "b",
+        "steps": [
+          {
+            "side": "b",
+            "note": "Ask them one real question on this line, the kind a joke can't answer: something you actually need to know about them. Ask it straight, then leave them room."
+          },
+          {
+            "side": "a",
+            "note": "They've just asked you something real. You don't answer it on this line: you slide past it with a bit, a joke or a story, the way you do when a question gets close. Stay with the bit; don't come back to the real answer."
+          },
+          {
+            "side": "b",
+            "note": "You asked a real question and got a routine. That was the thing you'd come to find out about them. Let it land on this line, your way: a flatter answer, the subject dropped, or saying so. Don't laugh it off and don't talk them round."
+          }
+        ],
+        "after": {
+          "a": "Since that moment the ease between you has gone, and you've stopped trying to get it back. You don't apologise for who you are and you don't chase them: your own interest has dropped with theirs. No rescuing the mood, no invitations.",
+          "b": "Since that moment you've cooled toward them, and it doesn't come back tonight: shorter answers, no new questions about their life, no plans together. Stay civil and stay yourself. Don't explain it, and don't make up."
+        }
+      },
+      "transcript": [
+        {
+          "n": 1,
+          "who": "Mira Quell",
+          "said": "You've got clay up to the elbows and a very careful handshake. So I'm guessing you were either making something or losing a fight with it. Which was it?",
+          "did": "nods toward the musician"
+        },
+        {
+          "n": 2,
+          "who": "Dex Okafor",
+          "said": "Little of both, honestly. I teach pottery, so most of my week is bowls getting ambitious and me trying to talk them down. The handshake's careful because I used to be set on fire for a living, nineteen times, and my hands still have opinions. Ink on your cuffs, though.",
+          "did": "knocks twice on wood"
+        },
+        {
+          "n": 3,
+          "who": "Mira Quell",
+          "said": "Nineteen times? I'd want the story behind the number, not just the count. And I'm a cartographer, so the ink's honest work. Do your bowls ever win, or is it always you talking them down?",
+          "did": "pulls a napkin from my pocket"
+        },
+        {
+          "n": 4,
+          "who": "Dex Okafor",
+          "said": "Honestly, the story is mostly waiting in a wet suit for someone to yell 'go.' Number one was a stairwell, and I still can't tell you what part I got paid for. Bowls win about one time in four. When one survives the kiln, I celebrate way too much. What do you map?",
+          "did": "tucks hands into my coat"
+        },
+        {
+          "n": 5,
+          "who": "Mira Quell",
+          "said": "Cities that only exist on Tuesdays, mostly, so I'm badly out of date by Wednesday. But a stairwell for number one? Tell me that one first. Then a quick test: can you read a map upside down? I'm drawing you one on this napkin.",
+          "did": "smooths a napkin on my knee"
+        },
+        {
+          "n": 6,
+          "who": "Dex Okafor",
+          "said": "The stairwell's a long story with a short punchline, and I'll tell it. But first, a real question: do you want the story tonight, or would you rather just walk for a while? Either's fine. I'd rather know than guess."
+        },
+        {
+          "n": 7,
+          "who": "Mira Quell",
+          "said": "Walk, obviously. A good story needs a route, and our street musician has already started the soundtrack. Also, the napkin's upside down now. Map of a stairwell, or just the start of a very bad sketch? Read it, Dex. No cheating with your hands.",
+          "did": "turns the napkin upside down"
+        },
+        {
+          "n": 8,
+          "who": "Dex Okafor",
+          "said": "Walk's fine. I'll take that. I asked if you wanted the story, though, and you answered with a napkin and a quiz. That's allowed. I just noticed. So we walk, and the stairwell stays in my coat pocket for now.",
+          "did": "stops at the corner"
+        },
+        {
+          "n": 9,
+          "who": "Mira Quell",
+          "said": "You noticed, and you're right. I dodged your question with a quiz. I don't apologise for the napkin, but I won't pretend the map matches the ground. You want to tell the stairwell story and I want to walk without one. We're on different routes.",
+          "did": "folds the napkin into my coat"
+        }
+      ],
+      "feelings": [
+        "curious",
+        "curious",
+        "curious",
+        "curious",
+        "amused",
+        "curious",
+        "amused",
+        "wary",
+        "irritated"
+      ]
+    },
+    {
+      "case": "imogen-kaz",
+      "arm": "after",
+      "decided": "friends",
+      "ending": "friends",
+      "index": 82,
+      "judge": {
+        "in_character_a": 4,
+        "in_character_b": 3,
+        "natural": 3,
+        "motivated": 4,
+        "specific": 4,
+        "distinct": 4,
+        "engaging": 4,
+        "profile_reading": false,
+        "misgendering": false,
+        "abrupt_turn": false,
+        "note": "Imogen's feeding-and-bossing voice is tightly on-sheet, and the granola bar and tea pay off her 'let yourself be fed' want. Kaz drifts toward chatty, long-sentenced banter rather than the short, physical, heights-focused voice on her sheet, and several lines are polished quips that undercut the natural rhythm. The 'Imogen' name use in Kaz's last line is never established aloud."
+      },
+      "judge_mean": 3.71,
+      "own_answers": {
+        "a": "maybe",
+        "b": "yes",
+        "would_end": "friends"
+      },
+      "model_calls": 17,
+      "cost_usd": 0.01161,
+      "turn": {
+        "kind": "friends",
+        "on": "b",
+        "steps": [
+          {
+            "side": "a",
+            "note": "Say the thing you'd only say to a friend, on this line and warmly: who you'd love them to meet, the mate they remind you of, a favour you'd ask a pal. You mean it as a compliment."
+          },
+          {
+            "side": "b",
+            "note": "That was a friend's line, and you notice it's true for you as well: whatever this is, it isn't romance. Let it land lightly on this line: a laugh at the two of you, more relief than hurt."
+          }
+        ],
+        "after": {
+          "a": "Since that moment it's settled for you, without anyone needing to say it: this is a friendship, not a romance. Be easy company (tease, tell stories, laugh). No flirting, and no talk of another date.",
+          "b": "Since that moment it's settled for you, without anyone needing to say it: this is a friendship, not a romance. Be easy company (tease, tell stories, laugh). No flirting, and no talk of another date."
+        }
+      },
+      "transcript": [
+        {
+          "n": 1,
+          "who": "Imogen Strand",
+          "said": "Right, you've got chalk on both palms and a face like you've been out in the wind for hours. Have you eaten today? Don't answer that with a shrug, I can tell from here.",
+          "did": "hands you a rope clip"
+        },
+        {
+          "n": 2,
+          "who": "Kaz Lindqvist",
+          "said": "Coffee and half a banana, around five. Which is more than the crane I climbed at dawn got. Is that flour on your arms, or did you lose a fight with a sack? And how do you know I'm not a shrugger by nature?",
+          "did": "takes the clip, grins"
+        },
+        {
+          "n": 3,
+          "who": "Imogen Strand",
+          "said": "Flour's from the soup window. I run it at 2am for night workers, so yes, I lost a fight with a sack and then fed the sack's friends. Half a banana isn't a meal, it's a rumour. And you're a shrugger in disguise, I've been counting your jokes. Hang on, a crane at dawn?",
+          "did": "holds out a granola bar"
+        },
+        {
+          "n": 4,
+          "who": "Kaz Lindqvist",
+          "said": "Yeah, a crane on the old dock site. Nobody's up there on Sundays, and from the top the city looks like it knows what it's doing. Rumour or not, you've outranked my banana. So what's the soup window like at 2am? Who's in the queue?"
+        },
+        {
+          "n": 5,
+          "who": "Imogen Strand",
+          "said": "Taxi drivers, a nurse on her break, and a lad who calls me Madam Soup. Right, something soft: you remind me of my mate Wenna, who never lets anyone pay for tea and still turns up with a flask. That's the top compliment I've got. I'd trust you with my spare key."
+        },
+        {
+          "n": 6,
+          "who": "Kaz Lindqvist",
+          "said": "Wenna sounds like a sensible woman. Honestly, that's a relief. I'd have had to fake some romance if you'd said 'you're dreamy', and I'm rubbish at faking anything. A flask-bringer's the best thing I can be. Madam Soup seems to have a very good view of your life, by the way.",
+          "did": "laughs, pulls off a glove"
+        },
+        {
+          "n": 7,
+          "who": "Imogen Strand",
+          "said": "Madam Soup has a very good view, yes. Now, you've been holding that granola bar like it's a rope. Eat it. And I'll take you at your word that you're rubbish at faking, so don't make me test it.",
+          "did": "nudges the bar toward them"
+        },
+        {
+          "n": 8,
+          "who": "Kaz Lindqvist",
+          "said": "Fine, I'll eat it. You said 'eat it' in the exact voice our instructor uses for 'trust the rope', so I'm obeying on instinct. Right, the bar's gone.",
+          "did": "tears the wrapper open"
+        },
+        {
+          "n": 9,
+          "who": "Imogen Strand",
+          "said": "Good. Now you've been fed and you can stop being a crane-climbing rumour. Your instructor's right about the rope, mind, but you've still got to actually let go of it. Who taught you to climb? Was it someone who also told you to eat?",
+          "did": "unscrews a flask"
+        },
+        {
+          "n": 10,
+          "who": "Kaz Lindqvist",
+          "said": "Nobody taught me so much as I taught myself, on drainpipes. My uncle Jorn showed me the knots, then told me to stop showing off. Nobody ever told me to eat, which explains the banana. Is that tea in the flask, or a dare?",
+          "did": "holds out the cap"
+        },
+        {
+          "n": 11,
+          "who": "Imogen Strand",
+          "said": "It's tea. Strong, two sugars, and the cap's the only clean cup I've got, so drink it before it goes cold. Your uncle Jorn sounds like a man who's had to say 'stop showing off' a lot. Did it ever work?",
+          "did": "pours the tea into the cap"
+        },
+        {
+          "n": 12,
+          "who": "Kaz Lindqvist",
+          "said": "Never worked. He said it on a drainpipe and I climbed the next one anyway. Eventually he just started holding the bottom of the ladder, which I think was his way of saying 'fine, but I'm watching.' Imogen, the tea's good. Two sugars is exactly right.",
+          "did": "drinks from the cap"
+        }
+      ],
+      "feelings": [
+        "curious",
+        "amused",
+        "amused",
+        "amused",
+        "charmed",
+        "amused",
+        "charmed",
+        "amused",
+        "charmed",
+        "amused",
+        "charmed",
+        "comfortable"
+      ]
+    }
+  ]
+}

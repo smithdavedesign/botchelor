@@ -25,6 +25,7 @@
  * conversation leaves an empty transcript.
  */
 import { shortName } from "./names";
+import { turnNote, turnStart } from "./date-turn";
 import { z } from "zod";
 import { closingMove, depthFor, rulesPlan, type DatePlan } from "./beats";
 import { characterBlindView, characterSelfView, speaks, speaksOtherThanEnglish, type Character } from "./character";
@@ -245,6 +246,13 @@ const DEEPER_SECTION = `WHAT GOES DEEPER
 In "you.details": "your_last_relationship" is what you carry from your last one. It shapes how fast you open up and what makes you flinch, and it comes out only if the date earns it, in your own words, never as a speech. "what_really_wins_you_over" is private: when they do it, let it land on you and show; never ask for it or hint at it. "how_you_date" is how you play a date: hold to it, and if theirs is different, let the mismatch show.`;
 const withDeeper = (prompt: string): string => prompt.replace("\n\nJSON\n", `\n\n${DEEPER_SECTION}\n\nJSON\n`);
 const wentDeeper = (c: Character): boolean => Boolean(c.extras?.baggage || c.extras?.wins_them_over || c.extras?.mood);
+/**
+ * What a date adds when its plan carries a turn (lib/date-turn.ts, EARNED_ENDINGS): how to read the two blocks that
+ * arrive mid-date. Only on such a date, so every other prompt stays as it was.
+ */
+const TURN_SECTION = `THE MOMENT IT TURNS
+Some nights turn on one moment. When "this_moment" is in your data, it is what this one line of yours does: do it here, once, in your own words and your own way, as something that would really come out of you tonight. It matters more than being agreeable: people don't smooth over the thing that matters to them. "since_then" is where that moment left you. It holds for the rest of the night: your lines show it, and never explain it.`;
+const withTurnSection = (prompt: string): string => prompt.replace("\n\nJSON\n", `\n\n${TURN_SECTION}\n\nJSON\n`);
 /** What the side offered the walk-out reads (lib/ending-detail.ts). The field is only in its data, so only it can. */
 const WALK_OUT_NOTE = `If you've had enough of tonight, you can walk out instead of a goodbye: say it to them in your own words (no scene, no cruelty) and set "walk_out": true in your JSON. It ends the date on your line. You don't have to: only if you would.`;
 
@@ -439,6 +447,9 @@ export function buildTurnMessages(
             (meChar.roleplay ? " It's also the first line of the roleplay you both agreed on: open inside it, in your role." : ""),
         }
       : {}),
+    // The turn (lib/date-turn.ts): this side's note on a line of the moment, and where it left them on every line after.
+    // Placed by the date's planned length, wherever it has moved to since; last, so it is read after their line.
+    ...turnNote(plan.turn, turnIndex, totalTurns, side),
   };
 
   const system = shape?.enabled ? SYSTEM_PROMPT_MOVES : SYSTEM_PROMPT;
@@ -449,7 +460,8 @@ export function buildTurnMessages(
       { role: "system", content: (() => {
         const withRp = meChar.roleplay ? withRoleplay(system) : system;
         const deep = wentDeeper(meChar) ? withDeeper(withRp) : withRp;
-        const kept = meChar.secrets?.length ? withSecrets(deep) : deep;
+        const turned = plan.turn && turnStart(plan.turn, totalTurns) !== null ? withTurnSection(deep) : deep;
+        const kept = meChar.secrets?.length ? withSecrets(turned) : turned;
         // The same system prompt for the whole date (the heard note stays even after one came up: "at most once").
         return (storyPrompt(meChar.story) ? withStory(kept, bringable(meChar.story).length > 0) : kept) + languageBlock(meChar, themChar);
       })() },
