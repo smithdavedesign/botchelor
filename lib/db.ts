@@ -1470,6 +1470,12 @@ create index if not exists user_feedback_user_idx on user_feedback (user_id);
 create index if not exists user_feedback_new_idx on user_feedback (created_at) where status = 'new';
 -- When an account was shown the one-time beta prompt (lib/user-feedback-shared.ts), so another device doesn't ask again.
 alter table accounts add column if not exists beta_prompt_at timestamptz;
+-- The locked picture in a character's texts (lib/locked-picture.ts): what After Dark's regional rules said the last time
+-- this account opened one of its threads having said it is 18+ ('open', 'text_only' or 'blocked': the mode alone, never
+-- a country, a state or an address), and when. A job writes those texts with no request to read a place from, and sends
+-- one only to an account seen 'open' lately (lib/adult/locked-picture.ts whoMayBeSent). Gone with the account.
+alter table accounts add column if not exists after_dark_seen_mode text;
+alter table accounts add column if not exists after_dark_seen_at timestamptz;
 -- The beta prompt asks "has this person had a date of theirs air?" on page loads, until it has been shown.
 create index if not exists episodes_creator_idx on episodes (creator_id);
 

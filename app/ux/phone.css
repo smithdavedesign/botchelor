@@ -48,6 +48,80 @@
   outline-offset: 2px;
 }
 
+/* ---------------- a locked picture, in the thread ---------------- */
+/* app/companion/[id]/LockedPicture.tsx (lib/locked-picture.ts): the same box as a date's photo, holding a tile the
+   server blurred from the character's own PG portrait. The lock and its label sit over it, the button along its foot,
+   and the plain line of what it is underneath. One link. */
+.locked-picture {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  width: 15rem;
+  max-width: 100%;
+}
+.locked-picture-link {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  border-radius: var(--radius);
+  border-bottom-left-radius: var(--radius-sm);
+  background: var(--photo-bg);
+  color: var(--on-photo);
+  text-decoration: none;
+  box-shadow: var(--shadow-sm);
+}
+.locked-picture-link img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 4 / 5;
+  object-fit: cover;
+}
+.locked-picture-label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  /* Over a blur of any colour the words still have to read: the photo's own dark, thinned. */
+  background: color-mix(in srgb, var(--photo-bg) 45%, transparent);
+  color: var(--on-photo);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  text-align: center;
+}
+.locked-picture-label .icon {
+  width: var(--space-6);
+  height: var(--space-6);
+}
+.locked-picture-cta {
+  position: absolute;
+  left: var(--space-3);
+  right: var(--space-3);
+  bottom: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-pill);
+  background: var(--accent-btn);
+  color: var(--accent-ink);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  text-align: center;
+}
+.locked-picture-link:hover .locked-picture-cta,
+.locked-picture-link:focus-visible .locked-picture-cta {
+  text-decoration: underline;
+}
+.locked-picture-link:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.locked-picture figcaption {
+  margin: 0;
+}
+
 /* ---------------- the home page: your character's phone ---------------- */
 .char-phone {
   display: grid;

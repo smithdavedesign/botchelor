@@ -86,6 +86,12 @@ export async function refreshAndAnnounce(db: Db, x: string, y: string, opts: { e
   // An overnight date that just aired and ended in leaving together (lib/overnight.ts): the pair's milestone, once, and
   // each opted-in owner hears from their own character. Any other date, and any other ending, does nothing here.
   if (opts.episodeId) await overnightAired(db, opts.episodeId).catch(() => null);
+  // The locked picture's text (lib/locked-picture-texts.ts): after a couple leaves an overnight date together, or now and
+  // then after a steady couple's date ends in another. Texts only; imported when needed, as most airings send none.
+  if (opts.episodeId) {
+    const episodeId = opts.episodeId;
+    await import("./locked-picture-texts").then(({ lockedPictureAired }) => lockedPictureAired(db, episodeId, { quiet: opts.quiet })).catch(() => null);
+  }
   await resolveArcs(db, lo, hi).catch(() => 0);
   // In a relationship now? Each side settles one partner or more, and a one-partner side closes to dates.
   await settleCommitment(db, lo, hi).catch(() => {});

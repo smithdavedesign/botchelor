@@ -299,6 +299,12 @@ export type CompanionMessageView = {
   photo?: { src: string; href: string } | null;
   /** A link under the bubble: the date this text is about, to watch, or the house scene it is about (textLink). Absent: none. */
   link?: { href: string; label: string } | null;
+  /**
+   * The last bubble of a locked-picture text (lib/locked-picture.ts): the date it is about. The page draws the locked
+   * tile under it when this viewer may see one (lib/adult/locked-picture.ts lockedDoors), else it stays a plain text.
+   * Absent: any other text, and with LOCKED_PICTURE_TEXTS=0.
+   */
+  locked?: { episode: string } | null;
 };
 
 export type CompanionCharacterRef = {
