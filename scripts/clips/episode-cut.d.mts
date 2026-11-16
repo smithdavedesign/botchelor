@@ -1,0 +1,85 @@
+/** Types for scripts/clips/episode-cut.mjs, which stays plain JS so it runs with no build step. */
+
+type CutCharacter = { id: string; name: string; pronouns?: string | null; portrait?: string | null };
+type CutEpisode = {
+  id: string;
+  title?: string | null;
+  venue?: string | null;
+  ending?: string | null;
+  why?: string | null;
+  share_path?: string | null;
+  characters: CutCharacter[];
+  transcript?: { side: "a" | "b"; dialogue?: string | null; emotion?: string | null }[];
+  inner?: { thoughts?: (string | null)[]; choices?: { character_id: string; see_again: string }[] } | null;
+  diary?: { character_id: string; line: string }[] | null;
+};
+type Segment = {
+  kind: "cold" | "line" | "thought" | "diary" | "choice" | "title" | "card" | "reveal";
+  ep?: number;
+  line?: number;
+  keep?: number[];
+  side?: "a" | "b";
+  label?: string;
+  kicker?: string;
+  title?: string;
+  sub?: string;
+  url?: string;
+  say?: string;
+  secs?: number;
+  faces?: [number, "a" | "b"][];
+};
+export type Edl = {
+  n?: number;
+  name?: string;
+  direction?: string;
+  episodes: string[];
+  hook: string;
+  question: string;
+  tags?: string;
+  watch?: string;
+  watch_label?: string;
+  cover?: number;
+  speed?: number;
+  segments: Segment[];
+};
+export type Beat = {
+  kind: Segment["kind"];
+  ep: number;
+  episode: CutEpisode;
+  secs: number | null;
+  label: string | null;
+  voiced: boolean;
+  voice?: string;
+  speaker?: CutCharacter;
+  other?: CutCharacter;
+  emotion?: string | null;
+  text?: string;
+  answers?: string[];
+  faces?: CutCharacter[];
+  kicker?: string | null;
+  title?: string | null;
+  sub?: string | null;
+  url?: string | null;
+  say?: string | null;
+  ending?: string;
+};
+
+export const FRAME: { css: { width: number; height: number }; scale: number; out: { width: number; height: number }; fps: number };
+export const SILENT_SECONDS: Record<"title" | "reveal" | "choice" | "card", number>;
+export const LEAD_IN: number;
+export const LEAD_OUT: number;
+export const HOST_VOICE: string;
+export const MAX_SECONDS: number;
+export const VOICE_SPEED: number;
+export function firstName(name: string | null | undefined): string;
+export function endingLabel(e: { why?: string | null; ending?: string | null } | null | undefined): string | null;
+export function sentences(text: string | null | undefined): string[];
+export function pickText(text: string, keep?: number[] | null): string;
+export function resolveBeats(edl: Pick<Edl, "segments">, episodes: CutEpisode[]): Beat[];
+export function beatSeconds(beat: Pick<Beat, "kind" | "voiced" | "secs">, voiceSeconds: number): number;
+export function spokenText(beat: Pick<Beat, "kind" | "voiced" | "text" | "say">): string;
+export function textSize(text: string): number;
+export function backdropOf(venue: string | null | undefined): string | null;
+export function frameHtml(beat: Beat, opts: { base: string }): string;
+export function segmentArgs(input: { frame: string; voice: string | null; seconds: number; out: string }): string[];
+export function cutCaption(edl: Edl, episodes: CutEpisode[], base?: string): string;

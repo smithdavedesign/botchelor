@@ -83,12 +83,12 @@ export function veniceKey() {
   }
 }
 
-/** One line as MP3 from Venice's Kokoro; throws when Venice won't. */
-export async function veniceLine(words, voice, file, key) {
+/** One line as MP3 from Venice's Kokoro; throws when Venice won't. `speed` 1 is Kokoro's own pace (the episode cut runs a touch faster). */
+export async function veniceLine(words, voice, file, key, speed = 1) {
   const res = await fetch("https://api.venice.ai/api/v1/audio/speech", {
     method: "POST",
     headers: { authorization: `Bearer ${key}`, "content-type": "application/json" },
-    body: JSON.stringify({ model: "tts-kokoro", input: words, voice, response_format: "mp3", speed: 1 }),
+    body: JSON.stringify({ model: "tts-kokoro", input: words, voice, response_format: "mp3", speed }),
     signal: AbortSignal.timeout(25_000),
   });
   if (!res.ok) throw new Error(`Venice ${res.status}: ${(await res.text()).slice(0, 160)}`);
