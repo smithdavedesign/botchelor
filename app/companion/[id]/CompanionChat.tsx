@@ -746,6 +746,15 @@ export default function CompanionChat({
                         </Link>
                       </p>
                     )}
+                    {m.about && (
+                      // The date this text is about (companion_messages.episode_id), when this viewer may open it: one
+                      // small link, never beside "Watch the date" above (lib/companion.ts getThread).
+                      <p className="companion-offers muted small" data-chat-about>
+                        <Link href={m.about.href} data-track="companion-about-date">
+                          {m.about.label}
+                        </Link>
+                      </p>
+                    )}
                     {m.role === "character" && m.offers && !paused && (
                       // The question as chips (lib/companion-offers.ts): the newest open menu only, gone once one is tapped.
                       <div className="companion-offers" role="group" aria-label={`What ${first} could do next`}>
