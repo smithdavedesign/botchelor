@@ -606,17 +606,8 @@ async function main() {
       { name: "ship", path: "/ship/juniper/teo" },
       { name: "tool-chemistry", path: "/tools/oc-chemistry-test" },
       { name: "tool-ship-names", path: "/tools/ship-name-generator" },
+      // (Its Creator invites fold, list and "Make N invites" form, is audited open with the rest: openDetails.)
       { name: "admin-season", path: "/admin/season", as: "admin" },
-      {
-        // Its Creator invites fold open: the list and the small "Make N invites" form.
-        name: "admin-season-invites",
-        path: "/admin/season",
-        as: "admin",
-        walk: async (page) => {
-          await page.locator("#creator-invites > summary").click();
-          await page.locator(".admin-invites-make").waitFor();
-        },
-      },
       // The invite page (no 18+ wall): as a stranger meets it, as a signed-in creator with characters, and a made-up code.
       ...(inviteCode
         ? [
