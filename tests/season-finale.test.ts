@@ -3,6 +3,16 @@
  * written once with the freeze, the stage and the notice after it, a wedding only at a later finale, and the switch.
  */
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("next/headers", () => ({
+  cookies: async () => ({ get: () => undefined, has: () => false, getAll: () => [] }),
+  headers: async () => new Headers(),
+}));
+vi.mock("next/navigation", async (original) => ({
+  ...(await original<typeof import("next/navigation")>()),
+  useRouter: () => ({ refresh() {}, push() {}, replace() {}, back() {}, prefetch() {} }),
+}));
+import { prerender } from "react-dom/static";
 import { listNotifications } from "@/lib/notifications";
 import type { StageDate } from "@/lib/relationship-stages";
 import { loadRelationship, pairKey, refreshRelationship, viewRelationship } from "@/lib/relationships";
@@ -172,6 +182,26 @@ describe("a finale with a couple who qualify", () => {
     if (december.status !== "closed") throw new Error("not closed");
     expect(december.recap.data.finale).toEqual({ engaged: null, married: null });
     expect((await marks()).map((m) => m.kind)).toEqual(["engaged"]);
+  });
+});
+
+describe("the finale's page", () => {
+  it("carries one line for the couple, linked, and none when nobody qualified", async () => {
+    const { default: SeasonPage } = await import("@/app/seasons/[slug]/page");
+    const page = async () => {
+      const { prelude } = await prerender(await SeasonPage({ params: Promise.resolve({ slug: "october-2026" }) }));
+      return (await new Response(prelude).text()).replace(/<!-- -->/g, "");
+    };
+    // October closed long ago by any clock: ten second dates inside it.
+    await steady(A, B, 10, "2026-10-20T12:00:00Z");
+    const html = await page();
+    const [lo, hi] = pairKey(A, B);
+    expect(html).toMatch(new RegExp(`<p class="season-finale-news"><span aria-hidden="true">💎</span> <a href="/couples/${lo}/${hi}">[^<]+ and [^<]+</a> got engaged at the finale\\.</p>`));
+    expect(await marks()).toHaveLength(1);
+    // A season where nobody qualified says nothing at all.
+    await t.reset();
+    await steady(A, B, 3, "2026-10-20T12:00:00Z");
+    expect(await page()).not.toContain("season-finale-news");
   });
 });
 
