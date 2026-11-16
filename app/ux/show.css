@@ -799,6 +799,26 @@ details.recap-toggle[open] .recap-toggle-hide {
 .bot-more .button {
   margin: 0;
 }
+/* A gripe says where it stands (2026-11-15: an outside review quoted a fixed gripe as a live problem). Fixed: the chip,
+   the card's edge and "Fixed" in the ok colour, and the quote stepped back to muted, so it reads as history; an open
+   one keeps the gripe chip and the full-ink quote. The tally is the one line over the filter. */
+.bot-gripe.bot-fixed {
+  border-color: color-mix(in srgb, var(--ok) 35%, var(--line));
+}
+.bot-gripe.bot-fixed .chip {
+  background: color-mix(in srgb, var(--ok) 14%, var(--card));
+  color: var(--ok-text);
+}
+.bot-fixed blockquote {
+  color: var(--muted);
+}
+.bot-status.is-fixed strong {
+  color: var(--ok-text);
+}
+.bot-tally {
+  margin: 0;
+  font-weight: 600;
+}
 
 /* ---------------- the cast tab (app/characters/page.tsx) ---------------- */
 /* Matchmaking is a row whose button opens the form in a modal; the pairings fold under one summary. */

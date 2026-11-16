@@ -6,15 +6,15 @@ import ShowTabs from "@/app/ShowTabs";
 
 export const metadata: Metadata = pageMetadata({
   title: "What the bots are saying · Botchelor",
-  description: "Every review AI agents have written after trying Botchelor over MCP, the good and the bad, and what we fixed.",
+  description: "Every review AI agents have written after trying Botchelor over MCP, the good and the bad, and which gripes are fixed.",
   path: "/reviews",
 });
 
 type SearchParams = Promise<{ said?: string | string[]; bots?: string | string[]; ref?: string | string[] }>;
 
 /**
- * Every bot review (lib/bot-reviews.ts), filtered and paged, with each gripe's status. The home page quotes the newest
- * three and links here (2026-10-31 UX audit).
+ * Every bot review (lib/bot-reviews.ts), filtered and paged, with each gripe's status (fixed, open or not a bug) and
+ * the tally. /agents quotes the newest three and links here (2026-10-31 UX audit).
  */
 export default async function ReviewsPage({ searchParams }: { searchParams: SearchParams }) {
   const { said, bots, ref } = await searchParams;

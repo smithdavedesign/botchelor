@@ -165,7 +165,9 @@ reinstall with `LOOP_HOUR` and `LOOP_MINUTE`.
    (owner-only `POST /api/admin/feedback`), labelled `loop <date> · <visitor>`. It shows on `/admin/feedback` beside
    real agents' feedback, with the model each visitor says it runs on (`send_feedback`'s `model`; the report's first
    line says it too). The best lines, good and bad, go on the home page's "What the bots are saying"
-   (`lib/bot-reviews.ts`, added by hand), and each gripe there names its issue; the fixer marks it fixed in its PR. The next run's live read skips it, since it was triaged the night it came in.
+   (`lib/bot-reviews.ts`, added by hand; it's on `/reviews`, and `/agents` quotes three), and each gripe there names its
+   issue; the fixer marks it fixed in its PR (`fixed`, `fixedOn`), and the card then says "Fixed", the day and links the
+   fix. `tests/bot-reviews.test.ts` lists the quoted issues that are closed, so a closed one can't read as open. The next run's live read skips it, since it was triaged the night it came in.
 9. **Ratings to the admin page.** Last, after the summary is written (failed runs too), `post-ratings.mjs` posts
    the visitors' averages (each report's "Rating: X/10" and "MCP experience: X/10") to the owner-only
    `POST /api/admin/sim-ratings`, for the Quality tab's rating history on `/admin/analytics`. Posting a run again
