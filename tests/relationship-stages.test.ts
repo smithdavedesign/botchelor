@@ -197,7 +197,7 @@ describe("labels, lines and ranks", () => {
     for (const s of STAGES) {
       expect(STAGE_LABELS[s]).toMatch(/^\S+ \S/);
       expect(STAGE_LINES[s].length).toBeGreaterThan(10);
-      expect(checkShowText(`${STAGE_LABELS[s]} ${STAGE_LINES[s]} ${STANDING_LINES[s]}`).ok).toBe(true);
+      expect(checkShowText({ text: `${STAGE_LABELS[s]} ${STAGE_LINES[s]} ${STANDING_LINES[s]}` }).ok).toBe(true);
     }
     // The PG word for friends with benefits, and nothing more explicit anywhere.
     expect(STAGE_LABELS.casual).toBe("🌙 Keeping it casual");
@@ -305,7 +305,7 @@ describe("the edge carries both readings", () => {
     expect(casual.where_you_stand_now).toBe("Keeping it casual");
     const official = pairContext(computeRelationship(LO, HI, run("SSSSSS")), LO, "user-1", null)!;
     expect(official.where_you_stand_now).toBe("Official");
-    expect(checkShowText(String(casual.where_you_stand_now)).ok).toBe(true);
+    expect(checkShowText({ text: String(casual.where_you_stand_now) }).ok).toBe(true);
   });
 
   it("the Constellation's public timeline steps through the shown stages", () => {
@@ -475,6 +475,13 @@ describe("the backfill is silent and invents nothing", () => {
     expect((await t.db.query(`select 1 from notifications`)).rows).toEqual([]);
     // Done: nothing left to fill, and a second pass changes nothing.
     expect(await backfillShownStages(t.db)).toBe(0);
+  });
+
+  it("a stale row (its one bad date no longer public, the edge never refreshed) reads as its stored counts say", async () => {
+    const { c } = await legacy();
+    await t.db.query(`update episodes set visibility = 'unlisted' where (character_a = $1 and character_b = $2) or (character_a = $2 and character_b = $1)`, [A, c]);
+    await backfillShownStages(t.db);
+    expect(await stored(A, c)).toEqual({ stage: "bad_blood", public_stage: "bad_blood", shown_stage: "didnt_click", public_shown_stage: "didnt_click" });
   });
 
   it("grants no engagement, wedding or divorce: no history alone holds one", async () => {

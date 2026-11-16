@@ -160,9 +160,10 @@ export const shownPairStatus = (status: PairStatus, dates: number | undefined, e
  * them), or null when the memory holds none. Switch off: the base stage the stored one stands for.
  */
 export function personStage(p: Pick<PersonMemory, "status" | "stage" | "dates">, env: Env = process.env): Stage | null {
-  if (!p.stage) return null;
-  if (!stagesV2On(env)) return baseOf(p.stage);
-  return p.stage === "bad_blood" && p.dates === 1 ? "didnt_click" : p.stage;
+  if (!stagesV2On(env)) return p.stage ? baseOf(p.stage) : null;
+  // A memory stored before the shown stage (or before any stage): one date that ended badly didn't click.
+  if ((p.stage === "bad_blood" || (!p.stage && p.status === "bad_blood")) && p.dates === 1) return "didnt_click";
+  return p.stage ?? null;
 }
 const moreStage = (p: Pick<PersonMemory, "status" | "stage" | "dates">, env: Env = process.env): Stage | null => {
   const stage = personStage(p, env);
@@ -1097,6 +1098,10 @@ export function sharedHistory(memory: CharacterMemory | null | undefined, otherI
 }
 
 /** The public face of the people a character has dated: names and how they stand, never the private feeling. */
-export function connections(memory: CharacterMemory | null | undefined): { id: string; name: string; house: boolean; dates: number; status: PairStatus; label: string; turned_down: "you" | "them" | null }[] {
-  return (memory?.people ?? []).map((p) => ({ id: p.id, name: p.name, house: p.house, dates: p.dates, status: p.status, label: personLabel(p), turned_down: p.turned_down }));
+export function connections(
+  memory: CharacterMemory | null | undefined,
+  env: Env = process.env,
+): { id: string; name: string; house: boolean; dates: number; status: ShownPairStatus; label: string; turned_down: "you" | "them" | null }[] {
+  // The status as it is told: one date that ended badly "didn't click" (shownPairStatus), and the label says the same.
+  return (memory?.people ?? []).map((p) => ({ id: p.id, name: p.name, house: p.house, dates: p.dates, status: shownPairStatus(p.status, p.dates, env), label: personLabel(p, env), turned_down: p.turned_down }));
 }

@@ -504,3 +504,37 @@ list prices; $0 on the free tier. Two confrontations and a challenge a week at m
 weights, the trust step and `settleKnown`, the witness's and the house's rows, the writer held to the result, the
 challenge's winner, the traded rotation (the same number of dates for every suitor), first pick on other formats, the
 owners' texts, the switches, the page, and that the file never imports anything of the engine but its seed.
+
+## The finale's proposal (2026-11-16)
+
+A season's finale page (`/seasons/<month>`, `lib/season-recap.ts`: frozen on the first read after the season closes)
+may carry one more piece of news ([`lib/season-finale.ts`](../lib/season-finale.ts)): at most one couple **engaged**,
+and at most one couple engaged at an earlier finale **married**. It is modest on purpose. Most finales name nobody, and
+then nothing is said anywhere: no empty box, no line.
+
+Like every stage ([relationship-graph.md](relationship-graph.md), "Stages") it is **derived**: a seeded rule over the
+public record as it stood at the close. Nobody chooses it, votes for it or pays for it, it changes no date, pairing,
+odds or points, and no backfill grants it.
+
+- **Engaged** (`pickFinale`, constants in `FINALE_RULES`): a couple of two public characters who, at the close, have
+  *moved in together* (10 public second dates in a row) and aired at least 2 public dates in the season itself, neither
+  of them engaged or married to anyone. Of those: the longest run, then the most dates this season, then a draw seeded
+  by the season and the pair (`seedFrom("finale", season, lo, hi)`).
+- **Married**: a couple engaged at an **earlier** finale and still engaged at this close (no date of theirs has ended
+  in disaster since), with at least 2 public dates this season. The longest engaged first, then the same draw.
+- **What it writes**, once, by the reader that freezes the recap (`recordFinale`): a milestone row on the pair's public
+  timeline (`relationship_events.kind = 'engaged'` or `'married'`, `at` the season's close; one of each kind a finale).
+  The pair's edge is then refreshed, so their shown stage says so, and owners and followers hear it as any step up
+  ("Nell & Sable: 💎 Engaged"). The recap stores the two pairs (`data.finale`), the page prints one line each under
+  "Previously on Botchelor", and the narrative's facts include them.
+- **After it.** A date that ends as friends changes nothing for an engaged or married couple. A disaster ends an
+  engagement as "broke up" and a marriage as "divorced" (`lib/relationship-stages.ts`).
+- A recap frozen before this shipped (October 2026) has no `finale` and is not recomputed: `RECAP_VERSION` is unchanged.
+- **The switch.** `RELATIONSHIP_STAGES_V2=0`: no finale names anyone, and stored marks are not read.
+
+**On the live data (2026-11-16):** two pairs have a run of ten or more (15 and 24), both last aired in October, so
+neither has two dates in November: November's finale names nobody.
+
+**Tests.** `tests/season-finale.test.ts`: the rule (who qualifies, the order, the seeded draw, taken characters), a
+finale with nobody, the row written once, the stage and the notice after it, a wedding only at a later finale, and the
+switch.

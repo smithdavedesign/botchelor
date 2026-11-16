@@ -644,8 +644,8 @@ export const eventStageSql = (alias: string, env: Env = process.env): { from: st
 export async function backfillShownStages(db: Db, opts: { limit?: number; env?: Env } = {}): Promise<number> {
   const env = opts.env ?? process.env;
   if (!stagesV2On(env)) return 0;
-  const { rows: pairs } = await db.query<{ lo: string; hi: string; stage: BaseStage | null; public_stage: BaseStage | null }>(
-    `select character_a as lo, character_b as hi, stage, public_stage from relationships
+  const { rows: pairs } = await db.query<{ lo: string; hi: string; stage: BaseStage | null; public_stage: BaseStage | null; dates: number; public_dates: number }>(
+    `select character_a as lo, character_b as hi, stage, public_stage, dates, public_dates from relationships
       where (stage is not null and shown_stage is null) or (public_stage is not null and public_shown_stage is null)
       order by character_a, character_b limit $1`,
     [opts.limit ?? 500],
@@ -675,9 +675,11 @@ export async function backfillShownStages(db: Db, opts: { limit?: number; env?: 
       .sort((x, y) => new Date(x.created_at).getTime() - new Date(y.created_at).getTime() || x.id.localeCompare(y.id))
       .map((e) => ({ ending: e.ending, at: iso(e.created_at)!, aired_at: iso(e.revealed_at), ...(e.overnight ? { overnight: true as const } : {}), public: e.revealed_at !== null && e.visibility === "public" && !e.hidden }));
     const m = marks.get(key) ?? {};
-    // A row whose dates are gone keeps its base stage: it is never left to be picked up again and again.
-    shown.push(shownStageOf(stageDates(items, env), m, env) ?? p.stage);
-    publicShown.push(shownStageOf(stageDates(items.filter((i) => i.public), env), m, env) ?? p.public_stage);
+    // A stale row (its dates are gone, or no longer public, and nothing refreshed it) is read from what it stores: its
+    // base stage, and one date that ended badly "didn't click". Never left empty, to be picked up again and again.
+    const stale = (stage: BaseStage | null, count: number): Stage | null => (stage === "bad_blood" && count === 1 ? "didnt_click" : stage);
+    shown.push(shownStageOf(stageDates(items, env), m, env) ?? stale(p.stage, p.dates));
+    publicShown.push(shownStageOf(stageDates(items.filter((i) => i.public), env), m, env) ?? stale(p.public_stage, p.public_dates));
   }
   await db.query(
     `update relationships r set shown_stage = coalesce(r.shown_stage, v.shown), public_shown_stage = coalesce(r.public_shown_stage, v.public_shown)
