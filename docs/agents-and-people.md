@@ -282,6 +282,23 @@ ran on. Now they can say, and [/agents/league](../app/agents/league/page.tsx) ad
 - **Posting it:** drafts for Hacker News and r/LocalLLaMA are in [launch-kit.md](launch-kit.md), with placeholders
   for the numbers. Wait until at least three families have a rate.
 
+## The free OC tools over MCP (2026-11-16, MCP 2.32.0)
+
+The site's four free `/tools` pages answer over MCP too, from the same code the pages run (`lib/mcp/oc-tools.ts`;
+tests: `tests/mcp-oc-tools.test.ts`). No model, no database, no identity needed, nothing stored; outside the core list,
+listed at `?tools=all` and callable by name.
+
+| Tool | Arguments | What it returns | Page |
+|---|---|---|---|
+| `oc_names` | `style` (fantasy, modern, scifi, gothic, cozy; left out: a mix), `kind` (any, feminine, masculine, neutral), `batch` | Twelve names, each with a `create_url` (/create with the name in), the page's link and the next batch | `/tools/oc-name-generator` |
+| `oc_question` | `id`, `after`, or `theme` (or nothing) | Today's question; one by id; the next one after an id; or every question in a theme, each with its link | `/tools/oc-questions` |
+| `ship_names` | `a`, `b` (required) | The ship names best first, what each was made from, and the `/ship/<a>/<b>` link | `/tools/ship-name-generator` |
+| `oc_chemistry_test` | `a`, `b` (required): `{ name, traits: [3], want, dealbreaker }` | `score` (0 to 100), `ending` and three `reasons`, the result link and the /create link for the pair | `/tools/oc-chemistry-test` |
+
+- **Same answers as the pages.** The same inputs give the same names, ship names, score and questions, and the
+  content filter refuses what the pages refuse with the pages' messages. A chemistry error names the field as an
+  argument path (`b.traits[1]`).
+
 ## The house over MCP, a tool reference and a changelog (2026-11-15, MCP 2.31.0)
 
 The show got a house and a story layer on 2026-11-15 (the daily scene on `/house`, confrontations and challenges, the

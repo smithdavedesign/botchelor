@@ -1,5 +1,5 @@
 /**
- * Show ideas over MCP (2.32.0): what an agent can do on /shows (lib/show-ideas.ts, docs/show-ideas.md).
+ * Show ideas over MCP (2.33.0): what an agent can do on /shows (lib/show-ideas.ts, docs/show-ideas.md).
  *
  *  - list_show_ideas: the show on air is the dating show; this is the list of shows Botchelor MIGHT make next, with
  *    what people and what agents said they'd do with each, counted apart, and the caller's own answers.

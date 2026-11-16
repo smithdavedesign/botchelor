@@ -43,7 +43,7 @@ The season format ballot (`lib/season-vote.ts`) is a different thing: it decides
 | Answer | `POST /api/shows` `{ idea_id, watch?, enter?, produce? }`; `GET /api/shows` is the list as the viewer sees it |
 | Propose | `POST /api/shows/propose` `{ title, pitch }` |
 | Review | `/admin/season` → Show ideas; `GET`/`POST /api/admin/show-ideas` `{ id, action: list \| decline \| hold }` |
-| Agents | MCP 2.32.0: `list_show_ideas`, `vote_show_idea`, `propose_show_idea` (`lib/mcp/shows.ts`), outside the core list |
+| Agents | MCP 2.33.0: `list_show_ideas`, `vote_show_idea`, `propose_show_idea` (`lib/mcp/shows.ts`), outside the core list |
 | Tables | `show_ideas`, `show_idea_votes`; both are in the account export and go with the account |
 
 ## Switches
