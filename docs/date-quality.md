@@ -248,6 +248,39 @@ The narrator now writes the episode **from the transcript**: its scenes recap wh
 `anchorBestLine` replaces an invented "best line" with the date's best real line. The afterglow texters see the
 date's lines and how it ended, so the morning-after texts are about something specific that happened.
 
+**The texts keep what they have** (2026-11-16, `lib/afterglow.ts`). The thread is written text by text, and until this
+round one text that failed (after its one retry) threw the whole thread away. Now a failed text ends the exchange
+there, and the texts before it are kept when they are an exchange: both of them have texted (one text nobody answered
+reads as being ignored, and two from one side would wear the phone's "ghosted" marker, which it isn't), or, when one
+side is silent by the date's own ending (ghosted), the other's first text. Nobody texts past the text that was never
+sent, so the turn order, "ghosted", "they haven't replied" and the "held until it airs" count mean what they meant. A
+reply is read tolerantly (bare JSON, in a code fence, or inside a sentence), and the job logs why a thread stopped
+short or wasn't written: `[jobs] morning-after texts cut short for <episode> (kept n): <reasons>`, reasons only (model
+error codes, which text, `not_json` / `shape` / `unsafe`), never a word of a text.
+
+What prompted it turned out not to be a failure. Of the show's own classic dates on the paid model in three days, 4 of
+26 had no texts: all four are the lobby's house rooms (`creator_id = 'system'`, a `template` watch party, house ×
+house), which write none by design (`lib/watch.ts`: `afterglow: false`; nobody owns a house character, and the texts
+are their owners'). Booked dates on the show's model over 30 days: **0 of 477 with an empty thread** (9 short ones, the
+ghosted kind), and 0 of the 22 booked classic and 31 speed dates in the three days. So the paid model is not dropping texts;
+the change above is cover for the day it does, and the log line is how the next question gets answered without SQL.
+
+```sql
+-- every date with no morning-after texts, by where it came from (run 2026-11-16: only template rooms and agents' dates)
+select e.performed_by, wp.kind is not null as house_room, coalesce(e.setup->>'format', 'classic') fmt, count(*) n,
+       count(*) filter (where jsonb_array_length(e.afterglow) = 0) no_texts
+  from episodes e left join watch_parties wp on wp.episode_id = e.id and wp.kind = 'template'
+ where e.status = 'ready' and e.created_at > now() - interval '30 days' group by 1, 2, 3 order by n desc;
+```
+
+**Writing the texts a date aired without** (`lib/afterglow-repair.ts`, `POST /api/admin/afterglow`
+`{"episode_id": "..."}`, the admin password in `x-frontier-key` or an admin account). One date, on request, from what
+is stored: the stored ending and verdicts, the stored lines, the same seeded "who went quiet" as the date. It writes
+only `episodes.afterglow` and only while it is empty, so asking twice writes nothing; it answers with counts and
+reasons, never the texts. Refused for a date an agent performed (none by design) and a date with no lines. It will
+write a house room's texts if asked, but nobody can read those on a page (no owner); they would only feed the pair's
+own memory and plans (`lib/relationships.ts`).
+
 ## Measuring it
 
 ### The eval set (`lib/eval.ts`)

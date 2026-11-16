@@ -370,6 +370,9 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
       track("conversation_failed", { episode_id: episodeId, where: "job", reason: failureReason(gen.conversationError) });
     }
     if (gen.quality) trackDateQuality(episodeId, "job", gen.plan?.source ?? null, gen.quality);
+    // The morning-after texts are best effort, and why they came out short or not at all was kept nowhere: one line,
+    // the reasons only (model error codes, which text, why its reply wasn't a text), never a word of a text.
+    if (gen.afterglowError) console.warn("[jobs] morning-after texts cut short for", episodeId, `(kept ${gen.afterglow.length}):`, failureReason(gen.afterglowError));
     const { draft, transcript, afterglow, reflections, outcome } = gen;
     // J1: when the conversation failed (even after picking up once), the lines already said stay on the date, flagged,
     // and the backfill finishes it from them (lib/backfill.ts) rather than the creator losing what they watched.
