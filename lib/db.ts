@@ -4302,6 +4302,19 @@ create index if not exists show_seasons_span_idx on show_seasons (show_id, start
 alter table episodes add column if not exists season_id text;
 alter table episodes add column if not exists show_id text not null default 'botchelor';
 create index if not exists episodes_season_idx on episodes (season_id, revealed_at desc) where season_id is not null;
+-- A season's awards as rows (lib/profile/credits.ts; stage 3): one per character an award names. They were only ever
+-- JSON inside season_recaps.data, so "what has this character won" could not be asked. Written when a recap freezes;
+-- recaps frozen earlier are filled by the hourly job.
+create table if not exists season_awards (
+  season_id text not null,
+  award text not null,
+  title text not null,
+  character_id text not null,
+  slot smallint not null default 0,
+  created_at timestamptz not null default now(),
+  primary key (season_id, award, character_id)
+);
+create index if not exists season_awards_character_idx on season_awards (character_id);
 `;
 
 /** Idempotent: creates the tables and upserts the house characters, free and premium. */

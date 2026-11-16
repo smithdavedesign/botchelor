@@ -232,6 +232,8 @@ export async function startTestDb() {
         "show_ideas",
         // The season registry (lib/show-seasons.ts): keyed by season, with a format frozen from whatever a test voted.
         "show_seasons",
+        // A season's awards as rows (lib/profile/credits.ts): keyed by season and character, which outlive a reset.
+        "season_awards",
         "notification_mutes",
         "season_vote_results",
         "situation_nights",

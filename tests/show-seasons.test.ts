@@ -47,7 +47,7 @@ describe("the spans", () => {
 describe("the registry", () => {
   it("has one show, and a row for every season from the first aired date to the season after now", async () => {
     expect((await t.db.query<{ id: string }>(`select id from shows`)).rows).toEqual([{ id: SHOW_ID }]);
-    const ep = await setupEpisode();
+    const ep = (await setupEpisode()).episode;
     await aired(ep.id, "2026-10-14T20:00:00Z");
     const now = at("2026-11-16T12:00:00Z");
     expect(await ensureShowSeasons(t.db, now)).toMatchObject({ added: 4 });
@@ -98,7 +98,7 @@ describe("the registry", () => {
 describe("a date knows its season", () => {
   it("is stamped the moment it airs, with the show", async () => {
     await ensureShowSeasons(t.db);
-    const ep = await setupEpisode();
+    const ep = (await setupEpisode()).episode;
     expect(await seasonOf(ep.id)).toEqual({ season_id: null, show_id: SHOW_ID });
     const creator = (await t.db.query<{ creator_id: string }>(`select creator_id from episodes where id = $1`, [ep.id])).rows[0].creator_id;
     await t.db.query(`update episodes set revealed_at = null, status = 'ready', visibility = 'public' where id = $1`, [ep.id]);
@@ -110,11 +110,11 @@ describe("a date knows its season", () => {
     const stamps = ["2026-10-07T23:59:59Z", "2026-10-18T23:59:59Z", "2026-10-19T00:00:00Z", "2026-10-31T23:59:59Z", "2026-11-01T00:00:00Z", "2026-11-16T05:00:00Z"];
     const ids: string[] = [];
     for (const when of stamps) {
-      const ep = await setupEpisode();
+      const ep = (await setupEpisode()).episode;
       await aired(ep.id, when);
       ids.push(ep.id);
     }
-    const unaired = await setupEpisode();
+    const unaired = (await setupEpisode()).episode;
     await t.db.query(`update episodes set revealed_at = null, season_id = null where id = $1`, [unaired.id]);
     await ensureShowSeasons(t.db, at("2026-11-16T12:00:00Z"));
     expect(await backfillEpisodeSeasons(t.db, 4)).toBe(4);
@@ -127,7 +127,7 @@ describe("a date knows its season", () => {
   });
 
   it("SEASON_KEYS=0 keeps the registry and stops the stamping", async () => {
-    const ep = await setupEpisode();
+    const ep = (await setupEpisode()).episode;
     await aired(ep.id, new Date().toISOString());
     expect(await seasonKeysUpkeep(t.db, new Date(), { SEASON_KEYS: "0" })).toMatchObject({ stamped: 0 });
     expect((await seasonOf(ep.id)).season_id).toBeNull();
@@ -137,7 +137,7 @@ describe("a date knows its season", () => {
   it("the health route needs an admin and reports counts only", async () => {
     vi.stubEnv("FRONTIER_PASSWORD", "open-sesame-test");
     expect((await healthRoute(new Request(`${BASE_URL}/api/admin/model-health`))).status).toBe(403);
-    const ep = await setupEpisode();
+    const ep = (await setupEpisode()).episode;
     await aired(ep.id, new Date().toISOString());
     await seasonKeysUpkeep(t.db);
     const body = await (await healthRoute(new Request(`${BASE_URL}/api/admin/model-health`, { headers: { "x-frontier-key": "open-sesame-test" } }))).json();

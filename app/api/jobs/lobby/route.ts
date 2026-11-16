@@ -23,6 +23,7 @@ import { ensureCastSecrets } from "@/lib/cast-secrets";
 import { ensureCastChat } from "@/lib/cast-chat";
 import { backfillShownStages } from "@/lib/relationships";
 import { seasonKeysUpkeep } from "@/lib/show-seasons";
+import { syncSeasonAwards } from "@/lib/profile/credits";
 import { storyUpkeep } from "@/lib/story-state";
 import { runProducer } from "@/lib/producer";
 import { nightPlansOn, writeNightPlans } from "@/lib/night-plans";
@@ -108,6 +109,8 @@ async function run(req: Request): Promise<Response> {
   // Shows and seasons as rows, and each aired date's season (lib/show-seasons.ts): the registry kept whole, a started
   // season's format frozen, and a batch of older dates stamped. One cheap read once everything is filled.
   const seasonKeys = await seasonKeysUpkeep(db).catch(() => null);
+  // A season's awards as rows (lib/profile/credits.ts): recaps frozen before they were get theirs. A no-op once done.
+  const awardsFilled = await syncSeasonAwards(db).catch(() => null);
   // Confrontations (lib/house-conflict.ts): a tension hot enough between two in the house is staged, two a week at
   // most, its result decided by seeded rules before the writer is called. Before the daily scene, so what that scene
   // spreads today is only had out tomorrow or after.
@@ -168,7 +171,7 @@ async function run(req: Request): Promise<Response> {
   // The story check (lib/story-check.ts): aired dates whose lines and ending disagree are kept off the featured places,
   // a few short paid calls a pass (featured first), within its own time budget; not on a run that's already long.
   const storyCheck = Date.now() - started > LONG_RUN_MS ? null : await storyCheckSweep(db).catch(() => null);
-  return json({ ...lobby, season_keys: seasonKeys, portraits, story_check: storyCheck, overnight, situation, season_ballot: ballot, dare_verdicts: dareVerdicts.length, dare_points_settled: darePoints.reduce((n, d) => n + d.voters, 0), recoupling, premiere, ceremony, walk_ons: walkOns, reveal, season_pool: pool, secrets, cast_chat: castChat, story_state: storyState, stages_filled: stagesFilled, house_texts: houseTexts, producer, house_scene: houseScene, house_upkeep: houseKept, confrontation, challenge, discord, newsletter, aired, stuck_generations: stuck, handed_over, sets_rechecked, sets_drawn, scheduled_dates: scheduled, mixers, ...away });
+  return json({ ...lobby, season_keys: seasonKeys, awards_filled: awardsFilled, portraits, story_check: storyCheck, overnight, situation, season_ballot: ballot, dare_verdicts: dareVerdicts.length, dare_points_settled: darePoints.reduce((n, d) => n + d.voters, 0), recoupling, premiere, ceremony, walk_ons: walkOns, reveal, season_pool: pool, secrets, cast_chat: castChat, story_state: storyState, stages_filled: stagesFilled, house_texts: houseTexts, producer, house_scene: houseScene, house_upkeep: houseKept, confrontation, challenge, discord, newsletter, aired, stuck_generations: stuck, handed_over, sets_rechecked, sets_drawn, scheduled_dates: scheduled, mixers, ...away });
 }
 
 export const GET = handle(run);

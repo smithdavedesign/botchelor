@@ -9,6 +9,8 @@ import Avatar from "@/app/Avatar";
 import { AiFiction, AiTag } from "@/app/AiLabel";
 import CharacterName from "@/app/CharacterName";
 import { introOf } from "@/lib/cast-intros";
+import Credits from "./Credits";
+import { characterCredits, characterCreditsOn } from "@/lib/profile/credits";
 import { castingBadgesOf, castingLead, type Casting } from "@/lib/casting";
 import { seasonPageLiveOn } from "@/lib/season-page";
 import { seasonPath } from "@/lib/season-ref";
@@ -216,6 +218,8 @@ export default async function CharacterPage({ params, searchParams }: Props) {
   // What it left a Botchelor season with (lib/ceremony.ts: suitor, runner-up, final rose) and a walk-on's newest rose
   // (lib/casting.ts). Started with the rest; nothing for the house cast.
   const castingBadgesP = c.house ? Promise.resolve([]) : castingBadgesOf(db, id).catch(() => []);
+  // Every season it has been in, as what, and what came of it (lib/profile/credits.ts): one statement, started with the rest.
+  const creditsP = characterCreditsOn() ? characterCredits(db, [id], { viewerId }).then((m) => m.get(id) ?? [], () => []) : Promise.resolve([]);
   // The Botchelor's lead (lib/casting.ts castingLead, the home hero's same shared read): a house character, so only the
   // house cast asks. Their card says so ("December's lead"), not "Contestant card" (GPT review, 2026-11-16).
   const castingLeadP: Promise<Casting | null> = c.house ? shared("casting-lead", () => castingLead(db)).catch(() => null) : Promise.resolve(null);
@@ -501,6 +505,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
       : null;
 
   const castingBadges = await castingBadgesP;
+  const credits = await creditsP;
   const leading = await castingLeadP.then((l) => (l?.lead.id === c.id ? l : null));
   const leadWords = leading ? (leading.phase === "season" ? "This season's lead" : `${leading.month}'s lead`) : null;
   const intro = await introOf(db, c.id);
@@ -963,6 +968,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
       <div data-panel="dates" id="panel-dates" role="tabpanel" aria-labelledby="tab-dates" hidden>
       {/* One card for their dates (2026-10-31 UX audit, A6: "Relationships" and "Date record" told the same dates
           twice): the totals, one row per person, and every date folded under them. */}
+      <Credits credits={credits} first={shortName(c.name)} />
       <section className="card" id="date-record">
         <div className="section-head">
           <h2>Dates</h2>
