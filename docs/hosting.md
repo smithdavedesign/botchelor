@@ -180,6 +180,14 @@ ignore it.
   its last aired date (`lib/cast-opener.ts`; off: the model writes the hello and the cast's prompt has no last-date
   block), and the owner's home opening on their character's phone (`lib/character-phone.ts`; off: the home page as it
   was). The rules are in [companions.md](companions.md) and [flows.md](flows.md).
+- **`DATE_PHOTO_IN_CHAIN`**, **`CHARACTER_GIFTS`** (the show's app, not secrets; both on by default, `0` turns one
+  off without a deploy of code): what two characters send each other besides texts. `DATE_PHOTO_IN_CHAIN`: each date's
+  photo in the couple's thread, the real one an owner made or the show's snapshot (`lib/text-chain.ts`,
+  `lib/date-photo.ts`; off: the thread and the couple page's phone are as they were, and making a date photo writes a
+  📷 text again). `CHARACTER_GIFTS`: small gifts between characters after some aired public dates
+  (`lib/character-gifts.ts`; off: none is written, shown, told to an owner or handed to the house scene; the rows
+  stay). Neither calls a model. The rules are in [relationship-graph.md](relationship-graph.md), "What they send each
+  other". Commented in `.do/show.yaml`.
 - **`COMPANION_MESSAGE_DELETE`** (the show's app, not a secret; on by default, `0` turns it off without a deploy of
   code): deleting one message of a companion conversation (`lib/companion-message-delete.ts`). Off: "Delete messages…"
   leaves the thread's Settings menu, `/companion/<id>/messages` and `DELETE /api/companion/:id/messages/:messageId`

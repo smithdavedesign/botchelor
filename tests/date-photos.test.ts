@@ -6,6 +6,7 @@ import { recordAsset, reviewAsset } from "@/lib/assets";
 import { datePhotoPrompt, placeWordsOf } from "@/lib/studio/date-photos";
 import { setPgStudioFetchForTests, setPgStudioPausesForTests } from "@/lib/studio/pg";
 import { loadCharacter } from "@/lib/character";
+import { getThread, openThread } from "@/lib/companion";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import { pairKey } from "@/lib/relationships";
 import { loadChain, PUBLIC_VIEWER, publicKeepsakes } from "@/lib/text-chain";
@@ -133,6 +134,8 @@ describe("a date photo", () => {
     venice(["CLOTHED"]);
     const r = await (await post(ep, { style: "there" }, signedInCookie(admin))).json();
     expect(r.photos.length).toBeGreaterThan(0);
+    // Neither is the admin's own character: nobody is texted.
+    expect(r.texted).toBe(false);
     const [lo, hi] = pairKey(a, b);
     expect((await (await get(ep, signedInCookie(admin))).json()).thread).toEqual({ href: `/couples/${lo}/${hi}#texts`, public: true });
     // Anyone's view of the pair (the public layer): the date, then its photo, the real one and the newest.
@@ -140,6 +143,65 @@ describe("a date photo", () => {
     expect(seen.map((i) => i.kind)).toEqual(["date", "photo"]);
     expect(seen[1]).toMatchObject({ kind: "photo", real: true });
     expect(r.photos.map((p: { asset_id: string }) => `/api/assets/${p.asset_id}`)).toContain((seen[1] as { src: string }).src);
+  });
+
+  it("the maker's own character texts them the real photo once, only where they turned its texts on", async () => {
+    vi.stubEnv("COMPANION_OPEN", "1");
+    const texts = async (uid: string) =>
+      (await t.db.query<{ text: string; via: string; media_url: string | null; action: string }>(
+        `select m.text, m.via, m.media_url, m.action from companion_messages m join companion_threads th on th.id = m.thread_id where th.user_id = $1 and m.role = 'character' order by m.created_at, m.id`,
+        [uid],
+      )).rows;
+    const thread = async (p: { uid: string; id: string }, on: boolean) => {
+      const opened = await openThread(t.db, p.uid, p.id, new Date(), { opener: false });
+      if (!opened.ok) throw new Error("no thread");
+      await t.db.query(`update companion_threads set muted_proactive = $2 where id = $1`, [opened.thread_id, !on]);
+      return opened.thread_id;
+    };
+
+    // Texts on: the character sends it, the picture as its own message under the same tag.
+    const me = await dated();
+    const threadId = await thread(me, true);
+    await tokens(me.uid, 3);
+    venice(["CLOTHED", "REVEALING"]);
+    const first = await (await post(me.ep, { style: "selfie" }, me.cookie)).json();
+    expect(first.texted).toBe(true);
+    const sent = await texts(me.uid);
+    expect(sent.map((m) => m.action)).toEqual(Array(3).fill(`date_photo:${me.ep}`));
+    expect(sent.filter((m) => m.via !== "photo").map((m) => m.text)[0]).toBe("Look at us.");
+    expect(sent.filter((m) => m.via === "photo")).toMatchObject([{ media_url: `/api/og/date-photo/${me.ep}`, text: expect.stringMatching(/^A photo from the date: Pia and /) }]);
+    // The thread shows the real photo there (lib/companion.ts getThread), and the owner is told.
+    const view = await getThread(t.db, me.uid, threadId);
+    expect(view.ok && view.view.messages.find((m) => m.photo)?.photo).toEqual({ src: `/api/assets/${first.photos[0].asset_id}`, href: `/episodes/${me.ep}` });
+    // Never again for that date, however many more they make: the newest simply shows in its place.
+    const second = await (await post(me.ep, { style: "dance" }, me.cookie)).json();
+    expect(second.texted).toBe(false);
+    expect(await texts(me.uid)).toHaveLength(3);
+    const again = await getThread(t.db, me.uid, threadId);
+    expect(again.ok && again.view.messages.find((m) => m.photo)?.photo?.src).toBe(`/api/assets/${second.photos[0].asset_id}`);
+
+    // Texts off, or no thread at all: making a photo is not an opt-in to texts.
+    const muted = await dated();
+    await thread(muted, false);
+    const none = await dated();
+    for (const p of [muted, none]) {
+      await tokens(p.uid, 1);
+      expect((await (await post(p.ep, { style: "selfie" }, p.cookie)).json()).texted).toBe(false);
+      expect(await texts(p.uid)).toEqual([]);
+    }
+    // Our own accounts are not skipped (their own act, like the "Hear from" tap), but an admin's photo of a date their
+    // character wasn't on texts nobody: a house character has no person.
+    const admin = await dated();
+    await t.db.query(`insert into admins (user_id) values ($1)`, [admin.uid]);
+    await thread(admin, true);
+    expect((await (await post(admin.ep, { style: "selfie" }, admin.cookie)).json()).texted).toBe(true);
+    // DATE_PHOTO_TEXTS=0 stops it.
+    vi.stubEnv("DATE_PHOTO_TEXTS", "0");
+    const off = await dated();
+    await thread(off, true);
+    await tokens(off.uid, 1);
+    expect((await (await post(off.ep, { style: "selfie" }, off.cookie)).json()).texted).toBe(false);
+    expect(await texts(off.uid)).toEqual([]);
   });
 
   it("gives the token back when nothing passes", async () => {

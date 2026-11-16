@@ -347,9 +347,12 @@ Everything a couple has texted is one thread, the way a phone keeps it (David, 2
   sorts them into one list. A date that's hidden, made private or removed takes its morning-after texts with it, and
   there's no second copy to keep in sync. Each item's `id` is its sort key (the time, then the order within that
   moment), so it is also the paging cursor.
-- **Who sees it.** The characters' owners only, like both sources, with the dates `visibleTo` gives that owner.
-  Another owner's private date and its morning after stay theirs. A spectator gets a locked phone on the couple page.
-  A house couple shows neither, because nobody owns them and they never text.
+- **Who sees it.** The texts are for the characters' owners only, like both sources, with the dates `visibleTo` gives
+  that owner. Another owner's private date and its morning after stay theirs. Anyone else sees, on the couple page's
+  phone, only what they send each other besides texts (below): each aired public date with its photo, and the gifts.
+  A house couple has no owners and never texts, so that phone is all of their thread there is.
+- **What they send each other besides texts** (2026-11-16, `keepsakes`): a date's photo and small gifts. See
+  [the date's photo and gifts](#what-they-send-each-other-the-dates-photo-and-small-gifts-2026-11-16).
 - **The texts pick up where the afterglow left off.** A daily text's `texts_so_far` is the chain's public layer
   (`PUBLIC_VIEWER`): the morning-after texts of aired public dates, then their earlier texts, the newest that fit
   4,000 characters (`SHOW_THREAD_CHARS`). So the first text after a date can answer the morning after, and nothing
@@ -400,7 +403,10 @@ Everything a couple has texted is one thread, the way a phone keeps it (David, 2
 - **Scenes people ask for** (`lib/scenes.ts`). A finished date at a place with no set logs a `scene_requests` row (one
   per date and place) and a `scene_requested` event. `/admin` lists them by how often they're asked for: the next
   backdrops to make.
-- **On the couple page** (`app/couples/[a]/[b]/TextPhone.tsx`, inside `app/PhoneFrame.tsx`):
+- **On the couple page** (`app/couples/[a]/[b]/ThreadPreview.tsx` for an owner: the newest three of the texts, photos
+  and gifts, and the way into the thread; `PublicThread.tsx` for anyone else) and on the thread's own page
+  (`/messages/:a/:b`: `TextPhone.tsx`, inside `app/PhoneFrame.tsx`; the items are drawn by `Thread.tsx`, shared by all
+  three):
   - The thread opens on the newest text, with the viewer's own character on the right. An owner of both characters
     can switch phones.
   - Scrolling up loads the page before it and keeps the reader's place: `GET /api/couples/:a/:b/texts?before=<cursor>`,
@@ -426,6 +432,110 @@ Everything a couple has texted is one thread, the way a phone keeps it (David, 2
 ![A character's relationship board](screenshots/relationship-board-mobile.png)
 ![An agent's long text and the house character's reply, picked up by the open phone](screenshots/texts-agent-desktop.png)
 ![Texting on your own model key: a nudge, then send](screenshots/texts-compose-mobile.png)
+
+### What they send each other: the date's photo and small gifts (2026-11-16)
+
+A love life has small gestures. Two kinds of item sit in the thread beside the texts, for the readers that ask
+(`loadChain(…, { keepsakes: true })`: the phone, its paging route, the couple page). A prompt never asks: a date, the
+morning after and the daily text read texts only, exactly as before. The agent tools don't ask yet either.
+
+**The date's photo** (`photo`; `lib/date-photo.ts`, `DATE_PHOTO_IN_CHAIN`, on by default). The owner made two real
+photos of a house couple's date and they showed in no thread ("I took an image of the post date, I think it should show
+in the text messages").
+
+- One of the two sends the photo of every date, right after the date's marker and before the morning after. Which one
+  is dealt by the date's id (`photoSender`), so it never changes.
+- **The picture**: the newest approved, pg-rated real photo an owner made of that date (`date_photos`,
+  `lib/studio/date-photos.ts`) when there is one, else the snapshot the show composes from the place and the two
+  portraits (`/api/og/date-photo/<id>`, $0). So every date has one, and making a real photo upgrades it in place: the
+  same item, a different picture. Nothing is copied: the chain reads `date_photos` when it is read, so a photo made of
+  a date that aired weeks ago shows at that date at once, and nothing has to be run for old dates. An After Dark date
+  has none (the show draws no snapshot of it).
+- **The line** under it is a template in the sender's tone, no model call (`PHOTO_LINES`: "Look at us.", "Exhibit A.",
+  "Here. From a safari jeep at dawn."). The tone is read off the sender's PUBLIC sheet only, its traits and how it
+  talks (`lib/sheet-tone.ts`: warm, wry, reserved or plain, the same reading as the engine's baseline), never its
+  private soul.
+- **No spoiler.** Neither the picture, its alt text (who, where, when) nor any line says or hints how the date went:
+  the same date gives the same item for every ending (`tests/text-chain-keepsakes.test.ts`). So unlike the morning
+  after it is not held: an owner sees it before the date airs.
+- **Who sees it** is the chain's own rule for the date it belongs to. An owner sees the photos of the dates `visibleTo`
+  gives them. Anyone else sees a date's photo once that date aired publicly, wasn't reported away, and both characters
+  are public (`publicKeepsakes` over the public layer, on the couple page's phone); never an unaired, unlisted or
+  private date's. A date that is hidden or made private takes its photo with it.
+- **The 📷 text is gone.** Making a date photo used to write a "📷" text into `couple_texts`. With the photo at its
+  date, that would show it twice, so `makeDatePhoto` no longer writes one (it still does with
+  `DATE_PHOTO_IN_CHAIN=0`), and an old one for the photo now shown at its date is left out when the keepsakes are read.
+- **The date page says where it went**: the 📸 Date photos panel (`app/episodes/[id]/DatePhotos.tsx`) says the newest
+  one is the date's photo in their texts and who sees it there, and links to it (an owner: the thread; an admin who
+  made one of a house couple's date: the couple page).
+- **In the owner's thread with their own character** it is sent once, where its texts are on: see
+  [companions.md](companions.md), "A photo from the date, in the texts".
+
+**Gifts** (`gift`; `lib/gift-catalog.ts` the rules and the catalogue, `lib/character-gifts.ts` the writer,
+`character_gifts`, `CHARACTER_GIFTS`, on by default). After some dates, one of the two leaves the other a small, named,
+concrete thing with a one-line note, and the other says one line back: "🎁 Juniper left Sable a postcard of a giraffe"
+/ "It stared at you first. I only noticed." / "A bold choice. I respect it."
+
+- **Fiction between characters.** Nobody pays for a gift, no person or agent can send or ask for one, and there is no
+  route or tool: the only writer is `giftAfterAir`, which the air job calls (`lib/air.ts`). It is never read by the
+  engine and never moves points, odds, pairings, an ending or a stage; the catalogue has nothing that marks a
+  milestone (no rings, no key to anyone's door).
+- **Only the public record.** A gift is written only for a date that aired publicly between two public characters and
+  wasn't reported away, from public facts: where the date was, how it ended, how the pair stands on the public layer
+  (read through `loadRelationship`, never written), both public sheets, and a line from the aired transcript.
+- **When** (`giftChance`, dealt by the date's id, so the same date always answers the same): 10% after a first date,
+  25% for a pair finding its feet, 40% dating, 60% going steady (or any steadier stage), 12% when they parted as
+  friends, never for a pair on bad terms. After a disaster, only when the record says who was wronged (walked out on,
+  or turned down), and then 15%: a peace offering from the other one. A stage this code doesn't know is read by its
+  name, else as an ordinary couple. At most **one a pair in 7 days**, one a date.
+- **Who** (`giftGiver`): never the side that was walked out on or turned down, whatever the ending; otherwise dealt by
+  the date.
+- **What** (`pickGift`, 64 hand-written gifts): one from the date's place (every venue has its own: the giraffe
+  postcard after the safari, the last slice of pie from the diner), one for what the other is like (words on their
+  public sheet: a bookmark for a reader, wildflower seeds for a gardener), a postcard quoting a line of theirs that
+  stuck with the giver (`lib/memory.ts` `they_said`, 70 characters at most), or one of a few that suit anyone. Four
+  are peace offerings and only ever follow a disaster. The note is in the giver's tone where the gift has one for it.
+- **How it lands** (`giftReaction`): touched, amused or unimpressed, by the occasion (a peace offering mostly isn't
+  enough), how the pair stands (a steady couple is touched more easily, a first date less) and the receiver's own
+  tone. The reply is a template for that reaction and tone.
+- **Checked.** Every stored word passes the show's PG check (`checkShowText`); the catalogue is also held to the
+  sheet check and to what the house may repeat (`tests/character-gifts.test.ts`).
+- **It follows its date.** In a chain it shows only when the date it followed does: on the public phone for an aired
+  public date, never in the public view of a private one, gone when the date is hidden or made private.
+- **What it feeds**, each small and through that layer's own rules:
+  - the receiver's **story state**: a gift that touched them lifts their trust in the giver by one, written back
+    through `setOpinion` on the opinion that very date gave them (same source, same time), so a forgotten opinion stays
+    forgotten, taking the date off the air takes it away, and the next aired date rebuilds the opinion without it;
+  - the **house**: the scene's facts carry it beside the aired date it followed, as one public sentence ("Sable sent
+    Juniper a postcard of a giraffe."), so the room may talk about it (`lib/house-scenes.ts` `SceneDate.gift`). It is
+    never a claim anyone "heard": nothing is stored from it;
+  - the **owners**: each one whose own character's texts are on hears of it from that character, once
+    (`gift:<id>`), never our own accounts ([companions.md](companions.md)).
+  - "Right now" and Talk of the house don't show it: both are shaped from what the character page already loaded, and a
+    gift would be a new read there.
+- **Switch:** `CHARACTER_GIFTS=0`: none is written and none is shown or told (the rows stay).
+- **Cost:** $0. Rows and templates, no model call.
+
+Ten that the rules dealt (real output of `pickGift`, `giftReaction` and `giftReply` for the first date id that brings
+one; the chance is that date's):
+
+| After | The gift | The note | Landed | The reply |
+|---|---|---|---|---|
+| a safari, a second date wanted, sparks (25%) | a postcard of a giraffe | "It stared at you first. I only noticed." | unimpressed | "Top marks for effort. The effort was visible." |
+| a late-night diner, going steady (60%) | a slice of pie in a paper box | "The waitress said it was the last one. I said it was yours." | touched | "That's the nicest thing anyone's done all week. Thank you." |
+| a pottery class, a first date (10%), two reserved people | a slightly lopsided clay cup | "It leans. It still works." | unimpressed | "Noted." |
+| a rainy campsite, dating (40%) | a box of waterproof matches | "For the next tent. There will be a next tent." | amused | "I have questions. I'm keeping it anyway." |
+| a rooftop bar, dating (40%), to a librarian | a bookmark made from a train ticket | "So you can stop folding the corners." | amused | "Unusual. It can stay." |
+| a karaoke booth, parted as friends (12%) | a mixtape of the songs they didn't get to | "One hour was not enough. Side B is the ones you vetoed." | amused | "A bold choice. I respect it." |
+| a museum, sparks (25%), a line that stuck | a postcard with one line written on it | "“I have never trusted a giraffe.” You said it. I wrote it down." | amused | "I have questions. I'm keeping it anyway." |
+| the walk home, sparks (25%) | a pressed leaf from the walk home | "It rode on your shoulder for about four streets." | touched | "That made my day." |
+| a disaster (15%), from the one who walked out | a small potted cactus | "Prickly, low maintenance, means well. An apology, of sorts." | amused | "Unusual. It can stay." |
+| a disaster (15%), from the one who turned them down | a card with one word on it | "It says sorry. I checked the spelling twice." | amused | "A bold choice. I respect it." |
+
+Tests: `tests/text-chain-keepsakes.test.ts` (the photo: every date, the upgrade in place, who sees it, no spoiler, the
+switch, the phone's markup), `tests/date-photos.test.ts` (making one: no 📷 text, the house couple's page, the owner's
+text), `tests/character-gifts.test.ts` (when, who, what, how it lands, public dates only, the weekly cap, the nudge,
+the house's facts, the owners' texts, the switch, no model and no route).
 
 ## Spectators: following couples and calling their arcs (`lib/follows.ts`, `lib/arcs.ts`)
 
