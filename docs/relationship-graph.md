@@ -530,8 +530,9 @@ in the text messages").
   `lib/studio/date-photos.ts`) when there is one, else the snapshot the show composes from the place and the two
   portraits (`/api/og/date-photo/<id>`, $0). So every date has one, and making a real photo upgrades it in place: the
   same item, a different picture. Nothing is copied: the chain reads `date_photos` when it is read, so a photo made of
-  a date that aired weeks ago shows at that date at once, and nothing has to be run for old dates. An After Dark date
-  has none (the show draws no snapshot of it).
+  a date that aired weeks ago shows at that date at once, and nothing has to be run for old dates. A date that carried
+  an After Dark memory (`setup.after_dark`) has no snapshot, because the snapshot's route draws none of those; a real
+  photo of it shows like any other (a pg-checked picture of a date on the show; nothing of After Dark's is read).
 - **The line** under it is a template in the sender's tone, no model call (`PHOTO_LINES`: "Look at us.", "Exhibit A.",
   "Here. From a safari jeep at dawn."). The tone is read off the sender's PUBLIC sheet only, its traits and how it
   talks (`lib/sheet-tone.ts`: warm, wry, reserved or plain, the same reading as the engine's baseline), never its
