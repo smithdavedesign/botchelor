@@ -233,6 +233,9 @@ export type AuditionCard = {
   status: "open" | "approved";
   votes: number;
   aired: number;
+  /** Who made it, credited by their creator name when they have one (lib/showcase.ts creator_profiles): its card links their page. */
+  creator_handle: string | null;
+  creator_name: string | null;
 };
 export type CastingBoard = { season_id: string; label: string; closes_at: string; auditions: AuditionCard[]; my_vote: string | null };
 
@@ -243,8 +246,9 @@ export async function castingBoard(db: Db, viewerId: string | null, now: Date = 
     `select a.character_id, c.name, c.bio, c.avatar_hue as hue,
             ${portraitPathSql("c")} as portrait,
             a.status, (select count(*)::int from audition_votes v where v.season_id = a.season_id and v.character_id = a.character_id) as votes,
-            ${AIRED_SQL("c")} as aired
+            ${AIRED_SQL("c")} as aired, cp.handle as creator_handle, cp.display_name as creator_name
        from cast_auditions a join characters c on c.id = a.character_id
+       left join creator_profiles cp on cp.user_id = a.owner_id and not cp.hidden
       where a.season_id = $1 and a.status in ('open', 'approved') and c.visibility = 'public' and c.owner_id = a.owner_id
       order by votes desc, (a.status = 'approved') desc, a.created_at`,
     [season],

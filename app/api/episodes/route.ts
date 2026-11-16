@@ -58,7 +58,7 @@ import { notify, notifyDateBooked, resolvePairNotices } from "@/lib/notification
 import { buildDate, type CharacterForDate, type DateRequest } from "@/lib/simulation";
 import { groupBookingFor, markNightBooked, type GroupBooking } from "@/lib/group-dates";
 import { HOUSE_BOOKER, isHouseRequest } from "@/lib/house-booker";
-import { CASTING_MET_VIA, castingPartnerFor, isRoseRequest } from "@/lib/casting";
+import { CASTING_MET_VIA, castingPartnerFor, isAuditionRequest, isRoseRequest } from "@/lib/casting";
 import { type CharacterSheet } from "@/lib/showrunner";
 
 // The request itself is instant (the engine, no model). Generation runs in after(), which keeps the
@@ -324,6 +324,8 @@ export const POST = crisisAware("date_note", (body) => [str(body.note)], handle(
       await db.query<CharacterRow>(`select ${CHARACTER_COLUMNS} from characters c where c.id = $1 and c.is_house and c.premium_sku is null and not ${unmatchedSql("c.id", "$2::text")}`, [input.partner_id, own.id])
     ).rows[0];
     if (!partner) return json({ error: "partner_not_available", message: "The lead can't be dated by them right now." }, 422, sess);
+    // An invited creator's audition date (lib/casting-invites.ts) is the character's casting date itself.
+    casting = isAuditionRequest(req);
   } else if (input.blind) {
     // Open casting: a person's character on its first date, in the first-date format, meets the season's lead (several
     // walk-ons can be filming with the lead at once: "one date at a time" is per couple). No lead to meet, or the lead

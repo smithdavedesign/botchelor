@@ -38,6 +38,8 @@ const OPEN = [
   "/house",
   "/house?scene=2026-11-15-gossip",
   "/casting",
+  // A creator's casting invite (lib/casting-invites.ts), opened like the casting page itself.
+  "/casting/invite/Ab3_x-9QzK",
   "/vote",
   "/calls",
   "/import",
