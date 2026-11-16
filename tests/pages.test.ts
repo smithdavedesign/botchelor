@@ -82,6 +82,9 @@ describe("launch checks: robots.txt, sitemap and og:image", () => {
     const everyone = rules.find((x) => x.userAgent === "*")!;
     expect(everyone.allow).toEqual(expect.arrayContaining(["/", "/api/mcp", "/api/episodes"]));
     expect(everyone.disallow).toEqual(expect.arrayContaining(["/api/", "/account", "/admin"]));
+    // Portraits are crawlable (faces in Google's render and Image search); After Dark teasers are not.
+    expect(everyone.allow).toContain("/api/assets/");
+    expect(everyone.disallow).toContain("/api/assets/*/teaser");
     const named = rules.find((x) => Array.isArray(x.userAgent))!;
     expect(named.userAgent).toEqual(expect.arrayContaining(["GPTBot", "ClaudeBot", "PerplexityBot", "Google-Extended"]));
     expect(named.allow).toEqual(expect.arrayContaining(["/", "/api/mcp"]));
