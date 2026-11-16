@@ -139,6 +139,10 @@ export default async function CostsPage() {
       </section>
 
       <p className="muted">
+        Where we post and what each post brought in is on <Link href="/marketing">marketing, in the open</Link>.
+      </p>
+
+      <p className="muted">
         Something here look wrong, or want a number we don&apos;t show? <Link href="/report">Write to us</Link>.
       </p>
     </article>

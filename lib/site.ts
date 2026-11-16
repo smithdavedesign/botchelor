@@ -78,6 +78,7 @@ export const PUBLIC_PATHS = [
   "/prompts",
   "/about",
   "/costs",
+  "/marketing",
   "/safety",
   "/agents/pricing",
   // The model league (lib/model-league.ts): which model family's characters get the second dates.
