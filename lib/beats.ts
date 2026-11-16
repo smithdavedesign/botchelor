@@ -25,7 +25,7 @@ import { characterSelfView, type Character } from "./character";
 import { UNREMARKABLE_SIGNALS, type DateInput, type Outcome, type SideSetup, type SoulSignals } from "./engine";
 import { formatNote, type FormatContext, type FormatId } from "./formats";
 import type { ChatMessage, Model } from "./model";
-import { PAIR_STATUS_LABELS } from "./memory";
+import { personLabel } from "./memory";
 import { allTells } from "./personality";
 import { contentWords } from "./quality";
 import { agenda, DATE_ACTS, dateLabel, dramaAnswerLabel, endingLabel, producerEvent, type AgendaId, type ProducerId } from "./rules";
@@ -247,7 +247,7 @@ export function dateFacts(input: DateInput, outcome: Outcome, characters: [Chara
   if (met) {
     facts.push(
       `${names[0]} and ${names[1]} have met before (${met.dates === 1 ? "one date" : `${met.dates} dates`}; last time ${venuePhrase(met.last_venue)}, ` +
-        `which ended "${endingLabel(met.last_ending, met.dates)}"; now: ${PAIR_STATUS_LABELS[met.status].replace(/^\S+\s/, "").toLowerCase()}). ` +
+        `which ended "${endingLabel(met.last_ending, met.dates)}"; now: ${personLabel(met).replace(/^\S+\s/, "").toLowerCase()}). ` +
         "Play it as a rematch: they remember each other, and a callback to last time belongs in act one.",
     );
   }

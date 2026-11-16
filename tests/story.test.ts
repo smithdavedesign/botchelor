@@ -127,7 +127,9 @@ describe("what a character remembers", () => {
     await aired({ a: ira, b: nell, ending: "disaster", sides: [so(true), so(false)], at: WEEK1 });
     const m = await updateCharacterMemory(t.db, ira);
     const pub = connections(m);
-    expect(pub[0]).toEqual({ id: nell, name: "Nell Abiodun", house: false, dates: 1, status: "bad_blood", label: "🔥 Bad blood", turned_down: null });
+    // One date that ended badly "didn't click" (lib/relationship-stages.ts); bad blood needs history.
+    expect(pub[0]).toEqual({ id: nell, name: "Nell Abiodun", house: false, dates: 1, status: "didnt_click", label: "🤷 Didn't click", turned_down: null });
+    expect(connections(m, { RELATIONSHIP_STAGES_V2: "0" })[0]).toMatchObject({ status: "bad_blood", label: "🔥 Bad blood" });
     expect(JSON.stringify(pub)).not.toContain("wanted_more");
   });
 });

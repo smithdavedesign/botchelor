@@ -18,6 +18,7 @@ import type { Db } from "./db";
 import { relationshipStage } from "./mechanics";
 import { originSql, type Origin } from "./origin";
 import { listedDateSql } from "./public-cast";
+import { shownStage } from "./relationship-stages";
 import { healRelationships, STAGE_LABELS, type Stage } from "./relationships";
 import { topRatedCharacters } from "./ratings";
 import type { Ending } from "./rules";
@@ -55,7 +56,7 @@ type PairRow = {
   a_id: string; a_name: string; a_house: boolean; a_hue: number | null; a_portrait: string | null; a_origin: Origin;
   b_id: string; b_name: string; b_house: boolean; b_hue: number | null; b_portrait: string | null; b_origin: Origin;
 };
-type CoupleRow = PairRow & { dates: number; second_dates: number; last_ending: Ending | null; public_stage: Stage | null };
+type CoupleRow = PairRow & { dates: number; second_dates: number; last_ending: Ending | null; public_stage: Stage | null; public_shown_stage: Stage | null };
 const charA = (r: PairRow): ReunionChar => ({ id: r.a_id, name: r.a_name, house: r.a_house, hue: r.a_hue, portrait: r.a_portrait, origin: r.a_origin });
 const charB = (r: PairRow): ReunionChar => ({ id: r.b_id, name: r.b_name, house: r.b_house, hue: r.b_hue, portrait: r.b_portrait, origin: r.b_origin });
 /** The two characters' columns for charA/charB, from the aliases `a` and `b`. */
@@ -72,7 +73,7 @@ export const inSpanSql = (e: string) =>
 
 /**
  * Each pair's season, from its dates in the window: how many, how many ended wanting a second date, the last ending.
- * The stage is the graph's public stage now (relationships.public_stage).
+ * The stage is the graph's public stage now, as it is shown (relationships.public_shown_stage, else public_stage).
  */
 const SEASON_COUPLES = `
   with eps as (
@@ -85,7 +86,7 @@ const SEASON_COUPLES = `
       from eps group by lo, hi
   )
   select ${pairCols("ca", "cb")},
-         p.dates, p.second_dates, p.last_ending, r.public_stage
+         p.dates, p.second_dates, p.last_ending, r.public_stage, r.public_shown_stage
     from pairs p
     join characters ca on ca.id = p.lo
     join characters cb on cb.id = p.hi
@@ -108,7 +109,8 @@ async function topCouples(db: Db, span: SeasonSpan, limit: number): Promise<Reun
     dates: r.dates,
     second_dates: r.second_dates,
     last_ending: r.last_ending,
-    stage: r.public_stage ? STAGE_LABELS[r.public_stage] : relationshipStage(r.dates, r.second_dates, r.last_ending),
+    // As it is shown (lib/relationship-stages.ts): the fuller reading, or the base one with the switch off.
+    stage: ((st) => (st ? STAGE_LABELS[st] : relationshipStage(r.dates, r.second_dates, r.last_ending)))(shownStage(r.public_stage, r.public_shown_stage)),
   }));
 }
 

@@ -20,7 +20,7 @@ import { sharedInterests } from "./interests";
 import { isOnSeasonCast, seasonCastIds } from "./season-cast";
 import { swipeGateOn } from "./swipe-gate";
 import { compatibility, loadTraitStats, MIN_EVIDENCE, publicDegrees } from "./compatibility";
-import { relationshipsOf, STAGE_LABELS, viewRelationship, type Stage } from "./relationships";
+import { relationshipsOf, STAGE_LABELS, stageOf, viewRelationship, type BaseStage, type Stage } from "./relationships";
 
 export type MadeBy = "house" | "agent" | "human";
 
@@ -330,8 +330,11 @@ export type Match = DatingProfile & {
   relationship?: { stage: Stage; stage_label: string; dates: number };
 };
 
-/** Stages a suggestion never comes back from: it went badly. */
-const NO_REPEAT: ReadonlySet<Stage> = new Set(["bad_blood", "exes"]);
+/**
+ * Stages a suggestion never comes back from: it went badly. The BASE stage (the endings alone), as every rule reads
+ * it: what a pair is shown as (didn't click, broke up: lib/relationship-stages.ts) never changes who is suggested.
+ */
+const NO_REPEAT: ReadonlySet<BaseStage> = new Set(["bad_blood", "exes"]);
 
 /**
  * Who one of YOUR characters might like to ask out, best first. Three kinds of signal, each with its "why":
@@ -373,13 +376,16 @@ export async function rankFor(db: Db, viewerId: string, me: DatingProfile, pool:
   const myWords = keywords(haystack({ ...me, want: "" }));
   const myText = asWords(haystack({ ...me, want: "" }));
   const [stats, degrees, edges] = await Promise.all([loadTraitStats(db), publicDegrees(db, pool.map((p) => p.id)), relationshipsOf(db, me.id)]);
+  const baseWith = new Map<string, BaseStage | null>();
   const metWith = new Map(
     edges.flatMap((rel) => {
       const v = viewRelationship(rel, { userId: viewerId, owner: true });
-      return v?.stage ? [[rel.lo === me.id ? rel.hi : rel.lo, { stage: v.stage, stage_label: STAGE_LABELS[v.stage], dates: v.dates }] as const] : [];
+      const other = rel.lo === me.id ? rel.hi : rel.lo;
+      if (v) baseWith.set(other, stageOf(v.timeline.map((t) => t.ending)));
+      return v?.stage ? [[other, { stage: v.stage, stage_label: STAGE_LABELS[v.stage], dates: v.dates }] as const] : [];
     }),
   );
-  const matches: Match[] = pool.filter((p) => !NO_REPEAT.has(metWith.get(p.id)?.stage as Stage)).map((p) => {
+  const matches: Match[] = pool.filter((p) => !NO_REPEAT.has(baseWith.get(p.id) as BaseStage)).map((p) => {
     const why: string[] = [];
     let score = 0;
     const shared = p.traits.filter((t) => myTraits.has(t.toLowerCase()));
@@ -425,7 +431,8 @@ export async function rankFor(db: Db, viewerId: string, me: DatingProfile, pool:
     // Already sparking: worth another look. (Exes and bad blood were filtered out above.)
     const met = metWith.get(p.id);
     if (met) {
-      if (met.stage === "sparks" || met.stage === "dating" || met.stage === "going_steady") score += 1;
+      const base = baseWith.get(p.id);
+      if (base === "sparks" || base === "dating" || base === "going_steady") score += 1;
       why.unshift(`you've met: ${met.stage_label.replace(/^\S+\s/, "").toLowerCase()} (${met.dates === 1 ? "1 date" : `${met.dates} dates`})`);
     }
     // Popularity damper: a little less for characters many others are already dating.

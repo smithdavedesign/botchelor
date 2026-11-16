@@ -591,6 +591,8 @@ const nowBlock = (html: string) => /<section class="character-now"[\s\S]*?<\/sec
 
 /** A week of public story around Rafe, with what a viewer may not see planted beside it. */
 async function seedStory() {
+  // History first, then the disaster: bad blood with cause (one date that ended badly "didn't click", and is no tie).
+  await episode(RAFE, JUNIPER, { ending: "friends" });
   await episode(RAFE, JUNIPER, { ending: "disaster" });
   const unairedWith = await person(SECRET.unairedWith, "u-y");
   const privateWith = await person(SECRET.privateWith, "u-z");

@@ -142,6 +142,14 @@ ignore it.
 - **`STORY_MAP`** (the show's app, not a secret; on unless it is `0`): this week's story map (`lib/story-map.ts`) on
   `/house` and at the top of `/graph`, and the circle component. Reads only; no model calls. `0` leaves both pages as
   they were. Commented in `.do/show.yaml`; the rules are in [relationship-graph.md](relationship-graph.md), "The story map".
+- **`RELATIONSHIP_STAGES_V2`** (the show's app, not a secret; on unless it is `0`): the fuller reading of where a
+  couple stands (`lib/relationship-stages.ts`): didn't click, keeping it casual, official, moved in together, engaged,
+  married, broke up, back together, divorced, and bad blood only where there was cause. Derived from the dates'
+  endings and the public record; no model call, and no rule reads it (suggestions, the one-partner rule, arcs and
+  their points, backing, overnight offers and who texts all keep reading the seven base stages). `0` shows exactly
+  those seven everywhere (pages, notices, prompts, MCP), names nobody at a season's finale, and stops writing the
+  shown columns, without a deploy of code; the hourly job fills them again when it is back on. Commented in
+  `.do/show.yaml`; the rules are in [relationship-graph.md](relationship-graph.md), "Stages".
 - **`CONFRONTATIONS`, `CHALLENGES`** (the show's app, not secrets; each on unless it is `0`): the two other kinds of
   house scene (`lib/house-conflict.ts`). A confrontation is staged when the story state holds a tension hot enough
   between two in the house (two a week at most); the challenge is held on Wednesdays, and its winner gets the next

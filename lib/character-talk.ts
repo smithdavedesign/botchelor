@@ -26,7 +26,8 @@ import type { HouseSceneView, SceneFace } from "./house-scenes";
 import { listHouseScenes, scenePath } from "./house-scenes";
 import { shortName } from "./names";
 import { producerOn } from "./producer";
-import { relationshipsOf, STAGE_LABELS, viewRelationship, type Relationship, type Stage } from "./relationships";
+import { PAIR_PHRASES, type Stage } from "./relationship-stages";
+import { relationshipsOf, viewRelationship, type Relationship } from "./relationships";
 import { inFlight, shared } from "./shared-cache";
 
 type Env = Record<string, string | undefined>;
@@ -73,7 +74,8 @@ export type TalkSaid = {
 
 export type TalkFriction = {
   key: string;
-  kind: "confrontation" | "challenge" | "story" | "bad_blood";
+  /** `bad_blood` and `breakup` are standings on the public graph (the shown stage); the others happened on a day. */
+  kind: "confrontation" | "challenge" | "story" | "bad_blood" | "breakup";
   day: string | null;
   /** The scene, the couple's page, or the house. */
   href: string;
@@ -104,6 +106,9 @@ export type CharacterTalk = {
   /** Nothing public to tell yet: the page says so in one line. */
   empty: boolean;
 };
+
+/** The standings told as "who they are with": a second date agreed, and every way of being a couple. */
+const TOLD_STAGES: ReadonlySet<Stage> = new Set(["sparks", "dating", "casual", "going_steady", "official", "moved_in", "engaged", "married", "back_together"]);
 
 export const EMPTY_TALK: CharacterTalk = { said: [], friction: [], after: [], empty: true };
 
@@ -215,12 +220,14 @@ export function shapeTalk(input: TalkInput): CharacterTalk {
     const other = person(e.other);
     if (!other || !e.stage) continue;
     const day = e.last_at ? e.last_at.slice(0, 10) : null;
+    // The stage is the SHOWN one (lib/relationship-stages.ts): bad blood only where there was cause, so a single
+    // date that didn't click is no friction; a couple in whatever words fit them; a couple who were steady, split.
     if (e.stage === "bad_blood") {
       friction.push({ key: `edge:${e.other}`, kind: "bad_blood", day, href: e.path, text: `Bad blood with ${other.name}.`, result: null, other });
-    } else if (e.stage === "sparks") {
-      after.push({ key: `edge:${e.other}`, direction: "both", other, text: `${me} and ${other.name} agreed to a second date.`, href: e.path, day });
-    } else if (e.stage === "dating" || e.stage === "going_steady") {
-      after.push({ key: `edge:${e.other}`, direction: "both", other, text: `${me} and ${other.name} are together: ${STAGE_LABELS[e.stage].replace(/^\S+\s/, "").toLowerCase()}.`, href: e.path, day });
+    } else if (e.stage === "broke_up" || e.stage === "divorced") {
+      friction.push({ key: `edge:${e.other}`, kind: "breakup", day, href: e.path, text: e.stage === "divorced" ? `Divorced from ${other.name}.` : `Broke up with ${other.name}.`, result: null, other });
+    } else if (TOLD_STAGES.has(e.stage)) {
+      after.push({ key: `edge:${e.other}`, direction: "both", other, text: `${me} and ${other.name} ${PAIR_PHRASES[e.stage]}.`, href: e.path, day });
     }
   }
 
@@ -303,7 +310,7 @@ export async function characterTalk(
       (opts.edges ?? relationshipsOf(db, character.id))
         .then(async (rels) => {
           // Only the ties the talk tells (bad blood, a second date, a couple) need a name.
-          const told = publicEdges(character.id, rels, now).filter((e) => e.stage === "bad_blood" || e.stage === "sparks" || e.stage === "dating" || e.stage === "going_steady");
+          const told = publicEdges(character.id, rels, now).filter((e) => e.stage === "bad_blood" || e.stage === "broke_up" || e.stage === "divorced" || (e.stage !== null && TOLD_STAGES.has(e.stage)));
           return { told, people: await publicPeople(db, told.map((e) => e.other)) };
         })
         .catch(() => ({ told: [] as TalkEdge[], people: [] as TalkPerson[] })),

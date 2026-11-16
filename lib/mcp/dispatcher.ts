@@ -79,7 +79,7 @@ import { dateNumberSql } from "../date-number";
 import { getCharacterHistory, getPoints, getPointsBreakdown, getPublicCharacter, listAiredPage, listAiringSoon, listMyEpisodes, type DateSetup, type EpisodeView } from "../game";
 import { MCP_CALL_URL, readUserId, safeEqual, USER_COOKIE } from "../http";
 import { getDealbreakerQuiz, listCast } from "../mechanics";
-import { connections, describeDrift, loadCharacterMemory, loadForgets, noteMeeting, PAIR_STATUS_LABELS, stageFor, type Source } from "../memory";
+import { connections, describeDrift, loadCharacterMemory, loadForgets, noteMeeting, PAIR_STATUS_LABELS, personStage, stageFor, type Source } from "../memory";
 import { type Character, loadCharacter, pronounWarnings } from "../character";
 import { ADULT_TOOL_NAMES, ADULT_TOOLS, runAdultTool } from "../adult/mcp";
 import { runCompanionTool } from "../companion-mcp";
@@ -166,7 +166,7 @@ function playsAsNote(c: Character): string {
 const fromDate = (s: Source) => ({ episode_id: s.episode_id, with: s.with, aired: s.at.slice(0, 10) });
 import { POST as postPrediction } from "@/app/api/predictions/route";
 import { POST as postDealbreakerGuess } from "@/app/api/dealbreaker-guesses/route";
-import { loadRelationship, outcomeText, pairKey, relationshipsOf, STAGE_LABELS, stageOf, viewRelationship, type End, type Relationship } from "../relationships";
+import { airedStage as airedStageOf, loadRelationship, outcomeText, pairKey, relationshipsOf, STAGE_LABELS, viewRelationship, type End, type Relationship } from "../relationships";
 import { clearNudge, NUDGE_MAX, setNudge } from "../between-dates";
 import { chainAfter, chainPage, type ChainItem, isText, loadChain, TEXT_MAX, type ChainText } from "../text-chain";
 import { couplePageFor, houseReplyCap, sendText } from "../texting";
@@ -7468,7 +7468,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         const unaired = owner ? view.timeline.filter((x) => !x.aired).length : 0;
         // 2.9.0 (the 2026-10-22-0610 run: "get_relationships showed dating with Tobiah while the second date was unaired"):
         // when the stage counts a date that hasn't aired, which one, and when it airs; and the stage on aired dates alone.
-        const airedStage = stageOf(view.timeline.filter((x) => x.aired).map((x) => x.ending));
+        // The shown stage both times (lib/relationship-stages.ts), so the two are compared like for like.
+        const airedStage = airedStageOf(rel, { userId: who.id, owner });
         const pending = view.timeline.map((x, i) => ({ ...x, n: i + 1 })).filter((x) => !x.aired);
         const stageNote =
           unaired && view.stage && view.stage !== airedStage
@@ -7489,16 +7490,16 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           ? {
               unaired_dates: unaired,
               unaired_note: `Counts ${unaired === 1 ? "a date" : `${unaired} dates`} of yours that ${unaired === 1 ? "hasn't" : "haven't"} aired yet, so the stage and numbers here are provisional. Everyone else sees only aired, public dates (public_stage).`,
-              public_stage: rel.public.stage ? STAGE_LABELS[rel.public.stage] : null,
+              public_stage: rel.public.shown ? STAGE_LABELS[rel.public.shown] : null,
               ...stageNote,
             }
           : {};
         // #1033: a stage_up notice names the public stage (aired, public dates). An owner's stage here counts more (unlisted
         // dates, their private ones), so whenever the two differ, say which is which, unaired dates or not.
         const publicNote =
-          owner && !unaired && view.stage !== rel.public.stage
+          owner && !unaired && view.stage !== rel.public.shown
             ? {
-                public_stage: rel.public.stage ? STAGE_LABELS[rel.public.stage] : null,
+                public_stage: rel.public.shown ? STAGE_LABELS[rel.public.shown] : null,
                 public_stage_note:
                   "stage counts every date you can see as an owner (unlisted and your private ones too); public_stage counts aired, public dates alone, " +
                   "which is what everyone else sees and what a stage_up notice names.",
@@ -8802,7 +8803,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           // What it has learned about itself lately, in its own words (lib/character-lessons.ts): forgettable by its words (kind lesson).
           ...(lessons ? { what_it_has_learned: { lessons: lessons.lines, ...(lessons.trying_next ? { trying_next: lessons.trying_next } : {}), from: lessons.episodes.map(fromDate) } } : {}),
           who_it_remembers: (m.people ?? []).map((p) => ({
-            id: p.id, name: p.name, dates: p.dates, status: p.stage ? STAGE_LABELS[p.stage] : PAIR_STATUS_LABELS[p.status], last_ending: p.last_ending,
+            id: p.id, name: p.name, dates: p.dates, status: ((stage) => (stage ? STAGE_LABELS[stage] : PAIR_STATUS_LABELS[p.status]))(personStage(p)), last_ending: p.last_ending,
             ...(p.last_episode_id ? { last_episode_id: p.last_episode_id } : {}),
             ...(p.wanted_more !== null ? { wants_to_see_them_again: p.wanted_more } : {}),
             ...(p.turned_down ? { turned_down: p.turned_down === "you" ? "they turned it down" : "it turned them down" } : {}),
