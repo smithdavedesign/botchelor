@@ -86,7 +86,7 @@ function sidesFromEnding(ending: Ending): [SideOutcome, SideOutcome] {
 }
 
 /** The outcome as it was stored and aired — the only thing a backfilled conversation may land on. */
-export function storedOutcome(r: Row, seed: number): Outcome {
+export function storedOutcome(r: Pick<Row, "ending" | "drama_question" | "drama_answer" | "box_score" | "sides">, seed: number): Outcome {
   const flat = (n: number): VariableArc => ({ start: n, delta: 0, final: n });
   const variables =
     r.box_score ?? (Object.fromEntries(DATE_VARIABLES.map((v) => [v, flat(50)])) as Record<DateVariable, VariableArc>);
