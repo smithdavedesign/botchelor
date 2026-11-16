@@ -73,7 +73,9 @@ const AD_PAGES = ["/after-dark/studio", "/after-dark/characters", "/after-dark/g
 /** The links for this viewer: After Dark's on its own host, else the show's (the same for everyone while `chat` is on). */
 function navLinks(hasCharacter: boolean, adHost = false, chat = true, doors: AdDoors = NO_AD_DOORS, showHref = "/"): readonly NavLink[] {
   if (adHost) return adLinks(doors, showHref);
-  if (chat) return LINKS;
+  // The Studio door opens on what's theirs: an owner's own Studio; for everyone else the Gallery, which is open to all
+  // since 2026-11-16 (a visitor's door is never an empty room).
+  if (chat) return hasCharacter ? LINKS : LINKS.map((l) => (l.href === "/studio" ? { ...l, href: "/showcase", also: ["/studio", "/reels"] } : l));
   return hasCharacter ? OWNER_LINKS : NEWCOMER_LINKS;
 }
 

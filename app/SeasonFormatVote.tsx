@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { requestJson } from "./request";
 import { useAction } from "./useAction";
 import { showCrowd } from "@/lib/crowd-threshold";
@@ -18,6 +19,28 @@ function closesIn(iso: string, now: number): string {
  */
 export default function SeasonFormatVote({ ballot, now, insider = false }: { ballot: SeasonBallot; now: number; insider?: boolean }) {
   const { busy, error, run } = useAction();
+  // Already set (lib/season-vote.ts decidedFormat): say what it is, with the way to its page. No ballot beside it.
+  if (ballot.decided) {
+    const d = ballot.decided;
+    return (
+      <section id="next-season" className="card situation season-vote season-vote-decided" aria-labelledby="season-vote-head" data-track-area="season-vote">
+        <p className="kicker">Next season · it&apos;s set</p>
+        <h2 id="season-vote-head">
+          {ballot.season_label} is <span aria-hidden="true">{d.emoji}</span> {d.title}
+        </h2>
+        <p className="muted">{d.pitch}</p>
+        <p className="cta-row">
+          <Link className="button" href={d.path} data-track="next-season-page">
+            See {ballot.season_label}
+          </Link>
+          <Link className="button-ghost" href="/casting" data-track="next-season-casting">
+            Casting is open
+          </Link>
+        </p>
+        <p className="muted small">The viewers&apos; vote opens again for the season after.</p>
+      </section>
+    );
+  }
   const voted = ballot.my_pick !== null;
   const tally = voted && showCrowd(ballot.total, { insider });
   const vote = (pick: string) => run(() => requestJson("/api/season-vote", { pick }));

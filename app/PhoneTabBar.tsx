@@ -16,7 +16,7 @@ type Tab = NavLink & { icon: IconName };
  * `chat: false` (NAV_CHAT=0) is the bar before 2026-11-15: Watch · Characters · Companions · You, Companions a tab only
  * while companions are open, Characters current on /companion otherwise.
  */
-export function tabBarTabs(companions: boolean, chat = true): readonly Tab[] {
+export function tabBarTabs(companions: boolean, chat = true, hasCharacter = true): readonly Tab[] {
   const watch: Tab = { href: "/watch", label: "Watch", icon: "tv" };
   const you: Tab = { href: "/account", label: "You", icon: "user" };
   if (chat) {
@@ -25,7 +25,8 @@ export function tabBarTabs(companions: boolean, chat = true): readonly Tab[] {
       { href: "/chat", label: "Chat", icon: "chat", also: ["/matches", "/swipe", "/messages", "/companion"] },
       { href: "/characters", label: "Characters", icon: "users" },
       // The fifth (2026-11-16): the Gallery and My studio (app/studio/StudioTabs.tsx).
-      { href: "/studio", label: "Studio", icon: "sparkles", also: ["/showcase", "/reels"] },
+      // An owner's own Studio; for anyone else the Gallery (app/Nav.tsx navLinks: the same rule).
+      hasCharacter ? { href: "/studio", label: "Studio", icon: "sparkles", also: ["/showcase", "/reels"] } : { href: "/showcase", label: "Studio", icon: "sparkles", also: ["/studio", "/reels"] },
       you,
     ];
   }
@@ -62,13 +63,13 @@ export function tabBarShowsOn(path: string): boolean {
  * Phones only (app/ux/chrome.css shows it up to 720px). The outer element stays in the page's flow at the bar's height,
  * so the foot of every page scrolls clear of it, and wherever the bar is hidden that room goes with it.
  */
-export default function PhoneTabBar({ companions = false, chat = true, unread = 0 }: { companions?: boolean; chat?: boolean; /** Unread texts of both kinds: a dot on Chat. */ unread?: number }) {
+export default function PhoneTabBar({ companions = false, chat = true, unread = 0, hasCharacter = true }: { companions?: boolean; chat?: boolean; /** Unread texts of both kinds: a dot on Chat. */ unread?: number; /** The viewer has a character: Studio opens on their own. */ hasCharacter?: boolean }) {
   const pathname = usePathname() ?? "/";
   if (!tabBarShowsOn(pathname)) return null;
   return (
     <div className="tabbar">
       <nav className="tabbar-nav" aria-label="Sections">
-        {tabBarTabs(companions, chat).map((t) => {
+        {tabBarTabs(companions, chat, hasCharacter).map((t) => {
           const here = atLink(t, pathname);
           return (
             <Link key={t.href} href={t.href} className="tabbar-tab" aria-current={here ? "page" : undefined}>
