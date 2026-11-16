@@ -26,8 +26,13 @@ describe("watched it end, for readers too", () => {
 });
 
 describe("shares that say where their visitors came from", () => {
-  it("knows the four share tags, through the 18+ gate too, and nothing else", () => {
-    expect([...BEACON_REFS]).toEqual(["share", "invite", "double", "owner"]);
+  it("knows the four share tags and a casting invite's own, through the 18+ gate too, and nothing else", () => {
+    expect([...BEACON_REFS]).toEqual(["share", "invite", "double", "owner", "casting_invite"]);
+    // A casting invite's link carries no tag: its page is one (lib/casting-invites.ts), and a tag on the link still wins.
+    expect(beaconRef("/casting/invite/Ab3_x-9QzK")).toBe("casting_invite");
+    expect(beaconRef("/gate", "?from=%2Fcasting%2Finvite%2FAb3_x-9QzK")).toBe("casting_invite");
+    expect(beaconRef("/casting/invite/Ab3_x-9QzK", "?ref=share")).toBe("share");
+    expect(beaconRef("/casting")).toBeNull();
     expect(beaconRef("/date/abc", "?ref=invite")).toBe("invite");
     expect(beaconRef("/gate", "?from=%2Fdouble%2Fabc%3Fref%3Ddouble")).toBe("double");
     expect(beaconRef("/episodes/x", "?ref=owner")).toBe("owner");

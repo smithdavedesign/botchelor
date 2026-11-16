@@ -59,6 +59,9 @@ describe("what the beacon keeps", () => {
     expect(normalizePath("/characters/3f2a9c1e-1b2c-4d5e-8f90-1234567890ab?x=1#y")).toBe("/characters/:id");
     expect(normalizePath("/episodes/12345/watch")).toBe("/episodes/:id/watch");
     expect(normalizePath("/ship/Ada+Bo")).toBe("/ship");
+    // A casting invite's code is private: every invite is the one page.
+    expect(normalizePath("/casting/invite/Ab3_x-9QzK?x=1")).toBe("/casting/invite");
+    expect(normalizePath("/casting")).toBe("/casting");
     expect(normalizePath("/c/juniper-a1b2c3d4")).toBe("/c/:id");
     expect(normalizePath("/Watch/")).toBe("/watch");
     expect(normalizePath("")).toBe("/");
@@ -75,6 +78,7 @@ describe("what the beacon keeps", () => {
     expect(sourceOf({ ref: "invite" })).toBe("date_link");
     expect(sourceOf({ ref: "double" })).toBe("double_link");
     expect(sourceOf({ ref: "owner" })).toBe("owner_share");
+    expect(sourceOf({ ref: "casting_invite" })).toBe("invite");
     expect(sourceOf({ ref: "constructor" })).toBe("direct"); // not a known tag, and never a prototype name
     expect(sourceOf({ ref_host: "www.google.com" })).toBe("google");
     expect(sourceOf({ ref_host: "old.reddit.com" })).toBe("reddit");

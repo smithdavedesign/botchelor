@@ -4175,6 +4175,21 @@ alter table relationships add column if not exists shown_stage text;
 alter table relationships add column if not exists public_shown_stage text;
 alter table relationship_events add column if not exists from_shown text;
 alter table relationship_events add column if not exists to_shown text;
+-- Creator invites for casting (lib/casting-invites.ts, docs/casting-invites.md): one code, one character. An invited
+-- creator's character skips the three-date wait, is pre-approved and goes straight on an audition date with the lead.
+-- season_id: the season auditions were for when the code was made; note: the admin's own (who it is for), never shown
+-- publicly. Used once: used_at, used_by (the owner) and the character are set together, with the approved audition.
+create table if not exists casting_invites (
+  code text primary key,
+  season_id text not null,
+  note text,
+  created_at timestamptz not null default now(),
+  expires_at timestamptz not null default now() + interval '30 days',
+  used_at timestamptz,
+  used_by text,
+  character_id text references characters (id) on delete set null
+);
+create index if not exists casting_invites_created_idx on casting_invites (created_at desc);
 `;
 
 /** Idempotent: creates the tables and upserts the house characters, free and premium. */

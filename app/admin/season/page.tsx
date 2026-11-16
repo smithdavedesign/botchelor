@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import SeasonPanel from "./SeasonPanel";
 import ProducerPanel from "./ProducerPanel";
+import InvitesPanel from "./InvitesPanel";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Seasons · Admin · Botchelor", robots: { index: false, follow: false } };
@@ -24,6 +25,8 @@ export default function AdminSeasonPage() {
         </p>
       </details>
       <SeasonPanel />
+      {/* Creator invites for casting (lib/casting-invites.ts): the codes and a small form that makes more. */}
+      <InvitesPanel />
       {/* The producer's last week and tomorrow's skip (lib/producer.ts). */}
       <ProducerPanel />
     </article>
