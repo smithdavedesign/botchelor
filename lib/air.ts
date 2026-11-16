@@ -10,6 +10,7 @@
  * whoever booked it, the next time anyone opens it or the hourly job runs. A host who wants it off the air makes it
  * private ("offline"), which it then stays. A watch party's premiere airs live in its room instead.
  */
+import { seasonAtSql, seasonKeysOn } from "./show-seasons";
 import { callRecord, NO_CALLS, runNote } from "./streaks";
 import { titleEpisodeOnAir } from "./episode-title";
 import { teaseAfterAir } from "./after-date-text";
@@ -60,9 +61,11 @@ export const airsWhen = (env: Record<string, string | undefined> = process.env):
  * reports). A private date is offline (David, 2026-10-18): it never airs; making it public or unlisted puts it on.
  */
 export async function airEpisode(db: Db, id: string, hostId: string, opts: { airedBy?: string | null } = {}): Promise<Aired | null> {
+  // The season it airs in, from the registry (lib/show-seasons.ts): stored with the air time, not worked out later.
+  const stamp = seasonKeysOn() ? `, season_id = coalesce(e.season_id, ${seasonAtSql("now()", "e.show_id")})` : "";
   const revealed = (
     await db.query<{ ending: Ending; character_a: string; character_b: string }>(
-      `update episodes e set revealed_at = now(), air_after = null
+      `update episodes e set revealed_at = now(), air_after = null${stamp}
         where e.id = $1 and e.creator_id = $2 and e.revealed_at is null and e.status = 'ready' and e.visibility <> 'private'
           and (select count(*) from reports r where r.episode_id = e.id) < $3
        returning e.ending, e.character_a, e.character_b`,

@@ -13,6 +13,7 @@
  *  - template: an always-on house-vs-house date; starts_at is null until the first viewer joins, then it
  *    plays on one shared clock — "join and the date starts" — so there is always something to drop into.
  */
+import { seasonAtSql, seasonKeysOn } from "./show-seasons";
 import { isInsider, showCrowd } from "./crowd-threshold";
 import { getDb, type Db } from "./db";
 import { dateNumberSql } from "./date-number";
@@ -615,7 +616,7 @@ export async function syncRoom(
   if (watchClock(startsAt, now).phase_index >= WATCH_DECISION_INDEX) {
     const aired = (
       await db.query<{ character_a: string; character_b: string }>(
-        `update episodes set revealed_at = now()
+        `update episodes set revealed_at = now()${seasonKeysOn() ? `, season_id = coalesce(episodes.season_id, ${seasonAtSql("now()", "episodes.show_id")})` : ""}
           where id = $1 and revealed_at is null
             and (select count(*) from reports r where r.episode_id = episodes.id) < $2
          returning character_a, character_b`,

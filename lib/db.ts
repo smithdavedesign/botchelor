@@ -4272,6 +4272,36 @@ create table if not exists show_idea_votes (
   primary key (idea_id, user_id)
 );
 create index if not exists show_idea_votes_user_idx on show_idea_votes (user_id);
+-- Shows and their seasons as rows (lib/show-seasons.ts, docs/data-model.md; the connected-model plan, stages 1 and 2).
+-- A season id was only ever computed from a date: nothing could be joined to it, and a season's format was read from
+-- the live ballot. show_seasons.id is the id every season_id column already holds; the row adds its show, number, span
+-- and its format, frozen once it starts. Rows are written by the hourly job (ensureShowSeasons), never here.
+create table if not exists shows (
+  id text primary key check (id ~ '^[a-z][a-z0-9-]{1,39}$'),
+  title text not null,
+  status text not null default 'on_air' check (status in ('on_air', 'ended')),
+  -- Who runs it: null is the house.
+  producer_id text,
+  created_at timestamptz not null default now()
+);
+insert into shows (id, title) values ('botchelor', 'Botchelor') on conflict (id) do nothing;
+create table if not exists show_seasons (
+  id text primary key,
+  show_id text not null default 'botchelor' references shows(id),
+  number integer,
+  starts_at timestamptz not null,
+  ends_at timestamptz not null,
+  format text,
+  format_source text check (format_source in ('admin', 'ballot', 'default')),
+  created_at timestamptz not null default now(),
+  check (ends_at > starts_at)
+);
+create index if not exists show_seasons_span_idx on show_seasons (show_id, starts_at, ends_at);
+-- A date knows the season and show it aired in: stamped when it airs (lib/air.ts, lib/watch.ts), older ones filled by
+-- the hourly job a batch at a time (backfillEpisodeSeasons). Null until a date airs. No foreign key: additive only.
+alter table episodes add column if not exists season_id text;
+alter table episodes add column if not exists show_id text not null default 'botchelor';
+create index if not exists episodes_season_idx on episodes (season_id, revealed_at desc) where season_id is not null;
 `;
 
 /** Idempotent: creates the tables and upserts the house characters, free and premium. */
