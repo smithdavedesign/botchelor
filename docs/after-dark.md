@@ -3371,7 +3371,7 @@ From the local visual audit (`ONLY=after-dark-step-in npm run e2e:visual`, which
 an admin, on the audit's stand-in model: the words in the scene are the stand-in's, not a character's.
 
 **Live** (ad.botchelor.com, the audit account, 2026-11-17, after #1781): the rooftop bar, "Married, meeting as
-strangers" from the first side, opening 1. The viewer's line, the character's reply, then Continue.
+strangers" from the first side, its first opening. The viewer's line, the character's reply, then Continue.
 
 | Desktop | Phone |
 | --- | --- |
