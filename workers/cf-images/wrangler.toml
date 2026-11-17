@@ -1,0 +1,26 @@
+# botchelor-images: Workers AI inside the free daily allowance. What it does and how to deploy it: README.md.
+# No account id or resource id lives here (the repo is public). Wrangler takes the account from the login.
+name = "botchelor-images"
+main = "worker.ts"
+compatibility_date = "2026-11-01"
+workers_dev = true
+preview_urls = false
+
+[ai]
+binding = "AI"
+
+[vars]
+# Neurons a day the Worker will spend, out of Cloudflare's free 10,000 (reset 00:00 UTC). The account is on Workers
+# Paid, so anything past the free 10,000 would bill: this budget is what keeps it free.
+DAILY_NEURONS = "9000"
+
+[[durable_objects.bindings]]
+name = "BUDGET"
+class_name = "DailyBudget"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["DailyBudget"]
+
+[observability]
+enabled = false

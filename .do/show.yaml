@@ -536,6 +536,16 @@ services:
         type: SECRET
         value: "CHANGE_ME"
         scope: RUN_AND_BUILD_TIME
+      # Free pictures (docs/PRDs/styles-and-storylines.md, phase 1): the botchelor-images Worker's address and its gate
+      # key (keychain vault/botchelor/WORKERS_AI_KEY). Off while either is CHANGE_ME; WORKERS_AI=0 turns it off too.
+      - key: WORKERS_AI_URL
+        type: SECRET
+        value: "CHANGE_ME"
+        scope: RUN_TIME
+      - key: WORKERS_AI_KEY
+        type: SECRET
+        value: "CHANGE_ME"
+        scope: RUN_TIME
       # The show's Discord (docs/discord.md), off while these are CHANGE_ME. DISCORD_WEBHOOK_URL takes every post; the
       # other three send their kind to a channel of its own (a CHANGE_ME one goes to DISCORD_WEBHOOK_URL). Each holds a
       # webhook's token. DISCORD_INVITE_URL is the footer's invite: not a secret, so commit it here once it's made.

@@ -66,23 +66,30 @@ clearly adult show format is an open lane.
 
 ## 1. Free pictures and the 2.5D pilot
 
-**Workers AI.** `lib/workers-ai.ts` draws through Cloudflare Workers AI's REST API. Its free allowance is 10,000 neurons a
-day, reset at 00:00 UTC.
+**Workers AI.** Free pictures come from our own Cloudflare Worker, `botchelor-images` ([workers/cf-images](../../workers/cf-images/README.md)),
+which runs Workers AI. Its free allowance is 10,000 neurons a day, reset at 00:00 UTC. The show calls the Worker through
+`lib/workers-ai.ts` with a gate key. No Cloudflare API token exists for it.
 
-| Model | Used for | Cost |
+| Model | Used for | Cost (checked against Cloudflare's own count, 2026-11-17) |
 | --- | --- | --- |
-| `@cf/black-forest-labs/flux-2-klein-4b` (Apache 2.0) | portraits and shots from up to 4 reference images (each under 512×512) | 26.05 neurons per 512×512 output tile, 5.37 per reference tile: a 640×800 portrait ≈ 104 |
-| `@cf/black-forest-labs/flux-1-schnell` | empty sets (the model the sets already use on fal) | 4.8 a tile plus 9.6 a step: a 16:9 set ≈ 67 |
+| `@cf/black-forest-labs/flux-2-klein-4b` (Apache 2.0) | portraits, shots, expressions and 16:9 sets, from up to 4 reference images (each under 512×512) | about 104 neurons a picture whatever its size (billed as at least 1024×1024), plus about 5 a reference |
+| `@cf/black-forest-labs/flux-1-schnell` | cheap squares | it takes no size and always draws 1024×1024: about 58 neurons at 4 steps |
 
-- A daily budget (`WORKERS_AI_DAILY_NEURONS`, default 9,500) is counted in the database by UTC day. A call over budget
-  returns "budget" and the caller falls back.
-- On Cloudflare's free Workers plan, usage past the allowance fails rather than bills.
-- Keys:
-  - `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_AI_TOKEN` (Workers AI only) go on the show app.
-  - The token is kept in the keychain with its cap recorded.
-- **Checks:** Workers AI has no safety checker of its own. The show's check therefore also asks whether anything is
-  explicit when a picture comes from a source without a filter. A refusal is never redrawn from the same prompt: the
-  look changes first.
+- **The budget:** a Durable Object in the Worker counts neurons by UTC day and refuses past `DAILY_NEURONS` (9,000).
+  That's about 80 pictures a day. A refused call returns "budget", and the caller falls back.
+- **Why it matters:** the account is on Workers Paid, so use past the free allowance would bill rather than fail. The
+  Worker's budget is what keeps it free.
+- **Smaller pictures don't save anything:** a 512×512 face costs as much as a portrait. So faces are drawn large, or
+  several to one sheet.
+- **Keys:**
+  - The show app gets `WORKERS_AI_URL` and `WORKERS_AI_KEY`. `WORKERS_AI=0` turns it off.
+  - The gate key lives in the keychain (`vault/botchelor/WORKERS_AI_KEY`), with "no spend" recorded as its cap.
+- **Checks:**
+  - Workers AI has no safety checker of its own. The show's question on the Venice vision model already asked about
+    nudity and sexual content. Hive's way (no Venice key) and a Sightengine-only setup didn't.
+  - `checkMedia(…, "pg_image", { unfiltered: true })` closes that gap. An unfiltered picture needs a checker that asked
+    whether it's explicit, and Hive's way refuses it at an NSFW score of 0.3, the line a set is held to.
+  - A refusal is never redrawn from the same prompt: the look changes first.
 
 **House style tokens:**
 
@@ -96,6 +103,13 @@ rich but controlled color, clean linework on faces, expressive eyes, reality-sho
 - Every shot after the hero is drawn from the character's own hero card.
 - The batch is checked on the Mac, then uploaded through an admin route that runs the site's checks.
 - **Done when** David has picked the look from a side-by-side sheet.
+- **Drawn 2026-11-17:**
+  - Marisol, Teo, Sable, Boaz and Odalys, each hero restyled from the portrait the site shows today.
+  - Three looks: A is the brief's tokens, B is closer to photo, C is cel-shaded.
+  - Then look A's full set: 55 pictures in all, about 6,500 neurons, $0, 4–8 seconds each.
+  - Faces held across every shot, and everyone read as an adult. Look C read about ten years younger on the
+    45-year-old, the drift the age check is there for.
+  - The sheet is a private page for David.
 
 ## 2. One art style per character
 
@@ -115,7 +129,8 @@ rich but controlled color, clean linework on faces, expressive eyes, reality-sho
 ## 3. House look and show kit
 
 - **The house look:** the house and season cast are redrawn in the chosen look: hero, full body, confessional and six
-  expressions each. That's about 180 pictures over 2–3 days of free budget, uploaded through the checked admin path.
+  expressions each. That's about 180 pictures over 2–3 days of free budget (about 80 a day), uploaded through the
+  checked admin path. Six faces drawn to one sheet would make that about 80 pictures.
 - **Sets** (16:9, empty, no text but the sign):
   - the stage, the blind-date booth, the confessional and elimination;
   - four themed venues with their sets: a gothic manor (spooky, supernatural), a countryside picnic (cozy), a
@@ -203,8 +218,10 @@ Each phase ships as one or two PRs:
 
 - **Quality:** klein 4B's 2.5D look, or its faces drifting across shots, may disappoint. The pilot decides. Fallbacks are
   this Mac's ComfyUI or staying photoreal.
-- **One free budget for everything:** house batches and users' portraits share it. Batches take what's left after
-  20:00 UTC, and users' portraits fall back to fal as today.
+- **One free budget for everything:** house batches and users' portraits share about 80 pictures a day. Batches take
+  what's left after 20:00 UTC, and users' portraits fall back to fal as today.
+- **Billing past the allowance:** the account is on Workers Paid, so the Worker's budget is the only stop. Its estimate
+  errs high and can be raised to Cloudflare's own count (`POST /budget`).
 - **Drawn styles can read younger:** every drawn picture gets the age check, drawn styles add adult cues, and a refusal
   is never re-rolled unchanged.
 - **Arcs can feel scripted:** they steer wants and settings only. The engine's ending stands, and the arc bends to it.
