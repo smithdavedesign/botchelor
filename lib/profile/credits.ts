@@ -124,7 +124,7 @@ export async function syncSeasonAwards(db: Db, limit = 12): Promise<number> {
 type Row = {
   character_id: string;
   season_id: string;
-  kind: "cast" | "badge" | "walk_on" | "award" | "dates" | "audition";
+  kind: "cast" | "lead_pick" | "badge" | "walk_on" | "award" | "dates" | "audition";
   detail: string | null;
   flag: boolean;
   n: number;
@@ -156,6 +156,10 @@ export async function characterCredits(db: Db, ids: readonly string[], opts: { v
        select sc.character_id, sc.season_id, 'cast'::text as kind, sc.source::text as detail, (sc.withdrawn_at is not null) as flag, 0 as n, 0 as m
          from season_casts sc join ok on ok.id = sc.character_id
        union all
+       -- The lead picked for a season before its cast is dealt (/admin/season): the cast row only exists once it starts.
+       select sl.character_id, sl.season_id, 'lead_pick', null, false, 0, 0
+         from season_leads sl join ok on ok.id = sl.character_id
+       union all
        select b.character_id, b.season_id, 'badge', b.badge::text, false, 0, 0
          from suitor_badges b join ok on ok.id = b.character_id
        union all
@@ -180,7 +184,7 @@ export async function characterCredits(db: Db, ids: readonly string[], opts: { v
   );
 
   const current = seasonIdOf(now);
-  type Building = CharacterCredit & { roles: Set<CreditRole> };
+  type Building = CharacterCredit & { roles: Set<CreditRole>; leadPick: boolean };
   const byKey = new Map<string, Building>();
   for (const r of rows) {
     // The leaderboard weeks before the first monthly season are not seasons of the show: no number, no credit.
@@ -203,6 +207,7 @@ export async function characterCredits(db: Db, ids: readonly string[], opts: { v
         honours: [],
         when: r.season_id === current ? "now" : r.season_id > current ? "next" : "past",
         roles: new Set(),
+        leadPick: false,
       };
       byKey.set(key, c);
       out.set(r.character_id, [...(out.get(r.character_id) ?? []), c]);
@@ -210,6 +215,8 @@ export async function characterCredits(db: Db, ids: readonly string[], opts: { v
     if (r.kind === "cast") {
       c.roles.add(castRole(r.detail));
       if (r.flag) c.withdrawn = true;
+    } else if (r.kind === "lead_pick") {
+      c.leadPick = true;
     } else if (r.kind === "badge") {
       if (r.detail === "suitor") c.roles.add("suitor");
       else if (r.detail && BADGE_LABEL[r.detail]) c.honours.push({ key: r.detail, label: BADGE_LABEL[r.detail] });
@@ -233,10 +240,13 @@ export async function characterCredits(db: Db, ids: readonly string[], opts: { v
   for (const [characterId, list] of out) {
     const done: CharacterCredit[] = [];
     for (const b of list as Building[]) {
-      const { roles, ...credit } = b;
-      credit.role = CREDIT_ROLES.find((role) => roles.has(role)) ?? "guest";
+      const { roles, leadPick, ...credit } = b;
       credit.format = credit.format ?? resolved.get(credit.season_id) ?? null;
       credit.format_title = credit.format ? seasonFormat(credit.format).title : null;
+      // A lead pick only means something on a season whose format has a lead (The Botchelor): on any other it is a
+      // leftover of a format that was changed, and says nothing.
+      if (leadPick && credit.format && seasonFormat(credit.format).lead) roles.add("lead");
+      credit.role = CREDIT_ROLES.find((role) => roles.has(role)) ?? "guest";
       // An audition alone (never cast, never dated that season) is the owner's business only, and still a row for them.
       // A season with nothing to say is not a credit.
       if (credit.role === "guest" && credit.dates === 0 && !credit.honours.length && !credit.audition) continue;
