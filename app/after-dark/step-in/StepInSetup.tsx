@@ -7,6 +7,7 @@ import CharacterName from "@/app/CharacterName";
 import CrisisNotice, { crisisFrom } from "@/app/CrisisNotice";
 import { ROLEPLAYS } from "@/lib/adult/roleplays";
 import { adultTagById, roleplayGroups } from "@/lib/adult/tags";
+import { useAdultTagDemand } from "@/app/after-dark/useAdultTagDemand";
 import type { StepInCharacter, StepInPlace } from "@/lib/adult/step-in";
 import type { CrisisResources } from "@/lib/crisis";
 import { premiseForYou } from "@/lib/roleplays";
@@ -61,7 +62,8 @@ export default function StepInSetup({
   // (They name who the viewer is with, so they wait for a pick: "when them walks in" reads wrong.)
   const openings = !character ? [] : card ? card.openings : GENERIC_OPENINGS.map((o) => premiseForYou(o, "a", name));
   // Grouped by who they are to each other (each roleplay's first setup tag, lib/adult/tags.ts), most wanted first.
-  const byCategory = useMemo(() => roleplayGroups(ROLEPLAYS), []);
+  const demand = useAdultTagDemand();
+  const byCategory = useMemo(() => roleplayGroups(ROLEPLAYS, demand ?? undefined), [demand]);
 
   async function start() {
     if (!character || !place || busy) return;

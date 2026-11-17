@@ -91,6 +91,8 @@ export const SHEET_PROPS = {
   appearance: str(APPEARANCE_MAX, "Optional look, in words. No images."),
   pronouns: { type: "string", enum: [...PRONOUNS], description: "Optional: how others refer to them." },
   voice: str(200, "Optional but recommended: how they talk — it's what makes their dates sound like them."),
+  // 2.36.0: what kind of person (lib/character-tags-shared.ts); a wrong one is refused with the whole list.
+  tags: { type: "array", items: { type: "string" }, maxItems: 4, description: 'Optional type tags, e.g. ["cold","nerd"]; [] reads them from the traits.' },
   soul: {
     type: "object",
     description: "Optional private soul: owner-only, never shown to the audience or the other character; it shapes how your character behaves on a date. Same content rules.",

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { characterTags } from "@/lib/character-tags";
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import CreateWizard, { type EditInitial } from "@/app/create/CreateWizard";
@@ -51,7 +52,8 @@ export default async function EditCharacterPage({ params }: { params: Promise<{ 
   ).rows[0];
   if (!row) notFound(); // not yours (or not there): no hint which
 
-  const [soul, portraitId, hiding] = await Promise.all([loadSoul(db, id), approvedPortraitId(db, id), ownSecrets(db, id).catch(() => [])]);
+  const [soul, portraitId, hiding, tagged] = await Promise.all([loadSoul(db, id), approvedPortraitId(db, id), ownSecrets(db, id).catch(() => []), characterTags(db, [id]).catch(() => null)]);
+  const tags = tagged?.get(id);
   const initial: EditInitial = {
     name: row.name,
     age: row.age,
@@ -64,6 +66,8 @@ export default async function EditCharacterPage({ params }: { params: Promise<{ 
     appearance: row.appearance,
     hue: row.avatar_hue,
     openToDates: row.open_to_dates,
+    // Only the owner's own pick (lib/character-tags.ts): the automatic ones are re-read live on the form.
+    ownTags: tags?.source === "owner" ? tags.tags : null,
     extras: row.extras ?? {},
     soul: soul
       ? {

@@ -12721,21 +12721,37 @@ details > summary.small {
   }
 }
 
-/* Find a character (app/characters/page.tsx SearchForm): a box and its button on one row, at every width. */
+/* Find a character (app/characters/page.tsx SearchForm): a box, the type and love-life menus (docs/tags.md) and the
+   button on one row; on a phone the box takes the first row and the menus and button share the second. */
 .characters-search {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--space-2);
   align-items: stretch;
-  max-width: 36rem;
+  max-width: 52rem;
   margin: var(--space-3) 0;
 }
 .characters-search input {
-  flex: 1 1 auto;
+  flex: 1 1 14rem;
+  min-width: 0;
+  margin: 0;
+}
+.characters-search select {
+  flex: 1 1 9rem;
+  width: auto;
   min-width: 0;
   margin: 0;
 }
 .characters-search button {
   flex: 0 0 auto;
+  margin: 0;
+}
+@media (max-width: 40rem) {
+  .characters-search input {
+    flex-basis: 100%;
+  }
+}
+.dir-tags {
   margin: 0;
 }
 .characters-results h2 {
@@ -13398,6 +13414,18 @@ button.thread-menu-item:hover:not(:disabled) {
   font-size: var(--text-2xs);
   font-weight: 600;
   letter-spacing: 0.01em;
+}
+/* What kind of person (app/create/TypeTagChips.tsx): the picker's chips, wrapping at every width (a form, not a shelf);
+   a chip the show read from the traits has a dashed edge until the owner chooses. */
+.type-tags {
+  margin: var(--space-3) 0;
+}
+.type-tags .rp-tags {
+  flex-wrap: wrap;
+  overflow-x: visible;
+}
+.type-tags .rp-tag.type-tag-auto[aria-pressed="true"] {
+  border-style: dashed;
 }
 /* One from their Create library (lib/studio/library.ts): set apart by a dashed edge until it's picked. */
 .rp-tile-yours:not([aria-pressed="true"]) {

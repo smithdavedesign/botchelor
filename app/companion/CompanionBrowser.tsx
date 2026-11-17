@@ -7,6 +7,8 @@ import Icon from "@/app/Icon";
 import EmptyState from "@/app/EmptyState";
 import When from "@/app/When";
 import type { CompanionListItem, CompanionSource } from "@/lib/companion";
+import { byDemand, STATUSES, tagById, tagsIn } from "@/lib/tags";
+import { useTagDemand } from "@/app/useTagDemand";
 import TalkButton from "./TalkButton";
 
 const first = (name: string) => name.split(/\s+/)[0] || name;
@@ -38,6 +40,14 @@ const STYLES = [
 ] as const;
 type Style = (typeof STYLES)[number]["id"];
 export const matchesStyle = (c: CompanionListItem, style: Style) => style === "any" || c.style === style;
+
+/** What kind of person (lib/character-tags.ts): the type tags, most wanted first (ours, lib/tag-demand.ts, else the census). */
+const typesBy = (demand?: Record<string, number>) => [{ id: "any", label: "Any type", icon: "" }, ...byDemand(tagsIn("type"), "sfw", demand)];
+const TYPES = typesBy();
+/** Their love life, from the relationship graph's public layer: a private date never counts. */
+const LOVE = [{ id: "any", label: "Any love life", icon: "" }, ...STATUSES];
+export const matchesType = (c: CompanionListItem, type: string) => type === "any" || c.tags.includes(type as never);
+export const matchesLove = (c: CompanionListItem, love: string) => love === "any" || c.status === love;
 
 const SORTS = [
   { id: "suggested", label: "Suggested" },
@@ -135,6 +145,15 @@ function Tile({ c, signIn }: { c: CompanionListItem; signIn: boolean }) {
         </div>
       </div>
       <p className="companion-tile-bio small">{c.bio}</p>
+      {c.tags.length > 0 && (
+        <p className="muted small companion-tile-tags">
+          {c.tags
+            .map((t) => tagById(t))
+            .filter(Boolean)
+            .map((t) => `${t!.icon} ${t!.label}`)
+            .join(" · ")}
+        </p>
+      )}
       {c.traits.length > 0 && (
         <ul className="chips companion-tile-traits" aria-label="Traits">
           {c.traits.map((t) => (
@@ -153,10 +172,11 @@ function Tile({ c, signIn }: { c: CompanionListItem; signIn: boolean }) {
 
 /**
  * The companions list (app/companion/page.tsx), filterable on the page: a search, who they are (on the show now, house
- * cast, agent-made, a creator's, yours), pronouns, how they're drawn (realistic or anime), and a sort. Your conversations stay on top, above the filters, and the filters never touch them.
+ * cast, agent-made, a creator's, yours), pronouns, how they're drawn (realistic or anime), what kind of person and their
+ * love life (docs/tags.md), and a sort. Your conversations stay on top, above the filters, and the filters never touch them.
  * Everything is client-side: the page sends at most ~170 people.
  */
-export type CompanionFilters = { q?: string; who?: string; pronouns?: string; style?: string; sort?: string };
+export type CompanionFilters = { q?: string; who?: string; pronouns?: string; style?: string; type?: string; love?: string; sort?: string };
 
 const oneOf = <T extends string>(list: readonly { id: T }[], v: string | undefined, fallback: T): T => list.find((x) => x.id === v)?.id ?? fallback;
 
@@ -169,16 +189,18 @@ export default function CompanionBrowser({
   threads: CompanionListItem[];
   others: CompanionListItem[];
   signIn?: boolean;
-  /** The filters from the URL (?q=&who=&pronouns=&style=&sort=), so Back and a shared link keep them. */
+  /** The filters from the URL (?q=&who=&pronouns=&style=&type=&love=&sort=), so Back and a shared link keep them. */
   initial?: CompanionFilters;
 }) {
   const [q, setQ] = useState(initial.q ?? "");
   const [who, setWho] = useState<Who>(oneOf(WHO, initial.who, "all"));
   const [pronouns, setPronouns] = useState<Pronouns>(oneOf(PRONOUNS, initial.pronouns, "any"));
   const [style, setStyle] = useState<Style>(oneOf(STYLES, initial.style, "any"));
+  const [type, setType] = useState<string>(oneOf(TYPES, initial.type, "any"));
+  const [love, setLove] = useState<string>(oneOf(LOVE, initial.love, "any"));
   const [sort, setSort] = useState<Sort>(oneOf(SORTS, initial.sort, "suggested"));
   // How far down "Show more" has gone, for these filters: a new search, filter or sort starts from the first page again.
-  const filterKey = `${q.trim()}|${who}|${pronouns}|${style}|${sort}`;
+  const filterKey = `${q.trim()}|${who}|${pronouns}|${style}|${type}|${love}|${sort}`;
   const [paging, setPaging] = useState({ key: filterKey, limit: COMPANIONS_PAGE });
   const limit = paging.key === filterKey ? paging.limit : COMPANIONS_PAGE;
 
@@ -190,23 +212,31 @@ export default function CompanionBrowser({
     set("who", who, "all");
     set("pronouns", pronouns, "any");
     set("style", style, "any");
+    set("type", type, "any");
+    set("love", love, "any");
     set("sort", sort, "suggested");
     const next = `${window.location.pathname}${params.size ? `?${params}` : ""}${window.location.hash}`;
     if (next !== `${window.location.pathname}${window.location.search}${window.location.hash}`) window.history.replaceState(window.history.state, "", next);
-  }, [q, who, pronouns, style, sort]);
+  }, [q, who, pronouns, style, type, love, sort]);
 
   const counts = useMemo(() => new Map(WHO.map((w) => [w.id, others.filter((c) => matchesWho(c, w.id)).length])), [others]);
   const shown = useMemo(
-    () => sorted(others.filter((c) => matchesWho(c, who) && (pronouns === "any" || c.pronouns === pronouns) && matchesStyle(c, style) && matchesQuery(c, q)), sort),
-    [others, who, pronouns, style, q, sort],
+    () => sorted(others.filter((c) => matchesWho(c, who) && (pronouns === "any" || c.pronouns === pronouns) && matchesStyle(c, style) && matchesType(c, type) && matchesLove(c, love) && matchesQuery(c, q)), sort),
+    [others, who, pronouns, style, type, love, q, sort],
   );
   const anyAnime = useMemo(() => others.some((c) => c.style === "anime"), [others]);
-  const filtered = q.trim() !== "" || who !== "all" || pronouns !== "any" || style !== "any";
+  const filtered = q.trim() !== "" || who !== "all" || pronouns !== "any" || style !== "any" || type !== "any" || love !== "any";
+  // Only the types and love lives someone listed has: a menu entry with nobody behind it is a dead end.
+  const typeDemand = useTagDemand()?.types;
+  const typesShown = useMemo(() => typesBy(typeDemand).filter((t) => t.id === "any" || t.id === type || others.some((c) => c.tags.includes(t.id as never))), [others, type, typeDemand]);
+  const lovesShown = useMemo(() => LOVE.filter((l) => l.id === "any" || l.id === love || others.some((c) => c.status === l.id)), [others, love]);
   const clear = () => {
     setQ("");
     setWho("all");
     setPronouns("any");
     setStyle("any");
+    setType("any");
+    setLove("any");
   };
 
   return (
@@ -252,6 +282,32 @@ export default function CompanionBrowser({
                 {STYLES.map((st) => (
                   <option key={st.id} value={st.id}>
                     {st.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          {typesShown.length > 1 && (
+            <label>
+              <span className="sr-only">Type</span>
+              <select value={type} onChange={(e) => setType(e.target.value)}>
+                {typesShown.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.icon ? `${t.icon} ` : ""}
+                    {t.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          {lovesShown.length > 2 && (
+            <label>
+              <span className="sr-only">Love life</span>
+              <select value={love} onChange={(e) => setLove(e.target.value)}>
+                {lovesShown.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.icon ? `${l.icon} ` : ""}
+                    {l.label}
                   </option>
                 ))}
               </select>

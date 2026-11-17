@@ -19,6 +19,7 @@ const BY_PATH: Record<string, string> = {
   appearance: "How the character looks.",
   pronouns: "The character's pronouns.",
   voice: "How the character talks.",
+  tags: "What kind of person: type tags.",
   soul: "Private soul fields that steer behavior; never shown.",
   "soul.values": "What the character values most.",
   "soul.insecurities": "What makes the character self-conscious.",

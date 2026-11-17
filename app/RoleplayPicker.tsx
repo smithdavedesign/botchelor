@@ -10,6 +10,7 @@ import { byDemand, SETUPS_FOR_STAGE, TAGS, tagById, type TagId } from "@/lib/tag
 import { CARD_OPENING_MAX, cardForYou, GENERIC_OPENINGS } from "@/lib/scene-cards";
 import type { OpeningChoice } from "@/lib/scene-opening";
 import type { MyRoleplay } from "@/lib/studio/library";
+import { useTagDemand } from "@/app/useTagDemand";
 
 /** The roleplays that fit where a pair stands (lib/tags.ts SETUPS_FOR_STAGE): the "For these two" shelf. */
 export function forStage(stage: Stage | null | undefined): typeof DATE_ROLEPLAYS {
@@ -111,6 +112,9 @@ export default function RoleplayPicker({
   demand?: Readonly<Record<string, number>>;
 }) {
   const id = useId();
+  // Our own demand orders the chips once it's here (lib/tag-demand.ts); the census until then.
+  const fetched = useTagDemand();
+  const order = demand ?? fetched?.roleplays;
   const pairShown = forStage(stage);
   // A pair with a history opens on what fits them; anyone else on everything.
   const [tag, setTag] = useState<TagId | "all" | "yours" | "pair">(pairShown.length ? "pair" : "all");
@@ -186,7 +190,7 @@ export default function RoleplayPicker({
     { id: "all" as const, label: "All", icon: "✨", about: "Every roleplay" },
     ...(yours?.length ? [{ id: "yours" as const, label: "Yours", icon: "✨", about: "The ones in your Create library" }] : []),
     ...(pairShown.length ? [{ id: "pair" as const, label: "For these two", icon: "💞", about: "The ones that fit where the two of them stand" }] : []),
-    ...shelfTags("setup", demand),
+    ...shelfTags("setup", order),
   ];
   const chip = (t: { id: TagId | "all" | "yours" | "pair"; label: string; icon: string; about: string }) => (
     <button key={t.id} type="button" className="rp-tag" aria-pressed={tag === t.id} title={t.about} onClick={() => setTag(t.id)}>
@@ -199,7 +203,7 @@ export default function RoleplayPicker({
         {setups.map(chip)}
       </div>
       <div className="rp-tags rp-tags-themes" role="group" aria-label="Kind of story">
-        {shelfTags("theme", demand).map(chip)}
+        {shelfTags("theme", order).map(chip)}
       </div>
       <ul className="rp-grid" aria-label="Roleplays">
         {ownShown.map((x) => {

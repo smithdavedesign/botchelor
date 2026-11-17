@@ -23,6 +23,8 @@ import { stampThisWeek, THIS_WEEK_MAX } from "@/lib/life";
 import { assertSafeSoul, clearSignals, isEmptySoul, loadSoul, normaliseSoul, ownsCharacter, saveSignals, saveSoul, SOUL_FIELDS, SoulInput, unknownSoulKeys } from "@/lib/souls";
 import { WHILE_AWAY_MODES } from "@/lib/activity";
 import { HidingInput, ownSecrets, setOwnSecrets } from "@/lib/cast-secrets";
+import { CHARACTER_TAGS_MAX, parseOwnerTags } from "@/lib/character-tags-shared";
+import { refreshAutoTags, setOwnerTags } from "@/lib/character-tags";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -93,6 +95,9 @@ const CharacterPatch = z
       .optional(),
     // Go deeper: what they're hiding (lib/cast-secrets.ts own secrets), replaced wholesale; [] clears the ones not out yet.
     hiding: HidingInput.optional(),
+    // What kind of person they are (lib/character-tags-shared.ts), replaced wholesale; [] hands them back to the show,
+    // which reads them from the traits. Not part of the sheet, so a fan pick on the cast can still change them.
+    tags: z.array(z.string()).max(CHARACTER_TAGS_MAX, `At most ${CHARACTER_TAGS_MAX} tags.`).optional(),
   })
   .refine((v) => Object.keys(v).length > 0, "Nothing to update.");
 
@@ -220,6 +225,10 @@ export const PATCH = handle(async (req: Request, ctx: Ctx) => {
     }
   }
 
+  // Unknown tags are refused before anything is written.
+  const tagCheck = input.tags === undefined ? null : parseOwnerTags(input.tags);
+  if (tagCheck && !tagCheck.ok) return json({ error: "invalid_character", field: "tags", message: tagCheck.error }, 400, sess);
+
   const columns = Object.keys(COLUMN).filter((c) => c in input);
   if (columns.length) {
     const sets = columns.map((c, i) => `${c} = $${i + 3}${JSONB_COLUMNS.has(c) ? "::jsonb" : ""}`);
@@ -267,8 +276,12 @@ export const PATCH = handle(async (req: Request, ctx: Ctx) => {
   // A dating profile finished on an edit makes a person's character swipe-ready: the welcome experiment (lib/welcome.ts).
   if ("extras" in input && !isMcpCall(req)) await scheduleWelcome(db, id);
 
-  const updated = hidingChanged ? [...columns, "hiding"] : columns;
-  return json({ id, updated, ...(hidingChanged ? { hiding: (await ownSecrets(db, id)).map((s) => s.secret) } : {}), soul_changed: input.soul !== undefined && (await soulWords()) !== soulBefore, signals_changed: signalsChanged, ...(soulKeys.unknown.length ? { ignored_soul_keys: soulKeys.unknown } : {}) }, 200, sess);
+  // Its tags: the owner's pick when sent; otherwise a new bio or traits are read again (an owner's pick is never touched).
+  const tagsSet = tagCheck?.ok ? await setOwnerTags(db, id, tagCheck.tags) : null;
+  if (!tagsSet && ["bio", "traits"].some((k) => k in input)) await refreshAutoTags(db, id);
+
+  const updated = [...columns, ...(hidingChanged ? ["hiding"] : []), ...(tagsSet ? ["tags"] : [])];
+  return json({ id, updated, ...(hidingChanged ? { hiding: (await ownSecrets(db, id)).map((s) => s.secret) } : {}), ...(tagsSet?.ok ? { tags: tagsSet.tags } : {}), soul_changed: input.soul !== undefined && (await soulWords()) !== soulBefore, signals_changed: signalsChanged, ...(soulKeys.unknown.length ? { ignored_soul_keys: soulKeys.unknown } : {}) }, 200, sess);
 });
 
 /** Delete your own character (PRD privacy). Owner-only; kept as a tombstone if it already aired in an episode. */

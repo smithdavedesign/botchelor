@@ -18,6 +18,8 @@ import { nameCheck } from "@/lib/name-check";
 import { assertSafeSoul, isEmptySoul, normaliseSoul, saveSoul, SoulInput, unknownSoulKeys } from "@/lib/souls";
 import { WHILE_AWAY_MODES } from "@/lib/activity";
 import { APPEARANCE_MAX, DEALBREAKER_MAX, NAME_MAX_WORDS, nameWords, TRAIT_MAX, WANT_MAX } from "@/lib/field-limits";
+import { CHARACTER_TAGS_MAX, parseOwnerTags } from "@/lib/character-tags-shared";
+import { characterTags, refreshAutoTags, setOwnerTags } from "@/lib/character-tags";
 
 const MIN_AGE = 18;
 const MAX_AGE = 1000; // immortal OCs are common; anything older is a typo
@@ -76,6 +78,9 @@ const CharacterInput = z.object({
   this_week: z.string().trim().max(THIS_WEEK_MAX, `At most ${THIS_WEEK_MAX} characters.`).optional(),
   // Go deeper: what they're hiding (lib/cast-secrets.ts own secrets). Private until one slips out on a date that airs.
   hiding: HidingInput.optional(),
+  // What kind of person they are (lib/character-tags-shared.ts): type tags from the shared vocabulary. Left out, the
+  // show reads them from the traits.
+  tags: z.array(z.string()).max(CHARACTER_TAGS_MAX, `At most ${CHARACTER_TAGS_MAX} tags.`).optional(),
   attest: z.literal(true, "Confirm you are 18+ and this is your own original character."),
   // #519: run every check a save makes (the schema, the content filter, the soul) and save nothing.
   check_only: z.boolean().optional(),
@@ -129,6 +134,9 @@ export const POST = handle(async (req) => {
   const soul = input.soul ? normaliseSoul(input.soul) : null;
   if (soul && !isEmptySoul(soul)) await assertSafeSoul(soul);
 
+  // Unknown tags are refused before anything is written (an agent learns the vocabulary instead of losing one).
+  const tagCheck = input.tags === undefined ? null : parseOwnerTags(input.tags);
+  if (tagCheck && !tagCheck.ok) return json({ error: "invalid_character", field: "tags", message: tagCheck.error }, 400, sess);
   // 2026-10-23 (a visitor: "check_only never says whether a sheet passes the content rules"): it does, by the time it's here.
   if (checkOnly) return json({ checked: true, saved: false, content_ok: true, content_note: "Passes the show's content rules (fictional adults, no real people, nothing sexual)." }, 200, sess);
   if (input.name && input.keep_name !== true) {
@@ -171,6 +179,8 @@ export const POST = handle(async (req) => {
   if (hasSoul || signals) await saveSoul(db, id, soul ?? normaliseSoul({}), input.soul?.local_only ?? false, signals);
   const hiding = cleanOwnSecrets(input.hiding ?? []);
   if (hiding.length) await setOwnSecrets(db, id, hiding);
+  // Its tags: the owner's pick, or read from the traits at once (the lobby job would get there within the hour).
+  const tags = tagCheck?.ok && tagCheck.tags.length ? await setOwnerTags(db, id, tagCheck.tags) : (await refreshAutoTags(db, id), null);
   // Its concept embedding, after the response (lib/originality-concept.ts; off unless enabled).
   await scheduleConceptEmbedding(db, id);
   // Every character has a headshot (lib/default-portraits.ts), drawn after the response whoever made it.
@@ -178,9 +188,9 @@ export const POST = handle(async (req) => {
   // A person's character, swipe-ready: the welcome experiment (lib/welcome.ts), after the response. Never an agent's.
   if (!isMcpCall(req)) await scheduleWelcome(db, id);
 
-  const { attest: _attest, keep_name: _keep, check_only: _check, soul: _soul, image_signals: _sig, temperament: _temp, extras: _extras, this_week: _week, hiding: _hiding, ...character } = input;
+  const { attest: _attest, keep_name: _keep, check_only: _check, soul: _soul, image_signals: _sig, temperament: _temp, extras: _extras, this_week: _week, hiding: _hiding, tags: _tags, ...character } = input;
   const res = json(
-    { id, ...character, extras, ...(hiding.length ? { hiding } : {}), this_week: thisWeek(id, input.this_week?.trim() ? stampThisWeek(input.this_week) : null), house: false, has_soul: hasSoul, hue, image_trained: Boolean(signals), ...(soulKeys.unknown.length ? { ignored_soul_keys: soulKeys.unknown } : {}) },
+    { id, ...character, extras, ...(hiding.length ? { hiding } : {}), tags: tags?.ok ? tags.tags : ((await characterTags(db, [id])).get(id)?.tags ?? []), this_week: thisWeek(id, input.this_week?.trim() ? stampThisWeek(input.this_week) : null), house: false, has_soul: hasSoul, hue, image_trained: Boolean(signals), ...(soulKeys.unknown.length ? { ignored_soul_keys: soulKeys.unknown } : {}) },
     201,
     sess,
   );

@@ -266,6 +266,8 @@ const companion = (i: number, style: CompanionListItem["style"] = "realistic"): 
   source: "agent",
   on_show: false,
   created_at: "2026-11-01T00:00:00.000Z",
+  tags: [],
+  status: "single",
   style,
 });
 const html = (props: Parameters<typeof CompanionBrowser>[0]) => renderToStaticMarkup(createElement(CompanionBrowser, props));

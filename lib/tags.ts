@@ -171,6 +171,8 @@ export const STATUSES = [
 ] as const;
 export type Status = (typeof STATUSES)[number]["id"];
 export const isStatus = (s: unknown): s is Status => typeof s === "string" && STATUSES.some((x) => x.id === s);
+/** The love lives by id: MCP's search_characters.love_life enum. */
+export const STATUS_IDS: readonly Status[] = STATUSES.map((x) => x.id);
 
 const STATUS_RANK: Record<Status, number> = { single: 0, seeing: 1, taken: 2, married: 3 };
 /** One public stage's status; a stage that ended (exes, bad blood, friends) leaves them single. */

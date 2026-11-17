@@ -125,6 +125,9 @@ import { isOcTool, runOcTool } from "./oc-tools";
 import { OC_NAME_KINDS, OC_NAME_STYLES } from "../oc-names";
 import { OC_QUESTION_THEMES } from "../oc-questions";
 import { characterCredits, characterCreditsOn } from "../profile/credits";
+import { characterStatuses, characterTags } from "../character-tags";
+import { CHARACTER_TAG_IDS, isCharacterTag } from "../character-tags-shared";
+import { isStatus, STATUS_IDS, STATUSES } from "../tags";
 import { listShowIdeasTool, proposeShowIdeaTool, voteShowIdeaTool } from "./shows";
 import { getHouseScene, getHouseTalk, getStorySoFar, HOUSE_TOOL_NAMES, HOUSE_TOOLS_OFF, isHouseTool, mcpHouseOn, myStoryState, sceneAbout } from "./house";
 import { CROWD_CLIENT_PREFIX, crowdMinutesToWake, HOUSE_BOT_CLIENT_PREFIX, houseBotRefusal } from "../house-bots";
@@ -284,7 +287,10 @@ export const MCP_PROTOCOL_VERSION = "2025-06-18";
 // character's part, its aired dates and what it won), from lib/profile/credits.ts: one new reply field.
 // 2.35.0 (2026-11-17): companion scene takes opening (0, 1 or 2, "surprise", or a sentence of one's own; checked in
 // setScene like the web picker's), and my_roleplays' catalog lists each roleplay's openings: one new argument and fields.
-export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.35.0" } as const;
+// 2.36.0 (2026-11-17): tags (lib/tags.ts, docs/tags.md): create/update_character take type tags, get_character and
+// search_characters carry tags and love_life (the graph's public layer) and filter by them, companion list and the
+// roleplay catalog carry tags. New arguments and reply fields only.
+export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.36.0" } as const;
 
 /** Where every tool is listed: the default list is the core (2026-10-20: 53 tools were ~14k tokens in every agent's context). */
 export const ALL_TOOLS_HINT = "/api/mcp?tools=all";
@@ -750,6 +756,7 @@ export const ENUM_SOURCES: Record<string, readonly unknown[]> = {
   "list_cast.kind": LIST_CAST_KINDS,
   "search_characters.made_by": SEARCH_MADE_BY,
   "search_characters.only": DECK_FILTERS,
+  "search_characters.love_life": STATUS_IDS,
   "create_character.pronouns": PRONOUNS,
   "create_character.open_audience": AUDIENCES,
   "update_character.pronouns": PRONOUNS,
@@ -4642,7 +4649,7 @@ const pick = (args: Record<string, unknown>, keys: string[]): Record<string, unk
   return out;
 };
 
-const SHEET_KEYS = ["name", "age", "bio", "traits", "want", "dealbreaker", "appearance", "pronouns", "voice", "soul", "extras", "this_week", "temperament", "hiding"];
+const SHEET_KEYS = ["name", "age", "bio", "traits", "want", "dealbreaker", "appearance", "pronouns", "voice", "soul", "extras", "this_week", "temperament", "hiding", "tags"];
 
 /* ------------------------------------------- sessions & identity ------------------------------------------- */
 
@@ -5410,6 +5417,11 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       // search looks for agent-made ones and the filter below keeps a live agent's (agent) or the show's scripts' (house_bot).
       const byRunner = madeBy === "agent" || madeBy === "house_bot" ? madeBy : null;
       const searchMadeBy = byRunner ? "agent" : (madeBy as Exclude<typeof madeBy, "house_bot">);
+      // 2.36.0: what kind of person (a type tag, lib/character-tags.ts) and their love life (the graph's public layer).
+      if (args.type !== undefined && !isCharacterTag(args.type)) return { error: `type is one of ${CHARACTER_TAG_IDS.join(", ")}.` };
+      if (args.love_life !== undefined && !isStatus(args.love_life)) return { error: `love_life is one of ${STATUSES.map((x) => x.id).join(", ")}.` };
+      const wantType = isCharacterTag(args.type) ? args.type : null;
+      const wantLove = isStatus(args.love_life) ? args.love_life : null;
       const characters = await searchCharacters(db, {
         viewerId: who?.id ?? null,
         query: typeof args.query === "string" ? args.query.slice(0, 200) : undefined,
@@ -5419,9 +5431,13 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         madeBy: searchMadeBy,
         // A filter is applied after scoring, so it reads every match (#1045: it read a top 30, and only: live_agents found 0
         // while swipe_deck showed live agents ranked lower), then keeps a page of what passes, as swipe_deck does.
-        ...((args.only && args.only !== "all") || byRunner ? { all: true } : { limit: Number(args.limit) || 10 }),
+        ...((args.only && args.only !== "all") || byRunner || wantType || wantLove ? { all: true } : { limit: Number(args.limit) || 10 }),
       });
       const activity = await agentActivity(db, characters.map((c) => c.id));
+      const [tagsOf, loveOf] = await Promise.all([
+        characterTags(db, characters.map((c) => c.id)).catch(() => new Map<string, { tags: string[] }>()),
+        characterStatuses(db, characters.map((c) => c.id)).catch(() => new Map<string, string>()),
+      ]);
       // 2.4.2: who's behind each result and whether it can answer now (live), and swipe_deck's only filter.
       const only = DECK_FILTERS.find((x) => x === args.only && x !== "all") ?? null;
       const labelled = characters.map((c) => {
@@ -5429,9 +5445,12 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         const live = card.run_by === "house" || card.run_by === "house_bot" || (card.run_by === "agent" && isLive(activity.get(c.id)));
         // 2026-10-23 (search listed Quill as open, then swipe said his profile wasn't finished): said on the result.
         const unswipeable = c.made_by !== "house" && !profileComplete(c.extras ?? {});
-        return { ...card, live, ...(unswipeable ? { in_deck: false, in_deck_why: "dating profile not finished (2 answered prompts and 2 interests), so swipe can't reach them yet" } : {}) };
+        const tags = tagsOf.get(c.id)?.tags ?? [];
+        return { ...card, live, ...(tags.length ? { tags } : {}), love_life: loveOf.get(c.id) ?? "single", ...(unswipeable ? { in_deck: false, in_deck_why: "dating profile not finished (2 answered prompts and 2 interests), so swipe can't reach them yet" } : {}) };
       });
-      const passing = labelled.filter((c) => deckFilter(only, c) && (!byRunner || c.run_by === byRunner));
+      const passing = labelled.filter(
+        (c) => deckFilter(only, c) && (!byRunner || c.run_by === byRunner) && (!wantType || (c.tags ?? []).includes(wantType)) && (!wantLove || c.love_life === wantLove),
+      );
       const kept = passing.slice(0, Math.max(1, Math.min(30, Number(args.limit) || 10)));
       // 2.6.0 (the 2026-10-22-0042 run: "search missed my own character, and one in a Dating couple; nothing said why"):
       // what the words matched and the search left out, and why. Private characters are never named.
@@ -5444,7 +5463,9 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         data: {
           characters: kept,
           count: kept.length,
-          ...(only || byRunner ? { ...(only ? { only } : {}), ...(byRunner ? { made_by: byRunner } : {}), filtered_out: labelled.length - passing.length } : {}),
+          ...(only || byRunner || wantType || wantLove
+            ? { ...(only ? { only } : {}), ...(byRunner ? { made_by: byRunner } : {}), ...(wantType ? { type: wantType } : {}), ...(wantLove ? { love_life: wantLove } : {}), filtered_out: labelled.length - passing.length }
+            : {}),
           ...(leftOut.length ? { left_out: leftOut } : {}),
           // #1045: the window isLive uses (a call in the last 10 minutes), not "within the day".
           live_note: "live: answers now (the house cast and house-run bots always; another agent's when its agent made a call in the last 10 minutes). A person's character answers when they're back.",
@@ -5477,12 +5498,15 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       if ((await privateIds(db, [id], viewer)).has(id)) {
         return { data: { character: { id: profile.id, name: profile.name, private: true }, note: "Its creator keeps this character private: only its name is shown." } };
       }
-      const [{ episodes, record }, memory, week, credits] = await Promise.all([
+      const [{ episodes, record }, memory, week, credits, tagged, love] = await Promise.all([
         getCharacterHistory(db, id, 5),
         loadCharacterMemory(db, id),
         db.query<{ this_week: StoredThisWeek | null }>(`select this_week from characters where id = $1`, [id]),
         // 2.34.0: the seasons it has been in, as what, and what came of it (lib/profile/credits.ts): the public record.
         characterCreditsOn() ? characterCredits(db, [id]).then((m) => m.get(id) ?? [], () => []) : Promise.resolve([]),
+        // 2.36.0: what kind of person (lib/character-tags.ts) and their love life, read from the graph's public layer.
+        characterTags(db, [id]).then((m) => m.get(id) ?? null, () => null),
+        characterStatuses(db, [id]).then((m) => m.get(id) ?? "single", () => "single" as const),
       ]);
       const people = connections(memory);
       const activity = await agentActivity(db, [id]);
@@ -5493,6 +5517,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       return {
         data: {
           character: labelRunBy(profile, activity.get(id)),
+          ...(tagged?.tags.length ? { tags: tagged.tags, tags_from: tagged.source } : {}),
+          love_life: love,
           ...(photos.length ? { photo_urls: photos.map((p) => `${siteUrl()}${p.url}`) } : {}),
           ...(style ? partnerStyleEcho(style.choice, style.decided) : {}),
           stage: stageFor(memory?.dates ?? 0),
@@ -8737,7 +8763,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           ...(args.catalog === true
             ? {
                 // 2.35.0: each one's three openings (companion scene's `opening` 0, 1 or 2 picks one), and the three for a scene with no roleplay.
-                catalog: DATE_ROLEPLAYS.map((r) => ({ id: r.id, title: r.title, tag: r.tag, premise: r.premise, roles: r.roles, openings: r.card.openings })),
+                // 2.36.0: each one's tags (lib/tags.ts: who they are to each other, then the kind of story).
+                catalog: DATE_ROLEPLAYS.map((r) => ({ id: r.id, title: r.title, tag: r.tag, tags: r.tags, premise: r.premise, roles: r.roles, openings: r.card.openings })),
                 openings_without_roleplay: GENERIC_OPENINGS,
                 catalog_note: "{a} is whoever plays roles[0] (my_role 0), {b} the other; with no roleplay you are {a}. A companion scene's opening (0, 1 or 2) picks one of the three.",
               }
