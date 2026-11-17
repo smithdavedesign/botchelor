@@ -134,6 +134,9 @@ describe("the registry against a real database", () => {
     identity_views: { studio: "pg" },
     showcase_posts: { source: "pg" },
     creator_roleplays: { mode: "safe" },
+    // What an account claimed is an identity of its own, never the other person of these rows: deleting the account
+    // deletes what is left under it, and the export names it.
+    "account_aliases.user_id": { alias_id: crypto.randomUUID() },
   };
 
   beforeAll(async () => {

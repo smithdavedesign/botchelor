@@ -210,6 +210,14 @@ export type AccountExport = {
   renderer_compares: Record<string, unknown>[];
   /** Which languages they wrote in, counted by day (lib/language-seen.ts): never the words. */
   languages_written: Record<string, unknown>[];
+  /**
+   * The anonymous identities this account claimed (lib/account-claim.ts): each one's id, when, and `left_behind`, what
+   * stayed under that id because it is one a person (its votes, calls, allowances, settings), exported the same way.
+   * An identity that has since got a sign-in of its own is listed without it: that data is that account's.
+   */
+  claimed_identities: { id: string; linked_at: string; left_behind: Record<string, unknown> | null }[];
+  /** For an identity that was claimed: that it was, and when. Never which account. */
+  claimed_into: { linked_at: string } | null;
 };
 
 export type CompanionConversationExport = {
@@ -235,7 +243,7 @@ export type CompanionConversationExport = {
 };
 
 /** Everything stored under this user id, as JSON. Owner-only (the route checks the cookie is the user). */
-export async function exportAccount(db: Db, userId: string): Promise<AccountExport> {
+export async function exportAccount(db: Db, userId: string, o: { nested?: boolean } = {}): Promise<AccountExport> {
   const q = async (sql: string, params: unknown[] = []) => (await db.query<Record<string, unknown>>(sql, params)).rows;
   const profileRows = await q("select name, attested_adult_at from profiles where user_id = $1", [userId]);
   const profile = profileRows[0]
@@ -428,7 +436,34 @@ export async function exportAccount(db: Db, userId: string): Promise<AccountExpo
       [userId],
     ),
     ...(await exportTheRest(db, userId)),
+    ...(await exportClaims(db, userId, Boolean(o.nested))),
   };
+}
+
+/** True when an id has a sign-in of its own (lib/auth hasAccount, kept here so this file stays free of the auth code). */
+async function hasSignIn(db: Db, userId: string): Promise<boolean> {
+  const { rows } = await db.query(
+    `select 1 from accounts where user_id = $1 and (handle is not null or email is not null or google_sub is not null or password_hash is not null)`,
+    [userId],
+  );
+  return rows.length > 0;
+}
+
+/**
+ * The claims this id is part of (lib/account-claim.ts). What stayed under a claimed identity is the same person's (the
+ * claim proved it), so it is exported with the account: one level deep, and never for an identity that has since got a
+ * sign-in of its own.
+ */
+async function exportClaims(db: Db, userId: string, nested: boolean): Promise<Pick<AccountExport, "claimed_identities" | "claimed_into">> {
+  const iso = (v: Date | string) => new Date(v).toISOString();
+  const into = (await db.query<{ linked_at: Date | string }>(`select linked_at from account_aliases where alias_id = $1`, [userId])).rows[0];
+  const aliases = nested ? [] : (await db.query<{ alias_id: string; linked_at: Date | string }>(`select alias_id, linked_at from account_aliases where user_id = $1 order by linked_at, alias_id`, [userId])).rows;
+  const claimed: AccountExport["claimed_identities"] = [];
+  for (const a of aliases) {
+    const theirs = !(await hasSignIn(db, a.alias_id));
+    claimed.push({ id: a.alias_id, linked_at: iso(a.linked_at), left_behind: theirs ? ((await exportAccount(db, a.alias_id, { nested: true })) as unknown as Record<string, unknown>) : null });
+  }
+  return { claimed_identities: claimed, claimed_into: into ? { linked_at: iso(into.linked_at) } : null };
 }
 
 type TheRest = Pick<
@@ -759,6 +794,22 @@ export type AccountDeletion = { characters_deleted: number; characters_anonymize
  * safe to retry, so a partial failure can be re-run.
  */
 export async function deleteAccount(db: Db, userId: string): Promise<AccountDeletion> {
+  // What stayed under the anonymous identities this account claimed (lib/account-claim.ts) is this person's too: it goes
+  // first, the same way. Never an identity that has since got a sign-in of its own: that is someone's account, theirs to delete.
+  const aliases = (await db.query<{ alias_id: string }>(`select alias_id from account_aliases where user_id = $1`, [userId])).rows;
+  const total: AccountDeletion = { characters_deleted: 0, characters_anonymized: 0 };
+  for (const { alias_id } of aliases) {
+    if (alias_id === userId || (await hasSignIn(db, alias_id))) continue;
+    const gone = await deleteIdentity(db, alias_id);
+    total.characters_deleted += gone.characters_deleted;
+    total.characters_anonymized += gone.characters_anonymized;
+  }
+  const own = await deleteIdentity(db, userId);
+  return { characters_deleted: total.characters_deleted + own.characters_deleted, characters_anonymized: total.characters_anonymized + own.characters_anonymized };
+}
+
+/** Everything stored under one id (deleteAccount, for the account and for each identity it claimed). */
+async function deleteIdentity(db: Db, userId: string): Promise<AccountDeletion> {
   const run = (sql: string, params: unknown[] = []) => db.query(sql, params);
   const returning = async (sql: string, params: unknown[] = []) =>
     (await db.query<{ id: string }>(sql, params)).rows.length;
@@ -925,6 +976,8 @@ async function deleteTheRest(db: Db, userId: string): Promise<void> {
   await run("delete from agent_handles where agent_id = $1");
   await run("delete from agent_models where agent_id = $1");
   await run("delete from job_deals where holder = $1");
+  // The record of a claim (lib/account-claim.ts), from either end.
+  await run("delete from account_aliases where user_id = $1 or alias_id = $1");
 }
 
 /** Every After Dark table keyed to a person, and the column it's keyed by: dependents first. */
