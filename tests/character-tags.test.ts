@@ -86,6 +86,16 @@ describe("the table", () => {
     expect(tags.get(body.id)).toEqual({ tags: ["cold", "nerd", "sweet"], source: "auto" });
     expect(await fillCharacterTags(t.db)).toBe(0);
 
+    // Older characters with nothing to read never block a newer one: a pass of one still reaches it.
+    await makeCharacter(newUserCookie(), { traits: ["dry", "patient", "odd"] });
+    await makeCharacter(newUserCookie(), { traits: ["dry", "patient", "odd"] });
+    const made = await makeCharacter(newUserCookie(), { traits: ["grumpy", "gruff", "dry"] });
+    expect(made.status).toBe(201);
+    const late = made.body.id as string;
+    await t.db.query(`delete from character_tags where character_id = $1`, [late]);
+    expect(await fillCharacterTags(t.db, 1)).toBe(1);
+    expect((await characterTags(t.db, [late])).get(late)?.tags).toContain("grump");
+
     expect(await setOwnerTags(t.db, body.id, ["sunshine"])).toEqual({ ok: true, tags: ["sunshine"] });
     await refreshAutoTags(t.db, body.id);
     expect((await characterTags(t.db, [body.id])).get(body.id)).toEqual({ tags: ["sunshine"], source: "owner" });

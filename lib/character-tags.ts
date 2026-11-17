@@ -101,21 +101,25 @@ export async function refreshAutoTags(db: Db, characterId: string): Promise<void
 
 /** How many characters the lobby job tags a pass. */
 export const FILL_BATCH = 200;
+/** How many untagged characters a pass reads to find them. */
+export const FILL_SCAN = 5000;
 
 /**
  * Tags every character that has none yet (each one, once: every character when it shipped, then the ones made since
- * by a path that didn't refresh). Rows with no tag to give get none and are asked again next pass, which is one cheap
- * select. Returns how many it tagged.
+ * by a path that didn't refresh). Returns how many it tagged. A character with no tag to give gets no row, so it's read
+ * again every pass: the pass reads up to FILL_SCAN of them and writes at most `batch`. Reading only `batch` let the
+ * oldest untaggable ones fill every pass, and nobody newer was ever tagged (2026-11-17, found live after #1785).
  */
 export async function fillCharacterTags(db: Db, batch = FILL_BATCH): Promise<number> {
   const { rows } = await db.query<{ id: string; traits: unknown; bio: string }>(
     `select c.id, c.traits, c.bio from characters c
       where not exists (select 1 from character_tags t where t.character_id = c.id) and ${notPersonaSql("c")}
       order by c.created_at, c.id limit $1`,
-    [batch],
+    [FILL_SCAN],
   );
   let n = 0;
   for (const c of rows) {
+    if (n >= batch) break;
     const house = HOUSE_TAGS[c.id];
     const tags = house ?? autoTags({ traits: Array.isArray(c.traits) ? c.traits.map(String) : [], bio: c.bio });
     if (!tags.length) continue;
