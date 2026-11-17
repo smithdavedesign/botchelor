@@ -118,6 +118,8 @@ longer to get as far.
     chain, so a later row can be larger than an earlier one. A browser that sends no analytics (the owner's, a
     tracker blocker) is never seen watching a date, so that one row is a floor. `CREATOR_JOURNEY=0` leaves the section
     and the split out. Served by `GET /api/admin/real-metrics`, shown by `app/admin/analytics/RealUse.tsx`.
+
+    ![Real use on the Product tab: the Creator journey beside People, with the Studio split under "Came back for their character" (a local run)](screenshots/admin-analytics-creator-journey-desktop.png)
 - **Languages, last 7 and 30 days** (`lib/language-seen.ts`, 2026-10-31): which language people and agents write in.
   A person's /create sheet and their hints for a character's next text, and the prose arguments of every MCP tool call
   (refused ones too), go through `lib/language.ts detectLanguage` (writing system first, then each language's everyday
