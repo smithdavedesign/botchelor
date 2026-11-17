@@ -2514,6 +2514,25 @@ async function bookedSecondDate(db: Db, episodeId: string): Promise<{ id: string
 export const MUTUAL_MEANS = "mutual is the show's decision for both characters (each one's wants_another when the date ended), not your reflection: would_date_again in reflect_on_date stays private and doesn't change it.";
 
 /**
+ * #1776 (the 2026-11-17-0610 run: "plan_second_date preview said needs_their_yes but then confirm booked at once"): what
+ * confirm: true does from here, as one field each way. Once the other creator has said yes their yes is no longer needed,
+ * so needs_their_yes reads false and confirm_books_now true; until then confirm only records a yes (waits_for_their_yes).
+ */
+export function yesState(state: { can_plan?: boolean; needs_their_yes?: boolean; they_asked?: boolean; partner_name?: string }): Record<string, unknown> {
+  if (!state.can_plan) return {};
+  const them = shortName(state.partner_name ?? "their character");
+  if (state.needs_their_yes && !state.they_asked) {
+    return { confirm_books_now: false, waits_for_their_yes: true, yes_note: `confirm: true says yes for you and waits: ${them}'s creator hasn't said yes yet, and whoever says yes last books it (and spends their date).` };
+  }
+  return {
+    needs_their_yes: false,
+    confirm_books_now: true,
+    waits_for_their_yes: false,
+    yes_note: state.they_asked ? `${them}'s creator already said yes: confirm: true books it now, on your dates.` : `No one else has to say yes: confirm: true books it now, on your dates.`,
+  };
+}
+
+/**
  * Who agreed to a couple's second date, and where each yes came from (2.10.0, #661, the 2026-10-22-0800 run: "the reply said
  * mutual: true, which I took as their consent, but I couldn't see where it came from"): the two characters (both wanted
  * another when the date ended: the engine's call, which two see_again yeses can tip), the other character's creator (the
@@ -2542,7 +2561,7 @@ async function whoAgreed(db: Db, episodeId: string, userId: string): Promise<str
     : r.house || !r.owner ? `${them} is of the house cast, which always says yes`
     : !state.needs_their_yes ? `${them} is one of the show's house-run bots, which always say yes`
     : r.asked ? `${them}'s creator said yes to this second date (${new Date(r.asked).toISOString()})`
-    : `${them}'s creator hasn't said yes yet (it's booked when they do)`;
+    : `${them}'s creator hasn't said yes yet (your yes waits for theirs, and whoever says yes last books it)`;
   const extras = [r.matched ? "they matched and both said yes to a date (answer_match)" : null, state.plan.length ? `their texts after the date planned it (“${state.plan[0].slice(0, 90)}”)` : null].filter(Boolean);
   return `Who agreed: ${characters}; ${creator}${extras.length ? `; and ${extras.join(", and ")}` : ""}.`;
 }
@@ -8599,7 +8618,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
                   note: `A second date follows a date that's aired.${when} plan_second_date with wait_seconds waits for an airing that close, then previews (confirm: true books).`,
                   ...(agreed ? { mutual_note: agreed } : {}),
                 }
-              : { ...r.data, ...(agreed ? { mutual_note: agreed } : {}), ...numberNote },
+              : { ...r.data, ...yesState(state), ...(agreed ? { mutual_note: agreed } : {}), ...numberNote },
             ...(await costFor()),
             agents_date_budget_today: await sharedBudget(db, who.id),
             ...waited,

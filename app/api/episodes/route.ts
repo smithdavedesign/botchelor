@@ -56,7 +56,7 @@ import { areUnmatched, unmatchedMessage, unmatchedSql } from "@/lib/unmatch";
 import { movePlace, placeRefusedWhy } from "@/lib/places";
 import { audienceAllowsSql } from "@/lib/audience";
 import { useNudges } from "@/lib/between-dates";
-import { notify, notifyDateBooked, resolvePairNotices } from "@/lib/notifications";
+import { notify, notifyDateBooked, resolvePairNotices, resolveSecondDateYes } from "@/lib/notifications";
 import { buildDate, type CharacterForDate, type DateRequest } from "@/lib/simulation";
 import { groupBookingFor, markNightBooked, type GroupBooking } from "@/lib/group-dates";
 import { HOUSE_BOOKER, isHouseRequest } from "@/lib/house-booker";
@@ -679,6 +679,8 @@ async function writeAndSave(
   // Booked (the web's book buttons, the thread's Book date, go_on_date and plan_second_date all land here): the pair's
   // "want to go on a date. Book it" notices are done, for both owners (lib/notifications.ts).
   await resolvePairNotices(db, own.id, partner.id, { bookedBy: sess.userId, private: (secondDate?.visibility ?? input.visibility) === "private" });
+  // #1776: and a second date's "say yes too" notices, which this booking answered.
+  if (secondDate) await resolveSecondDateYes(db, own.id, partner.id, secondDate.followupOf, sess.userId);
 
   // Queue the slow part (narration + conversation). In production it runs after the response (and the
   // cron route re-runs anything after() misses); inline — tests — it runs now so the episode is ready.
