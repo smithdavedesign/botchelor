@@ -296,7 +296,7 @@ describe("its links", () => {
     expect(signNewsletterToken({ e: "a@example.com", p: "unsub" }, {})).toBeNull();
   });
 
-  it("confirm with the page's button, not on opening, past the 18+ gate; the sign-up page itself stays behind it", async () => {
+  it("confirm with the page's button, not on opening, past the 18+ gate, as the sign-up page is", async () => {
     await signUp({ email: "ira@example.com", attest: true });
     const token = tokenIn(sent[0], "/newsletter/confirm")!;
     expect(sent[0].text).toContain("The link works for 7 days.");
@@ -315,7 +315,10 @@ describe("its links", () => {
     const browser = { "user-agent": "Mozilla/5.0 (Macintosh)" };
     expect(middleware(new NextRequest(`${BASE_URL}/newsletter/confirm?t=x`, { headers: browser })).headers.get("location")).toBeNull();
     expect(middleware(new NextRequest(`${BASE_URL}/newsletter/unsubscribe?t=x`, { headers: browser })).headers.get("location")).toBeNull();
-    expect(middleware(new NextRequest(`${BASE_URL}/newsletter`, { headers: browser })).headers.get("location")).toMatch(/\/gate/);
+    // The sign-up page opens like the PG show (2026-11-17): the same form, with its own 18+ box, is in the footer of
+    // every open page, so the gate in front of its "What's in it" page guarded nothing (it was written on 11-10, when
+    // the whole site was gated).
+    expect(middleware(new NextRequest(`${BASE_URL}/newsletter`, { headers: browser })).headers.get("location")).toBeNull();
   });
 
   it("an old confirmation link can't bring back an address that left, nor one past its week", async () => {

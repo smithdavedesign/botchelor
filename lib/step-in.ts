@@ -63,10 +63,9 @@ export * from "./step-in-shared";
 
 /* ------------------------------------------------ the switch ------------------------------------------------ */
 
-/** Open to everyone (2026-11-15) unless STEP_IN_OPEN=0, which puts it back to admins only. */
-export function stepInOpen(env: Record<string, string | undefined> = process.env): boolean {
-  return env.STEP_IN_OPEN?.trim() !== "0";
-}
+// The switch itself is a leaf (lib/step-in-switch.ts), so the sitemap can read it without loading the date engine.
+import { stepInOpen } from "./step-in-switch";
+export { stepInOpen };
 
 /** Someone without an account may step in as a guest while it's open, unless STEP_IN_GUESTS=0 (then: sign in first). */
 export function stepInGuestsOpen(env: Record<string, string | undefined> = process.env): boolean {

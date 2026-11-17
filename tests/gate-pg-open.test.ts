@@ -25,6 +25,9 @@ const gateFrom = (res: Response): string | null => {
 const OPEN = [
   "/",
   "/watch",
+  "/graph",
+  "/reviews",
+  "/newsletter",
   "/watch?tab=tonight",
   "/episodes/3f2a9c1e-1b2c-4d5e-8f90-1234567890ab",
   "/episodes/3f2a9c1e-1b2c-4d5e-8f90-1234567890ab?play=1",

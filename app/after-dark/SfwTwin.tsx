@@ -34,7 +34,7 @@ export default function SfwTwin({ id, price, onAdded }: { id: string; price?: nu
       <p className="small" role="status">
         👕 Its SFW twin is made{done.pg ? (
           <>
-            : it&apos;s in the <Link href={`/characters/${done.pg}/studio`}>PG Studio</Link>, ready to post or use as a profile picture.
+            : it&apos;s in the <Link href={`/studio?character=${encodeURIComponent(done.pg)}`}>PG Studio</Link>, ready to post or use as a profile picture.
           </>
         ) : (
           ", rated PG, in the gallery."

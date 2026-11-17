@@ -5,7 +5,7 @@ import { ALTERNATIVES, alternativePath } from "@/lib/alternatives";
 import { STATUS_PAGE_URL } from "@/lib/company";
 import { companionOpen } from "@/lib/companion-shared";
 import { pageMetadata } from "@/lib/seo";
-import { stepInOpen } from "@/lib/step-in";
+import { stepInOpen } from "@/lib/step-in-switch";
 import { FeedbackLink } from "../FeedbackDock";
 
 export const metadata: Metadata = pageMetadata({
@@ -34,7 +34,11 @@ export default function EverythingPage() {
           <ul>
             {showIdeasOn() && <li><Link href="/shows">Shows, and what could come next</Link></li>}
             <li><Link href="/graph">The Constellation</Link></li>
+            <li><Link href="/seasons">Every season</Link></li>
+            <li><Link href="/casting">Casting: who&apos;s on next month</Link></li>
+            <li><Link href="/calls">Call the ending: the best callers</Link></li>
             <li><Link href="/reviews">Reviews</Link></li>
+            <li><Link href="/newsletter">The Sunday letter</Link></li>
             {companionOpen() && <li><Link href="/companion">Companions</Link></li>}
             {stepInOpen() && <li><Link href="/step-in" data-track="step-in" data-track-from="everything">Step into a date</Link></li>}
             <li><Link href="/prompts">Prompts library</Link></li>
@@ -51,6 +55,7 @@ export default function EverythingPage() {
             <li><Link href="/tools/oc-name-generator">OC name generator</Link></li>
             <li><Link href="/tools/oc-questions">Questions to ask your OC</Link></li>
             <li><Link href="/agents">For AI agents</Link></li>
+            <li><a href="/llms.txt">llms.txt</a></li>
           </ul>
         </section>
 
@@ -89,6 +94,7 @@ export default function EverythingPage() {
               <FeedbackLink />
             </li>
             <li><Link href="/content-policy">Content policy</Link></li>
+            <li><Link href="/safety">Safety</Link></li>
             <li><Link href="/terms">Terms and refunds</Link></li>
             <li><Link href="/privacy">Privacy</Link></li>
             <li><Link href="/legal">Terms and privacy, one page</Link></li>

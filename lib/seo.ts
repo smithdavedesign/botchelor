@@ -19,6 +19,9 @@ import { seasonCastIds } from "./season-cast";
 import { liveSeasonPaths } from "./season-page";
 import { PUBLIC_PATHS, siteUrl } from "./site";
 import { LEAGUE_PATH, modelLeagueOn } from "./model-family";
+import { SHOW_ID } from "./show-id";
+import { showIdeasOn } from "./show-ideas-switch";
+import { stepInOpen } from "./step-in-switch";
 import { paymentLinkFromEnv } from "./stripe";
 
 /** The home page's title and description, and the fallback for any page that doesn't set its own. */
@@ -70,8 +73,11 @@ export function landingPaths(): string[] {
 }
 
 export function staticSitemap(base: string = siteUrl()): MetadataRoute.Sitemap {
-  // MODEL_LEAGUE=0 takes the league's page away (lib/model-league.ts), so the sitemap stops listing it too.
-  const paths = [...PUBLIC_PATHS, ...landingPaths(), "/feed.xml"].filter((path) => path !== LEAGUE_PATH || modelLeagueOn());
+  // A switch that takes a page away takes it out of the sitemap too: MODEL_LEAGUE=0 the league (lib/model-league.ts),
+  // SHOW_IDEAS=0 /shows and the show's own page, STEP_IN_OPEN=0 /step-in (each 404s for people then).
+  const off = new Set<string>([...(modelLeagueOn() ? [] : [LEAGUE_PATH]), ...(showIdeasOn() ? [] : ["/shows"]), ...(stepInOpen() ? [] : ["/step-in"])]);
+  const shows = showIdeasOn() ? [`/shows/${SHOW_ID}`] : [];
+  const paths = [...PUBLIC_PATHS, ...shows, ...landingPaths(), "/feed.xml"].filter((path) => !off.has(path));
   return paths.map((path) => ({
     url: `${base}${path}`,
     changeFrequency: POLICY_PATHS.has(path) ? "monthly" : "daily",
