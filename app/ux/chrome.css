@@ -12,15 +12,15 @@
 }
 
 /* ---------------- the footer (app/layout.tsx, app/FooterGroup.tsx) ---------------- */
-/* As the design system draws it (SiteFooter, components.css .bz-footer-*; David 2026-11-16, "our footer should match
-   the designs"): the screen's full width, edge to edge like the header and the season strip, its text starting at the
-   header's gutter; the adults line centred over four groups (columns on a wide screen, each a row that folds on a
-   phone); the letter beside the show's accounts over a rule; the fine print centred under it all. Every footer rule
-   lives here: until 2026-11-17 they were spread over globals.css, agents-footer.css and company.css, each overriding
-   the last (46rem, then 72rem wide). */
+/* In the page's own column (David 2026-11-17, "keep it contained within content wrapper"): its rule runs edge to edge
+   like the header's, its content starts and ends where a wide page's does (--page-wide less main's gutters). The letter
+   and the show's accounts on the left, four groups beside them (columns on a wide screen, each a row that folds on a
+   phone), then the fine print at the very bottom, centred under a rule: the adults line, where to find help, the ©
+   line. Every footer rule lives here: until 2026-11-17 they were spread over globals.css, agents-footer.css and
+   company.css, each overriding the last. */
 .site-footer {
   margin: 0;
-  padding: var(--space-5) var(--gutter) var(--space-6);
+  padding: var(--space-5) max(var(--gutter), calc((100% - var(--page-wide)) / 2 + var(--gutter))) var(--space-6);
   border-top: 1px solid var(--line);
   color: var(--muted);
   font-size: var(--text-sm);
@@ -39,10 +39,20 @@ body:has(.feedback-fab) .site-footer {
 .site-footer .crisis {
   margin: 0 0 var(--space-2);
 }
+/* The fine print opens with the adults line, under a rule, and the help lines follow it: all centred, in even lines. */
 .site-footer > p.footer-adults {
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line);
   color: var(--ink);
   font-weight: 600;
   text-align: center;
+}
+.site-footer .crisis {
+  text-align: center;
+}
+.site-footer > :is(p.footer-adults, .crisis, p.footer-legal) {
+  text-wrap: balance;
 }
 /* A plain list of links with no bullets: the footer's groups, and the policy pages' own foot (app/legal/sections.tsx). */
 .footer-links {
@@ -65,11 +75,35 @@ body:has(.feedback-fab) .site-footer {
   color: var(--accent-text);
   text-decoration: underline;
 }
+/* The letter and the accounts as the left column, the groups beside them; one column without the letter (After Dark's
+   host) or once the screen is too narrow for both. */
+.footer-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-5);
+  align-items: start;
+}
+.footer-main:has(> .footer-side > *) {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2.2fr);
+}
+@media (max-width: 1100px) {
+  .footer-main:has(> .footer-side > *) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
 .footer-groups {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: var(--space-4);
-  margin: var(--space-4) 0;
+  margin: 0;
+}
+/* Beside the letter each group is as wide as its longest link, spread over the room, so "Terms and privacy, one page"
+   and "Everything on Botchelor →" stay on one line; a group narrows (and wraps) before the row overflows. */
+@media (min-width: 1101px) {
+  .footer-main:has(> .footer-side > *) > .footer-groups {
+    grid-template-columns: repeat(4, auto);
+    justify-content: space-between;
+  }
 }
 .footer-group > summary {
   display: flex;
@@ -114,23 +148,32 @@ body:has(.feedback-fab) .site-footer {
   color: var(--ink);
   font-weight: 600;
 }
-.footer-bottom {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  gap: var(--space-5);
-  padding-top: var(--space-4);
-  border-top: 1px solid var(--line);
+/* The left column: the letter in the open (no card, here) over the accounts as quiet rows, each its mark, name and
+   handle. The letter keeps to a reading width when it has the whole row (one column). */
+.footer-side {
+  display: grid;
+  gap: var(--space-4);
 }
-.footer-bottom > .footer-newsletter {
-  flex: 1 1 20rem;
+.site-footer .footer-side > .footer-newsletter {
+  max-width: var(--page-read);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+.site-footer .footer-side > .social-links {
+  gap: 0;
   margin: 0;
 }
-.footer-bottom > .social-links {
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-1);
-  margin: 0;
+.site-footer .footer-side > .social-links a {
+  padding: 0;
+  border: 0;
+  background: none;
+}
+@media (pointer: fine) {
+  .site-footer .footer-side > .social-links a {
+    min-height: 2rem;
+  }
 }
 /* The © line closes the footer. */
 .site-footer > p.footer-legal {

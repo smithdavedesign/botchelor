@@ -59,13 +59,18 @@ describe("the footer", () => {
     expect(css).toMatch(/\.site-footer \.footer-links button\.link-button \{[^}]*color: var\(--muted\);\s*font-weight: inherit;\s*text-decoration: none;/);
   });
 
-  it("runs the screen's full width, edge to edge like the header, with every footer rule in one place (chrome.css)", () => {
+  it("keeps its content in the page's wide column under an edge-to-edge rule, with every footer rule in one place (chrome.css)", () => {
     const css = source("app/ux/chrome.css");
     const base = css.match(/\n\.site-footer \{([^}]*)\}/)?.[1] ?? "";
     expect(base).toMatch(/margin: 0;/);
-    expect(base).toMatch(/padding: var\(--space-5\) var\(--gutter\) var\(--space-6\);/);
+    // David 2026-11-17, "keep it contained within content wrapper": the content starts and ends where a wide page's does
+    // (--page-wide less main's gutters), the gutter on a narrow screen; the box itself, and its rule, stay full width.
+    expect(base).toMatch(/padding: var\(--space-5\) max\(var\(--gutter\), calc\(\(100% - var\(--page-wide\)\) \/ 2 \+ var\(--gutter\)\)\) var\(--space-6\);/);
     expect(base).toMatch(/border-top: 1px solid var\(--line\);/);
     expect(base).not.toMatch(/max-width/);
+    // The letter and the accounts as the left column beside the groups, one column on a narrower screen.
+    expect(css).toMatch(/\.footer-main:has\(> \.footer-side > \*\) \{\s*grid-template-columns: minmax\(0, 1fr\) minmax\(0, 2\.2fr\);/);
+    expect(css).toMatch(/@media \(max-width: 1100px\) \{\s*\.footer-main:has\(> \.footer-side > \*\) \{\s*grid-template-columns: minmax\(0, 1fr\);/);
     // No other sheet sizes or dresses the footer: only the full-screen surfaces that hide it name it.
     const sheets = ["app/globals.css", ...readdirSync(new URL("../app/ux", import.meta.url)).filter((f) => f.endsWith(".css") && f !== "chrome.css").map((f) => `app/ux/${f}`)];
     for (const sheet of sheets) {
@@ -74,11 +79,17 @@ describe("the footer", () => {
     }
   });
 
-  it("keeps the safety lines, the letter beside the accounts, and the fine print with the © and the support address", () => {
+  it("keeps the letter beside the accounts, then the safety lines and the fine print at the very bottom", () => {
     expect(layout).toContain("Every character is a fictional adult (18+), and every episode is written by an AI model.");
     expect(layout).toContain("<CrisisResources />");
-    expect(layout).toMatch(/\{!adHost && \(\s*<div className="footer-bottom">\s*<NewsletterSignup \/>\s*<SocialLinks links=\{socials\} labels area="footer" \/>/);
+    expect(layout).toMatch(/<div className="footer-main">[\s\S]*\{!adHost && \(\s*<div className="footer-side">\s*<NewsletterSignup \/>\s*<SocialLinks links=\{socials\} labels area="footer" \/>/);
     expect(layout).toMatch(/className="footer-legal"[\s\S]*Adults \(18\+\) only · No real people · Points are free and can&apos;t be bought · ©[\s\S]*mailto:/);
+    // David 2026-11-17: the legal lines after the links. The groups, then the adults line, the help lines, the © line.
+    const at = (s: string) => layout.indexOf(s);
+    expect(at('<nav className="footer-groups"')).toBeGreaterThan(at('<div className="footer-side">'));
+    expect(at('<p className="footer-adults">')).toBeGreaterThan(at("</nav>"));
+    expect(at("<CrisisResources />")).toBeGreaterThan(at('<p className="footer-adults">'));
+    expect(at('<p className="footer-legal">')).toBeGreaterThan(at("<CrisisResources />"));
   });
 });
 
