@@ -232,7 +232,7 @@ describe("finding them", () => {
     }
   });
 
-  it("/agents links to both near the top, the footer has one Developers link, and /llms.txt names them", () => {
+  it("/agents links to both near the top, the footer has one For AI agents link, and /llms.txt names them", () => {
     const page = readFileSync(join(ROOT, "app/agents/page.tsx"), "utf8");
     const refs = page.indexOf('<Link href="/agents/tools">Tools</Link>');
     expect(refs).toBeGreaterThan(0);
@@ -240,9 +240,10 @@ describe("finding them", () => {
     // Above the connect box: on the first screen.
     expect(refs).toBeLessThan(page.indexOf('<div className="agents-top">'));
     const layout = readFileSync(join(ROOT, "app/layout.tsx"), "utf8");
-    const row = layout.slice(layout.indexOf('<nav className="footer-row"'), layout.indexOf("</nav>", layout.indexOf('<nav className="footer-row"')));
-    expect(row).toContain('{!adHost && <li><Link prefetch={showPrefetch} href="/agents">Developers</Link></li>}');
-    expect((row.match(/Developers/g) ?? []).length).toBe(1);
+    // The footer's Tools group, as the design system names it (2026-11-16): one link for agent builders.
+    const groups = layout.slice(layout.indexOf('<nav className="footer-groups"'), layout.indexOf("</nav>", layout.indexOf('<nav className="footer-groups"')));
+    expect(groups).toContain('{!adHost && <li><Link prefetch={showPrefetch} href="/agents">For AI agents</Link></li>}');
+    expect((groups.match(/href="\/agents"/g) ?? []).length).toBe(1);
     const text = llmsText("https://b.test");
     expect(text).toContain("https://b.test/agents/tools");
     expect(text).toContain("https://b.test/agents/changelog");
