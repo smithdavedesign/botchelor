@@ -230,9 +230,13 @@ describe("/chat", () => {
     expect(html).toContain('id="chat-empty-title">No texts yet</h2>');
     const faces = [...html.matchAll(/<li class="chat-cast-face">[\s\S]*?<\/li>/g)].map((m) => m[0]);
     expect(faces).toHaveLength(3);
+    // The whole face is the one tap that starts the thread (design review 2026-11-16, D-12): one button holding the face,
+    // the name and "Text Nell", and no profile link pulling the first tap the other way.
     CAST.slice(0, 3).forEach((c, i) => {
-      expect(faces[i]).toContain(`href="/characters/${c.id}"`);
-      expect(faces[i]).toContain(`<button type="button" class="button secondary small" data-track="verb-text">Text ${c.name.split(" ")[0]}</button>`);
+      const first = c.name.split(" ")[0];
+      expect(faces[i]).toMatch(new RegExp(`^<li class="chat-cast-face"><button type="button" class="chat-cast-talk" data-track="verb-text">[\\s\\S]*<strong>${first}</strong><span class="talk-label">Text ${first}</span></button>`));
+      expect(faces[i]).not.toContain(`href="/characters/${c.id}"`);
+      expect(faces[i].match(/<button/g)).toHaveLength(1);
     });
     // Its own two ways on, once: no second set of buttons beside the heading.
     expect(html).toContain('<a class="button secondary" data-track="chat-text-someone" href="/companion">Text someone</a>');
@@ -249,6 +253,8 @@ describe("/chat", () => {
     const html = await page(null);
     expect(html).not.toContain("verb-text");
     expect(html.match(/<a class="button secondary small" href="\/account\?next=%2Fchat">Sign in to text<\/a>/g)).toHaveLength(3);
+    // Without texting the face still opens the character's page.
+    expect(html).toContain(`href="/characters/${CAST[0].id}"`);
     expect(html).toContain(">Text someone</a>");
   });
 

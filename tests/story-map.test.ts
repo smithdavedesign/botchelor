@@ -377,16 +377,18 @@ describe("the read, the switch and the pages", () => {
     expect((await storyMap(t.db, now, { HOUSE_SCENES: "0" })).ties.map((x) => x.kind)).toEqual(["rivals", "together", "second_date"]);
   });
 
-  it("/house carries the week's map and a circle under today's scene, and neither with the switch off", async () => {
+  it("/house points at the week's map on /graph and carries a circle under today's scene, and neither with the switch off", async () => {
     const { default: HousePage } = await import("@/app/house/page");
     const html = renderToStaticMarkup(await HousePage());
-    expect(html).toContain("This week in the house");
-    expect(html).toContain("Nell and Sable: rivals for Juniper");
+    // One home for the drawing (design review 2026-11-16, D-11): /graph draws it, the house links there.
+    expect(html).toContain('href="/graph"');
+    expect(html).toContain("This week in the house, drawn");
+    expect(html).not.toContain("story-map-svg");
     expect(html).toContain('id="house-circle"');
-    expect(html.indexOf("house-scene-lead")).toBeLessThan(html.indexOf('id="story-map"'));
+    expect(html.indexOf("house-scene-lead")).toBeLessThan(html.indexOf('id="story-map-link"'));
     expect(html).not.toContain(SECRET);
     // Older pages of the house are scenes only.
-    expect(renderToStaticMarkup(await HousePage({ searchParams: Promise.resolve({ page: "2" }) }))).not.toContain('id="story-map"');
+    expect(renderToStaticMarkup(await HousePage({ searchParams: Promise.resolve({ page: "2" }) }))).not.toContain('id="story-map-link"');
     process.env.STORY_MAP = "0";
     const off = renderToStaticMarkup(await HousePage());
     expect(off).not.toContain("story-map");

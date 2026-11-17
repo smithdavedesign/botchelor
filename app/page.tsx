@@ -266,23 +266,22 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
             <Link className={expressBox ? "button-ghost" : "button"} href="/create">
               Make your character
             </Link>
-            <Link className="button-ghost" href="/watch">
-              Watch episodes
-            </Link>
+            {/* One loud way in and one quiet one (design review 2026-11-16, D-18): with the clip beside the copy, its own
+                "Watch the whole date" is the way to watch, so the hero doesn't ask twice. */}
+            {!clip && (
+              <Link className="button-ghost" href="/watch">
+                Watch episodes
+              </Link>
+            )}
           </p>
+          {/* The sample and the Character.AI rescue door (2026-11-14) share one quiet line, for a visitor with no character yet. */}
           {myCharacters.length === 0 && (
-            <p className="small">
+            <p className="small hero-doors">
               In a hurry?{" "}
               <Link className="tap-link" href="/create?sample=1">
                 Start from a sample character
               </Link>
-              .
-            </p>
-          )}
-          {/* The Character.AI rescue door (2026-11-14): one line under the sample, for a visitor with no character yet. */}
-          {myCharacters.length === 0 && (
-            <p className="small">
-              Leaving Character.AI?{" "}
+              . Leaving Character.AI?{" "}
               <Link className="tap-link" href={IMPORT_CAI_PATH} data-track="hero-import">
                 Bring your character
               </Link>

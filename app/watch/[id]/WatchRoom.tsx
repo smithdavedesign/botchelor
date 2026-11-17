@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import Avatar from "@/app/Avatar";
 import Icon from "@/app/Icon";
-import Scene from "@/app/Scene";
+import Scene, { sceneBackground } from "@/app/Scene";
 import ChatThread from "@/app/ChatThread";
 import { useReplay } from "@/app/useReplay";
 import { requestJson } from "@/app/request";
@@ -242,9 +242,14 @@ export default function WatchRoom({ initial, autoStart = true }: { initial: Room
     return <Theater state={state} sync={sync} onExit={() => setTheater(false)} preshowLeft={preshowLeft} onStart={waiting ? startDate : undefined} />;
   }
 
+  // Before the first line the room is a stage (OpenRoom, below), and its chat and vote fold into the stage's foot until
+  // somebody says something in the chat.
+  const openRoom = state.turns.length === 0 && inPreshow(state);
+  const folded = openRoom && state.messages.length === 0;
+
   return (
-    <div className="watch">
-      <header className="watch-head">
+    <div className={openRoom ? "watch is-open-room" : "watch"}>
+      {!openRoom && <header className="watch-head">
         <div className="watch-title">
           <div className="watch-avatars">
             <Avatar seed={a.id} name={a.name} hue={a.hue} house={a.house} portraitSrc={a.portrait} size={40} />
@@ -281,13 +286,17 @@ export default function WatchRoom({ initial, autoStart = true }: { initial: Room
             )}
           </button>
         </div>
-      </header>
+      </header>}
 
       {/* The date, and beside it one sticky sidebar with the vote and the chat in tabs (2026-10-21: three columns, a
           tall empty chat box and a third column of polls). On a phone the sidebar follows the date. */}
       <div className="watch-grid">
         <section className="watch-stage" aria-label="The date">
-          <Stage state={state} onPredict={sync} preshowLeft={preshowLeft} onStart={waiting ? startDate : undefined} />
+          {openRoom ? (
+            <OpenRoom state={state} left={preshowLeft} onStart={waiting ? startDate : undefined} onOpen={setSheet} />
+          ) : (
+            <Stage state={state} />
+          )}
         </section>
         {sheet ? (
           <>
@@ -304,7 +313,7 @@ export default function WatchRoom({ initial, autoStart = true }: { initial: Room
               hideIcon="✕"
             />
           </>
-        ) : chatHidden ? (
+        ) : folded ? null : chatHidden ? (
           <aside className="room-panel room-panel-hidden">
             <p className="muted">
               Chat hidden.{" "}
@@ -317,8 +326,9 @@ export default function WatchRoom({ initial, autoStart = true }: { initial: Room
           <RoomPanel state={state} sync={sync} tabs={["vote", "chat"]} start={firstTab(state, ["vote", "chat"], { phone: false, replay: false })} onHide={toggleChat} />
         )}
       </div>
-      {/* Phone only (CSS): the vote and the chat within thumb's reach, wherever the date has scrolled to. */}
-      {!sheet && (
+      {/* Phone only (CSS): the vote and the chat within thumb's reach, wherever the date has scrolled to. The open room
+          has its own foot for them. */}
+      {!sheet && !openRoom && (
         <nav className="watch-dock" aria-label="The room">
           {/* Filled only while there's something to vote on. */}
           <button type="button" className={`watch-dock-btn${voteLive(state) ? "" : " secondary"}`} onClick={() => setSheet("vote")}>
@@ -563,8 +573,93 @@ function Preshow({ state, left, tone = "light", onStart }: { state: RoomState; l
   );
 }
 
-function Stage({ state, onPredict, preshowLeft, onStart }: { state: RoomState; onPredict: () => void; preshowLeft: number | null; onStart?: () => void }) {
+/**
+ * The open room before its first line (D-01 in the design handoff, 2026-11-16): the stage itself, where it was white
+ * cards on cream. The venue full-bleed behind both faces, their names, the premise as the caption, the two wants, and one
+ * way in. One status word and no Theater mode button (the room is the stage); the chat and the call fold into the foot,
+ * which opens the room as a sheet. The date still opens in the standard view (David, 2026-10-22), the Start stays the
+ * viewer's own word, and the site footer with the crisis links stays under it. The live and aired rooms keep Stage.
+ */
+function OpenRoom({ state, left, onStart, onOpen }: { state: RoomState; left: number | null; onStart?: () => void; onOpen: (tab: RoomTab) => void }) {
   const [a, b] = state.characters;
+  const place = state.place_name ?? state.venue_name;
+  const said = state.messages.length;
+  return (
+    <div className="watch-open-room" style={{ backgroundImage: sceneBackground(state.venue) }}>
+      <div className="watch-open-top">
+        {/* The empty-room rule (lib/crowd-threshold.ts) still decides whether the room shows a head count. */}
+        <span className="watch-live">
+          {state.clock.started && <span className="watch-dot" aria-hidden />}
+          {state.clock.started ? state.clock.phase_label : "Ready"}
+          {state.show_watching ? ` · ${state.watching} watching` : ""}
+        </span>
+        {place && (
+          <span className="venue-chip">
+            <Icon name="pin" /> {place}
+          </span>
+        )}
+        <Link href="/watch" className="watch-open-exit">
+          Exit
+        </Link>
+      </div>
+      <div className="watch-open-centre">
+        <div className="watch-open-faces">
+          <Avatar seed={a.id} name={a.name} hue={a.hue} house={a.house} portraitSrc={a.portrait} size={120} eager />
+          <Avatar seed={b.id} name={b.name} hue={b.hue} house={b.house} portraitSrc={b.portrait} size={120} eager />
+        </div>
+        <h1>
+          {/* The × stays with the first name, as on the episode page, so a wrapped title never starts with it. */}
+          <span className="nowrap">
+            <CharacterName character={a} avatar={false} /> ×
+          </span>{" "}
+          <CharacterName character={b} avatar={false} />
+        </h1>
+        <p className="watch-open-premise">{state.setting}</p>
+        <ul className="watch-open-wants">
+          {state.goals.map((g) => {
+            const c = state.characters.find((x) => x.id === g.character_id);
+            // The goal usually starts with their name already: the name in bold stands in for it.
+            const rest = withoutLeadName(g.goal, nameOf(state, g.character_id));
+            return (
+              <li key={g.character_id}>
+                {c && <CharacterName character={c} avatar={false} strong />}
+                {rest !== null ? rest : <>: {g.goal}</>}
+              </li>
+            );
+          })}
+        </ul>
+        {onStart ? (
+          // A waiting open room, for a viewer who hasn't asked for it yet: the date starts on their word, not their arrival.
+          <button type="button" className="primary watch-open-start" onClick={onStart} data-track="room-start">
+            <Icon name="play" /> Start the date
+          </button>
+        ) : (
+          <p className="watch-countdown-time">{preshowCountdownLabel(state.clock.started ? left : null)}</p>
+        )}
+        <p className="watch-open-note">
+          {onStart
+            ? "Anyone who joins in the next few minutes watches it with you."
+            : state.predictions_open
+              ? "Call the ending before the first line."
+              : "The first lines play when the countdown ends."}
+        </p>
+      </div>
+      <div className="watch-open-foot">
+        {state.predictions_open && (
+          <button type="button" className="secondary small" onClick={() => onOpen("vote")}>
+            <Icon name="vote" /> {state.my_prediction ? `Your call: ${stripEmoji(endingLabel(state.my_prediction, state.date_number))}` : "Call the ending"}
+          </button>
+        )}
+        <button type="button" className="secondary small" onClick={() => onOpen("chat")}>
+          <Icon name="chat" /> Chat
+          {said > 0 && <span className="room-tab-count">{said}</span>}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function Stage({ state }: { state: RoomState }) {
   const leadingChemistry = state.chemistry.options.find((o) => o.id === state.chemistry.leading);
   return (
     <>
@@ -586,15 +681,6 @@ function Stage({ state, onPredict, preshowLeft, onStart }: { state: RoomState; o
           })}
         </ul>
       </section>
-
-      {state.turns.length === 0 && inPreshow(state) && (
-        <section className="card watch-preshow">
-          <h2>{onStart ? "Ready when you are" : "The date is about to start"}</h2>
-          <Preshow state={state} left={preshowLeft} onStart={onStart} />
-          {/* The call, right here: one tap (it was only in the sidebar's Vote tab, which a room could open past). */}
-          <Predictions state={state} onDone={onPredict} compact />
-        </section>
-      )}
 
       {state.turns.length > 0 ? (
         <section className="card watch-beat">

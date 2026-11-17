@@ -225,7 +225,13 @@ export default async function MarketingPage() {
       ) : (
         <>
           <Summary m={m} />
-          {m.feed && <p className="muted small">Log last updated {day(m.feed.updated_at)}. Site numbers refresh every ten minutes.</p>}
+          {m.feed ? (
+            <p className="muted small">Log last updated {day(m.feed.updated_at)}. Site numbers refresh every ten minutes.</p>
+          ) : (
+            // Zeros with no word on why read as abandoned (design review 2026-11-16, D-13). Nothing is hidden: the page
+            // says the marketing log hasn't reached the site yet, and the site's own numbers still show.
+            <p className="muted small">The marketing log hasn&apos;t reached the site yet, so posts and channels read zero until it does. Site numbers refresh every ten minutes.</p>
+          )}
 
           <section id="posts">
             <h2>Every post</h2>

@@ -470,7 +470,7 @@ describe("5. findable and measured: the sitemap, the links to both tools, the be
       expect(footer).toContain(`href="${TOOL}"`);
       expect(footer).toContain('href="/tools/ship-name-generator"');
       // The prompts library (tests/prompts-library.test.ts) moved to /everything with the footer's other links (the
-      // 2026-11-14 design audit); the footer's row links that page.
+      // 2026-11-14 design audit); the footer's groups link that page.
       expect(footer).toContain('href="/everything"');
     }
   });

@@ -5,33 +5,108 @@
 :root {
   /* The tab bar's own height, above the safe area: a 44px+ target with its icon over its label. */
   --tabbar-h: 3.75rem;
+  /* Its labels: the extra-small step, a touch smaller only where five don't fit, never under the eyebrow's 13px.
+     "Characters" filled its 75px slot exactly at 390px and lost its end at 375 and 360 (design review 2026-11-16,
+     D-09). With the bar's narrower sides on phones (below) it stays whole down to 360px without renaming the door. */
+  --tabbar-label: min(var(--text-xs), max(var(--text-eyebrow), 3.4vw));
 }
 
-/* ---------------- the footer's row of links ---------------- */
-/* What people click (legal, the two tools, pricing, a way to tell us something), in one wrapping row, then the way to
-   everything else. Quiet links, as the design system draws the footer's (app/ux/company.css). */
-.footer-row {
-  margin: var(--space-3) 0;
+/* ---------------- the footer (app/layout.tsx, app/FooterGroup.tsx) ---------------- */
+/* As the design system draws it (SiteFooter, components.css .bz-footer-*; David 2026-11-16, "our footer should match
+   the designs"): four groups as columns on a wide screen, each a row that folds on a phone; the letter beside the
+   show's accounts over a rule; the fine print centred under it all. Quiet links (app/ux/company.css). */
+.footer-groups {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-4);
+  margin: var(--space-4) 0;
 }
-.footer-row .footer-links {
+.footer-group > summary {
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1) var(--space-4);
-  margin: 0;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-1) 0;
+  color: var(--ink);
+  font-weight: 700;
+  list-style: none;
+  cursor: default;
 }
-.site-footer .footer-row a.footer-all {
-  /* Over the quiet links' muted colour (app/ux/company.css), so the way to the rest reads as the row's end. */
+.footer-group > summary::-webkit-details-marker {
+  display: none;
+}
+.footer-group .footer-chev {
+  display: none;
+}
+.footer-group .footer-links {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: var(--space-1) 0 0;
+}
+.site-footer .footer-groups a.footer-all {
+  /* Over the quiet links' muted colour, so the way to every other page reads as the group's end. */
   color: var(--ink);
   font-weight: 600;
 }
+.footer-bottom {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line);
+}
+.footer-bottom > .footer-newsletter {
+  flex: 1 1 20rem;
+  margin: 0;
+}
+.footer-bottom > .social-links {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  margin: 0;
+}
+.site-footer > p.footer-legal {
+  text-align: center;
+}
+@media (max-width: 640px) {
+  /* A phone: one column of rows that fold, each a 44px target with its chevron. */
+  .footer-groups {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+  .footer-group {
+    border-top: 1px solid var(--line);
+  }
+  .footer-group:last-child {
+    border-bottom: 1px solid var(--line);
+  }
+  .footer-group > summary {
+    min-height: 44px;
+    cursor: pointer;
+  }
+  .footer-group .footer-chev {
+    display: inline;
+    transition: transform 0.15s ease;
+  }
+  .footer-group[open] .footer-chev {
+    transform: rotate(90deg);
+  }
+  .footer-group .footer-links {
+    padding-bottom: var(--space-3);
+  }
+}
 @media (pointer: coarse) {
-  /* A 44px row on a touchscreen, "Give us feedback" (a button) level with the links beside it. */
-  .site-footer .footer-row .footer-links li > :is(a, button) {
+  /* 44px links on a touchscreen, "Give us feedback" (a button) level with the links beside it. */
+  .site-footer .footer-groups .footer-links li > :is(a, button) {
     display: inline-flex;
     align-items: center;
     min-height: 44px;
     margin-block: 0;
     padding-block: 0;
+  }
+  .footer-group .footer-links {
+    gap: 0;
   }
 }
 
@@ -86,7 +161,7 @@
     bottom: 0;
     z-index: 19;
     display: flex;
-    padding: 0 max(var(--space-2), env(safe-area-inset-right)) env(safe-area-inset-bottom, 0px) max(var(--space-2), env(safe-area-inset-left));
+    padding: 0 max(var(--space-1), env(safe-area-inset-right)) env(safe-area-inset-bottom, 0px) max(var(--space-1), env(safe-area-inset-left));
     border-top: 1px solid var(--line);
     background: color-mix(in srgb, var(--paper) 92%, transparent);
     backdrop-filter: saturate(1.4) blur(10px);
@@ -101,7 +176,7 @@
     min-width: 0;
     min-height: var(--tabbar-h);
     color: var(--muted);
-    font-size: var(--text-xs);
+    font-size: var(--tabbar-label);
     font-weight: 600;
     line-height: 1.1;
     text-decoration: none;
@@ -112,6 +187,7 @@
   }
   .tabbar-label {
     max-width: 100%;
+    letter-spacing: -0.01em;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -125,8 +201,10 @@
 
   /* What already floats at the foot of a phone rides above the bar: the page's main action (app/PhoneActionBar.tsx),
      the beta prompt and the install hint (app/FeedbackDock.tsx, app/InstallHint.tsx), and the Feedback button wherever
-     it shows. The install hint's 8rem of extra foot (app/globals.css) still clears it, the bar's room being added below. */
-  body:has(.tabbar-nav) :is(.phone-action-bar, .beta-toast, .install-hint, .feedback-fab) {
+     it shows. The install hint's 8rem of extra foot (app/globals.css) still clears it, the bar's room being added below.
+     The Studio's picking bar (app/ux/studio-media.css) is sticky rather than fixed, and sat under the bar until
+     2026-11-16 (design review D-08). */
+  body:has(.tabbar-nav) :is(.phone-action-bar, .beta-toast, .install-hint, .feedback-fab, .studio-select-bar) {
     bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px) + var(--space-3));
   }
 
@@ -230,8 +308,9 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* An empty inbox: one centred card, the cast in a row, then the way on. */
-.chat-empty {
+/* An empty inbox: one centred card, the cast in a row, then the way on. Scoped to /chat: a date's own empty line is
+   ChatThread's .chat-empty (app/globals.css), and an unscoped rule here, loaded later, overrode it. */
+.chat-page .chat-empty {
   margin-top: var(--space-4);
   text-align: center;
 }
@@ -260,7 +339,9 @@
   color: var(--ink);
   text-decoration: none;
 }
-.chat-foot {
+/* /chat's closing notes (app/chat/page.tsx). Scoped: every line of a date has its own .chat-foot (the caption and the
+   thumbs, app/globals.css), and an unscoped margin here pushed each of them 1rem off its bubble. */
+.chat-page p.chat-foot {
   margin-top: var(--space-4);
 }
 
@@ -272,4 +353,37 @@
   margin-top: 0;
   padding-inline: var(--space-4);
   font-size: var(--text-sm);
+}
+/* With texting open the whole face on Chat is the Text action (app/chat/page.tsx, design review 2026-11-16, D-12): the
+   face and name, then "Text Nell" drawn as the outline button it used to be, all one button and one tap. */
+.chat-cast-face button.chat-cast-talk {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  color: var(--ink);
+  font-size: var(--text-base);
+  font-weight: 400;
+}
+.chat-cast-face button.chat-cast-talk:hover:not(:disabled) {
+  transform: none;
+  box-shadow: none;
+}
+.chat-cast-talk .talk-label {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--control-h-sm);
+  padding-inline: var(--space-4);
+  border: 1.5px solid var(--accent);
+  border-radius: var(--radius-pill);
+  color: var(--accent-text);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+.chat-cast-talk:hover:not(:disabled) .talk-label {
+  background: var(--soft);
 }

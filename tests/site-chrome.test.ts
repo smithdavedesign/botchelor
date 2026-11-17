@@ -1,5 +1,5 @@
-// The site's chrome after the 2026-11-14 design audit ("the chrome outweighs the content"): the footer keeps one row of
-// what people click and links /everything for the rest (app/everything/page.tsx), and phones get a tab bar of the
+// The site's chrome: the footer as the design system draws it (four groups that fold on a phone, 2026-11-16; the
+// 2026-11-14 audit's /everything keeps every other page, app/everything/page.tsx), and phones get a tab bar of the
 // phone-first doors, Watch · Chat · Characters · You (app/PhoneTabBar.tsx), off the full-screen surfaces.
 import { readFileSync } from "node:fs";
 import { createElement } from "react";
@@ -25,27 +25,43 @@ afterEach(() => {
 
 describe("the footer", () => {
   const layout = source("app/layout.tsx");
-  const row = layout.slice(layout.indexOf('<nav className="footer-row"'), layout.indexOf("</nav>", layout.indexOf('<nav className="footer-row"')));
+  const groups = layout.slice(layout.indexOf('<nav className="footer-groups"'), layout.indexOf("</nav>", layout.indexOf('<nav className="footer-groups"')));
+  const group = (title: string) => groups.slice(groups.indexOf(`<FooterGroup title="${title}">`), groups.indexOf("</FooterGroup>", groups.indexOf(`<FooterGroup title="${title}">`)));
 
-  it("is one short row: pricing, the two tools, the rules, two ways to tell us something, and the way to everything else", () => {
-    expect(row.match(/<li>/g)?.length).toBeLessThanOrEqual(10);
-    for (const href of ["/pricing", "/tools/oc-chemistry-test", "/tools/ship-name-generator", "/terms", "/privacy", "/content-policy", "/report", "/everything"]) {
-      expect(row).toContain(`href="${href}"`);
-    }
-    expect(row).toContain("<FeedbackLink />");
-    expect(row).toContain("Everything on Botchelor →");
-    // Pricing stays off After Dark's host, as it was.
-    expect(row).toContain('{!adHost && <li><Link prefetch={showPrefetch} href="/pricing">Pricing</Link></li>}');
-    expect(layout).not.toContain("FooterGroup");
-    expect(layout).not.toContain("footer-about");
+  // The design system's SiteFooter (David 2026-11-16, "our footer should match the designs"), back from the 2026-11-14
+  // audit's one row: four groups, columns on a wide screen and rows that fold on a phone (app/FooterGroup.tsx).
+  it("is the design system's four groups, in its order, with its links", () => {
+    expect([...groups.matchAll(/<FooterGroup title="([^"]+)">/g)].map((m) => m[1])).toEqual(["The show", "Tools", "Company", "Help and legal"]);
+    const hrefs = (g: string) => [...group(g).matchAll(/href="([^"]+)"/g)].map((m) => m[1]);
+    expect(hrefs("The show")).toEqual(["/watch", "/graph", "/shop", "/pricing", "/everything"]);
+    expect(hrefs("Tools")).toEqual(["/tools/oc-chemistry-test", "/tools/ship-name-generator", "/agents", "/llms.txt"]);
+    expect(hrefs("Company")).toEqual(["/about", "/costs", "/faq", "/press", "/contact", "/security", "/accessibility"]);
+    expect(hrefs("Help and legal")).toEqual(["/report", "/content-policy", "/safety", "/terms", "/privacy", "/legal", "/2257", "/cancel"]);
+    expect(group("Help and legal")).toContain("<FeedbackLink />");
+    // The prompts library stays on /everything (design review 2026-11-16, D-15), not in every page's footer.
+    expect(groups).not.toContain('href="/prompts"');
+    // After Dark's host: no Pricing or agents' door, and "Tokens" for the shop.
+    expect(group("The show")).toContain('{!adHost && <li><Link prefetch={showPrefetch} href="/pricing">Pricing</Link></li>}');
+    expect(group("The show")).toContain('{adHost ? "Tokens" : "More dates"}');
+    expect(group("Tools")).toContain('{!adHost && <li><Link prefetch={showPrefetch} href="/agents">For AI agents</Link></li>}');
+    expect(layout).not.toContain("footer-row");
   });
 
-  it("keeps the safety lines, the letter, the accounts and the © line with Contact", () => {
+  it("folds each group on a phone and holds it open as a column on a wide screen", () => {
+    const fg = source("app/FooterGroup.tsx");
+    expect(fg).toContain('const PHONE = "(max-width: 640px)";');
+    expect(fg).toContain('<details ref={ref} className="footer-group" open>');
+    expect(fg).toContain('<Icon name="chevronRight" className="footer-chev" />');
+    const css = source("app/ux/chrome.css");
+    expect(css).toMatch(/\.footer-groups \{\s*display: grid;\s*grid-template-columns: repeat\(4, minmax\(0, 1fr\)\);/);
+    expect(css).toMatch(/@media \(max-width: 640px\) \{\s*\/\*[^*]*\*\/\s*\.footer-groups \{\s*grid-template-columns: 1fr;/);
+  });
+
+  it("keeps the safety lines, the letter beside the accounts, and the fine print with the © and the support address", () => {
     expect(layout).toContain("Every character is a fictional adult (18+), and every episode is written by an AI model.");
     expect(layout).toContain("<CrisisResources />");
-    expect(layout).toContain("{!adHost && <NewsletterSignup />}");
-    expect(layout).toContain("<SocialLinks links={socials}");
-    expect(layout).toMatch(/className="footer-legal"[\s\S]*©[\s\S]*href="\/contact">Contact us/);
+    expect(layout).toMatch(/\{!adHost && \(\s*<div className="footer-bottom">\s*<NewsletterSignup \/>\s*<SocialLinks links=\{socials\} labels area="footer" \/>/);
+    expect(layout).toMatch(/className="footer-legal"[\s\S]*Adults \(18\+\) only · No real people · Points are free and can&apos;t be bought · ©[\s\S]*mailto:/);
   });
 });
 
@@ -152,10 +168,12 @@ describe("the phone's tab bar", () => {
     for (const where of [".age-gate", ".theater", ".swipe-fullscreen", ".messages-fullscreen", ".companion-fullscreen", ".wizard", '.nav-links[data-open="true"]']) {
       expect(hide, where).toContain(where);
     }
-    expect(css).toMatch(/body:has\(\.tabbar-nav\) :is\(\.phone-action-bar, \.beta-toast, \.install-hint, \.feedback-fab\) \{\s*bottom: calc\(var\(--tabbar-h\) \+ env\(safe-area-inset-bottom, 0px\) \+ var\(--space-3\)\);/);
+    expect(css).toMatch(/body:has\(\.tabbar-nav\) :is\(\.phone-action-bar, \.beta-toast, \.install-hint, \.feedback-fab, \.studio-select-bar\) \{\s*bottom: calc\(var\(--tabbar-h\) \+ env\(safe-area-inset-bottom, 0px\) \+ var\(--space-3\)\);/);
     // A 44px target or more, its label on the type scale (13px and up).
     expect(css).toMatch(/--tabbar-h: 3\.75rem;/);
-    expect(css).toMatch(/\.tabbar-tab \{[^}]*min-height: var\(--tabbar-h\);[^}]*font-size: var\(--text-xs\);/);
+    expect(css).toMatch(/\.tabbar-tab \{[^}]*min-height: var\(--tabbar-h\);[^}]*font-size: var\(--tabbar-label\);/);
+    // Smaller only where five labels don't fit, and never under the eyebrow step (13px on a phone): D-09, 2026-11-16.
+    expect(css).toContain("--tabbar-label: min(var(--text-xs), max(var(--text-eyebrow), 3.4vw));");
     // The last stylesheet stays the catalog's (tests/ui-audit-2026-11-08.test.ts); this one sits just before it.
     expect(source("app/layout.tsx")).toContain('import "./ux/chrome.css";\nimport "./ux/catalog.css";');
   });

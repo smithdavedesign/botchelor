@@ -58,6 +58,12 @@ async function standardView(p) {
 }
 /** Opens a tab of the room's panel (Chat, The date, Vote), in the standard room or the theater. */
 async function roomTab(p, name) {
+  // Before the first line, with nothing said in the chat, the panel is folded into the stage's foot (WatchRoom.tsx
+  // OpenRoom): its Chat or its call opens the panel as a sheet, on that tab.
+  if (!(await p.getByRole("tab", { name: new RegExp(`^${name}`) }).count())) {
+    const foot = p.locator(".watch-open-foot button", { hasText: name === "Vote" ? /Call the ending|Your call/ : new RegExp(name) });
+    if (await foot.count()) await foot.first().click();
+  }
   const tab = p.getByRole("tab", { name: new RegExp(`^${name}`) }).first();
   if ((await tab.getAttribute("aria-selected")) !== "true") await tab.click();
 }
