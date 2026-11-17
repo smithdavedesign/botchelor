@@ -127,12 +127,29 @@ describe("the social structure", () => {
       const fits = SETUPS_FOR_STAGE[s];
       expect(fits?.length, s).toBeGreaterThan(0);
       for (const t of fits!) expect(DATE_ROLEPLAYS.some((r) => r.tags.includes(t)), `${s}: ${t}`).toBe(true);
-      expect(forStage(s).length, s).toBeGreaterThanOrEqual(1);
+      // A choice, not a single suggestion (the census-gap roleplays, 2026-11-17).
+      expect(forStage(s).length, s).toBeGreaterThanOrEqual(2);
     }
-    expect(forStage("exes").map((r) => r.id)).toContain("old-friends-bench");
-    expect(forStage("married").map((r) => r.id)).toContain("second-first-date");
+    expect(forStage("exes").map((r) => r.id)).toEqual(expect.arrayContaining(["old-friends-bench", "wedding-exes", "reunion-couch"]));
+    expect(forStage("married").map((r) => r.id)).toEqual(expect.arrayContaining(["second-first-date", "time-capsule", "trip-take-two"]));
     expect(forStage("bad_blood").map((r) => r.id)).toContain("truce-dinner");
     expect(forStage(null)).toEqual([]);
+  });
+
+  it("has at least two show roleplays behind every setup a stage suggests", () => {
+    const suggested = [...new Set(Object.values(SETUPS_FOR_STAGE).flatMap((fits) => fits ?? []))];
+    expect(suggested.length).toBeGreaterThan(5);
+    for (const t of suggested) expect(DATE_ROLEPLAYS.filter((r) => r.tags.includes(t)).length, t).toBeGreaterThanOrEqual(2);
+  });
+
+  it("fills the census's gaps on both sides (docs/tags.md, \"Roleplays added for the census gaps\")", () => {
+    const show = (t: string) => DATE_ROLEPLAYS.filter((r) => (r.tags as readonly string[]).includes(t)).length;
+    const adult = (t: string) => ROLEPLAYS.filter((r) => (r.tags as readonly string[]).includes(t)).length;
+    for (const t of ["second_chance", "couples", "roommates", "workplace", "bodyguard", "dating_show", "sports"]) expect(show(t), `show ${t}`).toBeGreaterThanOrEqual(2);
+    for (const t of ["dating_show", "fake_dating", "friends_to_more", "second_chance", "praise", "dress_up"]) expect(adult(t), `after dark ${t}`).toBeGreaterThanOrEqual(2);
+    for (const t of ["spooky", "size_difference", "switch"]) expect(adult(t), `after dark ${t}`).toBeGreaterThanOrEqual(1);
+    // The weakest themes in the census weren't added to.
+    expect([show("mystery"), show("comedy")]).toEqual([2, 7]);
   });
 
   it("reads a status from public stages: the most committed pair wins, an ending leaves them single", () => {
