@@ -157,11 +157,12 @@ function Entry({ e, badge, origin = true, talk = false, eager = false, actions, 
         {/* What to do with them (lib/character-verb.ts): one primary action chosen by who's looking (send yours on a
             date, step into one yourself, or make a character to date them), and Text as the quieter second for anyone
             they can text (app/companion/TalkButton.tsx opens the thread). Each its own target above the card's link;
-            your own character's card has no date verb, only Text. */}
+            your own character's card has no date verb, only Text. Both outlined (design review 2026-11-16, D-05): a grid
+            of cards each with a filled button read as fifteen equally urgent asks; the page's one loud button is its own. */}
         {/* Your own (the Yours tab): the two doors that are about one character, opened on this one (lib/current-character.ts). */}
         {own && (
           <div className="dir-actions">
-            <Link className="button dir-verb" href={`/chat?character=${encodeURIComponent(e.id)}`} prefetch={false} data-track="yours-chat">
+            <Link className="button secondary dir-verb" href={`/chat?character=${encodeURIComponent(e.id)}`} prefetch={false} data-track="yours-chat">
               Chats
             </Link>
             <Link className="button secondary" href={`/studio?character=${encodeURIComponent(e.id)}`} prefetch={false} data-track="yours-studio">
@@ -172,7 +173,7 @@ function Entry({ e, badge, origin = true, talk = false, eager = false, actions, 
         {!own && (verb || text) && (
           <div className="dir-actions">
             {verb && (
-              <Link className="button dir-verb" href={verb.href} prefetch={false} data-track={verb.track} data-track-from="card" data-track-verb={verb.kind}>
+              <Link className="button secondary dir-verb" href={verb.href} prefetch={false} data-track={verb.track} data-track-from="card" data-track-verb={verb.kind}>
                 {verb.label}
               </Link>
             )}

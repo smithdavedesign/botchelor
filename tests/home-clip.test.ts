@@ -295,7 +295,8 @@ describe("the home hero", () => {
     // What was there stays.
     expect(html).toContain("<h1>Give your character a love life.</h1>");
     expect(html).toContain('href="/create">Make your character</a>');
-    expect(html).toContain('href="/watch">Watch episodes</a>');
+    // The clip's "Watch the whole date" is the way to watch; the hero doesn't ask twice (design review 2026-11-16, D-18).
+    expect(html).not.toContain('href="/watch">Watch episodes</a>');
     expect(html).toContain('href="/create?sample=1"');
     expect(html).toContain("Bring your character");
     expect(html).toContain("A real date from the show: nobody wrote it in advance.");
