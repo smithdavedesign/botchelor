@@ -113,18 +113,21 @@ rich but controlled color, clean linework on faces, expressive eyes, reality-sho
 
 ## 2. One art style per character
 
-- `lib/art-style.ts` defines `realistic | anime | semi_real` ("Photo", "Anime", "2.5D") and `artStyleOf(character)`,
-  read from `extras.looks.style`. Each style carries its own prompt words, negatives and age cues. The drawn styles keep
-  every age word in the negatives and add "adult proportions, mature features".
+- `lib/art-style.ts` defines `realistic | anime | semi_real` ("Realistic", "Anime", "2.5D", the labels the builder and
+  the filters already used) and `artStyleOf(character)`, read from `extras.looks.style`. Each style carries its own
+  prompt words, negatives and age cues. The drawn styles keep every age word in the negatives and add "adult
+  proportions, mature features". The 2.5D words are look A's (the brief's tokens) until David picks.
 - Every `isAnime` check reads `artStyleOf` instead: portraits, recast, PG Studio, identity views, the face kit,
-  companions and After Dark.
-- After Dark refuses both drawn styles until phase 8.
-- **/create:** a third tile, 2.5D, in the looks builder's style step. Its tiles are drawn free.
+  companions and After Dark. PG Studio's shoots and carousels follow the style too (they were always photographs).
+- After Dark refuses both drawn styles until phase 8, and says which style keeps them out.
+- **/create:** a third tile, 2.5D, in the looks builder's style step. Its tiles are drawn free. The quick start reads
+  "2.5D", "semi-realistic" or "painterly" in a description as 2.5D.
 - **Filters and MCP:**
-  - /companion's style filter gains 2.5D, and /characters gets the same filter.
-  - The MCP's create, update and get carry `art_style`.
-- **Sources:** show pictures try Workers AI first and fall back to fal once the day's free budget is spent. The fal caps
-  don't change.
+  - /companion's style filter gains 2.5D, and /characters gets the same filter (`?style=`).
+  - The MCP's create, update and get carry `art_style` (2.37.0). Setting it keeps the rest of the look.
+- **Sources:** show tiles, portraits from the picks and sets try Workers AI first and fall back to fal once the day's
+  free budget is spent (or the Worker fails). The fal caps don't change. What drew each picture is recorded, so a kept
+  picture whose check couldn't run is checked again from its bytes, explicit question and all.
 
 ## 3. House look and show kit
 

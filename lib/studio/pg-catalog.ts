@@ -6,6 +6,7 @@
  *
  * Pure: the page, the API and the tests share it.
  */
+import { STYLE_WORDS, type ArtStyle } from "../art-style";
 
 export type PgOption = { id: string; label: string; words: string; /** Only at a beach or a pool (swimwear). */ beach?: true };
 export type PgGroup = { id: PgGroupId; title: string; pick: "one" | "many"; max?: number; options: readonly PgOption[] };
@@ -311,8 +312,8 @@ export function planPgShoot(choices: PgChoices): PgPlanResult {
 /** The words the strict word check reads: every pick's, the own place's and the owner's own. */
 export const planWords = (plan: PgPlan): string => [...plan.parts.map((p) => p.words), plan.ownPlace ?? "", plan.custom ?? ""].join(" ");
 
-/** Who the picture shows, for the prompt: the noun, the age, and PG look words (never a body's). */
-export type PgSubject = { noun: "man" | "woman" | "person"; age: number; look: string; anime?: boolean };
+/** Who the picture shows, for the prompt: the noun, the age, PG look words (never a body's) and their art style (lib/art-style.ts). */
+export type PgSubject = { noun: "man" | "woman" | "person"; age: number; look: string; style?: ArtStyle };
 
 /** The fixed words that keep every picture a show picture, whatever was picked. */
 /** A PG picture's tag: a group and one of its options (a shoot's picks), or what made it (`made`: shoot, identity, carousel, twin). */
@@ -332,7 +333,9 @@ export function pgTagsOf(choices: PgChoices, made: string): PgTag[] {
   return tags;
 }
 
-export const PG_TAIL = "Fully clothed, tasteful and everyday, safe for work. Photorealistic. Everyone shown is an adult.";
+/** The fixed tail of every PG picture, in their art style: a drawn character's pictures stay drawn, never photographs. */
+export const pgTail = (style: ArtStyle = "realistic"): string => `Fully clothed, tasteful and everyday, safe for work. ${STYLE_WORDS[style].short} Everyone shown is an adult.`;
+export const PG_TAIL = pgTail();
 
 /** A PG carousel's angles (the creator suite): one picture's very moment, seen from six places a photographer walks to. */
 export const PG_CAROUSEL_ANGLES = [
@@ -344,20 +347,28 @@ export const PG_CAROUSEL_ANGLES = [
   "in a medium shot, the camera turned slightly, natural and candid",
 ] as const;
 
+/** "A photograph", "An anime illustration", "A 2.5D illustration": what a PG picture of them is. */
+const aMedium = (style: ArtStyle = "realistic"): string => {
+  const noun = STYLE_WORDS[style].noun;
+  return `${/^[aeiou]/i.test(noun) ? "An" : "A"} ${noun}`;
+};
+
 /** One of a PG carousel's pictures: the person (their face, when there's a portrait) at the very moment of their picture, from `angle`. */
 export function pgCarouselPrompt(subject: PgSubject, hasFace: boolean, angle: string): string {
   const who = `a ${subject.age}-year-old ${subject.noun}${subject.look ? `, ${subject.look}` : ""}`;
+  const medium = aMedium(subject.style);
   const lead = hasFace
-    ? `A photograph of the person in the first reference picture (${who}), keeping their face exactly, at the very moment in the second reference picture.`
-    : `A photograph of the person in the reference picture (${who}), at the very moment it shows.`;
-  return [lead, `The same pose, clothes, place and light, seen ${angle}.`, PG_TAIL].join(" ");
+    ? `${medium} of the person in the first reference picture (${who}), keeping their face exactly, at the very moment in the second reference picture.`
+    : `${medium} of the person in the reference picture (${who}), at the very moment it shows.`;
+  return [lead, `The same pose, clothes, place and light, seen ${angle}.`, pgTail(subject.style)].join(" ");
 }
 export const PG_NEGATIVE = "child, children, kid, teen, teenager, minor, underage, young-looking, school uniform, nudity, nude, topless, lingerie, underwear, cleavage, see-through, sexual, suggestive, provocative pose";
 
 /** The picture's prompt: the same person as the reference (when there is one), then each part, then the fixed tail. */
 export function pgShootPrompt(plan: PgPlan, subject: PgSubject, hasFace: boolean): string {
   const who = `a ${subject.age}-year-old ${subject.noun}${subject.look ? `, ${subject.look}` : ""}`;
-  const lead = hasFace ? `A photograph of the person in the reference picture (${who}), keeping their face exactly.` : `A photograph of ${who}.`;
+  const medium = aMedium(subject.style);
+  const lead = hasFace ? `${medium} of the person in the reference picture (${who}), keeping their face exactly.` : `${medium} of ${who}.`;
   const order: PgGroupId[] = ["shot", "activity", "place", "wardrobe", "accessories", "hair", "expression", "season", "light", "framing", "style"];
   const byGroup = new Map(plan.parts.map((p) => [p.group, p.words]));
   const body = order
@@ -365,5 +376,5 @@ export function pgShootPrompt(plan: PgPlan, subject: PgSubject, hasFace: boolean
     .filter(Boolean)
     .map((w) => `${w!.charAt(0).toUpperCase()}${w!.slice(1)}.`)
     .join(" ");
-  return [lead, body, plan.custom ? `${plan.custom.replace(/[.\s]+$/, "")}.` : "", PG_TAIL].filter(Boolean).join(" ");
+  return [lead, body, plan.custom ? `${plan.custom.replace(/[.\s]+$/, "")}.` : "", pgTail(subject.style)].filter(Boolean).join(" ");
 }

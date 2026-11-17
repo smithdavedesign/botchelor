@@ -1,12 +1,15 @@
 /**
  * Drawn sets for places of their own (David, 2026-10-19: a place "if they were texting about it and then planned a
  * date… only if the scene doesn't exist already"). A date that goes somewhere the venue library has no set for
- * ("elsewhere@the observatory", lib/places.ts) gets one drawn once on fal.ai: an empty place, nobody in it, screened by
- * Hive before it's kept (David: Hive's screening is enough to show it at once). After that every date there reuses it,
+ * ("elsewhere@the observatory", lib/places.ts) gets one drawn once, free on Workers AI while its daily budget lasts
+ * (lib/workers-ai.ts), else on fal.ai: an empty place, nobody in it, screened by Hive before it's kept (David: Hive's
+ * screening is enough to show it at once). A Workers AI picture has no safety checker of its own, so its check also
+ * asks whether it's explicit (checkMedia's `unfiltered`). After that every date there reuses it,
  * and the scene (app/Scene.tsx) layers it over the generic set, which still shows until it exists or if it was refused.
  *
  * One row per place, however it's written (normalizeScene), claimed before it's drawn so two dates can't draw it twice.
- * Paid from the admin's fal and Hive keys (After Dark's settings, lib/adult/settings.ts); with no keys, nothing is drawn.
+ * Once Workers AI's free budget is spent, paid from the admin's fal and Hive keys (After Dark's settings,
+ * lib/adult/settings.ts); with neither, nothing is drawn.
  *
  * A set whose check couldn't run (Hive answered 429, or was down) isn't refused (David, 2026-10-21: 48 of 57 failed sets
  * were "Hive answered 429", never retried; the #310 fix for look tiles, lib/looks-draw.ts): its picture is kept, never
@@ -22,12 +25,17 @@ import { checkMedia, checkReady, isVerdict } from "./adult/moderation";
 import { adultKeys } from "./adult/settings";
 import type { Db } from "./db";
 import { checkShowText } from "./safety";
+import { drawWithWorkersAi } from "./workers-ai";
 import { DATE_VENUES, EXTRA_VENUES, isPlaceholder, normalizeScene, placeLabel } from "./venues";
 
 const LIBRARY: ReadonlySet<string> = new Set([...DATE_VENUES, ...EXTRA_VENUES].map((v) => v.id));
 
 /** FLUX [schnell] (Apache-2.0): fast and about a third of a cent a picture, plenty for an empty room. */
 export const SET_MODEL = "fal-ai/flux/schnell";
+/** A set drawn free on Workers AI (FLUX.2 klein, 16:9), as place_sets.model records it. */
+export const SET_FREE_MODEL = "workers-ai/flux-2-klein-4b";
+/** The check a kept picture gets: one from Workers AI is asked whether it's explicit too. */
+const checkFor = (model: string | null | undefined) => (model === SET_FREE_MODEL ? { unfiltered: true } : {});
 const FAL_RUN = "https://fal.run";
 const MAX_BYTES = 12 * 1024 * 1024;
 /** A set that failed to draw for good (not refused, not a passing problem) may be tried again after this long. */
@@ -127,7 +135,7 @@ export async function ensureSet(db: Db, place: string | null | undefined): Promi
  * Files a failure. A passing one (retryableReason) gets its next try scheduled, waiting longer each time; the picture,
  * when there is one, is kept to check again and never shown.
  */
-async function failed(db: Db, normalized: string, reason: string, picture?: { mime: string; bytes: Buffer }): Promise<SetStatus> {
+async function failed(db: Db, normalized: string, reason: string, picture?: { mime: string; bytes: Buffer }, model = SET_MODEL): Promise<SetStatus> {
   const passing = retryableReason(reason);
   await db.query(
     `update place_sets set status = 'failed', reason = $2, mime = coalesce($3, mime), data = coalesce($4, data), model = $5,
@@ -135,7 +143,7 @@ async function failed(db: Db, normalized: string, reason: string, picture?: { mi
             retry_at = case when $6 then now() + (least($7::bigint, $8::bigint * power(2, attempts)::bigint) * interval '1 millisecond') else null end,
             updated_at = now()
       where normalized = $1`,
-    [normalized, reason.slice(0, 300), picture?.mime ?? null, picture?.bytes ?? null, SET_MODEL, passing, RETRY_MAX_MS, RETRY_BASE_MS],
+    [normalized, reason.slice(0, 300), picture?.mime ?? null, picture?.bytes ?? null, model, passing, RETRY_MAX_MS, RETRY_BASE_MS],
   );
   return "failed";
 }
@@ -164,7 +172,7 @@ async function hiveWaitMs(db: Db): Promise<number> {
 const hiveCooling = async (db: Db): Promise<boolean> => (await hiveWaitMs(db)) > 0;
 
 async function draw(db: Db, normalized: string, label: string): Promise<SetStatus> {
-  const done = (status: "ready" | "refused", reason: string | null, file?: { mime: string; bytes: Buffer }) =>
+  const done = (status: "ready" | "refused", reason: string | null, file?: { mime: string; bytes: Buffer }, model = SET_MODEL) =>
     db
       .query(`update place_sets set status = $2, reason = $3, mime = $4, data = $5, model = $6, retry_at = null, updated_at = now() where normalized = $1`, [
         normalized,
@@ -172,11 +180,23 @@ async function draw(db: Db, normalized: string, label: string): Promise<SetStatu
         reason?.slice(0, 300) ?? null,
         file?.mime ?? null,
         file?.bytes ?? null,
-        SET_MODEL,
+        model,
       ])
       .then(() => status);
   const keys = await adultKeys(db).catch(() => null);
-  if (!keys?.fal || !(await checkReady(db, { pg: true }))) return failed(db, normalized, "no fal key or no checker saved");
+  if (!(await checkReady(db, { pg: true }))) return failed(db, normalized, "no fal key or no checker saved");
+  // Free first: Workers AI while its daily budget lasts (off, spent or failing: fal, as before).
+  const free = await drawWithWorkersAi({ prompt: setPrompt(label), width: 1024, height: 576 }, { fetchImpl: doFetch });
+  if (free.ok) {
+    if (free.bytes.length > MAX_BYTES) return failed(db, normalized, "file too large", undefined, SET_FREE_MODEL);
+    const v = await checkMedia(db, { base64: free.base64, mime: free.mime }, "set", checkFor(SET_FREE_MODEL));
+    if (isVerdict(v)) return done("refused", (v as { reason: string }).reason, undefined, SET_FREE_MODEL);
+    // Stored with the machine-readable "AI-generated" mark (lib/ai-mark.ts, EU AI Act Art. 50).
+    const picture = { mime: free.mime, bytes: markAiImage(free.bytes) };
+    if (!v.ok) return failed(db, normalized, UNCHECKED.test(v.reason) && !v.reason.startsWith(UNCHECKED_PREFIX) ? UNCHECKED_PREFIX + v.reason : v.reason, picture, SET_FREE_MODEL);
+    return done("ready", null, picture, SET_FREE_MODEL);
+  }
+  if (!keys?.fal) return failed(db, normalized, "no fal key or no checker saved");
   const res = await doFetch(`${FAL_RUN}/${SET_MODEL}`, {
     method: "POST",
     headers: { authorization: `Key ${keys.fal}`, "content-type": "application/json" },
@@ -203,10 +223,11 @@ async function draw(db: Db, normalized: string, label: string): Promise<SetStatu
 
 /** Checks a kept picture again (nothing new drawn or paid for): ready if it passes, refused if Hive refuses, else later. */
 async function recheck(db: Db, normalized: string): Promise<SetStatus> {
-  const row = (await db.query<{ mime: string | null; data: Buffer | Uint8Array | null }>(`select mime, data from place_sets where normalized = $1`, [normalized])).rows[0];
-  if (!row?.data || !(await checkReady(db, { pg: true }))) return failed(db, normalized, `${UNCHECKED_PREFIX}no picture or no checker to check it with`);
+  const row = (await db.query<{ mime: string | null; data: Buffer | Uint8Array | null; model: string | null }>(`select mime, data, model from place_sets where normalized = $1`, [normalized])).rows[0];
+  const model = row?.model ?? SET_MODEL;
+  if (!row?.data || !(await checkReady(db, { pg: true }))) return failed(db, normalized, `${UNCHECKED_PREFIX}no picture or no checker to check it with`, undefined, model);
   const data = row.data;
-  const verdict = await checkMedia(db, { base64: Buffer.from(data).toString("base64"), mime: row.mime ?? "image/jpeg" }, "set");
+  const verdict = await checkMedia(db, { base64: Buffer.from(data).toString("base64"), mime: row.mime ?? "image/jpeg" }, "set", checkFor(model));
   if (verdict.ok) {
     await db.query(`update place_sets set status = 'ready', reason = null, retry_at = null, updated_at = now() where normalized = $1`, [normalized]);
     return "ready";
@@ -215,7 +236,7 @@ async function recheck(db: Db, normalized: string): Promise<SetStatus> {
     await db.query(`update place_sets set status = 'refused', reason = $2, data = null, retry_at = null, updated_at = now() where normalized = $1`, [normalized, verdict.reason.slice(0, 300)]);
     return "refused";
   }
-  return failed(db, normalized, verdict.reason.startsWith(UNCHECKED_PREFIX) ? verdict.reason : UNCHECKED_PREFIX + verdict.reason);
+  return failed(db, normalized, verdict.reason.startsWith(UNCHECKED_PREFIX) ? verdict.reason : UNCHECKED_PREFIX + verdict.reason, undefined, model);
 }
 
 /**

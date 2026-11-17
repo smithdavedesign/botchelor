@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { artStyleFrom, type ArtStyle } from "./art-style";
 import { statusSql } from "./character-tags";
 import { isCharacterTag } from "./character-tags-shared";
 import { isStatus, type Status, type TagId } from "./tags";
@@ -672,7 +673,7 @@ export type CompanionListItem = CompanionCharacterRef & {
   /** On this month's show cast (lib/season-cast.ts showCastIds). */
   on_show: boolean;
   created_at: string | null;
-  /** How they're drawn, for the Style filter: anime when their looks say so (lib/looks.ts isAnime), else realistic. */
+  /** How they're drawn, for the Style filter: their looks' art style (lib/art-style.ts), realistic when none. */
   style: CompanionStyle;
   /** What kind of person they are (lib/character-tags.ts), for the Type filter and the card. */
   tags: TagId[];
@@ -680,7 +681,7 @@ export type CompanionListItem = CompanionCharacterRef & {
   status: Status;
 };
 
-export type CompanionStyle = "realistic" | "anime";
+export type CompanionStyle = ArtStyle;
 
 /**
  * How many people the companions page may list besides your own threads: every one of them, with room (the page shows
@@ -740,7 +741,7 @@ export async function listCompanions(
     source: r.owner_id === userId && userId ? "yours" : r.is_house ? "house" : r.created_via === "mcp" ? "agent" : "community",
     on_show: onShow.has(r.id),
     created_at: r.created_at ? new Date(r.created_at).toISOString() : null,
-    style: r.style === "anime" ? "anime" : "realistic",
+    style: artStyleFrom(r.style),
     tags: (r.tags ?? []).filter(isCharacterTag),
     status: isStatus(r.status) ? r.status : "single",
   });
