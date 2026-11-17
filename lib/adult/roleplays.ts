@@ -149,7 +149,7 @@ export const ROLEPLAYS: readonly HouseRoleplay[] = [
       ],
       tone: "close quarters, wry, a secret both of them already know",
       openings: [
-        "{a} is at the sink when {b} comes in and reaches past for a glass.",
+        "{a} is at the sink. {b} comes in and reaches past for a glass.",
         "{b} asks whether {a} can't sleep either.",
         "{a} and {b} both open the fridge to have something to look at.",
       ],
@@ -219,7 +219,7 @@ export const ROLEPLAYS: readonly HouseRoleplay[] = [
       tone: "accidental, courteous, strangers who would rather not fix the problem",
       openings: [
         "{a} holds up a key card, and {b} holds up its twin.",
-        "{b} offers to toss a coin for the room, and neither of them has a coin.",
+        "{b} offers to toss a coin for the room, and nobody has a coin.",
         "{a} and {b} reach the same door from opposite ends of the corridor.",
       ],
     },
@@ -228,9 +228,9 @@ export const ROLEPLAYS: readonly HouseRoleplay[] = [
     id: "photo-shoot", title: "The photo shoot", icon: "📸", category: "afterhours", roles: ["the photographer", "the model"], costumes: ["dark casual clothes, a camera on a strap over one shoulder", "the shoot's look, a fitted designer outfit"],
     premise: "A late shoot wraps. {a}, the photographer, and {b}, the model, are both off the clock, and they admit the chemistry the camera kept catching.",
     card: {
-      setup: "The lights are cooling and the crew has gone. {a} is packing lenses slowly, and {b} is back in a coat and in no hurry, both of them off the clock.",
+      setup: "The lights are cooling and the crew has gone. {a} is packing lenses slowly, and {b} is back in a coat and in no hurry. Nobody is on the clock.",
       wants: [
-        "{a} wants to say what the camera noticed all day, now that there is no job to hide behind; it has to be a decision the two of them make together.",
+        "{a} wants to say what the camera noticed all day, now that there is no job to hide behind; it has to be a shared decision.",
         "{b} wants to be looked at without a lens in the way; the work is finished, so nothing rides on asking.",
       ],
       beats: [
@@ -251,7 +251,7 @@ export const ROLEPLAYS: readonly HouseRoleplay[] = [
     id: "bodyguard", title: "The bodyguard", icon: "🕶️", category: "mystery", roles: ["the bodyguard", "the one they protect"], costumes: ["a black suit, a white shirt and an earpiece", "an elegant evening outfit"],
     premise: "{a} has guarded {b} for a year and never once crossed the line. Tonight, safe behind a locked door, {b} asks {a} to, and {a} has wanted to for months.",
     card: {
-      setup: "A year of doors held and rooms checked. Tonight, with the day's work over, {b} says the thing out loud and adds that the job does not depend on the answer.",
+      setup: "A year of {a} holding doors and checking rooms. Tonight, with the day's work over, {b} says the thing out loud and adds that the job does not depend on the answer.",
       wants: [
         "{a} wants to answer honestly for once; a year of never crossing the line is a hard habit to set down.",
         "{b} wants {a} to choose freely, as a person and not as staff; that is why the contract is the first thing on the table.",
@@ -266,7 +266,7 @@ export const ROLEPLAYS: readonly HouseRoleplay[] = [
       openings: [
         "{b} asks {a} to sit down for once, as a request and not an instruction.",
         "{a} checks the lock out of habit, and {b} says the room is the safest it has ever been.",
-        "{a} takes out the earpiece and sets it on the table between them.",
+        "{a} takes out the earpiece and sets it on the table.",
       ],
     },
   },
@@ -289,7 +289,7 @@ export const ROLEPLAYS: readonly HouseRoleplay[] = [
       openings: [
         "{b} asks, sincerely, what {a} does for work.",
         "{a} gives a first name and watches it mean nothing to {b}.",
-        "{a} pushes a pair of sunglasses up, and {b} still has no idea.",
+        "{a} pushes a pair of sunglasses up, and {b} has no idea even then.",
       ],
     },
   },
@@ -320,7 +320,7 @@ export const ROLEPLAYS: readonly HouseRoleplay[] = [
     id: "friends", title: "Best friends, finally", icon: "🤝", category: "romance", roles: null,
     premise: "{a} and {b} have been best friends for years. Tonight one of them finally says it, and the other has been waiting to hear it.",
     card: {
-      setup: "The usual sofa, the usual film neither is watching. {a} and {b} have been best friends for years, and tonight one of them has stopped laughing at the right places.",
+      setup: "The usual sofa, the usual film neither is watching. {a} and {b} have been best friends for years, and tonight somebody has stopped laughing at the right places.",
       wants: [
         "{a} wants to say it without losing the friendship if it lands wrong; years of jokes make it hard to sound serious.",
         "{b} wants to hear it said and has been hoping for longer than seems reasonable; saying it first feels impossible.",
@@ -335,7 +335,7 @@ export const ROLEPLAYS: readonly HouseRoleplay[] = [
       openings: [
         "{a} pauses the film and says there is something that is not about the film.",
         "{b} asks why {a} has gone quiet.",
-        "{a} and {b} reach for the same bowl and both say sorry, which they never do.",
+        "{a} and {b} reach for the same bowl and both say sorry, which never happens.",
       ],
     },
   },
@@ -346,7 +346,7 @@ export const ROLEPLAYS: readonly HouseRoleplay[] = [
       setup: "Another awards dinner, the same two names on the shortlist. {a} and {b} are seated side by side by someone with a sense of humour.",
       wants: [
         "{a} wants to win the argument, the award and {b}'s full attention, in any order; admitting the last one is the hard part.",
-        "{b} wants to find out what years of competing were really about; conceding a point to {a} has never once happened.",
+        "{b} wants to find out what years of competing were really about; conceding a single point has never once happened.",
       ],
       beats: [
         "They score points off each other's speeches.",
@@ -381,7 +381,7 @@ export const ROLEPLAYS: readonly HouseRoleplay[] = [
       openings: [
         "{a} stands to shake hands and knocks a fork off the table.",
         "{b} says the friend described {a} as a good listener, which sounded like a warning.",
-        "{a} and {b} recognise each other from a description that undersold them both.",
+        "{a} and {b} recognise each other from a description that did neither justice.",
       ],
     },
   },
@@ -414,7 +414,7 @@ export const ROLEPLAYS: readonly HouseRoleplay[] = [
     card: {
       setup: "The same hotel bar in yet another city. {a} and {b} both know about the file, and both ordered for the other before sitting down.",
       wants: [
-        "{a} wants a truce that is not a tactic for once; trusting {b} goes against all the training.",
+        "{a} wants a truce that is not a tactic for once; trusting a rival goes against all the training.",
         "{b} wants to know whether {a}'s interest is in the file or the company; both would be flattering and only one is safe.",
       ],
       beats: [
@@ -427,7 +427,7 @@ export const ROLEPLAYS: readonly HouseRoleplay[] = [
       openings: [
         "{a} slides a drink along the bar, already the right one.",
         "{b} says the file can wait until morning, as an opening offer.",
-        "{a} and {b} sit with their backs to the room for the first time, on purpose.",
+        "{a} and {b} take the two stools that face away from the room, for once, on purpose.",
       ],
     },
   },
@@ -506,7 +506,7 @@ export const ROLEPLAYS: readonly HouseRoleplay[] = [
   // famous-people themes are left out on purpose.
   {
     id: "your-rules", title: "Your rules tonight", icon: "🗝️", category: "romance", roles: ["the one who leads", "the one who follows"], costumes: ["a crisp shirt with the sleeves rolled to the elbow", "something soft and comfortable, chosen for the evening"],
-    premise: "Tonight {a} leads and {b} follows, because they agreed it out loud first: what is on the table, what is not, and one word that stops everything the moment either says it. Warm and careful, never cruel.",
+    premise: "Tonight {a} leads and {b} follows, because it was all agreed out loud first: what is on the table, what is not, and one word that stops everything the moment either says it. Warm and careful, never cruel.",
     card: {
       setup: "Two chairs pulled close and the rules already said out loud. {a} leads tonight and {b} follows, and the word that stops everything is written on a card on the table where both can see it.",
       wants: [
@@ -529,12 +529,12 @@ export const ROLEPLAYS: readonly HouseRoleplay[] = [
   },
   {
     id: "dons-truce", title: "The truce", icon: "♟️", category: "mystery", roles: null,
-    premise: "{a} and {b} run rival outfits and have circled each other for years. Tonight they negotiate a truce themselves, alone in a private room, as equals: no seconds, no weapons, and nobody owes anybody anything.",
+    premise: "{a} and {b} run rival outfits and have circled each other for years. Tonight the two heads negotiate a truce in person, alone in a private room, as equals: no seconds, no weapons, and nobody owes anybody anything.",
     card: {
-      setup: "A private dining room, both sets of people sent home. {a} and {b} sit at opposite ends of a table that is too long, and one of them has just moved a chair closer.",
+      setup: "A private dining room, both sets of people sent home. {a} and {b} sit at opposite ends of a table that is too long, and somebody has just moved a chair closer.",
       wants: [
         "{a} wants a truce that does not need lawyers; years of watching {b} work have turned into something other than strategy.",
-        "{b} wants to be dealt with face to face and not through messengers; respect for {a} has been the best-kept secret in either outfit.",
+        "{b} wants to be dealt with face to face and not through messengers; a long respect for the other side has been the best-kept secret in either outfit.",
       ],
       beats: [
         "They divide the city on a napkin, and it takes no time at all.",
@@ -546,7 +546,7 @@ export const ROLEPLAYS: readonly HouseRoleplay[] = [
       openings: [
         "{a} pours two glasses and leaves the bottle in the middle of the table.",
         "{b} says the terms are easy and the conversation after them is not.",
-        "{a} and {b} send their people home with the same gesture, at the same time.",
+        "{a} and {b} each send a driver home with the same gesture, at the same time.",
       ],
     },
   },
@@ -575,7 +575,7 @@ export const ROLEPLAYS: readonly HouseRoleplay[] = [
   },
   {
     id: "arranged-match", title: "The arranged match", icon: "📜", category: "romance", roles: null,
-    premise: "{a} and {b} are the adult heirs of two houses, and each chose this alliance freely. Tonight, the night before it is announced, they meet alone for the first time, and either of them can still call it off.",
+    premise: "{a} and {b} are the adult heirs of two houses, and each chose this alliance freely. Tonight, the night before it is announced, is the first meeting alone, and either can still call it off.",
     card: {
       setup: "A quiet library between two wings of a great house, with the contracts unsigned on the desk. {a} and {b} have read each other's letters for a year and never been in the same room.",
       wants: [
@@ -590,17 +590,17 @@ export const ROLEPLAYS: readonly HouseRoleplay[] = [
       ],
       tone: "formal, curious, a choice being made a second time in person",
       openings: [
-        "{a} says the first thing to settle is whether either of them wants out.",
-        "{b} sets the unsigned contract aside and says it can wait until they have talked.",
+        "{a} says the first thing to settle is whether anybody here wants out.",
+        "{b} sets the unsigned contract aside and says it can wait until after a proper conversation.",
         "{a} and {b} bow, and both start laughing at how formal it is.",
       ],
     },
   },
   {
     id: "off-duty", title: "Hero and villain, off duty", icon: "🦸", category: "fantasy", roles: ["the hero", "the villain"], costumes: ["a plain coat over a hero's suit, a mask in one pocket", "a sharp dark suit with one theatrical flourish"],
-    premise: "{a} is the city's hero and {b} its most persistent villain. One night a year neither is working, and by long tradition they meet somewhere neutral. This year neither pretends it is only tradition.",
+    premise: "{a} is the city's hero, and {b} is its most persistent villain. One night a year neither is working, and by long tradition they meet somewhere neutral. This year neither pretends it is only tradition.",
     card: {
-      setup: "A rooftop above a city neither of them is saving or menacing tonight. {a} has brought takeaway, {b} has brought a bottle, and the masks are in their pockets.",
+      setup: "A rooftop above a city nobody is saving or menacing tonight. {a} has brought takeaway, {b} has brought a bottle, and both masks are in coat pockets.",
       wants: [
         "{a} wants to know who {b} is when there is nothing to win; the answer might make the rest of the year harder.",
         "{b} wants one evening of being taken at face value; the reputation gets into the room before {b} does.",
@@ -615,13 +615,13 @@ export const ROLEPLAYS: readonly HouseRoleplay[] = [
       openings: [
         "{a} lands on the rooftop holding a paper bag and says it is a peace offering.",
         "{b} is already there and says the hero is late for once.",
-        "{a} and {b} put their masks on the ledge, side by side.",
+        "{a} and {b} set two masks on the ledge, side by side.",
       ],
     },
   },
   {
     id: "anniversary-strangers", title: "Married, meeting as strangers", icon: "🥃", category: "second", roles: null,
-    premise: "{a} and {b} have been married for years. Tonight they meet at a hotel bar and pretend they never have: new names, a first hello, and the fun of being chosen all over again.",
+    premise: "{a} and {b} have been married for years. Tonight, at a hotel bar, {a} and {b} are strangers: new names, a first hello, and the fun of being chosen all over again.",
     card: {
       setup: "A hotel bar far enough from home to feel like somewhere else. {a} is already at the bar with a ring in a pocket, and {b} walks in pretending to look for nobody.",
       wants: [
@@ -644,7 +644,7 @@ export const ROLEPLAYS: readonly HouseRoleplay[] = [
   },
   {
     id: "after-the-party", title: "After the party", icon: "🎉", category: "nightin", roles: ["the one who got the attention", "the one who noticed"], costumes: ["party clothes, a little rumpled, shoes in one hand", "a good shirt, a jacket over one arm"],
-    premise: "{a} and {b} are a couple, just home from a party where {a} got a lot of attention. {b} noticed. The jealousy gets said out loud, and then it gets laughed about, because both of them know who came home with whom.",
+    premise: "{a} and {b} are a couple, just home from a party where {a} got a lot of attention. {b} noticed. The jealousy gets said out loud, and then it gets laughed about, because nobody is in any doubt about who came home with whom.",
     card: {
       setup: "The front door shuts on the noise of the evening. {a} is still glowing from the party, and {b} is hanging up two coats with great care.",
       wants: [
@@ -661,7 +661,7 @@ export const ROLEPLAYS: readonly HouseRoleplay[] = [
       openings: [
         "{b} says, conversationally, that the person by the bookshelf laughed at everything {a} said.",
         "{a} asks whether {b} was counting, and {b} says only until it got to double figures.",
-        "{a} and {b} kick off their shoes in the hall, and neither turns on the big light.",
+        "{a} and {b} kick off two pairs of shoes in the hall, and neither turns on the big light.",
       ],
     },
   },
@@ -690,9 +690,9 @@ export const ROLEPLAYS: readonly HouseRoleplay[] = [
   },
   {
     id: "slow-sunday", title: "A slow Sunday", icon: "☔", category: "nightin", roles: null,
-    premise: "{a} and {b} have been together a long time. It is Sunday, it is raining, and there is nowhere either of them has to be. Soft and unhurried, with the whole day to waste on each other.",
+    premise: "{a} and {b} have been together a long time. It is Sunday, it is raining, and there is nowhere anyone has to be. Soft and unhurried, with the whole day to waste on each other.",
     card: {
-      setup: "Rain on the windows and the second pot of coffee going cold. {a} and {b} are on the sofa with the crossword between them and no plans at all.",
+      setup: "Rain on the windows and the second pot of coffee going cold. {a} and {b} are on the sofa with the crossword in the middle and no plans at all.",
       wants: [
         "{a} wants the day to stay exactly this slow; the list of chores on the fridge is trying to be noticed.",
         "{b} wants {a}'s full attention with nothing competing for it; the crossword is the only rival.",
@@ -706,19 +706,19 @@ export const ROLEPLAYS: readonly HouseRoleplay[] = [
       tone: "soft, unhurried, the ease of people who know each other well",
       openings: [
         "{a} reads a crossword clue aloud and gets it wrong on purpose.",
-        "{b} pulls the blanket over both of them and says the day is cancelled.",
+        "{b} pulls the blanket across the whole sofa and says the day is cancelled.",
         "{a} and {b} listen to the rain and agree it sounds like permission.",
       ],
     },
   },
   {
     id: "after-the-cameras", title: "After the cameras", icon: "🎥", category: "getaway", roles: null,
-    premise: "{a} and {b} are contestants on a dating show, on the overnight date. The crew has gone home, the microphones are off, and for the first time what happens next is up to the two of them and nobody's edit.",
+    premise: "{a} and {b} are contestants on a dating show, on the overnight date. The crew has gone home, the microphones are off, and for the first time what happens next is nobody's edit.",
     card: {
       setup: "A villa suite with the camera rigs still up and every red light dark. {a} and {b} each handed a microphone to the last of the crew, and the quiet afterwards is new.",
       wants: [
         "{a} wants to find out what {b} is like unedited; weeks of performing make it hard to know where to start.",
-        "{b} wants a choice that is not a storyline; either of them can still call the car, and saying that out loud helps.",
+        "{b} wants a choice that is not a storyline; anyone can still call the car, and saying that out loud helps.",
       ],
       beats: [
         "They check, together, that every camera is really off.",
@@ -736,7 +736,7 @@ export const ROLEPLAYS: readonly HouseRoleplay[] = [
   },
   {
     id: "summoned", title: "Summoned by mistake", icon: "🕯️", category: "fantasy", roles: ["the one who did the summoning", "the demon"], costumes: ["an old cardigan with chalk on the cuffs", "a perfectly cut dark suit, faintly smoking at the hems"],
-    premise: "{a} misread one line of an old book and summoned {b}, a charming demon several centuries old, by accident. The chalk circle holds nobody and the contract is blank: the terms are theirs to write together, and either can end it with a word.",
+    premise: "{a} misread one line of an old book and summoned {b}, a charming demon several centuries old, by accident. The chalk circle holds nobody and the contract is blank: the terms get written together, and either can end it with a word.",
     card: {
       setup: "A chalk circle on a study floor, slightly smudged, and a smell of struck matches. {b} is standing in it looking politely amused, and {a} is holding the book upside down.",
       wants: [
@@ -776,7 +776,7 @@ export const ROLEPLAYS: readonly HouseRoleplay[] = [
       openings: [
         "{a} pours two measures and says the truce was clearly {b}'s idea.",
         "{b} unrolls a chart and points to the spot where {a} got away the first time.",
-        "{a} and {b} set their hats on the same hook, for lack of a second one.",
+        "{a} and {b} hang two hats on the same hook, for lack of a second one.",
       ],
     },
   },

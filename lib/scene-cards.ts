@@ -170,7 +170,7 @@ export const ADULT_CARD_NEVER =
  * scene's own writer and its stage rules decide how far a night goes, never the card).
  */
 export const CARD_EXPLICIT =
-  /\b(fuck\w*|cock|cocks|dick|dicks|pussy|cunt|clit\w*|tits?|titties|nipples?|cum|cumming|blow ?jobs?|hand ?jobs?|orgasm\w*|climax\w*|moan\w*|thrust\w*|grind(?:s|ing)?|straddl\w*|grop\w*|fondl\w*|lick\w*|suck\w*|penetrat\w*|erect\w*|hard-on|aroused?|arousal|horny|naked|nude|nudity|bare skin|crotch|groin|genital\w*|sex|sexual\w*|sexy|kink\w*|bondage|bdsm|fetish\w*|panties|unbutton\w*|unzip\w*|strip(?:s|ped|ping)?)\b/i;
+  /\b(fuck\w*|cock|cocks|dick|dicks|pussy|cunt|clit\w*|tits?|titties|nipples?|cum|cumming|blow ?jobs?|hand ?jobs?|orgasm\w*|climax\w*|moan\w*|thrust\w*|grind(?:s|ing)?|straddl\w*|grop(?:e|es|ed|ing)|fondl(?:e|es|ed|ing)|lick\w*|suck\w*|penetrat\w*|erect\w*|hard-on|aroused?|arousal|horny|naked|nude|nudity|bare skin|crotch|groin|genital\w*|sex|sexual\w*|sexy|kink\w*|bondage|bdsm|fetish\w*|panties|unbutton\w*|unzip\w*|strip(?:s|ped|ping)?)\b/i;
 
 /**
  * Why one text can't be on an After Dark card, or null: After Dark's own lines (checkAdultText, with its excluded

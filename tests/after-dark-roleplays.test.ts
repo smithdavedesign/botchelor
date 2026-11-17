@@ -11,7 +11,8 @@ import { claimAdmin } from "@/lib/admins";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import { sessionCookies } from "@/lib/http";
 import type { ChatMessage } from "@/lib/model";
-import { checkAdultText, excludedTheme } from "@/lib/safety";
+import { checkAdultText, checkFields, excludedTheme } from "@/lib/safety";
+import { adultCardIssue, cardTexts } from "@/lib/scene-cards";
 import { setSeasonCastForTests } from "@/lib/season-cast";
 import { setSetsFetchForTests } from "@/lib/sets";
 import { loadCharacter } from "@/lib/character";
@@ -78,7 +79,8 @@ function scripted(reply: () => unknown = six) {
 
 describe("roleplays for a chapter", () => {
   it("are reviewed against the lines: two adults, both willing, no family, step-family, babysitter, teacher, school or age-play", () => {
-    expect(ROLEPLAYS.length).toBeGreaterThanOrEqual(15);
+    // 20 since October, and 13 more from the census of public character listings (2026-11-17).
+    expect(ROLEPLAYS).toHaveLength(33);
     expect(new Set(ROLEPLAYS.map((r) => r.id)).size).toBe(ROLEPLAYS.length);
     // The scenarios' list, less boss and employee: David asked for the boss setup (2026-10-25), and it's written mutual,
     // said out loud, with nobody's job depending on the answer.
@@ -92,6 +94,15 @@ describe("roleplays for a chapter", () => {
       expect(NEVER.exec(text)?.[0] ?? null, r.id).toBeNull();
       expect(r.premise).toContain("{a}");
       expect(r.premise.length).toBeLessThanOrEqual(300);
+      // Its scene card (lib/scene-cards.ts) is held to the same, word by word, and to more: a card is a story card, so
+      // it also passes the check that keeps anything explicit off the show's own sheets (tests/scene-cards.test.ts).
+      for (const { field, text: words } of cardTexts(r.card)) {
+        expect(checkAdultText({ [field]: words }).ok, `${r.id} ${field}`).toBe(true);
+        expect(excludedTheme(words), `${r.id} ${field}`).toBeNull();
+        expect(NEVER.exec(words)?.[0] ?? null, `${r.id} ${field}`).toBeNull();
+        expect(checkFields({ [field]: words }).ok, `${r.id} ${field}`).toBe(true);
+      }
+      expect(adultCardIssue(r.card), r.id).toBeNull();
     }
     expect(roleplayLine(ROLEPLAYS.find((r) => r.id === "boss")!, { a: "Juniper", b: "Rafe" }, true)).toContain("Rafe runs the team and Juniper is on it.");
   });
@@ -118,5 +129,57 @@ describe("roleplays for a chapter", () => {
     // Start over clears it too.
     await post({ a: CAST_A, b: CAST_B, roleplay: { id: "exes" } }, cookie);
     expect((await (await post({ a: CAST_A, b: CAST_B, reset: true }, cookie)).json()).scene.roleplay).toBeNull();
+  });
+
+  it("bring their scene card to the writer, with the opening the viewer picked on the first lines after it and never again", async () => {
+    const { cookie } = await admin();
+    const prompts = scripted();
+    const wrote = (from: number) => prompts.slice(from).map((p) => p[0].content).join("\n----\n");
+    await post({ a: CAST_A, b: CAST_B }, cookie);
+    // Picked mid-chapter, with the third opening: stored, and read back, without where in the chapter it was picked.
+    const rivals = ROLEPLAYS.find((r) => r.id === "rivals")!;
+    const picked = await (await post({ a: CAST_A, b: CAST_B, roleplay: { id: "rivals", opening: 2 } }, cookie)).json();
+    expect(picked.scene.roleplay).toEqual({ id: "rivals", swap: false, opening: 2 });
+    expect((await get(cookie)).scene.roleplay).toEqual({ id: "rivals", swap: false, opening: 2 });
+    expect((await t.db.query<{ roleplay: unknown }>(`select roleplay from adult_scenes`)).rows[0].roleplay).toEqual({ id: "rivals", swap: false, opening: 2, at: picked.scene.lines.length, chapter: 1 });
+    expect(picked.scene.lines.length).toBeGreaterThan(0);
+
+    let from = prompts.length;
+    await post({ a: CAST_A, b: CAST_B }, cookie);
+    const first = wrote(from);
+    expect(first).toContain("The story behind the roleplay (context for you, never a script):");
+    expect(first).toContain("- How it starts: Another awards dinner, the same two names on the shortlist. Juniper and Rafe are seated side by side by someone with a sense of humour.");
+    expect(first).toContain("- What Juniper wants: Juniper wants to win the argument, the award and Rafe's full attention");
+    expect(first).toContain("- What Rafe wants: Rafe wants to find out what years of competing were really about");
+    for (const beat of rivals.card.beats) expect(first).toContain(beat);
+    expect(first).toContain(`- Its tone: ${rivals.card.tone}.`);
+    expect(first).toContain("- How it opens: Juniper and Rafe applaud each other's nomination with identical thin smiles. These first lines play that.");
+    // The roleplay is still the story and never a way into sex, and the card's turns are story turns.
+    expect(first).toContain("The roleplay is the story, not a way into sex");
+    expect(first).toContain("none of them is a cue to move a stage on or a place it has to end");
+
+    // The next lines keep the card and drop the opening.
+    from = prompts.length;
+    await post({ a: CAST_A, b: CAST_B }, cookie);
+    expect(wrote(from)).toContain("- What Juniper wants: Juniper wants to win the argument");
+    expect(wrote(from)).not.toContain("How it opens");
+
+    // No opening sent (or the first) is the first, stored as nothing; one out of range is refused; one of the viewer's
+    // own roleplays has no card, so an opening sent with it is dropped.
+    expect((await (await post({ a: CAST_A, b: CAST_B, roleplay: { id: "rivals", opening: 0 } }, cookie)).json()).scene.roleplay).toEqual({ id: "rivals", swap: false });
+    from = prompts.length;
+    await post({ a: CAST_A, b: CAST_B }, cookie);
+    expect(wrote(from)).toContain("- How it opens: Juniper reads the place cards and laughs once, without humour. These first lines play that.");
+    expect((await post({ a: CAST_A, b: CAST_B, roleplay: { id: "rivals", opening: 3 } }, cookie)).status).toBe(422);
+
+    // A scene from before openings (no `opening`, no `at`) still works: its card is there, and its opening would only
+    // have played on a chapter's very first lines.
+    await t.db.query(`update adult_scenes set roleplay = jsonb_build_object('id', 'exes', 'swap', true, 'chapter', chapter)`);
+    expect((await get(cookie)).scene.roleplay).toEqual({ id: "exes", swap: true });
+    from = prompts.length;
+    await post({ a: CAST_A, b: CAST_B }, cookie);
+    expect(wrote(from)).toContain("This chapter's roleplay, chosen by the viewer: Exes, one more night. Rafe and Juniper broke up years ago.");
+    expect(wrote(from)).toContain("- What Rafe wants: Rafe wants to know whether the pull is nostalgia or still real");
+    expect(wrote(from)).not.toContain("How it opens");
   });
 });

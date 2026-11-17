@@ -11,6 +11,7 @@ import { dateShape } from "@/lib/moves";
 import { listNotifications } from "@/lib/notifications";
 import { DATE_ROLEPLAY_NEVER, DATE_ROLEPLAYS, dateRoleplayById, fillPremise, roleIndex, roleplayForActor, rolesLine, sameTerms, suggestiveIn, termsFor } from "@/lib/roleplays";
 import { checkShowText } from "@/lib/safety";
+import { openedTerms } from "@/lib/scene-cards";
 import { createMatch } from "@/lib/swipes";
 import { pickVenue } from "@/lib/venues";
 import { api, BASE_URL, episodeJson, HOUSE_PARTNER_ID, newUserCookie, scriptedModel, scriptOutcome, startTestDb, userIdOf, validCharacter } from "./helpers";
@@ -128,6 +129,48 @@ describe("the prompts a roleplay date writes with", () => {
     const msgs = buildTurnMessages(INPUT, OUTCOME, chars(true), "a_hard_question", VENUE, [], 0, "classic", ctx).messages;
     expect(user(msgs).match(/not their real lives/g) ?? []).toHaveLength(0);
   });
+
+  it("with its scene card: each side's own want and never the other's, the opening on each side's first line only, and how it starts for the director", () => {
+    // The opening a date plays (lib/scene-cards.ts): one of the card's three, by the date's id.
+    const opened = openedTerms(rp, "episode-1");
+    const [a, b] = chars(false);
+    a.roleplay = roleplayForActor(opened, "mira", cast);
+    b.roleplay = roleplayForActor(opened, "rafe", cast);
+    const card = dateRoleplayById("time-traveller")!.card;
+    const opening = String(a.roleplay.opening);
+    expect(card.openings.map((o) => o.replaceAll("{a}", "Mira").replaceAll("{b}", "Rafe"))).toContain(opening);
+
+    const first = buildTurnMessages(INPUT, OUTCOME, [a, b], "a_hard_question", VENUE, [], 0).messages;
+    // The section says what each part is for, that the turns are never a script or an ending, and keeps the ending the engine's.
+    expect(system(first)).toMatch(/"what_you_want" is what you're after in the game[\s\S]*possibilities, never a script[\s\S]*none of them says how tonight ends[\s\S]*in the final act you land your intention\./);
+    expect(user(first)).toContain(`"how_it_starts":"Mira stepped out of a shimmer in the air`);
+    expect(user(first)).toContain(`"what_you_want":"Mira wants to see an ordinary evening`);
+    expect(user(first)).not.toContain("Rafe wants to know one thing about the future");
+    expect(user(first)).toContain(`"where_it_can_go":[`);
+    expect(user(first)).toContain(`"tone":"${card.tone}"`);
+    expect(user(first)).toContain(`"opening":${JSON.stringify(opening)}`);
+    expect(user(first)).toMatch(/open inside it, in your role, on its \\"opening\\"\./);
+
+    // The other side's first line has the opening too, with its own want; once a side has spoken, its opening is gone.
+    const line = (side: "a" | "b", dialogue: string) => ({ side, dialogue, action: "", emotion: "warm", interest: 0.5, act: 0 }) as Any;
+    const second = buildTurnMessages(INPUT, OUTCOME, [a, b], "a_hard_question", VENUE, [line("a", "Quick question: what year is it?")], 1).messages;
+    expect(user(second)).toContain(`"what_you_want":"Rafe wants to know one thing about the future`);
+    expect(user(second)).not.toContain("Mira wants to see an ordinary evening");
+    expect(user(second)).toContain(`"opening":${JSON.stringify(opening)}`);
+    const third = buildTurnMessages(INPUT, OUTCOME, [a, b], "a_hard_question", VENUE, [line("a", "Quick question: what year is it?"), line("b", "The usual one. Why?")], 2).messages;
+    expect(user(third)).toContain(`"what_you_want":"Mira wants to see an ordinary evening`);
+    expect(user(third)).not.toContain(`"opening":`);
+
+    // The director, the recap and the morning after: how it starts and the tone, in one sentence.
+    expect(formatContextOf({ setup: { roleplay: opened }, characters: cast }).roleplay).toMatch(/How it starts: Mira stepped out of a shimmer[\s\S]*Its tone: wonder-struck, funny/);
+    // A roleplay with no card (one someone wrote) is prompted exactly as it was.
+    const own = { id: "custom", title: "Lighthouse keepers", icon: "✨", premise: "{a} and {b} keep the last lighthouse on the coast.", roles: null, first: "mira" };
+    const [oa, ob] = chars(false);
+    oa.roleplay = roleplayForActor(openedTerms(own, "episode-1"), "mira", cast);
+    const plain = buildTurnMessages(INPUT, OUTCOME, [oa, ob], "a_hard_question", VENUE, [], 0).messages;
+    expect(user(plain)).toContain(`"tonights_roleplay":{"title":"Lighthouse keepers","premise":"Mira and Rafe keep the last lighthouse on the coast.","how":`);
+    expect(user(plain)).toMatch(/open inside it, in your role\./);
+  });
 });
 
 describe("what a roleplay date leaves in their memory", () => {
@@ -206,6 +249,8 @@ describe("agreeing on a roleplay (lib/date-roleplays.ts)", () => {
     expect(date.status).toBe(200);
     const setup = await setupOf(date.body.id);
     expect(setup.roleplay).toMatchObject({ id: "stowaway", agreed: "auto", agreed_id: r.ok ? r.roleplay.id : "" });
+    // How it opens is snapshotted with the terms (lib/scene-cards.ts): one of its card's three, by the date's id.
+    expect(dateRoleplayById("stowaway")!.card.openings).toContain(setup.roleplay.opening);
     expect(date.body.roleplay).toMatchObject({ title: "Captain and stowaway", roles: expect.stringMatching(/plays the captain, Cass the stowaway$/) });
     expect(await pairRoleplay(t.db, userIdOf(me), cass.id, HOUSE_PARTNER_ID)).toBeNull(); // used
     expect((await t.db.query<Any>(`select status, episode_id from date_roleplays`)).rows[0]).toMatchObject({ status: "used", episode_id: date.body.id });

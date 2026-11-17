@@ -8,8 +8,8 @@ import { ROLEPLAYS, roleplayById, rolesLine, type Roleplay } from "@/lib/adult/r
 
 const ICON = Object.fromEntries(SCENE_CATEGORIES.map((c) => [c.id, c.icon])) as Record<SceneCategory, string>;
 
-/** What the second screen sends: a roleplay for the chapter, or none. */
-export type RoleplayPick = { id: string; swap: boolean } | null;
+/** What the second screen sends: a roleplay for the chapter (and which of its three openings; left out, the first), or none. */
+export type RoleplayPick = { id: string; swap: boolean; opening?: number } | null;
 
 /**
  * 📍 Scene & roleplay, as a full-screen picker in two screens (David, 2026-10-25: after choosing a venue "they can choose a
@@ -198,16 +198,28 @@ export default function SetSceneModal({
                 const swap = on ? pick!.swap : false;
                 return (
                   <li key={r.id} className={`ad-rp-card${on ? " on" : ""}`}>
-                    <button type="button" role="radio" aria-checked={on} className="ad-rp-pick" onClick={() => setPick({ id: r.id, swap })}>
+                    <button type="button" role="radio" aria-checked={on} className="ad-rp-pick" onClick={() => setPick(on ? pick : { id: r.id, swap })}>
                       <span className="ad-rp-icon">{r.icon}</span>
                       <strong>{r.title}</strong>
                       <span className="muted small ad-scene-premise">{fill(r.premise, swap)}</span>
                       {r.roles && <span className="ad-rp-roles">{rolesLine(r, names, swap)}</span>}
                     </button>
                     {on && r.roles && (
-                      <button type="button" className="button-ghost small ad-rp-swap" onClick={() => setPick({ id: r.id, swap: !swap })}>
+                      <button type="button" className="button-ghost small ad-rp-swap" onClick={() => setPick({ ...pick!, swap: !swap })}>
                         ⇄ Swap roles
                       </button>
+                    )}
+                    {/* How it opens (lib/scene-cards.ts): one of the card's three, the first unless they pick another. */}
+                    {on && r.card && (
+                      <fieldset className="ad-rp-opens" role="radiogroup">
+                        <legend>How it opens</legend>
+                        {r.card.openings.map((opening, i) => (
+                          <label key={i} className="check small">
+                            <input type="radio" name={`opening-${r.id}`} checked={(pick!.opening ?? 0) === i} onChange={() => setPick({ id: r.id, swap, ...(i ? { opening: i } : {}) })} />
+                            <span>{fill(opening, swap)}</span>
+                          </label>
+                        ))}
+                      </fieldset>
                     )}
                   </li>
                 );
@@ -222,7 +234,7 @@ export default function SetSceneModal({
                   Skip the roleplay · <TokenPrice tokens={moveTokens} />
                 </button>
               )}
-              <button type="button" className="primary" disabled={busy || (!place && (pick?.id ?? null) === (roleplay?.id ?? null) && pick?.swap === roleplay?.swap)} onClick={() => void go(pick)}>
+              <button type="button" className="primary" disabled={busy || (!place && (pick?.id ?? null) === (roleplay?.id ?? null) && pick?.swap === roleplay?.swap && (pick?.opening ?? 0) === (roleplay?.opening ?? 0))} onClick={() => void go(pick)}>
                 {place ? (
                   <>
                     Go · <TokenPrice tokens={moveTokens} />

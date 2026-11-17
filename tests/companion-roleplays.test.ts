@@ -122,9 +122,45 @@ describe("a roleplay in a companion's scene", () => {
     expect(prompt[0].content).toContain("You play the fortune teller; they play the sceptic who sat down for a reading.");
     expect(prompt[0].content).toContain("What they say in the roleplay is their character, not their life.");
     expect(prompt.at(-1)!.content).toContain('the roleplay "The fortune teller" starts now');
+    // Its scene card (lib/scene-cards.ts) from the character's side: how it starts, where it can go, the tone, and the
+    // character's own want, never the person's.
+    expect(prompt[0].content).toContain(`How it starts: ${FIRST}'s booth is a folding table, a deck of worn cards and a lamp with a scarf over it. Your scene partner sits down on a dare from nobody, arms crossed.`);
+    expect(prompt[0].content).toContain(`What you want in it: ${FIRST} wants to keep your scene partner at the table`);
+    expect(prompt[0].content).not.toContain("wants to prove it's all guesswork");
+    expect(prompt[0].content).toContain("Where it can go, in order (turns the story could take: possibilities, never a script, and it has no set ending): The first card is vague on purpose, and the sceptic says so.");
+    expect(prompt[0].content).toContain("Its tone: teasing, a little uncanny, a sceptic's grin against a straight face.");
+    // The opener's cue opens on one of the card's three openings (by the thread's id), the person's part left to them.
+    const openings = DATE_ROLEPLAYS.find((x) => x.id === "fortune-teller")!.card.openings.map((o) =>
+      o.replaceAll("{a}", FIRST).replaceAll("{b}'s", "your scene partner's").replaceAll("{b}", "your scene partner").replace(/^your/, "Your"),
+    );
+    const cue = prompt.at(-1)!.content;
+    expect(openings.filter((o) => cue.includes(`It opens like this: ${o} Play your own part of that; whatever your scene partner does in it is theirs to play.`))).toHaveLength(1);
+    // The opening is the cue's alone: the prompt every later reply reads has the card, never the opening.
+    expect(openings.some((o) => prompt[0].content.includes(o))).toBe(false);
     // Your lines in it are marked too.
     const said = await act(me.cookie, id, { action: "send", text: "Go on then, read my palm." });
     expect(said.body.view.messages.at(-2)).toMatchObject({ role: "user", roleplay: "The fortune teller" });
+    const later = calls.at(-1)!;
+    expect(later[0].content).toContain("How it starts: ");
+    expect(later.map((m) => m.content).join("\n")).not.toContain("It opens like this");
+  });
+
+  it("opens the same way again on a regenerate, and on the opening stored with the scene's terms when there is one", async () => {
+    const me = person();
+    const id = await open(me.cookie);
+    // The person is the stowaway ({b}); the character is the captain ({a}).
+    await act(me.cookie, id, { action: "scene", place: PLACE, roleplay: "stowaway", my_role: 1 });
+    const cue = calls.at(-1)!.at(-1)!.content;
+    expect(cue).toContain("It opens like this: ");
+    expect((await act(me.cookie, id, { action: "regenerate" })).status).toBe(200);
+    expect(calls.at(-1)!.at(-1)!.content).toBe(cue);
+    // The terms may carry an opening (the picker's, or one the person wrote: checked before it's stored). It wins.
+    await t.db.query(`update companion_threads set roleplay = roleplay || $2::jsonb where id = $1`, [id, JSON.stringify({ opening: "{b} is reading a paperback by torchlight when {a} lifts the tarp." })]);
+    expect((await act(me.cookie, id, { action: "regenerate" })).status).toBe(200);
+    expect(calls.at(-1)!.at(-1)!.content).toContain(`It opens like this: Your scene partner is reading a paperback by torchlight when ${FIRST} lifts the tarp. Play your own part of that`);
+    // A scene with no roleplay opens as it always did.
+    await act(me.cookie, id, { action: "scene", place: PLACE });
+    expect(calls.at(-1)!.at(-1)!.content).not.toContain("It opens like this");
   });
 
   it("takes one written for the scene, checked like the show's; never a suggestive one, and only with a place", async () => {

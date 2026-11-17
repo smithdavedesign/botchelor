@@ -143,8 +143,8 @@ export const DATE_ROLEPLAYS: readonly DateRoleplayDef[] = [
       tone: "dry, quick, a chess game played with compliments",
       openings: [
         "{a} is already seated with a view of the door when {b} takes the chair that blocks it.",
-        "{b} orders for both of them, to prove the homework was done.",
-        "{a} and {b} put their phones face down on the table at the same time, like a handshake.",
+        "{b} orders for two, to prove the homework was done.",
+        "{a} and {b} each put a phone face down on the table at the same time, like a handshake.",
       ],
     },
   },
@@ -152,7 +152,7 @@ export const DATE_ROLEPLAYS: readonly DateRoleplayDef[] = [
     id: "two-detectives", title: "Two detectives, one case", icon: "🔍", tag: "mystery", roles: null,
     premise: "{a} and {b} are private detectives hired by different clients to find the same missing painting. They pool their clues tonight, each sure they're one step ahead.",
     card: {
-      setup: "Two notebooks on one table and a photograph of a missing painting between them. {a} and {b} were hired by different clients, and each thinks tonight is a favour to the other.",
+      setup: "Two notebooks on one table and a photograph of a missing painting in the middle. {a} and {b} were hired by different clients, and each thinks tonight is a favour to the other.",
       wants: [
         "{a} wants the one clue {b} is holding back; pride makes asking for it impossible.",
         "{b} wants to be the one who cracks it, out loud, with {a} watching; half the answer is in {a}'s notebook.",
@@ -167,7 +167,7 @@ export const DATE_ROLEPLAYS: readonly DateRoleplayDef[] = [
       openings: [
         "{a} slides a photograph across the table and says nothing.",
         "{b} opens with a theory and watches {a}'s face for the flinch.",
-        "{a} and {b} both say they are one step ahead, in the same breath.",
+        "{a} and {b} both claim to be one step ahead, in the same breath.",
       ],
     },
   },
@@ -175,7 +175,7 @@ export const DATE_ROLEPLAYS: readonly DateRoleplayDef[] = [
     id: "undercover-couple", title: "The undercover couple", icon: "🥂", tag: "mystery", roles: null,
     premise: "{a} and {b} are agents posing as a couple to blend in at a glamorous gala. They have to look convincingly smitten while they watch the room, and get their cover story straight.",
     card: {
-      setup: "The gala is in full swing and the target is somewhere near the champagne. {a} and {b} arrive arm in arm, with a cover story they finished writing in the taxi.",
+      setup: "The gala is in full swing and the target is somewhere near the champagne. {a} and {b} arrive arm in arm, with a cover story that was finished in the taxi.",
       wants: [
         "{a} wants the cover to be flawless; {b} keeps improvising details that are suspiciously sweet.",
         "{b} wants to watch the room and not {a}; the job requires looking smitten, which is the problem.",
@@ -236,7 +236,7 @@ export const DATE_ROLEPLAYS: readonly DateRoleplayDef[] = [
       openings: [
         "{a} lays half a map on the barrel and keeps one hand on it.",
         "{b} laughs at the share {a} had in mind.",
-        "{a} and {b} put their halves down at the same moment, and neither lets go.",
+        "{a} and {b} each put half a map down at the same moment, and neither lets go.",
       ],
     },
   },
@@ -244,7 +244,7 @@ export const DATE_ROLEPLAYS: readonly DateRoleplayDef[] = [
     id: "rival-explorers", title: "Rival explorers", icon: "🧭", tag: "adventure", roles: null,
     premise: "{a} and {b} are rival explorers who reached the same lost temple on the same day. They're stuck sharing a camp tonight, comparing notes and arguing over who found it first.",
     card: {
-      setup: "One campfire, two tents and a lost temple that both of them reached this afternoon. {a} and {b} are sharing the only dry ground for miles.",
+      setup: "One campfire, two tents and a lost temple that was found twice this afternoon. {a} and {b} are sharing the only dry ground for miles.",
       wants: [
         "{a} wants it on record that the temple was found from the east side first; {b} has a sketch with a time written on it.",
         "{b} wants a look at {a}'s notes on the inner chamber; asking would mean admitting there are gaps.",
@@ -259,7 +259,7 @@ export const DATE_ROLEPLAYS: readonly DateRoleplayDef[] = [
       openings: [
         "{a} is drying a notebook by the fire when {b} walks up with the last of the coffee.",
         "{b} draws a line in the dirt down the middle of the camp, and {a} steps over it to borrow the kettle.",
-        "{a} and {b} unroll their maps at the same time, each angled so the other can't quite see.",
+        "{a} and {b} each unroll a map at the same time, angled so the other can't quite see.",
       ],
     },
   },
@@ -451,7 +451,7 @@ export const DATE_ROLEPLAYS: readonly DateRoleplayDef[] = [
     id: "old-film", title: "Leads in an old film", icon: "🎬", tag: "period", roles: null,
     premise: "{a} and {b} are the leads in a black-and-white romantic comedy. They talk in quick, witty banter, every look is a close-up, and the orchestra is always about to swell.",
     card: {
-      setup: "Black and white, a rain machine somewhere out of frame and a script full of banter. {a} and {b} hit their marks as the leads of a romantic comedy from another era.",
+      setup: "Black and white, a rain machine somewhere out of frame and a script full of banter. {a} and {b} hit every mark as the leads of a romantic comedy from another era.",
       wants: [
         "{a} wants the last word in every exchange; {b} keeps delivering better ones.",
         "{b} wants to make {a} break character and laugh; the close-ups make it hard to keep a straight face either way.",
@@ -466,7 +466,7 @@ export const DATE_ROLEPLAYS: readonly DateRoleplayDef[] = [
       openings: [
         "{a} walks in shaking out an umbrella and blames {b} for the weather.",
         "{b} says a line straight to camera, and {a} asks who that was for.",
-        "{a} and {b} collide in a doorway, with a hat between them.",
+        "{a} and {b} collide in a doorway, and a hat hits the floor.",
       ],
     },
   },
@@ -543,7 +543,7 @@ export const DATE_ROLEPLAYS: readonly DateRoleplayDef[] = [
     id: "rival-chefs", title: "Rival chefs", icon: "🍳", tag: "funny", roles: null,
     premise: "{a} and {b} run rival food stalls on the same street, and tonight each tries the other's signature dish and gives an honest verdict. Professional pride is on the line.",
     card: {
-      setup: "Two food stalls face each other across the same street, and tonight the shutters are half down. {a} and {b} each set one covered plate on the counter between them.",
+      setup: "Two food stalls face each other across the same street, and tonight the shutters are half down. {a} and {b} each set one covered plate on the counter in the middle.",
       wants: [
         "{a} wants an honest verdict from the only cook on the street worth asking; {b}'s dish smells unfairly good.",
         "{b} wants {a} to admit the secret ingredient out loud; professional pride is very much on the table.",
@@ -589,7 +589,7 @@ export const DATE_ROLEPLAYS: readonly DateRoleplayDef[] = [
     id: "second-first-date", title: "A second first date", icon: "🔁", tag: "couples", roles: null,
     premise: "{a} and {b} pretend they've never met: a do-over first date. Everything they already know about each other is off-limits, so they have to find it all out again.",
     card: {
-      setup: "Same table as the real first time, different rules: nothing they already know is allowed. {a} and {b} shake hands like strangers and try not to laugh.",
+      setup: "Same table as the real first time, different rules: nothing already known is allowed. {a} and {b} shake hands like strangers and try not to laugh.",
       wants: [
         "{a} wants to hear the stories again as if for the first time; it is hard not to finish {b}'s sentences.",
         "{b} wants to say the things that went unsaid the first time around; the do-over makes it easier to be brave.",
@@ -604,7 +604,7 @@ export const DATE_ROLEPLAYS: readonly DateRoleplayDef[] = [
       openings: [
         "{a} holds out a hand and says a full name, formally.",
         "{b} asks what {a} does for a living, with a straight face.",
-        "{a} and {b} both arrive pretending to look for someone they have never seen.",
+        "{a} and {b} both arrive pretending to look for a stranger.",
       ],
     },
   },
@@ -682,9 +682,9 @@ export const DATE_ROLEPLAYS: readonly DateRoleplayDef[] = [
   },
   {
     id: "arranged-match", title: "The arranged match", icon: "📜", tag: "romance", roles: null,
-    premise: "{a} and {b} are the grown heirs of two rival houses, meeting the night before an alliance between them is announced. Each has come planning to talk the other out of it.",
+    premise: "{a} and {b} are the grown heirs of two rival houses, meeting the night before an alliance between the two houses is announced. Each has come planning to talk the other out of it.",
     card: {
-      setup: "A long gallery between the two delegations, lit for a celebration that hasn't been announced yet. {a} and {b} have slipped away from their own advisers to the same window seat.",
+      setup: "A long gallery between the two delegations, lit for a celebration that hasn't been announced yet. {a} and {b} have each slipped away from a row of advisers to the same window seat.",
       wants: [
         "{a} wants {b} to refuse first, so the blame lands elsewhere; {b} is annoyingly reasonable about everything.",
         "{b} wants to know whether {a} has a say in any of this; the answer matters more than the alliance does.",
@@ -751,7 +751,7 @@ export const DATE_ROLEPLAYS: readonly DateRoleplayDef[] = [
   },
   {
     id: "off-camera", title: "Off camera", icon: "🎥", tag: "romance", roles: null,
-    premise: "{a} and {b} are contestants on a reality dating show who have slipped away from the cameras for one unscripted hour. Nothing they say now is for the edit, which neither of them is used to.",
+    premise: "{a} and {b} are contestants on a reality dating show who have slipped away from the cameras for one unscripted hour. Nothing said now is for the edit, which takes some getting used to.",
     card: {
       setup: "A fire escape behind the villa's kitchen, out of range of every microphone. {a} and {b} each left a battery pack on the windowsill, still blinking.",
       wants: [
@@ -797,7 +797,7 @@ export const DATE_ROLEPLAYS: readonly DateRoleplayDef[] = [
   },
   {
     id: "witch-hunter", title: "The witch and the witch-hunter", icon: "⛈️", tag: "fantasy", roles: ["the witch", "the witch-hunter"],
-    premise: "{a} is a witch and {b} hunts them for a living, and neither knows it yet. They have taken shelter from the same storm in the same barn, with one lantern and a long wait.",
+    premise: "{a} is a witch and {b} hunts them for a living, and neither knows it yet. Both have taken shelter from the same storm in the same barn, with one lantern and a long wait.",
     card: {
       setup: "Rain on a barn roof and one lantern between two travellers. {a} has a satchel that hums faintly, and {b} has a warrant folded in a coat pocket.",
       wants: [
@@ -812,9 +812,9 @@ export const DATE_ROLEPLAYS: readonly DateRoleplayDef[] = [
       ],
       tone: "storm-lit, wary, kindness complicating things",
       openings: [
-        "{a} is wringing out a cloak when {b} ducks in out of the rain and asks if there is room.",
+        "{a} is wringing out a cloak when {b} ducks in out of the rain, asking if there is room.",
         "{b} offers to share the lantern, and {a} moves a satchel out of its light.",
-        "{a} and {b} both say they are just passing through, at the same time.",
+        "{a} and {b} both claim to be just passing through, at the same time.",
       ],
     },
   },
@@ -843,7 +843,7 @@ export const DATE_ROLEPLAYS: readonly DateRoleplayDef[] = [
   },
   {
     id: "rival-athletes", title: "Rivals before the final", icon: "🏅", tag: "romance", roles: null,
-    premise: "{a} and {b} are professional athletes on opposing teams, and tomorrow's match decides the title. Tonight they are the only two people in the hotel restaurant, and the kitchen is about to close.",
+    premise: "{a} and {b} are professional athletes on opposing teams, and tomorrow's match decides the title. Tonight nobody else is in the hotel restaurant, and the kitchen is about to close.",
     card: {
       setup: "The hotel restaurant is empty except for one table by the window and a waiter stacking chairs. {a} and {b} have played each other for years and never once had a conversation.",
       wants: [
@@ -860,15 +860,15 @@ export const DATE_ROLEPLAYS: readonly DateRoleplayDef[] = [
       openings: [
         "{a} is studying the menu like match footage when {b} asks whether the other chair is taken.",
         "{b} sits down uninvited and says the kitchen closes in ten minutes.",
-        "{a} and {b} nod to each other across the room, the way they do before a match, and it feels ridiculous.",
+        "{a} and {b} nod to each other across the room, the usual nod from before a match, and it feels ridiculous.",
       ],
     },
   },
   {
     id: "old-friends-bench", title: "Ten years, one bench", icon: "🪑", tag: "cozy", roles: null,
-    premise: "Ten years ago, the night before they left for jobs in different cities, {a} and {b} promised to meet again at this bench on this date. Neither was sure the other would remember. Both came.",
+    premise: "Ten years ago, the night before leaving for jobs in different cities, {a} and {b} promised to meet again at this bench on this date. Neither was sure the other would remember. Both came.",
     card: {
-      setup: "A park bench with a brass plaque neither of them ever read. {a} got there early with two coffees, just in case, and {b} is walking up the path with two as well.",
+      setup: "A park bench with a brass plaque nobody ever reads. {a} got there early with two coffees, just in case, and {b} is walking up the path with two as well.",
       wants: [
         "{a} wants to find out whether the old ease is still there; ten years of news is a lot to fit on one bench.",
         "{b} wants to say why the letters stopped; it is easier to ask about {a}'s life instead.",
@@ -912,9 +912,9 @@ export const DATE_ROLEPLAYS: readonly DateRoleplayDef[] = [
   },
   {
     id: "ghost-tenant", title: "The ghost and the new tenant", icon: "🏚️", tag: "cozy", roles: ["the ghost", "the new tenant"],
-    premise: "{a} is a polite ghost who has kept the flat quiet for sixty years. {b} moved in today with a lot of boxes, and the two of them sit down to negotiate house rules, starting with the piano.",
+    premise: "{a} is a polite ghost who has kept the flat quiet for sixty years. {b} moved in today with a lot of boxes, and it is time to negotiate house rules, starting with the piano.",
     card: {
-      setup: "Boxes everywhere and one armchair that was here before the lease. {b} is unpacking mugs when {a} coughs politely from the armchair and asks about the plan for the curtains.",
+      setup: "Boxes everywhere and one armchair that was here before the lease. {b} is unpacking mugs. {a} coughs politely from the armchair and asks about the plan for the curtains.",
       wants: [
         "{a} wants the piano left where it is and quiet after eleven; sixty years alone have left {a} out of practice at company.",
         "{b} wants a home that feels like one, ghost included; {a}'s rules are strict but the stories are very good.",
@@ -935,7 +935,7 @@ export const DATE_ROLEPLAYS: readonly DateRoleplayDef[] = [
   },
   {
     id: "heist-eve", title: "The night before the heist", icon: "💎", tag: "mystery", roles: ["the planner", "the safecracker"],
-    premise: "{a} planned the job and {b} opens the safe. Tomorrow they lift a famous necklace from a museum gala, and tonight they walk through the plan one last time, looking for the part that goes wrong.",
+    premise: "{a} planned the job and {b} opens the safe. Tomorrow a famous necklace leaves a museum gala, and tonight is for walking through the plan one last time, looking for the part that goes wrong.",
     card: {
       setup: "Blueprints held flat with coffee cups in a rented room above a laundrette. {a} has a red pen, {b} has a stethoscope, and the model of the museum is made of sugar cubes.",
       wants: [
