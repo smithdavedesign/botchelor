@@ -403,3 +403,118 @@ a.showcase-picked-chip {
 a.showcase-reels-link {
   text-decoration: none;
 }
+
+/* ---------------- From the show: the show's own clips in the Gallery (app/showcase/ShowClips.tsx) ---------------- */
+.show-clips {
+  margin: var(--space-3) 0 var(--space-4);
+}
+.show-clips-row {
+  list-style: none;
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(8.5rem, 11rem);
+  gap: var(--space-3);
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  padding-bottom: var(--space-2);
+}
+.show-clips-row li {
+  scroll-snap-align: start;
+}
+.show-clip {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  color: inherit;
+  text-decoration: none;
+}
+.show-clip-frame {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  background: var(--soft);
+}
+.show-clip-frame img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.show-clip-play {
+  position: absolute;
+  right: var(--space-2);
+  bottom: var(--space-2);
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ink) 62%, transparent);
+  color: var(--paper);
+}
+.show-clip-names {
+  font-weight: 700;
+}
+.show-clip:hover .show-clip-names {
+  color: var(--accent-text);
+}
+
+/* ---------------- a creator's characters on their page (app/creators/[handle]/page.tsx) ---------------- */
+.creator-characters {
+  margin: var(--space-3) 0 var(--space-4);
+}
+.creator-characters-row {
+  list-style: none;
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+.creator-character {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: inherit;
+  text-decoration: none;
+}
+.creator-character > span {
+  display: flex;
+  flex-direction: column;
+}
+.creator-character:hover strong {
+  color: var(--accent-text);
+}
+/* The most telling thing a character has been in, under its name on a Gallery card (lib/profile/credits.ts creditLine). */
+.showcase-credit {
+  display: block;
+}
+
+/* ---------------- the Studio's way in: one character in several scenes (app/studio/page.tsx) ---------------- */
+.studio-promise {
+  font-size: var(--text-lg);
+  font-weight: 700;
+  margin: 0 0 var(--space-2);
+}
+.studio-proof {
+  margin: var(--space-3) 0;
+}
+.studio-proof-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+.studio-proof-row img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+  border-radius: var(--radius-md);
+  background: var(--soft);
+}
+.studio-proof figcaption {
+  margin-top: var(--space-2);
+}

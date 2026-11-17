@@ -230,6 +230,10 @@ export async function startTestDb() {
         // Show ideas (lib/show-ideas.ts): a house idea's votes are keyed by an id that lives in the code.
         "show_idea_votes",
         "show_ideas",
+        // The season registry (lib/show-seasons.ts): keyed by season, with a format frozen from whatever a test voted.
+        "show_seasons",
+        // A season's awards as rows (lib/profile/credits.ts): keyed by season and character, which outlive a reset.
+        "season_awards",
         "notification_mutes",
         "season_vote_results",
         "situation_nights",

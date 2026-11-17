@@ -124,6 +124,8 @@ export async function usePicture(db: Db, viewer: string, characterId: string, in
       content_rating: "pg",
     });
     await reviewAsset(db, assetId, "approved", "chosen from a PG Studio picture that passed the PG check");
+    // Which picture it came from (the connected-model plan, stage 4): a portrait used to forget where it was made.
+    if (input.source === "studio") await db.query(`update character_assets set from_picture_id = $2 where id = $1`, [assetId, input.id]).catch(() => {});
     return { ok: true, portrait_path: `/api/assets/${assetId}` };
   }
   if (!(await afterDarkFor(db, viewer, characterId))) return fail(403, "Their After Dark face is for After Dark: switch them into your After Dark first.");

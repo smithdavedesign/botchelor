@@ -35,7 +35,7 @@ const fallBack = (p: Post, tile: boolean) => (e: { currentTarget: HTMLImageEleme
  * it was filmed from, or its first frame, never an empty box. `reels`: the filters as a query, so "Watch full screen
  * from here" opens the reels at this post with the same filters.
  */
-export default function ShowcaseGrid({ posts, admin = false, reels = "" }: { posts: Post[]; admin?: boolean; reels?: string }) {
+export default function ShowcaseGrid({ posts, admin = false, reels = "", credits = {} }: { posts: Post[]; admin?: boolean; reels?: string; /** By character id: the most telling thing it has been in (lib/profile/credits.ts creditLine). */ credits?: Record<string, string> }) {
   const [open, setOpen] = useState<number | null>(null);
   const [shown, setShown] = useState<Set<string>>(new Set());
   const close = useCallback(() => setOpen(null), []);
@@ -158,6 +158,7 @@ export default function ShowcaseGrid({ posts, admin = false, reels = "" }: { pos
                   {x.character.name}
                   {x.partner ? ` × ${x.partner.name}` : ""}
                 </strong>
+                {credits[x.character.id] && <span className="showcase-credit muted">{credits[x.character.id]}</span>}
               </p>
               <p className="showcase-meta small muted">
                 {[x.medium === "picture" ? "Picture" : x.from_date ? "Date reel" : "Clip", x.place ? placeLabel(x.place) : ""].filter(Boolean).join(" · ")}

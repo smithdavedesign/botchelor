@@ -31,6 +31,15 @@ export type McpRelease = {
 /** Newest first. */
 export const MCP_CHANGELOG: readonly McpRelease[] = [
   {
+    version: "2.34.0",
+    date: "2026-11-16",
+    title: "A character's credits",
+    changes: [
+      "get_character says what the character has been in: on_the_show lists each season with its show, the character's part (lead, suitor, cast, fan, walk_on, guest), how many of its dates aired and how many ended in a second date, and what it won (roses, badges, the season's awards).",
+      "The public record only: aired public dates, and nothing for a private character.",
+    ],
+  },
+  {
     version: "2.33.0",
     date: "2026-11-16",
     title: "Show ideas",

@@ -208,6 +208,12 @@ ignore it.
   2 doubles them; it never makes one where the rules say never, and the one-a-week cap still holds. Neither calls a
   model. The rules are in [relationship-graph.md](relationship-graph.md), "What they send each
   other". Commented in `.do/show.yaml`.
+- **`SEASON_KEYS`**, **`CHARACTER_CREDITS`** and **`GALLERY_SHOW_CLIPS`** (the show's app, not secrets; all on unless
+  `0`): the connected model ([data-model.md](data-model.md)). `SEASON_KEYS=0` stops stamping a date's season when it
+  airs and stops the hourly backfill (the season registry is still kept; the columns stay null and nothing that reads
+  them lacks a fallback). `CHARACTER_CREDITS=0` hides a character's credits everywhere they show (the character page,
+  Gallery cards, a creator's page, MCP `get_character`). `GALLERY_SHOW_CLIPS=0` hides the Gallery's "From the show"
+  row. No model call, no cost. `GET /api/admin/model-health` says how many aired dates carry their season.
 - **`SHOW_IDEAS`** and **`SHOW_IDEAS_PROPOSE`** (the show's app, not secrets; both on by default): `/shows`, the list of
   shows Botchelor might make next, with its answers, proposals and three MCP tools ([show-ideas.md](show-ideas.md)).
   `SHOW_IDEAS=0` closes the page, its routes and the tools; `SHOW_IDEAS_PROPOSE=0` keeps the page and its votes and

@@ -294,6 +294,17 @@ services:
       # - key: ACCOUNT_CLAIM
       #   value: "0"
       #   scope: RUN_AND_BUILD_TIME
+      # The connected model (docs/data-model.md): a date's season stamped when it airs, a character's credits, and the
+      # Gallery's "From the show" row. Each on by default; "0" turns that one off without a deploy of code.
+      # - key: SEASON_KEYS
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
+      # - key: CHARACTER_CREDITS
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
+      # - key: GALLERY_SHOW_CLIPS
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
       # Show ideas (docs/show-ideas.md): /shows, its routes and the three MCP tools. On by default; "0" closes all of it.
       # SHOW_IDEAS_PROPOSE "0" keeps the page and its votes and stops new proposals.
       # - key: SHOW_IDEAS
