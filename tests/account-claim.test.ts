@@ -24,8 +24,6 @@ const SECRET = ["claim", "test", "secret", "abcdefghij0123456789"].join("-");
 // (GitGuardian scans every commit of this public repo; two literals here tripped it once, on #1737).
 const PW = ["lantern", "keeper", "42"].join("-");
 const WRONG_PW = ["not", "the", "one"].join("-");
-const OTHER_SECRET = ["another", "signing", "key", "0123456789abcdefghij"].join("-");
-
 /** A different signing secret, for a forged offer. Built from parts so no literal secret sits in the repo (the scanner reads every commit). */
 const OTHER_SECRET = ["another", "signer", "entirely", "0123456789"].join("-");
 
