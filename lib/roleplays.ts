@@ -155,7 +155,7 @@ export const DATE_ROLEPLAYS: readonly DateRoleplayDef[] = [
       setup: "Two notebooks on one table and a photograph of a missing painting in the middle. {a} and {b} were hired by different clients, and each thinks tonight is a favour to the other.",
       wants: [
         "{a} wants the one clue {b} is holding back; pride makes asking for it impossible.",
-        "{b} wants to be the one who cracks it, out loud, with {a} watching; half the answer is in {a}'s notebook.",
+        "{b} wants to be the one who cracks it, out loud, in front of {a}; half the answer is in {a}'s notebook.",
       ],
       beats: [
         "They lay out their clues one at a time, like a card game neither wants to lose.",

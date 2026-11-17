@@ -548,7 +548,7 @@ export function storyModeRules(o: { name: string; pronouns?: string | null; leng
   const who = o.pronouns ? `${o.name}, ${o.pronouns}` : `${o.name}, by name`;
   return [
     `This scene is told as prose, the way a novel would tell it, and you write your side of it. Third person and past tense for yourself (${who}); the person you're with is always "you".`,
-    "What you say out loud goes in double quotes inside the prose, and you say at least one thing out loud.",
+    "What you say out loud goes in double quotes inside the prose, curly ones “like this” (never single quotes), and you say at least one thing out loud.",
     `${COUNT[least][0].toUpperCase()}${COUNT[least].slice(1)} or ${COUNT[most]} short paragraphs, a few sentences each. No headings, no lists, no asterisks.`,
     CRAFT_SHOW_FEELING,
     "Use the things in the place: what's on the table, the light, the weather, what the hands find to do.",
@@ -570,9 +570,34 @@ export const storyModeTokens = (length: StoryLength): number => 1200 + 350 * STO
 
 const balanced = (s: string) => (s.match(/"/g) ?? []).length % 2 === 0 && (s.match(/“/g) ?? []).length === (s.match(/”/g) ?? []).length;
 
-/** One paragraph of a story reply tidied: one line, no asterisks, cut back to a whole sentence (with its quotes closed) under the limit. */
+/**
+ * A bracket or brace left from the answer's JSON at a paragraph's edge with no partner inside it (the first live Step
+ * in scene, 2026-11-17, ended a reply on "…this particular coordinate?']").
+ */
+function strayBrackets(t: string): string {
+  let s = t;
+  if (!s.includes("[")) s = s.replace(/\]+$/, "").trim();
+  if (!s.includes("]")) s = s.replace(/^\[+/, "").trim();
+  if (!s.includes("{")) s = s.replace(/\}+$/, "").trim();
+  if (!s.includes("}")) s = s.replace(/^\{+/, "").trim();
+  return s;
+}
+
+/**
+ * Speech in single quotes ('Pardon me,' she said): a model answering inside a JSON string often writes it that way to
+ * save escaping (the first live Step in scene did, every line), and then the page, the voice and the checks of who
+ * says what can't find it. A quote opens at the start or after a space, a bracket or a dash, and closes on the
+ * sentence's own punctuation; an apostrophe inside a word (I'm, Anthea's) is never one. Each pair becomes “…”.
+ */
+const SINGLE_QUOTED = /(^|[\s([—–])['‘]([^\s'‘’](?:[^'‘’]|(?<=\p{L})['’](?=\p{L}))*?[.,!?…—–-])['’](?=$|[\s)\]—–.,;:!?])/gu;
+/** A paragraph's single-quoted speech in double quotes; one that has double quotes of its own is left as it is. */
+export function speechInDoubleQuotes(t: string): string {
+  return /["“”]/.test(t) ? t : t.replace(SINGLE_QUOTED, "$1“$2”");
+}
+
+/** One paragraph of a story reply tidied: one line, no asterisks, its speech in double quotes, cut back to a whole sentence (with its quotes closed) under the limit. */
 function tidyStoryParagraph(raw: string): string {
-  const t = raw.replace(/\*+/g, "").replace(/\s+/g, " ").trim();
+  const t = speechInDoubleQuotes(strayBrackets(raw.replace(/\*+/g, "").replace(/\s+/g, " ").trim()));
   if (t.length <= STORY_MODE_PARAGRAPH_MAX) return t;
   const head = t.slice(0, STORY_MODE_PARAGRAPH_MAX);
   let cut = -1;

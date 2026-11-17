@@ -4,6 +4,19 @@ Research date: 2026-11-17. David shared screenshots of Chub's settings panels an
 
 Covered: Chub, SillyTavern, Janitor AI, Character.AI, NovelAI, AI Dungeon, Kindroid, Nomi, DreamGen and SpicyChat. Public docs, help centers and reviews only: features and mechanics, no content. Sources and what couldn't be verified are at the end.
 
+## What shipped from this audit (updated 2026-11-17, the same day)
+
+| # | Suggestion | Status |
+| --- | --- | --- |
+| 1 | Story mode for companion scenes | Live for Companion Plan members and admins (#1774). [companions.md](../companions.md) "Story mode". |
+| 2 | An opening you choose | Live: the scene picker's "How it opens" step, for companion scenes and show dates (#1773); three radios in After Dark's Scene & roleplay (#1772). |
+| 3 | A saved persona for "you" | Live: "Who you are in scenes" on /account (#1773). |
+| 4 | Flip through regenerated replies, and Continue | Live in companion chats (#1774). |
+| 9 | Sell depth, not surcharges | Done: Narrated, stories and a longer memory come with the Companion Plan; no per-date or per-step charge (#1771). |
+| – | A richer card behind every roleplay, and more roleplays | Live: scene cards on all 39 show and 33 After Dark roleplays, 27 of them new, from the owner's census of public character listings (#1772). [scene-cards.md](../scene-cards.md). |
+| – | The After Dark version of "you in the scene" | Built closed, admins only, as After Dark's Step in. [after-dark.md](../after-dark.md). |
+| 5–8, 10 | A standing director's note, "write my turn" chips, style presets, showing what they remembered, a visible meter | Not built. |
+
 ## The short version
 
 1. **Chub is three layers.** A character card sets the scene, a preset tells the writer how to write, and chat tools (memory, branches) keep it going. Botchelor has most of the third layer, a structured version of the first, and almost none of the second as something a person can choose.
