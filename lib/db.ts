@@ -4388,6 +4388,16 @@ create table if not exists personas (
 -- generic openings, or a sentence they wrote (checked). With a roleplay the choice is in its terms (roleplay.opening).
 -- Cleared with the scene.
 alter table companion_threads add column if not exists opening text;
+-- Story mode (lib/narration.ts; the roleplay audit, 2026-11-17, item 1): a scene reply written as prose in one call. Its
+-- text is the paragraphs joined by a blank line, what's said out loud in double quotes inside them; form = 'story' says
+-- so (null: a text or a script line, as ever). It has no action and no beat.
+alter table companion_messages add column if not exists form text check (form is null or form in ('story'));
+-- Alternates (item 4): the draw a reply's message belongs to, as the id of that draw's first message. Every reply the
+-- model writes carries it, so a reply's bubbles are one draw and "Continue" starts another. When a reply is drawn again
+-- the earlier draws stay (replaced_by = the current draw's first id) and the person can flip back to one: exactly one
+-- draw is current (replaced_by null). A draw an edit replaced has its draw cleared: it answered other words, and is no
+-- alternate. Null on rows from before this, and on texts written without the model.
+alter table companion_messages add column if not exists draw text;
 `;
 
 /** Idempotent: creates the tables and upserts the house characters, free and premium. */

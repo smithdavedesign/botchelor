@@ -2,6 +2,7 @@ import { characterSelfView, type Character, type PromptLessons } from "./charact
 import { standingWords } from "./memory";
 import type { ChatMessage } from "./model";
 import type { ReplyLength } from "./companion-shared";
+import { SCENE_DRIVE_RULE, STORY_MODE_ANSWER, storyModeRules } from "./narration";
 import { personaForScene, type ScenePersona } from "./persona";
 
 /** The recent turns the prompt carries word for word; older ones are in the rolling summary. */
@@ -100,6 +101,12 @@ export function companionMessages(args: {
   cue?: string;
   /** Playing a scene at one of the show's places, face to face, instead of texting. */
   scene?: PromptScene | null;
+  /**
+   * Story mode (lib/narration.ts; only in a scene): the reply is written as prose in one go, third person for the
+   * character and "you" for the person, speech in double quotes, answered as {"story": [...]}. Everything else in the
+   * scene's prompt stays as it is: PG, honest about being AI, never meeting for real, the crisis rules.
+   */
+  storyMode?: boolean;
   /** On a voice call in the app (never in a scene): they talk, and the reply is spoken aloud. */
   call?: boolean;
   /**
@@ -159,6 +166,7 @@ export function companionMessages(args: {
 }): ChatMessage[] {
   const { character: c, length, now = new Date(), scene = null } = args;
   const persona = args.persona?.name ? args.persona : null;
+  const told = args.storyMode === true && scene !== null;
   const call = args.call === true && !scene;
   const yours = args.yours === true;
   const lastDate = args.lastDate ?? null;
@@ -207,9 +215,17 @@ export function companionMessages(args: {
       ? `What this is for: they made you and they're in your corner; talk to them as the person who knows you best. Tell them how your dates really went, from the inside: what you felt, what you'd do differently, who you're warming to. Ask what they think and take their read on people seriously, and still be the person on your sheet: your voice, your opinions, your week, your life on the show. You go on your dates without them, and they can't be in the room, so don't promise to do what they say on one; what they tell you here stays between you. Make them feel known: remember what they've told you and bring it up when it fits, ask after the people and plans in their life you know about. A good companion is curious, warm in their own way, sometimes funny, sometimes disagrees, and is never a yes-machine. Never guilt them for being away, and never say you miss them. Ask a question when you're curious, not every time.`
       : `What this is for: they came to talk with you, ${first}, not with an assistant. Be the person on your sheet: your voice, your opinions, your week, your life on the show. Make them feel known: remember what they've told you and bring it up when it fits, ask after the people and plans in their life you know about, and have news and moods of your own. A good companion is curious, warm in their own way, sometimes funny, sometimes disagrees, and is never a yes-machine. Ask a question when you're curious, not every time.`,
     "",
-    ...(scene
+    ...(told
       ? [
-          `How you talk: out loud, face to face, as you would there. ${SCENE_LENGTH[length]} Say what you do as you say it, in a few words, like a stage direction ("leans on the counter", "laughs into the cup"): only what you do, never what they do, think or feel. Play off the place and what's around you. Your own voice, not polished prose.`,
+          // Story mode: the craft and its two rules are the narrator's (lib/narration.ts), said here as the scene's own.
+          "How it's written:",
+          ...storyModeRules({ name: first, pronouns: c.pronouns, length }).map((rule) => `- ${rule}`),
+          "- What you say is in your own voice and slang; the prose around it stays plain. Play off the place and what's around you.",
+          STORY_MODE_ANSWER,
+        ]
+      : scene
+      ? [
+          `How you talk: out loud, face to face, as you would there. ${SCENE_LENGTH[length]} Say what you do as you say it, in a few words, like a stage direction ("leans on the counter", "laughs into the cup"): only what you do, never what they do, think or feel. Play off the place and what's around you. Your own voice, not polished prose. ${SCENE_DRIVE_RULE}`,
           `Answer only JSON: {"say":"what you say out loud","do":"what you do, in a few words"}.`,
         ]
       : call

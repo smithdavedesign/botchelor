@@ -131,6 +131,15 @@ export function companionMessageDelete(env: Record<string, string | undefined> =
   return env.COMPANION_MESSAGE_DELETE?.trim() !== "0";
 }
 
+/**
+ * COMPANION_STORY_MODE=0: a scene reply is a script line for everyone, whatever their writing style (lib/narration.ts
+ * story mode; docs/companions.md "Story mode"). On unless it is "0". Who has the narrated style at all is
+ * WRITING_STYLES (lib/writing-style.ts).
+ */
+export function companionStoryMode(env: Record<string, string | undefined> = process.env): boolean {
+  return env.COMPANION_STORY_MODE?.trim() !== "0";
+}
+
 export const REPLY_LENGTHS = ["short", "normal", "long"] as const;
 export type ReplyLength = (typeof REPLY_LENGTHS)[number];
 export const REPLY_LENGTH_LABELS: Record<ReplyLength, string> = { short: "Short", normal: "Normal", long: "Long" };
@@ -315,8 +324,17 @@ export type CompanionMessageView = {
   scene: VenueId | null;
   /** In a scene, what the character does as they say it. */
   action: string | null;
-  /** A narrated scene reply's prose (lib/narration.ts): before and after the words, the action folded into it. */
+  /**
+   * A narrated scene reply's prose (lib/narration.ts): before and after the words, the action folded into it. Only on
+   * replies from before story mode: a narrated scene reply is now written whole (`form`).
+   */
   beat?: { before: string; after: string } | null;
+  /**
+   * "story": a scene reply written as prose in one go (lib/narration.ts story mode). `text` is its paragraphs joined by
+   * a blank line, what's said out loud in double quotes inside them (lib/story-reply.ts reads it). Absent: a text or a
+   * script line.
+   */
+  form?: "story";
   /** Its voice note, once one's been made (lib/companion-voice.ts): where it plays from. */
   voice?: string | null;
   /** A system line that starts a scene or goes back to texting (null: the AI notice). */
@@ -371,6 +389,12 @@ export type CompanionThreadView = {
   roleplay: CompanionRoleplayView | null;
   /** The crisis resources are up: nothing more in character until the person carries on. */
   paused: boolean;
+  /**
+   * The newest reply's draws, when it has been drawn again and nothing has been said after it: how many there are, and
+   * which one is showing (1 is the first drawn). {action: "swipe"} flips between them. Absent: one draw, or not the
+   * newest thing in the thread.
+   */
+  draws?: { count: number; showing: number };
   /** How many things the character remembers about you (the memory page). */
   facts: number;
   /** Your own character with a finished date behind it: who the next-time note is for (absent otherwise). */

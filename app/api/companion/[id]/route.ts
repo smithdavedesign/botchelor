@@ -13,6 +13,7 @@ import {
   COMPANION_MESSAGE_MAX,
   COMPANION_REPORT_REASONS,
   companionFollowUp,
+  continueReply,
   deleteThread,
   editLast,
   getThread,
@@ -24,6 +25,7 @@ import {
   setReplyLength,
   setTexts,
   setScene,
+  swipeReply,
   type CompanionSend,
 } from "@/lib/companion";
 import type { VenueId } from "@/lib/venues";
@@ -52,6 +54,10 @@ const Action = z.discriminatedUnion("action", [
   // `call`: said on a voice call in the app (the browser heard it); the reply is short, to be spoken aloud.
   z.object({ action: z.literal("send"), text: z.string().max(COMPANION_MESSAGE_MAX * 2), call: z.boolean().optional() }),
   z.object({ action: z.literal("regenerate") }),
+  // The newest reply's other draws (lib/companion.ts swipeReply): the one before or after the one showing. Free.
+  z.object({ action: z.literal("swipe"), to: z.enum(["prev", "next"]) }),
+  // The character carries on without the person saying anything (continueReply): a reply, counted like one.
+  z.object({ action: z.literal("continue") }),
   z.object({ action: z.literal("edit"), text: z.string().max(COMPANION_MESSAGE_MAX * 2) }),
   z.object({ action: z.literal("length"), length: z.enum(REPLY_LENGTHS) }),
   // A scene at one of the show's places (they open it), or back to texting (null).
@@ -109,7 +115,8 @@ export const GET = handle(async (req: Request, ctx: Ctx) => {
 });
 
 /**
- * One move in a thread: say something (send), draw the last reply again (regenerate), rewrite your last message (edit),
+ * One move in a thread: say something (send), draw the last reply again (regenerate), flip to another of its draws
+ * (swipe), have them carry on (continue), rewrite your last message (edit),
  * set how much the character says (length), play a scene somewhere or go back to texting (scene), carry on after the
  * crisis resources (carry_on), report a reply (report), or record one as a voice note (voice, an extra). A reply is taken from the free count or the plan's fair use
  * before it's drawn (lib/companion-plan.ts), and given back when none came (a scene's opener included).
@@ -154,7 +161,7 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
       return json({ ...body, ...(view.ok ? { view: view.view } : {}), allowance, extras }, status, sess);
     });
   }
-  const talks = input.action === "send" || input.action === "regenerate" || input.action === "edit" || (input.action === "scene" && input.place !== null);
+  const talks = input.action === "send" || input.action === "regenerate" || input.action === "edit" || input.action === "continue" || (input.action === "scene" && input.place !== null);
   if (talks && (await overLimit(db, "companion", sess.userId, COMPANION_LIMITS))) {
     return json({ error: "rate_limited", message: "That's a lot of talking for now. Take a breather and come back in a bit." }, 429, sess);
   }
@@ -173,6 +180,12 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
       break;
     case "regenerate":
       r = await regenerate(db, sess.userId, id);
+      break;
+    case "swipe":
+      r = await swipeReply(db, sess.userId, id, input.to);
+      break;
+    case "continue":
+      r = await continueReply(db, sess.userId, id);
       break;
     case "edit":
       r = await editLast(db, sess.userId, id, input.text);
