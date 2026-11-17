@@ -109,12 +109,6 @@ ol.home-features {
   flex-direction: column;
   gap: 0.2rem;
 }
-.episode-item-meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-1) var(--space-2);
-}
 .episode-item-meta .badge {
   margin: 0;
 }

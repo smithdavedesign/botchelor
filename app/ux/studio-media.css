@@ -353,14 +353,16 @@ li.picked {
   opacity: 0.55;
 }
 
-/* Native sizes (app/studio/FormatChips.tsx): a chip per shape, each with a small outline of it. */
+/* Native sizes (app/studio/FormatChips.tsx): a chip per shape, each with a small outline of it. The galleries' filter
+   chips (.media-filter-row, below) share the look. */
 .studio-formats {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
   margin: var(--space-2) 0;
 }
-.studio-formats button.chip {
+.studio-formats button.chip,
+.media-filter-row button.chip {
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
@@ -372,12 +374,14 @@ li.picked {
   font-size: var(--text-xs);
   cursor: pointer;
 }
-.studio-formats button.chip:hover {
+.studio-formats button.chip:hover,
+.media-filter-row button.chip:hover {
   transform: none;
   box-shadow: none;
   border-color: var(--accent);
 }
-.studio-formats button.chip-on {
+.studio-formats button.chip-on,
+.media-filter-row button.chip-on {
   border-color: var(--accent);
   background: var(--soft);
 }
@@ -464,14 +468,6 @@ li.picked {
 }
 .studio-develop {
   animation: studio-develop 0.7s ease-out both;
-}
-@keyframes studio-shimmer {
-  from {
-    background-position: 100% 0;
-  }
-  to {
-    background-position: 0 0;
-  }
 }
 @keyframes studio-develop {
   from {
@@ -692,27 +688,6 @@ li.picked {
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
-}
-.media-filter-row button.chip {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  margin: 0;
-  padding: 0.3rem 0.75rem;
-  border: 1.5px solid var(--line);
-  background: transparent;
-  box-shadow: none;
-  font-size: var(--text-xs);
-  cursor: pointer;
-}
-.media-filter-row button.chip:hover {
-  transform: none;
-  box-shadow: none;
-  border-color: var(--accent);
-}
-.media-filter-row button.chip-on {
-  border-color: var(--accent);
-  background: var(--soft);
 }
 .media-filter-count {
   opacity: 0.65;
