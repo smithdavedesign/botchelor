@@ -238,6 +238,10 @@ ignore it.
   [after-dark.md](after-dark.md), "A picture they kept, locked in the show's texts"). `0` sends nothing, shows the ones
   already in a thread as plain texts, and 404s the tile, without a deploy. The show's side holds PG pixels only (the
   character's own PG portrait, blurred), and nothing here touches `public_door`. Commented in `.do/show.yaml`.
+- **`CHAT_DATE_LINKS`** (the show's app, not a secret; default on): the two reads of the date a text is about
+  (`companion_messages.episode_id`; [companions.md](companions.md), "A text knows its date"): the "About your date with
+  …" link under such a text in a thread, and "… texted you about this" on the date's page for the owner of a side. `0`
+  hides both without a deploy of code; the column is still written and backfilled. Commented in `.do/show.yaml`.
 - **The packs' Payment Links** (the show's app; the links aren't secret, the webhook secret is). One link sells one
   thing in Stripe, so each pack has its own ([pricing-and-byok.md](pricing-and-byok.md)):
 

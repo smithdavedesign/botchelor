@@ -4272,6 +4272,12 @@ create table if not exists show_idea_votes (
   primary key (idea_id, user_id)
 );
 create index if not exists show_idea_votes_user_idx on show_idea_votes (user_id);
+-- A text a character sends about one of its dates knows which date (the connected model, stage 5; docs/companions.md
+-- "A text knows its date"): set when the row is written, from the tag (lib/companion-shared.ts tagEpisode); "action"
+-- stays the dedupe key. Nullable, no foreign key; older rows are filled by the hourly job (lib/chat-date-links.ts
+-- backfillMessageEpisodes), never here. It goes with the message (the thread's cascade).
+alter table companion_messages add column if not exists episode_id text;
+create index if not exists companion_messages_episode_idx on companion_messages (episode_id) where episode_id is not null;
 `;
 
 /** Idempotent: creates the tables and upserts the house characters, free and premium. */

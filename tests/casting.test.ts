@@ -549,6 +549,8 @@ describe("the surfaces", () => {
     const ours = await newcomer();
     await t.db.query(`update characters set name = 'Mira Quell' where id = $1`, [ours.character.id]);
     await datedLead("w-ours", ours.character.id, ours.owner, "friends", dec(8));
+    // Five is a crowd at the threshold this case was written for (it is ten by default since 2026-11-16).
+    vi.stubEnv("CROWD_MIN", "5");
     expect((await walkOnsLine(t.db, null, dec(9), {}))?.line).toBe(`5 characters have walked on for a first date with ${LEAD_FIRST} since the last roses. Roses on Sunday.`);
     // Last week's walk-ons are last week's.
     expect((await walkOnsLine(t.db, null, dec(14), {}))?.line).toBe(`Any new character's first date is with ${LEAD_FIRST}. Roses on Sunday.`);

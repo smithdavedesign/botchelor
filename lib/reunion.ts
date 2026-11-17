@@ -172,7 +172,7 @@ export async function seasonAwards(db: Db, span: SeasonSpan): Promise<ReunionAwa
     out.push({
       title: "💥 Biggest disaster",
       name: `${worst.a_name} × ${worst.b_name}`,
-      detail: "A date the whole audience is still talking about.",
+      detail: "The date that went most wrong this season.",
       chars: [charA(worst), charB(worst)],
     });
   }

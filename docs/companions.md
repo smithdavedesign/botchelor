@@ -832,7 +832,8 @@ signed session can), 404 for anyone else's thread or an id that isn't a shown me
   no photo, voice, report, cost or chips, and `replaced_by` set to its own id, which hides it from every reader the way
   a redrawn reply is hidden (the thread, the prompt, memory, the inbox, the phone, reports, "since you were here"). It
   holds the tag and when the text was sent, nothing else. A question's marker keeps its small menu (the field, whether
-  it was answered, whether questions were stopped), so a stop still holds. The earlier bubbles of a text are simply
+  it was answered, whether questions were stopped), so a stop still holds; its date key (`episode_id`, below) is
+  cleared, so nothing counts it as a text about that date. The earlier bubbles of a text are simply
   deleted, since another row still carries the tag. Markers go with the conversation and show in the export as
   `deleted_text_markers`.
 - **Memory.** Facts already drawn from the message stay on the memory page, where they are the person's to change or
@@ -857,7 +858,8 @@ the words). Not over MCP yet: the `companion` tool still deletes whole threads o
 - `companion_conversations`, a thread each: `thread_id`, `character_id`, `character`, `started_at`, `last_at`,
   `reply_length`, `texts_on`, `paused`, `scene`, `roleplay`, `notes` (the rolling summary), `messages` (each with
   `said_by` `you` / `character` / `notice`, `text`, `at`, `on_call`, and where they apply `photo`, `voice_note`,
-  `scene`, `roleplay`, `action`, `about` (a sent-first text's tag), `reported`, `redrawn` for a hidden earlier draw),
+  `scene`, `roleplay`, `action`, `about` (a sent-first text's tag), `episode_id` (the date such a text is about, since
+  2026-11-16), `reported`, `redrawn` for a hidden earlier draw),
   `memory` (the facts: `kind`, `text`, `pinned`, `edited_by_you`, `at`) and `deleted_text_markers` (`about`, `at`).
   Never a model id, a cost, or audio.
 - `companion_calls`: `thread_id`, `started_at`, `ended_at`, `last_at`, `minutes`, `turns`, `voiced_characters`,
@@ -989,6 +991,40 @@ and the picture is in After Dark. The rules After Dark applies (who is entitled,
 | Not in After Dark (phone) | After Dark open to them (phone) | Not in After Dark (desktop) |
 |---|---|---|
 | ![The locked tile under the text: In After Dark, adults only, Ask for an invite, and the line that it is only the lock](screenshots/locked-picture-way-in-mobile.webp) | ![The same tile with Open in After Dark](screenshots/locked-picture-open-mobile.webp) | ![The thread on a desktop with the locked tile and Ask for an invite](screenshots/locked-picture-way-in-desktop.webp) |
+
+### A text knows its date (built 2026-11-16)
+
+Stage 5 of "one connected model" (the same few keys on every row that is about something). A text a character sends
+about a date used to be tied to it only by its tag (`after_date:<episode id>` in
+`companion_messages.action`, a column that is also a scene's stage direction), so "the texts about this date" was a
+string match. Now the row carries the key.
+
+- **The column:** `companion_messages.episode_id` (nullable text, no foreign key, a partial index on the rows that have
+  one). It is set when the text is written (`lib/companion.ts` `writeText`, on every bubble and the photo) from the tag,
+  by one pure helper, `tagEpisode` (`lib/companion-shared.ts`): the kinds whose ref is a date are `after_date`,
+  `day_after`, `tease`, `opener`, `overnight`, `life`, `date_photo` and `locked_picture` (`DATE_TEXT_KINDS`); every
+  other tag (`house_scene:`, `house_tonight:`, `gift:`, `offer:`, `question:`, `rose:`, …), a scene's stage direction
+  and a model-written reply name none. The tag stays: it is the dedupe key.
+- **Older rows** are filled by the hourly job (`lib/chat-date-links.ts` `backfillMessageEpisodes`, called from
+  `app/api/jobs/lobby/route.ts`, 2,000 rows a pass, idempotent, reported as `message_episodes_filled`): only where the
+  tag names a date that still exists. Never in the schema script. A deleted text's blank marker has its key cleared and
+  is never filled again.
+- **In the thread** (`getThread`, inside the reads it already makes): the last bubble of a text about a date gets one
+  small link, **About your date with {partner}**, to the date's page (`about` on the message;
+  `app/companion/[id]/CompanionChat.tsx`). Only for a date this viewer may open: they own one of the two, or it aired
+  publicly between two public characters (`publicDateSql`: public, aired, not hidden by reports, not a replay). In a
+  cast member's thread it reads "About {name}'s date with {partner}". A tease or an opener already carries "Watch the
+  date" to the same page, so it gets no second link.
+- **On the date's page** (`app/episodes/[id]/page.tsx`, inside its existing `Promise.all`), for the owner of one of the
+  two only: one line, **{Name} texted you about this**, to their own thread (`textsAboutDate`: the thread is the
+  viewer's and the viewer owns a side). Nobody else is ever shown it, and nobody is shown anyone else's thread: a
+  companion conversation is its person's alone, and neither read enters a public read or a dataset.
+- **The export** carries `episode_id` on a conversation's messages.
+- **Switch:** `CHAT_DATE_LINKS` (on by default; `0` hides both reads without a deploy of code; the column is written
+  either way).
+- Not done here, on purpose: one shared "what this character knows" read in place of `storyView` / `companionStory`
+  (the plan's later step, behind the date and companion evals).
+- Tests: `tests/chat-date-links.test.ts`.
 
 ## Still to build
 
