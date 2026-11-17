@@ -11,31 +11,102 @@
   --tabbar-label: min(var(--text-xs), max(var(--text-eyebrow), 3.4vw));
 }
 
-/* ---------------- the footer's row of links ---------------- */
-/* What people click (legal, the two tools, pricing, a way to tell us something), in one wrapping row, then the way to
-   everything else. Quiet links, as the design system draws the footer's (app/ux/company.css). */
-.footer-row {
-  margin: var(--space-3) 0;
+/* ---------------- the footer (app/layout.tsx, app/FooterGroup.tsx) ---------------- */
+/* As the design system draws it (SiteFooter, components.css .bz-footer-*; David 2026-11-16, "our footer should match
+   the designs"): four groups as columns on a wide screen, each a row that folds on a phone; the letter beside the
+   show's accounts over a rule; the fine print centred under it all. Quiet links (app/ux/company.css). */
+.footer-groups {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-4);
+  margin: var(--space-4) 0;
 }
-.footer-row .footer-links {
+.footer-group > summary {
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1) var(--space-4);
-  margin: 0;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-1) 0;
+  color: var(--ink);
+  font-weight: 700;
+  list-style: none;
+  cursor: default;
 }
-.site-footer .footer-row a.footer-all {
-  /* Over the quiet links' muted colour (app/ux/company.css), so the way to the rest reads as the row's end. */
+.footer-group > summary::-webkit-details-marker {
+  display: none;
+}
+.footer-group .footer-chev {
+  display: none;
+}
+.footer-group .footer-links {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: var(--space-1) 0 0;
+}
+.site-footer .footer-groups a.footer-all {
+  /* Over the quiet links' muted colour, so the way to every other page reads as the group's end. */
   color: var(--ink);
   font-weight: 600;
 }
+.footer-bottom {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line);
+}
+.footer-bottom > .footer-newsletter {
+  flex: 1 1 20rem;
+  margin: 0;
+}
+.footer-bottom > .social-links {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  margin: 0;
+}
+.site-footer > p.footer-legal {
+  text-align: center;
+}
+@media (max-width: 640px) {
+  /* A phone: one column of rows that fold, each a 44px target with its chevron. */
+  .footer-groups {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+  .footer-group {
+    border-top: 1px solid var(--line);
+  }
+  .footer-group:last-child {
+    border-bottom: 1px solid var(--line);
+  }
+  .footer-group > summary {
+    min-height: 44px;
+    cursor: pointer;
+  }
+  .footer-group .footer-chev {
+    display: inline;
+    transition: transform 0.15s ease;
+  }
+  .footer-group[open] .footer-chev {
+    transform: rotate(90deg);
+  }
+  .footer-group .footer-links {
+    padding-bottom: var(--space-3);
+  }
+}
 @media (pointer: coarse) {
-  /* A 44px row on a touchscreen, "Give us feedback" (a button) level with the links beside it. */
-  .site-footer .footer-row .footer-links li > :is(a, button) {
+  /* 44px links on a touchscreen, "Give us feedback" (a button) level with the links beside it. */
+  .site-footer .footer-groups .footer-links li > :is(a, button) {
     display: inline-flex;
     align-items: center;
     min-height: 44px;
     margin-block: 0;
     padding-block: 0;
+  }
+  .footer-group .footer-links {
+    gap: 0;
   }
 }
 
