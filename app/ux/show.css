@@ -449,7 +449,6 @@ details.recap-toggle[open] .recap-toggle-hide {
 }
 .watch-open-top {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
   padding: var(--space-3) var(--space-4);
@@ -459,9 +458,21 @@ details.recap-toggle[open] .recap-toggle-hide {
   font-weight: 700;
 }
 .watch-open-top .venue-chip {
+  min-width: 0;
   margin: 0;
   background: color-mix(in srgb, var(--card-dark) 55%, transparent);
   color: var(--on-photo);
+}
+/* One row on a phone too: a long place gives way (the premise below says it in full), never the status or Exit. */
+.watch-open-place {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.watch-open-top > .watch-live,
+.watch-open-top > .watch-open-exit {
+  flex-shrink: 0;
 }
 .watch-open-room a.watch-open-exit {
   margin-left: auto;
@@ -583,7 +594,10 @@ details.recap-toggle[open] .recap-toggle-hide {
   }
 }
 @media (max-width: 59.99rem) {
-  /* Edge to edge on a phone, filling the screen under the site's header; the words sit low, near the thumb. */
+  /* Edge to edge on a phone, filling the screen right under the site's header; the words sit low, near the thumb. */
+  main:has(> .watch.is-open-room) {
+    padding-top: 0;
+  }
   .watch-open-room {
     margin-inline: calc(-1 * var(--gutter));
     min-height: calc(100dvh - 4.5rem);

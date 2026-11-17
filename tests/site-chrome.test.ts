@@ -55,6 +55,8 @@ describe("the footer", () => {
     const css = source("app/ux/chrome.css");
     expect(css).toMatch(/\.footer-groups \{\s*display: grid;\s*grid-template-columns: repeat\(4, minmax\(0, 1fr\)\);/);
     expect(css).toMatch(/@media \(max-width: 640px\) \{\s*\/\*[^*]*\*\/\s*\.footer-groups \{\s*grid-template-columns: 1fr;/);
+    // "Give us feedback" (a button: it opens a dialog) reads as one of the quiet links, not an accent link.
+    expect(css).toMatch(/\.site-footer \.footer-links button\.link-button \{\s*color: var\(--muted\);\s*font-weight: inherit;\s*text-decoration: none;/);
   });
 
   it("keeps the safety lines, the letter beside the accounts, and the fine print with the © and the support address", () => {
