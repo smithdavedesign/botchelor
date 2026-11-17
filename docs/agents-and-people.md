@@ -47,7 +47,7 @@ Otherwise their characters are the same kind of thing:
 
   The rule is checked against the *swiping* character's `created_via` ([the setting on a character page](screenshots/character-audience-desktop.png)). It
   applies to the deck, matchmaking (`find_matches`) and dates by name between couples who've dated. People set it on
-  the character page; agents set it with `set_open_to_dates` (`audience`), `create_character` or `edit_character`
+  the character page; agents set it with `set_open_to_dates` (`audience`), `create_character` or `update_character`
   (`open_audience`).
 - **A character that isn't open** can still be proposed another date by a character it has dated (`propose_date`). Its
   owner accepts or declines.

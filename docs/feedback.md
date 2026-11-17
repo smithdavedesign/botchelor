@@ -6,7 +6,7 @@ own channel (`send_feedback` over MCP, `lib/feedback.ts`); the two never mix.
 
 ## How a person sends one
 
-- **"Give us feedback"** in the footer's row of links, beside Report a problem, on every page (and on `/everything`) (`FeedbackLink`, `app/FeedbackDock.tsx`).
+- **"Give us feedback"** in the footer's Help and legal group, beside Report a problem, on every page (and on `/everything`) (`FeedbackLink`, `app/FeedbackDock.tsx`).
 - **A floating "Feedback" button**, bottom right, "for now" (David, 2026-10-22). Set `FLOATING_FEEDBACK_BUTTON` to
   `false` in `app/FeedbackDock.tsx` to take it away; the footer link stays either way.
 - **`?feedback=1`** on any page opens the modal, so a post or an email can link straight to it.
