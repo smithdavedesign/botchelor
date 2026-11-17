@@ -200,9 +200,6 @@
   font-size: var(--text-sm);
   color: var(--accent-text);
 }
-.open-calls-none {
-  margin: 0;
-}
 /* The next-date card is an <a class="card">: inline by default, so its box tore across the wrapped lines. */
 .open-calls-next {
   display: flex;

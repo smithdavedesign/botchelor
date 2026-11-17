@@ -406,11 +406,6 @@ body:has(.companion-fullscreen) .site-footer {
 .companion-out p {
   margin: 0 0 var(--space-2);
 }
-.plan-price {
-  font-size: 1.6rem;
-  font-weight: 700;
-  margin: 0 0 var(--space-2);
-}
 .plan-card {
   margin: 0 0 var(--space-4);
 }

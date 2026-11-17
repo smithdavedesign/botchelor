@@ -483,11 +483,6 @@
 }
 
 /* ---------------- /account/keys: Connections (docs/PRDs/connections.md) ---------------- */
-.byok-model-note {
-  display: block;
-  margin-top: var(--space-1);
-  font-weight: 400;
-}
 /* One card per job (app/account/keys/ConnectionCard.tsx), two across where there's room, one on a phone. The admin's
    After Dark providers view uses the same cards. */
 .connection-grid {

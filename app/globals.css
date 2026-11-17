@@ -1801,11 +1801,6 @@ button.chosen {
   margin-bottom: 0;
 }
 
-/* Four cards in a 46rem column: two by two, never three and an orphan. */
-.gallery-pairs {
-  grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
-}
-
 /* ---------------- misc text ---------------- */
 
 .error {
@@ -1899,14 +1894,6 @@ button.chosen {
 
 .share button {
   margin: 0;
-}
-
-/* An episode's share links (app/episodes/[id]/EpisodeShare.tsx): Copy link, then Reddit and Bluesky side by side. */
-.share-targets {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin: 0.75rem 0 0.25rem;
 }
 
 /* "Make your own character" under an episode's matchup, for spectators: the button, its line beside it on desktop
@@ -2392,15 +2379,6 @@ button.button-ghost:hover:not(:disabled) {
   border-radius: var(--radius);
   padding: 1.25rem;
   box-shadow: var(--shadow);
-}
-
-.mini-box {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 0.3rem 0.9rem;
-  width: 100%;
-  max-width: 15rem;
-  font-weight: 600;
 }
 
 .mini-cap {
@@ -3493,10 +3471,6 @@ button.phone-earlier-btn:hover:not(:disabled) {
 }
 .phone-msg .avatar {
   flex: none;
-}
-.phone-avatar-gap {
-  flex: none;
-  width: 26px;
 }
 .phone-bubble {
   margin: 0;
@@ -4968,12 +4942,6 @@ button.link-button.danger {
 }
 .theater-verdict .linklike {
   color: var(--on-photo);
-}
-.theater-cta {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
 }
 /* The episode page's written recap and ending reveals, closed behind one toggle when the theater can play the date
    (app/episodes/[id]/RecapToggle.tsx). */
@@ -7421,9 +7389,6 @@ button.table-more {
   border-radius: 999px;
   background: var(--accent-btn);
 }
-.matches-empty {
-  padding: var(--space-4) 0;
-}
 /* The "Didn't work out" list's one line of why (the passed and the disasters, a tab of their own since 2026-11-11). */
 .matches-over-note {
   margin: 0 0 var(--space-3);
@@ -7977,12 +7942,6 @@ body.ad-host {
   color: var(--night-ink);
   border-color: rgba(199, 146, 255, 0.4);
 }
-.ad-theater-place {
-  max-width: 22rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 .ad-theater-action {
   position: absolute;
   left: 50%;
@@ -8221,12 +8180,6 @@ body.ad-host {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
-}
-.ad-video-choice-single {
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  align-items: center;
 }
 
 /* A picture the pair already has of this moment (lib/adult/scene-match.ts): a theater chip and its popover. */
@@ -9471,13 +9424,6 @@ body.ad-host {
   transform: none;
   border-color: var(--ad-accent, var(--accent));
 }
-.ad-suggestion-text {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  min-width: 0;
-}
 .ad-heat {
   flex: none;
   font-size: var(--text-xs);
@@ -10672,9 +10618,6 @@ html.ad-studio-locked {
   color: var(--on-photo);
   border-color: rgba(255, 255, 255, 0.4);
 }
-.theater-cta-top {
-  margin: 0.75rem 0 0.5rem;
-}
 /* The thread's "only they can text here" is a note, not a text box: it used to look like one, so people tapped it. */
 .phone-compose {
   border: 0;
@@ -11258,9 +11201,6 @@ main:has(> .episode-page) {
 .episode-wants li strong {
   display: block;
   font-family: "Fraunces", Georgia, serif;
-}
-.episode-bonus {
-  margin: var(--space-3) 0 0;
 }
 .episode-predict {
   scroll-margin-top: 5rem;
@@ -13232,11 +13172,6 @@ button.thread-menu-item:hover:not(:disabled) {
   margin: 0.5rem 0;
 }
 
-/* /about: the stack, one card per thing. */
-.about-stack-toc { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; padding: 0; list-style: none; }
-.about-stack-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 0.75rem; padding: 0; list-style: none; }
-.about-stack-grid li { display: flex; flex-direction: column; gap: 0.25rem; padding: 0.75rem 0.9rem; border: 1px solid var(--line); border-radius: var(--radius-md); }
-.about-stack-grid li span { font-size: 0.92em; opacity: 0.85; }
 /* What it costs (app/costs, 2026-11-10): plain two-column tables, the amount right-aligned. */
 .costs-table { width: 100%; border-collapse: collapse; margin: var(--space-2) 0 var(--space-3); }
 .costs-table th, .costs-table td { padding: var(--space-2) 0; border-bottom: 1px solid var(--line); vertical-align: top; text-align: left; }

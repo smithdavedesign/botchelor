@@ -742,18 +742,12 @@ label.ad-whos-in-state {
   margin: 0;
 }
 
-/* The scene page's pictures, videos and saved nights (SceneWriter.tsx), and the night's set-up in one fold. */
+/* The scene page's pictures, videos and saved nights (SceneWriter.tsx). */
 .ad-media-tabs {
   margin-top: var(--space-4);
 }
 .ad-media-tabs > .ad-studio-tabs {
   margin-bottom: var(--space-3);
-}
-.ad-setup {
-  margin-top: var(--space-4);
-}
-.ad-setup > .ad-panels {
-  margin-top: var(--space-3);
 }
 
 /* ---------------- the theater, 2026-10-25: the only way to watch ---------------- */
