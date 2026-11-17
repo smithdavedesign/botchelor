@@ -374,24 +374,37 @@ export function mediaHref(p: Pick<Post, "id" | "source" | "rating">, size?: "til
 }
 
 /**
- * One character in several scenes: the public character with the most safe pictures of them alone, and a few of those
- * pictures (the Studio's way in shows them: "still unmistakably them" is a claim, and these are the evidence). Only
- * what anyone may see: live, not held, rated pg, a public character, a creator who isn't hidden. Null without three.
+ * One character, several pictures: the public character whose safe Studio pictures of them alone span the most
+ * separate shoots, and a few of those pictures taken across the shoots (the Studio's way in shows them: "still
+ * unmistakably them" is a claim, and these are the evidence). `shoots` is how many separate shoots the pictures shown
+ * come from, so the page says only what is true: on 2026-11-16 the first version called four pictures of one shoot
+ * "4 different shoots". Only what anyone may see: live, not held, rated pg, a public character, a creator who isn't
+ * hidden, from the PG Studio. Null without three pictures.
  */
-export async function sameCharacterProof(db: Db, limit = 4): Promise<{ name: string; character_id: string; posts: string[] } | null> {
-  const { rows } = await db.query<{ id: string; character_id: string; name: string }>(
+export async function sameCharacterProof(db: Db, limit = 4): Promise<{ name: string; character_id: string; posts: string[]; shoots: number } | null> {
+  const { rows } = await db.query<{ id: string; character_id: string; name: string; shoot: string }>(
     `with ok as (
-       select p.id, p.character_id, p.published_at, c.name
+       select p.id, p.character_id, p.published_at, c.name,
+              -- A shoot: the Studio's own shoot, else the hour the picture was made (pictures kept before shoots had ids).
+              coalesce(g.shoot_id, to_char(date_trunc('hour', g.created_at), 'YYYY-MM-DD HH24')) as shoot
          from showcase_posts p
          join creator_profiles cp on cp.user_id = p.owner_id
          join characters c on c.id = p.character_id
+         join studio_pg_pictures g on p.source = 'pg' and g.id = p.media_id
         where p.status = 'live' and not p.held and p.rating = 'pg' and p.medium = 'picture' and p.character_b is null
           and not cp.hidden and c.visibility = 'public'),
-     best as (select character_id from ok group by character_id having count(*) >= 3 order by count(*) desc, character_id limit 1)
-     select ok.id, ok.character_id, ok.name from ok join best on best.character_id = ok.character_id order by ok.published_at desc nulls last limit $1`,
+     best as (
+       select character_id from ok group by character_id having count(*) >= 3
+        order by count(distinct shoot) desc, count(*) desc, character_id limit 1),
+     ranked as (
+       select ok.*, row_number() over (partition by ok.shoot order by ok.published_at desc nulls last, ok.id) as nth
+         from ok join best on best.character_id = ok.character_id)
+     -- One from each shoot first, then seconds: the pictures shown cover as many shoots as there are.
+     select id, character_id, name, shoot from ranked order by nth, published_at desc nulls last, id limit $1`,
     [limit],
   );
-  return rows.length >= 3 ? { name: rows[0].name, character_id: rows[0].character_id, posts: rows.map((r) => r.id) } : null;
+  if (rows.length < 3) return null;
+  return { name: rows[0].name, character_id: rows[0].character_id, posts: rows.map((r) => r.id), shoots: new Set(rows.map((r) => r.shoot)).size };
 }
 
 /** How many of one character's posts the reels show together before the next creator's (listShowcase mix). */
