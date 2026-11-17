@@ -10675,10 +10675,6 @@ html.ad-studio-locked {
 .theater-cta-top {
   margin: 0.75rem 0 0.5rem;
 }
-.shop-price {
-  margin: 0.25rem 0;
-  font-size: var(--text-lg);
-}
 /* The thread's "only they can text here" is a note, not a text box: it used to look like one, so people tapped it. */
 .phone-compose {
   border: 0;

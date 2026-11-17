@@ -910,32 +910,6 @@ details.recap-toggle[open] .recap-toggle-hide {
   color: var(--muted);
 }
 
-/* ---------------- the token shop (app/shop/page.tsx) ---------------- */
-.shop-item-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-1) var(--space-3);
-}
-.shop-item-head strong {
-  font-size: var(--text-lg);
-}
-.shop-item-price {
-  font-size: var(--text-lg);
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
-}
-.shop-item > .badge {
-  margin: var(--space-1) 0 0;
-}
-/* Signing in is a step, not a success: the accent colour, not the notice's green. */
-.shop-signin-note {
-  margin: var(--space-3) 0 var(--space-2);
-  color: var(--accent-text);
-  font-weight: 600;
-}
-
 /* Fold-out toggles on the episode page open from a row tall enough to tap. */
 .boxscore-why > summary {
   padding-block: 10px;
