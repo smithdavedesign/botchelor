@@ -2818,15 +2818,6 @@ button.poll-option.chosen {
   opacity: 0.75;
 }
 
-.watch-chat-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 0.5rem;
-}
-.watch-chat-head h2 {
-  margin: 0;
-}
 .watch-chat {
   display: flex;
   flex-direction: column;
@@ -4299,33 +4290,6 @@ button.rating-chip:hover {
 .theater-stage.with-convo .theater-verdict {
   left: calc(50% + min(190px, 17%));
 }
-.theater-panel {
-  flex: 0 0 340px;
-  max-width: 88vw;
-  display: flex;
-  flex-direction: column;
-  border-left: 1px solid rgba(255, 255, 255, 0.12);
-  background: color-mix(in srgb, var(--card) 94%, black);
-  color: var(--ink);
-  padding: 0 var(--space-4) var(--space-3);
-  overflow-y: auto;
-}
-.theater-panel .watch-chat-head {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  background: inherit;
-  padding-top: var(--space-3);
-}
-/* Reactions live at the top of the chat panel now (off the scene), as a compact row. */
-.theater-panel .watch-reactions {
-  flex-wrap: wrap;
-  margin-bottom: var(--space-2);
-}
-/* The voting & questions panel: the feature cards stack, full-width in the panel. */
-.theater-votes .card {
-  margin: 0 0 var(--space-3);
-}
 
 /* The scene: the venue backdrop the two characters live in. */
 .scene {
@@ -4993,13 +4957,6 @@ button.chat-vote-tag[aria-pressed="true"] .chat-vote-tag-face {
     transform: translateX(-50%);
     width: min(30rem, calc(100% - 2 * var(--gutter)));
     max-height: calc(100% - 5rem);
-  }
-  .theater-panel {
-    flex: 0 0 auto;
-    max-height: 46vh;
-    max-width: none;
-    border-left: 0;
-    border-top: 1px solid rgba(255, 255, 255, 0.12);
   }
 }
 
