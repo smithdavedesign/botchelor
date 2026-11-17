@@ -31,6 +31,15 @@ export type McpRelease = {
 /** Newest first. */
 export const MCP_CHANGELOG: readonly McpRelease[] = [
   {
+    version: "2.35.0",
+    date: "2026-11-17",
+    title: "Choose how a companion scene opens",
+    changes: [
+      "companion scene takes opening: 0, 1 or 2 for one of three (the roleplay's own, or three for a scene with no roleplay), \"surprise\" for any of them, or one sentence of your own, checked like the show's. Left out, the scene opens as before.",
+      "my_roleplays with catalog: true lists each roleplay's three openings, and openings_without_roleplay.",
+    ],
+  },
+  {
     version: "2.34.0",
     date: "2026-11-16",
     title: "A character's credits",

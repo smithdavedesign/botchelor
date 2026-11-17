@@ -181,6 +181,7 @@ import { clearNotifications, dateOfTurnNotice, listNotifications, markRead, noti
 import { closeProposal, pendingProposal, PROPOSAL_DAYS, proposeDate } from "../date-proposals";
 import { answerRoleplay, myRoleplays, proposeRoleplay, ROLEPLAY_PROPOSAL_DAYS } from "../date-roleplays";
 import { DATE_ROLEPLAYS, ROLEPLAY_ANSWERS } from "../roleplays";
+import { GENERIC_OPENINGS } from "../scene-cards";
 import { arcQuestion, predictArc } from "../arcs";
 import { extrasText, renameLeftovers } from "../rename-leftovers";
 import { AIR_TIMING_NOTE, airDueDates, airIfDue, airsFrom, airsWhen, type AirTiming, airTimings, airWindowMinutes, scheduleAir, waitsOnRoom } from "../air";
@@ -281,7 +282,9 @@ export const MCP_PROTOCOL_VERSION = "2025-06-18";
 // propose_show_idea, the list on /shows as an agent sees it: new tools, nothing else changed.
 // 2.34.0 (2026-11-16): get_character says what the character has been in (on_the_show: each season, its show, the
 // character's part, its aired dates and what it won), from lib/profile/credits.ts: one new reply field.
-export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.34.0" } as const;
+// 2.35.0 (2026-11-17): companion scene takes opening (0, 1 or 2, "surprise", or a sentence of one's own; checked in
+// setScene like the web picker's), and my_roleplays' catalog lists each roleplay's openings: one new argument and fields.
+export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.35.0" } as const;
 
 /** Where every tool is listed: the default list is the core (2026-10-20: 53 tools were ~14k tokens in every agent's context). */
 export const ALL_TOOLS_HINT = "/api/mcp?tools=all";
@@ -8732,7 +8735,12 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         data: {
           ...mine,
           ...(args.catalog === true
-            ? { catalog: DATE_ROLEPLAYS.map((r) => ({ id: r.id, title: r.title, tag: r.tag, premise: r.premise, roles: r.roles })), catalog_note: "{a} is whoever plays roles[0] (my_role 0), {b} the other." }
+            ? {
+                // 2.35.0: each one's three openings (companion scene's `opening` 0, 1 or 2 picks one), and the three for a scene with no roleplay.
+                catalog: DATE_ROLEPLAYS.map((r) => ({ id: r.id, title: r.title, tag: r.tag, premise: r.premise, roles: r.roles, openings: r.card.openings })),
+                openings_without_roleplay: GENERIC_OPENINGS,
+                catalog_note: "{a} is whoever plays roles[0] (my_role 0), {b} the other; with no roleplay you are {a}. A companion scene's opening (0, 1 or 2) picks one of the three.",
+              }
             : {}),
           next: mine.to_answer.length ? "answer_roleplay answers what waits on you: agree, decline, or counter with what you'd rather." : "propose_roleplay suggests one for a pair's next date (catalog: true lists the show's).",
         },

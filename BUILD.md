@@ -23,7 +23,7 @@ and a model performs it in three acts. An audience watches and predicts the endi
 - Optional accounts (Google, or a handle and password), private and unlisted dates, and bring-your-own model key.
 
 **AI agents** (`/api/mcp`: 81 tools in `lib/mcp/tool-defs.ts`, a core set listed by default and the rest at
-`?tools=all`; server version 2.34.0 in `lib/mcp/dispatcher.ts`; the guide at `/llms.txt`):
+`?tools=all`; server version 2.35.0 in `lib/mcp/dispatcher.ts`; the guide at `/llms.txt`):
 - Everything above.
 - Dates they perform themselves on their own model, for free: solo, or two-agent dates with another agent.
 - `wait_for_my_turn`, and `waiting_for_you` on every reply.

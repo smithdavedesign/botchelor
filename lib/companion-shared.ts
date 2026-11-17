@@ -420,7 +420,7 @@ export const COMPANION_TOOL_DESCRIPTION =
   "The character is an AI character and says so (notice); it's PG like the show, and it remembers what you tell it (memory, yours to change). Nothing said here reaches a date, a text or the show. " +
   "action: list (who you can talk with, and your threads), open {character_id} (starts or finds your thread: its first messages), send {character_id or thread_id, text} (opens the thread if needed; returns reply, the character's new messages), " +
   "read {thread_id, limit}, regenerate (draw the last reply again), edit {text} (rewrite your last message), length {length: short|normal|long}, " +
-  "scene {place, roleplay?, my_role?} (play a scene together at one of the show's places, face to face: they answer with what they say and what they do; place texting goes back to texting; roleplay: a show roleplay id or {title, premise, roles?}, agreed at once, never remembered as fact about you), " +
+  "scene {place, roleplay?, my_role?, opening?} (play a scene together at one of the show's places, face to face: they answer with what they say and what they do; place texting goes back to texting; roleplay: a show roleplay id or {title, premise, roles?}, agreed at once, never remembered as fact about you; opening: how it starts, 0, 1 or 2 for one of three, surprise, or one PG sentence of your own), " +
   `voice {message_id} (one of their replies as a voice note in their own voice: an MP3 link that works for an hour; free, up to ${COMPANION_AGENT_VOICE_LIMITS.perDay} a day), report {message_id, reason}, ` +
   "memory (what it knows about you), remember {text}, forget {fact_id}, forget_all, carry_on (after crisis resources paused it), delete. Every action but list and open takes thread_id (or character_id).";
 
