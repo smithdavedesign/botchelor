@@ -95,7 +95,8 @@ export default function RoleplayPicker({
     fetch("/api/persona")
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
-        if (live && d) setPersona(d.persona && typeof d.persona.name === "string" ? { name: d.persona.name } : null);
+        // `on: false` (SCENE_PERSONA=0): no line at all.
+        if (live && d && d.on !== false) setPersona(d.persona && typeof d.persona.name === "string" ? { name: d.persona.name } : null);
       })
       .catch(() => {});
     return () => {

@@ -42,14 +42,24 @@ A roleplay someone wrote (a date's "Write your own", the Create library) has no 
 | Surface | Where the choice is stored | With nothing stored |
 | --- | --- | --- |
 | Show date | `RoleplayTerms.opening`: the opening's text, with `{a}` and `{b}`, snapshotted with the terms (`date_roleplays.terms`, then `episodes.setup.roleplay`) | `openedTerms` takes one by the **episode's id** when the date is assembled (`lib/simulation.ts`), and the setup keeps it, so a rebuild opens the same way |
-| Companion scene | `companion_threads.roleplay.opening`: the same text | One by the **thread's id**, worked out each time (nothing is written) |
+| Companion scene | `companion_threads.roleplay.opening`: the same text. A scene with no roleplay: `companion_threads.opening` (one of `GENERIC_OPENINGS`, the person as `{a}`, or a sentence they wrote) | One by the **thread's id**, worked out each time (nothing is written). With no roleplay, the scene just opens |
 | After Dark | `adult_scenes.roleplay.opening`: `1` or `2` (the index) | The first. `0` and nothing are the same, and are stored as nothing |
 
 After Dark also stores `at`: how many lines the chapter had when the roleplay was picked. A roleplay is usually picked partway through a chapter (a move doesn't start a new one), so "the first lines" are the lines written right after the pick: the opening is in the prompt while the chapter has no more lines than `at`. A rewind back to that point brings it back. The picker sends the running roleplay again with every move, so the same roleplay with the same opening keeps its `at` and doesn't open a second time at the new place; a different opening for it is a new pick, and plays. `at` is the writer's business and is left out of the scene the page gets (`publicScene`). A scene stored before this has neither field: it works as before, and its opening would only play on a chapter's very first lines.
 
 `sameTerms` treats terms that name no opening as the same agreement as terms that name one. Two that name different openings are different.
 
-Picking an opening: After Dark's Scene & roleplay popup shows "How it opens" under the picked roleplay's roles (`SetSceneModal.tsx`), first one selected, and sends `roleplay.opening` with the pick. The show's and the companion's pickers don't offer it yet (next: `app/RoleplayPicker.tsx`); until then those two play the hashed one. `GENERIC_OPENINGS` are three PG openings with no place in them, for a scene with no roleplay; nothing uses them yet.
+Picking an opening:
+- **After Dark's** Scene & roleplay popup shows "How it opens" under the picked roleplay's roles (`SetSceneModal.tsx`), first one selected, and sends `roleplay.opening` with the pick.
+- **The show's picker** (`app/RoleplayPicker.tsx`, 2026-11-17) has it as its last step, for a companion's scene and for a date booked where a roleplay plays at once (a house character's page, the first date in `/create`):
+  - the three openings, **Surprise me** (one of them at random), or **Write your own**: one sentence, `CARD_OPENING_MAX`, held to `showCardTextIssue` like a card's (`lib/scene-opening.ts` `resolveOpening`), refused with a 422 that never says it back;
+  - sent as `opening`: `0`, `1`, `2` or the sentence, on `POST /api/companion/:id {action: "scene"}` and `POST /api/episodes`;
+  - untouched, nothing is sent and the hashed one plays, as before;
+  - a roleplay someone wrote has no card: only a written opening can be chosen for it.
+- **A companion's scene with no roleplay** offers `GENERIC_OPENINGS`: three PG openings with no place in them.
+- **Not offered:** the couple page's proposal to another owner (their yes is to the roleplay, and its view shows no opening), and agents over MCP. A booking that names the roleplay two owners agreed on plays the agreed terms, whatever opening it names.
+
+A written opening goes into the terms as written. On a show date both actors get it as `opening` on their first line, with `{a}` and `{b}` filled if it has them. In a companion's scene it's quoted to the character as the person's own sentence ([companions.md](companions.md), "An opening you choose").
 
 ## The lines
 
@@ -89,6 +99,7 @@ The new themes come from David's census of 38,912 public character listings: its
 
 ## Files
 
+- `lib/scene-opening.ts`: `resolveOpening`, `writtenOpeningIssue`, `openingField`, `OpeningChoice` (the pickers' step).
 - `lib/scene-cards.ts`: the type, the limits, `GENERIC_OPENINGS`, `mapCard`, `fillCard`, `fillCardText`, `cardForYou`, `openingOf`, `openingIndex`, `openedTerms`, `cardTexts`, `cardShapeIssue`, `showCardTextIssue`, `showCardIssue`, `adultCardTextIssue`, `adultCardIssue`, `CARD_ENDING`, `CARD_EXPLICIT`, `ADULT_CARD_NEVER`.
 - `lib/roleplays.ts`, `lib/adult/roleplays.ts`: the roleplays and their cards; `roleplayForActor`, `roleplayNote`; `roleplayLine`, `roleplayRule`.
 - `lib/simulation.ts` (the date's opening), `lib/conversation.ts` (the actor's section and the first-line rule), `lib/companion.ts` (`promptRoleplay`, the opener's cue), `lib/companion-prompt.ts`, `lib/adult/scenes.ts` (`setRoleplay`, the scene's profile), `app/api/admin/after-dark/route.ts`, `app/after-dark/[a]/[b]/SetSceneModal.tsx`.

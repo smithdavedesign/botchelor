@@ -22,7 +22,7 @@
 import { crisisIntent } from "./crisis";
 import type { Db } from "./db";
 import { isNotEnglish } from "./language";
-import { SCENE_PERSONA_FIELDS, SCENE_PERSONA_MAX, type ScenePersona, type ScenePersonaField } from "./persona-shared";
+import { SCENE_PERSONA_FIELDS, SCENE_PERSONA_MAX, scenePersonaOn, type ScenePersona, type ScenePersonaField } from "./persona-shared";
 import { checkFields } from "./safety";
 import { showCardTextIssue } from "./scene-cards";
 
@@ -190,9 +190,11 @@ export async function clearPersona(db: Db, userId: string): Promise<boolean> {
 
 /**
  * Their persona for a PG scene (a companion's scene, a date they step into), or null: the stored one, checked again by
- * the show's check as it's read, so one stored before a check got stricter never reaches a prompt.
+ * the show's check as it's read, so one stored before a check got stricter never reaches a prompt. Null for everyone
+ * with SCENE_PERSONA=0 (the show's switch; the neutral read above doesn't know it).
  */
 export async function showPersona(db: Db, userId: string | null | undefined): Promise<ScenePersona | null> {
+  if (!scenePersonaOn()) return null;
   const persona = await getPersona(db, userId);
   return persona && !showPersonaIssue(persona) ? persona : null;
 }

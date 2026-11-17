@@ -3,7 +3,7 @@ import { crisisAware, str } from "@/lib/crisis";
 import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson, session } from "@/lib/http";
 import { overLimit } from "@/lib/limits";
-import { clearPersona, getPersona, SCENE_PERSONA_MAX, setPersona, showPersonaIssue } from "@/lib/persona";
+import { clearPersona, getPersona, SCENE_PERSONA_MAX, scenePersonaOn, setPersona, showPersonaIssue } from "@/lib/persona";
 
 /** Saves an hour and a day, per account: it's a setting, so this only stops a script. */
 const PERSONA_SAVE_LIMITS = { perHour: 30, perDay: 100 };
@@ -22,16 +22,20 @@ const SIGN_IN = { error: "sign_in", message: "Who you are in scenes is kept with
  * it, POST saves it, DELETE forgets it. Accounts only. It's make-believe for scenes (a companion's scene, a date you
  * step into): checked by the show's check before it's stored (PG, adults, no real people; an age under 18 gets the
  * adults-only message), and a refused one is neither stored nor logged: what was saved before stays.
+ * SCENE_PERSONA=0 (lib/persona-shared.ts): GET answers none and `on: false`, POST not found; DELETE still forgets.
  */
 export const GET = handle(async (req: Request) => {
   const sess = session(req);
-  if (!sess.authenticated) return json({ persona: null }, 200, sess);
-  return json({ persona: await getPersona(await getDb(), sess.userId) }, 200, sess);
+  const on = scenePersonaOn();
+  if (!sess.authenticated || !on) return json({ persona: null, on }, 200, sess);
+  return json({ persona: await getPersona(await getDb(), sess.userId), on }, 200, sess);
 });
 
 /** What they wrote is their own words: checked for self-harm intent like a date's note (the help rides the reply). */
 export const POST = crisisAware("companion", (body) => [str(body.look), str(body.about)], handle(async (req: Request) => {
   const sess = session(req);
+  // SCENE_PERSONA=0: nothing new is saved (what's stored can still be forgotten, below).
+  if (!scenePersonaOn()) return json({ error: "not_found", message: "Not found." }, 404, sess);
   if (!sess.authenticated) return json(SIGN_IN, 401, sess);
   const input = parseBody(Input, await readJson(req), "invalid_request");
   const db = await getDb();

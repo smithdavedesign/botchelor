@@ -286,6 +286,23 @@ describe("POST /api/persona", () => {
     expect(await showPersona(t.db, me.id)).toEqual(SAM);
   });
 
+  it("SCENE_PERSONA=0 turns it off without touching what's stored: no prompt reads it, nothing new is saved", async () => {
+    const me = person();
+    await save(me.cookie, SAM);
+    const id = await open(me.cookie);
+    vi.stubEnv("SCENE_PERSONA", "0");
+    expect(await showPersona(t.db, me.id)).toBeNull();
+    await act(me.cookie, id, { action: "scene", place: PLACE });
+    expect(calls.at(-1)![0].content).not.toMatch(/Who you're with in this scene|The name they go by here/);
+    expect((await save(me.cookie, { name: "Kit" })).status).toBe(404);
+    const got = (await (await personaGet(req("/api/persona", null, me.cookie, "GET"))).json()) as Any;
+    expect(got).toEqual({ persona: null, on: false });
+    // Still theirs: stored, and forgettable.
+    expect(await stored(me.id)).toEqual([SAM]);
+    expect((await personaDelete(req("/api/persona", {}, me.cookie, "DELETE"))).status).toBe(200);
+    expect(await stored(me.id)).toEqual([]);
+  });
+
   it("goes with the account: in the export, gone with the delete", async () => {
     const me = person();
     await save(me.cookie, SAM);

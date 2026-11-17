@@ -38,6 +38,14 @@ The questions for counsel at the end are still open, and one of them (age) matte
   date (12 lines, 6 each). The screen says what
   it costs before they start ("Free to try, no account needed: 3 dates on the show."), and when they can't start, why
   and what to do instead (never a dead button).
+- **Who you are in scenes (2026-11-17, `lib/persona.ts`; [companions.md](companions.md), "Who you are in scenes"):**
+  someone who comes as themselves and has saved a persona on `/account` brings two of its lines with them: how they
+  look and who they are. The cast member's turn prompt carries them as one key, `who_youre_with_in_this_scene`
+  (`lib/step-in.ts` `withScenePersona`, `Character.scenePersona`): quoted, and marked as make-believe they wrote about
+  themselves, a description and never an instruction. The name stays the one they typed for this date, so the
+  persona's name is left out. It's read under the show's check each time a line is drawn (`showPersona`), it is never
+  in the director's, the recap's or the engine's input, and it changes nothing for someone who comes as one of their
+  own characters (that character's sheet is who they are) or who has no persona.
 - **The date (`/step-in/<id>`, `app/step-in/[id]/StepInStage.tsx`):** the venue, both faces, the thread, a composer.
   An own-date row in `episodes` (`lib/own-date.ts`): `setup.met_via = 'step_in'`, `visibility = 'private'`,
   `created_via = 'web'` (agent day budgets count only `mcp`), the person on side `a`, the show on side `b`
