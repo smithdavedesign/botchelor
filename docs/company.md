@@ -43,8 +43,9 @@ has, written from the code so they can't drift from it.
 
 These would make it more of a company, and each costs money or needs his name on something:
 
-1. **An LLC.** `lib/legal-entity.ts` is ready: set `OPERATOR` to the LLC's name and every legal page follows. In
-   California, filing is $70 and the franchise tax is $800 a year.
+1. **An LLC.** Filed: Botchelor LLC (California) on 2026-11-13, pending the state's review. Once it's approved,
+   set `OPERATOR` in `lib/legal-entity.ts` to the LLC's name and every legal page follows. The franchise tax is
+   $800 a year.
 2. **A business postal address** (a PO box or a virtual mailbox). The newsletter can't send issues without one
    (CAN-SPAM), and it would go on /contact and the legal pages.
 3. **The DMCA agent**, registered with the US Copyright Office ($6, renewed every three years). `DMCA_AGENT` in
@@ -52,7 +53,7 @@ These would make it more of a company, and each costs money or needs his name on
 4. **A trademark** on "Botchelor" (USPTO, from $350 a class). Optional.
 Decided on 2026-11-10: David set the postal address himself (for the newsletter) and gave Claude two keys, kept in the
 keychain: `vault/botchelor/CLOUDFLARE_DNS_TOKEN` (DNS and Email Routing on botchelor.com only) and
-`vault/botchelor/UPTIMEROBOT_API_KEY`. The LLC, the DMCA agent and the trademark wait.
+`vault/botchelor/UPTIMEROBOT_API_KEY`. The DMCA agent and the trademark wait; the LLC was filed on 2026-11-13.
 
 ## Mail and status (set up 2026-11-10)
 

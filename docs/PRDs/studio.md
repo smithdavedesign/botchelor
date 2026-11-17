@@ -47,7 +47,7 @@ figures disagree; these are the most consistent.
 
 **The pattern:** a subscription with a monthly allowance plus top-up packs; a picture costs one or two units (more for
 explicit or "pro" quality); an edit costs about twice a picture; video costs 10–30 pictures by length; technical failures
-refunded; quality failures not (docs/after-dark-competitors-steering.md: "charged for a bad result" is the standing
+refunded; quality failures not (docs/history/after-dark-competitors-steering.md: "charged for a bad result" is the standing
 complaint, and nobody handles it).
 
 **Where they're weak** (the same research): one reference image (the weak case in Kling's and Runway's own docs), one
@@ -196,7 +196,7 @@ field. So the Studio prices **a shoot of 4**:
 
 Costs: Venice's own prices (2026-10-24: `qwen-edit-uncensored` $0.04, `qwen-image-2-1-turbo-edit` $0.02,
 `qwen-image-2-1-pro-edit` $0.05, `seedream-v5-pro-edit` $0.06, `lustify-v8` $0.01, `qwen-image-3` $0.04, upscaler $0.02,
-Wan 3.0 about $0.13 a second) plus Hive's ~$0.004 a picture (docs/after-dark-moderation-options.md). Gross margin before
+Wan 3.0 about $0.13 a second) plus Hive's ~$0.004 a picture (docs/history/after-dark-moderation-options.md). Gross margin before
 the payment processor's fee: 77–92% standard, ~84% pro.
 
 **Admins** don't pay (as everywhere in After Dark). **Refunds:** a shoot that delivers nothing is refunded whole; a free
