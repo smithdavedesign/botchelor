@@ -608,6 +608,12 @@ describe besides 'you'."
 
 ## Story mode (built 2026-11-17)
 
+Live on production the day it shipped (the audit account, an admin; `scripts/story-mode-live.mjs`): the "Ten years, one bench" roleplay on its first opening, with a saved persona.
+
+| Desktop | Phone |
+| --- | --- |
+| ![Story mode in a companion scene, desktop](screenshots/story-mode-live-desktop.png) | ![Story mode in a companion scene, phone](screenshots/story-mode-live-phone.png) |
+
 The roleplay audit's first item ([audits/2026-11-17-roleplay-vs-the-field.md](audits/2026-11-17-roleplay-vs-the-field.md)):
 "replies written as prose in one go (not the script plus a narration pass), 2–4 paragraphs, the character moves the
 scene on instead of asking what you want."

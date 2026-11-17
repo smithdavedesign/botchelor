@@ -99,6 +99,7 @@ export default async function AfterDarkSubscribe({ searchParams }: { searchParam
   const studioOpen = settings?.studio.open_to === "entitled";
   // What the subscription includes, from the settings (#1005; David, 2026-10-30: an allowance, tokens for extras).
   const plan = includedPlan(settings);
+  const narratedOpen = settings?.rollout.narrated === "everyone";
   return (
     <div className="after-dark-mode">
       <article className="after-dark" data-subscribe>
@@ -128,6 +129,8 @@ export default async function AfterDarkSubscribe({ searchParams }: { searchParam
             <li data-included-chapters>
               Unlimited chapters, no tokens (fair use: {plan.steps} scene steps a month).
             </li>
+            {/* Narrated nights and chapter stories (docs/writing-styles.md): said once the "narrated" rollout switch opens them. */}
+            {narratedOpen && <li data-included-narrated>Narrated nights: your scenes told as prose, like a novel, and any chapter as a story. Included.</li>}
             {textOnly ? (
               <li data-text-only>
                 Here After Dark is the scenes only: pictures, video and voice aren&apos;t available where you&apos;re connecting from.
