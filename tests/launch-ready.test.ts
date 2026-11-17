@@ -252,7 +252,9 @@ describe("privacy and terms, plainly", () => {
     const html = text(renderToStaticMarkup(createElement(TermsPage)));
     expect(html).toMatch(/<h2 id="disclaimers">No warranties<\/h2>/);
     expect(html).toMatch(/“as is” and “as\s+available”/);
-    expect(html).toContain("It costs <strong>$4 once</strong>");
+    // Both packs, each priced once (#1720: the terms used to name only the $4 one while the shop sold two).
+    expect(html).toContain("<strong>$4 once</strong>");
+    expect(html).toContain("<strong>$10 once</strong>");
     expect(html).toMatch(/isn't a subscription/);
     expect(html).toMatch(/within 14 days of buying it, email us with your Stripe receipt and we'll refund you in full/);
   });
