@@ -86,6 +86,17 @@ describe("what a character has been in", () => {
     expect(creditLine(suitor)).toBe("Suitor on The Botchelor, December 2026");
   });
 
+  it("the lead picked for a season that hasn't been cast yet is its lead, and only on a format that has one", async () => {
+    await ensureShowSeasons(t.db, NOW);
+    await t.db.query(`insert into season_leads (season_id, character_id) values ($1, $2)`, [DEC, NELL]);
+    // December is classic as it stands: a lead pick says nothing there.
+    expect(await credits(NELL)).toEqual([]);
+    await setSeasonFormat(t.db, DEC, "botchelor");
+    const lead = await credits(NELL);
+    expect(lead[0]).toMatchObject({ season_id: DEC, role: "lead", when: "next", format_title: "The Botchelor", dates: 0 });
+    expect(creditLine(lead)).toBe("Lead of The Botchelor, December 2026");
+  });
+
   it("a walk-on's roses, a withdrawn cast member, and nothing at all for someone with no part", async () => {
     await ensureShowSeasons(t.db, NOW);
     const me = newUserCookie();
