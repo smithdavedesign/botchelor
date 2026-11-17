@@ -10,7 +10,6 @@ import { pageCount, pageHref, parsePage } from "@/lib/paging";
 import { pageMetadata } from "@/lib/seo";
 import { shared } from "@/lib/shared-cache";
 import Circle from "@/app/Circle";
-import StoryMap from "@/app/StoryMap";
 import { cachedStoryMap, circleOf } from "@/lib/story-map";
 
 export const dynamic = "force-dynamic";
@@ -25,8 +24,8 @@ export const metadata: Metadata = pageMetadata({
  * The house (/house; lib/house-scenes.ts): today's scene first, the earlier ones under it. A spectator page like the
  * Reunion: PG, no gate, only ever about dates that have aired. `?scene=<id>` (a notification's or a character's text's
  * link) puts that scene first when it isn't on this page of the list. A quiet day, or HOUSE_SCENES=0, says the house
- * is quiet and points at the show. Under today's scene on the first page: this week's story map and a circle
- * (lib/story-map.ts, app/StoryMap.tsx, app/Circle.tsx; STORY_MAP=0 leaves them out).
+ * is quiet and points at the show. Under today's scene on the first page: a line to this week's story map on /graph and
+ * a circle (lib/story-map.ts, app/Circle.tsx; STORY_MAP=0 leaves them out).
  */
 export default async function HousePage({ searchParams }: { searchParams?: Promise<{ page?: string | string[]; scene?: string | string[] }> } = {}) {
   const params = (await searchParams) ?? {};
@@ -48,7 +47,13 @@ export default async function HousePage({ searchParams }: { searchParams?: Promi
   const weekCircle = weekMap ? (circleOf(weekMap, weekMap.lead?.id ?? "") ?? circleOf(weekMap, weekMap.ties[0]?.a ?? "")) : null;
   const week = weekMap && (
     <>
-      <StoryMap map={weekMap} title="This week in the house" lede="Who is seeing whom, who are rivals and who had it out: the last seven days of the show, drawn." />
+      {/* One home for the drawing (design review 2026-11-16, D-11): it used to be drawn here and again at the top of /graph,
+          the same map under two titles. The story map is /graph's; the house points at it and keeps its circle. */}
+      <p className="house-week-link" id="story-map-link">
+        <Link className="tap-link" href="/graph" data-track="house-story-map">
+          This week in the house, drawn: who is seeing whom, who are rivals and who had it out →
+        </Link>
+      </p>
       {weekCircle && (
         <Circle
           circle={weekCircle}

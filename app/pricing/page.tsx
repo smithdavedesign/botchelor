@@ -34,7 +34,7 @@ export default function PricingPage() {
     <article className="legal-page company-page">
       <h1>Pricing</h1>
       <p className="lede">
-        The show is free. Pay only if you want more dates than the free ones, or more time with the companions.
+        The show is free. Pay only if you want more dates than the free ones{companions ? ", or more time with the companions" : ""}.
       </p>
 
       <ul className="pricing-grid">

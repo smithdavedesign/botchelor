@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { requestJson } from "@/app/request";
@@ -15,6 +15,7 @@ export default function TalkButton({
   label,
   className = "button secondary",
   track = "companion-open",
+  face,
 }: {
   characterId: string;
   name: string;
@@ -22,6 +23,8 @@ export default function TalkButton({
   className?: string;
   /** The click's name in the engagement log: "verb-text" where it's a character's Text action (lib/character-verb.ts). */
   track?: string;
+  /** Drawn inside the button above its label, so a whole face is the one tap that starts the thread (/chat's cast). */
+  face?: ReactNode;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -47,7 +50,8 @@ export default function TalkButton({
   return (
     <>
       <button type="button" className={className} onClick={() => void talk()} disabled={busy} data-track={track}>
-        {busy ? `Opening…` : (label ?? `Talk with ${name}`)}
+        {face}
+        {face ? <span className="talk-label">{busy ? "Opening…" : (label ?? `Talk with ${name}`)}</span> : busy ? `Opening…` : (label ?? `Talk with ${name}`)}
       </button>
       {error && (
         <p className="error small">

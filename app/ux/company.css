@@ -131,6 +131,11 @@
   padding: 0;
   list-style: none;
 }
+/* Three plans (the Companion Plan is off when companions are, COMPANION_OPEN): the last spans the row rather than
+   standing beside an empty cell (design review 2026-11-16, D-06). */
+.pricing-grid > .pricing-card:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}
 .pricing-card {
   display: flex;
   flex-direction: column;
