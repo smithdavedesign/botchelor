@@ -613,7 +613,8 @@ const SPEECH_VERB =
   "say|says|said|ask|asks|asked|reply|replies|replied|answer|answers|answered|whisper|whispers|whispered|murmur|murmurs|murmured|mutter|mutters|muttered|add|adds|added|admit|admits|admitted|call|calls|called|laugh|laughs|laughed|tell|tells|told|shout|shouts|shouted|joke|jokes|joked|tease|teases|teased|agree|agrees|agreed|protest|protests|protested|offer|offers|offered|respond|responds|responded|insist|insists|insisted|counter|counters|countered|suggest|suggests|suggested";
 /** A quoted line given to "you": `You said, "…"` and `"…," you said`. */
 const YOU_SPEAK = [
-  new RegExp(`\\b[Yy]ou\\s+(?:\\w+\\s+){0,3}?(?:${SPEECH_VERB})\\b[^.!?"“”]{0,60}[,:]\\s*["“]`),
+  // The quote opens after a space ("You said, “…”"): a comma right against a quote mark is one closing, the character's own.
+  new RegExp(`\\b[Yy]ou\\s+(?:\\w+\\s+){0,3}?(?:${SPEECH_VERB})\\b[^.!?"“”]{0,60}[,:]\\s+["“]`),
   new RegExp(`[,!?—-]["”]\\s+you\\s+(?:${SPEECH_VERB})\\b`),
 ];
 /**

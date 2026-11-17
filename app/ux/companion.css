@@ -311,6 +311,12 @@ body:has(.companion-fullscreen) .site-footer {
 .companion-actions:empty {
   display: none;
 }
+/* The newest reply's draws ("‹ 2 of 3 ›", lib/companion.ts swipeReply): two quiet buttons and the count between them. */
+.companion-draws {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
 /* The site's own field (globals.css textarea): only its size and spacing change here. */
 .companion-composer textarea {
   margin-top: 0;
