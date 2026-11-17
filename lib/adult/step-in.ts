@@ -53,11 +53,14 @@ import { getAdultSettings } from "./settings";
 import { stageShown } from "./stage-floor";
 import { STAGES } from "./stages";
 import { STEP_IN_REPLY_TOKENS, STEP_IN_TURNS, stepInMessages, type StepInTurn } from "./step-in-prompt";
+import { STEP_IN_LINE_MAX, type StepInCharacter, type StepInMessageView, type StepInPlace, type StepInSceneRef, type StepInSceneView } from "./step-in-shared";
 import { logStep, STEP_IN_PARTNER } from "./steps";
 import { countUse, overCap, usageLeft } from "./usage";
 import { sceneCharacter } from "./voice";
 import { writerChoice } from "./writer";
 import { FALLBACK_WRITER } from "./writer-config";
+
+export * from "./step-in-shared";
 
 /* ------------------------------------------------ the switch ------------------------------------------------ */
 
@@ -84,8 +87,6 @@ export async function stepInViewerFromCookies(db: Db, store: { get(name: string)
 
 /* ------------------------------------------------ what a scene is ------------------------------------------------ */
 
-/** The viewer's line, at most this long (the PG companion's message is the same). */
-export const STEP_IN_LINE_MAX = 1000;
 /** A new session: back after this long, the AI notice goes in again (as the PG companion's: lib/companion.ts). */
 export const NOTICE_IDLE_MINUTES = 30;
 /** And every this many hours of the scene (New York GBL Art. 47 asks for at least every three). */
@@ -99,8 +100,6 @@ export const STEP_IN_SURFACE: CrisisSurface = "after_dark_step_in";
 
 /** The AI notice: a system line at the start of every scene and whenever it's due again. */
 export const stepInNotice = (name: string): string => `${first(name)} is an AI character, not a real person. This is fiction between adults.`;
-/** The line under the title of every Step in page. */
-export const STEP_IN_TAGLINE = "An AI character. Fiction between adults.";
 
 /**
  * What stands in when a reply couldn't be used twice: a neutral narrator's line that changes the subject, with nothing
@@ -185,8 +184,6 @@ const limitsOf = (s: Pick<SceneRow, "intensity" | "hard_nos">): PairLimits => ({
 
 /* ------------------------------------------------ who, where, what ------------------------------------------------ */
 
-export type StepInCharacter = { id: string; name: string; portrait: string | null; hue: number | null };
-
 /**
  * Who the viewer may step in with: exactly who may be in a pair of theirs (lib/adult/characters.ts eligibleIds: the
  * season's cast, the agent cast that passed After Dark's check, and the characters they've switched in).
@@ -200,19 +197,6 @@ export async function stepInCast(db: Db, viewer: string): Promise<StepInCharacte
 async function characterRef(db: Db, id: string): Promise<StepInCharacter | null> {
   return (await db.query<StepInCharacter>(`select c.id, c.name, ${portraitPathSql("c")} as portrait, c.avatar_hue as hue from characters c where c.id = $1`, [id])).rows[0] ?? null;
 }
-
-export type StepInPlace = {
-  /** The catalog's id (lib/adult/scene-catalog.ts); empty for a place the catalog no longer has. */
-  id: string;
-  title: string;
-  /** The place as the scene keeps it and the prompt says it. */
-  place: string;
-  /** Its card's picture, and the full backdrop behind the scene; null paints the page's own gradient. */
-  image: string | null;
-  backdrop: string | null;
-  /** Out in public (lib/adult/scenes.ts isPublicPlace): a kiss at most there. */
-  public: boolean;
-};
 
 /** The sets already drawn (place_sets), so a place's card and backdrop only name a picture that exists. */
 export async function drawnSets(db: Db): Promise<string[]> {
@@ -386,30 +370,6 @@ async function pauseForCrisis(db: Db, s: SceneRow, now: Date): Promise<StepInFai
 
 /* ------------------------------------------------ the view ------------------------------------------------ */
 
-export type StepInMessageView = { id: string; role: "viewer" | "character" | "system"; kind: "aside" | "notice" | "place" | null; text: string; at: string };
-
-export type StepInSceneView = {
-  id: string;
-  character: StepInCharacter;
-  place: StepInPlace;
-  /** The roleplay from the viewer's side: who plays whom, and how it starts with "you" in it (lib/scene-cards.ts cardForYou). */
-  roleplay: { id: string; title: string; icon: string; you_play: string | null; they_play: string | null; setup: string } | null;
-  /** The name the viewer goes by in scenes, when their persona is used; null: none, or one After Dark's lines left out. */
-  persona: { name: string } | null;
-  limits: PairLimits;
-  /** The scene as it stands: a redrawn reply's earlier draws left out. */
-  messages: StepInMessageView[];
-  /** The newest reply's draws, when there's more than one: how many, and which is showing. */
-  draws: { count: number; showing: number } | null;
-  paused: boolean;
-  /** Ended and filed: when, and its short recap. */
-  ended: { at: string; recap: string | null } | null;
-  can: { regenerate: boolean; carry_on: boolean; take_back: boolean };
-  /** Scene steps left this month; null for an admin, who's never capped. */
-  steps_left: number | null;
-  started_at: string;
-};
-
 const messageKind = (m: Pick<MessageRow, "kind">): StepInMessageView["kind"] => (m.kind === "aside" || m.kind === "notice" || m.kind === "place" ? m.kind : null);
 
 /** The scene's turns as they stand (no draws set aside, no AI notice), oldest first. */
@@ -484,17 +444,6 @@ export async function getStepInScene(db: Db, viewer: string, sceneId: string): P
   const s = await ownScene(db, viewer, sceneId);
   return s ? sent(db, s) : NOT_FOUND;
 }
-
-export type StepInSceneRef = {
-  id: string;
-  character: StepInCharacter;
-  place: string;
-  roleplay: string | null;
-  last_at: string;
-  ended_at: string | null;
-  /** An ended scene's one line (what the next one with them remembers). */
-  line: string | null;
-};
 
 /** The viewer's scenes for the set-up page: the ones still running (the latest first), then the ones they ended. */
 export async function listStepInScenes(db: Db, viewer: string): Promise<{ running: StepInSceneRef[]; ended: StepInSceneRef[] }> {

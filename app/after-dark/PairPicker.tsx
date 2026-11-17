@@ -82,7 +82,7 @@ function Face({ c, on, onPick }: { c: Who; on: boolean; onPick: () => void }) {
  *
  * data-first-scene: the first pair's scene, for the screenshot scripts (they open a scene without picking).
  */
-export default function PairPicker({ pairs }: { pairs: Pair[] }) {
+export default function PairPicker({ pairs, stepIn = false }: { pairs: Pair[]; /** Step in is open to this viewer (lib/adult/step-in.ts): a row offers it with whoever is picked. */ stepIn?: boolean }) {
   const [one, setOne] = useState<string | null>(null);
   const [now, setNow] = useState<number | null>(null);
   useEffect(() => setNow(Date.now()), []);
@@ -160,6 +160,14 @@ export default function PairPicker({ pairs }: { pairs: Pair[] }) {
                 </p>
               )}
             </>
+          )}
+          {/* Step in (lib/adult/step-in.ts): the viewer in the scene instead of a second character, with whoever is picked. */}
+          {stepIn && !second && (
+            <p className="ad-pair-go" data-step-in-row>
+              <Link className="button-ghost" href={picked ? `/after-dark/step-in?with=${encodeURIComponent(picked.id)}` : "/after-dark/step-in"}>
+                Or step in yourself, with {picked ? first(picked.name) : "one of them"}
+              </Link>
+            </p>
           )}
         </>
       )}

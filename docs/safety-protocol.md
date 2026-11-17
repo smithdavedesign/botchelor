@@ -37,6 +37,7 @@ call your local emergency number.
 | A message to a companion (`POST /api/companion/:id`, `send` / `edit`, a text or a line in a scene) | `companion` | The thread **pauses** (nothing in character, the message not kept) until they carry on ([companions.md](companions.md)) |
 | A fact the person adds or edits on a companion's memory page (`POST /api/companion/:id/memory`) | `companion` | The same pause; nothing kept |
 | MCP `companion` `send` / `edit` / `remember` | `mcp_companion` | The same pause; `crisis_resources` in the error's `details`, and on every read until `carry_on` |
+| A line in an After Dark Step in scene, or the opening written for one (`POST /api/admin/after-dark/step-in`, `…/step-in/:id` `send`; closed, admins only) | `after_dark_step_in` | The scene **pauses** (nothing in character, the line not kept) until they carry on; a written opening starts no scene ([after-dark.md](after-dark.md), "Step in") |
 
 - The route wrapper `crisisAware` reads the request body from a copy and adds `crisis_resources` to whatever the route
   answers, errors included.
@@ -64,6 +65,12 @@ one-to-one conversation (California SB 243 and New York GBL Art. 47 are written 
 - A reply the person reports waits for review on `/admin/reports`, with the few messages before it.
 - `crisis_referrals` counts surface `companion` (day only, no who, no words) for the annual report.
 - The protocol is published at `/safety#companions` once `COMPANION_OPEN=1`.
+
+After Dark's Step in (`lib/adult/step-in.ts`; closed, admins only) follows the companions' protocol, on After Dark's
+own model: the crisis list and its maybes on every line the person writes (failing closed), the pause with nothing
+kept, the count by day and surface, and the AI notice at the start, after 30 minutes away and every three hours. A
+reply that reads as wanting to hurt oneself is drawn again like any reply that fails a check. Nothing about a pause is
+written to After Dark's step log, which is keyed to the viewer.
 
 ## Not done (yet)
 

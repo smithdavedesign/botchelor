@@ -91,4 +91,5 @@ export const ADULT_PERSON_COLUMNS: readonly PersonColumn[] = [
 
 export const ADULT_LOOK_ALIKES: readonly LookAlike[] = [
   { table: "adult_images", column: "superseded_by", holds: "the picture that replaced this one after a fix (a picture's id)" },
+  { table: "adult_step_in_messages", column: "replaced_by", holds: "the reply showing in this draw's place after a reply was drawn again (a message's id)" },
 ];
