@@ -381,6 +381,8 @@ export async function startTestDb() {
         "companion_facts",
         "companion_messages",
         "companion_threads",
+        // Who a person is in scenes (lib/persona.ts).
+        "personas",
         "companion_usage",
         "companion_extras_usage",
         "companion_credits",

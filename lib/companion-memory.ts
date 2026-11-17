@@ -6,6 +6,7 @@ import { checkFamilyTalk } from "./safety";
 import { crisisIntent } from "./crisis";
 import { maybeCrisis } from "./step-in";
 import { jsonOf, RECENT_TURNS, type PromptFact } from "./companion-prompt";
+import { getPersona, type ScenePersona } from "./persona";
 
 /**
  * What a companion remembers about the person (docs/companions.md): short facts drawn from their own words every few
@@ -55,14 +56,14 @@ export async function factsForPrompt(db: Db, threadId: string, about: string, no
 }
 
 const FACTS_PROMPT = (name: string) =>
-  `You read part of a conversation between a person and ${name}, an AI character they talk with. List what ${name} should remember about THE PERSON (never about ${name}): their name, what they like and dislike, the people in their life, what happened to them, plans coming up, their work, topics they don't want to talk about (boundaries), and a running joke between them only when they keep coming back to it. Facts that will still be true next week: never a quip, a tease or a bit of banter from this conversation ("They joke that their dog is a pasta bandit" is not a fact). Only what they actually said or clearly meant; skip small talk and anything already known. Lines marked [roleplay: …] are make-believe from a roleplay the two played: never take a fact from them. Each fact is short, in the third person ("Their sister is called Maya."), under 140 characters. When someone in their life has died or left, the fact says so ("Their wife June died; they were married forty years."). Answer only JSON: {"facts":[{"kind":"name|likes|dislikes|people|events|plans|work|boundaries|jokes|other","text":"..."}]}, at most 8, or {"facts":[]}.`;
+  `You read part of a conversation between a person and ${name}, an AI character they talk with. List what ${name} should remember about THE PERSON (never about ${name}): their name, what they like and dislike, the people in their life, what happened to them, plans coming up, their work, topics they don't want to talk about (boundaries), and a running joke between them only when they keep coming back to it. Facts that will still be true next week: never a quip, a tease or a bit of banter from this conversation ("They joke that their dog is a pasta bandit" is not a fact). Only what they actually said or clearly meant; skip small talk and anything already known. Lines marked [roleplay: …] are make-believe from a roleplay the two played: never take a fact from them. The same goes for who they are in scenes (a name, a look and a line about themselves they wrote for scenes, which ${name} may use in one): make-believe too, never a fact unless they say it about their real life in their own ordinary messages. Each fact is short, in the third person ("Their sister is called Maya."), under 140 characters. When someone in their life has died or left, the fact says so ("Their wife June died; they were married forty years."). Answer only JSON: {"facts":[{"kind":"name|likes|dislikes|people|events|plans|work|boundaries|jokes|other","text":"..."}]}, at most 8, or {"facts":[]}.`;
 
 /**
  * Draws new facts from the person's recent messages when FACTS_EVERY have come in since the last draw. One model call;
  * a failed or unreadable one changes nothing. Returns how many facts were added.
  */
 export async function updateFacts(db: Db, threadId: string, name: string, model: Model, now: Date = new Date()): Promise<number> {
-  const t = (await db.query<{ facts_upto: string | null }>(`select facts_upto from companion_threads where id = $1`, [threadId])).rows[0];
+  const t = (await db.query<{ facts_upto: string | null; user_id: string }>(`select facts_upto, user_id from companion_threads where id = $1`, [threadId])).rows[0];
   if (!t) return 0;
   const { rows: msgs } = await db.query<{ role: string; text: string; created_at: string; roleplay: string | null }>(
     `select role, text, created_at, roleplay from companion_messages
@@ -102,10 +103,15 @@ export async function updateFacts(db: Db, threadId: string, name: string, model:
   const parsed = (jsonOf(raw) as { facts?: unknown } | null)?.facts;
   if (!Array.isArray(parsed)) return 0;
   const knownWords = known.map(words);
+  // Who they are in scenes (lib/persona.ts) is make-believe, like a roleplay: a fact that only says it again is dropped,
+  // unless their own ordinary messages here said it too.
+  const persona = await getPersona(db, t.user_id).catch(() => null);
+  const ownWords = fromThem.filter((m) => !m.roleplay).map((m) => m.text).join(" ");
   let added = 0;
   for (const f of parsed.slice(0, 8)) {
     const text = typeof f?.text === "string" ? f.text.replace(/\s+/g, " ").trim().slice(0, FACT_MAX) : "";
     if (text.length < 4) continue;
+    if (persona && fromPersona(text, persona, ownWords)) continue;
     // Never the words of a crisis (not even a maybe: a companion keeps no notes on someone's mental health), never
     // anything the show wouldn't say.
     if (crisisIntent(text) || maybeCrisis(text) || !checkFamilyTalk(text).ok) continue;
@@ -118,6 +124,20 @@ export async function updateFacts(db: Db, threadId: string, name: string, model:
   }
   await capFacts(db, threadId);
   return added;
+}
+
+/**
+ * Whether a drawn fact comes from the person's scene persona rather than from what they said: it gives the persona's
+ * name, or mostly repeats its look or its line about them, and nothing they wrote in their own ordinary messages
+ * (`ownWords`: this draw's, a roleplay's left out) says the same.
+ */
+export function fromPersona(fact: string, persona: ScenePersona, ownWords: string): boolean {
+  const said = ownWords.toLowerCase();
+  const name = persona.name.trim().toLowerCase();
+  if (name && new RegExp(`(^|[^\\p{L}])${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}([^\\p{L}]|$)`, "u").test(fact.toLowerCase()) && !said.includes(name)) return true;
+  const f = words(fact);
+  const theirs = words(ownWords);
+  return [persona.look, persona.about].some((part) => part && overlap(words(part), f) >= 0.6 && overlap(words(part), theirs) < 0.6);
 }
 
 /** Keeps a thread to FACTS_PER_THREAD: the least-used, oldest facts the person never pinned or edited go first. */

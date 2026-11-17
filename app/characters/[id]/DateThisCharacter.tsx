@@ -7,6 +7,7 @@ import { trackConversion } from "@/app/conversion";
 import DateConfirm from "@/app/DateConfirm";
 import { requestJson, watchLinkOf } from "@/app/request";
 import RoleplayPicker, { choiceReady, roleplayFields, type RoleplayChoice } from "@/app/RoleplayPicker";
+import { openingField, type OpeningChoice } from "@/lib/scene-opening";
 import type { DateCta } from "@/lib/date-cta";
 import { shortName } from "@/lib/names";
 import { takenNote } from "@/lib/partners-shared";
@@ -48,6 +49,8 @@ export default function DateThisCharacter({
   // David, 2026-10-23: the booker may say where the date happens (else a texted plan, else the show picks).
   const [place, setPlace] = useState("");
   const [roleplay, setRoleplay] = useState<RoleplayChoice | null>(null);
+  // How the roleplay opens, when they chose (the picker's last step; lib/scene-opening.ts).
+  const [opens, setOpens] = useState<OpeningChoice | null>(null);
   // The picker mounts once it's opened, not in every character page's HTML.
   const [roleplayOpen, setRoleplayOpen] = useState(false);
   const [asking, setAsking] = useState(false);
@@ -80,7 +83,7 @@ export default function DateThisCharacter({
   async function book() {
     setBusy(true);
     setMessage(null);
-    const res = await requestJson("/api/episodes", { character_id: chosen.id, partner_id: targetId, ...(place.trim() ? { place: place.trim() } : {}), ...roleplayFields(roleplay) }).catch(() => null);
+    const res = await requestJson("/api/episodes", { character_id: chosen.id, partner_id: targetId, ...(place.trim() ? { place: place.trim() } : {}), ...roleplayFields(roleplay), ...(roleplay ? openingField(opens) : {}) }).catch(() => null);
     setBusy(false);
     if (!res) return setMessage({ text: "Network error. Try again." });
     if (res.ok && typeof res.data.id === "string") {
@@ -164,7 +167,7 @@ export default function DateThisCharacter({
             <summary>
               🎭 Add a roleplay <span className="muted small">(optional)</span>
             </summary>
-            {roleplayOpen && <RoleplayPicker me={chosen.name} them={first} value={roleplay} onChange={setRoleplay} signedIn={signedIn} />}
+            {roleplayOpen && <RoleplayPicker me={chosen.name} them={first} value={roleplay} onChange={setRoleplay} signedIn={signedIn} opening={opens} onOpening={setOpens} />}
           </details>
         )}
       </DateConfirm>

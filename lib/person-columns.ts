@@ -215,6 +215,8 @@ export const PERSON_COLUMNS: readonly PersonColumn[] = [
   // Writing styles (lib/writing-style.ts): a setting; and the stories of their After Dark chapters (lib/stories.ts).
   { table: "writing_prefs", column: "user_id", export: at("writing_styles"), delete: ROWS, move: SETTING },
   { table: "stories", column: "owner_id", export: at("stories"), delete: ROWS, move: skip("a story of an After Dark chapter goes with the chapter, which stays with the id it was written for") },
+  // Who they are in scenes (lib/persona.ts): one a person, like a setting.
+  { table: "personas", column: "user_id", export: at("persona"), delete: ROWS, move: SETTING },
   { table: "show_idea_votes", column: "user_id", export: at("show_idea_votes"), delete: ROWS, move: ONE_VOTE },
   { table: "show_ideas", column: "proposed_by", export: at("show_ideas_proposed"), delete: ROWS, move: SAID_AS },
   { table: "recoupling_votes", column: "user_id", export: at("recoupling_votes"), delete: ROWS, move: ONE_VOTE },

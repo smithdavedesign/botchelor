@@ -13,6 +13,8 @@ import { listBlocks } from "@/lib/people";
 import { backingBadges } from "@/lib/backing";
 import { listMyBadges, tryCloseDueSeasons, type Badge } from "@/lib/seasons";
 import AccountPanel from "./AccountPanel";
+import PersonaCard from "./PersonaCard";
+import { getPersona } from "@/lib/persona";
 import ClaimCard from "./ClaimCard";
 import { offerForPage } from "@/lib/account-claim";
 import { UnlinkAgentButton } from "./AgentLinks";
@@ -62,6 +64,9 @@ export default async function AccountPage({ searchParams }: { searchParams: Sear
   const [leagues, blocks] = viewerId ? await Promise.all([listMyLeagues(db, viewerId), listBlocks(db, viewerId)]) : [[], []];
   // Agents linked to a real account (lib/agent-links.ts): never shown to an anonymous cookie.
   const auth = authFromCookieStore(await cookies());
+  // Who they are in scenes (lib/persona.ts): an account's, for the scenes they play themselves. Started here and read
+  // at the end, so it rides beside the reads below instead of adding a round trip of its own (tests/perf-pages.test.ts).
+  const personaRead = auth?.authenticated ? getPersona(db, auth.userId).catch(() => null) : Promise.resolve(null);
   const agents = auth?.authenticated ? await linkedAgents(db, auth.userId) : [];
   // What this browser made before signing in, offered once (lib/account-claim.ts). Read only for a browser that holds
   // the signed offer, so the page costs nothing more for everyone else.
@@ -81,6 +86,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Sear
   const theme = themeFromCookie((await cookies()).get(THEME_COOKIE)?.value);
   // Writing styles (lib/writing-style.ts): the Companion Plan's, and admins'.
   const showStyle = viewerId && (await stylesOpen(db, viewerId, "show")) ? (await storedStyles(db, viewerId)).show : null;
+  const persona = await personaRead;
   return (
     <>
       <h1>Your account</h1>
@@ -93,6 +99,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Sear
       <AccountPanel next={next} emailConfirmed={emailConfirmed} />
       <ThemeSetting initial={theme} />
       {showStyle && <WritingStylePicker side="show" initial={showStyle} price="included with your plan" />}
+      {auth?.authenticated && <PersonaCard initial={persona} />}
 
       {/* After Dark: for an account it's open to, or one with a subscription (lib/adult/billing.ts), never where it isn't offered. */}
       {afterDark && (

@@ -24,6 +24,7 @@ import { pairNames, shortName } from "./names";
 import { notify } from "./notifications";
 import { DELETED_OWNER } from "./rules";
 import { checkShowText } from "./safety";
+import { resolveOpening } from "./scene-opening";
 import { haveDated, swipeGateOn } from "./swipe-gate";
 import { areUnmatched, unmatchedMessage } from "./unmatch";
 import {
@@ -206,6 +207,11 @@ export type TermsInput = {
   custom?: { title?: unknown; premise?: unknown; roles?: unknown } | null;
   /** Which role the proposing side's character plays: 0/1, "first"/"second", or the role's words. Left out: the first. */
   my_role?: unknown;
+  /**
+   * How it opens (lib/scene-opening.ts): 0, 1 or 2 for one of the roleplay's card's three, or a sentence written for
+   * it (checked like a card's). Left out: one of the card's by a stable hash, as before.
+   */
+  opening?: unknown;
 };
 
 export { checkCustomRoleplay };
@@ -233,13 +239,18 @@ export function resolveTerms(input: TermsInput, meId: string, themId: string): T
     if (wrong) return no(422, "roleplay_not_allowed", wrong);
     const first = firstOf(roles);
     if (!first) return no(422, "invalid_role", `my_role names neither role: "${roles![0]}" or "${roles![1]}" (or 0/1).`);
-    return { ok: true, terms: { id: "custom", title, icon: "✨", premise, roles, first } };
+    // One written for the date has no card, so its opening can only be one they wrote too.
+    const opens = resolveOpening(input.opening, null);
+    if (!opens.ok) return no(opens.status, opens.error, opens.message);
+    return { ok: true, terms: { id: "custom", title, icon: "✨", premise, roles, first, ...(opens.opening ? { opening: opens.opening } : {}) } };
   }
   const def = dateRoleplayById(typeof input.roleplay_id === "string" ? input.roleplay_id.trim() : null);
   if (!def) return no(422, "unknown_roleplay", "Name one of the show's roleplays by its id (my_roleplays with catalog: true lists them), or write your own with custom: { title, premise, roles? }.");
   const first = firstOf(def.roles);
   if (!first) return no(422, "invalid_role", `my_role names neither role in "${def.title}": "${def.roles![0]}" or "${def.roles![1]}" (or 0/1).`);
-  return { ok: true, terms: termsFor(def, first) };
+  const opens = resolveOpening(input.opening, def.card.openings);
+  if (!opens.ok) return no(opens.status, opens.error, opens.message);
+  return { ok: true, terms: { ...termsFor(def, first), ...(opens.opening ? { opening: opens.opening } : {}) } };
 }
 
 function checkNote(raw: unknown): { ok: true; note: string | null } | { ok: false; message: string } {
@@ -466,12 +477,16 @@ export type BookingAsk = (TermsInput & { skip?: boolean }) | null;
 
 export type BookingRoleplay = { ok: true; roleplay: DateRoleplay | null } | { ok: false; status: number; error: string; message: string };
 
-/** A booking's `roleplay` and `my_role` as an ask: one of the show's ids, "none", or { title, premise, roles? }. */
-export function bookingAsk(raw: unknown, myRole?: unknown): BookingAsk {
+/**
+ * A booking's `roleplay` and `my_role` as an ask: one of the show's ids, "none", or { title, premise, roles? }. And
+ * `opening`, when the booker chose how it opens (lib/scene-opening.ts).
+ */
+export function bookingAsk(raw: unknown, myRole?: unknown, opening?: unknown): BookingAsk {
   if (raw === undefined || raw === null || raw === "") return null;
-  if (typeof raw === "string") return raw.trim().toLowerCase() === "none" ? { skip: true } : { roleplay_id: raw.trim(), my_role: myRole };
-  if (typeof raw === "object" && !Array.isArray(raw)) return { custom: raw as TermsInput["custom"], my_role: myRole };
-  return { roleplay_id: String(raw), my_role: myRole };
+  const opens = opening === undefined || opening === null || opening === "" ? {} : { opening };
+  if (typeof raw === "string") return raw.trim().toLowerCase() === "none" ? { skip: true } : { roleplay_id: raw.trim(), my_role: myRole, ...opens };
+  if (typeof raw === "object" && !Array.isArray(raw)) return { custom: raw as TermsInput["custom"], my_role: myRole, ...opens };
+  return { roleplay_id: String(raw), my_role: myRole, ...opens };
 }
 
 /**

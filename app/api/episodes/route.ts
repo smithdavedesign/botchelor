@@ -48,6 +48,7 @@ import { weekAt } from "@/lib/seasons";
 import { checkSecondDate } from "@/lib/second-date";
 import { acceptableProposal, markAccepted } from "@/lib/date-proposals";
 import { bookingAsk, roleplayForBooking } from "@/lib/date-roleplays";
+import { CARD_OPENING_MAX } from "@/lib/scene-cards";
 import { ROLEPLAY_PREMISE_MAX, ROLEPLAY_ROLE_MAX, ROLEPLAY_TITLE_MAX, type DateRoleplay } from "@/lib/roleplays";
 import { datedSql, MATCH_FIRST, swipeGateOn } from "@/lib/swipe-gate";
 import { agreedMatchSql } from "@/lib/swipes";
@@ -114,6 +115,10 @@ const EpisodeInput = z
       ])
       .optional(),
     my_role: z.union([z.string().trim().max(ROLEPLAY_ROLE_MAX * 2), z.number().int().min(0).max(1)]).optional(),
+    // How the roleplay opens, when the booker chose (lib/scene-opening.ts; the picker's last step): 0, 1 or 2 for one of
+    // its card's three, or a sentence of their own, checked like a card's. Only with `roleplay`; left out, one of the
+    // card's by the date's id, as before.
+    opening: z.union([z.number().int().min(0).max(2), z.string().trim().max(CARD_OPENING_MAX * 4)]).optional(),
   })
   .refine((v) => (v.partner_id === undefined) !== (v.blind === undefined), {
     message:
@@ -226,7 +231,7 @@ async function blindMatch(db: Db, userId: string, ownId: string): Promise<Charac
 
 // The date's note is the owner's own words: checked for self-harm intent (lib/crisis.ts), the reply then carries
 // crisis_resources whatever else it says.
-export const POST = crisisAware("date_note", (body) => [str(body.note)], handle(async (req) => {
+export const POST = crisisAware("date_note", (body) => [str(body.note), str(body.opening)], handle(async (req) => {
   const sess = session(req);
   // M10 kill switch: a paused system takes no date and spends nothing (PRD: an episode fails closed).
   if (generationPaused()) return json({ error: "generation_paused", message: PAUSED_MESSAGE }, 503, sess);
@@ -446,7 +451,7 @@ export const POST = crisisAware("date_note", (body) => [str(body.note)], handle(
     );
   }
   if (!group) {
-    const r = await roleplayForBooking(db, sess.userId, own, partner, bookingAsk(input.roleplay, input.my_role));
+    const r = await roleplayForBooking(db, sess.userId, own, partner, bookingAsk(input.roleplay, input.my_role, input.opening));
     if (!r.ok) return json({ error: r.error, field: "roleplay", message: r.message }, r.status, sess);
     roleplay = r.roleplay;
   }

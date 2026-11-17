@@ -55,7 +55,9 @@ import { recordServerError } from "./errors";
 import { dateRoleplayById, premiseForYou, rolesOf, type RoleplayTerms } from "./roleplays";
 import { DELETED_OWNER } from "./rules";
 import { checkFamilyTalk } from "./safety";
-import { openedTerms } from "./scene-cards";
+import { showPersona } from "./persona";
+import { GENERIC_OPENINGS, openedTerms } from "./scene-cards";
+import { openingHasSides, resolveOpening } from "./scene-opening";
 import { showCastIds } from "./season-cast";
 import { companionStory } from "./story-state";
 import { countCrisis, lineInCrisis, PG_REDIRECT } from "./step-in";
@@ -186,6 +188,11 @@ type ThreadRow = {
   scene: VenueId | null;
   /** The scene's roleplay (`first` is YOU or the character's id); null without one, and always null while texting. */
   roleplay: RoleplayTerms | null;
+  /**
+   * How a scene with no roleplay opens, when the person chose (lib/scene-opening.ts): one of the generic openings (the
+   * person is {a}) or a sentence they wrote. A roleplay's own is in its terms. Null otherwise, and while texting.
+   */
+  opening: string | null;
 };
 
 export type CompanionFail = { ok: false; status: number; error: string; message: string; crisis_resources?: CrisisResources };
@@ -194,7 +201,7 @@ const NOT_FOUND = fail(404, "not_found", "Not found.");
 
 async function ownThread(db: Db, userId: string, threadId: string): Promise<ThreadRow | null> {
   const { rows } = await db.query<ThreadRow>(
-    `select id, user_id, character_id, last_at, notice_at, paused_at, reply_length, muted_proactive, summary, scene, roleplay from companion_threads where id = $1 and user_id = $2`,
+    `select id, user_id, character_id, last_at, notice_at, paused_at, reply_length, muted_proactive, summary, scene, roleplay, opening from companion_threads where id = $1 and user_id = $2`,
     [threadId, userId],
   );
   return rows[0] ?? null;
@@ -297,12 +304,7 @@ export function roleplayView(rp: RoleplayTerms, characterName: string): Companio
  */
 export function promptRoleplay(rp: RoleplayTerms, characterName: string, threadId = ""): PromptRoleplay {
   const [person, own] = rp.first === ROLEPLAY_YOU ? ["{a}", "{b}"] : ["{b}", "{a}"];
-  const fromTheirSide = (text: string) =>
-    text
-      .replaceAll(own, firstNameOf(characterName))
-      .replaceAll(`${person}'s`, "your scene partner's")
-      .replaceAll(person, "your scene partner")
-      .replace(/(^|[.!?]\s+)your scene partner/g, (_m, lead: string) => `${lead}Your scene partner`);
+  const fromTheirSide = (text: string) => fromCharacterSide(text, person, own, characterName);
   const { mine, theirs } = rolesOf(rp, ROLEPLAY_YOU);
   const card = dateRoleplayById(rp.id)?.card ?? null;
   const opening = openedTerms(rp, threadId).opening ?? null;
@@ -312,24 +314,54 @@ export function promptRoleplay(rp: RoleplayTerms, characterName: string, threadI
     you_play: theirs,
     they_play: mine,
     ...(card ? { card: { setup: fromTheirSide(card.setup), want: fromTheirSide(card.wants[own === "{a}" ? 0 : 1]), beats: card.beats.map(fromTheirSide), tone: card.tone } } : {}),
-    ...(opening ? { opening: fromTheirSide(opening) } : {}),
+    ...(opening ? { opening: promptOpening(opening, person, own, characterName) } : {}),
   };
+}
+
+/** A premise's or a card's text from the character's side: its own name in its place, the person as "your scene partner". */
+function fromCharacterSide(text: string, person: string, own: string, characterName: string): string {
+  return text
+    .replaceAll(own, firstNameOf(characterName))
+    .replaceAll(`${person}'s`, "your scene partner's")
+    .replaceAll(person, "your scene partner")
+    .replace(/(^|[.!?]\s+)your scene partner/g, (_m, lead: string) => `${lead}Your scene partner`);
+}
+
+/**
+ * An opening for the opener's cue. One of ours (a card's, a generic one) names {a} and {b} and reads from the
+ * character's side. One the person wrote (lib/scene-opening.ts, checked before it was stored) is their own sentence,
+ * usually from where they stand ("I'm halfway through a crossword when…"), so it's quoted as theirs.
+ */
+function promptOpening(opening: string, person: string, own: string, characterName: string): string {
+  if (openingHasSides(opening)) return fromCharacterSide(opening, person, own, characterName);
+  return `(as your scene partner wrote it, so "I" and "me" in it are them) ${JSON.stringify(opening)}`;
 }
 
 /** A scene's place for the prompt: its name and its stage direction (lib/venues.ts), and its roleplay if any. */
 const promptScene = (t: Pick<ThreadRow, "id" | "scene" | "roleplay">, characterName: string): PromptScene | null =>
   t.scene ? { name: venueName(t.scene), prompt: venue(t.scene).prompt, roleplay: t.roleplay ? promptRoleplay(t.roleplay, characterName, t.id) : null } : null;
 
+const OPENS = (opening: string | null | undefined) =>
+  opening ? ` It opens like this: ${opening} Play your own part of that; whatever your scene partner does in it is theirs to play.` : "";
+
 /**
  * The user turn that has the character open a scene (in its roleplay, when there's one, on its opening when it has
  * one). An opening can have the person doing something too: that part stays theirs, as everything they do in a scene is.
+ * `opening`: the one chosen for a scene with no roleplay, already from the character's side.
  */
-const sceneCue = (place: VenueId, roleplay: Pick<PromptRoleplay, "title" | "opening"> | null = null) =>
+const sceneCue = (place: VenueId, roleplay: Pick<PromptRoleplay, "title" | "opening"> | null = null, opening: string | null = null) =>
   roleplay
-    ? `(You've both just got to ${venue(place).prompt}, and the roleplay "${roleplay.title}" starts now.${
-        roleplay.opening ? ` It opens like this: ${roleplay.opening} Play your own part of that; whatever your scene partner does in it is theirs to play.` : ""
-      } Open it in character: what you do and say as you get there, setting up the story and playing off the place. Don't ask more than one question.)`
-    : `(You've both just got to ${venue(place).prompt}. Open the scene: what you do and say as you get there, playing off the place. Don't ask more than one question.)`;
+    ? `(You've both just got to ${venue(place).prompt}, and the roleplay "${roleplay.title}" starts now.${OPENS(roleplay.opening)} Open it in character: what you do and say as you get there, setting up the story and playing off the place. Don't ask more than one question.)`
+    : `(You've both just got to ${venue(place).prompt}.${OPENS(opening)} Open the scene: what you do and say as you get there, playing off the place. Don't ask more than one question.)`;
+
+/** The cue that opens the thread's scene as it stands: its roleplay's opening, or the one chosen for a scene without one. */
+const openerCue = (t: Pick<ThreadRow, "id" | "scene" | "roleplay" | "opening">, characterName: string): string =>
+  sceneCue(
+    t.scene!,
+    t.roleplay ? promptRoleplay(t.roleplay, characterName, t.id) : null,
+    // A scene with no roleplay: the person is {a} in a generic opening, as the picker showed it to them.
+    !t.roleplay && t.opening ? promptOpening(t.opening, "{a}", "{b}", characterName) : null,
+  );
 
 /** The user turn that has the character text first once a scene is over (asked for over MCP; the chat waits for the person). */
 const TEXTING_CUE = "(The scene's over and you're both back to texting. Pick the conversation up your way, in a line or two.)";
@@ -770,6 +802,9 @@ async function speak(
   const house = await houseForPrompt(db, character, yours, now);
   // A locked-picture text it sent lately (lib/locked-picture-texts.ts): one line, so "what picture?" has a PG answer.
   const lockedPicture = await lockedPictureForPrompt(db, t.id, character.id, now);
+  // Who they are in scenes (lib/persona.ts), under the show's check as it's read: the whole of it in a scene, only the
+  // name while texting. Make-believe, never a memory.
+  const persona = await showPersona(db, t.user_id).catch(() => null);
   // A safe draw that only says something again: used when the redraw doesn't come back better (never a deflection).
   let safeRepeat: { bubbles: string[]; action: string | null } | null = null;
   const again = (x: string) => `${x.slice(0, 300)} (you've said this before: say something new)`;
@@ -778,7 +813,7 @@ async function speak(
     let raw: string;
     try {
       raw = await model.complete(
-        companionMessages({ character, turns, deep, facts, summary: t.summary, length: t.reply_length, avoid, now, insteadOf, cue: opts.cue, scene, call, yours, lastDate, activeNudge: nudge, photos, lessons, story, house, lockedPicture }),
+        companionMessages({ character, turns, deep, facts, summary: t.summary, length: t.reply_length, avoid, now, insteadOf, cue: opts.cue, scene, call, yours, lastDate, activeNudge: nudge, photos, lessons, story, house, lockedPicture, persona }),
         {
           temperature: 0.9,
           frequencyPenalty: 0.3,
@@ -1013,6 +1048,8 @@ export async function liveReply(db: Db, turn: LiveTurn, sink: LiveSink): Promise
   // What the house said about it lately (lib/house-texts.ts): public, so it can talk about it when they ask.
   const house = await houseForPrompt(db, character, yours, now);
   const lockedPicture = await lockedPictureForPrompt(db, t.id, character.id, now);
+  // A call is never a scene: only the name they go by (lib/persona.ts).
+  const persona = await showPersona(db, t.user_id).catch(() => null);
   const usage: Usage[] = [];
   let served = null as string | null;
   const parts: string[] = [];
@@ -1041,7 +1078,7 @@ export async function liveReply(db: Db, turn: LiveTurn, sink: LiveSink): Promise
   };
   try {
     const stream = model.stream(
-      companionMessages({ character, turns, facts, summary: t.summary, length: t.reply_length, avoid, now, call: true, live: true, yours, lastDate, activeNudge: nudge, photos, lessons, story, house, lockedPicture }),
+      companionMessages({ character, turns, facts, summary: t.summary, length: t.reply_length, avoid, now, call: true, live: true, yours, lastDate, activeNudge: nudge, photos, lessons, story, house, lockedPicture, persona }),
       { temperature: 0.9, frequencyPenalty: 0.3, maxTokens: 250, onUsage: (u) => usage.push(u), onModel: (id) => (served = id), signal },
     );
     reading: for await (const piece of stream) {
@@ -1092,7 +1129,7 @@ export async function regenerate(db: Db, userId: string, threadId: string, now: 
   const { t, character } = l;
   if (t.paused_at) return fail(409, "paused", "This conversation is paused. Carry on when you're ready.");
   const last = await lastReply(db, t.id);
-  const cue = last.afterUser ? undefined : last.marker ? (t.scene ? sceneCue(t.scene, t.roleplay ? promptRoleplay(t.roleplay, character.name, t.id) : null) : TEXTING_CUE) : OPENER_CUE;
+  const cue = last.afterUser ? undefined : last.marker ? (t.scene ? openerCue(t, character.name) : TEXTING_CUE) : OPENER_CUE;
   const r = await speak(db, t, character, now, { insteadOf: last.texts.join(" ") || null, cue, replacing: last.ids });
   if (!r.ok) return r;
   if (last.ids.length) await db.query(`update companion_messages set replaced_by = $2 where id = any($1::text[])`, [last.ids, r.ids[0]]);
@@ -1184,28 +1221,52 @@ export async function setTexts(db: Db, userId: string, threadId: string, on: boo
  * A scene can play a roleplay (`roleplay`: the show's by id, or written for it, and which role is the person's,
  * lib/date-roleplays.ts resolveTerms): a person with an AI character, so it's agreed as it's picked. The scene is the
  * place and the roleplay together: asking for the same place with another roleplay (or none) starts it again.
+ *
+ * And how it opens, when the person chose (`opening`, lib/scene-opening.ts): 0, 1 or 2 for one of the roleplay's
+ * card's three (the generic three when there's no roleplay), or a sentence they wrote. A written one is their own
+ * words, so it gets what a message gets: the self-harm check first (a crisis pauses the thread and keeps nothing),
+ * then the show's check for an opening. With a roleplay it's kept in the terms; without one, beside the scene. Left
+ * out, the scene opens as it always did. The same scene asked for with another opening starts it again.
  */
-export async function setScene(db: Db, userId: string, threadId: string, place: VenueId | null, now: Date = new Date(), roleplay: TermsInput | null = null): Promise<CompanionSend> {
+export async function setScene(
+  db: Db,
+  userId: string,
+  threadId: string,
+  place: VenueId | null,
+  now: Date = new Date(),
+  roleplay: TermsInput | null = null,
+  opening: unknown = undefined,
+): Promise<CompanionSend> {
   const l = await loaded(db, userId, threadId);
   if ("status" in l) return l;
   const { t, character } = l;
   if (t.paused_at) return fail(409, "paused", "This conversation is paused. Carry on when you're ready.");
   if (place !== null && !isScenePlace(place)) return fail(400, "invalid_place", "Pick one of the show's places.");
+  if (place !== null && typeof opening === "string" && !/^\s*[0-2]?\s*$/.test(opening)) {
+    const { crisis } = await lineInCrisis(opening, "companion", await modelFor(db));
+    if (crisis) return pauseForCrisis(db, t.id, "companion", now);
+  }
   let terms: RoleplayTerms | null = null;
+  let opens: string | null = null;
   if (roleplay) {
     if (place === null) return fail(400, "roleplay_needs_scene", "A roleplay is played in a scene: pick a place too.");
-    const r = resolveTerms(roleplay, ROLEPLAY_YOU, character.id);
+    const r = resolveTerms({ ...roleplay, opening }, ROLEPLAY_YOU, character.id);
     if (!r.ok) return fail(r.status, r.error, r.message);
     terms = r.terms;
+  } else if (place !== null) {
+    const r = resolveOpening(opening, GENERIC_OPENINGS);
+    if (!r.ok) return fail(r.status, r.error, r.message);
+    opens = r.opening;
   }
-  if (t.scene === place && sameTerms(place ? t.roleplay : null, terms)) {
+  if (t.scene === place && sameTerms(place ? t.roleplay : null, terms) && (!t.opening || !opens || t.opening === opens)) {
     const same = await getThread(db, userId, threadId);
     return same.ok ? { ...same, replied: false } : same;
   }
   if (noticeDue(t, now)) await putNotice(db, t, character.name, now);
-  await db.query(`update companion_threads set scene = $2, roleplay = $3, last_at = $4 where id = $1`, [t.id, place, terms ? JSON.stringify(terms) : null, tick(now, 1).toISOString()]);
+  await db.query(`update companion_threads set scene = $2, roleplay = $3, opening = $5, last_at = $4 where id = $1`, [t.id, place, terms ? JSON.stringify(terms) : null, tick(now, 1).toISOString(), opens]);
   t.scene = place;
   t.roleplay = terms;
+  t.opening = opens;
   const shown = terms ? roleplayView(terms, character.name) : null;
   const line = !place
     ? "Back to texting."
@@ -1218,7 +1279,7 @@ export async function setScene(db: Db, userId: string, threadId: string, place: 
     const view = await getThread(db, userId, threadId);
     return view.ok ? { ...view, replied: false } : view;
   }
-  const r = await speak(db, t, character, tick(now, 2), { cue: sceneCue(place, terms ? promptRoleplay(terms, character.name, t.id) : null) });
+  const r = await speak(db, t, character, tick(now, 2), { cue: openerCue(t, character.name) });
   const view = await getThread(db, userId, threadId);
   return view.ok && !r.ok ? { ...view, replied: false } : view;
 }
