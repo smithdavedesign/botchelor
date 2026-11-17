@@ -49,7 +49,8 @@ describe("what a character has been in", () => {
   it("lists each season with its show, the part, the aired dates and what was won, newest first", async () => {
     const a = await airedDate("2026-11-03T20:00:00Z", "second_date");
     const partner = (await t.db.query<{ character_b: string }>(`select character_b from episodes where id = $1`, [a.episode.id])).rows[0].character_b;
-    await t.db.query(`update episodes set revealed_at = '2026-10-25T20:00:00Z', status = 'ready', visibility = 'public' where id = (select id from episodes where id <> $1 limit 1)`, [a.episode.id]);
+    // A date in October too, so the registry reaches back to the first monthly season.
+    await airedDate("2026-10-25T20:00:00Z");
     await ensureShowSeasons(t.db, NOW);
     await backfillEpisodeSeasons(t.db);
     await cast(NOV, partner, "dealt");
