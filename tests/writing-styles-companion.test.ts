@@ -19,6 +19,7 @@ import {
   parseStoryReply,
   SCENE_DRIVE_RULE,
   speaksForThePerson,
+  speechInDoubleQuotes,
   STORY_MODE_ANSWER,
   STORY_MODE_PARAGRAPH_MAX,
   STORY_MODE_PARAGRAPHS,
@@ -58,7 +59,7 @@ describe("how a story reply is written (lib/narration.ts)", () => {
     const rules = storyModeRules({ name: "Mara", pronouns: "she/her", length: "normal" });
     const all = rules.join("\n");
     expect(all).toContain('Third person and past tense for yourself (Mara, she/her); the person you\'re with is always "you".');
-    expect(all).toContain("What you say out loud goes in double quotes inside the prose, and you say at least one thing out loud.");
+    expect(all).toContain("What you say out loud goes in double quotes inside the prose, curly ones “like this” (never single quotes), and you say at least one thing out loud.");
     expect(all).toContain("Two or three short paragraphs");
     expect(storyModeRules({ name: "Mara", length: "short" }).join("\n")).toContain("One or two short paragraphs");
     expect(storyModeRules({ name: "Mara", length: "long" }).join("\n")).toContain("Three or four short paragraphs");
@@ -106,6 +107,28 @@ describe("how a story reply is written (lib/narration.ts)", () => {
     const text = companionMessages({ ...base, storyMode: true })[0].content;
     expect(text).not.toContain(STORY_MODE_ANSWER);
     expect(text).not.toContain(SCENE_DRIVE_RULE);
+  });
+
+  it("puts speech written in single quotes into double quotes and drops a stray bracket (the first live Step in scene, 2026-11-17)", () => {
+    const live = [
+      "Anthea approached the bar. 'Pardon me,' she said, her voice measured. 'Might this seat be otherwise engaged?'",
+      "The corner of her mouth twitched. 'Tell me, does your work ever bring you to unexpected places? Or are you merely passing through?']",
+    ];
+    const read = parseStoryReply(JSON.stringify({ story: live }));
+    expect(read).toEqual([
+      "Anthea approached the bar. “Pardon me,” she said, her voice measured. “Might this seat be otherwise engaged?”",
+      "The corner of her mouth twitched. “Tell me, does your work ever bring you to unexpected places? Or are you merely passing through?”",
+    ]);
+    // Then the page and the voice find the speech, and the check of who says what can see it.
+    expect(storySpeech(read.join("\n\n"))).toEqual(["Pardon me,", "Might this seat be otherwise engaged?", "Tell me, does your work ever bring you to unexpected places? Or are you merely passing through?"]);
+    expect(speaksForThePerson(parseStoryReply(JSON.stringify({ story: ["She waited. You said, 'I missed you.'"] })).join(" "))).toBe(true);
+    // An apostrophe inside a word is never a quote mark, curly single quotes count, and a plural's apostrophe is left.
+    expect(speechInDoubleQuotes("'I'm here, and Anthea's late,' she said.")).toBe("“I'm here, and Anthea's late,” she said.");
+    expect(speechInDoubleQuotes("She laughed. ‘Fine.’ Then she sat.")).toBe("She laughed. “Fine.” Then she sat.");
+    expect(speechInDoubleQuotes("The players' table was full.")).toBe("The players' table was full.");
+    // A paragraph with double quotes of its own is left as written, and a bracket with a partner stays.
+    expect(speechInDoubleQuotes("\"Go on,\" she said, 'the board' in her eyes.")).toBe("\"Go on,\" she said, 'the board' in her eyes.");
+    expect(parseStoryReply(JSON.stringify({ story: ["She read the note [unsigned] twice."] }))).toEqual(["She read the note [unsigned] twice."]);
   });
 
   it("reads a reply's paragraphs from JSON, a cut-off answer or plain prose, tidied", () => {
