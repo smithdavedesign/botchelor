@@ -145,6 +145,45 @@ export function verifyMediaGrant(token: string | null | undefined, postId: strin
   }
 }
 
+/* ----------------------------------- claiming an anonymous identity ----------------------------------- */
+
+/** How long a claim offer lasts: long enough to read the card and decide, short enough to mean "just now". */
+export const CLAIM_TTL_SECONDS = 30 * 60;
+
+/** Which anonymous identity (`from`) this browser held just before it signed in to which account (`to`). */
+export type ClaimOffer = { from: string; to: string };
+
+/**
+ * A claim offer (lib/account-claim.ts): the server's own word, set at a successful sign-in, for which anonymous identity
+ * this browser was a moment before and which account it then signed in to. `claim.v1.<payload>.<sig>`: its own prefix
+ * and HMAC context, so a session, a carry token or a media grant is never accepted as an offer (nor an offer as any of
+ * them), bound to both ids, half an hour long. Only real ids can be signed: never a persona's owner or the deleted owner.
+ */
+export function signClaim(offer: ClaimOffer, env: Record<string, string | undefined> = process.env, now = Date.now()): string | null {
+  const secret = sessionSecret(env);
+  if (!secret || !UUID.test(offer.from) || !UUID.test(offer.to) || offer.from === offer.to) return null;
+  const payload = b64url(Buffer.from(JSON.stringify({ f: offer.from, t: offer.to, e: Math.floor(now / 1000) + CLAIM_TTL_SECONDS })));
+  return `claim.v1.${payload}.${b64url(hmac(secret, `claim:${payload}`))}`;
+}
+
+/** Verifies a claim offer: well formed, correctly signed, unexpired, two different real ids. */
+export function verifyClaim(token: string | null | undefined, env: Record<string, string | undefined> = process.env, now = Date.now()): ClaimOffer | null {
+  const secret = sessionSecret(env);
+  if (!secret || !token) return null;
+  const parts = token.split(".");
+  if (parts.length !== 4 || parts[0] !== "claim" || parts[1] !== "v1") return null;
+  const [, , payload, sig] = parts;
+  if (!safeEqual(sig, b64url(hmac(secret, `claim:${payload}`)))) return null;
+  try {
+    const c = JSON.parse(Buffer.from(payload, "base64url").toString()) as { f?: unknown; t?: unknown; e?: unknown };
+    if (typeof c.f !== "string" || !UUID.test(c.f) || typeof c.t !== "string" || !UUID.test(c.t) || c.f === c.t) return null;
+    if (typeof c.e !== "number" || c.e < Math.floor(now / 1000)) return null;
+    return { from: c.f, to: c.t };
+  } catch {
+    return null;
+  }
+}
+
 /* ----------------------------------- passwords ----------------------------------- */
 
 const SCRYPT_KEYLEN = 64;

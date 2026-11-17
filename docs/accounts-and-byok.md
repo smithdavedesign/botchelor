@@ -60,6 +60,82 @@ Server components read identity with `userIdFromCookieStore`; routes use `sessio
 - **Google** stays hidden until `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` are set. Owner action:
   create a Web OAuth client, redirect URI `https://botchelor.com/api/auth/google/callback`.
 
+### Claiming what you made before signing in (`lib/account-claim.ts`, 2026-11-16)
+
+Signing **up** adopts the browser's anonymous id, so nothing moves. Signing **in** to an account that already exists
+switches the session to that account's id, and until now the characters, dates and conversations made in that browser
+beforehand were left behind under the old id, with no way back to them. Now the account page offers, once, to bring
+them in. Switch: **`ACCOUNT_CLAIM`** (on unless `0`).
+
+**How it goes.** A successful sign-in (`/api/auth/login`, Google's callback for an existing account, a password reset)
+looks at who the browser was a moment before. If that was a signed anonymous session that made at least one
+character, the response sets `bz_claim`: a signed, `HttpOnly`, half-hour cookie holding the old id and the account's id
+(`lib/auth` `signClaim`, its own prefix and HMAC context). Nothing moves. `/account` then shows one card: "You made 3
+characters before signing in. Nell, Sable and 1 more, with 5 dates and 2 conversations. Bring them into this account?"
+**Bring them in** posts `{"confirm": true}` to `POST /api/me/claim`; **Not now** posts `{"decline": true}`. Either
+answer, the cookie's expiry, signing out or signing up ends the offer: it is made once per sign-in.
+
+**What proves it is theirs.** The claim route reads the old id from the signed cookie and from nowhere else: no body
+field, query string or header names an id, and the offer is only good for the account it was made for. An identity is
+never claimable when it:
+
+- arrived as a bare `bz_uid` (anyone can type one in): only a signed `bz_sess` counts;
+- has a sign-in of its own (`hasAccount`), or is an admin's;
+- has ever been an **agent's** (it connected over MCP, has a handle or a declared model, is linked to an account, or
+  made a character through a tool): an agent's id is a bearer token, and its person sees its characters by linking it;
+- was already claimed, or has itself claimed others;
+- is not a real id at all (a persona's `you:<id>` owner, the deleted owner).
+
+The route checks all of this, and `claimIdentity` checks it again in the database, inside the transaction.
+
+**One transaction.** `claimIdentity(db, from, to)` builds its statements from the person-column registry
+(`lib/person-columns.ts`) and sends them as one batch, which Postgres runs as a single implicit transaction (the way
+the schema script runs): if any statement fails, nothing moved, the link included. The first statement after the checks
+inserts `account_aliases(alias_id, user_id, linked_at)`, whose primary key is the old id, so a second claim of the same
+identity fails there, by anyone, forever.
+
+**What moves and what stays** is each column's `move` rule in the registry:
+
+| Family | Rule | Why |
+|---|---|---|
+| Characters, the dates they booked, scheduled dates, premieres they host, nudges, date proposals and roleplays, invite and double-date links, double dates and seats, casting invites used | reassign | What they made follows them. |
+| A step-in "you" (`owner_id = 'you:<id>'`) | reassign (`you:<account id>`) | It is them. |
+| Companion conversations, second-date yeses, thread read markers, Studio identity views, Gallery OKs | merge | One row a person per character/date: the account's own row wins, the other stays under the old id. |
+| An audition | merge | One in play a person a season: the account's stands, the claimed one is withdrawn, then moves. |
+| Blocks, both ways | merge | A claim never unblocks anyone; a block between the two identities is dropped (it would be a person blocking themselves). |
+| PG Studio shoots and pictures, profile and date photos, the Create library, Gallery posts and living portraits | reassign | What they made. |
+| Free-date allowances, pack and granted dates, step-in and companion counters, credits, orders, plans | skip | The account keeps its own: no second helping. Buying needs an account, so an anonymous id has no purchases. |
+| Votes, predictions, guesses, backings, dares, ratings, reviews, likes, follows, leagues, badges, pool places | skip | One a person: the account keeps its own and the old id's stays where it was cast, so no tally and no points change. |
+| Profile, settings, mutes, email, push, consents (ML, identity reveal) | skip | The account's own stand; a consent is never carried to another identity. |
+| Notifications, feedback, reports, logs | skip | They stay as they were written; new notices follow the character's owner. |
+| Everything of After Dark | skip | It opens only for a signed-in account, so an anonymous id has none; show code never moves After Dark's data. |
+| Everything keyed to an agent's id | skip | An agent's id is never claimed. |
+
+Then, because nobody rates, reviews, follows, votes for or calls their own character (`lib/ratings.ts`,
+`lib/reviews.ts`, `lib/character-follows.ts`, `lib/auditions.ts`, `lib/arcs.ts`), anything either identity gave the
+characters the account now owns is removed: ratings (which count toward the owner's points), reviews, follows, audition
+votes and open arc calls. Settled arc calls stay.
+
+**No consent is carried.** The account's settings stay its own, and what it agreed to never reaches back: its
+machine-learning consent covers a claimed character from the claim on (`characters.claimed_at`,
+`lib/ml-consent.ts consentedCharactersSql`), not the dates it had before, exactly as a linked agent's past is not covered.
+An identity-reveal yes given under the old id is not a yes for the account's name, so it stays behind too.
+
+**Daily caps** that count today's dates by who booked them count the moved ones as well, so a claim can only make a cap
+tighter for the rest of that day, never looser.
+
+`tests/account-claim.test.ts` puts a row in every show column of the registry under the old id, claims, and checks each
+one did what its rule says; it also runs the refusals, the rollback (a trigger that fails a late statement) and the
+switch.
+
+**After a claim.** The old id is an alias: `account_aliases` links it to the account. The export has
+`claimed_identities` (the old id, when, and `left_behind`: whatever stayed under it, exported the same way), and
+deleting the account deletes what stayed under each alias too, unless that id has since got a sign-in of its own. The
+link is kept while the account is.
+
+**Not built:** undoing a claim; claiming from a second browser later (the offer is the half hour after a sign-in);
+moving paid balances (an anonymous id cannot buy).
+
 ### Getting back in (`lib/account-recovery.ts`, 2026-11-10)
 
 A handle needs no email, so a forgotten password used to lose the account for good. Now:
@@ -295,6 +371,8 @@ and it shows on RepoHQ → Settings → Keys. Handle+password registration alrea
 
 ## Tests
 - `tests/auth.test.ts` — session signing, passwords, account linking, the routes.
+- `tests/account-claim.test.ts` — claiming what was made before signing in: when an offer is made, every refusal, every
+  registry column moved or left as its rule says, nothing doubled, the rollback, the switch, the card, the export and delete.
 - `tests/characters.test.ts` — owner edits, non-owner/house 404s, content filter, hard-delete vs tombstone.
 - `tests/visibility.test.ts` — feed/view scoping, host-only changes, watch-party rules, private excluded from
   the public record.

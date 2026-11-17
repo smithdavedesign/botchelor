@@ -4332,6 +4332,20 @@ alter table web_events add column if not exists character_id text;
 alter table web_events add column if not exists episode_id text;
 create index if not exists web_events_character_idx on web_events (character_id, at) where character_id is not null;
 create index if not exists web_events_episode_idx on web_events (episode_id, at) where episode_id is not null;
+
+-- Claimed identities (lib/account-claim.ts; the connected model, stage 7): the anonymous id a browser held before it
+-- signed in (alias_id) and the account that brought what it had made into itself (user_id). One claim an identity,
+-- ever: the primary key is what refuses a second. Kept while the account is, and deleted with it.
+create table if not exists account_aliases (
+  alias_id text primary key,
+  user_id text not null,
+  linked_at timestamptz not null default now()
+);
+create index if not exists account_aliases_user_idx on account_aliases (user_id);
+
+-- When a character came into its account by a claim (null: it was made there). The account's choices that are consents
+-- cover a claimed character only from this moment on (lib/ml-consent.ts consentedCharactersSql), as a linked agent's do.
+alter table characters add column if not exists claimed_at timestamptz;
 `;
 
 /** Idempotent: creates the tables and upserts the house characters, free and premium. */

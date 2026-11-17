@@ -57,7 +57,7 @@ export const PERSON_ID_NAMES: readonly string[] = [
   "user_id", "owner_id", "agent_id", "reporter_id", "creator_id", "proposed_by", "voter_id", "visitor", "viewer_id", "used_by",
   "reviewer_id", "recipient_id", "rater_id", "proposer_id", "host_id", "holder", "follower_id", "by_user", "booker", "blocker_id",
   "blocked_id", "answerer_user", "from_user", "to_user", "proposer_user", "actor", "created_by", "taken_by", "granted_by",
-  "reviewed_by", "decided_by", "updated_by", "consented_by", "invite_to",
+  "reviewed_by", "decided_by", "updated_by", "consented_by", "invite_to", "alias_id",
 ];
 
 /**
@@ -120,6 +120,22 @@ export const PERSON_COLUMNS: readonly PersonColumn[] = [
   { table: "ml_consents", column: "user_id", export: at("ml_consent"), delete: ROWS, move: CONSENT },
   { table: "identity_consents", column: "user_id", export: at("identity_reveals"), delete: ROWS, move: skip("a yes to showing THIS identity's name to the other owner: it is not a yes for the account's name") },
   { table: "afterglow_consents", column: "user_id", export: at("afterglow_consents"), delete: ROWS, move: CONSENT },
+
+  // A claim's record (lib/account-claim.ts): the anonymous id that was claimed, and the account it was claimed into.
+  {
+    table: "account_aliases",
+    column: "user_id",
+    export: at("claimed_identities"),
+    delete: ROWS,
+    move: skip("the record of what an account claimed stays with that account; an account is never itself claimed"),
+  },
+  {
+    table: "account_aliases",
+    column: "alias_id",
+    export: at("claimed_into"),
+    delete: ROWS,
+    move: skip("an identity that has been claimed is never claimed again: this row's primary key is what refuses it"),
+  },
 
   // What they made: characters, the dates they booked, and what hangs off those.
   { table: "characters", column: "owner_id", export: at("characters"), delete: ROWS, move: REASSIGN },

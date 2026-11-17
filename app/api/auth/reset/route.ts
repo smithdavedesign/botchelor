@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { offerAtSignIn } from "@/lib/account-claim";
 import { resetLinkAccount, resetPassword } from "@/lib/account-recovery";
 import { PASSWORD_MAX, PASSWORD_MIN, sessionsSignable } from "@/lib/auth";
 import { getDb } from "@/lib/db";
@@ -26,5 +27,8 @@ export const POST = handle(async (req) => {
     return account ? json({ valid: true, handle: account.handle_display ?? account.handle }) : deadLink();
   }
   const account = await resetPassword(db, input.t, input.password);
-  return jsonWithSession({ authenticated: true, handle: account.handle_display ?? account.handle }, { userId: account.user_id, authenticated: true });
+  // A reset signs this browser in too: the same offer as any sign-in (lib/account-claim.ts).
+  return jsonWithSession({ authenticated: true, handle: account.handle_display ?? account.handle }, { userId: account.user_id, authenticated: true }, 200, [
+    await offerAtSignIn(db, req, account.user_id),
+  ]);
 });
