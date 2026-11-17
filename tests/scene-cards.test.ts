@@ -36,7 +36,7 @@ function everyForm(card: SceneCard): { field: string; text: string }[] {
 
 describe("the show's scene cards", () => {
   it("every one of the show's roleplays has a card that passes exactly what a written roleplay must, in every form", () => {
-    expect(DATE_ROLEPLAYS).toHaveLength(39);
+    expect(DATE_ROLEPLAYS).toHaveLength(49);
     for (const r of DATE_ROLEPLAYS) {
       expect(showCardIssue(r.card), r.id).toBeNull();
       for (const { field, text } of everyForm(r.card)) {
@@ -84,7 +84,7 @@ describe("After Dark's scene cards", () => {
   const NEVER = /\b(sister|brother|sibling|mother|father|mom|mum|dad|daughter|son|step\w*|aunt|uncle|cousin|babysit\w*|nanny|teacher|student|pupil|professor|tutor|lesson|classroom|school|campus|dorm|teen|teenage|young|younger|girl|boy|kid|child|drunk|tipsy|wasted|asleep|unconscious|sedated|forced|force|kidnap\w*|captive|tied|against (her|his|their) will|blackmail|paid|pays|payment|intern)\b/i;
 
   it("every one of After Dark's roleplays has a story card: inside its lines, and with no explicit word, in every form", () => {
-    expect(ROLEPLAYS).toHaveLength(33);
+    expect(ROLEPLAYS).toHaveLength(43);
     for (const r of ROLEPLAYS) {
       expect(adultCardIssue(r.card), r.id).toBeNull();
       for (const { field, text } of everyForm(r.card)) {

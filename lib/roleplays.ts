@@ -999,6 +999,249 @@ export const DATE_ROLEPLAYS: readonly DateRoleplayDef[] = [
       ],
     },
   },
+  // The ten below fill the gaps the Character Image Census showed (docs/tags.md, 2026-11-17): the setups people pick
+  // most that the show had one roleplay for (second chances, couples, roommates, work, a bodyguard, a dating show) and
+  // the thin themes (drama, everyday, sports, spooky). Two of them feed "For these two" for most pairs with a history.
+  {
+    id: "wedding-exes", title: "Exes at table nine", icon: "💒", tag: "romance", roles: null,
+    tags: ["second_chance", "fake_dating", "drama"],
+    premise: "{a} and {b} broke up years ago and have just found their names side by side on a friend's wedding seating plan. To spare everyone the questions, they agree to act like they're back together until the last dance.",
+    card: {
+      setup: "A friend's wedding, a seating plan in gold ink and two names side by side at table nine. {a} reads the card twice; {b} is already sitting there, pretending to study the menu.",
+      wants: [
+        "{a} wants to get through the evening without anyone asking what went wrong; {b} knows exactly how to make {a} laugh at the wrong moment, still.",
+        "{b} wants to know whether the old ease is real or just good manners; pretending to be a couple again makes it impossible to tell.",
+      ],
+      beats: [
+        "They agree on a cover story, and argue about the details the way they used to.",
+        "A guest who knew them back then congratulates them, and they have to keep a straight face.",
+        "The real reason it stopped comes up between the speeches, quietly, without blame this time.",
+        "The band plays the song that used to be theirs, and the act and the truth get hard to tell apart.",
+      ],
+      tone: "bittersweet, dry, two people who still know each other's cues",
+      openings: [
+        "{a} sits down next to {b} and says the seating plan has a sense of humour.",
+        "{b} turns over a place card and writes one word on the back: truce.",
+        "{a} and {b} both start to explain to a curious guest how they know each other, and stop.",
+      ],
+    },
+  },
+  {
+    id: "time-capsule", title: "The time capsule", icon: "🕰️", tag: "couples", roles: null,
+    tags: ["couples", "cozy"],
+    premise: "{a} and {b} have been together for years. Tonight they dig up the time capsule they buried in the garden the week they moved in, with a letter from each of them inside, addressed to the two of them now.",
+    card: {
+      setup: "A garden at dusk, a borrowed spade and a biscuit tin that has rusted shut. {a} is kneeling by the hole and {b} is holding the torch, both pretending not to remember what they wrote.",
+      wants: [
+        "{a} wants to read the letters aloud and laugh at the predictions; one of them was more serious than {a} remembers.",
+        "{b} wants to find out which of the old hopes came true; some of them were never said out loud.",
+      ],
+      beats: [
+        "The tin will not open, and the struggle with it becomes its own small comedy.",
+        "Each reads the other's letter aloud, in the other's voice.",
+        "One prediction was wrong in a way that turned out better.",
+        "They start writing the next letters before the old ones are back in the tin.",
+      ],
+      tone: "cozy, nostalgic, two people checking in with who they used to be",
+      openings: [
+        "{a} hands {b} the spade and says it was definitely this corner of the garden.",
+        "{b} prises the lid off the tin and finds {a}'s handwriting on top.",
+        "{a} and {b} sit back on their heels and look at the tin without opening it yet.",
+      ],
+    },
+  },
+  {
+    id: "moving-out", title: "The last night in the flat", icon: "📦", tag: "romance", roles: null,
+    tags: ["roommates", "friends_to_more", "slice_of_life", "drama"],
+    premise: "{a} and {b} have shared a flat for three years, and tomorrow morning {b} moves to another city. The boxes are taped, the sofa is gone, and there is one last takeaway to eat on the floor, and one thing neither of them has said.",
+    card: {
+      setup: "An empty flat that echoes, a stack of taped boxes and a takeaway spread out on the floor. {a} has found two forks; {b} has found the last two candles, because the lamps are packed.",
+      wants: [
+        "{a} wants to say the thing that three years of sharing a kitchen never quite allowed; saying it the night before a move feels unfair.",
+        "{b} wants one more ordinary evening before everything changes; {a} keeps going quiet in a way that is not ordinary at all.",
+      ],
+      beats: [
+        "They divide the last things nobody packed: a mug, a plant, a spare key.",
+        "One of them reads out the old chore rota from the fridge door, and it is funnier than it should be.",
+        "A story about the first week in the flat turns out to mean something different to each of them.",
+        "Somebody asks whether the move could have waited, and means it.",
+      ],
+      tone: "bittersweet, close, a friendship standing at the door",
+      openings: [
+        "{a} holds up the last two forks and asks {b} to choose.",
+        "{b} sits down on a box marked fragile, and it holds, just.",
+        "{a} and {b} both reach for the spare key on the counter at once.",
+      ],
+    },
+  },
+  {
+    id: "toast-night", title: "Writing the toasts", icon: "📝", tag: "cozy", roles: null,
+    tags: ["friends_to_more", "slice_of_life"],
+    premise: "{a} and {b} have been best friends for years, and tomorrow both give toasts at a mutual friend's wedding. Tonight they write them together at a kitchen table, and every draft says more about the two of them than about the couple.",
+    card: {
+      setup: "A kitchen table buried in index cards, two pens and a pot of tea gone cold. {a} has written the opening line nine times; {b} is reading the latest one aloud, badly, on purpose.",
+      wants: [
+        "{a} wants a toast that is funny and true; the true parts keep turning out to be about {b}.",
+        "{b} wants to get through the night without reading too much into {a}'s drafts; it gets harder with every crossed-out line.",
+      ],
+      beats: [
+        "They swap stories about the couple, and half of them turn out to be about each other.",
+        "One of them reads a line that was clearly not written for the wedding.",
+        "They practise the delivery with a spoon for a microphone.",
+        "A draft gets torn up, and one of them asks to hear it anyway.",
+      ],
+      tone: "warm, funny, a friendship hiding in the margins",
+      openings: [
+        "{a} reads the first line aloud, and {b} says it needs work.",
+        "{b} slides an index card across the table with one word crossed out.",
+        "{a} and {b} both start with the same joke and stop.",
+      ],
+    },
+  },
+  {
+    id: "reunion-couch", title: "The reunion taping", icon: "📺", tag: "romance", roles: null,
+    tags: ["dating_show", "second_chance", "drama"],
+    premise: "{a} and {b} were contestants on the same dating show a few seasons ago, and neither ever said what they felt. Tonight is the reunion taping, and the producers have seated them side by side on the couch.",
+    card: {
+      setup: "Studio lights, a long white couch and a host with cue cards. {a} and {b} have been seated side by side, and the old clip of the two of them is up next.",
+      wants: [
+        "{a} wants to answer the host's questions without giving anything away; {b} is sitting close enough that it is hard to concentrate.",
+        "{b} wants to say on the record what was never said in the villa; the cameras made it impossible then and make it strange now.",
+      ],
+      beats: [
+        "The old clip plays, and they remember the night differently.",
+        "An ad break gives them two minutes off the record, and one of them uses it.",
+        "The host asks the question the audience came for, and one of them answers honestly.",
+        "The other contestants start to notice, and the couch gets very quiet.",
+      ],
+      tone: "studio-bright, wry, unfinished business under the lights",
+      openings: [
+        "{a} sits down and says the couch is smaller than it looked on television.",
+        "{b} leans over and asks whether {a} ever watched the episode back.",
+        "{a} and {b} both laugh at the host's first question for slightly too long.",
+      ],
+    },
+  },
+  {
+    id: "new-partners", title: "New partners on the ice", icon: "⛸️", tag: "romance", roles: ["the famously cold skater", "the new partner"],
+    tags: ["workplace", "slow_burn", "sports"],
+    premise: "{a} and {b} are pairs skaters, newly matched as equals after both lost their partners to retirement. {a} is famously cold on and off the ice; {b} has one evening at the empty rink to find out whether they can trust each other.",
+    card: {
+      setup: "An empty rink after closing, the lights half down and the ice freshly cut. {a} is lacing up without a word; {b} is leaning on the barrier, wondering whether to say hello again.",
+      wants: [
+        "{a} wants to keep this professional; {b} skates the way {a} used to, before it stopped being fun.",
+        "{b} wants a partner who will talk, at least about the lifts; every question gets one word back, and the words are slowly getting longer.",
+      ],
+      beats: [
+        "They skate side by side without touching, just to learn each other's speed.",
+        "The first lift goes wrong in a harmless, ridiculous way, and the cold one almost laughs.",
+        "One of them says why the last partnership stopped working.",
+        "They try the hardest element once more, and this time neither lets go early.",
+      ],
+      tone: "slow burn, frosty, a thaw measured in inches",
+      openings: [
+        "{a} skates one silent lap and stops in front of {b} with a spray of ice.",
+        "{b} holds out a hand and says they should probably learn each other's names properly.",
+        "{a} watches {b} land a jump and gives one small nod, the most anyone has had in years.",
+      ],
+    },
+  },
+  {
+    id: "the-forgery", title: "The forger and the appraiser", icon: "🖼️", tag: "mystery", roles: ["the forger", "the appraiser"],
+    tags: ["opposites", "crime"],
+    premise: "{a} paints forgeries good enough to hang in museums. {b} is the appraiser who suspects one of them and has asked {a} to dinner to find out. Neither will admit anything, and both are enjoying it too much.",
+    card: {
+      setup: "A gallery dinner, a painting on the wall behind the table and a waiter who keeps blocking the view. {b} has chosen the seat facing it; {a} has chosen the one facing {b}.",
+      wants: [
+        "{a} wants to learn exactly what {b} knows; being admired by the one person who can tell the difference is a dangerous kind of flattering.",
+        "{b} wants a confession without having to ask for one; {a} talks about brushwork the way other people talk about first love.",
+      ],
+      beats: [
+        "They talk about the painting on the wall, and neither says the word fake.",
+        "The appraiser names a detail only the painter would know, and waits.",
+        "The forger asks what the appraiser would do with proof, and the answer takes a while.",
+        "They agree on a wager: one honest answer each, the question chosen by the other.",
+      ],
+      tone: "caper, sly, two experts flirting through a cover story",
+      openings: [
+        "{b} nods at the painting behind {a} and asks for an honest opinion of it.",
+        "{a} compliments {b}'s eye before the menus have arrived.",
+        "{a} and {b} both look at the painting, then at each other, and smile the same small smile.",
+      ],
+    },
+  },
+  {
+    id: "trip-take-two", title: "The trip, take two", icon: "🗺️", tag: "couples", roles: null,
+    tags: ["couples", "adventure"],
+    premise: "{a} and {b} have been together a long time. Their first trip away was a disaster: a missed ferry, lost bags and a week of rain. Tonight they're back on the same island to do it properly, with an itinerary neither of them trusts.",
+    card: {
+      setup: "The same harbour, the same ferry timetable, and this time a printed itinerary in a plastic sleeve. {a} is reading it aloud; {b} is watching the boat as if it might leave without them again.",
+      wants: [
+        "{a} wants this trip to go exactly to plan; the plan has already met its first puddle.",
+        "{b} wants to find the best parts of the first trip, which were never on any plan; {a} keeps checking the schedule.",
+      ],
+      beats: [
+        "They retrace the route of the first disaster and tell it to each other like a legend.",
+        "Something goes wrong again, small and harmless, and it is suddenly funny.",
+        "They find the café where they sheltered from the rain, and it is still there.",
+        "One of them admits what that first trip was really about.",
+      ],
+      tone: "adventurous, affectionate, a couple laughing at their own legend",
+      openings: [
+        "{a} unfolds the itinerary and reads the first item aloud, with great confidence.",
+        "{b} points at the ferry and says it looks smaller than the one they missed.",
+        "{a} and {b} reach the harbour early, for once, and do not know what to do with the time.",
+      ],
+    },
+  },
+  {
+    id: "tour-bodyguard", title: "The last night of the tour", icon: "🎸", tag: "romance", roles: ["the bodyguard", "the touring musician"],
+    tags: ["bodyguard", "drama"],
+    premise: "{a} is the bodyguard a security firm assigned to {b}'s tour, so neither has a say over the other's work. Tonight is the last show of a long tour, the crew is loading the trucks, and tomorrow they go back to separate lives.",
+    card: {
+      setup: "An empty arena after the encore, cables coiled on the stage and the crew loading trucks outside. {a} is doing one last sweep of the wings; {b} is sitting on the edge of the stage with a guitar and nowhere to be.",
+      wants: [
+        "{a} wants to finish the last shift by the book; months of standing a few feet from {b} have made the book hard to remember.",
+        "{b} wants to say thank you properly, and maybe more than thank you; {a} has spent the whole tour being impossible to read.",
+      ],
+      beats: [
+        "The musician plays a song nobody has heard yet, to an audience of one.",
+        "They list every city on the tour by the thing that went wrong in it.",
+        "The bodyguard admits to having learned all the lyrics, against every rule.",
+        "A truck horn sounds outside, and the last night starts to feel very short.",
+      ],
+      tone: "hushed, after the encore, a professional distance wearing thin",
+      openings: [
+        "{a} checks the last exit and finds {b} still sitting on the stage.",
+        "{b} plays the opening chords and asks whether {a} is allowed to have a favourite song.",
+        "{a} and {b} look out at the empty seats, and neither says goodnight.",
+      ],
+    },
+  },
+  {
+    id: "automaton-watch", title: "The night watch at the clock museum", icon: "⚙️", tag: "mystery", roles: null,
+    tags: ["workplace", "spooky"],
+    premise: "{a} and {b} are night guards hired by the same agency, on their first shift together at a museum of old clockwork figures. Around midnight the figures start to move by themselves. Spooky, never gory, and probably the heating.",
+    card: {
+      setup: "Gallery after gallery of clockwork dancers, musicians and a chess player in a glass case. {a} has the torch; {b} has the logbook, and the chess player's head has just turned.",
+      wants: [
+        "{a} wants a quiet first shift and a sensible explanation; {b} is enjoying the haunting far too much to help.",
+        "{b} wants to seem braver than {a} on their first night together; the chess player keeps moving whenever {b} looks away.",
+      ],
+      beats: [
+        "They make the first round by the book and log every tick and whir.",
+        "A music box starts playing in a locked case, and they take turns explaining it away.",
+        "They find the museum's old night logs, and the guards before them saw the same thing.",
+        "The chess player makes a move, and they decide, together, to play the next one.",
+      ],
+      tone: "spooky, hushed, ticking clocks and nervous jokes, never gory",
+      openings: [
+        "{a} sweeps the torch across the gallery, and {b} asks whether the dancer was facing that way before.",
+        "{b} writes the time in the logbook and says the chess player just blinked.",
+        "{a} and {b} stop in front of the glass case at the same moment, both very quiet.",
+      ],
+    },
+  },
 ];
 
 export const DATE_ROLEPLAY_IDS = DATE_ROLEPLAYS.map((r) => r.id) as [string, ...string[]];

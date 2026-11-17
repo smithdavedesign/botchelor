@@ -3314,7 +3314,7 @@ David, 2026-11-17, after comparing Botchelor's roleplay with Chub and nine other
 level of context behind the scenes when someone chooses it". The whole design is in [scene-cards.md](scene-cards.md);
 this is After Dark's part.
 
-**The roleplays** (`lib/adult/roleplays.ts`): 33, up from 20. The 13 new ones are the tropes people look for most in
+**The roleplays** (`lib/adult/roleplays.ts`): 43, up from 20. The first 13 new ones are the tropes people look for most in
 David's census of 38,912 public character listings, each written inside the lines at the top of that file:
 - `your-rules` (one leads, one follows: agreed out loud first, with a word that stops everything);
 - `dons-truce` (the heads of two rival outfits, as equals) and `two-captains`;
@@ -3324,6 +3324,13 @@ David's census of 38,912 public character listings, each written inside the line
   either can end it with a word);
 - `anniversary-strangers`, `after-the-party`, `slow-sunday` and `home-again` (couples);
 - `the-cold-one` and `after-the-cameras`.
+
+Ten more the same day fill the census's gaps (docs/tags.md, "Roleplays added for the census gaps"): `the-house`
+(a card-room owner and the counter who beat it, as equals: dark romance and crime), `the-final-night` (two finalists),
+`gala-date` (a fake date, as a favour), `closing-night` (exes at their old restaurant's last night), `after-the-toast`
+(best friends, praise), `masks-on` (masks stay on: dressing up), `the-forge` (a blacksmith twice anyone's size),
+`who-leads` (rival dancers taking turns: switch), `haunted-inn` (the first spooky one) and `the-fitting` (a tailor's last
+fitting: dressing up, praise). Nobody paid, nobody owed, anyone can leave.
 
 The census's school, family and famous-people themes are left out on purpose: they are what the lines exclude.
 
@@ -3405,7 +3412,7 @@ where it's open to the viewer.
    Dark's check, their own switched-in characters). Never anyone else's.
 2. **Where:** a place from the scene catalog (`stepInPlaces`: the library's venues, the scenario packs' places, the
    roleplay places; not the double date, and not a set someone typed in), with its backdrop.
-3. **The roleplay:** one of After Dark's 33 or none, and which side the viewer plays. The page shows the card from the
+3. **The roleplay:** one of After Dark's 43 or none, and which side the viewer plays. The page shows the card from the
    viewer's side (`cardForYou`: "you", the verbs agreeing). The viewer's own library roleplays and venues aren't
    offered in v1.
 4. **How it opens:** the card's three openings (the generic three with no roleplay), "Surprise me", or one sentence

@@ -62,6 +62,46 @@ themes and heat. The old `tag` (show) and `category` (After Dark place shelves) 
   with a count. Each card lists its tags, and a heat that clashes with the pair's hard nos says so. Step in's dropdown
   groups by each roleplay's first setup.
 
+### Roleplays added for the census gaps (2026-11-17)
+
+Ten on each side (49 on the show, 43 on After Dark), each with a full scene card, chosen where the census showed demand
+the house roleplays didn't serve. Every stage's "For these two" now offers at least three, and every setup a stage
+suggests has at least two show roleplays behind it (`tests/tags.test.ts`). Mystery and comedy, the census's weakest
+themes, got none. Each card passes its side's check (`tests/scene-cards.test.ts`).
+
+The show (PG):
+
+| id | Tags | Why |
+| --- | --- | --- |
+| `wedding-exes` | second_chance, fake_dating, drama | Exes seated together at a friend's wedding who play a couple to dodge questions: second chances had one roleplay, and it's what exes, broke up and divorced are offered. |
+| `time-capsule` | couples, cozy | A couple dig up the time capsule they buried when they moved in: couples had one, and every committed stage is offered it. |
+| `moving-out` | roommates, friends_to_more, slice_of_life, drama | Flatmates on the last night before one moves away: roommates (1.08× safe-for-work) had one. |
+| `toast-night` | friends_to_more, slice_of_life | Best friends writing their toasts for a friend's wedding: everyday was thin. |
+| `reunion-couch` | dating_show, second_chance, drama | Two former contestants side by side at the reunion taping: a dating show had one. |
+| `new-partners` | workplace, slow_burn, sports | Pairs skaters newly matched as equals, one famously cold: work and sports had one each, and "cold, then warm" is a strong type (1.10×). |
+| `the-forgery` | opposites, crime | A forger and the appraiser who suspects them, at dinner: crime does well (1.12×), and nobody is hurt. |
+| `trip-take-two` | couples, adventure | A couple redo the trip that went wrong: a second couples roleplay with somewhere to go. |
+| `tour-bodyguard` | bodyguard, drama | A bodyguard (from a security firm, so nobody's employer) and a musician on the tour's last night: bodyguard had one, and "protective" is the type. |
+| `automaton-watch` | workplace, spooky | Two night guards, equals, at a museum of clockwork figures that move by themselves: spooky (1.07×) had two, never gory. |
+
+After Dark:
+
+| id | Tags | Why |
+| --- | --- | --- |
+| `the-house` | rivals, crime, dark_romance | A card-room owner and the card counter who beat the house, back by invitation as equals: dark romance (1.21×, the strongest adult theme) and crime had two each. Nobody owed, either can leave. |
+| `the-final-night` | dating_show, drama | The two finalists, cameras off, the night before a live finale: a dating show (1.22× adult) had one. |
+| `gala-date` | fake_dating, romance, tease | A pretend couple at a gala, as a favour to each other (nobody paid): fake dating had one. |
+| `closing-night` | second_chance, slice_of_life, tender | Exes from the same kitchen at their old restaurant's last night: second chances (1.21× adult) had one. |
+| `after-the-toast` | friends_to_more, romance, praise | Best friends after a wedding toast that said too much: friends to more (1.21× adult) had one, praise (1.17×) one. |
+| `masks-on` | strangers, romance, dress_up, tease | A costume party where masks stay on till dawn: dressing up had one. |
+| `the-forge` | slow_burn, fantasy, size_difference, tender | A blacksmith twice anyone's size and a traveller who keeps finding reasons to stay: size difference (1.19×) had none. |
+| `who-leads` | rivals, sports, switch | Rival ballroom champions taking turns to lead: switch had none. |
+| `haunted-inn` | forced_proximity, spooky | The last two guests at a haunted inn, each with a room and a key: spooky had none, never gory. |
+| `the-fitting` | slow_burn, romance, dress_up, praise | A tailor's last fitting with a client, the bill settled: praise and dressing up. |
+
+Left for later: no After Dark roleplay is tagged dirty talk yet (a card has no explicit word in it, so the tag would
+promise what the card can't show), and bodyguard there still has one.
+
 ## Characters
 
 Each character carries up to 4 **type** tags in `character_tags` (`lib/character-tags.ts`). The row is keyed to the

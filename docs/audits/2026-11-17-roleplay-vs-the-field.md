@@ -13,7 +13,7 @@ Covered: Chub, SillyTavern, Janitor AI, Character.AI, NovelAI, AI Dungeon, Kindr
 | 3 | A saved persona for "you" | Live: "Who you are in scenes" on /account (#1773). |
 | 4 | Flip through regenerated replies, and Continue | Live in companion chats (#1774). |
 | 9 | Sell depth, not surcharges | Done: Narrated, stories and a longer memory come with the Companion Plan; no per-date or per-step charge (#1771). |
-| – | A richer card behind every roleplay, and more roleplays | Live: scene cards on all 39 show and 33 After Dark roleplays, 27 of them new, from the owner's census of public character listings (#1772). [scene-cards.md](../scene-cards.md). |
+| – | A richer card behind every roleplay, and more roleplays | Live: scene cards on all 49 show and 43 After Dark roleplays, 47 of them new, from the owner's census of public character listings (#1772, and ten a side for its gaps: [tags.md](../tags.md)). [scene-cards.md](../scene-cards.md). |
 | – | The After Dark version of "you in the scene" | Built closed, admins only, as After Dark's Step in. [after-dark.md](../after-dark.md). |
 | 5–8, 10 | A standing director's note, "write my turn" chips, style presets, showing what they remembered, a visible meter | Not built. |
 

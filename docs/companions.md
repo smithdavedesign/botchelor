@@ -500,7 +500,7 @@ David, 2026-11-04: "maybe enable this to go into theater mode too". The show's t
 David, 2026-11-08: "in companion and normal date mode do we want role play options like we have in after dark?
 currently the companion you can only set the location". Show dates have had PG roleplays since 2026-10-31
 (lib/roleplays.ts, lib/date-roleplays.ts); a companion's scene now takes one too.
-- **Picking:** 🎭 Scene → a place → a second step: the show's 39 PG roleplays by kind, ✨ Yours (your Create library's
+- **Picking:** 🎭 Scene → a place → a second step: the show's 49 PG roleplays by kind, ✨ Yours (your Create library's
   safe side, signed in) or one written for the scene, and who plays whom (the show's `app/RoleplayPicker.tsx` with
   `asYou`: "You read fortunes…", "You're the captain"). Or none: "Start the scene" is just the two of you. Under the
   roles: who you're playing as, and how it opens (both below).

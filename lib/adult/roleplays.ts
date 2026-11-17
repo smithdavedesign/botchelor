@@ -844,6 +844,250 @@ export const ROLEPLAYS: readonly HouseRoleplay[] = [
       ],
     },
   },
+  // The ten below fill the gaps the Character Image Census showed (docs/tags.md, 2026-11-17): setups After Dark had one
+  // roleplay for (a dating show, fake dating, friends to more, second chances), the strongest adult theme (dark romance)
+  // with crime, the first spooky one, and heat it had little or none of (praise, dressing up, size difference, switch).
+  // Same lines as the rest: two equals who both want to be there, anyone can leave, nobody owes anybody anything.
+  {
+    id: "the-house", title: "The house always wins", icon: "♠️", category: "nightlife", roles: ["the one who owns the card room", "the card counter who beat it"], costumes: ["a black dinner jacket worn open over a silk shirt", "a sharp dark suit with the tie loosened, a deck of cards in one pocket"],
+    tags: ["rivals", "crime", "dark_romance"],
+    premise: "{a} owns the city's most private card room, where the house never loses. Last month {b} counted cards there and walked out the winner. Tonight {b} is back by invitation for one game as equals: nobody else in the room, nothing owed either way, and either can leave the table whenever they like.",
+    card: {
+      setup: "A private room above the casino floor, one green table and a fresh deck still in its seal. {a} deals the first hand personally; {b} sits down across the felt and leaves the door open.",
+      wants: [
+        "{a} wants to know how {b} beat the house; nobody has managed it in years, and watching it felt uncomfortably like being courted.",
+        "{b} wants to beat {a} twice; the stories about what {a} runs are dangerous, and the person dealing the cards keeps being kind.",
+      ],
+      beats: [
+        "They play one honest hand, and both of them can tell the other is counting.",
+        "The owner asks how it was done, and the counter answers with a question.",
+        "The stakes change from chips to truths: lose a hand, answer anything.",
+        "One of them folds a winning hand on purpose, and the other sees it.",
+      ],
+      tone: "noir, high-stakes, two dangerous people being careful with each other",
+      openings: [
+        "{a} breaks the seal on a new deck and slides it across to {b} to cut.",
+        "{b} counts the chips in front of {a} at a glance and names the total.",
+        "{a} and {b} each lay a single chip on the table, the same colour, without a word.",
+      ],
+    },
+  },
+  {
+    id: "the-final-night", title: "The last night in the villa", icon: "🌴", category: "getaway", roles: null,
+    tags: ["dating_show", "drama"],
+    premise: "{a} and {b} are the two finalists on a dating show, and tomorrow's live finale has a twist neither has been told. Tonight the cameras are off, the crew has gone back to the hotel, and for one night the villa is theirs.",
+    card: {
+      setup: "A villa at two in the morning, the pool lights on and every camera dark. {a} and {b} have the whole terrace to themselves, and there is a producer's note on the fridge that neither has read.",
+      wants: [
+        "{a} wants to know what {b} will say tomorrow before the whole country hears it; asking feels like breaking the format.",
+        "{b} wants one night that will never be broadcast; after weeks of being watched, being unwatched is unnerving.",
+      ],
+      beats: [
+        "They open the producer's note together, and it is worse than either guessed.",
+        "Each admits which moments on the show were played for the cameras.",
+        "They rehearse tomorrow's answers, and the rehearsal stops being a rehearsal.",
+        "One of them suggests saying something on live television that nobody has scripted.",
+      ],
+      tone: "candid, charged, two finalists choosing for themselves",
+      openings: [
+        "{a} holds up the producer's note and asks {b} whether they should read it.",
+        "{b} unplugs the last garden camera and comes back to the terrace grinning.",
+        "{a} and {b} sit on the edge of the pool and say nothing for a full minute.",
+      ],
+    },
+  },
+  {
+    id: "gala-date", title: "The fake date at the gala", icon: "🎻", category: "nightlife", roles: null,
+    tags: ["fake_dating", "romance", "tease"],
+    premise: "{a} and {b} agreed to pretend to be a couple at a charity gala, as a favour to each other: one to dodge an ex, the other to impress a rival. The pretending has been very convincing on the dance floor, and now they are alone on the balcony.",
+    card: {
+      setup: "A balcony above a ballroom, the orchestra muffled behind glass doors. {a} and {b} have kept up the act all evening, and it has not stopped now that nobody is watching.",
+      wants: [
+        "{a} wants to know which parts of the evening were acting; asking would mean admitting which parts were not.",
+        "{b} wants to make {a} wait for an answer; teasing is the only way to stay in control of the story.",
+      ],
+      beats: [
+        "They review the performance like critics, praising each other's best moments.",
+        "One of them points out that the ex left an hour ago, and the act carried on anyway.",
+        "A near miss on the dance floor gets replayed, slowly, on purpose.",
+        "They agree on a rule for the rest of the night: no more pretending, either way.",
+      ],
+      tone: "glittering, teasing, a performance that forgot to stop",
+      openings: [
+        "{a} leans on the balustrade and says the rival believed every minute of it.",
+        "{b} offers a hand and says there is one more song, for appearances.",
+        "{a} and {b} come out onto the balcony still holding hands, out of habit.",
+      ],
+    },
+  },
+  {
+    id: "closing-night", title: "The last service", icon: "🍽️", category: "second", roles: null,
+    tags: ["second_chance", "slice_of_life", "tender"],
+    premise: "Years ago {a} and {b} worked the same kitchen and were together, until they weren't. Tonight the old crew is back for the restaurant's last night before it closes for good, and the two of them have volunteered for the washing-up, side by side.",
+    card: {
+      setup: "The party is out front; the kitchen is quiet except for the dishwasher. {a} and {b} are at the same sink they shared years ago, and both remember exactly where the good tea towels are kept.",
+      wants: [
+        "{a} wants to say sorry for the way it finished, properly this time; the old easy rhythm at the sink makes it too pleasant to interrupt.",
+        "{b} wants to know whether what they had was real or just the long hours; {a} is gentler now, and it is hard to look away.",
+      ],
+      beats: [
+        "They fall straight back into the old kitchen rhythm without a word.",
+        "Someone from the old crew says what everybody knew back then, and they both go quiet.",
+        "They name the night it went wrong, kindly this time.",
+        "The last pan is dried, and neither of them heads back to the party.",
+      ],
+      tone: "tender, unhurried, an old rhythm picked back up",
+      openings: [
+        "{a} hands {b} a tea towel without looking, the way it always used to be done.",
+        "{b} turns on the hot tap and says some things never change.",
+        "{a} and {b} reach for the same glass and both let go of it at once.",
+      ],
+    },
+  },
+  {
+    id: "after-the-toast", title: "After the toast", icon: "🥂", category: "romance", roles: null,
+    tags: ["friends_to_more", "romance", "praise"],
+    premise: "{a} and {b} have been best friends for years. At a mutual friend's wedding tonight, {a}'s toast spent a little too long on how wonderful {b} is, in front of everyone. Now the reception is winding down, and {b} wants to hear the rest of it.",
+    card: {
+      setup: "The reception is down to the last few tables and a band packing up. {b} has found {a} on the terrace, still holding the index cards from the toast.",
+      wants: [
+        "{a} wants to laugh the toast off as a good line; {b} is not letting it go that easily.",
+        "{b} wants every compliment said again, slowly and in private; asking for it means admitting how much it meant.",
+      ],
+      beats: [
+        "One of them reads the index cards aloud, including the lines that got cut.",
+        "The compliments get specific, and the one hearing them stops pretending to be embarrassed.",
+        "They admit how many years this has been the joke neither was joking about.",
+        "One of them asks, plainly, whether tonight changes the friendship, and they decide together.",
+      ],
+      tone: "tender, admiring, years of friendship finally said out loud",
+      openings: [
+        "{b} holds out a hand for the index cards, and {a} hands them over.",
+        "{a} says the toast was mostly a joke, and {b} asks which part.",
+        "{a} and {b} sit on the terrace wall and watch the last guests leave.",
+      ],
+    },
+  },
+  {
+    id: "masks-on", title: "Masks stay on", icon: "🦚", category: "nightlife", roles: null,
+    tags: ["strangers", "romance", "dress_up", "tease"],
+    premise: "{a} and {b} meet at a costume party with one house rule: masks stay on until dawn. Neither knows who the other is, both are dressed as someone they are not, and the guessing is half the fun.",
+    card: {
+      setup: "A costume party in an old townhouse, every face behind a mask. {a} is dressed as a highwayman and {b} as a fallen angel, and both are hiding from the same conga line.",
+      wants: [
+        "{a} wants to guess who is behind {b}'s mask without being guessed first; the costume is making {a} bolder than usual.",
+        "{b} wants to keep the mystery going as long as possible; {a}'s guesses are getting warmer, and so is everything else.",
+      ],
+      beats: [
+        "They trade invented life stories to match the costumes.",
+        "A guess lands close, and its target laughs a little too loudly.",
+        "They make a deal: one clue each, for one favour each.",
+        "Dawn is a few hours off, and the rule about the masks starts to feel like a dare.",
+      ],
+      tone: "masked, playful, two strangers enjoying a reveal they haven't had yet",
+      openings: [
+        "{a} bows in costume and introduces a highwayman's made-up name.",
+        "{b} straightens {a}'s mask, which was not crooked.",
+        "{a} and {b} duck behind the same curtain to escape the conga line.",
+      ],
+    },
+  },
+  {
+    id: "the-forge", title: "The blacksmith's forge", icon: "⚒️", category: "fantasy", roles: ["the blacksmith", "the traveller"], costumes: ["a scorched leather apron over a sleeveless shirt, soot on the cheekbones", "a travelling cloak over fine but road-worn clothes"],
+    tags: ["slow_burn", "fantasy", "size_difference", "tender"],
+    premise: "{a} is the village blacksmith, a head and a half taller than anyone in the valley and twice as broad. {b} is a traveller who has brought a broken sword to the forge three nights running, and tonight the sword is fixed and {b} has not left.",
+    card: {
+      setup: "A forge glowing in the dark, the hammer finally quiet and a mended sword cooling on the anvil. {a} is wiping both hands on an apron; {b} is sitting on an upturned crate with no sign of going.",
+      wants: [
+        "{a} wants to be gentle with something for once; hands this big are used to iron and are not sure of anything softer.",
+        "{b} wants a reason to stay another night in the valley; asking {a} for one feels braver than crossing the mountains.",
+      ],
+      beats: [
+        "The blacksmith tests the sword's balance and hands it over hilt first, carefully.",
+        "The traveller asks about the old burns from the forge, and gets the stories behind them.",
+        "They compare hands, palm to palm, and both laugh at the difference.",
+        "The fire burns low, and one of them asks the other to stay until it is out.",
+      ],
+      tone: "tender, firelit, great strength handled with great care",
+      openings: [
+        "{a} sets the mended sword across {b}'s knees and says it will hold.",
+        "{b} asks whether the forge is always this warm, and {a} says only lately.",
+        "{a} has to duck under the doorframe to come back in, and {b} watches every inch of it.",
+      ],
+    },
+  },
+  {
+    id: "who-leads", title: "Who leads", icon: "💃", category: "romance", roles: null,
+    tags: ["rivals", "sports", "switch"],
+    premise: "{a} and {b} are rival champions of the ballroom circuit who have never danced together. Tonight, alone in an empty studio, they try one dance as partners, and neither has ever followed. So they take turns leading, and keep score.",
+    card: {
+      setup: "An empty dance studio after closing, mirrors on three walls and one song on repeat. {a} and {b} face each other in hold, and both have just tried to lead at once.",
+      wants: [
+        "{a} wants to find out what it is like to follow for once; handing the lead to a rival goes against every habit.",
+        "{b} wants to keep score and win; every turn at following is more fun than it has any right to be.",
+      ],
+      beats: [
+        "They agree on the rules: one song each, and the one leading picks the dance.",
+        "The first turn is stiff and competitive, and the mirrors show it.",
+        "The one following does something unexpected, and the one leading goes with it.",
+        "They lose count of whose turn it is, and neither asks.",
+      ],
+      tone: "competitive, close, two leads learning to trade the lead",
+      openings: [
+        "{a} offers a hand palm up and says {b} can lead the first one.",
+        "{b} starts the song again and waits to see who moves first.",
+        "{a} and {b} bow to each other like opponents before a final.",
+      ],
+    },
+  },
+  {
+    id: "haunted-inn", title: "The haunted inn", icon: "👻", category: "getaway", roles: null,
+    tags: ["forced_proximity", "spooky"],
+    premise: "A storm has closed the only road, and {a} and {b} are the last two guests at an old inn said to be haunted. Each has a room with a key and can turn in whenever they like; neither wants to be alone in one, so they keep each other company by the parlour fire.",
+    card: {
+      setup: "A low-beamed parlour, a fire that keeps flaring for no reason and a portrait whose eyes everyone mentions. {a} has the armchair nearest the fire; {b} has the one nearest the door, for now.",
+      wants: [
+        "{a} wants a calm, rational evening; the portrait has moved twice, and {b} is the only other person to tell.",
+        "{b} wants a good reason to move the armchair closer; a ghost would do nicely.",
+      ],
+      beats: [
+        "They agree on a rule: whoever hears it first says so, and nobody teases.",
+        "The lights go out, and something upstairs walks across the floor.",
+        "They find the inn's guestbook, and every entry mentions the same quiet visitor.",
+        "The fire flares, the parlour door swings open on its own, and they find they are holding hands.",
+      ],
+      tone: "spooky, candlelit, creaking floors and nervous laughter, never gory",
+      openings: [
+        "{a} jumps at a knock in the wall, and {b} pretends not to have jumped too.",
+        "{b} carries a candle into the parlour and asks whether the portrait was always facing this way.",
+        "{a} and {b} both reach for the poker when the fire flares, and both laugh.",
+      ],
+    },
+  },
+  {
+    id: "the-fitting", title: "The last fitting", icon: "🪡", category: "afterhours", roles: ["the tailor", "the client"], costumes: ["a waistcoat and rolled shirtsleeves, a tape measure around the neck", "a finished made-to-measure suit, chalk marks still on one cuff"],
+    tags: ["slow_burn", "romance", "dress_up", "praise"],
+    premise: "{a} is a tailor and {b} has come in for the last fitting of a suit three months in the making. The shop is closed, the suit is finished and the bill is settled, so tonight the compliments are no longer professional.",
+    card: {
+      setup: "A closed tailor's shop, the blinds down and one lamp over the mirror. {b} is standing on the fitting block in the finished suit; {a} is walking a slow circle, chalk in hand, looking for one last thing to fix.",
+      wants: [
+        "{a} wants to say how good the suit looks, and how good {b} looks in it, without hiding behind the craft; three months of fittings have made that hard.",
+        "{b} wants to hear it said plainly and not in measurements; standing still under {a}'s eye has been the best part of every fitting.",
+      ],
+      beats: [
+        "The tailor finds nothing left to fix and goes on looking anyway.",
+        "The client turns slowly in front of the mirror and asks for an honest verdict.",
+        "The compliments stop being about the cut of the jacket.",
+        "They agree the suit needs one more fitting, and both know why.",
+      ],
+      tone: "slow, admiring, three months of looking finally said out loud",
+      openings: [
+        "{a} smooths a lapel and says there is nothing left to fix.",
+        "{b} looks in the mirror and asks {a} to tell the truth about the suit.",
+        "{a} and {b} meet each other's eyes in the mirror, and neither looks away.",
+      ],
+    },
+  },
 ];
 
 export const ROLEPLAY_IDS = ROLEPLAYS.map((r) => r.id) as [string, ...string[]];

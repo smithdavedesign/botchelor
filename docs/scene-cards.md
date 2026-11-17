@@ -83,8 +83,8 @@ Every card, opening and roleplay is two adults who both want to be there. Never:
 
 | | Before | Now |
 | --- | --- | --- |
-| The show (`DATE_ROLEPLAYS`) | 25 | **39**, in ten kinds (new: Slow burn, Cozy) |
-| After Dark (`ROLEPLAYS`) | 20 | **33** |
+| The show (`DATE_ROLEPLAYS`) | 25 | **49**, in ten kinds (new: Slow burn, Cozy) |
+| After Dark (`ROLEPLAYS`) | 20 | **43** |
 
 The new themes come from David's census of 38,912 public character listings: its top genres (romance, fantasy, adventure, drama, royalty, slice of life, supernatural, sci-fi, crime) and tropes (enemies to lovers, rivals, forced proximity, slow burn, wholesome, protective, jealous, cold then warm, the very rich, crime outfits, vampires, married partners, hero and villain, gentle-dominant, non-human).
 
@@ -92,6 +92,7 @@ The new themes come from David's census of 38,912 public character listings: its
 
 - **The show's 14 (PG):** `snowed-in`, `grump-sunshine`, `arranged-match`, `truce-dinner`, `the-witness`, `off-camera`, `another-world`, `witch-hunter`, `last-two-awake`, `rival-athletes`, `old-friends-bench`, `night-bakery`, `ghost-tenant`, `heist-eve`.
 - **After Dark's 13:** `your-rules`, `dons-truce`, `said-no`, `arranged-match`, `off-duty`, `anniversary-strangers`, `after-the-party`, `the-cold-one`, `slow-sunday`, `after-the-cameras`, `summoned`, `two-captains`, `home-again`. Where one could have a say over the other's work, the attraction is mutual and said out loud; nobody is paid; anyone can leave.
+- **Ten more on each side for the census's gaps** (setups and heat it showed demand for that the house roleplays didn't serve; the list and why each one is in [tags.md](tags.md), "Roleplays added for the census gaps"). The show: `wedding-exes`, `time-capsule`, `moving-out`, `toast-night`, `reunion-couch`, `new-partners`, `the-forgery`, `trip-take-two`, `tour-bodyguard`, `automaton-watch`. After Dark: `the-house`, `the-final-night`, `gala-date`, `closing-night`, `after-the-toast`, `masks-on`, `the-forge`, `who-leads`, `haunted-inn`, `the-fitting`.
 
 ## Adding one
 
