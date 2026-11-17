@@ -36,11 +36,16 @@ describe("the show's roleplays (lib/roleplays.ts)", () => {
   });
 
   it("refuses a set-up that steers the date to the bedroom, which the show's check lets through, and says which words", () => {
-    for (const bad of ["a steamy night in bed together", "strip poker at a ski lodge", "the inn has only one bed", "{a} seduces {b} over dessert", "truth or dare in their underwear", "a risqué cabaret"]) {
+    for (const bad of ["a steamy night in bed together", "the inn has only one bed", "{a} seduces {b} over dessert", "a risqué cabaret"]) {
       expect(checkShowText({ premise: bad }).ok, bad).toBe(true); // why the roleplay check needs its own list
       expect(checkCustomRoleplay({ title: "x", premise: `${bad}, with {a} and {b}`, roles: null }), bad).toMatch(/the show is PG/);
     }
-    expect(checkCustomRoleplay({ title: "Après-ski", premise: "{a} and {b} play strip poker by the fire", roles: null })).toMatch(/\("strip poker"\)\.$/);
+    // Undressing and underwear are the show's own check's since 2026-11-17 (lib/safety.ts SHOW_UNDRESS): refused before this list is asked.
+    for (const bad of ["strip poker at a ski lodge", "truth or dare in their underwear"]) {
+      expect(checkShowText({ premise: bad }).ok, bad).toBe(false);
+      expect(checkCustomRoleplay({ title: "x", premise: `${bad}, with {a} and {b}`, roles: null }), bad).toMatch(/the show is PG/);
+    }
+    expect(checkCustomRoleplay({ title: "Dessert", premise: "{a} seduces {b} over dessert", roles: null })).toMatch(/\("seduces"\)\.$/);
     for (const fine of ["Santa's naughty list", "a steamy kitchen at the night market", "two hours to make out the code", "rival spies hooking up a wiretap", "a lustrous pearl", "the first kiss story"]) {
       expect(suggestiveIn(fine), fine).toBeNull();
     }

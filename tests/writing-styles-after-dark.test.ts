@@ -1,9 +1,11 @@
 // The narrated style in After Dark, end to end (lib/adult/scenes.ts writeScene, lib/adult/narrate-scene.ts): a step's new
-// lines come back with their prose, the prose is kept with the night, the step counts twice, and what narrating cost
-// is on the step's log. On the script nothing changes.
+// lines come back with their prose, the prose is kept with the night, the step counts once like any other, and what
+// narrating cost is on the step's log. On the script nothing changes.
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { POST } from "@/app/api/admin/after-dark/route";
 import { POST as storyPost } from "@/app/api/admin/after-dark/story/route";
+import { POST as stylePost } from "@/app/api/admin/after-dark/writing-style/route";
+import { adultStyleFor } from "@/lib/adult/narrate-scene";
 import { setAdultModelForTests } from "@/lib/adult/mode";
 import { claimAdmin } from "@/lib/admins";
 import { HOUSE_CHARACTERS } from "@/lib/house";
@@ -70,7 +72,7 @@ function models(beats: unknown) {
 const writes = async (id: string) => (await t.db.query<{ writes: number }>(`select writes from adult_usage where owner_id = $1`, [id])).rows[0]?.writes ?? 0;
 
 describe("a narrated After Dark step", () => {
-  it("comes back with its prose, keeps it with the night, counts as two steps and logs what narrating did", async () => {
+  it("comes back with its prose, keeps it with the night, counts one step like any other and logs what narrating did", async () => {
     const { id, cookie } = await admin();
     await setStyle(t.db, id, "adult", "narrated");
     const seen = models({ beats: [{ n: 1, before: "She leaned on the bar and let him see her looking.", after: "" }, { n: 2, before: "", after: "He turned his glass a quarter turn." }] });
@@ -86,7 +88,8 @@ describe("a narrated After Dark step", () => {
     expect(seen.narrator).toBe(1);
     const stored = (await t.db.query<{ lines: { beat?: { before: string } }[] }>(`select lines from adult_scenes where owner_id = $1`, [id])).rows[0];
     expect(stored.lines[0].beat?.before).toBe("She leaned on the bar and let him see her looking.");
-    expect(await writes(id)).toBe(2);
+    // One scene step: narration comes with the subscription (lib/writing-style.ts).
+    expect(await writes(id)).toBe(1);
     // The step's log says what narrating did (the update is fire-and-forget: give it a turn).
     await new Promise((r) => setTimeout(r, 20));
     const flags = (await t.db.query<{ flags: { narration?: { beats: number; of: number } } }>(`select flags from adult_steps where owner_id = $1 and kind = 'write'`, [id])).rows[0].flags;
@@ -119,6 +122,17 @@ describe("a narrated After Dark step", () => {
     const again = await (await story({ a: CAST_A, b: CAST_B, chapter: "now" }, cookie)).json();
     expect(again.made).toBe(false);
     expect(seen.story).toBe(1);
+  });
+
+  it("After Dark has its own style route: an admin picks narrated there, and anyone it's closed to gets 404", async () => {
+    const { id, cookie } = await admin();
+    const set = (c: string, style: string) =>
+      stylePost(new Request(`${BASE_URL}/api/admin/after-dark/writing-style`, { method: "POST", headers: { "content-type": "application/json", cookie: c }, body: JSON.stringify({ style }) }));
+    const ok = await set(cookie, "narrated");
+    expect(ok.status).toBe(200);
+    expect(await ok.json()).toEqual({ styles: { show: "script", adult: "narrated" } });
+    expect(await adultStyleFor(t.db, id)).toBe("narrated");
+    expect((await set(newUserCookie(), "narrated")).status).toBe(404);
   });
 
   it("the story route is the same 404 for anyone After Dark isn't open to", async () => {

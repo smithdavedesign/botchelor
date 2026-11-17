@@ -13,14 +13,14 @@ const ABOUT: Record<StyleSide, Record<WritingStyle, string>> = {
   },
   adult: {
     script: "Lines and a short action, as every night has been written.",
-    narrated: "Each line wrapped in prose, like a novel. Counts as two scene steps.",
+    narrated: "Each line wrapped in prose, like a novel: what they do, what they notice, a flicker of what they think.",
   },
 };
 
 /**
  * How your dates and scenes are written (lib/narration.ts, lib/writing-style.ts): the script, or narrated prose around
- * each line. `side`: "show" for your dates and companion scenes, "adult" for After Dark. Admins only while it's tested
- * (the page only shows it to them). `price`: what narrated costs on top, said beside it.
+ * each line. `side`: "show" for your dates and companion scenes (the Companion Plan's), "adult" for After Dark. The page
+ * only shows it to someone it's open to. `price`: a word beside Narrated ("included with your plan").
  */
 export default function WritingStylePicker({ side, initial, price }: { side: StyleSide; initial: WritingStyle; price?: string }) {
   const [style, setStyle] = useState<WritingStyle>(initial);
@@ -31,7 +31,8 @@ export default function WritingStylePicker({ side, initial, price }: { side: Sty
     if (next === style || busy) return;
     setBusy(true);
     setNote(null);
-    const res = await requestJson("/api/writing-style", { side, style: next }).catch(() => null);
+    // Each side has its own route: the show never reads After Dark (tests/adult-imports.test.ts).
+    const res = await requestJson(side === "show" ? "/api/writing-style" : "/api/admin/after-dark/writing-style", { style: next }).catch(() => null);
     setBusy(false);
     if (!res?.ok) return setNote({ text: res?.message ?? "Couldn't change it. Try again.", error: true });
     setStyle(next);
@@ -40,9 +41,7 @@ export default function WritingStylePicker({ side, initial, price }: { side: Sty
 
   return (
     <section className="card writing-style" aria-labelledby={`writing-style-${side}`}>
-      <h2 id={`writing-style-${side}`}>
-        Writing style <span className="badge">admins</span>
-      </h2>
+      <h2 id={`writing-style-${side}`}>Writing style</h2>
       <div className="writing-style-options" role="radiogroup" aria-label="Writing style">
         {(["script", "narrated"] as const).map((s) => (
           <label key={s} className={`writing-style-option${style === s ? " on" : ""}`}>

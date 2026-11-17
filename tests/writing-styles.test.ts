@@ -23,8 +23,10 @@ import {
   tidyPart,
   wornCut,
 } from "@/lib/narration";
-import { adultStory, episodeStory, storyFor } from "@/lib/stories";
-import { extraFor, NARRATED_DATE_EXTRA_TOKENS, replyWeight, setStyle, styleFor, stylesOpen, writeWeight } from "@/lib/writing-style";
+import { adultStory, canMakeStory, episodeStory, storyFor } from "@/lib/stories";
+import { hasDepth, setStyle, STORY_TOKENS, storyPrice, styleFor, stylesAudience, stylesOpen } from "@/lib/writing-style";
+import { grantPlan } from "@/lib/paid-plans";
+import { episodeAllowance } from "@/lib/allowance";
 import { api, BASE_URL, episodeJson, HOUSE_PARTNER_ID, newUserCookie, scriptedModel, scriptOutcome, startTestDb, userIdOf, validCharacter } from "./helpers";
 
 let t: Awaited<ReturnType<typeof startTestDb>>;
@@ -233,49 +235,82 @@ describe("stories", () => {
 });
 
 describe("who gets narrated, and what it costs", () => {
-  it("narrated is admins only: anyone else is refused, and a stored one reads as the script", async () => {
+  const member = async () => {
+    const cookie = newUserCookie();
+    const id = userIdOf(cookie);
+    await grantPlan(t.db, id, "companion", "initial", { subscriptionId: `sub_${id.slice(0, 8)}` });
+    return { cookie, id };
+  };
+
+  it("narrated comes with the Companion Plan (and for admins): anyone else is refused, and a stored one reads as the script", async () => {
     const someone = userIdOf(newUserCookie());
     expect(await setStyle(t.db, someone, "show", "narrated")).toBe(false);
     await t.db.query(`insert into writing_prefs (user_id, show_style) values ($1, 'narrated')`, [someone]);
     expect(await styleFor(t.db, someone, "show")).toBe("script");
+    const m = await member();
+    expect(await setStyle(t.db, m.id, "show", "narrated")).toBe(true);
+    expect(await styleFor(t.db, m.id, "show")).toBe("narrated");
     const { id } = await admin();
-    expect(await setStyle(t.db, id, "adult", "narrated")).toBe(true);
-    expect(await styleFor(t.db, id, "adult")).toBe("narrated");
-    expect(await styleFor(t.db, id, "show")).toBe("script");
+    expect(await setStyle(t.db, id, "show", "narrated")).toBe(true);
+    expect(await styleFor(t.db, id, "show")).toBe("narrated");
   });
 
-  it("the route says so too", async () => {
+  it("After Dark's side opens by its own switch: admins, and a member only once it's open to all", async () => {
+    const m = await member();
+    expect(await setStyle(t.db, m.id, "adult", "narrated")).toBe(false);
+    expect(await setStyle(t.db, m.id, "adult", "narrated", { adultOpenToAll: true })).toBe(true);
+    expect(await styleFor(t.db, m.id, "adult")).toBe("script");
+    expect(await styleFor(t.db, m.id, "adult", { adultOpenToAll: true })).toBe("narrated");
+    const { id } = await admin();
+    expect(await setStyle(t.db, id, "adult", "narrated")).toBe(true);
+  });
+
+  it("WRITING_STYLES: admins only, or off for everyone", async () => {
+    const m = await member();
+    const { id } = await admin();
+    expect([stylesAudience({}), stylesAudience({ WRITING_STYLES: "admins" }), stylesAudience({ WRITING_STYLES: "0" })]).toEqual(["members", "admins", "off"]);
+    expect(await stylesOpen(t.db, m.id, "show", { env: { WRITING_STYLES: "admins" } })).toBe(false);
+    expect(await stylesOpen(t.db, id, "show", { env: { WRITING_STYLES: "admins" } })).toBe(true);
+    expect(await stylesOpen(t.db, id, "show", { env: { WRITING_STYLES: "0" } })).toBe(false);
+    expect(await stylesOpen(t.db, null)).toBe(false);
+    expect(styleOf("prose")).toBe("script");
+  });
+
+  it("the route says so too, and names the plan", async () => {
     const cookie = newUserCookie();
-    const res = await postStyle(new Request(`${BASE_URL}/api/writing-style`, { method: "POST", headers: { "content-type": "application/json", cookie }, body: JSON.stringify({ side: "show", style: "narrated" }) }));
+    const post = (c: string, style: string) => postStyle(new Request(`${BASE_URL}/api/writing-style`, { method: "POST", headers: { "content-type": "application/json", cookie: c }, body: JSON.stringify({ style }) }));
+    const res = await post(cookie, "narrated");
     expect(res.status).toBe(403);
+    expect(await res.json()).toMatchObject({ error: "not_open", plan: "/companion/plan" });
     const a = await admin();
-    const ok = await postStyle(new Request(`${BASE_URL}/api/writing-style`, { method: "POST", headers: { "content-type": "application/json", cookie: a.cookie }, body: JSON.stringify({ side: "show", style: "narrated" }) }));
-    expect(ok.status).toBe(200);
+    expect((await post(a.cookie, "narrated")).status).toBe(200);
     const got = await (await getStyle(new Request(`${BASE_URL}/api/writing-style`, { headers: { cookie: a.cookie } }))).json();
     expect(got).toEqual({ styles: { show: "narrated", adult: "script" }, open: true });
   });
 
-  it("prices: an admin pays nothing; anyone else a token more a date, and double weight for a step or a scene reply", async () => {
-    const { id } = await admin();
-    expect(await extraFor(t.db, id, NARRATED_DATE_EXTRA_TOKENS)).toBe(0);
-    expect(await extraFor(t.db, userIdOf(newUserCookie()), NARRATED_DATE_EXTRA_TOKENS)).toBe(1);
-    expect([writeWeight("script"), writeWeight("narrated"), replyWeight("narrated")]).toEqual([1, 2, 2]);
-    expect(styleOf("prose")).toBe("script");
-    expect(await stylesOpen(t.db, null)).toBe(false);
+  it("a story costs a bought date without the plan, and nothing with it", async () => {
+    const m = await member();
+    expect(await storyPrice(t.db, m.id)).toBe(0);
+    expect(await storyPrice(t.db, (await admin()).id)).toBe(0);
+    expect(await storyPrice(t.db, userIdOf(newUserCookie()))).toBe(STORY_TOKENS);
+    expect(await hasDepth(t.db, m.id)).toBe(true);
+    expect(await hasDepth(t.db, userIdOf(newUserCookie()))).toBe(false);
   });
 
-  it("an admin's narrated date is booked narrated and costs them no extra token; anyone else's stays the script", async () => {
-    const a = await admin();
-    await setStyle(t.db, a.id, "show", "narrated");
-    const c = await (await api.createCharacter(validCharacter({ name: "Mara Vey" }), a.cookie)).json();
+  it("a member's narrated date is booked narrated at no extra date; anyone else's stays the script", async () => {
+    const m = await member();
+    await setStyle(t.db, m.id, "show", "narrated");
+    const c = await (await api.createCharacter(validCharacter({ name: "Mara Vey" }), m.cookie)).json();
+    const before = (await episodeAllowance(t.db, m.id)).left;
     scriptOutcome({ ending: "friends" });
     scriptedModel([episodeJson()]);
-    const res = await api.createEpisode({ character_id: c.id, partner_id: HOUSE_PARTNER_ID }, a.cookie);
+    const res = await api.createEpisode({ character_id: c.id, partner_id: HOUSE_PARTNER_ID }, m.cookie);
     const ep = await res.json();
     expect(res.status).toBe(200);
-    const row = (await t.db.query<{ setup: { style?: string; style_tokens?: number } }>(`select setup from episodes where id = $1`, [ep.id])).rows[0];
+    const row = (await t.db.query<{ setup: { style?: string } }>(`select setup from episodes where id = $1`, [ep.id])).rows[0];
     expect(row.setup.style).toBe("narrated");
-    expect(row.setup.style_tokens).toBeUndefined();
+    // One date, like any other: narration is the plan's, never a second date.
+    expect((await episodeAllowance(t.db, m.id)).left).toBe(before - 1);
 
     const cookie = newUserCookie();
     await t.db.query(`insert into writing_prefs (user_id, show_style) values ($1, 'narrated')`, [userIdOf(cookie)]);
@@ -287,19 +322,26 @@ describe("who gets narrated, and what it costs", () => {
     expect(theirs.setup.style).toBeUndefined();
   });
 
-  it("stories are admins only, and an After Dark one is kept and charged once", async () => {
+  it("a date's story: only for someone who can see the date, and only its own people or a member can make one", async () => {
     const someone = userIdOf(newUserCookie());
     expect(await episodeStory(t.db, "nope", someone, { make: true })).toMatchObject({ ok: false, status: 404 });
+    expect(await canMakeStory(t.db, someone, false)).toBe(false);
+    expect(await canMakeStory(t.db, someone, true)).toBe(true);
+    expect(await canMakeStory(t.db, (await member()).id, false)).toBe(true);
+    expect(await canMakeStory(t.db, null, true)).toBe(false);
+  });
+
+  it("an After Dark story is kept, counts one scene step, and is closed until it's open to the viewer", async () => {
     const { id } = await admin();
     const charges: number[] = [];
-    const deps = (replies: string[]) => ({ model: model(replies), make: true, charge: async (n: number) => (charges.push(n), null), giveBack: async () => {} });
+    const deps = (replies: string[], open = true) => ({ model: model(replies), make: true, open, charge: async (n: number) => (charges.push(n), null), giveBack: async () => {} });
     const input = { ref: "night-1", names: { a: "Sable Rue", b: "Chud Crusher" }, place: "her bedroom", context: null, lines: [{ who: "Sable", dialogue: "Stay." }] };
+    expect(await adultStory(t.db, id, input, deps([], false))).toMatchObject({ ok: false, status: 404 });
     const first = await adultStory(t.db, id, input, deps([JSON.stringify({ title: "Stay", paragraphs: ["She asked him to stay.", "He did."] })]));
     expect(first).toMatchObject({ ok: true, made: true, story: { title: "Stay" } });
     const again = await adultStory(t.db, id, input, deps([]));
     expect(again).toMatchObject({ ok: true, made: false });
-    // An admin is charged nothing (the weight is 0 for them).
-    expect(charges).toEqual([0]);
+    expect(charges).toEqual([1]);
     expect(await storyFor(t.db, "adult", "night-1", id)).toMatchObject({ paragraphs: ["She asked him to stay.", "He did."] });
   });
 });

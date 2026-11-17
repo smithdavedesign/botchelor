@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import StoryButton from "@/app/StoryButton";
-import { storyFor } from "@/lib/stories";
-import { extraFor, STORY_TOKENS, stylesOpen } from "@/lib/writing-style";
+import { canMakeStory, storyFor } from "@/lib/stories";
+import { STORY_TOKENS, storyPrice as storyPriceFor } from "@/lib/writing-style";
 import { cookies, headers } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -226,13 +226,16 @@ export default async function EpisodePage({
   // After an aired date: talk with either of them one to one (lib/companion.ts), where companions are open to the
   // viewer and the character is one they may talk with. Signed out, the same characters get a sign-in link.
   const auth = authFromCookieStore(cookieStore);
-  // Writing styles (lib/writing-style.ts): the story of a finished date, admins only while it's tested.
+  // The date told as a story (lib/stories.ts): one that exists reads free for everyone who gets the lines; making it is
+  // for the date's own people, the Companion Plan's members and admins (included with the plan, else a bought date).
   // Started now and read after the page's other reads, so it adds no round trip of its own.
-  const storyState = stylesOpen(db, viewerId).then(async (open) =>
-    open
-      ? { open, kept: await storyFor(db, "episode", id, null).catch(() => null), price: (await extraFor(db, viewerId ?? "", STORY_TOKENS)) ? `◈ ${STORY_TOKENS}` : "free" }
-      : { open, kept: null, price: undefined },
-  );
+  const storyState = storyFor(db, "episode", id, null)
+    .catch(() => null)
+    .then(async (kept) => {
+      if (kept) return { open: true, kept, price: undefined as string | undefined };
+      const can = await canMakeStory(db, viewerId, episode.is_creator);
+      return { open: can, kept: null, price: can ? ((await storyPriceFor(db, viewerId ?? "")) ? `${STORY_TOKENS} bought date` : "included") : undefined };
+    });
   const talkP: Promise<{ id: string; name: string; signIn: boolean }[]> =
     ready && episode.revealed
       ? (async () => {
@@ -675,7 +678,7 @@ export default async function EpisodePage({
           <TranscriptRead episodeId={episode.id} characters={episode.characters} turns={episode.transcript} thoughts={episode.inner?.thoughts} />
         )}
         {storyOpen && episode.status === "ready" && episode.transcript && episode.transcript.length > 0 && (
-          // Read it as a story (lib/stories.ts): admins only while it's tested; made once, then kept for everyone.
+          // Read it as a story (lib/stories.ts): made once by one of the date's own people or a plan member, then kept for everyone.
           <StoryButton endpoint={`/api/episodes/${episode.id}/story`} initial={keptStory} price={storyPrice} className="card episode-story" />
         )}
 

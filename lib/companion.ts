@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { shortName } from "./names";
 import { narrate, type Beat } from "./narration";
-import { styleFor } from "./writing-style";
+import { hasDepth, styleFor } from "./writing-style";
 import { isAdmin } from "./admins";
 import { adultProviderRouting, OPENROUTER_BASE_URL } from "./adult/mode";
 import { adultKeys } from "./adult/settings";
@@ -10,7 +10,7 @@ import { portraitPathSql } from "./assets";
 import { loadCharacter, type Character } from "./character";
 import { lessonsForPrompt } from "./character-lessons";
 import { ClauseSplitter, spokenClause } from "./companion-live-shared";
-import { AVOID_LINES, BUBBLE_MAX, companionMessages, MAX_BUBBLES, RECENT_TURNS, repeatsEarlier, replyBubbles, sceneReply, type PromptRoleplay, type PromptScene, type PromptTurn } from "./companion-prompt";
+import { AVOID_LINES, BUBBLE_MAX, companionMessages, DEEP_TURNS, MAX_BUBBLES, RECENT_TURNS, repeatsEarlier, replyBubbles, sceneReply, type PromptRoleplay, type PromptScene, type PromptTurn } from "./companion-prompt";
 import { factsForPrompt, updateFacts, updateSummary } from "./companion-memory";
 import { forgetUnusedVoices, voiceUrl } from "./companion-voice";
 import {
@@ -683,23 +683,23 @@ type SpeakResult = { ok: true; ids: string[]; texts: string[] } | CompanionFail;
 export const REDRAW_WITHIN_MS = 40_000;
 
 /** The recent turns, oldest first (a redrawn reply's earlier draw left out, and the reply being drawn again). */
-async function recentTurns(db: Db, threadId: string, exclude: readonly string[] = []): Promise<{ turns: PromptTurn[]; avoid: string[]; photos: string[] }> {
+async function recentTurns(db: Db, threadId: string, exclude: readonly string[] = [], keep: number = RECENT_TURNS): Promise<{ turns: PromptTurn[]; avoid: string[]; photos: string[] }> {
   const { rows: all } = await db.query<{ role: "user" | "character"; text: string; action: string | null; roleplay: string | null; via: string }>(
     `select role, text, action, roleplay, via from companion_messages
       where thread_id = $1 and role <> 'system' and replaced_by is null and not (id = any($3::text[]))
       order by created_at desc, id desc limit $2`,
-    [threadId, RECENT_TURNS + AVOID_LINES, exclude],
+    [threadId, keep + AVOID_LINES, exclude],
   );
   // A photo is not something the character said: it stays out of the turns (so a reply never imitates its alt text),
   // and the prompt is told a photo was sent, so "nice picture" doesn't come as a surprise.
   const rows = all.filter((r) => r.via !== "photo");
   const photos = all.filter((r) => r.via === "photo").map((r) => r.text).slice(0, 2);
   const recent = rows
-    .slice(0, RECENT_TURNS)
+    .slice(0, keep)
     .reverse()
     .map((r) => (isTextTag(r.action) ? { ...r, action: null } : r));
   const avoid = rows
-    .slice(RECENT_TURNS)
+    .slice(keep)
     .filter((r) => r.role === "character")
     .map((r) => r.text);
   return { turns: recent, avoid, photos };
@@ -741,7 +741,9 @@ async function speak(
     call?: boolean;
   } = {},
 ): Promise<SpeakResult> {
-  const { turns, avoid, photos } = await recentTurns(db, t.id, opts.replacing);
+  // The Companion Plan's longer memory (lib/writing-style.ts hasDepth): twice the turns in the prompt.
+  const deep = await hasDepth(db, t.user_id, now);
+  const { turns, avoid, photos } = await recentTurns(db, t.id, opts.replacing, deep ? DEEP_TURNS : RECENT_TURNS);
   const lastUser = [...turns].reverse().find((x) => x.role === "user")?.text ?? "";
   const facts = await factsForPrompt(db, t.id, lastUser, now);
   const model = await modelFor(db);
@@ -776,7 +778,7 @@ async function speak(
     let raw: string;
     try {
       raw = await model.complete(
-        companionMessages({ character, turns, facts, summary: t.summary, length: t.reply_length, avoid, now, insteadOf, cue: opts.cue, scene, call, yours, lastDate, activeNudge: nudge, photos, lessons, story, house, lockedPicture }),
+        companionMessages({ character, turns, deep, facts, summary: t.summary, length: t.reply_length, avoid, now, insteadOf, cue: opts.cue, scene, call, yours, lastDate, activeNudge: nudge, photos, lessons, story, house, lockedPicture }),
         {
           temperature: 0.9,
           frequencyPenalty: 0.3,

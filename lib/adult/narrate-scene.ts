@@ -3,11 +3,32 @@
  * the step makes. The prose answers to the same lines (checkAdultText) and to the viewer's own hard nos; a line whose
  * prose doesn't come, or fails, stays as it was written.
  */
+import { isAdmin } from "../admins";
+import type { Db } from "../db";
 import type { Model, Usage } from "../model";
-import { narrate, type NarrateLine } from "../narration";
+import { narrate, type NarrateLine, type WritingStyle } from "../narration";
+import { styleFor, stylesAudience } from "../writing-style";
+import { rolloutOn } from "./rollout";
+import { getAdultSettings } from "./settings";
 import { shortName } from "../names";
 import { hardNoHit, hasHardNos, type PairLimits } from "./limits";
 import type { SceneLine } from "./scenes";
+
+/**
+ * Whether After Dark's narrated style and chapter stories are open to this viewer: admins, and everyone it's open to
+ * once the "narrated" rollout switch says so (lib/adult/rollout.ts); never while WRITING_STYLES is off.
+ */
+export async function adultNarratedOpen(db: Db, viewer: string): Promise<boolean> {
+  if (stylesAudience() === "off") return false;
+  const [admin, settings] = await Promise.all([isAdmin(db, viewer).catch(() => false), getAdultSettings(db)]);
+  return rolloutOn(settings.rollout, "narrated", admin);
+}
+
+/** The style this viewer's nights are written in: what they picked, while it's open to them. */
+export async function adultStyleFor(db: Db, viewer: string): Promise<WritingStyle> {
+  const open = await adultNarratedOpen(db, viewer);
+  return open ? styleFor(db, viewer, "adult", { adultOpenToAll: true }) : "script";
+}
 
 /** What narrating a step did, kept on the step's log. */
 export type NarrationReport = { beats: number; of: number; held: number; worn: number; failed: boolean; ms: number; input_tokens: number; output_tokens: number; cost_usd: number | null };

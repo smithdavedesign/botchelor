@@ -31,6 +31,9 @@ have no billing API, so their top-ups are entered by hand.
 |---|---|---|
 | A date (show model) | ~15 model calls, ~26k tokens in and ~2.2k out | **1.3–2.5¢** (measured; thinking tokens are the spread) |
 | A date on an agent's own model (self-performed) | Our hosting only | ~$0 |
+| Narrating a show date (the Narrated style, [writing-styles.md](writing-styles.md); the Companion Plan's) | One extra call per 8 lines on the show's model with its thinking off: ~3.5k tokens in and ~1.5k out for an 11-line date | **about a third more than the date itself, under 1¢** (measured 2026-11-17) |
+| A date told as a story | One call on the same model | under 1¢. Included with the Companion Plan; otherwise one bought date. |
+| Narrating an After Dark step | One DeepSeek V3.1 call: ~800–950 tokens in, ~150–250 out | **0.05–0.08¢, 2–3 s** (measured 2026-11-17), on top of the step's ~0.24¢ |
 | A text in the thread (house reply) | One short model call | well under 0.1¢ |
 | A companion's voice note (docs/companions.md, P3) | One Kokoro call (Venice `tts-kokoro`, or Replicate's Kokoro), kept by its words so it's never made twice | **~0.04¢ on Venice, up to ~0.2¢ on Replicate**. The plan includes 30 a month; else 1 token buys 100 (~0.7¢ each in). At most 3,000 a day across everyone. |
 | A character's face kit for calls (docs/PRDs/digital-human.md, Tier 0; drawn once per approved portrait) | Eight Qwen image edits on Replicate (`qwen/qwen-image-edit-2511`, ~3¢ each; the eighth is the talking still Ditto animates, drawn alone for an older kit on its next call) plus one Wan 2.2 clip at 480p (~5¢), each still and three frames of the clip through the PG check (one Venice vision call each) | **~29¢ a character, once**. Started by a plan member's or admin's call, at most 12 a day across everyone (`FACE_KIT_PER_DAY`, ~$3 a day at the most); nothing a minute. |

@@ -141,9 +141,8 @@ import { carriesQuote, quotedSpans, quotesKept, steerQuotes, withoutQuotes, type
 import { kickAutoPicture } from "./auto-pictures";
 import { chapterBeats, clearBeats, drawNightMoment, fileBeats, recordBeats, rewindBeats, type PublicBeat } from "./beats";
 import { castNames, sceneCharacter, styleExamples, voiceKitLines } from "./voice";
-import { narrateStep } from "./narrate-scene";
+import { adultStyleFor, narrateStep } from "./narrate-scene";
 import type { Beat } from "../narration";
-import { styleFor, writeWeight } from "../writing-style";
 import { ACTION_ONLY_MAX, ACTION_ONLY_WINDOW, actionOnlyRun, checkAsides, misattributedQuote, overusedTics, TIC_CAP, withoutQuote, withoutTics } from "./asides";
 export { SOFT_CHAPTERS } from "./stages";
 
@@ -2806,7 +2805,7 @@ async function writeScene(db: Db, adminId: string, x: string, y: string, directi
   const { place, stage, stage_from, set_place, place_history, moves } = next;
   // The narrated style (lib/narration.ts): this step's new lines wrapped in prose on the fast writer, after every check
   // above, and held to the same lines and the viewer's hard nos. A line whose prose doesn't come stays as it is.
-  const style = await styleFor(db, adminId, "adult");
+  const style = await adultStyleFor(db, adminId);
   const lines =
     style === "narrated"
       ? await narrateStep(fast ?? (await adultModel(db, process.env, { model: writer })), next.lines, scene.lines.length, { a: scene.a.name, b: scene.b.name }, set_place ?? place, limits, scene.lines, (r) => {
@@ -2821,8 +2820,8 @@ async function writeScene(db: Db, adminId: string, x: string, y: string, directi
             suggestions = $9::jsonb, whispers = $10::jsonb, undo = $11::jsonb, updated_at = now() where id = $1`,
     [scene.id, JSON.stringify(lines), place, stage, stage_from, set_place, JSON.stringify(place_history), JSON.stringify(moves.slice(-40)), JSON.stringify(suggestions), JSON.stringify(nextWhispers), JSON.stringify(stack)],
   );
-  // A narrated step counts as more than one of the month's scene steps (lib/writing-style.ts writeWeight).
-  await countUse(db, adminId, "writes", undefined, writeWeight(style));
+  // One scene step, whatever the style: narration comes with the subscription (lib/writing-style.ts).
+  await countUse(db, adminId, "writes");
   // Pictures of this night at all: never of a character nobody has set up (lib/adult/readiness.ts).
   const notReady = await picturesBlocked(db, adminId, scene.a.id, scene.b.id);
   // The moments in these lines worth a picture (lib/adult/beats.ts): offered as the theater reaches each, once both are
