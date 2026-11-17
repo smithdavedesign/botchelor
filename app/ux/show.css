@@ -1829,11 +1829,16 @@ main:has(> .couple-page) {
 
 /* ---------------- the house (app/house/page.tsx, app/HouseScene.tsx; lib/house-scenes.ts) ----------------
    A scene is a transcript with the cast's faces: it borrows the cast chat's thread (.cast-chat-*). Today's scene is the
-   card at full size; the earlier ones sit under it a little quieter. One reading column on every width. */
+   card at full size; the earlier ones sit under it a little quieter. A wide page like the show's other tabs (.page-wide),
+   so its tabs and title start where theirs do (David 2026-11-16: it was the one tab centred); the transcripts keep
+   one reading column, from the same left edge. */
 .house-page {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
+}
+.house-page > :not(.show-tabs) {
+  max-width: var(--page-read);
 }
 .house-page > header > h1 {
   margin: 0;

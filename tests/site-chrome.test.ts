@@ -1,7 +1,7 @@
 // The site's chrome: the footer as the design system draws it (four groups that fold on a phone, 2026-11-16; the
 // 2026-11-14 audit's /everything keeps every other page, app/everything/page.tsx), and phones get a tab bar of the
 // phone-first doors, Watch · Chat · Characters · You (app/PhoneTabBar.tsx), off the full-screen surfaces.
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { NextRequest } from "next/server";
@@ -56,7 +56,22 @@ describe("the footer", () => {
     expect(css).toMatch(/\.footer-groups \{\s*display: grid;\s*grid-template-columns: repeat\(4, minmax\(0, 1fr\)\);/);
     expect(css).toMatch(/@media \(max-width: 640px\) \{\s*\/\*[^*]*\*\/\s*\.footer-groups \{\s*grid-template-columns: 1fr;/);
     // "Give us feedback" (a button: it opens a dialog) reads as one of the quiet links, not an accent link.
-    expect(css).toMatch(/\.site-footer \.footer-links button\.link-button \{\s*color: var\(--muted\);\s*font-weight: inherit;\s*text-decoration: none;/);
+    expect(css).toMatch(/\.site-footer \.footer-links button\.link-button \{[^}]*color: var\(--muted\);\s*font-weight: inherit;\s*text-decoration: none;/);
+  });
+
+  it("runs the screen's full width, edge to edge like the header, with every footer rule in one place (chrome.css)", () => {
+    const css = source("app/ux/chrome.css");
+    const base = css.match(/\n\.site-footer \{([^}]*)\}/)?.[1] ?? "";
+    expect(base).toMatch(/margin: 0;/);
+    expect(base).toMatch(/padding: var\(--space-5\) var\(--gutter\) var\(--space-6\);/);
+    expect(base).toMatch(/border-top: 1px solid var\(--line\);/);
+    expect(base).not.toMatch(/max-width/);
+    // No other sheet sizes or dresses the footer: only the full-screen surfaces that hide it name it.
+    const sheets = ["app/globals.css", ...readdirSync(new URL("../app/ux", import.meta.url)).filter((f) => f.endsWith(".css") && f !== "chrome.css").map((f) => `app/ux/${f}`)];
+    for (const sheet of sheets) {
+      const rules = [...source(sheet).matchAll(/([^{}]*\.site-footer[^{}]*)\{([^}]*)\}/g)];
+      for (const [, selector, body] of rules) expect(body.trim(), `${sheet}: ${selector.trim()}`).toBe("display: none;");
+    }
   });
 
   it("keeps the safety lines, the letter beside the accounts, and the fine print with the © and the support address", () => {

@@ -134,27 +134,6 @@
   }
 }
 
-/* ---------------- the site footer (app/layout.tsx) ---------------- */
-/* The same gutter as the page above it, so the footer's text starts where the content does. */
-.site-footer {
-  padding-inline: var(--gutter);
-}
-.site-footer > p,
-.site-footer .crisis {
-  margin: 0 0 var(--space-2);
-}
-/* A plain list of links with no bullets (app/legal/sections.tsx; the footer's row in app/ux/chrome.css). */
-.footer-links {
-  display: grid;
-  gap: var(--space-1);
-  margin: var(--space-2) 0 0;
-  padding: 0;
-  list-style: none;
-}
-.footer-links li {
-  margin: 0;
-}
-
 /* ---------------- /legal, /terms, /privacy ---------------- */
 .legal-toc {
   margin: var(--space-3) 0 var(--space-4);

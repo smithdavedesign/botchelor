@@ -2,7 +2,7 @@
  * The 2026-11-08 UI design audit (docs/audits/2026-11-08-ui-design-audit.md): what each of its thirteen fixes promises.
  * The CSS token ratchet (item 9) has its own file, tests/css-tokens.test.ts.
  */
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { createElement, type ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -303,6 +303,17 @@ describe("page widths (docs/brand.md, Layout)", () => {
     ]) {
       expect(source(page), page).toContain(root);
     }
+  });
+
+  it("gives every page with the show's tabs the wide page, so the tabs start at the same edge on each (David 2026-11-16: /house was centred)", () => {
+    const pages = (readdirSync(new URL("../app", import.meta.url), { recursive: true }) as string[])
+      .filter((f) => f.endsWith("page.tsx"))
+      .map((f) => `app/${f}`)
+      .filter((f) => source(f).includes("<ShowTabs"));
+    expect(pages).toEqual(expect.arrayContaining(["app/watch/page.tsx", "app/house/page.tsx", "app/reunion/page.tsx", "app/shows/page.tsx"]));
+    for (const page of pages) expect(source(page), page).toMatch(/className="[^"]*\bpage-wide\b/);
+    // The house's transcripts stay one reading column, from the tabs' left edge.
+    expect(source("app/ux/show.css")).toMatch(/\.house-page > :not\(\.show-tabs\) \{\s*max-width: var\(--page-read\);/);
   });
 
   it("has one <main>, the layout's: a page's root is never a second one", () => {

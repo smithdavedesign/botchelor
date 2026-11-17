@@ -64,7 +64,7 @@ export default async function HousePage({ searchParams }: { searchParams?: Promi
     </>
   );
   return (
-    <article className="house-page">
+    <article className="house-page page-wide">
       <ShowTabs active="/house" />
       <header>
         <p className="kicker">

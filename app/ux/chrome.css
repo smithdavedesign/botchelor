@@ -13,8 +13,58 @@
 
 /* ---------------- the footer (app/layout.tsx, app/FooterGroup.tsx) ---------------- */
 /* As the design system draws it (SiteFooter, components.css .bz-footer-*; David 2026-11-16, "our footer should match
-   the designs"): four groups as columns on a wide screen, each a row that folds on a phone; the letter beside the
-   show's accounts over a rule; the fine print centred under it all. Quiet links (app/ux/company.css). */
+   the designs"): the screen's full width, edge to edge like the header and the season strip, its text starting at the
+   header's gutter; the adults line centred over four groups (columns on a wide screen, each a row that folds on a
+   phone); the letter beside the show's accounts over a rule; the fine print centred under it all. Every footer rule
+   lives here: until 2026-11-17 they were spread over globals.css, agents-footer.css and company.css, each overriding
+   the last (46rem, then 72rem wide). */
+.site-footer {
+  margin: 0;
+  padding: var(--space-5) var(--gutter) var(--space-6);
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+/* Room under it for the floating feedback button (app/FeedbackDock.tsx), so the button never sits on the last line;
+   a phone has no floating button (it's a row in the menu). */
+body:has(.feedback-fab) .site-footer {
+  padding-bottom: calc(var(--space-6) + 2.75rem + var(--space-4));
+}
+@media (max-width: 720px) {
+  body:has(.feedback-fab) .site-footer {
+    padding-bottom: var(--space-6);
+  }
+}
+.site-footer > p,
+.site-footer .crisis {
+  margin: 0 0 var(--space-2);
+}
+.site-footer > p.footer-adults {
+  color: var(--ink);
+  font-weight: 600;
+  text-align: center;
+}
+/* A plain list of links with no bullets: the footer's groups, and the policy pages' own foot (app/legal/sections.tsx). */
+.footer-links {
+  display: grid;
+  gap: var(--space-1);
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.footer-links li {
+  margin: 0;
+}
+/* Quiet links that underline on hover. */
+.site-footer .footer-links a {
+  color: var(--muted);
+  text-decoration: none;
+}
+.site-footer .footer-links a:hover,
+.site-footer .footer-links a:focus-visible {
+  color: var(--accent-text);
+  text-decoration: underline;
+}
 .footer-groups {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -43,8 +93,14 @@
   gap: var(--space-1);
   margin: var(--space-1) 0 0;
 }
-/* "Give us feedback" opens a dialog, so it's a button: dressed as the quiet links around it, not an accent link. */
+/* "Give us feedback" opens a dialog, so it's a button: dressed as the quiet links around it, not an accent link, on
+   their line, with padding that doesn't move the line so it's a 24px+ target. */
 .site-footer .footer-links button.link-button {
+  display: inline;
+  min-height: 0;
+  padding: var(--space-1) 0;
+  margin-block: calc(-1 * var(--space-1));
+  vertical-align: baseline;
   color: var(--muted);
   font-weight: inherit;
   text-decoration: none;
@@ -76,7 +132,10 @@
   gap: var(--space-1);
   margin: 0;
 }
+/* The © line closes the footer. */
 .site-footer > p.footer-legal {
+  margin: var(--space-3) 0 0;
+  font-size: var(--text-xs);
   text-align: center;
 }
 @media (max-width: 640px) {
