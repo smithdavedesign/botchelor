@@ -16,9 +16,17 @@ A roleplay is a game the two characters agree to play for one date: who they are
 - The characters stay themselves underneath. Their voice and habits wear the role, and they can step out of it and back in.
 - Everything else still holds: PG, adults only, no real people.
 
-The show offers 25 roleplays in eight kinds (lib/roleplays.ts `DATE_ROLEPLAYS`): strangers, mystery, adventure, sci-fi,
-fantasy, period, funny, and for couples. An owner can also write one: a title, a premise with `{a}` and `{b}`, and two
-roles if it has them.
+The show offers 39 roleplays in ten kinds (lib/roleplays.ts `DATE_ROLEPLAYS`): strangers, mystery, adventure, sci-fi,
+fantasy, period, funny, slow burn, cozy, and for couples. An owner can also write one: a title, a premise with `{a}`
+and `{b}`, and two roles if it has them.
+
+- 25 since 2026-10-31. 14 more on 2026-11-17, from David's census of 38,912 public character listings (snowed in, the
+  grump and the sunshine, an arranged match, a truce dinner, a bodyguard and a witness, off camera, another world, a
+  witch and a witch-hunter, the last two awake, rival athletes, old friends, a night bakery, a ghost and a tenant, the
+  night before a heist). The census's school, family and famous-people themes are left out on purpose.
+- Each of the show's own has a **scene card** ([scene-cards.md](../scene-cards.md)): how it starts, what each of them
+  wants, where it can go, its tone and three ways it can open. The card goes into the prompts when the roleplay is
+  picked. One someone writes has no card.
 
 A roleplay someone writes is checked like everything the show airs (`checkShowText`: no minors, no sexual content or
 innuendo, no real people), plus a never-list (`DATE_ROLEPLAY_NEVER`): no family or step-family, no school, teacher or
@@ -73,8 +81,16 @@ Blocks always win. Nobody can be sent proposals out of the blue: only pairs who 
   worker, own dates, backfill).
   - Each actor gets `tonights_roleplay` (`you_play`, `they_play`) and a TONIGHT'S ROLEPLAY section in its system
     prompt, with or without moves. Dates without a roleplay keep their prompt byte for byte.
-  - The director, recap, afterglow and reflection prompts get one sentence through `FormatContext.roleplay`.
-  - The roleplay's words count as known to both characters (`pairShared`), so the critic never flags them as profile reading.
+  - With a scene card (2026-11-17), `tonights_roleplay` also has `how_it_starts`, `where_it_can_go`, `tone` and
+    `what_you_want`: **this side's own want only**, never the other's. `opening` is there on each side's first line and
+    gone after it. The section says the turns are possibilities and never a script, and still ends on "in the final
+    act you land your intention": the engine alone decides the ending.
+  - The opening is `RoleplayTerms.opening` (its text, with `{a}` and `{b}`). When the terms have none, the date takes
+    one of the card's three by the episode's id as it's assembled, and the setup keeps it.
+  - The director, recap, afterglow and reflection prompts get one sentence through `FormatContext.roleplay`, with how
+    the card starts it and its tone.
+  - The roleplay's words count as known to both characters (`pairShared`), so the critic never flags them as profile
+    reading. The card's setup, turns and opening are shared words too; each side's want is not.
 - **Memory**: a roleplay's lines are the roles talking.
   - They give no facts ("told each other"), no plans from closing lines, no memorable lines, and no leaned-on words.
   - The pair's history keeps the title, and the next date remembers it as a game (`roleplays_you_have_played`).

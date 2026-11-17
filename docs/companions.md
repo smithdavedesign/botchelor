@@ -491,7 +491,7 @@ David, 2026-11-04: "maybe enable this to go into theater mode too". The show's t
 David, 2026-11-08: "in companion and normal date mode do we want role play options like we have in after dark?
 currently the companion you can only set the location". Show dates have had PG roleplays since 2026-10-31
 (lib/roleplays.ts, lib/date-roleplays.ts); a companion's scene now takes one too.
-- **Picking:** 🎭 Scene → a place → a second step: the show's 25 PG roleplays by kind, ✨ Yours (your Create library's
+- **Picking:** 🎭 Scene → a place → a second step: the show's 39 PG roleplays by kind, ✨ Yours (your Create library's
   safe side, signed in) or one written for the scene, and who plays whom (the show's `app/RoleplayPicker.tsx` with
   `asYou`: "You read fortunes…", "You're the captain"). Or none: "Start the scene" is just the two of you.
 - **Agreed as it's picked:** a person with an AI character, the show's rule for anyone with the show's own side. Written
@@ -503,6 +503,16 @@ currently the companion you can only set the location". Show dates have had PG r
   (the person is "your scene partner"), the roles, play it in your own voice and move the story on, and what the person
   says in it is their character, not their life. The opener's cue starts the roleplay. Back to texting (or in another
   roleplay), earlier roleplay lines go in marked `[roleplay: title]` as make-believe.
+- **Its scene card (2026-11-17, [scene-cards.md](scene-cards.md)):** one of the show's own roleplays brings the
+  context behind it into that paragraph, from the character's side: how it starts, where it can go (turns, never a
+  script, with no set ending), its tone, and what the **character's own** role wants. The person's want is never in
+  the prompt.
+  - **The opening** is only in the opener's cue ("It opens like this: …"), never in the standing prompt. The character
+    plays its own part of it: anything the person does in it stays theirs to play.
+  - Which opening: `companion_threads.roleplay.opening` when the terms carry one (its text, checked before it's
+    stored); otherwise one of the card's three by the thread's id, so the same thread opens the same way. Picking one
+    in the scene picker isn't built yet.
+  - A roleplay written for the scene has no card and is prompted as before.
 - **Memory:** facts never come from it: a draw where everything the person said was roleplay is covered without a
   model call, and otherwise the lines are marked and the facts prompt says never to take a fact from them. The rolling
   summary notes it as a game they played.

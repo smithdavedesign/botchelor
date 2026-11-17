@@ -3302,3 +3302,48 @@ on the right fix.
 refusals, Undressed's rules and price, and ownership. tests/creator-faces.test.ts covers Faces. `npm run e2e:studio`
 runs at desktop and phone size: a repair with a marked spot, a change made from it, Keep, back to the original, and
 the sheet from a night's ⋯. Explicit output is never made in tests: David checks Undressed live.
+
+## Roleplays: scene cards, and 13 more (2026-11-17)
+
+David, 2026-11-17, after comparing Botchelor's roleplay with Chub and nine other products: more roleplays, and "this
+level of context behind the scenes when someone chooses it". The whole design is in [scene-cards.md](scene-cards.md);
+this is After Dark's part.
+
+**The roleplays** (`lib/adult/roleplays.ts`): 33, up from 20. The 13 new ones are the tropes people look for most in
+David's census of 38,912 public character listings, each written inside the lines at the top of that file:
+- `your-rules` (one leads, one follows: agreed out loud first, with a word that stops everything);
+- `dons-truce` (the heads of two rival outfits, as equals) and `two-captains`;
+- `said-no` (very rich, and turned down: nothing is for sale and nothing is owed);
+- `arranged-match` (two adult heirs who each chose it, and either can still call it off);
+- `off-duty` (hero and villain) and `summoned` (a demon summoned by mistake: the terms are written together, and
+  either can end it with a word);
+- `anniversary-strangers`, `after-the-party`, `slow-sunday` and `home-again` (couples);
+- `the-cold-one` and `after-the-cameras`.
+
+The census's school, family and famous-people themes are left out on purpose: they are what the lines exclude.
+
+**The card.** Each of the show's own roleplays has a scene card: how it starts, what each of them wants, three or four
+turns the story can take, its tone, and three ways it can open.
+- **A story card.** Stakes, wants, banter, what's in the way. It never describes a sex act and has no explicit word:
+  `adultCardIssue` holds every card to `checkAdultText`, the roleplays' never-list, the show's own word check, the
+  suggestive list and a list of explicit words. How far a night goes is still the writer's and the stage rules'.
+- **In the prompt** (`roleplayLine`): under the chapter's roleplay line, "The story behind the roleplay (context for
+  you, never a script)": how it starts, **both** wants (one writer writes both sides), where the story can go, its
+  tone.
+- **The rule** (`roleplayRule`) keeps "The roleplay is the story, not a way into sex" and adds that the card's turns
+  are there to be played, and none is a cue to move a stage on or a place it has to end.
+- One of the viewer's own roleplays has no card, and its prompt is the one it always was.
+
+**The opening.**
+- **Picking:** in 📍 Scene & roleplay, the picked roleplay shows "How it opens" under its roles: its three openings as
+  radios, the first selected.
+- **Stored:** `adult_scenes.roleplay` is `{id, swap, chapter}` plus `opening` (1 or 2; the first is stored as nothing)
+  and `at` (how many lines the chapter had when it was picked). The route takes `roleplay.opening` (0 to 2).
+- **Played once:** "How it opens: … These first lines play that." is in the prompt only while the chapter has no more
+  lines than `at`: the first step after the pick. A roleplay is usually picked partway through a chapter, so this is
+  what "its first lines" means. A rewind to that point brings it back.
+- A scene stored before this has neither field and works as before. The page never gets `at`.
+
+**Proof:** tests/scene-cards.test.ts (every card against its lines, in every form) and
+tests/after-dark-roleplays.test.ts (the card in the writer's prompt, the opening on the first lines only, the route
+storing and reading it, and an old scene).

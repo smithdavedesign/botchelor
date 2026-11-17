@@ -122,7 +122,7 @@ export const ROLEPLAYS: readonly HouseRoleplay[] = [
         "Tea gets made, and the talk drifts off plumbing.",
         "One of them points out the work is finished, and neither treats that as a reason to go.",
         "The homeowner admits the tap was not the only reason for the call.",
-        "They agree, out loud, that this part is off the books and up to both of them.",
+        "They agree, out loud, that this part has nothing to do with the job and is up to both of them.",
       ],
       tone: "easy, warm, practical people being unexpectedly direct",
       openings: [
