@@ -74,16 +74,20 @@ try {
     const set = await api(page, "POST", "/api/writing-style", { side: "show", style: "narrated" });
     must(set.status === 200, `set show style: HTTP ${set.status} ${JSON.stringify(set.data)}`);
     log("show style:", JSON.stringify(set.data.styles));
-    let booked = await api(page, "POST", "/api/episodes", { character_id: OWN.a, partner_id: HOUSE, visibility: "private" });
-    if (booked.status === 429 && booked.data?.error === "episode_limit_reached") {
-      // An admin tops up its own dates (lib/admins.ts ADMIN_TOKEN_GRANT).
-      const grant = await api(page, "POST", "/api/admin/tokens", {});
-      log("admin token grant:", grant.status);
-      booked = await api(page, "POST", "/api/episodes", { character_id: OWN.a, partner_id: HOUSE, visibility: "private" });
-    }
-    must(booked.status === 200, `book the date: HTTP ${booked.status} ${JSON.stringify(booked.data).slice(0, 300)}`);
-    const id = booked.data.id;
-    log("date booked:", id, "style on the setup:", booked.data.setup?.style ?? "(none)");
+    // EPISODE_ID=<id>: a narrated date from an earlier run, so a rerun books (and spends) nothing new.
+    let id = process.env.EPISODE_ID || null;
+    if (!id) {
+      let booked = await api(page, "POST", "/api/episodes", { character_id: OWN.a, partner_id: HOUSE, visibility: "private" });
+      if (booked.status === 429 && booked.data?.error === "episode_limit_reached") {
+        // An admin tops up its own dates (lib/admins.ts ADMIN_TOKEN_GRANT).
+        const grant = await api(page, "POST", "/api/admin/tokens", {});
+        log("admin token grant:", grant.status);
+        booked = await api(page, "POST", "/api/episodes", { character_id: OWN.a, partner_id: HOUSE, visibility: "private" });
+      }
+      must(booked.status === 200, `book the date: HTTP ${booked.status} ${JSON.stringify(booked.data).slice(0, 300)}`);
+      id = booked.data.id;
+      log("date booked:", id);
+    } else log("reusing date:", id);
     const t0 = Date.now();
     let ep = null;
     for (let i = 0; i < 100; i++) {
@@ -145,21 +149,24 @@ try {
     must(set.status === 200, `set adult style: HTTP ${set.status} ${JSON.stringify(set.data)}`);
     log("after dark style:", JSON.stringify(set.data.styles));
     let pair = OWN;
-    let first = await api(page, "POST", "/api/admin/after-dark", { a: pair.a, b: pair.b });
-    if (first.status === 404) {
-      pair = { a: "house-juniper", b: "house-rafe" };
-      first = await api(page, "POST", "/api/admin/after-dark", { a: pair.a, b: pair.b });
+    // AD_NO_STEPS=1: the night's steps were written by an earlier run; only its story and the screenshots.
+    if (!process.env.AD_NO_STEPS) {
+      let first = await api(page, "POST", "/api/admin/after-dark", { a: pair.a, b: pair.b });
+      if (first.status === 404) {
+        pair = { a: "house-juniper", b: "house-rafe" };
+        first = await api(page, "POST", "/api/admin/after-dark", { a: pair.a, b: pair.b });
+      }
+      must(first.status === 200, `first step: HTTP ${first.status} ${JSON.stringify(first.data).slice(0, 300)}`);
+      const l1 = first.data.scene.lines;
+      log(`step 1: ${l1.length} lines in the chapter, ${beatsOf(l1)} with prose (stage ${first.data.scene.stage})`);
+      // Only the first step's prose is printed: the night's opening, before anything heats up.
+      for (const l of l1.slice(-6)) log(`  [${l.who}] ${l.beat?.before ? `«${l.beat.before}» ` : ""}…${l.beat?.after ? ` «${l.beat.after}»` : ""}`);
+      const second = await api(page, "POST", "/api/admin/after-dark", { a: pair.a, b: pair.b });
+      must(second.status === 200, `second step: HTTP ${second.status} ${JSON.stringify(second.data).slice(0, 300)}`);
+      const l2 = second.data.scene.lines;
+      log(`step 2: ${l2.length} lines in the chapter, ${beatsOf(l2)} with prose`);
+      must(beatsOf(l2) >= Math.ceil(l2.length / 2), "fewer than half the lines got prose");
     }
-    must(first.status === 200, `first step: HTTP ${first.status} ${JSON.stringify(first.data).slice(0, 300)}`);
-    const l1 = first.data.scene.lines;
-    log(`step 1: ${l1.length} lines in the chapter, ${beatsOf(l1)} with prose (stage ${first.data.scene.stage})`);
-    // Only the first step's prose is printed: the night's opening, before anything heats up.
-    for (const l of l1.slice(-6)) log(`  [${l.who}] ${l.beat?.before ? `«${l.beat.before}» ` : ""}…${l.beat?.after ? ` «${l.beat.after}»` : ""}`);
-    const second = await api(page, "POST", "/api/admin/after-dark", { a: pair.a, b: pair.b });
-    must(second.status === 200, `second step: HTTP ${second.status} ${JSON.stringify(second.data).slice(0, 300)}`);
-    const l2 = second.data.scene.lines;
-    log(`step 2: ${l2.length} lines in the chapter, ${beatsOf(l2)} with prose`);
-    must(beatsOf(l2) >= Math.ceil(l2.length / 2), "fewer than half the lines got prose");
     const story = await api(page, "POST", "/api/admin/after-dark/story", { a: pair.a, b: pair.b, chapter: "now" });
     must(story.status === 200, `story: HTTP ${story.status} ${JSON.stringify(story.data)}`);
     log(`story: "${story.data.story.title}", ${story.data.story.paragraphs.length} paragraphs, made: ${story.data.made}`);
