@@ -336,19 +336,6 @@ a.showcase-picked-chip {
     grid-template-columns: 1fr;
     overflow-y: auto;
   }
-  /* A row scrolls sideways on a phone rather than wrapping into a tall block. */
-  .showcase-row {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    scrollbar-width: none;
-    padding-bottom: 2px;
-  }
-  .showcase-row > * {
-    flex: none;
-  }
-  .showcase-row-label {
-    min-width: 0;
-  }
 }
 
 /* Likes and follows (lib/showcase-social.ts), and the requests waiting on someone's OK. */

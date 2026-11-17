@@ -9,7 +9,8 @@
   width: 15rem;
   max-width: 100%;
 }
-.date-photo-link {
+.date-photo-link,
+.locked-picture-link {
   position: relative;
   display: block;
   overflow: hidden;
@@ -20,7 +21,8 @@
   text-decoration: none;
   box-shadow: var(--shadow-sm);
 }
-.date-photo-link img {
+.date-photo-link img,
+.locked-picture-link img {
   display: block;
   width: 100%;
   height: auto;
@@ -51,31 +53,13 @@
 /* ---------------- a locked picture, in the thread ---------------- */
 /* app/companion/[id]/LockedPicture.tsx (lib/locked-picture.ts): the same box as a date's photo, holding a tile the
    server blurred from the character's own PG portrait. The lock and its label sit over it, the button along its foot,
-   and the plain line of what it is underneath. One link. */
+   and the plain line of what it is underneath. One link (its box and picture share .date-photo-link's rules, above). */
 .locked-picture {
   display: grid;
   gap: var(--space-2);
   margin: 0;
   width: 15rem;
   max-width: 100%;
-}
-.locked-picture-link {
-  position: relative;
-  display: block;
-  overflow: hidden;
-  border-radius: var(--radius);
-  border-bottom-left-radius: var(--radius-sm);
-  background: var(--photo-bg);
-  color: var(--on-photo);
-  text-decoration: none;
-  box-shadow: var(--shadow-sm);
-}
-.locked-picture-link img {
-  display: block;
-  width: 100%;
-  height: auto;
-  aspect-ratio: 4 / 5;
-  object-fit: cover;
 }
 .locked-picture-label {
   position: absolute;

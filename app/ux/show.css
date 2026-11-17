@@ -62,31 +62,31 @@ ol.home-features {
     font-size: var(--text-sm);
   }
 }
-/* The house cast: six, two to a row on a phone as compact tiles (the directory has the rest). /characters' cards too
-   (2026-10-31 UX audit: one to a row, fifteen cards were ~2,900px). */
+/* /characters' cards: two to a row on a phone as compact tiles (2026-10-31 UX audit: one to a row, fifteen cards were
+   ~2,900px). */
 @media (max-width: 640px) {
-  :is(.home-cast, .characters-hub .gallery) {
+  .characters-hub .gallery {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--space-2);
   }
-  :is(.home-cast, .characters-hub .gallery) > .card {
+  .characters-hub .gallery > .card {
     padding: var(--space-3);
   }
-  :is(.home-cast, .characters-hub .gallery) .char {
+  .characters-hub .gallery .char {
     flex-direction: column;
     align-items: flex-start;
     gap: var(--space-2);
   }
-  :is(.home-cast, .characters-hub .gallery) .chips {
+  .characters-hub .gallery .chips {
     margin: var(--space-2) 0 0;
     gap: var(--space-1);
   }
   /* Two traits are enough for a tile; the character's page has all three, and their job and hometown. */
-  :is(.home-cast, .characters-hub .gallery) .chips > li:nth-child(n + 3),
+  .characters-hub .gallery .chips > li:nth-child(n + 3),
   .characters-hub .gallery .dir-job {
     display: none;
   }
-  :is(.home-cast, .characters-hub .gallery) .chip {
+  .characters-hub .gallery .chip {
     font-size: var(--text-2xs);
   }
 }
@@ -108,12 +108,6 @@ ol.home-features {
   display: flex;
   flex-direction: column;
   gap: 0.2rem;
-}
-.episode-item-meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-1) var(--space-2);
 }
 .episode-item-meta .badge {
   margin: 0;
@@ -357,9 +351,6 @@ ol.home-features {
   display: block;
 }
 /* The "·" hangs off the word before it (::after), so a wrapped kicker never starts with it; a long venue may wrap. */
-.episode-hero-kicker span + span::before {
-  content: none;
-}
 .episode-hero-kicker span:not(:last-child)::after {
   content: "·";
   margin: 0 0.9rem;
@@ -818,9 +809,6 @@ details.recap-toggle[open] .recap-toggle-hide {
   padding-left: 1.1rem;
   position: relative;
 }
-.notification.unread strong::before {
-  content: none;
-}
 .notification.unread::before {
   content: "";
   position: absolute;
@@ -908,32 +896,6 @@ details.recap-toggle[open] .recap-toggle-hide {
 .push-prompt-done {
   margin: 0 0 var(--space-3);
   color: var(--muted);
-}
-
-/* ---------------- the token shop (app/shop/page.tsx) ---------------- */
-.shop-item-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-1) var(--space-3);
-}
-.shop-item-head strong {
-  font-size: var(--text-lg);
-}
-.shop-item-price {
-  font-size: var(--text-lg);
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
-}
-.shop-item > .badge {
-  margin: var(--space-1) 0 0;
-}
-/* Signing in is a step, not a success: the accent colour, not the notice's green. */
-.shop-signin-note {
-  margin: var(--space-3) 0 var(--space-2);
-  color: var(--accent-text);
-  font-weight: 600;
 }
 
 /* Fold-out toggles on the episode page open from a row tall enough to tap. */

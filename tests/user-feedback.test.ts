@@ -557,7 +557,6 @@ describe("the modal, the button and the footer link (markup)", () => {
       ".swipe-match-overlay",
       ".messages-fullscreen",
       ".phone-stage.is-full",
-      ".after-dark-form",
       ".ad-reel-theater",
       ".consent-banner",
       ".constellation-panel",
