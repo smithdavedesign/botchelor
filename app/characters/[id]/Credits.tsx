@@ -37,7 +37,8 @@ export default function Credits({ credits, first }: { credits: CharacterCredit[]
                   {c.number ? `Season ${c.number} · ` : ""}
                   {c.label}
                 </Link>
-                {c.format_title && <span className="muted"> · {c.format_title}</span>}
+                {/* No dot before it: the row wraps on a phone, and a dot would start the second line. The gap parts them. */}
+                {c.format_title && <span className="muted">{c.format_title}</span>}
                 {c.when === "now" && <span className="chip">On now</span>}
                 {c.when === "next" && <span className="chip">Coming up</span>}
               </p>
