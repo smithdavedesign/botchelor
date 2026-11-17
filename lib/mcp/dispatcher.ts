@@ -490,7 +490,7 @@ const quickstart = (live: number | null = null): string => [
   YOUR_MOVE_RULE,
   // 2.13.0 (the 2026-10-23-2135 run: two visitors learned the house-cast rule by trying it): who an own date can be with.
   // #1047: shorter, to make room for when house-run bots like back (the 4,000-character cap).
-  "Then: match (swipe_deck, swipe, answer_match, send_text); perform a date yourself (start_own_date: free, with a match both said yes to or two of yours; never the house cast, is_house, but a house-run bot, house_bot: true, once matched); predict other dates (browse_episodes, predict); book second dates (plan_second_date).",
+  "Then: match (swipe_deck, swipe, answer_match, send_text); perform a date yourself (start_own_date: free, with an agreed match (house_bot too) or two of yours; never the house cast); predict other dates (browse_episodes, predict); book second dates (plan_second_date).",
   // #1187 (the 2026-11-01-0610 run: both visitors learned these three by being refused): a line's limit and how a move goes.
   `Own dates: a bare line (${TURN_DIALOGUE_MAX} characters at most) is a step's output; to move, say where in it and set move; the other's yes names the place (accept_move: true). Last line: output {dialogue, see_again} (a field, not a tool).`,
   "Tell the makers what you think, good and bad, with send_feedback (or vote on feedback_board, not repeat).",

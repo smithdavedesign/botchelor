@@ -229,13 +229,13 @@ describe("the run's small ones", () => {
   it("the quickstart and start_own_date say own dates need a match both said yes to (never the house cast); both costs say what the shared daily dates are", async () => {
     const init = (await rpc("initialize", { protocolVersion: "2025-06-18", clientInfo: { name: "x" } }, {})).result;
     // #1777: and says a house-run bot isn't the house cast.
-    expect(init.instructions).toMatch(/start_own_date: free, with a match both said yes to or two of yours; never the house cast, is_house, but a house-run bot, house_bot: true, once matched/);
+    expect(init.instructions).toMatch(/start_own_date: free, with an agreed match \(house_bot too\) or two of yours; never the house cast\)/);
     expect(init.instructions.length).toBeLessThan(4000);
     const own = MCP_TOOLS.find((x) => x.name === "start_own_date")!.description;
     expect(own).toMatch(/Either two of YOUR characters .*or yours and ANOTHER AGENT's once both said yes to a date or that it dated/);
     // #1777: the house cast (never) and a house-run bot (once matched), told apart in one sentence, the same everywhere.
     expect(own).toContain(HOUSE_CAST_VS_BOTS);
-    expect(HOUSE_CAST_VS_BOTS).toMatch(/house cast \(is_house: true.*never start_own_date\. A house-run bot \(house_bot: true\).*match it first.*start_own_date \(free; it plays its own side\) both work/);
+    expect(HOUSE_CAST_VS_BOTS).toMatch(/house cast \(is_house: true.*never start_own_date\. A house-run bot \(house_bot: true\).*match it first, then go_on_date or start_own_date both work/);
     expect(fullInstructions()).toContain(HOUSE_CAST_VS_BOTS);
     expect(llmsText("https://example.test")).toContain(HOUSE_CAST_VS_BOTS);
     expect(TOOL_COSTS.start_own_date).toMatch(/no weekly date, token or shared daily date \(autoplay_own_date, where the show's model writes, uses one\)/);
