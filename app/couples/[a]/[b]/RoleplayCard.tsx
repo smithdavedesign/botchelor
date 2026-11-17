@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import When from "@/app/When";
 import { requestJson } from "@/app/request";
+import type { Stage } from "@/lib/relationship-stages";
 import RoleplayPicker, { choiceReady, roleplayFields, type RoleplayChoice } from "@/app/RoleplayPicker";
 import type { RoleplayView } from "@/lib/date-roleplays";
 import { shortName } from "@/lib/names";
@@ -23,6 +24,7 @@ export default function RoleplayCard({
   auto,
   initial,
   signedIn,
+  stage = null,
 }: {
   pair: [string, string];
   me: { id: string; name: string };
@@ -30,6 +32,8 @@ export default function RoleplayCard({
   auto: boolean;
   initial: RoleplayView | null;
   signedIn: boolean;
+  /** Where the two stand, as this viewer may see it: the picker's "For these two" shelf (lib/tags.ts SETUPS_FOR_STAGE). */
+  stage?: Stage | null;
 }) {
   const router = useRouter();
   const [view, setView] = useState(initial);
@@ -214,7 +218,7 @@ export default function RoleplayCard({
 
       {picking && (
         <>
-          <RoleplayPicker me={me.name} them={them.name} value={choice} onChange={setChoice} signedIn={signedIn} />
+          <RoleplayPicker me={me.name} them={them.name} value={choice} onChange={setChoice} signedIn={signedIn} stage={stage} />
           {!auto && (
             <label className="roleplay-note">
               A line to {theirs}&apos;s creator <span className="muted small">(optional)</span>

@@ -6,7 +6,7 @@ import { useMemo, useState } from "react";
 import CharacterName from "@/app/CharacterName";
 import CrisisNotice, { crisisFrom } from "@/app/CrisisNotice";
 import { ROLEPLAYS } from "@/lib/adult/roleplays";
-import { SCENE_CATEGORIES } from "@/lib/adult/scene-catalog";
+import { adultTagById, roleplayGroups } from "@/lib/adult/tags";
 import type { StepInCharacter, StepInPlace } from "@/lib/adult/step-in";
 import type { CrisisResources } from "@/lib/crisis";
 import { premiseForYou } from "@/lib/roleplays";
@@ -60,7 +60,8 @@ export default function StepInSetup({
   const card = useMemo(() => (rp ? cardForYou(rp.card, side, name) : null), [rp, side, name]);
   // (They name who the viewer is with, so they wait for a pick: "when them walks in" reads wrong.)
   const openings = !character ? [] : card ? card.openings : GENERIC_OPENINGS.map((o) => premiseForYou(o, "a", name));
-  const byCategory = useMemo(() => SCENE_CATEGORIES.map((c) => ({ ...c, roleplays: ROLEPLAYS.filter((r) => r.category === c.id) })).filter((c) => c.roleplays.length), []);
+  // Grouped by who they are to each other (each roleplay's first setup tag, lib/adult/tags.ts), most wanted first.
+  const byCategory = useMemo(() => roleplayGroups(ROLEPLAYS), []);
 
   async function start() {
     if (!character || !place || busy) return;
@@ -172,6 +173,7 @@ export default function StepInSetup({
           <>
             {/* How it starts, with "you" in it and their name: it waits for a pick, like the openings. */}
             {character ? <p className="ad-si-card-setup">{card.setup}</p> : <p className="muted small">Pick who you&apos;re with to read how it starts.</p>}
+            {rp.tags.length > 0 && <p className="ad-rp-tags">{rp.tags.map((t) => adultTagById(t)?.label).filter(Boolean).join(" · ")}</p>}
             {rp.roles && (
               <div className="ad-si-roles" role="radiogroup" aria-label="Who plays which role">
                 {([0, 1] as const).map((i) => (

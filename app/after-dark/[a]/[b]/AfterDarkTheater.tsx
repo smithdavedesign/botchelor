@@ -284,6 +284,8 @@ export default function AfterDarkTheater({
     planned?: { place: string } | null;
     /** This chapter's moves (lib/adult/continuity.ts MoveLog): a paid cut draws its "Now: <place>" divider (#1030). */
     moves?: readonly MoveLog[] | null;
+    /** The pair's hard-no chips (lib/adult/limits.ts): Set the scene marks a roleplay whose heat runs into one. */
+    hardNos?: readonly string[];
   };
   characters: [CharacterRef, CharacterRef];
   busy?: boolean;
@@ -1341,6 +1343,7 @@ export default function AfterDarkTheater({
             names={{ a: firstName(a), b: firstName(b) }}
             roleplay={scene.roleplay ?? null}
             myRoleplays={myRoleplays}
+            hardNos={scene.hardNos}
             createHref={`/after-dark/studio/${a.id}?tab=create`}
             onGo={onSetScene}
             onScenario={onScenario}

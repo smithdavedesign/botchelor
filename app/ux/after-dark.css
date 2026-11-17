@@ -1395,6 +1395,18 @@ button.ad-rp-pick {
   font-size: var(--text-2xs);
   color: var(--night-accent-text);
 }
+/* A roleplay's tags (lib/adult/tags.ts) under its roles, and a heat that runs into the pair's own hard nos. */
+.ad-rp-tags {
+  font-size: var(--text-2xs);
+  color: var(--night-muted);
+}
+.ad-rp-clash {
+  color: var(--night-hot);
+}
+/* Two rows of roleplay shelves: the second sits close under the first. */
+.ad-rp-shelves + .ad-rp-shelves {
+  margin-top: calc(-1 * var(--space-1));
+}
 button.ad-rp-swap {
   align-self: flex-start;
   margin: 0 var(--space-3) var(--space-3);

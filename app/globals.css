@@ -13321,6 +13321,21 @@ button.thread-menu-item:hover:not(:disabled) {
   flex-wrap: wrap;
   gap: 0.35rem;
 }
+/* Two shelves of tag chips (lib/tags.ts): on a phone each row scrolls sideways instead of stacking five deep. */
+.rp-tags + .rp-tags {
+  margin-top: 0.35rem;
+}
+@media (max-width: 40rem) {
+  .rp-tags {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding-bottom: 0.1rem;
+  }
+  .rp-tags .rp-tag {
+    flex: none;
+  }
+}
 .rp-tag,
 .rp-tile {
   margin: 0;
@@ -13378,12 +13393,18 @@ button.thread-menu-item:hover:not(:disabled) {
 .rp-tile[aria-pressed="true"] .rp-tile-premise {
   color: var(--ink);
 }
+.rp-tile-tags {
+  color: var(--muted);
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
 /* One from their Create library (lib/studio/library.ts): set apart by a dashed edge until it's picked. */
 .rp-tile-yours:not([aria-pressed="true"]) {
   border-style: dashed;
 }
 .rp-tile-yours .badge {
-  font-size: var(--text-2xs, 0.7rem);
+  font-size: var(--text-2xs);
   vertical-align: middle;
 }
 .rp-keep {
