@@ -12,7 +12,7 @@ import { seasonPath } from "@/lib/season-ref";
 import { seasonLabel } from "@/lib/season-window";
 import { breadcrumbJsonLd, pageMetadata } from "@/lib/seo";
 import { shared } from "@/lib/shared-cache";
-import { getShow, showSeasons } from "@/lib/show-seasons";
+import { ensureShowSeasons, getShow, SHOW_ID, showSeasons } from "@/lib/show-seasons";
 
 export const dynamic = "force-dynamic";
 
@@ -42,10 +42,17 @@ export default async function ShowPage({ params }: Props) {
   const show = await getShow(db, id).catch(() => null);
   if (!show) notFound();
   const now = Date.now();
-  const [seasons, cast] = await Promise.all([
+  const [listed, cast] = await Promise.all([
     shared(`show:${show.id}:seasons`, () => showSeasons(db, show.id, { numbered: true })).catch(() => []),
     shared("show:cast-cards", () => seasonCastCards(db)).catch(() => []),
   ]);
+  // The registry is written by the hourly job. In the hour before its first pass (a fresh database, the first deploy)
+  // this show's own page fills it rather than showing a show with no seasons: idempotent, a handful of rows.
+  let seasons = listed;
+  if (!seasons.length && show.id === SHOW_ID) {
+    await ensureShowSeasons(db).catch(() => null);
+    seasons = await showSeasons(db, show.id, { numbered: true }).catch(() => []);
+  }
   // A season that hasn't started has no frozen format: the store says what it will be (an admin's pick, else the ballot).
   const formats = new Map<string, SeasonFormatSlug | null>(
     await Promise.all(seasons.map(async (s) => [s.id, isSlug(s.format) ? s.format : await seasonFormatSlug(db, s.id).catch(() => null)] as const)),
