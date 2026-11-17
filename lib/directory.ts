@@ -46,6 +46,18 @@ const SELECT = `select c.id, c.name, c.traits, c.avatar_hue as hue, c.is_house a
 /** A private character keeps only its name (and its id, for a stable avatar tile). */
 const shown = (e: DirectoryEntry): DirectoryEntry => (e.private ? { ...e, traits: [], portrait: null, reviews: 0, stars: null, age: null, pronouns: null, occupation: null, hometown: null, companion: false } : e);
 
+/** The most a Yours tab lists (and the Constellation's "Yours" filter counts). */
+export const OWN_CHARACTERS_MAX = 50;
+
+/** Someone's own characters (never the house's), newest first: the Yours tab's, and the Constellation's "Yours". */
+export async function ownCharacterIds(db: Db, ownerId: string): Promise<string[]> {
+  const { rows } = await db.query<{ id: string }>(
+    `select c.id from characters c where c.owner_id = $1 and not c.is_house order by c.created_at desc, c.id limit $2`,
+    [ownerId, OWN_CHARACTERS_MAX],
+  );
+  return rows.map((r) => r.id);
+}
+
 /** These characters, in this order (a season's cast, its candidates); a private one by name only. */
 export async function directoryEntries(db: Db, ids: string[], opts: { /** The viewer's own characters (the Yours tab): a private one in full. Only ever with ids the caller has checked are theirs. */ own?: boolean } = {}): Promise<DirectoryEntry[]> {
   if (!ids.length) return [];

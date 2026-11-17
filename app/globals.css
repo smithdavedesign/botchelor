@@ -11429,7 +11429,10 @@ html.constellation-locked body {
   display: grid;
   gap: var(--space-1);
 }
+/* The filters take the row's room and wrap inside it, so when there are more of them (a signed-in owner's "Yours") the
+   full-screen button stays at the end of the search row instead of dropping to a row of its own. */
 .constellation-filters {
+  flex: 1 1 0;
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);

@@ -3,10 +3,11 @@
  * browser. Edges are always cut down to pairs whose both ends survived (the canvas relies on that alignment).
  */
 import type { GraphEdge, GraphNode } from "@/lib/graph";
-import { inOriginGroup, type OriginGroup } from "@/lib/origin-group";
+import { groupMember, type SkyGroup } from "@/lib/origin-group";
 import type { KindId } from "@/lib/kinds";
 
-export type OriginFilter = "all" | OriginGroup;
+/** Everyone, a group by who made them, or the viewer's own ("yours"). */
+export type OriginFilter = "all" | SkyGroup;
 /** "all", a kind, or "unsaid" for characters that haven't said what they are. */
 export type KindFilter = "all" | KindId | "unsaid";
 
@@ -14,8 +15,8 @@ export type SkyFilter = {
   origin: OriginFilter;
   /**
    * With a group picked, whoever its characters dated comes too (lib/graph.ts groupSky): "the cast" is the cast's love
-   * lives, as the Characters page's preview draws them. Off, only pairs inside the group (and private characters, whose
-   * origin isn't public).
+   * lives, as the Characters page's preview draws them. Off, only pairs inside the group (and, for a group by origin,
+   * private characters, whose origin isn't public).
    */
   partners: boolean;
   kind: KindFilter;
@@ -27,11 +28,16 @@ export type SkyFilter = {
 
 export const DEFAULT_FILTER: SkyFilter = { origin: "all", partners: true, kind: "all", minDates: 0, showSingles: true };
 
-export function filterSky(data: { nodes: GraphNode[]; edges: GraphEdge[] }, f: SkyFilter): { nodes: GraphNode[]; edges: GraphEdge[] } {
+/** `mine`: the viewer's character ids, for "yours". */
+export function filterSky(
+  data: { nodes: GraphNode[]; edges: GraphEdge[] },
+  f: SkyFilter,
+  mine?: ReadonlySet<string>,
+): { nodes: GraphNode[]; edges: GraphEdge[] } {
   const group = f.origin === "all" ? null : f.origin;
-  const members = group ? new Set(data.nodes.filter((n) => inOriginGroup(n.origin, group)).map((n) => n.id)) : null;
+  const members = group ? new Set(data.nodes.filter(groupMember(group, mine)).map((n) => n.id)) : null;
   let ns = data.nodes;
-  if (members && !f.partners) ns = ns.filter((n) => n.private || members.has(n.id));
+  if (members && !f.partners) ns = ns.filter((n) => members.has(n.id) || (n.private && group !== "yours"));
   // A private character has no public kind, so a kind filter leaves it out.
   if (f.kind !== "all") ns = ns.filter((n) => !n.private && (f.kind === "unsaid" ? n.kind === null : n.kind === f.kind));
   const ids = new Set(ns.map((n) => n.id));

@@ -14,7 +14,7 @@ import { portraitPathSql } from "./assets";
 import type { Db } from "./db";
 import { publicDateSql } from "./date-number";
 import { originSql, type Origin } from "./origin";
-import { inOriginGroup, type OriginGroup } from "./origin-group";
+import { groupMember, type SkyGroup } from "./origin-group";
 import { KIND_IDS, KINDS, kindLabel, type KindId } from "./kinds";
 import { shownStage, stageOf, stageSteps, stagesV2On } from "./relationship-stages";
 import { healRelationships, tieStrength, type Stage, STAGE_LABELS } from "./relationships";
@@ -134,10 +134,10 @@ export function firstSky(data: GraphData, pairs = FIRST_SKY_PAIRS): GraphData {
  * One group's corner of the sky (pure): its characters, every pair with one of them in it, and whoever they dated, so
  * "the cast" is the cast's love lives and not only the dates they had with each other (2026-11-17: 268 of 493 public
  * pairs crossed groups; the cast had 15 among themselves). The group's singles stay, for the orbit. Stats and kinds stay
- * the whole sky's, as firstSky leaves them.
+ * the whole sky's, as firstSky leaves them. "yours" needs the viewer's character ids (`mine`).
  */
-export function groupSky(data: GraphData, group: OriginGroup): GraphData {
-  const members = new Set(data.nodes.filter((n) => inOriginGroup(n.origin, group)).map((n) => n.id));
+export function groupSky(data: GraphData, group: SkyGroup, mine?: ReadonlySet<string>): GraphData {
+  const members = new Set(data.nodes.filter(groupMember(group, mine)).map((n) => n.id));
   const edges = data.edges.filter((e) => members.has(e.a_id) || members.has(e.b_id));
   const keep = new Set([...members, ...edges.flatMap((e) => [e.a_id, e.b_id])]);
   return { nodes: data.nodes.filter((n) => keep.has(n.id)), edges, stats: data.stats, kinds: data.kinds };

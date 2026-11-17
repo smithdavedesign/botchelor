@@ -1,11 +1,15 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import Link from "next/link";
 import CharacterName from "@/app/CharacterName";
 import JsonLd from "@/app/JsonLd";
 import Pager from "@/app/Pager";
 import { pageHref, pageOf, parsePage } from "@/lib/paging";
 import { firstSky, groupSky, type KindPair } from "@/lib/graph";
-import { parseOriginGroup } from "@/lib/origin-group";
+import { parseSkyGroup } from "@/lib/origin-group";
+import { getDb } from "@/lib/db";
+import { ownCharacterIds } from "@/lib/directory";
+import { authFromCookieStore } from "@/lib/http";
 import { cachedConstellation } from "@/lib/graph-cache";
 import { kindLabel } from "@/lib/kinds";
 import { breadcrumbJsonLd, itemListJsonLd, pageMetadata } from "@/lib/seo";
@@ -51,20 +55,29 @@ const LEDGER_PAGE = 10;
  */
 const JSONLD_PAIRS = 100;
 
+/** The viewer's own characters, for the "Yours" filter: none for someone signed out (no query), or if they can't be read. */
+async function viewerCharacterIds(): Promise<string[]> {
+  const auth = authFromCookieStore(await cookies());
+  return auth ? ownCharacterIds(await getDb(), auth.userId).catch(() => []) : [];
+}
+
 export default async function GraphPage({ searchParams }: { searchParams: SearchParams }) {
   const sp = await searchParams;
   const focusParam = sp.focus;
   // The same cached build for every ?focus=: the focus is applied in the browser (ConstellationApp initialFocus).
   // This week's story map (lib/story-map.ts) rides next to it: its own shared copy, null with STORY_MAP=0.
-  const [{ nodes, edges, stats, kinds }, week] = await Promise.all([cachedConstellation(), cachedStoryMap().catch(() => null)]);
+  // The viewer's own ids ride along too, for "Yours" (signed in only; the sky itself is everyone's).
+  const [{ nodes, edges, stats, kinds }, week, mine] = await Promise.all([cachedConstellation(), cachedStoryMap().catch(() => null), viewerCharacterIds()]);
   const byId = new Map(nodes.map((n) => [n.id, n]));
   const open = edges.filter((e) => !e.masked);
   const singles = nodes.filter((n) => n.degree === 0);
   const ledger = pageOf(edges, parsePage(sp.ledger), LEDGER_PAGE);
   // ?origin= (the Characters page's preview of a tab): the sky opens on that group and whoever they dated, its strongest
-  // pairs first, with the filter set to match. The ledger and the numbers stay everyone's.
-  const origin = parseOriginGroup(sp.origin);
-  const first = firstSky(origin ? groupSky({ nodes, edges, stats, kinds }, origin) : { nodes, edges, stats, kinds });
+  // pairs first, with the filter set to match. "yours" only for someone with characters. The ledger and the numbers stay
+  // everyone's.
+  const asked = parseSkyGroup(sp.origin);
+  const origin = asked === "yours" && mine.length === 0 ? null : asked;
+  const first = firstSky(origin ? groupSky({ nodes, edges, stats, kinds }, origin, new Set(mine)) : { nodes, edges, stats, kinds });
 
   const jsonLd = (
       <JsonLd
@@ -89,6 +102,7 @@ export default async function GraphPage({ searchParams }: { searchParams: Search
         total={first.nodes.length === nodes.length && first.edges.length === edges.length ? null : { characters: nodes.length, pairs: edges.length }}
         initialFocus={typeof focusParam === "string" ? focusParam : null}
         initialOrigin={origin ?? "all"}
+        mine={mine}
       />
     </>
   );

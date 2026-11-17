@@ -25,6 +25,8 @@ import { startTestDb } from "./helpers";
 // deterministically, and the page must render its no-JS ledger.
 
 vi.mock("next/dynamic", () => ({ default: () => () => null }));
+// The page reads the viewer (for the "Yours" filter): nobody's signed in here.
+vi.mock("next/headers", () => ({ cookies: async () => ({ get: () => undefined, has: () => false, getAll: () => [] }), headers: async () => new Headers() }));
 
 let t: Awaited<ReturnType<typeof startTestDb>>;
 beforeAll(async () => {
