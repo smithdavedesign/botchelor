@@ -2,6 +2,17 @@
 
 David, 2026-11-17: "I like chub.ai writing style, can we introduce different writing styles for both the dates and nsfw dates?" Then: "build it, and figure out how to increase the token charge or cost for the user. keep it admin for now and let's test it out both for PG and NSFW."
 
+## Live on production (2026-11-17, the audit account)
+
+`node scripts/writing-styles-live.mjs <out dir>` books a private show date and writes two After Dark steps as the audit account, on the narrated style, makes a story of each, and takes these.
+
+| | Desktop | Phone |
+| --- | --- | --- |
+| A narrated show date | ![A narrated show date, desktop](screenshots/writing-styles-live-date-desktop.png) | ![A narrated show date, phone](screenshots/writing-styles-live-date-phone.png) |
+| The date told as a story | ![The story of the date, desktop](screenshots/writing-styles-live-story-desktop.png) | ![The story of the date, phone](screenshots/writing-styles-live-story-phone.png) |
+| After Dark's Reader, narrated (the night's opening lines) | ![After Dark reader, desktop](screenshots/writing-styles-live-ad-reader-desktop.png) | ![After Dark reader, phone](screenshots/writing-styles-live-ad-reader-phone.png) |
+| The picker on /account | ![Writing style picker, desktop](screenshots/writing-styles-live-picker-desktop.png) | ![Writing style picker, phone](screenshots/writing-styles-live-picker-phone.png) |
+
 ## What it is
 
 Two styles, picked per person and per side of the site:
