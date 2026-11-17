@@ -30,6 +30,12 @@ export default function PricingPage() {
   // Live calls (P6) and, with LIVE_FACE_PROVIDER `<renderer>:plan`, the plan's moving face on them (lib/live-face).
   const live = companions && liveCallsOn(process.env, { admin: false, guest: false });
   const facePlan = live && liveFaceMode() === "plan";
+  // One loud button on the page (design review 2026-11-16, D-05; the design system's PricingCard): the featured plan
+  // carries the primary and every other plan's goes quiet. The design features the Companion Plan; while it isn't on
+  // sale, the first pack.
+  const featured = companions && planOnSale ? "companion-plan" : packOnSale ? "pack" : null;
+  const cta = (id: string) => (featured === id ? "button" : "button secondary");
+  const card = (id: string) => (featured === id ? "pricing-card pricing-card--featured" : "pricing-card");
   return (
     <article className="legal-page company-page">
       <h1>Pricing</h1>
@@ -38,7 +44,7 @@ export default function PricingPage() {
       </p>
 
       <ul className="pricing-grid">
-        <li className="pricing-card" id="free">
+        <li className={card("free")} id="free">
           <h2>Free</h2>
           <p className="pricing-price">$0</p>
           <ul>
@@ -54,14 +60,14 @@ export default function PricingPage() {
             )}
             <li>No account needed to start</li>
           </ul>
-          <Link className="button" href="/create" data-track="pricing-free">
+          <Link className={cta("free")} href="/create" data-track="pricing-free">
             Make a character
           </Link>
         </li>
 
         {/* One card per pack on sale (lib/catalog.ts onSale): the 5-pack always, the 15-pack once its link is set. */}
         {onSale().map((pack) => (
-          <li key={pack.sku} className="pricing-card" id={pack.sku === PACK_5.sku ? "pack" : pack.sku}>
+          <li key={pack.sku} className={card(pack.sku === PACK_5.sku ? "pack" : pack.sku)} id={pack.sku === PACK_5.sku ? "pack" : pack.sku}>
             <h2>{pack.name}</h2>
             <p className="pricing-price">
               {formatPrice(pack.price_cents)} <span className="muted small">paid once</span>
@@ -72,7 +78,7 @@ export default function PricingPage() {
               <li>Not a subscription</li>
             </ul>
             {packOnSale ? (
-              <Link className="button" href="/shop" data-track="pricing-pack">
+              <Link className={cta(pack.sku === PACK_5.sku ? "pack" : pack.sku)} href="/shop" data-track="pricing-pack">
                 Get more dates
               </Link>
             ) : (
@@ -82,7 +88,7 @@ export default function PricingPage() {
         ))}
 
         {companions && (
-          <li className="pricing-card" id="companion-plan">
+          <li className={card("companion-plan")} id="companion-plan">
             <h2>{PLANS.companion.name}</h2>
             <p className="pricing-price">{planPrice("companion")}</p>
             <ul>
@@ -96,7 +102,7 @@ export default function PricingPage() {
               <li>Cancel any time: it runs to the end of the month you paid for</li>
             </ul>
             {planOnSale ? (
-              <Link className="button" href="/companion/plan" data-track="pricing-companion-plan">
+              <Link className={cta("companion-plan")} href="/companion/plan" data-track="pricing-companion-plan">
                 See the Companion Plan
               </Link>
             ) : (
@@ -105,7 +111,7 @@ export default function PricingPage() {
           </li>
         )}
 
-        <li className="pricing-card" id="own-key">
+        <li className={card("own-key")} id="own-key">
           <h2>Bring your own key</h2>
           <p className="pricing-price">
             $0 <span className="muted small">from us: you pay the provider</span>
@@ -118,7 +124,7 @@ export default function PricingPage() {
               A 4-second intro clip of your character is the one extra that needs both: one bought date, plus about $0.20 to Google on your own key (Veo)
             </li>
           </ul>
-          <Link className="button" href="/account/keys" data-track="pricing-own-key">
+          <Link className={cta("own-key")} href="/account/keys" data-track="pricing-own-key">
             Connect a key
           </Link>
         </li>

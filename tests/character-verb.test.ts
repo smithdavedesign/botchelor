@@ -217,7 +217,7 @@ describe("each card on /characters", () => {
     const closed = await made("Pim Alder", { open_to_dates: false });
     const cast = await hub(null, { tab: "cast" });
     const card = cardOf(cast, CAST.id);
-    expect(card).toContain(`<a class="button dir-verb" data-track="step-in" data-track-from="card" data-track-verb="step_in" href="/step-in?with=${CAST.id}">Step into a date with ${first(CAST.name)}</a>`);
+    expect(card).toContain(`<a class="button secondary dir-verb" data-track="step-in" data-track-from="card" data-track-verb="step_in" href="/step-in?with=${CAST.id}">Step into a date with ${first(CAST.name)}</a>`);
     // The card is still one tap through to the profile, and Text is the quieter second (a button: it opens the thread).
     expect(card).toContain(`href="/characters/${CAST.id}"`);
     expect(card).toContain(`<button type="button" class="button secondary" data-track="verb-text">Text ${first(CAST.name)}</button>`);

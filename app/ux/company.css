@@ -169,6 +169,12 @@
   margin-top: auto;
   align-self: flex-start;
 }
+/* The one plan the page recommends (the design system's PricingCard featured): an accent border and the lift, and the
+   page's only filled button (design review 2026-11-16, D-05). */
+.pricing-card--featured {
+  border: 1.5px solid var(--accent);
+  box-shadow: var(--shadow);
+}
 
 /* /press: the facts, the assets and the colours. */
 .press-facts {
