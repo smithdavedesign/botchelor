@@ -50,10 +50,11 @@ export default function BackCast({ board, insider = false }: { board: BackingBoa
         ))}
       </ul>
       {error && <p className="error small">{error}</p>}
-      {board.most && (
+      {/* A front-runner on one or two picks isn't one (the 2026-11-16 review): named only for a crowd, or to an insider. */}
+      {board.most && counts && (
         <p className="muted small">
-          Most backed this month: <strong>{board.most.name}</strong>
-          {counts ? ` (${board.most.backers} ${board.most.backers === 1 ? "viewer" : "viewers"}${board.total > board.most.backers ? ` of ${board.total}` : ""})` : ""}.
+          Most backed this month: <strong>{board.most.name}</strong> ({board.most.backers} {board.most.backers === 1 ? "viewer" : "viewers"}
+          {board.total > board.most.backers ? ` of ${board.total}` : ""}).
         </p>
       )}
     </section>

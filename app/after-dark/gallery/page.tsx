@@ -13,6 +13,7 @@ import { lockedForCookies } from "@/lib/adult/privacy";
 import { getDb } from "@/lib/db";
 import { authFromCookieStore } from "@/lib/http";
 import { currentHere, currentView } from "../view";
+import LockedPreview from "../LockedPreview";
 import GalleryGrid from "./GalleryGrid";
 import ReelCards from "./ReelCards";
 
@@ -25,17 +26,18 @@ export async function generateMetadata(): Promise<Metadata> {
 /**
  * After Dark's Gallery (the design kit's Gallery screen, 2026-11-12): every picture, clip and video of the night this
  * person made, from every pair and every Studio shoot, in one place, with the same filters as a night's gallery. Each
- * one links back to its night (or its Studio). The tools (Fix, Keep going, export) stay where they were made. Not
- * found for anyone After Dark isn't open to, as the hub.
+ * one links back to its night (or its Studio). The tools (Fix, Keep going, export) stay where they were made. Someone
+ * After Dark isn't open to gets the locked preview instead (app/after-dark/LockedPreview.tsx; David, 2026-11-16: "allow
+ * them to ... give them a signup link"): blurred tiles and the way in, never a picture.
  *
  * In tabs since 2026-11-15 (lib/adult/gallery.ts): Videos (each night's reel as one card, then the clips, from nights
  * or the Studio), Pictures and Faces, each loading its own, `?n=` a page more at a time.
  */
-export default async function AfterDarkGalleryPage({ searchParams }: { searchParams: Promise<{ tab?: string; n?: string }> }) {
+export default async function AfterDarkGalleryPage({ searchParams }: { searchParams: Promise<{ tab?: string; n?: string; source?: string }> }) {
   const db = await getDb();
   const store = await cookies();
   const auth = authFromCookieStore(store);
-  if (!(await canAfterDark(db, auth)).ok) notFound();
+  if (!(await canAfterDark(db, auth)).ok) return <LockedPreview kind="gallery" source={(await searchParams).source} next="/after-dark/gallery" />;
   if (await lockedForCookies(db, auth!.userId, store)) notFound();
   const here = await currentHere();
   const head = (

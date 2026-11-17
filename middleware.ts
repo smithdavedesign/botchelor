@@ -109,7 +109,9 @@ const DOC_SOURCES = new Set(["llms.txt", "llms-full.txt", "mcp.json", "agents"])
  * 18+ box ticked sets this same cookie (app/api/characters/route.ts), so the gate never asks them again; stepping into
  * a date works the same way (app/api/step-in/route.ts: the start screen's box).
  */
-export const UNGATED_PREFIXES: readonly string[] = ["/tools/", "/ship/", "/alternatives/", "/episodes/", "/seasons/", "/couples/", "/characters/", "/creators/", "/agents/", "/casting/invite/"];
+// "/showcase/" since 2026-11-16 (David: the Gallery opens like the rest of the PG show). A visitor who hasn't signed in
+// sees PG posts only there (lib/showcase.ts showcaseViewer), and nothing of After Dark's is on the show's side.
+export const UNGATED_PREFIXES: readonly string[] = ["/tools/", "/ship/", "/alternatives/", "/episodes/", "/seasons/", "/couples/", "/characters/", "/creators/", "/agents/", "/casting/invite/", "/showcase/"];
 
 const UNGATED_PAGES: ReadonlySet<string> = new Set([
   // The PG show (2026-11-14): the front door, the feed and its tabs, the cast, the reunion, the house, casting, the vote, calls,

@@ -11,6 +11,7 @@
 import { INVITE_PAGE, isInvitePath } from "./casting-invite-shared";
 import { addDays, daysBetween } from "./chart";
 import type { Db } from "./db";
+import { eventName } from "./event-name";
 import { loadOurIds } from "./our-traffic";
 
 /** The most events one beacon may carry; the browser flushes every few seconds, so a real batch is far smaller. */
@@ -21,7 +22,6 @@ const WINDOW_MS = 10 * 60_000;
 const MAX_PROPS = 12;
 const MAX_TEXT = 80;
 
-const EVENT = /^[a-z][a-z0-9_]{1,39}$/;
 const PROP_KEY = /^[a-z][a-z0-9_]{0,31}$/;
 const ID = /^[A-Za-z0-9-]{8,64}$/;
 const UTM = /^[A-Za-z0-9 _.+-]{1,60}$/;
@@ -144,11 +144,13 @@ export function cleanBeacon(raw: unknown, now = new Date()): CleanBeacon | null 
   if (!visitor || !session || !Array.isArray(b.events)) return null;
   const events: CleanEvent[] = [];
   for (const e of b.events.slice(0, MAX_BATCH)) {
-    if (!e || typeof e !== "object" || typeof e.e !== "string" || !EVENT.test(e.e) || typeof e.path !== "string") continue;
+    // A page loaded before 2026-11-16 still sends hyphenated names: stored the same way (lib/event-name.ts).
+    const name = e && typeof e === "object" && typeof e.e === "string" ? eventName(e.e) : null;
+    if (!name || typeof e.path !== "string") continue;
     // The browser's own clock, held to the last hour (a tab asleep for longer counts as now).
     const t = typeof e.t === "number" && Number.isFinite(e.t) ? e.t : now.getTime();
     const at = new Date(Math.min(now.getTime(), Math.max(now.getTime() - 3_600_000, t)));
-    events.push({ event: e.e, path: normalizePath(e.path), props: cleanProps(e.props), at });
+    events.push({ event: name, path: normalizePath(e.path), props: cleanProps(e.props), at });
   }
   if (!events.length) return null;
   return {

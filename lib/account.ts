@@ -560,8 +560,9 @@ async function exportTheRest(db: Db, userId: string): Promise<TheRest> {
 
 /**
  * The person's companion threads for the export, three reads whatever the number of threads. A message says who said it
- * (`you`, `character`, or `notice` for the AI notice and a scene's line), when, and whether it was said on a call; a
- * voice note is a flag (the audio is made from the words and isn't the person's), a photo its address. A reply drawn
+ * (`you`, `character`, or `notice` for the AI notice and a scene's line), when, whether it was said on a call, and the
+ * date it is about when the character texted about one (`episode_id`); a voice note is a flag (the audio is made from
+ * the words and isn't the person's), a photo its address. A reply drawn
  * again is here too, marked `redrawn`: it is kept, hidden, until its reply or the conversation is deleted. Only the
  * person's own threads: the character is named, and nothing of any other person's is read.
  */
@@ -574,9 +575,9 @@ async function companionConversations(db: Db, userId: string): Promise<Companion
         where t.user_id = $1 order by t.created_at, t.id`,
       [userId],
     ),
-    db.query<{ thread_id: string; id: string; role: string; text: string; created_at: Date | string; on_call: boolean; via: string; media_url: string | null; scene: string | null; action: string | null; roleplay: string | null; reported: string | null; reported_at: Date | string | null; voice_note: boolean; replaced_by: string | null }>(
+    db.query<{ thread_id: string; id: string; role: string; text: string; created_at: Date | string; on_call: boolean; via: string; media_url: string | null; scene: string | null; action: string | null; roleplay: string | null; reported: string | null; reported_at: Date | string | null; voice_note: boolean; replaced_by: string | null; episode_id: string | null }>(
       `select m.thread_id, m.id, m.role, m.text, m.created_at, m.on_call, m.via, m.media_url, m.scene, m.action, m.roleplay, m.reported, m.reported_at,
-              m.voice_key is not null as voice_note, m.replaced_by
+              m.voice_key is not null as voice_note, m.replaced_by, m.episode_id
          from companion_messages m join companion_threads t on t.id = m.thread_id
         where t.user_id = $1 order by m.created_at, m.id`,
       [userId],
@@ -617,6 +618,8 @@ async function companionConversations(db: Db, userId: string): Promise<Companion
           ...(m.roleplay ? { roleplay: m.roleplay } : {}),
           // What they did as they said it (a scene), or what a text they sent first was about (its tag).
           ...(m.action ? (isTextTag(m.action) ? { about: m.action } : { action: m.action }) : {}),
+          // The date a text they were sent is about (companion_messages.episode_id), when it is about one.
+          ...(m.episode_id ? { episode_id: m.episode_id } : {}),
           ...(m.reported ? { reported: m.reported, reported_at: m.reported_at ? iso(m.reported_at) : null } : {}),
           ...(m.replaced_by ? { redrawn: true } : {}),
         })),

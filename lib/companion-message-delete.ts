@@ -20,7 +20,8 @@
  *    lib/character-questions.ts, lib/character-lessons-job.ts). Deleting the last row that carries a tag would have the
  *    same text sent again, so that row stays as a blank marker instead: no words, no photo, no voice, hidden from every
  *    reader the way a redrawn reply is (`replaced_by` set, here to its own id, which nothing else ever is), with only the
- *    tag and when it was sent. A question's marker keeps whether questions were stopped, so they stay stopped.
+ *    tag and when it was sent (its date key, episode_id, is cleared and the hourly backfill never sets it again:
+ *    lib/chat-date-links.ts). A question's marker keeps whether questions were stopped, so they stay stopped.
  *  - Memory: facts already drawn from the message are the person's to change on the memory page (the page says so).
  *    The rolling summary may contain a message it has covered (`summary_upto`), so it's dropped then, and the next
  *    reply's follow-up writes it again from what's left (lib/companion-memory.ts updateSummary); no model call here.
@@ -105,6 +106,7 @@ export async function deleteMessage(
        update companion_messages
           set text = '', replaced_by = id, via = 'text', media_url = null, voice_key = null, model = null, cost = null,
               reported = null, reported_at = null, report_reviewed_at = null, report_decision = null, roleplay = null, on_call = false,
+              episode_id = null,
               offers = case when offers->'field' is not null and offers->'episode_id' is null then offers else null end
         where thread_id = $1 and id = any($2::text[]) returning id
      ), dropped as (

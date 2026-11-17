@@ -33,7 +33,7 @@ import { shortName } from "./names";
 import { portraitPathSql } from "./portrait-sql";
 import { producerOn } from "./producer";
 import { isStage, shownStage, stageWords, TOGETHER_STAGES } from "./relationship-stages";
-import { REPORT_HIDE_THRESHOLD } from "./rules";
+import { DELETED_OWNER, REPORT_HIDE_THRESHOLD } from "./rules";
 import { leadAndSuitors, showCastIds } from "./season-cast";
 import { seasonIdOf } from "./season-window";
 import { watchClock } from "./watch";
@@ -53,7 +53,6 @@ export const TIES_MAX = 60;
 /** The most people the drawing shows: the cast, then whoever the strongest ties bring. */
 export const MAP_PEOPLE_MAX = 10;
 export const CIRCLE_MAX = 6;
-const DELETED_OWNER = "deleted";
 
 /**
  * What a tie is. `date_now` and `date_next`: a public booking. `rivals`, `feuding`, `stories`: the producer's public

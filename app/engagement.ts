@@ -11,6 +11,7 @@
  * Nothing is sent where app/funnel.ts wouldn't send either: previews and local runs, automated browsers, the owner's
  * browsers, and when analytics cookies are turned off.
  */
+import { eventName } from "@/lib/event-name";
 import { beaconPath, beaconRef, externalReferrer, trackingAllowed } from "./funnel";
 
 export const ENDPOINT = "/api/e";
@@ -94,7 +95,10 @@ export function queueEvent(name: string, props: Props = {}, at?: string): void {
     const path = at ?? currentPath();
     // Starts (or renews) the visit now, so its source is read from the address it landed on, not a later page's.
     sessionState();
-    queue.push({ e: name, path, props: name === "date_watched" ? withEpisode(props) : props, t: Date.now() });
+    // A control's data-track value is its event's name, usually hyphenated: stored with underscores (lib/event-name.ts).
+    const event = eventName(name);
+    if (!event) return;
+    queue.push({ e: event, path, props: event === "date_watched" ? withEpisode(props) : props, t: Date.now() });
     if (queue.length >= MAX_QUEUE) flush();
     else if (!timer) timer = setTimeout(flush, FLUSH_MS);
   } catch {
@@ -246,7 +250,8 @@ export function clickEvent(target: Element, origin: string, afterDark: boolean):
 function onClick(e: MouseEvent): void {
   try {
     if (!(e.target instanceof Element)) return;
-    const afterDark = afterDarkHost || location.pathname.startsWith("/after-dark") || location.pathname.startsWith("/studio");
+    // /studio is the show's own My studio now (app/studio/page.tsx), PG like the rest: After Dark's is /after-dark/studio or its host.
+    const afterDark = afterDarkHost || location.pathname.startsWith("/after-dark");
     const ev = clickEvent(e.target, location.origin, afterDark);
     if (ev) queueEvent(ev.name, ev.props);
   } catch {

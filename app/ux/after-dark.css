@@ -3002,3 +3002,48 @@ button.ad-studio-fold-head:active:not(:disabled) {
   aspect-ratio: 3 / 4;
   object-fit: cover;
 }
+
+/* The locked preview (2026-11-16, app/after-dark/LockedPreview.tsx): After Dark's Gallery or Studio for someone it isn't
+   open to. Server-blurred tiles (lib/adult/preview.ts), each with a lock (a play mark on a video), then the way in. */
+.ad-locked-counts {
+  margin: var(--space-2) 0;
+  font-weight: 700;
+}
+.ad-locked-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
+  gap: var(--space-2);
+  margin: var(--space-3) 0 var(--space-4);
+  padding: 0;
+  list-style: none;
+}
+.after-dark-mode a.ad-locked-tile {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  border-radius: var(--radius);
+  background: var(--photo-bg);
+  color: var(--on-photo);
+}
+.ad-locked-tile img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 4 / 5;
+  object-fit: cover;
+}
+.ad-locked-mark {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  /* Over a blur of any colour the mark still has to read: the photo's own dark, thinned. */
+  background: color-mix(in srgb, var(--photo-bg) 35%, transparent);
+}
+.ad-locked-mark .icon {
+  width: var(--space-6);
+  height: var(--space-6);
+}
+.ad-locked-way {
+  margin-top: var(--space-4);
+}
