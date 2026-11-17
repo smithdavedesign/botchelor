@@ -65,7 +65,11 @@ export default async function MyStudioPage({ searchParams }: Props = {}) {
                     ))}
                   </div>
                   <figcaption className="muted small">
-                    {shortName(proof.name)}, in {proof.posts.length} different shoots. <Link href={`/showcase?character=${encodeURIComponent(proof.character_id)}`}>See more of them →</Link>
+                    {/* Only what the pictures are: several shoots when they are, else one face across a shoot's pictures. */}
+                    {proof.shoots >= 3
+                      ? `${shortName(proof.name)}, in ${proof.shoots} different shoots.`
+                      : `${shortName(proof.name)}: ${proof.posts.length} pictures from the Studio, one face.`}{" "}
+                    <Link href={`/showcase?character=${encodeURIComponent(proof.character_id)}`}>See more of them →</Link>
                   </figcaption>
                 </figure>
               )}
