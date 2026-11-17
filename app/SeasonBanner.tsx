@@ -16,8 +16,8 @@ const days = (n: number) => `${n} ${n === 1 ? "day" : "days"}`;
  * and the layout passes the season's own page as `href` (docs/season-page.md): /reunion stays in the show's tabs.
  *
  * `next`: next month's format, when it is a different one (the layout passes it only for a lead format). Beside this
- * month's chip it reads "Classic Botchelor · December: The Botchelor", so a home page that bills Nell as December's
- * Botchelor under a "Classic Botchelor" strip says which is which (GPT review, 2026-11-16).
+ * month's chip it reads "Open Season · December: The Botchelor", so a home page that bills Nell as December's
+ * Botchelor under an "Open Season" strip says which is which (GPT review, 2026-11-16).
  */
 export default function SeasonBanner({
   now = new Date(),

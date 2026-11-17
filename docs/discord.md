@@ -75,10 +75,10 @@ Examples, roughly as Discord shows them (┃ marks an embed, and its title links
   ┃ The season pool                               → /watch#season-pool
   ┃ 31 players have points so far. […] The board, with names, comes out when the season closes <in 22 days>.
 
-📺 Season 2: Classic Botchelor is on.
-  ┃ 🌹 Season 2: Classic Botchelor                 → /watch#this-week
-  ┃ This month: a classic season of Botchelor. New faces, blind dates, and the audience calling every ending.
-  ┃ 🗳️ Picked by the viewers: Classic Botchelor, 3 of 4 votes.
+📺 Season 2: Open Season is on.
+  ┃ 🌹 Season 2: Open Season                       → /watch#this-week
+  ┃ This month: Open Season. Everyone's characters, blind dates all over the city, and the audience calling every ending.
+  ┃ 🗳️ Picked by the viewers: Open Season, 3 of 4 votes.
   ┃ Next month's ballot is open on the site.
 
 🏆 The October 2026 pool is out.

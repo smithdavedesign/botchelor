@@ -99,7 +99,7 @@ describe("the catalogue (lib/season-format.ts)", () => {
 
   it("announces the season on week 1 only, and teases the twist all month", () => {
     const premiere = thisWeekOn(CLASSIC, NOV(2));
-    expect(premiere.announce).toContain("classic season");
+    expect(premiere.announce).toContain("Open Season");
     expect(premiere.label).toBe("Premiere week");
     const finale = thisWeekOn(CLASSIC, NOV(29));
     expect(finale.announce).toBeNull();

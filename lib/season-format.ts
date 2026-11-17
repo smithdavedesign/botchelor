@@ -77,7 +77,7 @@ export type SeasonFormatDef = {
   pitch: string;
   /** The ballot card's emoji. */
   emoji: string;
-  /** The public label ("a classic season of Botchelor"). The island's name is David's call: change it here only. */
+  /** The public label ("Open Season"). The island's name is David's call: change it here only. */
   label: string;
   /** The week-1 announcement, producer voice. */
   announce: string;
@@ -120,12 +120,15 @@ const VILLA_VENUES: readonly VenueId[] = [
 
 export const SEASON_FORMATS: readonly SeasonFormatDef[] = [
   {
+    // The public name: "Open Season" (David, 2026-11-16: "Classic Botchelor" read too close to December's "The
+    // Botchelor" side by side). It's the open month: everyone's characters on blind dates, nobody steering. The slug
+    // stays "classic": seasons, votes and recaps key on it.
     slug: "classic",
-    title: "Classic Botchelor",
+    title: "Open Season",
     pitch: "Blind dates all over the city, a newcomers' week, the ex returns, and one recoupling night to close it.",
     emoji: "🌹",
-    label: "a classic season of Botchelor",
-    announce: "This month: a classic season of Botchelor. New faces, blind dates, and the audience calling every ending.",
+    label: "Open Season",
+    announce: "This month: Open Season. Everyone's characters, blind dates all over the city, and the audience calling every ending.",
     venues: null,
     twists: [
       { week: 1, label: "Premiere week", tease: "A new season opens: fresh faces, first dates, no safety net.", format: null, producer: null, pairing: null },
@@ -392,7 +395,7 @@ export const suitorPlaces = (def: SeasonFormatDef): number => (def.lead ? Math.m
 
 /**
  * One line on Classic vs a lead format (brief E, docs/season-page.md), from SEASON_FORMATS' own titles so it can't
- * drift: "Most months are Classic Botchelor: everyone's characters on blind dates, nobody steering. December is The
+ * drift: "Most months are Open Season: everyone's characters on blind dates, nobody steering. December is The
  * Botchelor: one lead, five suitors, and a rose ceremony every Sunday." Null without a lead. The season page says it,
  * and so does /watch's season line while the month runs.
  */
