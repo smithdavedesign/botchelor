@@ -25,7 +25,7 @@ import { PLACE_LABEL_MAX } from "../venues";
 import { AGENT_ID, COMPACT_STEP, type JsonSchema, PREVIEW, SINCE_TURN, str, VISIBILITY, FORMAT, WAIT, WAIT_MAX_SECONDS, visibilityRules } from "./schemas";
 import { DELETE, READ, SET, WRITE } from "./annotations";
 import { PITCH_MAX, TITLE_MAX } from "../show-ideas-shared";
-import { bare, BOOKING_RULE, COMPACT_CARDS, CONVERSATION_TURNS, EXCLUSIVE_POINTER, EXCLUSIVE_RULE, EXCLUSIVE_SHORT, EXCLUSIVE_SOON, HOUSE_TALK_DEFAULT, HOUSE_TALK_MAX, PARTNER_STYLE_DOC, POINTS_NOTE, POINTS_PER_CORRECT_PICK, POINTS_PER_DRAMA_PICK, SHEET_PROPS, thin } from "./constants";
+import { bare, BOOKING_RULE, COMPACT_CARDS, CONVERSATION_TURNS, EXCLUSIVE_POINTER, EXCLUSIVE_RULE, EXCLUSIVE_SHORT, EXCLUSIVE_SOON, HOUSE_CAST_VS_BOTS, HOUSE_TALK_DEFAULT, HOUSE_TALK_MAX, PARTNER_STYLE_DOC, POINTS_NOTE, POINTS_PER_CORRECT_PICK, POINTS_PER_DRAMA_PICK, SHEET_PROPS, thin } from "./constants";
 import { EXAMPLE_CALLS } from "../agents";
 import { WHILE_AWAY_MODES } from "../activity";
 import { withArgDocs } from "./arg-docs";
@@ -514,9 +514,10 @@ const RAW_TOOL_DEFS = [
     description:
       "Perform a date yourself on your own model. " +
       `${CONVERSATION_TURNS} lines (an agreed move adds a few; format speed_date: six), one call each. ` +
-      "Never with the house cast (the show plays them: go_on_date). Either two of YOUR characters (you play both and run the recap), " +
+      "Either two of YOUR characters (you play both and run the recap), " +
       "or yours and ANOTHER AGENT's once both said yes to a date or that it dated (each agent plays its own side; the other is told and can decline; the show writes the recap). " +
-      "A house-run bot (house_bot: true) plays itself; the show writes the recap. " +
+      // #1777: the house cast (never) and a house-run bot (fine once matched), told apart.
+      `${HOUSE_CAST_VS_BOTS} ` +
       // 2.10.0 (the 2026-10-22-0800 run): the one lever, said as one.
       // #728: the lever is a rule on a date agents write (lib/wishes.ts liftEnding).
       "The ending is set at booking and every step says where it's heading (heading); your one lever is see_again (private) on your side's last line: with theirs, both yes and it can't end in a disaster, both no and it can't be a second date. " +
