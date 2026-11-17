@@ -362,6 +362,16 @@ services:
       # - key: CHAT_DATE_LINKS
       #   value: "0"
       #   scope: RUN_AND_BUILD_TIME
+      # Measuring the creator journey (docs/analytics.md, docs/hosting.md; both on by default, "0" turns one off without
+      # a deploy of code): the character and the date an engagement event is about, kept in their own columns
+      # (lib/engagement.ts eventKeys), and the creator journey with the Studio split in the admin's Real use
+      # (lib/creator-journey.ts). Nothing a visitor sees.
+      # - key: EVENT_KEYS
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
+      # - key: CREATOR_JOURNEY
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
       # Copied from the old Vercel project's values (not secret, but deployment-specific).
       - key: CONTACT_EMAIL
         value: "CHANGE_ME"

@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { characterReturn, describeReturns, loadCharacterActs, loadStudioUses, splitByStudio, usedStudio, type CharacterAct, type StudioUse } from "@/lib/character-return";
+import { addressKeys } from "@/app/engagement";
 import { METRIC_DEFS, realUse } from "@/lib/real-metrics";
 import { HOUSE_PARTNER_ID, setupEpisode, startTestDb, userIdOf } from "./helpers";
 
@@ -136,6 +137,10 @@ describe("from the database", () => {
 
     const acts = (await loadCharacterActs(t.db)).filter((a) => a.user === user);
     expect(acts.map((a) => a.kind).sort()).toEqual(["advice", "book", "message", "watch"]);
+    // Since stage 6 the date is the event's own column (lib/engagement.ts eventKeys); a row from before keeps it in
+    // props. Either is read: the same watch, stored the new way, is the same act.
+    await t.db.query(`update web_events set episode_id = props->>'episode_id', props = props - 'episode_id' where user_id = $1 and props ? 'episode_id'`, [user]);
+    expect((await loadCharacterActs(t.db)).filter((a) => a.user === user).map((a) => a.kind).sort()).toEqual(["advice", "book", "message", "watch"]);
     expect(acts.every((a) => a.character === character)).toBe(true);
     expect((await loadCharacterActs(t.db)).some((a) => a.user === "stranger-1")).toBe(false);
 
@@ -191,13 +196,13 @@ describe("from the database", () => {
 });
 
 describe("the beacon names its date", () => {
-  it("date_watched picks the episode id off the address, in one place", () => {
+  it("date_watched picks the episode id off the address, in one place: now the one every event's keys come from", () => {
     const src = readFileSync(join(process.cwd(), "app/engagement.ts"), "utf8");
-    expect(src).toContain('event === "date_watched" ? withEpisode(props) : props');
-    const re = /^\/episodes\/([A-Za-z0-9-]{8,64})(?:\/|$)/;
-    expect(src).toContain(String(re).slice(1, -1));
-    expect(re.exec("/episodes/5305594b-ea07-4b56-ad87-a1725c18113f")?.[1]).toBe("5305594b-ea07-4b56-ad87-a1725c18113f");
-    expect(re.exec("/episodes")).toBeNull();
-    expect(re.exec("/characters/5305594b-ea07-4b56-ad87-a1725c18113f")).toBeNull();
+    // Since stage 6 every event carries its page's keys (addressKeys; tests/event-keys.test.ts), "watched it end" included.
+    expect(src).toContain("props: withKeys(props, at)");
+    expect(src).not.toContain("withEpisode");
+    expect(addressKeys("/episodes/5305594b-ea07-4b56-ad87-a1725c18113f")).toEqual({ episode_id: "5305594b-ea07-4b56-ad87-a1725c18113f" });
+    expect(addressKeys("/episodes")).toEqual({});
+    expect(addressKeys("/characters/5305594b-ea07-4b56-ad87-a1725c18113f")).toEqual({ character_id: "5305594b-ea07-4b56-ad87-a1725c18113f" });
   });
 });

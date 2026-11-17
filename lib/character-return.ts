@@ -128,7 +128,7 @@ export async function loadCharacterActs(db: Db): Promise<CharacterAct[]> {
        from (
          select w.user_id, c.id as character_id, w.at, 'watch' as kind
            from web_events w
-           join episodes e on e.id = w.props->>'episode_id'
+           join episodes e on e.id = coalesce(w.episode_id, w.props->>'episode_id')
            join characters c on c.id in (e.character_a, e.character_b) and c.owner_id = w.user_id
           where w.event = 'date_watched' and w.user_id is not null
          union all

@@ -4278,6 +4278,14 @@ create index if not exists show_idea_votes_user_idx on show_idea_votes (user_id)
 -- backfillMessageEpisodes), never here. It goes with the message (the thread's cascade).
 alter table companion_messages add column if not exists episode_id text;
 create index if not exists companion_messages_episode_idx on companion_messages (episode_id) where episode_id is not null;
+-- An event knows which character and which date it is about (the connected model, stage 6; docs/analytics.md "Which
+-- character, which date"): the browser reads them off the page's address or the control (app/engagement.ts
+-- addressKeys), the server lifts them out of props (lib/engagement.ts eventKeys). Nullable, no foreign key; never set
+-- for After Dark. They go with the row (400 days, lib/retention.ts; the visitor's account, lib/account.ts).
+alter table web_events add column if not exists character_id text;
+alter table web_events add column if not exists episode_id text;
+create index if not exists web_events_character_idx on web_events (character_id, at) where character_id is not null;
+create index if not exists web_events_episode_idx on web_events (episode_id, at) where episode_id is not null;
 `;
 
 /** Idempotent: creates the tables and upserts the house characters, free and premium. */

@@ -482,7 +482,7 @@ export async function getThread(db: Db, userId: string, threadId: string): Promi
         ...photoOf(m, realPhotos),
         ...(m.action && lastOfTag.get(m.action) === m.id ? { link: textLink(m.action)! } : {}),
         ...(m.action && m.episode_id && lastAbout.get(m.action) === m.id
-          ? { about: { href: `/episodes/${m.episode_id}`, label: aboutDateLabel({ yours: ref.yours, character: ref.name, partner: dates.get(m.episode_id)!.partner }) } }
+          ? { about: { href: `/episodes/${m.episode_id}`, label: aboutDateLabel({ yours: ref.yours, character: ref.name, partner: dates.get(m.episode_id)!.partner }), episode: m.episode_id } }
           : {}),
         ...(m.action && lastLocked.get(m.action) === m.id ? { locked: { episode: lockedPictureEpisode(m.action)! } } : {}),
       })),
