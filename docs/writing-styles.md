@@ -75,7 +75,10 @@ for someone on the Narrated style, is written as prose in one call:
   `CRAFT_PLAIN_WORDS`, `WORN_RULE`) and story mode's own (`storyModeRules`, `SCENE_DRIVE_RULE`,
   `NEVER_WRITE_THE_PERSON`, `STORY_MODE_ANSWER`, `storyModeTokens`, `parseStoryReply`, `guardStoryReply`). None of it
   knows a rating: the guard takes one, and the caller's prompt keeps its own rules. After Dark's own "you in the
-  scene" will build on the same exports.
+  scene" is built on the same exports (Step in, `lib/adult/step-in.ts`, closed: [after-dark.md](after-dark.md),
+  "Step in"). There every reply is a story reply, whatever the viewer's writing style; the guard runs strict (a
+  sentence of narration the guard refuses fails the whole reply, where a companion's is cut), and the fallback is a
+  neutral narrator's line, since there's no script reply to fall back to.
 - **The safety order** is the script reply's line checks on the whole reply first, then the narrator's guard a
   paragraph at a time (`guardStory`, which now takes one more reason to cut a sentence of narration: here a worn
   phrase, or a thought written for the person). More than a third cut, nothing said out loud, or a line written for

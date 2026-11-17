@@ -10,10 +10,19 @@
  * Rewind (lib/adult/scenes.ts rewindScene, 2026-10-22) never deletes a step: the step it took back is marked `rewound`,
  * with when and the lines it had written, and the rewind is a step of its own. A whisper to one of the two is kept on
  * the step it was sent with.
+ *
+ * Step in (lib/adult/step-in.ts) counts its replies and its refusals here too, as kind "step_in": the viewer with one
+ * character, so the pair is the character and STEP_IN_PARTNER. Such a step never holds a word of either side: no
+ * direction, nothing dropped, only what kind of move it was, how it ended and why (flags), and a refusal's own sentence.
  */
 import type { Db } from "../db";
 
-export type StepKind = "write" | "set_scene" | "reset" | "rewind";
+export type StepKind = "write" | "set_scene" | "reset" | "rewind" | "step_in";
+
+/** Who a Step in step's second "character" is: the viewer themselves. Never a character's id, so no pair's log reads it. */
+export const STEP_IN_PARTNER = "viewer";
+/** SQL on `alias`: a step of a pair's scene (every step but Step in's), for what counts or draws pairs. */
+export const pairStepSql = (alias: string): string => `${alias}.kind <> 'step_in'`;
 
 export type StepLog = {
   kind: StepKind;

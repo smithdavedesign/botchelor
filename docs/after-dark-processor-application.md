@@ -23,6 +23,14 @@ and the go-live steps. Background and the processor comparison: `docs/after-dark
 | ⬜ David | **Send the two emails below** and keep the answers in writing | Before applying |
 | ⬜ David | **A lawyer's read of the terms** | `docs/after-dark-legal-review.md` "Questions for a licensed lawyer" |
 
+**Built since, and not in the description below (2026-11-17): Step in.** An adult one-to-one mode exists: the
+subscriber themselves in a scene with one fictional character, written as prose (`docs/after-dark.md` "Step in"). It is
+closed (After Dark's `companion` rollout switch, admins only) and the description below still says what a processor
+approved or will approve: scenes between fictional characters. **Declare it to every processor, in writing, before the
+switch is opened**; until each has answered, it stays admins only. What to tell them: text only (no pictures, voice or
+video in it); the same content lines on every line the subscriber types and every line generated, with a refused line
+never stored; an AI notice at the start and every three hours; a self-harm protocol that pauses the scene.
+
 ## The order to do it in
 
 1. Support address and governing state (an hour, $0). Then a lawyer's flat-fee read of the pages.

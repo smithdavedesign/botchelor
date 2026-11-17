@@ -4398,6 +4398,49 @@ alter table companion_messages add column if not exists form text check (form is
 -- draw is current (replaced_by null). A draw an edit replaced has its draw cleared: it answered other words, and is no
 -- alternate. Null on rows from before this, and on texts written without the model.
 alter table companion_messages add column if not exists draw text;
+-- Step in, After Dark (lib/adult/step-in.ts; David, 2026-11-17: "a NSFW companion date mode too"): the viewer in the
+-- scene with one character, told as prose. A scene is its viewer's alone: who, where, the roleplay and which side of it
+-- they play (roleplay: {"id","you": 0|1}), how it opens (one of ours, with {a} and {b}, or a sentence they wrote, checked
+-- before it was kept), their limits for it (a pair's shape: the intensity and the hard nos, the hard nos under the
+-- profile consent), when the AI notice last went in, a rolling recap once it's long, and, once ended, when, and the one
+-- line the next scene with that character remembers it by.
+-- Its messages: what the viewer wrote, the character's replies (prose, its paragraphs a blank line apart; a reply drawn
+-- again keeps the earlier draws, replaced_by = the current one's id; kind 'aside' is the narrator's line that stands in
+-- when a reply couldn't be used twice), and system lines (kind 'notice': the AI notice; 'place': the scene moved).
+-- Nothing a check refused is ever in either table. Both go with the account (lib/account.ts AFTER_DARK_OWNED).
+create table if not exists adult_step_in_scenes (
+  id text primary key,
+  owner_id text not null,
+  character_id text not null,
+  place text not null,
+  roleplay jsonb,
+  opening text,
+  intensity text,
+  hard_nos jsonb not null default '{"chips":[],"own":[]}',
+  hard_nos_consented_at timestamptz,
+  recap text,
+  recap_upto timestamptz,
+  line text,
+  notice_at timestamptz,
+  paused_at timestamptz,
+  ended_at timestamptz,
+  created_at timestamptz not null default now(),
+  last_at timestamptz not null default now()
+);
+create index if not exists adult_step_in_scenes_owner_idx on adult_step_in_scenes (owner_id, last_at desc);
+create table if not exists adult_step_in_messages (
+  id text primary key,
+  scene_id text not null,
+  owner_id text not null,
+  role text not null check (role in ('viewer', 'character', 'system')),
+  kind text,
+  text text not null,
+  replaced_by text,
+  model text,
+  cost numeric,
+  created_at timestamptz not null default now()
+);
+create index if not exists adult_step_in_messages_scene_idx on adult_step_in_messages (scene_id, created_at);
 `;
 
 /** Idempotent: creates the tables and upserts the house characters, free and premium. */

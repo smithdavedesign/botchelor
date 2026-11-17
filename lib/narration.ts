@@ -506,7 +506,8 @@ export function guardStory(text: string, rating: Rating, also?: (sentence: strin
 // ---------------------------------------------------------------------------------------------------------------------
 // Story mode: a scene reply written as prose in ONE call (the roleplay audit, 2026-11-17, item 1: "replies written as
 // prose in one go (not the script plus a narration pass) … the character moves the scene on instead of asking what you
-// want"). For a scene a person is in themselves: a companion's scene (lib/companion.ts); After Dark's own comes later.
+// want"). For a scene a person is in themselves: a companion's scene (lib/companion.ts), and After Dark's own, with its
+// own prompt and checks around this (lib/adult/step-in.ts, which this file never imports).
 //
 // What's here is neutral. The craft and the parsing know no rating and the guard takes one, so each side's prompt keeps
 // its own rules around it (PG or not, honesty about being AI, the crisis rules) and runs its own line checks on the

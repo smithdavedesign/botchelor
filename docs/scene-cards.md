@@ -28,6 +28,12 @@ A roleplay used to be a title, a premise of a sentence or two, and two roles. No
 | `tone` | `tone`, each actor; "Its tone: …" for the director | "Its tone: …" | "Its tone: …" |
 | `openings` | The chosen one as `opening`, on **each side's first line only** | In the **opener's cue** only ("It opens like this: …"), never the standing prompt | "How it opens: …" on the **first lines after the roleplay is picked** only |
 
+After Dark's Step in (`lib/adult/step-in.ts`, the viewer in the scene with one character; closed) reads a card the way
+a companion's scene does: `setup`, `beats` and `tone` from the character's side (the viewer is "your scene partner"),
+**the character's own want only**, and the chosen opening in the first reply's cue only. The page shows the viewer the
+card's `setup` and openings from their side (`cardForYou`). A written opening there is held to `checkAdultText` and
+`adultCardTextIssue`.
+
 What the prompts say about it, on every surface: the turns are possibilities and not a script, and nothing in a card says how the night ends. On the show the engine alone decides the ending (the actor's TONIGHT'S ROLEPLAY section still closes on "in the final act you land your intention"). In After Dark the existing rule stands, with one sentence added: the roleplay is the story and never a way into sex, and the card's turns are story turns, not a cue to move a stage on.
 
 A roleplay someone wrote (a date's "Write your own", the Create library) has no card and is prompted exactly as before.

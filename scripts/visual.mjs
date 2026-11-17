@@ -215,11 +215,21 @@ async function main() {
   // scripts/e2e-after-dark.mjs uses: two lines every step, no key, no network beyond localhost).
   // Each step's lines differ (the scene refuses a step that only repeats lines already said).
   let adultStep = 0;
+  // Step in (lib/adult/step-in.ts) asks the same model for prose: its replies read "story" from the same answer.
+  const STEP_IN_REPLIES = [
+    ['She set her glass down and turned on the stool. "You made it," she said, as if it had been in doubt.', "Rain had started on the window behind her, and the lamp on the counter made a small warm circle of it."],
+    ['She pushed the menu across with one finger. "Order for both of us. I trust you with everything except the olives."', "The waiter hovered, decided against it, and went back to polishing a glass that was already clean."],
+    ['"Tell me the worst part of your week," she said, and took her hand back from the cold glass.', "Somewhere behind the bar a radio found an old song and kept it low."],
+    ['She laughed, short and surprised. "That is not how that story ends and we both know it."', "The candle between the plates had burned down to a stub, and nobody had come to change it."],
+  ];
   const adult = createServer((req, res) => {
     req.resume();
     req.on("end", () => {
       const n = ++adultStep;
-      const content = JSON.stringify({ lines: [{ who: "a", text: `Your place or mine? (take ${n})` }, { who: "b", text: `Mine. It's closer, and the kettle's on, take ${n}.` }] });
+      const content = JSON.stringify({
+        lines: [{ who: "a", text: `Your place or mine? (take ${n})` }, { who: "b", text: `Mine. It's closer, and the kettle's on, take ${n}.` }],
+        story: STEP_IN_REPLIES[n % STEP_IN_REPLIES.length],
+      });
       res.writeHead(200, { "content-type": "application/json" });
       res.end(JSON.stringify({ id: "stub", object: "chat.completion", choices: [{ index: 0, finish_reason: "stop", message: { role: "assistant", content } }] }));
     });
@@ -395,6 +405,28 @@ async function main() {
       console.log("Locked picture: seeded");
     } catch (e) {
       console.log(`Locked picture: not seeded (${String(e?.message ?? e).slice(0, 160)})`);
+    }
+    // Step in (lib/adult/step-in.ts; admins only until its rollout switch opens): a scene at a public place with a
+    // roleplay, one line sent, so its page is audited with the notice, an opening, a line of the viewer's and a reply.
+    let stepInScene = null;
+    try {
+      const ctx = await browser.newContext();
+      await ctx.addCookies([{ name: "bz_adult", value: "1", url: base }]);
+      await adminSignIn(ctx.request);
+      const call = async (path, data) => {
+        const res = data === undefined ? await ctx.request.get(base + path) : await ctx.request.post(base + path, { headers: { origin: base }, data });
+        if (!res.ok()) throw new Error(`${path} → ${res.status()}`);
+        return res.json();
+      };
+      const who = (await call("/api/admin/after-dark/step-in")).cast?.[0]?.id;
+      if (!who) throw new Error("nobody to step in with");
+      const made = await call("/api/admin/after-dark/step-in", { character_id: who, place: "venue:corner_cafe", roleplay: { id: "neighbours", you: 1 }, opening: 0 });
+      await call(`/api/admin/after-dark/step-in/${made.id}`, { action: "send", text: "I lean on the door frame and hold out the parcel." });
+      stepInScene = made.id;
+      await ctx.close();
+      console.log("Step in: seeded");
+    } catch (e) {
+      console.log(`Step in: not seeded (${String(e?.message ?? e).slice(0, 160)})`);
     }
     const writeScene = async (page) => {
       // The page opens on the theater (2026-10-25): the scene is written there.
@@ -728,6 +760,9 @@ async function main() {
       // The Studio door (whose Studio, then who's in; 2026-11-15); the writer, privacy and the subscription.
       { name: "after-dark-studio", path: "/after-dark/studio", as: "adult-admin" },
       { name: "after-dark-account", path: "/after-dark/account", as: "adult-admin" },
+      // Step in (the viewer in the scene with one character): its set-up, and a scene under way.
+      { name: "after-dark-step-in", path: "/after-dark/step-in", as: "adult-admin" },
+      ...(stepInScene ? [{ name: "after-dark-step-in-scene", path: `/after-dark/step-in/${stepInScene}`, as: "adult-admin" }] : []),
       // Signed in but not subscribed: an admin is sent on to the hub (and /admin/after-dark is only a redirect there).
       { name: "after-dark-subscribe", path: "/after-dark/subscribe", as: "member" },
       // The same person at the Gallery and the Studio (2026-11-16): the locked preview and the way in, not a not-found.

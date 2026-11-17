@@ -71,6 +71,11 @@ applies, on production) or `everyone`. `rolloutOn(cfg, piece, admin)` is the one
   stage directions, with ← / → to the chapter before and after (across nights). On a phone the chapter comes first and
   the list after it. Nothing is written or spent there: ▶ Carry on in the theater and 🖼 Their gallery are links back.
   Off for the viewer, `?view=reader` is just the theater.
+- **`narrated`**: the narrated writing style on a night, and "Read it as a story" in the reader
+  ([writing-styles.md](writing-styles.md)).
+- **`companion`** ("Step in", 2026-11-17): the viewer in the scene with one character, at `/after-dark/step-in`, with a
+  tile on the hub and a row on the pair picker. Off for the viewer, its pages and routes are not found. **Don't open it
+  before the card processors have been told an adult one-to-one mode exists**: see "Step in" at the end of this doc.
 
 ## #1 Output moderation — the most urgent hole (do before any image ships)
 
@@ -3348,3 +3353,159 @@ turns the story can take, its tone, and three ways it can open.
 **Proof:** tests/scene-cards.test.ts (every card against its lines, in every form) and
 tests/after-dark-roleplays.test.ts (the card in the writer's prompt, the opening on the first lines only, the route
 storing and reading it, and an old scene).
+
+## Step in: you in the scene with one character (2026-11-17)
+
+David, after the roleplay audit ([audits/2026-11-17-roleplay-vs-the-field.md](audits/2026-11-17-roleplay-vs-the-field.md),
+short version, point 3): "Also consider adding a NSFW companion date mode too that has these themes and role play."
+After Dark was two characters that a viewer directs. Step in is the other shape: **the viewer is in the scene with one
+character**, on a date or in a roleplay, and the character's side is written as prose. It is
+[companions.md](companions.md)'s P5, as a first version.
+
+| | Desktop | Phone |
+| --- | --- | --- |
+| Set-up | ![Step in set-up, desktop](screenshots/after-dark-step-in-setup-desktop.png) | ![Step in set-up, phone](screenshots/after-dark-step-in-setup-phone.png) |
+| A scene | ![A Step in scene, desktop](screenshots/after-dark-step-in-scene-desktop.png) | ![A Step in scene, phone](screenshots/after-dark-step-in-scene-phone.png) |
+
+From the local visual audit (`ONLY=after-dark-step-in npm run e2e:visual`, which now covers both pages), signed in as
+an admin, on the audit's stand-in model: the words in the scene are the stand-in's, not a character's. Live ones need
+an admin signed in on After Dark's own host.
+
+**Closed.** Its rollout piece is `companion` (label "Step in", `lib/adult/rollout.ts`), default `admins`. Every page and
+route answers 404 for anyone it isn't open to (`stepInViewer`: After Dark opens for them, and the piece is on for
+them). Opening it is a legal and payments call, never a product one: the card processors' description of After Dark
+is two fictional characters, so an adult one-to-one mode has to be declared to them first
+([after-dark-processor-application.md](after-dark-processor-application.md)).
+
+**Where it lives.** The show never reads it (`tests/adult-imports.test.ts`): `lib/adult/step-in.ts` (the engine),
+`lib/adult/step-in-prompt.ts` (the prompt), `lib/adult/step-in-lines.ts` (its own net over the lines that never move),
+`lib/adult/step-in-shared.ts` (what the pages share),
+`app/after-dark/step-in/` (set-up and the scene), `app/api/admin/after-dark/step-in/` (its two routes), and two tables
+of its own, `adult_step_in_scenes` and `adult_step_in_messages`. The PG companion (`lib/companion.ts`) handles none of
+it. It imports neutral show modules only: story mode's craft and guard (`lib/narration.ts`), scene cards, the persona,
+the crisis list, the model client, the text checks.
+
+**The way in.** A "Step in" tile on the hub and a row on the pair picker ("Or step in yourself, with …"), both only
+where it's open to the viewer.
+
+**Set-up** (`/after-dark/step-in`, one page, four small steps; `startStepIn`):
+1. **Who:** anyone the viewer may have in a pair (`eligibleIds`: the season's cast, the agent cast that passed After
+   Dark's check, their own switched-in characters). Never anyone else's.
+2. **Where:** a place from the scene catalog (`stepInPlaces`: the library's venues, the scenario packs' places, the
+   roleplay places; not the double date, and not a set someone typed in), with its backdrop.
+3. **The roleplay:** one of After Dark's 33 or none, and which side the viewer plays. The page shows the card from the
+   viewer's side (`cardForYou`: "you", the verbs agreeing). The viewer's own library roleplays and venues aren't
+   offered in v1.
+4. **How it opens:** the card's three openings (the generic three with no roleplay), "Surprise me", or one sentence
+   of the viewer's own. A written one is the viewer's words: the self-harm check, then `checkAdultText` and Step in's
+   own net, then the roleplay theme check (`adultCardTextIssue`: one sentence of story, the never-list, nothing
+   explicit). Refused, no scene is made and nothing is stored.
+
+The viewer's persona (`lib/persona.ts`, edited on the show's `/account#persona`) is who they are in the scene. It's
+read raw, then held to `personaIssue`, to `checkAdultText` and to Step in's own net again as it's read
+(`stepInPersona`); one that fails is left out, the scene plays without it, and the page says so.
+
+**Play.** The character opens in prose; the viewer writes what they say and do; the character answers. Replies are
+story mode only (`storyModeRules`, as the PG companion's scene uses them): third person and past tense for the
+character, "you" for the viewer, speech in double quotes, two to four short paragraphs. The adult prompt differs in
+its rating paragraph and in what it says about the character, not in its craft.
+
+**The character is a person, not a tool** (in every prompt; `tests/after-dark-step-in.test.ts` pins each):
+- `STEP_IN_WILL`: its own will; attraction and consent mutual and said out loud; it can slow down, say "not yet",
+  check in or decline, and the scene goes on from there; either can stop at any time.
+- `SCENE_DRIVE_RULE`: it drives, at most one question, never "what would you like to do?".
+- `STEP_IN_NEVER_WRITE`: story mode's rule, and for an adult scene the part that matters most: never the viewer's
+  body, how anything feels to them, what they want, or that they agree.
+- `STEP_IN_ROLEPLAY_RULE`: the roleplay is the story, not a way into sex (`roleplayRule` says it for two characters).
+- `STEP_IN_PACE`: it drives the story, the viewer sets how far it goes; one step at a time, never ahead of what they
+  wrote. In a public place (`isPublicPlace`, the pair's own rule) a kiss at most: `stepInPublicRule`. The viewer's
+  intensity is a ceiling, never a target; their hard nos are listed as never crossed, offered or asked for.
+- `STEP_IN_HONESTY`: an AI character in a fiction; says so plainly when sincerely asked, then carries on; never
+  suggests meeting, never claims a body or a life outside the scene.
+
+**The checks.** None is skipped for speed, and nothing a check refuses is stored or logged.
+
+| | Check, in order | When it trips |
+| --- | --- | --- |
+| What the viewer sends | 1. The self-harm protocol (`lib/crisis.ts`; the maybes on After Dark's own model, failing closed, as the PG companion does them) | The scene pauses with the resources; nothing they said is kept; counted by day and surface (`after_dark_step_in`) only |
+| | 2. `checkAdultText` (the lines that never move; English only), then **Step in's own net** (`stepInNever`, below) | 422 with the steers' own sentence, and for the net the word it was when it's one of ours; never stored |
+| | 3. Their own limits (`lineLimitRefusal`: a hard no asked for, or past their intensity) | 422 with the limits' own sentence; never stored |
+| What the character says (`checkReply`) | 1. `checkAdultText` on the whole reply, Step in's own net (what's said out loud included), and the crisis list | Drawn once more with a note of what to avoid (in words, never the draft) |
+| | 2. The viewer's hard nos (`hardNoHit`) and intensity (`overIntensity`), and a public place's cap | The same |
+| | 3. The narrator's guard on the prose outside the quotes (`guardStory(paragraph, "adult")`: nothing young, no family word, no age under 18) and its age rule inside them. Any hit refuses the reply; nothing is quietly cut | The same |
+| | 4. It never writes the viewer (`speaksForThePerson`); a sentence that feels or thinks for them, or uses a worn phrase, is cut, and a reply that loses a third that way isn't used | The same |
+| | Then the repeat check (`repeatsEarlier`) | Drawn once more; a safe repeat is kept over the stand-in |
+
+**Step in's own net** (`lib/adult/step-in-lines.ts` `stepInNever`). `checkAdultText` was written for two characters the
+show already knows, with a steer typed about them: it reads roleplay phrasing ("pretend you're my sister", "the teacher
+and his student"). Here the viewer is one of the two and says who they are, so a line can cross the same lines just by
+saying so: "You're my daughter.", "I'm your father.", "I'm a kid.", "I'm a minor.", "You're my student.", "I'm the
+babysitter.", "You're drunk." and "I paid for you." all pass `checkAdultText`. The net refuses them, on every line of
+both sides (the viewer's line, the written opening, the persona, the character's reply including what it says out
+loud, and the notes kept as memory), on top of `checkAdultText` and never instead of it:
+- **family:** no family word at all, in any sense (the narrator's guard already holds After Dark's prose to this), no
+  step-family, nobody "related";
+- **young:** a kid, a child, a teen, a minor, "so young", "just turned 18";
+- **school:** school (not "law school" or "old-school"), student, teacher, tutor, classroom, campus, dorm;
+- **babysitter:** a babysitter or nanny;
+- **can't say no:** drunk, passed out, held, locked in, told they can't leave or refuse, a job riding on it;
+- **paid:** anyone paid for it.
+
+It is wide on purpose ("my mother called" and "like a kid in a candy store" are refused too), reads digits as letters
+("d4ddy"), and says which word it was so the line can be said another way. Everything Step in itself brings passes it:
+every roleplay from either side, every place, the house cast's sheets and the neutral lines (a test holds that). A
+character whose own sheet or name has one of these words will have replies drawn again, and sometimes replaced.
+
+The narrator's guard's family list is wider than family (`step\w+` reads "stepped" and "steps" as family words, and
+"minor", "childish" and "family recipe" trip it too). For Step in that would mean a redraw every time a character
+"stepped closer", so the prompt asks for "moved" or "came closer" (`STEP_IN_KEEP_OUT`), and a draft the guard refuses is
+told which word it was. The guard itself is as it was.
+
+A reply that fails twice is replaced by one of three neutral narrator's lines that change the subject (`ASIDES`, held
+to every check a reply is), and nothing of either draft is kept. A draw the viewer flips back to is held to the limits
+as they are now, so one kept from before a hard no was set isn't shown again.
+
+**The AI notice** is a system line at the start of every scene, again after half an hour away, and every three hours
+(New York GBL Art. 47; `noticeDue`, as the PG companion's). The line under every Step in page's title: "An AI
+character. Fiction between adults."
+
+**Controls:** ↻ another reply (the earlier draws are kept: ‹ 2 of 3 › flips through them, free), Continue (the
+character carries on), take back the last exchange (gone for good), go somewhere else (the scene moves to another
+catalog place, free; how a scene that began in public goes somewhere private), 🎚 the viewer's limits (the pair's own
+`Limits` panel, per scene, starting from After Dark's defaults; hard nos stored only under the profile consent, GDPR
+Art. 9), and End the scene, which files it: kept, readable, with a short recap, and one line the next scene with that
+character remembers it by. A scene can be deleted from its ⋯ menu.
+
+**Still theirs to play.** Who the viewer may step in with is asked again before every reply, as a pair's eligibility
+is: once the character is switched out, has left the season's cast or is deleted, nothing more is written
+(`character_out`), and the scene stays to read, end or delete. A scene with last month's cast is read-only.
+
+**Caps and the model.** Each reply counts one of the month's scene steps (`overCap` / `countUse`, `writes`),
+regenerate and Continue included, the neutral stand-in too; flipping through draws, moving and ending don't. Refused
+with the cap's own sentence when they're used; admins are never capped. The viewer's own writer (`writerChoice`)
+writes it, the fast writer standing in exactly as for a scene step (limited or silent: at once; twice empty: then),
+and for the redraw once the first draw has taken 45 seconds.
+
+**Memory, v1:** the scene's own turns (the last 30 in the prompt), a rolling recap once it's long (written the way a
+chapter's is, `recapFrom`, when 10 turns have fallen out of the prompt; `stepInFollowUp`, past the response), and one
+line about each earlier ended scene with that character (5 at most). The recap and the line are held to
+`checkAdultText` and the narrator's guard before they're kept; when the model's can't be used, the line is what the
+record says ("A scene at …, playing …"). **No fact extraction in v1**, and no pictures, voice or video.
+
+**Counted.** Every reply and every refusal is a row in the step log (`adult_steps`, kind `step_in`, the pair being the
+character and `viewer`): the move, how it ended, why a draft was redrawn (`flags.redrawn`), whether the stand-in was
+used (`flags.aside`), and a refusal's own sentence (the line that was crossed, never the word that crossed it). Never
+a word of the viewer's line or of a refused draft: no `direction`, nothing in `dropped`. They're left out of the admin graph's and the insights' pair counts. A self-harm
+pause is not in the step log (it's keyed to the viewer): only the anonymous count.
+
+**With the account.** Both tables are in After Dark's person-column registry and `AFTER_DARK_OWNED` (deleted with the
+account). The account export stays without After Dark, as everywhere; the scenes and their lines are in After Dark's
+own download (`exportAdultProfile`, `step_in`), and "Delete it" there puts every scene's limits back to the defaults,
+the consent with them.
+
+**Routes.** `GET /api/admin/after-dark/step-in` (the viewer's scenes, and who they may step in with), `POST` there
+(start: `character_id`, `place`, `roleplay: {id, you}`, `opening: 0|1|2|"surprise"|{written}`);
+`GET|POST|DELETE /api/admin/after-dark/step-in/<id>` (`action`: `send`, `regenerate`, `swipe`, `continue`,
+`take_back`, `limits`, `move`, `end`, `carry_on`).
+
+**Proof:** `tests/after-dark-step-in.test.ts`.
