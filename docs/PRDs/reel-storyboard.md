@@ -1,6 +1,7 @@
 # Reel Storyboard — PRD
 
-Status: draft, 2026-10-24. Owner: this Claude session (reels lane). Studio next-steps and the 134 preset tiles
+Status: built, 2026-10-24: the storyboard UI is `app/after-dark/[a]/[b]/Storyboard.tsx`, and its plan, draw, approve
+and film steps go through `app/api/admin/after-dark/reel/route.ts`. Written as a draft the same day. Owner: this Claude session (reels lane). Studio next-steps and the 134 preset tiles
 are the other session's lane (`docs/PRDs/studio.md`); this reuses them, it doesn't build them.
 
 ## Why

@@ -7,9 +7,17 @@ doc is the parts that are NOT features: the three gates that make it lawful and 
 **Money model (David's call, 2026-10-18): the NSFW switch can only be turned on by an active _subscription_
 account.** The subscription is the paywall. Admin-only (#280) stays as the private test mode.
 
-> Status: #280 shipped the admin-only test scaffold (OpenRouter text + fal.ai images/clips, encrypted keys,
-> per-scene consent, isolation, `request_after_dark`). This doc is the plan to take it from admin-test to a
-> lawful paid product. Nothing here opens a user-facing door until the gates below are real.
+**Status (2026-11-17), checked against the code.** The sections below began as the plan (from #280, the admin-only
+test scaffold); this table is what is built now.
+
+| Gate | What is built | Where |
+|---|---|---|
+| Moderation | Every picture or clip is checked by Hive before it is stored: a child-detection model on every frame, and a vision model asked whether everyone shown is clearly an adult. It fails closed. Every line and steer goes through `checkAdultText` | `lib/adult/check.ts`, `lib/safety.ts` |
+| Entitlement | An admin, or a signed-in account with an active subscription (or a cancelled one with paid time left) and a passed age check. Passes for a processor's reviewer, an invited beta month and a 48-hour taste of scenes only go through the same check. Checked server-side on every action | `lib/adult/entitlement.ts`, `lib/adult/invites.ts`, `lib/adult/taste.ts` |
+| Billing | A subscription and token packs on adult card processors (CCBill, Segpay, Verotel), never Stripe. Each processor is on only when all its settings are in the environment | `lib/adult/billing.ts`, `lib/adult/billing-*.ts` |
+| Age checks | Subscribing records the 18+ self-declaration. A real check through Didit, for the UK, Australia and Brazil, is built and stays off until its three settings are set | `lib/adult/billing.ts`, `lib/adult/age-check.ts`, `lib/jurisdiction.ts` |
+| The door | The header's After Dark door shows to anyone After Dark is open to. Showing it to every adult where After Dark isn't blocked, landing on the subscribe page (taste, invite request, waitlist), is the `public_door` switch: admins only by default, until it is switched to everyone in the settings' Not open yet tab | `lib/adult/door.ts`, `lib/adult/rollout.ts` |
+| Host | Its own host, `ad.botchelor.com` (`AFTER_DARK_ONLY=1`) | `lib/after-dark-host.ts`, [after-dark-hosting.md](after-dark-hosting.md) |
 
 ## The entitlement gate (the money path) — #2
 
