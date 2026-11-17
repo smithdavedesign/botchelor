@@ -614,6 +614,8 @@ async function main() {
       { name: "admin-analytics-signed-in", path: "/admin/analytics", as: "admin" },
       { name: "account-signed-in", path: "/account", as: "member" },
       { name: "account-keys", path: "/account/keys", as: "member" },
+      // The one-time offer after signing in from a browser that had made a character (lib/account-claim.ts).
+      { name: "account-claim", path: "/account", as: "claimer" },
       { name: "directory", path: "/characters" },
       // Every card's verb (lib/character-verb.ts): a stranger steps in or makes a character (above), an owner sends theirs.
       { name: "directory-owner", path: "/characters", as: "owner" },
@@ -753,6 +755,24 @@ async function main() {
             let res = await ctx.request.post(`${base}/api/auth/register`, { ...opts, data: { ...creds, attest: true } });
             if (res.status() === 409) res = await ctx.request.post(`${base}/api/auth/login`, { ...opts, data: creds });
             if (!res.ok()) throw new Error(`sign-in → ${res.status()}`);
+          }
+          if (as === "claimer") {
+            // A browser that made a character with no account, then signs in to an account that already exists: the
+            // first write signs its anonymous session, and the sign-in sets the offer the account page shows.
+            const opts = { headers: { origin: base } };
+            const made = await ctx.request.post(`${base}/api/characters`, {
+              ...opts,
+              data: { name: "Ines Varga", age: 29, bio: "Tunes church organs and hums the note she is hunting for.", traits: ["patient", "wry", "exact"], want: "Someone who can sit in a quiet room", dealbreaker: "Talking over the music", attest: true, keep_name: true },
+            });
+            if (!made.ok()) throw new Error(`the claimer's character → ${made.status()}`);
+            const creds = { handle: "visual_claimer", password: ["visual", "claim", "pw"].join("-") };
+            // The account was made somewhere else (a browser of its own, closed again).
+            const elsewhere = await browser.newContext();
+            const registered = await elsewhere.request.post(`${base}/api/auth/register`, { ...opts, data: { ...creds, attest: true } });
+            await elsewhere.close();
+            if (!registered.ok() && registered.status() !== 409) throw new Error(`the claimer's account → ${registered.status()}`);
+            const res = await ctx.request.post(`${base}/api/auth/login`, { ...opts, data: creds });
+            if (!res.ok()) throw new Error(`the claimer's sign-in → ${res.status()}`);
           }
           contexts[as] = ctx;
           return ctx;

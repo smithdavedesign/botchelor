@@ -11,6 +11,8 @@ import { listBlocks } from "@/lib/people";
 import { backingBadges } from "@/lib/backing";
 import { listMyBadges, tryCloseDueSeasons, type Badge } from "@/lib/seasons";
 import AccountPanel from "./AccountPanel";
+import ClaimCard from "./ClaimCard";
+import { offerForPage } from "@/lib/account-claim";
 import { UnlinkAgentButton } from "./AgentLinks";
 import Icon from "@/app/Icon";
 import ThemeSetting from "@/app/ThemeSetting";
@@ -49,6 +51,8 @@ export default async function AccountPage({ searchParams }: { searchParams: Sear
   // Back from an email confirmation link (app/api/email/confirm).
   const emailConfirmed = params.email === "confirmed" || params.email === "invalid" ? params.email : null;
   const next = typeof raw === "string" && safeFrom(raw) !== "/" ? safeFrom(raw) : null;
+  // Back from bringing characters in (app/account/ClaimCard.tsx): how many, for the line at the top. A count only.
+  const claimed = typeof params.claimed === "string" && /^[1-9]\d{0,2}$/.test(params.claimed) ? Number(params.claimed) : 0;
   // What used to sit on "Episodes & leagues" and is only this viewer's (David, 2026-10-18): their league badges and the
   // creators they blocked (their dates were already here, in AccountPanel). Everything public moved to Watch.
   const viewerId = userIdFromCookieStore(await cookies());
@@ -57,6 +61,9 @@ export default async function AccountPage({ searchParams }: { searchParams: Sear
   // Agents linked to a real account (lib/agent-links.ts): never shown to an anonymous cookie.
   const auth = authFromCookieStore(await cookies());
   const agents = auth?.authenticated ? await linkedAgents(db, auth.userId) : [];
+  // What this browser made before signing in, offered once (lib/account-claim.ts). Read only for a browser that holds
+  // the signed offer, so the page costs nothing more for everyone else.
+  const claim = await offerForPage(db, auth, await cookies());
   // A season that ended since anyone last looked is closed here, so the viewer's new badges show (M4).
   let badges: Badge[] = [];
   if (viewerId && leagues.length) {
@@ -73,6 +80,12 @@ export default async function AccountPage({ searchParams }: { searchParams: Sear
   return (
     <>
       <h1>Your account</h1>
+      {claimed > 0 && (
+        <p className="notice" role="status" data-claimed>
+          {claimed === 1 ? "Your character is in this account now" : `${claimed} characters are in this account now`}: <a href="#your-characters">your characters</a>.
+        </p>
+      )}
+      {claim && <ClaimCard {...claim} />}
       <AccountPanel next={next} emailConfirmed={emailConfirmed} />
       <ThemeSetting initial={theme} />
 
