@@ -35,6 +35,8 @@ export type StepInMessageView = { id: string; role: "viewer" | "character" | "sy
 export type StepInSceneView = {
   id: string;
   character: StepInCharacter;
+  /** They're no longer in the viewer's After Dark (switched out, left the cast, deleted): the scene is read-only. */
+  character_out: boolean;
   place: StepInPlace;
   /** The roleplay from the viewer's side: who plays whom, and how it starts with "you" in it (lib/scene-cards.ts cardForYou). */
   roleplay: { id: string; title: string; icon: string; you_play: string | null; they_play: string | null; setup: string } | null;

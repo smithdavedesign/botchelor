@@ -1094,6 +1094,35 @@ describe("the controls", () => {
   });
 });
 
+describe("a character who is no longer in the viewer's After Dark", () => {
+  it("can't be written with any more: the scene stays to read, end or delete", async () => {
+    const seen = scripted();
+    const a = await admin();
+    const made = await start(a.id);
+    await sendStepInLine(t.db, a.id, made.id, "I sit down across from you.");
+    const before = seen.prompts.length;
+    // They leave the season's cast (the same eligibility a pair asks, asked again before every reply).
+    setSeasonCastForTests([HOUSE_CHARACTERS[1].id]);
+    for (const r of [
+      await sendStepInLine(t.db, a.id, made.id, "Still here?"),
+      await continueStepIn(t.db, a.id, made.id),
+      await regenerateStepIn(t.db, a.id, made.id),
+      await takeBackStepIn(t.db, a.id, made.id),
+      await moveStepIn(t.db, a.id, made.id, CAFE),
+    ]) {
+      expect(r).toMatchObject({ ok: false, status: 409, error: "character_out" });
+    }
+    expect(await startStepIn(t.db, a.id, { character_id: WHO, place: HOME })).toMatchObject({ ok: false, status: 404 });
+    expect(seen.prompts).toHaveLength(before);
+    const view = await viewOf(a.id, made.id);
+    expect(view).toMatchObject({ character_out: true, can: { regenerate: false, carry_on: false, take_back: false } });
+    expect(said(view)).toEqual(["character", "viewer", "character"]);
+    expect(await everything()).not.toContain("Still here?");
+    expect(await endStepIn(t.db, a.id, made.id)).toMatchObject({ ok: true });
+    expect((await viewOf(a.id, made.id)).ended).not.toBeNull();
+  });
+});
+
 describe("what goes with the account", () => {
   it("After Dark's own download carries the scenes and their lines; deleting a scene or the account removes both tables' rows", async () => {
     scripted();

@@ -115,6 +115,8 @@ export const ASIDES: readonly string[] = [
 ];
 
 const first = (name: string) => name.trim().split(/\s+/)[0] || name;
+/** What a scene's character is called once they've been deleted. */
+const GONE_NAME = "Someone who has left";
 const iso = (v: string | Date | null | undefined) => (v ? new Date(v).toISOString() : null);
 /** Messages written in one request are a millisecond apart, so they always sort in the order they were said. */
 const tick = (d: Date, n: number) => new Date(d.getTime() + n);
@@ -458,17 +460,28 @@ function roleplayView(pick: SceneRow["roleplay"], characterName: string): StepIn
   };
 }
 
-async function viewOf(db: Db, s: SceneRow): Promise<StepInSceneView | null> {
-  const [character, rows, drawn, who, left] = await Promise.all([characterRef(db, s.character_id), allMessages(db, s.id), drawnSets(db), stepInPersona(db, s.owner_id), usageLeft(db, s.owner_id, "writes")]);
-  if (!character) return null;
+async function viewOf(db: Db, s: SceneRow): Promise<StepInSceneView> {
+  const [found, rows, drawn, who, left, eligible] = await Promise.all([
+    characterRef(db, s.character_id),
+    allMessages(db, s.id),
+    drawnSets(db),
+    stepInPersona(db, s.owner_id),
+    usageLeft(db, s.owner_id, "writes"),
+    eligibleIds(db, s.owner_id),
+  ]);
+  // A character who has since been deleted: the scene stays readable (and deletable), under a name that says so.
+  const character = found ?? { id: s.character_id, name: GONE_NAME, portrait: null, hue: null };
   const shown = rows.filter((m) => !m.replaced_by);
   const spoken = spokenOf(rows);
   const last = spoken.at(-1) ?? null;
   const draws = last?.role === "character" ? drawsOf(rows, last) : [];
-  const live = !s.ended_at && !s.paused_at;
+  // Nothing more is written once they're out of the viewer's After Dark (switched out, left the cast, deleted).
+  const out = !found || !eligible.has(s.character_id);
+  const live = !s.ended_at && !s.paused_at && !out;
   return {
     id: s.id,
     character,
+    character_out: out,
     place: placeOf(s.place, drawn),
     roleplay: roleplayView(s.roleplay, character.name),
     persona: who.persona ? { name: who.persona.name } : null,
@@ -497,8 +510,19 @@ export type StepInSend = { ok: true; view: StepInSceneView; replied?: false; mes
 
 async function sent(db: Db, s: SceneRow, extra: { replied?: false; message?: string } = {}): Promise<StepInSend> {
   const fresh = await ownScene(db, s.owner_id, s.id);
-  const view = fresh && (await viewOf(db, fresh));
-  return view ? { ok: true, view, ...extra } : NOT_FOUND;
+  return fresh ? { ok: true, view: await viewOf(db, fresh), ...extra } : NOT_FOUND;
+}
+
+/**
+ * Whether the scene can still be written: its character is still one the viewer may have in After Dark (the same
+ * eligibility as when it started, asked again before every reply, as a pair's is). When they've been switched out,
+ * left the cast or been deleted, the scene stays to read, end or delete, and nothing more is written.
+ */
+async function writable(db: Db, s: SceneRow): Promise<StepInFail | null> {
+  if (s.ended_at) return ENDED;
+  if (s.paused_at) return PAUSED;
+  if ((await eligibleIds(db, s.owner_id)).has(s.character_id)) return null;
+  return fail(409, "character_out", "They aren't in your After Dark any more, so this scene can't go on. It's still here to read, and you can end it.");
 }
 
 /** The scene as its page shows it. */
@@ -518,7 +542,7 @@ export async function listStepInScenes(db: Db, viewer: string): Promise<{ runnin
   const drawn = await drawnSets(db);
   const refs = rows.map((r) => ({
     id: r.id,
-    character: { id: r.character_id, name: r.name ?? "Someone who has left", portrait: r.portrait, hue: r.hue },
+    character: { id: r.character_id, name: r.name ?? GONE_NAME, portrait: r.portrait, hue: r.hue },
     place: placeOf(r.place, drawn).title,
     roleplay: (r.roleplay && roleplayById(r.roleplay.id)?.title) || null,
     last_at: iso(r.last_at)!,
@@ -677,8 +701,9 @@ async function draw(
   // A draft that passed every check and only says something again: used when the second isn't better (never the aside).
   let repeat: string[] | null = null;
   for (let attempt = 0; attempt < 2 && !kept; attempt++) {
-    // The second draw doesn't wait on a slow writer twice.
-    if (attempt > 0 && fast && model !== fast && Date.now() - started > REDRAW_ON_FAST_AFTER_MS) toFast();
+    // The second draw goes to the fast writer when the first had no story in it (as a scene step's does), and never
+    // waits on a slow writer twice.
+    if (attempt > 0 && fast && model !== fast && (reasons.at(-1) === "empty" || Date.now() - started > REDRAW_ON_FAST_AFTER_MS)) toFast();
     let raw: string;
     try {
       raw = await complete(avoid);
@@ -850,8 +875,8 @@ const stageOf = (rows: readonly MessageRow[]): number => spokenOf(rows).reduce((
 export async function sendStepInLine(db: Db, viewer: string, sceneId: string, input: string, now: Date = new Date()): Promise<StepInSend> {
   const s = await ownScene(db, viewer, sceneId);
   if (!s) return NOT_FOUND;
-  if (s.ended_at) return ENDED;
-  if (s.paused_at) return PAUSED;
+  const closed = await writable(db, s);
+  if (closed) return closed;
   const text = clean(input);
   if (!text) return fail(400, "empty", "Write what you say or do first.");
   if (text.length > STEP_IN_LINE_MAX) return fail(400, "too_long", `Keep it under ${STEP_IN_LINE_MAX} characters.`);
@@ -886,8 +911,8 @@ export async function sendStepInLine(db: Db, viewer: string, sceneId: string, in
 export async function continueStepIn(db: Db, viewer: string, sceneId: string, now: Date = new Date()): Promise<StepInSend> {
   const s = await ownScene(db, viewer, sceneId);
   if (!s) return NOT_FOUND;
-  if (s.ended_at) return ENDED;
-  if (s.paused_at) return PAUSED;
+  const closed = await writable(db, s);
+  if (closed) return closed;
   const capped = await overCap(db, viewer, "writes", now);
   if (capped) return refuse(db, s, 429, "capped", capped, "cap", "continue");
   const character = await characterRef(db, s.character_id);
@@ -907,8 +932,8 @@ export async function continueStepIn(db: Db, viewer: string, sceneId: string, no
 export async function regenerateStepIn(db: Db, viewer: string, sceneId: string, now: Date = new Date()): Promise<StepInSend> {
   const s = await ownScene(db, viewer, sceneId);
   if (!s) return NOT_FOUND;
-  if (s.ended_at) return ENDED;
-  if (s.paused_at) return PAUSED;
+  const closed = await writable(db, s);
+  if (closed) return closed;
   const capped = await overCap(db, viewer, "writes", now);
   if (capped) return refuse(db, s, 429, "capped", capped, "cap", "regenerate");
   const rows = await allMessages(db, s.id);
@@ -936,8 +961,8 @@ export async function regenerateStepIn(db: Db, viewer: string, sceneId: string, 
 export async function swipeStepIn(db: Db, viewer: string, sceneId: string, to: "prev" | "next"): Promise<StepInSend> {
   const s = await ownScene(db, viewer, sceneId);
   if (!s) return NOT_FOUND;
-  if (s.ended_at) return ENDED;
-  if (s.paused_at) return PAUSED;
+  const closed = await writable(db, s);
+  if (closed) return closed;
   const rows = await allMessages(db, s.id);
   const last = spokenOf(rows).at(-1) ?? null;
   const order = last?.role === "character" ? drawsOf(rows, last) : [];
@@ -958,8 +983,8 @@ export async function swipeStepIn(db: Db, viewer: string, sceneId: string, to: "
 export async function takeBackStepIn(db: Db, viewer: string, sceneId: string): Promise<StepInSend> {
   const s = await ownScene(db, viewer, sceneId);
   if (!s) return NOT_FOUND;
-  if (s.ended_at) return ENDED;
-  if (s.paused_at) return PAUSED;
+  const closed = await writable(db, s);
+  if (closed) return closed;
   const rows = await allMessages(db, s.id);
   const spoken = spokenOf(rows);
   const line = [...spoken].reverse().find((m) => m.role === "viewer") ?? null;
@@ -986,8 +1011,8 @@ export async function carryOnStepIn(db: Db, viewer: string, sceneId: string): Pr
 export async function moveStepIn(db: Db, viewer: string, sceneId: string, placeId: string, now: Date = new Date()): Promise<StepInSend> {
   const s = await ownScene(db, viewer, sceneId);
   if (!s) return NOT_FOUND;
-  if (s.ended_at) return ENDED;
-  if (s.paused_at) return PAUSED;
+  const closed = await writable(db, s);
+  if (closed) return closed;
   const place = stepInPlaces(await drawnSets(db)).find((p) => p.id === placeId);
   if (!place) return fail(422, "invalid_place", "Pick a place from the list.");
   if (normalizeScene(place.place) === normalizeScene(s.place)) return fail(409, "already_there", "You're already there.");

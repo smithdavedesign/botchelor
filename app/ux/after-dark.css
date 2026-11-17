@@ -3064,7 +3064,7 @@ fieldset.ad-si-step {
   font-weight: 500;
 }
 /* The viewer's own lines, set apart: to the right, in the accent's tint, a size down from the prose. */
-.ad-si-you {
+.ad-si-lines > li.ad-si-you {
   width: fit-content;
   max-width: 88%;
   margin-left: auto;
@@ -3122,7 +3122,8 @@ fieldset.ad-si-step {
   background: var(--night-bg);
 }
 .ad-si-composer textarea {
-  min-height: 3.5rem;
+  /* Two lines of a reply's own text: the smallest a textarea goes (docs/brand.md, "Forms": 64px). */
+  min-height: 4rem;
   margin-top: 0;
 }
 .ad-si-composer-row {
@@ -3195,7 +3196,7 @@ fieldset.ad-si-step {
   .ad-si-lines {
     padding: var(--space-3);
   }
-  .ad-si-you {
+  .ad-si-lines > li.ad-si-you {
     max-width: 94%;
   }
 }

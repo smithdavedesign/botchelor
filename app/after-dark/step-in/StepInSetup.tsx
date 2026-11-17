@@ -58,7 +58,8 @@ export default function StepInSetup({
   const side = you === 1 ? "b" : "a";
   // The roleplay's card as the viewer reads it, and the three openings to pick from (the generic three with no roleplay).
   const card = useMemo(() => (rp ? cardForYou(rp.card, side, name) : null), [rp, side, name]);
-  const openings = card ? card.openings : GENERIC_OPENINGS.map((o) => premiseForYou(o, "a", name));
+  // (They name who the viewer is with, so they wait for a pick: "when them walks in" reads wrong.)
+  const openings = !character ? [] : card ? card.openings : GENERIC_OPENINGS.map((o) => premiseForYou(o, "a", name));
   const byCategory = useMemo(() => SCENE_CATEGORIES.map((c) => ({ ...c, roleplays: ROLEPLAYS.filter((r) => r.category === c.id) })).filter((c) => c.roleplays.length), []);
 
   async function start() {
@@ -169,14 +170,15 @@ export default function StepInSetup({
         </select>
         {rp && card && (
           <>
-            <p className="ad-si-card-setup">{card.setup}</p>
+            {/* How it starts, with "you" in it and their name: it waits for a pick, like the openings. */}
+            {character ? <p className="ad-si-card-setup">{card.setup}</p> : <p className="muted small">Pick who you&apos;re with to read how it starts.</p>}
             {rp.roles && (
               <div className="ad-si-roles" role="radiogroup" aria-label="Who plays which role">
                 {([0, 1] as const).map((i) => (
                   <label key={i} className="check">
                     <input type="radio" name="ad-si-you" checked={you === i} onChange={() => setYou(i)} />
                     <span>
-                      You play {rp.roles![i]}; {name} plays {rp.roles![i === 0 ? 1 : 0]}
+                      You play {rp.roles![i]}; {character ? `${name} plays` : "they play"} {rp.roles![i === 0 ? 1 : 0]}
                     </span>
                   </label>
                 ))}
@@ -205,6 +207,7 @@ export default function StepInSetup({
             <span>One sentence of your own</span>
           </label>
         </div>
+        {!character && <p className="muted small">Pick who you&apos;re with, and three ways it can open show here.</p>}
         {opening === "written" && (
           <>
             <label htmlFor="ad-si-written" className="sr-only">

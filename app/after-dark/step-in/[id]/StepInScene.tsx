@@ -85,7 +85,7 @@ export default function StepInScene({ initial, places, personaHref }: { initial:
   const [moveTo, setMoveTo] = useState("");
   const end = useRef<HTMLDivElement>(null);
   const name = first(view.character.name);
-  const live = !view.ended && !view.paused;
+  const live = !view.ended && !view.paused && !view.character_out;
   const last = view.messages.filter((m) => m.role !== "system").at(-1) ?? null;
   const count = view.messages.length;
 
@@ -106,6 +106,8 @@ export default function StepInScene({ initial, places, personaHref }: { initial:
       const help = crisisFrom(data);
       if (help) {
         setCrisis(help);
+        // Nothing they said was kept, so it doesn't stay in the box either.
+        if (body.action === "send") setText("");
         return false;
       }
       if (!res.ok || data?.replied === false) {
@@ -184,6 +186,14 @@ export default function StepInScene({ initial, places, personaHref }: { initial:
         {waiting && <li className="ad-si-system ad-si-writing">{name} is writing…</li>}
       </ol>
 
+      {/* The opening never came (no model answered when the scene was made): one button draws it. */}
+      {live && !last && !waiting && (
+        <p className="ad-si-under" data-step-in-open>
+          <button type="button" className="primary" onClick={() => void act({ action: "continue" })} disabled={Boolean(busy)}>
+            Have {name} open the scene
+          </button>
+        </p>
+      )}
       {live && last?.role === "character" && !waiting && (
         <p className="ad-si-under" data-step-in-under>
           {view.draws && (
@@ -206,6 +216,11 @@ export default function StepInScene({ initial, places, personaHref }: { initial:
       )}
 
       {crisis && <CrisisNotice resources={crisis} onClose={() => setCrisis(null)} />}
+      {view.character_out && !view.ended && (
+        <p className="ad-si-paused muted" data-step-in-out>
+          {name} isn&apos;t in your After Dark any more, so this scene can&apos;t go on. It&apos;s still here to read, and you can end it from the ⋯ menu.
+        </p>
+      )}
       {view.paused && (
         <p className="ad-si-paused" data-step-in-paused>
           The scene is paused. Nothing you wrote was kept.{" "}
@@ -259,7 +274,7 @@ export default function StepInScene({ initial, places, personaHref }: { initial:
             value={text}
             maxLength={STEP_IN_LINE_MAX}
             disabled={!live}
-            placeholder={view.paused ? "Paused" : `What you say and do. ${name} answers.`}
+            placeholder={view.paused ? "Paused" : view.character_out ? "This scene can't go on" : `What you say and do. ${name} answers.`}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => {
               if (e.key !== "Enter" || e.shiftKey) return;

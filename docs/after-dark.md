@@ -3467,6 +3467,10 @@ catalog place, free; how a scene that began in public goes somewhere private), ð
 Art. 9), and End the scene, which files it: kept, readable, with a short recap, and one line the next scene with that
 character remembers it by. A scene can be deleted from its â‹¯ menu.
 
+**Still theirs to play.** Who the viewer may step in with is asked again before every reply, as a pair's eligibility
+is: once the character is switched out, has left the season's cast or is deleted, nothing more is written
+(`character_out`), and the scene stays to read, end or delete. A scene with last month's cast is read-only.
+
 **Caps and the model.** Each reply counts one of the month's scene steps (`overCap` / `countUse`, `writes`),
 regenerate and Continue included, the neutral stand-in too; flipping through draws, moving and ending don't. Refused
 with the cap's own sentence when they're used; admins are never capped. The viewer's own writer (`writerChoice`)
