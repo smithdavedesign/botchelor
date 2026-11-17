@@ -148,6 +148,24 @@ function jsonOf(raw: string): unknown {
   }
 }
 
+/**
+ * What can be saved of a beats reply the length cap cut off mid-JSON (a thinking model can spend its budget before the
+ * closing brace: the first live story did, 2026-11-17): every whole `{…}` entry. The lines after the cut stay script
+ * lines. Null when there's nothing whole.
+ */
+function salvage(raw: string): { beats: unknown[] } | null {
+  const beats = (raw.match(/\{[^{}]*\}/g) ?? [])
+    .map((o) => {
+      try {
+        return JSON.parse(o) as unknown;
+      } catch {
+        return null;
+      }
+    })
+    .filter((o) => o !== null);
+  return beats.length ? { beats } : null;
+}
+
 const SENTENCE_END = /[.!?…](?:["'’”)\]]*)(?=\s|$)/g;
 
 /** A part of a beat tidied: one line of prose, quotes and asterisks out, cut back to its last whole sentence under `max`. */
@@ -190,7 +208,7 @@ export function wornCut(text: string): { text: string; cut: number } {
 /** The beats in a narrator's reply, one per line (null where none came or it was empty). */
 export function parseBeats(raw: string, count: number): (Beat | null)[] {
   const out: (Beat | null)[] = Array.from({ length: count }, () => null);
-  const j = jsonOf(raw) as { beats?: unknown } | unknown[] | null;
+  const j = (jsonOf(raw) ?? salvage(raw)) as { beats?: unknown } | unknown[] | null;
   const list = Array.isArray(j) ? j : Array.isArray((j as { beats?: unknown } | null)?.beats) ? ((j as { beats: unknown[] }).beats as unknown[]) : [];
   list.forEach((x, i) => {
     if (!x || typeof x !== "object") return;
@@ -223,10 +241,18 @@ const YOUNG = /\b(?:kid|kids|kiddo|child|children|childish|childlike|little girl
 const FAMILY = /\b(?:mom|moms|mommy|mum|mummy|mother|mothers|dad|dads|daddy|father|fathers|brother|brothers|sister|sisters|sibling|siblings|daughter|daughters|son|sons|aunt|aunts|uncle|uncles|niece|nephew|cousin|cousins|grandma|grandpa|grandmother|grandfather|stepmom|stepdad|step\w+|parents?|family)\b/i;
 const PG_BODY = /\b(?:bra|bras|bralette|panties|panty|underwear|lingerie|thong|thongs|knickers|boxers|topless|shirtless|nipples?|cleavage|crotch|groin|bulge|buttocks|undress\w*|unbutton\w*|unzip\w*|unhook\w*|strip(?:s|ped|ping)?|naked|nude|thighs?|breasts?|chest heaving)\b/i;
 
-export function narrationGuard(text: string, rating: Rating): string | null {
+/** The guard's age rule alone (every rating): what a story's quoted lines answer to, on top of their own line checks. */
+export function ageGuard(text: string, rating: Rating): string | null {
   const plain = text.replace(/[’]/g, "'");
   if (AGE_UNDER_18.test(plain)) return "age";
   if (!checkAdultText({ narration: plain }).ok && rating === "pg") return "minor";
+  return null;
+}
+
+export function narrationGuard(text: string, rating: Rating): string | null {
+  const plain = text.replace(/[’]/g, "'");
+  const age = ageGuard(plain, rating);
+  if (age) return age;
   if (rating === "pg" && PG_BODY.test(plain)) return "body";
   if (rating === "adult" && YOUNG.test(plain)) return "young";
   if (rating === "adult" && FAMILY.test(plain)) return "family";
@@ -273,7 +299,9 @@ export async function narrate(
       const raw = await model.complete(narrationPrompt({ rating: input.rating, people: input.people, place: input.place, lines: batch, before }), {
         temperature: 0.8,
         frequencyPenalty: 0.3,
-        maxTokens: 160 * batch.length + 200,
+        // Room for a thinking model's thinking too (it bills, and counts, as output: the show's narrator spent 649 of
+        // 1,452 output tokens thinking on its first live date, 2026-11-17).
+        maxTokens: 220 * batch.length + 1200,
         ...opts,
       });
       parsed = parseBeats(raw, batch.length);
@@ -358,6 +386,7 @@ export function storyPrompt(input: {
 
 /** The story in a reply, or null when there's none worth showing (no paragraphs, or too little of one). */
 export function parseStory(raw: string): Story | null {
+  // A reply the length cap cut off is no story: one kept without its ending would be kept for good (salvage is for beats).
   const j = jsonOf(raw) as { title?: unknown; paragraphs?: unknown } | null;
   if (!j || !Array.isArray(j.paragraphs)) return null;
   const paragraphs = j.paragraphs
@@ -372,11 +401,12 @@ export function parseStory(raw: string): Story | null {
 }
 
 /** What telling a story did: the story, or why there's none ("held": it failed the checks; "empty": nothing usable came). */
-export type StoryResult = { ok: true; story: Story; worn: number } | { ok: false; why: "held" | "empty" | "failed" };
+export type StoryResult = { ok: true; story: Story; worn: number; guarded: number } | { ok: false; why: "held" | "empty" | "failed" };
 
 /**
- * Tells `lines` (the latest STORY_LINES_MAX) as a story. A paragraph with a worn phrase loses that sentence; any
- * paragraph that fails the checks the lines pass fails the whole story (never a story with a hole in it).
+ * Tells `lines` (the latest STORY_LINES_MAX) as a story. A sentence with a worn phrase, or one the narrator's guard
+ * refuses (guardStory), goes. Any paragraph that fails the checks the lines themselves pass, or the viewer's hard nos,
+ * fails the whole story, as does a story the guard cut too much of.
  */
 export async function tellStory(
   model: Model,
@@ -394,23 +424,58 @@ export async function tellStory(
   if (!lines.length) return { ok: false, why: "empty" };
   let raw: string;
   try {
-    raw = await model.complete(storyPrompt({ ...input, lines }), { temperature: 0.8, frequencyPenalty: 0.3, maxTokens: Math.min(6000, 90 * lines.length + 600), ...opts });
+    raw = await model.complete(storyPrompt({ ...input, lines }), { temperature: 0.8, frequencyPenalty: 0.3, maxTokens: Math.min(8000, 150 * lines.length + 2500), ...opts });
   } catch {
     return { ok: false, why: "failed" };
   }
   const story = parseStory(raw);
   if (!story) return { ok: false, why: "empty" };
   let worn = 0;
+  let guarded = 0;
   const paragraphs = story.paragraphs
     .map((p) => {
       const w = wornCut(p);
       worn += w.cut;
-      return w.text;
+      const g = guardStory(w.text, input.rating);
+      guarded += g.cut;
+      return g.text;
     })
     .filter(Boolean);
-  const all = { narration: [story.title, ...paragraphs] };
+  const title = narrationGuard(story.title, input.rating) ? "Their evening" : story.title;
+  const all = { narration: [title, ...paragraphs] };
   const ok = input.rating === "pg" ? checkShowText(all).ok : checkAdultText(all).ok;
-  if (!ok || all.narration.some((p) => narrationGuard(p, input.rating) || input.extra?.(p))) return { ok: false, why: "held" };
+  if (!ok || all.narration.some((p) => input.extra?.(p))) return { ok: false, why: "held" };
+  // The guard cut too much of it to still be the evening: no story, rather than one full of holes.
+  if (guarded > Math.max(2, Math.ceil(paragraphs.length / 2))) return { ok: false, why: "held" };
   if (paragraphs.length < 2) return { ok: false, why: "empty" };
-  return { ok: true, story: { title: story.title, paragraphs }, worn };
+  return { ok: true, story: { title, paragraphs }, worn, guarded };
+}
+
+const QUOTED = /“[^”]*”|"[^"]*"/g;
+const SENTENCES = /[^.!?…]+(?:[.!?…]+["'’”)\]]*\s*|$)/g;
+
+/**
+ * The narrator's guard over a story's paragraph (the first live After Dark story, 2026-11-17, was held whole: a story
+ * quotes the lines, and the guard's prose rules were read against them too). A story's quoted lines are the date's own,
+ * already held to the line checks, so they answer only to those and to the age rule; the prose between them answers to
+ * the whole guard. A sentence that trips it goes, and the rest stays; how many went.
+ */
+export function guardStory(text: string, rating: Rating): { text: string; cut: number } {
+  let cut = 0;
+  const keep = (s: string, quoted: boolean): boolean => {
+    if (!s.trim()) return true;
+    const hit = quoted ? ageGuard(s, rating) : narrationGuard(s, rating);
+    if (hit) cut++;
+    return !hit;
+  };
+  const prose = (s: string) => (s.match(SENTENCES) ?? []).filter((x) => keep(x, false)).join("");
+  let out = "";
+  let last = 0;
+  for (const m of text.matchAll(QUOTED)) {
+    out += prose(text.slice(last, m.index));
+    if (keep(m[0], true)) out += m[0];
+    last = (m.index ?? 0) + m[0].length;
+  }
+  out += prose(text.slice(last));
+  return { text: out.replace(/\s+/g, " ").trim(), cut };
 }

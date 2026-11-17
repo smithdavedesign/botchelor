@@ -12,11 +12,11 @@ import { randomUUID } from "node:crypto";
 import { refundBoughtTokens, spendBoughtTokens } from "./allowance";
 import type { Db } from "./db";
 import { getEpisodeView } from "./game";
-import { frontierConfigured, getDirectorModel, getFrontierModel, type Model, type Usage } from "./model";
+import type { Model, Usage } from "./model";
 import { tellStory, type NarrateLine, type Story } from "./narration";
 import { shortName } from "./names";
 import { venueName } from "./venues";
-import { turnToNarrate } from "./narrate-date";
+import { showNarrator, turnToNarrate } from "./narrate-date";
 import { summarizeUsage } from "./pricing";
 import { ADULT_STORY_WRITES, extraFor, STORY_TOKENS, stylesOpen } from "./writing-style";
 
@@ -51,11 +51,6 @@ const WHY: Record<"held" | "empty" | "failed", string> = {
   empty: "The story came back empty. Try again.",
   failed: "The writer is busy right now. Try again in a moment.",
 };
-
-/** The show's narrator: the frontier when it's set up (as show dates are), else the director model. */
-function showNarrator(): Model {
-  return (frontierConfigured() ? getFrontierModel() : null) ?? getDirectorModel(process.env, undefined, false);
-}
 
 /**
  * A show date's story for `viewer`: the kept one, or made now when they may (stylesOpen) and can pay for it. The date

@@ -10,6 +10,7 @@ import type { ChatMessage, Model } from "@/lib/model";
 import { narrateDate } from "@/lib/narrate-date";
 import {
   beatPasses,
+  guardStory,
   narrate,
   NARRATE_BATCH,
   narrationGuard,
@@ -85,6 +86,12 @@ describe("the narrator's reply", () => {
 
   it("drops a sentence with a worn phrase, and keeps the rest", () => {
     expect(wornCut("She let out a breath she didn't know she was holding. Then she laughed.")).toEqual({ text: "Then she laughed.", cut: 1 });
+  });
+
+  it("keeps the whole beats of a reply the length cap cut off, and a cut-off story is no story", () => {
+    const cut = '{"beats": [{"n": 1, "before": "She laughed.", "after": ""}, {"n": 2, "before": "He set the gla';
+    expect(parseBeats(cut, 2)).toEqual([{ before: "She laughed.", after: "" }, null]);
+    expect(parseStory('{"title": "Night", "paragraphs": ["They met.", "They talked.", "And then she')).toBeNull();
   });
 
   it("an odd reply is no beats, never an error", () => {
@@ -191,14 +198,37 @@ describe("stories", () => {
     expect(parseStory(JSON.stringify({ title: "*Rain*", paragraphs: ["One.", "Two."] }))).toEqual({ title: "Rain", paragraphs: ["One.", "Two."] });
   });
 
+  it("holds a story's quoted lines to the line checks only, and cuts a prose sentence the guard refuses", async () => {
+    // The first live After Dark story was held whole: its quoted lines met the prose-only rules (family words).
+    const quoted = guardStory('Teodor laughed. "My grandmother taught me that soup," he said. He thought of his sister. Then he poured.', "adult");
+    expect(quoted).toEqual({ text: 'Teodor laughed. "My grandmother taught me that soup," he said. Then he poured.', cut: 1 });
+    // An age under 18 goes wherever it is said.
+    expect(guardStory('She smiled. "I was only fifteen then." He nodded.', "pg")).toEqual({ text: "She smiled. He nodded.", cut: 1 });
+    const told = await tellStory(model([JSON.stringify({ title: "Soup", paragraphs: ['"My grandmother taught me," he said. He thought of his sister.', "She took the thermos.", "They stayed late."] })]), {
+      rating: "adult",
+      people: [],
+      place: null,
+      lines: [{ who: "Teodor", dialogue: "My grandmother taught me." }],
+    });
+    expect(told).toMatchObject({ ok: true, guarded: 1, story: { paragraphs: ['"My grandmother taught me," he said.', "She took the thermos.", "They stayed late."] } });
+  });
+
   it("is held whole when any paragraph fails the checks", async () => {
-    const told = await tellStory(model([JSON.stringify({ title: "Night", paragraphs: ["They met.", "She took off her bra."] })]), {
+    const told = await tellStory(model([JSON.stringify({ title: "Night", paragraphs: ["They met.", "She was naked.", "They talked."] })]), {
       rating: "pg",
       people: [],
       place: null,
       lines: [{ who: "Mara", dialogue: "Hi." }],
     });
-    expect(told).toEqual({ ok: false, why: "held" });
+    // "naked" is cut by the guard as prose; what the show's own check refuses holds the story whole.
+    expect(told).toMatchObject({ ok: true, guarded: 1 });
+    const held = await tellStory(model([JSON.stringify({ title: "Night", paragraphs: ["They met.", '"Come here, you sexy slut," he said.', "They talked."] })]), {
+      rating: "pg",
+      people: [],
+      place: null,
+      lines: [{ who: "Mara", dialogue: "Hi." }],
+    });
+    expect(held).toEqual({ ok: false, why: "held" });
   });
 });
 
