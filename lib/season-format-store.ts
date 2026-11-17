@@ -3,6 +3,7 @@
  * /admin/season only. A season with no row is classic — the show exactly as it was before formats existed — so
  * nothing needs a row until David picks another format for a month.
  */
+import { freezeFormat } from "./show-seasons";
 import type { Db } from "./db";
 import {
   DEFAULT_SEASON_FORMAT,
@@ -30,8 +31,16 @@ const isSlug = (s: string): s is SeasonFormatSlug => (SEASON_FORMAT_SLUGS as rea
 export function seasonFormatSlug(db: Db, seasonId: string): Promise<SeasonFormatSlug> {
   // Asked from several corners of one page at once (the season line, the vote, casting, the cast): one read for all of them.
   return inFlight(db, `season-format:${seasonId}`, async () => {
-    const row = (await db.query<{ slug: string }>(`select slug from season_formats where season_id = $1`, [seasonId])).rows[0];
-    if (row) return isSlug(row.slug) ? row.slug : DEFAULT_SEASON_FORMAT;
+    // One round trip for both: the admin's row, and the format frozen when the season started (lib/show-seasons.ts).
+    const row = (
+      await db.query<{ admin: string | null; frozen: string | null }>(
+        `select (select slug from season_formats where season_id = $1) as admin, (select format from show_seasons where id = $1) as frozen`,
+        [seasonId],
+      )
+    ).rows[0];
+    if (row?.admin) return isSlug(row.admin) ? row.admin : DEFAULT_SEASON_FORMAT;
+    // A started season's answer no longer moves with the ballot's rows (an account deleted takes its vote with it).
+    if (row?.frozen && isSlug(row.frozen)) return row.frozen;
     return ballotWinner(await seasonBallotTally(db, seasonId).catch(() => new Map())) ?? DEFAULT_SEASON_FORMAT;
   });
 }
@@ -49,11 +58,13 @@ export async function seasonFormatNow(db: Db, now: Date = new Date()): Promise<S
 export async function setSeasonFormat(db: Db, seasonId: string, slug: SeasonFormatSlug): Promise<void> {
   if (slug === DEFAULT_SEASON_FORMAT && (ballotWinner(await seasonBallotTally(db, seasonId)) ?? DEFAULT_SEASON_FORMAT) === DEFAULT_SEASON_FORMAT) {
     await db.query(`delete from season_formats where season_id = $1`, [seasonId]);
-    return;
+  } else {
+    await db.query(
+      `insert into season_formats (season_id, slug) values ($1, $2)
+       on conflict (season_id) do update set slug = excluded.slug`,
+      [seasonId, slug],
+    );
   }
-  await db.query(
-    `insert into season_formats (season_id, slug) values ($1, $2)
-     on conflict (season_id) do update set slug = excluded.slug`,
-    [seasonId, slug],
-  );
+  // The registry's frozen copy follows the admin (a season that hasn't started has none yet).
+  await freezeFormat(db, seasonId, new Date(), { again: true }).catch(() => null);
 }

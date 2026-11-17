@@ -13,6 +13,9 @@ import { getDb } from "@/lib/db";
 import { authFromCookieStore } from "@/lib/http";
 import { siteUrl } from "@/lib/site";
 import { pgState } from "@/lib/studio/pg";
+import { shortName } from "@/lib/names";
+import { shared } from "@/lib/shared-cache";
+import { sameCharacterProof } from "@/lib/showcase";
 import StudioTabs from "./StudioTabs";
 
 export const dynamic = "force-dynamic";
@@ -40,6 +43,8 @@ export default async function MyStudioPage({ searchParams }: Props = {}) {
   // An admin's way to a house character's Studio is its address: it isn't one of "mine", so it has no face in the row.
   const id = mine.some((c) => c.id === asked) ? asked : (picked?.id ?? asked);
   const r = id && auth?.authenticated ? await pgState(db, auth.userId, id, siteUrl(process.env)) : null;
+  // For someone with no character yet: one public character in several scenes, from the Gallery (lib/showcase.ts).
+  const proof = !r?.ok && mine.length === 0 ? await shared("studio:proof", () => sameCharacterProof(db)).catch(() => null) : null;
 
   if (!r?.ok) {
     return (
@@ -49,7 +54,21 @@ export default async function MyStudioPage({ searchParams }: Props = {}) {
         <section className="card">
           {mine.length === 0 ? (
             <>
+              <p className="studio-promise">Your character. Any scene. Still unmistakably them.</p>
               <p>Photo shoots of your own character: pick a shot, a place and what they wear, and get pictures that keep their face. Make a character first.</p>
+              {proof && (
+                <figure className="studio-proof">
+                  <div className="studio-proof-row">
+                    {proof.posts.map((postId) => (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img key={postId} src={`/api/showcase/${postId}/media?size=tile`} alt="" loading="lazy" decoding="async" />
+                    ))}
+                  </div>
+                  <figcaption className="muted small">
+                    {shortName(proof.name)}, in {proof.posts.length} different shoots. <Link href={`/showcase?character=${encodeURIComponent(proof.character_id)}`}>See more of them →</Link>
+                  </figcaption>
+                </figure>
+              )}
               <p className="cta-row">
                 <Link className="button" href="/create?next=%2Fstudio">
                   Make your character
@@ -104,11 +123,13 @@ export default async function MyStudioPage({ searchParams }: Props = {}) {
           <p className="muted">
             {adDoor.state === "open"
               ? `Private shoots of ${first} for adults, in After Dark.`
-              : `Private shoots of your own characters, for adults only.${adDoor.inviteOnly ? " It's invite only while it's in beta." : ""}`}
+              : adDoor.state === "switch_in"
+                ? `Private shoots of ${first} for adults, in After Dark. Your characters start Out: switch ${first} In there first.`
+                : `Private shoots of your own characters, for adults only.${adDoor.inviteOnly ? " It's invite only while it's in beta." : ""}`}
           </p>
           <p>
             <Link className="button-ghost" href={adDoor.href} prefetch={false}>
-              {adDoor.state === "open" ? `Open ${first}'s After Dark Studio` : "See the After Dark Studio"}
+              {adDoor.state === "open" ? `Open ${first}'s After Dark Studio` : adDoor.state === "switch_in" ? `Switch ${first} In` : "See the After Dark Studio"}
             </Link>
           </p>
         </section>

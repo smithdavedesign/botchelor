@@ -7,9 +7,10 @@
  * Dark in one consistent way: a signed-in account that has said it's 18+, not a crawler, After Dark switched on, and
  * somewhere After Dark's pictures are allowed (never a blocked place, where nothing may say it exists, and never a
  * text-only one: the Studio is all pictures). Then:
- *  - "open": After Dark is theirs with pictures, and this device isn't PIN-locked: their character's After Dark Studio
- *    when it's theirs to use there (lib/adult/studio.ts studioAccess), else the Studio's door, where switching a
- *    character In happens;
+ *  - "open": After Dark is theirs with pictures, this device isn't PIN-locked, and the Studio is theirs to use on this
+ *    character (lib/adult/studio.ts studioAccess): its After Dark Studio;
+ *  - "switch_in": the same, but the character is still Out of their After Dark (their own start Out): the Studio
+ *    door's "Who's in", where that yes is theirs to give. Any other refusal (the Studio not open to them yet): no card;
  *  - "way_in": not in yet: the Studio's locked preview (app/after-dark/LockedPreview.tsx), which carries
  *    ?source=pg-studio to the invite request. Not shown with the bridge off (AD_BRIDGE=0) or after their invite request
  *    was declined.
@@ -31,7 +32,7 @@ import { studioAccess } from "./studio";
 
 type Env = Record<string, string | undefined>;
 
-export type StudioDoor = { state: "open" | "way_in"; href: string; inviteOnly: boolean };
+export type StudioDoor = { state: "open" | "switch_in" | "way_in"; href: string; inviteOnly: boolean };
 
 /** The locked preview's address, as the PG Studio's card links it. */
 export const lockedStudioHref = (env: Env = process.env): string => afterDarkHref(`/after-dark/studio?source=${PG_STUDIO_SOURCE}`, env);
@@ -60,7 +61,9 @@ export async function studioDoorFor(
     if (!kind) return null;
     if (kind === "way_in") return { state: "way_in", href: lockedStudioHref(env), inviteOnly: !billingOn(env) };
     const access = await studioAccess(db, userId, characterId);
-    return { state: "open", href: afterDarkHref(access.ok ? `/after-dark/studio/${encodeURIComponent(characterId)}` : "/after-dark/studio", env), inviteOnly: false };
+    if (access.ok) return { state: "open", href: afterDarkHref(`/after-dark/studio/${encodeURIComponent(characterId)}`, env), inviteOnly: false };
+    if (access.error === "not_switched_on") return { state: "switch_in", href: afterDarkHref("/after-dark/studio#ad-whos-in", env), inviteOnly: false };
+    return null;
   } catch {
     return null;
   }

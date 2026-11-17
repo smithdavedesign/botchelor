@@ -111,7 +111,7 @@ const DOC_SOURCES = new Set(["llms.txt", "llms-full.txt", "mcp.json", "agents"])
  */
 // "/showcase/" since 2026-11-16 (David: the Gallery opens like the rest of the PG show). A visitor who hasn't signed in
 // sees PG posts only there (lib/showcase.ts showcaseViewer), and nothing of After Dark's is on the show's side.
-export const UNGATED_PREFIXES: readonly string[] = ["/tools/", "/ship/", "/alternatives/", "/episodes/", "/seasons/", "/couples/", "/characters/", "/creators/", "/agents/", "/casting/invite/", "/showcase/"];
+export const UNGATED_PREFIXES: readonly string[] = ["/tools/", "/ship/", "/alternatives/", "/episodes/", "/seasons/", "/couples/", "/characters/", "/creators/", "/agents/", "/casting/invite/", "/showcase/", "/shows/"];
 
 const UNGATED_PAGES: ReadonlySet<string> = new Set([
   // The PG show (2026-11-14): the front door, the feed and its tabs, the cast, the reunion, the house, casting, the vote, calls,

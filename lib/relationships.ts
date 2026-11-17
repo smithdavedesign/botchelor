@@ -18,6 +18,7 @@
  *  - **Blocks win.** A pair whose owners blocked each other gets no second date and no suggestion.
  */
 import type { Db } from "./db";
+import { SHOW_ID } from "./show-id";
 import type { DateHistory, SideOutcome, VariableArc } from "./engine";
 import type { Turn } from "./conversation";
 import type { AfterglowLine } from "./afterglow";
@@ -453,7 +454,7 @@ const REL_EPISODES = `
          (e.setup->>'overnight') = 'true' as overnight,
          (select count(*)::int from reports r where r.episode_id = e.id) >= $3 as hidden
     from episodes e
-   where e.status = 'ready' and e.varies_episode_id is null
+   where e.status = 'ready' and e.varies_episode_id is null and e.show_id = '${SHOW_ID}'
      and ((e.character_a = $1 and e.character_b = $2) or (e.character_a = $2 and e.character_b = $1))`;
 
 /** A pair's stored stages, as read before a refresh: the base ones, the shown ones, and (only when a shown one is missing) its dates. */

@@ -1035,3 +1035,55 @@
 .shows-agents {
   margin-top: var(--space-4);
 }
+
+/* ---------------- a character's credits (app/characters/[id]/Credits.tsx, lib/profile/credits.ts) ---------------- */
+.character-credits h2 {
+  margin-top: 0;
+}
+.credits-list {
+  list-style: none;
+  margin: 0 0 var(--space-2);
+  padding: 0;
+  display: grid;
+  gap: var(--space-3);
+}
+.credits-list .credit {
+  padding-left: var(--space-3);
+  border-left: 2px solid var(--line);
+}
+.credits-list .credit[data-credit-role="lead"],
+.credits-list .credit[data-credit-role="suitor"] {
+  border-left-color: var(--accent);
+}
+.credits-list .credit p {
+  margin: 0;
+}
+.credits-list .credit-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+}
+
+/* ---------------- a show's own page (app/shows/[id]/page.tsx) ---------------- */
+.show-page .show-cast-faces {
+  margin: var(--space-2) 0;
+}
+.show-seasons-list {
+  list-style: none;
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+.show-seasons-list a.card {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+.show-seasons-list a.card .chip {
+  margin-left: var(--space-2);
+}
+.show-seasons-list a.card p {
+  margin: var(--space-1) 0 0;
+}

@@ -467,6 +467,8 @@ export async function getSeasonRecap(db: Db, seasonId: string, opts: { now?: Dat
     )
   ).rows[0];
   if (saved) {
+    // The season's awards go on each winner's record as rows (lib/profile/credits.ts): what a character's credits read.
+    await import("./profile/credits").then(({ saveSeasonAwards }) => saveSeasonAwards(db, seasonId, data.awards)).catch(() => {});
     // The season's backings settle with its finale (lib/backing.ts): same close, same public record. Never the page.
     await import("./backing").then(({ settleSeasonBackings }) => settleSeasonBackings(db, seasonId)).catch(() => {});
     // The finale's proposal goes on the record with the freeze, once: the pair's milestone, stage and notices.

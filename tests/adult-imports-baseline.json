@@ -1,0 +1,251 @@
+{
+  "app/account/keys/page.tsx": [
+    "entitlement",
+    "privacy",
+    "provider-status"
+  ],
+  "app/account/page.tsx": [
+    "billing",
+    "place"
+  ],
+  "app/AfterDarkTeaser.tsx": [
+    "place",
+    "teaser"
+  ],
+  "app/api/admin/looks/route.ts": [
+    "hive-limit"
+  ],
+  "app/api/admin/showcase/route.ts": [
+    "place"
+  ],
+  "app/api/invites/review/route.ts": [
+    "invites"
+  ],
+  "app/api/jobs/after-dark-daily/route.ts": [
+    "agent-cast",
+    "overnight"
+  ],
+  "app/api/jobs/daily/route.ts": [
+    "billing"
+  ],
+  "app/api/jobs/eval-after-dark/route.ts": [
+    "eval",
+    "settings"
+  ],
+  "app/api/jobs/faststart-backfill/route.ts": [
+    "faststart-backfill"
+  ],
+  "app/api/library/route.ts": [
+    "entitlement"
+  ],
+  "app/api/looks/[id]/route.ts": [
+    "place",
+    "privacy"
+  ],
+  "app/api/me/connections/route.ts": [
+    "entitlement",
+    "privacy"
+  ],
+  "app/api/showcase/posts/route.ts": [
+    "mode"
+  ],
+  "app/api/showcase/remix-targets/route.ts": [
+    "mode"
+  ],
+  "app/api/teasers/[id]/route.ts": [
+    "media"
+  ],
+  "app/characters/[id]/AfterDarkPhotos.tsx": [
+    "place"
+  ],
+  "app/characters/[id]/page.tsx": [
+    "mode",
+    "place",
+    "studio"
+  ],
+  "app/companion/[id]/page.tsx": [
+    "locked-picture"
+  ],
+  "app/create/page.tsx": [
+    "entitlement"
+  ],
+  "app/episodes/[id]/AfterDarkBridge.tsx": [
+    "bridge"
+  ],
+  "app/episodes/[id]/page.tsx": [
+    "bridge-viewer",
+    "mode",
+    "overnight"
+  ],
+  "app/invites/review/page.tsx": [
+    "invites"
+  ],
+  "app/layout.tsx": [
+    "door",
+    "door-links",
+    "doors",
+    "tokens"
+  ],
+  "app/Nav.tsx": [
+    "door-links"
+  ],
+  "app/prompts/page.tsx": [
+    "mode"
+  ],
+  "app/shop/page.tsx": [
+    "entitlement"
+  ],
+  "app/studio/CreateLibrary.tsx": [
+    "scene-catalog"
+  ],
+  "app/studio/page.tsx": [
+    "studio-door"
+  ],
+  "lib/account-recovery.ts": [
+    "discreet"
+  ],
+  "lib/account.ts": [
+    "profile-data"
+  ],
+  "lib/agent-portraits.ts": [
+    "media",
+    "moderation"
+  ],
+  "lib/asset-gate.ts": [
+    "mode",
+    "place"
+  ],
+  "lib/between-dates.ts": [
+    "memory"
+  ],
+  "lib/cast-intros.ts": [
+    "settings"
+  ],
+  "lib/companion.ts": [
+    "mode",
+    "settings"
+  ],
+  "lib/face-kit.ts": [
+    "moderation",
+    "replicate",
+    "settings"
+  ],
+  "lib/key-store-admin.ts": [
+    "settings"
+  ],
+  "lib/live-face/compare.ts": [
+    "settings"
+  ],
+  "lib/live-face/renderers.ts": [
+    "replicate"
+  ],
+  "lib/locked-picture-texts.ts": [
+    "locked-picture"
+  ],
+  "lib/looks-draw.ts": [
+    "entitlement",
+    "hive-limit",
+    "media",
+    "moderation",
+    "place",
+    "settings",
+    "studio-tiles"
+  ],
+  "lib/mcp/dispatcher.ts": [
+    "mcp"
+  ],
+  "lib/media-filter.ts": [
+    "media"
+  ],
+  "lib/prompts-library.ts": [
+    "studio-catalog"
+  ],
+  "lib/recast.ts": [
+    "media",
+    "moderation"
+  ],
+  "lib/season-gen.ts": [
+    "hive-limit",
+    "media",
+    "moderation",
+    "settings"
+  ],
+  "lib/sets.ts": [
+    "continuity",
+    "hive-limit",
+    "moderation",
+    "scene-catalog",
+    "settings"
+  ],
+  "lib/showcase-check.ts": [
+    "moderation"
+  ],
+  "lib/showcase-labels.ts": [
+    "acts",
+    "tag-labels"
+  ],
+  "lib/showcase-loops.ts": [
+    "moderation",
+    "replicate",
+    "request-log",
+    "settings"
+  ],
+  "lib/showcase-made.ts": [
+    "request-log",
+    "sfw-twin"
+  ],
+  "lib/showcase-moderation.ts": [
+    "moderation"
+  ],
+  "lib/showcase-retwin.ts": [
+    "sfw-twin"
+  ],
+  "lib/showcase.ts": [
+    "acts",
+    "mode",
+    "place",
+    "settings",
+    "sfw-twin"
+  ],
+  "lib/simulation.ts": [
+    "memory"
+  ],
+  "lib/spend.ts": [
+    "settings"
+  ],
+  "lib/studio/date-photos.ts": [
+    "moderation",
+    "settings"
+  ],
+  "lib/studio/library.ts": [
+    "acts",
+    "scene-catalog"
+  ],
+  "lib/studio/pg-captions.ts": [
+    "voice"
+  ],
+  "lib/studio/pg.ts": [
+    "media",
+    "moderation",
+    "settings"
+  ],
+  "lib/studio/picture-choice.ts": [
+    "characters",
+    "entitlement",
+    "media-tags",
+    "steering"
+  ],
+  "lib/studio/profile-photos.ts": [
+    "settings",
+    "shares"
+  ],
+  "lib/texting.ts": [
+    "memory"
+  ],
+  "lib/voice.ts": [
+    "fallback",
+    "replicate",
+    "request-log",
+    "settings"
+  ]
+}
