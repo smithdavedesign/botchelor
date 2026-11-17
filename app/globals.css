@@ -3010,32 +3010,6 @@ button.poll-option.chosen {
   gap: 0.35rem;
   margin: 0;
 }
-.watch-reunion-card {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  text-decoration: none;
-  color: inherit;
-}
-.watch-reunion-card:hover {
-  border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
-}
-.watch-reunion-card .kicker {
-  margin: 0;
-}
-.watch-reunion-title {
-  font-family: "Fraunces", Georgia, serif;
-  font-size: var(--text-lg);
-}
-.watch-reunion-award {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-}
-.watch-reunion-cta {
-  color: var(--accent-text);
-  font-weight: 700;
-}
 /* Latest episodes: picture-led cards (app/EpisodeItem.tsx, app/ux/catalog.css), rows on a phone, a grid wider up. */
 .watch-airing-card {
   display: flex;
@@ -3067,20 +3041,6 @@ button.poll-option.chosen {
   font-weight: 700;
   font-size: var(--text-sm);
   color: var(--accent-text);
-}
-/* Prev / page n of N / Next under the latest episodes. */
-.watch-pager {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  margin: var(--space-4) 0 0;
-}
-.watch-pager .button-ghost {
-  margin: 0;
-}
-.watch-pager-gap {
-  min-width: 5rem;
 }
 /* The private-dates note, as one line under the latest episodes instead of a card on top. */
 .private-teaser.private-teaser-compact {
@@ -5045,18 +5005,6 @@ details.recap-toggle[open] > summary {
 }
 
 /* Account page (M16): auth forms + links. */
-.account-links {
-  list-style: none;
-  padding: 0;
-  margin: 1rem 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-.account-links a {
-  color: var(--accent-text);
-  font-weight: 600;
-}
 .account-actions,
 .byok-actions {
   display: flex;
@@ -5174,21 +5122,6 @@ details.recap-toggle[open] > summary {
 .owner-message.error {
   color: var(--bad-text);
   font-weight: 600;
-}
-.traits-fields {
-  display: flex;
-  gap: 0.5rem;
-  border: none;
-  padding: 0;
-  margin: 0 0 0.75rem;
-}
-.traits-fields legend {
-  font-weight: 600;
-  margin-bottom: 0.3rem;
-}
-.traits-fields input {
-  flex: 1;
-  min-width: 0;
 }
 .account-dates {
   list-style: none;
@@ -5497,25 +5430,6 @@ details.recap-toggle[open] > summary {
   border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--accent) 6%, var(--card));
   border: 1px solid color-mix(in srgb, var(--accent) 20%, var(--line));
-}
-.agents-stats {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
-  gap: 0.75rem;
-  text-align: center;
-}
-.agents-stats div {
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-}
-.agents-stats strong {
-  font-family: "Fraunces", Georgia, serif;
-  font-size: var(--text-2xl);
-  line-height: 1;
-}
-.agents-stats .muted {
-  font-size: var(--text-xs);
 }
 .code-label {
   margin: 1rem 0 0.3rem;
@@ -6666,16 +6580,6 @@ main:has(> .admin-wide) {
   height: 100%;
   background: var(--accent);
   border-radius: 999px;
-}
-.analytics-controls {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: end;
-  gap: 0.5rem 0.75rem;
-  margin: 0 0 0.5rem;
-}
-.analytics-controls label {
-  display: block;
 }
 .session-list li {
   overflow-wrap: anywhere;
@@ -8264,29 +8168,6 @@ body.ad-host {
     max-height: 55vh;
   }
 }
-.ad-beat-guide {
-  display: block;
-  width: 100%;
-  margin: var(--space-2) 0;
-  padding: 0.35rem 0.6rem;
-  border: 1px solid var(--night-line);
-  border-radius: var(--radius-sm);
-  background: rgba(10, 5, 18, 0.5);
-  color: var(--night-ink);
-  font-size: var(--text-sm);
-}
-.ad-beat-guide::placeholder {
-  color: var(--night-faint);
-}
-.ad-beat-banner {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  align-items: center;
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--accent);
-  border-radius: var(--radius-md);
-}
 .ad-theater-bar {
   position: absolute;
   left: 0;
@@ -8869,33 +8750,6 @@ body.ad-host {
 .looks-tile.no-img.chosen .looks-tile-label {
   background: none;
   color: var(--accent-text);
-}
-.looks-ages {
-  display: flex;
-  gap: var(--space-2);
-  overflow-x: auto;
-  padding-bottom: var(--space-2);
-  scroll-snap-type: x proximity;
-}
-.looks-ages button {
-  flex: 0 0 auto;
-  margin: 0;
-  box-shadow: none;
-  min-width: 48px;
-  min-height: 48px;
-  border: 2px solid var(--line);
-  border-radius: var(--radius-md);
-  background: var(--card);
-  color: var(--ink);
-  font: inherit;
-  font-weight: 600;
-  cursor: pointer;
-  scroll-snap-align: start;
-}
-.looks-ages button.chosen {
-  border-color: var(--accent);
-  background: var(--grad);
-  color: var(--accent-ink);
 }
 .looks-chips {
   display: flex;
@@ -9678,15 +9532,6 @@ body.ad-host {
   font-size: var(--icon-xs);
   line-height: 1;
 }
-.ad-steer-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  align-items: center;
-}
-.ad-steer-buttons button {
-  margin-top: 0;
-}
 /* The theater's chips sit in the options row, after Autoplay: just their labels, so they stay small. */
 .ad-theater-options .ad-suggestion {
   min-height: 1.9rem;
@@ -10359,12 +10204,6 @@ html.ad-studio-locked {
   .ad-suggestion {
     flex: 0 0 auto;
     max-width: 78%;
-  }
-  .ad-steer-buttons {
-    gap: var(--space-1, 0.3rem);
-  }
-  .ad-steer-buttons .button-ghost {
-    padding: 0.5rem 0.8rem;
   }
 }
 
