@@ -169,7 +169,7 @@ button.ad-cast-chip.on {
   }
 }
 
-/* ---------------- the scene page's steer bar (SceneWriter.tsx) ---------------- */
+/* ---------------- the scene page's notes (SceneWriter.tsx) and the theater's suggested moves ---------------- */
 /* A model error ("only repeated lines…") is a compact alert, not a paragraph of large pink text. */
 .after-dark .ad-note-error {
   margin: var(--space-2) 0;
@@ -181,120 +181,7 @@ button.ad-cast-chip.on {
   font-weight: 500;
   line-height: 1.4;
 }
-/* Room between the last line and the chips over the steer. */
-.after-dark-form .ad-suggestions {
-  margin-top: var(--space-2);
-}
-.after-dark-form label.ad-steer-label {
-  margin: 0;
-}
-/* Nudge, Direct and the two whispers: one segmented row of pills, never a radio left alone on a line. */
-.ad-segmented {
-  display: flex;
-  flex-wrap: nowrap;
-  gap: 0.3rem;
-  min-width: 0;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-.ad-segmented > label {
-  display: inline-flex;
-  flex: none;
-  gap: 0.3rem;
-  align-items: center;
-  margin: 0;
-  min-height: 2.25rem;
-  padding: 0.2rem 0.7rem 0.2rem 0.5rem;
-  border: 1px solid var(--ad-line);
-  border-radius: 999px;
-  font-weight: 600;
-  white-space: nowrap;
-  cursor: pointer;
-}
-.ad-segmented > label.on {
-  border-color: var(--ad-accent);
-  background: color-mix(in srgb, var(--ad-accent) 20%, transparent);
-}
-.ad-segmented input {
-  margin: 0;
-  accent-color: var(--night-control);
-}
-/* The steer and Write on one row. */
-.ad-steer-row {
-  display: flex;
-  gap: var(--space-2);
-  align-items: center;
-  min-width: 0;
-}
-.ad-steer-row input {
-  flex: 1 1 auto;
-  min-width: 0;
-  margin: 0;
-}
-.ad-steer-row button {
-  flex: none;
-  margin: 0;
-}
-.ad-phone-only {
-  display: none;
-}
-/* Autoplay and the rewind tools. On a wide screen the tools sit in the row; on a phone they fold under "⋯ More". */
-div.ad-steer-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  align-items: center;
-}
-label.after-dark-autoplay {
-  order: 1;
-  margin: 0;
-  min-height: 2.75rem;
-}
-.after-dark-autoplay input {
-  margin: 0;
-}
-/* ⋯ More (Rewind, Redo, Start over): folded on every screen (2026-10-25: "too much going on"). */
-.ad-more {
-  position: relative;
-  display: inline-flex;
-  margin-left: auto;
-}
-.ad-more-items {
-  display: none;
-}
-.ad-more.open .ad-more-items {
-  position: absolute;
-  bottom: calc(100% + 0.4rem);
-  right: 0;
-  z-index: 7;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  width: max-content;
-  padding: var(--space-2);
-  border: 1px solid var(--night-line);
-  border-radius: var(--radius-md);
-  background: rgba(18, 10, 28, 0.97);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-}
 @media (max-width: 640px) {
-  .after-dark-form label.ad-steer-label {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
-    white-space: nowrap;
-  }
-  .ad-wide-only {
-    display: none;
-  }
-  .ad-phone-only {
-    display: inline;
-  }
-  label.after-dark-autoplay {
-    order: 0;
-  }
   /* The chips scroll sideways inside the bar: a fade at the right edge says there's more. */
   .ad-suggestions {
     -webkit-mask-image: linear-gradient(to right, black 82%, transparent);
