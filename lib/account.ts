@@ -112,6 +112,104 @@ export type AccountExport = {
   companion_conversations: CompanionConversationExport[];
   /** The record of each live call (lib/companion-live.ts): its times, minutes and turns. No words or sound exist there. */
   companion_calls: Record<string, unknown>[];
+  /**
+   * What the person-column registry found the export had left out (lib/person-columns.ts, 2026-11-16): every table that
+   * holds this id is now either here or listed there with why not. Nobody else's id is ever in any of it
+   * (tests/person-columns.test.ts): another person is named by their character, their handle or nothing.
+   */
+  /** Whether this id is an admin, and since when. */
+  admin: { since: string } | null;
+  /** When they were last on the site, and the visit before (lib/activity.ts). */
+  last_seen: { last_seen: string; prev_seen: string | null } | null;
+  /** The dates they booked: which two characters, how public, when. The date itself is the show's, on its page. */
+  dates_booked: Record<string, unknown>[];
+  scheduled_dates: Record<string, unknown>[];
+  /** Their links: "date my character" invites, the double-date links they made, and the ones they took. */
+  date_links: { invites: Record<string, unknown>[]; doubles_made: Record<string, unknown>[]; doubles_taken: Record<string, unknown>[] };
+  /** Double dates and mixers: the nights they proposed or were invited to, and the seats they booked. */
+  double_dates: { nights: Record<string, unknown>[]; seats: Record<string, unknown>[] };
+  /** Roleplays proposed for a couple's next date (lib/date-roleplays.ts): the ones they sent and the ones sent to them. */
+  date_roleplays: Record<string, unknown>[];
+  /** When they last read each couple's thread (lib/inbox.ts). */
+  thread_reads: Record<string, unknown>[];
+  /** Their yes to showing their name to a date's other owner (app/api/reveal), and the old morning-after opt-ins. */
+  identity_reveals: Record<string, unknown>[];
+  afterglow_consents: Record<string, unknown>[];
+  /** Casting (lib/auditions.ts, lib/casting-invites.ts, lib/ceremony.ts): their auditions, an invite they used, their votes. */
+  auditions: Record<string, unknown>[];
+  casting_invites_used: Record<string, unknown>[];
+  audition_votes: Record<string, unknown>[];
+  ceremony_votes: Record<string, unknown>[];
+  /** Places they paid to suggest on a filming date (lib/scene-suggestions.ts). */
+  scene_suggestions: Record<string, unknown>[];
+  /** Their ratings and reviews of other people's characters (lib/ratings.ts, lib/reviews.ts). */
+  character_ratings: Record<string, unknown>[];
+  character_reviews: Record<string, unknown>[];
+  /** The dates they blocked a creator from: never who that creator is (lib/game.ts keeps that from them too). */
+  blocks: Record<string, unknown>[];
+  /** What they reported: dates (open and reviewed), watch-party messages and house-scene lines. */
+  reports: { dates: Record<string, unknown>[]; dates_reviewed: Record<string, unknown>[]; watch_messages: Record<string, unknown>[]; house_scenes: Record<string, unknown>[] };
+  /** League badges they won. */
+  badges: Record<string, unknown>[];
+  /** Counters: free and pack dates used, dates an admin gave them, step-in dates, companion replies and extras, call credits. */
+  usage: {
+    free_dates: Record<string, unknown>[];
+    free_second_dates: Record<string, unknown>[];
+    pack_dates: Record<string, unknown>[];
+    date_grants: Record<string, unknown>[];
+    step_in: Record<string, unknown>[];
+    companion: Record<string, unknown>[];
+    companion_extras: Record<string, unknown>[];
+    companion_credits: Record<string, unknown>[];
+  };
+  /** Watch parties: the premieres they hosted, what they said in a room, their reactions and poll answers. */
+  watch_parties: { hosted: Record<string, unknown>[]; messages: Record<string, unknown>[]; reactions: Record<string, unknown>[]; poll_votes: Record<string, unknown>[] };
+  /**
+   * The PG Studio and the Create library (lib/studio): their shoots and pictures (what was asked for, never the image
+   * bytes: those are on the character's pages), pinned photos, date photos, and their own prompts, venues and
+   * roleplays. After Dark's are not here.
+   */
+  studio: {
+    shoots: Record<string, unknown>[];
+    pictures: Record<string, unknown>[];
+    profile_photos: Record<string, unknown>[];
+    date_photos: Record<string, unknown>[];
+    prompts: Record<string, unknown>[];
+    places: Record<string, unknown>[];
+    roleplays: Record<string, unknown>[];
+    identity_views: Record<string, unknown>[];
+  };
+  /** The Gallery (lib/showcase.ts): their creator page, their PG posts and living portraits, the OKs they gave, their likes, who they follow (by handle). */
+  showcase: {
+    profile: Record<string, unknown> | null;
+    posts: Record<string, unknown>[];
+    loops: Record<string, unknown>[];
+    consents: Record<string, unknown>[];
+    likes: Record<string, unknown>[];
+    following: Record<string, unknown>[];
+  };
+  /**
+   * When this id is an agent's (or has one linked): its public handle, the model it says it runs on, the clients it
+   * connected with, the feedback it sent and voted on, the model stamp on its dates, and its account links (never the
+   * other side's id).
+   */
+  agent: {
+    handle: Record<string, unknown> | null;
+    model: Record<string, unknown> | null;
+    sessions: Record<string, unknown>[];
+    feedback: Record<string, unknown>[];
+    feedback_votes: Record<string, unknown>[];
+    date_models: Record<string, unknown>[];
+    links: Record<string, unknown>[];
+  };
+  /** Paid plans (lib/paid-plans.ts): which, their state, and the address they were paid with. */
+  plans: Record<string, unknown>[];
+  operator_pass: { entitlement: Record<string, unknown> | null; usage: Record<string, unknown>[] };
+  /** Their renderer for live calls, and an admin's renderer tests (the line typed, never the audio). */
+  call_renderer: Record<string, unknown> | null;
+  renderer_compares: Record<string, unknown>[];
+  /** Which languages they wrote in, counted by day (lib/language-seen.ts): never the words. */
+  languages_written: Record<string, unknown>[];
 };
 
 export type CompanionConversationExport = {
@@ -329,6 +427,134 @@ export async function exportAccount(db: Db, userId: string): Promise<AccountExpo
          from companion_live_calls where user_id = $1 order by started_at`,
       [userId],
     ),
+    ...(await exportTheRest(db, userId)),
+  };
+}
+
+type TheRest = Pick<
+  AccountExport,
+  | "admin" | "last_seen" | "dates_booked" | "scheduled_dates" | "date_links" | "double_dates" | "date_roleplays" | "thread_reads" | "identity_reveals"
+  | "afterglow_consents" | "auditions" | "casting_invites_used" | "audition_votes" | "ceremony_votes" | "scene_suggestions" | "character_ratings"
+  | "character_reviews" | "blocks" | "reports" | "badges" | "usage" | "watch_parties" | "studio" | "showcase" | "agent" | "plans" | "operator_pass"
+  | "call_renderer" | "renderer_compares" | "languages_written"
+>;
+
+/**
+ * The tables the registry found the export had missed (lib/person-columns.ts). One statement each, in turn (an export is
+ * rare, and a burst would take the pool: docs/audits/2026-11-01-audit.md). Every statement is keyed by this id alone and
+ * selects no other person's id: a block says which date, not whom; a follow names a handle; a link says only that it is.
+ */
+async function exportTheRest(db: Db, userId: string): Promise<TheRest> {
+  const q = async (sql: string) => (await db.query<Record<string, unknown>>(sql, [userId])).rows;
+  const one = async (sql: string) => (await q(sql))[0] ?? null;
+  const iso = (v: unknown) => new Date(v as string | Date).toISOString();
+  const adminRow = await one("select created_at from admins where user_id = $1");
+  const seen = await one("select last_seen, prev_seen from owner_activity where user_id = $1");
+  return {
+    admin: adminRow ? { since: iso(adminRow.created_at) } : null,
+    last_seen: seen ? { last_seen: iso(seen.last_seen), prev_seen: seen.prev_seen ? iso(seen.prev_seen) : null } : null,
+    dates_booked: await q("select id, character_a, character_b, visibility, created_at, revealed_at from episodes where creator_id = $1 order by created_at"),
+    scheduled_dates: await q("select id, character_id, partner_id, run_at, visibility, place, created_at, ran_at, episode_id, outcome from scheduled_dates where creator_id = $1 order by created_at"),
+    date_links: {
+      invites: await q("select code, character_id, accepted, created_at, revoked_at from date_invites where owner_id = $1 order by created_at"),
+      doubles_made: await q("select code, character_id, partner_id, created_at, revoked_at, taken_at, night_id from double_links where created_by = $1 order by created_at"),
+      // A link someone else made: the couple it was for and when, never its code (theirs to share) or who made it.
+      doubles_taken: await q("select character_id, partner_id, taken_at, night_id from double_links where taken_by = $1 order by taken_at"),
+    },
+    double_dates: {
+      nights: await q(
+        `select id, kind, venue, status, couple_a, couple_b, episode_a, episode_b, created_at, decided_at,
+                case when created_by = $1 then 'proposed' else 'invited' end as side
+           from group_nights where created_by = $1 or invite_to = $1 order by created_at`,
+      ),
+      seats: await q("select night_id, character_id, joined_at from group_night_seats where booker = $1 order by joined_at"),
+    },
+    date_roleplays: await q(
+      `select id, character_lo, character_hi, proposed_by as from_character, terms, note, round, status, created_at, decided_at, episode_id,
+              case when proposer_user = $1 then 'sent' else 'received' end as direction
+         from date_roleplays where proposer_user = $1 or answerer_user = $1 order by created_at`,
+    ),
+    thread_reads: await q("select character_lo, character_hi, read_at from thread_reads where user_id = $1 order by read_at"),
+    identity_reveals: await q("select episode_id, created_at from identity_consents where user_id = $1 order by created_at"),
+    afterglow_consents: await q("select episode_id, created_at from afterglow_consents where user_id = $1 order by created_at"),
+    auditions: await q("select season_id, character_id, status, created_at, decided_at from cast_auditions where owner_id = $1 order by created_at"),
+    // The code and the admin's note on it are the show's: only that they used one, for which season and character.
+    casting_invites_used: await q("select season_id, character_id, used_at from casting_invites where used_by = $1 order by used_at"),
+    audition_votes: await q("select season_id, character_id, created_at, updated_at from audition_votes where voter_id = $1 order by season_id"),
+    ceremony_votes: await q("select held_on, pick, created_at, updated_at from ceremony_votes where user_id = $1 order by held_on"),
+    scene_suggestions: await q("select episode_id, place, label, tokens, status, created_at from scene_suggestions where user_id = $1 order by created_at"),
+    character_ratings: await q("select character_id, category, created_at from character_ratings where rater_id = $1 order by created_at"),
+    character_reviews: await q("select character_id, stars, body, via, created_at, updated_at from character_reviews where reviewer_id = $1 order by created_at"),
+    blocks: await q("select via_episode_id as episode_id, created_at from blocks where blocker_id = $1 order by created_at"),
+    reports: {
+      dates: await q("select episode_id, reason, created_at from reports where reporter_id = $1 order by created_at"),
+      dates_reviewed: await q("select episode_id, reason, created_at, reviewed_at, decision from reports_reviewed where reporter_id = $1 order by created_at"),
+      watch_messages: await q("select message_id, created_at from watch_message_reports where reporter_id = $1 order by created_at"),
+      house_scenes: await q("select scene_id, line, reason, created_at from house_scene_reports where reporter_id = $1 order by created_at"),
+    },
+    badges: await q("select season_id, league_id, place, points from badges where user_id = $1 order by season_id"),
+    usage: {
+      free_dates: await q("select season_id, used from free_episode_usage where user_id = $1 order by season_id"),
+      free_second_dates: await q("select season_id, created_at from free_second_date_usage where user_id = $1 order by season_id"),
+      pack_dates: await q("select used from pack_episode_usage where user_id = $1"),
+      date_grants: await q("select episodes, created_at from token_grants where user_id = $1 order by created_at"),
+      step_in: await q("select day, dates, free_used from step_in_usage where user_id = $1 order by day"),
+      companion: await q("select day, replies from companion_usage where user_id = $1 order by day"),
+      companion_extras: await q("select month, kind, used from companion_extras_usage where user_id = $1 order by month, kind"),
+      companion_credits: await q("select kind, credits from companion_credits where user_id = $1 order by kind"),
+    },
+    watch_parties: {
+      hosted: await q("select id, episode_id, kind, starts_at, created_at from watch_parties where host_id = $1 order by created_at"),
+      messages: await q("select party_id, handle, body, hidden, created_at from watch_messages where user_id = $1 order by created_at"),
+      reactions: await q("select party_id, emoji, created_at from watch_reactions where user_id = $1 order by created_at"),
+      poll_votes: await q("select party_id, poll, choice, updated_at from watch_poll_votes where user_id = $1 order by updated_at"),
+    },
+    studio: {
+      shoots: await q("select id, character_id, kind, choices, model, tokens, free, asked, made, status, created_at from studio_pg_shoots where owner_id = $1 order by created_at"),
+      pictures: await q("select id, character_id, shoot_id, prompt, content_rating, clothing, model, created_at from studio_pg_pictures where owner_id = $1 order by created_at"),
+      profile_photos: await q("select character_id, picture_id, created_at from profile_photos where owner_id = $1 order by created_at"),
+      date_photos: await q("select episode_id, style, created_at from date_photos where owner_id = $1 order by created_at"),
+      // The library and the identity views are shared with After Dark: only the safe side is exported here.
+      prompts: await q("select id, title, text, created_at from creator_prompts where owner_id = $1 and mode = 'safe' order by created_at"),
+      places: await q("select id, name, description, created_at from creator_places where owner_id = $1 and mode = 'safe' order by created_at"),
+      roleplays: await q("select id, title, premise, role_a, role_b, category, created_at from creator_roleplays where owner_id = $1 and mode = 'safe' order by created_at"),
+      identity_views: await q("select character_id, view, image_id, created_at from identity_views where owner_id = $1 and studio = 'pg' order by created_at"),
+    },
+    showcase: {
+      profile: await one(
+        `select p.handle, p.display_name, p.bio, p.hidden, p.created_at, (select count(*)::int from creator_follows f where f.creator_id = p.user_id) as followers
+           from creator_profiles p where p.user_id = $1`,
+      ),
+      posts: await q(
+        "select id, character_id, character_b, rating, medium, caption, tags, status, created_at, published_at from showcase_posts where owner_id = $1 and source = 'pg' order by created_at",
+      ),
+      loops: await q("select id, source, character_id, status, created_at from showcase_loops where owner_id = $1 order by created_at"),
+      consents: await q("select post_id, character_id, status, created_at from showcase_consents where owner_id = $1 order by created_at"),
+      likes: await q("select post_id, created_at from showcase_likes where user_id = $1 order by created_at"),
+      // Who they follow, by the creator's public handle: never the creator's id.
+      following: await q("select p.handle, f.created_at from creator_follows f left join creator_profiles p on p.user_id = f.creator_id and not p.hidden where f.follower_id = $1 order by f.created_at"),
+    },
+    agent: {
+      handle: await one("select handle, display_name, bio, created_at from agent_handles where agent_id = $1"),
+      model: await one("select model, family, via, declared_at, updated_at from agent_models where agent_id = $1"),
+      sessions: await q("select client_name, client_version, user_agent, calls, created_at, last_seen from mcp_sessions where agent_id = $1 order by created_at"),
+      feedback: await q("select rating, liked, wants, problems, message, model, shared, created_at from agent_feedback where agent_id = $1 order by created_at"),
+      feedback_votes: await q("select feedback_id, kind, vote, created_at from feedback_votes where agent_id = $1 order by created_at"),
+      date_models: await q("select episode_id, side, family, model, stamped_at from episode_models where agent_id = $1 order by stamped_at"),
+      // A link's two ends are an agent's id (a bearer token) and an account's: neither is exported, only that the link is.
+      links: await q(
+        `select case when user_id = $1 then 'an agent is linked to this account' else 'this agent is linked to an account' end as link, linked_at
+           from agent_links where user_id = $1 or agent_id = $1 order by linked_at`,
+      ),
+    },
+    plans: await q("select plan, status, period_end, provider, email, subscribed_at, updated_at from plan_entitlements where user_id = $1 order by plan"),
+    operator_pass: {
+      entitlement: await one("select subscription_status, period_end, provider, updated_at from operator_entitlements where user_id = $1"),
+      usage: await q("select period_month, used from operator_date_usage where user_id = $1 order by period_month"),
+    },
+    call_renderer: await one("select renderer, updated_at from user_live_face where user_id = $1"),
+    renderer_compares: await q("select id, character_id, line, voice, audio_seconds, created_at from live_face_compares where user_id = $1 order by created_at"),
+    languages_written: await q("select day, surface, lang, n from language_seen where actor = $1 order by day, surface, lang"),
   };
 }
 
@@ -592,10 +818,12 @@ export async function deleteAccount(db: Db, userId: string): Promise<AccountDele
   // Sliding Doors runs they asked for on a date they booked (their own characters' went with forgetEverything above).
   await run("delete from episode_variations v using episodes e where e.id = v.varies_episode_id and e.creator_id = $1", [userId]);
   // The agents linked to this account: the link is the account's, so it (and the consent it carried) goes with it.
-  await run("delete from agent_links where user_id = $1", [userId]);
+  // (An agent that deletes itself is the other end of that link: its id is a person's id like any other.)
+  await run("delete from agent_links where user_id = $1 or agent_id = $1", [userId]);
   await run("delete from reports where reporter_id = $1", [userId]);
   await run("delete from reports_reviewed where reporter_id = $1", [userId]);
-  await run("delete from blocks where blocker_id = $1", [userId]);
+  // Both ways: the blocks they made, and the ones made against them (there is nobody left to block).
+  await run("delete from blocks where blocker_id = $1 or blocked_id = $1", [userId]);
   await run("delete from orders where user_id = $1", [userId]);
   await run("delete from badges where user_id = $1", [userId]);
   await run("delete from free_episode_usage where user_id = $1", [userId]);
@@ -641,6 +869,7 @@ export async function deleteAccount(db: Db, userId: string): Promise<AccountDele
   await run("delete from web_events where user_id = $1", [userId]);
   // A complaint or takedown request stays as the record of what was reported and what we did; who sent it doesn't.
   await run("update content_reports set reporter_id = null, contact_email = null where reporter_id = $1", [userId]);
+  await deleteTheRest(db, userId);
   await run("delete from profiles where user_id = $1", [userId]);
   await deleteAfterDarkData(db, userId);
   await run("delete from accounts where user_id = $1", [userId]);
@@ -648,10 +877,60 @@ export async function deleteAccount(db: Db, userId: string): Promise<AccountDele
   return { characters_deleted: charactersDeleted, characters_anonymized: charactersAnonymized };
 }
 
+/**
+ * What the person-column registry found deleteAccount had missed (lib/person-columns.ts, 2026-11-16): rows keyed to the
+ * person under a column nothing above names. Each statement is idempotent, like the rest. What is still kept on purpose
+ * (the id on a shared date, a plan Stripe may renew, an admin's name on someone else's row) is listed there with why.
+ */
+async function deleteTheRest(db: Db, userId: string): Promise<void> {
+  const run = (sql: string) => db.query(sql, [userId]);
+  // Their votes, ratings and reviews of other people's characters: a review holds their own words.
+  await run("delete from character_ratings where rater_id = $1");
+  await run("delete from character_reviews where reviewer_id = $1");
+  await run("delete from audition_votes where voter_id = $1");
+  await run("delete from ceremony_votes where user_id = $1");
+  // Casting: an audition of a character that stays as a tombstone would keep it in the running; a used invite stays used.
+  await run("delete from cast_auditions where owner_id = $1");
+  await run("update casting_invites set used_by = null where used_by = $1");
+  // Links and plans for dates that can no longer happen: a kept character has no owner to book them.
+  await run("delete from date_invites where owner_id = $1");
+  await run("delete from double_links where created_by = $1");
+  await run("update double_links set taken_by = null where taken_by = $1");
+  await run("delete from scheduled_dates where creator_id = $1");
+  await run("delete from date_roleplays where proposer_user = $1 or answerer_user = $1");
+  await run("delete from scene_suggestions where user_id = $1");
+  // Markers, counters and settings.
+  await run("delete from thread_reads where user_id = $1");
+  await run("delete from afterglow_consents where user_id = $1");
+  await run("delete from step_in_usage where user_id = $1");
+  await run("delete from user_live_face where user_id = $1");
+  await run("delete from live_face_compares where user_id = $1");
+  await run("delete from owner_activity where user_id = $1");
+  await run("delete from away_reports where owner_id = $1");
+  await run("delete from analytics_events where user_id = $1");
+  // Admin goes with the account: a deleted admin's id must not still open the admin tools.
+  await run("delete from admins where user_id = $1");
+  // The operator pass (built, off): the entitlement and its counter go; Stripe's events stay, unlinked, as After Dark's do.
+  await run("delete from operator_entitlements where user_id = $1");
+  await run("delete from operator_date_usage where user_id = $1");
+  await run("update operator_pass_events set user_id = null where user_id = $1");
+  // When the id is an agent's: its sessions and call log, its handle and declared model, what it sent as feedback (the
+  // votes on that go with it) and its own votes, its one-time link codes and status cursor, and a held job.
+  await run("delete from mcp_sessions where agent_id = $1");
+  await run("delete from mcp_calls where agent_id = $1");
+  await run("delete from agent_status_cursors where agent_id = $1");
+  await run("delete from agent_link_codes where agent_id = $1");
+  await run("delete from feedback_votes where agent_id = $1");
+  await run("delete from agent_feedback where agent_id = $1");
+  await run("delete from agent_handles where agent_id = $1");
+  await run("delete from agent_models where agent_id = $1");
+  await run("delete from job_deals where holder = $1");
+}
+
 /** Every After Dark table keyed to a person, and the column it's keyed by: dependents first. */
 const AFTER_DARK_OWNED: readonly [string, string][] = [
   ["adult_media_ratings", "user_id"], ["adult_media_thumbs", "owner_id"], ["adult_short_views", "user_id"], ["adult_short_calls", "user_id"],
-  ["adult_beats", "owner_id"], ["adult_monologues", "owner_id"], ["adult_voice_lines", "owner_id"], ["adult_reels", "owner_id"],
+  ["adult_beats", "owner_id"], ["adult_monologues", "owner_id"], ["adult_monologues", "created_by"], ["adult_voice_lines", "owner_id"], ["adult_reels", "owner_id"],
   // Their characters' presence in the theater (lib/adult/presence.ts): expressions and living portraits.
   ["adult_presence", "owner_id"], ["adult_talks", "owner_id"],
   // What their scene pictures were drawn from (lib/adult/picture-brief.ts).
@@ -669,6 +948,9 @@ const AFTER_DARK_OWNED: readonly [string, string][] = [
   ["adult_entitlements", "user_id"], ["adult_viewer_places", "user_id"], ["adult_billing_flags", "user_id"], ["adult_tastes", "user_id"],
   // Their Didit age check (lib/adult/age-check.ts): passed or not, when, where.
   ["adult_age_checks", "user_id"],
+  // Their request for the invite-only beta (lib/adult/invites.ts: the email and note they sent), and an agent's ask for
+  // After Dark (its reason, in its own words). Found by the person-column registry, 2026-11-16.
+  ["adult_invites", "user_id"], ["adult_access_requests", "agent_id"],
   // After Dark's own tokens (lib/adult/tokens.ts): what they bought or were given, and what they spent.
   ["adult_token_grants", "user_id"], ["adult_token_usage", "user_id"],
   // The PG Studio's (lib/studio/pg.ts): not After Dark's, but deleted the same way, pictures before their shoots.
