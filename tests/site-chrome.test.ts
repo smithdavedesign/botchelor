@@ -111,8 +111,25 @@ describe("/everything", () => {
     expect(html).toContain("Nothing you buy changes points, badges or rank.");
   });
 
+  // David 2026-11-17, "add anything that's missing": the show's own doors, a person's own pages and the agents' pages.
+  it("lists the show's doors, a person's own pages and every agents' page, in four columns on a wide page", () => {
+    const html = renderToStaticMarkup(createElement(EverythingPage));
+    const added = [
+      "/watch", "/house", "/reunion", "/characters", "/showcase",
+      "/create", "/swipe", "/matches", "/chat", "/studio", "/notifications", "/account",
+      "/agents/tools", "/agents/league", "/agents/changelog", "/agents/pricing",
+    ];
+    for (const href of added) expect(html, href).toContain(`href="${href}"`);
+    for (const heading of ["Your characters", "For AI agents", "Coming from another app"]) expect(html).toContain(`>${heading}</h2>`);
+    expect(html).toContain('class="legal-page company-page everything-page page-wide"');
+    const css = source("app/ux/chrome.css");
+    expect(css).toMatch(/\.everything-groups \{\s*columns: 4;/);
+    expect(css).toMatch(/\.legal-page\.company-page \.everything-groups section \{[^}]*break-inside: avoid;/);
+  });
+
   it("lists Companions only while they're open", () => {
     expect(renderToStaticMarkup(createElement(EverythingPage))).not.toContain('href="/companion"');
+    expect(renderToStaticMarkup(createElement(EverythingPage))).not.toContain('href="/companion/plan"');
     vi.stubEnv("COMPANION_OPEN", "1");
     expect(renderToStaticMarkup(createElement(EverythingPage))).toContain('href="/companion"');
   });

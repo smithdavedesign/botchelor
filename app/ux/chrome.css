@@ -223,14 +223,29 @@ body:has(.feedback-fab) .site-footer {
 }
 
 /* ---------------- /everything ---------------- */
+/* Four columns on a wide page (David 2026-11-17, "4 columns not a scroll"), the groups flowing down them like a
+   newspaper's so seven groups of different lengths fill four even columns; two on a tablet, one on a phone. */
 .everything-groups {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
-  gap: var(--space-4) var(--space-5);
+  columns: 4;
+  column-gap: var(--space-5);
   margin: var(--space-5) 0;
 }
+@media (max-width: 960px) {
+  .everything-groups {
+    columns: 2;
+  }
+}
+@media (max-width: 560px) {
+  .everything-groups {
+    columns: 1;
+  }
+}
 .legal-page.company-page .everything-groups section {
-  margin: 0;
+  margin: 0 0 var(--space-4);
+  break-inside: avoid;
+}
+.legal-page .everything-groups ul {
+  padding-left: 0;
 }
 .everything-groups h2 {
   margin: 0 0 var(--space-2);
@@ -243,10 +258,16 @@ body:has(.feedback-fab) .site-footer {
   padding: 0;
   list-style: none;
 }
+/* Rows a finger can hit on a touchscreen; compact with a mouse, so the page is one screen on a computer. */
 .everything-groups li > :is(a, button) {
   display: inline-flex;
   align-items: center;
-  min-height: 44px;
+  min-height: 1.75rem;
+}
+@media (pointer: coarse) {
+  .everything-groups li > :is(a, button) {
+    min-height: 44px;
+  }
 }
 .everything-groups li .muted {
   display: block;
