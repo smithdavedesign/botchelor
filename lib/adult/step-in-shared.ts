@@ -9,7 +9,13 @@ export const STEP_IN_LINE_MAX = 1000;
 /** The line under the title of every Step in page. */
 export const STEP_IN_TAGLINE = "An AI character. Fiction between adults.";
 
-export type StepInCharacter = { id: string; name: string; portrait: string | null; hue: number | null };
+/**
+ * A place's name inside a sentence: its first letter lowered ("A corner café that closes in an hour" → "a corner café
+ * that closes in an hour"). The catalog's names all start with a common word, never a proper noun.
+ */
+export const placeInSentence = (label: string): string => (label ? label.charAt(0).toLowerCase() + label.slice(1) : label);
+
+export type StepInCharacter ={ id: string; name: string; portrait: string | null; hue: number | null };
 
 export type StepInPlace = {
   /** The catalog's id (lib/adult/scene-catalog.ts); empty for a place the catalog no longer has. */
@@ -34,6 +40,8 @@ export type StepInSceneView = {
   roleplay: { id: string; title: string; icon: string; you_play: string | null; they_play: string | null; setup: string } | null;
   /** The name the viewer goes by in scenes, when their persona is used; null: none, or one After Dark's lines left out. */
   persona: { name: string } | null;
+  /** They have a persona, and the scene's checks leave it out (it plays without it). */
+  persona_left_out: boolean;
   limits: PairLimits;
   /** The scene as it stands: a redrawn reply's earlier draws left out. */
   messages: StepInMessageView[];

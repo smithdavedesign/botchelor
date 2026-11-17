@@ -11,12 +11,14 @@
  * What the viewer sends is checked in this order, and what a check refuses is never stored or logged:
  *  1. the self-harm protocol (lib/crisis.ts, the maybes on After Dark's own model as the PG companion does them): the
  *     scene pauses with the resources, and nothing they said is kept;
- *  2. the lines that never move (lib/safety.ts checkAdultText): refused with the steers' own sentence;
+ *  2. the lines that never move (lib/safety.ts checkAdultText): refused with the steers' own sentence; then Step in's
+ *     own net over the same lines (lib/adult/step-in-lines.ts), because here a line can cross them just by saying who
+ *     someone is ("You're my daughter." passes checkAdultText, which reads roleplay phrasing about two known adults);
  *  3. their own limits for the scene (lib/adult/limits.ts): a hard no asked for, or past their intensity.
- * What the character says is checked whole (checkReply): the lines that never move, the viewer's hard nos and
- * intensity, a public place's cap, the narrator's guard on the prose outside the quotes, and that it never writes the
- * viewer. A reply that fails is drawn once more with a note of what to avoid; if that fails too, a neutral narrator's
- * line stands in (ASIDES) and nothing of either draft is kept.
+ * What the character says is checked whole (checkReply): the lines that never move (both nets), the viewer's hard nos
+ * and intensity, a public place's cap, the narrator's guard on the prose outside the quotes, and that it never writes
+ * the viewer. A reply that fails is drawn once more with a note of what to avoid; if that fails too, a neutral
+ * narrator's line stands in (ASIDES) and nothing of either draft is kept.
  *
  * Each reply counts one of the month's scene steps (lib/adult/usage.ts), regenerate and Continue included; flipping
  * through kept draws doesn't. Every reply and every refusal is a row in the step log (lib/adult/steps.ts, kind
@@ -37,7 +39,7 @@ import { portraitPathSql } from "../portrait-sql";
 import { CHARACTER_REJECTION_MESSAGES, checkAdultText, type SafetyResult } from "../safety";
 import { adultCardTextIssue, CARD_OPENING_MAX, cardForYou, GENERIC_OPENINGS, openingOf } from "../scene-cards";
 import { lineInCrisis } from "../step-in";
-import { normalizeScene, setPath } from "../venues";
+import { normalizeScene, setPath, venueName } from "../venues";
 import { eligibleIds } from "./characters";
 import { stageAsked } from "./director";
 import { jsonOf } from "./facts";
@@ -52,8 +54,9 @@ import { isPublicPlace, linesCrossed, recapFrom, samplingOf, type LimitsInput } 
 import { getAdultSettings } from "./settings";
 import { stageShown } from "./stage-floor";
 import { STAGES } from "./stages";
+import { STEP_IN_NEVER_SAID, stepInNever, stepInNeverIn, type StepInNever } from "./step-in-lines";
 import { STEP_IN_REPLY_TOKENS, STEP_IN_TURNS, stepInMessages, type StepInTurn } from "./step-in-prompt";
-import { STEP_IN_LINE_MAX, type StepInCharacter, type StepInMessageView, type StepInPlace, type StepInSceneRef, type StepInSceneView } from "./step-in-shared";
+import { placeInSentence, STEP_IN_LINE_MAX, type StepInCharacter, type StepInMessageView, type StepInPlace, type StepInSceneRef, type StepInSceneView } from "./step-in-shared";
 import { logStep, STEP_IN_PARTNER } from "./steps";
 import { countUse, overCap, usageLeft } from "./usage";
 import { sceneCharacter } from "./voice";
@@ -227,20 +230,38 @@ function placeOf(label: string, drawn: readonly string[]): StepInPlace {
   return stepInPlaces(drawn).find((p) => normalizeScene(p.place) === key) ?? { id: "", title: label, place: label, image: null, backdrop: null, public: isPublicPlace(label) };
 }
 
+/** The home venue's label (lib/venues.ts "Their place"): in a scene with one character, that character's own home. */
+const HOME_KEY = normalizeScene(venueName("home"));
+
+/**
+ * A place as the character's prompt says it: its name inside a sentence, with what it puts them in when it's one of
+ * the library's venues (lib/adult/scene-catalog.ts venueSituation). "Their place" is the character's own: "your place".
+ */
+function promptPlace(label: string): { label: string; situation: string | null } {
+  if (normalizeScene(label) === HOME_KEY) return { label: "your place", situation: "your own home: the living room and the kitchen, a lamp on, something on the stove" };
+  // A class's own "teacher" is its instructor here: Step in's net keeps the word out of every line (lib/adult/step-in-lines.ts).
+  return { label: placeInSentence(label), situation: venueSituation(label)?.replaceAll("teacher", "instructor") ?? null };
+}
+
 /** The viewer's side of a roleplay: {a} when they play its first role. */
 const sideOf = (you: 0 | 1): "a" | "b" => (you === 1 ? "b" : "a");
 
 /**
  * The viewer's persona for an After Dark scene (lib/persona.ts: the name, look and line about themselves they wrote
- * for scenes), or null. Read raw, then held to the rules that hold everywhere and to After Dark's lines again as it's
- * read: one that fails either is left out, and the scene plays without it.
+ * for scenes). Read raw, then held to the rules that hold everywhere, to After Dark's lines and to Step in's own net
+ * (lib/adult/step-in-lines.ts) again as it's read: one that fails any of them is left out (`leftOut`), and the scene
+ * plays without it.
  */
-export async function adultPersona(db: Db, viewer: string): Promise<ScenePersona | null> {
+export async function stepInPersona(db: Db, viewer: string): Promise<{ persona: ScenePersona | null; leftOut: boolean }> {
   const p = await getPersona(db, viewer).catch(() => null);
-  if (!p || personaIssue(p)) return null;
+  if (!p) return { persona: null, leftOut: false };
   const lines = Object.fromEntries(Object.entries({ name: p.name, look: p.look, about: p.about }).filter(([, v]) => Boolean(v)));
-  return checkAdultText(lines).ok ? p : null;
+  const fits = !personaIssue(p) && checkAdultText(lines).ok && !stepInNeverIn(Object.values(lines));
+  return fits ? { persona: p, leftOut: false } : { persona: null, leftOut: true };
 }
+
+/** The persona a scene's prompt may carry, or null: none written, or one the checks leave out. */
+export const adultPersona = async (db: Db, viewer: string): Promise<ScenePersona | null> => (await stepInPersona(db, viewer)).persona;
 
 /* ------------------------------------------------ the checks ------------------------------------------------ */
 
@@ -248,6 +269,42 @@ export async function adultPersona(db: Db, viewer: string): Promise<ScenePersona
 function linesMessage(what: string, r: SafetyResult): string {
   if (!r.ok && r.reason === "language") return CHARACTER_REJECTION_MESSAGES.language;
   return `That ${what} crosses one of the lines that never move (${linesCrossed(r)}).`;
+}
+
+/** One of our own lists' single words: safe to say back to whoever wrote the line, so they can say it another way. */
+const saidBack = (hit: StepInNever): string => (/^[a-z]+$/.test(hit.word) ? `: it was the word "${hit.word}"` : "");
+
+/**
+ * What a text caught by Step in's own net (lib/adult/step-in-lines.ts) is told: the same sentence, the line it is, and
+ * the word when it's one of ours. `logged` is the same without the word: the step log never holds any of the text.
+ */
+function neverMessage(what: string, hit: StepInNever): { message: string; logged: string } {
+  const logged = `That ${what} crosses one of the lines that never move (${STEP_IN_NEVER_SAID[hit.why]}).`;
+  return { message: `${logged.slice(0, -2)}${saidBack(hit)}).`, logged };
+}
+
+/** Why a text can't be in a Step in scene at all, for the next draft's note: After Dark's lines, then Step in's net. */
+function linesNote(text: string): { why: string; avoid: string } | null {
+  const safe = checkAdultText({ reply: text });
+  if (!safe.ok) {
+    if (safe.reason === "language") return { why: "lines:language", avoid: "it wasn't in English" };
+    return { why: `lines:${safe.theme ?? safe.reason}`, avoid: `it crossed one of the lines that never move (${linesCrossed(safe)})` };
+  }
+  const never = stepInNever(text);
+  if (never) return { why: `never:${never.why}`, avoid: `it crossed one of the lines that never move here (${STEP_IN_NEVER_SAID[never.why]}${saidBack(never)})` };
+  if (crisisIntent(text)) return { why: "crisis", avoid: "someone in it talked about hurting themselves" };
+  return null;
+}
+
+/**
+ * The word of a paragraph's narration that the narrator's guard refuses, when a single word is what trips it (a family
+ * word, a word for someone young), for the next draft's note: the guard's lists are wide ("stepped" reads as a family
+ * word to it), and a draft told which word it was rarely makes the same mistake twice.
+ */
+function guardedWord(paragraph: string): string | null {
+  const prose = paragraph.replace(/“[^”]*”|"[^"]*"/g, " ");
+  for (const w of prose.match(/[A-Za-z][A-Za-z'’-]*/g) ?? []) if (narrationGuard(w, "adult")) return w.toLowerCase();
+  return null;
 }
 
 /**
@@ -282,34 +339,35 @@ export type ReplyVerdict = { ok: true; paragraphs: string[] } | { ok: false; why
 /**
  * A drawn reply through every check, in order (the PG companion's order, with After Dark's checks: the line checks on
  * the whole reply first, then the narrator's guard):
- *  1. the lines that never move, on the whole reply, and nothing that reads as wanting to hurt oneself;
+ *  1. the lines that never move, on the whole reply: After Dark's (checkAdultText), then Step in's own net (what it
+ *     says out loud included), and nothing that reads as wanting to hurt oneself;
  *  2. the viewer's hard nos and intensity, and a public place's cap (nothing past kissing there);
  *  3. the narrator's guard on the prose outside the quotes (nothing young, no family word, no age under 18), and its
  *     age rule on what's said inside them: any hit refuses the reply, nothing is quietly cut;
  *  4. it never writes the viewer: a line put in their mouth refuses it.
  * Then the craft: a sentence of narration that feels or thinks for the viewer, or uses a worn phrase, is cut; a reply
  * that loses more than a third that way isn't used. `why` is a word for the step log, `avoid` the next draft's note:
- * neither ever holds a word of the reply.
+ * neither holds more of the reply than one word of our own lists.
  */
 export function checkReply(paragraphs: readonly string[], limits: PairLimits, o: { publicPlace: boolean }): ReplyVerdict {
   if (!paragraphs.length) return { ok: false, why: "empty", avoid: "there was no story in it" };
   const whole = paragraphs.join("\n\n");
-  const safe = checkAdultText({ reply: whole });
-  if (!safe.ok) return { ok: false, why: `lines:${safe.reason === "language" ? "language" : (safe.theme ?? safe.reason)}`, avoid: safe.reason === "language" ? "it wasn't in English" : `it crossed one of the lines that never move (${linesCrossed(safe)})` };
-  if (crisisIntent(whole)) return { ok: false, why: "crisis", avoid: "someone in it talked about hurting themselves" };
+  const crossed = linesNote(whole);
+  if (crossed) return { ok: false, ...crossed };
   const limited = limitsNote(whole, limits, o.publicPlace);
   if (limited) return { ok: false, ...limited };
   for (const p of paragraphs) {
-    if (guardStory(p, "adult").cut > 0) return { ok: false, why: "guard", avoid: "its narration brought in someone young, a family word or an age under 18" };
+    if (guardStory(p, "adult").cut === 0) continue;
+    const w = guardedWord(p);
+    return { ok: false, why: "guard", avoid: `its narration brought in someone young, a family word or an age under 18${w ? ` (the word "${w}")` : ""}` };
   }
   if (speaksForThePerson(whole)) return { ok: false, why: "speaks_for_them", avoid: "it wrote a line for the person you're with: never write what they say or do" };
   const kept = paragraphs.map((p) => guardStory(p, "adult", (sentence) => hasWornPhrase(sentence) || thinksForThePerson(sentence)).text).filter(Boolean);
   const left = kept.join("\n\n");
   if (!kept.length || left.length < (whole.length * 2) / 3) return { ok: false, why: "cut", avoid: "too much of it said what the person you're with felt or thought" };
   // What the cuts left is read once more as a whole: a cut can bring two sentences together.
-  if (!checkAdultText({ reply: left }).ok) return { ok: false, why: "lines:recheck", avoid: "it crossed one of the lines that never move" };
-  const again = limitsNote(left, limits, o.publicPlace);
-  if (again) return { ok: false, ...again };
+  const recrossed = linesNote(left) ?? limitsNote(left, limits, o.publicPlace);
+  if (recrossed) return { ok: false, ...recrossed };
   return { ok: true, paragraphs: kept };
 }
 
@@ -355,9 +413,12 @@ async function logMove(
   });
 }
 
-/** A refusal: counted in the step log by its kind (never the refused words), and answered. */
-async function refuse(db: Db, s: Pick<SceneRow, "id" | "owner_id" | "character_id">, status: number, error: string, message: string, refused: string, action: string): Promise<StepInFail> {
-  await logMove(db, { owner: s.owner_id, character: s.character_id, scene: s.id }, { ok: false, http: status, message, flags: { action, refused } });
+/**
+ * A refusal: counted in the step log by its kind (never the refused words), and answered. `logged`: what the log keeps
+ * when the answer names a word of the line.
+ */
+async function refuse(db: Db, s: Pick<SceneRow, "id" | "owner_id" | "character_id">, status: number, error: string, message: string, refused: string, action: string, logged: string = message): Promise<StepInFail> {
+  await logMove(db, { owner: s.owner_id, character: s.character_id, scene: s.id }, { ok: false, http: status, message: logged, flags: { action, refused } });
   return fail(status, error, message);
 }
 
@@ -398,7 +459,7 @@ function roleplayView(pick: SceneRow["roleplay"], characterName: string): StepIn
 }
 
 async function viewOf(db: Db, s: SceneRow): Promise<StepInSceneView | null> {
-  const [character, rows, drawn, persona, left] = await Promise.all([characterRef(db, s.character_id), allMessages(db, s.id), drawnSets(db), adultPersona(db, s.owner_id), usageLeft(db, s.owner_id, "writes")]);
+  const [character, rows, drawn, who, left] = await Promise.all([characterRef(db, s.character_id), allMessages(db, s.id), drawnSets(db), stepInPersona(db, s.owner_id), usageLeft(db, s.owner_id, "writes")]);
   if (!character) return null;
   const shown = rows.filter((m) => !m.replaced_by);
   const spoken = spokenOf(rows);
@@ -410,7 +471,8 @@ async function viewOf(db: Db, s: SceneRow): Promise<StepInSceneView | null> {
     character,
     place: placeOf(s.place, drawn),
     roleplay: roleplayView(s.roleplay, character.name),
-    persona: persona ? { name: persona.name } : null,
+    persona: who.persona ? { name: who.persona.name } : null,
+    persona_left_out: who.leftOut,
     limits: limitsOf(s),
     messages: shown.map((m) => ({ id: m.id, role: m.role, kind: messageKind(m), text: m.text, at: iso(m.created_at)! })),
     draws: draws.length > 1 ? { count: draws.length, showing: draws.indexOf(last!) + 1 } : null,
@@ -493,7 +555,8 @@ type DrawContext = {
   earlier: string[];
 };
 
-const turnOf = (m: MessageRow): StepInTurn => ({ role: m.role === "viewer" ? "viewer" : m.role === "system" ? "place" : m.kind === "aside" ? "aside" : "character", text: m.text });
+const turnOf = (m: MessageRow): StepInTurn =>
+  m.role === "system" ? { role: "place", text: promptPlace(m.text).label } : { role: m.role === "viewer" ? "viewer" : m.kind === "aside" ? "aside" : "character", text: m.text };
 
 /** One line about each earlier scene with this character that the viewer ended, newest first. */
 async function earlierScenes(db: Db, s: Pick<SceneRow, "id" | "owner_id" | "character_id">): Promise<string[]> {
@@ -569,7 +632,7 @@ async function draw(
   const complete = async (avoid: string | null): Promise<string> => {
     const messages = stepInMessages({
       character: ctx.character,
-      place: { label: ctx.place.place, situation: venueSituation(ctx.place.place), public: ctx.place.public },
+      place: { ...promptPlace(ctx.place.place), public: ctx.place.public },
       roleplay: ctx.roleplay,
       persona: ctx.persona,
       limits: ctx.limits,
@@ -729,11 +792,15 @@ export async function startStepIn(db: Db, viewer: string, input: StepInStart, no
         await countReferral(db, STEP_IN_SURFACE, now);
         return { ...fail(200, "crisis", CRISIS_RESOURCES.message), crisis_resources: CRISIS_RESOURCES };
       }
+      // Then the lines that never move (After Dark's, and Step in's own net), then that it's a sentence of story.
       const safe = checkAdultText({ opening: text });
-      const refused = !safe.ok ? linesMessage("opening", safe) : openingIssue(text);
-      if (refused) {
-        await logMove(db, who, { ok: false, http: 422, message: refused, flags: { action: "start", refused: safe.ok ? "opening" : "lines" } });
-        return fail(422, "opening_not_allowed", refused);
+      const never = safe.ok ? stepInNever(text) : null;
+      // What they're told, and what the log keeps of it (never a word of what was written).
+      const crossed = !safe.ok ? { message: linesMessage("opening", safe), logged: linesMessage("opening", safe) } : never ? neverMessage("opening", never) : null;
+      const issue = crossed ? null : openingIssue(text);
+      if (crossed || issue) {
+        await logMove(db, who, { ok: false, http: 422, message: crossed ? crossed.logged : issue, flags: { action: "start", refused: crossed ? "lines" : "opening" } });
+        return fail(422, "opening_not_allowed", crossed ? crossed.message : issue!);
       }
       opening = text;
     }
@@ -792,6 +859,12 @@ export async function sendStepInLine(db: Db, viewer: string, sceneId: string, in
   if (crisis) return pauseForCrisis(db, s, now);
   const safe = checkAdultText({ line: text });
   if (!safe.ok) return refuse(db, s, 422, "refused", linesMessage("line", safe), "lines", "send");
+  // Step in's own net (lib/adult/step-in-lines.ts): here a line can cross the same lines just by saying who someone is.
+  const never = stepInNever(text);
+  if (never) {
+    const told = neverMessage("line", never);
+    return refuse(db, s, 422, "refused", told.message, "lines", "send", told.logged);
+  }
   const rows = await allMessages(db, s.id);
   const limited = lineLimitRefusal(text, limitsOf(s), stageOf(rows));
   if (limited) return refuse(db, s, 422, "limits", limited, "limits", "send");
@@ -960,7 +1033,7 @@ export async function saveStepInLimits(db: Db, viewer: string, sceneId: string, 
 /* ------------------------------------------------ memory ------------------------------------------------ */
 
 /** A recap or a remembered line may go into a prompt: After Dark's lines, the narrator's guard, and nothing about self-harm. */
-const memoryLineOk = (text: string): boolean => checkAdultText({ memory: text }).ok && !narrationGuard(text, "adult") && !crisisIntent(text);
+const memoryLineOk = (text: string): boolean => checkAdultText({ memory: text }).ok && !stepInNever(text) && !narrationGuard(text, "adult") && !crisisIntent(text);
 
 /** An ended scene's line when the model's can't be used: what the record itself says, and nothing else. */
 const recordLine = (placeTitle: string, rp: Roleplay | null): string => `A scene at ${placeTitle}${rp ? `, playing "${rp.title}"` : ""}.`;

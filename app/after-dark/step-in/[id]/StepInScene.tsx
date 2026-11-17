@@ -7,7 +7,7 @@ import CharacterName from "@/app/CharacterName";
 import CrisisNotice, { crisisFrom } from "@/app/CrisisNotice";
 import Icon from "@/app/Icon";
 import type { HardNos, Intensity } from "@/lib/adult/limits";
-import { STEP_IN_LINE_MAX, STEP_IN_TAGLINE, type StepInMessageView, type StepInSceneView } from "@/lib/adult/step-in-shared";
+import { placeInSentence, STEP_IN_LINE_MAX, STEP_IN_TAGLINE, type StepInMessageView, type StepInSceneView } from "@/lib/adult/step-in-shared";
 import type { CrisisResources } from "@/lib/crisis";
 import { storyParagraphs, storySegments } from "@/lib/story-reply";
 import Limits from "../../[a]/[b]/Limits";
@@ -42,7 +42,7 @@ function Line({ m, name }: { m: StepInMessageView; name: string }) {
   if (m.role === "system") {
     return (
       <li className="ad-si-system" data-kind={m.kind ?? "system"}>
-        {m.kind === "place" ? `The scene moves to ${m.text}.` : m.text}
+        {m.kind === "place" ? `The scene moves to ${placeInSentence(m.text)}.` : m.text}
       </li>
     );
   }
@@ -147,9 +147,12 @@ export default function StepInScene({ initial, places, personaHref }: { initial:
           </Link>
         </p>
         <h1>
-          <CharacterName character={view.character} link={false} size={34} /> <span className="ad-si-at">at {view.place.title}</span>
+          <CharacterName character={view.character} link={false} size={34} />
         </h1>
         <p className="muted small ad-si-tagline">{STEP_IN_TAGLINE}</p>
+        <p className="ad-si-at" data-step-in-place>
+          📍 {view.place.title}
+        </p>
         {view.roleplay && (
           <p className="muted small" data-step-in-roleplay>
             {view.roleplay.icon} {view.roleplay.title}
@@ -160,6 +163,10 @@ export default function StepInScene({ initial, places, personaHref }: { initial:
           {view.persona ? (
             <>
               You go by <strong>{view.persona.name}</strong> here.
+            </>
+          ) : view.persona_left_out ? (
+            <>
+              Who you are in scenes isn&apos;t used here (it mentions something these scenes leave out). <a href={personaHref}>Edit it</a>.
             </>
           ) : (
             <>

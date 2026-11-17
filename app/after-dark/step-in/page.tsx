@@ -7,7 +7,7 @@ import Icon from "@/app/Icon";
 import { isAdmin } from "@/lib/admins";
 import { rolloutOn } from "@/lib/adult/rollout";
 import { getAdultSettings } from "@/lib/adult/settings";
-import { adultPersona, drawnSets, listStepInScenes, STEP_IN_TAGLINE, stepInCast, stepInPlaces, stepInViewerFromCookies, type StepInSceneRef } from "@/lib/adult/step-in";
+import { drawnSets, listStepInScenes, STEP_IN_TAGLINE, stepInCast, stepInPersona, stepInPlaces, stepInViewerFromCookies, type StepInSceneRef } from "@/lib/adult/step-in";
 import { getDb } from "@/lib/db";
 import { showHome } from "@/lib/site";
 import LocalTime from "../LocalTime";
@@ -30,7 +30,7 @@ export default async function StepInSetupPage({ searchParams }: Props = {}) {
   const db = await getDb();
   const viewer = await stepInViewerFromCookies(db, await cookies());
   if (!viewer) notFound();
-  const [cast, drawn, persona, scenes, admin, settings, sp] = await Promise.all([stepInCast(db, viewer), drawnSets(db), adultPersona(db, viewer), listStepInScenes(db, viewer), isAdmin(db, viewer), getAdultSettings(db), searchParams]);
+  const [cast, drawn, who, scenes, admin, settings, sp] = await Promise.all([stepInCast(db, viewer), drawnSets(db), stepInPersona(db, viewer), listStepInScenes(db, viewer), isAdmin(db, viewer), getAdultSettings(db), searchParams]);
   // The persona is the show's to edit (app/account/PersonaCard.tsx): one for every scene, on either side.
   const personaHref = `${showHome().replace(/\/$/, "")}/account#persona`;
   // Still closed to everyone else: an admin is told so, and where the switch is.
@@ -63,7 +63,7 @@ export default async function StepInSetupPage({ searchParams }: Props = {}) {
         )}
         <h2>{scenes.running.length ? "Start a new scene" : "Set the scene"}</h2>
         {cast.length ? (
-          <StepInSetup cast={cast} places={stepInPlaces(drawn)} persona={persona ? { name: persona.name } : null} personaHref={personaHref} preselect={sp?.with ?? null} />
+          <StepInSetup cast={cast} places={stepInPlaces(drawn)} persona={who.persona ? { name: who.persona.name } : null} personaLeftOut={who.leftOut} personaHref={personaHref} preselect={sp?.with ?? null} />
         ) : (
           <p className="muted">Nobody is in your After Dark yet. This season&apos;s cast is in by default; your own characters are switched in on the Studio page.</p>
         )}

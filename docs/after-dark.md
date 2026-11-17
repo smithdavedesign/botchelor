@@ -3369,7 +3369,8 @@ is two fictional characters, so an adult one-to-one mode has to be declared to t
 ([after-dark-processor-application.md](after-dark-processor-application.md)).
 
 **Where it lives.** The show never reads it (`tests/adult-imports.test.ts`): `lib/adult/step-in.ts` (the engine),
-`lib/adult/step-in-prompt.ts` (the prompt), `lib/adult/step-in-shared.ts` (what the pages share),
+`lib/adult/step-in-prompt.ts` (the prompt), `lib/adult/step-in-lines.ts` (its own net over the lines that never move),
+`lib/adult/step-in-shared.ts` (what the pages share),
 `app/after-dark/step-in/` (set-up and the scene), `app/api/admin/after-dark/step-in/` (its two routes), and two tables
 of its own, `adult_step_in_scenes` and `adult_step_in_messages`. The PG companion (`lib/companion.ts`) handles none of
 it. It imports neutral show modules only: story mode's craft and guard (`lib/narration.ts`), scene cards, the persona,
@@ -3384,15 +3385,16 @@ where it's open to the viewer.
 2. **Where:** a place from the scene catalog (`stepInPlaces`: the library's venues, the scenario packs' places, the
    roleplay places; not the double date, and not a set someone typed in), with its backdrop.
 3. **The roleplay:** one of After Dark's 33 or none, and which side the viewer plays. The page shows the card from the
-   viewer's side (`cardForYou`: "you", the verbs agreeing). The viewer's own library roleplays aren't offered in v1.
+   viewer's side (`cardForYou`: "you", the verbs agreeing). The viewer's own library roleplays and venues aren't
+   offered in v1.
 4. **How it opens:** the card's three openings (the generic three with no roleplay), "Surprise me", or one sentence
-   of the viewer's own. A written one is the viewer's words: the self-harm check, then `checkAdultText`, then the
-   roleplay theme check (`adultCardTextIssue`: one sentence of story, the never-list, nothing explicit). Refused, no
-   scene is made and nothing is stored.
+   of the viewer's own. A written one is the viewer's words: the self-harm check, then `checkAdultText` and Step in's
+   own net, then the roleplay theme check (`adultCardTextIssue`: one sentence of story, the never-list, nothing
+   explicit). Refused, no scene is made and nothing is stored.
 
 The viewer's persona (`lib/persona.ts`, edited on the show's `/account#persona`) is who they are in the scene. It's
-read raw, then held to `personaIssue` and to `checkAdultText` again as it's read; one that fails is left out and the
-scene plays without it.
+read raw, then held to `personaIssue`, to `checkAdultText` and to Step in's own net again as it's read
+(`stepInPersona`); one that fails is left out, the scene plays without it, and the page says so.
 
 **Play.** The character opens in prose; the viewer writes what they say and do; the character answers. Replies are
 story mode only (`storyModeRules`, as the PG companion's scene uses them): third person and past tense for the
@@ -3417,13 +3419,38 @@ its rating paragraph and in what it says about the character, not in its craft.
 | | Check, in order | When it trips |
 | --- | --- | --- |
 | What the viewer sends | 1. The self-harm protocol (`lib/crisis.ts`; the maybes on After Dark's own model, failing closed, as the PG companion does them) | The scene pauses with the resources; nothing they said is kept; counted by day and surface (`after_dark_step_in`) only |
-| | 2. `checkAdultText` (the lines that never move; English only) | 422 with the steers' own sentence; never stored |
+| | 2. `checkAdultText` (the lines that never move; English only), then **Step in's own net** (`stepInNever`, below) | 422 with the steers' own sentence, and for the net the word it was when it's one of ours; never stored |
 | | 3. Their own limits (`lineLimitRefusal`: a hard no asked for, or past their intensity) | 422 with the limits' own sentence; never stored |
-| What the character says (`checkReply`) | 1. `checkAdultText` on the whole reply, and the crisis list | Drawn once more with a note of what to avoid (in words, never the draft) |
+| What the character says (`checkReply`) | 1. `checkAdultText` on the whole reply, Step in's own net (what's said out loud included), and the crisis list | Drawn once more with a note of what to avoid (in words, never the draft) |
 | | 2. The viewer's hard nos (`hardNoHit`) and intensity (`overIntensity`), and a public place's cap | The same |
 | | 3. The narrator's guard on the prose outside the quotes (`guardStory(paragraph, "adult")`: nothing young, no family word, no age under 18) and its age rule inside them. Any hit refuses the reply; nothing is quietly cut | The same |
 | | 4. It never writes the viewer (`speaksForThePerson`); a sentence that feels or thinks for them, or uses a worn phrase, is cut, and a reply that loses a third that way isn't used | The same |
 | | Then the repeat check (`repeatsEarlier`) | Drawn once more; a safe repeat is kept over the stand-in |
+
+**Step in's own net** (`lib/adult/step-in-lines.ts` `stepInNever`). `checkAdultText` was written for two characters the
+show already knows, with a steer typed about them: it reads roleplay phrasing ("pretend you're my sister", "the teacher
+and his student"). Here the viewer is one of the two and says who they are, so a line can cross the same lines just by
+saying so: "You're my daughter.", "I'm your father.", "I'm a kid.", "I'm a minor.", "You're my student.", "I'm the
+babysitter.", "You're drunk." and "I paid for you." all pass `checkAdultText`. The net refuses them, on every line of
+both sides (the viewer's line, the written opening, the persona, the character's reply including what it says out
+loud, and the notes kept as memory), on top of `checkAdultText` and never instead of it:
+- **family:** no family word at all, in any sense (the narrator's guard already holds After Dark's prose to this), no
+  step-family, nobody "related";
+- **young:** a kid, a child, a teen, a minor, "so young", "just turned 18";
+- **school:** school (not "law school" or "old-school"), student, teacher, tutor, classroom, campus, dorm;
+- **babysitter:** a babysitter or nanny;
+- **can't say no:** drunk, passed out, held, locked in, told they can't leave or refuse, a job riding on it;
+- **paid:** anyone paid for it.
+
+It is wide on purpose ("my mother called" and "like a kid in a candy store" are refused too), reads digits as letters
+("d4ddy"), and says which word it was so the line can be said another way. Everything Step in itself brings passes it:
+every roleplay from either side, every place, the house cast's sheets and the neutral lines (a test holds that). A
+character whose own sheet or name has one of these words will have replies drawn again, and sometimes replaced.
+
+The narrator's guard's family list is wider than family (`step\w+` reads "stepped" and "steps" as family words, and
+"minor", "childish" and "family recipe" trip it too). For Step in that would mean a redraw every time a character
+"stepped closer", so the prompt asks for "moved" or "came closer" (`STEP_IN_KEEP_OUT`), and a draft the guard refuses is
+told which word it was. The guard itself is as it was.
 
 A reply that fails twice is replaced by one of three neutral narrator's lines that change the subject (`ASIDES`, held
 to every check a reply is), and nothing of either draft is kept. A draw the viewer flips back to is held to the limits
@@ -3454,8 +3481,8 @@ record says ("A scene at …, playing …"). **No fact extraction in v1**, and n
 
 **Counted.** Every reply and every refusal is a row in the step log (`adult_steps`, kind `step_in`, the pair being the
 character and `viewer`): the move, how it ended, why a draft was redrawn (`flags.redrawn`), whether the stand-in was
-used (`flags.aside`), and a refusal's own sentence. Never a word of the viewer's line or of a refused draft: no
-`direction`, nothing in `dropped`. They're left out of the admin graph's and the insights' pair counts. A self-harm
+used (`flags.aside`), and a refusal's own sentence (the line that was crossed, never the word that crossed it). Never
+a word of the viewer's line or of a refused draft: no `direction`, nothing in `dropped`. They're left out of the admin graph's and the insights' pair counts. A self-harm
 pause is not in the step log (it's keyed to the viewer): only the anonymous count.
 
 **With the account.** Both tables are in After Dark's person-column registry and `AFTER_DARK_OWNED` (deleted with the

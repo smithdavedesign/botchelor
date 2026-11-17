@@ -54,9 +54,11 @@ import {
   takeBackStepIn,
   type StepInSceneView,
 } from "@/lib/adult/step-in";
+import { STEP_IN_NEVER_SAID, stepInNever, stepInNeverIn } from "@/lib/adult/step-in-lines";
 import {
   CONTINUE_CUE,
   STEP_IN_HONESTY,
+  STEP_IN_KEEP_OUT,
   STEP_IN_LINES,
   STEP_IN_NEVER_WRITE,
   STEP_IN_PACE,
@@ -71,13 +73,13 @@ import {
 import { NO_LIMITS, type PairLimits } from "@/lib/adult/limits";
 import { sceneCharacter } from "@/lib/adult/voice";
 import { crisisIntent } from "@/lib/crisis";
-import { HOUSE_CHARACTERS } from "@/lib/house";
+import { ALL_HOUSE_CHARACTERS, HOUSE_CHARACTERS } from "@/lib/house";
 import type { ChatMessage } from "@/lib/model";
 import { NEVER_WRITE_THE_PERSON, SCENE_DRIVE_RULE, speaksForThePerson, STORY_MODE_ANSWER } from "@/lib/narration";
 import { setPersona } from "@/lib/persona";
 import { premiseForYou } from "@/lib/roleplays";
 import { checkAdultText } from "@/lib/safety";
-import { adultCardTextIssue, CARD_EXPLICIT, cardForYou } from "@/lib/scene-cards";
+import { adultCardTextIssue, CARD_EXPLICIT, cardForYou, cardTexts, GENERIC_OPENINGS } from "@/lib/scene-cards";
 import { setSeasonCastForTests } from "@/lib/season-cast";
 import { maybeCrisis } from "@/lib/step-in";
 import { api, BASE_URL, signedInCookie, startTestDb, TEST_SESSION_SECRET, validCharacter } from "./helpers";
@@ -307,9 +309,16 @@ describe("setting it up", () => {
     const r1 = await startStepIn(t.db, a.id, { character_id: WHO, place: HOME, opening: { written: crossing } });
     expect(r1).toMatchObject({ ok: false, status: 422, error: "opening_not_allowed" });
     expect((r1 as { message: string }).message).toBe("That opening crosses one of the lines that never move (no family or step-family roleplay).");
+    // Step in's own net (lib/adult/step-in-lines.ts): what After Dark's check lets through because nobody is roleplaying it.
+    const saying = "She is a little drunk when I get there.";
+    expect(checkAdultText({ opening: saying }).ok).toBe(true);
+    const r2 = await startStepIn(t.db, a.id, { character_id: WHO, place: HOME, opening: { written: saying } });
+    expect(r2).toMatchObject({ ok: false, status: 422, error: "opening_not_allowed" });
+    expect((r2 as { message: string }).message).toBe('That opening crosses one of the lines that never move (both always willing: nobody drunk, held, or kept from saying no or leaving: it was the word "drunk").');
     // The roleplay theme check (lib/scene-cards.ts adultCardTextIssue): its never-list, and nothing explicit in an opening.
-    for (const text of ["She is a little drunk when I get there.", "We get naked the moment the door shuts."]) {
+    for (const text of ["She is asleep on the sofa when I get there.", "We get naked the moment the door shuts."]) {
       expect(checkAdultText({ opening: text }).ok).toBe(true);
+      expect(stepInNever(text)).toBeNull();
       expect(adultCardTextIssue(text)).not.toBeNull();
       expect(await startStepIn(t.db, a.id, { character_id: WHO, place: HOME, opening: { written: text } })).toMatchObject({ ok: false, status: 422, error: "opening_not_allowed" });
     }
@@ -320,12 +329,14 @@ describe("setting it up", () => {
     expect(await count("adult_step_in_messages")).toBe(0);
     expect(seen.prompts).toHaveLength(0);
     const log = await steps(a.id);
-    expect(log).toHaveLength(3);
+    expect(log).toHaveLength(4);
     expect(log.every((s) => s.kind === "step_in" && s.status === "error" && s.http === 422 && s.direction === null && s.character_b === "viewer")).toBe(true);
-    expect(log.map((s) => (s.flags as { refused: string }).refused)).toEqual(["lines", "opening", "opening"]);
+    expect(log.map((s) => (s.flags as { refused: string }).refused)).toEqual(["lines", "lines", "opening", "opening"]);
+    // The log keeps the line that was crossed, never the word that crossed it.
+    expect(log[1].message).toBe("That opening crosses one of the lines that never move (both always willing: nobody drunk, held, or kept from saying no or leaving).");
     // (The refusals' own sentences name the lines, so the search is for what was written, not for a line's name.)
     const all = await everything();
-    for (const words of ["stepsister", "a little", "when I get there", "naked", "door shuts"]) expect(all).not.toContain(words);
+    for (const words of ["stepsister", "a little", "when I get there", "asleep", "sofa", "naked", "door shuts"]) expect(all).not.toContain(words);
   });
 
   it("a written opening that says they want to hurt themselves answers with the resources and starts nothing", async () => {
@@ -363,7 +374,7 @@ describe("the prompt", () => {
   it("carries the character's own will and consent, never writing the viewer, the drive rule, the pace, the rating, the lines and honesty, every time", async () => {
     const m = await prompt({ turns: [{ role: "viewer", text: "I pull out the chair across from you." }] });
     const s = system(m);
-    for (const paragraph of [STEP_IN_WILL, STEP_IN_NEVER_WRITE, NEVER_WRITE_THE_PERSON, SCENE_DRIVE_RULE, STEP_IN_PACE, STEP_IN_RATING, STEP_IN_LINES, STEP_IN_HONESTY, STEP_IN_PARAGRAPHS, STORY_MODE_ANSWER]) {
+    for (const paragraph of [STEP_IN_WILL, STEP_IN_NEVER_WRITE, NEVER_WRITE_THE_PERSON, SCENE_DRIVE_RULE, STEP_IN_PACE, STEP_IN_RATING, STEP_IN_LINES, STEP_IN_KEEP_OUT, STEP_IN_HONESTY, STEP_IN_PARAGRAPHS, STORY_MODE_ANSWER]) {
       expect(s).toContain(paragraph);
     }
     // The words the brief asks for, in the paragraphs themselves.
@@ -481,7 +492,115 @@ describe("the prompt", () => {
     await sendStepInLine(t.db, a.id, made.id, "I hand over the parcel.");
     expect(system(seen.prompts[2])).not.toContain("Sam");
     expect(system(seen.prompts[2])).not.toContain("high school");
-    expect((await viewOf(a.id, made.id)).persona).toBeNull();
+    expect(await viewOf(a.id, made.id)).toMatchObject({ persona: null, persona_left_out: true });
+    // So is one Step in's own net refuses, though After Dark's check lets it through.
+    await t.db.query(`update personas set about = $2 where user_id = $1`, [a.id, "a tutor who is good with students"]);
+    expect(checkAdultText({ about: "a tutor who is good with students" }).ok).toBe(true);
+    await sendStepInLine(t.db, a.id, made.id, "I check the label twice.");
+    expect(system(seen.prompts[3])).not.toContain("tutor");
+    expect(await viewOf(a.id, made.id)).toMatchObject({ persona: null, persona_left_out: true });
+    // With none written, nothing is left out.
+    await t.db.query(`delete from personas where user_id = $1`, [a.id]);
+    expect(await viewOf(a.id, made.id)).toMatchObject({ persona: null, persona_left_out: false });
+  });
+});
+
+describe("Step in's own net over the lines that never move", () => {
+  // In a scene the viewer is in, a line can cross the lines just by saying who someone is. After Dark's check was
+  // written for roleplay phrasing about two known adults, and lets every one of these through.
+  const CROSSES: [string, string][] = [
+    ["You're my daughter.", "family"],
+    ["I'm your father.", "family"],
+    ["You are my little sister.", "family"],
+    ["My mother called earlier.", "family"],
+    ["We're related, you know.", "family"],
+    ["I'm your step-sister.", "family"],
+    ["you're my s1ster", "family"],
+    ["I'm a kid.", "young"],
+    ["I'm a minor.", "young"],
+    ["You look so young.", "young"],
+    ["I just turned 18.", "young"],
+    ["You're just a girl.", "young"],
+    ["You're my student.", "school"],
+    ["We're at school.", "school"],
+    ["After class, in the dorm.", "school"],
+    ["I'm the babysitter.", "babysitter"],
+    ["You're drunk.", "cant_say_no"],
+    ["You can't leave.", "cant_say_no"],
+    ["I won't let you go.", "cant_say_no"],
+    ["Whether you want to or not.", "cant_say_no"],
+    ["I paid for you.", "paid"],
+    ["How much do you charge?", "paid"],
+  ];
+  const FINE_LINES = [
+    "I step closer.", "She stepped closer and smiled.", "A minor detail, really.", "We met in law school.", "Old-school charm.", "It's a school night for me.",
+    "The night is young.", "When I was younger I hated olives.", "Good girl.", "Oh boy.", "Hey baby.", "I'm kidding.", "I take your hand.", "I kiss you.",
+    "I pay for the drinks.", "Let me pay you back for dinner.", "I can't leave yet, I'm having too much fun.", "You can leave whenever you like.", "I pour us both more wine.",
+    "This pottery class is harder than it looks.", "The instructor waves us over.", "I lock the door behind us.", "I hired a band for the party.", "A family-run trattoria.", "Tie me up.",
+  ];
+
+  it("refuses family, anyone young, school, a babysitter, someone who can't say no and anyone paid, however it's said; and leaves ordinary lines alone", () => {
+    for (const [text, why] of CROSSES) expect(stepInNever(text), text).toMatchObject({ why });
+    for (const text of FINE_LINES) expect(stepInNever(text), text).toBeNull();
+    // What it's for: lines After Dark's own check passes.
+    for (const text of ["You're my daughter.", "I'm your father.", "I'm a kid.", "I'm a minor.", "You're my student.", "I'm the babysitter.", "You're drunk.", "I paid for you."]) {
+      expect(checkAdultText({ line: text }).ok, text).toBe(true);
+    }
+    expect(stepInNever("You're my daughter.")).toEqual({ why: "family", word: "daughter" });
+    expect(Object.keys(STEP_IN_NEVER_SAID).sort()).toEqual(["babysitter", "cant_say_no", "family", "paid", "school", "young"]);
+  });
+
+  it("lets through everything Step in itself brings: every roleplay from either side, every place, the house cast's sheets, the neutral lines", () => {
+    for (const r of ROLEPLAYS) {
+      const texts = [r.title, r.premise, ...(r.roles ?? []), ...cardTexts(r.card).map((f) => f.text)];
+      for (const side of ["a", "b"] as const) texts.push(premiseForYou(r.premise, side, "Mara"), ...cardTexts(cardForYou(r.card, side, "Mara")).map((f) => f.text));
+      expect(stepInNeverIn(texts), r.id).toBeNull();
+    }
+    expect(stepInNeverIn(GENERIC_OPENINGS)).toBeNull();
+    for (const p of stepInPlaces()) expect(stepInNeverIn([p.title, p.place]), p.id).toBeNull();
+    for (const c of ALL_HOUSE_CHARACTERS) expect(stepInNever(JSON.stringify(c)), c.id).toBeNull();
+    expect(stepInNeverIn(ASIDES)).toBeNull();
+    expect(stepInNeverIn(FINE.flatMap((f) => f.story))).toBeNull();
+  });
+
+  it("a line the net catches is refused, told which word it was, and never stored; the log keeps the line it crossed and not the word", async () => {
+    const seen = scripted();
+    const a = await admin();
+    const made = await start(a.id);
+    const before = seen.prompts.length;
+    expect(await sendStepInLine(t.db, a.id, made.id, "You're my daughter, remember.")).toMatchObject({
+      ok: false, status: 422, error: "refused", message: 'That line crosses one of the lines that never move (no family or step-family, in fact or in play: it was the word "daughter").',
+    });
+    expect(await sendStepInLine(t.db, a.id, made.id, "Honestly, I'm a kid.")).toMatchObject({
+      ok: false, status: 422, message: 'That line crosses one of the lines that never move (nobody under 18, or anyone who reads young: it was the word "kid").',
+    });
+    // A phrase of theirs is never said back, only one of our own lists' words.
+    expect(await sendStepInLine(t.db, a.id, made.id, "You can't leave, you know.")).toMatchObject({
+      ok: false, status: 422, message: "That line crosses one of the lines that never move (both always willing: nobody drunk, held, or kept from saying no or leaving).",
+    });
+    expect(seen.prompts).toHaveLength(before);
+    expect(said(await viewOf(a.id, made.id))).toEqual(["character"]);
+    const refusals = (await steps(a.id)).filter((s) => s.status === "error");
+    expect(refusals.map((s) => s.message)).toEqual([
+      "That line crosses one of the lines that never move (no family or step-family, in fact or in play).",
+      "That line crosses one of the lines that never move (nobody under 18, or anyone who reads young).",
+      "That line crosses one of the lines that never move (both always willing: nobody drunk, held, or kept from saying no or leaving).",
+    ]);
+    const all = await everything();
+    for (const words of ["daughter", "remember", "Honestly", "you know"]) expect(all).not.toContain(words);
+  });
+
+  it("a reply the net catches, in what's said out loud too, is drawn again and told which word it was", async () => {
+    const bad = story('"My sister set this whole evening up," she said, turning her glass.', "Rain ran down the window.");
+    expect(checkAdultText({ reply: bad.story.join(" ") }).ok).toBe(true);
+    const seen = scripted(FINE[0], bad, FINE[1]);
+    const a = await admin();
+    const made = await start(a.id);
+    expect(await sendStepInLine(t.db, a.id, made.id, "I sit down across from you.")).toMatchObject({ ok: true });
+    expect(lastUser(seen.prompts[2])).toContain('(Your last draft couldn\'t be used: it crossed one of the lines that never move here (no family or step-family, in fact or in play: it was the word "sister"). Write this reply again without that.)');
+    expect((await steps(a.id)).at(-1)!.flags).toMatchObject({ redrawn: ["never:family"] });
+    expect((await viewOf(a.id, made.id)).messages.at(-1)!.text).toContain("Order for both of us");
+    expect(await everything()).not.toContain("set this whole evening up");
   });
 });
 
@@ -623,7 +742,14 @@ describe("what the character says", () => {
     for (const prose of ["She smiled the way her sister always did.", "A kid ran past the window with a kite.", "The waiter looked maybe sixteen."]) {
       expect(checkReply([`${prose} "Sit," she said.`], LIMITS, { publicPlace: false }), prose).toMatchObject({ ok: false });
     }
-    expect(checkReply(['She smiled the way her sister always did. "Sit," she said.'], LIMITS, { publicPlace: false })).toMatchObject({ ok: false, why: "guard" });
+    // What only the guard holds (a family word in any sense, anything childish): any hit refuses the reply, and the
+    // note says which word it was.
+    expect(checkReply(['It was a family recipe, she explained. "Sit," she said.'], LIMITS, { publicPlace: false })).toEqual({
+      ok: false, why: "guard", avoid: 'its narration brought in someone young, a family word or an age under 18 (the word "family")',
+    });
+    expect(checkReply(['A childish grin crossed her face. "Sit," she said.'], LIMITS, { publicPlace: false })).toMatchObject({ ok: false, why: "guard" });
+    // The same words said out loud are the character's own, and answer to the line checks alone.
+    expect(checkReply(['She set the dish down on the table between them. "It is a family recipe," she said.'], LIMITS, { publicPlace: false })).toMatchObject({ ok: true });
     // 4. It never writes the viewer: a line in their mouth refuses it; a feeling given to them is cut.
     const spoken = 'You said, "Stay a while," and she laughed.';
     expect(speaksForThePerson(spoken)).toBe(true);
@@ -671,20 +797,20 @@ describe("what the character says", () => {
   });
 
   it("a reply that fails the guard twice is replaced by the neutral line, and nothing of either draft is kept", async () => {
-    const bad1 = story('She smiled the way her sister always did. "Sit," she said.');
-    const bad2 = story('A kid ran past the window with a kite. "Look at that," she said.');
+    const bad1 = story('It was a family recipe, she explained, setting the dish down. "Sit," she said.');
+    const bad2 = story('A childish grin crossed her face as she lifted the lid. "Look at that," she said.');
     const seen = scripted(FINE[0], bad1, bad2, FINE[1]);
     const a = await admin();
     const made = await start(a.id);
     const r = await sendStepInLine(t.db, a.id, made.id, "I sit down across from you.");
     expect(r).toMatchObject({ ok: true });
     expect(seen.prompts).toHaveLength(3);
-    expect(lastUser(seen.prompts[2])).toContain("its narration brought in someone young, a family word or an age under 18");
+    expect(lastUser(seen.prompts[2])).toContain('its narration brought in someone young, a family word or an age under 18 (the word "family")');
     const view = await viewOf(a.id, made.id);
     expect(said(view)).toEqual(["character", "viewer", "character:aside"]);
     expect(view.messages.at(-1)!.text).toBe(ASIDES[0]);
     const all = await everything();
-    for (const word of ["sister", "kite", "kid"]) expect(all).not.toContain(word);
+    for (const word of ["recipe", "grin", "lifted the lid"]) expect(all).not.toContain(word);
     expect((await steps(a.id)).at(-1)!.flags).toMatchObject({ aside: true, redrawn: ["guard", "guard"] });
     // The stand-in counts as the step it took, and the scene goes on from it: its prompt shows the narrator's line.
     expect(await writes(a.id)).toBe(2);
@@ -876,7 +1002,9 @@ describe("the controls", () => {
     const seen = scripted();
     const a = await admin();
     const made = await start(a.id, { place: CAFE });
-    expect(system(seen.prompts[0])).toContain("You are out in public");
+    // The place's name inside a sentence, with what the venue puts them in.
+    expect(system(seen.prompts[0])).toContain("imagining you are both at a corner café that closes in an hour.");
+    expect(system(seen.prompts[0])).toContain("You are out in public (a corner café that closes in an hour)");
     expect(await moveStepIn(t.db, a.id, made.id, CAFE)).toMatchObject({ ok: false, status: 409, error: "already_there" });
     expect(await moveStepIn(t.db, a.id, made.id, "set:anywhere")).toMatchObject({ ok: false, status: 422 });
     const moved = await moveStepIn(t.db, a.id, made.id, HOME);
@@ -887,8 +1015,9 @@ describe("the controls", () => {
     await continueStepIn(t.db, a.id, made.id);
     const p = seen.prompts.at(-1)!;
     expect(system(p)).not.toContain("You are out in public");
-    expect(system(p)).toContain("Where you are: Their place");
-    expect(lastUser(p)).toBe(`(The scene moves: the two of you are now at Their place.)\n\n${CONTINUE_CUE}`);
+    // "Their place" is the character's own home, said to the character as theirs.
+    expect(system(p)).toContain("Where you are: your place (your own home: the living room and the kitchen");
+    expect(lastUser(p)).toBe(`(The scene moves: the two of you are now at your place.)\n\n${CONTINUE_CUE}`);
     expect(await writes(a.id)).toBe(2);
   });
 

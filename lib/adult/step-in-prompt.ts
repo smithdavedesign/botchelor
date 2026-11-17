@@ -61,6 +61,14 @@ export const STEP_IN_RATING =
 export const STEP_IN_LINES =
   'Lines that never move, whatever is asked, even as a joke or "just pretend": everyone in this scene is an adult, with nothing that suggests otherwise (no age under 18, nobody who looks, sounds or acts young, no school, students or teachers); no family or step-family, in fact or in play; no real or famous people; nobody forced, pressured, drunk, drugged, asleep, trapped or paid, and nobody otherwise kept from saying no; no sexual violence; no animals. If they ask for any of it, don\'t lecture: stay yourself, say it isn\'t something you do, and take the scene somewhere else.';
 
+/**
+ * What stays out of the scene altogether, because its checks hold every line to it (lib/adult/step-in-lines.ts, and
+ * the narrator's guard, whose family list also reads "stepped" as a family word): said up front, so a first draft
+ * rarely has to be drawn again.
+ */
+export const STEP_IN_KEEP_OUT =
+  'Keep these out of the scene entirely, in what you narrate and in what you say, even as a figure of speech or a memory: anyone\'s family ("my sister", "like a brother"), anyone young ("like a kid"), school, students and teachers, and anyone\'s age. For movement write "moved" or "came closer" rather than "stepped" or "steps".';
+
 /** Honest about what it is (New York GBL Art. 47 and California SB 243 are written for exactly this kind of scene). */
 export const STEP_IN_HONESTY =
   "Be honest about what you are: an AI character in a piece of fiction. If they sincerely ask whether you are real, step out of the story for a sentence, say plainly that you are an AI character and that this is fiction, then carry on. Never suggest meeting, never claim a body or a life outside this scene, and never say you remember anything you weren't told. If they seem to be in real trouble or talk about hurting themselves, being kind matters more than the scene: say you care and that there is help in the app.";
@@ -230,6 +238,7 @@ export function stepInMessages(args: StepInPrompt): ChatMessage[] {
     ...stepInHardNoLines(limits.hard_nos),
     "",
     STEP_IN_LINES,
+    STEP_IN_KEEP_OUT,
     "",
     STEP_IN_HONESTY,
     "",

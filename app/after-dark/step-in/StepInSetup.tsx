@@ -25,6 +25,7 @@ export default function StepInSetup({
   cast,
   places,
   persona,
+  personaLeftOut = false,
   personaHref,
   preselect,
 }: {
@@ -32,6 +33,8 @@ export default function StepInSetup({
   places: StepInPlace[];
   /** The name the viewer goes by in scenes (lib/persona.ts), when After Dark's lines let it through. */
   persona: { name: string } | null;
+  /** They have a persona and the scene's checks leave it out (lib/adult/step-in.ts stepInPersona). */
+  personaLeftOut?: boolean;
   /** Where the persona is edited: the show's account page. */
   personaHref: string;
   /** A character to start on (?with=<id>). */
@@ -108,6 +111,11 @@ export default function StepInSetup({
             <>
               You go by <strong>{persona.name}</strong> in scenes · <a href={personaHref}>edit who you are</a>
             </>
+          ) : personaLeftOut ? (
+            <span data-step-in-persona-left-out>
+              Who you are in scenes isn&apos;t used here: it mentions something these scenes leave out (anyone&apos;s family, anyone young, school, or someone kept
+              from saying no). <a href={personaHref}>Edit it</a>, or play without.
+            </span>
           ) : (
             <>
               They don&apos;t know who you are in scenes yet. <a href={personaHref}>Add a name, a look and a line about you</a>, or play without.

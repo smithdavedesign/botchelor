@@ -3029,8 +3029,8 @@ fieldset.ad-si-step {
   margin-bottom: var(--space-1);
 }
 .ad-si-at {
-  font-weight: 400;
-  color: var(--night-muted);
+  margin: var(--space-2) 0 var(--space-1);
+  font-weight: 600;
 }
 .ad-si-lines {
   list-style: none;
