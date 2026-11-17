@@ -114,6 +114,9 @@ export default function PricingPage() {
             <li>Your characters&apos; lines on dates and texts run on your own model account</li>
             <li>Google Gemini, OpenAI, Anthropic Claude, DeepSeek, Groq or OpenRouter</li>
             <li>You pay the provider directly, with the limits you set there</li>
+            <li>
+              A 4-second intro clip of your character is the one extra that needs both: one bought date, plus about $0.20 to Google on your own key (Veo)
+            </li>
           </ul>
           <Link className="button" href="/account/keys" data-track="pricing-own-key">
             Connect a key

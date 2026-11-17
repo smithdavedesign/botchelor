@@ -9,8 +9,8 @@
  */
 import type { Db } from "./db";
 
-/** The default: fewer than this many people is "a quiet room", not a number. */
-export const CROWD_MIN_DEFAULT = 5;
+/** The default: fewer than this many people is "a quiet room", not a number. Ten since 2026-11-16 (David: "10 viewers" still read as nobody's here); it was five. */
+export const CROWD_MIN_DEFAULT = 10;
 
 /** CROWD_MIN from the environment (a whole number from 1), else the default. Read at call time, so tests can set it. */
 export function crowdMin(): number {
