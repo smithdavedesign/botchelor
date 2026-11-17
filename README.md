@@ -10,6 +10,22 @@ ends. Live at [botchelor.com](https://botchelor.com). AI agents can play too, ov
 
 ## Screenshots
 
+### Tags: roleplays by who they are to each other, characters by type and love life (2026-11-17)
+
+One tag vocabulary for the show and After Dark (`lib/tags.ts`, `docs/tags.md`), built from a census of what people ask roleplay products for:
+
+- **Roleplays ([#1784](https://github.com/smithdavedesign/botchelor/pull/1784), [#1786](https://github.com/smithdavedesign/botchelor/pull/1786)).** Every roleplay is tagged, and the picker has two chip rows: who they are to each other, and the kind of story. On a couple's page it opens on the roleplays that fit where the pair stands. Twenty new roleplays fill the gaps the census showed.
+- **Characters ([#1785](https://github.com/smithdavedesign/botchelor/pull/1785), [#1787](https://github.com/smithdavedesign/botchelor/pull/1787)).** Each character has up to four type tags. The house cast's are set by hand, everyone else's are read from their traits, and an owner can choose their own on /create. Search and Companions filter by type and by love life, which is read only from dates that aired, so a private date never says who's seeing whom. MCP 2.36.0 carries both.
+- **Our own demand ([#1785](https://github.com/smithdavedesign/botchelor/pull/1785)).** What real people pick, against what's on offer, orders the pickers once we have numbers; until then the census does. Admin → Tags shows the tables.
+
+<img src="docs/screenshots/tags-roleplay-picker-desktop.png" width="420" alt="Send Teodor on a date with Sable, at 1280×900, with Add a roleplay open: a row of who-they-are chips (All, Fake dating, Rivals, Roommates, Already together, Work, Friends to more, Bodyguard, Second chance selected, Stuck together, Forbidden, Opposites, Slow burn, On a dating show, Strangers), then a row of kinds of story (Heists & spies, Spooky, Sci-fi, Fantasy, Everyday, Drama, Action, Royalty, Adventure, Romance, Cozy, Supernatural, Sports, Period, Mystery, Funny)"> <img src="docs/screenshots/tags-characters-type-desktop.png" width="420" alt="/characters?type=cold at 1280×900: the search with Cold, then warm and Any love life selected, 9 characters match Cold, then warm, a note that love life is what their aired dates say, and cards for Wally Osei, Bennett Hawthorne, Clint Steele, Elira Vere and Minister Valerian Frostgale, each with its type tags under the basics">
+
+<img src="docs/screenshots/tags-roleplay-picker-phone.png" width="180" alt="The same sheet on a phone: the two chip rows scroll sideways, Second chance selected, then Ten years, one bench with its tags (Second chance, Friends to more, Drama), One of your own, and Send Teodor on the date"> <img src="docs/screenshots/tags-characters-type-phone.png" width="180" alt="/characters?type=cold on a phone: the search box, the type and love life selects side by side, Find, the tabs, and 9 characters match Cold, then warm">
+
+<img src="docs/screenshots/tags-create-chips-desktop.png" width="420" alt="On /create: What kind of person? (up to 4: how people find them). The show reads these from their traits, or choose them yourself, with twenty type chips from Rebel to Sweetheart"> <img src="docs/screenshots/tags-admin-demand-desktop.png" width="420" alt="Admin, Tags: What people pick, by tag. Roleplays on the show (0 picks), a table of setups with picks, on offer, ours, census and blended: Fake dating 1.20×, Rivals 1.12×, Roommates 1.08× and so on, the census leading until real picks come in">
+
+Taken from botchelor.com at 1280×900 and 390×844, signed in as the audit account.
+
 ### The design review: the open room, the footer, one loud button (2026-11-16)
 
 Claude Design's 16 Nov handoff (D-01..D-18), checked against the live site, then built:
