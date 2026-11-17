@@ -4278,6 +4278,16 @@ create index if not exists show_idea_votes_user_idx on show_idea_votes (user_id)
 -- backfillMessageEpisodes), never here. It goes with the message (the thread's cascade).
 alter table companion_messages add column if not exists episode_id text;
 create index if not exists companion_messages_episode_idx on companion_messages (episode_id) where episode_id is not null;
+
+-- Claimed identities (lib/account-claim.ts; the connected model, stage 7): the anonymous id a browser held before it
+-- signed in (alias_id) and the account that brought what it had made into itself (user_id). One claim an identity,
+-- ever: the primary key is what refuses a second. Kept while the account is, and deleted with it.
+create table if not exists account_aliases (
+  alias_id text primary key,
+  user_id text not null,
+  linked_at timestamptz not null default now()
+);
+create index if not exists account_aliases_user_idx on account_aliases (user_id);
 `;
 
 /** Idempotent: creates the tables and upserts the house characters, free and premium. */
