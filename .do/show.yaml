@@ -289,6 +289,11 @@ services:
       # - key: HOUSE_ROOM_TEXTS
       #   value: "0"
       #   scope: RUN_AND_BUILD_TIME
+      # Claiming what a browser made before signing in (docs/accounts-and-byok.md): the offer at sign-in, the card on
+      # /account and POST /api/me/claim. On by default; "0" turns all three off without a deploy of code.
+      # - key: ACCOUNT_CLAIM
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
       # Show ideas (docs/show-ideas.md): /shows, its routes and the three MCP tools. On by default; "0" closes all of it.
       # SHOW_IDEAS_PROPOSE "0" keeps the page and its votes and stops new proposals.
       # - key: SHOW_IDEAS
