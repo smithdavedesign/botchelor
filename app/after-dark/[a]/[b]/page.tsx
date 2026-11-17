@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { ADULT_STORY_WRITES, styleFor, stylesOpen, writeWeight } from "@/lib/writing-style";
+import { adultNarratedOpen } from "@/lib/adult/narrate-scene";
 import Icon from "@/app/Icon";
 import { cookies } from "next/headers";
 import Link from "next/link";
@@ -110,9 +110,7 @@ export default async function AfterDarkScenePage({ params, searchParams }: Props
   const adSettings = await getAdultSettings(db);
   const viewerAdmin = await isAdmin(db, admin);
   const ownVideoKey = await hasJobKey(db, admin, "after_dark_video");
-  // A narrated night's chapters cost writeWeight times over (lib/writing-style.ts).
-  const adultStyle = await styleFor(db, admin, "adult");
-  const chapterPrice = await includedPrice(db, admin, adSettings.chapter_tokens * writeWeight(adultStyle));
+  const chapterPrice = await includedPrice(db, admin, adSettings.chapter_tokens);
   // Not open yet (lib/adult/rollout.ts): Make more and the phone's ⋯ sheet, admins only until they're switched on.
   const makeMore = rolloutOn(adSettings.rollout, "make_more", viewerAdmin);
   const phoneSheet = rolloutOn(adSettings.rollout, "phone_sheet", viewerAdmin);
@@ -174,7 +172,7 @@ export default async function AfterDarkScenePage({ params, searchParams }: Props
           now={{ chapter: scene.chapter, lines: scene.lines, place: scene.place }}
           saved={await listNights(db, admin, scene.a.id, scene.b.id)}
           pick={sp.chapter ?? null}
-          story={(await stylesOpen(db, admin)) ? { a: scene.a.id, b: scene.b.id, price: viewerAdmin ? "free" : `${ADULT_STORY_WRITES} scene steps` } : null}
+          story={(await adultNarratedOpen(db, admin)) ? { a: scene.a.id, b: scene.b.id, price: viewerAdmin ? "free" : "included" } : null}
         />
       ) : (
       <SceneWriter

@@ -20,7 +20,7 @@ Two styles, picked per person and per side of the site:
 | Style | What a line looks like |
 | --- | --- |
 | **Script** (everyone, the default) | The spoken words in a bubble, and a short action under them ("leans on the counter"). |
-| **Narrated** (admins only, being tested) | The same words, with prose before and after them: third person, past tense, close on the speaker. What their hands and body do, the things around them, a flicker of what they think. The action is folded into the prose. |
+| **Narrated** (the Companion Plan's on the show; a rollout switch in After Dark) | The same words, with prose before and after them: third person, past tense, close on the speaker. What their hands and body do, the things around them, a flicker of what they think. The action is folded into the prose. |
 
 And **stories**: a finished show date, or an After Dark chapter, told again as prose from start to end, made once and kept.
 
@@ -65,17 +65,19 @@ Stories: a story quotes the date's lines, which already passed the line checks, 
 
 Worn AI-prose phrases ("a breath she didn't know she was holding", "something shifted", "smirk"…) are named in the prompt. A sentence that uses one anyway is cut (`wornCut`).
 
-## What it costs (and charges)
+## What it costs, and who gets it
 
-Admins pay nothing, as with everything else. For everyone else, once it's opened:
+Depth is sold with a plan, never by the line (David, 2026-11-17: "I trust your judgment for pricing"). The roleplay audit that day found that what people pay for elsewhere is a longer memory and a better writer, not per-message surcharges, and narration only adds about 30% to a date's or a step's model spend (measured below).
 
-| What | Charge | Why |
+| What | Who gets it | Charge |
 | --- | --- | --- |
-| A narrated show date | 1 bought token on top of the date (`NARRATED_DATE_EXTRA_TOKENS`), given back if the date fails | Narration is one call per 8 lines on the show's paid model. Tokens are whole, so it rounds up to one. |
-| A story of a show date | 1 bought token (`STORY_TOKENS`), once a date; then free to read for everyone who can see the date | One long call. |
-| A narrated After Dark step | 2 of the month's scene steps (`NARRATED_WRITE_WEIGHT`); a chapter costs 2× `chapter_tokens` for anyone who pays by the chapter | A step's lines are short, so the prose is most of what comes out. |
-| A story of an After Dark chapter | 2 scene steps (`ADULT_STORY_WRITES`), once a chapter | One long call. |
-| A narrated companion scene reply | 2 of the day's free replies (`NARRATED_REPLY_WEIGHT`); the plan stays unlimited within fair use | One small call per reply. |
+| Narrated show dates and companion scenes | Companion Plan members and admins | Included. No extra date. |
+| A longer memory in companion chats (40 turns kept word for word instead of 20) | Companion Plan members and admins | Included |
+| Making a story of a show date | One of the date's own people, plan members, admins | Included with the plan. Otherwise 1 bought date (`STORY_TOKENS`), given back if it doesn't come. |
+| Reading a story that exists | Everyone who can see the date's lines | Free |
+| Narrated After Dark nights and chapter stories | Admins now; everyone After Dark is open to once its **"narrated"** rollout switch is flipped (Settings → Not open yet) | Included with the subscription. One scene step each, like any other step. |
+
+The first version (admins only, the morning of 2026-11-17) charged a second token per narrated date and double weight per After Dark step. That was replaced the same day, before anyone but admins had it.
 
 ### Measured on production (2026-11-17, the audit account)
 
@@ -85,7 +87,7 @@ Admins pay nothing, as with everything else. For everyone else, once it's opened
 | An After Dark step, 4 lines, DeepSeek V3.1 | 1 call, 815 in, 246 out, **0.08¢**, 2.7 s; 4 of 4 lines got prose | The step's own ~0.23–0.25¢: about +30% |
 | An After Dark step, 3 lines | 1 call, 950 in, 148 out, **0.05¢**, 1.8 s; 3 of 3 | Same |
 
-So narration costs about 30% more model spend on both sides, and the charges above (a second token, double weight) are set well above that. They are a price for a better product, not cost recovery. A bought token sells for about 67–80¢, so the extra token on a narrated date is the largest margin of the five.
+So narration costs about 30% more model spend on both sides: too little to meter, which is why it rides on the plans.
 
 What a pass really costs is logged so the prices can be checked against it:
 
@@ -100,9 +102,11 @@ select id, generated_with->'narration'->'usage'->>'cost_usd' as narration_usd fr
 select created_at, flags->'narration' from adult_steps where flags ? 'narration' order by created_at desc limit 20;
 ```
 
-## Opening it up
+## Switches
 
-`stylesOpen` in `lib/writing-style.ts` is the single gate (admins today). Opening it to everyone is a one-line change there, and the prices above then apply. The pickers, the story buttons and the routes all ask that one function.
+- **`WRITING_STYLES`** (env, both apps): unset or `members` is the plan's members and admins on the show; `admins` is admins only; `0` turns Narrated and new stories off everywhere (kept stories still read). See `docs/hosting.md`.
+- **After Dark's "narrated" rollout switch** (`lib/adult/rollout.ts`, Settings → Not open yet): `admins` until flipped to `everyone`.
+- `stylesOpen` in `lib/writing-style.ts` is the one gate the show's pickers, routes and jobs ask; `adultNarratedOpen` in `lib/adult/narrate-scene.ts` is After Dark's. The show never imports After Dark's code, so each side has its own style route (`/api/writing-style`, `/api/admin/after-dark/writing-style`).
 
 ## Files
 

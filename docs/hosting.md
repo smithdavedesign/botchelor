@@ -175,6 +175,10 @@ ignore it.
 - **`CHARACTER_NOW`** (the show's app, not a secret; on unless it is `0`): the "Right now" lines under a character
   page's header (`lib/character-now.ts`), shaped from what the page already reads for everyone. `0` hides them without
   a deploy. No read of its own, no model call. Commented in `.do/show.yaml`; section 14 as well.
+- **`WRITING_STYLES`** (both apps, not a secret; [writing-styles.md](writing-styles.md)): who the Narrated style and
+  new stories are open to. Unset or `members`: the plan's members and admins on the
+  show (After Dark's side opens by its own "narrated" rollout switch). `admins`: admins only. `0`: off for everyone on
+  both sides; stories already made still read.
 - **`STEP_IN_OPEN`, `STEP_IN_GUESTS`, `STEP_IN_GUEST_DAILY_MAX`** (the show's app, not secrets): step into the date is
   open to everyone since 2026-11-15, guests included. `STEP_IN_OPEN=0` puts it back to admins only; `STEP_IN_GUESTS=0`
   asks a visitor without an account to sign in first; `STEP_IN_GUEST_DAILY_MAX` (default `300`) is the guest dates a day

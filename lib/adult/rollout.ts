@@ -29,6 +29,11 @@ export const ROLLOUT_FEATURES = [
     note: "On a phone the theater keeps the chapter chip, play and Listen, and folds every other tool into one ⋯ sheet from the bottom.",
   },
   {
+    key: "narrated",
+    label: "Narrated nights and stories",
+    note: "The narrated writing style on a night (prose around each line; picked on the After Dark account page) and \"Read it as a story\" in the reader, included with the subscription at one scene step each (docs/writing-styles.md).",
+  },
+  {
     key: "reader",
     label: "The chapter reader",
     note: "📖 Read it on a night: its chapters at reading size, a quiet way to read one again (?view=reader). The theater stays the page.",
@@ -42,6 +47,7 @@ export const RolloutConfig = z.object({
   make_more: audience.default("admins"),
   phone_sheet: audience.default("admins"),
   reader: audience.default("admins"),
+  narrated: audience.default("admins"),
 });
 export type RolloutConfig = z.infer<typeof RolloutConfig>;
 

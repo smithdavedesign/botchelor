@@ -12,7 +12,9 @@ import { COMPANION_EXTRAS, companionOpen, extraTerms } from "@/lib/companion-sha
 import { liveCallsOn } from "@/lib/companion-live";
 import { liveFaceMode } from "@/lib/live-face";
 import { COMPANION_FAIR_USE_PER_MONTH, companionAllowance, companionFreePerDay } from "@/lib/companion-plan";
+import { DEEP_TURNS, RECENT_TURNS } from "@/lib/companion-prompt";
 import { planLink, planPrice } from "@/lib/paid-plans";
+import { STORY_TOKENS, stylesAudience } from "@/lib/writing-style";
 import { PlanCheckout, PlanWait } from "./PlanCheckout";
 
 export const metadata: Metadata = {
@@ -81,6 +83,8 @@ export default async function CompanionPlanPage({ searchParams }: { searchParams
   const voice = COMPANION_EXTRAS.voice;
   const minutes = extraTerms("minute");
   const perDay = companionFreePerDay();
+  // Narrated writing, stories and the longer memory (lib/writing-style.ts): said only while they're open to members.
+  const depth = stylesAudience() === "members";
   return (
     <article className="companion-page plan-page money-page">
       <header className="money-hero">
@@ -163,11 +167,27 @@ export default async function CompanionPlanPage({ searchParams }: { searchParams
               </th>
               <td>
                 <Yes />
+                {depth && <small>the last {RECENT_TURNS} messages kept word for word</small>}
               </td>
               <td className="is-plan">
                 <Yes />
+                {depth && <small>twice as long: the last {DEEP_TURNS} messages kept word for word</small>}
               </td>
             </tr>
+            {/* Depth comes with the plan, never by the line (lib/writing-style.ts). */}
+            {depth && (
+              <tr>
+                <th scope="row">
+                  Narrated writing
+                  <small>your dates and scenes told as prose, like a novel; pick it in your account</small>
+                </th>
+                <td>The script: lines and a short action</td>
+                <td className="is-plan">
+                  Included
+                  <small>and stories of your dates (without the plan, {STORY_TOKENS} bought date each)</small>
+                </td>
+              </tr>
+            )}
             <tr>
               <th scope="row">Another reply whenever you like</th>
               <td>

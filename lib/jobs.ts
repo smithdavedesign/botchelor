@@ -10,7 +10,7 @@
  * way Sliding Doors replays), so it needs nothing from the original request. A lease stops the after()
  * hook and the cron from double-running the same job.
  */
-import { refundBoughtTokens, releaseEpisode, type Reservation } from "./allowance";
+import { releaseEpisode, type Reservation } from "./allowance";
 import { narrateDate, showNarrator } from "./narrate-date";
 import { NARRATE_BATCH } from "./narration";
 import { summarizeUsage } from "./pricing";
@@ -483,8 +483,6 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
     // back, then delete the episode (which cascades its job). The poller sees it gone and offers a retry.
     // (Only a process crash *before* this catch leaves the job 'running'; the cron re-runs that once.)
     if (row.reservation) await releaseEpisode(db, row.creator_id, row.reservation).catch(() => {});
-    // The narrated style's extra bought tokens (lib/writing-style.ts), back with the date.
-    if ((row.setup?.style_tokens ?? 0) > 0) await refundBoughtTokens(db, row.creator_id, row.setup!.style_tokens!).catch(() => {});
     // A scene they set and never reached: its token back before the episode (and the suggestion with it) goes.
     await settleSuggestions(db, episodeId, []);
     await db.query(`delete from episodes where id = $1 and status = 'generating'`, [episodeId]);

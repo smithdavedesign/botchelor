@@ -9,6 +9,7 @@ import { planLink, planPrice, PLANS } from "@/lib/paid-plans";
 import { FREE_EPISODES_PER_SEASON } from "@/lib/rules";
 import { pageMetadata } from "@/lib/seo";
 import { paymentLinkFromEnv } from "@/lib/stripe";
+import { STORY_TOKENS, stylesAudience } from "@/lib/writing-style";
 
 export const metadata: Metadata = pageMetadata({
   title: "Pricing · Botchelor",
@@ -30,6 +31,8 @@ export default function PricingPage() {
   // Live calls (P6) and, with LIVE_FACE_PROVIDER `<renderer>:plan`, the plan's moving face on them (lib/live-face).
   const live = companions && liveCallsOn(process.env, { admin: false, guest: false });
   const facePlan = live && liveFaceMode() === "plan";
+  // Narrated writing, stories and the longer memory (lib/writing-style.ts): said only while they're open to members.
+  const depth = companions && stylesAudience() === "members";
   // One loud button on the page (design review 2026-11-16, D-05; the design system's PricingCard): the featured plan
   // carries the primary and every other plan's goes quiet. The design features the Companion Plan; while it isn't on
   // sale, the first pack.
@@ -75,6 +78,11 @@ export default function PricingPage() {
             <ul>
               <li>{pack.episodes} more dates, used after the free ones</li>
               <li>They never expire</li>
+              {depth && (
+                <li>
+                  One also buys a date of yours told as a story ({STORY_TOKENS} bought date; included with the {PLANS.companion.name})
+                </li>
+              )}
               <li>Not a subscription</li>
             </ul>
             {packOnSale ? (
@@ -93,6 +101,14 @@ export default function PricingPage() {
             <p className="pricing-price">{planPrice("companion")}</p>
             <ul>
               <li>No daily limit on companion replies (fair use: {COMPANION_FAIR_USE_PER_MONTH.toLocaleString("en-US")} a month)</li>
+              {/* Depth comes with the plan, never by the line (lib/writing-style.ts): Narrated, stories, the longer memory. */}
+              {depth && (
+                <>
+                  <li>Narrated writing: your dates and scenes told as prose, like a novel</li>
+                  <li>A longer memory: your companions keep twice as much of your conversation in mind</li>
+                  <li>Stories of your dates included</li>
+                </>
+              )}
               <li>{COMPANION_EXTRAS.voice.included} voice notes a month in their own voices</li>
               {live && (
                 <li>
