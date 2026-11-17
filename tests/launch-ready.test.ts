@@ -194,8 +194,9 @@ describe("robots.txt and sitemap.xml", () => {
     setDbForTests(down);
     try {
       const urls = (await sitemap()).map((entry) => entry.url);
-      // Plus the search landings (lib/seo.ts landingPaths) and the RSS feed (app/feed.xml/route.ts, a route, not a page).
-      expect(urls).toEqual([...PUBLIC_PATHS, ...landingPaths(), "/feed.xml"].map((path) => `https://botchelor.com${path}`));
+      // Plus the show's own page beside /shows, the search landings (lib/seo.ts landingPaths) and the RSS feed
+      // (app/feed.xml/route.ts, a route, not a page).
+      expect(urls).toEqual([...PUBLIC_PATHS, "/shows/botchelor", ...landingPaths(), "/feed.xml"].map((path) => `https://botchelor.com${path}`));
       expect(urls).toEqual(expect.arrayContaining(["https://botchelor.com/privacy", "https://botchelor.com/terms", "https://botchelor.com/shop"]));
     } finally {
       setDbForTests(null);

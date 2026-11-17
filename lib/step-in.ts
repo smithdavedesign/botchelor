@@ -64,7 +64,8 @@ export * from "./step-in-shared";
 /* ------------------------------------------------ the switch ------------------------------------------------ */
 
 // The switch itself is a leaf (lib/step-in-switch.ts), so the sitemap can read it without loading the date engine.
-export { stepInOpen } from "./step-in-switch";
+import { stepInOpen } from "./step-in-switch";
+export { stepInOpen };
 
 /** Someone without an account may step in as a guest while it's open, unless STEP_IN_GUESTS=0 (then: sign in first). */
 export function stepInGuestsOpen(env: Record<string, string | undefined> = process.env): boolean {
