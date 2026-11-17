@@ -263,7 +263,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         </footer>
         {/* The phone's tab bar (app/PhoneTabBar.tsx): Watch, Chat, Characters, You. Not on After
             Dark's host, which has its own five doors in its header. Last in the page's flow, so its room is the foot. */}
-        {!adHost && <PhoneTabBar companions={companionOpen()} chat={navChat} unread={texts} />}
+        {!adHost && <PhoneTabBar companions={companionOpen()} chat={navChat} unread={texts} hasCharacter={hasCharacter} />}
         <FeedbackDock />
         <InstallHint hasCharacter={hasCharacter} />
         {google && consent.ask && <ConsentBanner />}

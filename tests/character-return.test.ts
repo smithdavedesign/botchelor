@@ -193,7 +193,7 @@ describe("from the database", () => {
 describe("the beacon names its date", () => {
   it("date_watched picks the episode id off the address, in one place", () => {
     const src = readFileSync(join(process.cwd(), "app/engagement.ts"), "utf8");
-    expect(src).toContain('name === "date_watched" ? withEpisode(props) : props');
+    expect(src).toContain('event === "date_watched" ? withEpisode(props) : props');
     const re = /^\/episodes\/([A-Za-z0-9-]{8,64})(?:\/|$)/;
     expect(src).toContain(String(re).slice(1, -1));
     expect(re.exec("/episodes/5305594b-ea07-4b56-ad87-a1725c18113f")?.[1]).toBe("5305594b-ea07-4b56-ad87-a1725c18113f");
