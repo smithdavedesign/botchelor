@@ -21,6 +21,7 @@ import { expressCreateOn } from "./express-create";
 import type { EpisodeView } from "./game";
 import { keepBytes, objectStore, readBytes } from "./object-store";
 import { endingLabel, REPORT_HIDE_THRESHOLD, type Ending } from "./rules";
+import { seasonLabel } from "./season-window";
 import { featurableSql, isFeaturable } from "./story-check-gate";
 
 /** A clip this old or older is not "last night's" any more: the hero goes back to what it was. */
@@ -135,6 +136,51 @@ export async function latestHomeClip(db: Db, now: Date = new Date()): Promise<Ho
     names: [row.a_name, row.b_name],
     ending: row.ending ? endingLabel(row.ending, row.date_number) : null,
   };
+}
+
+/** A clip of the show, with the season its date aired in: what the Gallery's "From the show" row lists. */
+export type ShowClip = HomeClip & { day: string; season: string | null };
+
+export const galleryShowClipsOn = (env: Record<string, string | undefined> = process.env): boolean => env.GALLERY_SHOW_CLIPS?.trim() !== "0";
+
+/**
+ * The show's own clips, newest first (the connected-model plan, stage 4): every clip kept for a date that is still
+ * public and featurable, each knowing its date and, through the date, its season (episodes.season_id). `characterId`
+ * narrows it to clips of that character's dates. These are the show's shorts in the Gallery: the same rows the home
+ * hero plays, never a person's upload, so nothing here needs anyone's OK beyond the date having aired publicly.
+ */
+export async function listShowClips(db: Db, opts: { limit?: number; characterId?: string | null } = {}): Promise<ShowClip[]> {
+  const limit = Math.max(1, Math.min(24, opts.limit ?? 6));
+  const { rows } = await db.query<{
+    id: string; episode_id: string; day: string; width: number; height: number; seconds: string; a_name: string; b_name: string; ending: Ending | null; date_number: number | null; season_id: string | null; number: number | null;
+  }>(
+    `select c.id, c.episode_id, c.day, c.width, c.height, c.seconds, a.name as a_name, b.name as b_name, e.ending, ${dateNumberSql("e")} as date_number,
+            e.season_id, s.number
+       from home_clips c
+       join episodes e on e.id = c.episode_id
+       join characters a on a.id = e.character_a
+       join characters b on b.id = e.character_b
+       left join show_seasons s on s.id = e.season_id
+      where ${STILL_PUBLIC} and ${featurableSql("e")} and ($2::text is null or $2 in (e.character_a, e.character_b))
+      order by c.created_at desc
+      limit $3`,
+    [REPORT_HIDE_THRESHOLD, opts.characterId ?? null, limit],
+  );
+  return rows.map((row) => ({
+    id: row.id,
+    episode_id: row.episode_id,
+    day: row.day,
+    watch_href: `/episodes/${row.episode_id}?play=1`,
+    loop_src: `/api/home-clip/${row.id}/loop.mp4`,
+    poster_src: `/api/home-clip/${row.id}/poster.jpg`,
+    width: row.width,
+    height: row.height,
+    seconds: Number(row.seconds),
+    names: [row.a_name, row.b_name],
+    ending: row.ending ? endingLabel(row.ending, row.date_number) : null,
+    // "Season 2 · November 2026" for a monthly season; nothing for the weeks before them or a date not stamped yet.
+    season: row.season_id && row.number ? `Season ${row.number} · ${seasonLabel(row.season_id)}` : null,
+  }));
 }
 
 /** The line under the clip: who, and how it ended when that is public (it is, once the date has aired). */

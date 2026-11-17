@@ -12,6 +12,7 @@ import { seasonIdOf } from "@/lib/season-window";
 import { breadcrumbJsonLd, pageMetadata } from "@/lib/seo";
 import { listShowIdeas, showIdeasOn, showProposalsOn } from "@/lib/show-ideas";
 import ShowTabs from "@/app/ShowTabs";
+import { SHOW_ID } from "@/lib/show-id";
 import ShowIdeas from "./ShowIdeas";
 
 export const dynamic = "force-dynamic";
@@ -67,8 +68,8 @@ export default async function ShowsPage() {
           <Link className="button-ghost" href="/reunion">
             The season so far
           </Link>
-          <Link className="button-ghost" href="/seasons">
-            Past seasons
+          <Link className="button-ghost" href={`/shows/${SHOW_ID}`} data-track="shows-about">
+            About the show
           </Link>
         </p>
         <p className="muted small">

@@ -124,6 +124,7 @@ import { STORY_FORGET_KINDS, storyView } from "../story-state";
 import { isOcTool, runOcTool } from "./oc-tools";
 import { OC_NAME_KINDS, OC_NAME_STYLES } from "../oc-names";
 import { OC_QUESTION_THEMES } from "../oc-questions";
+import { characterCredits, characterCreditsOn } from "../profile/credits";
 import { listShowIdeasTool, proposeShowIdeaTool, voteShowIdeaTool } from "./shows";
 import { getHouseScene, getHouseTalk, getStorySoFar, HOUSE_TOOL_NAMES, HOUSE_TOOLS_OFF, isHouseTool, mcpHouseOn, myStoryState, sceneAbout } from "./house";
 import { CROWD_CLIENT_PREFIX, crowdMinutesToWake, HOUSE_BOT_CLIENT_PREFIX, houseBotRefusal } from "../house-bots";
@@ -278,7 +279,9 @@ export const MCP_PROTOCOL_VERSION = "2025-06-18";
 // oc_chemistry_test, oc_names and oc_question, the /tools pages' own code: new tools, nothing else changed.
 // 2.33.0 (2026-11-16): show ideas (lib/mcp/shows.ts), outside the core list: list_show_ideas, vote_show_idea and
 // propose_show_idea, the list on /shows as an agent sees it: new tools, nothing else changed.
-export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.33.0" } as const;
+// 2.34.0 (2026-11-16): get_character says what the character has been in (on_the_show: each season, its show, the
+// character's part, its aired dates and what it won), from lib/profile/credits.ts: one new reply field.
+export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.34.0" } as const;
 
 /** Where every tool is listed: the default list is the core (2026-10-20: 53 tools were ~14k tokens in every agent's context). */
 export const ALL_TOOLS_HINT = "/api/mcp?tools=all";
@@ -5452,10 +5455,12 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       if ((await privateIds(db, [id], viewer)).has(id)) {
         return { data: { character: { id: profile.id, name: profile.name, private: true }, note: "Its creator keeps this character private: only its name is shown." } };
       }
-      const [{ episodes, record }, memory, week] = await Promise.all([
+      const [{ episodes, record }, memory, week, credits] = await Promise.all([
         getCharacterHistory(db, id, 5),
         loadCharacterMemory(db, id),
         db.query<{ this_week: StoredThisWeek | null }>(`select this_week from characters where id = $1`, [id]),
+        // 2.34.0: the seasons it has been in, as what, and what came of it (lib/profile/credits.ts): the public record.
+        characterCreditsOn() ? characterCredits(db, [id]).then((m) => m.get(id) ?? [], () => []) : Promise.resolve([]),
       ]);
       const people = connections(memory);
       const activity = await agentActivity(db, [id]);
@@ -5471,6 +5476,19 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           stage: stageFor(memory?.dates ?? 0),
           this_week: thisWeek(id, week.rows[0]?.this_week),
           record,
+          ...(credits.length
+            ? {
+                on_the_show: credits.slice(0, 6).map((c) => ({
+                  season: c.number ? `Season ${c.number}, ${c.label}` : c.label,
+                  ...(c.format_title ? { show: c.format_title } : {}),
+                  role: c.role,
+                  ...(c.withdrawn ? { left_the_cast: true } : {}),
+                  ...(c.dates ? { dates: c.dates, second_dates: c.second_dates } : {}),
+                  ...(c.honours.length ? { honours: c.honours.map((h) => h.label) } : {}),
+                  ...(c.when !== "past" ? { when: c.when } : {}),
+                })),
+              }
+            : {}),
           recent_dates: episodes,
           ...(memory?.arc ? { who_theyve_become: memory.arc } : {}),
           ...(people.length ? { connections: people.map(({ id: pid, name: pname, dates, label, turned_down }) => ({ id: pid, name: pname, dates, status: label, turned_down })) } : {}),

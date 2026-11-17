@@ -373,6 +373,27 @@ export function mediaHref(p: Pick<Post, "id" | "source" | "rating">, size?: "til
   return `${elsewhere ?? ""}/api/showcase/${encodeURIComponent(p.id)}/media${q.size ? `?${q}` : ""}`;
 }
 
+/**
+ * One character in several scenes: the public character with the most safe pictures of them alone, and a few of those
+ * pictures (the Studio's way in shows them: "still unmistakably them" is a claim, and these are the evidence). Only
+ * what anyone may see: live, not held, rated pg, a public character, a creator who isn't hidden. Null without three.
+ */
+export async function sameCharacterProof(db: Db, limit = 4): Promise<{ name: string; character_id: string; posts: string[] } | null> {
+  const { rows } = await db.query<{ id: string; character_id: string; name: string }>(
+    `with ok as (
+       select p.id, p.character_id, p.published_at, c.name
+         from showcase_posts p
+         join creator_profiles cp on cp.user_id = p.owner_id
+         join characters c on c.id = p.character_id
+        where p.status = 'live' and not p.held and p.rating = 'pg' and p.medium = 'picture' and p.character_b is null
+          and not cp.hidden and c.visibility = 'public'),
+     best as (select character_id from ok group by character_id having count(*) >= 3 order by count(*) desc, character_id limit 1)
+     select ok.id, ok.character_id, ok.name from ok join best on best.character_id = ok.character_id order by ok.published_at desc nulls last limit $1`,
+    [limit],
+  );
+  return rows.length >= 3 ? { name: rows[0].name, character_id: rows[0].character_id, posts: rows.map((r) => r.id) } : null;
+}
+
 /** How many of one character's posts the reels show together before the next creator's (listShowcase mix). */
 export const MIX_RUN = 3;
 

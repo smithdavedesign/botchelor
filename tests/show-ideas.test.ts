@@ -233,7 +233,7 @@ describe("over MCP (2.33.0)", () => {
       expect(PUBLIC_MCP_TOOLS.map((x) => x.name as string)).toContain(n);
       expect(CORE_TOOL_ORDER as readonly string[]).not.toContain(n);
     }
-    expect(MCP_CHANGELOG[0]).toMatchObject({ version: "2.33.0", added_tools: [...SHOW_TOOL_NAMES] });
+    expect(MCP_CHANGELOG.find((r) => r.version === "2.33.0")).toMatchObject({ added_tools: [...SHOW_TOOL_NAMES] });
   });
 
   it("an agent's answer is counted with the agents', a switch left out stays, and all false takes it back", async () => {
