@@ -193,7 +193,11 @@ export async function runCompanionTool(db: Db, agentId: string, args: Record<str
       }
       // A roleplay to play in it (lib/date-roleplays.ts bookingAsk: an id or {title, premise, roles}; "none" is none).
       const ask = bookingAsk(args.roleplay, args.my_role);
-      return done(await setScene(db, agentId, thread.id, place, new Date(), ask && !ask.skip ? ask : null), true);
+      // How it opens (lib/scene-opening.ts, checked in setScene as the web picker's is): 0, 1 or 2 for one of the three
+      // (the roleplay's card's, or the generic ones with no roleplay), "surprise" for any of them, or a sentence of
+      // the agent's own. Left out: one of the three by a stable hash, as before.
+      const opening = args.opening === "surprise" ? Math.min(2, Math.floor(Math.random() * 3)) : args.opening;
+      return done(await setScene(db, agentId, thread.id, place, new Date(), ask && !ask.skip ? ask : null, opening), true);
     }
     case "voice": {
       const messageId = str(args.message_id);

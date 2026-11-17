@@ -7,6 +7,7 @@ import { HOUSE_CHARACTERS } from "@/lib/house";
 import { handleMcpMessage, type McpContext } from "@/lib/mcp";
 import type { ChatMessage } from "@/lib/model";
 import { DATE_ROLEPLAYS, premiseForYou } from "@/lib/roleplays";
+import { CARD_OPENING_MAX, GENERIC_OPENINGS } from "@/lib/scene-cards";
 import { BASE_URL, signedInCookie, startTestDb, TEST_SESSION_SECRET } from "./helpers";
 
 // Roleplays in a companion's scene (David, 2026-11-08: "in companion … do we want role play options like we have in
@@ -234,5 +235,38 @@ describe("over MCP", () => {
     expect(bad.isError).toBe(true);
     const r = data(await call({ action: "scene", thread_id: opened.thread_id, place: PLACE, roleplay: "time-traveller", my_role: "the local" }, ctx));
     expect(r.scene).toMatchObject({ place: PLACE, roleplay: { id: "time-traveller", you_play: "the local", they_play: "the time traveller" } });
+  });
+
+  it("opens on the opening the agent chose (2.35.0): one of the card's, surprise, one with no roleplay, or its own sentence, checked", async () => {
+    const c: McpContext = { adminKey: ADMIN_KEY };
+    await rpc("initialize", { protocolVersion: "2025-06-18", clientInfo: { name: "opening-test" } }, c);
+    const ctx = { sessionId: c.issuedSessionId, adminKey: ADMIN_KEY };
+    const thread = data(await call({ action: "open", character_id: CAST.id }, ctx)).thread_id;
+    const stored = async () => (await t.db.query<{ roleplay: { opening?: string } | null; opening: string | null }>(`select roleplay, opening from companion_threads where id = $1`, [thread])).rows[0];
+    const stowaway = DATE_ROLEPLAYS.find((r) => r.id === "stowaway")!;
+
+    // One of the card's three, by its index: kept with the terms, and the opener plays it.
+    const picked = await call({ action: "scene", thread_id: thread, place: PLACE, roleplay: "stowaway", my_role: 1, opening: 2 }, ctx);
+    expect(picked.isError).toBeFalsy();
+    expect((await stored()).roleplay?.opening).toBe(stowaway.card.openings[2]);
+    expect(calls.at(-1)!.at(-1)!.content).toContain("It opens like this: ");
+    // "surprise": one of the three.
+    await call({ action: "scene", thread_id: thread, place: PLACE, roleplay: "rival-spies", opening: "surprise" }, ctx);
+    expect(DATE_ROLEPLAYS.find((r) => r.id === "rival-spies")!.card.openings).toContain((await stored()).roleplay?.opening);
+    // No roleplay: one of the three without one, kept beside the scene.
+    await call({ action: "scene", thread_id: thread, place: PLACE, opening: 1 }, ctx);
+    expect(await stored()).toMatchObject({ roleplay: null, opening: GENERIC_OPENINGS[1] });
+    // A sentence of the agent's own, checked like the show's, and played as theirs.
+    const own = "We both reach for the last umbrella in the stand at the same moment.";
+    expect((await call({ action: "scene", thread_id: thread, place: PLACE, opening: own }, ctx)).isError).toBeFalsy();
+    expect((await stored()).opening).toBe(own);
+    expect(calls.at(-1)!.at(-1)!.content).toContain(`(as your scene partner wrote it, so "I" and "me" in it are them) ${JSON.stringify(own)}`);
+
+    // Refused, and nothing changes: a suggestive one, an index that isn't one of three, and a sentence too long.
+    for (const opening of ["We share the only bed at the inn tonight.", 5, "x".repeat(CARD_OPENING_MAX + 1)]) {
+      const bad = await call({ action: "scene", thread_id: thread, place: PLACE, opening }, ctx);
+      expect(bad.isError).toBe(true);
+      expect((await stored()).opening).toBe(own);
+    }
   });
 });

@@ -22,6 +22,7 @@ import { TEXT_MAX } from "../text-chain-shared";
 import { houseReplyCap } from "../texting";
 import { airWindowMinutes } from "../air";
 import { PLACE_LABEL_MAX } from "../venues";
+import { CARD_OPENING_MAX } from "../scene-cards";
 import { AGENT_ID, COMPACT_STEP, type JsonSchema, PREVIEW, SINCE_TURN, str, VISIBILITY, FORMAT, WAIT, WAIT_MAX_SECONDS, visibilityRules } from "./schemas";
 import { DELETE, READ, SET, WRITE } from "./annotations";
 import { PITCH_MAX, TITLE_MAX } from "../show-ideas-shared";
@@ -851,10 +852,10 @@ const RAW_TOOL_DEFS = [
     name: "my_roleplays",
     title: "My characters' roleplays",
     description:
-      "Roleplays for your characters' next dates: to_answer (waiting on you), sent (waiting on them) and agreed (their next date plays it), each with its premise, who plays whom, the round and the notes so far. catalog: true adds the show's roleplays to pick from. Returns { to_answer, sent, agreed, catalog? }.",
+      "Roleplays for your characters' next dates: to_answer (waiting on you), sent (waiting on them) and agreed (their next date plays it), each with its premise, who plays whom, the round and the notes so far. catalog: true adds the show's roleplays to pick from, each with its three openings, and the three for a companion scene with no roleplay. Returns { to_answer, sent, agreed, catalog?, openings_without_roleplay? }.",
     inputSchema: {
       type: "object",
-      properties: { character_id: str(64, "Only this character's (optional)."), catalog: { type: "boolean", default: false, description: "true: also list the show's roleplays (id, title, premise, roles)." }, agent_id: AGENT_ID },
+      properties: { character_id: str(64, "Only this character's (optional)."), catalog: { type: "boolean", default: false, description: "true: also list the show's roleplays (id, title, premise, roles, openings) and openings_without_roleplay." }, agent_id: AGENT_ID },
     },
     annotations: READ,
   },
@@ -1372,6 +1373,10 @@ const RAW_TOOL_DEFS = [
         place: { type: "string", enum: [...SCENE_PLACES, SCENE_TEXTING], description: `scene: where to play a scene together (one of the show's places), or ${SCENE_TEXTING} to go back to texting.` },
         roleplay: { type: ["string", "object"], description: "scene: a roleplay to play in it: the show's id (roleplay tools: ?tools=all), or {title, premise, roles}." },
         my_role: { type: ["string", "integer"], description: "scene: your role, 0 (first) or 1, or its words." },
+        opening: {
+          type: ["integer", "string"],
+          description: `scene: how it starts. 0, 1 or 2 for one of three: the roleplay's own, or three for a scene with no roleplay (my_roleplays with catalog: true lists both; roleplay tools: ?tools=all); "surprise" for any of them; or one sentence of your own (up to ${CARD_OPENING_MAX} characters, PG). Left out, one of the three.`,
+        },
         message_id: str(64, "report / voice: the reply (an id from reply or messages)."),
         reason: { type: "string", enum: [...COMPANION_REPORT_REASONS], description: "report: why." },
         fact_id: str(64, "forget: the fact (an id from memory)."),

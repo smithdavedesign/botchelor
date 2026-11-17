@@ -37,7 +37,8 @@ describe("the show's roleplays (lib/roleplays.ts)", () => {
   });
 
   it("refuses a set-up that steers the date to the bedroom, which the show's check lets through, and says which words", () => {
-    for (const bad of ["a steamy night in bed together", "the inn has only one bed", "{a} seduces {b} over dessert", "a risqué cabaret"]) {
+    // "the only bed" and "share the only bed" got past the list until 2026-11-17 (a written opening over MCP, 2.35.0).
+    for (const bad of ["a steamy night in bed together", "the inn has only one bed", "they share the only bed at the inn", "the cabin has one bed", "{a} seduces {b} over dessert", "a risqué cabaret"]) {
       expect(checkShowText({ premise: bad }).ok, bad).toBe(true); // why the roleplay check needs its own list
       expect(checkCustomRoleplay({ title: "x", premise: `${bad}, with {a} and {b}`, roles: null }), bad).toMatch(/the show is PG/);
     }
@@ -47,7 +48,7 @@ describe("the show's roleplays (lib/roleplays.ts)", () => {
       expect(checkCustomRoleplay({ title: "x", premise: `${bad}, with {a} and {b}`, roles: null }), bad).toMatch(/the show is PG/);
     }
     expect(checkCustomRoleplay({ title: "Dessert", premise: "{a} seduces {b} over dessert", roles: null })).toMatch(/\("seduces"\)\.$/);
-    for (const fine of ["Santa's naughty list", "a steamy kitchen at the night market", "two hours to make out the code", "rival spies hooking up a wiretap", "a lustrous pearl", "the first kiss story"]) {
+    for (const fine of ["Santa's naughty list", "a one-bed flat above the bakery", "the flower bed by the gate", "a steamy kitchen at the night market", "two hours to make out the code", "rival spies hooking up a wiretap", "a lustrous pearl", "the first kiss story"]) {
       expect(suggestiveIn(fine), fine).toBeNull();
     }
   });
@@ -405,6 +406,9 @@ describe("agreeing on a roleplay (lib/date-roleplays.ts)", () => {
       const catalog = (await call("my_roleplays", { catalog: true }, A.ctx)).structuredContent;
       expect(catalog.catalog).toHaveLength(DATE_ROLEPLAYS.length);
       expect(catalog.catalog[0]).toMatchObject({ id: expect.any(String), premise: expect.stringMatching(/\{a\}/) });
+      // 2.35.0: each roleplay's three openings (a companion scene's opening picks one), and the three with no roleplay.
+      for (const r of catalog.catalog) expect(r.openings).toEqual([...DATE_ROLEPLAYS.find((d) => d.id === r.id)!.card.openings]);
+      expect(catalog.openings_without_roleplay).toHaveLength(3);
 
       const sent = (await call("propose_roleplay", { character_id: A.id, with: B.id, roleplay_id: "first-contact", my_role: "the visitor from another planet", note: "Ada's never seen a sandwich" }, A.ctx)).structuredContent;
       expect(sent.roleplay).toMatchObject({ status: "pending", terms: { id: "first-contact", first: A.id } });

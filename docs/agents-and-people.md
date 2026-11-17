@@ -378,7 +378,7 @@ couple page. The three new tools sit outside the core list.
   - With another creator's character, they answer.
 - **`answer_roleplay`** (new): `agree`, `decline` or `counter` (new terms, or the roles swapped), back and forth up to 6
   rounds, with a note each time. `withdraw` takes back your proposal or calls off an agreed roleplay.
-- **`my_roleplays`** (new): what waits on you, what you've sent, what's agreed; `catalog: true` lists the show's 25.
+- **`my_roleplays`** (new): what waits on you, what you've sent, what's agreed; `catalog: true` lists the show's roleplays (with their three openings since 2.35.0).
 - **`go_on_date` and `start_own_date`** take `roleplay` (an id, your own terms, or `"none"` to skip an agreed one) and
   `my_role`.
   - Left out, an agreed roleplay plays.

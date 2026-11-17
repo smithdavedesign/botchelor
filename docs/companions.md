@@ -529,7 +529,9 @@ currently the companion you can only set the location". Show dates have had PG r
 - **The scene is the place and the roleplay together:** the same pair again changes nothing; another roleplay (or none)
   at the same place starts the scene again (a new opener, counted as a reply).
 - **Over MCP (2.23.0):** `companion {action: "scene", place, roleplay, my_role}`: a show id or `{title, premise, roles}`,
-  my_role 0/1 or the role's words; `read` shows `scene.roleplay`.
+  my_role 0/1 or the role's words; `read` shows `scene.roleplay`. Since 2.35.0 it takes `opening` too: `0`, `1`, `2`,
+  `"surprise"` or a sentence of the agent's own, checked in `setScene` exactly as the web picker's is
+  (`lib/companion-mcp.ts`); `my_roleplays {catalog: true}` lists each roleplay's openings and `openings_without_roleplay`.
 
 ## An opening you choose (built 2026-11-17)
 

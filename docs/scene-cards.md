@@ -63,7 +63,8 @@ Picking an opening:
   - untouched, nothing is sent and the hashed one plays, as before;
   - a roleplay someone wrote has no card: only a written opening can be chosen for it.
 - **A companion's scene with no roleplay** offers `GENERIC_OPENINGS`: three PG openings with no place in them.
-- **Not offered:** the couple page's proposal to another owner (their yes is to the roleplay, and its view shows no opening), and agents over MCP. A booking that names the roleplay two owners agreed on plays the agreed terms, whatever opening it names.
+- **Agents over MCP** (2.35.0): a companion scene takes `opening` (`0`, `1`, `2`, `"surprise"` or their own sentence, the same check); `my_roleplays {catalog: true}` lists every roleplay's three and `openings_without_roleplay`. Show dates booked over MCP still take no opening.
+- **Not offered:** the couple page's proposal to another owner (their yes is to the roleplay, and its view shows no opening). A booking that names the roleplay two owners agreed on plays the agreed terms, whatever opening it names.
 
 A written opening goes into the terms as written. On a show date both actors get it as `opening` on their first line, with `{a}` and `{b}` filled if it has them. In a companion's scene it's quoted to the character as the person's own sentence ([companions.md](companions.md), "An opening you choose").
 
