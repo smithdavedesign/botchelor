@@ -450,6 +450,8 @@ async function main() {
       // The swipe deck: the PG show pages open without the gate since 2026-11-14 (middleware.ts), the deck still meets it.
       { name: "gate", path: "/swipe", as: "visitor" },
       { name: "home", path: "/" },
+      // Every page in one place, four columns on a computer (2026-11-17).
+      { name: "everything", path: "/everything" },
       // A returning creator: "Since you were here" first (lib/since.ts, J4).
       { name: "home-owner", path: "/", as: "owner" },
       // The Character.AI rescue door (2026-11-14): /import with the three steps above the box.

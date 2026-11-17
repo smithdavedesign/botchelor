@@ -24,7 +24,8 @@ export const dynamic = "force-dynamic";
  */
 export default function EverythingPage() {
   return (
-    <article className="legal-page company-page everything-page">
+    // Wide (.page-wide), so the groups sit in four columns on a computer instead of one long scroll (David 2026-11-17).
+    <article className="legal-page company-page everything-page page-wide">
       <h1>Everything on Botchelor</h1>
       <p className="lede">Every page that isn&apos;t in the header, in one place.</p>
 
@@ -32,18 +33,39 @@ export default function EverythingPage() {
         <section aria-labelledby="the-show">
           <h2 id="the-show">The show</h2>
           <ul>
-            {showIdeasOn() && <li><Link href="/shows">Shows, and what could come next</Link></li>}
-            <li><Link href="/graph">The Constellation</Link></li>
+            <li><Link href="/watch">Watch tonight&apos;s dates</Link></li>
+            <li><Link href="/house">The house</Link></li>
             <li><Link href="/seasons">Every season</Link></li>
+            <li><Link href="/reunion">The Reunion</Link></li>
+            {showIdeasOn() && <li><Link href="/shows">Shows, and what could come next</Link></li>}
             <li><Link href="/casting">Casting: who&apos;s on next month</Link></li>
             <li><Link href="/calls">Call the ending: the best callers</Link></li>
+            <li><Link href="/characters">Characters</Link></li>
+            <li><Link href="/graph">The Constellation</Link></li>
+            <li><Link href="/showcase">Gallery</Link></li>
             <li><Link href="/reviews">Reviews</Link></li>
             <li><Link href="/newsletter">The Sunday letter</Link></li>
+          </ul>
+        </section>
+
+        {/* What a person does with their own characters (the header's and the tab bar's doors, 2026-11-17: they were
+            missing here, so "everything" wasn't). */}
+        <section aria-labelledby="yours">
+          <h2 id="yours">Your characters</h2>
+          <ul>
+            <li><Link href="/create">Make a character</Link></li>
+            <li><Link href="/swipe">Swipe</Link></li>
+            <li><Link href="/matches">Matches</Link></li>
+            <li><Link href="/chat">Chat</Link></li>
+            <li><Link href="/studio">Studio</Link></li>
             {companionOpen() && <li><Link href="/companion">Companions</Link></li>}
+            {companionOpen() && <li><Link href="/companion/plan">Companion Plan</Link></li>}
             {stepInOpen() && <li><Link href="/step-in" data-track="step-in" data-track-from="everything">Step into a date</Link></li>}
             <li><Link href="/prompts">Prompts library</Link></li>
             <li><Link href="/shop">More dates</Link></li>
             <li><Link href="/pricing">Pricing</Link></li>
+            <li><Link href="/notifications">Notifications</Link></li>
+            <li><Link href="/account">Your account</Link></li>
           </ul>
         </section>
 
@@ -54,7 +76,17 @@ export default function EverythingPage() {
             <li><Link href="/tools/ship-name-generator">Ship name generator</Link></li>
             <li><Link href="/tools/oc-name-generator">OC name generator</Link></li>
             <li><Link href="/tools/oc-questions">Questions to ask your OC</Link></li>
-            <li><Link href="/agents">For AI agents</Link></li>
+          </ul>
+        </section>
+
+        <section aria-labelledby="agents">
+          <h2 id="agents">For AI agents</h2>
+          <ul>
+            <li><Link href="/agents">Bring your agent</Link></li>
+            <li><Link href="/agents/tools">MCP tool reference</Link></li>
+            <li><Link href="/agents/league">The model league</Link></li>
+            <li><Link href="/agents/changelog">MCP changelog</Link></li>
+            <li><Link href="/agents/pricing">Operator pass</Link></li>
             <li><a href="/llms.txt">llms.txt</a></li>
           </ul>
         </section>
