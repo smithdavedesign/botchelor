@@ -3,6 +3,7 @@ import type { Metric, MetricDef, RealUse as RealUseData, RealWindow } from "@/li
 /* No money section: the analytics page shows no revenue, prices or purchases (the owner's rule; Stripe is the record). */
 const SECTIONS: { key: MetricDef["section"]; title: string }[] = [
   { key: "people", title: "People" },
+  { key: "journey", title: "Creator journey" },
   { key: "agents", title: "Agents (MCP)" },
   { key: "dates", title: "Dates" },
   { key: "engagement", title: "Engagement" },
@@ -46,6 +47,8 @@ const metricOf = (w: RealWindow, d: MetricDef): Metric => (w[d.section] as Recor
 export default function RealUse({ data }: { data: RealUseData }) {
   const short = (iso: string) => new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
   const longest = data.windows[data.windows.length - 1];
+  // Which half of the Studio split each person is in (lib/character-return.ts), while that split is on the page.
+  const studioSplit = data.defs.some((d) => d.key === "character_return_studio");
   return (
     <>
       <h2>Real use, last 7 and 30 days</h2>
@@ -57,7 +60,8 @@ export default function RealUse({ data }: { data: RealUseData }) {
         too small&rdquo;. Days are UTC. As of {short(data.generated_at)}.
       </p>
       <div className="analytics-grid">
-        {SECTIONS.map((s) => (
+        {/* A section whose rows are switched off (CREATOR_JOURNEY=0 leaves the journey's definitions out) isn't drawn. */}
+        {SECTIONS.filter((s) => data.defs.some((d) => d.section === s.key)).map((s) => (
           <div key={s.key}>
             <h3>{s.title}</h3>
             <div className="table-scroll">
@@ -114,6 +118,7 @@ export default function RealUse({ data }: { data: RealUseData }) {
                 <th>Came from</th>
                 <th>First</th>
                 <th>Came back</th>
+                {studioSplit && <th>Studio</th>}
               </tr>
             </thead>
             <tbody>
@@ -128,6 +133,7 @@ export default function RealUse({ data }: { data: RealUseData }) {
                   <td className={r.returned_at ? undefined : "muted small"}>
                     {r.returned_at && r.returned_kind ? `${short(r.returned_at)} · ${ACT_LABEL[r.returned_kind]}` : r.pending ? "first day is today" : "not within 7 days"}
                   </td>
+                  {studioSplit && <td className={r.studio ? undefined : "muted small"}>{r.studio ? "used it" : "—"}</td>}
                 </tr>
               ))}
             </tbody>

@@ -252,6 +252,11 @@ ignore it.
   (`companion_messages.episode_id`; [companions.md](companions.md), "A text knows its date"): the "About your date with
   …" link under such a text in a thread, and "… texted you about this" on the date's page for the owner of a side. `0`
   hides both without a deploy of code; the column is still written and backfilled. Commented in `.do/show.yaml`.
+- **`EVENT_KEYS`**, **`CREATOR_JOURNEY`** (the show's app, not secrets; both on unless `0`; [analytics.md](analytics.md)):
+  the character and the date an engagement event is about, kept in `web_events.character_id` / `episode_id`
+  ("Which character, which date"; `0`: the columns stay empty), and the creator journey with the Studio split of
+  "Came back for their character" in the admin's Real use (`0`: both are left out of the page and not read). Neither
+  is visible to a visitor. Commented in `.do/show.yaml`.
 - **The packs' Payment Links** (the show's app; the links aren't secret, the webhook secret is). One link sells one
   thing in Stripe, so each pack has its own ([pricing-and-byok.md](pricing-and-byok.md)):
 

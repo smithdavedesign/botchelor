@@ -750,7 +750,8 @@ export default function CompanionChat({
                       // The date this text is about (companion_messages.episode_id), when this viewer may open it: one
                       // small link, never beside "Watch the date" above (lib/companion.ts getThread).
                       <p className="companion-offers muted small" data-chat-about>
-                        <Link href={m.about.href} data-track="companion-about-date">
+                        {/* The click names its character and its date (app/engagement.ts trackKey): this page's address has neither. */}
+                        <Link href={m.about.href} data-track="companion-about-date" data-track-character={c.id} data-track-episode={m.about.episode}>
                           {m.about.label}
                         </Link>
                       </p>

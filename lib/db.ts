@@ -4324,6 +4324,14 @@ create index if not exists season_awards_character_idx on season_awards (charact
 -- A portrait chosen from a Studio picture remembers which one (lib/studio/picture-choice.ts; stage 4): it was a copy
 -- with no link back, so "which shoot is this face from" could not be answered. Null for every other asset.
 alter table character_assets add column if not exists from_picture_id text;
+-- An event knows which character and which date it is about (the connected model, stage 6; docs/analytics.md "Which
+-- character, which date"): the browser reads them off the page's address or the control (app/engagement.ts
+-- addressKeys), the server lifts them out of props (lib/engagement.ts eventKeys). Nullable, no foreign key; never set
+-- for After Dark. They go with the row (400 days, lib/retention.ts; the visitor's account, lib/account.ts).
+alter table web_events add column if not exists character_id text;
+alter table web_events add column if not exists episode_id text;
+create index if not exists web_events_character_idx on web_events (character_id, at) where character_id is not null;
+create index if not exists web_events_episode_idx on web_events (episode_id, at) where episode_id is not null;
 
 -- Claimed identities (lib/account-claim.ts; the connected model, stage 7): the anonymous id a browser held before it
 -- signed in (alias_id) and the account that brought what it had made into itself (user_id). One claim an identity,

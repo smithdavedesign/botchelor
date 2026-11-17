@@ -191,17 +191,42 @@ export function resetBudgetsForTests(): void {
   windows.clear();
 }
 
+/** EVENT_KEYS=0: an event's character and date are not kept (the two columns stay empty; "watched it end" keeps its date as a prop, as before). */
+export function eventKeysOn(env: Record<string, string | undefined> = process.env): boolean {
+  return env.EVENT_KEYS?.trim() !== "0";
+}
+
+/**
+ * The character and the date an event is about (the connected model, stage 6): the browser sends them as the props
+ * `character_id` and `episode_id` (app/engagement.ts addressKeys); here they are lifted into web_events' own columns
+ * when they look like ids, and kept out of `props` either way, so "this character's views" is a key and not a match
+ * inside JSON. Never for After Dark: an event from its host or one of its pages keeps neither. Pure.
+ */
+export function eventKeys(
+  e: Pick<CleanEvent, "event" | "path" | "props">,
+  o: { afterDark: boolean; on?: boolean },
+): { props: CleanEvent["props"]; character_id: string | null; episode_id: string | null } {
+  const { character_id, episode_id, ...props } = e.props;
+  const id = (v: unknown): string | null => (typeof v === "string" && ID.test(v) ? v : null);
+  if (o.afterDark || e.path === "/after-dark" || e.path.startsWith("/after-dark/")) return { props, character_id: null, episode_id: null };
+  // Off: as it was before the columns. "Watched it end" named its date in props (lib/character-return.ts reads either).
+  if (o.on === false) return { props: e.event === "date_watched" && id(episode_id) ? { ...props, episode_id: id(episode_id)! } : props, character_id: null, episode_id: null };
+  return { props, character_id: id(character_id), episode_id: id(episode_id) };
+}
+
 /** Stores one cleaned beacon, all its events in one statement. */
 export async function recordBeacon(
   db: Db,
   b: CleanBeacon,
   ctx: { userId: string | null; country: string | null; device: string; host: "show" | "after_dark" },
+  env: Record<string, string | undefined> = process.env,
 ): Promise<number> {
-  const cols = b.events;
+  const on = eventKeysOn(env);
+  const cols = b.events.map((e) => ({ ...e, ...eventKeys(e, { afterDark: ctx.host === "after_dark", on }) }));
   await db.query(
-    `insert into web_events (at, visitor, session, user_id, event, path, props, source, utm_source, utm_medium, utm_campaign, utm_content, country, device, host)
-     select e.at, $1, $2, $3, e.event, e.path, e.props, $4, $5, $6, $7, $8, $9, $10, $11
-     from unnest($12::timestamptz[], $13::text[], $14::text[], $15::jsonb[]) as e(at, event, path, props)`,
+    `insert into web_events (at, visitor, session, user_id, event, path, props, source, utm_source, utm_medium, utm_campaign, utm_content, country, device, host, character_id, episode_id)
+     select e.at, $1, $2, $3, e.event, e.path, e.props, $4, $5, $6, $7, $8, $9, $10, $11, e.character_id, e.episode_id
+     from unnest($12::timestamptz[], $13::text[], $14::text[], $15::jsonb[], $16::text[], $17::text[]) as e(at, event, path, props, character_id, episode_id)`,
     [
       b.visitor,
       b.session,
@@ -218,6 +243,8 @@ export async function recordBeacon(
       cols.map((e) => e.event),
       cols.map((e) => e.path),
       cols.map((e) => JSON.stringify(e.props)),
+      cols.map((e) => e.character_id),
+      cols.map((e) => e.episode_id),
     ],
   );
   return cols.length;

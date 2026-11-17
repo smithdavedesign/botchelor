@@ -259,11 +259,11 @@ describe("in the thread: About your date with …", () => {
     const about = v.messages.filter((m) => m.about);
     expect(about).toHaveLength(1);
     expect(about[0].text).toBe("Want me to see them again?");
-    expect(about[0].about).toEqual({ href: `/episodes/${d.episode}`, label: `About your date with ${castFirst}` });
+    expect(about[0].about).toEqual({ href: `/episodes/${d.episode}`, label: `About your date with ${castFirst}`, episode: d.episode });
     // The component draws it as one small link (the client file is read, not rendered: it needs a browser).
     const chat = readFileSync(join(process.cwd(), "app/companion/[id]/CompanionChat.tsx"), "utf8");
     expect(chat).toContain("{m.about && (");
-    expect(chat).toContain("<Link href={m.about.href} data-track=\"companion-about-date\">");
+    expect(chat).toContain("<Link href={m.about.href} data-track=\"companion-about-date\" data-track-character={c.id} data-track-episode={m.about.episode}>");
   });
 
   it("once a text, and never beside the Watch link a tease or an opener already carries", async () => {
@@ -299,7 +299,7 @@ describe("in the thread: About your date with …", () => {
     // Aired publicly between two public characters: anyone may open it, and it is the character's date, not theirs.
     await t.db.query(`update characters set visibility = 'public' where id = $1`, [d.mine]);
     const open = (await view(stranger, sent!.threadId)).messages.filter((m) => m.about);
-    expect(open.map((m) => m.about)).toEqual([{ href: `/episodes/${d.episode}`, label: `About ${castFirst}'s date with Lexi` }]);
+    expect(open.map((m) => m.about)).toEqual([{ href: `/episodes/${d.episode}`, label: `About ${castFirst}'s date with Lexi`, episode: d.episode }]);
     // Hidden by reports: gone again for a stranger, still there for the owner of a side in their own thread.
     for (let i = 0; i < REPORT_HIDE_THRESHOLD; i++) await t.db.query(`insert into reports (episode_id, reporter_id, reason) values ($1, $2, 'other')`, [d.episode, crypto.randomUUID()]);
     expect((await view(stranger, sent!.threadId)).messages.some((m) => m.about)).toBe(false);
