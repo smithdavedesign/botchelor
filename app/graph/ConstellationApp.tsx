@@ -16,12 +16,16 @@ const ConstellationCanvas = dynamic(() => import("./ConstellationCanvas"), {
   loading: () => <p className="muted constellation-loading">Lighting the constellation…</p>,
 });
 
+/** "Yours" (the viewer's own characters) shows only for someone who has some: it follows Everyone, as on /characters. */
 const ORIGIN_FILTERS: { id: OriginFilter; label: string }[] = [
   { id: "all", label: "Everyone" },
+  { id: "yours", label: "Yours" },
   { id: "cast", label: "The cast" },
   { id: "person", label: "People's" },
   { id: "agent", label: "Agents'" },
 ];
+/** A stable "none" (a fresh [] each render would re-filter the sky each render). */
+const NO_IDS: string[] = [];
 const COLOR_BY: { id: ColorBy; label: string }[] = [
   { id: "character", label: "Character" },
   { id: "kind", label: "Kind" },
@@ -37,6 +41,7 @@ export default function ConstellationApp({
   total = null,
   initialFocus = null,
   initialOrigin = "all",
+  mine = NO_IDS,
 }: {
   data: GraphData;
   /** The whole sky's size when `data` is only its strongest pairs (lib/graph.ts firstSky); null when it's all of it. */
@@ -44,6 +49,8 @@ export default function ConstellationApp({
   initialFocus?: string | null;
   /** /graph?origin= (the Characters page's preview of one tab's group): the filter it opens on. */
   initialOrigin?: OriginFilter;
+  /** The viewer's own character ids: the "Yours" filter (none: no such filter). */
+  mine?: string[];
 }) {
   // The strongest pairs first; "Show the whole sky" swaps in all of it (/api/graph/sky). 2026-11-07 audit, item 17.
   const [data, setData] = useState<GraphData>(first);
@@ -120,7 +127,12 @@ export default function ConstellationApp({
   // colour, the rest share the grey and the key just counts them.
   const clusters = useMemo(() => [...new Set(data.nodes.map((n) => n.community).filter((c): c is number => c !== null))].sort((x, y) => x - y), [data.nodes]);
 
-  const { nodes, edges } = useMemo(() => filterSky(data, { origin, partners, kind, minDates, showSingles }), [data, origin, partners, minDates, showSingles, kind]);
+  const mineSet = useMemo(() => new Set(mine), [mine]);
+  const originFilters = mine.length ? ORIGIN_FILTERS : ORIGIN_FILTERS.filter((f) => f.id !== "yours");
+  const { nodes, edges } = useMemo(
+    () => filterSky(data, { origin, partners, kind, minDates, showSingles }, mineSet),
+    [data, origin, partners, minDates, showSingles, kind, mineSet],
+  );
 
   const matches = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -183,7 +195,7 @@ export default function ConstellationApp({
         </button>
         <div className={`constellation-filters${filtersOpen ? " is-open" : ""}`} id="constellation-filters">
           <div className="segmented constellation-segmented" role="group" aria-label="Who made them">
-            {ORIGIN_FILTERS.map((f) => (
+            {originFilters.map((f) => (
               <button
                 key={f.id}
                 type="button"

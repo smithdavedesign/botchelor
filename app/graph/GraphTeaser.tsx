@@ -1,22 +1,27 @@
 import type { CSSProperties } from "react";
 import Avatar from "@/app/Avatar";
 import { avatarPalette } from "@/lib/avatar";
-import type { OriginGroup } from "@/lib/origin-group";
+import type { SkyGroup } from "@/lib/origin-group";
 import { TEASER_H, TEASER_W, type GraphTeaser as Teaser } from "./teaser";
 
-/** What the card says over each tab's sky. */
-const TITLE: Record<OriginGroup, string> = {
-  cast: "The cast's love lives, all tangled up",
-  person: "Who people's characters have fallen for",
-  agent: "Who the agents' characters have dated",
-};
-/** Below this many pairs the numbers stay off the card (the empty-room rule, lib/crowd-threshold.ts: "3 pairs" says nobody's here). */
+/** What the card says over each tab's sky (the Yours tab's by how many of theirs it drew). */
+const title = (group: SkyGroup, members: number): string =>
+  group === "yours"
+    ? members === 1
+      ? "Who your character has dated"
+      : "Who your characters have dated"
+    : { cast: "The cast's love lives, all tangled up", person: "Who people's characters have fallen for", agent: "Who the agents' characters have dated" }[group];
+/**
+ * Below this many pairs a group's numbers stay off the card (the empty-room rule, lib/crowd-threshold.ts: "3 pairs" says
+ * nobody's here). Your own characters' numbers are yours, however small, so the Yours tab always shows them.
+ */
 const PAIRS_SHOWN_FROM = 10;
+const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 /** How the numbers read, e.g. "212 pairs · 340 public dates · 37 love triangles". */
-export function teaserStats(t: Pick<Teaser, "pairs" | "dates" | "triangles">): string {
-  if (t.pairs < PAIRS_SHOWN_FROM) return "";
-  const parts = [`${t.pairs} pairs`, `${t.dates} public dates`];
-  if (t.triangles > 0) parts.push(`${t.triangles} love ${t.triangles === 1 ? "triangle" : "triangles"}`);
+export function teaserStats(t: Pick<Teaser, "pairs" | "dates" | "triangles">, group: SkyGroup = "cast"): string {
+  if (group !== "yours" && t.pairs < PAIRS_SHOWN_FROM) return "";
+  const parts = [count(t.pairs, "pair", "pairs"), count(t.dates, "public date", "public dates")];
+  if (t.triangles > 0) parts.push(count(t.triangles, "love triangle", "love triangles"));
   return parts.join(" · ");
 }
 
@@ -33,8 +38,8 @@ export const MAX_FACES = 40;
  * lines are SVG, the faces are the site's avatars laid over them at the same coordinates (lazy, like every card's), and
  * the only motion is a CSS twinkle that reduced motion turns off.
  */
-export default function GraphTeaser({ teaser, group }: { teaser: Teaser; group: OriginGroup }) {
-  const stats = teaserStats(teaser);
+export default function GraphTeaser({ teaser, group }: { teaser: Teaser; group: SkyGroup }) {
+  const stats = teaserStats(teaser, group);
   const faceIds = new Set(
     teaser.stars
       .filter((s) => s.member && !s.private)
@@ -86,7 +91,7 @@ export default function GraphTeaser({ teaser, group }: { teaser: Teaser; group: 
       </div>
       <div className="graph-teaser-copy">
         <p className="kicker">The Constellation</p>
-        <p className="graph-teaser-title">{TITLE[group]}</p>
+        <p className="graph-teaser-title">{title(group, teaser.members)}</p>
         {stats && <p className="graph-teaser-stats">{stats}</p>}
         {/* A plain link, not next/link: /graph has a loading screen, and a client navigation applies #all-time to it before
             the page arrives, so it landed on the story map (2026-11-17, live). A full load scrolls to the sky. */}

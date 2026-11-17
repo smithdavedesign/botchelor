@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import Link from "next/link";
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import Avatar from "@/app/Avatar";
 import Icon from "@/app/Icon";
 import { balancedColumns } from "@/lib/grid-balance";
@@ -15,7 +15,7 @@ import { getDb } from "@/lib/db";
 import TalkButton from "@/app/companion/TalkButton";
 import CharactersTabs from "./CharactersTabs";
 import { companionOpen } from "@/lib/companion-shared";
-import { DIRECTORY_QUERY_MAX, DIRECTORY_SEARCH_LIMIT, directoryEntries, listTab, offSeasonHouse, parseDirectoryQuery, privateAmong, searchDirectory, tabCounts, type DirectoryEntry } from "@/lib/directory";
+import { DIRECTORY_QUERY_MAX, DIRECTORY_SEARCH_LIMIT, directoryEntries, listTab, offSeasonHouse, ownCharacterIds, parseDirectoryQuery, privateAmong, searchDirectory, tabCounts, type DirectoryEntry } from "@/lib/directory";
 import { authFromCookieStore } from "@/lib/http";
 import { stepInAccessFromCookies } from "@/lib/step-in-access";
 import { actionsFor, type CardActions, type TextAccess, textVerb, type VerbViewer, viewerCharacter } from "@/lib/character-verb";
@@ -33,9 +33,9 @@ import { itemListJsonLd, pageMetadata } from "@/lib/seo";
 import { pageHref, pageOf as pageSlice, parsePage } from "@/lib/paging";
 import MatchmakerForm from "./MatchmakerForm";
 import GraphTeaser from "@/app/graph/GraphTeaser";
-import { graphTeaser } from "@/app/graph/teaser";
+import { graphTeaser, type GraphTeaser as Teaser } from "@/app/graph/teaser";
 import { cachedConstellation } from "@/lib/graph-cache";
-import type { OriginGroup } from "@/lib/origin-group";
+import type { OriginGroup, SkyGroup } from "@/lib/origin-group";
 
 export const dynamic = "force-dynamic";
 
@@ -299,6 +299,20 @@ const cardVerbs = async (viewer: Viewer, ids: string[]): Promise<Map<string, Car
  */
 const teaserFor = (group: OriginGroup) =>
   shared(`characters:graph-teaser:${group}`, async () => graphTeaser(await cachedConstellation(), group)).catch(() => null);
+
+/**
+ * "The relationship graph" on a tab: the group's preview (app/graph/GraphTeaser.tsx), or `children` while there's nothing
+ * to draw (and no section at all without them).
+ */
+function GraphSection({ group, teaser, children }: { group: SkyGroup; teaser: Teaser | null; children?: ReactNode }) {
+  if (!teaser && !children) return null;
+  return (
+    <section id="graph" aria-labelledby="graph-title">
+      <h2 id="graph-title">The relationship graph</h2>
+      {teaser ? <GraphTeaser teaser={teaser} group={group} /> : children}
+    </section>
+  );
+}
 
 async function castTab({ season, thisId, castIds, now, pairsPage, viewer }: { season: DirectoryEntry[]; thisId: string; castIds: string[]; now: Date; pairsPage: number; viewer: Viewer }) {
   const viewerId = viewer.userId;
@@ -577,12 +591,7 @@ async function madeByTab({ tab, page, privateCount, viewer, insider }: { tab: "p
         <p className="muted">None yet.</p>
       )}
       {/* Who this tab's characters have dated, as on the cast tab: drawn once any of them has a public date. */}
-      {teaser && (
-        <section id="graph" aria-labelledby="graph-title">
-          <h2 id="graph-title">The relationship graph</h2>
-          <GraphTeaser teaser={teaser} group={group} />
-        </section>
-      )}
+      <GraphSection group={group} teaser={teaser} />
     </section>
   );
 }
@@ -591,8 +600,14 @@ async function madeByTab({ tab, page, privateCount, viewer, insider }: { tab: "p
 /** Yours: every character the viewer owns, newest first, each with its own doors (its chats, its Studio). Private ones in full: they're theirs. */
 async function yoursTab(viewerId: string) {
   const db = await getDb();
-  const ids = (await db.query<{ id: string }>(`select c.id from characters c where c.owner_id = $1 and not c.is_house order by c.created_at desc, c.id limit 50`, [viewerId])).rows.map((r) => r.id);
-  const entries = await directoryEntries(db, ids, { own: true });
+  const ids = await ownCharacterIds(db, viewerId);
+  // Their characters' corner of the Constellation, from its cached public build: theirs alone, so never a shared copy.
+  const [entries, teaser] = await Promise.all([
+    directoryEntries(db, ids, { own: true }),
+    cachedConstellation()
+      .then((sky) => graphTeaser(sky, "yours", { mine: new Set(ids) }))
+      .catch(() => null),
+  ]);
   return (
     <section>
       <p className="muted">
@@ -603,6 +618,12 @@ async function yoursTab(viewerId: string) {
           <Entry key={e.id} e={e} own eager={i < EAGER_CARDS} badge={e.private ? "Private" : undefined} origin={false} />
         ))}
       </ul>
+      <GraphSection group="yours" teaser={teaser}>
+        {/* Nothing to draw yet: the public sky only has aired, public dates. */}
+        <p className="muted small">
+          Once one of yours has a public date, who they&apos;ve dated shows up here. <Link href="/graph">See the whole constellation →</Link>
+        </p>
+      </GraphSection>
     </section>
   );
 }

@@ -6,7 +6,7 @@
  * script, and vitest covers it.
  */
 import { groupSky, strongestFirst, triangles, type GraphData } from "@/lib/graph";
-import { inOriginGroup, type OriginGroup } from "@/lib/origin-group";
+import { groupMember, type SkyGroup } from "@/lib/origin-group";
 import { createSim, settle } from "./sim";
 
 /** The preview's box, in viewBox units: 16:10, like the card's sky. */
@@ -50,17 +50,24 @@ export type GraphTeaser = {
 
 const round = (v: number) => Math.round(v * 10) / 10;
 
+type TeaserOptions = {
+  pairs?: number;
+  extra?: number;
+  singles?: number;
+  /** The viewer's character ids, for "yours". */
+  mine?: ReadonlySet<string>;
+};
+
 /** One group's preview, or null when nobody in it has a public date yet (the page keeps a plain link then). */
 export function graphTeaser(
   data: GraphData,
-  group: OriginGroup,
-  { pairs = TEASER_PAIRS, extra = TEASER_EXTRA_PAIRS, singles = TEASER_SINGLES } = {},
+  group: SkyGroup,
+  { pairs = TEASER_PAIRS, extra = TEASER_EXTRA_PAIRS, singles = TEASER_SINGLES, mine }: TeaserOptions = {},
 ): GraphTeaser | null {
-  const sky = groupSky(data, group);
+  const sky = groupSky(data, group, mine);
   const open = sky.edges.filter((e) => !e.masked);
   if (open.length === 0) return null;
-  const member = (origin: GraphData["nodes"][number]["origin"]) => inOriginGroup(origin, group);
-  const members = new Set(sky.nodes.filter((n) => member(n.origin)).map((n) => n.id));
+  const members = new Set(sky.nodes.filter(groupMember(group, mine)).map((n) => n.id));
   // The strongest pairs, then, for a group small enough to draw whole (the cast), the best pair of each of its own still
   // left out (up to `extra`), so the orbit ring holds only those with no date at all, never someone whose dates just
   // weren't the strongest. Then every other line between the characters drawn, as on /graph's first sky.
@@ -110,7 +117,7 @@ export function graphTeaser(
     hue: n.hue,
     portrait: n.portrait,
     ...at.get(n.id)!,
-    member: member(n.origin),
+    member: members.has(n.id),
     private: n.private,
   }));
   const lines: TeaserLine[] = edges.map((e) => {

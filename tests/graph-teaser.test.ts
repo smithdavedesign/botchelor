@@ -1,7 +1,11 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-// The pages read the viewer from next/headers: nobody's signed in here.
-vi.mock("next/headers", () => ({ cookies: async () => ({ get: () => undefined, has: () => false, getAll: () => [] }), headers: async () => new Headers() }));
+// The pages read the viewer from next/headers: hand them this cookie jar (empty: nobody's signed in).
+const jar = vi.hoisted(() => ({ cookies: new Map<string, string>() }));
+vi.mock("next/headers", () => ({
+  cookies: async () => ({ get: (name: string) => (jar.cookies.has(name) ? { name, value: jar.cookies.get(name)! } : undefined), has: (name: string) => jar.cookies.has(name), getAll: () => [] }),
+  headers: async () => new Headers(),
+}));
 vi.mock("next/navigation", async (original) => ({
   ...(await original<typeof import("next/navigation")>()),
   useRouter: () => ({ refresh() {}, push() {}, replace() {}, back() {}, prefetch() {} }),
@@ -17,10 +21,10 @@ import { filterSky, DEFAULT_FILTER } from "@/app/graph/filter";
 import { graphTeaser, TEASER_H, TEASER_W } from "@/app/graph/teaser";
 import { setDbForTests } from "@/lib/db";
 import { groupSky, type GraphData, type GraphEdge, type GraphNode } from "@/lib/graph";
-import { inOriginGroup, parseOriginGroup } from "@/lib/origin-group";
+import { groupMember, inOriginGroup, parseSkyGroup } from "@/lib/origin-group";
 import type { Origin } from "@/lib/origin";
 import { HOUSE_CHARACTERS } from "@/lib/house";
-import { startTestDb } from "./helpers";
+import { newUserCookie, startTestDb } from "./helpers";
 
 // The Characters page's way into the Constellation (2026-11-17): each tab's group drawn as a small sky (the group and
 // whoever they dated), linking to /graph opened on the same group, whose filter now keeps those partners too.
@@ -84,13 +88,26 @@ const pairs = (es: { a_id: string; b_id: string }[]) => es.map((e) => `${e.a_id}
 
 describe("origin groups (lib/graph.ts)", () => {
   it("reads ?origin= and files the house-run bots with the agents; a private character is in no group", () => {
-    expect(parseOriginGroup("cast")).toBe("cast");
-    expect(parseOriginGroup("person")).toBe("person");
-    expect(parseOriginGroup(["agent"])).toBeNull();
-    expect(parseOriginGroup("everyone")).toBeNull();
+    expect(parseSkyGroup("cast")).toBe("cast");
+    expect(parseSkyGroup("person")).toBe("person");
+    expect(parseSkyGroup("yours")).toBe("yours");
+    expect(parseSkyGroup(["agent"])).toBeNull();
+    expect(parseSkyGroup("everyone")).toBeNull();
     expect(inOriginGroup("house_bot", "agent")).toBe(true);
     expect(inOriginGroup("agent", "agent")).toBe(true);
     expect(inOriginGroup(null, "cast")).toBe(false);
+  });
+
+  it("yours goes by id: the viewer's own, a private one of theirs too, and nobody's without ids", () => {
+    const mine = new Set(["p1", "x"]);
+    expect(SKY.nodes.filter(groupMember("yours", mine)).map((n) => n.id)).toEqual(["p1", "x"]);
+    expect(SKY.nodes.filter(groupMember("yours"))).toEqual([]);
+  });
+
+  it("groupSky for yours: your characters and whoever they dated", () => {
+    const yours = groupSky(SKY, "yours", new Set(["p1"]));
+    expect(ids(yours.nodes)).toEqual(["c1", "p1", "p2"]);
+    expect(pairs(yours.edges)).toEqual(["c1-p1", "p1-p2"]);
   });
 
   it("groupSky: the group, every pair touching it, and whoever they dated; the group's singles stay", () => {
@@ -109,6 +126,15 @@ describe("the Constellation's filter (app/graph/filter.ts)", () => {
       const src = readFileSync(join(__dirname, "..", file), "utf8");
       expect(src, file).not.toMatch(/^import (?!type )[^;]*from "(@\/lib\/graph|\.\/graph)";/m);
     }
+  });
+
+  it("yours: your characters and their dates; without who they dated, only yours (no stranger's private character)", () => {
+    const mine = new Set(["p1", "p2"]);
+    expect(ids(filterSky(SKY, { ...DEFAULT_FILTER, origin: "yours" }, mine).nodes)).toEqual(["c1", "p1", "p2"]);
+    const inside = filterSky(SKY, { ...DEFAULT_FILTER, origin: "yours", partners: false }, mine);
+    expect(ids(inside.nodes)).toEqual(["p1", "p2"]);
+    expect(pairs(inside.edges)).toEqual(["p1-p2"]);
+    expect(filterSky(SKY, { ...DEFAULT_FILTER, origin: "yours" }).nodes).toEqual([]);
   });
 
   it("everyone: the whole sky", () => {
@@ -184,6 +210,9 @@ describe("the preview card (app/graph/GraphTeaser.tsx)", () => {
     expect(teaserStats({ pairs: 3, dates: 4, triangles: 0 })).toBe("");
     expect(teaserStats({ pairs: 12, dates: 30, triangles: 1 })).toBe("12 pairs · 30 public dates · 1 love triangle");
     expect(teaserStats({ pairs: 165, dates: 251, triangles: 0 })).toBe("165 pairs · 251 public dates");
+    // Your own characters' numbers are yours, however few.
+    expect(teaserStats({ pairs: 1, dates: 1, triangles: 0 }, "yours")).toBe("1 pair · 1 public date");
+    expect(teaserStats({ pairs: 3, dates: 4, triangles: 0 }, "yours")).toBe("3 pairs · 4 public dates");
   });
 
   it("is one link to /graph on the same group; the sky is decoration and never names or links anyone", () => {
@@ -220,15 +249,16 @@ describe("the pages", () => {
   beforeEach(async () => {
     await t.reset();
     setDbForTests(t.db);
+    jar.cookies.clear();
   });
 
   const HOUSE = HOUSE_CHARACTERS[0].id;
   /** A person's character with a public date with a house character (the relationship row the graph reads). */
-  async function seedDate(id = "zz-teaser-person") {
+  async function seedDate(id = "zz-teaser-person", owner = "teaser-owner") {
     await t.db.query(
       `insert into characters (id, owner_id, is_house, name, age, bio, traits, want, dealbreaker, visibility)
-       values ($1, 'teaser-owner', false, 'Tess Arrow', 30, 'bio', '["kind"]'::jsonb, 'love', 'rudeness', 'public')`,
-      [id],
+       values ($1, $2, false, 'Tess Arrow', 30, 'bio', '["kind"]'::jsonb, 'love', 'rudeness', 'public')`,
+      [id, owner],
     );
     const [a, b] = [HOUSE, id].sort();
     await t.db.query(
@@ -271,5 +301,49 @@ describe("the pages", () => {
     const plain = renderToStaticMarkup(await GraphPage({ searchParams: Promise.resolve({ origin: "nonsense" }) }));
     expect(plain).toMatch(/aria-pressed="true" aria-current="page">Everyone<\/button>/);
     expect(plain).not.toContain("Who they dated");
+  });
+
+  /** Signed in (the plain visitor cookie) as a new person; their id, to own characters. */
+  const signIn = () => {
+    const [name, value] = newUserCookie().split("=");
+    jar.cookies.set(name, value);
+    return value;
+  };
+
+  it("the Yours tab draws your characters and who they dated, numbers and all, linking to /graph on yours", async () => {
+    await seedDate("zz-yours-dated", signIn());
+    const html = await characters({ tab: "yours" });
+    expect(html).toContain('href="/graph?origin=yours#all-time"');
+    expect(html).toContain("Who your character has dated");
+    expect(html).toContain("1 pair · 2 public dates");
+  });
+
+  it("the Yours tab, with no public date yet: a line about it and the whole constellation", async () => {
+    const me = signIn();
+    await t.db.query(
+      `insert into characters (id, owner_id, is_house, name, age, bio, traits, want, dealbreaker, visibility)
+       values ('zz-yours-new', $1, false, 'Nova Start', 30, 'bio', '["kind"]'::jsonb, 'love', 'rudeness', 'public')`,
+      [me],
+    );
+    const html = await characters({ tab: "yours" });
+    expect(html).toContain("Once one of yours has a public date");
+    expect(html).toContain('href="/graph"');
+    expect(html).not.toContain("graph-teaser");
+  });
+
+  it("/graph has a Yours filter only for someone with characters, opened by ?origin=yours", async () => {
+    const { default: GraphPage } = await import("@/app/graph/page");
+    await seedDate();
+    // A stranger: no Yours, and ?origin=yours opens on everyone.
+    const stranger = renderToStaticMarkup(await GraphPage({ searchParams: Promise.resolve({ origin: "yours" }) }));
+    expect(stranger).not.toContain(">Yours</button>");
+    expect(stranger).toMatch(/aria-pressed="true" aria-current="page">Everyone<\/button>/);
+
+    await seedDate("zz-yours-dated", signIn());
+    const owner = renderToStaticMarkup(await GraphPage({ searchParams: Promise.resolve({ origin: "yours" }) }));
+    expect(owner).toMatch(/aria-pressed="true" aria-current="page">Yours<\/button>/);
+    expect(owner).toContain("Who they dated");
+    const everyone = renderToStaticMarkup(await GraphPage({ searchParams: Promise.resolve({}) }));
+    expect(everyone).toMatch(/aria-pressed="false">Yours<\/button>/);
   });
 });
