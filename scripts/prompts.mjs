@@ -1,6 +1,6 @@
 /**
  * The image prompt templates, kept here so the generator and its test share one copy. The
- * human-readable version lives in docs/image-strategy.md. Each job carries its own `prompt_version`,
+ * human-readable version lives in docs/history/image-strategy.md. Each job carries its own `prompt_version`,
  * which is written to character_assets.prompt_version, so an image can always be traced to the exact
  * wording that produced it.
  *

@@ -1,3 +1,5 @@
+> Retired 2026-11-17: a day-one proposal; its tables were never built. What was built instead is the `character_memory` table in `lib/db.ts` ([docs/character-depth.md](../character-depth.md)); the main PRD is [docs/PRDs/PRD.md](../PRDs/PRD.md).
+
 # Botchelor PRD: Persistent Character Memory & Learning Architecture
 
 **Version:** 1.0  

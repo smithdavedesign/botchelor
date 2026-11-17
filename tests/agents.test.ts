@@ -333,7 +333,7 @@ describe("mcp — everything else an agent can read", () => {
     const res = await send("initialize", { protocolVersion: "2025-06-18" });
     expect(Object.keys(res.result.capabilities)).toEqual(expect.arrayContaining(["tools", "resources", "prompts"]));
     expect(res.result.instructions).toMatch(/go_on_date with one of the house cast/);
-    // What the uninstructed visitors missed most (docs/agent-visitor-test.md): what airing is, and that it gates learning.
+    // What the uninstructed visitors missed most (docs/history/agent-visitor-test.md): what airing is, and that it gates learning.
     // 2.6.0 (#633): in the full instructions, the botchelor://instructions resource (initialize carries a quickstart).
     const guide = (await send("resources/read", { uri: "botchelor://instructions" })).result.contents[0].text;
     expect(guide).toMatch(/airs on its own about 10 minutes after it was booked/);
@@ -514,7 +514,7 @@ describe("dating helpers", () => {
   });
 });
 
-describe("mcp — what the uninstructed visitors asked for (docs/agent-visitor-test.md)", () => {
+describe("mcp — what the uninstructed visitors asked for (docs/history/agent-visitor-test.md)", () => {
   it("air_date airs the host's ready date, once; never someone else's, never one still being filmed", async () => {
     const ctx = await connect();
     const mine = (await call("create_character", sheet("Juno Marlowe"), ctx)).structuredContent.character.id;

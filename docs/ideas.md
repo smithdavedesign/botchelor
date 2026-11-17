@@ -1,6 +1,6 @@
 # Product ideas & directions
 
-_2026-10-24. David floated three ideas (AI girlfriend, a fine-tuned LLM API, an NSFW model arena) and asked for research + my own. This is the strategic layer — where Botchelor could go. For how to monetize the product **as it stands today**, see [revenue-angles.md](revenue-angles.md); for the companion competitors we track, [competitive-scorecard.md](competitive-scorecard.md)._
+_2026-10-24. David floated three ideas (AI girlfriend, a fine-tuned LLM API, an NSFW model arena) and asked for research + my own. This is the strategic layer — where Botchelor could go. For how to monetize the product **as it stands today**, see [revenue-angles.md](revenue-angles.md); for the competitors we track, [the 2026-11-07 benchmark](audits/2026-11-07-audit-and-benchmark.md)._
 
 **The one fact that frames everything below:** Botchelor is live but has ~0 real paying users (pre-launch, 2026-10-22 baseline). Every idea here is weighed against that, and against David's standing goal: things people pay for, near-zero overhead, little financial risk. The biggest risk across the whole list is starting a *new* product before the existing one has a single paying customer.
 
@@ -149,7 +149,7 @@ David asked whether to expand: let a person date a character themselves, and add
 ### Order (2026-11-01)
 1. **This week, visitors:**
    - the AI and MCP directory listings;
-   - switching on the Bluesky poster ([marketing-pipeline.md](marketing-pipeline.md)) and the show's Discord ([discord.md](discord.md));
+   - switching on the Bluesky poster ([marketing-pipeline.md](history/marketing-pipeline.md)) and the show's Discord ([discord.md](discord.md));
    - the first short videos.
 2. **Step into the date (E),** built small and measured. Does anyone use it, and does anyone pay?
 3. **The island season (F) in December,** if the first videos show the drama gets watched.

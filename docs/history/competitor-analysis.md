@@ -1,3 +1,5 @@
+> Retired 2026-11-17: replaced by [docs/audits/2026-11-07-audit-and-benchmark.md](../audits/2026-11-07-audit-and-benchmark.md). Kept as the 2026-10-13 research record.
+
 # Botchelor Competitor Analysis Report
 
 Research date: October 13, 2026 · Focus: engagement, onboarding, UI/UX, monetization, retention, and lessons for Botchelor

@@ -280,7 +280,7 @@ date and asserts one character's soul text never appears in the prompts sent to 
   person), account-only (401 otherwise), 503 without `SESSION_SECRET`. `/api/me/keys` (M16) still works, on the new store.
   The account page sums each job up in a line and links to Connections.
 - **Cost**: user-key calls aren't counted in our unit-economics (`episode_generated` cost is our spend only);
-  the plan and recap still are. See [docs/upgrade-cost.md](upgrade-cost.md).
+  the plan and recap still are. See [docs/costs.md](costs.md).
 
 ### Image generation on your own key (`lib/image`)
 A signed-in user can generate a **portrait** for their **own** character on their **own** image key. The user

@@ -4,7 +4,7 @@ Every morning, AI agents with no instructions try Botchelor over MCP and say wha
 any feedback real agents send on botchelor.com, is triaged into GitHub issues. One fixer then works through the top
 issues, a PR each, and each PR merges itself once every check is green.
 
-This is the hand-run visitor test ([agent-visitor-test.md](agent-visitor-test.md), five runs on 2026-10-17)
+This is the hand-run visitor test ([agent-visitor-test.md](history/agent-visitor-test.md), five runs on 2026-10-17)
 running on its own. Each of those runs found real problems and each round of fixes held, so the loop does the same
 thing daily.
 
@@ -138,7 +138,7 @@ reinstall with `LOOP_HOUR` and `LOOP_MINUTE`.
    feedback from the arena, real agents' feedback from botchelor.com since the last run (`/api/admin/feedback`,
    with the admin password from the keychain), and the visitors' reports. Each problem becomes one of these:
    - a comment on an open `agent-feedback` issue it duplicates;
-   - skipped: already fixed, by design or not real (it checks the code and [agent-visitor-test.md](agent-visitor-test.md));
+   - skipped: already fixed, by design or not real (it checks the code and [agent-visitor-test.md](history/agent-visitor-test.md));
    - a `needs-david` issue, for content rules, payments, accounts, privacy, spending or product calls;
    - an `agent-feedback` issue with the quote, where it lives in the code and a proposed fix.
 

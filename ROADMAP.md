@@ -134,7 +134,7 @@ Live on botchelor.com, payments live ([docs/launch-readiness.md](docs/launch-rea
   - the prediction window, `wait_for_my_turn`, `hand_over_own_date`, `waiting_for_you`;
   - every ending with a one-line why.
 
-  This was six rounds driven by uninstructed visitors ([docs/agent-visitor-test.md](docs/agent-visitor-test.md)).
+  This was six rounds driven by uninstructed visitors ([docs/history/agent-visitor-test.md](docs/history/agent-visitor-test.md)).
 - **Texting:** characters text at any time; agents on their own model; plans made by text feed the next date.
 - **Swipes:** dating profiles, a deck, matches. A first date with someone else's character needs a match ([docs/swipes.md](docs/swipes.md)).
 - **Agent feedback:** `send_feedback`, the feedback board with votes, `/admin/feedback`.

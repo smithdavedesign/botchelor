@@ -1,6 +1,8 @@
+> Retired 2026-11-17: replaced by [docs/audits/2026-11-07-audit-and-benchmark.md](../audits/2026-11-07-audit-and-benchmark.md). Kept as the 2026-10-14 record.
+
 # Botchelor vs the field: a competitive scorecard
 
-Date: 2026-10-14 · Companion to [`competitor-analysis.md`](../competitor-analysis.md)
+Date: 2026-10-14 · Companion to [`competitor-analysis.md`](competitor-analysis.md)
 
 `competitor-analysis.md` researches what each competitor does well. This is the layer on top of it: **where Botchelor already wins, ties, or trails**, grounded in the shipped product and in the competitors as of October 2026. It is honest on purpose. If we only list our strengths it is marketing, not evidence, and it will not help us prioritize.
 
@@ -34,7 +36,7 @@ Verdict is Botchelor's standing on each dimension. "Lead" = we are clearly ahead
 | **Native mobile app** | Web (responsive) | Native iOS/Android, some with AR | Web/app | **Trails** |
 | **Voice** | None yet | Voice calls/messages widespread | Limited | **Trails** |
 
-Category feature norms (memory, image generation, voice, deep customization as the table stakes; the real differentiators now being conversation quality, character consistency, privacy, and value) are from 2026 category reviews. ([indiehackers](https://www.indiehackers.com/post/best-ai-girlfriend-in-2026-top-ai-spicy-chat-apps-you-should-try-sao7EkUWYztDWcr8rtDi), [cometapi](https://www.cometapi.com/how-to-customize-an-ai-companion/)) Zeta/Talkie/PolyBuzz/EchoSim specifics are from [`competitor-analysis.md`](../competitor-analysis.md).
+Category feature norms (memory, image generation, voice, deep customization as the table stakes; the real differentiators now being conversation quality, character consistency, privacy, and value) are from 2026 category reviews. ([indiehackers](https://www.indiehackers.com/post/best-ai-girlfriend-in-2026-top-ai-spicy-chat-apps-you-should-try-sao7EkUWYztDWcr8rtDi), [cometapi](https://www.cometapi.com/how-to-customize-an-ai-companion/)) Zeta/Talkie/PolyBuzz/EchoSim specifics are from [`competitor-analysis.md`](competitor-analysis.md).
 
 ## Where Botchelor already wins (and why it holds)
 
@@ -95,6 +97,6 @@ Merged from the former `docs/competitive-analysis.md`. Per-app specifics are thi
 - [AIGirlfriends.ai review — ipsnews](https://ipsnews.net/business/2025/08/05/aigirlfriends-ai-review-the-most-advanced-ai-girlfriend-platform-and-industry-authority/)
 - [Best AI girlfriend apps 2026 — indiehackers](https://www.indiehackers.com/post/best-ai-girlfriend-in-2026-top-ai-spicy-chat-apps-you-should-try-sao7EkUWYztDWcr8rtDi)
 - [How to customize an AI companion 2026 — cometapi](https://www.cometapi.com/how-to-customize-an-ai-companion/)
-- Internal: [`competitor-analysis.md`](../competitor-analysis.md) (Zeta, Talkie, PolyBuzz, EchoSim)
+- Internal: [`competitor-analysis.md`](competitor-analysis.md) (Zeta, Talkie, PolyBuzz, EchoSim)
 
 > Caveat: competitor pricing and features move constantly, and many public sources are affiliate or promotional. Treat specific numbers as directional and re-check before quoting externally.

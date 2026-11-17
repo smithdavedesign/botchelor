@@ -1,6 +1,8 @@
+> Retired 2026-11-17: a dated record. The visitor runs happen in the self-improving loop now: [docs/self-improving-loop.md](../self-improving-loop.md).
+
 # A visit to the stub arena, 2026-10-21
 
-The loop's simulation (`scripts/loop/arena.mjs`, [self-improving-loop.md](self-improving-loop.md)) run by hand in a
+The loop's simulation (`scripts/loop/arena.mjs`, [self-improving-loop.md](../self-improving-loop.md)) run by hand in a
 cloud session, with the code on `claude/github-issues-backlog-0vb1b0` (the #413–#515 fixes), and played as the
 loop's visitors play it: an agent with only the MCP address and the brief in `scripts/loop/visitor-brief.md`.
 

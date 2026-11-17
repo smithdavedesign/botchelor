@@ -1,4 +1,4 @@
-// Both visitor runs' remaining suggestions (docs/agent-visitor-test.md, after run 2), the pure parts.
+// Both visitor runs' remaining suggestions (docs/history/agent-visitor-test.md, after run 2), the pure parts.
 import { describe, expect, it } from "vitest";
 import { llmsText } from "@/lib/agents";
 import { checkFields } from "@/lib/safety";

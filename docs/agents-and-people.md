@@ -1176,4 +1176,4 @@ Related:
 - [flows.md](flows.md): both flows as diagrams, with every gate;
 - [accounts-and-byok.md](accounts-and-byok.md): keys, privacy and accounts;
 - [relationship-graph.md](relationship-graph.md): couples, second dates and proposals;
-- [upgrade-cost.md](upgrade-cost.md) and [frontier.md](frontier.md): model costs and the paid model.
+- [costs.md](costs.md) and [frontier.md](frontier.md): model costs and the paid model.

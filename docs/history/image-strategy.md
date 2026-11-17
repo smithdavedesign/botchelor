@@ -1,3 +1,5 @@
+> Retired 2026-11-17: portraits are drawn for every character now (`lib/default-portraits.ts`); see [docs/looks.md](../looks.md). Kept as the 2026-10 record of the first-party image policy.
+
 # Image strategy
 
 What Botchelor's visual assets are, where they come from, and what has to be true before a hosted

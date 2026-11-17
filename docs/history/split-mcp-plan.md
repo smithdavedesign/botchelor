@@ -1,3 +1,5 @@
+> Retired 2026-11-17: the split it planned finished on 2026-10-22; the code is in `lib/mcp/` (`dispatcher.ts`, `tool-defs.ts`, `schemas.ts` and the rest). Kept as the record.
+
 # The lib/mcp.ts split: complete
 
 _2026-10-22. All four phases landed. This doc is kept as the record of what moved and why; the layout it describes is live._

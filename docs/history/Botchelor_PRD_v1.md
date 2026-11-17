@@ -1,3 +1,5 @@
+> Retired 2026-11-17: a day-one proposal (2026-10-13); its data model and events were not built as written. What was built is in [docs/PRDs/PRD.md](../PRDs/PRD.md) and [docs/architecture.md](../architecture.md).
+
 # Botchelor — Product Requirements & Commercialization Spec
 
 **Version:** 1.0  

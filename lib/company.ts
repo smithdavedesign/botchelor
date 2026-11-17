@@ -14,7 +14,7 @@ export type SocialId = "x" | "bluesky" | "tiktok" | "discord" | "github";
 export type Social = { id: SocialId; name: string; handle: string; url: string };
 
 /**
- * The show's own accounts (set up 2026-11-09, docs/marketing-pipeline.md). GitHub is the public MCP repository, the one
+ * The show's own accounts (set up 2026-11-09, docs/marketing.md). GitHub is the public MCP repository, the one
  * piece of the code that's open; the app's own repository stays private.
  */
 export const SOCIALS: readonly Social[] = [

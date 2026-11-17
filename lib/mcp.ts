@@ -1,6 +1,6 @@
 /**
  * Thin re-export of the MCP server. The whole dispatcher — handlers, helpers, instructions — lives in
- * `lib/mcp/dispatcher.ts` after phase 4 of the split (docs/split-mcp-plan.md); this file keeps the public
+ * `lib/mcp/dispatcher.ts` after phase 4 of the split (docs/history/split-mcp-plan.md); this file keeps the public
  * `import { … } from "@/lib/mcp"` surface stable for every caller (route handlers, tests, scripts).
  */
 export {

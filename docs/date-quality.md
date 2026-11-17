@@ -550,8 +550,9 @@ Quality includes the date actually happening. What the eval exposed, and what's 
 All free-tier calls today, so the cash cost is $0. At Google's paid prices a date is ~15 calls, ~26k tokens in
 and ~2.2k out, about **1.3¢ before thinking** (budget 1–2.5¢). The conversation is about two-thirds of it, and
 the critic adds about 1–3 rewrites a date. The showcase bar adds at most one extra date's calls a day, for the
-lobby room only. The full breakdown, fixed costs and what it means for pricing are in
-[docs/upgrade-cost.md](upgrade-cost.md). Every generated date now logs its real tokens and paid-tier cost.
+lobby room only. The measured breakdown is in
+[docs/costs.md](costs.md) ("Per-date token use"); the fixed costs and pricing of the time are in
+[docs/history/upgrade-cost.md](history/upgrade-cost.md). Every generated date now logs its real tokens and paid-tier cost.
 
 ## Telemetry
 
@@ -595,7 +596,7 @@ What changed this round (all free-tier, no determinism change):
 
 | Change | File | Why |
 |---|---|---|
-| Director **recommended** model `gemini-3.5-flash` (`DEFAULT_DIRECTOR_MODEL`), set via `LLM_DIRECTOR_MODEL` with a paid key — NOT a free default | `lib/model.ts` `directorModelName` | The plan sets the whole date's grounding, so a better director is a big lever for ~1 call. But flash (non-lite) models 429 on the free key (availability table above), so defaulting to one would just fail and fall back to the rules plan. On the free key the director stays on the actor's flash-lite; the real upgrade is a paid `LLM_DIRECTOR_MODEL` (`docs/upgrade-cost.md`). |
+| Director **recommended** model `gemini-3.5-flash` (`DEFAULT_DIRECTOR_MODEL`), set via `LLM_DIRECTOR_MODEL` with a paid key — NOT a free default | `lib/model.ts` `directorModelName` | The plan sets the whole date's grounding, so a better director is a big lever for ~1 call. But flash (non-lite) models 429 on the free key (availability table above), so defaulting to one would just fail and fall back to the rules plan. On the free key the director stays on the actor's flash-lite; the real upgrade is a paid `LLM_DIRECTOR_MODEL` (`docs/history/upgrade-cost.md`). |
 | Actor reasoning `minimal` → `low` | `lib/model.ts` `roleReasoning` | A touch more thinking so the actor actually follows the grounded-first-date rules instead of reaching for filler. |
 | Actor prompt rewritten: every line answers / asks / reveals one concrete thing; no extended metaphor; never narrate your own intention | `lib/conversation.ts` `SYSTEM_PROMPT` | Targets the exact failure (floral riff, agenda narration). |
 | `motif_fixation` critic | `lib/quality.ts`, `lib/conversation.ts` `critiqueTurn` | Sends back a line that keeps riding an image the date already circled while engaging nothing (no own content, no question, doesn't pick up the previous line). |

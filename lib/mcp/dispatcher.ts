@@ -41,7 +41,7 @@ import { hasJobKey, removeConnection } from "../connections";
 import { checkRateLimit, rateLimitInfo, rateLimitMessage, type RateLimitBucket } from "../rate-limit";
 import { drainPending, isSubscribable, subscribe as subscribeResource, SUBSCRIBABLE, unsubscribe as unsubscribeResource } from "../mcp-subscriptions";
 import { requestElicitation, requestSampling, resolveServerRequest } from "../mcp-stream";
-// First phase of the lib/mcp.ts split (docs/split-mcp-plan.md): schemas, annotations, edit-distance.
+// First phase of the lib/mcp.ts split (docs/history/split-mcp-plan.md): schemas, annotations, edit-distance.
 import {
   AGENT_ID,
   COMPACT_STEP,
@@ -563,7 +563,7 @@ export const fullInstructions = (): string => [
 // (phase 3 of the split). Re-exported for existing callers.
 export { ARC_PICKS, AUTOPLAY_SIDES, DEALBREAKER_PICK_NUMBERS, DECK_FILTERS, FEEDBACK_SORTS, FEEDBACK_VOTES, LIST_CAST_KINDS, SEARCH_MADE_BY } from "./tool-defs";
 // COMPACT_STEP, PREVIEW, SINCE_TURN, VISIBILITY, FORMAT, WAIT, READ, WRITE, SET now live in lib/mcp/
-// (first phase of the lib/mcp.ts split, docs/split-mcp-plan.md). Export the step-values constant for the
+// (first phase of the lib/mcp.ts split, docs/history/split-mcp-plan.md). Export the step-values constant for the
 // backlog test file that reads it.
 export { COMPACT_STEP_VALUES } from "./schemas";
 
@@ -9581,7 +9581,7 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
                 ...(wasReused ? { agent_id_reused: true, agent_id_note: "The same agent_id as your initialize a moment ago (it hadn't written anything yet), not a new identity." } : {}),
               }
             : {}),
-          // Hints clients can use without changing the protocol (`docs/mcp-best-practices-review.md`).
+          // Hints clients can use without changing the protocol (`docs/history/mcp-best-practices-review.md`).
           "botchelor/transport": "streamable-http",
           "botchelor/notifications_pushed": true,
           // #1361: shorter (the first call's weight).

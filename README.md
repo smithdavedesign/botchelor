@@ -291,7 +291,7 @@ More, screen by screen: [docs/screenshots/](docs/screenshots/). What's shipped a
 ## Docs
 
 - [Research](RESEARCH.md) — findings and sources
-- PRDs ([docs/PRDs/](docs/PRDs/)): [the original](docs/PRDs/PRD.md), [v1, the commercial spec](docs/PRDs/Botchelor_PRD_v1.md), [character memory and learning](docs/PRDs/Botchelor_Character_Memory_Learning_PRD.md)
+- PRDs ([docs/PRDs/](docs/PRDs/)): [the original](docs/PRDs/PRD.md), [v1, the commercial spec](docs/history/Botchelor_PRD_v1.md), [character memory and learning](docs/history/Botchelor_Character_Memory_Learning_PRD.md)
 - [Launch readiness](docs/launch-readiness.md): status, spend and abuse guards, report review, monitoring, the live end-to-end check, owner decisions
 - [Launch kit](docs/launch-kit.md): Season 1 post drafts, tagged links, the MCP directories (Registry, mcp.so, Glama) and an r/mcp post
 - [The show's Discord](docs/discord.md): what the bot posts and when (the episode digest, Sunday's vote, the board), its settings, and setting up the server
@@ -303,15 +303,15 @@ More, screen by screen: [docs/screenshots/](docs/screenshots/). What's shipped a
 - [Companions](docs/companions.md) and [the stages](docs/stages.md): one-to-one companions, the plan and scenes; every stage's modularity, safety and scale review
 - [Audits](docs/audits/): dated reviews of the site; [2026-11-01](docs/audits/2026-11-01-audit.md) has the rows still open
 - [Date quality](docs/date-quality.md): how the two AI daters talk, what each model sees, the beat sheet and critic, and the eval results
-- [Two agents arrive with no instructions](docs/agent-visitor-test.md): what two uninstructed agents made of the MCP front door, both reports in full, and what to improve (airing, onboarding context, errors, endings' "why")
+- [Two agents arrive with no instructions](docs/history/agent-visitor-test.md): what two uninstructed agents made of the MCP front door, both reports in full, and what to improve (airing, onboarding context, errors, endings' "why")
 - [Flows](docs/flows.md): two Mermaid maps, a person on the website and an agent over MCP, with every gate on the way (18+, content rules, the swipe gate, allowance and tokens, budgets, airing, privacy)
 - [Agents and people](docs/agents-and-people.md): the two kinds of visitor, how their characters differ, who supplies the compute (owns the GPU) for every model call, two-agent dates, who a character is open to, and what each party is for
 - [Relationship simulation evidence](docs/relationship-sim-evidence.md): ten couples on five dates each, on the stub and on the real model (`npm run sim:relationships`) — what holds together, what grows, what was fixed (engine v3, memory, names, labels), and what only live players can answer
 - [Accounts, ownership, visibility & BYOK](docs/accounts-and-byok.md): optional accounts (anonymous still works), who owns and can edit a character, who can see a date, and bringing your own model key
 - [The data plan](docs/data-plan.md): what the show keeps for learning from (every table and column), the opt-in consent gate and what it covers, the preference export and its flags, how long each kind is kept, what's in the account export and what goes on delete, the north-star definition, and what's never collected
-- [Competitive scorecard](docs/competitive-scorecard.md): where Botchelor leads, ties and trails the field, with a sourced feature matrix (the deep per-competitor research is in [competitor-analysis.md](competitor-analysis.md))
-- [Image strategy](docs/image-strategy.md): where the visuals come from, and the provenance gate any hosted image must pass
-- [Upgrade cost](docs/upgrade-cost.md): what frontier models and the full stack would cost
+- [Competitive scorecard](docs/history/competitive-scorecard.md): where Botchelor leads, ties and trails the field, with a sourced feature matrix (the deep per-competitor research is in [competitor-analysis.md](docs/history/competitor-analysis.md))
+- [Image strategy](docs/history/image-strategy.md): where the visuals come from, and the provenance gate any hosted image must pass
+- [Upgrade cost](docs/history/upgrade-cost.md) (retired 2026-11-17 for [costs.md](docs/costs.md)): the 2026-10-13 spend proposal
 
 ## Installation & Setup
 
