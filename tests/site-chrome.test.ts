@@ -123,6 +123,11 @@ describe("the phone's tab bar", () => {
       nav.path = path;
       expect(here(), path).toBe("Chat");
     }
+    // The show's own tabs and a season's page are the Watch door (app/ShowTabs.tsx).
+    for (const path of ["/house", "/reunion", "/shows", "/shows/botchelor", "/seasons/october-2026"]) {
+      nav.path = path;
+      expect(here(), path).toBe("Watch");
+    }
     nav.path = "/";
     expect(here()).toBeNull();
   });

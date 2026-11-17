@@ -158,7 +158,7 @@ export default function ShowcaseGrid({ posts, admin = false, reels = "", credits
                   {x.character.name}
                   {x.partner ? ` × ${x.partner.name}` : ""}
                 </strong>
-                {credits[x.character.id] && <span className="showcase-credit muted">{credits[x.character.id]}</span>}
+                {credits[x.character.id] && <span className="showcase-credit muted" title={credits[x.character.id]}>{credits[x.character.id]}</span>}
               </p>
               <p className="showcase-meta small muted">
                 {[x.medium === "picture" ? "Picture" : x.from_date ? "Date reel" : "Clip", x.place ? placeLabel(x.place) : ""].filter(Boolean).join(" · ")}

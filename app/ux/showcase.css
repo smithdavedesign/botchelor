@@ -492,6 +492,17 @@ a.showcase-reels-link {
 .showcase-credit {
   display: block;
 }
+/* Two cards to a row on a phone: the credit is one line, cut with an ellipsis (its title holds the whole of it). */
+@media (max-width: 720px) {
+  .showcase-credit {
+    flex-basis: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
 
 /* ---------------- the Studio's way in: one character in several scenes (app/studio/page.tsx) ---------------- */
 .studio-promise {

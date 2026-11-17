@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Icon, { type IconName } from "@/app/Icon";
-import { atLink, type NavLink } from "@/app/Nav";
+import { atLink, SHOW_PAGES, type NavLink } from "@/app/Nav";
 
 type Tab = NavLink & { icon: IconName };
 
@@ -17,7 +17,8 @@ type Tab = NavLink & { icon: IconName };
  * while companions are open, Characters current on /companion otherwise.
  */
 export function tabBarTabs(companions: boolean, chat = true, hasCharacter = true): readonly Tab[] {
-  const watch: Tab = { href: "/watch", label: "Watch", icon: "tv" };
+  // The show's own tabs (app/ShowTabs.tsx: Watch · House · Season · Shows) and a season's page are all the Watch door.
+  const watch: Tab = { href: "/watch", label: "Watch", icon: "tv", also: SHOW_PAGES };
   const you: Tab = { href: "/account", label: "You", icon: "user" };
   if (chat) {
     return [

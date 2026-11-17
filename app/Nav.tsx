@@ -18,8 +18,10 @@ import { openFeedback } from "@/lib/user-feedback-shared";
  * Watch (app/ShowTabs.tsx).
  */
 export type NavLink = { href: string; label: string; also?: readonly string[] };
+/** The show's own tabs (app/ShowTabs.tsx: Watch · House · Season · Shows) and a season's page: all the Watch door. */
+export const SHOW_PAGES: readonly string[] = ["/house", "/reunion", "/shows", "/seasons"];
 const LINKS: readonly NavLink[] = [
-  { href: "/watch", label: "Watch" },
+  { href: "/watch", label: "Watch", also: SHOW_PAGES },
   { href: "/chat", label: "Chat", also: ["/matches", "/swipe", "/messages", "/companion"] },
   { href: "/characters", label: "Characters" },
   // The fifth door (2026-11-16): the Gallery (/showcase, what everyone made) and My studio (/studio), one place to show and make.
@@ -32,13 +34,13 @@ const LINKS: readonly NavLink[] = [
  * without Dating for a newcomer, and the companions' directory a sub-link under Characters in the phone menu.
  */
 const OWNER_LINKS: readonly NavLink[] = [
-  { href: "/watch", label: "Watch" },
+  { href: "/watch", label: "Watch", also: SHOW_PAGES },
   { href: "/matches", label: "Dating", also: ["/swipe", "/messages"] },
   { href: "/characters", label: "Characters", also: ["/companion"] },
   { href: "/account", label: "Account" },
 ];
 const NEWCOMER_LINKS: readonly NavLink[] = [
-  { href: "/watch", label: "Watch" },
+  { href: "/watch", label: "Watch", also: SHOW_PAGES },
   { href: "/characters", label: "Characters", also: ["/companion"] },
   { href: "/account", label: "Account" },
 ];
