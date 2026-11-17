@@ -5,10 +5,22 @@
  */
 import type { Character } from "./character";
 import type { Turn } from "./conversation";
-import type { Model, Usage } from "./model";
+import { frontierConfigured, getDirectorModel, getFrontierModel, type Model, type Usage } from "./model";
 import { narrate, type NarrateLine, type Narration } from "./narration";
 import { shortName } from "./names";
 import { venueName } from "./venues";
+
+/** Sent with every narrator call on the frontier: prose needs no thinking, which bills (and counts) as output. */
+const NO_THINKING = { reasoning: { effort: "none" } };
+
+/**
+ * The show's narrator, for a date's prose and its story: the frontier model when it's configured (as show dates are),
+ * with its thinking off, else the director model. The first live date (2026-11-17) spent 649 of its 1,452 narration
+ * output tokens thinking, and its story's reply was cut off by the length cap before it closed.
+ */
+export function showNarrator(): Model {
+  return (frontierConfigured() ? getFrontierModel(NO_THINKING) : null) ?? getDirectorModel(process.env, undefined, false);
+}
 
 /** A line as the narrator reads it: its speaker's first name, what's said ("…" is nothing said) and what's done. */
 export function turnToNarrate(t: Pick<Turn, "side" | "dialogue" | "action">, names: { a: string; b: string }): NarrateLine {

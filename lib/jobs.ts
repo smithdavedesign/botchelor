@@ -11,7 +11,7 @@
  * hook and the cron from double-running the same job.
  */
 import { refundBoughtTokens, releaseEpisode, type Reservation } from "./allowance";
-import { narrateDate } from "./narrate-date";
+import { narrateDate, showNarrator } from "./narrate-date";
 import { NARRATE_BATCH } from "./narration";
 import { summarizeUsage } from "./pricing";
 import { track, trackDateQuality, trackEpisodeCost } from "./analytics";
@@ -390,7 +390,8 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
       const n0 = Date.now();
       // A few more calls before the date is saved: the lease covers them.
       void renewLease(db, episodeId, row.attempts, AFTER_OUTCOME_LEASE_SECONDS).catch(() => {});
-      const done = await narrateDate(models.director, kept, built.characters, built.setup.venue, (u) => void used.push(u)).catch(() => null);
+      // The show's narrator (lib/narrate-date.ts): the frontier with its thinking off when this date ran on it, else the director.
+      const done = await narrateDate(frontier ? showNarrator() : models.director, kept, built.characters, built.setup.venue, (u) => void used.push(u)).catch(() => null);
       if (done) {
         kept = done.turns;
         narration = {

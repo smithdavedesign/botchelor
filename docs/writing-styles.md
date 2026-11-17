@@ -32,7 +32,7 @@ Narration is a **pass over lines already written and checked**. It never changes
 
 | Surface | Narrator model | Where it runs |
 | --- | --- | --- |
-| Show dates | The show's director model (the frontier when it's configured) | `lib/jobs.ts`, after the conversation, before the date is saved (`lib/narrate-date.ts`) |
+| Show dates and their stories | The show's model (the frontier when it's configured), with its thinking off (`showNarrator`) | `lib/jobs.ts`, after the conversation, before the date is saved (`lib/narrate-date.ts`) |
 | After Dark | The fast writer (DeepSeek V3.1) | `lib/adult/scenes.ts` `writeScene`, after the step's lines pass (`lib/adult/narrate-scene.ts`) |
 | Companion scenes | The companion's model | `lib/companion.ts` `speak` |
 
@@ -50,7 +50,7 @@ Prose is new text that describes people and bodies, so it answers to **more** th
    - **The show:** underwear and undressing words.
    - **After Dark:** anything young (kid, child, school) and any family word, in any sense.
 
-A story that trips any check isn't kept, rather than being kept with a hole in it.
+Stories: a story quotes the date's lines, which already passed the line checks, so its quoted lines answer to those checks and the age rule only, and the prose between them to the whole guard (`guardStory`). A sentence the guard refuses is cut. A story that fails a line check or a hard no, or that the guard cut too much of, isn't kept. A reply the length cap cut off is no story either, so one is never kept without its ending.
 
 Worn AI-prose phrases ("a breath she didn't know she was holding", "something shifted", "smirk"…) are named in the prompt. A sentence that uses one anyway is cut (`wornCut`).
 
@@ -65,6 +65,16 @@ Admins pay nothing, as with everything else. For everyone else, once it's opened
 | A narrated After Dark step | 2 of the month's scene steps (`NARRATED_WRITE_WEIGHT`); a chapter costs 2× `chapter_tokens` for anyone who pays by the chapter | A step's lines are short, so the prose is most of what comes out. |
 | A story of an After Dark chapter | 2 scene steps (`ADULT_STORY_WRITES`), once a chapter | One long call. |
 | A narrated companion scene reply | 2 of the day's free replies (`NARRATED_REPLY_WEIGHT`); the plan stays unlimited within fair use | One small call per reply. |
+
+### Measured on production (2026-11-17, the audit account)
+
+| Run | Narration | Next to |
+| --- | --- | --- |
+| A show date, 11 lines, Claude Haiku 5.5 | 2 calls, 3.5k tokens in, 1.45k out (649 of them thinking, since turned off for the narrator), 9.9 s; 8 of 11 lines got prose, none held | A date's own ~15 calls, ~26k in, ~2.2k out, 1.3–2.5¢ (`docs/costs.md`): narration adds roughly a third to a date's model cost, well under 1¢ |
+| An After Dark step, 4 lines, DeepSeek V3.1 | 1 call, 815 in, 246 out, **0.08¢**, 2.7 s; 4 of 4 lines got prose | The step's own ~0.23–0.25¢: about +30% |
+| An After Dark step, 3 lines | 1 call, 950 in, 148 out, **0.05¢**, 1.8 s; 3 of 3 | Same |
+
+So narration costs about 30% more model spend on both sides, and the charges above (a second token, double weight) are set well above that. They are a price for a better product, not cost recovery. A bought token sells for about 67–80¢, so the extra token on a narrated date is the largest margin of the five.
 
 What a pass really costs is logged so the prices can be checked against it:
 
