@@ -28,8 +28,9 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
+// Its words: the date's photo that rides with it (lib/date-photo.ts) is a message of its own, tests/date-photo.test.ts.
 const teases = async (episodeId: string) =>
-  (await t.db.query<{ thread_id: string; text: string }>(`select thread_id, text from companion_messages where action = $1 order by created_at, id`, [`tease:${episodeId}`])).rows;
+  (await t.db.query<{ thread_id: string; text: string }>(`select thread_id, text from companion_messages where action = $1 and via <> 'photo' order by created_at, id`, [`tease:${episodeId}`])).rows;
 /** airEpisode fires the tease and moves on: wait for it to land (or not) before looking. */
 const settled = async (episodeId: string, expected: number) => {
   for (let i = 0; i < 50 && (await teases(episodeId)).length < expected; i++) await new Promise((r) => setTimeout(r, 20));

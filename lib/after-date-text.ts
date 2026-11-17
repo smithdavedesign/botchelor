@@ -27,8 +27,10 @@ import { venuePhrase } from "./venues";
  * `offers` (see them again, someone new, advice), which the thread shows as chips and books through the show's own
  * route. The tease carries none: a chip under it would give the ending away.
  *
- * The after-date text also carries a photo from the date (lib/date-photo.ts: a snapshot composed from the place and the
- * two portraits, $0, one message after the first bubble, under the same tag). DATE_PHOTO_TEXTS=0 leaves it out.
+ * The after-date text and the tease also carry a photo from the date (lib/date-photo.ts: a snapshot composed from the
+ * place and the two portraits, $0, never the ending, one message after the first bubble, under the same tag), so every
+ * text about a date looks the same in the thread. The Hear-from text after a tease leaves it out (the thread already has
+ * it). DATE_PHOTO_TEXTS=0 leaves it out everywhere.
  */
 
 /** What the text is built from: a row of `episodes` with the two names, or an episode view's fields. */
@@ -164,8 +166,19 @@ export async function sendAfterDateText(db: Db, args: { userId: string; episodeI
   if (overnight) lines[lines.length - 1] = overnightOfferLine(partnerName);
   // The chips under the text (lib/companion-offers.ts): see them again where the ending allows, someone new, advice.
   const offers = storedOffers({ episodeId: r.id, partnerId, partner: partnerName, ending: r.ending, overnight });
-  // A photo from the date (lib/date-photo.ts): composed on request, never the ending in it.
-  const photo = textPhoto({ id: r.id, names: [r.a_name, r.b_name], venue: r.venue, at: r.created_at });
+  // A photo from the date (lib/date-photo.ts): composed on request, never the ending in it. Not again when the tease, the
+  // life text or the cast's opener already sent this date's photo to this thread: then the text is just its words.
+  const snapshot = textPhoto({ id: r.id, names: [r.a_name, r.b_name], venue: r.venue, at: r.created_at });
+  const sentBefore = snapshot
+    ? (
+        await db.query(
+          `select 1 from companion_messages m join companion_threads t on t.id = m.thread_id
+            where t.user_id = $1 and t.character_id = $2 and m.via = 'photo' and m.media_url = $3 limit 1`,
+          [args.userId, characterId, snapshot.url],
+        )
+      ).rows.length > 0
+    : false;
+  const photo = sentBefore ? null : snapshot;
   const posted = await postFromCharacter(db, { userId: args.userId, characterId, lines, now: args.now, kind: "after_date", dedupeKey: `after_date:${r.id}`, offers, photo });
   if (posted) return { ok: true, thread_id: posted.threadId, character_id: characterId, message_id: posted.messageId, sent: true };
   const existing = await threadIdFor(db, args.userId, characterId);
@@ -233,6 +246,10 @@ type OptedInSide = {
   partner: string;
   partner_id: string;
   booked: boolean;
+  /** The thread's character's own name, where the date was (episodes.setup.venue) and when: the tease's photo. */
+  name: string;
+  venue: string | null;
+  created_at: Date | string;
 };
 
 /**
@@ -245,7 +262,9 @@ const OPTED_IN_SIDES_SQL = (where: string) => `
          t.character_id = e.character_a as is_a,
          case when t.character_id = e.character_a then b.name else a.name end as partner,
          case when t.character_id = e.character_a then b.id else a.id end as partner_id,
-         exists (select 1 from episodes f where f.followup_of = e.id) as booked
+         exists (select 1 from episodes f where f.followup_of = e.id) as booked,
+         case when t.character_id = e.character_a then a.name else b.name end as name,
+         e.setup->>'venue' as venue, e.created_at
     from episodes e
     join characters a on a.id = e.character_a
     join characters b on b.id = e.character_b
@@ -319,7 +338,9 @@ export async function teaseAfterAir(db: Db, episodeId: string, opts: { now?: Dat
   let sent = 0;
   for (const r of rows) {
     if (skip.has(r.user_id)) continue;
-    const posted = await postFromCharacter(db, { userId: r.user_id, characterId: r.character_id, lines: teaseLines(r.partner), now: opts.now, kind: "tease", dedupeKey: `tease:${r.episode_id}` }).catch(() => null);
+    // The date's photo, like the Hear-from text's (it shows the place and the two of them, never how it ended).
+    const photo = textPhoto({ id: r.episode_id, names: [r.name, r.partner], venue: r.venue, at: r.created_at });
+    const posted = await postFromCharacter(db, { userId: r.user_id, characterId: r.character_id, lines: teaseLines(r.partner), now: opts.now, kind: "tease", dedupeKey: `tease:${r.episode_id}`, photo }).catch(() => null);
     if (posted) sent++;
   }
   return sent;

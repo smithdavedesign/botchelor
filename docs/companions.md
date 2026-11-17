@@ -346,8 +346,11 @@ is a life you can watch: dates that really happened. So a character's text about
 - **In the thread** it is one message of its own: `companion_messages.via = 'photo'`, `media_url` the route's path, `text`
   its alt text ("A photo from the date: Mira and Rafe at a night market of steam and lanterns, Saturday, November 14."),
   and the same tag as the text it came with, right after the first bubble, the way a person sends one. Sent once with
-  the text (the tag's dedupe). It comes with the **after-date text** (`sendAfterDateText`), the **life text**
-  (`lifeTextAfterAir`) and the **cast's opener** (below). The tease and the day-after text carry none.
+  the text (the tag's dedupe). It comes with the **after-date text** (`sendAfterDateText`), the **tease** (`teaseAfterAir`,
+  2026-11-16: the tease was the one text about a date that came without it, so the thread showed some dates as a picture
+  and others as a bare "Watch the date" button), the **life text** (`lifeTextAfterAir`) and the **cast's opener**
+  (below). The after-date text leaves it out when the thread already has that date's snapshot (the tease, the life
+  text or the opener sent it), so the same picture never comes twice. The day-after text carries none.
 - **A real photo wins.** When the owner made a date photo in the PG Studio (`lib/studio/date-photos.ts`, `date_photos`),
   the thread shows the newest approved one in the snapshot's place (`lib/companion.ts getThread`, owner's threads only,
   resolved when the thread is read, so a photo made later still shows).

@@ -1,6 +1,6 @@
 // A photo from the date in the character's texts (lib/date-photo.ts, app/api/og/date-photo/[id], 2026-11-15): the
 // snapshot's route (it renders, for whom, and never with the ending), the photo message in the after-date text, how the
-// thread shows it, the real date photo in its place, and the DATE_PHOTO_TEXTS switch. The life text's photo is in
+// thread shows it, the tease's photo (sent once a date), the real date photo in its place, and the DATE_PHOTO_TEXTS switch. The life text's photo is in
 // tests/character-life.test.ts; the cast opener's in tests/cast-opener.test.ts.
 import type { ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -22,9 +22,9 @@ vi.mock("next/og", async (importOriginal) => {
 
 import { GET as photoRoute } from "@/app/api/og/date-photo/[id]/route";
 import DatePhoto from "@/app/companion/[id]/DatePhoto";
-import { sendAfterDateText } from "@/lib/after-date-text";
+import { sendAfterDateText, teaseAfterAir } from "@/lib/after-date-text";
 import { recordAsset, reviewAsset } from "@/lib/assets";
-import { getThread, sendMessage, setCompanionModelForTests } from "@/lib/companion";
+import { getThread, openThread, sendMessage, setCompanionModelForTests, threadIdFor } from "@/lib/companion";
 import { voiceNote } from "@/lib/companion-voice";
 import { DATE_PHOTO_ASPECT, datePhotoEpisode, datePhotoPath, datePhotoTexts } from "@/lib/companion-shared";
 import { backdropJpeg, datePhotoAlt, datePhotoDay, datePhotoFacts, portraitJpeg, textPhoto } from "@/lib/date-photo";
@@ -202,6 +202,34 @@ describe("the photo message in the after-date text", () => {
     expect(view.view.messages.some((m) => m.link)).toBe(false);
     // The chips still sit on the first bubble, not on the photo.
     expect(view.view.messages.find((m) => m.offers)?.photo).toBeUndefined();
+  });
+
+  it("rides the tease too, so every text about a date looks the same, and the Hear-from text after it doesn't send it again", async () => {
+    const { creator, character, episode } = await setupEpisode("disaster");
+    const me = userIdOf(creator);
+    // Opted in (the tease only goes to a thread that tapped "Hear from" once), and the date has aired.
+    await openThread(t.db, me, character.id, new Date(), { opener: false });
+    const thread = (await threadIdFor(t.db, me, character.id))!;
+    await t.db.query(`update companion_threads set muted_proactive = false where id = $1`, [thread]);
+    await t.db.query(`update episodes set revealed_at = now() where id = $1`, [episode.id]);
+    expect(await teaseAfterAir(t.db, episode.id)).toBe(1);
+    const all = (await t.db.query<{ role: string; via: string; text: string; action: string | null; media_url: string | null }>(`select role, via, text, action, media_url from companion_messages where thread_id = $1 order by created_at, id`, [thread])).rows;
+    // The notice, "Back from the date with …", the photo, "Come see how it went."
+    expect(all.map((m) => `${m.role}:${m.via}`)).toEqual(["system:text", "character:text", "character:photo", "character:text"]);
+    expect(all[2]).toMatchObject({ media_url: `/api/og/date-photo/${episode.id}`, action: `tease:${episode.id}` });
+    // The photo's words never give the ending away, like the tease's.
+    for (const w of endingWords("disaster")) expect(all[2].text.toLowerCase()).not.toContain(w);
+    const view = await getThread(t.db, me, thread);
+    if (!view.ok) throw new Error("no thread");
+    expect(view.view.messages.filter((m) => m.photo).map((m) => m.photo)).toEqual([{ src: `/api/og/date-photo/${episode.id}`, href: `/episodes/${episode.id}` }]);
+    // "Watch the date" still sits under its last bubble.
+    expect(view.view.messages.at(-1)).toMatchObject({ text: "Come see how it went.", link: { href: `/episodes/${episode.id}`, label: "Watch the date" } });
+
+    // They watched it and tapped "Hear from": the words come, the same photo doesn't come twice.
+    const heard = await sendAfterDateText(t.db, { userId: me, episodeId: episode.id });
+    expect(heard).toMatchObject({ ok: true, sent: true, thread_id: thread });
+    expect((await photoRows(thread)).map((p) => p.action)).toEqual([`tease:${episode.id}`]);
+    expect((await t.db.query(`select 1 from companion_messages where thread_id = $1 and action = $2`, [thread, `after_date:${episode.id}`])).rows).toHaveLength(3);
   });
 
   it("DATE_PHOTO_TEXTS=0: the text goes without a photo", async () => {

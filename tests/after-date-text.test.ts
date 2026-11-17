@@ -433,7 +433,7 @@ describe("teaseAfterAir", () => {
     await t.db.query(`update companion_threads set paused_at = null where id = $1`, [threadId]);
     expect(await teaseAfterAir(t.db, episode.id)).toBe(1);
     // A house character's side has no owner to text.
-    expect((await t.db.query<{ n: number }>(`select count(*)::int as n from companion_messages where action = $1`, [`tease:${episode.id}`])).rows[0].n).toBe(2);
+    expect((await t.db.query<{ n: number }>(`select count(*)::int as n from companion_messages where action = $1 and via <> 'photo'`, [`tease:${episode.id}`])).rows[0].n).toBe(2);
     // Somebody else's own character, same name, no date: untouched.
     const other = `bz_uid=${crypto.randomUUID()}`;
     const theirs = await (await api.createCharacter(validCharacter({ name: "Lexi Marlowe" }), other)).json();
