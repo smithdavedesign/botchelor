@@ -43,6 +43,16 @@
   gap: var(--space-1);
   margin: var(--space-1) 0 0;
 }
+/* "Give us feedback" opens a dialog, so it's a button: dressed as the quiet links around it, not an accent link. */
+.site-footer .footer-links button.link-button {
+  color: var(--muted);
+  font-weight: inherit;
+  text-decoration: none;
+}
+.site-footer .footer-links button.link-button:is(:hover, :focus-visible):not(:disabled) {
+  color: var(--accent-text);
+  text-decoration: underline;
+}
 .site-footer .footer-groups a.footer-all {
   /* Over the quiet links' muted colour, so the way to every other page reads as the group's end. */
   color: var(--ink);

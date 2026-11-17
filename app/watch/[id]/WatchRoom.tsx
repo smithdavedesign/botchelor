@@ -594,8 +594,8 @@ function OpenRoom({ state, left, onStart, onOpen }: { state: RoomState; left: nu
           {state.show_watching ? ` · ${state.watching} watching` : ""}
         </span>
         {place && (
-          <span className="venue-chip">
-            <Icon name="pin" /> {place}
+          <span className="venue-chip" title={place}>
+            <Icon name="pin" /> <span className="watch-open-place">{place}</span>
           </span>
         )}
         <Link href="/watch" className="watch-open-exit">

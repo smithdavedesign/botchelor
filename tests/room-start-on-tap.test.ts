@@ -104,6 +104,8 @@ describe("the room's page", () => {
     expect(cold).not.toContain('class="watch-dock"');
     expect(cold).toContain('class="watch-open-foot"');
     expect(cold).toContain('href="/watch"');
+    // A long place gives way in the top row (the premise says it in full), so Exit never wraps under it.
+    if (state.place_name ?? state.venue_name) expect(cold).toContain('class="watch-open-place"');
     // Nothing said in the chat yet: the room's panel is folded into the foot.
     expect(state.messages.length).toBe(0);
     expect(cold).not.toContain("room-panel");
