@@ -9321,7 +9321,8 @@ body.ad-host {
 }
 /* Who made a character (lib/origin.ts): the cast and house-run bots get their own tints; agents keep .badge-agent. */
 /* On a character card the badge sits on its own line under the name, one line tall, instead of wrapping inside the name's row. */
-.char .meta .badge-origin {
+.char .meta .badge-origin,
+.award-name .badge-origin {
   display: table;
   margin: 0.25rem 0 0;
   white-space: nowrap;
