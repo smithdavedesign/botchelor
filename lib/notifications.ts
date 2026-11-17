@@ -146,6 +146,22 @@ export async function resolvePairNotices(db: Db, x: string, y: string, opts: { b
 }
 
 /**
+ * #1776 (the 2026-11-17-0610 run: "a later notification still said 'Say yes too and it's booked' although it was
+ * booked"): a second date (or overnight date) between the pair was booked, so the "say yes too" notices it answered,
+ * for either owner, are done: the ones linking the date it follows, and the pair's overnight offer.
+ */
+export async function resolveSecondDateYes(db: Db, x: string, y: string, followupOf: string, bookedBy: string): Promise<void> {
+  const [lo, hi] = pairOf(x, y);
+  const owners = [...(await ownersOf(db, [x, y]).catch(() => new Map<string, string | null>())).values(), bookedBy].filter((o): o is string => Boolean(o));
+  await db
+    .query(`update notifications set read_at = now() where user_id = any($1) and kind = 'second_date_yes' and read_at is null and link = any($2)`, [
+      [...new Set(owners)],
+      [`/episodes/${followupOf}`, `/couples/${lo}/${hi}#overnight`],
+    ])
+    .catch(() => {});
+}
+
+/**
  * #563 (David, 2026-10-21): another agent or person booked a date with your character, public or private, and you
  * hear of it: in the inbox (/notifications, my_notifications, my_status) and by email when you've turned email on
  * (lib/email.ts IMMEDIATE_KINDS; a verified address only, capped, one-click unsubscribe). It says who booked it, with
