@@ -98,6 +98,9 @@
   "app/studio/CreateLibrary.tsx": [
     "scene-catalog"
   ],
+  "app/studio/page.tsx": [
+    "studio-door"
+  ],
   "lib/account-recovery.ts": [
     "discreet"
   ],
