@@ -2,8 +2,8 @@
 // id the "watched it end" beacon now carries.
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { characterReturn, describeReturns, loadCharacterActs, type CharacterAct } from "@/lib/character-return";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { characterReturn, describeReturns, loadCharacterActs, loadStudioUses, splitByStudio, usedStudio, type CharacterAct, type StudioUse } from "@/lib/character-return";
 import { METRIC_DEFS, realUse } from "@/lib/real-metrics";
 import { HOUSE_PARTNER_ID, setupEpisode, startTestDb, userIdOf } from "./helpers";
 
@@ -59,6 +59,45 @@ describe("the count", () => {
   });
 });
 
+describe("the same count, split by the Studio", () => {
+  const use = (user: string, character: string, when: Date): StudioUse => ({ user, character, at: when });
+
+  it("a counted person is in one half or the other, by a shoot for that character before their seven days are up", () => {
+    const acts = [
+      // Used the Studio for the character on day two, and came back.
+      act("studio-back", "c1", "watch", at(10)),
+      act("studio-back", "c1", "message", at(8)),
+      // Used it, and did not come back.
+      act("studio-gone", "c2", "message", at(10)),
+      // Never used it, and came back.
+      act("plain-back", "c3", "message", at(10)),
+      act("plain-back", "c3", "book", at(9)),
+      // A shoot after their seven days, and a shoot for another character, are not "by the end of their window".
+      act("late-shoot", "c4", "message", at(12)),
+      act("other-shoot", "c5", "message", at(10)),
+    ];
+    const uses = [use("studio-back", "c1", at(9)), use("studio-gone", "c2", at(10, 1)), use("late-shoot", "c4", at(4)), use("other-shoot", "c9", at(9)), use("someone-else", "c3", at(9))];
+    const whole = characterReturn(acts, { now: NOW, days: 30, real: everyone });
+    const split = splitByStudio(whole, uses);
+    expect(split).toEqual({ studio: { num: 1, den: 2 }, no_studio: { num: 1, den: 3 } });
+    // The same definition otherwise: the halves add up to the whole.
+    expect(split.studio.num + split.no_studio.num).toBe(whole.num);
+    expect(split.studio.den + split.no_studio.den).toBe(whole.den);
+    const row = (user: string) => whole.rows.find((r) => r.user === user)!;
+    expect(usedStudio(row("studio-back"), uses)).toBe(true);
+    expect(usedStudio(row("late-shoot"), uses)).toBe(false);
+    expect(usedStudio(row("other-shoot"), uses)).toBe(false);
+  });
+
+  it("someone whose first day is today is in neither half, as in the whole; with no shoots everyone is in the second", () => {
+    const acts = [act("today", "c1", "message", at(0, -1)), act("back", "c2", "message", at(5)), act("back", "c2", "message", at(4))];
+    const whole = characterReturn(acts, { now: NOW, days: 30, real: everyone });
+    expect(whole).toMatchObject({ num: 1, den: 1, pending: 1 });
+    expect(splitByStudio(whole, [use("today", "c1", at(0, -1))])).toEqual({ studio: { num: 0, den: 0 }, no_studio: { num: 1, den: 1 } });
+    expect(splitByStudio(whole, [])).toEqual({ studio: { num: 0, den: 0 }, no_studio: { num: 1, den: 1 } });
+  });
+});
+
 describe("from the database", () => {
   let t: Awaited<ReturnType<typeof startTestDb>>;
   beforeAll(async () => {
@@ -71,6 +110,10 @@ describe("from the database", () => {
     await t.reset();
     await t.db.query("delete from admins");
     await t.db.query("delete from web_events");
+    await t.db.query("delete from studio_pg_shoots");
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   it("reads watched endings of one's own character, own messages, booked dates and advice; texts sent to a person never count", async () => {
@@ -110,6 +153,40 @@ describe("from the database", () => {
     ]);
     expect(METRIC_DEFS.find((d) => d.key === "character_return")?.section).toBe("people");
     expect(use.returns.map((x) => x.user)).toEqual([user]);
+
+    // The split by the Studio: no shoot yet, so they are in the second half, and the table says so.
+    const halves = (u: Awaited<ReturnType<typeof realUse>>) => u.windows.map((w) => [w.people.character_return_studio, w.people.character_return_no_studio]);
+    expect(halves(use)).toEqual([
+      [{ kind: "share", num: 0, den: 0 }, { kind: "share", num: 1, den: 1 }],
+      [{ kind: "share", num: 0, den: 0 }, { kind: "share", num: 1, den: 1 }],
+    ]);
+    expect(use.returns[0].studio).toBe(false);
+    expect(METRIC_DEFS.filter((d) => d.key.startsWith("character_return")).map((d) => [d.key, d.label])).toEqual([
+      ["character_return", "Came back for their character"],
+      ["character_return_studio", "· used the Studio"],
+      ["character_return_no_studio", "· did not"],
+    ]);
+    // A shoot for that character inside their seven days moves them to the first half; two shoots are one use.
+    const shoot = (id: string, characterId: string, when: Date) =>
+      t.db.query(`insert into studio_pg_shoots (id, owner_id, character_id, status, created_at) values ($1, $2, $3, 'done', $4)`, [id, user, characterId, when.toISOString()]);
+    await shoot("shoot-1", character, at(4));
+    await shoot("shoot-2", character, at(3));
+    expect(await loadStudioUses(t.db)).toEqual([{ user, character, at: at(4) }]);
+    const after = await realUse(t.db, NOW);
+    expect(halves(after)).toEqual([
+      [{ kind: "share", num: 1, den: 1 }, { kind: "share", num: 0, den: 0 }],
+      [{ kind: "share", num: 1, den: 1 }, { kind: "share", num: 0, den: 0 }],
+    ]);
+    expect(after.returns[0].studio).toBe(true);
+    expect(after.windows.map((w) => w.people.character_return)).toEqual(use.windows.map((w) => w.people.character_return));
+
+    // CREATOR_JOURNEY=0: the split and the journey leave the page, and the whole count is as it was.
+    vi.stubEnv("CREATOR_JOURNEY", "0");
+    const off = await realUse(t.db, NOW);
+    expect(off.defs.some((d) => d.section === "journey" || d.key === "character_return_studio" || d.key === "character_return_no_studio")).toBe(false);
+    expect(off.defs.some((d) => d.key === "character_return")).toBe(true);
+    expect(off.returns[0].studio).toBeUndefined();
+    expect(off.windows.map((w) => w.people.character_return)).toEqual(use.windows.map((w) => w.people.character_return));
   });
 });
 

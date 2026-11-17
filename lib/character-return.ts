@@ -13,6 +13,10 @@
  *
  * Someone whose first day is today hasn't had a later day yet: they wait (`pending`) rather than count as lost, the
  * way next-day return is counted (lib/real-metrics.ts). Small on purpose: no new table, and one new prop on one event.
+ *
+ * Split in two since 2026-11-16 (the connected model, stage 6): the same count for the people who had used the Studio
+ * for that character by the end of their seven days, and for those who had not (`splitByStudio`). Nothing else about
+ * the definition changes, and the two halves add up to the whole.
  */
 import type { Db } from "./db";
 import { notPersonaSql } from "./step-in-shared";
@@ -80,6 +84,40 @@ export function characterReturn(acts: readonly CharacterAct[], opts: { now: Date
   return { num: counted.filter((r) => r.returned_at).length, den: counted.length, pending: rows.length - counted.length, rows };
 }
 
+/** A person's first Studio shoot for a character (studio_pg_shoots, a shoot of any kind). */
+export type StudioUse = { user: string; character: string; at: Date };
+
+/** Every person's first shoot for each character: one row a pair, small whatever the number of shoots. */
+export async function loadStudioUses(db: Db): Promise<StudioUse[]> {
+  const { rows } = await db.query<{ user: string; character: string; at: Date | string }>(
+    `select owner_id as "user", character_id as character, min(created_at) as at from studio_pg_shoots group by owner_id, character_id`,
+  );
+  return rows.map((r) => ({ user: r.user, character: r.character, at: new Date(r.at) }));
+}
+
+/** Whether a counted person had used the Studio for their row's character by the end of their seven days (pure). */
+export function usedStudio(row: Pick<ReturnRow, "user" | "character" | "first_at">, uses: readonly StudioUse[]): boolean {
+  const until = new Date(row.first_at).getTime() + RETURN_DAYS * DAY_MS;
+  return uses.some((u) => u.user === row.user && u.character === row.character && u.at.getTime() <= until);
+}
+
+export type ReturnSplit = { studio: { num: number; den: number }; no_studio: { num: number; den: number } };
+
+/**
+ * The same count in two halves (pure): the people who had used the Studio for that character by the end of their
+ * window, and the people who had not. Someone still waiting for a later day is in neither, as in the whole.
+ */
+export function splitByStudio(r: Pick<CharacterReturn, "rows">, uses: readonly StudioUse[]): ReturnSplit {
+  const out: ReturnSplit = { studio: { num: 0, den: 0 }, no_studio: { num: 0, den: 0 } };
+  for (const row of r.rows) {
+    if (row.pending) continue;
+    const half = usedStudio(row, uses) ? out.studio : out.no_studio;
+    half.den++;
+    if (row.returned_at) half.num++;
+  }
+  return out;
+}
+
 /**
  * Every act there is, one row per person, character, kind and UTC day (the earliest that day): all the count needs,
  * and small whatever the chat volume. A step-in "you" is a seat at a table, not a character (lib/step-in-shared.ts).
@@ -111,8 +149,11 @@ export async function loadCharacterActs(db: Db): Promise<CharacterAct[]> {
   return rows.map((r) => ({ user: r.user, character: r.character, kind: r.kind, at: new Date(r.at) }));
 }
 
-/** What the admin's table shows beside each row: the character's name and where the person first came from. */
-export type ReturnDetail = ReturnRow & { name: string | null; source: string | null };
+/**
+ * What the admin's table shows beside each row: the character's name, where the person first came from, and (set by
+ * lib/real-metrics.ts realUse) whether they had used the Studio for that character by the end of their window.
+ */
+export type ReturnDetail = ReturnRow & { name: string | null; source: string | null; studio?: boolean };
 
 export async function describeReturns(db: Db, rows: readonly ReturnRow[]): Promise<ReturnDetail[]> {
   if (!rows.length) return [];
