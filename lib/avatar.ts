@@ -27,12 +27,22 @@ function hash(seed: string): number {
 
 export type AvatarPalette = { hue: number; from: string; to: string; ink: string; soft: string };
 
-/** The two-stop gradient and ink for a character. `hueOverride` 1..360 wins; 0/undefined derives it. */
+/**
+ * The hues "Auto" draws from: the show's night band, violet through plum to wine (design review 2026-11-16, D-03). The
+ * whole wheel gave olive and lime tiles that read as a missing picture beside a painted portrait. A hue the owner
+ * picked (AVATAR_HUES) is theirs and isn't moved into the band.
+ */
+export const AUTO_HUE_FROM = 252;
+export const AUTO_HUE_SPAN = 96;
+
+/** The two-stop gradient and ink for a character. `hueOverride` 1..360 wins; 0/undefined derives it from the night band. */
 export function avatarPalette(seed: string, hueOverride?: number | null): AvatarPalette {
   const h = hash(seed);
-  const hue = hueOverride && hueOverride > 0 ? hueOverride % 360 : h % 360;
+  const picked = Boolean(hueOverride && hueOverride > 0);
+  const hue = picked ? hueOverride! % 360 : AUTO_HUE_FROM + (h % AUTO_HUE_SPAN);
   const from = `hsl(${hue} 72% 58%)`;
-  const to = `hsl(${(hue + 42) % 360} 68% 44%)`;
+  // An auto tile's second stop stays near its first (wine runs to red, not amber); a picked hue keeps its wider sweep.
+  const to = `hsl(${(hue + (picked ? 42 : 28)) % 360} 68% 44%)`;
   const soft = `hsl(${hue} 80% 85%)`;
   return { hue, from, to, ink: "#ffffff", soft };
 }

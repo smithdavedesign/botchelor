@@ -4645,12 +4645,13 @@ button.rating-chip:hover {
   display: flex;
   flex-direction: column;
 }
-.chat-empty {
+/* A date with no lines yet. Scoped to the thread: /chat's empty inbox card is also .chat-empty (app/ux/chrome.css). */
+.chat-thread > .chat-empty {
   margin: var(--space-6) auto;
   text-align: center;
   color: var(--muted);
 }
-.chat-dark .chat-empty {
+.chat-dark > .chat-empty {
   color: rgba(255, 255, 255, 0.6);
 }
 .chat-act {
@@ -11643,6 +11644,19 @@ main:has(> .episode-page) {
 }
 .episode-read-lede {
   margin: 0 0 var(--space-3);
+}
+/* Reading a date (design review 2026-11-16, D-17): the "answers · curious" caption under every line broke the rhythm
+   of the words. Here it waits until the line is hovered or a thumb is focused, and never shows on a touch screen. It
+   sits after the thumbs, so showing it never moves them under the pointer. The 👍/👎 stay where they were: they are the
+   line ratings docs/data-plan.md counts on. The theater keeps its captions. */
+.episode-read .chat-meta {
+  display: none;
+  order: 1;
+}
+@media (hover: hover) {
+  .episode-read .chat-row:is(:hover, :focus-within) .chat-meta {
+    display: inline;
+  }
 }
 .episode-read.has-more:has(> .episode-read-more:not([open])) .chat-thread > .chat-item:nth-child(n + 5),
 .episode-read.has-more:has(> .episode-read-more:not([open])) .chat-walkout {

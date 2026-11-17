@@ -152,10 +152,12 @@ describe("the phone's tab bar", () => {
     for (const where of [".age-gate", ".theater", ".swipe-fullscreen", ".messages-fullscreen", ".companion-fullscreen", ".wizard", '.nav-links[data-open="true"]']) {
       expect(hide, where).toContain(where);
     }
-    expect(css).toMatch(/body:has\(\.tabbar-nav\) :is\(\.phone-action-bar, \.beta-toast, \.install-hint, \.feedback-fab\) \{\s*bottom: calc\(var\(--tabbar-h\) \+ env\(safe-area-inset-bottom, 0px\) \+ var\(--space-3\)\);/);
+    expect(css).toMatch(/body:has\(\.tabbar-nav\) :is\(\.phone-action-bar, \.beta-toast, \.install-hint, \.feedback-fab, \.studio-select-bar\) \{\s*bottom: calc\(var\(--tabbar-h\) \+ env\(safe-area-inset-bottom, 0px\) \+ var\(--space-3\)\);/);
     // A 44px target or more, its label on the type scale (13px and up).
     expect(css).toMatch(/--tabbar-h: 3\.75rem;/);
-    expect(css).toMatch(/\.tabbar-tab \{[^}]*min-height: var\(--tabbar-h\);[^}]*font-size: var\(--text-xs\);/);
+    expect(css).toMatch(/\.tabbar-tab \{[^}]*min-height: var\(--tabbar-h\);[^}]*font-size: var\(--tabbar-label\);/);
+    // Smaller only where five labels don't fit, and never under the eyebrow step (13px on a phone): D-09, 2026-11-16.
+    expect(css).toContain("--tabbar-label: min(var(--text-xs), max(var(--text-eyebrow), 3.4vw));");
     // The last stylesheet stays the catalog's (tests/ui-audit-2026-11-08.test.ts); this one sits just before it.
     expect(source("app/layout.tsx")).toContain('import "./ux/chrome.css";\nimport "./ux/catalog.css";');
   });

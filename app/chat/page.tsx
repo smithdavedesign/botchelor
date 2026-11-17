@@ -194,18 +194,34 @@ export default async function ChatPage({ searchParams }: Props = {}) {
             <ul className="chat-cast">
               {faces.map((c) => (
                 <li key={c.id} className="chat-cast-face">
-                  <Link href={`/characters/${c.id}`} className="chat-cast-who" title={c.name}>
-                    <Avatar seed={c.id} name={c.name} hue={c.hue} house portraitSrc={c.portrait} size={72} />
-                    <strong>{shortName(c.name)}</strong>
-                  </Link>
                   {canText ? (
-                    <TalkButton characterId={c.id} name={shortName(c.name)} label={`Text ${shortName(c.name)}`} className="button secondary small" track="verb-text" />
+                    // The whole face starts the thread (design review 2026-11-16, D-12): it used to open the profile while
+                    // the button under it did the texting, so the tap a new visitor tries first went the other way.
+                    <TalkButton
+                      characterId={c.id}
+                      name={shortName(c.name)}
+                      label={`Text ${shortName(c.name)}`}
+                      className="chat-cast-talk"
+                      track="verb-text"
+                      face={
+                        <>
+                          <Avatar seed={c.id} name={c.name} hue={c.hue} house portraitSrc={c.portrait} size={72} />
+                          <strong>{shortName(c.name)}</strong>
+                        </>
+                      }
+                    />
                   ) : (
-                    textDoor && (
-                      <Link className="button secondary small" href="/account?next=%2Fchat">
-                        Sign in to text
+                    <>
+                      <Link href={`/characters/${c.id}`} className="chat-cast-who" title={c.name}>
+                        <Avatar seed={c.id} name={c.name} hue={c.hue} house portraitSrc={c.portrait} size={72} />
+                        <strong>{shortName(c.name)}</strong>
                       </Link>
-                    )
+                      {textDoor && (
+                        <Link className="button secondary small" href="/account?next=%2Fchat">
+                          Sign in to text
+                        </Link>
+                      )}
+                    </>
                   )}
                 </li>
               ))}
