@@ -369,40 +369,6 @@ button.ad-capture-item:disabled {
 }
 
 /* ---------------- panels under the steer bar ---------------- */
-/* Scenarios: equal-height cards, the meta on one row and the button at the foot of each. */
-.ad-scenario-list {
-  align-items: stretch;
-}
-.ad-scenario-list li {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-}
-.ad-scenario-meta {
-  flex-wrap: nowrap;
-  min-width: 0;
-  overflow: hidden;
-}
-.ad-scenario-meta .chip {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.ad-scenario-list li > button,
-.ad-scenario-list li > .ad-scenario-go {
-  margin-top: auto;
-}
-.ad-scenario-list li > button {
-  align-self: flex-start;
-}
-.ad-scenario-list li > .ad-scenario-go {
-  flex-wrap: wrap;
-  margin-left: 0;
-}
-.ad-scenario-more {
-  margin: var(--space-2) 0 0;
-}
 /* Limits: every intensity is the same box (a transparent border until chosen), radio beside the name, blurb under it. */
 .ad-intensity > label {
   display: grid;
