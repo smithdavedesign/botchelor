@@ -99,6 +99,7 @@ body:has(.feedback-fab) .site-footer {
   display: inline;
   min-height: 0;
   padding: var(--space-1) 0;
+  margin-block: calc(-1 * var(--space-1));
   vertical-align: baseline;
   color: var(--muted);
   font-weight: inherit;
