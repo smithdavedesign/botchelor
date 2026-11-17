@@ -414,11 +414,192 @@ details.recap-toggle[open] .recap-toggle-hide {
 .watch-sheet-backdrop {
   display: none;
 }
-/* One call per screen (the audit, 2026-11-11, Part 3): beside the sidebar, the pre-show card leaves the prediction to the
-   panel's Vote tab (which opens on it); on a phone, where the panel is a sheet, the card keeps its one-tap call. */
+/* The open room before its first line (D-01, the design handoff 2026-11-16; OpenRoom in WatchRoom.tsx): the venue is
+   the page. The scene's own scrim (sceneBackground) is even top to bottom, and a bright venue (a noon sky) still shows
+   through the middle, which is where this screen puts its words; so the room carries a centred wash of its own. */
+.watch-open-room {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  min-height: min(44rem, calc(100dvh - 6rem));
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  background-color: var(--photo-bg);
+  background-position: center;
+  background-size: cover;
+  color: var(--on-photo);
+}
+.watch-open-room::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(
+    70% 55% at 50% 52%,
+    color-mix(in srgb, var(--card-dark) 80%, transparent) 0%,
+    color-mix(in srgb, var(--card-dark) 62%, transparent) 45%,
+    color-mix(in srgb, var(--card-dark) 28%, transparent) 75%,
+    transparent 100%
+  );
+}
+.watch-open-room a {
+  color: inherit;
+}
+.watch-open-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+}
+.watch-open-top .watch-live {
+  color: var(--on-photo);
+  font-weight: 700;
+}
+.watch-open-top .venue-chip {
+  margin: 0;
+  background: color-mix(in srgb, var(--card-dark) 55%, transparent);
+  color: var(--on-photo);
+}
+.watch-open-room a.watch-open-exit {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--control-h-sm);
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-pill);
+  border: 1.5px solid color-mix(in srgb, var(--on-photo) 40%, transparent);
+  background: color-mix(in srgb, var(--card-dark) 45%, transparent);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  text-decoration: none;
+}
+.watch-open-centre {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-5) var(--space-4);
+  text-align: center;
+}
+.watch-open-faces {
+  display: flex;
+}
+.watch-open-faces .avatar {
+  box-shadow: 0 10px 30px color-mix(in srgb, var(--media-bg) 45%, transparent);
+}
+.watch-open-faces .avatar + .avatar {
+  margin-left: calc(-1 * var(--space-5));
+}
+.watch-open-room h1 {
+  margin: var(--space-1) 0 0;
+  color: var(--on-photo);
+  text-wrap: balance;
+}
+.watch-open-premise {
+  margin: 0;
+  max-width: 46ch;
+  font-size: var(--text-lg);
+  line-height: 1.45;
+  text-wrap: pretty;
+}
+.watch-open-wants {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-width: 60ch;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-1) var(--space-5);
+  font-size: var(--text-sm);
+  opacity: 0.85;
+}
+.watch-open-room button.watch-open-start {
+  margin-top: var(--space-2);
+  padding-inline: var(--space-6);
+  font-size: var(--text-md);
+}
+.watch-open-room .watch-countdown-time {
+  margin-top: var(--space-2);
+  color: var(--on-photo);
+}
+.watch-open-note {
+  margin: 0;
+  font-size: var(--text-sm);
+  opacity: 0.75;
+}
+.watch-open-foot {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-4) calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
+}
+.watch-open-room button.secondary {
+  margin: 0;
+  color: var(--on-photo);
+  border-color: color-mix(in srgb, var(--on-photo) 40%, transparent);
+  background: color-mix(in srgb, var(--card-dark) 45%, transparent);
+}
+.watch-open-room button.secondary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--card-dark) 70%, transparent);
+}
+/* Folded, the room is one column; once someone has said something in the chat, the sidebar comes back beside it (and
+   the foot's Chat steps aside for it on a wide screen). */
+.watch.is-open-room .watch-grid:not(:has(> .room-panel:not(.is-sheet))) {
+  grid-template-columns: minmax(0, 1fr);
+}
 @media (min-width: 60rem) {
-  .watch-preshow .watch-predict.is-compact {
+  .watch-grid:has(> .room-panel:not(.is-sheet)) .watch-open-foot {
     display: none;
+  }
+  /* On a wide screen the foot's Chat and call open the room as a panel in the corner. */
+  .watch.is-open-room .watch-sheet-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: color-mix(in srgb, var(--card-dark) 35%, transparent);
+    box-shadow: none;
+  }
+  .watch.is-open-room .watch-grid > .room-panel.is-sheet {
+    position: fixed;
+    top: auto;
+    right: var(--space-5);
+    bottom: var(--space-5);
+    z-index: 31;
+    width: min(26rem, calc(100vw - 2 * var(--space-5)));
+    height: auto;
+    max-height: min(40rem, 82dvh);
+    box-shadow: var(--shadow);
+  }
+}
+@media (max-width: 59.99rem) {
+  /* Edge to edge on a phone, filling the screen under the site's header; the words sit low, near the thumb. */
+  .watch-open-room {
+    margin-inline: calc(-1 * var(--gutter));
+    min-height: calc(100dvh - 4.5rem);
+    border-radius: 0;
+  }
+  .watch-open-centre {
+    justify-content: flex-end;
+    gap: var(--space-2);
+    padding-inline: var(--gutter);
+  }
+  .watch-open-premise {
+    font-size: var(--text-md);
+  }
+  .watch-open-wants {
+    flex-direction: column;
+    gap: var(--space-1);
   }
 }
 @media (max-width: 59.99rem) {

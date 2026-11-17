@@ -80,10 +80,32 @@ describe("the room's page", () => {
     expect(state.clock.started).toBe(false);
     const cold = renderToStaticMarkup(createElement(WatchRoom, { initial: state, autoStart: false }));
     expect(cold).toContain("Start the date");
-    expect(cold).toContain("Ready when you are");
+    expect(cold).toContain('data-track="room-start"');
     expect(cold).toContain("Anyone who joins in the next few minutes watches it with you.");
     const meant = renderToStaticMarkup(createElement(WatchRoom, { initial: state, autoStart: true }));
     expect(meant).not.toContain("Start the date");
-    expect(meant).toContain("The date is about to start");
+    expect(meant).toContain("Starting…");
+  });
+
+  it("is a stage before the first line: the venue behind both faces, names, premise, wants, one way in (D-01)", async () => {
+    const id = await templateRoom();
+    const state = (await getRoomState(t.db, id, null))!;
+    const cold = renderToStaticMarkup(createElement(WatchRoom, { initial: state, autoStart: false }));
+    expect(cold).toContain('class="watch is-open-room"');
+    expect(cold).toMatch(/class="watch-open-room" style="background-image:[^"]*linear-gradient/);
+    expect(cold.match(/width="120"/g)?.length).toBe(2);
+    expect(cold).toContain("<h1>");
+    expect(cold).toContain(state.setting.replace(/&/g, "&amp;").replace(/'/g, "&#x27;").replace(/"/g, "&quot;"));
+    expect(cold).toContain('class="watch-open-wants"');
+    expect(cold).toContain(">Ready<");
+    // One status word and one way in: no Theater mode button, no white header, no phone dock (the stage has a foot).
+    expect(cold).not.toContain("Theater mode");
+    expect(cold).not.toContain('class="watch-head"');
+    expect(cold).not.toContain('class="watch-dock"');
+    expect(cold).toContain('class="watch-open-foot"');
+    expect(cold).toContain('href="/watch"');
+    // Nothing said in the chat yet: the room's panel is folded into the foot.
+    expect(state.messages.length).toBe(0);
+    expect(cold).not.toContain("room-panel");
   });
 });
