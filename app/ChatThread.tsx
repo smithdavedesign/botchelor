@@ -153,7 +153,10 @@ export default function ChatThread({ characters, turns, typing = null, challenge
         const c = who(t.side);
         // #1040: a line that's only a stage direction shows as one, in italics under the speaker, not as "…".
         const direction = meta && t.dialogue === "…" && Boolean(t.action);
-        const caption = meta ? [direction ? "" : t.action, t.emotion].filter(Boolean).join(" · ") : "";
+        // The narrated style (lib/narration.ts): prose before and after the words, the action folded into it.
+        const beat = t.beat && (t.beat.before || t.beat.after) ? t.beat : null;
+        const silent = t.dialogue === "…" || !t.dialogue.trim();
+        const caption = meta ? [direction || beat ? "" : t.action, t.emotion].filter(Boolean).join(" · ") : "";
         return (
           <div key={i} className="chat-item">
             {dividerAt(i)}
@@ -163,13 +166,15 @@ export default function ChatThread({ characters, turns, typing = null, challenge
               <Avatar seed={c.id} name={c.name} hue={c.hue} house={c.house} portraitSrc={c.portrait} photoSrc={c.photo} size={30} />
               <div className="chat-col">
                 {named && <span className="chat-name">{c.name}</span>}
-                {direction ? (
+                {beat?.before && <p className="chat-beat">{beat.before}</p>}
+                {beat && silent ? null : direction ? (
                   <p className="chat-bubble chat-direction">
                     <em>{t.action}</em>
                   </p>
                 ) : (
                   <p className="chat-bubble">{t.dialogue}</p>
                 )}
+                {beat?.after && <p className="chat-beat">{beat.after}</p>}
                 {lineVotes.enabled ? (
                   // The caption and the thumbs share one row under the bubble, so rating adds little height.
                   <div className="chat-foot">

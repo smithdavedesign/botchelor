@@ -95,6 +95,7 @@ export const AFTER_DARK_HOST_APIS = [
   "/api/mcp", // the admin's own agents, for After Dark's tools (lib/adult/mcp.ts)
   "/api/showcase/", // the Studio's 📣 Publish and Shoot like this (lib/showcase.ts)
   "/api/creator-profile", // the creator handle 📣 Publish asks for the first time
+  "/api/writing-style", // the writing style picker on the After Dark account page (app/WritingStylePicker.tsx)
   // #1009: jobs that read or make After Dark media run here, where its media store is (Bunny); on the show's host they
   // wrote to the show's bucket, which After Dark can't read, and read clips they couldn't find. The cron calls them here.
   "/api/jobs/after-dark-daily", // the house cast's baselines

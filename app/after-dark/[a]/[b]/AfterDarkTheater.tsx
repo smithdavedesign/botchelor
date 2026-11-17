@@ -68,7 +68,8 @@ export function lineToTurn(l: SceneLine): Turn {
     .replace(/\s{2,}/g, " ")
     .trim();
   const dialogue = /^["'“”‘’\s]*$/.test(spoken) ? "" : spoken;
-  return { side: l.who, act: 0, dialogue: dialogue || "…", action: actions.join(" · "), emotion: "", interest: 0 };
+  // The narrated style (lib/narration.ts): the line's prose goes with it, and ChatThread shows it around the words.
+  return { side: l.who, act: 0, dialogue: dialogue || "…", action: actions.join(" · "), emotion: "", interest: 0, ...(l.beat && (l.beat.before || l.beat.after) ? { beat: l.beat } : {}) };
 }
 
 /** A steer said back, in quotes, cut at 80 characters. */

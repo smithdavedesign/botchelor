@@ -2,7 +2,8 @@ import { pairNames, shortName } from "@/lib/names";
 import { ownDateInProgress, ownDateInProgressMessage } from "@/lib/own-date";
 import { after } from "next/server";
 import { z } from "zod";
-import { releaseEpisode, reserveEpisode, reserveSecondDate, type Reservation } from "@/lib/allowance";
+import { refundBoughtTokens, releaseEpisode, reserveEpisode, reserveSecondDate, spendBoughtTokens, type Reservation } from "@/lib/allowance";
+import { extraFor, NARRATED_DATE_EXTRA_TOKENS, styleFor } from "@/lib/writing-style";
 import { releaseOperatorDate, reserveOperatorDate } from "@/lib/operator-pass";
 import { isCastDateRequest } from "@/lib/cast-date-request";
 import { portraitPathSql } from "@/lib/assets";
@@ -607,6 +608,18 @@ async function writeAndSave(
         : (byName ?? undefined);
   // The outcome, and why (episodes.engine_trace: margin, reason codes, terms; never a cue word).
   const { outcome: decided, trace } = decideTraced(built.input, built.seed, built.setup.engine_version);
+  // The writing style (lib/narration.ts, lib/writing-style.ts): the booker's own, admins only while it's tested. Narrated
+  // costs NARRATED_DATE_EXTRA_TOKENS bought tokens on top (none for an admin); without them the date is a script one.
+  // Taken here and given back if the date isn't saved below, or fails in the worker (lib/jobs.ts).
+  let styleTokens = 0;
+  if ((await styleFor(db, sess.userId, "show")) === "narrated") {
+    const extra = await extraFor(db, sess.userId, NARRATED_DATE_EXTRA_TOKENS);
+    if (extra === 0 || (await spendBoughtTokens(db, sess.userId, extra))) {
+      built.setup.style = "narrated";
+      if (extra) built.setup.style_tokens = styleTokens = extra;
+    }
+  }
+  const giveBackStyle = () => (styleTokens ? refundBoughtTokens(db, sess.userId, styleTokens).catch(() => {}) : Promise.resolve());
 
   // Write the episode 'generating' with the engine outcome but placeholder narration; the background job
   // fills the scenes + transcript and flips it to 'ready'. The block re-check stays here, so a blocked
@@ -643,11 +656,13 @@ async function writeAndSave(
       operatorReserved,
       group?.nightId ?? null,
     ],
-  ).catch((err: unknown) => {
+  ).catch(async (err: unknown) => {
     // Two owners booking the same second date at once: the unique followup_of lets exactly one through.
     if (secondDate && (err as { code?: string })?.code === "23505") return { rows: [] as { id: string }[], raced: true };
+    await giveBackStyle();
     throw err;
   });
+  if (!saved.rows.length) await giveBackStyle();
   if (secondDate && "raced" in saved) {
     return json({ error: "already_planned", message: "Their second date is already booked." }, 409, sess);
   }

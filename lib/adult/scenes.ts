@@ -141,6 +141,9 @@ import { carriesQuote, quotedSpans, quotesKept, steerQuotes, withoutQuotes, type
 import { kickAutoPicture } from "./auto-pictures";
 import { chapterBeats, clearBeats, drawNightMoment, fileBeats, recordBeats, rewindBeats, type PublicBeat } from "./beats";
 import { castNames, sceneCharacter, styleExamples, voiceKitLines } from "./voice";
+import { narrateStep } from "./narrate-scene";
+import type { Beat } from "../narration";
+import { styleFor, writeWeight } from "../writing-style";
 import { ACTION_ONLY_MAX, ACTION_ONLY_WINDOW, actionOnlyRun, checkAsides, misattributedQuote, overusedTics, TIC_CAP, withoutQuote, withoutTics } from "./asides";
 export { SOFT_CHAPTERS } from "./stages";
 
@@ -166,11 +169,24 @@ export type SceneLine = {
   doing?: string;
   /** The speaker's expression as they say it (lib/adult/presence.ts FACES): the face the theater shows. Neutral when left out. */
   face?: Face;
+  /**
+   * The narrated style (lib/narration.ts, lib/writing-style.ts): the prose around the line, written by a pass over the
+   * step's lines once they've passed every check, and held to the same ones (checkAdultText, the viewer's hard nos). The
+   * craft checks, the voice and the pictures read `text`, as on every line.
+   */
+  beat?: Beat;
 };
 
 /** The lines as the page and the player get them: who and what, never the private notes. */
 export const publicLines = (lines: readonly SceneLine[]): SceneLine[] =>
-  lines.map((l) => ({ who: l.who, text: l.text, ...(typeof l.stage === "number" ? { stage: l.stage } : {}), ...(l.doing ? { doing: l.doing } : {}), ...(l.face ? { face: l.face } : {}) }));
+  lines.map((l) => ({
+    who: l.who,
+    text: l.text,
+    ...(typeof l.stage === "number" ? { stage: l.stage } : {}),
+    ...(l.doing ? { doing: l.doing } : {}),
+    ...(l.face ? { face: l.face } : {}),
+    ...(l.beat && (l.beat.before || l.beat.after) ? { beat: l.beat } : {}),
+  }));
 export type AdultScene = {
   id: string;
   lines: SceneLine[];
@@ -2787,7 +2803,17 @@ async function writeScene(db: Db, adminId: string, x: string, y: string, directi
     bumped: ctx.facts.filter((f) => cited.has(f.id)).map((f) => ({ id: f.id, uses: f.uses, last_used_at: f.last_used_at })),
   };
   let stack = [...scene.undo, undo].slice(-UNDO_DEPTH);
-  const { lines, place, stage, stage_from, set_place, place_history, moves } = next;
+  const { place, stage, stage_from, set_place, place_history, moves } = next;
+  // The narrated style (lib/narration.ts): this step's new lines wrapped in prose on the fast writer, after every check
+  // above, and held to the same lines and the viewer's hard nos. A line whose prose doesn't come stays as it is.
+  const style = await styleFor(db, adminId, "adult");
+  const lines =
+    style === "narrated"
+      ? await narrateStep(fast ?? (await adultModel(db, process.env, { model: writer })), next.lines, scene.lines.length, { a: scene.a.name, b: scene.b.name }, set_place ?? place, limits, scene.lines, (r) => {
+          // On the step's log beside what wrote it, so what narration costs is one query (docs/writing-styles.md).
+          if (stepId) void db.query(`update adult_steps set flags = coalesce(flags, '{}'::jsonb) || $2::jsonb where id = $1`, [stepId, JSON.stringify({ narration: r })]).catch(() => {});
+        })
+      : next.lines;
   const suggestions = next.suggestions ?? [];
   const nextWhispers = next.whispers ?? {};
   await db.query(
@@ -2795,7 +2821,8 @@ async function writeScene(db: Db, adminId: string, x: string, y: string, directi
             suggestions = $9::jsonb, whispers = $10::jsonb, undo = $11::jsonb, updated_at = now() where id = $1`,
     [scene.id, JSON.stringify(lines), place, stage, stage_from, set_place, JSON.stringify(place_history), JSON.stringify(moves.slice(-40)), JSON.stringify(suggestions), JSON.stringify(nextWhispers), JSON.stringify(stack)],
   );
-  await countUse(db, adminId, "writes");
+  // A narrated step counts as more than one of the month's scene steps (lib/writing-style.ts writeWeight).
+  await countUse(db, adminId, "writes", undefined, writeWeight(style));
   // Pictures of this night at all: never of a character nobody has set up (lib/adult/readiness.ts).
   const notReady = await picturesBlocked(db, adminId, scene.a.id, scene.b.id);
   // The moments in these lines worth a picture (lib/adult/beats.ts): offered as the theater reaches each, once both are
@@ -2883,7 +2910,8 @@ async function writeScene(db: Db, adminId: string, x: string, y: string, directi
   // place. Claimed now, drawn after the response; never fails the step.
   // Not when these lines asked for one of both: that's this moment's picture (2026-10-26: both were drawn, of the same lines).
   const autoPicture = askedBoth ? false : await kickAutoPicture(db, adminId, { id: scene.id, chapter: scene.chapter, place: place ?? ctx.date?.setting ?? null, set_place, stage, lines, home: place_history.at(-1)?.home ?? null }, a, b);
-  let after: LoadedScene = { ...scene, ...next, suggestions, whispers: nextWhispers, picture_note: note, undo: stack, beats: await chapterBeats(db, scene.id, scene.chapter) };
+  // `lines`, not next's: a narrated step's carry their prose, into the response and into a chapter filed below.
+  let after: LoadedScene = { ...scene, ...next, lines, suggestions, whispers: nextWhispers, picture_note: note, undo: stack, beats: await chapterBeats(db, scene.id, scene.chapter) };
   // A full chapter: filed as a saved night, recapped, and the night runs straight on into the next one. What the close
   // changed goes with the step's undo, so a rewind takes it back too.
   if (lines.length >= CHAPTER_LINES) {

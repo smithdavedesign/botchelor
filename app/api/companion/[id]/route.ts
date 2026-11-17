@@ -1,3 +1,4 @@
+import { replyWeight } from "@/lib/writing-style";
 import { z } from "zod";
 import { getDb } from "@/lib/db";
 import { ensureFaceKit } from "@/lib/face-kit";
@@ -27,7 +28,7 @@ import {
   type CompanionSend,
 } from "@/lib/companion";
 import type { VenueId } from "@/lib/venues";
-import { companionAllowance, giveBackReply, takeReply } from "@/lib/companion-plan";
+import { companionAllowance, giveBackReply, takeExtraReplies, takeReply } from "@/lib/companion-plan";
 import { extrasState } from "@/lib/companion-extras";
 import { voiceNote } from "@/lib/companion-voice";
 import { companionRefusal } from "../access";
@@ -194,6 +195,8 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
       break;
   }
   if (ticket?.ok && (!r.ok || r.replied === false)) await giveBackReply(db, sess.userId, ticket);
+  // A narrated scene reply (lib/writing-style.ts) counts more than one: the rest taken once it came with its prose.
+  else if (ticket?.ok && r.ok && r.view.scene && r.view.messages.at(-1)?.beat) await takeExtraReplies(db, sess.userId, ticket, replyWeight("narrated") - 1);
   if (talks && r.ok) inBackground(() => companionFollowUp(db, id));
   return reply(r, sess, await companionAllowance(db, sess.userId, new Date(), process.env, { guest }), await extrasFor(db, sess));
 });

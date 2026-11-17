@@ -24,6 +24,7 @@
  * "want to see them again?" when the date's wishes weigh in on the ending (lib/wishes.ts). Best-effort: a failed
  * conversation leaves an empty transcript.
  */
+import type { Beat } from "./narration";
 import { shortName } from "./names";
 import { turnNote, turnStart } from "./date-turn";
 import { z } from "zod";
@@ -71,6 +72,12 @@ export type Turn = {
    * planned length, and nobody chose to leave. Stored, so the finished date can say why it ended early (lib/own-date.ts).
    */
   time_up?: true;
+  /**
+   * The narrated style (lib/narration.ts): the prose around this line, before and after what's said, written by a pass
+   * over the finished lines. Only on a narrated date; a line whose prose failed the show's checks has none. Never read by
+   * the actors, the critic, the voice or the recap: they read the dialogue and the action, as on every date.
+   */
+  beat?: Beat;
   /**
    * Living dates (lib/inner-life.ts): this line's private feeling toward the other, the speaker's thought and what it
    * noted the other claiming. Only while the date is written: lib/pipeline.ts takes it off every line before anything is

@@ -720,7 +720,9 @@ export default function CompanionChat({
                     {/* Who's talking, at the top of each run (as the show's own threads do, app/ChatThread.tsx): a thread
                         opened from Chat otherwise only says so in its header. */}
                     {shown[i - 1]?.role !== m.role && <span className="chat-name">{m.role === "user" ? "You" : c.name}</span>}
-                    {m.action && <span className="companion-action">{m.action}</span>}
+                    {/* The narrated style (lib/narration.ts): prose before and after the words, the action folded into it. */}
+                    {m.beat?.before && <p className="chat-beat">{m.beat.before}</p>}
+                    {m.action && !m.beat && <span className="companion-action">{m.action}</span>}
                     {m.photo ? (
                       // A photo from one of their dates (./DatePhoto.tsx): the message's text is its alt text.
                       <DatePhoto src={m.photo.src} alt={m.text} href={m.photo.href} />
@@ -734,6 +736,7 @@ export default function CompanionChat({
                         {m.text}
                       </p>
                     )}
+                    {m.beat?.after && <p className="chat-beat">{m.beat.after}</p>}
                     {m.locked && lockedDoors?.[m.locked.episode] && (
                       // A picture they kept from that night, locked (./LockedPicture.tsx): a blurred PG tile and the way in.
                       <LockedPicture characterId={c.id} door={lockedDoors[m.locked.episode]} />

@@ -10,7 +10,10 @@
  * way Sliding Doors replays), so it needs nothing from the original request. A lease stops the after()
  * hook and the cron from double-running the same job.
  */
-import { releaseEpisode, type Reservation } from "./allowance";
+import { refundBoughtTokens, releaseEpisode, type Reservation } from "./allowance";
+import { narrateDate } from "./narrate-date";
+import { NARRATE_BATCH } from "./narration";
+import { summarizeUsage } from "./pricing";
 import { track, trackDateQuality, trackEpisodeCost } from "./analytics";
 import { ConversationError } from "./conversation";
 import { generationPaused } from "./compute";
@@ -47,7 +50,7 @@ async function sideSettings(
 import { decideTraced, type CharacterSheet } from "./engine";
 import { DEFAULT_FORMAT, format as showFormat, formatContextOf } from "./formats";
 import { claimPaidDate } from "./limits";
-import { frontierConfigured, getDirectorModel, getFrontierModel, getModel, roleReasoning } from "./model";
+import { frontierConfigured, getDirectorModel, getFrontierModel, getModel, roleReasoning, type Usage } from "./model";
 import { buildKeyForSide } from "./keys";
 import { isTalkLevel, talkFor, type TalkLevel } from "./talk";
 import { soulText } from "./souls";
@@ -377,11 +380,34 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
     // J1: when the conversation failed (even after picking up once), the lines already said stay on the date, flagged,
     // and the backfill finishes it from them (lib/backfill.ts) rather than the creator losing what they watched.
     const partial = !transcript.length && gen.partialTranscript.length > 0;
-    const kept = partial ? gen.partialTranscript : transcript;
+    let kept = partial ? gen.partialTranscript : transcript;
+    // The narrated style (lib/narration.ts): the finished lines wrapped in prose on the show's director model, before the
+    // date is saved. Never on a partial date (the backfill finishes it as script), and never fails the date: a line
+    // whose prose didn't come stays a script line. What it cost is kept beside the date's own usage.
+    let narration: Record<string, unknown> | null = null;
+    if (row.setup?.style === "narrated" && !partial && kept.length) {
+      const used: Usage[] = [];
+      const n0 = Date.now();
+      // A few more calls before the date is saved: the lease covers them.
+      void renewLease(db, episodeId, row.attempts, AFTER_OUTCOME_LEASE_SECONDS).catch(() => {});
+      const done = await narrateDate(models.director, kept, built.characters, built.setup.venue, (u) => void used.push(u)).catch(() => null);
+      if (done) {
+        kept = done.turns;
+        narration = {
+          beats: done.narration.beats.filter(Boolean).length,
+          of: kept.length,
+          held: done.narration.held,
+          worn: done.narration.worn,
+          failed: done.narration.failed,
+          ms: Date.now() - n0,
+          usage: summarizeUsage(used, Math.ceil(kept.length / NARRATE_BATCH)),
+        };
+      } else narration = { failed: true, of: kept.length };
+    }
     // The stored lines' (empty when nothing came out, like the transcript; a backfill fills both later).
     const turnMeta = metaOf(kept, new Date().toISOString());
     timing.written_ms = Date.now() - t0;
-    const generatedWith = { ...gen.generatedWith, ...(row.use_frontier ? { frontier: true } : {}), ...(partial ? { transcript_partial: true } : {}), plan: gen.plan?.source ?? null, turn: gen.plan?.turn?.kind ?? null, timing };
+    const generatedWith = { ...gen.generatedWith, ...(narration ? { narration } : {}), ...(row.use_frontier ? { frontier: true } : {}), ...(partial ? { transcript_partial: true } : {}), plan: gen.plan?.source ?? null, turn: gen.plan?.turn?.kind ?? null, timing };
 
     // The ending as it stands once the wishes weighed in (the engine's own, unless they tipped it), with its drama and sides.
     const saved = await db.query<{ id: string }>(
@@ -456,6 +482,8 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
     // back, then delete the episode (which cascades its job). The poller sees it gone and offers a retry.
     // (Only a process crash *before* this catch leaves the job 'running'; the cron re-runs that once.)
     if (row.reservation) await releaseEpisode(db, row.creator_id, row.reservation).catch(() => {});
+    // The narrated style's extra bought tokens (lib/writing-style.ts), back with the date.
+    if ((row.setup?.style_tokens ?? 0) > 0) await refundBoughtTokens(db, row.creator_id, row.setup!.style_tokens!).catch(() => {});
     // A scene they set and never reached: its token back before the episode (and the suggestion with it) goes.
     await settleSuggestions(db, episodeId, []);
     await db.query(`delete from episodes where id = $1 and status = 'generating'`, [episodeId]);

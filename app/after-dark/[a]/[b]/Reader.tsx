@@ -1,8 +1,10 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import Icon from "@/app/Icon";
+import StoryButton from "@/app/StoryButton";
 import { byFiling, groupNights, nightNumbers } from "@/lib/adult/nights";
 import type { AdultNight, SceneLine } from "@/lib/adult/scenes";
+import { splitLine } from "@/lib/adult/narrate-scene";
 import { shortName } from "@/lib/names";
 
 /** Tonight's chapter as the reader shows it: what's been written of it so far. */
@@ -21,6 +23,7 @@ export default function Reader({
   now,
   saved,
   pick,
+  story = null,
 }: {
   names: { a: string; b: string };
   /** The night page's own path (/after-dark/<a>/<b>). */
@@ -29,6 +32,8 @@ export default function Reader({
   saved: readonly AdultNight[];
   /** The chapter to show: a saved chapter's id, "now" for tonight's, or null for the newest there is. */
   pick: string | null;
+  /** Read it as a story (lib/stories.ts): the pair, and what the first press costs; null where it isn't open (admins only). */
+  story?: { a: string; b: string; price: string } | null;
 }) {
   const running = now && (now.lines.length > 0 || now.chapter > 1) ? now : null;
   const groups = groupNights(byFiling(saved), running ? { chapter: running.chapter } : null);
@@ -98,12 +103,24 @@ export default function Reader({
                 {shown.place ? ` · ${shown.place}` : ""}
               </p>
               {step("top")}
-              {shown.lines.map((l, i) => (
-                <p key={i} className="ad-reader-line">
-                  <strong>{first(l.who)}</strong> {withActions(l.text)}
-                </p>
-              ))}
+              {shown.lines.map((l, i) =>
+                l.beat && (l.beat.before || l.beat.after) ? (
+                  // The narrated style (lib/narration.ts): the prose and the words as one paragraph, the action in the prose.
+                  <p key={i} className="ad-reader-line ad-reader-narrated">
+                    {l.beat.before && <span className="ad-reader-beat">{l.beat.before} </span>}
+                    {spokenOf(l.text) && <span className="ad-reader-said">“{spokenOf(l.text)}”</span>}
+                    {l.beat.after && <span className="ad-reader-beat"> {l.beat.after}</span>}
+                  </p>
+                ) : (
+                  <p key={i} className="ad-reader-line">
+                    <strong>{first(l.who)}</strong> {withActions(l.text)}
+                  </p>
+                ),
+              )}
               {shown.now && <p className="muted small">The rest of this chapter is written in the theater, as it plays.</p>}
+              {story && shown.lines.length > 0 && (
+                <StoryButton key={shown.key} endpoint="/api/admin/after-dark/story" body={{ a: story.a, b: story.b, chapter: shown.key }} price={story.price} className="ad-story" />
+              )}
               {step("end")}
             </>
           ) : (
@@ -122,6 +139,12 @@ export default function Reader({
       <p className="muted small">Both characters are fictional adults; the lines are AI-generated.</p>
     </section>
   );
+}
+
+/** What a line says, its *actions* out (a narrated line's prose tells them). */
+function spokenOf(text: string): string {
+  const said = splitLine(text).dialogue.replace(/^["“]+|["”]+$/g, "");
+  return said;
 }
 
 /** A line's *actions* as stage directions, the words as said. */

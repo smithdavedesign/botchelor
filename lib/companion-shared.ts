@@ -315,6 +315,8 @@ export type CompanionMessageView = {
   scene: VenueId | null;
   /** In a scene, what the character does as they say it. */
   action: string | null;
+  /** A narrated scene reply's prose (lib/narration.ts): before and after the words, the action folded into it. */
+  beat?: { before: string; after: string } | null;
   /** Its voice note, once one's been made (lib/companion-voice.ts): where it plays from. */
   voice?: string | null;
   /** A system line that starts a scene or goes back to texting (null: the AI notice). */

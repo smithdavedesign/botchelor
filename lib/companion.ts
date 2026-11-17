@@ -1,4 +1,7 @@
 import { randomUUID } from "node:crypto";
+import { shortName } from "./names";
+import { narrate, type Beat } from "./narration";
+import { styleFor } from "./writing-style";
 import { isAdmin } from "./admins";
 import { adultProviderRouting, OPENROUTER_BASE_URL } from "./adult/mode";
 import { adultKeys } from "./adult/settings";
@@ -215,12 +218,14 @@ async function addMessage(
     photoUrl?: string | null;
     /** The date a written text is about (companion_messages.episode_id): only ever from its tag (writeText), never a reply's. */
     episodeId?: string | null;
+    /** A narrated scene reply's prose (lib/narration.ts), kept beside the words so the voice never reads it. */
+    beat?: Beat | null;
   } = {},
 ): Promise<string> {
   const id = randomUUID();
   await db.query(
-    `insert into companion_messages (id, thread_id, role, text, model, cost, created_at, scene, action, marker, roleplay, on_call, offers, via, media_url, episode_id) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb, $14, $15, $16)`,
-    [id, threadId, role, text, extra.model ?? null, extra.cost ?? null, at.toISOString(), extra.scene ?? null, extra.action ?? null, extra.marker ?? null, extra.roleplay ?? null, extra.onCall === true, extra.offers ? JSON.stringify(extra.offers) : null, extra.photoUrl ? "photo" : "text", extra.photoUrl ?? null, extra.episodeId ?? null],
+    `insert into companion_messages (id, thread_id, role, text, model, cost, created_at, scene, action, marker, roleplay, on_call, offers, via, media_url, episode_id, beat) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb, $14, $15, $16, $17::jsonb)`,
+    [id, threadId, role, text, extra.model ?? null, extra.cost ?? null, at.toISOString(), extra.scene ?? null, extra.action ?? null, extra.marker ?? null, extra.roleplay ?? null, extra.onCall === true, extra.offers ? JSON.stringify(extra.offers) : null, extra.photoUrl ? "photo" : "text", extra.photoUrl ?? null, extra.episodeId ?? null, extra.beat ? JSON.stringify(extra.beat) : null],
   );
   return id;
 }
@@ -430,8 +435,8 @@ export async function getThread(db: Db, userId: string, threadId: string): Promi
   const ref = await characterRef(db, t.character_id, userId);
   if (!ref) return NOT_FOUND;
   const [{ rows: msgs }, { rows: facts }, nextTime, realPhotos, dates] = await Promise.all([
-    db.query<{ id: string; role: "user" | "character" | "system"; text: string; created_at: string; reported: string | null; scene: string | null; action: string | null; marker: CompanionMessageView["marker"]; roleplay: string | null; voice_key: string | null; on_call: boolean; offers: StoredOffers | null; via: string; media_url: string | null; episode_id: string | null }>(
-      `select id, role, text, created_at, reported, scene, action, marker, roleplay, voice_key, on_call, offers, via, media_url, episode_id from companion_messages where thread_id = $1 and replaced_by is null order by created_at asc, id asc`,
+    db.query<{ id: string; role: "user" | "character" | "system"; text: string; created_at: string; reported: string | null; scene: string | null; action: string | null; marker: CompanionMessageView["marker"]; roleplay: string | null; voice_key: string | null; on_call: boolean; offers: StoredOffers | null; via: string; media_url: string | null; episode_id: string | null; beat: Beat | null }>(
+      `select id, role, text, created_at, reported, scene, action, marker, roleplay, voice_key, on_call, offers, via, media_url, episode_id, beat from companion_messages where thread_id = $1 and replaced_by is null order by created_at asc, id asc`,
       [threadId],
     ),
     db.query<{ n: number }>(`select count(*)::int as n from companion_facts where thread_id = $1`, [threadId]),
@@ -473,6 +478,7 @@ export async function getThread(db: Db, userId: string, threadId: string): Promi
         scene: isScenePlace(m.scene) ? m.scene : null,
         // A text's tag (postFromCharacter) is bookkeeping, not what they did.
         action: isTextTag(m.action) ? null : m.action,
+        ...(m.beat && (m.beat.before || m.beat.after) ? { beat: m.beat } : {}),
         marker: m.marker,
         roleplay: m.roleplay,
         voice: m.voice_key ? voiceUrl(t.id, m.id) : null,
@@ -790,6 +796,27 @@ async function speak(
     } else insteadOf = `${drawn.join(" ").slice(0, 300)} (keep it PG and kind)`;
   }
   if (!bubbles && safeRepeat) ({ bubbles, action } = safeRepeat);
+  // The narrated style (lib/narration.ts): a scene reply wrapped in prose, the action folded into it, once it has passed
+  // every check above. Their own style (lib/writing-style.ts, admins only while it's tested); never on a call or a text.
+  let beat: Beat | null = null;
+  if (scene && bubbles?.length && (await styleFor(db, t.user_id, "show")) === "narrated") {
+    const first = shortName(character.name);
+    const done = await narrate(
+      model,
+      {
+        rating: "pg",
+        people: [
+          { name: first, about: character.persona.traits.slice(0, 3).join(", ") },
+          { name: "You", about: 'the person they\'re with; the prose calls them "you"' },
+        ],
+        place: scene.name,
+        lines: [{ who: first, dialogue: bubbles[0], action: action ?? "" }],
+        before: turns.slice(-4).map((x) => ({ who: x.role === "user" ? "You" : first, dialogue: x.text, action: x.action ?? "" })),
+      },
+      { onUsage: (u) => usage.push(u) },
+    ).catch(() => null);
+    beat = done?.beats[0] ?? null;
+  }
   const texts = bubbles ?? [scene ? SCENE_DEFLECTIONS[Math.floor(Math.random() * SCENE_DEFLECTIONS.length)] : DEFLECTIONS[Math.floor(Math.random() * DEFLECTIONS.length)]];
   const cost = usage.reduce((s, u) => s + (u.cost ?? 0), 0);
   const modelId = served ?? usage[0]?.model ?? null;
@@ -800,6 +827,7 @@ async function speak(
         ...(i === 0 ? { model: modelId, cost: cost || null } : {}),
         scene: t.scene,
         action: bubbles ? action : null,
+        ...(i === 0 && beat ? { beat } : {}),
         roleplay: t.roleplay?.title ?? null,
         onCall: call,
       }),

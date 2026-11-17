@@ -4640,6 +4640,39 @@ button.rating-chip:hover {
   background: transparent;
   color: rgba(255, 255, 255, 0.7);
 }
+/* The narrated style (lib/narration.ts): the prose around a line, in the narrator's quieter voice, the words in the bubble. */
+.chat-beat {
+  margin: 0.25rem 0.5rem;
+  max-width: 62ch;
+  font-style: italic;
+  line-height: 1.55;
+  color: var(--muted);
+}
+.chat-dark .chat-beat {
+  color: rgba(255, 255, 255, 0.72);
+}
+/* Writing style (app/WritingStylePicker.tsx): two choices, each with what it means. */
+.writing-style-options {
+  display: grid;
+  gap: var(--space-2);
+}
+.writing-style-option {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  cursor: pointer;
+}
+.writing-style-about {
+  display: block;
+}
+/* A story (app/StoryButton.tsx): a date or a chapter told again as prose, at reading size. */
+.story-text {
+  max-width: 68ch;
+  line-height: 1.7;
+}
+.story-text p {
+  margin: 0 0 var(--space-3);
+}
 /* The typing bubble: three dots for whoever speaks next. */
 .chat-typing {
   display: inline-flex;
