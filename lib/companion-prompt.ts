@@ -27,9 +27,19 @@ const SCENE_LENGTH: Record<ReplyLength, string> = {
 /**
  * A scene (lib/companion.ts setScene): the place's name and its stage direction (lib/venues.ts), and the roleplay it
  * plays, if any: its title, the premise in the character's name and the person's ("your scene partner"), and the roles.
+ * One of the show's own also brings its scene card from the character's side (lib/scene-cards.ts): how it starts, what
+ * the character's own role wants (never the person's), where it can go and its tone. `opening` is how the scene opens,
+ * which only the opener's cue uses.
  */
 export type PromptScene = { name: string; prompt: string; roleplay?: PromptRoleplay | null };
-export type PromptRoleplay = { title: string; premise: string; you_play: string | null; they_play: string | null };
+export type PromptRoleplay = {
+  title: string;
+  premise: string;
+  you_play: string | null;
+  they_play: string | null;
+  card?: { setup: string; want: string; beats: string[]; tone: string } | null;
+  opening?: string | null;
+};
 
 /**
  * In a scene, a character turn carries what they did, as (does) says. A turn said in a roleplay carries its title, so
@@ -159,6 +169,11 @@ export function companionMessages(args: {
           "",
           `Tonight's scene is a roleplay the two of you picked together: "${scene.roleplay.title}". ${scene.roleplay.premise}${
             scene.roleplay.you_play ? ` You play ${scene.roleplay.you_play}; they play ${scene.roleplay.they_play}.` : ""
+          }${
+            // The card (lib/scene-cards.ts): context for the writer, never a script and never an ending.
+            scene.roleplay.card
+              ? ` How it starts: ${scene.roleplay.card.setup} What you want in it: ${scene.roleplay.card.want} Where it can go, in order (turns the story could take: possibilities, never a script, and it has no set ending): ${scene.roleplay.card.beats.join(" ")} Its tone: ${scene.roleplay.card.tone}.`
+              : ""
           } Play it from your first line, in your own voice: you're still ${first} underneath the role, with your own humour and opinions. Commit to the story and move it on (a twist, a secret, a choice to make), and follow where they take it. Step out of it only on purpose (a laugh, a real question), then step back in. What they say in the roleplay is their character, not their life.`,
         ]
       : []),

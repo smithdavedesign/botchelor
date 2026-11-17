@@ -229,12 +229,21 @@ interest_signal is 0..1: how interested in them you are right now (let it move g
 /**
  * What a roleplay date adds (lib/roleplays.ts, David 2026-10-31): the game both owners agreed to before the date, played
  * from the first line in the actor's own voice. Only on a date that plays one, so every other date's prompt stays as it was.
+ * The show's own roleplays come with a scene card (lib/scene-cards.ts, 2026-11-17): how it starts, this side's want,
+ * where it can go, its tone and how it opens. The card frames the date and never ends it: the last sentence keeps the
+ * ending with the actor's intention, which is the engine's.
  */
 const ROLEPLAY_SECTION = `TONIGHT'S ROLEPLAY
-"tonights_roleplay" is a game the two of you agreed to before the date: who you are to each other tonight ("you_play" is your role, "they_play" theirs). Play it from your first line, in your own voice: you're still you underneath, your humour and your habits wearing the role. Lay its world over where you really are; the place is part of the game, never a reason to drop it. Its stakes and what your role wants drive what you say, so surprise each other inside it, and let the real person show through the game. You can step out of it on purpose (a laugh, a real question) and step back in. Everything else still holds: PG, adults, no real people, and in the final act you land your intention.`;
+"tonights_roleplay" is a game the two of you agreed to before the date: who you are to each other tonight ("you_play" is your role, "they_play" theirs). Play it from your first line, in your own voice: you're still you underneath, your humour and your habits wearing the role. Lay its world over where you really are; the place is part of the game, never a reason to drop it. Its stakes and what your role wants drive what you say, so surprise each other inside it, and let the real person show through the game. You can step out of it on purpose (a laugh, a real question) and step back in. Some roleplays come with more. "how_it_starts" is the first minute of it. "what_you_want" is what you're after in the game and what's in your way: it's yours alone (they have their own, which you find out by playing), and it drives you without ever being recited. "where_it_can_go" lists turns the story could take, in order: possibilities, never a script. Use one when the moment fits, skip one, or find your own, and none of them says how tonight ends. "tone" is the register to keep. "opening", there on your first line, is how the first lines play. Everything else still holds: PG, adults, no real people, and in the final act you land your intention.`;
 
 /** A prompt with the roleplay section, just before its JSON instructions. */
 const withRoleplay = (prompt: string): string => prompt.replace("\n\nJSON\n", `\n\n${ROLEPLAY_SECTION}\n\nJSON\n`);
+/** A side's roleplay without how it opens, for every line after its first. */
+function withoutOpening(roleplay: NonNullable<Character["roleplay"]>): NonNullable<Character["roleplay"]> {
+  const rest = { ...roleplay };
+  delete rest.opening;
+  return rest;
+}
 
 /**
  * What a side adds when it carries secrets still hidden (a cast member's this season, or what its creator says it's
@@ -374,7 +383,8 @@ export function buildTurnMessages(
     ...(moved ? { you_moved: `You started at ${shape!.segments.map((s) => venuePhrase(s.place)).join(", then went to ")}. You're there now.` } : {}),
     // The roleplay has its own block below (with this side's role), so the format's note leaves it out.
     the_show_format: formatNote(formatId, { ...formatCtx, roleplay: undefined, metBefore: hasMet }),
-    ...(meChar.roleplay ? { tonights_roleplay: meChar.roleplay } : {}),
+    // Its opening is for each side's first line only: once this side has spoken, the scene is open and it leaves the data.
+    ...(meChar.roleplay ? { tonights_roleplay: transcript.some((t) => t.side === side) ? withoutOpening(meChar.roleplay) : meChar.roleplay } : {}),
     act: {
       name: actName(act, hasMet),
       what_happens: moved ? `${beat.scene} (Planned for ${venuePhrase(venueId)}; you're at ${venuePhrase(place)} now: keep what happens, change where.)` : beat.scene,
@@ -451,7 +461,7 @@ export function buildTurnMessages(
               : hasMet
                 ? "This is the first line of tonight's date. You've met before: greet them like someone you remember, not a stranger."
                 : "This is the first line of the date: you've just met.") +
-            (meChar.roleplay ? " It's also the first line of the roleplay you both agreed on: open inside it, in your role." : ""),
+            (meChar.roleplay ? ` It's also the first line of the roleplay you both agreed on: open inside it, in your role${meChar.roleplay.opening ? ', on its "opening"' : ""}.` : ""),
         }
       : {}),
     // The turn (lib/date-turn.ts): this side's note on a line of the moment, and where it left them on every line after.
