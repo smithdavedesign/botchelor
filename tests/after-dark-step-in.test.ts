@@ -1038,6 +1038,9 @@ describe("the controls", () => {
     for (const r of [await sendStepInLine(t.db, a.id, made.id, "Wait."), await continueStepIn(t.db, a.id, made.id), await regenerateStepIn(t.db, a.id, made.id), await takeBackStepIn(t.db, a.id, made.id)]) {
       expect(r).toMatchObject({ ok: false, status: 409, error: "ended" });
     }
+    // Their own words are still read for self-harm before anything else: the resources, and the scene stays as it was filed.
+    expect(await sendStepInLine(t.db, a.id, made.id, "I want to kill myself.")).toMatchObject({ ok: false, status: 200, error: "paused" });
+    expect(await viewOf(a.id, made.id)).toMatchObject({ paused: false, ended: { at: "2026-11-17T22:00:00.000Z" } });
     // The next scene with the same character carries the line; a scene with someone else doesn't.
     const next = await start(a.id);
     expect(system(seen.prompts.at(-1)!)).toContain("Earlier scenes the two of you have had");

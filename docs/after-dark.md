@@ -3362,6 +3362,15 @@ After Dark was two characters that a viewer directs. Step in is the other shape:
 character**, on a date or in a roleplay, and the character's side is written as prose. It is
 [companions.md](companions.md)'s P5, as a first version.
 
+| | Desktop | Phone |
+| --- | --- | --- |
+| Set-up | ![Step in set-up, desktop](screenshots/after-dark-step-in-setup-desktop.png) | ![Step in set-up, phone](screenshots/after-dark-step-in-setup-phone.png) |
+| A scene | ![A Step in scene, desktop](screenshots/after-dark-step-in-scene-desktop.png) | ![A Step in scene, phone](screenshots/after-dark-step-in-scene-phone.png) |
+
+From the local visual audit (`ONLY=after-dark-step-in npm run e2e:visual`, which now covers both pages), signed in as
+an admin, on the audit's stand-in model: the words in the scene are the stand-in's, not a character's. Live ones need
+an admin signed in on After Dark's own host.
+
 **Closed.** Its rollout piece is `companion` (label "Step in", `lib/adult/rollout.ts`), default `admins`. Every page and
 route answers 404 for anyone it isn't open to (`stepInViewer`: After Dark opens for them, and the piece is on for
 them). Opening it is a legal and payments call, never a product one: the card processors' description of After Dark

@@ -427,7 +427,8 @@ async function refuse(db: Db, s: Pick<SceneRow, "id" | "owner_id" | "character_i
 /** The self-harm protocol's pause: counted by day and surface only (never who, never the words), the scene paused. */
 async function pauseForCrisis(db: Db, s: SceneRow, now: Date): Promise<StepInFail> {
   await countReferral(db, STEP_IN_SURFACE, now);
-  await db.query(`update adult_step_in_scenes set paused_at = $2 where id = $1`, [s.id, now.toISOString()]);
+  // (A scene already ended has nothing to pause: the resources are the answer either way.)
+  await db.query(`update adult_step_in_scenes set paused_at = $2 where id = $1 and ended_at is null`, [s.id, now.toISOString()]);
   return { ...fail(200, "paused", CRISIS_RESOURCES.message), crisis_resources: CRISIS_RESOURCES };
 }
 
@@ -875,13 +876,14 @@ const stageOf = (rows: readonly MessageRow[]): number => spokenOf(rows).reduce((
 export async function sendStepInLine(db: Db, viewer: string, sceneId: string, input: string, now: Date = new Date()): Promise<StepInSend> {
   const s = await ownScene(db, viewer, sceneId);
   if (!s) return NOT_FOUND;
-  const closed = await writable(db, s);
-  if (closed) return closed;
   const text = clean(input);
   if (!text) return fail(400, "empty", "Write what you say or do first.");
   if (text.length > STEP_IN_LINE_MAX) return fail(400, "too_long", `Keep it under ${STEP_IN_LINE_MAX} characters.`);
+  // Their own words are read for this before anything else, whatever state the scene is in.
   const { crisis } = await lineInCrisis(text, STEP_IN_SURFACE, await adultModel(db));
   if (crisis) return pauseForCrisis(db, s, now);
+  const closed = await writable(db, s);
+  if (closed) return closed;
   const safe = checkAdultText({ line: text });
   if (!safe.ok) return refuse(db, s, 422, "refused", linesMessage("line", safe), "lines", "send");
   // Step in's own net (lib/adult/step-in-lines.ts): here a line can cross the same lines just by saying who someone is.
@@ -970,7 +972,8 @@ export async function swipeStepIn(db: Db, viewer: string, sceneId: string, to: "
   const target = order[order.indexOf(last!) + (to === "next" ? 1 : -1)];
   if (!target) return fail(409, "no_more", to === "next" ? "That's the newest one." : "That's the first one.");
   const drawn = await drawnSets(db);
-  if (limitsNote(target.text, limitsOf(s), placeOf(s.place, drawn).public)) return fail(409, "past_limits", "That draw is past the limits you've set since. Draw another instead.");
+  // Held again to the limits as they are now, and to the lines as they're checked now.
+  if (linesNote(target.text) ?? limitsNote(target.text, limitsOf(s), placeOf(s.place, drawn).public)) return fail(409, "past_limits", "That draw is past the limits you've set since. Draw another instead.");
   await db.query(`update adult_step_in_messages set replaced_by = case when id = $3::text then null else $3::text end where scene_id = $1 and id = any($2::text[])`, [s.id, order.map((m) => m.id), target.id]);
   return sent(db, s);
 }
