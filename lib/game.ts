@@ -1,3 +1,4 @@
+import type { WritingStyle } from "./narration";
 import { pgFlags, pgPublic, type PgField } from "./pg-public";
 import { endingWhy } from "./why";
 import { wishLine, type StoredWishes } from "./wishes";
@@ -118,6 +119,13 @@ export type DateSetup = {
    * episodes made before formats existed have none and read as the classic blind date. Never the engine.
    */
   format?: FormatId;
+  /**
+   * How the date is written (lib/narration.ts): "narrated" wraps each line in prose once it's written. Set when it's booked,
+   * from the booker's style (lib/writing-style.ts styleFor, admins only while it's tested); absent is the script.
+   * `style_tokens`: the bought tokens it cost on top (lib/writing-style.ts), given back if the date fails.
+   */
+  style?: WritingStyle;
+  style_tokens?: number;
   /** meet_the_parents: a real house regular's name to play the chaperone (lib/simulation.ts). Flavour only. */
   chaperone?: string;
   /** ex_returns: a real past partner's name from the relationship graph, when there is one. Flavour only. */

@@ -2760,6 +2760,21 @@ button.ad-studio-fold-head:active:not(:disabled) {
 .ad-reader-action {
   color: var(--night-muted);
 }
+/* The narrated style (lib/narration.ts): the prose quieter, the words as said. */
+.ad-reader-beat {
+  font-style: italic;
+  color: var(--night-muted);
+}
+.ad-reader-said {
+  font-weight: 500;
+}
+/* A story (lib/stories.ts): a chapter told again as prose. */
+.ad-story p {
+  margin: 0 0 var(--space-3);
+}
+.ad-story h2 {
+  margin: 0 0 var(--space-3);
+}
 .ad-reader-back,
 .ad-reader-actions {
   display: flex;

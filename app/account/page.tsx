@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import WritingStylePicker from "@/app/WritingStylePicker";
+import { NARRATED_DATE_EXTRA_TOKENS, storedStyles, stylesOpen } from "@/lib/writing-style";
 import { cookies } from "next/headers";
 import Link from "next/link";
 import { BadgeList } from "@/app/Badges";
@@ -77,6 +79,8 @@ export default async function AccountPage({ searchParams }: { searchParams: Sear
   const companionPlan = auth?.authenticated && companionOpen() ? await planState(db, auth.userId, "companion") : null;
   // Appearance (lib/theme.ts): the pick this browser holds, so the radios open on it.
   const theme = themeFromCookie((await cookies()).get(THEME_COOKIE)?.value);
+  // Writing styles (lib/writing-style.ts): admins only while it's tested.
+  const showStyle = viewerId && (await stylesOpen(db, viewerId)) ? (await storedStyles(db, viewerId)).show : null;
   return (
     <>
       <h1>Your account</h1>
@@ -88,6 +92,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Sear
       {claim && <ClaimCard {...claim} />}
       <AccountPanel next={next} emailConfirmed={emailConfirmed} />
       <ThemeSetting initial={theme} />
+      {showStyle && <WritingStylePicker side="show" initial={showStyle} price={`◈ ${NARRATED_DATE_EXTRA_TOKENS} more a date`} />}
 
       {/* After Dark: for an account it's open to, or one with a subscription (lib/adult/billing.ts), never where it isn't offered. */}
       {afterDark && (

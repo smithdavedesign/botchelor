@@ -1,4 +1,7 @@
 import type { Metadata } from "next";
+import StoryButton from "@/app/StoryButton";
+import { storyFor } from "@/lib/stories";
+import { extraFor, STORY_TOKENS, stylesOpen } from "@/lib/writing-style";
 import { cookies, headers } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -223,6 +226,13 @@ export default async function EpisodePage({
   // After an aired date: talk with either of them one to one (lib/companion.ts), where companions are open to the
   // viewer and the character is one they may talk with. Signed out, the same characters get a sign-in link.
   const auth = authFromCookieStore(cookieStore);
+  // Writing styles (lib/writing-style.ts): the story of a finished date, admins only while it's tested.
+  // Started now and read after the page's other reads, so it adds no round trip of its own.
+  const storyState = stylesOpen(db, viewerId).then(async (open) =>
+    open
+      ? { open, kept: await storyFor(db, "episode", id, null).catch(() => null), price: (await extraFor(db, viewerId ?? "", STORY_TOKENS)) ? `◈ ${STORY_TOKENS}` : "free" }
+      : { open, kept: null, price: undefined },
+  );
   const talkP: Promise<{ id: string; name: string; signIn: boolean }[]> =
     ready && episode.revealed
       ? (async () => {
@@ -340,6 +350,7 @@ export default async function EpisodePage({
     // about this date. Asked only for an owner of one of the two; nobody else is ever shown it. CHAT_DATE_LINKS=0: never.
     ready && episode.is_creator && viewerId && chatDateLinks() ? textsAboutDate(db, viewerId, id).catch((): TextedAbout[] => []) : ([] as TextedAbout[]),
   ]);
+  const { open: storyOpen, kept: keptStory, price: storyPrice } = await storyState.catch(() => ({ open: false, kept: null, price: undefined }));
   const talk = await talkP;
   const performer = performerRows.rows[0];
   const mixer = sibling ? null : mixerTable;
@@ -662,6 +673,10 @@ export default async function EpisodePage({
           // The date itself, on the page (design audit 2026-11-14): its first exchange shows, the rest one tap away
           // ("Read the whole date"). Only the lines this viewer already gets (none before the finale airs, for a spectator).
           <TranscriptRead episodeId={episode.id} characters={episode.characters} turns={episode.transcript} thoughts={episode.inner?.thoughts} />
+        )}
+        {storyOpen && episode.status === "ready" && episode.transcript && episode.transcript.length > 0 && (
+          // Read it as a story (lib/stories.ts): admins only while it's tested; made once, then kept for everyone.
+          <StoryButton endpoint={`/api/episodes/${episode.id}/story`} initial={keptStory} price={storyPrice} className="card episode-story" />
         )}
 
       {/* The recap, the box score and the other ending reveals: folded away behind one toggle when the theater can

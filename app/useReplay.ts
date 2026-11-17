@@ -23,8 +23,14 @@ export const READ_START_MS = 1000;
 export const READ_MS_PER_WORD = 270;
 export const READ_MAX_MS = 16000;
 const wordCount = (s: string | undefined) => (s ?? "").trim().split(/\s+/).filter((w) => /[\p{L}\p{N}]/u.test(w)).length;
-export function readingMs(turn: Pick<Turn, "dialogue" | "action"> | undefined): number {
+/** A narrated line (lib/narration.ts) holds longer: its prose is read too, the action folded into it. */
+export const READ_MAX_NARRATED_MS = 26000;
+export function readingMs(turn: Pick<Turn, "dialogue" | "action" | "beat"> | undefined): number {
   if (!turn) return 0;
+  if (turn.beat && (turn.beat.before || turn.beat.after)) {
+    const words = wordCount(turn.beat.before) + wordCount(turn.dialogue) + wordCount(turn.beat.after);
+    return Math.min(READ_MAX_NARRATED_MS, READ_START_MS + words * READ_MS_PER_WORD);
+  }
   return Math.min(READ_MAX_MS, READ_START_MS + (wordCount(turn.dialogue) + wordCount(turn.action)) * READ_MS_PER_WORD);
 }
 

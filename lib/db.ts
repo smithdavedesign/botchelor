@@ -4346,6 +4346,33 @@ create index if not exists account_aliases_user_idx on account_aliases (user_id)
 -- When a character came into its account by a claim (null: it was made there). The account's choices that are consents
 -- cover a claimed character only from this moment on (lib/ml-consent.ts consentedCharactersSql), as a linked agent's do.
 alter table characters add column if not exists claimed_at timestamptz;
+
+-- Writing styles (lib/narration.ts, lib/writing-style.ts; David, 2026-11-17): each person's style for their show dates
+-- and companion scenes (show_style) and for their After Dark scenes (adult_style): 'script' or 'narrated' (admins only
+-- while it's tested). Goes with their account. A narrated companion reply keeps its prose beside the words (beat:
+-- {"before","after"}), never in text, which the voice reads.
+create table if not exists writing_prefs (
+  user_id text primary key,
+  show_style text check (show_style is null or show_style in ('script', 'narrated')),
+  adult_style text check (adult_style is null or adult_style in ('script', 'narrated')),
+  updated_at timestamptz not null default now()
+);
+alter table companion_messages add column if not exists beat jsonb;
+-- Stories (lib/stories.ts): a finished show date (kind 'episode', ref the episode id, owner null: everyone who can see
+-- the date reads the same one) or an After Dark chapter (kind 'adult', ref the saved chapter's id or "<scene id>:<chapter>:
+-- <lines>" for one still being written, owner its viewer) told again as prose. One a source; paragraphs a JSON array.
+create table if not exists stories (
+  id text primary key,
+  kind text not null check (kind in ('episode', 'adult')),
+  ref_id text not null,
+  owner_id text,
+  title text not null,
+  paragraphs jsonb not null,
+  model text,
+  cost numeric,
+  created_at timestamptz not null default now()
+);
+create unique index if not exists stories_ref_idx on stories (kind, ref_id, coalesce(owner_id, ''));
 `;
 
 /** Idempotent: creates the tables and upserts the house characters, free and premium. */
