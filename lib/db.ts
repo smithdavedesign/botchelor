@@ -4288,6 +4288,10 @@ create table if not exists account_aliases (
   linked_at timestamptz not null default now()
 );
 create index if not exists account_aliases_user_idx on account_aliases (user_id);
+
+-- When a character came into its account by a claim (null: it was made there). The account's choices that are consents
+-- cover a claimed character only from this moment on (lib/ml-consent.ts consentedCharactersSql), as a linked agent's do.
+alter table characters add column if not exists claimed_at timestamptz;
 `;
 
 /** Idempotent: creates the tables and upserts the house characters, free and premium. */

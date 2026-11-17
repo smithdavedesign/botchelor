@@ -116,6 +116,14 @@ Then, because nobody rates, reviews, follows, votes for or calls their own chara
 characters the account now owns is removed: ratings (which count toward the owner's points), reviews, follows, audition
 votes and open arc calls. Settled arc calls stay.
 
+**No consent is carried.** The account's settings stay its own, and what it agreed to never reaches back: its
+machine-learning consent covers a claimed character from the claim on (`characters.claimed_at`,
+`lib/ml-consent.ts consentedCharactersSql`), not the dates it had before, exactly as a linked agent's past is not covered.
+An identity-reveal yes given under the old id is not a yes for the account's name, so it stays behind too.
+
+**Daily caps** that count today's dates by who booked them count the moved ones as well, so a claim can only make a cap
+tighter for the rest of that day, never looser.
+
 `tests/account-claim.test.ts` puts a row in every show column of the registry under the old id, claims, and checks each
 one did what its rule says; it also runs the refusals, the rollback (a trigger that fails a late statement) and the
 switch.

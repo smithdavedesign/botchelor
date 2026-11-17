@@ -15,6 +15,10 @@
  * (agent_links), the person's choice covers what the agent did from the moment of that link on. A relinked agent's past
  * belongs to whoever it played for then, so the new account's consent never reaches back over it. House characters
  * belong to the show and need no consent.
+ *
+ * Claimed characters: a character made under an anonymous identity and later brought into an account
+ * (lib/account-claim.ts) is covered by that account's choice from the claim on (characters.claimed_at), never before:
+ * the identity that made its earlier dates gave no consent, and a consent is not carried from one identity to another.
  */
 import { recordChoice } from "./choice-history";
 import type { Db } from "./db";
@@ -78,5 +82,13 @@ export const airedPublicSql = (e: string) =>
  * consent gate at `atExpr` (the date's created_at): "a date goes into a dataset only when everyone whose character is on
  * it opted in" (the privacy page).
  */
-export const consentedCharactersSql = (a: string, b: string, atExpr: string) =>
-  `(${a}.is_house or ${consentedOwnerSql(`${a}.owner_id`, atExpr)}) and (${b}.is_house or ${consentedOwnerSql(`${b}.owner_id`, atExpr)})`;
+export const consentedCharactersSql = (a: string, b: string, atExpr: string) => `${consentedCharacterSql(a, atExpr)} and ${consentedCharacterSql(b, atExpr)}`;
+
+/**
+ * SQL: one character (alias `c`, a row of `characters`) is the show's own, or its owner passes the consent gate at
+ * `atExpr` AND the character was already that owner's then. A character brought into an account by a claim
+ * (lib/account-claim.ts sets characters.claimed_at) was someone's anonymous identity before: the account's consent
+ * covers it from the claim on and never reaches back over what it did earlier, the same rule as a linked agent's past.
+ */
+const consentedCharacterSql = (c: string, atExpr: string) =>
+  `(${c}.is_house or (${consentedOwnerSql(`${c}.owner_id`, atExpr)} and (${c}.claimed_at is null or ${c}.claimed_at <= ${atExpr})))`;

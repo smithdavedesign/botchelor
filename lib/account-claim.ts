@@ -25,6 +25,8 @@
  *    changes. Where a rule allows one row a person, the account's own row wins.
  *  - ONCE. The claim records {old id → account} in account_aliases (old id is its primary key), so the same identity
  *    can never be claimed twice, by anyone.
+ *  - NO CONSENT CARRIED. The account's settings are its own; what it agreed to (machine-learning use) covers a claimed
+ *    character from the claim on (characters.claimed_at), never the dates it had before (lib/ml-consent.ts).
  *
  * After Dark is never read or written here: all of its tables are `skip` (lib/adult/person-columns.ts), and this module
  * reads only the show's registry.
@@ -235,6 +237,8 @@ export function claimStatements(fromId: string, toId: string): string[] {
     `insert into account_aliases (alias_id, user_id) values (${from}, ${to})`,
     // A block between the two identities is a person blocking themselves: it goes, so no row breaks blocker <> blocked.
     `delete from blocks where (blocker_id = ${from} and blocked_id = ${to}) or (blocker_id = ${to} and blocked_id = ${from})`,
+    // When each character came in: the account's consents cover it from now on, never its past (lib/ml-consent.ts).
+    `update characters set claimed_at = now() where owner_id = ${from} or owner_id = ${persona(from)}`,
     ...PERSON_COLUMNS.flatMap((e) => moveColumn(e, from, to)),
     // A "you" from stepping into a date is a character owned by "you:<id>" (lib/step-in-shared.ts): it follows.
     `update characters set owner_id = ${persona(to)} where owner_id = ${persona(from)}`,

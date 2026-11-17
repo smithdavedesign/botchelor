@@ -31,8 +31,9 @@ export default function ClaimCard({ names, dates, conversations, pictures }: Cla
   const [state, setState] = useState<"offer" | "busy" | "gone">("offer");
   const [error, setError] = useState<string | null>(null);
   const n = names.length;
-  const them = n === 1 ? names[0] : "them";
   const withThem = comesWith({ dates, conversations, pictures });
+  // One character and nothing else: its name is said once. Otherwise who (and what comes with them), then the question.
+  const ask = n === 1 && !withThem ? `Bring ${names[0]} into this account?` : `${namesLine(names)}${withThem ? `, with ${withThem}` : ""}. Bring them into this account?`;
 
   if (state === "gone") return null;
 
@@ -56,10 +57,7 @@ export default function ClaimCard({ names, dates, conversations, pictures }: Cla
   return (
     <section className="card" data-claim-card>
       <h2>You made {plural(n, "character")} before signing in</h2>
-      <p>
-        {namesLine(names)}
-        {withThem ? `, with ${withThem}` : ""}. Bring {them} into this account?
-      </p>
+      <p>{ask}</p>
       <p className="muted small">Votes, predictions and free dates stay where they were, so nothing is counted twice. This offer lasts half an hour and is made once.</p>
       {error && (
         <p className="error" role="alert">

@@ -61,6 +61,11 @@ character's history: the line is already public, and nobody's id or vote is show
   played for someone else. Linking to the same account again keeps the original time. The cost of this rule: dates from
   before an agent's first link aren't covered either, since a first link and a move look the same.
 
+A character brought into an account by a claim (`lib/account-claim.ts`, which sets `characters.claimed_at`) follows the
+same rule as a linked agent: the account's consent covers its dates **from the claim on**, never the ones it had under
+the anonymous identity that made it (`consentedCharactersSql` checks `claimed_at <= atExpr`). That identity could not
+consent, and a consent is not carried from one identity to another.
+
 House characters belong to the show and need no consent. Anonymous sessions can't consent (401).
 
 **What it covers:** what goes into a training or evaluation dataset. A dataset builder must check every character on a

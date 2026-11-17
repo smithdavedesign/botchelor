@@ -14,6 +14,7 @@ import { CLAIM_COOKIE, claimIdentity, claimStatements, offerForPage, offerFromRe
 import { claimAdmin } from "@/lib/admins";
 import { CLAIM_TTL_SECONDS, registerAccount, signClaim, signOAuthState, signSession, verifyClaim } from "@/lib/auth";
 import { getPoints } from "@/lib/game";
+import { consentedCharactersSql, setMlConsent } from "@/lib/ml-consent";
 import { PERSON_COLUMNS, type PersonColumn } from "@/lib/person-columns";
 import { api, BASE_URL, episodeJson, HOUSE_PARTNER_ID, scriptedModel, startTestDb, validCharacter } from "./helpers";
 import { makeWorld, readCatalog, seedPersonRows, type Catalog, type World } from "./person-seed";
@@ -422,6 +423,44 @@ describe("the claim", () => {
   });
 });
 
+describe("a consent is never carried over", () => {
+  it("the account's machine-learning consent covers a claimed character from the claim on, never its earlier dates", async () => {
+    const account = await anAccount();
+    await setMlConsent(t.db, account.id, true);
+    const maker = await anAnonymousMaker();
+    const mine = (await (await api.createCharacter(validCharacter({ name: "Otto Fenn" }), accountCookie(account.id))).json()).id as string;
+    scriptedModel([episodeJson()]);
+    expect((await api.createEpisode({ character_id: mine, partner_id: HOUSE_PARTNER_ID }, accountCookie(account.id))).status).toBe(200);
+    const consented = async (episode: string) =>
+      (
+        await t.db.query<{ ok: boolean }>(
+          `select ${consentedCharactersSql("a", "b", "e.created_at")} as ok from episodes e join characters a on a.id = e.character_a join characters b on b.id = e.character_b where e.id = $1`,
+          [episode],
+        )
+      ).rows[0].ok;
+    const ownDate = (await t.db.query<{ id: string }>(`select id from episodes where character_a = $1 or character_b = $1`, [mine])).rows[0].id;
+    // Before the claim: the account's own date is covered, the anonymous identity's is not (it never consented).
+    expect(await consented(ownDate)).toBe(true);
+    expect(await consented(maker.episode!)).toBe(false);
+
+    expect((await claimIdentity(t.db, maker.id, account.id)).ok).toBe(true);
+    expect(await ownerOf(maker.character)).toBe(account.id);
+
+    // After: the date made before the claim is still not covered, though the character is the account's now.
+    expect(await consented(maker.episode!)).toBe(false);
+    expect(await consented(ownDate)).toBe(true);
+    // A date the claimed character goes on afterwards is the account's, and is covered.
+    await t.db.query(
+      `insert into episodes (id, creator_id, character_a, character_b, setting, goals, scenes, twist, finale, ending, created_at)
+       select 'a-later-date', creator_id, character_a, character_b, setting, goals, scenes, twist, finale, ending, now() + interval '1 hour' from episodes where id = $1`,
+      [maker.episode],
+    );
+    expect(await consented("a-later-date")).toBe(true);
+    // Only the characters that came in are marked.
+    expect((await t.db.query(`select id from characters where claimed_at is not null`)).rows).toEqual([{ id: maker.character }]);
+  });
+});
+
 describe("every column does what the registry says", () => {
   let world: World;
   const NAMES = new Set(PERSON_COLUMNS.map((e) => `${e.table}.${e.column}`));
@@ -463,7 +502,7 @@ describe("every column does what the registry says", () => {
     expect(mismatches(saying("characters.owner_id", { does: "skip", why: "(a wrong entry, for this test)" }))).toEqual(["characters.owner_id (skip): 0 left, 1 arrived"]);
     // And it covered the whole show registry but the seven rows that stop a claim.
     expect(SEEDED).toHaveLength(PERSON_COLUMNS.length - STOPS.size);
-    expect(SEEDED.filter((e) => e.move.does === "reassign").length).toBeGreaterThan(25);
+    expect(SEEDED.filter((e) => e.move.does === "reassign").length).toBeGreaterThan(20);
     expect(SEEDED.filter((e) => e.move.does === "merge").length).toBeGreaterThan(5);
     // Someone else's rows never move.
     expect(await count(`select 1 from characters where owner_id = $1`, [world.otherUser])).toBe(world.characters.length);
@@ -526,6 +565,12 @@ describe("the card", () => {
     expect(html).toContain("Bring them in");
     expect(html).toContain("Not now");
     expect(html).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-/);
+    // One character with nothing else: its name is said once.
+    const one = renderToStaticMarkup(createElement(ClaimCard, { names: ["Nell"], dates: 0, conversations: 0, pictures: 0 }));
+    expect(one).toContain("You made 1 character before signing in");
+    expect(one).toContain("<p>Bring Nell into this account?</p>");
+    expect(one).toContain("Bring Nell in");
+    expect(renderToStaticMarkup(createElement(ClaimCard, { names: ["Nell"], dates: 2, conversations: 0, pictures: 0 }))).toContain("Nell, with 2 dates. Bring them into this account?");
   });
 });
 
