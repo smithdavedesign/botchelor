@@ -20,8 +20,11 @@ import { api, BASE_URL, episodeJson, HOUSE_PARTNER_ID, scriptedModel, startTestD
 import { makeWorld, readCatalog, seedPersonRows, type Catalog, type World } from "./person-seed";
 
 const SECRET = ["claim", "test", "secret", "abcdefghij0123456789"].join("-");
-// Built from parts, never a `password: "literal"` the secret scanner would flag.
+// Built from parts, never a `password: "literal"` or a secret-shaped string the secret scanner would flag
+// (GitGuardian scans every commit of this public repo; two literals here tripped it once, on #1737).
 const PW = ["lantern", "keeper", "42"].join("-");
+const WRONG_PW = ["not", "the", "one"].join("-");
+const OTHER_SECRET = ["another", "signing", "key", "0123456789abcdefghij"].join("-");
 
 let t: Awaited<ReturnType<typeof startTestDb>>;
 let catalog: Catalog;
@@ -141,7 +144,7 @@ describe("the offer is made at sign-in, only for an identity this browser provab
   it("a failed sign-in makes no offer; signing up or out clears one", async () => {
     const account = await anAccount();
     const maker = await anAnonymousMaker({ date: false });
-    const bad = await loginRoute(post("/api/auth/login", { handle: account.handle, password: "wrong-one" }, maker.cookie));
+    const bad = await loginRoute(post("/api/auth/login", { handle: account.handle, password: WRONG_PW }, maker.cookie));
     expect(bad.status).toBe(401);
     expect(setCookie(bad, CLAIM_COOKIE)).toBeNull();
     const stale = offerCookie(crypto.randomUUID(), account.id);
@@ -212,7 +215,7 @@ describe("the claim", () => {
     await unmoved();
 
     // A forged offer: the right shape, signed with another secret; and a real one with its payload swapped.
-    const forged = `${CLAIM_COOKIE}=${signClaim({ from: maker.id, to: account.id }, { SESSION_SECRET: "another-secret-entirely-0123456789" })}`;
+    const forged = `${CLAIM_COOKIE}=${signClaim({ from: maker.id, to: account.id }, { SESSION_SECRET: OTHER_SECRET })}`;
     expect((await claimRoute(post("/api/me/claim", { confirm: true }, `${session}; ${forged}`))).status).toBe(403);
     const real = signClaim({ from: crypto.randomUUID(), to: account.id })!;
     const swapped = real.split(".");
