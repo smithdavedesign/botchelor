@@ -748,13 +748,6 @@ label.ad-whos-in-state {
   background: rgba(18, 10, 28, 0.97);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
 }
-/* In the steer bar (under the lines) it opens upward, like ⋯ More. */
-.after-dark-form .ad-writer-menu {
-  top: auto;
-  bottom: calc(100% + 0.4rem);
-  left: 0;
-  right: auto;
-}
 .ad-writer-logo .ad-writer-menu button {
   display: grid;
   gap: 0.1rem;

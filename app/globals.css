@@ -8003,36 +8003,6 @@ a.phone-head-btn {
 .after-dark-line.is-b {
   background: color-mix(in srgb, var(--accent) 12%, var(--card));
 }
-.after-dark-form {
-  display: grid;
-  gap: 0.4rem;
-  /* Stays on screen while the lines run long, then settles into its own place under them. */
-  position: sticky;
-  bottom: 0;
-  z-index: 5;
-  padding: var(--space-3) 0 calc(var(--space-2) + env(safe-area-inset-bottom));
-  background: linear-gradient(transparent, var(--ad-bg, var(--paper)) 18%);
-}
-.after-dark-form p {
-  margin: 0;
-}
-/* Skip to the latest lines: a small round button at the bottom right, above the steer bar, while the end is off screen. */
-.after-dark-skip {
-  position: absolute;
-  right: 0.2rem;
-  top: -2.6rem;
-  z-index: 6;
-  width: 2.4rem;
-  height: 2.4rem;
-  padding: 0;
-  border-radius: 999px;
-  font-size: var(--icon-xs);
-  line-height: 1;
-  background: var(--ad-card, var(--card));
-  color: var(--ad-ink, var(--ink));
-  border: 1px solid var(--ad-line, var(--line));
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
-}
 .after-dark-gallery {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
@@ -9700,40 +9670,13 @@ body.ad-host {
 .overnight-mark {
   margin: var(--space-2) 0 0;
 }
-.after-dark-steer-mode {
-  display: flex;
-  gap: var(--space-3);
-  font-size: var(--text-sm);
-}
-.after-dark-steer-mode label {
-  display: inline-flex;
-  gap: 0.3rem;
-  align-items: center;
-}
 /* A scene picture's chapter and place (lib/adult/auto-pictures.ts), under it in the gallery. */
 .ad-picture-where {
   display: block;
 }
-/* Autoplay, beside the page's buttons: the scene carries on by itself (lib/adult/autoplay.ts). */
-.after-dark-autoplay {
-  display: inline-flex;
-  gap: 0.3rem;
-  align-items: center;
-  font-size: var(--text-sm);
-}
 
-/* After Dark's director (lib/adult/director.ts): the suggested next moves as chips over the steer, the whispers still
-   running, and Rewind/Redo beside Write. The steer bar is sticky, so on a phone the chips keep to one row that scrolls
-   inside itself (the page never scrolls sideways) and each chip to two lines. The form is one column that never grows
-   past the page, however long a whisper is, and its fade is a short one, so the lines never show through the chips. */
-.after-dark-form {
-  grid-template-columns: minmax(0, 1fr);
-  background: linear-gradient(transparent, var(--ad-bg, var(--paper)) var(--space-3));
-}
-.after-dark-steer-mode {
-  flex-wrap: wrap;
-  row-gap: 0.2rem;
-}
+/* After Dark's director (lib/adult/director.ts): the suggested next moves as chips, and the whispers still running.
+   On a phone the chips keep to one row that scrolls inside itself (the page never scrolls sideways). */
 .ad-suggestions {
   display: flex;
   flex-wrap: wrap;
