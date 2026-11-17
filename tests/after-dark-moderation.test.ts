@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { HIVE_VLM, setCheckFetchForTests, setCheckSleepForTests } from "@/lib/adult/check";
 import { pauseHive } from "@/lib/adult/hive-limit";
-import { adminCheckerOf, ALONE_QUESTION, aloneInPicture, checkMedia, checkReady, devModerationOff, mediaGate, setAdminCheckerDefaultForTests, setModerationFetchForTests, SIGHTENGINE_CHECK, VENICE_CHAT } from "@/lib/adult/moderation";
+import { adminCheckerOf, ALONE_QUESTION, aloneInPicture, checkMedia, checkReady, devModerationOff, mediaGate, setAdminCheckerDefaultForTests, setModerationFetchForTests, SIGHTENGINE_CHECK, UNFILTERED_NSFW_MAX, VENICE_CHAT } from "@/lib/adult/moderation";
 import { DEFAULT_MODERATION, mergeModerationConfig, moderationConfigOf } from "@/lib/adult/moderation-config";
 import { saveAdultSettings } from "@/lib/adult/settings";
 import { claimAdmin } from "@/lib/admins";
@@ -49,14 +49,14 @@ afterEach(() => {
 
 const PIC = { base64: Buffer.from([137, 80, 78, 71]).toString("base64"), mime: "image/png" };
 const answer = (a: string) => ({ choices: [{ message: { role: "assistant", content: JSON.stringify({ answer: a }) } }] });
-const MOD = { output: [{ classes: [{ class: "yes_child_present", value: 0.01 }, { class: "no_child_present", value: 0.99 }, { class: "general_nsfw", value: 0.4 }] }] };
+const mod = (nsfw: number) => ({ output: [{ classes: [{ class: "yes_child_present", value: 0.01 }, { class: "no_child_present", value: 0.99 }, { class: "general_nsfw", value: nsfw }] }] });
 /** Hive, answering (or 429 every time). */
-function hive(opts: { age?: string; down?: boolean } = {}) {
+function hive(opts: { age?: string; down?: boolean; nsfw?: number } = {}) {
   const calls: string[] = [];
   setCheckFetchForTests(async (input: RequestInfo | URL) => {
     calls.push(String(input) === HIVE_VLM ? "vlm" : "moderation");
     if (opts.down) return new Response(JSON.stringify({ message: "Too Many Requests" }), { status: 429 });
-    return Response.json(String(input) === HIVE_VLM ? answer(opts.age ?? "ADULTS") : MOD);
+    return Response.json(String(input) === HIVE_VLM ? answer(opts.age ?? "ADULTS") : mod(opts.nsfw ?? 0.4));
   });
   return calls;
 }
@@ -156,6 +156,38 @@ describe("the show's own pictures by default (the audit, 2026-10-29: Hive's 100 
     // Hive's way, and Hive is paused: it couldn't run (nothing sent to the alternatives).
     expect(await checkMedia(t.db, PIC, "set")).toMatchObject({ ok: false });
     expect(h).toHaveLength(0);
+  });
+});
+
+describe("a show picture from an unfiltered source (Workers AI, PRD styles-and-storylines phase 1)", () => {
+  it("must pass a question about nudity and sexual content on the alternatives", async () => {
+    hive();
+    alts({ venice: "SAFE" });
+    expect(await checkMedia(t.db, PIC, "pg_image", { unfiltered: true })).toMatchObject({ ok: true, via: ["venice_vlm"] });
+    alts({ venice: "UNSAFE" });
+    expect(await checkMedia(t.db, PIC, "pg_image", { unfiltered: true })).toMatchObject({ ok: false, reason: "the show's check (Venice): UNSAFE" });
+    // Sightengine only ages faces: alone, it can't clear an unfiltered picture (a filtered one passes as before).
+    await saveAdultSettings(t.db, { moderation: { pg_via: "alt", alts: ["sightengine"], sightengine_user: "u1" }, sightengine_key: "placeholder-secret" });
+    alts();
+    expect(await checkMedia(t.db, PIC, "pg_image")).toMatchObject({ ok: true, via: ["sightengine"] });
+    expect(await checkMedia(t.db, PIC, "pg_image", { unfiltered: true })).toMatchObject({ ok: false, reason: expect.stringMatching(/^the check couldn't run \(no checker asked/) });
+    // The endpoint answers the show's question only with SAFE; ADULTS says nothing about nudity.
+    await saveAdultSettings(t.db, { moderation: { alts: ["endpoint"], endpoint_url: "https://age.example/check" } });
+    alts({ endpoint: "ADULTS" });
+    expect((await checkMedia(t.db, PIC, "pg_image", { unfiltered: true })).ok).toBe(false);
+    alts({ endpoint: "SAFE" });
+    expect(await checkMedia(t.db, PIC, "pg_image", { unfiltered: true })).toMatchObject({ ok: true, via: ["endpoint"] });
+  });
+
+  it("is refused on Hive's way at UNFILTERED_NSFW_MAX, which a filtered one isn't", async () => {
+    await saveAdultSettings(t.db, { venice_key: "" });
+    alts();
+    hive({ nsfw: 0.4 });
+    expect(await checkMedia(t.db, PIC, "pg_image")).toMatchObject({ ok: true, nsfw: 0.4 });
+    expect(await checkMedia(t.db, PIC, "pg_image", { unfiltered: true })).toMatchObject({ ok: false, reason: "moderation: general_nsfw 0.40" });
+    expect(UNFILTERED_NSFW_MAX).toBe(0.3);
+    hive({ nsfw: 0.05 });
+    expect(await checkMedia(t.db, PIC, "pg_image", { unfiltered: true })).toMatchObject({ ok: true, nsfw: 0.05 });
   });
 });
 
