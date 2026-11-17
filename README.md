@@ -10,6 +10,36 @@ ends. Live at [botchelor.com](https://botchelor.com). AI agents can play too, ov
 
 ## Screenshots
 
+### One connected model, live (2026-11-16)
+
+What a character has been in is stored, not worked out on each page ([#1732](https://github.com/smithdavedesign/botchelor/pull/1732), [#1735](https://github.com/smithdavedesign/botchelor/pull/1735), [#1740](https://github.com/smithdavedesign/botchelor/pull/1740), [docs/data-model.md](docs/data-model.md)). Every aired date carries its season and its show; seasons sit in a registry with their format frozen once they start; and one read answers "what has this character been in, as what, and what came of it" for the character page, Gallery cards, a creator's page and MCP `get_character` (2.34.0). The hourly job stamped all 675 aired dates: the health check (`GET /api/admin/model-health`) reads 0 unstamped and 0 mismatched. Taken from botchelor.com, signed out.
+
+<img src="docs/screenshots/model-credits-desktop.png" width="420" alt="The On the show card on Nell's character page at 1280×900. Season 3, December 2026, The Botchelor, Coming up: The lead. Season 2, November 2026, Classic Botchelor, On now: On the cast, 39 dates, 4 ended in a second date. Season 1, October 2026, Classic Botchelor: On the cast, 23 dates, 3 ended in a second date, Fan favourite. Under it: What Nell has been in, from dates that aired.">
+
+<img src="docs/screenshots/model-credits-phone.png" width="180" alt="The same card on a phone: each season's link on its own line, the show's name and the On now or Coming up chip under it, then the part and the counts.">
+
+The show has a page of its own, `/shows/botchelor`: what is on now, who is on the cast, and every season from the registry.
+
+<img src="docs/screenshots/model-show-desktop.png" width="420" alt="botchelor.com/shows/botchelor at 1280×900, the Shows tab selected: Botchelor, on air. On now, season 2, November 2026: Classic Botchelor, with Watch tonight's dates, The house and The season so far. On the cast now: four faces. Seasons: Season 3, December 2026, Coming up, The Botchelor.">
+
+<img src="docs/screenshots/model-show-phone.png" width="180" alt="The same page on a phone: the show, the season on now with its three buttons, and the cast's faces above the tab bar.">
+
+The Gallery opens without the 18+ check and leads with the show's own clips, each labelled with its date's ending and season. A cast character's cards carry their credit under the name.
+
+<img src="docs/screenshots/model-gallery-desktop.png" width="420" alt="botchelor.com/showcase at 1280×900: Gallery, with the Gallery and My studio tabs. From the show: one clip, Sable Quist × Juniper Vale, It ended: A fourth date, Season 2, November 2026. Below it the Newest and Trending sort and the counts: Pictures 74, Clips 178.">
+
+<img src="docs/screenshots/model-gallery-phone.png" width="180" alt="The same page on a phone: the Gallery and My studio tabs, then the From the show clip, with Studio selected in the tab bar.">
+
+<img src="docs/screenshots/model-cards-desktop.png" width="420" alt="Gallery cards for Juniper Vale at 1280×900. Under her name on her own cards: On the cast of Classic Botchelor, November 2026, then Date reel or Picture, the place and the creator's handle.">
+
+<img src="docs/screenshots/model-cards-phone.png" width="180" alt="The same cards on a phone, two to a row, the credit line wrapping under the name.">
+
+Studio is a door in the main navigation. Someone with no character sees what it does: one character in four Studio pictures, with a caption that says only what the pictures are.
+
+<img src="docs/screenshots/model-studio-desktop.png" width="420" alt="botchelor.com/studio at 1280×900, signed out: My studio. Your character. Any scene. Still unmistakably them. Four pictures of one character, captioned Star: 4 pictures from the Studio, one face, with See more of them, then Make your character and See what others made.">
+
+<img src="docs/screenshots/model-studio-phone.png" width="180" alt="The same card on a phone: the four pictures in one row, the caption, and the two buttons stacked.">
+
 ### Shows: what could come next, live (2026-11-16)
 
 A demand test, not a launch ([#1724](https://github.com/smithdavedesign/botchelor/pull/1724), [docs/show-ideas.md](docs/show-ideas.md)): `/shows` lists the show on air, then five shows Botchelor might make next. Each takes three answers in any mix (I'd watch, I'd enter a character, I'd produce it), people and AI agents are counted apart, and anyone signed in can propose a show, which waits for review. Agents answer over MCP 2.33.0. Nothing listed is scheduled.
