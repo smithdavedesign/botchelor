@@ -95,6 +95,31 @@ longer to get as far.
     today waits. The table under the section lists the people behind it (short id, character, where they came from,
     first act, what brought them back). To make a watched ending belong to a date, the `date_watched` beacon now
     carries `episode_id`, read off the page's address in `app/engagement.ts`.
+  - **The same count, split by the Studio** (2026-11-16): two more rows under it, "· used the Studio" and "· did not".
+    A counted person is in the first when they had run a Studio shoot (`studio_pg_shoots`, any kind) for that row's
+    character by the end of their seven days, else in the second; the definition is otherwise the same and the two add
+    up to the line above. Raw counts are always shown ("n too small (1/3)" under 5 people). The table gained a Studio
+    column saying which half each person is in. `lib/character-return.ts` `splitByStudio`, `usedStudio`.
+  - **The creator journey** (2026-11-16, `lib/creator-journey.ts`; the section "Creator journey"): of the people who
+    made a character, how many went on to each thing a creator can do with one. Counted from the tables that are the
+    truth, never from clicks, over the same 7 and 30 days, our own identities and agents left out like the rest:
+
+    | Row | What counts | Read from |
+    |---|---|---|
+    | Made a character | A person made a character on the web in the window: not a house character, not a step-in seat, not an agent's | `characters` (`created_via = 'web'`) |
+    | · ran a Studio shoot | They have a Studio shoot of their own, of any kind | `studio_pg_shoots` |
+    | · shared to the Gallery | They have a live Gallery post of their own | `showcase_posts` (`status = 'live'`) |
+    | · has a follower | Someone else follows one of their characters; their own follow and our own accounts' don't count | `character_follows` |
+    | · watched a date end | They watched a date to its ending, as that identity | `web_events` (`date_watched`) |
+    | · opened a chat | They started a conversation with a character (a character never starts one: every text sent first needs a thread that already exists) | `companion_threads` |
+
+    The first row is a count of people. Every other row is how many of THOSE people have done the thing, ever, shown as
+    a share of the first row with its raw counts, and "n too small" under 5 people. The steps are independent, not a
+    chain, so a later row can be larger than an earlier one. A browser that sends no analytics (the owner's, a
+    tracker blocker) is never seen watching a date, so that one row is a floor. `CREATOR_JOURNEY=0` leaves the section
+    and the split out. Served by `GET /api/admin/real-metrics`, shown by `app/admin/analytics/RealUse.tsx`.
+
+    ![Real use on the Product tab: the Creator journey beside People, with the Studio split under "Came back for their character" (a local run)](screenshots/admin-analytics-creator-journey-desktop.png)
 - **Languages, last 7 and 30 days** (`lib/language-seen.ts`, 2026-10-31): which language people and agents write in.
   A person's /create sheet and their hints for a character's next text, and the prose arguments of every MCP tool call
   (refused ones too), go through `lib/language.ts detectLanguage` (writing system first, then each language's everyday
@@ -168,6 +193,22 @@ Every page in the browser sends, in batches of up to 25 every few seconds and wh
 | `push_subscribed` | Browser notifications turned on and the subscription saved (`app/notifications/PushToggle.tsx`; 2026-11-14) | `place` (`settings`, `prompt`, `episode`, `match`) |
 | the conversions | `character_created`, `date_started`, `prediction_made`, `character_rated`, `reel_cta`, `sign_up`, `begin_checkout`, `purchase`, `ad_invite_requested` (`app/conversion.ts`, which still sends them to GA4 too) | as before |
 
+- **Which character, which date** (2026-11-16; the connected model, stage 6): the stored path has its ids replaced
+  (`/characters/:id` is one page for every character), so nothing could be split by character or by date. Every event
+  now carries the two keys of the page it counts for, in their own columns, `web_events.character_id` and
+  `web_events.episode_id` (nullable, indexed where set):
+  - the browser reads them off the address (`app/engagement.ts` `addressKeys`): `/characters/<id>` (and its
+    sub-pages), `/episodes/<id>`, `/studio?character=<id>`, `/chat?character=<id>`; and off a control that says which
+    one it is about, `data-track-character="<id>"` / `data-track-episode="<id>"` (a card in a list, a link to a date),
+    which wins over the page's own. They ride as the props `character_id` / `episode_id`;
+  - the server lifts them into the columns when they look like ids and keeps them out of `props` either way
+    (`lib/engagement.ts` `eventKeys`), so `select count(*) from web_events where character_id = '…' and event =
+    'page_view'` is a key lookup. `date_watched`'s date is now the column too (rows from before keep it in `props`;
+    `lib/character-return.ts` reads either);
+  - never for After Dark: its pages send neither, and an event from its host or one of its pages keeps neither;
+  - `EVENT_KEYS=0` stops the lift without a deploy of code (the columns stay empty; `date_watched` keeps its date as a
+    prop, as it did before).
+  They go with the row: 400 days (`lib/retention.ts`), and with the visitor when an account is deleted.
 - **Never-shown loads are left out** (2026-11-11): a visitor whose only rows ever are `page_view`s never had the page on
 - **"Watched it end" counts readers too** (2026-11-11): `date_watched` fired only when the theater's replay reached the ending, and never had (the page prints the whole date as text, ending last, and people read it there). It now also fires once when the recap's ending block is half on screen, with `via: "page"`; the theater's carries `via: "theater"`. The step is not comparable with days before 2026-11-11.
 - **Where viewers leave the theater** (2026-11-16): the Monday read found that the few outside viewers who pressed Watch in 30 days all left within 45 seconds and none reached an ending (the theater's `date_watched` was checked live and does fire), but nothing said where. `theater_left` fires once per opening when a viewer presses Exit or the tab goes away before the ending, with `line` and `of` (lines shown out of the date's), `pct`, `secs` on screen (capped at an hour), `via` (`exit` or `hidden`) and `auto` (opened by a `?play=1` link, which is how clips and the season page's starters open dates, rather than the Watch button). `lib/engagement-keys.ts` `theaterLeftProps`; read it with `select props from web_events where event = 'theater_left'`.

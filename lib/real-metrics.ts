@@ -22,10 +22,16 @@
  *
  * Beside them: the people's own 👍/👎 on lines (lib/line-feedback.ts), the simulated visitors' ratings, and the latest
  * quality runs (lib/quality-runs.ts: the golden set's side-by-side verdicts and the nightly After Dark observer).
+ *
+ * The creator journey (lib/creator-journey.ts, 2026-11-16): of the people who made a character in the window, how many
+ * reached the Studio, the Gallery, a follower, a watched ending and a chat, each from the table that is the truth. And
+ * "Came back for their character" in two halves, by whether the person had used the Studio for that character
+ * (lib/character-return.ts splitByStudio). CREATOR_JOURNEY=0 leaves both out.
  */
 import type { Db } from "./db";
 import { WRITE_TOOLS } from "./agent-analytics";
-import { characterReturn, describeReturns, loadCharacterActs, type CharacterAct, type ReturnDetail } from "./character-return";
+import { characterReturn, describeReturns, loadCharacterActs, loadStudioUses, splitByStudio, usedStudio, type CharacterAct, type ReturnDetail, type StudioUse } from "./character-return";
+import { creatorJourney, creatorJourneyOn, loadJourney, type JourneyMaker } from "./creator-journey";
 import { loadOurIds } from "./our-traffic";
 import { listQualityRuns, type QualityRun } from "./quality-runs";
 import { DELETED_OWNER } from "./rules";
@@ -124,6 +130,10 @@ export type Facts = {
   firstAgentWrite: Map<string, Date>;
   /** What people did with a character, ever (lib/character-return.ts). */
   characterActs: CharacterAct[];
+  /** Each person's first Studio shoot for each character, ever: what the return count is split by. */
+  studioUses: StudioUse[];
+  /** Everyone who made a character on the web in the longest window, and the steps they have reached (lib/creator-journey.ts). */
+  journey: JourneyMaker[];
 };
 
 export async function loadFacts(db: Db, sinceDays: number, now = new Date()): Promise<Facts> {
@@ -227,7 +237,14 @@ export async function loadFacts(db: Db, sinceDays: number, now = new Date()): Pr
     ...firstAgentWrite.keys(),
   ]);
   // Everyone behind an act with a character is checked too: an agent can message a character without making one.
-  const characterActs = await loadCharacterActs(db);
+  // The acts, the Studio shoots the return count is split by, and the creator journey: three reads at once (the last
+  // two only while CREATOR_JOURNEY is on).
+  const measured = creatorJourneyOn();
+  const [characterActs, studioUses, journey] = await Promise.all([
+    loadCharacterActs(db),
+    measured ? loadStudioUses(db) : [],
+    measured ? loadJourney(db, since, [...ours]) : [],
+  ]);
   const unknown = [...new Set([...events.map((e) => e.id), ...dates.map((d) => d.creator), ...characterActs.map((a) => a.user)])].filter((id) => !agents.has(id));
   if (unknown.length) {
     const seen = await db.query<{ id: string }>(
@@ -249,13 +266,26 @@ export async function loadFacts(db: Db, sinceDays: number, now = new Date()): Pr
     firstCreator,
     firstAgentWrite,
     characterActs,
+    studioUses,
+    journey,
   };
 }
 
 export type RealWindow = {
   days: number;
   since: string;
-  people: { new_creators: Metric; active: Metric; next_day_return: Metric; week2_return: Metric; character_return: Metric };
+  people: {
+    new_creators: Metric;
+    active: Metric;
+    next_day_return: Metric;
+    week2_return: Metric;
+    character_return: Metric;
+    /** The same count, for the people who had used the Studio for that character by the end of their window, and those who had not. */
+    character_return_studio: Metric;
+    character_return_no_studio: Metric;
+  };
+  /** The creator journey (lib/creator-journey.ts): who made a character, and how many of them reached each step. */
+  journey: { made: Metric; studio: Metric; shared: Metric; followed: Metric; watched: Metric; chatted: Metric };
   agents: { new_players: Metric; active: Metric; multi_day: Metric; next_day_return: Metric; dates_per_agent: Metric };
   dates: { booked: Metric; show_model: Metric; own_date: Metric; two_agent: Metric; second_date_rate: Metric; per_active_person: Metric };
   engagement: { predictions: Metric; audience_predicting: Metric; reviews: Metric; texts_people: Metric; texts_agents: Metric };
@@ -301,7 +331,11 @@ export function computeWindow(f: Facts, days: number): RealWindow {
   for (const [id, first] of f.firstCreator) if (inWindow(first) && real(id) && !isAgent(id)) newCreators.set(id, dayIndex(first));
   const nextDay = returnRate(newCreators, activeDays, today, { from: 1, to: 7, minAge: 1 });
   const week2 = returnRate(newCreators, activeDays, today, { from: 7, to: 13, minAge: 14 });
-  const sameCharacter = characterReturn(f.characterActs, { now: f.now, days, real: (id) => real(id) && !isAgent(id) });
+  const person = (id: string) => real(id) && !isAgent(id);
+  const sameCharacter = characterReturn(f.characterActs, { now: f.now, days, real: person });
+  const byStudio = splitByStudio(sameCharacter, f.studioUses);
+  // The creator journey: the people who made a character in the window, and how many of them reached each step.
+  const journey = creatorJourney(f.journey, { now: f.now, days, real: person });
 
   // Agents.
   const newAgents = new Map<string, number>();
@@ -344,6 +378,16 @@ export function computeWindow(f: Facts, days: number): RealWindow {
       next_day_return: share(nextDay.num, nextDay.den),
       week2_return: days >= 14 ? share(week2.num, week2.den) : { kind: "na", why: "30-day window only" },
       character_return: share(sameCharacter.num, sameCharacter.den),
+      character_return_studio: share(byStudio.studio.num, byStudio.studio.den),
+      character_return_no_studio: share(byStudio.no_studio.num, byStudio.no_studio.den),
+    },
+    journey: {
+      made: count(journey.made),
+      studio: share(journey.studio, journey.made),
+      shared: share(journey.shared, journey.made),
+      followed: share(journey.followed, journey.made),
+      watched: share(journey.watched, journey.made),
+      chatted: share(journey.chatted, journey.made),
     },
     agents: {
       new_players: count(newAgents.size),
@@ -412,6 +456,14 @@ export const METRIC_DEFS: MetricDef[] = [
   { section: "people", key: "next_day_return", label: "Next-day return", definition: "New creators, joined before today, active again on a later day within 7 days of their first. Rises as recent ones come back." },
   { section: "people", key: "week2_return", label: "Week-2 return", definition: "New creators at least 14 days in, active again 7 to 13 days after their first day." },
   { section: "people", key: "character_return", label: "Came back for their character", definition: "New people who watched their own character's date to its ending, or messaged a character, and on a later day within 7 days did something more with that same character: watched another of its dates end, booked it a date, messaged it, or left it advice. Page views and texts sent to them never count; someone whose first day is today isn't counted yet." },
+  { section: "people", key: "character_return_studio", label: "· used the Studio", definition: "The same count, for the people who had run a Studio shoot for that character by the end of their seven days. The two halves add up to the line above." },
+  { section: "people", key: "character_return_no_studio", label: "· did not", definition: "The same count, for the people who had not." },
+  { section: "journey", key: "made", label: "Made a character", definition: "People who made a character on the web in the window: not a house character, not a step-in seat, not an agent's. Every step below is how many of THESE people have done it, ever, as a share of this number; the steps are independent, not a chain." },
+  { section: "journey", key: "studio", label: "· ran a Studio shoot", definition: "Have a Studio shoot of their own (studio_pg_shoots), of any kind." },
+  { section: "journey", key: "shared", label: "· shared to the Gallery", definition: "Have a live Gallery post of their own (showcase_posts)." },
+  { section: "journey", key: "followed", label: "· has a follower", definition: "Someone else follows one of their characters (character_follows). Their own follow and our own accounts' don't count." },
+  { section: "journey", key: "watched", label: "· watched a date end", definition: "Watched a date to its ending as that identity (the date_watched event in web_events; browsers that send no analytics aren't seen)." },
+  { section: "journey", key: "chatted", label: "· opened a chat", definition: "Started a conversation with a character (companion_threads). A character never starts one: only the person's own tap does." },
   { section: "agents", key: "new_players", label: "New agents (players)", definition: "Agents whose first write ever (a write tool that worked, a character, a date) came in the window." },
   { section: "agents", key: "active", label: "Active agents", definition: "Agents that wrote something in the window: a write tool that worked, a character, a date, a swipe, a text." },
   { section: "agents", key: "multi_day", label: "Active on 2+ days", definition: "Active agents that wrote something on two or more different days." },
@@ -445,15 +497,21 @@ export type RealUse = {
   returns: ReturnDetail[];
 };
 
+/** The rows CREATOR_JOURNEY=0 leaves out of the page: the journey, and the Studio split of the return count. */
+const journeyDef = (d: MetricDef): boolean => d.section === "journey" || d.key === "character_return_studio" || d.key === "character_return_no_studio";
+
 /** The whole section: both windows from one load, the definitions, the last 10 simulated runs and the last 10 quality runs. */
 export async function realUse(db: Db, now = new Date()): Promise<RealUse> {
+  const measured = creatorJourneyOn();
   const facts = await loadFacts(db, Math.max(...WINDOWS), now);
+  const returns = await describeReturns(db, characterReturn(facts.characterActs, { now, days: Math.max(...WINDOWS), real: (id) => !facts.ours.has(id) && !facts.agents.has(id) }).rows);
   return {
     generated_at: now.toISOString(),
     min_n: MIN_N,
     windows: WINDOWS.map((d) => computeWindow(facts, d)),
-    returns: await describeReturns(db, characterReturn(facts.characterActs, { now, days: Math.max(...WINDOWS), real: (id) => !facts.ours.has(id) && !facts.agents.has(id) }).rows),
-    defs: METRIC_DEFS,
+    // Each row says which half of the split it is in (lib/character-return.ts usedStudio); not said with the switch off.
+    returns: measured ? returns.map((r) => ({ ...r, studio: usedStudio(r, facts.studioUses) })) : returns,
+    defs: measured ? METRIC_DEFS : METRIC_DEFS.filter((d) => !journeyDef(d)),
     sims: await listSimRatings(db, 10),
     quality: await listQualityRuns(db, { limit: 10 }),
   };

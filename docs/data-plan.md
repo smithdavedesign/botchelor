@@ -329,6 +329,12 @@ person's own row, read only for that person. It goes with the message, the conve
 of the row, and it adds nothing to any dataset.
 Companion conversations stay out of every dataset; After Dark stays out of the export.
 
+**Engagement events know their character and date** (2026-11-16; [analytics.md](analytics.md), "Which character, which
+date"): `web_events.character_id` and `web_events.episode_id`, two nullable ids on the visitor's own event rows, read
+off the page's address. No new table and nothing new about a person: the rows are kept 400 days (`lib/retention.ts`)
+and deleted with the visitor when an account is deleted (`lib/account.ts`), as before; they are not in the account
+export (no engagement row is) and in no dataset. Never set for After Dark.
+
 **When a character is forgotten** (deleting it once it has dates, or deleting the account; `forgetEverything`):
 
 - its impressions (as viewer and as card), its pairs' `relationship_events`, choices about it, and its matches and swipes;

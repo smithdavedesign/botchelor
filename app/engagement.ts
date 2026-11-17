@@ -3,6 +3,9 @@
  * click, form sends, and the show's conversions (app/conversion.ts), queued and sent to /api/e in small batches
  * (lib/engagement.ts stores them; the admin page's Engagement tab reads them).
  *
+ * Every event also names the character or the date its page is about (`character_id`, `episode_id`), read off the
+ * address or a control's data-track-character / data-track-episode (addressKeys below); never on After Dark.
+ *
  * What a click records: a control's data-track name when it has one (data-track-* attributes become its props), else a
  * link's page (its ids replaced) or the site it leads to, else a button's own label, cut to 40 characters, and the part
  * of the page it sat in (data-track-area, or nav/footer/dialog/main). Never what anyone typed: inputs, textareas and
@@ -98,7 +101,7 @@ export function queueEvent(name: string, props: Props = {}, at?: string): void {
     // A control's data-track value is its event's name, usually hyphenated: stored with underscores (lib/event-name.ts).
     const event = eventName(name);
     if (!event) return;
-    queue.push({ e: event, path, props: event === "date_watched" ? withEpisode(props) : props, t: Date.now() });
+    queue.push({ e: event, path, props: withKeys(props, at), t: Date.now() });
     if (queue.length >= MAX_QUEUE) flush();
     else if (!timer) timer = setTimeout(flush, FLUSH_MS);
   } catch {
@@ -106,15 +109,36 @@ export function queueEvent(name: string, props: Props = {}, at?: string): void {
   }
 }
 
+const KEY_ID = /^[A-Za-z0-9-]{8,64}$/;
+
 /**
- * "Watched it end" names its date (2026-11-16): the stored path is /episodes/:id for every date, so nothing said WHICH
- * date ended, and "came back for the same character" (lib/character-return.ts) couldn't be counted. All three places
- * that fire it are on the date's own page, so the id is read off the address here, once.
+ * The character or the date a page is about, read off its address (2026-11-16; the connected model, stage 6):
+ * /characters/<id>, /episodes/<id>, /studio?character=<id> and /chat?character=<id>. The stored path has its ids
+ * replaced (/characters/:id is one page for every character, lib/engagement.ts normalizePath), so nothing said WHICH
+ * character or date a view, a click or a watched ending belonged to: "watched it end" first got its date this way
+ * (lib/character-return.ts), and now every event does. The server lifts the two into their own columns
+ * (lib/engagement.ts eventKeys). Never on After Dark's pages. Pure.
  */
-function withEpisode(props: Props): Props {
-  if (props.episode_id !== undefined) return props;
-  const id = /^\/episodes\/([A-Za-z0-9-]{8,64})(?:\/|$)/.exec(window.location.pathname)?.[1];
-  return id ? { ...props, episode_id: id } : props;
+export function addressKeys(pathname: string, search = ""): { character_id?: string; episode_id?: string } {
+  if (pathname.startsWith("/after-dark")) return {};
+  const page = /^\/(characters|episodes)\/([A-Za-z0-9-]{8,64})(?:\/|$)/.exec(pathname);
+  if (page) return page[1] === "characters" ? { character_id: page[2] } : { episode_id: page[2] };
+  if (pathname === "/studio" || pathname === "/chat") {
+    const id = new URLSearchParams(search).get("character");
+    if (id && KEY_ID.test(id)) return { character_id: id };
+  }
+  return {};
+}
+
+/**
+ * An event's props with the keys of the page it counts for. `at` is the page when the event is for another one than
+ * the address shows (a page being left): only its path is known then. What the caller or the control says wins.
+ */
+function withKeys(props: Props, at?: string): Props {
+  if (afterDarkHost) return props;
+  const here = currentPath();
+  const keys = at === undefined || at === here ? addressKeys(here, window.location.search) : addressKeys(at);
+  return keys.character_id || keys.episode_id ? { ...keys, ...props } : props;
 }
 
 /** Send what's queued: sendBeacon (survives the page closing), else a keepalive fetch. */
@@ -138,7 +162,7 @@ export function flush(): void {
 
 /* ---------------------------------------------------- pages and time ---------------------------------------------------- */
 
-let page: { path: string; started: number; visibleMs: number; visibleSince: number | null; scroll: number } | null = null;
+let page: { path: string; keys: Props; started: number; visibleMs: number; visibleSince: number | null; scroll: number } | null = null;
 
 const scrollPercent = (): number => {
   const doc = document.documentElement;
@@ -151,7 +175,8 @@ function leavePage(): void {
   if (!page) return;
   const now = Date.now();
   const visible = page.visibleMs + (page.visibleSince !== null ? now - page.visibleSince : 0);
-  queueEvent("page_leave", { seconds: Math.round(visible / 1000), scroll: page.scroll }, page.path);
+  // The keys it opened with: by now the address may be the next page's, and a query (?character=) is not in the path.
+  queueEvent("page_leave", { ...page.keys, seconds: Math.round(visible / 1000), scroll: page.scroll }, page.path);
   page = null;
 }
 
@@ -166,7 +191,8 @@ export function pageView(): void {
   const path = currentPath();
   if (page?.path === path) return;
   leavePage();
-  page = { path, started: Date.now(), visibleMs: 0, visibleSince: document.visibilityState === "visible" ? Date.now() : null, scroll: scrollPercent() };
+  const keys = afterDarkHost ? {} : addressKeys(path, location.search);
+  page = { path, keys, started: Date.now(), visibleMs: 0, visibleSince: document.visibilityState === "visible" ? Date.now() : null, scroll: scrollPercent() };
   if (path === "/create") queueEvent("create_opened", {}, path);
   // The Character.AI rescue door (2026-11-14): how many open the import, against how many go on to create.
   if (path === "/import") queueEvent("import_opened", {}, path);
@@ -211,12 +237,22 @@ export function labelOf(el: Element): string | null {
   return label || null;
 }
 
-/** data-track-foo="x" on a control becomes the prop foo: "x" (data-track itself is the event's name). */
+/** The prop a data-track-* attribute becomes: its own name, but data-track-character and data-track-episode are the two keys. */
+export const trackKey = (attribute: string): string => {
+  const key = attribute.slice("data-track-".length).replace(/-/g, "_");
+  return key === "character" ? "character_id" : key === "episode" ? "episode_id" : key;
+};
+
+/**
+ * data-track-foo="x" on a control becomes the prop foo: "x" (data-track itself is the event's name). A control that is
+ * about one character or one date says so with data-track-character / data-track-episode (a card in a list, a link to
+ * a date): they are sent as character_id / episode_id and win over the page's own.
+ */
 function trackProps(el: Element): Props {
   const out: Props = {};
   for (const { name, value } of Array.from(el.attributes)) {
     if (!name.startsWith("data-track-") || name === "data-track-area") continue;
-    const key = name.slice("data-track-".length).replace(/-/g, "_");
+    const key = trackKey(name);
     out[key] = value === "true" ? true : value === "false" ? false : value.slice(0, 60);
   }
   return out;

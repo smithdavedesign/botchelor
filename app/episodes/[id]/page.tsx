@@ -574,7 +574,7 @@ export default async function EpisodePage({
           <p className="muted" data-chat-about>
             💬{" "}
             {textedAbout.length === 1 ? (
-              <Link href={companionThreadHref(textedAbout[0].thread_id)} data-track="episode-texted-about">
+              <Link href={companionThreadHref(textedAbout[0].thread_id)} data-track="episode-texted-about" data-track-character={textedAbout[0].character_id}>
                 {firstName(textedAbout[0].name)} texted you about this
               </Link>
             ) : (
@@ -582,7 +582,7 @@ export default async function EpisodePage({
                 {textedAbout.map((x, i) => (
                   <span key={x.thread_id}>
                     {i > 0 && (i === textedAbout.length - 1 ? " and " : ", ")}
-                    <Link href={companionThreadHref(x.thread_id)} data-track="episode-texted-about">
+                    <Link href={companionThreadHref(x.thread_id)} data-track="episode-texted-about" data-track-character={x.character_id}>
                       {firstName(x.name)}
                     </Link>
                   </span>

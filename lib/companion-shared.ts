@@ -333,9 +333,10 @@ export type CompanionMessageView = {
   /**
    * The last bubble of a text about a date this viewer may open (companion_messages.episode_id; lib/chat-date-links.ts):
    * one small link to it, "About your date with Nell". Absent: any other text, a date they may not open, a text that
-   * already carries `link` to the same date, and with CHAT_DATE_LINKS=0.
+   * already carries `link` to the same date, and with CHAT_DATE_LINKS=0. `episode`: the date's id, for the click's
+   * own record (data-track-episode).
    */
-  about?: { href: string; label: string } | null;
+  about?: { href: string; label: string; episode: string } | null;
   /**
    * The last bubble of a locked-picture text (lib/locked-picture.ts): the date it is about. The page draws the locked
    * tile under it when this viewer may see one (lib/adult/locked-picture.ts lockedDoors), else it stays a plain text.
