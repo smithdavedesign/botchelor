@@ -1,4 +1,3 @@
-import Link from "next/link";
 import type { CSSProperties } from "react";
 import Avatar from "@/app/Avatar";
 import { avatarPalette } from "@/lib/avatar";
@@ -89,9 +88,11 @@ export default function GraphTeaser({ teaser, group }: { teaser: Teaser; group: 
         <p className="kicker">The Constellation</p>
         <p className="graph-teaser-title">{TITLE[group]}</p>
         {stats && <p className="graph-teaser-stats">{stats}</p>}
-        <Link className="button graph-teaser-cta stretch" href={`/graph?origin=${group}#all-time`} data-track="graph-teaser" data-track-from={group}>
+        {/* A plain link, not next/link: /graph has a loading screen, and a client navigation applies #all-time to it before
+            the page arrives, so it landed on the story map (2026-11-17, live). A full load scrolls to the sky. */}
+        <a className="button graph-teaser-cta stretch" href={`/graph?origin=${group}#all-time`} data-track="graph-teaser" data-track-from={group}>
           Explore the constellation →
-        </Link>
+        </a>
       </div>
     </div>
   );
