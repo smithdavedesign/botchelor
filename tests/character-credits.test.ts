@@ -59,7 +59,7 @@ describe("what a character has been in", () => {
 
     const house = await credits(partner);
     expect(house.map((c) => c.season_id)).toEqual([NOV, OCT]);
-    expect(house[0]).toMatchObject({ number: 2, label: "November 2026", path: "/seasons/november-2026", format: "classic", format_title: "Classic Botchelor", role: "cast", dates: 1, second_dates: 1, when: "now", show_id: "botchelor" });
+    expect(house[0]).toMatchObject({ number: 2, label: "November 2026", path: "/seasons/november-2026", format: "classic", format_title: "Open Season", role: "cast", dates: 1, second_dates: 1, when: "now", show_id: "botchelor" });
     expect(house[0].honours).toEqual([{ key: "the-golden-couple", label: "🏆 The golden couple" }]);
     expect(house[1]).toMatchObject({ number: 1, role: "cast", when: "past" });
 
@@ -107,7 +107,7 @@ describe("what a character has been in", () => {
     const walkOn = await credits(mine.id);
     expect(walkOn[0]).toMatchObject({ role: "walk_on" });
     expect(walkOn[0].honours).toEqual([{ key: "roses", label: "🌹 2 roses" }]);
-    expect(creditLine(walkOn)).toBe("Walk-on on Classic Botchelor, November 2026");
+    expect(creditLine(walkOn)).toBe("Walk-on on Open Season, November 2026");
 
     await cast(NOV, DEX, "fan", 3);
     await t.db.query(`update season_casts set withdrawn_at = now() where character_id = $1`, [DEX]);
@@ -186,7 +186,7 @@ describe("a season's awards as rows", () => {
 
 describe("where it shows", () => {
   const credit = (over: Partial<CharacterCredit>): CharacterCredit => ({
-    season_id: NOV, show_id: "botchelor", number: 2, label: "November 2026", path: "/seasons/november-2026", format: "classic", format_title: "Classic Botchelor",
+    season_id: NOV, show_id: "botchelor", number: 2, label: "November 2026", path: "/seasons/november-2026", format: "classic", format_title: "Open Season",
     role: "cast", withdrawn: false, dates: 14, second_dates: 6, honours: [{ key: "the-golden-couple", label: "🏆 The golden couple" }], when: "now", ...over,
   });
 

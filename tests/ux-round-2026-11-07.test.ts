@@ -39,7 +39,7 @@ describe("vote shares a screen reader can read", () => {
       closes_at: "2026-12-01T00:00:00.000Z",
       current: "classic",
       choices: [
-        { slug: "classic", title: "Classic Botchelor", pitch: "p", emoji: "🌹", votes: 1 },
+        { slug: "classic", title: "Open Season", pitch: "p", emoji: "🌹", votes: 1 },
         { slug: "island", title: "The Villa", pitch: "p", emoji: "🏝️", votes: 3 },
       ],
       total: 4,

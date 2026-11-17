@@ -37,11 +37,11 @@ describe("the season's arc", () => {
 
   it("names next month's format beside this month's when it is a different one (GPT review, 2026-11-16)", () => {
     const now = new Date("2026-11-16T12:00:00Z");
-    const out = html(createElement(SeasonBanner, { now, format: "Classic Botchelor", next: "The Botchelor" }));
-    expect(out).toContain(">Classic Botchelor<");
+    const out = html(createElement(SeasonBanner, { now, format: "Open Season", next: "The Botchelor" }));
+    expect(out).toContain(">Open Season<");
     expect(out).toContain("December: The Botchelor");
     expect(out).toContain("December is The Botchelor");
-    expect(html(createElement(SeasonBanner, { now, format: "Classic Botchelor" }))).not.toContain("season-arc-next");
+    expect(html(createElement(SeasonBanner, { now, format: "Open Season" }))).not.toContain("season-arc-next");
     expect(html(createElement(SeasonBanner, { now, format: "The Botchelor", next: "The Botchelor" }))).not.toContain("season-arc-next");
   });
 

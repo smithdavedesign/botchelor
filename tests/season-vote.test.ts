@@ -119,7 +119,7 @@ describe("the result, announced (lib/season-vote.ts announceBallotResult)", () =
     const r = await announceBallotResult(t.db, "classic", DEC_2);
     expect(r).toMatchObject({ winner: null, total: 1 });
     const [n] = await notices(u1);
-    expect(n.title).toBe("📺 December 2026 is Classic Botchelor");
+    expect(n.title).toBe("📺 December 2026 is Open Season");
     expect(n.body).toMatch(/^Not enough votes to pick this time \(1 of the 3 needed\)/);
   });
 

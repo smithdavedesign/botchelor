@@ -506,8 +506,8 @@ describe("the board", () => {
     const { sent, fetchImpl } = fakeDiscord();
     expect(await postDueDiscord(t.db, now, { env: ON, fetchImpl })).toEqual({ posted: ["season:2026-11-01", `pool:${OCTOBER}`], failed: [] });
     const [season, pool] = sent.map((s) => s.body);
-    expect(season.content).toBe("📺 **Season 2: Classic Botchelor is on.**");
-    expect(season.embeds[0].description).toContain("🗳️ Picked by the viewers: **Classic Botchelor**, 3 of 4 votes.");
+    expect(season.content).toBe("📺 **Season 2: Open Season is on.**");
+    expect(season.embeds[0].description).toContain("🗳️ Picked by the viewers: **Open Season**, 3 of 4 votes.");
     expect(pool.content).toBe("🏆 **The October 2026 pool is out.**");
     expect(pool.embeds[0].url).toBe(`${SITE}/seasons/october-2026?utm_source=discord&utm_medium=board&utm_campaign=pool_reveal#pool`);
     expect(pool.embeds[0].description).toBe("**1.** Ana: 40 pts\n**2.** A viewer: 30 pts\n**2.** An AI agent: 30 pts\n\n3 players. Names show only for people who put one up.");
