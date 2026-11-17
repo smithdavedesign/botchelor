@@ -291,17 +291,35 @@ describe("My studio's door to the After Dark Studio (lib/adult/studio-door.ts)",
     expect(await studioDoorFor(t.db, signed(me), new Headers(), cookieStore(), true, A.id)).toBeNull();
   });
 
-  it("an admin is in: the house character's own After Dark Studio", async () => {
+  it("someone in: the character's own After Dark Studio when it's in their After Dark, else the switches; nothing for a character the Studio isn't theirs on", async () => {
     const admin = await adminId();
-    const door = await studioDoorFor(t.db, signed(admin), new Headers(), cookieStore(), true, A.id);
-    expect(door?.state).toBe("open");
-    expect(door?.href).toMatch(/\/after-dark\/studio/);
+    // The house cast is in everyone's After Dark: an admin's Studio for it opens straight away.
+    expect(await studioDoorFor(t.db, signed(admin), new Headers(), cookieStore(), true, A.id)).toEqual({
+      state: "open",
+      href: `/after-dark/studio/${A.id}`,
+      inviteOnly: false,
+    });
+    // Their own, still Out: the Studio door's "Who's in".
+    const mine = crypto.randomUUID();
+    const character = (id: string, owner: string, name: string) =>
+      t.db.query(
+        `insert into characters (id, owner_id, is_house, name, age, bio, traits, want, dealbreaker) values ($1, $2, false, $3, 31, 'Restores clocks.', '["dry"]'::jsonb, 'x', 'x')`,
+        [id, owner, name],
+      );
+    await character(mine, admin, "Ambrose Test");
+    expect(await studioDoorFor(t.db, signed(admin), new Headers(), cookieStore(), true, mine)).toEqual({ state: "switch_in", href: "/after-dark/studio#ad-whos-in", inviteOnly: false });
+    // Someone else's: no card.
+    const theirs = crypto.randomUUID();
+    await character(theirs, userIdOf(newUserCookie()), "Not Mine");
+    expect(await studioDoorFor(t.db, signed(admin), new Headers(), cookieStore(), true, theirs)).toBeNull();
   });
 
   it("the card's words pass the show's text check", () => {
     for (const line of [
       "After Dark Studio",
       "Private shoots of Nell for adults, in After Dark.",
+      "Private shoots of Nell for adults, in After Dark. Your characters start Out: switch Nell In there first.",
+      "Switch Nell In",
       "Private shoots of your own characters, for adults only. It's invite only while it's in beta.",
       "See the After Dark Studio",
     ]) {
