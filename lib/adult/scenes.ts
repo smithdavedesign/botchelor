@@ -3347,7 +3347,7 @@ export async function saveFraming(db: Db, ownerId: string, x: string, y: string,
 
 /**
  * This chapter's roleplay (lib/adult/roleplays.ts), or none: stored with the chapter it's for, so it ends with it. `swap`
- * gives the second character the first role.
+ * gives the second character the first role. `opening` is which of its card's three openings the next lines play.
  */
 export async function setRoleplay(db: Db, ownerId: string, x: string, y: string, pick: { id: string; swap?: boolean; opening?: number } | null): Promise<AdultScene | null> {
   const scene = await loadScene(db, ownerId, x, y);
@@ -3356,7 +3356,12 @@ export async function setRoleplay(db: Db, ownerId: string, x: string, y: string,
   const known = pick ? Boolean(roleplayById(pick.id)) || Boolean(await ownRoleplay(db, ownerId, pick.id)) : false;
   // Which of its card's openings (lib/scene-cards.ts): only one of the show's has a card, and none sent is the first.
   const opening = pick && roleplayById(pick.id)?.card && (pick.opening === 1 || pick.opening === 2) ? pick.opening : null;
-  const value = pick && known ? { id: pick.id, swap: pick.swap === true, ...(opening ? { opening } : {}), at: scene.lines.length } : null;
+  // The picker sends the running roleplay again with every move: the same one, opening the same way, has already
+  // opened, so it keeps where it was picked and its opening isn't played a second time at the new place.
+  const now = scene.roleplay;
+  const running = Boolean(pick && now && now.id === pick.id && now.swap === (pick.swap === true) && (now.opening ?? 0) === (opening ?? 0));
+  const at = running ? (now?.at ?? 0) : scene.lines.length;
+  const value = pick && known ? { id: pick.id, swap: pick.swap === true, ...(opening ? { opening } : {}), at } : null;
   await db.query(`update adult_scenes set roleplay = $2::jsonb, updated_at = now() where id = $1`, [scene.id, value ? JSON.stringify({ ...value, chapter: scene.chapter }) : null]);
   return publicScene({ ...scene, roleplay: value });
 }

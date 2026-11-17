@@ -3341,7 +3341,8 @@ turns the story can take, its tone, and three ways it can open.
   and `at` (how many lines the chapter had when it was picked). The route takes `roleplay.opening` (0 to 2).
 - **Played once:** "How it opens: … These first lines play that." is in the prompt only while the chapter has no more
   lines than `at`: the first step after the pick. A roleplay is usually picked partway through a chapter, so this is
-  what "its first lines" means. A rewind to that point brings it back.
+  what "its first lines" means. A rewind to that point brings it back. Moving them somewhere else with the same
+  roleplay running doesn't play it again; picking a different opening for it does.
 - A scene stored before this has neither field and works as before. The page never gets `at`.
 
 **Proof:** tests/scene-cards.test.ts (every card against its lines, in every form) and

@@ -164,6 +164,14 @@ describe("roleplays for a chapter", () => {
     expect(wrote(from)).toContain("- What Juniper wants: Juniper wants to win the argument");
     expect(wrote(from)).not.toContain("How it opens");
 
+    // The picker sends the running roleplay again with every move: it has opened, and doesn't open again at the new place.
+    const moved = await (await post({ a: CAST_A, b: CAST_B, set_scene: "the hotel terrace", roleplay: { id: "rivals", opening: 2 } }, cookie)).json();
+    expect(moved.scene).toMatchObject({ set_place: "the hotel terrace", roleplay: { id: "rivals", swap: false, opening: 2 } });
+    from = prompts.length;
+    await post({ a: CAST_A, b: CAST_B }, cookie);
+    expect(wrote(from)).toContain("- What Juniper wants: Juniper wants to win the argument");
+    expect(wrote(from)).not.toContain("How it opens");
+
     // No opening sent (or the first) is the first, stored as nothing; one out of range is refused; one of the viewer's
     // own roleplays has no card, so an opening sent with it is dropped.
     expect((await (await post({ a: CAST_A, b: CAST_B, roleplay: { id: "rivals", opening: 0 } }, cookie)).json()).scene.roleplay).toEqual({ id: "rivals", swap: false });
