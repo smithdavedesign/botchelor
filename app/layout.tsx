@@ -225,59 +225,61 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         )}
         <main id="main">{children}</main>
         <footer className="site-footer">
-          {/* The footer as the design system draws it (SiteFooter; David 2026-11-16, "our footer should match the designs"):
-              the adults line, four groups (columns on a wide screen, rows that fold on a phone), the letter beside the
-              show's accounts, then the fine print. The crisis line stays in the open under the adults line: the two lines
-              that must never be one tap away. /everything keeps every other page. */}
+          {/* The footer in the page's own column (David 2026-11-17, "keep it contained within content wrapper"): the letter
+              and the show's accounts on the left, four groups beside them (columns on a wide screen, rows that fold on a
+              phone), then the fine print at the very bottom: the adults line, where to find help, the © line. The adults
+              line and the crisis line stay in the open, never one tap away. /everything keeps every other page. */}
+          <div className="footer-main">
+            {/* The letter beside the show's own accounts (lib/company.ts), Discord's once its invite is set; neither on
+                After Dark's host. */}
+            {!adHost && (
+              <div className="footer-side">
+                <NewsletterSignup />
+                <SocialLinks links={socials} labels area="footer" />
+              </div>
+            )}
+            <nav className="footer-groups" aria-label="More of the site">
+              <FooterGroup title="The show">
+                <li><Link prefetch={showPrefetch} href="/watch">Watch</Link></li>
+                <li><Link prefetch={showPrefetch} href="/graph">The Constellation</Link></li>
+                <li><Link prefetch={showPrefetch} href="/shop">{adHost ? "Tokens" : "More dates"}</Link></li>
+                {!adHost && <li><Link prefetch={showPrefetch} href="/pricing">Pricing</Link></li>}
+                <li><Link prefetch={showPrefetch} href="/everything" className="footer-all">Everything on Botchelor →</Link></li>
+              </FooterGroup>
+              <FooterGroup title="Tools">
+                <li><Link prefetch={showPrefetch} href="/tools/oc-chemistry-test">OC chemistry test</Link></li>
+                <li><Link prefetch={showPrefetch} href="/tools/ship-name-generator">Ship name generator</Link></li>
+                {/* For people building agents: the MCP server's front door (/agents: tools and changelog are a tap further). */}
+                {!adHost && <li><Link prefetch={showPrefetch} href="/agents">For AI agents</Link></li>}
+                <li><a href="/llms.txt">llms.txt</a></li>
+              </FooterGroup>
+              <FooterGroup title="Company">
+                <li><Link prefetch={showPrefetch} href="/about">How it&apos;s built</Link></li>
+                <li><Link prefetch={showPrefetch} href="/costs">What it costs</Link></li>
+                <li><Link prefetch={showPrefetch} href="/faq">FAQ</Link></li>
+                <li><Link prefetch={showPrefetch} href="/press">Press kit</Link></li>
+                <li><Link prefetch={showPrefetch} href="/contact">Contact</Link></li>
+                <li><Link prefetch={showPrefetch} href="/security">Security</Link></li>
+                <li><Link prefetch={showPrefetch} href="/accessibility">Accessibility</Link></li>
+              </FooterGroup>
+              {/* The two ways to tell us something stay side by side (tests/user-feedback.test.ts). */}
+              <FooterGroup title="Help and legal">
+                <li><Link prefetch={showPrefetch} href="/report">Report a problem</Link></li>
+                <li>
+                  <FeedbackLink />
+                </li>
+                <li><Link prefetch={showPrefetch} href="/content-policy">Content policy</Link></li>
+                <li><Link prefetch={showPrefetch} href="/safety">Safety</Link></li>
+                <li><Link prefetch={showPrefetch} href="/terms">Terms and refunds</Link></li>
+                <li><Link prefetch={showPrefetch} href="/privacy">Privacy</Link></li>
+                <li><Link prefetch={showPrefetch} href="/legal">Terms and privacy, one page</Link></li>
+                <li><Link prefetch={showPrefetch} href="/2257">2257 statement</Link></li>
+                <li><Link prefetch={showPrefetch} href="/cancel">Cancel a subscription</Link></li>
+              </FooterGroup>
+            </nav>
+          </div>
           <p className="footer-adults">Every character is a fictional adult (18+), and every episode is written by an AI model.</p>
           <CrisisResources />
-          <nav className="footer-groups" aria-label="More of the site">
-            <FooterGroup title="The show">
-              <li><Link prefetch={showPrefetch} href="/watch">Watch</Link></li>
-              <li><Link prefetch={showPrefetch} href="/graph">The Constellation</Link></li>
-              <li><Link prefetch={showPrefetch} href="/shop">{adHost ? "Tokens" : "More dates"}</Link></li>
-              {!adHost && <li><Link prefetch={showPrefetch} href="/pricing">Pricing</Link></li>}
-              <li><Link prefetch={showPrefetch} href="/everything" className="footer-all">Everything on Botchelor →</Link></li>
-            </FooterGroup>
-            <FooterGroup title="Tools">
-              <li><Link prefetch={showPrefetch} href="/tools/oc-chemistry-test">OC chemistry test</Link></li>
-              <li><Link prefetch={showPrefetch} href="/tools/ship-name-generator">Ship name generator</Link></li>
-              {/* For people building agents: the MCP server's front door (/agents: tools and changelog are a tap further). */}
-              {!adHost && <li><Link prefetch={showPrefetch} href="/agents">For AI agents</Link></li>}
-              <li><a href="/llms.txt">llms.txt</a></li>
-            </FooterGroup>
-            <FooterGroup title="Company">
-              <li><Link prefetch={showPrefetch} href="/about">How it&apos;s built</Link></li>
-              <li><Link prefetch={showPrefetch} href="/costs">What it costs</Link></li>
-              <li><Link prefetch={showPrefetch} href="/faq">FAQ</Link></li>
-              <li><Link prefetch={showPrefetch} href="/press">Press kit</Link></li>
-              <li><Link prefetch={showPrefetch} href="/contact">Contact</Link></li>
-              <li><Link prefetch={showPrefetch} href="/security">Security</Link></li>
-              <li><Link prefetch={showPrefetch} href="/accessibility">Accessibility</Link></li>
-            </FooterGroup>
-            {/* The two ways to tell us something stay side by side (tests/user-feedback.test.ts). */}
-            <FooterGroup title="Help and legal">
-              <li><Link prefetch={showPrefetch} href="/report">Report a problem</Link></li>
-              <li>
-                <FeedbackLink />
-              </li>
-              <li><Link prefetch={showPrefetch} href="/content-policy">Content policy</Link></li>
-              <li><Link prefetch={showPrefetch} href="/safety">Safety</Link></li>
-              <li><Link prefetch={showPrefetch} href="/terms">Terms and refunds</Link></li>
-              <li><Link prefetch={showPrefetch} href="/privacy">Privacy</Link></li>
-              <li><Link prefetch={showPrefetch} href="/legal">Terms and privacy, one page</Link></li>
-              <li><Link prefetch={showPrefetch} href="/2257">2257 statement</Link></li>
-              <li><Link prefetch={showPrefetch} href="/cancel">Cancel a subscription</Link></li>
-            </FooterGroup>
-          </nav>
-          {/* The letter beside the show's own accounts (lib/company.ts), Discord's once its invite is set; neither on After
-              Dark's host. */}
-          {!adHost && (
-            <div className="footer-bottom">
-              <NewsletterSignup />
-              <SocialLinks links={socials} labels area="footer" />
-            </div>
-          )}
           <p className="footer-legal">
             Adults (18+) only · No real people · Points are free and can&apos;t be bought · © {new Date().getUTCFullYear()} {TRADING_AS}
             {support && (
