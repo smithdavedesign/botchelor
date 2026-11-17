@@ -14,6 +14,7 @@ import { portraitPathSql } from "./assets";
 import type { Db } from "./db";
 import { publicDateSql } from "./date-number";
 import { originSql, type Origin } from "./origin";
+import { inOriginGroup, type OriginGroup } from "./origin-group";
 import { KIND_IDS, KINDS, kindLabel, type KindId } from "./kinds";
 import { shownStage, stageOf, stageSteps, stagesV2On } from "./relationship-stages";
 import { healRelationships, tieStrength, type Stage, STAGE_LABELS } from "./relationships";
@@ -112,12 +113,14 @@ export const FIRST_SKY_PAIRS = 30;
  * whole sky was 1.5 MB, 250 requests and 14 s to settle on a desktop. The stats and kinds stay the whole sky's. Returns
  * `data` itself when it's small enough already.
  */
+/** Strongest tie first: weight, then dates, then the newest. */
+export const strongestFirst = (x: GraphEdge, y: GraphEdge): number =>
+  y.weight - x.weight || y.dates - x.dates || String(y.last_at ?? "").localeCompare(String(x.last_at ?? ""));
+
 export function firstSky(data: GraphData, pairs = FIRST_SKY_PAIRS): GraphData {
   const open = data.edges.filter((e) => !e.masked);
   if (open.length <= pairs && data.nodes.length <= pairs * 2) return data;
-  const strongest = [...open]
-    .sort((x, y) => y.weight - x.weight || y.dates - x.dates || String(y.last_at ?? "").localeCompare(String(x.last_at ?? "")))
-    .slice(0, pairs);
+  const strongest = [...open].sort(strongestFirst).slice(0, pairs);
   const ids = new Set(strongest.flatMap((e) => [e.a_id, e.b_id]));
   return {
     nodes: data.nodes.filter((n) => ids.has(n.id)),
@@ -125,6 +128,19 @@ export function firstSky(data: GraphData, pairs = FIRST_SKY_PAIRS): GraphData {
     stats: data.stats,
     kinds: data.kinds,
   };
+}
+
+/**
+ * One group's corner of the sky (pure): its characters, every pair with one of them in it, and whoever they dated, so
+ * "the cast" is the cast's love lives and not only the dates they had with each other (2026-11-17: 268 of 493 public
+ * pairs crossed groups; the cast had 15 among themselves). The group's singles stay, for the orbit. Stats and kinds stay
+ * the whole sky's, as firstSky leaves them.
+ */
+export function groupSky(data: GraphData, group: OriginGroup): GraphData {
+  const members = new Set(data.nodes.filter((n) => inOriginGroup(n.origin, group)).map((n) => n.id));
+  const edges = data.edges.filter((e) => members.has(e.a_id) || members.has(e.b_id));
+  const keep = new Set([...members, ...edges.flatMap((e) => [e.a_id, e.b_id])]);
+  return { nodes: data.nodes.filter((n) => keep.has(n.id)), edges, stats: data.stats, kinds: data.kinds };
 }
 
 /** The faint weight a masked edge renders at: present, never informative. */

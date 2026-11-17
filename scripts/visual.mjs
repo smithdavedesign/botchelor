@@ -682,6 +682,8 @@ async function main() {
       },
       { name: "notifications", path: "/notifications", as: "owner" },
       { name: "graph", path: "/graph" },
+      // Where the Characters page's preview of a tab lands (app/graph/GraphTeaser.tsx): the sky on that group and who they dated.
+      { name: "graph-cast", path: "/graph?origin=cast#all-time" },
       { name: "reunion", path: "/reunion" },
       // The show on air and the ideas for what could come next (lib/show-ideas.ts).
       { name: "shows", path: "/shows" },

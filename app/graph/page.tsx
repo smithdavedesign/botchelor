@@ -4,7 +4,8 @@ import CharacterName from "@/app/CharacterName";
 import JsonLd from "@/app/JsonLd";
 import Pager from "@/app/Pager";
 import { pageHref, pageOf, parsePage } from "@/lib/paging";
-import { firstSky, type KindPair } from "@/lib/graph";
+import { firstSky, groupSky, type KindPair } from "@/lib/graph";
+import { parseOriginGroup } from "@/lib/origin-group";
 import { cachedConstellation } from "@/lib/graph-cache";
 import { kindLabel } from "@/lib/kinds";
 import { breadcrumbJsonLd, itemListJsonLd, pageMetadata } from "@/lib/seo";
@@ -60,7 +61,10 @@ export default async function GraphPage({ searchParams }: { searchParams: Search
   const open = edges.filter((e) => !e.masked);
   const singles = nodes.filter((n) => n.degree === 0);
   const ledger = pageOf(edges, parsePage(sp.ledger), LEDGER_PAGE);
-  const first = firstSky({ nodes, edges, stats, kinds });
+  // ?origin= (the Characters page's preview of a tab): the sky opens on that group and whoever they dated, its strongest
+  // pairs first, with the filter set to match. The ledger and the numbers stay everyone's.
+  const origin = parseOriginGroup(sp.origin);
+  const first = firstSky(origin ? groupSky({ nodes, edges, stats, kinds }, origin) : { nodes, edges, stats, kinds });
 
   const jsonLd = (
       <JsonLd
@@ -84,6 +88,7 @@ export default async function GraphPage({ searchParams }: { searchParams: Search
         data={first}
         total={first.nodes.length === nodes.length && first.edges.length === edges.length ? null : { characters: nodes.length, pairs: edges.length }}
         initialFocus={typeof focusParam === "string" ? focusParam : null}
+        initialOrigin={origin ?? "all"}
       />
     </>
   );
@@ -164,7 +169,7 @@ export default async function GraphPage({ searchParams }: { searchParams: Search
         ) : (
           <p className="muted">No public dates yet: the sky is all orbit. Send two characters on a date and the first line appears.</p>
         )}
-        <Pager page={ledger.page} pages={ledger.pages} label="Ledger pages" href={(n) => pageHref("/graph", { focus: sp.focus }, "ledger", n, "ledger")} scroll={false} />
+        <Pager page={ledger.page} pages={ledger.pages} label="Ledger pages" href={(n) => pageHref("/graph", { focus: sp.focus, origin: origin ?? undefined }, "ledger", n, "ledger")} scroll={false} />
         {singles.length > 0 && (
           <>
             <h3>In orbit (no public dates yet)</h3>
