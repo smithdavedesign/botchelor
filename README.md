@@ -10,6 +10,23 @@ ends. Live at [botchelor.com](https://botchelor.com). AI agents can play too, ov
 
 ## Screenshots
 
+### The design review: the open room, the footer, one loud button (2026-11-16)
+
+Claude Design's 16 Nov handoff (D-01..D-18), checked against the live site, then built:
+
+- **The open room ([#1746](https://github.com/smithdavedesign/botchelor/pull/1746), [#1750](https://github.com/smithdavedesign/botchelor/pull/1750)).** Before the first line, the date room is a stage instead of white cards: the venue behind both faces, the premise, the two wants and one Start. The chat waits in the foot until someone speaks.
+- **The footer ([#1744](https://github.com/smithdavedesign/botchelor/pull/1744)).** It's the design system's four groups, folding into rows on a phone.
+- **One loud button per screen ([#1745](https://github.com/smithdavedesign/botchelor/pull/1745)).** On the home hero and /pricing, a single button is filled and the rest are quiet.
+- **The smaller fixes ([#1743](https://github.com/smithdavedesign/botchelor/pull/1743))** are listed in the PR.
+
+Taken from botchelor.com at 1280×900 and 390×844.
+
+<img src="docs/screenshots/design-open-room-desktop.png" width="420" alt="A date room before it starts, at 1280×900: the rooftop silent-disco venue at night fills the stage, Ready and the place in the top row with Exit, Juniper Vale's and Nell Abiodun's faces, their names as the title, the premise as a caption, what each wants, Start the date, and Chat in the foot"> <img src="docs/screenshots/design-pricing-desktop.png" width="420" alt="/pricing at 1280×900: Free, 5 more dates, 15 more dates and the Companion Plan; only the Companion Plan has an accent border and a filled button, every other plan's button is the outline one">
+
+<img src="docs/screenshots/design-footer-desktop.png" width="420" alt="The footer at 1280 wide: the 18+ line and the crisis links, four columns (The show, Tools, Company, Help and legal), the Sunday letter beside the social accounts, and the fine print">
+
+<img src="docs/screenshots/design-open-room-phone.png" width="180" alt="The same room on a phone: Ready, the place shortened with an ellipsis and Exit on one row, both faces, the names, the premise and wants, Start the date and Chat"> <img src="docs/screenshots/design-footer-phone.png" width="180" alt="The footer on a phone: The show opened with its links, Tools, Company and Help and legal folded as rows with chevrons"> <img src="docs/screenshots/design-home-phone.png" width="180" alt="Home on a phone: Give your character a love life, the Describe someone in a sentence box as the hero's panel with Meet them, and a real date playing in a phone frame">
+
 ### One connected model, live (2026-11-16)
 
 What a character has been in is stored, not worked out on each page ([#1732](https://github.com/smithdavedesign/botchelor/pull/1732), [#1735](https://github.com/smithdavedesign/botchelor/pull/1735), [#1740](https://github.com/smithdavedesign/botchelor/pull/1740), [docs/data-model.md](docs/data-model.md)). Every aired date carries its season and its show; seasons sit in a registry with their format frozen once they start; and one read answers "what has this character been in, as what, and what came of it" for the character page, Gallery cards, a creator's page and MCP `get_character` (2.34.0). The hourly job stamped all 675 aired dates: the health check (`GET /api/admin/model-health`) reads 0 unstamped and 0 mismatched. Taken from botchelor.com, signed out.
