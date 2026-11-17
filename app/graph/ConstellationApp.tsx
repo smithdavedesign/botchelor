@@ -2,10 +2,11 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { GraphData, GraphEdge, GraphNode } from "@/lib/graph";
-import { KINDS, type KindId } from "@/lib/kinds";
+import type { GraphData } from "@/lib/graph";
+import { KINDS } from "@/lib/kinds";
 import { communityColor, kindHue, type ColorBy } from "./colors";
 import type { Selection } from "./ConstellationCanvas";
+import { filterSky, type KindFilter, type OriginFilter } from "./filter";
 import SidePanel from "./SidePanel";
 import CharacterName from "@/app/CharacterName";
 
@@ -15,7 +16,6 @@ const ConstellationCanvas = dynamic(() => import("./ConstellationCanvas"), {
   loading: () => <p className="muted constellation-loading">Lighting the constellation…</p>,
 });
 
-type OriginFilter = "all" | "cast" | "person" | "agent";
 const ORIGIN_FILTERS: { id: OriginFilter; label: string }[] = [
   { id: "all", label: "Everyone" },
   { id: "cast", label: "The cast" },
@@ -27,9 +27,6 @@ const COLOR_BY: { id: ColorBy; label: string }[] = [
   { id: "kind", label: "Kind" },
   { id: "community", label: "Cluster" },
 ];
-/** "all", a kind, or "unsaid" for characters that haven't said what they are. */
-type KindFilter = "all" | KindId | "unsaid";
-
 /**
  * The interactive shell around the canvas: a toolbar above the sky (search-to-focus, origin, colouring, kind and depth
  * filters), the sky itself, and the detail panel. Filtering happens here so the canvas just draws what it's given;
@@ -39,11 +36,14 @@ export default function ConstellationApp({
   data: first,
   total = null,
   initialFocus = null,
+  initialOrigin = "all",
 }: {
   data: GraphData;
   /** The whole sky's size when `data` is only its strongest pairs (lib/graph.ts firstSky); null when it's all of it. */
   total?: { characters: number; pairs: number } | null;
   initialFocus?: string | null;
+  /** /graph?origin= (the Characters page's preview of one tab's group): the filter it opens on. */
+  initialOrigin?: OriginFilter;
 }) {
   // The strongest pairs first; "Show the whole sky" swaps in all of it (/api/graph/sky). 2026-11-07 audit, item 17.
   const [data, setData] = useState<GraphData>(first);
@@ -101,7 +101,9 @@ export default function ConstellationApp({
     };
   }, [full]);
   const [query, setQuery] = useState("");
-  const [origin, setOrigin] = useState<OriginFilter>("all");
+  const [origin, setOrigin] = useState<OriginFilter>(initialOrigin);
+  // With a group picked, whoever they dated too (./filter.ts): the cast's love lives, not only their dates with each other.
+  const [partners, setPartners] = useState(true);
   const [minDates, setMinDates] = useState(0);
   const [showSingles, setShowSingles] = useState(true);
   const [colorBy, setColorBy] = useState<ColorBy>("character");
@@ -118,20 +120,7 @@ export default function ConstellationApp({
   // colour, the rest share the grey and the key just counts them.
   const clusters = useMemo(() => [...new Set(data.nodes.map((n) => n.community).filter((c): c is number => c !== null))].sort((x, y) => x - y), [data.nodes]);
 
-  const { nodes, edges } = useMemo(() => {
-    let ns: GraphNode[] = data.nodes;
-    if (origin !== "all") ns = ns.filter((n) => n.private || (origin === "agent" ? n.origin === "agent" || n.origin === "house_bot" : n.origin === origin));
-    // A private character has no public kind, so a kind filter leaves it out.
-    if (kind !== "all") ns = ns.filter((n) => !n.private && (kind === "unsaid" ? n.kind === null : n.kind === kind));
-    let es: GraphEdge[] = data.edges.filter((e) => e.masked || e.dates >= minDates);
-    const ids = new Set(ns.map((n) => n.id));
-    es = es.filter((e) => ids.has(e.a_id) && ids.has(e.b_id));
-    if (!showSingles) {
-      const connected = new Set(es.flatMap((e) => [e.a_id, e.b_id]));
-      ns = ns.filter((n) => connected.has(n.id));
-    }
-    return { nodes: ns, edges: es };
-  }, [data, origin, minDates, showSingles, kind]);
+  const { nodes, edges } = useMemo(() => filterSky(data, { origin, partners, kind, minDates, showSingles }), [data, origin, partners, minDates, showSingles, kind]);
 
   const matches = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -230,6 +219,11 @@ export default function ConstellationApp({
               <option value="unsaid">Hasn&apos;t said</option>
             </select>
           </label>
+          {origin !== "all" && (
+            <label className="constellation-filter" title="Everyone they've dated, from any group, not only dates among themselves">
+              <input type="checkbox" checked={partners} onChange={(e) => setPartners(e.target.checked)} /> Who they dated
+            </label>
+          )}
           <label className="constellation-filter" title="Only pairs with two or more public dates">
             <input type="checkbox" checked={minDates >= 2} onChange={(e) => setMinDates(e.target.checked ? 2 : 0)} /> 2+ dates
           </label>

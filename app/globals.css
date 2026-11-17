@@ -42,6 +42,11 @@
   --constellation-bg: #1b0f20;
   --constellation-line: #4d3a58;
   --constellation-label: #cbb8d4;
+  /* Words, lines and the accent on the sky (the Characters page's preview, app/graph/GraphTeaser.tsx): the dark theme's,
+     in both themes, since the sky is dark in both. */
+  --constellation-ink: #f5e9f0;
+  --constellation-tie: #a98bff;
+  --constellation-accent: #ff5e8c;
   --frame-rose: #e64980;
   --frame-rose-bg: #fff0f6;
   --frame-gold: #e0a100;
@@ -12150,6 +12155,120 @@ html.constellation-locked body {
 @media (prefers-reduced-motion: reduce) {
   .constellation-canvas {
     cursor: default;
+  }
+}
+
+/* The Characters page's way into the Constellation (app/graph/GraphTeaser.tsx, 2026-11-17): the tab's group as a small
+   live sky, its faces laid over the lines at the same coordinates, one link over the whole card. The sky box keeps the
+   viewBox's 16:10, so the faces (placed in %) stay on their lines at any width. */
+.graph-teaser {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  overflow: hidden;
+  margin: var(--space-3) 0 var(--space-4);
+  border: 1px solid var(--constellation-line);
+  border-radius: var(--radius-lg);
+  background:
+    radial-gradient(90% 80% at 50% 45%, color-mix(in srgb, var(--constellation-tie) 16%, transparent), transparent 70%),
+    var(--constellation-bg);
+  color: var(--constellation-ink);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.graph-teaser-sky {
+  position: relative;
+  aspect-ratio: 16 / 10;
+}
+.graph-teaser-lines {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.graph-teaser-lines line {
+  stroke: var(--constellation-tie);
+  stroke-linecap: round;
+  transition: stroke 0.3s ease;
+}
+.graph-teaser-lines line.is-masked {
+  stroke: var(--constellation-label);
+  stroke-dasharray: 4 5;
+}
+.graph-teaser-lines circle.is-twinkle {
+  animation: graph-teaser-twinkle 3.2s ease-in-out infinite;
+}
+@keyframes graph-teaser-twinkle {
+  50% {
+    opacity: 0.3;
+  }
+}
+.graph-teaser-face {
+  position: absolute;
+  aspect-ratio: 1 / 1;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--constellation-bg), 0 0 16px 3px color-mix(in srgb, var(--glow, var(--constellation-tie)) 55%, transparent);
+}
+.graph-teaser-face .avatar {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  object-position: center 20%;
+}
+.graph-teaser-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-5) var(--space-5);
+}
+.graph-teaser-copy .kicker {
+  margin: 0;
+  color: var(--constellation-accent);
+}
+.graph-teaser-title {
+  margin: 0;
+  font-family: "Fraunces", Georgia, serif;
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  color: var(--constellation-ink);
+}
+.graph-teaser-stats {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--constellation-label);
+}
+.graph-teaser .graph-teaser-cta {
+  margin-top: var(--space-2);
+}
+/* No lift on the button itself: a transform makes it the box its ::after fills, so the card-wide link would shrink to it. */
+.graph-teaser .graph-teaser-cta:hover {
+  transform: none;
+}
+@media (hover: hover) {
+  .graph-teaser:has(.stretch:hover) {
+    border-color: color-mix(in srgb, var(--constellation-accent) 55%, var(--constellation-line));
+  }
+  .graph-teaser:has(.stretch:hover) .graph-teaser-lines line:not(.is-masked) {
+    stroke: var(--constellation-accent);
+  }
+}
+@media (min-width: 46rem) {
+  .graph-teaser {
+    grid-template-columns: minmax(15rem, 2fr) minmax(0, 3fr);
+    align-items: center;
+  }
+  .graph-teaser-copy {
+    order: -1;
+    padding: var(--space-6);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .graph-teaser-lines circle.is-twinkle {
+    animation: none;
   }
 }
 

@@ -32,6 +32,10 @@ import { nextSeasonStart, seasonIdOf, seasonLabel } from "@/lib/season-window";
 import { itemListJsonLd, pageMetadata } from "@/lib/seo";
 import { pageHref, pageOf as pageSlice, parsePage } from "@/lib/paging";
 import MatchmakerForm from "./MatchmakerForm";
+import GraphTeaser from "@/app/graph/GraphTeaser";
+import { graphTeaser } from "@/app/graph/teaser";
+import { cachedConstellation } from "@/lib/graph-cache";
+import type { OriginGroup } from "@/lib/origin-group";
 
 export const dynamic = "force-dynamic";
 
@@ -289,6 +293,13 @@ const cardVerbs = async (viewer: Viewer, ids: string[]): Promise<Map<string, Car
   return rows ? new Map(rows) : new Map();
 };
 
+/**
+ * The tab's group as a small sky (app/graph/teaser.ts), from the Constellation's own cached build: the same for everyone,
+ * so one shared copy. Null when nobody in the group has a public date yet, or the graph can't be read (never fails a page).
+ */
+const teaserFor = (group: OriginGroup) =>
+  shared(`characters:graph-teaser:${group}`, async () => graphTeaser(await cachedConstellation(), group)).catch(() => null);
+
 async function castTab({ season, thisId, castIds, now, pairsPage, viewer }: { season: DirectoryEntry[]; thisId: string; castIds: string[]; now: Date; pairsPage: number; viewer: Viewer }) {
   const viewerId = viewer.userId;
   // Talk on every card once companions are open (lib/companion-shared.ts).
@@ -313,11 +324,12 @@ async function castTab({ season, thisId, castIds, now, pairsPage, viewer }: { se
   });
   // The verbs are the season cast's (their ids are known already, so this waits on nothing): next season's candidates
   // and the off-season house aren't taking dates, so their cards have none, only Talk where they're companions.
-  const [{ candidates, upcoming, earlier, cast, edges, boards, hidden }, proposals, castDateWin, verbs] = await Promise.all([
+  const [{ candidates, upcoming, earlier, cast, edges, boards, hidden }, proposals, castDateWin, verbs, teaser] = await Promise.all([
     everyones,
     viewerId ? listMyProposals(db, viewerId) : Promise.resolve([]),
     castDatePrize(db, viewerId).catch(() => null),
     cardVerbs(viewer, season.map((e) => e.id)),
+    teaserFor("cast"),
   ]);
   const statusOf = new Map(candidates.map((c) => [c.character_id, c.status]));
   const matchable = cast.filter((c) => !hidden.has(c.id));
@@ -442,9 +454,14 @@ async function castTab({ season, thisId, castIds, now, pairsPage, viewer }: { se
 
       <section id="graph">
         <h2>The relationship graph</h2>
-        <p className="muted small">
-          <Link href="/graph">See it as a constellation →</Link>
-        </p>
+        {/* The way into /graph: the cast's corner of it, drawn (the plain link it replaced while there's nothing to draw). */}
+        {teaser ? (
+          <GraphTeaser teaser={teaser} group="cast" />
+        ) : (
+          <p className="muted small">
+            <Link href="/graph">See it as a constellation →</Link>
+          </p>
+        )}
         {edges.length ? (
           // Folded (2026-10-31 UX audit: every pairing was a card in the page, a screen or two on a phone); paging opens it.
           <details className="ux-fold graph-pairs" open={pairs.page > 1}>
@@ -503,7 +520,8 @@ async function madeByTab({ tab, page, privateCount, viewer, insider }: { tab: "p
   // Talk on every card once companions are open (lib/companion-shared.ts).
   const talk = companionOpen();
   const db = await getDb();
-  const list = await forViewer(viewer.userId, `characters:${tab}:${page}`, () => listTab(db, tab, page));
+  const group: OriginGroup = tab === "people" ? "person" : "agent";
+  const [list, teaser] = await Promise.all([forViewer(viewer.userId, `characters:${tab}:${page}`, () => listTab(db, tab, page)), teaserFor(group)]);
   const verbs = await cardVerbs(viewer, list.entries.filter((e) => !e.private).map((e) => e.id));
   const what = tab === "people" ? "characters made by people" : "characters made by AI agents";
   // How many people's characters, said here and not on the tab; to a stranger only from CROWD_MIN up (the empty-room
@@ -557,6 +575,13 @@ async function madeByTab({ tab, page, privateCount, viewer, insider }: { tab: "p
         )
       ) : (
         <p className="muted">None yet.</p>
+      )}
+      {/* Who this tab's characters have dated, as on the cast tab: drawn once any of them has a public date. */}
+      {teaser && (
+        <section id="graph" aria-labelledby="graph-title">
+          <h2 id="graph-title">The relationship graph</h2>
+          <GraphTeaser teaser={teaser} group={group} />
+        </section>
       )}
     </section>
   );
