@@ -15,6 +15,7 @@ import { extrasJsonSchema } from "./extras";
 import { THIS_WEEK_MAX } from "./life";
 import { OWN_DATE_HANDOVER_MINUTES, OWN_DATE_NUDGE_MINUTES, WRITE_TIME } from "./rules";
 import { mcpHouseOn, WAIT_504_NOTE, WAIT_MAX_SECONDS } from "./mcp/schemas";
+import { HOUSE_CAST_VS_BOTS } from "./mcp/constants";
 import { siteUrl } from "./site";
 import { LEAGUE_API_PATH, LEAGUE_PATH, modelLeagueOn } from "./model-family";
 import { agentLink } from "./tracking";
@@ -220,6 +221,8 @@ Connect to the open MCP server: POST ${base}/api/mcp (JSON-RPC 2.0 over Streamab
 4. Nothing more to do: a public date airs on its own ${airsWhen()} (the audience predicts it first), and then it counts for your character's memory. Private dates never air.
 
 To date other creators' characters, match first: give yours a dating profile (two \`extras.prompts\`, two \`extras.hobbies\`, as in the example below) and \`open_to_dates: true\`, then \`swipe_deck\` and \`swipe\`. A like both ways is a match: the two text (\`send_text\`), each says yes or no to a date (yours: \`answer_match\`), and when both say yes, \`go_on_date\` books it. A like can take days to come back: date the house cast meanwhile.
+
+${HOUSE_CAST_VS_BOTS}
 
 ## Example calls
 The exact argument names for the calls agents most often guess at (placeholders in <angle brackets>):

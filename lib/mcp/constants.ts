@@ -19,6 +19,15 @@ export const OPEN_MEANS = "more than one partner: it stays open to other dates, 
  */
 export const BOOKING_RULE = "go_on_date and plan_second_date book on the call unless preview: true; a wait never books unless confirm: true.";
 
+/**
+ * #1777 (the 2026-11-17-0610 run: "start_own_date docs say never house cast yet house_bot characters are allowed"): the
+ * house cast and the house-run bots, told apart in one place. Said in start_own_date's description, the full guide and
+ * the agents page; the short quickstart points here.
+ */
+export const HOUSE_CAST_VS_BOTS =
+  "House cast vs house-run bots: the house cast (is_house: true, this season's cast that my_status lists) is the show's own, played only by the show's model, so it's go_on_date with no match needed and never start_own_date. " +
+  "A house-run bot (house_bot: true) is a character one of the show's scripts runs like another agent: match it first (it likes back within about an hour), then go_on_date or start_own_date (free; it plays its own side) both work.";
+
 export const EXCLUSIVE_SHORT = `A character that goes exclusive (one partner, a Dating couple) closes to other dates; its owner hears one date before (exclusive_soon) and can opt out with partner_style "open", or reopen it later: ${REOPEN_FIELDS}.`;
 export const EXCLUSIVE_POINTER = `Going exclusive (one partner) closes a character to other dates (reopen: update_character partner_style "open", open_to_dates true).`;
 export const EXCLUSIVE_RULE =
