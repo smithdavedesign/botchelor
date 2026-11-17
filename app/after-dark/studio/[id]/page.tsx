@@ -2,11 +2,13 @@ import type { Metadata } from "next";
 import Icon from "@/app/Icon";
 import { cookies } from "next/headers";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { isAdmin } from "@/lib/admins";
+import { canAfterDark } from "@/lib/adult/entitlement";
 import { adultViewerFromCookies } from "@/lib/adult/mode";
 import { studioState } from "@/lib/adult/studio";
 import { getDb } from "@/lib/db";
+import { authFromCookieStore } from "@/lib/http";
 import Studio from "./Studio";
 import { currentHere } from "../../view";
 
@@ -17,14 +19,19 @@ type Props = { params: Promise<{ id: string }> };
 
 /**
  * The After Dark Studio for one character (lib/adult/studio.ts, docs/PRDs/studio.md): shoots of them alone, their face
- * and body references, and their gallery. Not found for anyone After Dark isn't open to, or for a character the Studio
- * isn't theirs to use on.
+ * and body references, and their gallery. Someone After Dark isn't open to goes to the Studio's locked preview
+ * (app/after-dark/studio/page.tsx); not found for a character the Studio isn't theirs to use on.
  */
 export default async function StudioPage({ params }: Props) {
   const { id } = await params;
   const db = await getDb();
-  const viewer = await adultViewerFromCookies(db, await cookies());
-  if (!viewer) notFound();
+  const store = await cookies();
+  const viewer = await adultViewerFromCookies(db, store);
+  if (!viewer) {
+    // Not in After Dark: the Studio's locked preview. In, but this device is locked or the place is blocked: as before.
+    if (!(await canAfterDark(db, authFromCookieStore(store))).ok) redirect("/after-dark/studio");
+    notFound();
+  }
   // The Studio is all pictures: where only the scenes are allowed (lib/jurisdiction.ts), it says so instead.
   const here = await currentHere();
   if (here.mode === "text_only") {

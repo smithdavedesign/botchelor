@@ -14,6 +14,7 @@ import { lockedForCookies } from "@/lib/adult/privacy";
 import { readinessOf } from "@/lib/adult/readiness";
 import { getDb } from "@/lib/db";
 import { authFromCookieStore } from "@/lib/http";
+import LockedPreview from "../LockedPreview";
 import Switches from "../Switches";
 import { currentView } from "../view";
 
@@ -28,15 +29,16 @@ export async function generateMetadata(): Promise<Metadata> {
  * whose Studio is theirs to use, as a card that opens it (lib/adult/studio.ts studioAccess: their own that are in, and
  * for an admin the house cast that's in), then who's in (a switch each: this season's cast is always in, their own
  * start Out). It's the old Characters page (/after-dark/characters sends here) with the Studio first instead of a row
- * of names. Where the Studio isn't open to them yet, only the switches, and the door says "Characters". Not found for
- * anyone After Dark isn't open to, as the hub.
+ * of names. Where the Studio isn't open to them yet, only the switches, and the door says "Characters". Someone After
+ * Dark isn't open to gets the locked preview instead (app/after-dark/LockedPreview.tsx; David, 2026-11-16, also the PG
+ * Studio's way here, ?source=pg-studio): blurred tiles and the way in, never a picture.
  */
-export default async function AfterDarkStudioPage() {
+export default async function AfterDarkStudioPage({ searchParams }: { searchParams?: Promise<{ source?: string }> } = {}) {
   const db = await getDb();
   const store = await cookies();
   const auth = authFromCookieStore(store);
   const entitled = await canAfterDark(db, auth);
-  if (!entitled.ok) notFound();
+  if (!entitled.ok) return <LockedPreview kind="studio" source={(await searchParams)?.source} next="/after-dark/studio" />;
   if (await lockedForCookies(db, auth!.userId, store)) notFound();
   const admin = entitled.why === "admin";
   if (!(await adultAvailable(db)) && !admin) notFound();

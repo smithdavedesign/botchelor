@@ -348,6 +348,61 @@ a dataset anyway, since the forgotten character's owner (the deleted owner) neve
 choice history, votes, the Sliding Doors runs on dates it booked, its agents' `agent_links` rows (so the consent they
 carried goes too), its `plus_interest` taps, and everything else keyed to it.
 
+### Every person column is listed (`lib/person-columns.ts`, 2026-11-16)
+
+A person is an id in a free-text column: some thirty column names, no users table, no foreign key. So "everything keyed
+to it" used to be two hand-written lists in `lib/account.ts` that nothing checked. `lib/person-columns.ts` (After Dark's
+tables: `lib/adult/person-columns.ts`) now lists every such column, 184 of them, each with three rules: where the
+**export** puts it or why it isn't there, what a **delete** does (rows removed, id cleared, or kept and why), and what a
+**move** does when an anonymous identity is claimed into an account (reassign, merge, or skip and why). Columns that
+only read like a person's (`web_events.visitor`, a `holder_id` that is a character: 22 of them) are listed as
+look-alikes with what they hold.
+
+`tests/person-columns.test.ts` reads the schema SQL in `lib/db.ts` and fails, naming the table and column, on a
+person-named column that isn't listed. It checks each entry against the code of `exportAccount` and `deleteAccount`, and
+then proves it: it puts one row in every listed column (pointing only at someone else's characters and dates, so the
+column under test is the only thing tying the row to the person), exports and deletes the account, and compares what
+happened with what the entry says. It also checks that the export never contains another person's id.
+
+The first run found what the two lists had missed; all of it is fixed in `lib/account.ts`:
+
+- **Deleted now** (36 columns): ratings and reviews of other people's characters (`character_ratings`,
+  `character_reviews`: a review holds their words), `audition_votes`, `ceremony_votes`, `cast_auditions`, `date_invites`,
+  `double_links` they made, `scheduled_dates`, `date_roleplays`, `scene_suggestions`, `thread_reads`,
+  `afterglow_consents`, `step_in_usage`, `user_live_face`, `live_face_compares`, `owner_activity`, `away_reports`,
+  `analytics_events`, `admins` (a deleted admin's id no longer opens the admin tools), `operator_entitlements`,
+  `operator_date_usage`, blocks made **against** them (`blocks.blocked_id`), an agent's own side of a link
+  (`agent_links.agent_id`), and, when the id is an agent's: `mcp_sessions`, `mcp_calls`, `agent_status_cursors`,
+  `agent_link_codes`, `agent_feedback`, `feedback_votes`, `agent_handles`, `agent_models`, `job_deals`. After Dark:
+  `adult_invites` (the email and note sent with an invite request), `adult_access_requests`, and
+  `adult_monologues.created_by`.
+- **Id cleared, row kept** (3): `double_links.taken_by`, `casting_invites.used_by` (the code stays used),
+  `operator_pass_events.user_id`.
+- **In the export now** (68 columns, under 30 new keys): the dates they booked, scheduled dates, their links and double
+  dates, roleplay proposals, read markers, casting, ratings and reviews, the dates they blocked a creator from (never
+  whom), their reports, badges, usage counters, watch-party messages, the PG Studio and the Create library (the safe
+  side), their Gallery page and posts, an agent's handle, model, sessions and feedback, plans, and the languages they
+  wrote in.
+
+**Kept on delete, on purpose** (each with its reason in the registry): the id on a row that is part of a date other
+people's characters were in (`episodes.creator_id`, `generation_jobs.creator_id`, `watch_parties.host_id`,
+`group_nights.created_by`/`invite_to`, `group_night_seats.booker`, `episode_models.agent_id`): the date stays, and the
+id is a random one that points at nothing once the account is gone; a plan's billing record while Stripe may still
+renew it (`plan_entitlements`, `plan_events`); and an admin's id on someone else's row (`granted_by`, `decided_by`,
+`reviewed_by`, `by_user`, `money_entries.created_by`, a house character's `adult_profiles.updated_by`).
+
+**Not in the export, on purpose** (each with its reason): After Dark (it has its own download), sealed keys, click
+and call logs (`web_events`, `analytics_events`, `mcp_calls`), who blocked or follows them (the other person's to
+keep), and working rows (a job in flight, a half-hour hold, a download kept a day).
+
+**Adding a table with a person column:**
+
+1. List the column in `PERSON_COLUMNS` (`ADULT_PERSON_COLUMNS` for an `adult_*` table) with its export, delete and move
+   rules; a column name that is new goes in `PERSON_ID_NAMES` too.
+2. Make `lib/account.ts` do what the entry says: a `delete from` in `deleteAccount` (or the pair in `AFTER_DARK_OWNED`),
+   and a key in `exportAccount` unless the entry says why not.
+3. Run `tests/person-columns.test.ts`: it puts a row in the column and checks the delete, the export and the rule.
+
 ## The north star
 
 `lib/agent-funnel.ts crossSpeciesPairs`, shown on `/admin` and logged daily as `relationship_metrics.cross_species_pairs`:

@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import Link from "next/link";
 import CharacterTabs from "@/app/CharacterTabs";
+import Icon from "@/app/Icon";
 import RememberCharacter from "@/app/RememberCharacter";
 import PgStudio from "@/app/characters/[id]/studio/PgStudio";
+import { ADULT_COOKIE } from "@/lib/age";
+import { studioDoorFor } from "@/lib/adult/studio-door";
 import { pickCharacter, rememberedCharacter } from "@/lib/current-character";
 import { listMyDatingProfiles } from "@/lib/dating";
 import { getDb } from "@/lib/db";
@@ -93,6 +96,10 @@ export default async function MyStudioPage({ searchParams }: Props = {}) {
   }
 
   const c = r.state.character;
+  // The way to the After Dark Studio (lib/adult/studio-door.ts): words and a link, never a picture; only for whom After
+  // Dark's own rules allow it, else nothing.
+  const adDoor = await studioDoorFor(db, auth, await headers(), store, store.get(ADULT_COOKIE)?.value === "1", c.id).catch(() => null);
+  const first = c.name.split(/\s+/)[0] || c.name;
   return (
     <article className="pg-studio-page my-studio-page">
       <StudioTabs current="studio" />
@@ -108,6 +115,23 @@ export default async function MyStudioPage({ searchParams }: Props = {}) {
       </p>
       {/* Keyed by the character, so picking another starts its own Studio rather than keeping the last one's picks. */}
       <PgStudio key={c.id} initial={r.state} />
+      {adDoor && (
+        <section className="card pg-studio-ad-door" data-ad-studio-door={adDoor.state} aria-labelledby="pg-studio-ad-door">
+          <h2 id="pg-studio-ad-door">
+            <Icon name="moon" /> After Dark Studio
+          </h2>
+          <p className="muted">
+            {adDoor.state === "open"
+              ? `Private shoots of ${first} for adults, in After Dark.`
+              : `Private shoots of your own characters, for adults only.${adDoor.inviteOnly ? " It's invite only while it's in beta." : ""}`}
+          </p>
+          <p>
+            <Link className="button-ghost" href={adDoor.href} prefetch={false}>
+              {adDoor.state === "open" ? `Open ${first}'s After Dark Studio` : "See the After Dark Studio"}
+            </Link>
+          </p>
+        </section>
+      )}
     </article>
   );
 }
