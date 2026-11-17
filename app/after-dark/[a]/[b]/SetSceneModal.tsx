@@ -32,6 +32,7 @@ export default function SetSceneModal({
   myRoleplays = [],
   createHref = null,
   roleplay = null,
+  nightUnderWay = false,
   openAt = "where",
   onGo,
   onScenario,
@@ -59,6 +60,8 @@ export default function SetSceneModal({
   createHref?: string | null;
   /** This chapter's roleplay, if one is running. */
   roleplay?: RoleplayPick;
+  /** The night has lines (or chapters) behind it: a new roleplay starts a new night (lib/adult/scenes.ts roleplayStartsNight). */
+  nightUnderWay?: boolean;
   /** Which screen it opens on: where (the places), or who they are (the roleplays, staying where they are). */
   openAt?: "where" | "who";
   /** A place (null: they stay where they are) and the chapter's roleplay. */
@@ -216,6 +219,9 @@ export default function SetSceneModal({
             <footer className="ad-rp-go">
               <span className="small">
                 {place ? `📍 ${place}` : "📍 Here"} · {picked ? `${picked.icon} ${picked.title}` : "💬 No roleplay"}
+                {nightUnderWay && pick && (pick.id !== roleplay?.id || pick.swap !== roleplay?.swap) && (
+                  <> · 🌙 New roles start a new night (this one is saved under Their nights)</>
+                )}
               </span>
               {place && (
                 <button type="button" className="button-ghost small" disabled={busy} onClick={() => void go(null)}>

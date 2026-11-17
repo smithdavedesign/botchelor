@@ -1340,6 +1340,7 @@ export default function AfterDarkTheater({
             locked={waiting && scene.planned ? `${firstName(a)} × ${firstName(b)} decided on ${scene.planned.place} by text, so the night starts there. Once they're there you can take them somewhere else.` : null}
             names={{ a: firstName(a), b: firstName(b) }}
             roleplay={scene.roleplay ?? null}
+            nightUnderWay={scene.lines.length > 0 || (scene.chapter ?? 1) > 1}
             myRoleplays={myRoleplays}
             createHref={`/after-dark/studio/${a.id}?tab=create`}
             onGo={onSetScene}

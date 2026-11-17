@@ -486,6 +486,8 @@ export default function SceneWriter({
       const rid = body.roleplay ? (body.roleplay as { id: string }).id : null;
       const rp = rid ? (roleplayById(rid) ?? myRoleplays.find((r) => r.id === rid) ?? null) : null;
       parts.push(rp ? `${rp.icon} ${rp.title}: their roleplay until this chapter ends.` : body.set_scene ? "" : "No roleplay now: just the two of them.");
+      // A new roleplay on a night under way starts a new night (lib/adult/scenes.ts roleplayStartsNight): new roles, no lines.
+      if (res.data.new_night) parts.unshift("A new night for the new roles: the last one is under Their nights.");
     }
     if (body.scenario) parts.unshift("A new night: the last one is under Their nights.");
     if (body.redo) parts.unshift("Rewritten: the last step was taken back and written again.");

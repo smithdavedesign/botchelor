@@ -3331,17 +3331,52 @@ export async function saveFraming(db: Db, ownerId: string, x: string, y: string,
 }
 
 /**
- * This chapter's roleplay (lib/adult/roleplays.ts), or none: stored with the chapter it's for, so it ends with it. `swap`
- * gives the second character the first role.
+ * Whether picking this roleplay starts a new night (David, 2026-11-17: "if we change a chapter by roleplaying, we need
+ * to end the night and start over, since it is new scene and new personas"): a roleplay other than the running one (or
+ * the same one with the roles swapped) once the night is under way, so its lines, recap and last lines don't carry into
+ * the new personas. Ending a roleplay (none) doesn't, and neither does a pick on a night with nothing written yet.
  */
-export async function setRoleplay(db: Db, ownerId: string, x: string, y: string, pick: { id: string; swap?: boolean } | null): Promise<AdultScene | null> {
-  const scene = await loadScene(db, ownerId, x, y);
+export function roleplayStartsNight(scene: Pick<AdultScene, "lines" | "chapter" | "roleplay">, pick: { id: string; swap?: boolean } | null | undefined): boolean {
+  if (!pick) return false;
+  const running = scene.roleplay ?? null;
+  if (running && running.id === pick.id && running.swap === (pick.swap === true)) return false;
+  return scene.lines.length > 0 || scene.chapter > 1;
+}
+
+/**
+ * This chapter's roleplay (lib/adult/roleplays.ts), or none: stored with the chapter it's for, so it ends with it. `swap`
+ * gives the second character the first role. A new roleplay on a night under way (roleplayStartsNight) files that night
+ * as Start over does and begins a new one, where they are, with no lines: `new_night` says so.
+ */
+export async function setRoleplay(
+  db: Db,
+  ownerId: string,
+  x: string,
+  y: string,
+  pick: { id: string; swap?: boolean } | null,
+): Promise<(AdultScene & { new_night?: true }) | null> {
+  let scene = await loadScene(db, ownerId, x, y);
   if (!scene) return null;
   // One of the show's roleplays, or one of this owner's own (never someone else's).
   const known = pick ? Boolean(roleplayById(pick.id)) || Boolean(await ownRoleplay(db, ownerId, pick.id)) : false;
   const value = pick && known ? { id: pick.id, swap: pick.swap === true } : null;
+  const fresh = roleplayStartsNight(scene, value);
+  if (fresh) {
+    const where = { place: scene.place, set_place: scene.set_place, home: scene.place_history.at(-1)?.home ?? null };
+    await resetScene(db, ownerId, x, y);
+    // The new night begins where they are (the place picked with it, or where the last one was).
+    if (where.place) {
+      await db.query(`update adult_scenes set place = $2, set_place = $3, place_history = $4::jsonb, updated_at = now() where id = $1`, [
+        scene.id,
+        where.place,
+        where.set_place,
+        JSON.stringify([{ place: where.place, set: where.set_place, home: where.home, chapter: 1 }]),
+      ]);
+    }
+    scene = (await loadScene(db, ownerId, x, y)) ?? scene;
+  }
   await db.query(`update adult_scenes set roleplay = $2::jsonb, updated_at = now() where id = $1`, [scene.id, value ? JSON.stringify({ ...value, chapter: scene.chapter }) : null]);
-  return publicScene({ ...scene, roleplay: value });
+  return { ...publicScene({ ...scene, roleplay: value }), ...(fresh ? { new_night: true as const } : {}) };
 }
 
 /** Each one's turn-ons as the viewer may see them: only a character whose profile they may set (theirs, or an admin's house cast). */

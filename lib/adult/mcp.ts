@@ -29,6 +29,7 @@ import {
   openScene,
   redoScene,
   resetScene,
+  roleplayStartsNight,
   rewindScene,
   saveFraming,
   saveLimits,
@@ -146,7 +147,7 @@ export const ADULT_TOOLS: { name: string; title: string; description: string; in
     title: "After dark: set the scene",
     description:
       "Admin only. What the scene picker on the page sets, in this order when several are given: reset (Start over: the night so far is saved, a new one begins), " +
-      "place (take them somewhere: held there until it's moved again; one the show doesn't know is drawn fresh), roleplay (this chapter's, or null to clear it), " +
+      "place (take them somewhere: held there until it's moved again; one the show doesn't know is drawn fresh), roleplay (this chapter's, or null to clear it; a new one on a night under way saves that night and starts a new one, new_night: true), " +
       "framing (how the two are framed, or null), then scenario (starts a night from one of the show's openings and writes its first lines; it sets its own place). " +
       "Each is checked as on the page.",
     inputSchema: {
@@ -430,6 +431,14 @@ export async function runAdultTool(db: Db, name: string, args: Record<string, un
       if (!(await openScene(db, owner, a, b))) return { error: "Pick two characters who are in after dark (after_dark_pairs lists them)." };
       const out: Record<string, unknown> = {};
       if (args.reset === true) await resetScene(db, owner, a, b);
+      else if (args.place !== undefined && roleplay) {
+        // A new roleplay on a night under way starts a new night: filed first, where it was, before the move.
+        const now = await openScene(db, owner, a, b);
+        if (now && !now.planned && roleplayStartsNight(now, roleplay as { id: string; swap?: boolean })) {
+          await resetScene(db, owner, a, b);
+          out.new_night = true;
+        }
+      }
       if (args.place !== undefined) {
         const moved = await setSceneTo(db, owner, a, b, String(args.place).slice(0, SET_SCENE_MAX));
         if (!moved.ok) return { error: moved.message };
@@ -437,7 +446,8 @@ export async function runAdultTool(db: Db, name: string, args: Record<string, un
       }
       if (roleplay !== undefined) {
         const r = roleplay as { id: string; swap?: unknown } | null;
-        await setRoleplay(db, owner, a, b, r ? { id: r.id, swap: r.swap === true } : null);
+        const played = await setRoleplay(db, owner, a, b, r ? { id: r.id, swap: r.swap === true } : null);
+        if (played?.new_night) out.new_night = true;
       }
       if (args.framing !== undefined) await saveFraming(db, owner, a, b, (args.framing as string | null) ?? null);
       if (args.scenario !== undefined) {

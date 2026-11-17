@@ -119,4 +119,43 @@ describe("roleplays for a chapter", () => {
     await post({ a: CAST_A, b: CAST_B, roleplay: { id: "exes" } }, cookie);
     expect((await (await post({ a: CAST_A, b: CAST_B, reset: true }, cookie)).json()).scene.roleplay).toBeNull();
   });
+
+  it("a new roleplay on a night under way ends that night and starts a new one: no lines carried, the last night saved (David, 2026-11-17)", async () => {
+    const { cookie } = await admin();
+    const prompts = scripted();
+    await post({ a: CAST_A, b: CAST_B, set_scene: "the hotel bar" }, cookie);
+    await post({ a: CAST_A, b: CAST_B }, cookie);
+    const written = (await get(cookie)).scene;
+    expect(written.lines.length).toBeGreaterThan(0);
+    const nightsBefore = Number((await t.db.query<{ n: string }>(`select count(*) as n from adult_nights`)).rows[0].n);
+
+    // Just the roleplay: the night is filed, the new one starts where they are with no lines, recap or carried tail.
+    const r = await (await post({ a: CAST_A, b: CAST_B, roleplay: { id: "boss" } }, cookie)).json();
+    expect(r.new_night).toBe(true);
+    expect(r.scene).toMatchObject({ lines: [], chapter: 1, recap: null, prev_tail: [], set_place: "the hotel bar", roleplay: { id: "boss", swap: false } });
+    expect(r.nights.length).toBe(nightsBefore + 1);
+    const filed = await t.db.query<{ lines: unknown[]; set_place: string }>(`select lines, set_place from adult_nights order by created_at desc limit 1`);
+    expect(filed.rows[0].lines.length).toBe(written.lines.length);
+    expect(filed.rows[0].set_place).toBe("the hotel bar");
+    // Its first lines are written for the new roles with nothing from the night before.
+    await post({ a: CAST_A, b: CAST_B }, cookie);
+    const prompt = prompts.at(-1)!.map((m) => m.content).join("\n");
+    expect(prompt).toContain("This chapter's roleplay");
+    for (const l of written.lines as { text: string }[]) expect(prompt).not.toContain(l.text);
+
+    // The same roleplay again changes nothing; ending it doesn't start a new night either.
+    const same = await (await post({ a: CAST_A, b: CAST_B, roleplay: { id: "boss" } }, cookie)).json();
+    expect(same.new_night).toBeUndefined();
+    expect(same.scene.lines.length).toBeGreaterThan(0);
+    const ended = await (await post({ a: CAST_A, b: CAST_B, roleplay: null }, cookie)).json();
+    expect(ended.new_night).toBeUndefined();
+    expect(ended.scene.lines.length).toBeGreaterThan(0);
+
+    // With a place: the night is filed where it was, and the new one opens at the place picked.
+    const moved = await (await post({ a: CAST_A, b: CAST_B, set_scene: "the empty office after hours", roleplay: { id: "neighbours", swap: true } }, cookie)).json();
+    expect(moved.new_night).toBe(true);
+    expect(moved.scene).toMatchObject({ lines: [], chapter: 1, set_place: "the empty office after hours", roleplay: { id: "neighbours", swap: true } });
+    const last = await t.db.query<{ set_place: string }>(`select set_place from adult_nights order by created_at desc limit 1`);
+    expect(last.rows[0].set_place).toBe("the hotel bar");
+  });
 });

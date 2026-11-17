@@ -17,6 +17,7 @@ import {
   profileView,
   redoScene,
   resetScene,
+  roleplayStartsNight,
   rewindScene,
   saveFraming,
   setRoleplay,
@@ -165,14 +166,24 @@ export const POST = crisisAware(surface, ownWords, handle(async (req: Request) =
     if (pays && !(await spendAdTokens(db, admin, SET_SCENE_TOKEN_COST))) {
       return json({ error: "needs_tokens", message: `Setting the scene costs ${SET_SCENE_TOKEN_COST} token. Get more on the tokens page.` }, 402);
     }
+    // A new roleplay on a night under way starts a new night (lib/adult/scenes.ts roleplayStartsNight): the night is filed
+    // first, where it was, and the new one begins at the place picked.
+    const before = input.roleplay ? await openScene(db, admin, input.a, input.b) : null;
+    const newNight = Boolean(before && !before.planned && roleplayStartsNight(before, input.roleplay));
+    if (newNight) await resetScene(db, admin, input.a, input.b);
     const moved = await setSceneTo(db, admin, input.a, input.b, input.set_scene);
     if (!moved.ok) {
       if (pays) await refundAdTokens(db, admin, SET_SCENE_TOKEN_COST);
-      return json({ error: "not_moved", message: moved.message }, moved.status);
+      return json({ error: "not_moved", message: moved.message, ...(newNight ? { nights: await listNights(db, admin, input.a, input.b) } : {}) }, moved.status);
     }
     // The roleplay picked with the place, for the chapter (the picker's second screen).
     const played = input.roleplay !== undefined ? await setRoleplay(db, admin, input.a, input.b, input.roleplay) : null;
-    return json({ scene: played ?? moved.scene, ...(moved.auto_picture ? { auto_picture: true } : {}) });
+    const fresh = newNight || Boolean(played?.new_night);
+    return json({
+      scene: played ?? moved.scene,
+      ...(moved.auto_picture ? { auto_picture: true } : {}),
+      ...(fresh ? { new_night: true, nights: await listNights(db, admin, input.a, input.b) } : {}),
+    });
   }
   if (input.rewind) {
     const back = await rewindScene(db, admin, input.a, input.b);
@@ -189,7 +200,9 @@ export const POST = crisisAware(surface, ownWords, handle(async (req: Request) =
   }
   if (input.roleplay !== undefined) {
     const scene = await setRoleplay(db, admin, input.a, input.b, input.roleplay);
-    return scene ? json({ scene }) : hidden();
+    if (!scene) return hidden();
+    // A new roleplay on a night under way began a new night: the last one is under Their nights.
+    return json(scene.new_night ? { scene, new_night: true, nights: await listNights(db, admin, input.a, input.b) } : { scene });
   }
   if (input.framing !== undefined) {
     const scene = await saveFraming(db, admin, input.a, input.b, input.framing);
