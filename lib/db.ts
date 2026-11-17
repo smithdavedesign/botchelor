@@ -4441,6 +4441,20 @@ create table if not exists adult_step_in_messages (
   created_at timestamptz not null default now()
 );
 create index if not exists adult_step_in_messages_scene_idx on adult_step_in_messages (scene_id, created_at);
+
+-- Character tags (lib/character-tags.ts, docs/tags.md, 2026-11-17): what kind of person a character is, in the shared
+-- vocabulary (lib/tags.ts, type facet only). One source at a time per character: the owner's pick, the house's hand
+-- tags for its own cast, or an automatic read of the traits (filled by the lobby job). Keyed to the character and
+-- cascading with it; no person column (the owner is the character's). Status is never stored: it's read from the
+-- relationship graph's public columns.
+create table if not exists character_tags (
+  character_id text not null references characters (id) on delete cascade,
+  tag text not null,
+  source text not null check (source in ('owner', 'house', 'auto')),
+  created_at timestamptz not null default now(),
+  primary key (character_id, tag)
+);
+create index if not exists character_tags_tag_idx on character_tags (tag, character_id);
 `;
 
 /** Idempotent: creates the tables and upserts the house characters, free and premium. */

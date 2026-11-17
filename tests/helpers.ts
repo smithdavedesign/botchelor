@@ -371,6 +371,8 @@ export async function startTestDb() {
         "character_assets",
         "character_ratings",
         "character_reviews",
+        // What kind of person each one is (lib/character-tags.ts).
+        "character_tags",
         "season_casts",
         "season_cast_rotations",
         "season_candidates",

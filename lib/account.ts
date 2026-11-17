@@ -277,7 +277,10 @@ export async function exportAccount(db: Db, userId: string, o: { nested?: boolea
     points: await getPoints(db, userId),
     characters: await q(
       `select id, name, age, bio, traits, want, dealbreaker, appearance, avatar_hue, premium_sku, pronouns, voice, extras,
-              this_week, open_to_dates, created_via, created_at
+              this_week, open_to_dates, created_via, created_at,
+              -- Their tags (lib/character-tags.ts), with whose they are: the owner's own pick, or read from the traits.
+              (select coalesce(json_agg(json_build_object('tag', t.tag, 'source', t.source) order by t.tag), '[]'::json)
+                 from character_tags t where t.character_id = characters.id) as tags
          from characters where owner_id = $1 and not is_house order by created_at`,
       [userId],
     ),

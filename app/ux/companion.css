@@ -737,6 +737,10 @@ body:has(.companion-fullscreen) .site-footer {
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
 }
+/* What kind of person they are (lib/character-tags.ts): one quiet line under the bio. */
+.companion-tile-tags {
+  margin: 0;
+}
 .companion-tile-traits {
   margin: 0;
 }

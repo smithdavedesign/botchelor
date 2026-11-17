@@ -1,4 +1,7 @@
 import { randomUUID } from "node:crypto";
+import { statusSql } from "./character-tags";
+import { isCharacterTag } from "./character-tags-shared";
+import { isStatus, type Status, type TagId } from "./tags";
 import { guardStoryReply, parseStoryReply, storyModeTokens, storySpeech, type Beat } from "./narration";
 import { hasDepth, styleFor } from "./writing-style";
 import { isAdmin } from "./admins";
@@ -671,6 +674,10 @@ export type CompanionListItem = CompanionCharacterRef & {
   created_at: string | null;
   /** How they're drawn, for the Style filter: anime when their looks say so (lib/looks.ts isAnime), else realistic. */
   style: CompanionStyle;
+  /** What kind of person they are (lib/character-tags.ts), for the Type filter and the card. */
+  tags: TagId[];
+  /** Their love life on the show, from the relationship graph's public layer (lib/character-tags.ts statusSql). */
+  status: Status;
 };
 
 export type CompanionStyle = "realistic" | "anime";
@@ -711,6 +718,8 @@ export async function listCompanions(
     created_via: string | null;
     created_at: Date | string | null;
     style: string | null;
+    tags: string[] | null;
+    status: string | null;
   };
   const onShow = new Set(showCastIds(now));
   const pronounsOf = (p: string | null): CompanionCharacterRef["pronouns"] => (p === "she/her" || p === "he/him" || p === "they/them" ? p : null);
@@ -732,8 +741,11 @@ export async function listCompanions(
     on_show: onShow.has(r.id),
     created_at: r.created_at ? new Date(r.created_at).toISOString() : null,
     style: r.style === "anime" ? "anime" : "realistic",
+    tags: (r.tags ?? []).filter(isCharacterTag),
+    status: isStatus(r.status) ? r.status : "single",
   });
-  const cols = `c.id, c.name, c.bio, ${portraitPathSql("c")} as portrait, c.avatar_hue, c.is_house, c.owner_id, c.age, c.pronouns, c.traits, c.created_via, c.created_at, c.extras->'looks'->>'style' as style`;
+  const cols = `c.id, c.name, c.bio, ${portraitPathSql("c")} as portrait, c.avatar_hue, c.is_house, c.owner_id, c.age, c.pronouns, c.traits, c.created_via, c.created_at, c.extras->'looks'->>'style' as style,
+                (select array_agg(t.tag order by t.tag) from character_tags t where t.character_id = c.id) as tags, ${statusSql("c.id")} as status`;
   const [threads, others] = await Promise.all([
     db.query<Row>(
       `select ${cols}, t.id as thread_id, t.last_at,

@@ -36,10 +36,13 @@ import GraphTeaser from "@/app/graph/GraphTeaser";
 import { graphTeaser, type GraphTeaser as Teaser } from "@/app/graph/teaser";
 import { cachedConstellation } from "@/lib/graph-cache";
 import type { OriginGroup, SkyGroup } from "@/lib/origin-group";
+import { isCharacterTag } from "@/lib/character-tags-shared";
+import { pickerDemand } from "@/lib/tag-demand";
+import { byDemand, isStatus, STATUSES, tagById, tagsIn, type Status, type TagId } from "@/lib/tags";
 
 export const dynamic = "force-dynamic";
 
-type Search = { tab?: string | string[]; page?: string | string[]; pairs?: string | string[]; q?: string | string[] };
+type Search = { tab?: string | string[]; page?: string | string[]; pairs?: string | string[]; q?: string | string[]; type?: string | string[]; status?: string | string[] };
 
 /** The relationship graph on the cast tab: this many couples a page (?pairs=N). */
 const PAIRS_PAGE = 10;
@@ -64,7 +67,7 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
     path: tabHref(tab, tab === "cast" ? 1 : page),
   });
   // A search's results are for the person searching, not for a search engine (the tabs are the crawlable list).
-  return parseDirectoryQuery(sp.q) ? { ...meta, title: "Find a character on Botchelor", robots: { index: false, follow: true } } : meta;
+  return parseDirectoryQuery(sp.q) || findFilters(sp).type || findFilters(sp).status ? { ...meta, title: "Find a character on Botchelor", robots: { index: false, follow: true } } : meta;
 }
 
 /** A private character's name (David, #309/#509): never linked, no portrait, no details. */
@@ -149,6 +152,16 @@ function Entry({ e, badge, origin = true, talk = false, eager = false, actions, 
             )}
           </p>
         )}
+        {/* What kind of person (lib/character-tags.ts): one quiet line, the type tags with their glyphs. */}
+        {e.tags.length > 0 && (
+          <p className="muted small dir-tags">
+            {e.tags
+              .map((t) => tagById(t))
+              .filter(Boolean)
+              .map((t) => `${t!.icon} ${t!.label}`)
+              .join(" · ")}
+          </p>
+        )}
         {e.traits.length > 0 && (
           <ul className="chips" aria-label="Traits">
             {e.traits.slice(0, 3).map((trait) => (
@@ -189,8 +202,21 @@ function Entry({ e, badge, origin = true, talk = false, eager = false, actions, 
   );
 }
 
-/** Find a character by name, trait or a word from their bio: a plain GET form (?q=), so it works without a script. */
-function SearchForm({ q }: { q: string }) {
+/** ?type= and ?status= as the search reads them: a known type tag and a known status, else nothing. */
+function findFilters(sp: Search): { type: TagId | null; status: Status | null } {
+  const type = one(sp.type);
+  const status = one(sp.status);
+  return { type: isCharacterTag(type) ? type : null, status: isStatus(status) ? status : null };
+}
+
+
+/**
+ * Find a character by name, trait or a word from their bio, and narrow it by type and love life (docs/tags.md): a
+ * plain GET form (?q=&type=&status=), so it works without a script.
+ */
+function SearchForm({ q, type, status, demand }: { q: string; type: TagId | null; status: Status | null; demand?: Record<string, number> }) {
+  // The type menu, most wanted first: who people talk to here (lib/tag-demand.ts), else the census (lib/tags.ts).
+  const typeMenu = byDemand(tagsIn("type"), "sfw", demand);
   return (
     <form className="characters-search" action="/characters" method="get" role="search">
       <label className="sr-only" htmlFor="characters-q">
@@ -206,6 +232,28 @@ function SearchForm({ q }: { q: string }) {
         autoComplete="off"
         enterKeyHint="search"
       />
+      <label className="sr-only" htmlFor="characters-type">
+        Type
+      </label>
+      <select id="characters-type" name="type" defaultValue={type ?? ""}>
+        <option value="">Any type</option>
+        {typeMenu.map((t) => (
+          <option key={t.id} value={t.id}>
+            {t.icon} {t.label}
+          </option>
+        ))}
+      </select>
+      <label className="sr-only" htmlFor="characters-status">
+        Love life
+      </label>
+      <select id="characters-status" name="status" defaultValue={status ?? ""}>
+        <option value="">Any love life</option>
+        {STATUSES.map((st) => (
+          <option key={st.id} value={st.id}>
+            {st.icon} {st.label}
+          </option>
+        ))}
+      </select>
       <button type="submit" className="button secondary">
         Find
       </button>
@@ -239,8 +287,10 @@ export default async function CharactersPage({ searchParams }: Props) {
   const auth = authFromCookieStore(store);
   const viewerId = auth?.userId ?? null;
   const q = parseDirectoryQuery(sp.q);
+  const find = findFilters(sp);
+  const finding = Boolean(q || find.type || find.status);
   // Someone signed out sees what everyone does: from a few seconds' shared copy (lib/shared-cache.ts).
-  const [season, counts, insider, mine, stepIn] = await Promise.all([
+  const [season, counts, insider, mine, stepIn, demand] = await Promise.all([
     shared(`characters:season:${castIds.join(",")}`, () => directoryEntries(db, castIds)),
     forViewer(viewerId, "characters:counts", () => tabCounts(db)),
     isInsider(db, viewerId),
@@ -248,6 +298,8 @@ export default async function CharactersPage({ searchParams }: Props) {
     // they can step into a date themselves (lib/step-in-access.ts: a member or a guest; "sign in first" isn't open).
     viewerCharacter(db, viewerId).catch(() => null),
     stepInAccessFromCookies(db, auth, store).catch(() => null),
+    // Cached an hour (lib/tag-demand.ts); a failure only leaves the census's order.
+    pickerDemand(db).catch(() => null),
   ]);
   // ?tab=yours, for someone who has a character (anyone else gets the cast, as an unknown tab always did).
   const yours = one(sp.tab) === "yours" && mine !== null;
@@ -266,12 +318,12 @@ export default async function CharactersPage({ searchParams }: Props) {
         </Link>
       </div>
       <p className="muted">Everyone on the show: the cast, and the characters people and AI agents made.</p>
-      <SearchForm q={q} />
+      <SearchForm q={q} type={find.type} status={find.status} demand={demand?.types} />
       {/* A search is across every tab, so no tab is the current one while it shows. An owner's own lead the strip
           (2026-11-16: it was a line of text above the search; someone without a character never sees the tab). */}
-      <CharactersTabs current={q ? null : yours ? "yours" : tab} companions={companionOpen()} yours={mine !== null} />
+      <CharactersTabs current={finding ? null : yours ? "yours" : tab} companions={companionOpen()} yours={mine !== null} />
       {/* Awaited here, not rendered as async components, so the whole page is one server render (and testable). */}
-      {q ? await searchResults(q, viewer) : yours && viewerId ? await yoursTab(viewerId) : tab === "cast" ? await castTab({ season, thisId, castIds, now, pairsPage: parsePage(sp.pairs), viewer }) : await madeByTab({ tab, page: pageOf(sp.page), privateCount: counts.private, viewer, insider })}
+      {finding ? await searchResults(q, find, viewer) : yours && viewerId ? await yoursTab(viewerId) : tab === "cast" ? await castTab({ season, thisId, castIds, now, pairsPage: parsePage(sp.pairs), viewer }) : await madeByTab({ tab, page: pageOf(sp.page), privateCount: counts.private, viewer, insider })}
     </article>
   );
 }
@@ -628,18 +680,26 @@ async function yoursTab(viewerId: string) {
   );
 }
 
-async function searchResults(q: string, viewer: Viewer) {
+async function searchResults(q: string, find: { type: TagId | null; status: Status | null }, viewer: Viewer) {
   const talk = companionOpen();
-  const { entries, more } = await searchDirectory(await getDb(), q);
+  const { entries, more } = await searchDirectory(await getDb(), q, DIRECTORY_SEARCH_LIMIT, find);
   const verbs = await cardVerbs(viewer, entries.map((e) => e.id));
   const n = entries.length;
+  // What was asked, in words: “dry” · Grump · Single.
+  const asked = [q && `“${q}”`, find.type && tagById(find.type)?.label, find.status && STATUSES.find((s) => s.id === find.status)?.label].filter(Boolean).join(" · ");
   return (
     <section className="characters-results" aria-labelledby="characters-results-title">
       <h2 id="characters-results-title">
-        {n ? `${more ? `More than ${n}` : n} ${n === 1 && !more ? "character matches" : "characters match"} “${q}”` : `Nobody matches “${q}”`}
+        {n ? `${more ? `More than ${n}` : n} ${n === 1 && !more ? "character matches" : "characters match"} ${asked}` : `Nobody matches ${asked}`}
       </h2>
       <p className="muted">
-        {n ? "Their name, traits or bio has every word you searched for." : "No name, trait or bio on the show has every one of those words."}{" "}
+        {q
+          ? n
+            ? "Their name, traits or bio has every word you searched for."
+            : "No name, trait or bio on the show has every one of those words."
+          : n
+            ? "Love life is what their aired dates say; a private date never counts."
+            : "Nobody on the show fits all of that yet."}{" "}
         <Link href="/characters">Clear the search</Link>
       </p>
       {n ? (
