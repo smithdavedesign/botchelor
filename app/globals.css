@@ -1067,10 +1067,6 @@ h2 {
 .notification:last-child {
   border-bottom: 0;
 }
-.notification.unread strong::before {
-  content: "● ";
-  color: var(--accent);
-}
 /* A "Book it" notice whose date has been booked since: it says so, with the way to the date. */
 .notification-booked {
   color: var(--muted);
@@ -1103,10 +1099,6 @@ h2 {
     var(--paper-2);
   border: 1px solid var(--line);
   overflow: hidden;
-}
-
-.hero p {
-  max-width: 40ch;
 }
 
 /* ---------------- cards ---------------- */
@@ -4018,12 +4010,6 @@ button.swipe-btn-nope:hover:not(:disabled) {
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-}
-.swipe-match-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 0.6rem;
 }
 .swipe-match-buttons > * {
   margin-top: 0;
@@ -7571,12 +7557,6 @@ button.table-more {
     border-radius: 0;
   }
 }
-/* ⓘ on a thread: a header button that happens to be a link. */
-a.phone-head-btn {
-  color: inherit;
-  font-size: var(--icon-sm);
-  text-decoration: none;
-}
 
 /* Beside the Matches heading: their deck, so the page always leads somewhere. */
 .matches-head .matches-swipe {
@@ -7612,9 +7592,6 @@ a.phone-head-btn {
 }
 .thread-preview-msg.is-mine {
   flex-direction: row-reverse;
-}
-.thread-preview-msg.is-mine p {
-  background: color-mix(in srgb, var(--accent) 14%, var(--card));
 }
 
 /* A finished watch room's way out. */
@@ -8586,22 +8563,31 @@ body.ad-host {
 .looks-lock {
   margin-left: 0.25em;
 }
+/* The looks steps: thin dashes, eleven on one row even on a 360px phone (the 11th used to wrap onto a row of its own).
+   They shrink below 24px wide there, but sit 24px+ apart centre to centre, and each dash is drawn inside a 24px-tall
+   button (UX audit 2026-10-23), which keeps them fair tap targets. */
 .looks-dots {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  flex-wrap: nowrap;
+  gap: 4px;
   list-style: none;
   margin: 0;
   padding: 0;
 }
+.looks-dots li {
+  flex: 1 1 24px;
+  min-width: 0;
+  max-width: 44px;
+}
 .looks-dots button {
-  width: 22px;
-  height: 6px;
+  position: relative;
+  width: 100%;
+  height: 24px;
   margin: 0;
   border: 0;
   border-radius: var(--radius-xs);
   padding: 0;
-  background: var(--line);
+  background: none;
   cursor: pointer;
   box-shadow: none;
 }
@@ -8609,12 +8595,27 @@ body.ad-host {
   transform: none;
   box-shadow: none;
 }
-.looks-dots button.done {
+.looks-dots button::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 9px;
+  height: 6px;
+  border-radius: var(--radius-xs);
+  background: var(--line);
+}
+.looks-dots button.done::before {
   background: var(--accent);
   opacity: 0.55;
 }
-.looks-dots button.current {
+.looks-dots button.current::before {
   background: var(--accent);
+}
+.looks-dots button.done,
+.looks-dots button.current {
+  background: none;
+  opacity: 1;
 }
 .looks-title {
   display: grid;
@@ -10623,6 +10624,7 @@ html.ad-studio-locked {
   text-align: center;
   white-space: normal;
 }
+/* ⓘ on a thread: a header button that happens to be a link. */
 a.phone-head-btn {
   justify-self: end;
   color: var(--accent-text);
@@ -10671,17 +10673,6 @@ a.phone-head-btn {
   align-items: center;
   min-height: 2.75rem;
   margin: 0;
-}
-/* The looks steps' dashes share one row and shrink to fit (on a phone the 11th wrapped onto a line of its own). */
-.looks-dots {
-  flex-wrap: nowrap;
-}
-.looks-dots li {
-  flex: 0 1 22px;
-  min-width: 0;
-}
-.looks-dots button {
-  width: 100%;
 }
 
 /* ---------------- the watch room's sidebar (RoomPanel) and its theater (2026-10-21) ----------------
@@ -11016,20 +11007,12 @@ main:has(> .episode-page) {
   }
 }
 .episode-hero-kicker {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem 0.9rem;
   margin: 0;
   font-size: var(--text-xs);
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: rgba(255, 255, 255, 0.82);
-}
-.episode-hero-kicker span + span::before {
-  content: "·";
-  margin-right: 0.9rem;
-  opacity: 0.7;
 }
 .episode-hero-cast {
   display: flex;
@@ -11686,9 +11669,6 @@ html.constellation-locked body {
 .constellation-kind-table tr.is-cross th {
   color: var(--accent-text);
 }
-.constellation-singles {
-  line-height: 1.9;
-}
 .constellation-hud button.constellation-filters-btn {
   display: none;
 }
@@ -12080,34 +12060,6 @@ a.char-name-link:focus-visible {
 }
 
 /* ---------------- UX audit 2026-10-23: tap targets the visual audit flagged ---------------- */
-/* The looks steps stay thin dashes, drawn inside a 24px-tall button so a thumb can hit one. */
-.looks-dots button {
-  height: 24px;
-  background: none;
-  position: relative;
-}
-.looks-dots button::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 9px;
-  height: 6px;
-  border-radius: var(--radius-xs);
-  background: var(--line);
-}
-.looks-dots button.done::before {
-  background: var(--accent);
-  opacity: 0.55;
-}
-.looks-dots button.current::before {
-  background: var(--accent);
-}
-.looks-dots button.done,
-.looks-dots button.current {
-  background: none;
-  opacity: 1;
-}
 /* Folded sections open from a row tall enough to tap. */
 .episode-safety > summary,
 details > summary.small {
@@ -12252,17 +12204,6 @@ details > summary.small {
   align-items: center;
   gap: 0.4rem;
   min-width: 0;
-}
-/* The looks dashes: eleven on one row, even on a 360px phone (the 11th used to wrap onto a row of its own). They
-   shrink below 24px wide there, but sit 24px+ apart centre to centre, which keeps them fair tap targets. */
-.looks-dots {
-  flex-wrap: nowrap;
-  gap: 4px;
-}
-.looks-dots li {
-  flex: 1 1 24px;
-  min-width: 0;
-  max-width: 44px;
 }
 
 /* The face a character who wears something keeps in intimate scenes (Faces.tsx, lib/adult/attire.ts). */
@@ -14198,31 +14139,7 @@ button.thread-menu-item:hover:not(:disabled) {
   color: var(--accent-text);
 }
 
-/* Back a cast member (app/BackCast.tsx): the cast as pickable faces, your pick ringed like a vote cast. */
-.back-cast-faces button {
-  display: grid;
-  justify-items: center;
-  gap: 0.25rem;
-  padding: 0.5rem 0.6rem;
-  border: 1.5px solid var(--line);
-  border-radius: var(--radius-md);
-  background: var(--card);
-  color: var(--ink);
-  cursor: pointer;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
-}
-.back-cast-faces button:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
-  box-shadow: var(--shadow-sm);
-}
-.back-cast-faces button:disabled {
-  cursor: default;
-  opacity: 0.75;
-}
-.back-cast-faces button[aria-pressed="true"] {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
-}
+/* Back a cast member (app/BackCast.tsx): your pick's chip (the face tiles are in app/ux/agents-footer.css). */
 .back-cast-faces button .chip {
   background: var(--grad);
   border-color: transparent;

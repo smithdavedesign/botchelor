@@ -357,9 +357,6 @@ ol.home-features {
   display: block;
 }
 /* The "·" hangs off the word before it (::after), so a wrapped kicker never starts with it; a long venue may wrap. */
-.episode-hero-kicker span + span::before {
-  content: none;
-}
 .episode-hero-kicker span:not(:last-child)::after {
   content: "·";
   margin: 0 0.9rem;
@@ -817,9 +814,6 @@ details.recap-toggle[open] .recap-toggle-hide {
 .notification {
   padding-left: 1.1rem;
   position: relative;
-}
-.notification.unread strong::before {
-  content: none;
 }
 .notification.unread::before {
   content: "";

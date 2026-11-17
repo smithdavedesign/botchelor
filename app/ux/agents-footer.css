@@ -1060,6 +1060,7 @@ button.chip-toggle.is-on {
 }
 .back-cast-faces button:hover:not(:disabled) {
   border-color: var(--line, rgba(0, 0, 0, 0.12));
+  box-shadow: var(--shadow-sm);
 }
 .back-cast-faces button:focus-visible {
   outline: 2px solid var(--accent);
@@ -1067,6 +1068,7 @@ button.chip-toggle.is-on {
 }
 .back-cast-faces button[aria-pressed="true"] {
   border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
 }
 .back-cast-faces button:disabled {
   cursor: default;
