@@ -1004,6 +1004,8 @@ const AFTER_DARK_OWNED: readonly [string, string][] = [
   // What their scene pictures were drawn from (lib/adult/picture-brief.ts).
   ["adult_picture_briefs", "owner_id"],
   ["adult_steps", "owner_id"], ["adult_facts", "owner_id"], ["adult_memories", "owner_id"], ["adult_rejections", "owner_id"],
+  // Step in (lib/adult/step-in.ts): their scenes with one character, messages before the scenes they belong to.
+  ["adult_step_in_messages", "owner_id"], ["adult_step_in_scenes", "owner_id"],
   ["adult_light_picks", "owner_id"], ["adult_face_refs", "owner_id"], ["adult_nude_refs", "owner_id"], ["adult_identity", "owner_id"],
   // The Studio's shares (as the sharer, and as the one shared with), share settings and saved setups.
   ["adult_shares", "owner_id"], ["adult_shares", "recipient_id"], ["adult_share_prefs", "user_id"], ["adult_studio_setups", "owner_id"],

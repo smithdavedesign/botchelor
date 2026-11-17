@@ -203,7 +203,9 @@ export const ROLEPLAYS: readonly HouseRoleplay[] = [
   },
   {
     id: "hotel-mixup", title: "The hotel mix-up", icon: "🛎️", category: "getaway", roles: null,
-    premise: "The hotel gave {a} and {b} keys to the same room. Reception can't fix it until morning, and after an hour of talking neither of them wants it fixed.",
+    // Worded to read right from either side as "you" (lib/roleplays.ts premiseForYou; Step in shows it that way): "{b}
+    // keys" came out "you key".
+    premise: "The hotel gave {a} and {b} the same room, a key card each. Reception can't fix it until morning, and after an hour of talking neither wants it fixed.",
     card: {
       setup: "Two key cards, one room number and a night clerk who can fix it in the morning. {a} and {b} have been polite about it for an hour, and the politeness has turned into talking.",
       wants: [
@@ -249,7 +251,8 @@ export const ROLEPLAYS: readonly HouseRoleplay[] = [
   },
   {
     id: "bodyguard", title: "The bodyguard", icon: "🕶️", category: "mystery", roles: ["the bodyguard", "the one they protect"], costumes: ["a black suit, a white shirt and an earpiece", "an elegant evening outfit"],
-    premise: "{a} has guarded {b} for a year and never once crossed the line. Tonight, safe behind a locked door, {b} asks {a} to, and {a} has wanted to for months.",
+    // Either side as "you": "asks {a} to, and" left two verbs hanging once one of them was "you".
+    premise: "{a} has guarded {b} for a year without once crossing the line. Tonight, safe behind a locked door, {b} asks {a} to cross it, and {a} has wanted to for months.",
     card: {
       setup: "A year of {a} holding doors and checking rooms. Tonight, with the day's work over, {b} says the thing out loud and adds that the job does not depend on the answer.",
       wants: [
@@ -272,7 +275,8 @@ export const ROLEPLAYS: readonly HouseRoleplay[] = [
   },
   {
     id: "celebrity", title: "The star and the stranger", icon: "⭐", category: "nightlife", roles: ["the famous one", "the one who doesn't recognise them"], costumes: ["designer clothes, sunglasses pushed up into the hair", "everyday casual clothes"],
-    premise: "{a} is famous; {b} genuinely has no idea who {a} is, and {a} finds that irresistible. One night of being nobody special.",
+    // Either side as "you": an adverb before the verb ("{b} genuinely has") left it "you genuinely has".
+    premise: "{a} is famous; {b} has no idea at all who {a} is, and {a} finds that irresistible. One night of being nobody special.",
     card: {
       setup: "A corner of a loud party where nobody is looking. {b} has just asked {a} what {a} does for work, sincerely, and {a} has not been asked that in years.",
       wants: [
