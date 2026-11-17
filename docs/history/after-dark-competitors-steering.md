@@ -1,3 +1,5 @@
+> Retired 2026-11-17: research of 2026-10-24. What it led to is built and documented in [docs/after-dark.md](../after-dark.md) ("Ratings that steer, their faces, finer looks, and the Archive"); the later comparison is [the 2026-11-17 roleplay audit](../audits/2026-11-17-roleplay-vs-the-field.md). Kept as the record of what other products did then.
+
 # After Dark vs the field: ratings, faces, picking, looks, failed shots
 
 Research date: 2026-10-24. David asked "what other companies do for this" after #765 shipped:

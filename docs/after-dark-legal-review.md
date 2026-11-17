@@ -9,7 +9,7 @@ _Issue-spotting for David and for the lawyer he hires, not legal advice. Researc
 (law-firm alerts, regulators' pages, processors' own policies; secondary sources are marked). Two load-bearing claims were
 re-read at the source that day: the UK Online Safety Act's text-only exclusion (s.79(4)) and Vercel's acceptable use
 policy (updated 2026-04-21). Builds on `docs/after-dark.md` §3 Payments, §4 Age verification and §6 Hosting, and on
-`docs/after-dark-moderation-options.md`._
+`docs/history/after-dark-moderation-options.md`._
 
 ## What's built (2026-10-24, David: "I take all your recommendations")
 
