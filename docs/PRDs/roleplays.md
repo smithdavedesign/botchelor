@@ -16,7 +16,7 @@ A roleplay is a game the two characters agree to play for one date: who they are
 - The characters stay themselves underneath. Their voice and habits wear the role, and they can step out of it and back in.
 - Everything else still holds: PG, adults only, no real people.
 
-The show offers 39 roleplays in ten kinds (lib/roleplays.ts `DATE_ROLEPLAYS`): strangers, mystery, adventure, sci-fi,
+The show offers 49 roleplays in ten kinds (lib/roleplays.ts `DATE_ROLEPLAYS`): strangers, mystery, adventure, sci-fi,
 fantasy, period, funny, slow burn, cozy, and for couples. An owner can also write one: a title, a premise with `{a}`
 and `{b}`, and two roles if it has them.
 
@@ -24,6 +24,9 @@ and `{b}`, and two roles if it has them.
   grump and the sunshine, an arranged match, a truce dinner, a bodyguard and a witness, off camera, another world, a
   witch and a witch-hunter, the last two awake, rival athletes, old friends, a night bakery, a ghost and a tenant, the
   night before a heist). The census's school, family and famous-people themes are left out on purpose.
+- 10 more the same day for the census's gaps (docs/tags.md): exes at a wedding, a time capsule, the last night in a
+  shared flat, writing the toasts, a dating-show reunion, new partners on the ice, a forger and an appraiser, a trip
+  redone, a bodyguard on a tour's last night, and a night watch at a clock museum.
 - Each of the show's own has a **scene card** ([scene-cards.md](../scene-cards.md)): how it starts, what each of them
   wants, where it can go, its tone and three ways it can open. The card goes into the prompts when the roleplay is
   picked. One someone writes has no card.
