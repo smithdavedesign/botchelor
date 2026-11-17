@@ -12,6 +12,7 @@ import Scene from "@/app/Scene";
 import CrisisPause from "@/app/stage/CrisisPause";
 import RoleplayPicker, { choiceReady, roleplayFields, type RoleplayChoice } from "@/app/RoleplayPicker";
 import PlacePicker from "@/app/stage/PlacePicker";
+import { openingField, type OpeningChoice } from "@/lib/scene-opening";
 import { useSpeech } from "@/app/stage/useSpeech";
 import type { CrisisResources } from "@/lib/crisis";
 import type { CompanionAllowance } from "@/lib/companion-plan";
@@ -69,7 +70,7 @@ const MARK: Record<NonNullable<CompanionMessageView["marker"]> | "notice", strin
  * A scene (🎭): the two of you at one of the show's places, face to face. The stage (app/Scene.tsx) shows the place,
  * their latest line with what they do, and yours; the thread keeps every line. Their lines can be read aloud in the
  * device's own voices (app/stage/useSpeech.ts). Once there's a place, a roleplay can come with it (the show's PG ones,
- * your library's or your own: app/RoleplayPicker.tsx), or it's just the two of you.
+ * your library's or your own: app/RoleplayPicker.tsx), or it's just the two of you; and how it opens, if you want to say.
  *
  * A call (📞, ./CompanionCall.tsx): you talk and they talk back, each turn a message like any other (marked 📞 here).
  * Offered where the browser can hear you, never in a scene.
@@ -138,6 +139,8 @@ export default function CompanionChat({
   // The place picked, while the roleplay (or none) is chosen; and that roleplay.
   const [placed, setPlaced] = useState<VenueId | null>(null);
   const [roleplay, setRoleplay] = useState<RoleplayChoice | null>(null);
+  // How the scene opens, when they chose (the picker's last step; lib/scene-opening.ts). Null: untouched.
+  const [opens, setOpens] = useState<OpeningChoice | null>(null);
   const [opening, setOpening] = useState(false);
   // A call: on screen, offered (the browser can hear you), and started (so its end is counted).
   const [calling, setCalling] = useState(false);
@@ -381,18 +384,19 @@ export default function CompanionChat({
     setPicking(false);
     setPlaced(null);
     setRoleplay(null);
+    setOpens(null);
   }
 
   /**
    * Into a scene somewhere (they open it), with a roleplay or without, or back to texting. The stage shows at once; the
    * server's answer settles it.
    */
-  async function playScene(place: VenueId | null, choice: RoleplayChoice | null = null) {
+  async function playScene(place: VenueId | null, choice: RoleplayChoice | null = null, how: OpeningChoice | null = null) {
     closePicker();
     const before = view.scene;
     setView((v) => ({ ...v, scene: place }));
     setOpening(place !== null);
-    const ok = await post({ action: "scene", place, ...(place ? roleplayFields(choice) : {}) });
+    const ok = await post({ action: "scene", place, ...(place ? { ...roleplayFields(choice), ...openingField(how) } : {}) });
     setOpening(false);
     if (!ok) setView((v) => (v.scene === place ? { ...v, scene: before } : v));
   }
@@ -650,12 +654,12 @@ export default function CompanionChat({
             Pick who you and {first} are to each other tonight, or leave it and it&apos;s just the two of you. It&apos;s make-believe: nothing you say in a
             roleplay goes into what {first} remembers about you.
           </p>
-          <RoleplayPicker me="You" them={c.name} value={roleplay} onChange={setRoleplay} signedIn={signedIn} asYou />
+          <RoleplayPicker me="You" them={c.name} value={roleplay} onChange={setRoleplay} signedIn={signedIn} asYou opening={opens} onOpening={setOpens} />
           <p className="companion-roleplay-go">
             <button
               type="button"
               className="button"
-              onClick={() => void playScene(placed, roleplay)}
+              onClick={() => void playScene(placed, roleplay, opens)}
               disabled={busy || (roleplay !== null && !choiceReady(roleplay))}
               data-track={roleplay ? "companion-roleplay-start" : "companion-scene-start"}
             >

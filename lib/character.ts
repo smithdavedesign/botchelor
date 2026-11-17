@@ -88,6 +88,12 @@ export type Character = {
    */
   roleplay?: Record<string, string | string[]>;
   /**
+   * Set only on the person's own side of a date they stepped into as themselves (lib/step-in.ts): who they are in
+   * scenes (lib/persona.ts personaForScene), one sentence the OTHER side's turn prompt carries as scene make-believe.
+   * Already under the show's check; never read by the engine, the director or a recap.
+   */
+  scenePersona?: string;
+  /**
    * Set only on a date's characters: the plan the two agreed to by text, which tonight is (lib/plans.ts), from this
    * side ("You: “…”", "They: “…”"). Its own field, not `pair`: a first date they planned in a match chat is still a first date.
    */

@@ -378,6 +378,8 @@ export function buildTurnMessages(
   const data = {
     you,
     them: characterBlindView(themChar),
+    // A person who stepped into the date as themselves (lib/step-in.ts): who they are in scenes, as they wrote it.
+    ...(themChar.scenePersona ? { who_youre_with_in_this_scene: themChar.scenePersona } : {}),
     where: venue(place).prompt,
     // They moved (lib/moves.ts): where they've been, and the act's plan kept but set where they are now.
     ...(moved ? { you_moved: `You started at ${shape!.segments.map((s) => venuePhrase(s.place)).join(", then went to ")}. You're there now.` } : {}),

@@ -13,6 +13,7 @@ import ModalSheet from "../Sheet";
 import CrisisNotice, { crisisFrom } from "../CrisisNotice";
 import { requestJson, watchLinkOf } from "../request";
 import RoleplayPicker, { choiceReady, roleplayFields, type RoleplayChoice } from "../RoleplayPicker";
+import { openingField, type OpeningChoice } from "@/lib/scene-opening";
 import type { CrisisResources } from "@/lib/crisis";
 import DetailsStep, { DetailField } from "./DetailsStep";
 import OriginalityPanel from "./OriginalityPanel";
@@ -2014,6 +2015,8 @@ export function SendPhase({ character, partners, openCharacters, swipeGate, toke
   // A roleplay (lib/date-roleplays.ts): it plays at once with a house character; with anyone else's, the two creators
   // agree one on their couple page first, so it only goes with a house date.
   const [roleplay, setRoleplay] = useState<RoleplayChoice | null>(null);
+  // How the roleplay opens, when they chose (the picker's last step; lib/scene-opening.ts).
+  const [opens, setOpens] = useState<OpeningChoice | null>(null);
   const [roleplayOpen, setRoleplayOpen] = useState(false); // the picker mounts once opened, not in the page's HTML
   // The self-harm notice (lib/crisis.ts), and the date it held back from opening.
   const [crisis, setCrisis] = useState<CrisisResources | null>(null);
@@ -2048,7 +2051,7 @@ export function SendPhase({ character, partners, openCharacters, swipeGate, toke
       ...(agenda ? { agenda } : {}),
       ...(note.trim() ? { note: note.trim() } : {}),
       ...(selfPick ? { self_pick: selfPick as Ending } : {}),
-      ...(house ? roleplayFields(roleplay) : {}),
+      ...(house ? { ...roleplayFields(roleplay), ...(roleplay ? openingField(opens) : {}) } : {}),
     };
     try {
       const { status, data, message } = await requestJson("/api/episodes", {
@@ -2438,7 +2441,7 @@ export function SendPhase({ character, partners, openCharacters, swipeGate, toke
             <summary>
               🎭 A roleplay{roleplay ? " (chosen)" : ""} <span className="muted small">(it plays on this date)</span>
             </summary>
-            {roleplayOpen && <RoleplayPicker me={character.name} them={null} value={roleplay} onChange={setRoleplay} signedIn={signedIn} />}
+            {roleplayOpen && <RoleplayPicker me={character.name} them={null} value={roleplay} onChange={setRoleplay} signedIn={signedIn} opening={opens} onOpening={setOpens} />}
           </details>
           )}
         </div>

@@ -32,6 +32,7 @@ import { extrasState } from "@/lib/companion-extras";
 import { voiceNote } from "@/lib/companion-voice";
 import { companionRefusal } from "../access";
 import { bookingAsk } from "@/lib/date-roleplays";
+import { CARD_OPENING_MAX } from "@/lib/scene-cards";
 import { POST as createEpisode } from "@/app/api/episodes/route";
 import { POST as bookSecondDate } from "@/app/api/episodes/[id]/second-date/route";
 import { POST as bookOvernight } from "@/app/api/overnight/route";
@@ -60,6 +61,8 @@ const Action = z.discriminatedUnion("action", [
     // A roleplay to play there (lib/date-roleplays.ts bookingAsk): the show's id, or { title, premise, roles? }.
     roleplay: z.union([z.string().max(60), z.object({ title: z.string().max(200), premise: z.string().max(1000), roles: z.array(z.string().max(200)).length(2).optional() })]).nullish(),
     my_role: z.union([z.literal(0), z.literal(1)]).optional(),
+    // How it opens, when they chose (lib/scene-opening.ts): 0, 1 or 2 for one of the three, or a sentence of their own.
+    opening: z.union([z.literal(0), z.literal(1), z.literal(2), z.string().max(CARD_OPENING_MAX * 4)]).optional(),
   }),
   z.object({ action: z.literal("carry_on") }),
   // The thread's switch for texts the character starts (a date aired, the house talked about them); never on silence.
@@ -180,7 +183,7 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
     case "scene":
       {
         const ask = bookingAsk(input.roleplay, input.my_role);
-        r = await setScene(db, sess.userId, id, input.place, new Date(), ask && !ask.skip ? ask : null);
+        r = await setScene(db, sess.userId, id, input.place, new Date(), ask && !ask.skip ? ask : null, input.opening);
       }
       break;
     case "carry_on":

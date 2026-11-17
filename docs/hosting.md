@@ -179,6 +179,10 @@ ignore it.
   new stories are open to. Unset or `members`: the plan's members and admins on the
   show (After Dark's side opens by its own "narrated" rollout switch). `admins`: admins only. `0`: off for everyone on
   both sides; stories already made still read.
+- **`SCENE_PERSONA`** (the show's app, not a secret; on unless it is `0`; [companions.md](companions.md), "Who you are
+  in scenes"): a person's saved persona for scenes (`lib/persona.ts`). `0`: no scene's prompt reads one (companion
+  scenes, step-in dates), the card on `/account` and the scene picker's line go, and `POST /api/persona` answers not
+  found. What's stored stays, in the export and deletable. Commented in `.do/show.yaml`.
 - **`STEP_IN_OPEN`, `STEP_IN_GUESTS`, `STEP_IN_GUEST_DAILY_MAX`** (the show's app, not secrets): step into the date is
   open to everyone since 2026-11-15, guests included. `STEP_IN_OPEN=0` puts it back to admins only; `STEP_IN_GUESTS=0`
   asks a visitor without an account to sign in first; `STEP_IN_GUEST_DAILY_MAX` (default `300`) is the guest dates a day

@@ -94,6 +94,12 @@ services:
       # - key: WRITING_STYLES
       #   value: "admins"
       #   scope: RUN_AND_BUILD_TIME
+      # Who a person is in scenes (lib/persona.ts; docs/companions.md "Who you are in scenes"): on by default. "0" stops
+      # every scene's prompt reading one, hides the card on /account and the picker's line, and refuses new saves; what's
+      # stored stays (exported, deletable).
+      # - key: SCENE_PERSONA
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
       # Step into the date is open to everyone, guests included (docs/step-into-the-date.md "The switches", 2026-11-15).
       # Uncomment one to close it without a deploy of code: STEP_IN_OPEN "0" = admins only again; STEP_IN_GUESTS "0" =
       # a visitor signs in first; STEP_IN_GUEST_DAILY_MAX = guest dates a day across the show (default 300, "0" = none).

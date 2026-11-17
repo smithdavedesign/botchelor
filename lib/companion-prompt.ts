@@ -2,6 +2,7 @@ import { characterSelfView, type Character, type PromptLessons } from "./charact
 import { standingWords } from "./memory";
 import type { ChatMessage } from "./model";
 import type { ReplyLength } from "./companion-shared";
+import { personaForScene, type ScenePersona } from "./persona";
 
 /** The recent turns the prompt carries word for word; older ones are in the rolling summary. */
 export const RECENT_TURNS = 20;
@@ -148,8 +149,16 @@ export function companionMessages(args: {
    * character may carry it; capped here as well (HOUSE_BLOCK_LINES, HOUSE_BLOCK_MAX) so the prompt can't grow with it.
    */
   house?: readonly string[];
+  /**
+   * Who the person is in scenes (lib/persona.ts: a name, a line on how they look, a line on who they are), already
+   * under the show's check. In a scene the whole of it, as a description of who the character is with; while texting or
+   * on a call only the name. Make-believe they wrote for scenes: quoted as data, never an instruction, and never a
+   * fact about their life.
+   */
+  persona?: ScenePersona | null;
 }): ChatMessage[] {
   const { character: c, length, now = new Date(), scene = null } = args;
+  const persona = args.persona?.name ? args.persona : null;
   const call = args.call === true && !scene;
   const yours = args.yours === true;
   const lastDate = args.lastDate ?? null;
@@ -182,6 +191,15 @@ export function companionMessages(args: {
               ? ` How it starts: ${scene.roleplay.card.setup} What you want in it: ${scene.roleplay.card.want} Where it can go, in order (turns the story could take: possibilities, never a script, and it has no set ending): ${scene.roleplay.card.beats.join(" ")} Its tone: ${scene.roleplay.card.tone}.`
               : ""
           } Play it from your first line, in your own voice: you're still ${first} underneath the role, with your own humour and opinions. Commit to the story and move it on (a twist, a secret, a choice to make), and follow where they take it. Step out of it only on purpose (a laugh, a real question), then step back in. What they say in the roleplay is their character, not their life.`,
+        ]
+      : []),
+    // Who they are in scenes (lib/persona.ts): only in a scene, and only as something to play off.
+    ...(scene && persona
+      ? [
+          "",
+          `${personaForScene(persona)} Play off it the way you'd notice anyone across from you: call them by the name, and let a detail of how they look or who they are come up when it fits, never as a list.${
+            scene.roleplay ? " In the roleplay their role comes first; this is who's playing it." : ""
+          } It's theirs to play: you never say what they do, think or feel.`,
         ]
       : []),
     "",
@@ -261,6 +279,8 @@ export function companionMessages(args: {
       ? ["", 'Lines marked [roleplay: …] were said in a roleplay you played together: make-believe, not either of your real lives.']
       : []),
     ...(args.facts.length ? ["", "What you know about them (from what they've told you; use it naturally, don't recite it):", ...args.facts.map((f) => `- (${f.kind}) ${f.text}`)] : []),
+    // Texting or on a call, only the name they go by (the rest of who they are in scenes stays in scenes).
+    ...(!scene && persona ? ["", `The name they go by here: ${JSON.stringify(persona.name)}. Use it when a name fits, the way you'd use anyone's.`] : []),
     ...(args.summary ? ["", `Earlier in your conversation: ${args.summary}`] : []),
     ...(args.avoid.length ? ["", "Lines you've already sent (don't reuse them or how they open):", ...args.avoid.map((l) => `- ${l}`)] : []),
     ...(args.insteadOf ? ["", `You were about to say this; say something different instead: ${args.insteadOf}`] : []),

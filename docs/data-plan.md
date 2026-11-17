@@ -333,6 +333,9 @@ Since 2026-11-16 a message a character sent about a date also carries that date'
 set when the text is written and exported as `episode_id`; companions.md, "A text knows its date"): a key on the
 person's own row, read only for that person. It goes with the message, the conversation and the account like the rest
 of the row, and it adds nothing to any dataset.
+Since 2026-11-17 it has `persona` too: who they are in scenes (`personas`: the name, look and line about themselves
+they wrote for scenes, `lib/persona.ts`). One row a person, kept while the account is and deleted with it; it goes into
+their own scenes' prompts and nowhere else, and is in no dataset.
 Companion conversations stay out of every dataset; After Dark stays out of the export.
 
 **Engagement events know their character and date** (2026-11-16; [analytics.md](analytics.md), "Which character, which

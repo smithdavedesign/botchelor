@@ -13392,6 +13392,18 @@ button.thread-menu-item:hover:not(:disabled) {
   align-items: baseline;
   gap: 0.5rem;
 }
+/* The picker's last step, how it opens (lib/scene-opening.ts): the roles' box, with room for a sentence of their own. */
+.rp-opens-about,
+.rp-persona {
+  margin: 0;
+}
+.rp-opens-own {
+  display: grid;
+  gap: 0.15rem;
+}
+.rp-opens-own input {
+  margin-top: 0;
+}
 .roleplay-premise {
   margin-bottom: 0.25rem;
 }

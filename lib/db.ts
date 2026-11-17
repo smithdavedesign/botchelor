@@ -4373,6 +4373,21 @@ create table if not exists stories (
   created_at timestamptz not null default now()
 );
 create unique index if not exists stories_ref_idx on stories (kind, ref_id, coalesce(owner_id, ''));
+
+-- Who a person is in scenes (lib/persona.ts; the roleplay audit, 2026-11-17, item 3): a name to be called, a line on
+-- how they look and a line on who they are. Make-believe they write for scenes, checked before it's stored, one a
+-- person; it goes into a scene's prompt and is never a memory. Goes with their account.
+create table if not exists personas (
+  user_id text primary key,
+  name text not null,
+  look text not null default '',
+  about text not null default '',
+  updated_at timestamptz not null default now()
+);
+-- How a companion's scene opens when the person chose (lib/scene-opening.ts) and it plays no roleplay: one of the
+-- generic openings, or a sentence they wrote (checked). With a roleplay the choice is in its terms (roleplay.opening).
+-- Cleared with the scene.
+alter table companion_threads add column if not exists opening text;
 `;
 
 /** Idempotent: creates the tables and upserts the house characters, free and premium. */

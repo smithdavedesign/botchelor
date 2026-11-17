@@ -1,9 +1,12 @@
 "use client";
 
 import { useEffect, useId, useState } from "react";
+import Link from "next/link";
 import { requestJson } from "@/app/request";
 import { shortName } from "@/lib/names";
 import { DATE_ROLEPLAYS, dateRoleplayById, premiseForYou, ROLEPLAY_PREMISE_MAX, ROLEPLAY_ROLE_MAX, ROLEPLAY_TAGS, ROLEPLAY_TITLE_MAX, type RoleplayTag } from "@/lib/roleplays";
+import { CARD_OPENING_MAX, cardForYou, GENERIC_OPENINGS } from "@/lib/scene-cards";
+import type { OpeningChoice } from "@/lib/scene-opening";
 import type { MyRoleplay } from "@/lib/studio/library";
 
 /** What a picker chose: one of the show's roleplays, or one written for the date, and which role is the booker's. */
@@ -29,10 +32,32 @@ export function choiceReady(c: RoleplayChoice | null): boolean {
 const fill = (premise: string, a: string, b: string) => premise.replaceAll("{a}", a).replaceAll("{b}", b);
 
 /**
+ * The openings the "How it opens" step offers, as the booker reads them (lib/scene-cards.ts): the picked roleplay's
+ * card's three, with the names in (or from your side when you play it yourself); the three generic ones for a scene
+ * you play yourself with no roleplay; none for a roleplay you wrote (it has no card: write the opening too) or a date
+ * with no roleplay. The index is what's sent, so the order is the card's.
+ */
+export function openingsShown(o: { value: RoleplayChoice | null; me: string; them: string; asYou: boolean }): string[] {
+  const def = o.value && "roleplay_id" in o.value ? dateRoleplayById(o.value.roleplay_id) : null;
+  if (def) {
+    // {a} is whoever plays the first role: the booker's side unless they took the second.
+    const first = (o.value?.my_role ?? 0) === 0;
+    if (o.asYou) return [...cardForYou(def.card, first ? "a" : "b", o.them).openings];
+    return def.card.openings.map((text) => (first ? fill(text, o.me, o.them) : fill(text, o.them, o.me)));
+  }
+  if (!o.value && o.asYou) return GENERIC_OPENINGS.map((text) => premiseForYou(text, "a", o.them));
+  return [];
+}
+
+/**
  * The show's roleplays for a date (lib/roleplays.ts), by kind, the safe ones in your Create library (✨ Yours, signed in:
  * lib/studio/library.ts), and one of your own: pick one, and who plays whom. A roleplay is framing only: the characters
  * play it as a game they share for the evening, and the engine decides the ending. One of yours goes as written terms,
  * checked again like any.
+ *
+ * Its last step, "How it opens" (with `onOpening`; lib/scene-opening.ts): one of the roleplay's three openings, any of
+ * them at random, or a sentence of your own. Untouched, nothing is sent and the scene opens as it always did. And when
+ * you play it yourself, one line on who you are in scenes (lib/persona.ts), with the way to /account to change it.
  */
 export default function RoleplayPicker({
   me,
@@ -41,6 +66,8 @@ export default function RoleplayPicker({
   onChange,
   signedIn,
   asYou = false,
+  opening = null,
+  onOpening,
 }: {
   me: string;
   them: string | null;
@@ -50,12 +77,32 @@ export default function RoleplayPicker({
   signedIn: boolean;
   /** The person plays it themselves (a companion's scene): "You read fortunes…", "You're the captain". */
   asYou?: boolean;
+  /** How it opens, when they chose (null: untouched). */
+  opening?: OpeningChoice | null;
+  /** Offers the "How it opens" step. Left out, there's no such step (the couple page's proposal has none). */
+  onOpening?: (o: OpeningChoice | null) => void;
 }) {
   const id = useId();
   const [tag, setTag] = useState<RoleplayTag | "all" | "yours">("all");
   // Their library: null until it answers, and stays null for a visitor who isn't signed in (it's accounts only).
   const [yours, setYours] = useState<MyRoleplay[] | null>(null);
   const [kept, setKept] = useState<{ text: string; error?: boolean } | null>(null);
+  // Who they are in scenes (lib/persona.ts): asked for only when they play it themselves; undefined until it answers.
+  const [persona, setPersona] = useState<{ name: string } | null | undefined>(undefined);
+  useEffect(() => {
+    if (!signedIn || !asYou) return;
+    let live = true;
+    fetch("/api/persona")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        // `on: false` (SCENE_PERSONA=0): no line at all.
+        if (live && d && d.on !== false) setPersona(d.persona && typeof d.persona.name === "string" ? { name: d.persona.name } : null);
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [signedIn, asYou]);
   useEffect(() => {
     if (!signedIn) return;
     let live = true;
@@ -84,7 +131,14 @@ export default function RoleplayPicker({
   const ownShown = tag === "all" || tag === "yours" ? (yours ?? []) : [];
   const setCustom = (patch: Partial<{ title: string; premise: string; roles: [string, string] }>) =>
     onChange({ custom: { title: custom?.title ?? "", premise: custom?.premise ?? "", ...(custom?.roles ? { roles: custom.roles } : {}), ...patch }, my_role: myRole });
-  const pickSaved = (x: MyRoleplay) => onChange(saved?.id === x.id ? null : { custom: { title: x.title, premise: x.premise, ...(x.roles ? { roles: x.roles } : {}) }, my_role: myRole });
+  /** Another roleplay (or none) has other openings: a pick of one of the three doesn't carry over; a written one does. */
+  const pick = (v: RoleplayChoice | null) => {
+    onChange(v);
+    if (opening && !("written" in opening)) onOpening?.(null);
+  };
+  const pickSaved = (x: MyRoleplay) => pick(saved?.id === x.id ? null : { custom: { title: x.title, premise: x.premise, ...(x.roles ? { roles: x.roles } : {}) }, my_role: myRole });
+  const openings = onOpening ? openingsShown({ value, me: mine, them: theirs, asYou }) : [];
+  const written = opening && "written" in opening ? opening.written : null;
 
   /** Keeps the one they wrote in their library (safe), so it's under ✨ Yours next time. */
   async function keep() {
@@ -126,7 +180,7 @@ export default function RoleplayPicker({
           const on = def?.id === r.id;
           return (
             <li key={r.id}>
-              <button type="button" className="rp-tile" aria-pressed={on} onClick={() => onChange(on ? null : { roleplay_id: r.id, my_role: myRole })}>
+              <button type="button" className="rp-tile" aria-pressed={on} onClick={() => pick(on ? null : { roleplay_id: r.id, my_role: myRole })}>
                 <span className="rp-tile-title">
                   <span aria-hidden="true">{r.icon}</span> {r.title}
                 </span>
@@ -136,7 +190,7 @@ export default function RoleplayPicker({
           );
         })}
         <li>
-          <button type="button" className="rp-tile rp-tile-own" aria-pressed={Boolean(custom) && !saved} onClick={() => onChange(custom && !saved ? null : { custom: { title: "", premise: "" }, my_role: myRole })}>
+          <button type="button" className="rp-tile rp-tile-own" aria-pressed={Boolean(custom) && !saved} onClick={() => pick(custom && !saved ? null : { custom: { title: "", premise: "" }, my_role: myRole })}>
             <span className="rp-tile-title">
               <span aria-hidden="true">✍️</span> One of your own
             </span>
@@ -197,6 +251,67 @@ export default function RoleplayPicker({
               {asYou ? `You're ${roles[i]}, ${theirs} is ${roles[1 - i]}` : `${mine} is ${roles[i]}, ${theirs} ${roles[1 - i]}`}
             </label>
           ))}
+        </fieldset>
+      )}
+
+      {asYou && signedIn && persona !== undefined && (
+        // Who you are in scenes (lib/persona.ts): one quiet line, and the way to change it. Nothing more of it is here.
+        <p className="muted small rp-persona" data-rp-persona>
+          {persona ? (
+            <>
+              Playing as <strong>{persona.name}</strong> · <Link href="/account#persona">edit</Link>
+            </>
+          ) : (
+            <Link href="/account#persona">Add who you are</Link>
+          )}
+        </p>
+      )}
+
+      {onOpening && (value || asYou) && (
+        <fieldset className="rp-roles rp-opens">
+          <legend>How it opens</legend>
+          <p className="muted small rp-opens-about">Pick how it starts, or leave this and it opens its own way.</p>
+          {openings.map((text, i) => (
+            <label key={i} className="rp-role">
+              <input type="radio" name={`${id}-opening`} checked={Boolean(opening && "pick" in opening && opening.pick === i)} onChange={() => onOpening({ pick: i as 0 | 1 | 2 })} />
+              {text}
+            </label>
+          ))}
+          {openings.length > 0 && (
+            <label className="rp-role">
+              <input type="radio" name={`${id}-opening`} checked={Boolean(opening && "surprise" in opening)} onChange={() => onOpening({ surprise: true })} />
+              Surprise me
+            </label>
+          )}
+          <label className="rp-role">
+            <input type="radio" name={`${id}-opening`} checked={written !== null} onChange={() => onOpening({ written: written ?? "" })} />
+            Write your own
+          </label>
+          {written !== null && (
+            <div className="rp-opens-own">
+              <label className="sr-only" htmlFor={`${id}-opening-own`}>
+                Your opening, one sentence
+              </label>
+              <input
+                id={`${id}-opening-own`}
+                type="text"
+                maxLength={CARD_OPENING_MAX}
+                value={written}
+                placeholder={asYou ? `I'm halfway through a crossword when ${theirs} sits down across from me.` : `${mine} is early and nervous; ${theirs} is late and pretending not to be.`}
+                onChange={(e) => onOpening({ written: e.target.value })}
+              />
+              <span className="muted small">
+                {written.length}/{CARD_OPENING_MAX} · one sentence, PG{asYou ? ", from where you stand" : ""}
+              </span>
+            </div>
+          )}
+          {opening && (
+            <p className="rp-keep">
+              <button type="button" className="link-button" onClick={() => onOpening(null)}>
+                Let it open its own way
+              </button>
+            </p>
+          )}
         </fieldset>
       )}
     </div>

@@ -56,6 +56,7 @@ import { anchorBestLine, narrateEpisode } from "./showrunner";
 import { buildDate, rememberDate, type CharacterForDate, type DateRequest } from "./simulation";
 import { areUnmatched } from "./unmatch";
 import { overLimit } from "./limits";
+import { personaForScene, showPersona } from "./persona";
 import { stepInSharePath } from "./step-in-share";
 import { DISCLOSURE_EVERY, DISCLOSURE_IDLE_MINUTES, disclosureText, PERSONA_ABOUT_MAX, PERSONA_NAME_MAX, PERSONA_OWNER_PREFIX, type Persona, type StepInLine, type StepInView } from "./step-in-shared";
 
@@ -613,6 +614,19 @@ const withInner = (transcript: Turn[], inner: StoredInner | null): Turn[] =>
   transcript.map((t, i) => (t.side === "b" && inner?.lines[i] ? { ...t, inner: inner.lines[i] as LineInner } : t));
 
 /**
+ * The date's two characters with who the person is in scenes on their own side (lib/persona.ts), when they came as
+ * themselves: how they look and who they are, which the cast member's prompt carries as scene make-believe. The name
+ * stays the one they came as, so it's left out. Read under the show's check each time; a date played as one of their
+ * own characters has that character's sheet instead, and gets nothing.
+ */
+async function withScenePersona<T extends { scenePersona?: string }>(db: Db, row: StepRow, characters: [T, T]): Promise<[T, T]> {
+  if (row.setup?.step_in?.mode !== "you") return characters;
+  const persona = await showPersona(db, row.creator_id).catch(() => null);
+  const block = persona ? personaForScene(persona, { name: false }) : "";
+  return block ? [{ ...characters[0], scenePersona: block }, characters[1]] : characters;
+}
+
+/**
  * The cast member's next line, through the show's own loop (simulateConversation, one line): its critic, its inner life
  * and its secrets, exactly as on a date the show writes. False when the model wouldn't give one (advance tries again).
  */
@@ -624,9 +638,10 @@ async function castLine(db: Db, row: StepRow, attempt = 0): Promise<boolean> {
   const counting = countingModel(getModel());
   const lived = withInner(transcript, row.inner_life);
   const v5 = (built.setup.engine_version ?? 1) >= CHOICE_ENGINE_VERSION;
+  const characters = await withScenePersona(db, row, built.characters);
   let lines: Turn[];
   try {
-    lines = await simulateConversation(counting.model, built.input, decided, built.characters, built.setup.producer, built.setup.venue, formatId, showFormat(formatId).turns ?? CONVERSATION_TURNS, formatContextOf(built), undefined, undefined, undefined, {
+    lines = await simulateConversation(counting.model, built.input, decided, characters, built.setup.producer, built.setup.venue, formatId, showFormat(formatId).turns ?? CONVERSATION_TURNS, formatContextOf(built), undefined, undefined, undefined, {
       moves: false,
       from: lived,
       stopAfter: 1,
