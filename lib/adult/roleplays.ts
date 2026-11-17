@@ -18,6 +18,7 @@
  */
 import { fillCardText, openingOf, type SceneCard } from "../scene-cards";
 import type { SceneCategory } from "./scene-catalog";
+import type { AdultTagId } from "./tags";
 
 export type Roleplay = {
   id: string;
@@ -35,13 +36,17 @@ export type Roleplay = {
   costumes?: readonly [string, string];
   /** The story behind it (lib/scene-cards.ts), for the writer. Every one of the show's has one; a person's own has none. */
   card?: SceneCard;
+  /** Its tags (lib/adult/tags.ts, docs/tags.md): setup, kind of story, then heat. `category` stays as it was (the place
+   *  shelves in Set the scene, the admin MCP). A person's own roleplay has none. */
+  tags?: readonly AdultTagId[];
 };
-/** One of the show's own: it always comes with its card. */
-export type HouseRoleplay = Roleplay & { card: SceneCard };
+/** One of the show's own: it always comes with its card and its tags. */
+export type HouseRoleplay = Roleplay & { card: SceneCard; tags: readonly AdultTagId[] };
 
 export const ROLEPLAYS: readonly HouseRoleplay[] = [
   {
     id: "neighbours", title: "The neighbour next door", icon: "🚪", category: "romance", roles: ["the neighbour who knocks", "the neighbour who answers"], costumes: ["a soft knit sweater and jeans", "comfortable loungewear, barefoot"],
+    tags: ["roommates", "slow_burn", "romance", "tease"],
     premise: "{a} and {b} are neighbours who've flirted in the hallway for months. Tonight {a} knocks with a flimsy excuse, and both of them stop pretending it's about the excuse.",
     card: {
       setup: "Months of hallway small talk and one borrowed corkscrew. Tonight {a} knocks on {b}'s door holding a parcel that was delivered to the right flat all along.",
@@ -65,6 +70,7 @@ export const ROLEPLAYS: readonly HouseRoleplay[] = [
   },
   {
     id: "boss", title: "Boss and employee, after hours", icon: "💼", category: "afterhours", roles: ["the boss", "the employee"], costumes: ["a sharp tailored suit", "smart office clothes, a crisp shirt and trousers, a lanyard"],
+    tags: ["workplace", "romance"],
     premise: "Late at the office, everyone else gone home. {a} runs the team and {b} is on it. The attraction has been there for months; tonight both of them say so out loud, and both are clear that nobody's job depends on the answer.",
     card: {
       setup: "The office is dark except for two desks, and the deadline went out an hour ago. {b} says it first, out loud. {a} says it back and adds that nobody's job rides on any answer given tonight.",
@@ -88,6 +94,7 @@ export const ROLEPLAYS: readonly HouseRoleplay[] = [
   },
   {
     id: "delivery", title: "The last delivery", icon: "📦", category: "strangers", roles: ["the one making the delivery", "the one who ordered"], costumes: ["a courier's uniform polo and cap, a delivery bag on one shoulder", "a soft robe over loungewear"],
+    tags: ["strangers", "tease"],
     premise: "The last delivery of the night. {a}'s shift is over the moment the door opens, {b} invites them in, and both of them know the order was never really the point.",
     card: {
       setup: "The last drop of the shift, and the app shows {a} clocked off the second the door opens. {b} has ordered from the same place every Thursday for a reason that is not the food.",
@@ -111,6 +118,7 @@ export const ROLEPLAYS: readonly HouseRoleplay[] = [
   },
   {
     id: "handyman", title: "The handyman", icon: "🔧", category: "strangers", roles: ["the handyman", "the homeowner"], costumes: ["work boots, jeans and a fitted work shirt, a tool belt", "relaxed clothes for an evening at home"],
+    tags: ["strangers", "tease"],
     premise: "{a} came round to fix a leak at {b}'s place. The job's done, the tools are packed away, and neither of them is in any hurry for {a} to leave.",
     card: {
       setup: "The leak is fixed, the job is signed off and the toolbox is shut. {b} puts the kettle on anyway, and {a} has not picked up the van keys.",
@@ -134,6 +142,7 @@ export const ROLEPLAYS: readonly HouseRoleplay[] = [
   },
   {
     id: "roommates", title: "Roommates", icon: "🛋️", category: "nightin", roles: null,
+    tags: ["roommates", "slow_burn", "slice_of_life"],
     premise: "{a} and {b} share a flat: one bathroom, very thin walls, and months of pretending not to notice each other. Tonight neither pretends.",
     card: {
       setup: "One flat, one bathroom and walls like paper. {a} and {b} meet in the kitchen at midnight, both pretending to be there for a glass of water.",
@@ -157,6 +166,7 @@ export const ROLEPLAYS: readonly HouseRoleplay[] = [
   },
   {
     id: "strangers-bar", title: "Strangers at the bar", icon: "🍸", category: "strangers", roles: null,
+    tags: ["strangers", "romance"],
     premise: "{a} and {b} have never met. One drink at the bar becomes a long conversation, and the conversation becomes a question neither wants to leave unasked.",
     card: {
       setup: "A quiet bar on a weeknight, two stools apart. {a} and {b} have each finished one drink and neither has reached for a coat.",
@@ -180,6 +190,7 @@ export const ROLEPLAYS: readonly HouseRoleplay[] = [
   },
   {
     id: "no-names", title: "Strangers, no names", icon: "🎭", category: "strangers", roles: null,
+    tags: ["strangers", "tease"],
     premise: "{a} and {b} agree on one rule: no names, no questions about real life. Just tonight, as whoever they want to be.",
     card: {
       setup: "One rule, agreed before anything else: no names, no questions about real life. {a} and {b} shake on it across a small table, and either can drop the game with a word.",
@@ -203,6 +214,7 @@ export const ROLEPLAYS: readonly HouseRoleplay[] = [
   },
   {
     id: "hotel-mixup", title: "The hotel mix-up", icon: "🛎️", category: "getaway", roles: null,
+    tags: ["forced_proximity", "strangers"],
     // Worded to read right from either side as "you" (lib/roleplays.ts premiseForYou; Step in shows it that way): "{b}
     // keys" came out "you key".
     premise: "The hotel gave {a} and {b} the same room, a key card each. Reception can't fix it until morning, and after an hour of talking neither wants it fixed.",
@@ -228,6 +240,7 @@ export const ROLEPLAYS: readonly HouseRoleplay[] = [
   },
   {
     id: "photo-shoot", title: "The photo shoot", icon: "📸", category: "afterhours", roles: ["the photographer", "the model"], costumes: ["dark casual clothes, a camera on a strap over one shoulder", "the shoot's look, a fitted designer outfit"],
+    tags: ["workplace", "praise", "dress_up"],
     premise: "A late shoot wraps. {a}, the photographer, and {b}, the model, are both off the clock, and they admit the chemistry the camera kept catching.",
     card: {
       setup: "The lights are cooling and the crew has gone. {a} is packing lenses slowly, and {b} is back in a coat and in no hurry. Nobody is on the clock.",
@@ -251,6 +264,7 @@ export const ROLEPLAYS: readonly HouseRoleplay[] = [
   },
   {
     id: "bodyguard", title: "The bodyguard", icon: "🕶️", category: "mystery", roles: ["the bodyguard", "the one they protect"], costumes: ["a black suit, a white shirt and an earpiece", "an elegant evening outfit"],
+    tags: ["bodyguard", "slow_burn", "forbidden"],
     // Either side as "you": "asks {a} to, and" left two verbs hanging once one of them was "you".
     premise: "{a} has guarded {b} for a year without once crossing the line. Tonight, safe behind a locked door, {b} asks {a} to cross it, and {a} has wanted to for months.",
     card: {
@@ -275,6 +289,7 @@ export const ROLEPLAYS: readonly HouseRoleplay[] = [
   },
   {
     id: "celebrity", title: "The star and the stranger", icon: "⭐", category: "nightlife", roles: ["the famous one", "the one who doesn't recognise them"], costumes: ["designer clothes, sunglasses pushed up into the hair", "everyday casual clothes"],
+    tags: ["strangers", "slice_of_life"],
     // Either side as "you": an adverb before the verb ("{b} genuinely has") left it "you genuinely has".
     premise: "{a} is famous; {b} has no idea at all who {a} is, and {a} finds that irresistible. One night of being nobody special.",
     card: {
@@ -299,6 +314,7 @@ export const ROLEPLAYS: readonly HouseRoleplay[] = [
   },
   {
     id: "exes", title: "Exes, one more night", icon: "🔁", category: "second", roles: null,
+    tags: ["second_chance", "drama"],
     premise: "{a} and {b} broke up years ago. They run into each other, the old pull is right there, and they decide, both of them, on one more night.",
     card: {
       setup: "Years since the break-up and one chance meeting at a friend's opening. {a} and {b} have drifted to the same quiet end of the room, with the old ease right there.",
@@ -322,6 +338,7 @@ export const ROLEPLAYS: readonly HouseRoleplay[] = [
   },
   {
     id: "friends", title: "Best friends, finally", icon: "🤝", category: "romance", roles: null,
+    tags: ["friends_to_more", "romance"],
     premise: "{a} and {b} have been best friends for years. Tonight one of them finally says it, and the other has been waiting to hear it.",
     card: {
       setup: "The usual sofa, the usual film neither is watching. {a} and {b} have been best friends for years, and tonight somebody has stopped laughing at the right places.",
@@ -345,6 +362,7 @@ export const ROLEPLAYS: readonly HouseRoleplay[] = [
   },
   {
     id: "rivals", title: "Rivals", icon: "⚔️", category: "romance", roles: null,
+    tags: ["rivals", "drama"],
     premise: "{a} and {b} have competed for everything for years: clients, awards, the last word. Tonight the rivalry turns into something they both enjoy far more.",
     card: {
       setup: "Another awards dinner, the same two names on the shortlist. {a} and {b} are seated side by side by someone with a sense of humour.",
@@ -368,6 +386,7 @@ export const ROLEPLAYS: readonly HouseRoleplay[] = [
   },
   {
     id: "blind-date", title: "Blind date", icon: "🙈", category: "romance", roles: null,
+    tags: ["strangers", "romance"],
     premise: "A friend set {a} and {b} up. Neither expected much, and both are surprised how fast the evening stops feeling like a first date.",
     card: {
       setup: "A friend picked the restaurant, the time and, apparently, each other. {a} and {b} both arrived expecting to be polite for an hour.",
@@ -391,6 +410,7 @@ export const ROLEPLAYS: readonly HouseRoleplay[] = [
   },
   {
     id: "wedding", title: "Wedding guests", icon: "💍", category: "getaway", roles: null,
+    tags: ["strangers", "romance"],
     premise: "{a} and {b} are guests at a friend's wedding, seated together at the singles' table. The reception winds down and neither wants the night to end.",
     card: {
       setup: "The singles' table at a friend's wedding, after the speeches. {a} and {b} have been making fun of the playlist together since the first course.",
@@ -414,6 +434,7 @@ export const ROLEPLAYS: readonly HouseRoleplay[] = [
   },
   {
     id: "rival-spies", title: "Rival spies", icon: "🕵️", category: "mystery", roles: null,
+    tags: ["rivals", "crime", "action"],
     premise: "{a} and {b} are spies for rival agencies, after the same file, who keep meeting in the same places. Tonight they call a truce, and the truce is very convincing.",
     card: {
       setup: "The same hotel bar in yet another city. {a} and {b} both know about the file, and both ordered for the other before sitting down.",
@@ -437,6 +458,7 @@ export const ROLEPLAYS: readonly HouseRoleplay[] = [
   },
   {
     id: "vampire", title: "The vampire's invitation", icon: "🦇", category: "fantasy", roles: ["the vampire", "the guest"], costumes: ["dark velvet and silk, old-fashioned and elegant, a high collar", "evening clothes for a party at an old manor"],
+    tags: ["forbidden", "supernatural", "dark_romance"],
     premise: "{a} is a centuries-old vampire who never enters without being asked; {b} is the guest who finally asks. Everything happens only by invitation.",
     card: {
       setup: "A doorway at midnight, and {a} waiting on the far side of it with centuries of patience. {b} came to the door to say the invitation out loud.",
@@ -460,6 +482,7 @@ export const ROLEPLAYS: readonly HouseRoleplay[] = [
   },
   {
     id: "royal", title: "The royal and the guard", icon: "👑", category: "fantasy", roles: ["the royal", "the royal guard"], costumes: ["rich royal clothes with gold embroidery and a fine circlet", "a royal guard's dress uniform with polished buttons"],
+    tags: ["forbidden", "royalty", "fantasy"],
     premise: "In a candlelit castle, {a} is royalty and {b} the guard sworn to stand outside the door. Tonight {a} asks {b} to come inside, and {b} chooses to.",
     card: {
       setup: "A candlelit corridor and a door {b} has stood outside for years. Tonight {a} opens it and asks, as a question and not a command, whether {b} would come in.",
@@ -483,6 +506,7 @@ export const ROLEPLAYS: readonly HouseRoleplay[] = [
   },
   {
     id: "starship", title: "Captain and pilot", icon: "🚀", category: "scifi", roles: ["the captain", "the pilot"], costumes: ["a fitted dark captain's uniform with rank insignia on the collar", "a zip-front flight suit with mission patches"],
+    tags: ["workplace", "slow_burn", "scifi"],
     premise: "Months into a deep-space voyage, {a}, the captain, and {b}, the pilot, both off duty for the night shift, stop pretending the long looks on the bridge meant nothing.",
     card: {
       setup: "Night shift on a long voyage, the bridge on automatic. {a} and {b} are both off duty, and {a} has just said that rank stays on the bridge and any answer is a safe one.",
@@ -510,6 +534,7 @@ export const ROLEPLAYS: readonly HouseRoleplay[] = [
   // famous-people themes are left out on purpose.
   {
     id: "your-rules", title: "Your rules tonight", icon: "🗝️", category: "romance", roles: ["the one who leads", "the one who follows"], costumes: ["a crisp shirt with the sleeves rolled to the elbow", "something soft and comfortable, chosen for the evening"],
+    tags: ["romance", "gentle_dom", "dom_sub"],
     premise: "Tonight {a} leads and {b} follows, because it was all agreed out loud first: what is on the table, what is not, and one word that stops everything the moment either says it. Warm and careful, never cruel.",
     card: {
       setup: "Two chairs pulled close and the rules already said out loud. {a} leads tonight and {b} follows, and the word that stops everything is written on a card on the table where both can see it.",
@@ -533,6 +558,7 @@ export const ROLEPLAYS: readonly HouseRoleplay[] = [
   },
   {
     id: "dons-truce", title: "The truce", icon: "♟️", category: "mystery", roles: null,
+    tags: ["rivals", "crime", "dark_romance"],
     premise: "{a} and {b} run rival outfits and have circled each other for years. Tonight the two heads negotiate a truce in person, alone in a private room, as equals: no seconds, no weapons, and nobody owes anybody anything.",
     card: {
       setup: "A private dining room, both sets of people sent home. {a} and {b} sit at opposite ends of a table that is too long, and somebody has just moved a chair closer.",
@@ -556,6 +582,7 @@ export const ROLEPLAYS: readonly HouseRoleplay[] = [
   },
   {
     id: "said-no", title: "The one who said no", icon: "🖋️", category: "afterhours", roles: ["the one with the fortune", "the one who said no"], costumes: ["an understated, very expensive suit", "a favourite jacket, worn on purpose"],
+    tags: ["opposites", "drama"],
     premise: "{a} is very rich. Last week {b} turned down {a}'s business offer in front of a full room, and {a} asked for a dinner to find out why. The offer is off the table tonight: nothing is for sale and nothing is owed.",
     card: {
       setup: "A small restaurant {b} chose, where nobody knows {a}'s name. The bill is already split, and the business offer is in a folder that stays shut.",
@@ -579,6 +606,7 @@ export const ROLEPLAYS: readonly HouseRoleplay[] = [
   },
   {
     id: "arranged-match", title: "The arranged match", icon: "📜", category: "romance", roles: null,
+    tags: ["fake_dating", "royalty"],
     premise: "{a} and {b} are the adult heirs of two houses, and each chose this alliance freely. Tonight, the night before it is announced, is the first meeting alone, and either can still call it off.",
     card: {
       setup: "A quiet library between two wings of a great house, with the contracts unsigned on the desk. {a} and {b} have read each other's letters for a year and never been in the same room.",
@@ -602,6 +630,7 @@ export const ROLEPLAYS: readonly HouseRoleplay[] = [
   },
   {
     id: "off-duty", title: "Hero and villain, off duty", icon: "🦸", category: "fantasy", roles: ["the hero", "the villain"], costumes: ["a plain coat over a hero's suit, a mask in one pocket", "a sharp dark suit with one theatrical flourish"],
+    tags: ["rivals", "forbidden", "action"],
     premise: "{a} is the city's hero, and {b} is its most persistent villain. One night a year neither is working, and by long tradition they meet somewhere neutral. This year neither pretends it is only tradition.",
     card: {
       setup: "A rooftop above a city nobody is saving or menacing tonight. {a} has brought takeaway, {b} has brought a bottle, and both masks are in coat pockets.",
@@ -625,6 +654,7 @@ export const ROLEPLAYS: readonly HouseRoleplay[] = [
   },
   {
     id: "anniversary-strangers", title: "Married, meeting as strangers", icon: "🥃", category: "second", roles: null,
+    tags: ["couples", "romance"],
     premise: "{a} and {b} have been married for years. Tonight, at a hotel bar, {a} and {b} are strangers: new names, a first hello, and the fun of being chosen all over again.",
     card: {
       setup: "A hotel bar far enough from home to feel like somewhere else. {a} is already at the bar with a ring in a pocket, and {b} walks in pretending to look for nobody.",
@@ -648,6 +678,7 @@ export const ROLEPLAYS: readonly HouseRoleplay[] = [
   },
   {
     id: "after-the-party", title: "After the party", icon: "🎉", category: "nightin", roles: ["the one who got the attention", "the one who noticed"], costumes: ["party clothes, a little rumpled, shoes in one hand", "a good shirt, a jacket over one arm"],
+    tags: ["couples", "drama"],
     premise: "{a} and {b} are a couple, just home from a party where {a} got a lot of attention. {b} noticed. The jealousy gets said out loud, and then it gets laughed about, because nobody is in any doubt about who came home with whom.",
     card: {
       setup: "The front door shuts on the noise of the evening. {a} is still glowing from the party, and {b} is hanging up two coats with great care.",
@@ -671,6 +702,7 @@ export const ROLEPLAYS: readonly HouseRoleplay[] = [
   },
   {
     id: "the-cold-one", title: "The one nobody approaches", icon: "🧗", category: "romance", roles: ["the unreadable one", "the regular on the next wall"], costumes: ["climbing clothes and a chalk bag, hair pulled back", "a worn gym shirt and climbing trousers, tape on two fingers"],
+    tags: ["slow_burn", "sports"],
     premise: "{a} and {b} are regulars at the same climbing gym. {a} is famously unreadable and nobody tries to talk to {a}; {b} has climbed the next wall over for months. Tonight, as the gym empties, {a} is the one who finally asks.",
     card: {
       setup: "Closing time at the climbing gym, chalk dust in the air and the music turned down. {a} walks over to {b}'s wall for the first time, and the last few regulars pretend not to stare.",
@@ -694,6 +726,7 @@ export const ROLEPLAYS: readonly HouseRoleplay[] = [
   },
   {
     id: "slow-sunday", title: "A slow Sunday", icon: "☔", category: "nightin", roles: null,
+    tags: ["couples", "cozy", "tender"],
     premise: "{a} and {b} have been together a long time. It is Sunday, it is raining, and there is nowhere anyone has to be. Soft and unhurried, with the whole day to waste on each other.",
     card: {
       setup: "Rain on the windows and the second pot of coffee going cold. {a} and {b} are on the sofa with the crossword in the middle and no plans at all.",
@@ -717,6 +750,7 @@ export const ROLEPLAYS: readonly HouseRoleplay[] = [
   },
   {
     id: "after-the-cameras", title: "After the cameras", icon: "🎥", category: "getaway", roles: null,
+    tags: ["dating_show", "drama"],
     premise: "{a} and {b} are contestants on a dating show, on the overnight date. The crew has gone home, the microphones are off, and for the first time what happens next is nobody's edit.",
     card: {
       setup: "A villa suite with the camera rigs still up and every red light dark. {a} and {b} each handed a microphone to the last of the crew, and the quiet afterwards is new.",
@@ -740,6 +774,7 @@ export const ROLEPLAYS: readonly HouseRoleplay[] = [
   },
   {
     id: "summoned", title: "Summoned by mistake", icon: "🕯️", category: "fantasy", roles: ["the one who did the summoning", "the demon"], costumes: ["an old cardigan with chalk on the cuffs", "a perfectly cut dark suit, faintly smoking at the hems"],
+    tags: ["strangers", "supernatural", "comedy"],
     premise: "{a} misread one line of an old book and summoned {b}, a charming demon several centuries old, by accident. The chalk circle holds nobody and the contract is blank: the terms get written together, and either can end it with a word.",
     card: {
       setup: "A chalk circle on a study floor, slightly smudged, and a smell of struck matches. {b} is standing in it looking politely amused, and {a} is holding the book upside down.",
@@ -763,6 +798,7 @@ export const ROLEPLAYS: readonly HouseRoleplay[] = [
   },
   {
     id: "two-captains", title: "Two captains, one cabin", icon: "⚓", category: "outdoors", roles: null,
+    tags: ["rivals", "forced_proximity", "adventure"],
     premise: "{a} and {b} are rival captains whose ships are moored side by side for the night. Somebody proposed a truce and a drink in the bigger cabin, and each insists the idea was the other's.",
     card: {
       setup: "Two ships rocking at the same quay and one lantern in the great cabin. {a} and {b} sit across a chart table, each with a boat waiting to row back whenever either likes.",
@@ -786,6 +822,7 @@ export const ROLEPLAYS: readonly HouseRoleplay[] = [
   },
   {
     id: "home-again", title: "Home after months away", icon: "🧳", category: "second", roles: ["the one who's been away", "the one who waited"], costumes: ["travel clothes, creased from the journey, a bag still on one shoulder", "comfortable clothes for an evening at home"],
+    tags: ["couples", "romance", "tender"],
     premise: "{a} is back tonight after months away on a long posting, and {b} has been counting the days. It is the first evening home, with the bags still in the hall and everything to catch up on.",
     card: {
       setup: "A key in the door at last, and a bag dropped in the hall. {a} stands there taking in the flat, which has changed in small ways, and {b} comes out of the kitchen drying both hands.",

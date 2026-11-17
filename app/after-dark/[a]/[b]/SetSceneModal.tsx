@@ -5,6 +5,8 @@ import TokenPrice from "../../TokenPrice";
 import { filterScenes, SCENE_CATEGORIES, SCENE_TAGS, type CatalogScene, type SceneCategory, type SceneTag } from "@/lib/adult/scene-catalog";
 import { normalizeScene } from "@/lib/venues";
 import { ROLEPLAYS, roleplayById, rolesLine, type Roleplay } from "@/lib/adult/roleplays";
+import { adultTagById, roleplayShelves, tagHardNos, type RoleplayShelf } from "@/lib/adult/tags";
+import { HARD_NOS } from "@/lib/adult/limits";
 
 const ICON = Object.fromEntries(SCENE_CATEGORIES.map((c) => [c.id, c.icon])) as Record<SceneCategory, string>;
 
@@ -30,6 +32,7 @@ export default function SetSceneModal({
   locked = null,
   names,
   myRoleplays = [],
+  hardNos = [],
   createHref = null,
   roleplay = null,
   openAt = "where",
@@ -55,6 +58,8 @@ export default function SetSceneModal({
   names: { a: string; b: string };
   /** The owner's own roleplays (lib/studio/library.ts), filed under ✨ Yours with the show's. */
   myRoleplays?: readonly Roleplay[];
+  /** The pair's hard-no chips (lib/adult/limits.ts): a roleplay whose heat runs into one says so on its card. */
+  hardNos?: readonly string[];
   /** Where to make your own venues and roleplays (the Studio's Create tab). */
   createHref?: string | null;
   /** This chapter's roleplay, if one is running. */
@@ -83,7 +88,7 @@ export default function SetSceneModal({
   const [step, setStep] = useState<"where" | "who">(openAt);
   const [place, setPlace] = useState<string | null>(null);
   const [pick, setPick] = useState<RoleplayPick>(roleplay);
-  const [rpCategory, setRpCategory] = useState<SceneCategory | null>(null);
+  const [rpShelf, setRpShelf] = useState<string | null>(null);
   // Each time it opens: the screen asked for, the running roleplay picked.
   useEffect(() => {
     if (!open) return;
@@ -121,10 +126,12 @@ export default function SetSceneModal({
   }
   // Theirs first, filed under ✨ Yours (and their own category too).
   const allRoleplays: readonly Roleplay[] = [...myRoleplays, ...ROLEPLAYS];
-  const isMine = (r: Roleplay) => r.id.startsWith("u:");
-  const inCat = (r: Roleplay, c: SceneCategory) => (c === "mine" ? isMine(r) : r.category === c);
-  const rpCats = SCENE_CATEGORIES.filter((c) => allRoleplays.some((r) => inCat(r, c.id)));
-  const roleplays = rpCategory ? allRoleplays.filter((r) => inCat(r, rpCategory)) : allRoleplays;
+  // Shelves by tag (lib/adult/tag-shelves.ts): ✨ Yours, who they are to each other, then the kind of story and its heat.
+  const shelves = roleplayShelves(allRoleplays);
+  const shelf: RoleplayShelf | null = shelves.flat().find((s) => s.id === rpShelf) ?? null;
+  const roleplays = shelf ? allRoleplays.filter(shelf.has) : allRoleplays;
+  /** The pair's hard nos a roleplay's heat runs into: it stays pickable (the limit holds anyway), and says so. */
+  const clashes = (r: Roleplay) => tagHardNos(r.tags ?? [], hardNos).map((h) => HARD_NOS.find((x) => x.id === h)?.label ?? h);
   const picked = pick ? (roleplayById(pick.id) ?? myRoleplays.find((r) => r.id === pick.id) ?? null) : null;
   const fill = (text: string, swap: boolean) => text.replaceAll("{a}", swap ? names.b : names.a).replaceAll("{b}", swap ? names.a : names.b);
 
@@ -170,16 +177,20 @@ export default function SetSceneModal({
                 </button>
               )}
             </div>
-            <div className="ad-scenes-cats" role="radiogroup" aria-label="Roleplay category">
-              <button type="button" role="radio" aria-checked={!rpCategory} className={!rpCategory ? "on" : ""} onClick={() => setRpCategory(null)}>
-                ✨ All <span className="ad-scenes-count">{allRoleplays.length}</span>
-              </button>
-              {rpCats.map((c) => (
-                <button key={c.id} type="button" role="radio" aria-checked={rpCategory === c.id} className={rpCategory === c.id ? "on" : ""} onClick={() => setRpCategory(rpCategory === c.id ? null : c.id)}>
-                  {c.icon} {c.label} <span className="ad-scenes-count">{allRoleplays.filter((r) => inCat(r, c.id)).length}</span>
-                </button>
-              ))}
-            </div>
+            {shelves.map((row, i) => (
+              <div key={i} className="ad-scenes-cats ad-rp-shelves" role="radiogroup" aria-label={i ? "Kind of story and heat" : "Who they are to each other"}>
+                {i === 0 && (
+                  <button type="button" role="radio" aria-checked={!rpShelf} className={!rpShelf ? "on" : ""} onClick={() => setRpShelf(null)}>
+                    ✨ All <span className="ad-scenes-count">{allRoleplays.length}</span>
+                  </button>
+                )}
+                {row.map((s) => (
+                  <button key={s.id} type="button" role="radio" aria-checked={rpShelf === s.id} className={rpShelf === s.id ? "on" : ""} title={s.about} onClick={() => setRpShelf(rpShelf === s.id ? null : s.id)}>
+                    {s.icon} {s.label} <span className="ad-scenes-count">{s.count}</span>
+                  </button>
+                ))}
+              </div>
+            ))}
             {createHref && (
               <p className="muted small ad-scenes-make">
                 ✨ Your own roleplays sit beside these. <a href={createHref}>Make one in the Studio</a>
@@ -203,6 +214,8 @@ export default function SetSceneModal({
                       <strong>{r.title}</strong>
                       <span className="muted small ad-scene-premise">{fill(r.premise, swap)}</span>
                       {r.roles && <span className="ad-rp-roles">{rolesLine(r, names, swap)}</span>}
+                      {r.tags?.length ? <span className="ad-rp-tags">{r.tags.map((t) => adultTagById(t)?.label).filter(Boolean).join(" · ")}</span> : null}
+                      {clashes(r).length > 0 && <span className="ad-rp-clash small">🚫 Your limits: {clashes(r).join(", ")} (they hold)</span>}
                     </button>
                     {on && r.roles && (
                       <button type="button" className="button-ghost small ad-rp-swap" onClick={() => setPick({ ...pick!, swap: !swap })}>

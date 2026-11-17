@@ -4,10 +4,28 @@ import { useEffect, useId, useState } from "react";
 import Link from "next/link";
 import { requestJson } from "@/app/request";
 import { shortName } from "@/lib/names";
-import { DATE_ROLEPLAYS, dateRoleplayById, premiseForYou, ROLEPLAY_PREMISE_MAX, ROLEPLAY_ROLE_MAX, ROLEPLAY_TAGS, ROLEPLAY_TITLE_MAX, type RoleplayTag } from "@/lib/roleplays";
+import { DATE_ROLEPLAYS, dateRoleplayById, premiseForYou, ROLEPLAY_PREMISE_MAX, ROLEPLAY_ROLE_MAX, ROLEPLAY_TITLE_MAX } from "@/lib/roleplays";
+import type { Stage } from "@/lib/relationship-stages";
+import { byDemand, SETUPS_FOR_STAGE, TAGS, tagById, type TagId } from "@/lib/tags";
 import { CARD_OPENING_MAX, cardForYou, GENERIC_OPENINGS } from "@/lib/scene-cards";
 import type { OpeningChoice } from "@/lib/scene-opening";
 import type { MyRoleplay } from "@/lib/studio/library";
+
+/** The roleplays that fit where a pair stands (lib/tags.ts SETUPS_FOR_STAGE): the "For these two" shelf. */
+export function forStage(stage: Stage | null | undefined): typeof DATE_ROLEPLAYS {
+  const fits = stage ? SETUPS_FOR_STAGE[stage] : undefined;
+  return fits ? DATE_ROLEPLAYS.filter((r) => r.tags.some((t) => fits.includes(t))) : [];
+}
+
+/** The tag chips of one facet, as the picker shows them: only tags some roleplay has, most wanted first. */
+export function shelfTags(facet: "setup" | "theme", demand: Readonly<Record<string, number>> = {}) {
+  const used = new Set(DATE_ROLEPLAYS.flatMap((r) => r.tags));
+  return byDemand(
+    TAGS.filter((t) => t.facet === facet && used.has(t.id)),
+    "sfw",
+    demand,
+  );
+}
 
 /** What a picker chose: one of the show's roleplays, or one written for the date, and which role is the booker's. */
 export type RoleplayChoice =
@@ -58,6 +76,10 @@ export function openingsShown(o: { value: RoleplayChoice | null; me: string; the
  * Its last step, "How it opens" (with `onOpening`; lib/scene-opening.ts): one of the roleplay's three openings, any of
  * them at random, or a sentence of your own. Untouched, nothing is sent and the scene opens as it always did. And when
  * you play it yourself, one line on who you are in scenes (lib/persona.ts), with the way to /account to change it.
+ *
+ * Shelves (lib/tags.ts, docs/tags.md): two rows of chips, who they are to each other and what kind of story, each in
+ * order of demand (Botchelor's own picks when `demand` has them, else the census). With `stage` (a pair that already
+ * has a history), a "For these two" shelf first, and it opens on it: second chances for exes, rivals for bad blood…
  */
 export default function RoleplayPicker({
   me,
@@ -68,6 +90,8 @@ export default function RoleplayPicker({
   asYou = false,
   opening = null,
   onOpening,
+  stage = null,
+  demand,
 }: {
   me: string;
   them: string | null;
@@ -81,9 +105,15 @@ export default function RoleplayPicker({
   opening?: OpeningChoice | null;
   /** Offers the "How it opens" step. Left out, there's no such step (the couple page's proposal has none). */
   onOpening?: (o: OpeningChoice | null) => void;
+  /** Where the two of them stand (the relationship graph's stage, as the viewer may see it): the "For these two" shelf. */
+  stage?: Stage | null;
+  /** Each tag's demand on Botchelor (lib/tag-demand.ts), which orders the chips; the census orders the rest. */
+  demand?: Readonly<Record<string, number>>;
 }) {
   const id = useId();
-  const [tag, setTag] = useState<RoleplayTag | "all" | "yours">("all");
+  const pairShown = forStage(stage);
+  // A pair with a history opens on what fits them; anyone else on everything.
+  const [tag, setTag] = useState<TagId | "all" | "yours" | "pair">(pairShown.length ? "pair" : "all");
   // Their library: null until it answers, and stays null for a visitor who isn't signed in (it's accounts only).
   const [yours, setYours] = useState<MyRoleplay[] | null>(null);
   const [kept, setKept] = useState<{ text: string; error?: boolean } | null>(null);
@@ -127,7 +157,7 @@ export default function RoleplayPicker({
   const [a, b] = myRole === 0 ? [mine, theirs] : [theirs, mine];
   /** A premise as a tile shows it: with the names, or from your side when you play it yourself. */
   const shownPremise = (premise: string, on: boolean) => (asYou ? premiseForYou(premise, on && myRole === 1 ? "b" : "a", theirs) : fill(premise, on ? a : mine, on ? b : theirs));
-  const shown = tag === "yours" ? [] : DATE_ROLEPLAYS.filter((r) => tag === "all" || r.tag === tag);
+  const shown = tag === "yours" ? [] : tag === "pair" ? pairShown : DATE_ROLEPLAYS.filter((r) => tag === "all" || r.tags.includes(tag));
   const ownShown = tag === "all" || tag === "yours" ? (yours ?? []) : [];
   const setCustom = (patch: Partial<{ title: string; premise: string; roles: [string, string] }>) =>
     onChange({ custom: { title: custom?.title ?? "", premise: custom?.premise ?? "", ...(custom?.roles ? { roles: custom.roles } : {}), ...patch }, my_role: myRole });
@@ -152,15 +182,24 @@ export default function RoleplayPicker({
     setKept({ text: "Kept: it's under ✨ Yours from now on." });
   }
 
-  const tags = [{ id: "all" as const, label: "All", icon: "✨" }, ...(yours?.length ? [{ id: "yours" as const, label: "Yours", icon: "✨" }] : []), ...ROLEPLAY_TAGS];
+  const setups = [
+    { id: "all" as const, label: "All", icon: "✨", about: "Every roleplay" },
+    ...(yours?.length ? [{ id: "yours" as const, label: "Yours", icon: "✨", about: "The ones in your Create library" }] : []),
+    ...(pairShown.length ? [{ id: "pair" as const, label: "For these two", icon: "💞", about: "The ones that fit where the two of them stand" }] : []),
+    ...shelfTags("setup", demand),
+  ];
+  const chip = (t: { id: TagId | "all" | "yours" | "pair"; label: string; icon: string; about: string }) => (
+    <button key={t.id} type="button" className="rp-tag" aria-pressed={tag === t.id} title={t.about} onClick={() => setTag(t.id)}>
+      <span aria-hidden="true">{t.icon}</span> {t.label}
+    </button>
+  );
   return (
     <div className="rp-picker">
-      <div className="rp-tags" role="group" aria-label="Kinds of roleplay">
-        {tags.map((t) => (
-          <button key={t.id} type="button" className="rp-tag" aria-pressed={tag === t.id} onClick={() => setTag(t.id)}>
-            <span aria-hidden="true">{t.icon}</span> {t.label}
-          </button>
-        ))}
+      <div className="rp-tags" role="group" aria-label="Who they are to each other">
+        {setups.map(chip)}
+      </div>
+      <div className="rp-tags rp-tags-themes" role="group" aria-label="Kind of story">
+        {shelfTags("theme", demand).map(chip)}
       </div>
       <ul className="rp-grid" aria-label="Roleplays">
         {ownShown.map((x) => {
@@ -185,6 +224,7 @@ export default function RoleplayPicker({
                   <span aria-hidden="true">{r.icon}</span> {r.title}
                 </span>
                 <span className="rp-tile-premise">{shownPremise(r.premise, on)}</span>
+                <span className="rp-tile-tags">{r.tags.map((t) => tagById(t)?.label).join(" · ")}</span>
               </button>
             </li>
           );

@@ -669,6 +669,7 @@ export default function SceneWriter({
               roleplay: scene.roleplay ?? null,
               planned: scene.planned ?? null,
               moves: scene.moves,
+              hardNos: scene.hard_nos.chips,
             }}
             characters={cast}
             busy={busy}

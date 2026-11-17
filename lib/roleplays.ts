@@ -19,6 +19,7 @@
  */
 import { checkShowText, excludedTheme } from "./safety";
 import type { SceneCard } from "./scene-cards";
+import type { TagId } from "./tags";
 
 export type RoleplayTag = "strangers" | "mystery" | "adventure" | "scifi" | "fantasy" | "period" | "funny" | "romance" | "cozy" | "couples";
 
@@ -40,6 +41,9 @@ export type DateRoleplayDef = {
   title: string;
   icon: string;
   tag: RoleplayTag;
+  /** Its tags in the shared vocabulary (lib/tags.ts, docs/tags.md): the setup between them first, then the kind of story.
+   *  `tag` stays as it was (the picker's old shelves, MCP's `tag`). */
+  tags: readonly TagId[];
   /** The situation, with {a} and {b} for whoever plays each role (or the two of them, when there are no roles). */
   premise: string;
   /** The two roles, the first for {a}; null when they're the same to each other (rival spies, castaways). */
@@ -58,6 +62,7 @@ export type DateRoleplayDef = {
 export const DATE_ROLEPLAYS: readonly DateRoleplayDef[] = [
   {
     id: "night-train", title: "Strangers on a night train", icon: "🚆", tag: "strangers", roles: null,
+    tags: ["strangers", "drama"],
     premise: "{a} and {b} are strangers sharing a table on an overnight train. At the last stop they'll go their separate ways, so tonight they can be completely honest, or completely invented.",
     card: {
       setup: "The dining car is nearly empty and the only free seat is across from {b}. {a} sits down with a paper cup of tea as the train pulls out.",
@@ -81,6 +86,7 @@ export const DATE_ROLEPLAYS: readonly DateRoleplayDef[] = [
   },
   {
     id: "masquerade", title: "The masquerade", icon: "🎭", tag: "strangers", roles: null,
+    tags: ["strangers", "mystery"],
     premise: "{a} and {b} meet at a masked ball where nobody gives their real name. They make up who they are for the night, and each tries to guess the truth behind the other's mask.",
     card: {
       setup: "The ballroom is all candlelight and borrowed names. {a} and {b} meet at the edge of the dance floor, both in masks, both a little too pleased with the disguise.",
@@ -104,6 +110,7 @@ export const DATE_ROLEPLAYS: readonly DateRoleplayDef[] = [
   },
   {
     id: "fortune-teller", title: "The fortune teller", icon: "🃏", tag: "strangers", roles: ["the fortune teller", "the sceptic who sat down for a reading"],
+    tags: ["strangers", "comedy"],
     premise: "{a} reads fortunes at a night fair; {b} sat down for a reading as a joke. {a}'s predictions get oddly specific about {b}'s love life, and {b} keeps asking for one more.",
     card: {
       setup: "{a}'s booth is a folding table, a deck of worn cards and a lamp with a scarf over it. {b} sits down on a dare from nobody, arms crossed.",
@@ -127,6 +134,7 @@ export const DATE_ROLEPLAYS: readonly DateRoleplayDef[] = [
   },
   {
     id: "rival-spies", title: "Rival spies", icon: "🕵️", tag: "mystery", roles: null,
+    tags: ["rivals", "crime", "action"],
     premise: "{a} and {b} are spies from rival agencies, sent after the same secret file. Tonight they call a truce over dinner, trade cover stories and try to find out what the other one knows.",
     card: {
       setup: "A corner table, two menus, one truce until dessert. {a} and {b} both know the other is after the same file, and both arrived early to get the seat facing the door.",
@@ -150,6 +158,7 @@ export const DATE_ROLEPLAYS: readonly DateRoleplayDef[] = [
   },
   {
     id: "two-detectives", title: "Two detectives, one case", icon: "🔍", tag: "mystery", roles: null,
+    tags: ["rivals", "mystery"],
     premise: "{a} and {b} are private detectives hired by different clients to find the same missing painting. They pool their clues tonight, each sure they're one step ahead.",
     card: {
       setup: "Two notebooks on one table and a photograph of a missing painting in the middle. {a} and {b} were hired by different clients, and each thinks tonight is a favour to the other.",
@@ -173,6 +182,7 @@ export const DATE_ROLEPLAYS: readonly DateRoleplayDef[] = [
   },
   {
     id: "undercover-couple", title: "The undercover couple", icon: "🥂", tag: "mystery", roles: null,
+    tags: ["fake_dating", "crime"],
     premise: "{a} and {b} are agents posing as a couple to blend in at a glamorous gala. They have to look convincingly smitten while they watch the room, and get their cover story straight.",
     card: {
       setup: "The gala is in full swing and the target is somewhere near the champagne. {a} and {b} arrive arm in arm, with a cover story that was finished in the taxi.",
@@ -196,6 +206,7 @@ export const DATE_ROLEPLAYS: readonly DateRoleplayDef[] = [
   },
   {
     id: "ghost-hunters", title: "Ghost hunters", icon: "👻", tag: "mystery", roles: ["the believer", "the sceptic"],
+    tags: ["opposites", "spooky"],
     premise: "{a} and {b} are amateur ghost hunters spending the evening somewhere that's supposedly haunted. {a} believes every word of the legend, {b} believes none of it, and every creak is evidence.",
     card: {
       setup: "The house is supposed to be haunted and the torch is supposed to have new batteries. {a} sets up a recorder in the hall while {b} checks the windows for draughts.",
@@ -219,6 +230,7 @@ export const DATE_ROLEPLAYS: readonly DateRoleplayDef[] = [
   },
   {
     id: "treasure-map", title: "Half a treasure map", icon: "🏴‍☠️", tag: "adventure", roles: null,
+    tags: ["rivals", "adventure"],
     premise: "{a} and {b} are rival pirate captains who each hold half of the same treasure map. Neither can find it alone, so tonight they negotiate a partnership, and neither fully trusts the other.",
     card: {
       setup: "Two halves of one map lie on a barrel, torn edge to torn edge. {a} and {b} each brought a half, and neither has let go of a corner yet.",
@@ -242,6 +254,7 @@ export const DATE_ROLEPLAYS: readonly DateRoleplayDef[] = [
   },
   {
     id: "rival-explorers", title: "Rival explorers", icon: "🧭", tag: "adventure", roles: null,
+    tags: ["rivals", "forced_proximity", "adventure"],
     premise: "{a} and {b} are rival explorers who reached the same lost temple on the same day. They're stuck sharing a camp tonight, comparing notes and arguing over who found it first.",
     card: {
       setup: "One campfire, two tents and a lost temple that was found twice this afternoon. {a} and {b} are sharing the only dry ground for miles.",
@@ -265,6 +278,7 @@ export const DATE_ROLEPLAYS: readonly DateRoleplayDef[] = [
   },
   {
     id: "castaways", title: "Castaways", icon: "🏝️", tag: "adventure", roles: null,
+    tags: ["forced_proximity", "adventure"],
     premise: "{a} and {b} have washed up on the same tiny island. Tonight they plan their rescue, split the last of the supplies and find out what each of them would miss most.",
     card: {
       setup: "The tide left {a} and {b} on the same small island with one crate, one tarp and a lighter that works sometimes. The sun is going down.",
@@ -288,6 +302,7 @@ export const DATE_ROLEPLAYS: readonly DateRoleplayDef[] = [
   },
   {
     id: "time-traveller", title: "The time traveller", icon: "⏳", tag: "scifi", roles: ["the time traveller", "the local"],
+    tags: ["strangers", "scifi"],
     premise: "{a} has just arrived from two centuries in the future, and {b} is the first person they've met. {b} explains everything about tonight; {a} has strong opinions about how it all turns out.",
     card: {
       setup: "{a} stepped out of a shimmer in the air a few minutes ago, wearing a coat that hasn't been invented. {b} is the first person who didn't walk away.",
@@ -311,6 +326,7 @@ export const DATE_ROLEPLAYS: readonly DateRoleplayDef[] = [
   },
   {
     id: "first-contact", title: "First contact", icon: "🛸", tag: "scifi", roles: ["the visitor from another planet", "the human host"],
+    tags: ["strangers", "scifi", "comedy"],
     premise: "{a} is a visitor from another planet on their first evening on Earth, and {b} volunteered to show them what a date is. Everything ordinary is fascinating, and nothing translates quite right.",
     card: {
       setup: "{a} landed this morning and has read every guidebook on Earth dating, none of which agree. {b} volunteered to demonstrate and is starting to regret the word volunteer.",
@@ -334,6 +350,7 @@ export const DATE_ROLEPLAYS: readonly DateRoleplayDef[] = [
   },
   {
     id: "stowaway", title: "Captain and stowaway", icon: "🚀", tag: "scifi", roles: ["the captain", "the stowaway"],
+    tags: ["forced_proximity", "scifi"],
     premise: "{a} captains a small cargo starship; {b} is the stowaway just found hiding in the hold. They have until the next port for {b} to talk {a} into letting them stay aboard.",
     card: {
       setup: "The cargo hold smells of engine oil and oranges. {a} has just found {b} behind the crates, with a blanket, a paperback and a very prepared speech.",
@@ -357,6 +374,7 @@ export const DATE_ROLEPLAYS: readonly DateRoleplayDef[] = [
   },
   {
     id: "royal-incognito", title: "The royal in disguise", icon: "👑", tag: "fantasy", roles: ["the royal sneaking out for the night", "the local who shows them around"],
+    tags: ["strangers", "royalty", "fantasy"],
     premise: "{a} is royalty from a small storybook kingdom, sneaking out of the palace in disguise for one ordinary evening. {b} has no idea and shows {a} a regular night out, while {a} tries not to give the game away.",
     card: {
       setup: "{a} climbed over the palace wall an hour ago in a borrowed coat that doesn't fit. {b} found {a} at a street stall, trying to work out how coins are used.",
@@ -380,6 +398,7 @@ export const DATE_ROLEPLAYS: readonly DateRoleplayDef[] = [
   },
   {
     id: "rival-wizards", title: "Rival wizards", icon: "🔮", tag: "fantasy", roles: null,
+    tags: ["rivals", "fantasy"],
     premise: "{a} and {b} are rival wizards who keep turning up at the same enchanted market for the same rare ingredients. Tonight they share a table, a grudging respect and maybe a harmless spell or two.",
     card: {
       setup: "The enchanted market closes at moonrise and there is exactly one jar of starlight salt left. {a} and {b} both have a hand on it.",
@@ -403,6 +422,7 @@ export const DATE_ROLEPLAYS: readonly DateRoleplayDef[] = [
   },
   {
     id: "knight-dragon", title: "The knight and the dragon", icon: "🐉", tag: "fantasy", roles: ["the knight", "the dragon, in human form for the evening"],
+    tags: ["forbidden", "fantasy"],
     premise: "{a} is a knight sent to defeat a dragon; {b} is that dragon, in human form for the evening. {b} would rather talk it out over dinner, and {a} is starting to agree.",
     card: {
       setup: "{a} arrived at the cave with a sword and a speech. {b} answered the door in human form and asked whether this could be done over dinner.",
@@ -426,6 +446,7 @@ export const DATE_ROLEPLAYS: readonly DateRoleplayDef[] = [
   },
   {
     id: "vampire-dinner", title: "Dinner with a vampire", icon: "🦇", tag: "fantasy", roles: ["the vampire host", "the curious guest"],
+    tags: ["strangers", "supernatural"],
     premise: "{a} is a polite, centuries-old vampire who has invited {b} to dinner and isn't eating any of it. {b} came out of curiosity and has a great many questions about the last four centuries.",
     card: {
       setup: "The table is set for two and only one plate has food on it. {a} pours a single glass of wine and slides it across to {b}, who came with a list of questions.",
@@ -449,6 +470,7 @@ export const DATE_ROLEPLAYS: readonly DateRoleplayDef[] = [
   },
   {
     id: "old-film", title: "Leads in an old film", icon: "🎬", tag: "period", roles: null,
+    tags: ["slow_burn", "period", "comedy"],
     premise: "{a} and {b} are the leads in a black-and-white romantic comedy. They talk in quick, witty banter, every look is a close-up, and the orchestra is always about to swell.",
     card: {
       setup: "Black and white, a rain machine somewhere out of frame and a script full of banter. {a} and {b} hit every mark as the leads of a romantic comedy from another era.",
@@ -472,6 +494,7 @@ export const DATE_ROLEPLAYS: readonly DateRoleplayDef[] = [
   },
   {
     id: "regency-ball", title: "The regency ball", icon: "🕯️", tag: "period", roles: null,
+    tags: ["strangers", "slow_burn", "period"],
     premise: "It's 1815, and {a} and {b} have just been introduced at a ball. Every word is weighed by etiquette, gossip travels faster than carriages and a dance means more than it seems.",
     card: {
       setup: "It is 1815 and the room is all gloves, fans and people watching. {a} and {b} have just been introduced, and a set is forming for the next dance.",
@@ -495,6 +518,7 @@ export const DATE_ROLEPLAYS: readonly DateRoleplayDef[] = [
   },
   {
     id: "wedding-plus-one", title: "Fake dating for a wedding", icon: "💐", tag: "funny", roles: ["the one who needs a date", "the stand-in"],
+    tags: ["fake_dating", "comedy"],
     premise: "{a} needs a date for a friend's wedding next week, and {b} agreed to pretend. Tonight they rehearse how they met, their in-jokes and the story of their first kiss. It has to be convincing.",
     card: {
       setup: "The wedding is in a week and the seating chart already says plus one. {a} has brought index cards, and {b} has brought a pen to correct them.",
@@ -518,6 +542,7 @@ export const DATE_ROLEPLAYS: readonly DateRoleplayDef[] = [
   },
   {
     id: "quiz-partners", title: "Game show partners", icon: "🏆", tag: "funny", roles: null,
+    tags: ["strangers", "comedy"],
     premise: "{a} and {b} have been paired as a team on a quiz show that films tomorrow, and every question is about each other. Tonight is cram night: they have to learn everything, fast.",
     card: {
       setup: "The show films tomorrow and every question is about each other. {a} and {b} sit down with a stack of blank cards, a timer and almost no facts.",
@@ -541,6 +566,7 @@ export const DATE_ROLEPLAYS: readonly DateRoleplayDef[] = [
   },
   {
     id: "rival-chefs", title: "Rival chefs", icon: "🍳", tag: "funny", roles: null,
+    tags: ["rivals", "comedy", "slice_of_life"],
     premise: "{a} and {b} run rival food stalls on the same street, and tonight each tries the other's signature dish and gives an honest verdict. Professional pride is on the line.",
     card: {
       setup: "Two food stalls face each other across the same street, and tonight the shutters are half down. {a} and {b} each set one covered plate on the counter in the middle.",
@@ -564,6 +590,7 @@ export const DATE_ROLEPLAYS: readonly DateRoleplayDef[] = [
   },
   {
     id: "hero-villain", title: "Hero and villain, off duty", icon: "🦸", tag: "funny", roles: ["the superhero", "the supervillain"],
+    tags: ["rivals", "forbidden", "action"],
     premise: "{a} is a superhero and {b} their oldest nemesis. Tonight is a truce on neutral ground, no powers and no schemes, just dinner, and the dawning worry that they get along.",
     card: {
       setup: "Neutral ground: a quiet restaurant with no windows worth breaking. {a} arrives in a coat over the suit, and {b} has already ordered bread for the table.",
@@ -587,6 +614,7 @@ export const DATE_ROLEPLAYS: readonly DateRoleplayDef[] = [
   },
   {
     id: "second-first-date", title: "A second first date", icon: "🔁", tag: "couples", roles: null,
+    tags: ["couples", "romance"],
     premise: "{a} and {b} pretend they've never met: a do-over first date. Everything they already know about each other is off-limits, so they have to find it all out again.",
     card: {
       setup: "Same table as the real first time, different rules: nothing already known is allowed. {a} and {b} shake hands like strangers and try not to laugh.",
@@ -610,6 +638,7 @@ export const DATE_ROLEPLAYS: readonly DateRoleplayDef[] = [
   },
   {
     id: "pen-pals", title: "Pen pals, at last", icon: "✉️", tag: "couples", roles: null,
+    tags: ["friends_to_more", "romance"],
     premise: "{a} and {b} have written each other letters for years and are meeting face to face for the first time tonight. They know each other's handwriting, not each other's laugh.",
     card: {
       setup: "Years of letters, and tonight a face to go with the handwriting. {a} is holding the last envelope as proof of identity when {b} walks up with its reply, unposted.",
@@ -636,6 +665,7 @@ export const DATE_ROLEPLAYS: readonly DateRoleplayDef[] = [
   // themes are left out on purpose: every roleplay here is two adults, and nobody real.
   {
     id: "snowed-in", title: "Snowed in", icon: "❄️", tag: "romance", roles: null,
+    tags: ["rivals", "forced_proximity", "cozy"],
     premise: "{a} and {b} are rivals for the same prize, stuck at a mountain lodge by a blizzard until the pass reopens. There is one fireplace, one board game with pieces missing, and a long evening to get through.",
     card: {
       setup: "The pass is closed and the lodge has one warm room. {a} and {b} are both up for the same prize on Friday, and both had the same idea about the chair nearest the fire.",
@@ -659,6 +689,7 @@ export const DATE_ROLEPLAYS: readonly DateRoleplayDef[] = [
   },
   {
     id: "grump-sunshine", title: "The grump and the sunshine", icon: "☀️", tag: "cozy", roles: ["the gruff innkeeper", "the cheerful guest"],
+    tags: ["opposites", "cozy"],
     premise: "{a} runs a small inn and is famous for scowling at guests. {b} checked in today and has decided, cheerfully, that winning {a} over is the whole holiday.",
     card: {
       setup: "The inn's front room has a ledger, a bell nobody is meant to ring and a fire {a} pretends not to tend. {b} rings the bell to ask whether there is cake.",
@@ -682,6 +713,7 @@ export const DATE_ROLEPLAYS: readonly DateRoleplayDef[] = [
   },
   {
     id: "arranged-match", title: "The arranged match", icon: "📜", tag: "romance", roles: null,
+    tags: ["fake_dating", "forbidden", "royalty"],
     premise: "{a} and {b} are the grown heirs of two rival houses, meeting the night before an alliance between the two houses is announced. Each has come planning to talk the other out of it.",
     card: {
       setup: "A long gallery between the two delegations, lit for a celebration that hasn't been announced yet. {a} and {b} have each slipped away from a row of advisers to the same window seat.",
@@ -705,6 +737,7 @@ export const DATE_ROLEPLAYS: readonly DateRoleplayDef[] = [
   },
   {
     id: "truce-dinner", title: "The truce dinner", icon: "🍝", tag: "mystery", roles: null,
+    tags: ["rivals", "forbidden", "crime"],
     premise: "{a} and {b} are the seconds-in-command of two rival crime outfits, sent to agree a truce over dinner. Both are under orders not to like each other, and both were told to bring back terms by midnight.",
     card: {
       setup: "A back room in a restaurant both outfits agreed was neutral, with the door closed and the soup going cold. {a} and {b} sit down with one page of terms each.",
@@ -728,6 +761,7 @@ export const DATE_ROLEPLAYS: readonly DateRoleplayDef[] = [
   },
   {
     id: "the-witness", title: "The bodyguard and the witness", icon: "🛡️", tag: "mystery", roles: ["the bodyguard", "the witness"],
+    tags: ["bodyguard", "crime"],
     premise: "{a} is a bodyguard sent by an agency to keep {b} safe for one night before {b} gives evidence at a trial. The agency assigned the job, so neither has a say over the other's work. It is a long watch, and there is only so much tea.",
     card: {
       setup: "A borrowed flat with the curtains drawn and a chess set missing a bishop. {a} has checked the locks twice, and {b} has run out of things to pretend to read.",
@@ -751,6 +785,7 @@ export const DATE_ROLEPLAYS: readonly DateRoleplayDef[] = [
   },
   {
     id: "off-camera", title: "Off camera", icon: "🎥", tag: "romance", roles: null,
+    tags: ["dating_show", "drama"],
     premise: "{a} and {b} are contestants on a reality dating show who have slipped away from the cameras for one unscripted hour. Nothing said now is for the edit, which takes some getting used to.",
     card: {
       setup: "A fire escape behind the villa's kitchen, out of range of every microphone. {a} and {b} each left a battery pack on the windowsill, still blinking.",
@@ -774,6 +809,7 @@ export const DATE_ROLEPLAYS: readonly DateRoleplayDef[] = [
   },
   {
     id: "another-world", title: "Summoned to another world", icon: "🌀", tag: "fantasy", roles: ["the new arrival", "the guide"],
+    tags: ["strangers", "fantasy", "adventure"],
     premise: "{a} arrived in a storybook world this morning with no idea how. {b} is the guide who has until sundown to explain the rules, the money and which doors not to open.",
     card: {
       setup: "A signpost with too many arms at the edge of a market that sells weather. {a} is still holding a bus ticket from the other world, and {b} is holding a very long checklist.",
@@ -797,6 +833,7 @@ export const DATE_ROLEPLAYS: readonly DateRoleplayDef[] = [
   },
   {
     id: "witch-hunter", title: "The witch and the witch-hunter", icon: "⛈️", tag: "fantasy", roles: ["the witch", "the witch-hunter"],
+    tags: ["forbidden", "forced_proximity", "supernatural"],
     premise: "{a} is a witch and {b} hunts them for a living, and neither knows it yet. Both have taken shelter from the same storm in the same barn, with one lantern and a long wait.",
     card: {
       setup: "Rain on a barn roof and one lantern between two travellers. {a} has a satchel that hums faintly, and {b} has a warrant folded in a coat pocket.",
@@ -820,6 +857,7 @@ export const DATE_ROLEPLAYS: readonly DateRoleplayDef[] = [
   },
   {
     id: "last-two-awake", title: "The last two awake", icon: "🌲", tag: "mystery", roles: null,
+    tags: ["strangers", "spooky"],
     premise: "{a} and {b} are strangers keeping watch in a cabin while the rest of the hiking party rests. Something keeps scratching at the door. Spooky, never gory, and probably a raccoon.",
     card: {
       setup: "A cabin, a stove and a door with a chair wedged under the handle. Everyone else has turned in, and {a} and {b} drew the short straws for the watch.",
@@ -843,6 +881,7 @@ export const DATE_ROLEPLAYS: readonly DateRoleplayDef[] = [
   },
   {
     id: "rival-athletes", title: "Rivals before the final", icon: "🏅", tag: "romance", roles: null,
+    tags: ["rivals", "sports"],
     premise: "{a} and {b} are professional athletes on opposing teams, and tomorrow's match decides the title. Tonight nobody else is in the hotel restaurant, and the kitchen is about to close.",
     card: {
       setup: "The hotel restaurant is empty except for one table by the window and a waiter stacking chairs. {a} and {b} have played each other for years and never once had a conversation.",
@@ -866,6 +905,7 @@ export const DATE_ROLEPLAYS: readonly DateRoleplayDef[] = [
   },
   {
     id: "old-friends-bench", title: "Ten years, one bench", icon: "🪑", tag: "cozy", roles: null,
+    tags: ["second_chance", "friends_to_more", "drama"],
     premise: "Ten years ago, the night before leaving for jobs in different cities, {a} and {b} promised to meet again at this bench on this date. Neither was sure the other would remember. Both came.",
     card: {
       setup: "A park bench with a brass plaque nobody ever reads. {a} got there early with two coffees, just in case, and {b} is walking up the path with two as well.",
@@ -889,6 +929,7 @@ export const DATE_ROLEPLAYS: readonly DateRoleplayDef[] = [
   },
   {
     id: "night-bakery", title: "The night bakery", icon: "🥐", tag: "cozy", roles: ["the baker", "the one who can't sleep"],
+    tags: ["strangers", "cozy", "slice_of_life"],
     premise: "{a} runs a bakery that opens at midnight for the people the night keeps awake. {b} couldn't sleep, followed the smell of bread down the street and wandered in.",
     card: {
       setup: "Flour on every surface, one lamp over the counter and the first trays just out. {a} looks up from the dough as the door's bell rings and {b} comes in from the dark.",
@@ -912,6 +953,7 @@ export const DATE_ROLEPLAYS: readonly DateRoleplayDef[] = [
   },
   {
     id: "ghost-tenant", title: "The ghost and the new tenant", icon: "🏚️", tag: "cozy", roles: ["the ghost", "the new tenant"],
+    tags: ["roommates", "supernatural", "comedy"],
     premise: "{a} is a polite ghost who has kept the flat quiet for sixty years. {b} moved in today with a lot of boxes, and it is time to negotiate house rules, starting with the piano.",
     card: {
       setup: "Boxes everywhere and one armchair that was here before the lease. {b} is unpacking mugs. {a} coughs politely from the armchair and asks about the plan for the curtains.",
@@ -935,6 +977,7 @@ export const DATE_ROLEPLAYS: readonly DateRoleplayDef[] = [
   },
   {
     id: "heist-eve", title: "The night before the heist", icon: "💎", tag: "mystery", roles: ["the planner", "the safecracker"],
+    tags: ["workplace", "crime"],
     premise: "{a} planned the job and {b} opens the safe. Tomorrow a famous necklace leaves a museum gala, and tonight is for walking through the plan one last time, looking for the part that goes wrong.",
     card: {
       setup: "Blueprints held flat with coffee cups in a rented room above a laundrette. {a} has a red pen, {b} has a stethoscope, and the model of the museum is made of sugar cubes.",

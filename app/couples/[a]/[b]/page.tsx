@@ -306,6 +306,7 @@ export default async function CouplePage({ params, searchParams }: Props) {
               auto={roleplay.auto}
               initial={roleplay.initial}
               signedIn={roleplay.signedIn}
+              stage={view.stage}
             />
           )}
 
