@@ -1079,15 +1079,6 @@ h2 {
   font-weight: 600;
 }
 
-.site-footer {
-  max-width: 46rem;
-  margin: 0 auto;
-  padding: 1.5rem 1.25rem 2.5rem;
-  border-top: 1px solid var(--line);
-  color: var(--muted);
-  font-size: var(--text-sm);
-}
-
 .home-badges {
   margin: 2rem 0 0;
   text-align: center;
@@ -6024,20 +6015,6 @@ button.dice:hover:not(:disabled) {
 
 /* ---------------- people's feedback (app/FeedbackDock.tsx, app/FeedbackModal.tsx, docs/feedback.md) ---------------- */
 
-/* The footer's "Give us feedback" is a button (it opens a dialog), dressed exactly like the links beside it. */
-.site-footer button.footer-link {
-  display: inline;
-  min-height: 0;
-  padding: 0;
-  font-weight: inherit;
-  text-decoration-thickness: auto;
-  text-underline-offset: 2px;
-  vertical-align: baseline;
-}
-.site-footer button.footer-link:hover:not(:disabled) {
-  text-decoration-thickness: auto;
-}
-
 /* The floating button, "for now" (FLOATING_FEEDBACK_BUTTON in app/FeedbackDock.tsx): small, in the corner (outside the
    reading column on a wide screen), a 44px target, under the sticky header (z-index 20) and its phone menu. */
 .feedback-fab {
@@ -6068,11 +6045,6 @@ button.dice:hover:not(:disabled) {
   font-size: var(--icon-xs);
   line-height: 1;
 }
-/* Room under the footer for the button, so it never sits on the footer's last line (its own link included). */
-body:has(.feedback-fab) .site-footer {
-  padding-bottom: calc(2.5rem + 2.75rem + var(--space-4));
-}
-
 /* The one-time beta prompt, just above the floating button (in its place when there isn't one). */
 .beta-toast {
   position: fixed;
@@ -12510,10 +12482,6 @@ a.char-name-link:focus-visible {
 }
 
 /* ---------------- UX audit 2026-10-23: tap targets the visual audit flagged ---------------- */
-/* The footer's feedback button keeps its link look; padding that doesn't move the line makes it a 24px+ target. */
-.site-footer button.footer-link {
-  padding-block: 4px;
-}
 /* The looks steps stay thin dashes, drawn inside a 24px-tall button so a thumb can hit one. */
 .looks-dots button {
   height: 24px;
@@ -12562,9 +12530,6 @@ details > summary.small {
   .beta-toast,
   .install-hint {
     bottom: max(var(--space-4), env(safe-area-inset-bottom));
-  }
-  body:has(.feedback-fab) .site-footer {
-    padding-bottom: 2.5rem;
   }
   .nav-links .nav-feedback {
     display: block;
