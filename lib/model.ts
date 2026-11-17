@@ -16,7 +16,7 @@ export type ChatMessage = { role: "system" | "user" | "assistant"; content: stri
 /**
  * How much a model "thinks" before it answers (Gemini 3 can't turn thinking off; the default level applies when
  * none is sent). Thinking bills as output, so it's the biggest cost lever: a short in-character line needs
- * almost none (docs/upgrade-cost.md).
+ * almost none (docs/costs.md).
  */
 export const REASONING_EFFORTS = ["minimal", "low", "medium", "high"] as const;
 export type ReasoningEffort = (typeof REASONING_EFFORTS)[number];
@@ -87,7 +87,7 @@ export const DEFAULT_LLM_MODEL = "gemini-3.5-flash-lite";
  * stronger model is a big lever for little quota. It is NOT a default: on the stock free Google key the flash
  * (non-lite) models answer 429 (docs/date-quality.md availability table), so forcing it would just fail and fall
  * back to the rules plan. Put this in `LLM_DIRECTOR_MODEL` once a PAID key is configured to actually turn the
- * director upgrade on (docs/upgrade-cost.md). The free default leaves the director on the actor's flash-lite.
+ * director upgrade on (docs/history/upgrade-cost.md). The free default leaves the director on the actor's flash-lite.
  */
 export const DEFAULT_DIRECTOR_MODEL = "gemini-3.5-flash";
 export const MODEL_TIMEOUT_MS = 25_000;
@@ -473,7 +473,7 @@ export function getDirectorModel(
  * sets it: on the stock free Google key the stronger Gemini models (`gemini-3.5-flash` and up) answer 429, so
  * defaulting to one would make every date fail that call and fall back to the rules plan for no gain (see the
  * free-tier availability table in docs/date-quality.md). DEFAULT_DIRECTOR_MODEL is the recommended value to put
- * in LLM_DIRECTOR_MODEL once a PAID key is configured — that's the real director upgrade (docs/upgrade-cost.md).
+ * in LLM_DIRECTOR_MODEL once a PAID key is configured — that's the real director upgrade (docs/history/upgrade-cost.md).
  */
 export function directorModelName(env: Record<string, string | undefined> = process.env): string | undefined {
   return env.LLM_DIRECTOR_MODEL || undefined;

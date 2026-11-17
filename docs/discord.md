@@ -100,7 +100,7 @@ Dark's app, but it calls `botchelor.com/api/jobs/lobby`, which the show serves.
 | `DISCORD_WEBHOOK_DROPS` | The episode digest in a channel of its own (#episodes). |
 | `DISCORD_WEBHOOK_VOTES` | Sunday's vote and the new season (#vote). |
 | `DISCORD_WEBHOOK_BOARD` | The board and the pool (#board). |
-| `DISCORD_INVITE_URL` | The invite (`https://discord.gg/<code>`): "Discord" in the footer's The show group, a line on `/agents`, and a line in `/llms.txt`. Not a secret. |
+| `DISCORD_INVITE_URL` | The invite (`https://discord.gg/<code>`): "Discord" in the footer's row of the show's accounts (`lib/company.ts` `socialLinks`), a line on `/agents`, and a line in `/llms.txt`. Not a secret. |
 
 - Only an `https://discord.com/api/webhooks/…` (or `discordapp.com`) address is used. A kind whose own address is
   wrong is off, rather than posting to another channel; `CHANGE_ME` (the spec's placeholder) counts as unset.

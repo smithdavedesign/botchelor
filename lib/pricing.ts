@@ -1,5 +1,5 @@
 /**
- * What a date costs in model calls (docs/upgrade-cost.md). The show runs on Google's free tier, so the cash cost
+ * What a date costs in model calls (docs/costs.md). The show runs on Google's free tier, so the cash cost
  * of a date is $0 today; these are the paid-tier list prices, so every logged date also says what it WOULD cost
  * the moment the show moves to a paid key. That number, measured on real dates, is what pricing is set against.
  *

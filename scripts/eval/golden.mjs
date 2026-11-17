@@ -72,7 +72,7 @@ export const AD_MEMORY = ["live", "none", "extracted"];
 export const DATES_ROUTE = "/api/jobs/eval";
 /** A scene step on the After Dark route's model is about $0.001 (docs/after-dark-costs.md): budgeted at three times that. */
 export const AD_STEP_USD = 0.003;
-/** A date on the paid default model is about 1.3¢ (docs/upgrade-cost.md): budgeted at 2¢. */
+/** A date on the paid default model is about 1.3¢ (docs/costs.md): budgeted at 2¢. */
 export const DATE_USD = 0.02;
 export const DEFAULT_MAX_USD = 2;
 /** Under this, B loses. */

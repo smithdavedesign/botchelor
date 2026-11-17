@@ -22,8 +22,8 @@ import { APPEARANCE_MAX, DEALBREAKER_MAX, TRAIT_MAX, WANT_MAX } from "./field-li
 
 /**
  * A JSON Schema (draft-07) for a Botchelor original character, mirroring the CharacterInput validator in
- * app/api/characters/route.ts. Deliberately no `avatarPrompt`: there are no uploaded or generated avatars
- * (a visitor's avatar is drawn from colour + traits, $0, nothing to moderate — see docs/image-strategy.md).
+ * app/api/characters/route.ts. Deliberately no `avatarPrompt`: every character gets a drawn portrait by default instead
+ * (lib/default-portraits.ts, docs/looks.md).
  */
 export function characterSchema(base: string = siteUrl()): Record<string, unknown> {
   const str = (max: number, extra: Record<string, unknown> = {}) => ({ type: "string", minLength: 1, maxLength: max, ...extra });

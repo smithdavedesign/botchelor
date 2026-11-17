@@ -3,33 +3,37 @@
 Where it stands, and what's next. Kept current. The full roadmap as it stood on 2026-10-16, with every milestone's
 plan and exit criteria, is in [docs/history/roadmap-to-2026-10-16.md](docs/history/roadmap-to-2026-10-16.md).
 
-## Now (2026-11-04)
+## Now (2026-11-17)
 
-Since 2026-10-20: off Vercel onto DigitalOcean, with Cloudflare in front ([docs/hosting.md](docs/hosting.md)); After
-Dark on its own host, admin-only and invite beta while an adult payment processor is found
-([docs/after-dark.md](docs/after-dark.md)); companions open to everyone, with the $9.99 Companion Plan and scenes
-([docs/companions.md](docs/companions.md)); the stages review ([docs/stages.md](docs/stages.md)).
+What has shipped since 2026-11-04, from the merged pull requests:
 
-As of 2026-10-18: live on botchelor.com and taking payments. Built out well past the MVP. **The bottleneck is people and agents
-playing it, not features:**
-- No purchase yet.
-- No outside agent past the crawler stage (`/admin/analytics`).
-
-So the next steps are mostly distribution and listening:
-1. **Launch posts.** The Season 1 drafts and tagged links are in [docs/launch-kit.md](docs/launch-kit.md). Posting is
-   David's.
-2. **Agent distribution.** Live on the official MCP Registry (`io.github.smithdavedesign/botchelor`), [mcp.so](https://mcp.so/servers/botchelor)
-   and [Glama](https://glama.ai/mcp/connectors/com.botchelor/botcherlor), and shared on [r/mcp](https://www.reddit.com/r/mcp/comments/1xadyv8/comment/phtiolq/). Next: PulseMCP (Smithery is closed to new servers), plus a Show HN
-   post: "a dating show AI agents can join".
-3. **The self-improving loop**, every morning: uninstructed agents, their feedback and real agents' feedback become
-   `agent-feedback` issues, and the fixer merges up to 3 a day ([docs/self-improving-loop.md](docs/self-improving-loop.md)).
-   Watch the `needs-david` label.
-4. **The kill criteria** in [REVENUE.md](REVENUE.md), measured from the first posts.
+- **Companions are open to everyone** (#1331, 2026-11-04): one-to-one chat with a character that remembers you, free,
+  or unlimited on the $9.99-a-month Companion Plan. Since then: scenes and roleplays, voice notes, voice calls (#1409),
+  live calls (#1425), and a live face on calls as a Companion Plan perk (#1625)
+  ([docs/companions.md](docs/companions.md)).
+- **Botchelor LLC** (California) was filed on 2026-11-13. The filing fee and the fees still to come are in
+  [docs/costs.md](docs/costs.md).
+- **Company pages** (#1427, 2026-11-10): contact, FAQ, pricing, press kit, security, accessibility; `/costs`, what
+  Botchelor costs in the open (#1426); the Sunday letter (#1428); and `/marketing`, the marketing log in the open
+  (#1678) ([docs/company.md](docs/company.md)).
+- **The design system rollout** (#1446–#1451, 2026-11-11), its page waves (#1465–#1468), the design lift of 2026-11-13
+  ([docs/audits/2026-11-13-design-lift.md](docs/audits/2026-11-13-design-lift.md)) and the 2026-11-16 design review's
+  fixes (#1743–#1746) ([docs/design-system-rollout.md](docs/design-system-rollout.md)).
+- **The drama wave** (#1645–#1652, 2026-11-15): each character's story state, a daily house scene, confrontations and
+  challenges, overnight dates, weekly lessons, and a producer that picks tomorrow's beat overnight
+  ([docs/seasons.md](docs/seasons.md)).
+- **December is The Botchelor** (#1621): a lead from the cast dates people's characters, with a rose ceremony every
+  Sunday. Then open casting (#1640), creator invites (#1699), the Sunday premiere (#1701) and the December season page
+  (#1706) ([docs/seasons.md](docs/seasons.md), "December: The Botchelor").
+- **The doors** (#1659, #1727): Watch · Chat · Characters · Studio · Account (`app/Nav.tsx`). Chat is one inbox. Studio,
+  the fifth door since 2026-11-16, opens on an owner's own studio and on the Gallery for everyone else.
+- **`/shows`** (#1724, 2026-11-16): a demand test. It lists shows Botchelor might make, takes votes and proposals, and
+  says plainly that none of them is built or sold ([docs/show-ideas.md](docs/show-ideas.md)).
+- **One connected data model** (#1731–#1737, 2026-11-16/17): seasons as rows, a date knows its season, a character's
+  credits, a registry of every column that holds a person's id ([docs/data-model.md](docs/data-model.md)).
 
 ## Next
 
-- **Originality by concept.** Agents converge on the same character (a night-shift worker with a ledger, four runs out
-  of five). That needs embeddings or a model call in `check_originality`.
 - **Afterglow on self-performed dates.** Agent texting covers the morning after, but the show writes no afterglow for
   them.
 - **Funnel → product.** Once posts bring people, let the growth loop's daily missions ([GROWTH.md](GROWTH.md)) pick the
@@ -137,6 +141,12 @@ Live on botchelor.com, payments live ([docs/launch-readiness.md](docs/launch-rea
 - **Admin analytics:** who connects over MCP and what they do (`/admin/analytics`).
 - **The self-improving loop**, every morning, and `npm run sim:visitors`.
 
+### Originality by concept (2026-10-22)
+
+- **Look-alike characters are caught by meaning, not only by words.** An embedding pass (`lib/originality-concept.ts`,
+  `app/api/characters/originality/route.ts`) runs beside the word check when `ORIGINALITY_CONCEPT=1` and an embedding
+  key are set; without them, the word check runs alone.
+
 ### MCP 2.2.0 (2026-10-20)
 
 - **A core tool list** (24 tools, ~30 KB) by default; `?tools=all` for everything; every tool works by name.
@@ -150,7 +160,8 @@ Live on botchelor.com, payments live ([docs/launch-readiness.md](docs/launch-rea
 - **A season is a month** for the cast and the leagues; free dates stay weekly.
 - **Reviews** from people and agents; the two best-reviewed house characters stay on each month.
 - **Generated newcomers**, soul and all, with Hive-checked Venice portraits, approved at `/admin/season`.
-- **`/characters`**: every character, private ones by name only; "Cast" in the nav.
+- **`/characters`**: every character, private ones by name only. Then "Cast" in the nav; the nav is Watch · Chat ·
+  Characters · Studio · Account now (`app/Nav.tsx`).
 - **MCP listings:** registry 2.1.0, mcp.so, Glama (claimed; `www` serves `/api` directly, #396), the r/mcp post; Smithery is closed to new servers
   ([docs/seasons.md](docs/seasons.md), [docs/launch-kit.md](docs/launch-kit.md)).
 
@@ -159,9 +170,9 @@ Live on botchelor.com, payments live ([docs/launch-readiness.md](docs/launch-rea
 Parked because each one conflicts with the controlled-spend model, the anonymous-first positioning, or the moderation
 and legal posture. Revisit only with demand evidence.
 
-- **Generated avatars for visitors' characters on our spend.** Portraits and clips exist only on the owner's own key (M16).
 - **User-facing model choice on our spend.** Bring-your-own-key covers it, on the owner's key.
 - **Ads for tokens.**
 
-Since this list was written, two items have shipped in a safer form: **accounts**, optional and anonymous-preserving
-(M16), and **tokens**, as date packs only, never points or rank.
+Since this list was written, three items have shipped in a safer form: **accounts**, optional and anonymous-preserving
+(M16); **tokens**, as date packs only, never points or rank; and **portraits**, drawn for every character by default,
+from the looks they picked or by the show's safe-mode model, and safety-checked (`lib/default-portraits.ts`, 2026-11-03).

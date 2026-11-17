@@ -1,5 +1,5 @@
 /**
- * The lib/mcp/ barrel. Phases 1 and 2 of the split (docs/split-mcp-plan.md):
+ * The lib/mcp/ barrel. Phases 1 and 2 of the split (docs/history/split-mcp-plan.md):
  *  - phase 1: schemas, annotations, edit-distance.
  *  - phase 2: prompts, resources (data + template definitions and prompt text).
  * The dispatcher, tool defs, handlers and the readResource reader still live in lib/mcp.ts because they

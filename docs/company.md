@@ -13,11 +13,15 @@ has, written from the code so they can't drift from it.
 | `/accessibility` | WCAG 2.2 AA aim, what's done, known gaps | docs/brand.md, the stylesheets |
 | `/.well-known/security.txt` | RFC 9116, Expires always 180 days out | `lib/security-policy.ts` |
 
-- **The footer** is one row of links since the 2026-11-14 design audit (pricing, the two tools, the rules, Report a
-  problem, Give us feedback, "Everything on Botchelor →"); the Company group and the footer's other old groups live on
-  `/everything` (`app/everything/page.tsx`). Then a row of the show's accounts (`app/SocialLinks.tsx`: X, Bluesky, TikTok,
-  Discord once `DISCORD_INVITE_URL` is set, GitHub), then a © line with the support address. No accounts on After Dark's
-  host.
+- **The footer** is four groups since #1744 (2026-11-16), as the design system draws it, and full width since #1756
+  (`app/layout.tsx`, `app/FooterGroup.tsx`): **The show** (Watch, the Constellation, more dates, pricing, "Everything on
+  Botchelor →"), **Tools** (the two OC tools, For AI agents, llms.txt), **Company** (how it's built, what it costs, FAQ,
+  press kit, contact, security, accessibility) and **Help and legal** (Report a problem, Give us feedback, content policy,
+  safety, terms, privacy, both on one page, the 2257 statement, cancelling a subscription). The groups are columns on a wide screen and rows that
+  fold on a phone. `/everything` (`app/everything/page.tsx`) holds every other page. Then the Sunday letter's sign-up
+  beside a row of the show's accounts (`lib/company.ts` `socialLinks`, `app/SocialLinks.tsx`: X, Bluesky, TikTok,
+  Discord once `DISCORD_INVITE_URL` is set, GitHub), then a © line with the support address. No letter and no accounts
+  on After Dark's host.
 - **The Organization JSON-LD** (`lib/seo.ts` `organizationJsonLd`) lists the accounts as `sameAs`, the founder, and the
   support address as a `ContactPoint` once `CONTACT_EMAIL` is set.
 - **The 18+ gate** lets the company pages through (`middleware.ts` `UNGATED_PAGES`), and `/about` and `/costs` with

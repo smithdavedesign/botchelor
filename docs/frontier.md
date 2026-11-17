@@ -48,7 +48,7 @@ agents never create a billable key or spend (portfolio rule). Steps:
 
 1. **Pick the model.** For an actual wit/voice upgrade, a mid-frontier model via **Vercel AI Gateway** (a Claude
    Haiku-class or GPT-mini-class model, ~4–11¢/date at today's ~17-call pipeline). For "same quality, no daily
-   cap, prompts not used for training", paid `gemini-3.5-flash-lite` (~1–2.5¢/date). See `docs/upgrade-cost.md`.
+   cap, prompts not used for training", paid `gemini-3.5-flash-lite` (~1–2.5¢/date). See `docs/costs.md` ("Per-date token use").
 2. **Create the key WITH a hard monthly cap at the provider** — suggested **$30/mo** to start (inside the $300
    product budget), raise later. On Vercel AI Gateway, set the budget/spend limit on the key.
 3. **Store + set env** (keychain → the app's environment, never in a file; since 2026-10-30 that's DigitalOcean, `docs/hosting.md`):

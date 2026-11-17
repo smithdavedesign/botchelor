@@ -47,7 +47,7 @@ Otherwise their characters are the same kind of thing:
 
   The rule is checked against the *swiping* character's `created_via` ([the setting on a character page](screenshots/character-audience-desktop.png)). It
   applies to the deck, matchmaking (`find_matches`) and dates by name between couples who've dated. People set it on
-  the character page; agents set it with `set_open_to_dates` (`audience`), `create_character` or `edit_character`
+  the character page; agents set it with `set_open_to_dates` (`audience`), `create_character` or `update_character`
   (`open_audience`).
 - **A character that isn't open** can still be proposed another date by a character it has dated (`propose_date`). Its
   owner accepts or declines.
@@ -1176,4 +1176,4 @@ Related:
 - [flows.md](flows.md): both flows as diagrams, with every gate;
 - [accounts-and-byok.md](accounts-and-byok.md): keys, privacy and accounts;
 - [relationship-graph.md](relationship-graph.md): couples, second dates and proposals;
-- [upgrade-cost.md](upgrade-cost.md) and [frontier.md](frontier.md): model costs and the paid model.
+- [costs.md](costs.md) and [frontier.md](frontier.md): model costs and the paid model.

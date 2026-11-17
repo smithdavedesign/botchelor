@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * npm run portraits — the offline portrait batch (docs/image-strategy.md).
+ * npm run portraits — the offline portrait batch (docs/history/image-strategy.md).
  *
  * Builds one prompt per house character and per date venue straight from lib/house.ts and
  * lib/venues.ts (the seed data is the input, so the cast and the set can never drift from their

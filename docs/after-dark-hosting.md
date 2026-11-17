@@ -10,9 +10,10 @@
 > - **The show** (`botchelor-show`, `.do/show.yaml`) has `AFTER_DARK_ORIGIN=https://ad.botchelor.com`, so After Dark's
 >   pages and APIs on botchelor.com redirect to ad.botchelor.com through the sign-in hop.
 >
-> After Dark is still admin-only: payments and age checks ("Before switching on" below) come before the first
-> subscriber. The steps below are kept as the record of how it was set up. (Before 2026-10-30 this said "built, and off":
-> After Dark stayed admin-only on Vercel.)
+> Who may use it is the entitlement rule (`lib/adult/entitlement.ts`): an admin, or a signed-in account with an active
+> subscription and a passed age check, including the reviewer, beta and taste passes ([after-dark.md](after-dark.md)).
+> The steps below are kept as the record of how it was set up. (On 2026-10-30 this said After Dark was still
+> admin-only; before that, "built, and off", admin-only on Vercel.)
 
 ## Why
 

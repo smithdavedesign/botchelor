@@ -280,7 +280,7 @@ More, screen by screen: [docs/screenshots/](docs/screenshots/). What's shipped a
 ## What it is
 
 - **Characters:** make one in a few steps (looks, voice, wants, a dealbreaker), or swipe and match with others. Accounts are optional.
-- **Dates:** a seeded engine decides how each date ends. The model only writes the lines, so predictions are fair and dates can be replayed (Sliding Doors).
+- **Dates:** a seeded engine decides how each date ends; no model picks the ending. Afterwards each character's own "see them again?" answer can move a close call one step (`lib/choices.ts`), the engine is the guardrail, so predictions are fair and dates can be replayed (Sliding Doors).
 - **The show:** monthly seasons with a house cast, second dates, double dates and mixers, texts between dates, and a relationship graph.
 - **Predictions and points:** guess endings, dealbreakers and arcs before a date airs.
 - **Agents:** an MCP server where agents create characters, match, and perform dates themselves for free.
@@ -290,28 +290,40 @@ More, screen by screen: [docs/screenshots/](docs/screenshots/). What's shipped a
 
 ## Docs
 
-- [Research](RESEARCH.md) — findings and sources
-- PRDs ([docs/PRDs/](docs/PRDs/)): [the original](docs/PRDs/PRD.md), [v1, the commercial spec](docs/PRDs/Botchelor_PRD_v1.md), [character memory and learning](docs/PRDs/Botchelor_Character_Memory_Learning_PRD.md)
+The current single sources, one per subject:
+
+- [Architecture](docs/architecture.md): how it is put together, the date path, the scheduled jobs, money, and the invariants
+- [The data model](docs/data-model.md): every table and how a person, a character, a show, a season, a date and an asset connect
+- [Costs](docs/costs.md): what each operation and each month costs, and what has been spent
+- [Pricing and BYOK](docs/pricing-and-byok.md): what is for sale, where each price is set, and bringing your own key
+- [Brand](docs/brand.md): personality, colour, type, spacing, components, the header, themes and icons
 - [Launch readiness](docs/launch-readiness.md): status, spend and abuse guards, report review, monitoring, the live end-to-end check, owner decisions
-- [Launch kit](docs/launch-kit.md): Season 1 post drafts, tagged links, the MCP directories (Registry, mcp.so, Glama) and an r/mcp post
-- [The show's Discord](docs/discord.md): what the bot posts and when (the episode digest, Sunday's vote, the board), its settings, and setting up the server
-- [Seasons](docs/seasons.md): monthly seasons, who stays (reviews) and who joins (generated newcomers), the review queue, `/characters` and private characters
-- [Roadmap](ROADMAP.md): now, next and shipped ([as it stood on 2026-10-16](docs/history/roadmap-to-2026-10-16.md))
+- [After Dark](docs/after-dark.md): the 18+ side, what is built (moderation, entitlement, billing, age checks) and its rules
 - [Hosting](docs/hosting.md): where it runs (DigitalOcean App Platform since 2026-10-30, off Vercel), deploys, scheduled jobs, DNS and settings
-- [Build notes](BUILD.md): what it does now, how to run, test and deploy it, its configuration, and what's left ([the milestone-by-milestone log](docs/history/build-log-2026-10-13-to-16.md))
-- [Architecture](docs/architecture.md): how it is put together, the episode path, and the invariants
+- [The latest audit](docs/audits/2026-11-13-design-lift.md): the design lift of 2026-11-13; every dated review is in [docs/audits/](docs/audits/)
+
+Also current:
+
+- [Build notes](BUILD.md): what it does now, how to run, test and deploy it, its configuration, and what's left
+- [Roadmap](ROADMAP.md): now, next and shipped
+- PRDs ([docs/PRDs/](docs/PRDs/)): [the original](docs/PRDs/PRD.md) and the later feature PRDs
+- [Seasons](docs/seasons.md): monthly seasons, December's The Botchelor, the drama wave, who stays and who joins, `/characters` and private characters
 - [Companions](docs/companions.md) and [the stages](docs/stages.md): one-to-one companions, the plan and scenes; every stage's modularity, safety and scale review
-- [Audits](docs/audits/): dated reviews of the site; [2026-11-01](docs/audits/2026-11-01-audit.md) has the rows still open
 - [Date quality](docs/date-quality.md): how the two AI daters talk, what each model sees, the beat sheet and critic, and the eval results
-- [Two agents arrive with no instructions](docs/agent-visitor-test.md): what two uninstructed agents made of the MCP front door, both reports in full, and what to improve (airing, onboarding context, errors, endings' "why")
 - [Flows](docs/flows.md): two Mermaid maps, a person on the website and an agent over MCP, with every gate on the way (18+, content rules, the swipe gate, allowance and tokens, budgets, airing, privacy)
 - [Agents and people](docs/agents-and-people.md): the two kinds of visitor, how their characters differ, who supplies the compute (owns the GPU) for every model call, two-agent dates, who a character is open to, and what each party is for
-- [Relationship simulation evidence](docs/relationship-sim-evidence.md): ten couples on five dates each, on the stub and on the real model (`npm run sim:relationships`) — what holds together, what grows, what was fixed (engine v3, memory, names, labels), and what only live players can answer
 - [Accounts, ownership, visibility & BYOK](docs/accounts-and-byok.md): optional accounts (anonymous still works), who owns and can edit a character, who can see a date, and bringing your own model key
-- [The data plan](docs/data-plan.md): what the show keeps for learning from (every table and column), the opt-in consent gate and what it covers, the preference export and its flags, how long each kind is kept, what's in the account export and what goes on delete, the north-star definition, and what's never collected
-- [Competitive scorecard](docs/competitive-scorecard.md): where Botchelor leads, ties and trails the field, with a sourced feature matrix (the deep per-competitor research is in [competitor-analysis.md](competitor-analysis.md))
-- [Image strategy](docs/image-strategy.md): where the visuals come from, and the provenance gate any hosted image must pass
-- [Upgrade cost](docs/upgrade-cost.md): what frontier models and the full stack would cost
+- [The data plan](docs/data-plan.md): what the show keeps for learning from, the opt-in consent gate, the preference export, how long each kind is kept, what's in the account export and what goes on delete
+- [Marketing](docs/marketing.md): who posts where, the rules, and the public /marketing page
+- [Launch kit](docs/launch-kit.md): Season 1 post drafts, tagged links, the MCP directories (Registry, mcp.so, Glama) and an r/mcp post
+- [The show's Discord](docs/discord.md): what the bot posts and when (the episode digest, Sunday's vote, the board), its settings, and setting up the server
+- [Relationship simulation evidence](docs/relationship-sim-evidence.md): ten couples on five dates each, on the stub and on the real model (`npm run sim:relationships`) — what holds together, what grows, what was fixed (engine v3, memory, names, labels), and what only live players can answer
+- [Research](RESEARCH.md): the idea-stage findings and sources (2026-10-13)
+
+Retired and dated records are in [docs/history/](docs/history/): the build log and roadmap to 2026-10-16, the notes
+of 2026-10-19 to 21, and, retired on 2026-11-17 with a banner naming what replaced each, the day-one PRDs, the
+upgrade-cost proposal, the image strategy, the competitive scorecard and competitor analysis, the agent visitor test,
+the MCP split plan, simulation and best-practices review, and the marketing pipeline plan.
 
 ## Installation & Setup
 

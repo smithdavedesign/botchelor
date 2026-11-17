@@ -1,3 +1,5 @@
+> Retired 2026-11-17: replaced by [docs/costs.md](../costs.md), which now holds the measured per-date token table. Kept as the 2026-10-13 spend proposal.
+
 # Upgrade cost: what a date costs, and what each upgrade would
 
 _Written for David, 2026-10-13; updated 2026-10-15 with measured numbers. A spend proposal, not a switch that

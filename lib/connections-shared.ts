@@ -573,7 +573,7 @@ export type ModelOption = {
 /**
  * What a date takes on a person's key, for the price hint: their character's lines and a house partner's (a soulless side
  * rides the creator's key, lib/keys.ts buildKeyForSide), the critic's rewrites, the texts after and the reflections, but
- * never the plan or the recap. About 30k tokens in and 1.5k out (docs/upgrade-cost.md measured ~26k / ~2.2k for a whole
+ * never the plan or the recap. About 30k tokens in and 1.5k out (docs/costs.md "Per-date token use" measured ~26k / ~2.2k for a whole
  * date with the plan and recap on the show's model). Reasoning models think on top, billed as output.
  */
 export const DATE_TOKENS = { input: 30_000, output: 1_500 } as const;

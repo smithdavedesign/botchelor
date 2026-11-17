@@ -1,5 +1,21 @@
 # After dark: the adult season (admin only)
 
+> **Status (2026-11-17), checked against the code.** This PRD is the plan as written on 2026-10-18, kept below as it
+> was. What is true now:
+> - **Who may use it** (`lib/adult/entitlement.ts` `canAfterDark`): an admin, or a signed-in account with an active
+>   subscription (or a cancelled one with paid time left) and a passed age check. Passes go through the same check: a
+>   processor's reviewer, an invited beta month (`lib/adult/invites.ts`) and a free 48-hour taste of scenes only
+>   (`lib/adult/taste.ts`).
+> - **Who is in the scenes** (`lib/adult/characters.ts`): this season's house cast, the show's own agent cast once its
+>   checks pass, and the characters a person has switched on themselves. Never another person's character, and never
+>   one drawn in anime.
+> - **The scene model** defaults to `deepseek/deepseek-chat-v3.1` (`lib/adult/settings.ts` `DEFAULT_TEXT_MODEL`), and an
+>   admin can change it on `/admin/after-dark/settings`.
+> - **It is served on its own host**, `ad.botchelor.com`: a second DigitalOcean app of the same code with
+>   `AFTER_DARK_ONLY=1` (`lib/after-dark-host.ts`, `.do/app.yaml`, [after-dark-hosting.md](../after-dark-hosting.md)).
+>
+> The current detail is in [docs/after-dark.md](../after-dark.md).
+
 David's call (2026-10-18). This season's house cast, played without the show's content limits, in private. It is for
 the admin's own use, and it might become a paid season one day. Nobody's own characters take part.
 

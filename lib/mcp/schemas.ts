@@ -1,6 +1,6 @@
 /**
  * The JsonSchema building blocks every tool definition uses. First step of the lib/mcp.ts split
- * (docs/split-mcp-plan.md), chosen because these have no circular deps: upstream constants only.
+ * (docs/history/split-mcp-plan.md), chosen because these have no circular deps: upstream constants only.
  */
 import { DATE_VISIBILITIES } from "../rules";
 import { DEFAULT_FORMAT, FORMAT_IDS } from "../formats";

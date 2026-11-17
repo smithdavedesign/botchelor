@@ -4,34 +4,54 @@ How Botchelor is put together, and the rules that keep it that way. Read this be
 episode path, the schema, or anything touching points, souls or money.
 
 For product scope and milestones see [ROADMAP.md](../ROADMAP.md); for how to run and deploy it see
-[BUILD.md](../BUILD.md) and [hosting.md](hosting.md); for the visual assets see [image-strategy.md](image-strategy.md).
+[BUILD.md](../BUILD.md) and [hosting.md](hosting.md); for portraits and looks see [looks.md](looks.md); for every table
+and how they connect see [data-model.md](data-model.md).
 
 ## The shape of it
 
-One Next.js app (App Router), one Postgres database, one model call per episode. Since 2026-10-30 it runs on
-DigitalOcean App Platform as two apps from the same code, the show and After Dark ([hosting.md](hosting.md)); it ran
-on Vercel before. It started with
+One Next.js app (App Router) and one Postgres database. Since 2026-10-30 it runs on DigitalOcean App Platform as two
+apps from the same code, the show and After Dark ([hosting.md](hosting.md)); it ran on Vercel before. It started with
 no queue, no background worker, no realtime server, no object storage and no image pipeline, each a deliberate
-"not yet", because the product had to run at **$0 marginal cost** on free models. Pictures and media came later
-(`lib/object-store.ts`, Bunny for After Dark's media, [hosting.md](hosting.md)); there is still no queue or realtime
-server.
+"not yet", because the product had to run at **$0 marginal cost** on free models. Some of those came later:
+
+- A date's words are written in the background, after the response (`after()`), with a `generation_jobs` table as
+  the backstop that the hourly job re-runs (`lib/jobs.ts`).
+- Scheduled jobs run on DigitalOcean ("Scheduled jobs", below).
+- Media is in a bucket, not the database (`lib/object-store.ts`): the show's in Neon Object Storage, After Dark's on
+  Bunny.
+- Every character gets a drawn portrait (`lib/default-portraits.ts`).
+
+There is still no separate queue service and no realtime server.
 
 ```
 browser
-  │  server components render pages; forms POST to route handlers
+  │  server components render pages; forms and client components fetch() the API
   ▼
-app/                      Next.js App Router
-  ├── page.tsx, feed/, cast/, episodes/[id]/, characters/[id]/, leagues/[id]/, shop/, watch/
-  │     server components: read through lib/, render HTML
-  ├── StartForm.tsx, MatchmakerForm.tsx, WatchRoom.tsx, …
-  │     client components: forms and live widgets, fetch() the API
+app/                      Next.js App Router (top-level folders, grouped by role)
+  ├── watch/ house/ seasons/ shows/ episodes/ reunion/ casting/ mixers/ doubles/ couples/ graph/ showcase/ reviews/ calls/
+  │     the show: what's on, one date, the house, seasons and casting, mixers, the social graph, the Gallery
+  ├── characters/ create/ import/ creators/ matches/ messages/ chat/ companion/ swipe/ step-in/ studio/ prompts/
+  │     characters and people: the hub, the builder, matches and threads, companions, the Studio
+  ├── account/ notifications/ leagues/ shop/ date/ double/ link/ invites/ ship/ tools/ alternatives/
+  │     a person's own pages, invite and agent links, the shop, the free OC tools and comparison pages
+  ├── after-dark/ gate/
+  │     After Dark (served on its own host) and the 18+ gate
+  ├── about/ pricing/ faq/ contact/ press/ security/ accessibility/ costs/ marketing/ everything/ agents/ newsletter/
+  │   legal/ terms/ privacy/ content-policy/ safety/ report/ cancel/ 2257/
+  │     company, help and legal pages; agents/ is the MCP server's front page
+  ├── cast/ feed/ vote/
+  │     redirects: /cast → /characters?tab=cast and /feed → /watch (permanent), /vote → tonight's vote on /watch
+  ├── admin/  email/  stage/  ux/
+  │     admin pages; the account emails' landing pages; shared stage components; the CSS, by area
+  ├── feed.xml/ llms.txt/ llms-full.txt/ llm.txt/ character.schema.json/ indexnow-key.txt/
+  │     route handlers that serve one file each
   └── api/**/route.ts
         the whole write surface: validate (zod) → authorize → lib/ → JSON
   │
   ▼
 lib/                      all the logic, no framework
-  rules · engine · simulation · showrunner · game · souls · mechanics · leagues · seasons
-  allowance · payments · catalog · stripe · safety · house · venues · presets · avatar · assets
+  rules · engine · simulation · beats · conversation · showrunner · pipeline · jobs · game · souls · seasons
+  allowance · payments · catalog · stripe · paid-plans · operator-pass · adult/ · safety · house · venues · assets
   │
   ▼
 lib/db.ts                 the only database surface: query() and exec()
@@ -47,41 +67,57 @@ upgrades a live database in place. Anything you add to the schema has to be safe
 
 ## The episode path
 
-This is the core of the product and the one flow worth knowing by heart
-([app/api/episodes/route.ts](../app/api/episodes/route.ts)):
+This is the core of the product and the one flow worth knowing by heart. Booking a date is fast and makes no model
+call ([app/api/episodes/route.ts](../app/api/episodes/route.ts)); the words are written afterwards, in the background
+([lib/jobs.ts](../lib/jobs.ts), [lib/pipeline.ts](../lib/pipeline.ts)).
 
 ```
-POST /api/episodes  { character_id, partner_id | blind, autonomy?, strategy?, agenda?, note?, … }
+POST /api/episodes  { character_id, partner_id | blind, autonomy?, strategy?, agenda?, note?, place?, … }
   │
   ├─ zod validates the body; the note goes through the content filter
   ├─ load the caller's character (must be theirs); resolve the partner
   │    a house character, or blindMatch() picks another creator's OC (never a chosen stranger's)
-  ├─ premium partner? require the SKU — checked BEFORE the model call, so a locked date costs nothing
-  ├─ allowance.reserveEpisode()         one conditional UPDATE; released in `finally` if nothing saved
-  │
+  ├─ premium partner or format? require the SKU, checked BEFORE the date is reserved, so a locked date costs nothing
+  ├─ allowance.reserveEpisode()         one conditional UPDATE; released in `finally` if nothing is saved
   ├─ simulation.buildDate()             sheets + souls/trained signals + the owner's dials + a seed
   │                                     deals the secret agendas, the producer's situation, the venue
-  ├─ engine.decide(input, seed)         ← THE OUTCOME IS DECIDED HERE. Pure, deterministic, no I/O
-  ├─ showrunner.narrateEpisode()        one model call (plus one retry) that must land on that outcome
-  │                                     output is untrusted: JSON → zod → word cap → content filter
-  ├─ INSERT the episode                 re-checks the block list at insert time
-  └─ simulation.rememberDate()          the pair's relationship row, for the next date and the graph
+  ├─ engine.decideTraced(input, seed)   ← THE ENGINE DECIDES THE ENDING HERE. Pure, deterministic, no I/O
+  ├─ INSERT the episode, 'generating'   the ending and box score, no words yet; re-checks the block list
+  └─ jobs.enqueueGeneration()           the rest runs after the response; the hourly job re-runs a stuck one
+
+jobs.runGenerationJob() → pipeline.generateDate()   rebuilds the date from the stored seed
+  ├─ 1. plan           the beat sheet (lib/beats.ts): each act's public scene, and each side's private
+  │                    intention, built from the engine's reasons for the ending. By default a booked date
+  │                    plays from the deterministic rules plan; with DATE_PLAN_AT_NIGHT=0 a director model
+  │                    writes it first (planDate) and falls back to the rules plan
+  ├─ 2. conversation   one actor per side, turn by turn (lib/conversation.ts). Each actor sees its own full
+  │                    self, the other only as a blind date would, and only its own beat. A free, deterministic
+  │                    critic (lib/quality.ts lineIssues) sends a bad line back once. Best-effort
+  ├─ 3. choices        each side says privately whether it would see the other again (lib/choices.ts, engine
+  │                    v5); the answers can move the ending one step, and only when the engine's call was close
+  ├─ 4. recap          the narrator (showrunner.narrateEpisode, on the director model) writes the episode from
+  │                    the conversation, landing on the ending. One call plus one retry, then it fails closed;
+  │                    output is untrusted: JSON → zod → word cap → content filter
+  ├─ 5. afterglow, reflections         the morning-after texts and each side's reflection. Best-effort
+  └─ the episode flips to 'ready'; a failed date gives its allowance back and is deleted
 ```
 
 Two things follow from this order, and both matter:
 
-- **The model never decides anything.** It receives the already-decided ending, drama answer and box
-  score as a brief, and writes prose to match. Swapping models, or a model misbehaving, cannot change
-  an outcome, a prediction's fairness or a score.
-- **A failed generation costs the creator nothing.** The date is reserved before the call and given
-  back if no row is written, so a 502 doesn't eat an allowance — and doesn't cap retries either.
+- **No model picks the ending.** The engine decides it before any model runs. The narrator receives the ending, drama
+  answer and box score as a brief, and writes prose to match. The only thing that can move the ending is the two
+  characters' own answers in step 3: one step at most, on a close call. Swapping models, or the narrator misbehaving,
+  cannot change an outcome.
+- **A failed generation costs the creator nothing.** The date is reserved before the job and given back if the job
+  fails, so a failed date doesn't eat an allowance.
 
 ### Determinism and the seed
 
 `lib/engine.ts` is a pure function of `(DateInput, seed)`: no `Date.now`, no `Math.random`, no I/O. The
 seed is derived from the episode id and stored on the row, which is what makes these possible:
 
-- **Fair predictions** — the outcome does not depend on model sampling.
+- **Fair predictions** — the engine's ending does not depend on model sampling (the characters' answers can move it
+  one step on a close call, step 3 above).
 - **A real box score** — chemistry, attraction, trust and awkwardness are numbers with arcs.
 - **Sliding Doors** — replay the stored seed with exactly one input changed and compare timelines.
 - **Bounded variety without content generation** — the secret agendas, the producer's act-2 situation
@@ -100,46 +136,55 @@ is a product decision, not a refactor.
 
 | Invariant | Where it lives |
 | --- | --- |
-| The engine decides the outcome; the model only narrates | `lib/engine.ts`, `lib/showrunner.ts` |
+| The engine decides the outcome; the characters' own answers can move it one step on a close call; the narrator only narrates | `lib/engine.ts`, `lib/choices.ts`, `lib/showrunner.ts` |
 | Model output is untrusted: JSON, schema, word cap, content filter, else fail closed | `showrunner.parseEpisode` |
-| Buying never changes points, picks, odds or rank — and points can't be bought, cashed out or transferred | `lib/payments.ts`, route-listing tests |
+| Buying never changes points, picks, odds or rank, and points can't be bought, cashed out or transferred | `lib/payments.ts`, route-listing tests |
 | Points are **derived**, never stored: a SQL sum over predictions, guesses and matchmaker hits on aired episodes | `game.getPoints` |
 | A private soul never reaches a spectator, and its owner can delete it | `lib/souls.ts`, owner-gated route |
 | A local-only soul never reaches any model, even a paid one | `simulation.buildDate` |
-| Adults only, fictional only: no minors, no sexual content, no real people — on sheets, souls, names, notes, chat and model output | `lib/safety.ts` |
+| Adults only, fictional only: no minors, no sexual content, no real people, on the show's sheets, souls, names, notes, chat and model output (After Dark's adult pictures and clips have their own check, fail closed) | `lib/safety.ts`, `lib/adult/check.ts` |
 | Every episode is labeled AI-generated and carries a report button and crisis links | `toEpisodeJson`, `app/Notices.tsx` |
 | A creator's identity appears only when every creator of that episode consents | `game.toEpisodeJson`, `/api/reveal` |
 | Blocks are per episode, so nothing links a creator's other characters | `lib/db.ts` blocks, `/api/blocks` |
-| No hosted image can reach a page without a human approving it | `lib/assets.ts` |
+| A hosted image reaches a page only once its asset row is approved, by an admin or by the safety check that drew it (Hive, or the PG check); reads return approved rows only | `lib/assets.ts` |
 
 ## The data model
 
-One database, no joins across services. Tables, and who owns each:
+One database, no joins across services. `lib/db.ts` creates about 260 tables; [data-model.md](data-model.md) is the map
+of how they connect (character, show, season, date, asset, person). The ones this page's flows touch:
 
 | Table | What it holds | Owner module |
 | --- | --- | --- |
 | `characters` | public sheets, house flag, premium SKU, appearance, avatar hue | `app/api/characters`, `db.ensureSchema` (house cast) |
 | `souls` | the private soul's text, `local_only`, and the behavioural `signals` | `lib/souls.ts` |
-| `episodes` | the narration plus the engine's verdict: ending, drama, seed, box score, sides, setup, note | `lib/game.ts` |
+| `episodes` | the words plus the engine's verdict: ending, drama, seed, box score, sides, setup, note | `lib/game.ts` |
+| `generation_jobs` | one row per date being written in the background, with its lease | `lib/jobs.ts` |
 | `relationships` | one row per unordered pair: dates, second dates, last ending | `lib/simulation.ts` |
 | `predictions`, `dealbreaker_guesses`, `matchmaker_proposals` | the free prediction game | `lib/game.ts`, `lib/mechanics.ts` |
-| `profiles`, `identity_consents` | display names and mutual reveal | `lib/people.ts` |
 | `reports`, `blocks` | report-to-hide and per-episode blocks | `/api/reports`, `/api/blocks` |
 | `leagues`, `league_members`, `seasons`, `badges` | friend leagues and the monthly season (weekly before 2026-10-19) | `lib/leagues.ts`, `lib/seasons.ts` |
-| `season_casts`, `season_cast_rotations`, `season_candidates` | each season's stored house cast, the one-time claim that picks it, and next month's generated newcomers in review | `lib/season-cast.ts`, `lib/season-gen.ts` |
-| `character_reviews` | 1–5 stars and a line per reviewer per character; a season's reviews decide who stays | `lib/reviews.ts` |
-| `orders` | one row per checkout; the only table purchases write | `lib/payments.ts` |
+| `orders` | one row per checkout of a show item | `lib/payments.ts` |
 | `free_episode_usage`, `pack_episode_usage` | date allowances, as counters so a reservation is atomic | `lib/allowance.ts` |
-| `character_assets` | image provenance and review status; empty today, by design | `lib/assets.ts` |
-| `waitlist` | the landing page's Season 1 list | `lib/waitlist.ts` |
-| `watch_parties`, `watch_messages`, `watch_message_reports`, `watch_reactions`, `watch_poll_votes`, `watch_presence` | the synchronized date room (M8) | `lib/watch.ts` |
+| `character_assets` | every hosted picture's provenance and review status, portraits included | `lib/assets.ts` |
+| `adult_entitlements` | who may use After Dark, written by the processors' postbacks | `lib/adult/entitlement.ts`, `lib/adult/billing.ts` |
 
-Nothing is computed by a cron job. A **season** closes lazily: standings depend only on rows stamped
-before the deadline (finales aired in the window, members who joined before it), so the first visit
-after the 1st (00:00 UTC) closes last month and awards badges ([docs/seasons.md](seasons.md)). The season's house cast is picked
-the same way, once, on its first read. A **watch party**'s phase is a pure function
-of `starts_at` and the current clock, so every viewer sees the same beat without a realtime server —
-clients poll for the live tallies.
+## Scheduled jobs
+
+One scheduled job on After Dark's DigitalOcean app (`.do/app.yaml` `jobs`, at :20 past every hour, UTC) calls the
+`/api/jobs/<name>` routes with `Authorization: Bearer $CRON_SECRET`:
+
+| Route | Host | When | What it does |
+| --- | --- | --- | --- |
+| `lobby` | botchelor.com | every hour | the lobby's rooms, dates due to air, stuck generations, scheduled dates and mixers, the portrait sweep, the house's scenes |
+| `daily?part=upkeep`, `show`, `people`, `growth` | botchelor.com | 16:20 UTC, one part at a time, 45 s apart | retention and prunes; the lobby's fresh room and backfilled conversations; the couples' daily texts, digest and reminders; IndexNow, weekly lessons, next season's candidates |
+| `after-dark-daily` | ad.botchelor.com | after the daily parts | the house cast's After Dark baselines, the agent cast's portrait checks, the overnight sweep |
+| `showcase-check` | ad.botchelor.com | every hour, after a 20-minute pause | the PG check on After Dark posts still rated explicit, then a first-frame still and a sound read for each new clip |
+
+Some things still run without a job. A **season** closes lazily: standings depend only on rows stamped before the
+deadline (finales aired in the window, members who joined before it), so the first visit after the 1st (00:00 UTC)
+closes last month and awards badges ([docs/seasons.md](seasons.md)). The season's house cast is picked the same way,
+once, on its first read. A **watch party**'s phase is a pure function of `starts_at` and the current clock, so every
+viewer sees the same beat without a realtime server; clients poll for the live tallies.
 
 ## Client, server, and what may import what
 
@@ -154,9 +199,11 @@ There is no `"use server"` sprinkling to reason about; the split is by module:
   state) that call `lib/` directly. **Client components** do not read the database; they `fetch()` the
   API like any other caller, which keeps one validated write surface.
 
-Identity is an **anonymous session**: a random UUID in an HttpOnly cookie (`lib/http.ts`). There is no
-sign-up, no password and no email on the critical path — which is why a visitor can create a character
-and watch a date within a minute, and why "who made this" needs explicit consent to show.
+Identity is **anonymous by default**: a random UUID in an HttpOnly cookie (`lib/http.ts`). An **account is
+optional** (a handle and password, or Google; `lib/auth.ts`) and attaches to that same id, so signing up moves no data
+([accounts-and-byok.md](accounts-and-byok.md)). Anonymous play always works, which is why a visitor can create a
+character and watch a date within a minute, and why "who made this" needs explicit consent to show. Buying a date
+pack or a plan needs an account, and so does After Dark; the operator pass is keyed on the agent's id instead.
 
 ## Money
 
@@ -166,15 +213,27 @@ as `client_reference_id`, the buyer pays on Stripe, and a **signed webhook** (ve
 secret key to leak and no card data anywhere near it.
 
 A grant is idempotent: one Stripe session maps to exactly one order (`stripe_session_id` is unique), so
-a redelivered webhook is a no-op. Purchases only ever unlock a premium house character, a cosmetic
-frame, or more dates — never points, odds or rank.
+a redelivered webhook is a no-op. What can be bought, none of it points, odds or rank:
+
+- **Date packs** on the show (`lib/catalog.ts`, `lib/payments.ts`, webhook `app/api/webhooks/stripe`). Premium house
+  characters and cosmetic frames stay in the catalog so an old order still unlocks them, but checkout refuses them.
+- **The Companion Plan**, a monthly subscription: unlimited messages with every companion, within a fair-use cap
+  (`lib/paid-plans.ts`, webhook `app/api/webhooks/stripe-plans`).
+- **The operator pass**, a monthly subscription for an agent's operator: reserved show-model dates and a place ahead of
+  the shared daily cap (`lib/operator-pass.ts`, webhook `app/api/webhooks/stripe-operator`). Built and off unless
+  `OPERATOR_PASS_ENABLED=1` or `OPERATOR_PASS_LINK` is set.
+- **After Dark's subscription and token packs**, on adult card processors (CCBill, Segpay, Verotel; `lib/adult/billing.ts`,
+  `lib/adult/billing-*.ts`). Stripe never sees them. A processor is on only when all its settings are in the environment.
 
 ## Images
 
-There are none to host. Avatars are drawn from character data, venue backdrops are gradients, and
-"training from an image" reads a palette in the browser and keeps only four numbers — the image is
-never uploaded, stored or sent. [image-strategy.md](image-strategy.md) explains the whole policy and
-the `character_assets` provenance gate that any future hosted asset must pass.
+Characters have pictures. Every character gets a portrait by default (`lib/default-portraits.ts`): drawn from the
+looks they picked (`lib/looks-draw.ts`, Hive-screened), or else by the show's own safe-mode model from their written
+look or bio (`lib/agent-portraits.ts`, PG-checked). A creator can draw another ([looks.md](looks.md)). Every hosted
+picture is a row in `character_assets` with its provenance and review status, and pages read approved rows only
+(`lib/assets.ts`). Media bytes live in a bucket, not the database (`lib/object-store.ts`): Neon Object Storage for the
+show, Bunny for After Dark. A venue shows its reviewed photo over its gradient (`app/VenuePhoto.tsx`), and "training
+from an image" still reads a palette in the browser; the image is never uploaded.
 
 ## Configuration
 

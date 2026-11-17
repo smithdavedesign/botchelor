@@ -10,7 +10,7 @@ review; the money, legal and posting steps that only the owner can do are tracke
   with the consent banner, RepoHQ's funnel beacon (the owner's browsers excluded), the MCP Registry listing, the
   nightly database backup (ai-stack `bin/db-backup`), health alerts to #team-agents, and `npm run e2e:live` (9/9 on 2026-10-16; 9 of 10 on 2026-10-17 with the new swipe step,
   the purchase skipped on the live link).
-- **Payments are live** on botchelor's own Stripe account (BUILD.md, "Taking real money"). `npm run e2e:live` never pays a live
+- **Payments are live** on botchelor's own Stripe account ([pricing-and-byok.md](pricing-and-byok.md)). `npm run e2e:live` never pays a live
   link: it stops at Stripe's page and reports the purchase step as skipped.
 
 ## Owner decisions (2026-10-16)

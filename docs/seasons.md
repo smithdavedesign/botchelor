@@ -122,7 +122,7 @@ but with no portrait.
   only. They have no traits, no portrait and no link. Their card shows only the name to anyone but the owner, the
   share image drops the bio, and they're kept out of the sitemap and search engines. They still appear by name in
   episodes and feeds.
-- **Ways in.** "Cast" in the nav; "← Every character" on every card; the home page's cast strip, which also links
+- **Ways in.** Characters in the nav (`app/Nav.tsx`: Watch · Chat · Characters · Studio · Account); "← Every character" on every card; the home page's cast strip, which also links
   next month's candidates from the 20th; `llms.txt`; `/agents`.
 
 ## Tests

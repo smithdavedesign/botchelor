@@ -105,7 +105,7 @@ export function track(event: AnalyticsEvent, props: Props = {}): void {
 /**
  * Unit economics for one generated date (no content): which model, how many calls, how long, and the tokens they
  * used. cost_usd is what the date would cost at paid-tier list prices (lib/pricing.ts): $0 in cash on the free
- * tier, and the number pricing is set against (docs/upgrade-cost.md).
+ * tier, and the number pricing is set against (docs/costs.md).
  */
 export function trackEpisodeCost(props: {
   episode_id: string;

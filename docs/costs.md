@@ -4,8 +4,9 @@ _Written 2026-10-21; updated 2026-10-24 (Venice's auto-pay, the scene writer mea
 and admins' picture checks) 2026-10-30 (the move off Vercel: DigitalOcean, Bunny, Cloudflare; `docs/hosting.md`) 2026-11-08 (Cloudflare Workers Paid) and 2026-11-15 (a live call's minute, part by part). It covers what each operation costs, what the infrastructure costs every month, and what
 the project has spent so far. All amounts are in US dollars._
 
-The deeper write-ups are `docs/upgrade-cost.md` (a date's token cost, measured) and `docs/after-dark-costs.md`
-(After Dark's provider prices and token pricing). This page brings them together with the infrastructure.
+A date's token use, as measured on 2026-10-15, is "Per-date token use" below; After Dark's provider prices and token
+pricing are in `docs/after-dark-costs.md`. This page brings them together with the infrastructure. (The 2026-10-13
+spend proposal this measurement came from is kept as a record in `docs/history/upgrade-cost.md`.)
 
 **The live tracker is `/admin/spend`** (lib/spend.ts, 2026-10-30): costs and income month by month, and each provider's
 balance read live. Its "fill in" button enters the costs this page records (`KNOWN_COSTS`); add each new bill or top-up
@@ -57,6 +58,31 @@ no caching. A 10 MB video re-downloaded on every view used 10 MB of Neon transfe
 browser keep finished files. Moving the bytes to object storage is in progress (see "In progress" in
 `docs/history/2026-10-19-to-21.md`).
 
+### Per-date token use (measured 2026-10-15)
+
+Moved here from the 2026-10-13 spend proposal (`docs/history/upgrade-cost.md`). Every prompt of six real eval dates
+(`docs/eval/v3-lite.json`) was rebuilt offline with the app's own code, with no model calls, and priced at Google's paid
+list price for the model live then, `gemini-3.5-flash-lite`: $0.30 per 1M tokens in, $2.50 per 1M out, with thinking
+billed as output.
+
+| Part of a date | Calls | Tokens in / out | Cost at paid prices |
+|---|---|---|---|
+| The plan (director) | 1 | ~2,100 / ~700 | 0.24¢ |
+| The conversation (each turn resends the date so far) | 10 | ~16,400 / ~600 | 0.64¢ |
+| The critic's rewrites | ~3 | ~5,200 / ~200 | 0.20¢ |
+| The recap (director) | 1 | ~2,100 / ~700 | 0.24¢ |
+| **A whole date** | **~15** | **~26k / ~2.2k** | **~1.3¢** |
+| The afterglow (owner and agent dates; not lobby rooms) | 4 | ~5,500 / ~100 | +0.2¢ |
+
+- **Thinking was left out.** Gemini 3 models can't turn it off, and its tokens bill as output: at ~300 a call, a date
+  was ~2.4¢. That is the spread in "A date (show model)" above.
+- **A frontier model for every role** costs about 26 × (input $ per 1M) + 2.2 × (output $ per 1M), in thousandths of a
+  dollar.
+- **The pipeline has changed since.** By default a booked date plays from the rules plan, with no director call, and
+  each side answers "see them again?" after the date (`docs/architecture.md`, "The episode path"). Every generated
+  date logs its real token counts and `cost_usd` at paid-tier list prices on the `episode_generated` event
+  (`lib/analytics.ts`, `lib/pricing.ts`).
+
 ### A live call, a minute (2026-11-15)
 
 An outside review found `/costs` priced dates, texts, voice notes, pictures and video and said nothing of calls. It now
@@ -105,7 +131,7 @@ A call minute sells for about 7–8¢ past the plan's included 20 (a token buys 
 | Google Analytics 4, Search Console, Bing Webmaster | Free | $0 | |
 | Vercel Web Analytics | Off since the move (it only runs on Vercel) | $0 | Google Analytics carries on. |
 | Our engagement log (`web_events`, 2026-10-31) | In the Neon database | ~$0 now | About 30 rows a visit, ~400 bytes each with indexes: 1,000 visitors a day is ~12 MB a day, ~4.4 GB at the 400-day limit, ~$1.50 a month of Neon storage. Inserts are one statement per batch of up to 25 events. |
-| GitHub | Free | $0 | Actions minutes ran out on 2026-10-19 (reset around Nov 1). Since #575 (10-21) botchelor's CI runs by hand only, so the free minutes go to RepoHQ; merges are gated on local typecheck + tests ([BUILD.md](../BUILD.md)). |
+| GitHub | Free | $0 | Actions minutes ran out on 2026-10-19 (reset around Nov 1), while the repo was private. Since #575 (10-21) botchelor's CI runs by hand only, by choice; the repo is public now, so its Actions minutes are free. Merges are gated on local typecheck + tests ([BUILD.md](../BUILD.md)). |
 | Claude (all agent work) | David's subscription | Not per project | Never API credit. |
 
 ### The scene writer: GLM-4.6 against DeepSeek V3.1 (2026-10-24)

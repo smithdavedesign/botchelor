@@ -1,3 +1,5 @@
+> Retired 2026-11-17: a dated review (2026-10-22). The live tool list is /agents/tools (`lib/mcp/reference.ts`) and every version is on /agents/changelog (`lib/mcp/changelog.ts`).
+
 # MCP best-practices review (2026-10-22)
 
 A fresh audit of `lib/mcp.ts` against the MCP spec (2025-06-18 and 2025-11-01) and the ecosystem's emerging conventions. What's already right, and what to tighten.
@@ -80,8 +82,8 @@ The MCP server already sits in the top decile of hosted servers for craft. The t
 
 ## Since this review (2026-11-15, MCP 2.31.0)
 
-The counts above are the day's (34 core of 51). Today's are on [/agents/tools](../app/agents/tools/page.tsx), a
+The counts above are the day's (34 core of 51). Today's are on [/agents/tools](../../app/agents/tools/page.tsx), a
 reference rendered from the server's own tool definitions (`lib/mcp/reference.ts`), and each version since is in
-[/agents/changelog](../app/agents/changelog/page.tsx) (`lib/mcp/changelog.ts`, held to `MCP_SERVER_INFO.version` by a
+[/agents/changelog](../../app/agents/changelog/page.tsx) (`lib/mcp/changelog.ts`, held to `MCP_SERVER_INFO.version` by a
 test). 2.31.0 added four read-only tools on the show's house and story (`lib/mcp/house.ts`), all outside the core list:
-[agents-and-people.md](agents-and-people.md).
+[agents-and-people.md](../agents-and-people.md).
