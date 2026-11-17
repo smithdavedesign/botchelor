@@ -94,6 +94,11 @@ services:
       # - key: WRITING_STYLES
       #   value: "admins"
       #   scope: RUN_AND_BUILD_TIME
+      # Story mode (lib/narration.ts; docs/companions.md "Story mode"): a companion's scene reply written as prose in one
+      # call, for someone on the Narrated style. On by default. "0" puts every scene reply back to the script line.
+      # - key: COMPANION_STORY_MODE
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
       # Who a person is in scenes (lib/persona.ts; docs/companions.md "Who you are in scenes"): on by default. "0" stops
       # every scene's prompt reading one, hides the card on /account and the picker's line, and refuses new saves; what's
       # stored stays (exported, deletable).

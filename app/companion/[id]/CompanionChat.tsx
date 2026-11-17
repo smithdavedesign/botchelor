@@ -756,7 +756,7 @@ export default function CompanionChat({
                     {/* Who's talking, at the top of each run (as the show's own threads do, app/ChatThread.tsx): a thread
                         opened from Chat otherwise only says so in its header. */}
                     {shown[i - 1]?.role !== m.role && <span className="chat-name">{m.role === "user" ? "You" : c.name}</span>}
-                    {/* The narrated style (lib/narration.ts): prose before and after the words, the action folded into it. */}
+                    {/* A reply narrated before story mode (lib/narration.ts): prose before and after the words, the action folded into it. */}
                     {m.beat?.before && <p className="chat-beat">{m.beat.before}</p>}
                     {m.action && !m.beat && <span className="companion-action">{m.action}</span>}
                     {m.form === "story" ? (

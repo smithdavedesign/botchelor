@@ -179,6 +179,10 @@ ignore it.
   new stories are open to. Unset or `members`: the plan's members and admins on the
   show (After Dark's side opens by its own "narrated" rollout switch). `admins`: admins only. `0`: off for everyone on
   both sides; stories already made still read.
+- **`COMPANION_STORY_MODE`** (the show's app, not a secret; on unless it is `0`; [companions.md](companions.md), "Story
+  mode"): a companion's scene reply written as prose in one call, for someone on the Narrated style. `0`: every scene
+  reply is the script line again, for everyone, without a deploy of code. Who has Narrated at all is `WRITING_STYLES`.
+  Commented in `.do/show.yaml`.
 - **`SCENE_PERSONA`** (the show's app, not a secret; on unless it is `0`; [companions.md](companions.md), "Who you are
   in scenes"): a person's saved persona for scenes (`lib/persona.ts`). `0`: no scene's prompt reads one (companion
   scenes, step-in dates), the card on `/account` and the scene picker's line go, and `POST /api/persona` answers not

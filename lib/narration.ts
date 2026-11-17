@@ -14,7 +14,11 @@
  *
  * And a **story**: a finished date or chapter told again as prose, from start to end (lib/stories.ts keeps them).
  *
- * Admins only while it's tested (lib/writing-style.ts); what it costs a viewer is there too.
+ * And **story mode** (at the end of this file): a scene reply written as prose in ONE call, for a scene a person is in
+ * themselves (a companion's scene, lib/companion.ts). No pass: the reply is prose from the start, checked as a whole
+ * by the caller's line checks and then by the guard here. Its craft, parsing and guard are exported for every side.
+ *
+ * Who gets the narrated style, and what it costs, is lib/writing-style.ts.
  */
 import type { ChatMessage, Model, ModelOptions } from "./model";
 import { checkAdultText, checkShowText } from "./safety";
