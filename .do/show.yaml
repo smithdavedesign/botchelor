@@ -289,6 +289,11 @@ services:
       # - key: HOUSE_ROOM_TEXTS
       #   value: "0"
       #   scope: RUN_AND_BUILD_TIME
+      # Claiming what a browser made before signing in (docs/accounts-and-byok.md): the offer at sign-in, the card on
+      # /account and POST /api/me/claim. On by default; "0" turns all three off without a deploy of code.
+      # - key: ACCOUNT_CLAIM
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
       # The connected model (docs/data-model.md): a date's season stamped when it airs, a character's credits, and the
       # Gallery's "From the show" row. Each on by default; "0" turns that one off without a deploy of code.
       # - key: SEASON_KEYS

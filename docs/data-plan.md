@@ -61,6 +61,11 @@ character's history: the line is already public, and nobody's id or vote is show
   played for someone else. Linking to the same account again keeps the original time. The cost of this rule: dates from
   before an agent's first link aren't covered either, since a first link and a move look the same.
 
+A character brought into an account by a claim (`lib/account-claim.ts`, which sets `characters.claimed_at`) follows the
+same rule as a linked agent: the account's consent covers its dates **from the claim on**, never the ones it had under
+the anonymous identity that made it (`consentedCharactersSql` checks `claimed_at <= atExpr`). That identity could not
+consent, and a consent is not carried from one identity to another.
+
 House characters belong to the show and need no consent. Anonymous sessions can't consent (401).
 
 **What it covers:** what goes into a training or evaluation dataset. A dataset builder must check every character on a
@@ -307,6 +312,7 @@ out of time never skips it. It logs `data_pruned` with the rows removed per tabl
 | `line_feedback` (the vote and its tag) | Until the voter deletes their account. |
 | `character_lessons` | As long as the character: removed when it's forgotten or deleted, like its memory. |
 | `ml_consents` | Until the account is deleted. |
+| `account_aliases` | Until the account is deleted: the record of which anonymous identity it claimed (`lib/account-claim.ts`), which is what refuses a second claim and what lets the delete reach what stayed under that identity. |
 | `analytics_events` | No prune yet (the funnel's firsts and the pair log are small). |
 
 400 days (about 13 months) keeps a year-over-year view, as the deck impressions and the MCP call log already did. Each
@@ -400,6 +406,12 @@ renew it (`plan_entitlements`, `plan_events`); and an admin's id on someone else
 **Not in the export, on purpose** (each with its reason): After Dark (it has its own download), sealed keys, click
 and call logs (`web_events`, `analytics_events`, `mcp_calls`), who blocked or follows them (the other person's to
 keep), and working rows (a job in flight, a half-hour hold, a download kept a day).
+
+**Claimed identities (2026-11-16).** `account_aliases` links an anonymous id to the account that claimed what it
+made (`lib/account-claim.ts`; the rules are in [accounts-and-byok.md](accounts-and-byok.md)). The export lists them
+as `claimed_identities`, each with `left_behind`: what stayed under the old id because it is one a person (votes,
+calls, allowances, settings), exported the same way. Deleting the account deletes what stayed under each of them
+too, then the link; an identity that has since got a sign-in of its own is never touched.
 
 **Adding a table with a person column:**
 

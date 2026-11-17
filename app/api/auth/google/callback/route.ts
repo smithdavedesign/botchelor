@@ -1,3 +1,4 @@
+import { claimCookie, offerAtSignIn } from "@/lib/account-claim";
 import { safeFrom } from "@/lib/age";
 import { exchangeGoogleCode, googleAccountExists, googleConfigured, loginWithGoogle, oauthRedirectUri, verifyOAuthState } from "@/lib/auth";
 import { getDb } from "@/lib/db";
@@ -54,7 +55,10 @@ export const GET = handle(async (req) => {
     if (isNew) await welcome(db, userId).catch(() => {});
     // A one-shot, readable cookie so the next page sends GA4's sign_up event (app/FunnelBeacon.tsx).
     const signup = isNew ? ["bz_signup=google; Path=/; SameSite=Lax; Max-Age=600"] : [];
-    return redirect(next ?? "/account?signed_in=1", [...sessionCookies({ userId, authenticated: true }), ...signup]);
+    // Signing in to an account that already exists leaves what this browser made behind: offer to bring it in
+    // (lib/account-claim.ts). A new or newly linked account adopted this browser's id, so there is nothing to offer.
+    const claim = isNew ? claimCookie(null) : await offerAtSignIn(db, req, userId);
+    return redirect(next ?? "/account?signed_in=1", [...sessionCookies({ userId, authenticated: true }), ...signup, claim]);
   } catch {
     return failed("google_failed");
   }

@@ -139,6 +139,10 @@ ignore it.
   texts on, holds what it texted about, and its companion prompt carries the last public things said about it.
   Templates and rows: no model call. `0` sends nothing, holds nothing and removes the prompt block, without a deploy.
   Commented in `.do/show.yaml`; the rules are in [companions.md](companions.md), "When the house talks about them".
+- **`ACCOUNT_CLAIM`** (the show's app, not a secret; on unless it is `0`): claiming what a browser made before signing in
+  (`lib/account-claim.ts`): the offer cookie set at sign-in, the card on `/account` and `POST /api/me/claim`. `0`: no
+  offer is made, no card shows and the route answers 404; signing in works as before. Commented in `.do/show.yaml`;
+  the rules are in [accounts-and-byok.md](accounts-and-byok.md), "Claiming what you made before signing in".
 - **`STORY_MAP`** (the show's app, not a secret; on unless it is `0`): this week's story map (`lib/story-map.ts`) on
   `/house` and at the top of `/graph`, and the circle component. Reads only; no model calls. `0` leaves both pages as
   they were. Commented in `.do/show.yaml`; the rules are in [relationship-graph.md](relationship-graph.md), "The story map".

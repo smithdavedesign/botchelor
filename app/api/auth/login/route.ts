@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { offerAtSignIn } from "@/lib/account-claim";
 import { accountForUser, AuthError, loginWithPassword, sessionsSignable } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { handle, json, jsonWithSession, parseBody, readJson } from "@/lib/http";
@@ -30,7 +31,8 @@ export const POST = handle(async (req) => {
   try {
     const userId = await loginWithPassword(db, input.handle, input.password);
     const account = await accountForUser(db, userId);
-    return jsonWithSession({ authenticated: true, handle: account?.handle_display ?? null }, { userId, authenticated: true });
+    // What this browser made before signing in can be brought in, if it asks (lib/account-claim.ts): the offer is this cookie.
+    return jsonWithSession({ authenticated: true, handle: account?.handle_display ?? null }, { userId, authenticated: true }, 200, [await offerAtSignIn(db, req, userId)]);
   } catch (err) {
     if (err instanceof AuthError) {
       if (err.code === "bad_credentials") await recordLoginFailure(db, input.handle, visitor).catch(() => {});

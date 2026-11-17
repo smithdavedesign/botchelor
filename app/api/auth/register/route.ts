@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { claimCookie } from "@/lib/account-claim";
 import { AuthError, PASSWORD_MAX, PASSWORD_MIN, registerAccount, sessionsSignable } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { handle, json, jsonWithSession, parseBody, readJson, session } from "@/lib/http";
@@ -32,7 +33,8 @@ export const POST = handle(async (req) => {
       `insert into profiles (user_id, name) values ($1, $2) on conflict (user_id) do nothing`,
       [account.user_id, account.handle_display ?? input.handle],
     );
-    return jsonWithSession({ authenticated: true, handle: account.handle_display }, { userId: account.user_id, authenticated: true }, 201);
+    // Signing up adopts this browser's id, so nothing is left behind: an older offer (lib/account-claim.ts) is dropped.
+    return jsonWithSession({ authenticated: true, handle: account.handle_display }, { userId: account.user_id, authenticated: true }, 201, [claimCookie(null)]);
   } catch (err) {
     if (err instanceof AuthError) return json({ error: err.code, message: err.message }, err.status);
     throw err;
