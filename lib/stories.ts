@@ -3,10 +3,13 @@
  * chapter told again as prose, from start to end, made once and kept (the stories table).
  *
  * - A show date's story is the date's: one for everyone who can see its lines (lib/game.ts getEpisodeView decides who),
- *   written on the show's director model and held to the show's checks. Making it costs STORY_TOKENS bought tokens.
+ *   written on the show's narrator and held to the show's checks. Reading one that exists is free. Making it is for the
+ *   date's own people (an owner of one of its two characters), the Companion Plan's members and admins: included with
+ *   the plan, else STORY_TOKENS bought dates, given back if it doesn't come (lib/writing-style.ts).
  * - An After Dark chapter's is its viewer's: written on the fast writer, held to After Dark's checks and their own hard
- *   nos, and it counts ADULT_STORY_WRITES of the month's scene steps.
- * Admins only while it's tested (lib/writing-style.ts stylesOpen), and admins pay nothing.
+ *   nos. It comes with the subscription and counts one scene step, like any other step (the caller says whether it's
+ *   open: After Dark's "narrated" rollout switch).
+ * WRITING_STYLES=0 stops new stories everywhere; kept ones still read.
  */
 import { randomUUID } from "node:crypto";
 import { refundBoughtTokens, spendBoughtTokens } from "./allowance";
@@ -18,7 +21,7 @@ import { shortName } from "./names";
 import { venueName } from "./venues";
 import { showNarrator, turnToNarrate } from "./narrate-date";
 import { summarizeUsage } from "./pricing";
-import { ADULT_STORY_WRITES, extraFor, STORY_TOKENS, stylesOpen } from "./writing-style";
+import { hasDepth, storyPrice, stylesAudience } from "./writing-style";
 
 export type StoredStory = Story & { created_at: string };
 export type StoryAnswer = { ok: true; story: StoredStory; made: boolean } | { ok: false; status: number; error: string; message: string };
@@ -52,22 +55,29 @@ const WHY: Record<"held" | "empty" | "failed", string> = {
   failed: "The writer is busy right now. Try again in a moment.",
 };
 
+/** Whether `viewer` may make a show date's story: one of its own people, a member of the plan, or an admin. */
+export async function canMakeStory(db: Db, viewer: string | null | undefined, isCreator: boolean): Promise<boolean> {
+  if (!viewer || stylesAudience() === "off") return false;
+  return isCreator || (await hasDepth(db, viewer));
+}
+
 /**
- * A show date's story for `viewer`: the kept one, or made now when they may (stylesOpen) and can pay for it. The date
- * must be one whose lines they can see, finished.
+ * A show date's story for `viewer`: the kept one (anyone who can see the date's lines), or made now when they may
+ * (canMakeStory) and it's paid for. The date must be one whose lines they can see, finished.
  */
 export async function episodeStory(db: Db, episodeId: string, viewer: string, opts: { make: boolean; model?: Model } = { make: false }): Promise<StoryAnswer> {
-  if (!(await stylesOpen(db, viewer))) return no(404, "not_found", "Not found.");
   const view = await getEpisodeView(db, episodeId, viewer);
   if (!view || view.hidden) return no(404, "not_found", "Not found.");
+  const lines = view.status === "ready" ? (view.transcript ?? []) : [];
+  // The story tells the whole date, so it's only for someone who already gets the lines (never a spectator before it airs).
+  if (!lines.length) return no(view.status === "ready" ? 404 : 409, view.status === "ready" ? "not_found" : "not_ready", "The date's lines aren't out yet: its story comes once they are.");
   const kept = await storyFor(db, "episode", episodeId, null);
   if (kept) return { ok: true, story: kept, made: false };
   if (!opts.make) return no(404, "no_story", "No story of this date yet.");
-  const lines = view.status === "ready" ? (view.transcript ?? []) : [];
-  if (!lines.length) return no(409, "not_ready", "The date's lines aren't out yet: its story comes once they are.");
-  const price = await extraFor(db, viewer, STORY_TOKENS);
+  if (!(await canMakeStory(db, viewer, view.is_creator))) return no(403, "not_yours", "A date's story is made by one of its own people, or with the Companion Plan.");
+  const price = await storyPrice(db, viewer);
   if (price && !(await spendBoughtTokens(db, viewer, price))) {
-    return no(402, "needs_tokens", `A story costs ${price} token${price === 1 ? "" : "s"}. Get more in the shop.`);
+    return no(402, "needs_tokens", `A story costs ${price} bought date${price === 1 ? "" : "s"}, or comes with the Companion Plan.`);
   }
   const [a, b] = view.characters;
   const names = { a: shortName(a.name), b: shortName(b.name) };
@@ -101,21 +111,22 @@ function safeVenue(v: string): string {
 
 /**
  * An After Dark chapter's story for its viewer. `lines` are the chapter's (the caller reads them from the viewer's own
- * night); `ref` names it. `charge` takes the scene steps (null: refused, with the sentence why); `giveBack` returns
- * them when the story didn't come.
+ * night); `ref` names it. `open`: whether stories are open to them (lib/adult/narrate-scene.ts adultNarratedOpen).
+ * `charge` takes the scene step (null: taken; else the sentence why not); `giveBack` returns it when the story didn't come.
  */
 export async function adultStory(
   db: Db,
   viewer: string,
   input: { ref: string; names: { a: string; b: string }; place: string | null; context: string | null; lines: readonly NarrateLine[]; extra?: (t: string) => string | null },
-  deps: { model: Model; charge: (n: number) => Promise<string | null>; giveBack: (n: number) => Promise<void>; make: boolean },
+  deps: { model: Model; charge: (n: number) => Promise<string | null>; giveBack: (n: number) => Promise<void>; make: boolean; open: boolean },
 ): Promise<StoryAnswer> {
-  if (!(await stylesOpen(db, viewer))) return no(404, "not_found", "Not found.");
+  if (!deps.open) return no(404, "not_found", "Not found.");
   const kept = await storyFor(db, "adult", input.ref, viewer);
   if (kept) return { ok: true, story: kept, made: false };
   if (!deps.make) return no(404, "no_story", "No story of this chapter yet.");
   if (!input.lines.length) return no(409, "empty", "Nothing written in this chapter yet.");
-  const weight = await extraFor(db, viewer, ADULT_STORY_WRITES);
+  // One scene step, like any other step of the night (the caller counts it, and never for an admin's cap).
+  const weight = 1;
   const refused = await deps.charge(weight);
   if (refused) return no(429, "capped", refused);
   const used: Usage[] = [];

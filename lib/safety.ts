@@ -208,7 +208,18 @@ const INNUENDO_PATTERNS = [
   / (?:bedroom eyes|in the sack) /,
 ];
 
-/** checkFields, plus no character's age under 18 in passing, and no innuendo (#474): for what a date's performers and narrator write. */
+/**
+ * checkFields, plus no character's age under 18 in passing, no undressing, and no innuendo (#474): for what a date's
+ * performers and narrator write.
+ *
+ * The two sides are held to different things on purpose (David, 2026-11-17: "distinguish between nsfw and sfw"):
+ *  - the show (here): nothing sexual at all, so also underwear and undressing (SHOW_UNDRESS: "She took off her bra"
+ *    passed until 2026-11-17); and an age under 18 said of a person ("She was only fifteen" passed too), by a
+ *    narrower rule than After Dark's so that counts and times in ordinary talk aren't caught (SHOW_AGE_PATTERNS);
+ *  - After Dark (checkAdultText): sex between adults is the point, so no word list; but any age under 18 said in
+ *    passing, with or without a verb, and its themes that never happen (excludedTheme).
+ * Both share PERSON_OF_AGE_PATTERNS ("a kid of maybe sixteen" passed both).
+ */
 export function checkShowText(fields: Record<string, string | readonly string[] | undefined>): SafetyResult {
   const first = checkFields(fields);
   if (!first.ok) return first;
@@ -217,6 +228,8 @@ export function checkShowText(fields: Record<string, string | readonly string[] 
     for (const text of texts) {
       const plain = spaced(fold(text));
       if (CHILDHOOD_AGE_PATTERNS.some((re) => re.test(plain))) return { ok: false, reason: "minor", field };
+      if (SHOW_AGE_PATTERNS.some((re) => re.test(plain)) || PERSON_OF_AGE_PATTERNS.some((re) => re.test(plain))) return { ok: false, reason: "minor", field };
+      if (SHOW_UNDRESS_TERMS.some((t) => hasPhrase(plain, t)) || SHOW_UNDRESS_PATTERNS.some((re) => re.test(plain))) return { ok: false, reason: "sexual", field };
       if (INNUENDO_PATTERNS.some((re) => re.test(plain))) return { ok: false, reason: "innuendo", field };
     }
   }
@@ -246,7 +259,7 @@ export function checkFamilyTalk(text: string): SafetyResult {
   let plain = spaced(fold(text));
   if (ROMANCE_OR_BODY.test(plain)) return first;
   for (const term of FAMILY_TERMS) plain = plain.split(` ${term} `).join(" kid ");
-  for (const re of [...MINOR_AGE_PATTERNS, ...CHILDHOOD_AGE_PATTERNS]) plain = plain.replace(new RegExp(re.source, "g"), " kid ");
+  for (const re of [...MINOR_AGE_PATTERNS, ...CHILDHOOD_AGE_PATTERNS, ...SHOW_AGE_PATTERNS, ...PERSON_OF_AGE_PATTERNS]) plain = plain.replace(new RegExp(re.source, "g"), " kid ");
   return checkShowText({ dialogue: plain }).ok ? { ok: true } : first;
 }
 
@@ -269,6 +282,42 @@ const SAYS_AN_AGE = [
 const ADULT_AGE_PATTERNS = [
   ...SAYS_AN_AGE.map((says) => new RegExp(`${says}${OLDER_CHILD_AGE} ${NOT_AN_AMOUNT}`)),
   new RegExp(` ${CHILD_AGE} (?:year old|years old|yo|y o)\\b(?! (?:${THINGS})s? )`),
+];
+
+// An age under 18 said of someone without a verb (2026-11-17, found by the narrator's tests: "The waiter, a kid of
+// maybe sixteen, brought menus" passed both checks). Both sides: someone "of <age>", an age after a hedge and "of"
+// ("of maybe sixteen"), and "barely / not even / hardly <age>". Never an amount, a count or a time (NOT_AN_AMOUNT).
+const AGE_HEDGE = "(?:only |just |barely |about |maybe |around |perhaps |roughly |nearly |almost |not even |no more than |not more than |at most )";
+const SOMEONE = "kid|kids|child|girl|girls|boy|boys|lad|lass|youth|someone|somebody|anyone|person|waiter|waitress|server|clerk|cashier|intern|man|woman|guy";
+const PERSON_OF_AGE_PATTERNS = [
+  new RegExp(` (?:${SOMEONE}) of ${AGE_HEDGE}?${OLDER_CHILD_AGE} ${NOT_AN_AMOUNT}`),
+  new RegExp(` of ${AGE_HEDGE}${OLDER_CHILD_AGE} ${NOT_AN_AMOUNT}`),
+  new RegExp(` (?:barely |not even |hardly )${OLDER_CHILD_AGE} ${NOT_AN_AMOUNT}`),
+];
+
+// The show's own age rule (2026-11-17: "She was only fifteen." passed the show's check; After Dark's SAYS_AN_AGE
+// caught it). Narrower than After Dark's, because a date's talk is full of counts and times: only a person as the
+// subject ("she was fifteen", "I'm sixteen", "he turned twelve"), and for "we" and "they", which are a count far more
+// often ("we were five in the car"), only the teen ages. "It was nine when I got home" and "my dog is seven" pass.
+const TEEN_AGE = "(?:1[3-7]|thirteen|fourteen|fifteen|sixteen|seventeen)";
+const SHOW_AGE_PATTERNS = [
+  new RegExp(` (?:i|she|he|you) (?:was|is|am|are|were|turned|turns|look|looked|looks|seem|seems|seemed) ${AGE_HEDGE}?${OLDER_CHILD_AGE} ${NOT_AN_AMOUNT}`),
+  new RegExp(` (?:she s|shes|he s|hes|i m|im|you re|youre) ${AGE_HEDGE}?${OLDER_CHILD_AGE} ${NOT_AN_AMOUNT}`),
+  new RegExp(` (?:we|they|we re|they re|theyre) (?:was |were |are |turned )?${AGE_HEDGE}?${TEEN_AGE} ${NOT_AN_AMOUNT}`),
+];
+
+// The show is PG, so nobody undresses and underwear isn't talked about (2026-11-17: "She took off her bra." passed;
+// the word list above only has the explicit). After Dark has no such list. Whole words and phrases, so "take off your
+// coat", "a comic strip" and "the Bra river" in another language stay as they were unless the word itself is here.
+const SHOW_UNDRESS_TERMS = [
+  "bra", "bras", "bralette", "panties", "panty", "lingerie", "thong", "thongs", "g string", "topless", "nipple", "nipples",
+  "undress", "undresses", "undressed", "undressing", "unhooks her bra", "skinny dip", "skinny dipping", "strip poker",
+];
+const SHOW_UNDRESS_PATTERNS = [
+  / (?:take|takes|took|taking|taken|slip|slips|slipped|slipping|peel|peels|peeled|peeling|pull|pulls|pulled|pulling|tear|tears|tore|rip|rips|ripped) off (?:her|his|their|my|your|our) (?:own )?(?:clothes|clothing|shirt|top|blouse|dress|pants|trousers|jeans|skirt|underwear|boxers|briefs) /,
+  / (?:take|takes|took|taking|get|gets|got|getting) (?:her|his|their|my|your|our) (?:clothes|clothing|shirt|top|blouse|dress|pants|trousers|jeans|skirt|underwear) off /,
+  / (?:in|down to) (?:just |only |nothing but )?(?:her|his|their|my|your) (?:underwear|boxers|briefs|bra and panties) /,
+  / (?:unbutton|unbuttons|unbuttoned|unbuttoning|unzip|unzips|unzipped|unzipping) (?:her|his|their|my|your) (?:shirt|blouse|dress|pants|trousers|jeans|skirt|fly) /,
 ];
 const ONE_OR_TWO_AGE_PATTERNS = SAYS_AN_AGE.map(
   (says) => new RegExp(`${says}(?:one|two) (?=$|(?:and|or|but|maybe|now|today|already|years?|yrs?|yo|y o)\\b)`),
@@ -343,6 +392,7 @@ export function checkAdultText(fields: Record<string, string | readonly string[]
         MINOR_AGE_PATTERNS.some((re) => re.test(plain)) ||
         CHILDHOOD_AGE_PATTERNS.some((re) => re.test(plain)) ||
         ADULT_AGE_PATTERNS.some((re) => re.test(plain)) ||
+        PERSON_OF_AGE_PATTERNS.some((re) => re.test(plain)) ||
         clausesOf(folded).some((clause) => ONE_OR_TWO_AGE_PATTERNS.some((re) => re.test(clause)))
       ) {
         return { ok: false, reason: "minor", field };

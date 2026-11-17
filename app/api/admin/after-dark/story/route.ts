@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { adultModel, adultViewer } from "@/lib/adult/mode";
 import { hardNoHit, hasHardNos } from "@/lib/adult/limits";
-import { sceneLineToNarrate } from "@/lib/adult/narrate-scene";
+import { adultNarratedOpen, sceneLineToNarrate } from "@/lib/adult/narrate-scene";
 import { limitsOf, listNights, openScene } from "@/lib/adult/scenes";
 import { countUse, overCap } from "@/lib/adult/usage";
 import { FALLBACK_WRITER } from "@/lib/adult/writer-config";
@@ -14,8 +14,9 @@ const Input = z.object({ a: id, b: id, chapter: id, make: z.boolean().optional()
 
 /**
  * An After Dark chapter told as a story (lib/stories.ts): one of the viewer's saved chapters (its id), or tonight's as far
- * as it's written ("now"). Made once and kept; it counts ADULT_STORY_WRITES of the month's scene steps. Admins only
- * while it's tested: anyone else, or anyone After Dark is closed to, gets the same 404.
+ * as it's written ("now"). Made once and kept; it counts one of the month's scene steps, like any other step. Open to
+ * admins, and to everyone once the "narrated" rollout switch says so: anyone else, or anyone After Dark is closed to,
+ * gets the same 404.
  */
 export const POST = handle(async (req: Request) => {
   const db = await getDb();
@@ -52,6 +53,7 @@ export const POST = handle(async (req: Request) => {
     {
       model: await adultModel(db, process.env, { model: FALLBACK_WRITER }),
       make: input.make !== false,
+      open: await adultNarratedOpen(db, viewer),
       // The month's scene steps (lib/adult/usage.ts): refused when they're used, counted when there's room.
       charge: async (n) => {
         if (n <= 0) return null;

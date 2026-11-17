@@ -5,6 +5,11 @@ import type { ReplyLength } from "./companion-shared";
 
 /** The recent turns the prompt carries word for word; older ones are in the rolling summary. */
 export const RECENT_TURNS = 20;
+/**
+ * The longer memory the Companion Plan sells (lib/writing-style.ts hasDepth; David, 2026-11-17: what people pay for
+ * elsewhere is depth, a longer memory and a better writer): twice the turns kept word for word in each reply's prompt.
+ */
+export const DEEP_TURNS = 40;
 /** The character's own past lines it is told not to reuse. */
 export const AVOID_LINES = 30;
 
@@ -70,6 +75,8 @@ function showLife(c: Character): string[] {
 export function companionMessages(args: {
   character: Character;
   turns: readonly PromptTurn[];
+  /** The Companion Plan's longer memory (DEEP_TURNS): twice the turns kept in the prompt. */
+  deep?: boolean;
   facts: readonly PromptFact[];
   summary: string | null;
   length: ReplyLength;
@@ -245,7 +252,7 @@ export function companionMessages(args: {
   ].join("\n");
 
   const messages: ChatMessage[] = [{ role: "system", content: system }];
-  for (const t of args.turns.slice(-RECENT_TURNS)) {
+  for (const t of args.turns.slice(-(args.deep ? DEEP_TURNS : RECENT_TURNS))) {
     const role = t.role === "user" ? "user" : "assistant";
     const last = messages[messages.length - 1];
     // In a scene, what they did goes with what they said; texting, only the words (so texts don't grow stage directions).

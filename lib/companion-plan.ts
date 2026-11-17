@@ -174,18 +174,6 @@ export async function pruneCompanionUsage(db: Db, now: Date = new Date()): Promi
   await db.query(`delete from companion_usage where day < (date_trunc('month', $1::date) - interval '1 month')::date`, [now.toISOString().slice(0, 10)]);
 }
 
-/**
- * A narrated scene reply counts NARRATED_REPLY_WEIGHT replies (lib/writing-style.ts): the extra taken after it came,
- * like the first, from today's free ones (or the plan's fair use). Nothing for a reply that wasn't counted (an admin's).
- */
-export async function takeExtraReplies(db: Db, userId: string, ticket: Extract<ReplyTicket, { ok: true }>, n: number): Promise<void> {
-  if (!ticket.counted || n <= 0) return;
-  for (let i = 0; i < n; i++) {
-    await bump(db, userId, ticket.day, null);
-    if (ticket.free) await bump(db, EVERYONE, ticket.day, null);
-  }
-}
-
 /** Gives a reply back when none came. */
 export async function giveBackReply(db: Db, userId: string, ticket: Extract<ReplyTicket, { ok: true }>): Promise<void> {
   if (!ticket.counted) return;

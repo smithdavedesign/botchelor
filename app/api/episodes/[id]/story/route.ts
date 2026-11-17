@@ -3,8 +3,9 @@ import { handle, json, session } from "@/lib/http";
 import { episodeStory } from "@/lib/stories";
 
 /**
- * A finished date told as a story (lib/stories.ts): GET reads the kept one, POST makes it when there's none yet (it
- * costs STORY_TOKENS bought tokens, given back if it doesn't come). Admins only while it's tested; anyone else gets 404.
+ * A finished date told as a story (lib/stories.ts): GET reads the kept one (anyone who can see the date's lines), POST
+ * makes it when there's none yet: for one of the date's own people, the Companion Plan's members and admins; included
+ * with the plan, else STORY_TOKENS bought dates, given back if it doesn't come.
  */
 export const GET = handle(async (req: Request, ctx: { params: Promise<{ id: string }> }) => {
   const { id } = await ctx.params;

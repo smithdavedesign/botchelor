@@ -1,43 +1,65 @@
 /**
- * Who gets which writing style (lib/narration.ts), and what it costs them. David, 2026-11-17: "figure out how to increase
- * the token charge or cost for the user. keep it admin for now".
+ * Who gets which writing style (lib/narration.ts), and what it costs them.
  *
  * Each person picks a style per side of the site, kept with their account (writing_prefs):
  *  - `show`: their show dates and their companion's scenes (PG).
  *  - `adult`: their After Dark scenes.
- * Anyone can be on "script" (it's what everyone has had); "narrated" is admins only while it's tested (stylesOpen), and a
- * stored "narrated" reads as "script" for anyone it isn't open to.
+ * Anyone can be on "script" (it's what everyone has had). "Narrated", and making a story, are depth, and depth is sold
+ * with a plan, never by the line (David, 2026-11-17: "I trust your judgment for pricing"; the roleplay audit that day:
+ * everywhere else, what people pay for is a longer memory and a better writer, not per-message surcharges):
+ *  - the show: the Companion Plan includes Narrated on your dates and scenes, stories of your dates, and a longer memory
+ *    (lib/companion.ts DEEP_TURNS). Without the plan a date's own people can still have its story for STORY_TOKENS
+ *    bought dates, like a clip; reading one that exists is free for everyone who can see the date.
+ *  - After Dark: Narrated nights and chapter stories come with the subscription, at the same one scene step each as
+ *    any other step (its "narrated" rollout switch opens them; admins only until then, like every new piece there).
+ * The first version (2026-11-17, admins only) charged a second token a narrated date and double weight a step. Measured
+ * live, narration adds about 30% to a date's or a step's model spend (docs/writing-styles.md): too little to meter.
  *
- * What narrated costs (docs/writing-styles.md, "What it costs"; each pass logs its usage: episodes.generated_with
- * .narration, adult_steps.flags.narration): one extra call per 8 lines (the lines in, a beat per line out), on top of a
- * date's per-line calls, or of an After Dark step whose lines are short (so the prose is most of what comes out). The
- * prices round that up, since tokens are whole:
- *  - a narrated show date: NARRATED_DATE_EXTRA_TOKENS (1) bought token on top of the date, given back if it fails;
- *  - a story of a show date: STORY_TOKENS (1) bought token, once per date (it's kept, and free to read after);
- *  - a narrated After Dark step: NARRATED_WRITE_WEIGHT (2) of the month's scene steps (lib/adult/usage.ts cap_writes),
- *    and twice chapter_tokens for anyone who pays by the chapter;
- *  - a story of an After Dark chapter: ADULT_STORY_WRITES (2) scene steps, once per chapter;
- *  - a narrated companion scene reply: NARRATED_REPLY_WEIGHT (2) of the free day's replies (the plan stays unlimited).
- * Admins pay none of it, as with everything else.
+ * WRITING_STYLES (the show's switch; docs/hosting.md): unset or "members" is the plan's members and admins; "admins"
+ * is admins only; "0" turns Narrated and new stories off for everyone on both sides (kept stories still read).
  */
 import { isAdmin } from "./admins";
 import type { Db } from "./db";
 import { styleOf, type WritingStyle } from "./narration";
+import { planState } from "./paid-plans";
 
 export const STYLE_SIDES = ["show", "adult"] as const;
 export type StyleSide = (typeof STYLE_SIDES)[number];
 export const isStyleSide = (x: unknown): x is StyleSide => typeof x === "string" && (STYLE_SIDES as readonly string[]).includes(x);
 
-export const NARRATED_DATE_EXTRA_TOKENS = 1;
+/** What a story of a show date costs someone without the plan, in bought dates (once a date; then free to read). */
 export const STORY_TOKENS = 1;
-export const NARRATED_WRITE_WEIGHT = 2;
-export const ADULT_STORY_WRITES = 2;
-export const NARRATED_REPLY_WEIGHT = 2;
 
-/** Whether the narrated style (and stories) are open to this person: admins only while it's tested. */
-export async function stylesOpen(db: Db, userId: string | null | undefined): Promise<boolean> {
+type Env = Record<string, string | undefined>;
+export type StylesAudience = "off" | "admins" | "members";
+
+/** Who the show's Narrated style is open to (WRITING_STYLES). */
+export function stylesAudience(env: Env = process.env): StylesAudience {
+  const v = (env.WRITING_STYLES ?? "").trim().toLowerCase();
+  return v === "0" || v === "off" ? "off" : v === "admins" ? "admins" : "members";
+}
+
+/** Whether they have the depth the Companion Plan sells (Narrated, stories, the longer memory): the plan, or an admin. */
+export async function hasDepth(db: Db, userId: string | null | undefined, now: Date = new Date()): Promise<boolean> {
   if (!userId) return false;
-  return isAdmin(db, userId).catch(() => false);
+  if (await isAdmin(db, userId).catch(() => false)) return true;
+  return (await planState(db, userId, "companion", now).catch(() => null))?.active === true;
+}
+
+/**
+ * Whether the narrated style is open to this person on a side.
+ * The show: by WRITING_STYLES (the plan's members and admins, admins only, or nobody).
+ * After Dark: admins, and everyone it's open to once its "narrated" rollout switch says so (`adultOpenToAll`: the caller
+ * reads the switch, lib/adult/rollout.ts, since this file is the show's and never reads After Dark's settings).
+ */
+export async function stylesOpen(db: Db, userId: string | null | undefined, side: StyleSide = "show", opts: { adultOpenToAll?: boolean; env?: Env } = {}): Promise<boolean> {
+  if (!userId) return false;
+  const audience = stylesAudience(opts.env);
+  if (audience === "off") return false;
+  const admin = await isAdmin(db, userId).catch(() => false);
+  if (admin) return true;
+  if (side === "adult") return opts.adultOpenToAll === true;
+  return audience === "members" && (await hasDepth(db, userId));
 }
 
 /** Their styles as stored (script where they never picked). */
@@ -47,16 +69,16 @@ export async function storedStyles(db: Db, userId: string): Promise<Record<Style
 }
 
 /** The style their new dates or scenes on `side` are written in: what they picked, while it's open to them. */
-export async function styleFor(db: Db, userId: string | null | undefined, side: StyleSide): Promise<WritingStyle> {
+export async function styleFor(db: Db, userId: string | null | undefined, side: StyleSide, opts: { adultOpenToAll?: boolean } = {}): Promise<WritingStyle> {
   if (!userId) return "script";
   const stored = (await storedStyles(db, userId).catch(() => null))?.[side] ?? "script";
   if (stored === "script") return "script";
-  return (await stylesOpen(db, userId)) ? stored : "script";
+  return (await stylesOpen(db, userId, side, opts)) ? stored : "script";
 }
 
 /** Sets their style on one side. False when it isn't open to them (script is always allowed). */
-export async function setStyle(db: Db, userId: string, side: StyleSide, style: WritingStyle): Promise<boolean> {
-  if (style !== "script" && !(await stylesOpen(db, userId))) return false;
+export async function setStyle(db: Db, userId: string, side: StyleSide, style: WritingStyle, opts: { adultOpenToAll?: boolean } = {}): Promise<boolean> {
+  if (style !== "script" && !(await stylesOpen(db, userId, side, opts))) return false;
   const col = side === "show" ? "show_style" : "adult_style";
   await db.query(
     `insert into writing_prefs (user_id, ${col}) values ($1, $2) on conflict (user_id) do update set ${col} = excluded.${col}, updated_at = now()`,
@@ -65,13 +87,7 @@ export async function setStyle(db: Db, userId: string, side: StyleSide, style: W
   return true;
 }
 
-/** What narrating costs this person on top, in bought tokens or weight: none for an admin. */
-export async function extraFor(db: Db, userId: string, n: number): Promise<number> {
-  if (n <= 0) return 0;
-  return (await isAdmin(db, userId).catch(() => false)) ? 0 : n;
+/** What making a show date's story costs this person, in bought dates: nothing with the plan (or for an admin). */
+export async function storyPrice(db: Db, userId: string): Promise<number> {
+  return (await hasDepth(db, userId)) ? 0 : STORY_TOKENS;
 }
-
-/** What one of their steps counts against the month's scene steps, in this style. */
-export const writeWeight = (style: WritingStyle): number => (style === "narrated" ? NARRATED_WRITE_WEIGHT : 1);
-/** What one of their companion scene replies counts against the free day's replies, in this style. */
-export const replyWeight = (style: WritingStyle): number => (style === "narrated" ? NARRATED_REPLY_WEIGHT : 1);

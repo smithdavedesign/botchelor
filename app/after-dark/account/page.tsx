@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import WritingStylePicker from "@/app/WritingStylePicker";
-import { storedStyles, stylesOpen } from "@/lib/writing-style";
+import { adultNarratedOpen } from "@/lib/adult/narrate-scene";
+import { storedStyles } from "@/lib/writing-style";
 import { cookies } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -44,8 +45,8 @@ export default async function AfterDarkAccountPage() {
     getPrivacy(db, owner),
     writerOptions(db, owner),
     subscriptionState(db, owner),
-    // Writing styles (lib/writing-style.ts): admins only while it's tested.
-    stylesOpen(db, owner).then(async (open) => (open ? (await storedStyles(db, owner)).adult : null)),
+    // Writing styles (lib/writing-style.ts): admins, and everyone once the "narrated" rollout switch opens it.
+    adultNarratedOpen(db, owner).then(async (open) => (open ? (await storedStyles(db, owner)).adult : null)),
   ]);
   // Why it's open, when it isn't a subscription: an admin, a beta pass, a free taste (lib/adult/entitlement.ts).
   const why = entitled.why;

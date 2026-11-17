@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { styleFor, writeWeight } from "@/lib/writing-style";
 import { answerBeat, PICTURE_FIELD_MAX, pictureNow, previewPicture, redrawPicture, SCENE_CUSTOM_MAX, SCENE_DIALOG_MAX } from "@/lib/adult/beats";
 import { adultViewer } from "@/lib/adult/mode";
 import { listMedia } from "@/lib/adult/media";
@@ -136,8 +135,7 @@ const surface = (b: Record<string, unknown>): CrisisSurface => (b.whisper ? "aft
  * bounded by the month's scene steps. The tokens taken, or the refusal; the caller gives them back if no lines come.
  */
 async function payChapter(db: Db, viewer: string, a: string, b: string, opts: { always?: boolean } = {}): Promise<{ paid: number } | Response> {
-  // A narrated night costs its chapters writeWeight times over (lib/writing-style.ts), for anyone who pays by the chapter.
-  const price = (await includedPrice(db, viewer, (await getAdultSettings(db)).chapter_tokens * writeWeight(await styleFor(db, viewer, "adult")))).tokens;
+  const price = (await includedPrice(db, viewer, (await getAdultSettings(db)).chapter_tokens)).tokens;
   if (price <= 0) return { paid: 0 };
   if (!opts.always) {
     const scene = await openScene(db, viewer, a, b);
