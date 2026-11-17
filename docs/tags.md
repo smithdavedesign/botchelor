@@ -62,6 +62,55 @@ themes and heat. The old `tag` (show) and `category` (After Dark place shelves) 
   with a count. Each card lists its tags, and a heat that clashes with the pair's hard nos says so. Step in's dropdown
   groups by each roleplay's first setup.
 
+## Characters
+
+Each character carries up to 4 **type** tags in `character_tags` (`lib/character-tags.ts`). The row is keyed to the
+character with a cascading foreign key, so it has no person column. A character has tags from one source at a time:
+
+- **owner**: picked by the owner on /create or the edit page (the "What kind of person?" chips), or over MCP
+  (`create_character` / `update_character` `tags`). An empty pick hands them back to the show.
+- **house**: the show's hand tags for its code-defined cast (`HOUSE_TAGS`).
+- **auto**: read from the traits, plus a few plain nouns in the bio ("a vampire", "a bodyguard"), by `autoTags`. Everyday
+  bio words are never read. A create or an edit refreshes these, and the lobby job fills any character without tags,
+  200 a pass (`fillCharacterTags`; step-in personas are skipped).
+
+Where they show:
+
+- **/characters**: a quiet line on each card, and the search takes "Any type" and "Any love life" menus
+  (`?type=&status=`), with or without words.
+- **/companion**: the same line on each tile, and Type and Love life filters. Each menu lists only what someone in the
+  list has.
+- **MCP 2.36.0**: `get_character` (`tags`, `tags_from`, `love_life`), `search_characters` (`type` and `love_life`
+  filters, and both on each result), `companion` list cards, and the roleplay catalog's `tags`.
+- **Account export**: each character's tags, with where they came from.
+
+**Love life** (single, seeing someone, taken, married) is the most committed public stage across a character's pairs
+(`statusOf`). It's read in SQL by `statusSql` (built from the same mapping, so the two can't disagree) from
+`public_shown_stage`, or `public_stage` when there is none. A private date, or anything only an owner can see, never
+changes it. It's never stored.
+
+## Demand
+
+The census is someone else's numbers. Once people pick on Botchelor, the pickers lean on ours instead
+(`lib/tag-demand.ts`, After Dark's in `lib/adult/tag-demand.ts`).
+
+- **What counts.** On the show: the roleplay of each date (`episodes.setup.roleplay`) and each companion scene
+  (`companion_threads.roleplay`), and for types, each companion conversation by the tags of whoever it's with. In
+  After Dark: the roleplay of each Set the scene (`adult_scenes.roleplay`) and each Step in
+  (`adult_step_in_scenes.roleplay`). The last 90 days; one written for the date ("custom") counts toward nothing.
+- **Whose.** Real people's and agents' only. Admins, reviewers, our own MCP clients and test characters
+  (`loadOurIds`, `lib/our-traffic.ts`) are left out, or our live checks would set the order.
+- **The number.** A tag's share of the picks divided by its share of what's on offer: 1.00× is picked as often as
+  it's offered. Our counts are small, so it's capped at 3× and then shrunk toward the census:
+  `(picks × ours + 30 × census) ÷ (picks + 30)`. One pick moves a tag a few hundredths; a hundred mostly speak for
+  themselves.
+- **Who reads it.** The show's pickers fetch `GET /api/tags/demand`: roleplays on dates and in companion scenes, the
+  type chips on /create, the type menus on /characters and /companion. After Dark's Set the scene and Step in fetch
+  `GET /api/admin/after-dark/tag-demand` (members only). Both are cached an hour, and both pickers start in the
+  census's order, so nothing waits on them.
+- **Where to look.** Admin → Tags (`/admin/tags`) has the show's tables, picks, supply, ours, the census and the
+  blend; After Dark's are at `/admin/after-dark/tags`.
+
 ## Never
 
 On either side, none of these is ever a tag, a label or a description, whatever the census said:

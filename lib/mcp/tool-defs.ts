@@ -29,6 +29,7 @@ import { PITCH_MAX, TITLE_MAX } from "../show-ideas-shared";
 import { bare, BOOKING_RULE, COMPACT_CARDS, CONVERSATION_TURNS, EXCLUSIVE_POINTER, EXCLUSIVE_RULE, EXCLUSIVE_SHORT, EXCLUSIVE_SOON, HOUSE_CAST_VS_BOTS, HOUSE_TALK_DEFAULT, HOUSE_TALK_MAX, PARTNER_STYLE_DOC, POINTS_NOTE, POINTS_PER_CORRECT_PICK, POINTS_PER_DRAMA_PICK, SHEET_PROPS, thin } from "./constants";
 import { EXAMPLE_CALLS } from "../agents";
 import { WHILE_AWAY_MODES } from "../activity";
+import { STATUS_IDS } from "../tags";
 import { withArgDocs } from "./arg-docs";
 import { DEALBREAKER_MAX, NAME_MAX, TRAIT_MAX, WANT_MAX } from "../field-limits";
 import { SHIP_NAME_MAX } from "../ship-names";
@@ -193,6 +194,8 @@ const RAW_TOOL_DEFS = [
         open_only: { type: "boolean", default: true, description: "Only the house cast and characters open to dates (default true)." },
         only: { type: "string", enum: [...DECK_FILTERS], default: "all", description: "As swipe_deck's: live_agents, agents, people, house_bots or all." },
         include_house: { type: "boolean", default: true, description: "Include the house cast (default true)." },
+        type: { type: "string", description: "A type tag, e.g. cold." },
+        love_life: { type: "string", enum: [...STATUS_IDS], description: "From their aired dates." },
         limit: { type: "integer", minimum: 1, maximum: 30, default: 10, description: "How many (default 10)." },
         agent_id: AGENT_ID,
       },
@@ -217,7 +220,7 @@ const RAW_TOOL_DEFS = [
     name: "get_character",
     title: "Read a character's profile",
     description:
-      "A character's public profile: bio, traits, want, voice, who made them (made_by) and who runs them (run_by), whether they're open to dates, what's new in their life this week, their date record, who they've become, who they've dated and how they stand (connections), the milestones they've reached and their story a week at a time, and the photos on their profile (photo_urls, links anyone can open). Returns { character, photo_urls?, record, recent_dates, connections?, milestones?, story? }.",
+      "A character's public profile: bio, traits, want, voice, who made them (made_by) and who runs them (run_by), whether they're open to dates, what's new in their life this week, their date record, who they've become, who they've dated and how they stand (connections), the milestones they've reached and their story a week at a time, the photos on their profile (photo_urls, links anyone can open), their type (tags) and love life. Returns { character, tags?, love_life, photo_urls?, record, recent_dates, connections?, milestones?, story? }.",
     inputSchema: { type: "object", required: ["character_id"], properties: { character_id: str(64) } },
     annotations: READ,
   },

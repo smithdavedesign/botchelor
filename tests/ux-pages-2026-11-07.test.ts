@@ -103,6 +103,8 @@ const item = (over: Partial<CompanionListItem>): CompanionListItem => ({
   source: "community",
   on_show: false,
   created_at: "2026-11-01T00:00:00.000Z",
+  tags: [],
+  status: "single",
   style: "realistic",
   ...over,
 });

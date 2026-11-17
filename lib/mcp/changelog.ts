@@ -31,6 +31,17 @@ export type McpRelease = {
 /** Newest first. */
 export const MCP_CHANGELOG: readonly McpRelease[] = [
   {
+    version: "2.36.0",
+    date: "2026-11-17",
+    title: "Tags: what kind of person, and who's seeing whom",
+    changes: [
+      "create_character and update_character take tags: up to 4 type tags (cold, hard_to_get, takes_charge, sunshine, grump…); a wrong one is refused with the whole list, and [] lets the show read them from the traits. Left out, the show reads them from the traits.",
+      "get_character returns tags (and tags_from: owner, house or auto) and love_life: single, seeing, taken or married, read from aired dates only.",
+      "search_characters filters by type (a type tag) and love_life, and each result carries its tags and love_life.",
+      "companion list cards carry tags and love_life; my_roleplays' catalog lists each roleplay's tags (who they are to each other, then the kind of story).",
+    ],
+  },
+  {
     version: "2.35.0",
     date: "2026-11-17",
     title: "Choose how a companion scene opens",

@@ -78,6 +78,7 @@ import { stampDateStarted } from "@/lib/engagement-keys";
 import { DEFAULT_FIRST_DATE_FORMAT, FIRST_DATE_STEPS, offerFirstDate, pickFirstPartner } from "@/lib/first-date";
 import { fillProfile } from "@/lib/profile-fill";
 import { queueEvent } from "@/app/engagement";
+import TypeTagChips from "./TypeTagChips";
 import {
   EXPRESS_CLIENT_TIMEOUT_MS,
   EXPRESS_EXAMPLES,
@@ -128,6 +129,8 @@ export type EditInitial = {
   hue: number | null;
   soul: Soul | null;
   openToDates: boolean;
+  /** Their owner's own type tags (lib/character-tags.ts), or null when the show reads them from the traits. */
+  ownTags?: string[] | null;
   extras: CharacterExtras;
   /** Their behaviour was trained from an image or a curated look (kept unless re-trained). */
   imageTrained: boolean;
@@ -397,6 +400,8 @@ export default function CreateWizard({
   const [week, setWeek] = useState(init?.thisWeek ?? "");
   // What they're hiding (Go deeper): saved as their own secrets beside the sheet, not in extras.
   const [hiding, setHiding] = useState<string[]>(init?.hiding ?? []);
+  // What kind of person (docs/tags.md): null until they choose, and the show reads them from the traits.
+  const [typeTags, setTypeTags] = useState<string[] | null>(init?.ownTags ?? null);
   // Filled from a sample (applySample): Review says so, and how to change it.
   const [fromSample, setFromSample] = useState(false);
   // Brought in from another app (/import): what came in, what's still needed and what was left out, said on step one.
@@ -873,6 +878,7 @@ export default function CreateWizard({
         ...(hasExtras(sent) ? { extras: sent } : {}),
         ...(week.trim() ? { this_week: week.trim() } : {}),
         ...(hidingList(hiding).length ? { hiding: hidingList(hiding) } : {}),
+        ...(typeTags?.length ? { tags: typeTags } : {}),
         attest,
       });
       if (status === 201) {
@@ -939,6 +945,8 @@ export default function CreateWizard({
           ...(JSON.stringify(hidingList(hiding)) !== JSON.stringify(hidingList(init?.hiding ?? [])) ? { hiding: hidingList(hiding) } : {}),
           ...(imageSignals ? { image_signals: imageSignals } : {}),
           ...(!imageSignals && temperamentCleared && init?.temperament ? { temperament: null } : {}),
+          // Their own pick when it changed; [] hands them back to the show (lib/character-tags.ts setOwnerTags).
+          ...(JSON.stringify(typeTags ?? []) !== JSON.stringify(init?.ownTags ?? []) ? { tags: typeTags ?? [] } : {}),
         },
         "PATCH",
       );
@@ -1319,6 +1327,7 @@ export default function CreateWizard({
                 />
               ))}
             </div>
+            <TypeTagChips value={typeTags} onChange={setTypeTags} traits={traits} bio={sheet.bio} />
             <label>
               What they want from a date
               <input type="text" name="want" required maxLength={WANT_MAX} placeholder={SHEET_EXAMPLE.want} value={sheet.want} onChange={(e) => setField("want", e.target.value)} />

@@ -137,7 +137,8 @@ export async function runCompanionTool(db: Db, agentId: string, args: Record<str
 
   if (action === "list") {
     const { threads, yours, cast } = await listCompanions(db, agentId);
-    const card = (c: (typeof cast)[number]) => ({ character_id: c.id, name: c.name, bio: c.bio.slice(0, 140), house: c.house, ...(c.thread_id ? { thread_id: c.thread_id, last: c.last, last_at: c.last_at } : {}) });
+    // 2.36.0: what kind of person each is, and their love life on the show (lib/character-tags.ts, public layer only).
+    const card = (c: (typeof cast)[number]) => ({ character_id: c.id, name: c.name, bio: c.bio.slice(0, 140), house: c.house, ...(c.tags.length ? { tags: c.tags } : {}), love_life: c.status, ...(c.thread_id ? { thread_id: c.thread_id, last: c.last, last_at: c.last_at } : {}) });
     return { data: { threads: threads.map(card), yours: yours.map(card), cast: cast.slice(0, 40).map(card), note: "open or send with a character_id to talk with one." } };
   }
 

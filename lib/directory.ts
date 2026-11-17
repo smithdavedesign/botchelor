@@ -9,6 +9,8 @@ import type { Db } from "./db";
 import { originSql, type Origin } from "./origin";
 import { DELETED_OWNER } from "./rules";
 import { notPersonaSql } from "./step-in-shared";
+import { statusSql } from "./character-tags";
+import type { Status, TagId } from "./tags";
 
 export type DirectoryEntry = {
   id: string;
@@ -29,6 +31,8 @@ export type DirectoryEntry = {
   hometown: string | null;
   /** Anyone may talk with them (lib/companion.ts companionEligible): the house cast (not premium) or companion_open. */
   companion: boolean;
+  /** What kind of person they are (lib/character-tags.ts), in vocabulary order; none for a private one. */
+  tags: TagId[];
 };
 
 /** Cards per page on a long tab. */
@@ -40,11 +44,12 @@ const SELECT = `select c.id, c.name, c.traits, c.avatar_hue as hue, c.is_house a
                       (select count(*) from character_reviews r where r.character_id = c.id)::int as reviews,
                       (select round(avg(stars)::numeric, 1)::float from character_reviews r where r.character_id = c.id) as stars,
                       c.age, c.pronouns, nullif(c.extras->>'occupation', '') as occupation, nullif(c.extras->>'hometown', '') as hometown,
-                      ((c.is_house and c.premium_sku is null) or c.companion_open) and c.visibility <> 'private' as companion
+                      ((c.is_house and c.premium_sku is null) or c.companion_open) and c.visibility <> 'private' as companion,
+                      coalesce((select array_agg(t.tag order by t.tag) from character_tags t where t.character_id = c.id), '{}') as tags
                  from characters c`;
 
 /** A private character keeps only its name (and its id, for a stable avatar tile). */
-const shown = (e: DirectoryEntry): DirectoryEntry => (e.private ? { ...e, traits: [], portrait: null, reviews: 0, stars: null, age: null, pronouns: null, occupation: null, hometown: null, companion: false } : e);
+const shown = (e: DirectoryEntry): DirectoryEntry => (e.private ? { ...e, traits: [], portrait: null, reviews: 0, stars: null, age: null, pronouns: null, occupation: null, hometown: null, companion: false, tags: [] } : e);
 
 /** The most a Yours tab lists (and the Constellation's "Yours" filter counts). */
 export const OWN_CHARACTERS_MAX = 50;
@@ -147,17 +152,29 @@ const SEARCHABLE = `lower(concat_ws(' ', c.name, c.bio, c.traits::text, c.extras
  * deleted account's character (LISTED), and never a private one, not even by name (its bio and traits would answer the
  * search). House characters of every season are in, as the cast tab lists them. Whole-name matches first, then the
  * cast, then by name. At most `limit`; `more` says there were others.
+ *
+ * Two filters narrow it, with or without words (docs/tags.md): a type tag (lib/character-tags.ts) and a love life,
+ * read from the relationship graph's public columns only (statusSql), so a private date never shows who's seeing whom.
  */
-export async function searchDirectory(db: Db, query: string, limit = DIRECTORY_SEARCH_LIMIT): Promise<{ entries: DirectoryEntry[]; more: boolean }> {
+export async function searchDirectory(
+  db: Db,
+  query: string,
+  limit = DIRECTORY_SEARCH_LIMIT,
+  filters: { type?: TagId | null; status?: Status | null } = {},
+): Promise<{ entries: DirectoryEntry[]; more: boolean }> {
   const q = parseDirectoryQuery(query).toLowerCase();
   const words = [...new Set(q.split(" ").filter(Boolean))].slice(0, SEARCH_WORDS_MAX);
-  if (!words.length) return { entries: [], more: false };
+  const type = filters.type ?? null;
+  const status = filters.status ?? null;
+  if (!words.length && !type && !status) return { entries: [], more: false };
   const { rows } = await db.query<DirectoryEntry>(
     `${SELECT}
       where ${LISTED} and c.visibility <> 'private' and ${SEARCHABLE} like all($2::text[])
+        and ($5::text is null or exists (select 1 from character_tags t where t.character_id = c.id and t.tag = $5))
+        and ($6::text is null or ${statusSql("c.id")} = $6)
       order by lower(c.name) like $3 desc, c.is_house desc, lower(c.name), c.id
       limit $4`,
-    [DELETED_OWNER, words.map(likeWord), likeWord(q), limit + 1],
+    [DELETED_OWNER, words.map(likeWord), q ? likeWord(q) : "", limit + 1, type, status],
   );
   return { entries: rows.slice(0, limit).map(shown), more: rows.length > limit };
 }

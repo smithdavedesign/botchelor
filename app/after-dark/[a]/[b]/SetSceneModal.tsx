@@ -7,6 +7,7 @@ import { normalizeScene } from "@/lib/venues";
 import { ROLEPLAYS, roleplayById, rolesLine, type Roleplay } from "@/lib/adult/roleplays";
 import { adultTagById, roleplayShelves, tagHardNos, type RoleplayShelf } from "@/lib/adult/tags";
 import { HARD_NOS } from "@/lib/adult/limits";
+import { useAdultTagDemand } from "@/app/after-dark/useAdultTagDemand";
 
 const ICON = Object.fromEntries(SCENE_CATEGORIES.map((c) => [c.id, c.icon])) as Record<SceneCategory, string>;
 
@@ -89,6 +90,8 @@ export default function SetSceneModal({
   const [place, setPlace] = useState<string | null>(null);
   const [pick, setPick] = useState<RoleplayPick>(roleplay);
   const [rpShelf, setRpShelf] = useState<string | null>(null);
+  // What members pick (lib/adult/tag-demand.ts) orders the shelves once it's here; the census until then.
+  const demand = useAdultTagDemand();
   // Each time it opens: the screen asked for, the running roleplay picked.
   useEffect(() => {
     if (!open) return;
@@ -127,7 +130,7 @@ export default function SetSceneModal({
   // Theirs first, filed under ✨ Yours (and their own category too).
   const allRoleplays: readonly Roleplay[] = [...myRoleplays, ...ROLEPLAYS];
   // Shelves by tag (lib/adult/tag-shelves.ts): ✨ Yours, who they are to each other, then the kind of story and its heat.
-  const shelves = roleplayShelves(allRoleplays);
+  const shelves = roleplayShelves(allRoleplays, demand ?? undefined);
   const shelf: RoleplayShelf | null = shelves.flat().find((s) => s.id === rpShelf) ?? null;
   const roleplays = shelf ? allRoleplays.filter(shelf.has) : allRoleplays;
   /** The pair's hard nos a roleplay's heat runs into: it stays pickable (the limit holds anyway), and says so. */
