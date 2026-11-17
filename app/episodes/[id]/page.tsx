@@ -24,7 +24,8 @@ import { getEpisodeView, getPoints } from "@/lib/game";
 import { partyIdForEpisode } from "@/lib/watch";
 import { PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
 import { authFromCookieStore, userIdFromCookieStore } from "@/lib/http";
-import { companionAllowed, companionEligible, companionOpen } from "@/lib/companion";
+import { chatDateLinks, companionAllowed, companionEligible, companionOpen, companionThreadHref } from "@/lib/companion";
+import { textsAboutDate, type TextedAbout } from "@/lib/chat-date-links";
 import TalkButton from "@/app/companion/TalkButton";
 import { companionGuestFromCookies } from "@/lib/companion-access";
 import { secondDateState } from "@/lib/second-date";
@@ -257,6 +258,7 @@ export default async function EpisodePage({
     adBridge,
     overnight,
     continueNight,
+    textedAbout,
   ] = await Promise.all([
     // 🌙 on a date that carried an After Dark memory, only for someone After Dark is open to (never a hint to anyone else).
     episode.after_dark
@@ -334,6 +336,9 @@ export default async function EpisodePage({
           .then((h) => viewerContinue(db, auth, h, cookieStore, cookieStore.get(ADULT_COOKIE)?.value === "1", id))
           .catch(() => null)
       : null,
+    // "{Name} texted you about this" (lib/chat-date-links.ts): the viewer's own threads whose character texted them
+    // about this date. Asked only for an owner of one of the two; nobody else is ever shown it. CHAT_DATE_LINKS=0: never.
+    ready && episode.is_creator && viewerId && chatDateLinks() ? textsAboutDate(db, viewerId, id).catch((): TextedAbout[] => []) : ([] as TextedAbout[]),
   ]);
   const talk = await talkP;
   const performer = performerRows.rows[0];
@@ -562,6 +567,29 @@ export default async function EpisodePage({
           <p className="muted">
             🍸 Round {mixer.round} of {mixer.rounds} at the mixer at {venuePhrase(mixer.venue)}: everyone was in one room.{" "}
             <Link href={`/mixers/${mixer.night_id}`}>Watch the whole night</Link>, every table in order.
+          </p>
+        )}
+        {textedAbout.length > 0 && (
+          // Their own character's texts about this date, one tap away (the owner of a side only: see the read above).
+          <p className="muted" data-chat-about>
+            💬{" "}
+            {textedAbout.length === 1 ? (
+              <Link href={companionThreadHref(textedAbout[0].thread_id)} data-track="episode-texted-about">
+                {firstName(textedAbout[0].name)} texted you about this
+              </Link>
+            ) : (
+              <>
+                {textedAbout.map((x, i) => (
+                  <span key={x.thread_id}>
+                    {i > 0 && (i === textedAbout.length - 1 ? " and " : ", ")}
+                    <Link href={companionThreadHref(x.thread_id)} data-track="episode-texted-about">
+                      {firstName(x.name)}
+                    </Link>
+                  </span>
+                ))}{" "}
+                texted you about this
+              </>
+            )}
           </p>
         )}
         {episode.creators && (
@@ -909,6 +937,8 @@ export default async function EpisodePage({
     </article>
   );
 }
+
+const firstName = (name: string) => name.trim().split(/\s+/)[0] || name;
 
 /** A recap scene without the "act 1: First impressions." the writer sometimes starts it with, when it repeats the
  *  heading above it. Only that act's own label is taken off, never a first sentence. */

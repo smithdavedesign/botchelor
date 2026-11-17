@@ -141,7 +141,7 @@ describe("the phone's tab bar", () => {
   it("is mounted once in the layout, never on After Dark's host", () => {
     const layout = source("app/layout.tsx");
     expect(layout.match(/<PhoneTabBar /g)).toHaveLength(1);
-    expect(layout).toContain("{!adHost && <PhoneTabBar companions={companionOpen()} chat={navChat} unread={texts} />}");
+    expect(layout).toContain("{!adHost && <PhoneTabBar companions={companionOpen()} chat={navChat} unread={texts} hasCharacter={hasCharacter} />}");
   });
 
   it("is a phone's only (720px), hides with the full-screen views, and lifts what floats at the foot above it", () => {

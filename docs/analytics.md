@@ -246,3 +246,13 @@ Every page in the browser sends, in batches of up to 25 every few seconds and wh
 
 To add a measure: a branch in `GRID_SQL` (with its people, agents, house and ours columns), a card in `loadInsights`
 with a one-line definition, a row in the table above, and a test.
+
+## Named clicks are stored with underscores (2026-11-16)
+
+A control's `data-track` value is its event's name. Nearly all of them are written with hyphens (`character-follow`,
+`chat-text-someone`), and until 2026-11-16 the server's rule for a name (`lib/event-name.ts`: lower-case letters, digits
+and underscores) turned every hyphenated one away without a word: 123 of 129 names, none ever stored, so there is no
+history of them before that day. Both the browser (`app/engagement.ts` `queueEvent`) and the server
+(`lib/engagement.ts` `cleanBeacon`) now pass a name through `eventName`, which stores a hyphen as an underscore:
+`data-track="character-follow"` is the event `character_follow`. `tests/event-names.test.ts` reads every name in the
+source and fails on one the server would not keep, or on two that would collapse into one.

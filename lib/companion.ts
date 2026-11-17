@@ -18,9 +18,12 @@ import {
   companionEligibleSql,
   companionNotice,
   companionOpen,
+  aboutDateLabel,
+  chatDateLinks,
   datePhotoEpisode,
   isScenePlace,
   isTextTag,
+  tagEpisode,
   textLink,
   type CompanionCharacterRef,
   type CompanionMessageView,
@@ -35,6 +38,7 @@ import type { Db } from "./db";
 import { activeNudge } from "./between-dates";
 import { nextTimeFor, openOffers, type StoredOffers } from "./companion-offers";
 import { castOpenerLines, castOpenerTag } from "./cast-opener";
+import { threadDates } from "./chat-date-links";
 import { openQuestion, type StoredQuestion } from "./character-question-fields";
 import { textPhoto, type TextPhoto } from "./date-photo";
 import { lastAiredDateOf, lastDateOf } from "./last-date";
@@ -209,12 +213,14 @@ async function addMessage(
     offers?: StoredOffers | StoredQuestion | null;
     /** A photo message (lib/date-photo.ts): where it's drawn; `text` is then its alt text. */
     photoUrl?: string | null;
+    /** The date a written text is about (companion_messages.episode_id): only ever from its tag (writeText), never a reply's. */
+    episodeId?: string | null;
   } = {},
 ): Promise<string> {
   const id = randomUUID();
   await db.query(
-    `insert into companion_messages (id, thread_id, role, text, model, cost, created_at, scene, action, marker, roleplay, on_call, offers, via, media_url) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb, $14, $15)`,
-    [id, threadId, role, text, extra.model ?? null, extra.cost ?? null, at.toISOString(), extra.scene ?? null, extra.action ?? null, extra.marker ?? null, extra.roleplay ?? null, extra.onCall === true, extra.offers ? JSON.stringify(extra.offers) : null, extra.photoUrl ? "photo" : "text", extra.photoUrl ?? null],
+    `insert into companion_messages (id, thread_id, role, text, model, cost, created_at, scene, action, marker, roleplay, on_call, offers, via, media_url, episode_id) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb, $14, $15, $16)`,
+    [id, threadId, role, text, extra.model ?? null, extra.cost ?? null, at.toISOString(), extra.scene ?? null, extra.action ?? null, extra.marker ?? null, extra.roleplay ?? null, extra.onCall === true, extra.offers ? JSON.stringify(extra.offers) : null, extra.photoUrl ? "photo" : "text", extra.photoUrl ?? null, extra.episodeId ?? null],
   );
   return id;
 }
@@ -231,14 +237,17 @@ function writtenLines(raw: readonly string[]): string[] | null {
 /**
  * Puts a written text (no model) in a thread as the character's: its bubbles, all with `tag`, the offers on the first,
  * and its photo (lib/date-photo.ts) as a message of its own right after the first bubble, the way a person sends one:
- * "back from the date with Nell", the picture, then the rest. Returns the bubbles' ids (the photo's isn't one).
+ * "back from the date with Nell", the picture, then the rest. A text about a date (its tag names one) is written with
+ * that date's id on every row. Returns the bubbles' ids (the photo's isn't one).
  */
 async function writeText(db: Db, threadId: string, now: Date, o: { lines: readonly string[]; tag: string; offers?: StoredOffers | StoredQuestion | null; photo?: TextPhoto | null }): Promise<string[]> {
   const ids: string[] = [];
   let n = 0;
+  // The date the text is about, when its tag names one (lib/companion-shared.ts tagEpisode): the key every bubble carries.
+  const episodeId = tagEpisode(o.tag);
   for (const [i, text] of o.lines.entries()) {
-    ids.push(await addMessage(db, threadId, "character", text, tick(now, ++n), { action: o.tag, offers: i === 0 ? (o.offers ?? null) : null }));
-    if (i === 0 && o.photo) await addMessage(db, threadId, "character", clean(o.photo.alt).slice(0, BUBBLE_MAX), tick(now, ++n), { action: o.tag, photoUrl: o.photo.url });
+    ids.push(await addMessage(db, threadId, "character", text, tick(now, ++n), { action: o.tag, offers: i === 0 ? (o.offers ?? null) : null, episodeId }));
+    if (i === 0 && o.photo) await addMessage(db, threadId, "character", clean(o.photo.alt).slice(0, BUBBLE_MAX), tick(now, ++n), { action: o.tag, photoUrl: o.photo.url, episodeId });
   }
   await db.query(`update companion_threads set last_at = $2 where id = $1`, [threadId, tick(now, n + 1).toISOString()]);
   return ids;
@@ -420,9 +429,9 @@ export async function getThread(db: Db, userId: string, threadId: string): Promi
   if (!t) return NOT_FOUND;
   const ref = await characterRef(db, t.character_id, userId);
   if (!ref) return NOT_FOUND;
-  const [{ rows: msgs }, { rows: facts }, nextTime, realPhotos] = await Promise.all([
-    db.query<{ id: string; role: "user" | "character" | "system"; text: string; created_at: string; reported: string | null; scene: string | null; action: string | null; marker: CompanionMessageView["marker"]; roleplay: string | null; voice_key: string | null; on_call: boolean; offers: StoredOffers | null; via: string; media_url: string | null }>(
-      `select id, role, text, created_at, reported, scene, action, marker, roleplay, voice_key, on_call, offers, via, media_url from companion_messages where thread_id = $1 and replaced_by is null order by created_at asc, id asc`,
+  const [{ rows: msgs }, { rows: facts }, nextTime, realPhotos, dates] = await Promise.all([
+    db.query<{ id: string; role: "user" | "character" | "system"; text: string; created_at: string; reported: string | null; scene: string | null; action: string | null; marker: CompanionMessageView["marker"]; roleplay: string | null; voice_key: string | null; on_call: boolean; offers: StoredOffers | null; via: string; media_url: string | null; episode_id: string | null }>(
+      `select id, role, text, created_at, reported, scene, action, marker, roleplay, voice_key, on_call, offers, via, media_url, episode_id from companion_messages where thread_id = $1 and replaced_by is null order by created_at asc, id asc`,
       [threadId],
     ),
     db.query<{ n: number }>(`select count(*)::int as n from companion_facts where thread_id = $1`, [threadId]),
@@ -431,11 +440,18 @@ export async function getThread(db: Db, userId: string, threadId: string): Promi
     // Their own character's dates may have a real photo, made in the PG Studio (lib/studio/date-photos.ts): it stands
     // in for the composed snapshot. Owner-only, like the photos themselves.
     ref.yours ? realDatePhotos(db, threadId).catch(() => new Map<string, string>()) : Promise.resolve(new Map<string, string>()),
+    // The dates this thread's texts are about that this person may open, with the partner's name (lib/chat-date-links.ts):
+    // beside the reads above, so the thread waits on nothing more. CHAT_DATE_LINKS=0: none.
+    chatDateLinks() ? threadDates(db, { threadId, characterId: t.character_id, viewer: userId }).catch(() => new Map<string, { partner: string }>()) : Promise.resolve(new Map<string, { partner: string }>()),
   ]);
   // The link goes under the last bubble of a text whose tag says so: "Watch the date" (the cast's opener, the tease), or
   // the house scene a text is about (lib/companion-shared.ts textLink).
   const lastOfTag = new Map<string, string>();
   for (const m of msgs) if (m.role === "character" && m.via !== "photo" && textLink(m.action)) lastOfTag.set(m.action!, m.id);
+  // "About your date with Nell" goes under the last bubble of a text about a date they may open (its episode_id), once
+  // a text, and never beside a "Watch the date" link to the same date.
+  const lastAbout = new Map<string, string>();
+  for (const m of msgs) if (m.role === "character" && m.via !== "photo" && m.action && m.episode_id && dates.has(m.episode_id) && !textLink(m.action)) lastAbout.set(m.action, m.id);
   // The locked tile goes under the last bubble of a locked-picture text (lib/locked-picture.ts), while the switch is on.
   const lastLocked = new Map<string, string>();
   if (lockedPictureTextsOn()) for (const m of msgs) if (m.role === "character" && lockedPictureEpisode(m.action)) lastLocked.set(m.action!, m.id);
@@ -465,6 +481,9 @@ export async function getThread(db: Db, userId: string, threadId: string): Promi
         ...(asked && asked.messageId === m.id ? { question: asked.view } : {}),
         ...photoOf(m, realPhotos),
         ...(m.action && lastOfTag.get(m.action) === m.id ? { link: textLink(m.action)! } : {}),
+        ...(m.action && m.episode_id && lastAbout.get(m.action) === m.id
+          ? { about: { href: `/episodes/${m.episode_id}`, label: aboutDateLabel({ yours: ref.yours, character: ref.name, partner: dates.get(m.episode_id)!.partner }) } }
+          : {}),
         ...(m.action && lastLocked.get(m.action) === m.id ? { locked: { episode: lockedPictureEpisode(m.action)! } } : {}),
       })),
       reply_length: t.reply_length,

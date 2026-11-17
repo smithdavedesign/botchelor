@@ -15,6 +15,7 @@
 import type { Db } from "./db";
 import { notifyAll } from "./notifications";
 import { SEASON_FORMATS, SEASON_FORMAT_SLUGS, seasonFormat, type SeasonFormatSlug } from "./season-format";
+import { seasonPath } from "./season-ref";
 import { nextSeasonStart, seasonIdOf, seasonLabel, seasonWindow } from "./season-window";
 
 /** Votes a ballot needs in all before its winner sets a season's format; fewer and the season is classic. */
@@ -45,10 +46,22 @@ export function ballotWinner(tally: Map<SeasonFormatSlug, number>): SeasonFormat
 
 export type SeasonVoteResult = { ok: true; pick: SeasonFormatSlug; season_id: string } | { ok: false; status: number; error: string; message: string };
 
-/** One viewer's vote for next season's format (a second vote changes it). */
+/**
+ * The format an admin already set for a season (/admin/season: a season_formats row), or null. It always wins over the
+ * ballot, so once it's there the ballot is closed: asking "what should December be?" beside "December: The Botchelor"
+ * told a visitor two things at once (the 2026-11-16 review).
+ */
+export async function decidedFormat(db: Db, seasonId: string): Promise<SeasonFormatSlug | null> {
+  const row = (await db.query<{ slug: string }>(`select slug from season_formats where season_id = $1`, [seasonId])).rows[0];
+  return row && isSlug(row.slug) ? row.slug : null;
+}
+
+/** One viewer's vote for next season's format (a second vote changes it). Refused once the season's format is set. */
 export async function voteSeasonFormat(db: Db, userId: string, pick: string, now: Date = new Date()): Promise<SeasonVoteResult> {
   if (!isSlug(pick)) return { ok: false, status: 400, error: "not_on_the_ballot", message: "That isn't one of next season's formats." };
   const seasonId = ballotSeasonId(now);
+  const decided = await decidedFormat(db, seasonId);
+  if (decided) return { ok: false, status: 409, error: "already_set", message: `${seasonLabel(seasonId)} is set: ${seasonFormat(decided).title}. The vote opens again for the season after.` };
   await db.query(
     `insert into season_format_votes (season_id, user_id, pick) values ($1, $2, $3)
      on conflict (season_id, user_id) do update set pick = excluded.pick, updated_at = now()`,
@@ -71,13 +84,16 @@ export type SeasonBallot = {
   /** The format leading with enough votes to win, or null (next season would be classic as it stands). */
   leading: SeasonFormatSlug | null;
   min_votes: number;
+  /** Set already (an admin's pick): there is nothing left to vote on, and the card says what it is instead. */
+  decided: { slug: SeasonFormatSlug; title: string; pitch: string; emoji: string; path: string } | null;
 };
 
 /** The ballot as one viewer sees it. Counts are sent only once they've voted, so the first voters don't follow the crowd. */
 export async function seasonBallot(db: Db, viewerId: string | null, current: SeasonFormatSlug, now: Date = new Date()): Promise<SeasonBallot> {
   const seasonId = ballotSeasonId(now);
-  const [tally, mine] = await Promise.all([
+  const [tally, decided, mine] = await Promise.all([
     seasonBallotTally(db, seasonId),
+    decidedFormat(db, seasonId).catch(() => null),
     viewerId
       ? db.query<{ pick: string }>(`select pick from season_format_votes where season_id = $1 and user_id = $2`, [seasonId, viewerId]).then((r) => r.rows[0]?.pick ?? null)
       : Promise.resolve(null),
@@ -94,6 +110,7 @@ export async function seasonBallot(db: Db, viewerId: string | null, current: Sea
     my_pick: myPick,
     leading: myPick ? ballotWinner(tally) : null,
     min_votes: SEASON_VOTE_MIN,
+    decided: decided ? { slug: decided, title: seasonFormat(decided).title, pitch: seasonFormat(decided).pitch, emoji: seasonFormat(decided).emoji, path: seasonPath(seasonId) } : null,
   };
 }
 

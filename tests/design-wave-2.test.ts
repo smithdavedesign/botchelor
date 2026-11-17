@@ -64,9 +64,12 @@ describe("live now, under the tonight band", () => {
     ({ week_id: "2026-11-14", state: "closed", opens_at: iso(-1500), closes_at: iso(-60), airs_at: iso(20), choices: [], my_pick: null, total: 9, last: null, ...over }) as RevealBoard;
 
   it("counts the rooms filming and the people watching, and knows when Sunday's secret comes out", () => {
+    // Seven watching is a crowd at the threshold this case was written for (ten by default since 2026-11-16).
+    vi.stubEnv("CROWD_MIN", "5");
     const out = html(createElement(TonightBand, { rooms: [room(3), room(4)], airing: [], situation: null, reveal: board({}), latest: null, now: NOW }));
     expect(out).toContain('aria-label="Live now"');
     expect(out).toContain("2 dates filming · 7 watching");
+    vi.unstubAllEnvs();
     expect(out).toContain("Sunday&#x27;s secret comes out in 20 min");
   });
 

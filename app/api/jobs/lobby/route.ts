@@ -22,6 +22,7 @@ import { runWalkOnRoses } from "@/lib/casting";
 import { ensureCastSecrets } from "@/lib/cast-secrets";
 import { ensureCastChat } from "@/lib/cast-chat";
 import { backfillShownStages } from "@/lib/relationships";
+import { backfillMessageEpisodes } from "@/lib/chat-date-links";
 import { seasonKeysUpkeep } from "@/lib/show-seasons";
 import { syncSeasonAwards } from "@/lib/profile/credits";
 import { storyUpkeep } from "@/lib/story-state";
@@ -106,6 +107,9 @@ async function run(req: Request): Promise<Response> {
   // Couples' shown stages (lib/relationship-stages.ts): fills the ones a row doesn't have yet (every row when it shipped,
   // rows refreshed while RELATIONSHIP_STAGES_V2 was 0). Stage columns only: no event, no notice. One cheap select once done.
   const stagesFilled = await backfillShownStages(db).catch(() => null);
+  // A text about a date knows its date (lib/chat-date-links.ts): fills companion_messages.episode_id on texts written
+  // before the column, from their tags, a batch a pass. New texts carry it from the start; one cheap select once done.
+  const messageEpisodes = await backfillMessageEpisodes(db).catch(() => null);
   // Shows and seasons as rows, and each aired date's season (lib/show-seasons.ts): the registry kept whole, a started
   // season's format frozen, and a batch of older dates stamped. One cheap read once everything is filled.
   const seasonKeys = await seasonKeysUpkeep(db).catch(() => null);
@@ -171,7 +175,7 @@ async function run(req: Request): Promise<Response> {
   // The story check (lib/story-check.ts): aired dates whose lines and ending disagree are kept off the featured places,
   // a few short paid calls a pass (featured first), within its own time budget; not on a run that's already long.
   const storyCheck = Date.now() - started > LONG_RUN_MS ? null : await storyCheckSweep(db).catch(() => null);
-  return json({ ...lobby, season_keys: seasonKeys, awards_filled: awardsFilled, portraits, story_check: storyCheck, overnight, situation, season_ballot: ballot, dare_verdicts: dareVerdicts.length, dare_points_settled: darePoints.reduce((n, d) => n + d.voters, 0), recoupling, premiere, ceremony, walk_ons: walkOns, reveal, season_pool: pool, secrets, cast_chat: castChat, story_state: storyState, stages_filled: stagesFilled, house_texts: houseTexts, producer, house_scene: houseScene, house_upkeep: houseKept, confrontation, challenge, discord, newsletter, aired, stuck_generations: stuck, handed_over, sets_rechecked, sets_drawn, scheduled_dates: scheduled, mixers, ...away });
+  return json({ ...lobby, message_episodes_filled: messageEpisodes, season_keys: seasonKeys, awards_filled: awardsFilled, portraits, story_check: storyCheck, overnight, situation, season_ballot: ballot, dare_verdicts: dareVerdicts.length, dare_points_settled: darePoints.reduce((n, d) => n + d.voters, 0), recoupling, premiere, ceremony, walk_ons: walkOns, reveal, season_pool: pool, secrets, cast_chat: castChat, story_state: storyState, stages_filled: stagesFilled, house_texts: houseTexts, producer, house_scene: houseScene, house_upkeep: houseKept, confrontation, challenge, discord, newsletter, aired, stuck_generations: stuck, handed_over, sets_rechecked, sets_drawn, scheduled_dates: scheduled, mixers, ...away });
 }
 
 export const GET = handle(run);

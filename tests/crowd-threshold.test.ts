@@ -5,7 +5,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import BackCast from "@/app/BackCast";
 import CastingBoard from "@/app/casting/CastingBoard";
 import SeasonPoolPanel, { PoolBoardList } from "@/app/SeasonPool";
@@ -23,11 +23,21 @@ import type { SituationBoard } from "@/lib/situations";
 // The ballots are client components with useAction (useRouter): outside the app router, a stand-in.
 vi.mock("next/navigation", async (original) => ({ ...((await original()) as object), useRouter: () => ({ push: () => {}, refresh: () => {} }) }));
 
+// The cases below were written at a threshold of five and still say what they said: each runs at five. The default
+// itself, ten since 2026-11-16, has its own case.
+beforeEach(() => vi.stubEnv("CROWD_MIN", "5"));
 afterEach(() => vi.unstubAllEnvs());
 
 describe("showCrowd and crowdLine", () => {
+  it("the default is ten: \"10 viewers\" was still a sign saying nobody's here at five (David, 2026-11-16)", () => {
+    vi.unstubAllEnvs();
+    expect(CROWD_MIN_DEFAULT).toBe(10);
+    expect([1, 5, 9].map((n) => showCrowd(n))).toEqual([false, false, false]);
+    expect([10, 11, 50].map((n) => showCrowd(n))).toEqual([true, true, true]);
+    expect(tallyLine(7)).toBe("Your vote's in.");
+  });
+
   it("hides a small count from a stranger and shows it from the threshold up", () => {
-    expect(CROWD_MIN_DEFAULT).toBe(5);
     expect([0, 1, 2, 4].map((n) => showCrowd(n))).toEqual([false, false, false, false]);
     expect([5, 6, 50].map((n) => showCrowd(n))).toEqual([true, true, true]);
     expect(showCrowd(NaN)).toBe(false);
@@ -173,10 +183,11 @@ describe("the votes on the way in (GPT review 2026-11-16: \"Last vote: 1 of 1\",
       most: { id: "n", name: "Nell Abiodun", backers: Math.min(total, 2) },
     });
     const back = (b: BackingBoard, insider = false) => renderToStaticMarkup(createElement(BackCast, { board: b, insider }));
-    expect(back(board(2))).toContain("Most backed this month: <strong>Nell Abiodun</strong>.");
+    // A front-runner on two picks isn't one: not named to a stranger at all (the second 2026-11-16 review).
+    expect(back(board(2))).not.toContain("Most backed this month");
     expect(back(board(2))).not.toContain("2 viewers");
     expect(back(board(2))).not.toContain("2 backing");
-    expect(back(board(2), true)).toContain("(2 viewers)");
+    expect(back(board(2), true)).toContain("Most backed this month: <strong>Nell Abiodun</strong> (2 viewers)");
     expect(back(board(20))).toContain("(2 viewers of 20)");
   });
 

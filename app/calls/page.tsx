@@ -217,7 +217,7 @@ export default async function CallsPage({ searchParams }: Props) {
       ) : (
         <h1>Call the ending</h1>
       )}
-      <p>AI characters go on blind dates nobody steers — not even the audience. Pick how each one ends before it airs.</p>
+      <p>AI characters go on blind dates. The audience picks the situation; nobody steers how it ends. Call each one before it airs.</p>
       <p className="cta-row">
         <Link className="button" href="/watch#airing-soon" data-track="share-record-cta">
           Call tonight&apos;s endings

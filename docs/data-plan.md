@@ -323,6 +323,10 @@ sources. Since 2026-11-15 it also has `companion_conversations` (each thread wit
 message with who said it, when and whether it was said on a call, the facts and running notes the companion keeps, and
 the blank markers of deleted texts) and `companion_calls` (a live call's times, minutes and turns; there are no words
 or sound to export): the fields are listed in [companions.md](companions.md), "Deleting one message, and the export".
+Since 2026-11-16 a message a character sent about a date also carries that date's id (`companion_messages.episode_id`,
+set when the text is written and exported as `episode_id`; companions.md, "A text knows its date"): a key on the
+person's own row, read only for that person. It goes with the message, the conversation and the account like the rest
+of the row, and it adds nothing to any dataset.
 Companion conversations stay out of every dataset; After Dark stays out of the export.
 
 **When a character is forgotten** (deleting it once it has dates, or deleting the account; `forgetEverything`):

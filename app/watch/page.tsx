@@ -398,8 +398,8 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
       <details className="watch-how-details ux-fold" id="how-it-works">
         <summary>How it works</summary>
         <p>
-          Nobody steers a date, not even the audience. Watch one with the room: chat, react, and call the ending before
-          the characters decide for themselves.
+          The audience picks the situation. Nobody steers how it ends, not even us. Watch one with the room: chat, react,
+          and call the ending before it airs.
         </p>
         <ul className="watch-how">
           <li>

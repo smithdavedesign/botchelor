@@ -46,6 +46,7 @@ describe("vote shares a screen reader can read", () => {
       my_pick: "island",
       leading: "island",
       min_votes: 3,
+      decided: null,
     };
     const html = renderToStaticMarkup(createElement(SeasonFormatVote, { ballot, now: Date.parse("2026-11-20T00:00:00Z"), insider: true }));
     expect(html).toContain('75%<span class="sr-only"> of votes</span>');

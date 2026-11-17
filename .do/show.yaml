@@ -367,6 +367,12 @@ services:
       # - key: LOCKED_PICTURE_TEXTS
       #   value: "0"
       #   scope: RUN_AND_BUILD_TIME
+      # A text knows its date (lib/chat-date-links.ts; docs/hosting.md): the "About your date with …" link under a
+      # character's text about a date, and "… texted you about this" on the date's page for the owner of a side. On by
+      # default; "0" hides both without a deploy of code (the column behind them is written either way).
+      # - key: CHAT_DATE_LINKS
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
       # Copied from the old Vercel project's values (not secret, but deployment-specific).
       - key: CONTACT_EMAIL
         value: "CHANGE_ME"
