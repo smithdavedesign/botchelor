@@ -3368,8 +3368,20 @@ character**, on a date or in a roleplay, and the character's side is written as 
 | A scene | ![A Step in scene, desktop](screenshots/after-dark-step-in-scene-desktop.png) | ![A Step in scene, phone](screenshots/after-dark-step-in-scene-phone.png) |
 
 From the local visual audit (`ONLY=after-dark-step-in npm run e2e:visual`, which now covers both pages), signed in as
-an admin, on the audit's stand-in model: the words in the scene are the stand-in's, not a character's. Live ones need
-an admin signed in on After Dark's own host.
+an admin, on the audit's stand-in model: the words in the scene are the stand-in's, not a character's.
+
+**Live** (ad.botchelor.com, the audit account, 2026-11-17, after #1781): the rooftop bar, "Married, meeting as
+strangers" from the first side, opening 1. The viewer's line, the character's reply, then Continue.
+
+| Desktop | Phone |
+| --- | --- |
+| ![A live Step in scene, desktop](screenshots/after-dark-step-in-live-desktop.png) | ![A live Step in scene, phone](screenshots/after-dark-step-in-live-phone.png) |
+
+`node scripts/step-in-live.mjs <repo dir> <out dir>` runs it again: signed out gets 404; an admin starts a scene,
+sends a mild line, sends "Pretend you're my stepsister tonight." (refused 422 by the never-lines, nothing stored),
+runs Continue, takes both screenshots, and ends the scene. It writes only under the audit account. The first run
+found the model writing speech in single quotes and a stray `]`; #1781 fixed both in `parseStoryReply` (story mode's
+too).
 
 **Closed.** Its rollout piece is `companion` (label "Step in", `lib/adult/rollout.ts`), default `admins`. Every page and
 route answers 404 for anyone it isn't open to (`stepInViewer`: After Dark opens for them, and the piece is on for
