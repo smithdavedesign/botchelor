@@ -16,21 +16,19 @@ Every dashboard, console and listing used for this project. Links only, no secre
 - [GitHub issues](https://github.com/smithdavedesign/botchelor/issues)
 - [Architecture artifact](https://claude.ai/artifact/SdinhSGDxFhgMbWZsSPPso#architecture)
 - [Claude artifact](https://claude.ai/artifact/MFTc4qQjoq6pgcUmobdzff#6231cb94-2ed0.m6h8v093ex1.64)
-- [ChatGPT conversation](https://chatgpt.com/c/6aef4958-7aa4-83e8-bfe0-30f75fa5caa8)
-- [Gemini conversation](https://gemini.google.com/app/0fd57a97e8ef3f62)
 - [Tab Manager](https://tabmanager.io/)
 
 ## Hosting, infrastructure and media
 - [DigitalOcean apps](https://cloud.digitalocean.com/apps): the show and After Dark run here since 2026-10-30, plus the scheduled jobs
 - [Neon console](https://console.neon.tech/): the Postgres database
 - [Runpod console](https://www.console.runpod.io/): the GPU endpoint for live video calls (Ditto); auto-pay tops up $25 below $15
-- [Vercel deployments](https://vercel.com/david-smiths-projects-fe129786/botchelor/deployments): the old host, before the move to DigitalOcean
-- [DigitalOcean API tokens](https://cloud.digitalocean.com/account/api/tokens?i=bcb315)
+- [Vercel dashboard](https://vercel.com/dashboard): the old host, before the move to DigitalOcean
+- [DigitalOcean API tokens](https://cloud.digitalocean.com/account/api/tokens)
 - [Bunny dashboard (billing)](https://dash.bunny.net/auth/login?returnUrl=%2Faccount%2Fbilling)
 - [Bunny login](https://dash.bunny.net/auth/login)
 - [Cloudflare API tokens](https://dash.cloudflare.com/)
 - [Tailscale machines](https://login.tailscale.com/login?next_url=https%3A%2F%2Fconsole.tailscale.com%2Fadmin%2Fmachines)
-- [Deploy portal](https://portal.deploy.com/organization/1648386094/dashboard)
+- [Deploy portal](https://portal.deploy.com/)
 
 ## Domain
 - [Wix sign-in (domains: manage.wix.com/account/domains)](https://users.wix.com/signin?redirectTo=https%3A%2F%2Fmanage.wix.com%2Faccount%2Fdomains)
@@ -42,7 +40,7 @@ Every dashboard, console and listing used for this project. Links only, no secre
 - [Replicate billing](https://replicate.com/signin?next=/account/billing)
 - [OpenAI API keys](https://platform.openai.com/api-keys)
 - [Google AI Studio API keys](https://aistudio.google.com/api-keys)
-- [Google AI Studio billing](https://aistudio.google.com/billing?billing=011B5F-2D20A4-B63801)
+- [Google AI Studio billing](https://aistudio.google.com/billing)
 - [Hive moderation](https://thehive.ai/): image safety checks for portraits and After Dark pictures
 - [Didit](https://didit.me/): age checks, only where the law asks for one
 - [Simli](https://app.simli.com/): talking faces for calls (free plan)
@@ -51,7 +49,7 @@ Every dashboard, console and listing used for this project. Links only, no secre
 ## Email and payments
 - support@botchelor.com: forwards to the owner's Gmail ([Cloudflare Email Routing](https://dash.cloudflare.com/)); the site's `CONTACT_EMAIL` on both DigitalOcean apps
 - [Resend](https://resend.com/login)
-- [Stripe dashboard (payments)](https://dashboard.stripe.com/login?redirect=%2Facct_1UR4AVAFlr4wKG3U%2Fpayments)
+- [Stripe dashboard (payments)](https://dashboard.stripe.com/payments)
 
 ## Social accounts
 Posted to by the marketing loop (`~/idea-factory/bin/idea-market.js`, calendar `ideas/botchelor/marketing.json`); the full log is public at [/marketing](https://botchelor.com/marketing).
@@ -73,11 +71,9 @@ Posted to by the marketing loop (`~/idea-factory/bin/idea-market.js`, calendar `
 
 ## Google, analytics and SEO
 - [Google Cloud OAuth clients (project botchelor)](https://console.cloud.google.com/auth/clients?project=botchelor)
-- [Google Analytics 4 home](https://analytics.google.com/analytics/web/#/a412238402p559259689/reports/intelligenthome?params=_u..nav%3Dmaui)
-- [GA4 Search Console integration](https://analytics.google.com/analytics/web/#/a412238402p559259689/admin/integrations/search-console)
+- [Google Analytics 4](https://analytics.google.com/) (linked to Search Console)
 - [Google Search Console](https://search.google.com/search-console?resource_id=https%3A%2F%2Fbotchelor.com%2F)
-- [Google Tag Manager workspace](https://tagmanager.google.com/#/container/accounts/6382881237/containers/267324508/workspaces/5)
-- [Google Tag Manager versions](https://tagmanager.google.com/#/versions/accounts/6382881237/containers/267324508/versions)
+- [Google Tag Manager](https://tagmanager.google.com/)
 - [Bing Webmaster Tools](https://www.bing.com/webmasters/about?siteUrl=https://botchelor.com/&from=home)
 
 ## MCP listings
