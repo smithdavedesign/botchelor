@@ -1,5 +1,6 @@
 // The design system's second wave (2026-11-11; docs/design-system-rollout.md): the season's arc in the chrome, live
 // facts under the tonight band, the envelope on Sunday's reveal, and drawn icons where emoji were chrome.
+import { readFileSync } from "node:fs";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
@@ -42,6 +43,15 @@ describe("the season's arc", () => {
     expect(out).toContain("December is The Botchelor");
     expect(html(createElement(SeasonBanner, { now, format: "Classic Botchelor" }))).not.toContain("season-arc-next");
     expect(html(createElement(SeasonBanner, { now, format: "The Botchelor", next: "The Botchelor" }))).not.toContain("season-arc-next");
+  });
+
+  it("is one link edge to edge under the header: no centred column, so the whole band opens the season", () => {
+    const css = readFileSync("app/ux/show.css", "utf8");
+    const rule = css.match(/\.season-strip > \.season-arc,\s*\.season-strip > \.season-banner \{([^}]*)\}/)?.[1] ?? "";
+    expect(rule).toMatch(/max-width:\s*none/);
+    expect(rule).toMatch(/margin:\s*0;/);
+    expect(rule).not.toMatch(/margin:\s*0 auto/);
+    expect(rule).toMatch(/padding:\s*var\(--space-2\) var\(--gutter\)/);
   });
 
   it("says Finale tonight on the last night", () => {

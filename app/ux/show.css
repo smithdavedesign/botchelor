@@ -1648,15 +1648,17 @@ details.recap-toggle[open] .recap-toggle-hide {
 }
 
 /* The strip under the header (app/SeasonStrip.tsx): the arc, or the closed season's banner, as a full-width band on the
-   show's spectator pages, as the design system draws it. Its contents keep the page's own width. */
+   show's spectator pages, as the design system draws it. The link is the whole band, edge to edge, so any tap on it
+   opens the season, and its contents line up with the header's logo and bell (the header's side padding is the
+   gutter too). David 2026-11-16: "expand the banner to full width and make it all clickable". */
 .season-strip {
   border-bottom: 1px solid var(--line);
   background: color-mix(in srgb, var(--accent-2) 9%, var(--paper));
 }
 .season-strip > .season-arc,
 .season-strip > .season-banner {
-  max-width: var(--page-wide);
-  margin: 0 auto;
+  max-width: none;
+  margin: 0;
   padding: var(--space-2) var(--gutter);
   border: 0;
   border-radius: 0;
