@@ -235,7 +235,7 @@ export async function loadDistinct(db: Db, w: Window, ours: readonly string[]): 
       group by 2, 3
      union all
      select 'pairs', (st.created_at >= $3), false, count(distinct (st.owner_id, st.character_a, st.character_b))::int
-       from adult_steps st where st.created_at >= $1 and st.created_at < $2 group by 2, 3`,
+       from adult_steps st where st.created_at >= $1 and st.created_at < $2 and st.kind <> 'step_in' group by 2, 3`,
     [w.start, w.end, w.currentStart, ours],
   );
   const blank = (): Split => ({ current: { outside: 0, ours: 0 }, previous: { outside: 0, ours: 0 } });

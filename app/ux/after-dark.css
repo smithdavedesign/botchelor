@@ -2917,3 +2917,286 @@ button.ad-studio-fold-head:active:not(:disabled) {
 .ad-locked-way {
   margin-top: var(--space-4);
 }
+
+/* ---------------- Step in (app/after-dark/step-in; lib/adult/step-in.ts) ----------------
+   The viewer in the scene with one character. The set-up is four small cards; the scene is the place's backdrop behind
+   a reading-size column of prose (the chapter reader's size, .ad-reader), the viewer's own lines set apart, the composer
+   at the bottom with the rarely used controls behind one quiet ⋯. Phone first. */
+.ad-si-tagline {
+  margin: 0 0 var(--space-3);
+}
+.ad-si-tile {
+  margin: var(--space-4) 0;
+}
+.ad-si-tile h2 {
+  margin: 0 0 var(--space-2);
+}
+.ad-si-go {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  margin: var(--space-3) 0 0;
+}
+.ad-si-go button,
+.ad-si-go .button {
+  margin: 0;
+}
+.ad-si-setup {
+  display: grid;
+  gap: var(--space-3);
+  max-width: 44rem;
+}
+fieldset.ad-si-step {
+  min-width: 0;
+  margin: 0;
+}
+.ad-si-step legend {
+  padding: 0 var(--space-2);
+  font-weight: 700;
+}
+.ad-si-step select {
+  width: 100%;
+}
+.ad-si-step .ad-cast-chips {
+  margin-bottom: var(--space-2);
+}
+.ad-si-place-picture {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  margin-top: var(--space-2);
+  border-radius: var(--radius-md);
+  background-color: var(--night-bg);
+  background-position: center;
+  background-size: cover;
+}
+.ad-si-card-setup {
+  margin: var(--space-3) 0 var(--space-2);
+}
+.ad-si-roles,
+.ad-si-openings {
+  display: grid;
+  gap: var(--space-1);
+  margin: var(--space-2) 0;
+}
+.ad-si-roles label,
+.ad-si-openings label {
+  margin-top: 0;
+  font-weight: 400;
+}
+.ad-si-scenes {
+  display: grid;
+  gap: var(--space-2);
+  max-width: 44rem;
+}
+.after-dark-mode a.ad-si-scene-link {
+  display: grid;
+  gap: var(--space-1);
+  color: inherit;
+  text-decoration: none;
+}
+.ad-si-scene-line {
+  font-style: italic;
+}
+
+/* The scene. The backdrop stays put behind the column as it scrolls (a div, so discreet mode's blur leaves a place alone). */
+.ad-si-scene {
+  position: relative;
+}
+.ad-si-backdrop {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  margin-bottom: -100vh;
+  background-position: center;
+  background-size: cover;
+  opacity: 0.3;
+  pointer-events: none;
+}
+.ad-si-head,
+.ad-si-lines,
+.ad-si-under,
+.ad-si-paused,
+.ad-si-ended,
+.ad-si-composer,
+.ad-si-scene > .error,
+.ad-si-scene > .crisis-notice {
+  position: relative;
+  max-width: 42rem;
+  margin-inline: auto;
+}
+.ad-si-head h1 {
+  margin-bottom: var(--space-1);
+}
+.ad-si-at {
+  margin: var(--space-2) 0 var(--space-1);
+  font-weight: 600;
+}
+.ad-si-lines {
+  list-style: none;
+  margin-top: var(--space-4);
+  margin-bottom: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--night-line);
+  border-radius: var(--radius-md);
+  /* The night, thinned: the place shows through at the edges and the prose stays readable over any backdrop. */
+  background: color-mix(in srgb, var(--night-bg) 86%, transparent);
+}
+.ad-si-lines > li {
+  margin: 0 0 var(--space-4);
+}
+.ad-si-lines > li:last-child {
+  margin-bottom: 0;
+}
+.ad-si-them p,
+.ad-si-aside p {
+  margin: 0 0 var(--space-3);
+}
+.ad-si-them p:last-child,
+.ad-si-aside p:last-child {
+  margin-bottom: 0;
+}
+.ad-si-told {
+  color: var(--night-ink);
+}
+.ad-si-said {
+  color: var(--night-ink-on);
+  font-weight: 500;
+}
+/* The viewer's own lines, set apart: to the right, in the accent's tint, a size down from the prose. */
+.ad-si-lines > li.ad-si-you {
+  width: fit-content;
+  max-width: 88%;
+  margin-left: auto;
+  padding: var(--space-2) var(--space-3);
+  border-left: 3px solid var(--night-accent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--night-accent) 16%, var(--night-card));
+  font-size: var(--text-md);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.ad-si-system {
+  color: var(--night-muted);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  text-align: center;
+}
+.ad-si-aside > p:first-child {
+  color: var(--night-accent-text);
+  font-style: italic;
+}
+.ad-si-under {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  margin-top: 0;
+  margin-bottom: var(--space-3);
+}
+.ad-si-under button {
+  margin: 0;
+}
+.ad-si-draws {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.ad-si-paused {
+  margin-bottom: var(--space-3);
+}
+.ad-si-ended {
+  margin-top: var(--space-3);
+}
+.ad-si-ended h2 {
+  margin-top: 0;
+}
+/* The composer stays at the bottom of the window while the scene scrolls above it. */
+.ad-si-composer {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  margin-top: var(--space-3);
+  padding: var(--space-2) 0 calc(var(--space-2) + env(safe-area-inset-bottom));
+  background: var(--night-bg);
+}
+.ad-si-composer textarea {
+  /* Two lines of a reply's own text: the smallest a textarea goes (docs/brand.md, "Forms": 64px). */
+  min-height: 4rem;
+  margin-top: 0;
+}
+.ad-si-composer-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+.ad-si-composer-row > button {
+  margin: 0;
+}
+.ad-si-left {
+  flex: 1;
+  min-width: 0;
+  text-align: right;
+}
+.ad-si-menu {
+  position: relative;
+}
+.ad-si-menu > summary {
+  display: inline-grid;
+  place-items: center;
+  min-width: var(--control-h);
+  min-height: var(--control-h);
+  border: 1px solid var(--night-line);
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  list-style: none;
+  font-weight: 700;
+}
+.ad-si-menu > summary::-webkit-details-marker {
+  display: none;
+}
+.ad-si-menu[open] > summary {
+  border-color: var(--night-accent);
+}
+.ad-si-menu-items {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + var(--space-2));
+  z-index: 3;
+  display: grid;
+  gap: var(--space-2);
+  width: min(24rem, calc(100vw - 2 * var(--space-4)));
+  max-height: 70vh;
+  overflow-y: auto;
+  padding: var(--space-3);
+  border: 1px solid var(--night-line);
+  border-radius: var(--radius-md);
+  background: var(--night-card);
+}
+.ad-si-menu-items > button {
+  margin: 0;
+  justify-self: start;
+}
+.ad-si-move {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+.ad-si-move select {
+  flex: 1;
+  min-width: 0;
+  margin-top: 0;
+}
+.ad-si-move button {
+  margin: 0;
+}
+@media (max-width: 640px) {
+  .ad-si-lines {
+    padding: var(--space-3);
+  }
+  .ad-si-lines > li.ad-si-you {
+    max-width: 94%;
+  }
+}

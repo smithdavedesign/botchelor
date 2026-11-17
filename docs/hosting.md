@@ -179,6 +179,9 @@ ignore it.
   new stories are open to. Unset or `members`: the plan's members and admins on the
   show (After Dark's side opens by its own "narrated" rollout switch). `admins`: admins only. `0`: off for everyone on
   both sides; stories already made still read.
+- **Step in, After Dark** has no environment switch: it opens by After Dark's **"companion"** rollout switch
+  (`lib/adult/rollout.ts`, Settings → Not open yet), `admins` until flipped to `everyone`
+  ([after-dark.md](after-dark.md), "Step in"). Tell the card processors before flipping it.
 - **`COMPANION_STORY_MODE`** (the show's app, not a secret; on unless it is `0`; [companions.md](companions.md), "Story
   mode"): a companion's scene reply written as prose in one call, for someone on the Narrated style. `0`: every scene
   reply is the script line again, for everyone, without a deploy of code. Who has Narrated at all is `WRITING_STYLES`.

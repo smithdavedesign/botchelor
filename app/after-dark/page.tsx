@@ -15,6 +15,7 @@ import { ownMedia } from "@/lib/adult/media";
 import { lockedForCookies } from "@/lib/adult/privacy";
 import { listCastPairs, type CastPair } from "@/lib/adult/scenes";
 import { sharedWithMe } from "@/lib/adult/shares";
+import { stepInOpen } from "@/lib/adult/step-in";
 import { afterDarkOnly } from "@/lib/after-dark-host";
 import { getDb } from "@/lib/db";
 import { showHome } from "@/lib/site";
@@ -66,13 +67,15 @@ export default async function AfterDarkPage({ searchParams }: { searchParams?: P
     );
   }
   const owner = auth!.userId;
-  const [pairs, switchable, shared, here, doors, recent] = await Promise.all([
+  const [pairs, switchable, shared, here, doors, recent, stepIn] = await Promise.all([
     listCastPairs(db, owner),
     listSwitchable(db, owner),
     sharedWithMe(db, owner),
     currentHere(),
     afterDarkDoors(db, owner),
     ownMedia(db, owner, LATEST_LOOK),
+    // Step in (lib/adult/step-in.ts): its tile and the picker's row only where it's open to this viewer (admins, for now).
+    stepInOpen(db, owner),
   ]);
   // What they made last (David, 2026-11-15: a finished video sat on its pair's page, and the hub never said so): the
   // newest few pictures and videos, each a tap from the Gallery. None where only the scenes are allowed.
@@ -165,8 +168,21 @@ export default async function AfterDarkPage({ searchParams }: { searchParams?: P
         {/* Your nights first, then a new one (the audit, 2026-10-29: the hub opened on a checklist of switches). */}
         <section id="scenes">
           <h2>Scenes</h2>
-          <PairPicker pairs={pairs} />
+          <PairPicker pairs={pairs} stepIn={stepIn} />
         </section>
+        {/* Step in (lib/adult/step-in.ts): the other shape of a night, the viewer in the scene with one of them. */}
+        {stepIn && (
+          <section className="card ad-si-tile" aria-labelledby="ad-si-tile" data-step-in-tile>
+            <h2 id="ad-si-tile">Step in</h2>
+            <p>You, in the scene with one of them: a date or a roleplay, told as a story. You write what you say and do; they answer in their own voice.</p>
+            <p className="ad-si-go">
+              <Link className="button" href="/after-dark/step-in">
+                Step in
+              </Link>
+              <span className="muted small">An AI character. Fiction between adults.{admin ? " Admins only for now." : ""}</span>
+            </p>
+          </section>
+        )}
         {/* The hub's other pages as one row of small buttons, under the scenes: the hero leads into the nights (2026-11-12). */}
         <nav className="ad-hub-links" aria-label="After Dark">
           {!inHeader && (

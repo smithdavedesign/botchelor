@@ -61,7 +61,7 @@ import { pictureNoteKind } from "./picture-notes";
  * Out in public: a set the place rules know is public, or any library venue but a home (its situation is a restaurant, a
  * bar, a beach: "An awkward double date" named no place the rules knew, so it read as private, 2026-10-25).
  */
-const isPublicPlace = (label: string | null | undefined, home: "a" | "b" | null = null): boolean => isPublicSet(label, home) || (!home && Boolean(venueSituation(label)));
+export const isPublicPlace = (label: string | null | undefined, home: "a" | "b" | null = null): boolean => isPublicSet(label, home) || (!home && Boolean(venueSituation(label)));
 import { roleplayById, roleplayLine, roleplayRule, rolesLine, type Roleplay } from "./roleplays";
 import { ownPlaceSituation, ownRoleplay, USER_ROLEPLAY } from "../studio/library";
 import { MIN_LINES_PER_STAGE, ROLEPLAY_LINES_PER_STAGE, STAGES } from "./stages";

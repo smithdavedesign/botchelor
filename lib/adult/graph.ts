@@ -3,6 +3,7 @@ import { FRAME_SHOWN } from "./media";
 import { textModelHistory, writtenBy, type WrittenBy } from "./model-log";
 import type { ReelShot } from "./reels";
 import type { SceneLine } from "./scenes";
+import { pairStepSql } from "./steps";
 
 /**
  * Everything After Dark has made, as a graph for /admin/after-dark/graph (David, 2026-10-22: "the full graph of
@@ -43,7 +44,8 @@ export async function afterDarkGraph(db: Db): Promise<AfterDarkGraph> {
          from adult_reels r, jsonb_array_elements(r.shots) s where s->>'status' = 'ready' group by 1, 2`),
     q(`select character_id as a, character_b as b, count(*)::int as n, max(created_at) as last from adult_images
         where character_id is not null and character_b is not null and kind not in ('video', 'audio') and status = 'ready' group by 1, 2`),
-    q(`select character_a as a, character_b as b, count(*)::int as n, max(created_at) as last from adult_steps group by 1, 2`),
+    // A pair's steps only: Step in's (the viewer with one character, lib/adult/steps.ts) are no pair's.
+    q(`select st.character_a as a, st.character_b as b, count(*)::int as n, max(st.created_at) as last from adult_steps st where ${pairStepSql("st")} group by 1, 2`),
   ]);
   const edges = new Map<string, GraphEdge>();
   const add = (rows: Counted[], field: Exclude<keyof GraphEdge, "key" | "a" | "b" | "last">) => {

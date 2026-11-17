@@ -1211,8 +1211,13 @@ string match. Now the row carries the key.
   average 8.3, recall 97%, PG and crisis 100%, after fixes to the crisis prefilter, repeats, facts in the prompt and a
   parent's kid talk.
   `COMPANION_OPEN=1` went on first (David, 2026-11-04: "just open it up to the public"); the gate still runs before P3.
-- **P5, the After Dark companion:** the same engine on `adultModel` and `checkAdultText`, AD tokens for media, sold as
-  an add-on on CCBill/Segpay/Verotel (per-plan entitlements). First: answer CCBill's AI Content Onboarding Guidelines
-  PDF point by point with companions in scope, and tell all three processors.
+- **P5, the After Dark companion: built 2026-11-17 as After Dark's "Step in", closed** ([after-dark.md](after-dark.md),
+  "Step in"): the viewer in the scene with one character, told as prose, on `adultModel` and `checkAdultText`, with its
+  own small engine (`lib/adult/step-in.ts`; this file's engine, `lib/companion.ts`, handles none of it and stays PG).
+  A first version: scenes, not an ongoing thread; the scene's own turns, a rolling recap and a line per earlier scene
+  for memory (no fact extraction); no pictures, voice or video; counted against the month's scene steps. It ships behind
+  After Dark's `companion` rollout piece, admins only. Still to do before it opens: answer CCBill's AI Content
+  Onboarding Guidelines PDF point by point with a one-to-one mode in scope, tell all three processors, and decide
+  whether it's sold as an add-on (per-plan entitlements) or stays inside the subscription's scene steps.
 - **P6, live calls: built** (above). Once the key is set, check it live on a phone and a laptop: the first-audio time, a
   barge-in, and that a quiet minute pauses it.

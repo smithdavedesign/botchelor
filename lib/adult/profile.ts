@@ -88,13 +88,15 @@ export type ConsentRefusal ={ ok: false; status: 403; message: string; consent_r
 export const consentRefusal = (): ConsentRefusal => ({ ok: false, status: 403, message: CONSENT_NEEDED, consent_required: true });
 
 /**
- * Whether the person has agreed: kept with what it covers (consented_at on a character's turn-ons they saved, or on one
- * of their pairs' hard nos), so deleting the profile takes the consent with it and the box is asked again.
+ * Whether the person has agreed: kept with what it covers (consented_at on a character's turn-ons they saved, on one of
+ * their pairs' hard nos, or on a Step in scene's: lib/adult/step-in.ts), so deleting the profile takes the consent with
+ * it and the box is asked again.
  */
 export async function hasProfileConsent(db: Db, viewer: string): Promise<boolean> {
   const { rows } = await db.query<{ ok: boolean }>(
     `select exists (select 1 from adult_profiles where consented_by = $1 and consented_at is not null)
-         or exists (select 1 from adult_scenes where owner_id = $1 and hard_nos_consented_at is not null) as ok`,
+         or exists (select 1 from adult_scenes where owner_id = $1 and hard_nos_consented_at is not null)
+         or exists (select 1 from adult_step_in_scenes where owner_id = $1 and hard_nos_consented_at is not null) as ok`,
     [viewer],
   );
   return Boolean(rows[0]?.ok);
@@ -107,6 +109,7 @@ export async function hasProfileConsent(db: Db, viewer: string): Promise<boolean
 export async function recordProfileConsent(db: Db, viewer: string): Promise<void> {
   await db.query(`update adult_profiles set consented_at = now(), consented_by = $1 where updated_by = $1 or consented_by = $1`, [viewer]);
   await db.query(`update adult_scenes set hard_nos_consented_at = now() where owner_id = $1 and ${HAS_HARD_NOS_SQL}`, [viewer]);
+  await db.query(`update adult_step_in_scenes set hard_nos_consented_at = now() where owner_id = $1 and ${HAS_HARD_NOS_SQL}`, [viewer]);
 }
 
 /**

@@ -27,6 +27,10 @@ export const ADULT_PERSON_COLUMNS: readonly PersonColumn[] = [
   owned("adult_nights", "owner_id"),
   owned("adult_overnights", "owner_id"),
   owned("adult_steps", "owner_id"),
+  // Step in (lib/adult/step-in.ts): their scenes with one character, and every message of them. Their own download is
+  // After Dark's (lib/adult/profile-data.ts exportAdultProfile, "step_in").
+  owned("adult_step_in_scenes", "owner_id"),
+  owned("adult_step_in_messages", "owner_id"),
   owned("adult_memories", "owner_id"),
   owned("adult_facts", "owner_id"),
   owned("adult_rejections", "owner_id"),
@@ -87,4 +91,5 @@ export const ADULT_PERSON_COLUMNS: readonly PersonColumn[] = [
 
 export const ADULT_LOOK_ALIKES: readonly LookAlike[] = [
   { table: "adult_images", column: "superseded_by", holds: "the picture that replaced this one after a fix (a picture's id)" },
+  { table: "adult_step_in_messages", column: "replaced_by", holds: "the reply showing in this draw's place after a reply was drawn again (a message's id)" },
 ];

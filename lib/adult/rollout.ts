@@ -38,6 +38,12 @@ export const ROLLOUT_FEATURES = [
     label: "The chapter reader",
     note: "📖 Read it on a night: its chapters at reading size, a quiet way to read one again (?view=reader). The theater stays the page.",
   },
+  {
+    key: "companion",
+    label: "Step in",
+    note:
+      "You in the scene with one character (/after-dark/step-in): a place, a roleplay, the scene told as prose, with its own checks and limits (docs/after-dark.md \"Step in\"). An adult one-to-one mode: tell the card processors it exists before it opens to everyone (docs/after-dark-legal-review.md). A legal and payments call, never a product one.",
+  },
 ] as const;
 export type RolloutFeature = (typeof ROLLOUT_FEATURES)[number]["key"];
 
@@ -48,6 +54,7 @@ export const RolloutConfig = z.object({
   phone_sheet: audience.default("admins"),
   reader: audience.default("admins"),
   narrated: audience.default("admins"),
+  companion: audience.default("admins"),
 });
 export type RolloutConfig = z.infer<typeof RolloutConfig>;
 

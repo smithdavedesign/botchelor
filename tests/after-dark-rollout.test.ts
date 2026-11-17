@@ -64,7 +64,7 @@ const open = (piece: string) => saveAdultSettings(t.db, { rollout: { [piece]: "e
 
 describe("the switches", () => {
   it("start on admins only, take everyone, and refuse anything else", async () => {
-    expect(rolloutConfigOf(null)).toEqual({ public_door: "admins", make_more: "admins", phone_sheet: "admins", reader: "admins", narrated: "admins" });
+    expect(rolloutConfigOf(null)).toEqual({ public_door: "admins", make_more: "admins", phone_sheet: "admins", reader: "admins", narrated: "admins", companion: "admins" });
     expect(rolloutConfigOf({ reader: "nonsense" }).reader).toBe("admins");
     expect(mergeRolloutConfig(rolloutConfigOf(null), { reader: "everyone" }).reader).toBe("everyone");
     expect(() => mergeRolloutConfig(rolloutConfigOf(null), { reader: "some" })).toThrow();
