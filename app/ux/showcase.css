@@ -495,12 +495,16 @@ a.showcase-reels-link {
 /* Two cards to a row on a phone: the credit is one line, cut with an ellipsis (its title holds the whole of it). */
 @media (max-width: 720px) {
   .showcase-credit {
+    /* A clamp, not nowrap: an unwrappable line would set the grid column's least width and push the page sideways. */
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 1;
+    line-clamp: 1;
     flex-basis: 100%;
     max-width: 100%;
     min-width: 0;
     overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
   }
 }
 
