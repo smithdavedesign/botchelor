@@ -9,8 +9,8 @@
 > - **Who is in the scenes** (`lib/adult/characters.ts`): this season's house cast, the show's own agent cast once its
 >   checks pass, and the characters a person has switched on themselves. Never another person's character, and never
 >   one drawn in anime.
-> - **The scene model** defaults to `deepseek/deepseek-chat-v3.1` (`lib/adult/settings.ts` `DEFAULT_TEXT_MODEL`), and
->   can be changed on After Dark's settings page.
+> - **The scene model** defaults to `deepseek/deepseek-chat-v3.1` (`lib/adult/settings.ts` `DEFAULT_TEXT_MODEL`), and an
+>   admin can change it on `/admin/after-dark/settings`.
 > - **It is served on its own host**, `ad.botchelor.com`: a second DigitalOcean app of the same code with
 >   `AFTER_DARK_ONLY=1` (`lib/after-dark-host.ts`, `.do/app.yaml`, [after-dark-hosting.md](../after-dark-hosting.md)).
 >
