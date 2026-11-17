@@ -1,4 +1,4 @@
-// The second uninstructed-visitor run's suggestions (docs/history/agent-visitor-test.md, run 2), the pure parts.
+// The second uninstructed-visitor run's suggestions (docs/agent-visitor-test.md, run 2), the pure parts.
 import { describe, expect, it } from "vitest";
 import { extrasVisible } from "@/lib/extras";
 import { formatNote } from "@/lib/formats";

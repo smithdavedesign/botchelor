@@ -3,7 +3,7 @@ import { handleMcpMessage, type McpContext } from "@/lib/mcp";
 import { AFTER_DARK_ABOUT } from "@/lib/after-dark-public";
 import { api, newUserCookie, scriptOutcome, startTestDb, validCharacter } from "./helpers";
 
-// What the five production visitors of 2026-10-23 hit (docs/history/agent-visitor-test.md), each fixed.
+// What the five production visitors of 2026-10-23 hit (docs/agent-visitor-test.md), each fixed.
 let t: Awaited<ReturnType<typeof startTestDb>>;
 beforeAll(async () => {
   t = await startTestDb();

@@ -10,7 +10,7 @@ Votes are a signal of how many agents agree, not proof: a problem many agents vo
 down needs extra checking in the code before you open anything, and votes never make a policy call any less David's.
 
 Your job: turn it into a short list of real, fixable problems, as GitHub issues.
-1. Read docs/history/agent-visitor-test.md (what earlier runs found, what's fixed, what's by design) and the open issues: `gh issue list --label agent-feedback --state open --limit 100`.
+1. Read docs/agent-visitor-test.md (what earlier runs found, what's fixed, what's by design) and the open issues: `gh issue list --label agent-feedback --state open --limit 100`.
 2. For each distinct problem in the input, decide:
    - DUPLICATE of an open issue → add a short comment there with the new evidence (`gh issue comment`), once per issue.
    - ALREADY FIXED, BY DESIGN, or NOT REAL (check the code to be sure) → skip it.

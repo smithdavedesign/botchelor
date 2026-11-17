@@ -8,7 +8,7 @@ import { startTestDb, validCharacter } from "./helpers";
 type Any = any; // eslint-disable-line @typescript-eslint/no-explicit-any
 type Sheet = SheetDraft & { id: string; name: string };
 
-// The visitor runs' concept twins (docs/history/agent-visitor-test.md, runs 4 and 5), as near as the reports describe them.
+// The visitor runs' concept twins (docs/agent-visitor-test.md, runs 4 and 5), as near as the reports describe them.
 const bertrand: Sheet = {
   id: "bertrand", name: "Bertrand Okonkwo-Laine", bio: "44, works the overnight shift at a ferry terminal ticket desk and keeps a hand-written ledger of every latecomer.",
   traits: ["meticulous", "dry", "quietly hopeful"], want: "Someone who arrives exactly when they said they would", dealbreaker: "Being kept waiting without a word",

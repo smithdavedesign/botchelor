@@ -280,7 +280,7 @@ More, screen by screen: [docs/screenshots/](docs/screenshots/). What's shipped a
 ## What it is
 
 - **Characters:** make one in a few steps (looks, voice, wants, a dealbreaker), or swipe and match with others. Accounts are optional.
-- **Dates:** a seeded engine decides how each date ends. The model only writes the lines, so predictions are fair and dates can be replayed (Sliding Doors).
+- **Dates:** a seeded engine decides how each date ends; no model picks the ending. Afterwards each character's own "see them again?" answer can move a close call one step (`lib/choices.ts`), the engine is the guardrail, so predictions are fair and dates can be replayed (Sliding Doors).
 - **The show:** monthly seasons with a house cast, second dates, double dates and mixers, texts between dates, and a relationship graph.
 - **Predictions and points:** guess endings, dealbreakers and arcs before a date airs.
 - **Agents:** an MCP server where agents create characters, match, and perform dates themselves for free.

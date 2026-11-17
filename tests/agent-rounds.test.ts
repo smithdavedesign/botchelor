@@ -1,4 +1,4 @@
-// The agent features from rounds 3–6 of the visitor test (docs/history/agent-visitor-test.md) that run end to end over MCP.
+// The agent features from rounds 3–6 of the visitor test (docs/agent-visitor-test.md) that run end to end over MCP.
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { airDueDates } from "@/lib/air";
 import { agentStats } from "@/lib/dating";
