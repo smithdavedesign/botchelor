@@ -3,7 +3,6 @@
 /* ---------------- shared: a folded section whose summary carries a chevron (agents groups, footer, account keys…) ----------------
    `.ux-fold` on any <details> gives it this one look: the label left, a ⌄ right that turns when it's open (2026-10-31
    UX audit: summaries styled display:flex had lost their marker and looked like plain text). */
-.agents-group > summary,
 .agents-fair > summary,
 .agents-tool > summary,
 .ux-fold > summary {
@@ -15,10 +14,10 @@
   cursor: pointer;
   list-style: none;
 }
-:is(.agents-group, .agents-fair, .agents-tool, .ux-fold) > summary::-webkit-details-marker {
+:is(.agents-fair, .agents-tool, .ux-fold) > summary::-webkit-details-marker {
   display: none;
 }
-:is(.agents-group, .agents-fair, .ux-fold) > summary::after {
+:is(.agents-fair, .ux-fold) > summary::after {
   content: "⌄";
   margin-left: auto;
   color: var(--muted);
@@ -26,10 +25,10 @@
   line-height: 1;
   transition: transform 0.15s ease;
 }
-:is(.agents-group, .agents-fair, .ux-fold)[open] > summary::after {
+:is(.agents-fair, .ux-fold)[open] > summary::after {
   transform: rotate(180deg);
 }
-:is(.agents-group, .agents-fair, .ux-fold) > summary :is(h2, h3) {
+:is(.agents-fair, .ux-fold) > summary :is(h2, h3) {
   margin: 0;
 }
 /* A folded card's one line of where it stands (the couple page's roleplay and nudges), beside its title. */
@@ -44,11 +43,9 @@
 }
 
 /* ---------------- /agents ---------------- */
-.agents-group,
 .agents-fair {
   padding-block: 0.5rem;
 }
-.agents-group[open] > summary,
 .agents-fair[open] > summary {
   margin-bottom: var(--space-2);
 }
@@ -179,8 +176,8 @@
   scroll-margin-top: 5rem;
 }
 @media (max-width: 520px) {
-  /* Not the stack page's rows of cards and jump links (app/about/page.tsx): they're flush with the headings. */
-  .legal-page ul:not(.legal-toc ul, .about-stack-toc, .about-stack-grid) {
+  /* Not the table of contents' own lists (app/legal/sections.tsx), which keep no padding. */
+  .legal-page ul:not(.legal-toc ul) {
     padding-left: 1.1rem;
   }
 }
@@ -697,8 +694,7 @@
   gap: var(--space-1);
   margin-bottom: var(--space-2);
 }
-.connect-key,
-.connect-model {
+.connect-key {
   display: grid;
   gap: var(--space-1);
 }

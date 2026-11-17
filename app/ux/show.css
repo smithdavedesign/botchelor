@@ -62,31 +62,31 @@ ol.home-features {
     font-size: var(--text-sm);
   }
 }
-/* The house cast: six, two to a row on a phone as compact tiles (the directory has the rest). /characters' cards too
-   (2026-10-31 UX audit: one to a row, fifteen cards were ~2,900px). */
+/* /characters' cards: two to a row on a phone as compact tiles (2026-10-31 UX audit: one to a row, fifteen cards were
+   ~2,900px). */
 @media (max-width: 640px) {
-  :is(.home-cast, .characters-hub .gallery) {
+  .characters-hub .gallery {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--space-2);
   }
-  :is(.home-cast, .characters-hub .gallery) > .card {
+  .characters-hub .gallery > .card {
     padding: var(--space-3);
   }
-  :is(.home-cast, .characters-hub .gallery) .char {
+  .characters-hub .gallery .char {
     flex-direction: column;
     align-items: flex-start;
     gap: var(--space-2);
   }
-  :is(.home-cast, .characters-hub .gallery) .chips {
+  .characters-hub .gallery .chips {
     margin: var(--space-2) 0 0;
     gap: var(--space-1);
   }
   /* Two traits are enough for a tile; the character's page has all three, and their job and hometown. */
-  :is(.home-cast, .characters-hub .gallery) .chips > li:nth-child(n + 3),
+  .characters-hub .gallery .chips > li:nth-child(n + 3),
   .characters-hub .gallery .dir-job {
     display: none;
   }
-  :is(.home-cast, .characters-hub .gallery) .chip {
+  .characters-hub .gallery .chip {
     font-size: var(--text-2xs);
   }
 }

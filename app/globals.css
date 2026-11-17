@@ -5968,7 +5968,6 @@ body:has(.install-hint) main {
  *   .companion-fullscreen          a companion chat (app/companion/[id]/CompanionChat.tsx): its composer is at the foot
  *   .phone-stage.is-full           the texts phone opened full screen (app/couples/[a]/[b]/TextPhone.tsx)
  *   .wizard, .send-phase           building a character and sending them (app/create/CreateWizard.tsx): its bar is at the foot
- *   .after-dark-form               After Dark's sticky Nudge/Direct steer bar at the foot of the page
  *   .ad-reel-theater               After Dark's reel, full screen
  *   .consent-banner                the cookie choice, fixed at the bottom while it's up, its buttons where ours would be
  *   .constellation-panel           the Constellation's side panel (/graph), open at the bottom right of its sky
@@ -5987,7 +5986,6 @@ body:has(.install-hint) main {
         .phone-stage.is-full,
         .wizard,
         .send-phase,
-        .after-dark-form,
         .ad-reel-theater,
         .consent-banner,
         .constellation-panel,
