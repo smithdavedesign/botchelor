@@ -52,9 +52,10 @@ import { houseForPrompt } from "./house-texts";
 import { notify } from "./notifications";
 import { loadOurIds } from "./our-traffic";
 import { recordServerError } from "./errors";
-import { premiseForYou, rolesOf, type RoleplayTerms } from "./roleplays";
+import { dateRoleplayById, premiseForYou, rolesOf, type RoleplayTerms } from "./roleplays";
 import { DELETED_OWNER } from "./rules";
 import { checkFamilyTalk } from "./safety";
+import { openedTerms } from "./scene-cards";
 import { showCastIds } from "./season-cast";
 import { companionStory } from "./story-state";
 import { countCrisis, lineInCrisis, PG_REDIRECT } from "./step-in";
@@ -288,26 +289,46 @@ export function roleplayView(rp: RoleplayTerms, characterName: string): Companio
   return { id: rp.id, title: rp.title, icon: rp.icon, premise: premiseForYou(rp.premise, rp.first === ROLEPLAY_YOU ? "a" : "b", characterName), you_play: mine, they_play: theirs };
 }
 
-/** The same from the character's side, for its prompt: its name in the premise, the person as "your scene partner". */
-export function promptRoleplay(rp: RoleplayTerms, characterName: string): PromptRoleplay {
+/**
+ * The same from the character's side, for its prompt: its name in the premise, the person as "your scene partner". One
+ * of the show's own brings its scene card the same way (lib/scene-cards.ts): how it starts, where it can go, its tone,
+ * and what the character's own role wants, never the person's. The opening is the one stored with the terms, else one
+ * of the card's three by `threadId`, so the same thread's scene always opens the same way.
+ */
+export function promptRoleplay(rp: RoleplayTerms, characterName: string, threadId = ""): PromptRoleplay {
   const [person, own] = rp.first === ROLEPLAY_YOU ? ["{a}", "{b}"] : ["{b}", "{a}"];
-  const premise = rp.premise
-    .replaceAll(own, firstNameOf(characterName))
-    .replaceAll(`${person}'s`, "your scene partner's")
-    .replaceAll(person, "your scene partner")
-    .replace(/(^|[.!?]\s+)your scene partner/g, (_m, lead: string) => `${lead}Your scene partner`);
+  const fromTheirSide = (text: string) =>
+    text
+      .replaceAll(own, firstNameOf(characterName))
+      .replaceAll(`${person}'s`, "your scene partner's")
+      .replaceAll(person, "your scene partner")
+      .replace(/(^|[.!?]\s+)your scene partner/g, (_m, lead: string) => `${lead}Your scene partner`);
   const { mine, theirs } = rolesOf(rp, ROLEPLAY_YOU);
-  return { title: rp.title, premise, you_play: theirs, they_play: mine };
+  const card = dateRoleplayById(rp.id)?.card ?? null;
+  const opening = openedTerms(rp, threadId).opening ?? null;
+  return {
+    title: rp.title,
+    premise: fromTheirSide(rp.premise),
+    you_play: theirs,
+    they_play: mine,
+    ...(card ? { card: { setup: fromTheirSide(card.setup), want: fromTheirSide(card.wants[own === "{a}" ? 0 : 1]), beats: card.beats.map(fromTheirSide), tone: card.tone } } : {}),
+    ...(opening ? { opening: fromTheirSide(opening) } : {}),
+  };
 }
 
 /** A scene's place for the prompt: its name and its stage direction (lib/venues.ts), and its roleplay if any. */
-const promptScene = (t: Pick<ThreadRow, "scene" | "roleplay">, characterName: string): PromptScene | null =>
-  t.scene ? { name: venueName(t.scene), prompt: venue(t.scene).prompt, roleplay: t.roleplay ? promptRoleplay(t.roleplay, characterName) : null } : null;
+const promptScene = (t: Pick<ThreadRow, "id" | "scene" | "roleplay">, characterName: string): PromptScene | null =>
+  t.scene ? { name: venueName(t.scene), prompt: venue(t.scene).prompt, roleplay: t.roleplay ? promptRoleplay(t.roleplay, characterName, t.id) : null } : null;
 
-/** The user turn that has the character open a scene (in its roleplay, when there's one). */
-const sceneCue = (place: VenueId, roleplay: RoleplayTerms | null = null) =>
+/**
+ * The user turn that has the character open a scene (in its roleplay, when there's one, on its opening when it has
+ * one). An opening can have the person doing something too: that part stays theirs, as everything they do in a scene is.
+ */
+const sceneCue = (place: VenueId, roleplay: Pick<PromptRoleplay, "title" | "opening"> | null = null) =>
   roleplay
-    ? `(You've both just got to ${venue(place).prompt}, and the roleplay "${roleplay.title}" starts now. Open it in character: what you do and say as you get there, setting up the story and playing off the place. Don't ask more than one question.)`
+    ? `(You've both just got to ${venue(place).prompt}, and the roleplay "${roleplay.title}" starts now.${
+        roleplay.opening ? ` It opens like this: ${roleplay.opening} Play your own part of that; whatever your scene partner does in it is theirs to play.` : ""
+      } Open it in character: what you do and say as you get there, setting up the story and playing off the place. Don't ask more than one question.)`
     : `(You've both just got to ${venue(place).prompt}. Open the scene: what you do and say as you get there, playing off the place. Don't ask more than one question.)`;
 
 /** The user turn that has the character text first once a scene is over (asked for over MCP; the chat waits for the person). */
@@ -1071,7 +1092,7 @@ export async function regenerate(db: Db, userId: string, threadId: string, now: 
   const { t, character } = l;
   if (t.paused_at) return fail(409, "paused", "This conversation is paused. Carry on when you're ready.");
   const last = await lastReply(db, t.id);
-  const cue = last.afterUser ? undefined : last.marker ? (t.scene ? sceneCue(t.scene, t.roleplay) : TEXTING_CUE) : OPENER_CUE;
+  const cue = last.afterUser ? undefined : last.marker ? (t.scene ? sceneCue(t.scene, t.roleplay ? promptRoleplay(t.roleplay, character.name, t.id) : null) : TEXTING_CUE) : OPENER_CUE;
   const r = await speak(db, t, character, now, { insteadOf: last.texts.join(" ") || null, cue, replacing: last.ids });
   if (!r.ok) return r;
   if (last.ids.length) await db.query(`update companion_messages set replaced_by = $2 where id = any($1::text[])`, [last.ids, r.ids[0]]);
@@ -1197,15 +1218,18 @@ export async function setScene(db: Db, userId: string, threadId: string, place: 
     const view = await getThread(db, userId, threadId);
     return view.ok ? { ...view, replied: false } : view;
   }
-  const r = await speak(db, t, character, tick(now, 2), { cue: sceneCue(place, terms) });
+  const r = await speak(db, t, character, tick(now, 2), { cue: sceneCue(place, terms ? promptRoleplay(terms, character.name, t.id) : null) });
   const view = await getThread(db, userId, threadId);
   return view.ok && !r.ok ? { ...view, replied: false } : view;
 }
 
-/** Two scenes' roleplays are the same one, with the same roles. */
+/** Two scenes' roleplays are the same one, with the same roles, and the same opening when both name one. */
 function sameTerms(a: RoleplayTerms | null, b: RoleplayTerms | null): boolean {
   if (!a || !b) return !a && !b;
-  return a.id === b.id && a.title === b.title && a.premise === b.premise && a.first === b.first && JSON.stringify(a.roles) === JSON.stringify(b.roles);
+  return (
+    a.id === b.id && a.title === b.title && a.premise === b.premise && a.first === b.first && JSON.stringify(a.roles) === JSON.stringify(b.roles) &&
+    (!a.opening || !b.opening || a.opening === b.opening)
+  );
 }
 
 /** A person's report on one of the character's replies (reviewed on the admin reports page). */

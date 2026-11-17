@@ -73,7 +73,11 @@ const Input = z.object({
   scenario: z.enum(SCENARIOS.map((x) => x.id) as [string, ...string[]]).optional(),
   framing: z.enum(FRAMING_IDS as [string, ...string[]]).nullable().optional(),
   // This chapter's roleplay (lib/adult/roleplays.ts), sent with set_scene from the scene picker, or on its own (null clears it).
-  roleplay: z.object({ id: z.union([z.enum(ROLEPLAY_IDS), z.string().regex(USER_ROLEPLAY)]), swap: z.boolean().optional() }).nullable().optional(),
+  // `opening`: which of its card's three openings the first lines play (lib/scene-cards.ts); left out, the first.
+  roleplay: z
+    .object({ id: z.union([z.enum(ROLEPLAY_IDS), z.string().regex(USER_ROLEPLAY)]), swap: z.boolean().optional(), opening: z.number().int().min(0).max(2).optional() })
+    .nullable()
+    .optional(),
   turn_ons: z.object({ character_id: id, ids: z.array(z.enum(TURN_ON_IDS as [string, ...string[]])).max(TURN_ON_IDS.length) }).optional(),
   // Their memory, seen and edited (null text deletes): a PG note, a fact, or the night's recap.
   memory_edit: z

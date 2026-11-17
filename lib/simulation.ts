@@ -57,6 +57,7 @@ import {
 import { pickVenueFrom, type PlaceId, type VenueId } from "./venues";
 import { DEFAULT_FORMAT, format as showFormat, type FormatId } from "./formats";
 import { fillPremise, roleplayForActor, rolesLine, type DateRoleplay } from "./roleplays";
+import { openedTerms } from "./scene-cards";
 import { HOUSE_CHARACTERS } from "./house";
 import { hotTakesOf, type StoredHotTakes } from "./hot-takes";
 import { CLAIMS_KEPT, type StoredInner } from "./inner-life";
@@ -277,11 +278,16 @@ export function assembleDate(p: DateParts): BuiltDate {
   if (p.table) charA.table = charB.table = p.table;
   // A roleplay both agreed to (lib/roleplays.ts): each side knows its role and theirs. Its words are both of theirs to say,
   // never "profile reading". Framing, never the engine.
-  if (p.roleplay) {
+  // How it opens (lib/scene-cards.ts): the opening that came with the terms, else one of its card's three by this date's
+  // id, so a rebuild opens the same way. The setup keeps it with the terms.
+  const roleplay = p.roleplay ? openedTerms(p.roleplay, p.episodeId) : null;
+  if (roleplay) {
     const cast = [{ id: a.id, name: a.sheet.name }, { id: b.id, name: b.sheet.name }];
-    charA.roleplay = roleplayForActor(p.roleplay, a.id, cast);
-    charB.roleplay = roleplayForActor(p.roleplay, b.id, cast);
-    const words = [p.roleplay.title, fillPremise(p.roleplay, cast), rolesLine(p.roleplay, cast) ?? ""].join(" ");
+    charA.roleplay = roleplayForActor(roleplay, a.id, cast);
+    charB.roleplay = roleplayForActor(roleplay, b.id, cast);
+    // The card's shared parts too. What each side wants in it stays out: that's the side's own, like its agenda.
+    const card = [charA.roleplay.how_it_starts ?? [], charA.roleplay.where_it_can_go ?? [], charA.roleplay.opening ?? []].flat();
+    const words = [roleplay.title, fillPremise(roleplay, cast), rolesLine(roleplay, cast) ?? "", ...card].join(" ");
     charA.pairShared = charB.pairShared = `${charA.pairShared ?? ""} ${words}`.trim();
   }
   if (p.alsoSeeing?.a.length) charA.alsoSeeing = p.alsoSeeing.a;
@@ -338,7 +344,7 @@ export function assembleDate(p: DateParts): BuiltDate {
     ...(p.nudges?.a ? { nudge_a: p.nudges.a } : {}),
     ...(p.nudges?.b ? { nudge_b: p.nudges.b } : {}),
     ...(p.table ? { table: p.table } : {}),
-    ...(p.roleplay ? { roleplay: p.roleplay } : {}),
+    ...(roleplay ? { roleplay } : {}),
     // Which date this is for the couple (lib/date-number.ts): stored, so its happy ending names the date after it. #1190: a
     // first date's 1 too, so a later read can't count it again (an earlier date that airs after this booking made it "2").
     ...(p.dateNumber ? { date_number: p.dateNumber } : {}),

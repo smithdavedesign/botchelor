@@ -224,8 +224,12 @@ export type AdultScene = {
   /** How the viewer frames the two of them (lib/adult/profile.ts), and the scenario tonight started from (lib/adult/scenarios.ts). */
   framing: FramingId | null;
   scenario: string | null;
-  /** This chapter's roleplay (lib/adult/roleplays.ts), picked in Set the scene: it ends when the chapter does. */
-  roleplay?: { id: string; swap: boolean } | null;
+  /**
+   * This chapter's roleplay (lib/adult/roleplays.ts), picked in Set the scene: it ends when the chapter does. `opening`
+   * is which of its card's three openings it plays (1 or 2; left out, the first). `at` is how many lines the chapter had
+   * when it was picked: its opening is for the lines written right after, and the page never sees it (publicScene).
+   */
+  roleplay?: { id: string; swap: boolean; opening?: number; at?: number } | null;
   /**
    * Where the two agreed by text to go (lib/plans.ts), before the night's first line: the night starts there, and Set the
    * scene can't send them elsewhere until it has started (David, 2026-10-25: "if the bots have decided on the date from
@@ -422,6 +426,8 @@ export const publicScene = (scene: AdultScene & { undo?: readonly StepUndo[] }):
     rewind: undo ? rewindSummary(undo) : rest.rewind,
     // A plan from their texts only holds until the night starts (loadScene): a scene with lines has its place stored.
     planned: rest.lines.length ? null : (rest.planned ?? null),
+    // Where in the chapter the roleplay was picked is the writer's business (its opening), not the page's.
+    ...(rest.roleplay ? { roleplay: { id: rest.roleplay.id, swap: rest.roleplay.swap, ...(rest.roleplay.opening ? { opening: rest.roleplay.opening } : {}) } } : {}),
   };
 };
 
@@ -481,7 +487,7 @@ async function loadScene(db: Db, adminId: string, x: string, y: string): Promise
     await db.query<{
       id: string; lines: SceneLine[]; place: string | null; stage: number; stage_from: number; picture_note: string | null; set_place: string | null; cut_to: string | null;
       chapter: number; recap: string | null; prev_tail: SceneLine[] | null; place_history: PlaceStop[] | null; moves: MoveLog[] | null; suggestions: unknown; whispers: unknown; undo: StepUndo[] | null;
-      intensity: string | null; hard_nos: unknown; framing: string | null; scenario: string | null; roleplay: { id?: unknown; swap?: unknown; chapter?: unknown } | null;
+      intensity: string | null; hard_nos: unknown; framing: string | null; scenario: string | null; roleplay: { id?: unknown; swap?: unknown; chapter?: unknown; opening?: unknown; at?: unknown } | null;
       writing_for: number | null;
     }>(
       `select id, lines, place, stage, stage_from, picture_note, set_place, cut_to, chapter, recap, prev_tail, place_history, moves, suggestions, whispers, undo, intensity, hard_nos,
@@ -527,7 +533,12 @@ async function loadScene(db: Db, adminId: string, x: string, y: string): Promise
     roleplay:
       // One of the show's, or one of the owner's own ("u:<id>", lib/studio/library.ts: checked theirs when it was picked).
       row.roleplay && (roleplayById(String(row.roleplay.id)) || USER_ROLEPLAY.test(String(row.roleplay.id))) && row.roleplay.chapter === (row.chapter ?? 1)
-        ? { id: String(row.roleplay.id), swap: row.roleplay.swap === true }
+        ? {
+            id: String(row.roleplay.id),
+            swap: row.roleplay.swap === true,
+            ...(row.roleplay.opening === 1 || row.roleplay.opening === 2 ? { opening: row.roleplay.opening } : {}),
+            ...(typeof row.roleplay.at === "number" ? { at: row.roleplay.at } : {}),
+          }
         : null,
     beats: await chapterBeats(db, row.id, row.chapter ?? 1),
   };
@@ -1006,7 +1017,7 @@ export function sceneMessages(
     // What they're into and how the viewer frames them (lib/adult/profile.ts), and tonight's scenario: only when set.
     ...profileLines(names, now.profile?.turnOns ?? { a: [], b: [] }, now.profile?.framing ?? null),
     now.profile?.scenario ? `Tonight's scenario: ${now.profile.scenario.title}. ${now.profile.scenario.premise} Both of them chose to be here, and either can stop at any time.` : "",
-    now.profile?.roleplay ? roleplayLine(now.profile.roleplay.rp, names, now.profile.roleplay.swap) : "",
+    now.profile?.roleplay ? roleplayLine(now.profile.roleplay.rp, names, now.profile.roleplay.swap, now.profile.roleplay.opening ?? null) : "",
     // #1155: "they've just met" only before a single line of the night; after that they already know each other from it
     // (v2: v1's prompt stays as it was, tests/fixtures/after-dark-v1-prompt.json).
     date ? `Their latest date: ${date.setting ?? "a date"}. It ended: ${date.ending ?? "unknown"}.` : v2 && (lines.length || now.recap) ? "They haven't been on a show date: tonight is their own, and it's already under way." : "They haven't been on a date yet: they've just met.",
@@ -1766,7 +1777,8 @@ export type SceneProfile = {
   turnOns: { a: string[]; b: string[] };
   framing: FramingId | null;
   scenario: Scenario | null;
-  roleplay?: { rp: Roleplay; swap: boolean } | null;
+  /** `opening`: which of the card's openings these lines play; only on the first lines after it was picked. */
+  roleplay?: { rp: Roleplay; swap: boolean; opening?: number } | null;
   /** What one of the owner's own venues is like, when they're at it (lib/studio/library.ts): tonight's situation. */
   situation?: string | null;
 };
@@ -2646,7 +2658,11 @@ async function sceneProfile(db: Db, scene: AdultScene, owner: string): Promise<S
     turnOns: { a: turnOnsFor(a, scene.hard_nos), b: turnOnsFor(b, scene.hard_nos) },
     framing: scene.framing,
     scenario: scene.scenario ? scenarioById(scene.scenario) : null,
-    roleplay: rp && scene.roleplay ? { rp: rp as Roleplay, swap: scene.roleplay.swap } : null,
+    roleplay:
+      rp && scene.roleplay
+        ? // Its opening is for the first lines written after it was picked (lib/scene-cards.ts): none written since.
+          { rp: rp as Roleplay, swap: scene.roleplay.swap, ...(scene.lines.length <= (scene.roleplay.at ?? 0) ? { opening: scene.roleplay.opening ?? 0 } : {}) }
+        : null,
     situation,
   };
 }
@@ -3331,14 +3347,21 @@ export async function saveFraming(db: Db, ownerId: string, x: string, y: string,
 
 /**
  * This chapter's roleplay (lib/adult/roleplays.ts), or none: stored with the chapter it's for, so it ends with it. `swap`
- * gives the second character the first role.
+ * gives the second character the first role. `opening` is which of its card's three openings the next lines play.
  */
-export async function setRoleplay(db: Db, ownerId: string, x: string, y: string, pick: { id: string; swap?: boolean } | null): Promise<AdultScene | null> {
+export async function setRoleplay(db: Db, ownerId: string, x: string, y: string, pick: { id: string; swap?: boolean; opening?: number } | null): Promise<AdultScene | null> {
   const scene = await loadScene(db, ownerId, x, y);
   if (!scene) return null;
   // One of the show's roleplays, or one of this owner's own (never someone else's).
   const known = pick ? Boolean(roleplayById(pick.id)) || Boolean(await ownRoleplay(db, ownerId, pick.id)) : false;
-  const value = pick && known ? { id: pick.id, swap: pick.swap === true } : null;
+  // Which of its card's openings (lib/scene-cards.ts): only one of the show's has a card, and none sent is the first.
+  const opening = pick && roleplayById(pick.id)?.card && (pick.opening === 1 || pick.opening === 2) ? pick.opening : null;
+  // The picker sends the running roleplay again with every move: the same one, opening the same way, has already
+  // opened, so it keeps where it was picked and its opening isn't played a second time at the new place.
+  const now = scene.roleplay;
+  const running = Boolean(pick && now && now.id === pick.id && now.swap === (pick.swap === true) && (now.opening ?? 0) === (opening ?? 0));
+  const at = running ? (now?.at ?? 0) : scene.lines.length;
+  const value = pick && known ? { id: pick.id, swap: pick.swap === true, ...(opening ? { opening } : {}), at } : null;
   await db.query(`update adult_scenes set roleplay = $2::jsonb, updated_at = now() where id = $1`, [scene.id, value ? JSON.stringify({ ...value, chapter: scene.chapter }) : null]);
   return publicScene({ ...scene, roleplay: value });
 }

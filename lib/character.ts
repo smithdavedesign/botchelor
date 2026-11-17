@@ -82,9 +82,11 @@ export type Character = {
   table?: string;
   /**
    * Set only on a date that plays a roleplay (lib/roleplays.ts): what both agreed to before it, from this side (its title,
-   * the premise in their names, who plays whom). Both sides carry it; its words are things both already know.
+   * the premise in their names, who plays whom). Both sides carry it; its words are things both already know. With a
+   * scene card (lib/scene-cards.ts) it also has how it starts, where it can go, its tone and the opening, and this
+   * side's own want, which the other side's copy never has.
    */
-  roleplay?: Record<string, string>;
+  roleplay?: Record<string, string | string[]>;
   /**
    * Set only on a date's characters: the plan the two agreed to by text, which tonight is (lib/plans.ts), from this
    * side ("You: “…”", "They: “…”"). Its own field, not `pair`: a first date they planned in a match chat is still a first date.
