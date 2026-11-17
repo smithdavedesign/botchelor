@@ -143,6 +143,8 @@ describe("launch checks: robots.txt, sitemap and og:image", () => {
         "/seasons",
         "/shows",
         "/everything",
+        // The show's own page beside /shows (lib/seo.ts staticSitemap, while SHOW_IDEAS is on).
+        "/shows/botchelor",
         // Plus the search landings (lib/seo.ts landingPaths) and the RSS feed (app/feed.xml/route.ts, a route, not a page).
         ...landingPaths(),
         "/feed.xml",
