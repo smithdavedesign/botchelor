@@ -1814,23 +1814,6 @@ main:has(> .couple-page) {
 .house-scene-lead .cast-chat-bubble {
   font-size: var(--text-md);
 }
-/* A scene reads as a back-and-forth (David 2026-11-17: both voices on one side were hard to follow): the second voice
-   sits on the right (and a fourth), face outside, tail toward its face, in the tinted bubble; the first (and a third) on the left in
-   a neutral one. A speaker's colour goes by their side, not by the line's place in the list as in the group chat, and
-   a bubble stops short of the far edge so the side shows even on a phone. Both tints are mixed from the card they sit
-   on (--paper-2 is the dark card's own colour, so a left bubble vanished there). */
-.house-lines > .cast-chat-line > .cast-chat-bubble {
-  max-width: min(32rem, 80%);
-  border-radius: var(--radius) var(--radius) var(--radius) var(--radius-xs);
-  background: color-mix(in srgb, var(--ink) 6%, var(--card));
-}
-.house-lines > .cast-chat-line.is-right {
-  flex-direction: row-reverse;
-}
-.house-lines > .cast-chat-line.is-right > .cast-chat-bubble {
-  border-radius: var(--radius) var(--radius) var(--radius-xs) var(--radius);
-  background: color-mix(in srgb, var(--accent) 14%, var(--card));
-}
 .house-earlier {
   display: flex;
   flex-direction: column;

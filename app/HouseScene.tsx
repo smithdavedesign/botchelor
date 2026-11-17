@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Avatar from "./Avatar";
+import { rightSide } from "./chat-sides";
 import ReportScene from "./house/ReportScene";
 import type { HouseSceneView } from "@/lib/house-scenes";
 
@@ -14,9 +15,8 @@ const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
  */
 export default function HouseScene({ scene, lead = false, report = true }: { scene: HouseSceneView; lead?: boolean; report?: boolean }) {
   const headId = `scene-head-${scene.id}`;
-  // A conversation, not a list (David 2026-11-17): each voice keeps a side, by the order they first speak in: the
-  // first on the left, the second on the right, a third (a challenge can have more) back on the left, and so on.
-  const voices = [...new Set(scene.lines.map((l) => l.id))];
+  // A back-and-forth, each voice on its own side (app/chat-sides.ts).
+  const right = rightSide(scene.lines.map((l) => l.id));
   return (
     <section id={`scene-${scene.id}`} className={`card house-scene${lead ? " house-scene-lead" : ""}`} aria-labelledby={headId} data-track-area="house-scene">
       <p className="kicker">
@@ -47,9 +47,9 @@ export default function HouseScene({ scene, lead = false, report = true }: { sce
           </>
         )}
       </p>
-      <ol className="cast-chat-thread house-lines">
-        {scene.lines.map((l) => (
-          <li key={l.n} className={`cast-chat-line${voices.indexOf(l.id) % 2 === 1 ? " is-right" : ""}`}>
+      <ol className="cast-chat-thread cast-chat-sides house-lines">
+        {scene.lines.map((l, i) => (
+          <li key={l.n} className={`cast-chat-line${right[i] ? " is-right" : ""}`}>
             <Link href={`/characters/${l.id}`} className="cast-chat-face" data-track="house-scene" data-track-where="face" aria-label={l.name}>
               <Avatar seed={l.id} name={l.name} hue={l.hue} house={l.house} size={lead ? 44 : 36} portraitSrc={l.portrait} decorative />
             </Link>

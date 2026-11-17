@@ -14336,6 +14336,24 @@ button.thread-menu-item:hover:not(:disabled) {
 .cast-chat-line:nth-child(even) .cast-chat-bubble {
   background: color-mix(in srgb, var(--accent) 12%, var(--paper));
 }
+/* A transcript as a back-and-forth (.cast-chat-sides: /house's scenes, the morning-after chat; app/chat-sides.ts says
+   which side; David 2026-11-17: every voice on the left was hard to follow). The first voice on the left in a neutral
+   bubble, the second on the right (and a fourth), face outside, tail toward it, in the accent tint; a third back on
+   the left. A speaker's colour goes by their side, not by the line's place as above, and a bubble stops short of the
+   far edge so the side shows on a phone. Both tints are mixed from --card, which reads on a card and on the page
+   alike (dark --paper-2 is the dark card's own colour, so a bubble in it vanished on /house). */
+.cast-chat-sides > .cast-chat-line > .cast-chat-bubble {
+  max-width: min(32rem, 80%);
+  border-radius: var(--radius) var(--radius) var(--radius) var(--radius-xs);
+  background: color-mix(in srgb, var(--ink) 6%, var(--card));
+}
+.cast-chat-sides > .cast-chat-line.is-right {
+  flex-direction: row-reverse;
+}
+.cast-chat-sides > .cast-chat-line.is-right > .cast-chat-bubble {
+  border-radius: var(--radius) var(--radius) var(--radius-xs) var(--radius);
+  background: color-mix(in srgb, var(--accent) 14%, var(--card));
+}
 .cast-chat-name {
   font-size: var(--text-xs, 0.75rem);
   font-weight: 700;

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Avatar from "./Avatar";
+import { rightSide } from "./chat-sides";
 import type { CastChat as Chat } from "@/lib/cast-chat";
 
 /**
@@ -7,13 +8,15 @@ import type { CastChat as Chat } from "@/lib/cast-chat";
  * thread — faces first, first names, the lines. Only ever about what has aired. /watch shows it in full.
  */
 export default function CastChat({ chat }: { chat: Chat }) {
+  // A back-and-forth, each voice on its own side (app/chat-sides.ts), as on /house.
+  const right = rightSide(chat.lines.map((l) => l.character_id));
   return (
     <section id="cast-chat" className="watch-section cast-chat" aria-labelledby="cast-chat-head" data-track-area="cast-chat">
       <p className="watch-tonight-kicker">Leaked from the cast group chat</p>
       <h2 id="cast-chat-head">{chat.code ? `The morning after ${chat.code.replace("S", "Season ").replace(" · ", ", ")}` : "The morning after"}</h2>
-      <ol className="cast-chat-thread">
+      <ol className="cast-chat-thread cast-chat-sides">
         {chat.lines.map((l, i) => (
-          <li key={i} className="cast-chat-line">
+          <li key={i} className={`cast-chat-line${right[i] ? " is-right" : ""}`}>
             <Link href={`/characters/${l.character_id}`} className="cast-chat-face" data-track="cast-chat" data-track-where="face" aria-label={l.name}>
               <Avatar seed={l.character_id} name={l.name} hue={l.hue} house size={36} portraitSrc={l.portrait} decorative />
             </Link>
