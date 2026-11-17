@@ -22,9 +22,8 @@
 import { crisisIntent } from "./crisis";
 import type { Db } from "./db";
 import { isNotEnglish } from "./language";
-import { ageGuard } from "./narration";
 import { SCENE_PERSONA_FIELDS, SCENE_PERSONA_MAX, type ScenePersona, type ScenePersonaField } from "./persona-shared";
-import { checkAdultText } from "./safety";
+import { checkFields } from "./safety";
 import { showCardTextIssue } from "./scene-cards";
 
 export * from "./persona-shared";
@@ -57,7 +56,7 @@ const UNDER_18 = "(?:1[0-7]|[1-9])";
 /** Words that end in s and aren't a plural ("17 this year" is an age; "17 tattoos" is a count). */
 const NOT_PLURAL = "this|always|perhaps|across|unless|versus|minus|plus|less|yours|hers|ours|theirs|sometimes|besides|towards";
 /** What makes the number before it a measure or a count, never an age. "years" only when "old" doesn't follow. */
-const MEASURE = `(?:(?:years?|yrs?)(?!\\s+old\\b)|minutes?|mins?|hours?|hrs?|days?|weeks?|months?|o'?clock|am\\b|pm\\b|percent|%|dollars?|bucks|euros?|pounds?|lbs?\\b|kg\\b|kilos?|stone\\b|feet\\b|foot\\b|ft\\b|inch(?:es)?\\b|cm\\b|miles?\\b|km\\b|bit\\b|times?\\b|of\\b|out of\\b|(?!(?:years?|yrs?|${NOT_PLURAL})\\b)[a-z]{3,}s\\b)`;
+const MEASURE = `(?:(?:years?|yrs?)(?![\\s-]+old\\b)|minutes?|mins?|hours?|hrs?|days?|weeks?|months?|o'?clock|am\\b|pm\\b|percent|%|dollars?|bucks|euros?|pounds?|lbs?\\b|kg\\b|kilos?|stone\\b|feet\\b|foot\\b|ft\\b|inch(?:es)?\\b|cm\\b|miles?\\b|km\\b|bit\\b|times?\\b|of\\b|out of\\b|(?!(?:years?|yrs?|${NOT_PLURAL})\\b)[a-z]{3,}s\\b)`;
 /** A number that goes on into a time, a decimal, a range or inches is not an age either. */
 const NOT_A_NUMBER_ON = `(?![\\d'":/.-]*\\d)(?!")(?![\\s-]*${MEASURE})`;
 /** What a number right after it is a label for ("size 14", "room 13", "March 15"). */
@@ -82,15 +81,15 @@ const SELF_AGE_PATTERNS = [
 ];
 
 /**
- * Whether a line of a persona gives an age under 18, or says they're a minor: every form the site's checks know (the
- * narrator's age rule, After Dark's minor terms and ages, which are the widest) and a self-description's own.
+ * Whether a line of a persona gives an age under 18, or says they're a minor: the terms and ages every side's check
+ * shares (lib/safety.ts checkFields: "teen", "16 years old", "aged 15", "I'm 16"), and a self-description's own forms
+ * above. Each side's own check then adds its wider age rules (the show's: "when I was twelve"; After Dark's: any age
+ * in passing), which are too wide to hold everywhere ("my dog is seven").
  */
 export function personaAge(text: string): boolean {
   if (!text.trim()) return false;
-  if (ageGuard(text, "adult") === "age") return true;
-  const strict = checkAdultText({ text });
-  // A theme's refusal (a school setting) is the side's own to word; only an age or a minor term is this rule's.
-  if (!strict.ok && strict.reason === "minor" && !strict.theme) return true;
+  const shared = checkFields({ text });
+  if (!shared.ok && shared.reason === "minor") return true;
   const plain = fold(text);
   return SELF_AGE_PATTERNS.some((re) => re.test(plain));
 }
