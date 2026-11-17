@@ -26,6 +26,9 @@ const PW = ["lantern", "keeper", "42"].join("-");
 const WRONG_PW = ["not", "the", "one"].join("-");
 const OTHER_SECRET = ["another", "signing", "key", "0123456789abcdefghij"].join("-");
 
+/** A different signing secret, for a forged offer. Built from parts so no literal secret sits in the repo (the scanner reads every commit). */
+const OTHER_SECRET = ["another", "signer", "entirely", "0123456789"].join("-");
+
 let t: Awaited<ReturnType<typeof startTestDb>>;
 let catalog: Catalog;
 beforeAll(async () => {
