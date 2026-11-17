@@ -14,10 +14,17 @@
  *
  * And a **story**: a finished date or chapter told again as prose, from start to end (lib/stories.ts keeps them).
  *
- * Admins only while it's tested (lib/writing-style.ts); what it costs a viewer is there too.
+ * And **story mode** (at the end of this file): a scene reply written as prose in ONE call, for a scene a person is in
+ * themselves (a companion's scene, lib/companion.ts). No pass: the reply is prose from the start, checked as a whole
+ * by the caller's line checks and then by the guard here. Its craft, parsing and guard are exported for every side.
+ *
+ * Who gets the narrated style, and what it costs, is lib/writing-style.ts.
  */
 import type { ChatMessage, Model, ModelOptions } from "./model";
 import { checkAdultText, checkShowText } from "./safety";
+import { storySpeech } from "./story-reply";
+
+export * from "./story-reply";
 
 export const WRITING_STYLES = ["script", "narrated"] as const;
 export type WritingStyle = (typeof WRITING_STYLES)[number];
@@ -74,14 +81,24 @@ export const WORN_PHRASES = [
   "testament to",
 ] as const;
 
+/**
+ * The craft rules every kind of narrated prose shares (a line's beat, a story, a scene reply written as prose in story
+ * mode below): feeling shown through the body, plain words, and the worn phrases by name. Exported so each prompt says
+ * them in the same words.
+ */
+export const CRAFT_SHOW_FEELING =
+  "Show how they feel through what their body and hands do (knuckles pale on the counter, setting a glass down very deliberately), never by naming the feeling (\"she felt nervous\").";
+export const CRAFT_PLAIN_WORDS = "Plain, specific, concrete words. Nothing purple, no metaphors stacked on metaphors, nothing that reads like a romance novel's back cover.";
+export const WORN_RULE = `Never use these worn phrases: ${WORN_PHRASES.slice(0, 18).map((p) => `"${p}"`).join(", ")}.`;
+
 /** The craft the narrator writes to: what made the example David liked work, said as rules. */
 const CRAFT = [
   "Third person, past tense, close on whoever speaks the line: what they do with their hands and body, the things around them (a cup, a chair, the counter, the rain on the window), what they notice about the other one, and now and then a flicker of what they think, in their own voice and words (\"Cool. Fantastic.\").",
-  "Show how they feel through what their body and hands do (knuckles pale on the counter, setting a glass down very deliberately), never by naming the feeling (\"she felt nervous\").",
+  CRAFT_SHOW_FEELING,
   "Vary the rhythm: some beats are one short sentence, some are two or three; some lines get prose only before the words, some only after, a few get none at all. Now and then a beat is a single short line on its own, like \"It buzzed again.\"",
   "Answer what was just said: when a line repeats or reacts to the other one's words, the prose can show it landing (a pause, a look, a laugh that comes out wrong).",
   "Fold the line's action into the prose; don't repeat it word for word.",
-  "Plain, specific, concrete words. Nothing purple, no metaphors stacked on metaphors, nothing that reads like a romance novel's back cover.",
+  CRAFT_PLAIN_WORDS,
 ];
 
 /** What a narrator may never do, whatever the lines are: it tells, it never adds. */
@@ -89,7 +106,7 @@ const NEVER = [
   "Never change, repeat, quote or paraphrase the spoken words: they're printed between your two parts exactly as written. No quotation marks in your prose.",
   "Never add an event: nobody arrives, leaves, moves somewhere else, touches, kisses or undresses unless the lines themselves say so. You tell what the lines show, more closely; you don't move the story on.",
   "Never put words in the other one's mouth, and never say what the other one thinks or feels: only what the speaker can see of them.",
-  `Never use these worn phrases: ${WORN_PHRASES.slice(0, 18).map((p) => `"${p}"`).join(", ")}.`,
+  WORN_RULE,
 ];
 
 const RATING_RULE: Record<Rating, string> = {
@@ -191,14 +208,19 @@ export function tidyPart(raw: unknown, max = BEAT_PART_MAX): string {
   return t;
 }
 
+/** Whether a sentence uses one of the worn phrases (WORN_PHRASES). */
+export function hasWornPhrase(sentence: string): boolean {
+  const low = sentence.toLowerCase().replace(/[’]/g, "'");
+  return WORN_PHRASES.some((p) => new RegExp(`\\b${p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`).test(low));
+}
+
 /** A part without the sentences that use a worn phrase (WORN_PHRASES); how many went. */
 export function wornCut(text: string): { text: string; cut: number } {
   if (!text) return { text, cut: 0 };
   const sentences = text.match(/[^.!?…]+[.!?…]+["'’”)\]]*|[^.!?…]+$/g) ?? [text];
   let cut = 0;
   const kept = sentences.filter((s) => {
-    const low = s.toLowerCase().replace(/[’]/g, "'");
-    const worn = WORN_PHRASES.some((p) => new RegExp(`\\b${p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`).test(low));
+    const worn = hasWornPhrase(s);
     if (worn) cut++;
     return !worn;
   });
@@ -363,7 +385,7 @@ export function storyPrompt(input: {
     "",
     "Never:",
     "- Never add an event the transcript doesn't have, and never change how it ends.",
-    `- Never use these worn phrases: ${WORN_PHRASES.slice(0, 18).map((p) => `"${p}"`).join(", ")}.`,
+    `- ${WORN_RULE}`,
     "",
     RATING_RULE[input.rating],
     "Write in English.",
@@ -458,13 +480,14 @@ const SENTENCES = /[^.!?…]+(?:[.!?…]+["'’”)\]]*\s*|$)/g;
  * The narrator's guard over a story's paragraph (the first live After Dark story, 2026-11-17, was held whole: a story
  * quotes the lines, and the guard's prose rules were read against them too). A story's quoted lines are the date's own,
  * already held to the line checks, so they answer only to those and to the age rule; the prose between them answers to
- * the whole guard. A sentence that trips it goes, and the rest stays; how many went.
+ * the whole guard. A sentence that trips it goes, and the rest stays; how many went. `also`: one more reason a prose
+ * sentence goes (never a quoted line), for a caller with rules of its own (story mode's, below).
  */
-export function guardStory(text: string, rating: Rating): { text: string; cut: number } {
+export function guardStory(text: string, rating: Rating, also?: (sentence: string) => boolean): { text: string; cut: number } {
   let cut = 0;
   const keep = (s: string, quoted: boolean): boolean => {
     if (!s.trim()) return true;
-    const hit = quoted ? ageGuard(s, rating) : narrationGuard(s, rating);
+    const hit = quoted ? Boolean(ageGuard(s, rating)) : Boolean(narrationGuard(s, rating)) || also?.(s) === true;
     if (hit) cut++;
     return !hit;
   };
@@ -478,4 +501,177 @@ export function guardStory(text: string, rating: Rating): { text: string; cut: n
   }
   out += prose(text.slice(last));
   return { text: out.replace(/\s+/g, " ").trim(), cut };
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Story mode: a scene reply written as prose in ONE call (the roleplay audit, 2026-11-17, item 1: "replies written as
+// prose in one go (not the script plus a narration pass) … the character moves the scene on instead of asking what you
+// want"). For a scene a person is in themselves: a companion's scene (lib/companion.ts); After Dark's own comes later.
+//
+// What's here is neutral. The craft and the parsing know no rating and the guard takes one, so each side's prompt keeps
+// its own rules around it (PG or not, honesty about being AI, the crisis rules) and runs its own line checks on the
+// reply as a whole before the guard. lib/story-reply.ts reads a stored reply back (paragraphs, speech, runs).
+
+/** How much a story reply is, by the thread's reply length: its paragraphs, fewest and most. */
+export type StoryLength = "short" | "normal" | "long";
+export const STORY_MODE_PARAGRAPHS: Record<StoryLength, readonly [number, number]> = { short: [1, 2], normal: [2, 3], long: [3, 4] };
+/** The longest paragraph of a story reply (characters): a longer one is cut back to its last whole sentence. */
+export const STORY_MODE_PARAGRAPH_MAX = 700;
+/** The most paragraphs a story reply keeps, whatever came back. */
+export const STORY_MODE_PARAGRAPHS_MAX = 5;
+
+/**
+ * The character drives. Every scene prompt carries this one, script or story: the field's products hand the scene back
+ * ("what would you like to do?") and the person ends up writing both sides.
+ */
+export const SCENE_DRIVE_RULE =
+  'You drive the scene: every reply moves it on. Something happens, you do the next thing, or you say where it goes next. Never hand it back with "what would you like to do?" or "what now?", and ask at most one question.';
+
+/**
+ * It never writes the person. The field's most documented complaint (docs/audits/2026-11-17-roleplay-vs-the-field.md,
+ * "Where Botchelor is ahead": "the model narrating for me"), and the rule the script prompt has always had for stage
+ * directions, said for prose.
+ */
+export const NEVER_WRITE_THE_PERSON =
+  'Never write the person you\'re with. Nothing "you" did, said, thought or felt goes in beyond what they actually sent: no words in their mouth, no movement, no reaction, no decision made for them. What they do next is theirs to write.';
+
+const COUNT = ["no", "one", "two", "three", "four", "five"];
+
+/**
+ * How a story reply is written, as the lines of a prompt's "how it's written" block: who is "you" and who is told in the
+ * third person, speech in double quotes, how long, the shared craft, the two rules above and the worn phrases. `name`
+ * is the character's (first name); `pronouns` theirs when known.
+ */
+export function storyModeRules(o: { name: string; pronouns?: string | null; length: StoryLength }): string[] {
+  const [least, most] = STORY_MODE_PARAGRAPHS[o.length];
+  const who = o.pronouns ? `${o.name}, ${o.pronouns}` : `${o.name}, by name`;
+  return [
+    `This scene is told as prose, the way a novel would tell it, and you write your side of it. Third person and past tense for yourself (${who}); the person you're with is always "you".`,
+    "What you say out loud goes in double quotes inside the prose, and you say at least one thing out loud.",
+    `${COUNT[least][0].toUpperCase()}${COUNT[least].slice(1)} or ${COUNT[most]} short paragraphs, a few sentences each. No headings, no lists, no asterisks.`,
+    CRAFT_SHOW_FEELING,
+    "Use the things in the place: what's on the table, the light, the weather, what the hands find to do.",
+    CRAFT_PLAIN_WORDS,
+    SCENE_DRIVE_RULE,
+    NEVER_WRITE_THE_PERSON,
+    WORN_RULE,
+  ];
+}
+
+/** The answer a story reply comes in. */
+export const STORY_MODE_ANSWER = 'Answer only JSON: {"story":["first paragraph","second paragraph"]}, one string a paragraph.';
+
+/**
+ * Room for a story reply to finish: its paragraphs, and a thinking model's thinking before them (it counts, and bills,
+ * as output: a small cap comes back empty).
+ */
+export const storyModeTokens = (length: StoryLength): number => 1200 + 350 * STORY_MODE_PARAGRAPHS[length][1];
+
+const balanced = (s: string) => (s.match(/"/g) ?? []).length % 2 === 0 && (s.match(/“/g) ?? []).length === (s.match(/”/g) ?? []).length;
+
+/** One paragraph of a story reply tidied: one line, no asterisks, cut back to a whole sentence (with its quotes closed) under the limit. */
+function tidyStoryParagraph(raw: string): string {
+  const t = raw.replace(/\*+/g, "").replace(/\s+/g, " ").trim();
+  if (t.length <= STORY_MODE_PARAGRAPH_MAX) return t;
+  const head = t.slice(0, STORY_MODE_PARAGRAPH_MAX);
+  let cut = -1;
+  for (const m of head.matchAll(SENTENCE_END)) {
+    const end = (m.index ?? 0) + m[0].length;
+    if (balanced(head.slice(0, end))) cut = end;
+  }
+  return cut > 0 ? head.slice(0, cut).trim() : "";
+}
+
+/**
+ * The paragraphs in a story reply: {"story": [...]} (or "paragraphs"; a single string splits on blank lines), the whole
+ * strings of one cut off mid-answer, or plain prose's paragraphs. Each tidied; empty when nothing came.
+ */
+export function parseStoryReply(raw: string): string[] {
+  const trimmed = raw.trim();
+  let parts: string[] = [];
+  const j = jsonOf(raw) as { story?: unknown; paragraphs?: unknown } | null;
+  if (j && typeof j === "object") {
+    const listed = j.story ?? j.paragraphs;
+    parts = Array.isArray(listed) ? listed.filter((p): p is string => typeof p === "string") : typeof listed === "string" ? [listed] : [];
+  } else if (trimmed.startsWith("{") || trimmed.startsWith("```")) {
+    // Cut off at the token limit: keep each paragraph that closed.
+    const at = trimmed.indexOf('"story"');
+    if (at >= 0) {
+      parts = [...trimmed.slice(at + '"story"'.length).matchAll(/"((?:[^"\\]|\\.)*)"/g)].map((m) => {
+        try {
+          return JSON.parse(`"${m[1]}"`) as string;
+        } catch {
+          return "";
+        }
+      });
+    }
+  } else parts = [raw];
+  return parts
+    .flatMap((p) => p.replace(/\r/g, "").split(/\n\s*\n/))
+    .map(tidyStoryParagraph)
+    .filter(Boolean)
+    .slice(0, STORY_MODE_PARAGRAPHS_MAX);
+}
+
+const SPEECH_VERB =
+  "say|says|said|ask|asks|asked|reply|replies|replied|answer|answers|answered|whisper|whispers|whispered|murmur|murmurs|murmured|mutter|mutters|muttered|add|adds|added|admit|admits|admitted|call|calls|called|laugh|laughs|laughed|tell|tells|told|shout|shouts|shouted|joke|jokes|joked|tease|teases|teased|agree|agrees|agreed|protest|protests|protested|offer|offers|offered|respond|responds|responded|insist|insists|insisted|counter|counters|countered|suggest|suggests|suggested";
+/** A quoted line given to "you": `You said, "…"` and `"…," you said`. */
+const YOU_SPEAK = [
+  // The quote opens after a space ("You said, “…”"): a comma right against a quote mark is one closing, the character's own.
+  new RegExp(`\\b[Yy]ou\\s+(?:\\w+\\s+){0,3}?(?:${SPEECH_VERB})\\b[^.!?"“”]{0,60}[,:]\\s+["“]`),
+  new RegExp(`[,!?—-]["”]\\s+you\\s+(?:${SPEECH_VERB})\\b`),
+];
+/**
+ * "You" given a thought or a feeling in the narration. Past-tense and plainly inner verbs only: the prose is in the
+ * past tense, and a present "you know" or "you want" is nearly always the general "you".
+ */
+const YOU_INNER =
+  /\byou(?:\s+(?:just|suddenly|almost|really|already|still|never|finally|quietly|secretly))?\s+(?:feel|felt|think|thought|realise|realised|realize|realized|wonder|wondered|decide|decided|knew|wanted|wish|wished|hope|hoped|can't help|couldn't help|find yourself|found yourself)\b/i;
+
+/** Whether a story reply puts words in the person's mouth: a quoted line said by "you". The reply is drawn again. */
+export function speaksForThePerson(text: string): boolean {
+  return YOU_SPEAK.some((re) => re.test(text));
+}
+
+/** Whether a sentence of narration gives the person a thought or a feeling ("you felt…", "you wondered…"). It's cut. */
+export function thinksForThePerson(sentence: string): boolean {
+  return YOU_INNER.test(sentence);
+}
+
+/**
+ * What the guard made of a story reply, or why it can't be used:
+ *  - "empty": no paragraphs came (or none survived);
+ *  - "silent": nothing is said out loud, so the stage and the voice would have nothing;
+ *  - "speaks_for_them": it wrote a line for the person;
+ *  - "cut": the guard took more than a third of it.
+ */
+export type StoryReply =
+  | { ok: true; paragraphs: string[]; speech: string[]; cut: number }
+  | { ok: false; why: "empty" | "silent" | "speaks_for_them" | "cut"; cut: number };
+
+/**
+ * A parsed story reply through the narrator's guard, a paragraph at a time (guardStory): a sentence of narration goes
+ * when the guard refuses it, when it uses a worn phrase, or when it thinks or feels for the person; quoted speech
+ * answers to the caller's line checks (run before this, on the reply as a whole) and the age rule. Not usable when the
+ * guard took more than a third of it (by length), when nothing is said out loud, or when it speaks for the person.
+ */
+export function guardStoryReply(paragraphs: readonly string[], rating: Rating): StoryReply {
+  if (!paragraphs.length) return { ok: false, why: "empty", cut: 0 };
+  if (speaksForThePerson(paragraphs.join(" "))) return { ok: false, why: "speaks_for_them", cut: 0 };
+  let cut = 0;
+  let before = 0;
+  let after = 0;
+  const kept: string[] = [];
+  for (const p of paragraphs) {
+    const g = guardStory(p, rating, (s) => hasWornPhrase(s) || thinksForThePerson(s));
+    cut += g.cut;
+    before += p.length;
+    after += g.text.length;
+    if (g.text) kept.push(g.text);
+  }
+  if (!kept.length) return { ok: false, why: "empty", cut };
+  if (after < (before * 2) / 3) return { ok: false, why: "cut", cut };
+  const speech = storySpeech(kept.join("\n\n"));
+  if (!speech.length) return { ok: false, why: "silent", cut };
+  return { ok: true, paragraphs: kept, speech, cut };
 }

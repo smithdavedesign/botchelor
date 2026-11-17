@@ -4651,6 +4651,26 @@ button.rating-chip:hover {
 .chat-dark .chat-beat {
   color: rgba(255, 255, 255, 0.72);
 }
+/* Story mode (lib/narration.ts): a scene reply written as prose, at reading size and not in a bubble. What's said out
+   loud is in the text colour; the narration around it is in the narrator's quieter voice, as .chat-beat is. */
+.chat-story {
+  margin: 0.25rem 0.5rem;
+  max-width: 62ch;
+  font-size: var(--text-md);
+  line-height: 1.6;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.chat-story p {
+  margin: 0 0 var(--space-2);
+}
+.chat-story p:last-child {
+  margin-bottom: 0;
+}
+.chat-story-told {
+  font-style: italic;
+  color: var(--muted);
+}
 /* Writing style (app/WritingStylePicker.tsx): two choices, each with what it means. */
 .writing-style-options {
   display: grid;

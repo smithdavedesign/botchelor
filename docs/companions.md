@@ -56,8 +56,9 @@ Never someone else's character or an outside agent's: their makers never agreed 
   two fallbacks 25 s each), and a reply is drawn again only if the first came within 40 s (`REDRAW_WITHIN_MS`).
 - **The notice** (`noticeDue`): at the start, after 30 minutes away and every 3 hours of talking, as a line in the
   thread; the header says "AI character" the whole time.
-- **Regenerate** (free) sets the last reply aside and draws a different one; **edit** rewrites the person's last
-  message and answers it again.
+- **Regenerate** (free) sets the newest reply aside and draws a different one; the earlier draws are kept and can be
+  flipped through ("Alternates and Continue", below). **Edit** rewrites the person's last message and answers it
+  again. **Continue** has the character carry on without the person saying anything.
 - **Memory** (`lib/companion-memory.ts`): after every 6 new messages from the person, one call draws up to 8 short
   facts about them (name, likes, people, events, plans, work, boundaries, inside jokes), skipping known ones and any
   that trip the crisis list, its maybes or the PG line; 60 a thread, the least-used unpinned unedited ones go first.
@@ -480,7 +481,12 @@ David, 2026-11-04: "maybe enable this to go into theater mode too". The show's t
 - **Checks:** what they say and what they do both go through the PG line and the crisis list (drawn once more, then
   an in-scene deflection); the person's lines go through the full self-harm check, as a text does.
 - **Regenerate and edit:** a regenerate right after a scene change opens the scene again (it never replaces a reply
-  from before the change); editing your last message is refused once a scene change follows it.
+  from before the change); editing your last message is refused once a scene change follows it. The draws a
+  regenerate sets aside stay as alternates, and Continue moves the scene on ("Alternates and Continue", below).
+- **The character drives** (2026-11-17): every scene prompt, script or story, carries one sentence
+  (`lib/narration.ts` `SCENE_DRIVE_RULE`): each reply moves the scene on, it never hands it back with "what would you
+  like to do?", and it asks at most one question.
+- **Story mode** (2026-11-17, below): on the narrated style, a scene reply is prose written in one call.
 - **Costs one reply**, the companion's opener (`POST /api/companion/:id {action: "scene", place, roleplay?, my_role?,
   opening?}`, `null` back to texting), given back if it never comes. Refused while the conversation is paused.
 - **How it opens** (2026-11-17, "An opening you choose" below): the picker's last step. Untouched, a scene with no
@@ -599,6 +605,83 @@ describe besides 'you'."
 - **Switch:** `SCENE_PERSONA=0` ([hosting.md](hosting.md)) turns the show's use of it off without a deploy of code: no
   prompt reads one, the card and the picker's line go, and saving answers not found. What's stored stays.
 - Tests: `tests/persona.test.ts`.
+
+## Story mode (built 2026-11-17)
+
+The roleplay audit's first item ([audits/2026-11-17-roleplay-vs-the-field.md](audits/2026-11-17-roleplay-vs-the-field.md)):
+"replies written as prose in one go (not the script plus a narration pass), 2–4 paragraphs, the character moves the
+scene on instead of asking what you want."
+- **Who gets it:** someone in a scene whose writing style is Narrated (`styleFor(db, userId, "show")`: Companion Plan
+  members and admins who picked it on `/account`; [writing-styles.md](writing-styles.md)). Everyone else, and every
+  text and call, is as before.
+- **One call.** The narration pass over a script line is gone from `speak()` (`lib/companion.ts`); the pass itself
+  stays in `lib/narration.ts` for show dates and After Dark.
+- **The prompt** is the scene's own with one branch changed (`lib/companion-prompt.ts`, `storyMode`). "How you talk"
+  and the script's answer give way to "How it's written" (`lib/narration.ts` `storyModeRules`, the narrator's craft in
+  the same words, exported and not copied):
+  - third person and past tense for the character, "you" for the person;
+  - what's said out loud in double quotes inside the prose, and at least one thing said out loud;
+  - one or two short paragraphs on Short, two or three on Normal, three or four on Long (`STORY_MODE_PARAGRAPHS`);
+  - feeling shown through hands, body and the things in the place; plain concrete words, nothing purple; the worn
+    phrases by name;
+  - **the character drives** (`SCENE_DRIVE_RULE`);
+  - **it never writes the person** (`NEVER_WRITE_THE_PERSON`): nothing "you" did, said, thought or felt beyond what
+    they actually sent. This is the field's most documented complaint.
+  - Everything else in the scene's prompt stays: PG, the AI disclosure, never suggesting meeting for real, the crisis
+    rule, the roleplay and its card, the persona.
+  - Answer: `{"story": ["paragraph", "paragraph"]}`, with room to finish (`storyModeTokens`: a thinking model spends
+    its budget before it writes).
+- **Checks, in this order** (`speak`):
+  1. The reply as a whole through `checkFamilyTalk` and the crisis list, exactly as a script reply.
+  2. Each paragraph through the narrator's guard (`guardStoryReply`, on `guardStory(paragraph, "pg")`): a sentence of
+     narration goes when the guard refuses it, uses a worn phrase, or gives the person a thought or a feeling ("you
+     felt…"). Quoted speech answers to the line checks and the age rule.
+  3. What was said out loud isn't something they've said before (`repeatsEarlier` on the quoted speech).
+- **A draw that can't be used is drawn once more:** nothing came, nothing is said out loud, the guard cut more than a
+  third of it (by length), it failed the PG line, or it wrote a line for the person (`"…," you said`:
+  `speaksForThePerson`). **Twice unusable falls back to an ordinary script scene reply.** A repeat is drawn again too,
+  and used if the redraw is no better. The model down on the first call is a 503 with the reply given back, as ever.
+- **Stored** as one message: the paragraphs joined by a blank line in `companion_messages.text`, with `form =
+  'story'`. No `action`, no `beat`. Replies narrated before this (a script line with its `beat`) read as they did.
+- **Shown** as prose at reading size, not a bubble (`.chat-story`): what's said in the text colour, the narration
+  around it in the quieter italic `.chat-beat` uses. The stage shows the first thing said.
+- **Voice:** the device voice and voice notes read only the quoted speech (`lib/story-reply.ts` `storySpeech`).
+- **One reply counted**, as now.
+- **Switches:** `COMPANION_STORY_MODE=0` puts every scene reply back to the script, whatever the style
+  ([hosting.md](hosting.md)); who has the Narrated style at all is `WRITING_STYLES`.
+- **Over MCP:** an agent's style is the script (it has no plan and no account page), so nothing changes.
+- Tests: `tests/writing-styles-companion.test.ts`.
+
+## Alternates and Continue (built 2026-11-17)
+
+The audit's fourth item: "flip through regenerated replies (‹ 2 of 3 ›) and Continue. The draws are already stored."
+- **A draw** (`companion_messages.draw`): every reply the model writes carries the id of its first message on each of
+  its messages, so a reply's bubbles are one draw and a continuation is another.
+- **Regenerate keeps the draws.** The reply it replaces stays, hidden, pointing at the new one (`replaced_by`), and so
+  do the alternates it already had: exactly one draw is ever current, and every other points at it (`setAside`).
+- **The thread view** says so for the newest reply only, and only while nothing has been said after it: `draws:
+  {count, showing}` (1 is the first drawn).
+- **`POST /api/companion/:id {action: "swipe", to: "prev" | "next"}`** makes the draw before or after the current one.
+  Free: nothing is drawn or counted. Refused (409) with one draw (`one_draw`), past either end (`no_more`), or while
+  the thread is paused.
+- **In the chat:** `‹ 2 of 3 ›` beside ↻ under the newest reply: two quiet buttons with names a screen reader says
+  ("Show the reply before this one"), off at either end.
+- **Not alternates:** what an edit replaced (its `draw` is cleared: it answered other words), a text the character
+  wrote without the model (its tag, a photo), and draws from before this shipped (they have no `draw`; the first
+  regenerate of an older reply gives it one).
+- **Deleting the reply** deletes every draw of it, as before (`lib/companion-message-delete.ts` follows `replaced_by`).
+- **Continue:** `{action: "continue"}` has the character carry on without the person saying anything.
+  - In a scene the cue has it move the scene on; while texting, add one more short thought.
+  - One reply, counted like any; given back if none comes; refused while the thread is paused, like a send. The AI
+    notice goes in when it's due.
+  - With nothing of the character's to carry on from (the person spoke last, a scene just started), it's the reply
+    that's due.
+  - A regenerate after it redraws the continuation alone, on the same cue. An edit of the person's message replaces
+    everything said since.
+  - In the chat: "▸ Continue" beside the composer in a scene; "Let {name} carry on" in the Settings menu while texting
+    (rarely used controls stay off the main surface).
+- **Over MCP:** unchanged (`regenerate` works as before and keeps its draws; there is no swipe or continue action).
+- Tests: `tests/companion-draws.test.ts`.
 
 ## Voice notes (P3, built 2026-11-09)
 

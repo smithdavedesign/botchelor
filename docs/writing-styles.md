@@ -27,7 +27,7 @@ And **stories**: a finished show date, or an After Dark chapter, told again as p
 | Where | Picker | What narrated changes |
 | --- | --- | --- |
 | Show dates you book | /account, "Writing style" | The finished date's lines get prose before it's saved. The live theater still plays the lines as they're written, and the prose shows once the date is ready. |
-| Companion scenes | Same picker as show dates | A scene reply gets prose around it. Texting and calls don't, and the voice reads only the words. |
+| Companion scenes | Same picker as show dates | A scene reply is **written as prose in one call** (story mode, since 2026-11-17: [companions.md](companions.md), "Story mode"). Texting and calls aren't, and the voice reads only what's said out loud. |
 | After Dark scenes | /after-dark/account, "Writing style" | Every step's new lines get prose. The theater and the 📖 Reader show it. |
 | Stories | The date page ("📖 Read it as a story") and the After Dark 📖 Reader | One call tells the whole date or chapter as prose. |
 
@@ -35,7 +35,7 @@ Not narrated: step-in dates (a person plays one side), agents' own dates over MC
 
 ## How it works
 
-Narration is a **pass over lines already written and checked**. It never changes how they're written. Every date's and scene's prompts, craft checks, limits and safety checks run exactly as before. Then one call (`lib/narration.ts` `narrate`, up to 8 lines a call) writes a beat for each new line: `{before, after}`, stored on the line as `beat`.
+On show dates and in After Dark, narration is a **pass over lines already written and checked**. It never changes how they're written. (A companion's scene is the exception since 2026-11-17: there the reply is written as prose in the first place, and checked as a whole: "Story mode" below.) Every date's and scene's prompts, craft checks, limits and safety checks run exactly as before. Then one call (`lib/narration.ts` `narrate`, up to 8 lines a call) writes a beat for each new line: `{before, after}`, stored on the line as `beat`.
 
 - The words are never touched. The narrator is told never to change, quote or paraphrase them, and the beat is stored apart from them.
 - The narrator may never add an event. Nobody arrives, leaves, moves, touches or undresses unless the lines say so. This keeps After Dark's pace, place and limits in the lines, where the craft checks already hold them.
@@ -45,7 +45,7 @@ Narration is a **pass over lines already written and checked**. It never changes
 | --- | --- | --- |
 | Show dates and their stories | The show's model (the frontier when it's configured), with its thinking off (`showNarrator`) | `lib/jobs.ts`, after the conversation, before the date is saved (`lib/narrate-date.ts`) |
 | After Dark | The fast writer (DeepSeek V3.1) | `lib/adult/scenes.ts` `writeScene`, after the step's lines pass (`lib/adult/narrate-scene.ts`) |
-| Companion scenes | The companion's model | `lib/companion.ts` `speak` |
+| Companion scenes | The companion's model | Not a pass any more (2026-11-17): `lib/companion.ts` `speak` writes the reply as prose in one call (story mode), with the craft rules exported from `lib/narration.ts` |
 
 ### Safety
 
@@ -64,6 +64,25 @@ Prose is new text that describes people and bodies, so it answers to **more** th
 Stories: a story quotes the date's lines, which already passed the line checks, so its quoted lines answer to those checks and the age rule only, and the prose between them to the whole guard (`guardStory`). A sentence the guard refuses is cut. A story that fails a line check or a hard no, or that the guard cut too much of, isn't kept. A reply the length cap cut off is no story either, so one is never kept without its ending.
 
 Worn AI-prose phrases ("a breath she didn't know she was holding", "something shifted", "smirk"…) are named in the prompt. A sentence that uses one anyway is cut (`wornCut`).
+
+### Story mode (companion scenes)
+
+A scene a person is in themselves reads differently from a date between two characters: the person is waiting on one
+reply, and the roleplay audit found the script-plus-pass shape was the wrong one for it. So a companion's scene reply,
+for someone on the Narrated style, is written as prose in one call:
+
+- **The craft is shared, not copied.** `lib/narration.ts` exports what both shapes use (`CRAFT_SHOW_FEELING`,
+  `CRAFT_PLAIN_WORDS`, `WORN_RULE`) and story mode's own (`storyModeRules`, `SCENE_DRIVE_RULE`,
+  `NEVER_WRITE_THE_PERSON`, `STORY_MODE_ANSWER`, `storyModeTokens`, `parseStoryReply`, `guardStoryReply`). None of it
+  knows a rating: the guard takes one, and the caller's prompt keeps its own rules. After Dark's own "you in the
+  scene" will build on the same exports.
+- **The safety order** is the script reply's line checks on the whole reply first, then the narrator's guard a
+  paragraph at a time (`guardStory`, which now takes one more reason to cut a sentence of narration: here a worn
+  phrase, or a thought written for the person). More than a third cut, nothing said out loud, or a line written for
+  the person, and it's drawn again; twice, and the reply is an ordinary script reply.
+- **Kept** as one message with `companion_messages.form = 'story'`; `lib/story-reply.ts` (client-safe) reads it back
+  as paragraphs, quoted speech and runs.
+- [companions.md](companions.md), "Story mode", has the rest.
 
 ## What it costs, and who gets it
 
@@ -105,15 +124,17 @@ select created_at, flags->'narration' from adult_steps where flags ? 'narration'
 ## Switches
 
 - **`WRITING_STYLES`** (env, both apps): unset or `members` is the plan's members and admins on the show; `admins` is admins only; `0` turns Narrated and new stories off everywhere (kept stories still read). See `docs/hosting.md`.
+- **`COMPANION_STORY_MODE`** (env, the show's app; on unless `0`): `0` puts every companion scene reply back to the script, whatever the person's style.
 - **After Dark's "narrated" rollout switch** (`lib/adult/rollout.ts`, Settings → Not open yet): `admins` until flipped to `everyone`.
 - `stylesOpen` in `lib/writing-style.ts` is the one gate the show's pickers, routes and jobs ask; `adultNarratedOpen` in `lib/adult/narrate-scene.ts` is After Dark's. The show never imports After Dark's code, so each side has its own style route (`/api/writing-style`, `/api/admin/after-dark/writing-style`).
 
 ## Files
 
-- `lib/narration.ts`: styles, the beat and story prompts, parsing, checks and the guard.
+- `lib/narration.ts`: styles, the beat and story prompts, parsing, checks and the guard; story mode's craft, parsing and guard.
+- `lib/story-reply.ts`: a stored story reply read back (paragraphs, quoted speech, runs). Client-safe.
 - `lib/writing-style.ts`: per-person styles (the `writing_prefs` table), the gate and the prices.
 - `lib/narrate-date.ts`, `lib/adult/narrate-scene.ts`: each surface's pass.
 - `lib/stories.ts`, `app/api/episodes/[id]/story`, `app/api/admin/after-dark/story`: stories (the `stories` table).
 - `app/ChatThread.tsx` (`.chat-beat`), `app/after-dark/[a]/[b]/Reader.tsx`, `app/companion/[id]/CompanionChat.tsx`: where the prose shows.
 - `app/WritingStylePicker.tsx`, `app/StoryButton.tsx`, `app/api/writing-style`.
-- `tests/writing-styles.test.ts`.
+- `tests/writing-styles.test.ts`, `tests/writing-styles-companion.test.ts` (story mode).

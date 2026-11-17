@@ -3,7 +3,8 @@
  * voice, the one their reels and nights use (lib/voice.ts voiceFor: Kokoro, one fixed stock voice per character, never
  * a cloned one), and the reply plays as a voice note from then on.
  *
- *  - Only what the reply says is voiced (a scene's stage direction is its own field, a texted *action* comes out).
+ *  - Only what the reply says is voiced (a scene's stage direction is its own field, a texted *action* comes out, and
+ *    of a story reply only the quoted speech: lib/story-reply.ts).
  *  - A line goes to the voice only if it's still under the PG line and the crisis list (it was checked when drawn).
  *  - Kept by a hash of the voice and the words (companion_voice), so the same line is never paid for twice: a replay,
  *    asking again, or the same words in another reply cost nothing.
@@ -24,6 +25,7 @@ import type { Db } from "./db";
 import { overLimit } from "./limits";
 import { keepBytes, objectStore, readBytes } from "./object-store";
 import { checkFamilyTalk } from "./safety";
+import { storySpeech } from "./story-reply";
 import { sayable, sayLine, voiceFor, voiceKey, voiceReady } from "./voice";
 
 /** One person's voice notes made an hour and a day (abuse only: each is paid for). */
@@ -52,8 +54,8 @@ export async function voiceNote(
 ): Promise<VoiceNote | VoiceNoteFail> {
   const now = opts.now ?? new Date();
   const m = (
-    await db.query<{ id: string; text: string; role: string; replaced_by: string | null; voice_key: string | null; character_id: string; paused_at: string | null; kept: string | null; via: string }>(
-      `select m.id, m.text, m.role, m.replaced_by, m.voice_key, t.character_id, t.paused_at, v.key as kept, m.via
+    await db.query<{ id: string; text: string; role: string; replaced_by: string | null; voice_key: string | null; character_id: string; paused_at: string | null; kept: string | null; via: string; form: string | null }>(
+      `select m.id, m.text, m.role, m.replaced_by, m.voice_key, t.character_id, t.paused_at, v.key as kept, m.via, m.form
          from companion_messages m join companion_threads t on t.id = m.thread_id
          left join companion_voice v on v.key = m.voice_key
         where m.id = $1 and t.id = $2 and t.user_id = $3`,
@@ -68,7 +70,8 @@ export async function voiceNote(
   if (m.paused_at) return fail(409, "paused", "This conversation is paused. Carry on when you're ready.");
   const character = await loadCharacter(db, m.character_id);
   if (!character) return fail(404, "not_found", "Pick one of their replies.");
-  const words = sayable(m.text);
+  // A story reply (lib/narration.ts story mode) is prose around what's said: only the quoted speech is voiced.
+  const words = sayable(m.form === "story" ? storySpeech(m.text).join(" ") : m.text);
   if (!words) return fail(422, "silent", "There's nothing to say out loud in that one.");
   if (!checkFamilyTalk(words).ok || crisisIntent(words)) return fail(422, "refused", "That one can't be voiced.");
   const voice = voiceFor(character);

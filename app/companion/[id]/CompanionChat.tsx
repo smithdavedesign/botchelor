@@ -13,6 +13,7 @@ import CrisisPause from "@/app/stage/CrisisPause";
 import RoleplayPicker, { choiceReady, roleplayFields, type RoleplayChoice } from "@/app/RoleplayPicker";
 import PlacePicker from "@/app/stage/PlacePicker";
 import { openingField, type OpeningChoice } from "@/lib/scene-opening";
+import { storyParagraphs, storySegments, storySpeech } from "@/lib/story-reply";
 import { useSpeech } from "@/app/stage/useSpeech";
 import type { CrisisResources } from "@/lib/crisis";
 import type { CompanionAllowance } from "@/lib/companion-plan";
@@ -60,6 +61,9 @@ const YOU: CharacterRef = { id: "you", name: "You", house: false, hue: 210, port
 
 const MARK: Record<NonNullable<CompanionMessageView["marker"]> | "notice", string> = { scene: "🎭", texting: "📱", notice: "🤖" };
 
+/** What a reply says out loud: of a story reply (lib/narration.ts story mode) only the quoted speech, never the narration. */
+const saidIn = (m: Pick<CompanionMessageView, "text" | "form">): string => (m.form === "story" ? storySpeech(m.text).join(" ") : m.text);
+
 /**
  * A companion thread (lib/companion.ts) as a phone-style chat: the character on the left, you on the right, the AI
  * notice as a line in the thread. Draw the last reply again, rewrite your last message, set how much they say, and report
@@ -71,6 +75,11 @@ const MARK: Record<NonNullable<CompanionMessageView["marker"]> | "notice", strin
  * their latest line with what they do, and yours; the thread keeps every line. Their lines can be read aloud in the
  * device's own voices (app/stage/useSpeech.ts). Once there's a place, a roleplay can come with it (the show's PG ones,
  * your library's or your own: app/RoleplayPicker.tsx), or it's just the two of you; and how it opens, if you want to say.
+ *
+ * In a scene, someone on the narrated style gets story replies (lib/narration.ts story mode): prose at reading size, no
+ * bubble, what's said in the text colour and the narration around it quieter; the stage shows the first thing said, and
+ * the voice reads only what's said. Under the newest reply: ↻ draws it again, ‹ 2 of 3 › flips through the draws kept,
+ * and Continue has them carry on without you (in the Settings menu while texting).
  *
  * A call (📞, ./CompanionCall.tsx): you talk and they talk back, each turn a message like any other (marked 📞 here).
  * Offered where the browser can hear you, never in a scene.
@@ -142,6 +151,8 @@ export default function CompanionChat({
   // How the scene opens, when they chose (the picker's last step; lib/scene-opening.ts). Null: untouched.
   const [opens, setOpens] = useState<OpeningChoice | null>(null);
   const [opening, setOpening] = useState(false);
+  // "Continue": they're carrying on without a line of yours, so the typing dots show.
+  const [continuing, setContinuing] = useState(false);
   // A call: on screen, offered (the browser can hear you), and started (so its end is counted).
   const [calling, setCalling] = useState(false);
   const [canCall, setCanCall] = useState(false);
@@ -195,7 +206,7 @@ export default function CompanionChat({
   useEffect(() => {
     if (!newest || newest.id === spoken.current) return;
     spoken.current = newest.id;
-    if (newest.scene) speech.say(newest.text, who);
+    if (newest.scene) speech.say(saidIn(newest), who);
     // Only when a new line comes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [newest?.id]);
@@ -405,7 +416,7 @@ export default function CompanionChat({
     const next = !speech.on;
     speech.setOn(next);
     // Turned on with a tap, so the line on stage can be read now (Safari speaks only after one).
-    if (next && onStage.them) speech.speak(onStage.them.text, who);
+    if (next && onStage.them) speech.speak(saidIn(onStage.them), who);
   }
 
   /** Plays a voice note (one at a time); a second tap on the one playing stops it. */
@@ -460,6 +471,14 @@ export default function CompanionChat({
     if (await post({ action: "carry_on" })) setCrisis(null);
   }
 
+  /** They carry on without you saying anything ({action: "continue"}): one more reply, counted like any. */
+  async function keepGoing() {
+    if (busy) return;
+    setContinuing(true);
+    await post({ action: "continue" });
+    setContinuing(false);
+  }
+
   async function report(m: CompanionMessageView, reason: CompanionReportReason) {
     setReporting(null);
     if (await post({ action: "report", message_id: m.id, reason })) setNote("Thanks. We'll look at it.");
@@ -475,7 +494,7 @@ export default function CompanionChat({
   const paused = view.paused || Boolean(crisis);
   const voicePrice = extraPrice("voice", extras?.voice);
   const outOfReplies = !allowance.unlimited && allowance.left === 0;
-  const typing = busy && (pending !== null || waitingOnThem || opening);
+  const typing = busy && (pending !== null || waitingOnThem || opening || continuing);
 
   // Their portrait, large: the panel's picture and, blurred, the wash behind the thread (the house cast's reviewed file,
   // or a made portrait at panel size; none means the plain card).
@@ -603,6 +622,14 @@ export default function CompanionChat({
                       .join(" · ")}
               </p>
             )}
+            {!paused && !outOfReplies && !view.scene && lastIsCharacter && (
+              // Continue while texting lives here (in a scene it's beside the composer): one more thought from them.
+              <p>
+                <button type="button" className="linklike" onClick={() => void keepGoing()} disabled={busy} data-track="companion-continue">
+                  Let {first} carry on
+                </button>
+              </p>
+            )}
             <p>
               <Link href={`/companion/${view.id}/memory`}>
                 What {first} knows about you ({view.facts})
@@ -676,10 +703,15 @@ export default function CompanionChat({
             venue={view.scene}
             lineA={
               onStage.them && !opening ? (
-                <>
-                  {onStage.them.action && <em className="scene-action">{onStage.them.action}</em>}
-                  {onStage.them.text}
-                </>
+                onStage.them.form === "story" ? (
+                  // A story reply: the stage has room for a line, so it shows the first thing they said.
+                  (storySpeech(onStage.them.text)[0] ?? null)
+                ) : (
+                  <>
+                    {onStage.them.action && <em className="scene-action">{onStage.them.action}</em>}
+                    {onStage.them.text}
+                  </>
+                )
               ) : null
             }
             lineB={pending ?? onStage.you?.text ?? null}
@@ -724,10 +756,24 @@ export default function CompanionChat({
                     {/* Who's talking, at the top of each run (as the show's own threads do, app/ChatThread.tsx): a thread
                         opened from Chat otherwise only says so in its header. */}
                     {shown[i - 1]?.role !== m.role && <span className="chat-name">{m.role === "user" ? "You" : c.name}</span>}
-                    {/* The narrated style (lib/narration.ts): prose before and after the words, the action folded into it. */}
+                    {/* A reply narrated before story mode (lib/narration.ts): prose before and after the words, the action folded into it. */}
                     {m.beat?.before && <p className="chat-beat">{m.beat.before}</p>}
                     {m.action && !m.beat && <span className="companion-action">{m.action}</span>}
-                    {m.photo ? (
+                    {m.form === "story" ? (
+                      // Story mode (lib/narration.ts): prose at reading size. What's said out loud is in the text colour;
+                      // the narration around it is in the narrator's quieter voice (as .chat-beat is).
+                      <div className="chat-story" data-story>
+                        {storyParagraphs(m.text).map((p, k) => (
+                          <p key={k}>
+                            {storySegments(p).map((s, j) => (
+                              <span key={j} className={s.said ? "chat-story-said" : "chat-story-told"}>
+                                {s.text}
+                              </span>
+                            ))}
+                          </p>
+                        ))}
+                      </div>
+                    ) : m.photo ? (
                       // A photo from one of their dates (./DatePhoto.tsx): the message's text is its alt text.
                       <DatePhoto src={m.photo.src} alt={m.text} href={m.photo.href} />
                     ) : (
@@ -924,6 +970,39 @@ export default function CompanionChat({
             {(lastIsCharacter || waitingOnThem || sceneWaiting) && (
               <button type="button" className="button-ghost small" onClick={() => void post({ action: "regenerate" })} disabled={busy} data-track="companion-regenerate">
                 {sceneWaiting ? `Ask ${first} to start` : waitingOnThem ? `Ask ${first} again` : view.scene ? "↻ Something else" : "↻ Another reply"}
+              </button>
+            )}
+            {view.draws && lastIsCharacter && (
+              // The newest reply's draws (lib/companion.ts swipeReply): flip to the one before or after. Free.
+              <span className="companion-draws" role="group" aria-label={`${first}'s replies to choose from`}>
+                <button
+                  type="button"
+                  className="button-ghost small"
+                  onClick={() => void post({ action: "swipe", to: "prev" })}
+                  disabled={busy || view.draws.showing <= 1}
+                  aria-label="Show the reply before this one"
+                  data-track="companion-swipe-prev"
+                >
+                  ‹
+                </button>
+                <span className="muted small" aria-live="polite">
+                  {view.draws.showing} of {view.draws.count}
+                </span>
+                <button
+                  type="button"
+                  className="button-ghost small"
+                  onClick={() => void post({ action: "swipe", to: "next" })}
+                  disabled={busy || view.draws.showing >= view.draws.count}
+                  aria-label="Show the reply after this one"
+                  data-track="companion-swipe-next"
+                >
+                  ›
+                </button>
+              </span>
+            )}
+            {view.scene && lastIsCharacter && (
+              <button type="button" className="button-ghost small" onClick={() => void keepGoing()} disabled={busy} data-track="companion-continue">
+                ▸ Continue
               </button>
             )}
             {lastUser && !editing && (

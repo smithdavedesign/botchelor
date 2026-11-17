@@ -1,6 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { shortName } from "./names";
-import { narrate, type Beat } from "./narration";
+import { guardStoryReply, parseStoryReply, storyModeTokens, storySpeech, type Beat } from "./narration";
 import { hasDepth, styleFor } from "./writing-style";
 import { isAdmin } from "./admins";
 import { adultProviderRouting, OPENROUTER_BASE_URL } from "./adult/mode";
@@ -21,6 +20,7 @@ import {
   companionEligibleSql,
   companionNotice,
   companionOpen,
+  companionStoryMode,
   aboutDateLabel,
   chatDateLinks,
   datePhotoEpisode,
@@ -226,14 +226,18 @@ async function addMessage(
     photoUrl?: string | null;
     /** The date a written text is about (companion_messages.episode_id): only ever from its tag (writeText), never a reply's. */
     episodeId?: string | null;
-    /** A narrated scene reply's prose (lib/narration.ts), kept beside the words so the voice never reads it. */
-    beat?: Beat | null;
+    /** "story": a scene reply written as prose (lib/narration.ts story mode); `text` is its paragraphs, a blank line between them. */
+    form?: "story" | null;
+    /** The message's own id, when the caller needs it before the row exists (a reply's first message names its draw). */
+    id?: string;
+    /** The draw it belongs to (companion_messages.draw): the id of the reply's first message. Only a model-written reply has one. */
+    draw?: string | null;
   } = {},
 ): Promise<string> {
-  const id = randomUUID();
+  const id = extra.id ?? randomUUID();
   await db.query(
-    `insert into companion_messages (id, thread_id, role, text, model, cost, created_at, scene, action, marker, roleplay, on_call, offers, via, media_url, episode_id, beat) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb, $14, $15, $16, $17::jsonb)`,
-    [id, threadId, role, text, extra.model ?? null, extra.cost ?? null, at.toISOString(), extra.scene ?? null, extra.action ?? null, extra.marker ?? null, extra.roleplay ?? null, extra.onCall === true, extra.offers ? JSON.stringify(extra.offers) : null, extra.photoUrl ? "photo" : "text", extra.photoUrl ?? null, extra.episodeId ?? null, extra.beat ? JSON.stringify(extra.beat) : null],
+    `insert into companion_messages (id, thread_id, role, text, model, cost, created_at, scene, action, marker, roleplay, on_call, offers, via, media_url, episode_id, form, draw) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb, $14, $15, $16, $17, $18)`,
+    [id, threadId, role, text, extra.model ?? null, extra.cost ?? null, at.toISOString(), extra.scene ?? null, extra.action ?? null, extra.marker ?? null, extra.roleplay ?? null, extra.onCall === true, extra.offers ? JSON.stringify(extra.offers) : null, extra.photoUrl ? "photo" : "text", extra.photoUrl ?? null, extra.episodeId ?? null, extra.form ?? null, extra.draw ?? null],
   );
   return id;
 }
@@ -487,9 +491,9 @@ export async function getThread(db: Db, userId: string, threadId: string): Promi
   if (!t) return NOT_FOUND;
   const ref = await characterRef(db, t.character_id, userId);
   if (!ref) return NOT_FOUND;
-  const [{ rows: msgs }, { rows: facts }, nextTime, realPhotos, dates] = await Promise.all([
-    db.query<{ id: string; role: "user" | "character" | "system"; text: string; created_at: string; reported: string | null; scene: string | null; action: string | null; marker: CompanionMessageView["marker"]; roleplay: string | null; voice_key: string | null; on_call: boolean; offers: StoredOffers | null; via: string; media_url: string | null; episode_id: string | null; beat: Beat | null }>(
-      `select id, role, text, created_at, reported, scene, action, marker, roleplay, voice_key, on_call, offers, via, media_url, episode_id, beat from companion_messages where thread_id = $1 and replaced_by is null order by created_at asc, id asc`,
+  const [{ rows: msgs }, { rows: facts }, nextTime, realPhotos, dates, earlier] = await Promise.all([
+    db.query<{ id: string; role: "user" | "character" | "system"; text: string; created_at: string; reported: string | null; scene: string | null; action: string | null; marker: CompanionMessageView["marker"]; roleplay: string | null; voice_key: string | null; on_call: boolean; offers: StoredOffers | null; via: string; media_url: string | null; episode_id: string | null; beat: Beat | null; form: string | null; draw: string | null }>(
+      `select id, role, text, created_at, reported, scene, action, marker, roleplay, voice_key, on_call, offers, via, media_url, episode_id, beat, form, draw from companion_messages where thread_id = $1 and replaced_by is null order by created_at asc, id asc`,
       [threadId],
     ),
     db.query<{ n: number }>(`select count(*)::int as n from companion_facts where thread_id = $1`, [threadId]),
@@ -501,7 +505,11 @@ export async function getThread(db: Db, userId: string, threadId: string): Promi
     // The dates this thread's texts are about that this person may open, with the partner's name (lib/chat-date-links.ts):
     // beside the reads above, so the thread waits on nothing more. CHAT_DATE_LINKS=0: none.
     chatDateLinks() ? threadDates(db, { threadId, characterId: t.character_id, viewer: userId }).catch(() => new Map<string, { partner: string }>()) : Promise.resolve(new Map<string, { partner: string }>()),
+    // The earlier draws kept as alternates (by the draw they point at), beside the reads above: which are the newest
+    // reply's is worked out below.
+    alternateDraws(db, threadId).catch(() => [] as AlternateDraw[]),
   ]);
+  const draws = drawsShown(newestReply(msgs), earlier);
   // The link goes under the last bubble of a text whose tag says so: "Watch the date" (the cast's opener, the tease), or
   // the house scene a text is about (lib/companion-shared.ts textLink).
   const lastOfTag = new Map<string, string>();
@@ -532,6 +540,7 @@ export async function getThread(db: Db, userId: string, threadId: string): Promi
         // A text's tag (postFromCharacter) is bookkeeping, not what they did.
         action: isTextTag(m.action) ? null : m.action,
         ...(m.beat && (m.beat.before || m.beat.after) ? { beat: m.beat } : {}),
+        ...(m.form === "story" ? { form: "story" as const } : {}),
         marker: m.marker,
         roleplay: m.roleplay,
         voice: m.voice_key ? voiceUrl(t.id, m.id) : null,
@@ -550,10 +559,66 @@ export async function getThread(db: Db, userId: string, threadId: string): Promi
       scene: isScenePlace(t.scene) ? t.scene : null,
       roleplay: t.scene && t.roleplay ? roleplayView(t.roleplay, ref.name) : null,
       paused: Boolean(t.paused_at),
+      ...(draws ? { draws } : {}),
       facts: facts[0]?.n ?? 0,
       ...(ref.yours ? { next_time: nextTime } : {}),
     },
   };
+}
+
+/* ------------------------------------------------ the newest reply, and its draws ------------------------------------------------ */
+
+type ReplyRow = { id: string; role: string; marker: string | null; draw: string | null; created_at: string | Date };
+
+/**
+ * The newest reply among a thread's shown messages (oldest first): the character's messages at the end that are one
+ * draw (companion_messages.draw: a reply's bubbles share it, "Continue" starts another; rows from before draws existed
+ * have none and run together, as they always did), and what comes before it: the person's message it answers, a
+ * scene's line, another reply of the character's (so this one carried on), or the start of the thread. The AI notice
+ * is a line in the thread but nothing anyone said: it's passed over. No rows: the last word isn't the character's.
+ */
+function newestReply<T extends ReplyRow>(msgs: readonly T[]): { rows: T[]; before: "user" | "marker" | "character" | "start" } {
+  const rows: T[] = [];
+  for (let i = msgs.length - 1; i >= 0; i--) {
+    const m = msgs[i];
+    if (m.role === "system") {
+      if (m.marker) return { rows, before: "marker" };
+      continue;
+    }
+    if (m.role === "user") return { rows, before: "user" };
+    if (rows.length && m.draw !== rows[0].draw) return { rows, before: "character" };
+    rows.unshift(m);
+  }
+  return { rows, before: "start" };
+}
+
+/** An earlier draw kept as an alternate: the draw it is, the draw that's current in its place, and when it was drawn. */
+type AlternateDraw = { draw: string; current: string; at: string | Date };
+
+/** A thread's alternates: the draws a regenerate set aside (never one an edit replaced, whose draw is cleared). */
+async function alternateDraws(db: Db, threadId: string, current?: string): Promise<AlternateDraw[]> {
+  const { rows } = await db.query<AlternateDraw>(
+    `select draw, replaced_by as current, min(created_at) as at from companion_messages
+      where thread_id = $1 and replaced_by is not null and draw is not null and id <> replaced_by and draw <> replaced_by
+        and ($2::text is null or replaced_by = $2)
+      group by draw, replaced_by order by min(created_at) desc limit 300`,
+    [threadId, current ?? null],
+  );
+  return rows;
+}
+
+/** The newest reply's draws in the order they were drawn, the current one among them. Empty when it has no draw of its own. */
+function drawsInOrder(newest: { rows: readonly ReplyRow[] }, earlier: readonly AlternateDraw[]): string[] {
+  const current = newest.rows[0]?.draw ?? null;
+  if (!current) return [];
+  const at = (d: string | Date) => new Date(d).getTime();
+  return [{ draw: current, at: newest.rows[0].created_at }, ...earlier.filter((e) => e.current === current)].sort((a, b) => at(a.at) - at(b.at) || a.draw.localeCompare(b.draw)).map((d) => d.draw);
+}
+
+/** What the thread view says about the newest reply's draws: how many, and which is showing. Null with only one. */
+function drawsShown(newest: { rows: readonly ReplyRow[] }, earlier: readonly AlternateDraw[]): { count: number; showing: number } | null {
+  const order = drawsInOrder(newest, earlier);
+  return order.length > 1 ? { count: order.length, showing: order.indexOf(newest.rows[0].draw!) + 1 } : null;
 }
 
 /**
@@ -716,8 +781,8 @@ export const REDRAW_WITHIN_MS = 40_000;
 
 /** The recent turns, oldest first (a redrawn reply's earlier draw left out, and the reply being drawn again). */
 async function recentTurns(db: Db, threadId: string, exclude: readonly string[] = [], keep: number = RECENT_TURNS): Promise<{ turns: PromptTurn[]; avoid: string[]; photos: string[] }> {
-  const { rows: all } = await db.query<{ role: "user" | "character"; text: string; action: string | null; roleplay: string | null; via: string }>(
-    `select role, text, action, roleplay, via from companion_messages
+  const { rows: all } = await db.query<{ role: "user" | "character"; text: string; action: string | null; roleplay: string | null; via: string; form: string | null }>(
+    `select role, text, action, roleplay, via, form from companion_messages
       where thread_id = $1 and role <> 'system' and replaced_by is null and not (id = any($3::text[]))
       order by created_at desc, id desc limit $2`,
     [threadId, keep + AVOID_LINES, exclude],
@@ -730,11 +795,13 @@ async function recentTurns(db: Db, threadId: string, exclude: readonly string[] 
     .slice(0, keep)
     .reverse()
     .map((r) => (isTextTag(r.action) ? { ...r, action: null } : r));
+  // A story reply (lib/narration.ts) is paragraphs long: what it mustn't reuse is what was said out loud in it.
   const avoid = rows
     .slice(keep)
     .filter((r) => r.role === "character")
-    .map((r) => r.text);
-  return { turns: recent, avoid, photos };
+    .map((r) => (r.form === "story" ? storySpeech(r.text).join(" ") : r.text))
+    .filter(Boolean);
+  return { turns: recent.map(({ form: _form, ...turn }) => turn), avoid, photos };
 }
 
 /** The character's own lines in this thread, newest first: what a new reply mustn't say again (repeatsEarlier). */
@@ -757,7 +824,8 @@ const lastDateFor = (db: Db, characterId: string, yours: boolean) =>
 /**
  * The character's reply to the thread as it stands: one model call, split into 1-3 messages, each checked against the
  * show's PG line and the crisis list. A reply that fails is drawn once more; a second failure is a deflection. Fails
- * (503) only when the model can't be reached, with nothing written.
+ * (503) only when the model can't be reached, with nothing written. In a scene, for someone on the narrated style, the
+ * reply is a story reply instead (story mode, below): prose in one call, kept as one message with form 'story'.
  */
 async function speak(
   db: Db,
@@ -808,12 +876,65 @@ async function speak(
   // A safe draw that only says something again: used when the redraw doesn't come back better (never a deflection).
   let safeRepeat: { bubbles: string[]; action: string | null } | null = null;
   const again = (x: string) => `${x.slice(0, 300)} (you've said this before: say something new)`;
-  for (let attempt = 0; attempt < 2 && !bubbles; attempt++) {
+  const prompt = (o: { insteadOf: string | null; told?: boolean }) =>
+    companionMessages({ character, turns, deep, facts, summary: t.summary, length: t.reply_length, avoid, now, insteadOf: o.insteadOf, cue: opts.cue, scene, call, yours, lastDate, activeNudge: nudge, photos, lessons, story, house, lockedPicture, persona, storyMode: o.told === true });
+
+  // Story mode (lib/narration.ts): in a scene, for someone on the narrated style (the Companion Plan's, and admins':
+  // lib/writing-style.ts), the reply is written as prose in ONE call, where a script line used to get a narration pass
+  // after it. Checked in this order: the reply as a whole against the PG line and the crisis list, exactly as a script
+  // reply is; then the narrator's guard a paragraph at a time; then that it isn't something they've said. Drawn once
+  // more when it can't be used; if that fails too, the ordinary script reply below is the reply.
+  let told: string[] | null = null;
+  if (scene && companionStoryMode() && (await styleFor(db, t.user_id, "show")) === "narrated") {
+    let instead = insteadOf;
+    let safeTold: string[] | null = null;
+    for (let attempt = 0; attempt < 2 && !told; attempt++) {
+      if (attempt > 0 && Date.now() - started > REDRAW_WITHIN_MS) break;
+      let raw: string;
+      try {
+        raw = await model.complete(prompt({ insteadOf: instead, told: true }), {
+          temperature: 0.9,
+          frequencyPenalty: 0.3,
+          maxTokens: storyModeTokens(t.reply_length),
+          onUsage: (u) => usage.push(u),
+          onModel: (id) => (served = id),
+        });
+      } catch {
+        if (attempt === 0) return fail(503, "model_down", `${character.name.split(/\s+/)[0]} can't answer right now. Try again in a moment.`);
+        break;
+      }
+      const drawn = parseStoryReply(raw);
+      const whole = drawn.join("\n\n");
+      if (!drawn.length) continue;
+      if (!checkFamilyTalk(whole).ok || crisisIntent(whole)) {
+        instead = `${whole.slice(0, 300)} (keep it PG and kind)`;
+        continue;
+      }
+      const guarded = guardStoryReply(drawn, "pg");
+      if (!guarded.ok) {
+        if (guarded.why === "speaks_for_them") instead = `${whole.slice(0, 300)} (you wrote a line for them: never write what they say or do)`;
+        continue;
+      }
+      const kept = guarded.paragraphs.join("\n\n");
+      // What the guard left is checked once more as a whole: a cut can bring two sentences together.
+      if (!checkFamilyTalk(kept).ok || crisisIntent(kept)) continue;
+      const speech = guarded.speech.join(" ");
+      if (repeatsEarlier(speech, said)) {
+        safeTold ??= guarded.paragraphs;
+        instead = again(speech);
+        continue;
+      }
+      told = guarded.paragraphs;
+    }
+    told ??= safeTold;
+  }
+
+  for (let attempt = 0; attempt < 2 && !bubbles && !told; attempt++) {
     if (attempt > 0 && Date.now() - started > REDRAW_WITHIN_MS) break;
     let raw: string;
     try {
       raw = await model.complete(
-        companionMessages({ character, turns, deep, facts, summary: t.summary, length: t.reply_length, avoid, now, insteadOf, cue: opts.cue, scene, call, yours, lastDate, activeNudge: nudge, photos, lessons, story, house, lockedPicture, persona }),
+        prompt({ insteadOf }),
         {
           temperature: 0.9,
           frequencyPenalty: 0.3,
@@ -854,45 +975,30 @@ async function speak(
     } else insteadOf = `${drawn.join(" ").slice(0, 300)} (keep it PG and kind)`;
   }
   if (!bubbles && safeRepeat) ({ bubbles, action } = safeRepeat);
-  // The narrated style (lib/narration.ts): a scene reply wrapped in prose, the action folded into it, once it has passed
-  // every check above. Their own style (lib/writing-style.ts, admins only while it's tested); never on a call or a text.
-  let beat: Beat | null = null;
-  if (scene && bubbles?.length && (await styleFor(db, t.user_id, "show")) === "narrated") {
-    const first = shortName(character.name);
-    const done = await narrate(
-      model,
-      {
-        rating: "pg",
-        people: [
-          { name: first, about: character.persona.traits.slice(0, 3).join(", ") },
-          { name: "You", about: 'the person they\'re with; the prose calls them "you"' },
-        ],
-        place: scene.name,
-        lines: [{ who: first, dialogue: bubbles[0], action: action ?? "" }],
-        before: turns.slice(-4).map((x) => ({ who: x.role === "user" ? "You" : first, dialogue: x.text, action: x.action ?? "" })),
-      },
-      { onUsage: (u) => usage.push(u) },
-    ).catch(() => null);
-    beat = done?.beats[0] ?? null;
-  }
-  const texts = bubbles ?? [scene ? SCENE_DEFLECTIONS[Math.floor(Math.random() * SCENE_DEFLECTIONS.length)] : DEFLECTIONS[Math.floor(Math.random() * DEFLECTIONS.length)]];
+  // A story reply is one message: its paragraphs with a blank line between them, and no action beside it.
+  const texts = told
+    ? [told.join("\n\n")]
+    : (bubbles ?? [scene ? SCENE_DEFLECTIONS[Math.floor(Math.random() * SCENE_DEFLECTIONS.length)] : DEFLECTIONS[Math.floor(Math.random() * DEFLECTIONS.length)]]);
   const cost = usage.reduce((s, u) => s + (u.cost ?? 0), 0);
   const modelId = served ?? usage[0]?.model ?? null;
+  // The reply is one draw (companion_messages.draw): its first message's id, on every message of it.
+  const draw = randomUUID();
   const ids: string[] = [];
   for (const [i, text] of texts.entries()) {
     ids.push(
       await addMessage(db, t.id, "character", text, tick(now, i), {
-        ...(i === 0 ? { model: modelId, cost: cost || null } : {}),
+        ...(i === 0 ? { id: draw, model: modelId, cost: cost || null } : {}),
+        draw,
         scene: t.scene,
-        action: bubbles ? action : null,
-        ...(i === 0 && beat ? { beat } : {}),
+        action: bubbles && !told ? action : null,
+        ...(told ? { form: "story" as const } : {}),
         roleplay: t.roleplay?.title ?? null,
         onCall: call,
       }),
     );
   }
   await db.query(`update companion_threads set last_at = $2 where id = $1`, [t.id, tick(now, texts.length).toISOString()]);
-  track("companion_reply", { model: modelId ?? undefined, cost: cost || undefined, ms: Date.now() - started, bubbles: texts.length, deflected: bubbles ? undefined : true, call: call || undefined });
+  track("companion_reply", { model: modelId ?? undefined, cost: cost || undefined, ms: Date.now() - started, bubbles: texts.length, deflected: bubbles || told ? undefined : true, call: call || undefined, story: told ? true : undefined });
   return { ok: true, ids, texts };
 }
 
@@ -1103,7 +1209,8 @@ export async function liveReply(db: Db, turn: LiveTurn, sink: LiveSink): Promise
   const text = parts.join(" ");
   const cost = usage.reduce((sum, u) => sum + (u.cost ?? 0), 0);
   const modelId = served ?? usage[0]?.model ?? null;
-  const id = await addMessage(db, t.id, "character", text, now, { model: modelId, cost: cost || null, onCall: true });
+  const draw = randomUUID();
+  const id = await addMessage(db, t.id, "character", text, now, { id: draw, draw, model: modelId, cost: cost || null, onCall: true });
   await db.query(`update companion_threads set last_at = $2 where id = $1`, [t.id, tick(now, 1).toISOString()]);
   track("companion_reply", {
     model: modelId ?? undefined,
@@ -1120,8 +1227,9 @@ export async function liveReply(db: Db, turn: LiveTurn, sink: LiveSink): Promise
 }
 
 /**
- * Draws the character's last reply again (free): the reply after the person's last message is set aside and a new one
- * written, told not to say the same. With no reply yet (the model was down), it's simply the reply.
+ * Draws the character's newest reply again (free): it's set aside, kept as an alternate the person can flip back to
+ * (setAside, swipeReply), and a new one is written, told not to say the same. With no reply yet (the model was down),
+ * it's simply the reply.
  */
 export async function regenerate(db: Db, userId: string, threadId: string, now: Date = new Date()): Promise<CompanionSend> {
   const l = await loaded(db, userId, threadId);
@@ -1129,39 +1237,115 @@ export async function regenerate(db: Db, userId: string, threadId: string, now: 
   const { t, character } = l;
   if (t.paused_at) return fail(409, "paused", "This conversation is paused. Carry on when you're ready.");
   const last = await lastReply(db, t.id);
-  const cue = last.afterUser ? undefined : last.marker ? (t.scene ? openerCue(t, character.name) : TEXTING_CUE) : OPENER_CUE;
-  const r = await speak(db, t, character, now, { insteadOf: last.texts.join(" ") || null, cue, replacing: last.ids });
+  const r = await speak(db, t, character, now, { insteadOf: last.rows.map((m) => m.text).join(" ").slice(0, 600) || null, cue: cueAfter(t, character.name, last.before), replacing: last.rows.map((m) => m.id) });
   if (!r.ok) return r;
-  if (last.ids.length) await db.query(`update companion_messages set replaced_by = $2 where id = any($1::text[])`, [last.ids, r.ids[0]]);
+  if (last.rows.length) await setAside(db, t.id, last.rows, r.ids[0]);
   return getThread(db, userId, threadId);
 }
 
 /**
- * The character's messages since the person last spoke (the reply a regenerate replaces), and whether the person has. A
- * scene starting or ending stops it too (marker): what came before belongs to the conversation before.
+ * The user turn a reply answers when the person hasn't just spoken, by what comes before it: a scene's line (it opens
+ * the scene, or picks up texting), another reply of the character's (it carries on), or nothing at all (the hello).
  */
-async function lastReply(db: Db, threadId: string): Promise<{ ids: string[]; texts: string[]; afterUser: boolean; marker: boolean }> {
-  const { rows } = await db.query<{ id: string; role: string; text: string }>(
-    `select id, role, text from companion_messages where thread_id = $1 and (role <> 'system' or marker is not null) and replaced_by is null order by created_at desc, id desc limit 8`,
+function cueAfter(t: Pick<ThreadRow, "id" | "scene" | "roleplay" | "opening">, characterName: string, before: "user" | "marker" | "character" | "start"): string | undefined {
+  if (before === "user") return undefined;
+  if (before === "marker") return t.scene ? openerCue(t, characterName) : TEXTING_CUE;
+  return before === "character" ? continueCue(t.scene !== null) : OPENER_CUE;
+}
+
+/**
+ * The user turn that has the character carry on without the person saying anything ({action: "continue"}): in a scene
+ * it moves the scene on, while texting it adds one more short thought.
+ */
+const continueCue = (inScene: boolean): string =>
+  inScene
+    ? "(They're letting you carry on. Move the scene on yourself: something happens, or you do the next thing. Don't repeat what you just said or did, and don't ask what they want to do.)"
+    : "(They're letting you carry on. Add one more short thought of your own, a line or two: something new, not a question to fill the silence.)";
+
+type LastRow = ReplyRow & { text: string; action: string | null; via: string };
+
+/** The newest shown messages of a thread, oldest first (the AI notice left out): enough to find the newest reply. */
+async function lastRows(db: Db, threadId: string): Promise<LastRow[]> {
+  const { rows } = await db.query<LastRow>(
+    `select id, role, text, marker, draw, created_at, action, via from companion_messages
+      where thread_id = $1 and (role <> 'system' or marker is not null) and replaced_by is null order by created_at desc, id desc limit 40`,
     [threadId],
   );
+  return rows.reverse();
+}
+
+/** The thread's newest reply (newestReply: one draw), and what comes before it. The reply a regenerate replaces. */
+const lastReply = async (db: Db, threadId: string) => newestReply(await lastRows(db, threadId));
+
+/**
+ * Every message of the character's since the person last spoke (what an edit of their message replaces: the reply and
+ * anything it carried on with), and whether a scene started or ended in between (then that message belongs to the
+ * conversation before).
+ */
+async function sinceTheySpoke(db: Db, threadId: string): Promise<{ ids: string[]; marker: boolean }> {
   const ids: string[] = [];
-  const texts: string[] = [];
-  let afterUser = false;
-  let marker = false;
-  for (const m of rows) {
-    if (m.role === "user") {
-      afterUser = true;
-      break;
-    }
-    if (m.role === "system") {
-      marker = true;
-      break;
-    }
+  for (const m of (await lastRows(db, threadId)).reverse()) {
+    if (m.role === "user") return { ids, marker: false };
+    if (m.role === "system") return { ids, marker: true };
     ids.push(m.id);
-    texts.unshift(m.text);
   }
-  return { ids, texts, afterUser, marker };
+  return { ids, marker: false };
+}
+
+/**
+ * Sets the newest reply aside for the draw that replaces it. It stays as an alternate the person can flip back to
+ * (swipeReply), and so do the alternates it already had: every one of them now points at the new current draw, so
+ * exactly one draw is ever current. A reply from before draws existed gets one here. A text the character wrote without
+ * the model (its tag, a photo) is set aside the old way and is no alternate.
+ */
+async function setAside(db: Db, threadId: string, rows: readonly LastRow[], current: string): Promise<void> {
+  const ids = rows.map((m) => m.id);
+  if (rows.some((m) => m.via === "photo" || isTextTag(m.action))) {
+    await db.query(`update companion_messages set replaced_by = $3, draw = null where thread_id = $1 and id = any($2::text[])`, [threadId, ids, current]);
+    return;
+  }
+  const old = rows[0].draw ?? rows[0].id;
+  await db.query(`update companion_messages set replaced_by = $3 where thread_id = $1 and replaced_by = $2 and draw is not null and id <> replaced_by`, [threadId, old, current]);
+  await db.query(`update companion_messages set replaced_by = $3, draw = coalesce(draw, $4) where thread_id = $1 and id = any($2::text[])`, [threadId, ids, current, old]);
+}
+
+/**
+ * Flips the newest reply to another of its draws ({action: "swipe"}; free, nothing is drawn): the one before or after
+ * the one showing, in the order they were drawn. Only the newest reply, and only while nothing has been said after it
+ * (the thread view's `draws` says when). That draw becomes the current one and every other points at it.
+ */
+export async function swipeReply(db: Db, userId: string, threadId: string, to: "prev" | "next"): Promise<CompanionSend> {
+  const l = await loaded(db, userId, threadId);
+  if ("status" in l) return l;
+  const { t } = l;
+  if (t.paused_at) return fail(409, "paused", "This conversation is paused. Carry on when you're ready.");
+  const last = await lastReply(db, t.id);
+  const current = last.rows[0]?.draw ?? null;
+  const order = current ? drawsInOrder(last, await alternateDraws(db, t.id, current)) : [];
+  if (order.length < 2) return fail(409, "one_draw", "There's only this one so far. Ask for another first.");
+  const target = order[order.indexOf(current!) + (to === "next" ? 1 : -1)];
+  if (!target) return fail(409, "no_more", to === "next" ? "That's the newest one." : "That's the first one.");
+  await db.query(`update companion_messages set replaced_by = case when draw = $3::text then null else $3::text end where thread_id = $1 and draw = any($2::text[])`, [t.id, order, target]);
+  return getThread(db, userId, threadId);
+}
+
+/**
+ * The character carries on without the person saying anything ({action: "continue"}): one more reply, counted like
+ * any (the route takes it and gives it back if none comes), refused while the thread is paused, like a send. In a
+ * scene the cue has it move the scene on; while texting, add one more short thought. With nothing of the character's
+ * to carry on from (the person spoke last, or a scene just started), it's simply the reply that's due.
+ */
+export async function continueReply(db: Db, userId: string, threadId: string, now: Date = new Date()): Promise<CompanionSend> {
+  const l = await loaded(db, userId, threadId);
+  if ("status" in l) return l;
+  const { t, character } = l;
+  if (t.paused_at) return fail(409, "paused", "This conversation is paused. Carry on when you're ready.");
+  const last = await lastReply(db, t.id);
+  // The person is here and asking for more: the notice is due on their time, as on a message.
+  if (noticeDue(t, now)) await putNotice(db, t, character.name, now);
+  const r = await speak(db, t, character, tick(now, 1), { cue: last.rows.length ? continueCue(t.scene !== null) : cueAfter(t, character.name, last.before) });
+  if (!r.ok) return r;
+  return getThread(db, userId, threadId);
 }
 
 /** Rewrites the person's last message (only the last one) and has the character answer it again. */
@@ -1175,14 +1359,15 @@ export async function editLast(db: Db, userId: string, threadId: string, input: 
   if (text.length > COMPANION_MESSAGE_MAX) return fail(400, "too_long", `Keep it under ${COMPANION_MESSAGE_MAX} characters.`);
   const mine = (await db.query<{ id: string }>(`select id from companion_messages where thread_id = $1 and role = 'user' and replaced_by is null order by created_at desc, id desc limit 1`, [t.id])).rows[0];
   if (!mine) return fail(409, "nothing_to_edit", "You haven't said anything yet.");
-  const after = await lastReply(db, t.id);
+  const after = await sinceTheySpoke(db, t.id);
   if (after.marker) return fail(409, "nothing_to_edit", t.scene ? "Your last message was before this scene: say something new instead." : "Your last message was in the scene: say something new instead.");
   const refused = await screen(db, t, text, now, surface);
   if (refused) return refused;
   await db.query(`update companion_messages set text = $2 where id = $1`, [mine.id, text]);
   const r = await speak(db, t, character, now, { replacing: after.ids });
   if (!r.ok) return r;
-  if (after.ids.length) await db.query(`update companion_messages set replaced_by = $2 where id = any($1::text[])`, [after.ids, r.ids[0]]);
+  // What answered the old words is set aside for good: its draw is cleared, so it's never an alternate of the new reply.
+  if (after.ids.length) await db.query(`update companion_messages set replaced_by = $2, draw = null where id = any($1::text[])`, [after.ids, r.ids[0]]);
   return getThread(db, userId, threadId);
 }
 
