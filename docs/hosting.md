@@ -31,8 +31,9 @@ The move was `region` in each app's spec, at the same price; Bunny's storage zon
   location headers" managed transform on, and the show has `GEO_HEADERS=cloudflare`: `cf-ipcountry` and
   `cf-region-code` give the country and the US state (both on since 2026-10-30; checked: a signed-out After Dark hop
   carries `place.v1.US.CA`).
-- **Scheduled jobs** call `https://botchelor.com/api/jobs/<name>` with `Authorization: Bearer $CRON_SECRET`, as Vercel
-  Cron did. The daily job goes one part per request (`?part=upkeep|show|people|growth`, 45 s apart), and each part's
+- **Scheduled jobs** call `https://<host>/api/jobs/<name>` with `Authorization: Bearer $CRON_SECRET`, as Vercel
+  Cron did: `lobby` and `daily` on botchelor.com, `after-dark-daily` and `showcase-check` on ad.botchelor.com, where
+  After Dark's media is (`.do/app.yaml`). The daily job goes one part per request (`?part=upkeep|show|people|growth`, 45 s apart), and each part's
   answer streams newlines until it's done, so the next part never starts while one is still running. Run whole, it held
   the show's one instance for minutes and botchelor.com answered 504 for ~5 and ~9 minutes on 2026-11-11. Each part's
   time, memory peak and longest event-loop stall go to `job_runs` (`lib/job-meter.ts`) and show in the monitor's
