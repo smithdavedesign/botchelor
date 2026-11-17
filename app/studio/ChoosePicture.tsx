@@ -48,7 +48,7 @@ export default function ChoosePicture({ id, name, onPortrait }: { id: string; na
       </p>
       {tiles.length === 0 ? (
         <p className="muted small">
-          No pictures of {first} yet. <Link href={`/characters/${id}/studio`}>Shoot some in their Studio</Link> or draw a portrait above, then choose one here.
+          No pictures of {first} yet. <Link href={`/studio?character=${encodeURIComponent(id)}`}>Shoot some in their Studio</Link> or draw a portrait above, then choose one here.
         </p>
       ) : (
         <ul className="choose-picture-grid">

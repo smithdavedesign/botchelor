@@ -17,7 +17,9 @@ export default function RemixButton({ post }: { post: Post }) {
     const data = (await res.json().catch(() => ({}))) as { characters?: { id: string; name: string }[] };
     setList(data.characters ?? []);
   }
-  const href = (id: string) => (studio === "after_dark" ? `/after-dark/studio/${id}?remix=${post.id}` : `/characters/${id}/studio?remix=${post.id}`);
+  // The PG Studio is My studio with the character picked (app/studio/page.tsx); the old /characters/<id>/studio hop
+  // dropped ?remix, so Shoot like this opened an empty Studio until 2026-11-17.
+  const href = (id: string) => (studio === "after_dark" ? `/after-dark/studio/${id}?remix=${post.id}` : `/studio?character=${encodeURIComponent(id)}&remix=${encodeURIComponent(post.id)}`);
   if (!post.remixable) return null;
   return (
     <div className="showcase-remix">

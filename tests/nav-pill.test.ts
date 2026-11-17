@@ -125,7 +125,8 @@ describe("the show's tabs: Watch · House · Season", () => {
     expect(page).not.toContain("<ShowTabs");
     expect(page).not.toContain("<CharactersTabs");
     // The old address of a character's Studio goes to the new place with that character picked.
-    expect(readFileSync("app/characters/[id]/studio/page.tsx", "utf8")).toContain("redirect(`/studio?character=${encodeURIComponent(id)}`)");
+    // (Its query travels too: tests/route-drift.test.ts.)
+    expect(readFileSync("app/characters/[id]/studio/page.tsx", "utf8")).toContain("redirect(`/studio?${query.toString()}`)");
   });
 
   it("Characters' tabs are who's here: Yours first for an owner, absent for anyone else; no Text someone, no Reels", () => {

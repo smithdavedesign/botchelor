@@ -14,7 +14,7 @@ import { showIdeasOn } from "@/lib/show-ideas-switch";
  *
  * Since 2026-11-16 (David: "I would assume we have shows and seasons here") the rooms are Watch · House · Season, all
  * three about the season on air. Reels was a format, not a room of this season (3 visitors in 30 days from here): it
- * is a tab of Characters now (app/characters/CharactersTabs.tsx), beside the people who make them. "Reunion" read as
+ * lives behind the Studio door now (the Gallery's reels view, app/showcase/reels; app/studio/StudioTabs.tsx). "Reunion" read as
  * if the season were over on night 16; the tab says Season, and /reunion keeps its address.
  *
  * Shows is the fourth (2026-11-16, later the same day): the show on air and the ideas for what could come next

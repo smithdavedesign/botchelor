@@ -12,8 +12,9 @@ export type SiteRedirect = { source: string; destination: string; permanent: fal
 const DECEMBER_2026 = "2026-12-01";
 
 export const SHOW_WORD_REDIRECTS: readonly SiteRedirect[] = [
-  { source: "/reels", destination: "/showcase", permanent: false },
-  { source: "/messages", destination: "/matches", permanent: false },
+  // The Gallery's reels view (app/showcase/reels), and the Chat door, which holds every thread since 2026-11-15 (NAV_CHAT).
+  { source: "/reels", destination: "/showcase/reels", permanent: false },
+  { source: "/messages", destination: "/chat", permanent: false },
   // The short address the December clips print on their end cards (scripts/clips/episode-cut.mjs, docs/clips/): the
   // season's own page (docs/season-page.md), watch-first before it starts and while it runs, its finale after. People
   // type it from a video, so it carries its own utm tags (as /vote does) for the engagement log to count them.

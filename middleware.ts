@@ -124,6 +124,10 @@ const UNGATED_PAGES: ReadonlySet<string> = new Set([
   // My studio (app/studio/page.tsx): the Studio door. PG words for a visitor (the way in), an owner's own PG Studio otherwise.
   "/studio",
   "/house",
+  // The Constellation (the House tab's map) and the reviews: show pages the footer and /house link to, missed when the
+  // PG show opened (found 2026-11-17).
+  "/graph",
+  "/reviews",
   "/casting",
   "/vote",
   "/calls",
@@ -155,6 +159,9 @@ const UNGATED_PAGES: ReadonlySet<string> = new Set([
   "/marketing",
   // Everything on Botchelor (app/everything/page.tsx): the footer's old links in one list, nothing adult.
   "/everything",
+  // The Sunday letter's own page, which the footer's sign-up links to ("What's in it"); its confirm and unsubscribe
+  // links under /newsletter/ were already open.
+  "/newsletter",
 ]);
 
 /**

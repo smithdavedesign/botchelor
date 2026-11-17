@@ -721,7 +721,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
           <h2>📸 Photo Studio</h2>
           <p>
             Photo shoots of {shortName(c.name)} for the show: outfits, places, accessories and styles, their face kept, every picture checked safe.{" "}
-            <Link className="button" href={`/characters/${c.id}/studio`}>
+            <Link className="button" href={`/studio?character=${encodeURIComponent(c.id)}`}>
               Open the Studio
             </Link>
           </p>
