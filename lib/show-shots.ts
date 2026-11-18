@@ -54,7 +54,14 @@ export const EXPRESSION_LOOKS: Record<Expression, string> = {
   heartbroken: "heartbroken: glassy eyes on the edge of tears, lips pressed together, brows drawn up",
 };
 
-const ADULT = "A clearly grown adult with mature features and adult proportions, fully clothed. No text, no logo, no watermark.";
+/**
+ * The adult cue every shot ends on. The drawn styles carry the full one (lib/art-style.ts: drawing drifts young). A
+ * photograph keeps its own age from the portrait: "mature features" aged it instead (a 35-year-old's rose shot read
+ * nearer sixty, 2026-11-17), and every shot still passes the age check.
+ */
+const ADULT_DRAWN = "A clearly grown adult with mature features and adult proportions, fully clothed.";
+const ADULT_PHOTO = "A grown adult, as old as in image 0 and no older, fully clothed.";
+const CLEAN = "No text, no logo, no watermark.";
 
 /** One shot's prompt, in their style: image 0 is their portrait. */
 export function shotPrompt(shot: Shot, style: ArtStyle): string {
@@ -62,28 +69,30 @@ export function shotPrompt(shot: Shot, style: ArtStyle): string {
   const who = drawn ? "character" : "person";
   const { noun, short } = STYLE_WORDS[style];
   const same = `the same face, skin tone, hair, age and outfit`;
+  const end = `${short} ${drawn ? ADULT_DRAWN : ADULT_PHOTO} ${CLEAN}`;
   if ((EXPRESSIONS as readonly string[]).includes(shot)) {
     return (
       `Edit image 0: the same ${who}, ${same}, the same background and the same ${drawn ? `${noun} style` : "photographic look"}. ` +
-      `Change only the expression to ${EXPRESSION_LOOKS[shot as Expression]}. Head and shoulders, centred for a square crop. ${short} ${ADULT}`
+      `Change only the expression to ${EXPRESSION_LOOKS[shot as Expression]}. Head and shoulders, centred for a square crop. ${end}`
     );
   }
   if (shot === "reveal") {
     return (
       `A full-length ${noun} of the same ${who} as image 0: ${same}. They step out through a parting red velvet curtain onto a glossy ` +
-      `dating-show stage under warm spotlights, one hand raised in a confident wave, the whole figure in frame from head to shoes. ${short} ${ADULT}`
+      `dating-show stage under warm spotlights, one hand raised in a confident wave, the whole figure in frame from head to shoes. ${end}`
     );
   }
   if (shot === "rose") {
+    // A warm, soft spotlight: a hard one carved lines into the face and aged it.
     return (
       `A waist-up ${noun} of the same ${who} as image 0: ${same}. They hold out a single red rose toward the viewer with a nervous, ` +
-      `hopeful smile, under a dramatic spotlight on a dark stage. ${short} ${ADULT}`
+      `hopeful smile, in a warm, soft spotlight on a dark stage. ${end}`
     );
   }
   return (
     `A waist-up ${noun} of the same ${who} as image 0: ${same}. They sit alone in a cosy reality-show confessional, in a plush ` +
     `armchair with warm lamps and a soft rose-coloured wall behind them, leaning toward the camera with a candid, ` +
-    `conspiratorial look, as if telling a secret. ${short} ${ADULT}`
+    `conspiratorial look, as if telling a secret. ${end}`
   );
 }
 

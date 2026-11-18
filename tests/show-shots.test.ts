@@ -159,11 +159,18 @@ describe("the prompts", () => {
         const p = shotPrompt(shot, style);
         expect(p).toContain("image 0");
         expect(p).toContain("the same face, skin tone, hair, age and outfit");
-        expect(p).toContain("A clearly grown adult with mature features and adult proportions, fully clothed.");
+        // Drawing drifts young, so the drawn styles carry the full cue; a photograph drifted old with it, so it keeps
+        // the portrait's own age.
+        if (style === "realistic") {
+          expect(p).toContain("A grown adult, as old as in image 0 and no older, fully clothed.");
+          expect(p).not.toContain("mature features");
+        } else expect(p).toContain("A clearly grown adult with mature features and adult proportions, fully clothed.");
         expect(p).toContain("No text, no logo, no watermark.");
         expect(checkAdultText({ prompt: p }).ok).toBe(true);
       }
     }
+    expect(shotPrompt("rose", "realistic")).toContain("in a warm, soft spotlight");
+    expect(shotPrompt("rose", "realistic")).not.toContain("dramatic");
     for (const e of EXPRESSIONS) expect(shotPrompt(e, "realistic")).toContain(`Change only the expression to ${EXPRESSION_LOOKS[e]}.`);
     expect(shotPrompt("smug", "realistic")).toContain("the same person, ");
     expect(shotPrompt("smug", "realistic")).toContain("the same photographic look");
