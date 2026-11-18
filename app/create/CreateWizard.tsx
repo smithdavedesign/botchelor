@@ -25,6 +25,8 @@ import LooksBuilder from "./LooksBuilder";
 import { looksAppearance } from "@/lib/looks";
 import FactsStep from "./FactsStep";
 import DeeperStep from "./DeeperStep";
+import DepthMeter from "./DepthMeter";
+import { sheetWords } from "@/lib/sheet-words";
 import DeckPreview, { SHEET_EXAMPLE } from "./DeckPreview";
 import { findCliches } from "@/lib/originality";
 import { AVATAR_HUES, imageTraits, type ImageSignals } from "@/lib/avatar";
@@ -846,6 +848,8 @@ export default function CreateWizard({
     setTriedNext(false);
     setStep(i);
   }
+  // The whole sheet's length (lib/sheet-words.ts): Go deeper and the review show it against the 400–999 sweet spot.
+  const words = sheetWords({ bio: sheet.bio, want: sheet.want, dealbreaker: sheet.dealbreaker, traits, voice, appearance, soul, extras, hiding, week });
 
   async function createCharacter() {
     const soulEntries = (Object.keys(EMPTY_SOUL) as (keyof Soul)[])
@@ -1495,7 +1499,18 @@ export default function CreateWizard({
 
         {step === S.facts && <FactsStep extras={extras} setExtras={setExtras} name={sheet.name} />}
 
-        {step === S.deeper && <DeeperStep extras={extras} setExtras={setExtras} hiding={hiding} setHiding={setHiding} hidingOut={init?.hidingOut} name={sheet.name} />}
+        {step === S.deeper && (
+          <DeeperStep
+            extras={extras}
+            setExtras={setExtras}
+            hiding={hiding}
+            setHiding={setHiding}
+            hidingOut={init?.hidingOut}
+            name={sheet.name}
+            words={words}
+            jump={(to) => jump(to === "voice" ? S.voice : S.details)}
+          />
+        )}
 
         {step === S.soul && (
           <fieldset className="wizard-fields">
@@ -1635,6 +1650,8 @@ export default function CreateWizard({
                   </details>
                 ));
             })()}
+
+            <DepthMeter words={words} />
 
             <OriginalityPanel
               draft={{ name: sheet.name, bio: sheet.bio, traits, want: sheet.want, dealbreaker: sheet.dealbreaker, voice, extras: normaliseExtras(extras) }}
