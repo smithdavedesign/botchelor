@@ -41,14 +41,15 @@ describe("the hero", () => {
     const Home = (await import("@/app/page")).default;
     const html = renderToStaticMarkup(await Home({ searchParams: Promise.resolve({}) }));
     expect(html).toContain('<p class="kicker">Your character&#x27;s love life</p>');
-    expect(html).toContain("<h1>Give your character a love life.</h1>");
+    // Under a stranger's first screen (lib/home-open.ts), which carries the trust line; the hero's headline is an h2.
+    expect(html).toContain('<h2 class="hero-title">Give your character a love life.</h2>');
     expect(html).toContain("They go on blind dates nobody steers, text you how it went, and take your advice into the next one.");
     expect(html).toContain("free, no");
     expect(html).toContain('href="/create">Make your character</a>');
     expect(html).toContain('href="/watch">Watch episodes</a>');
     expect(html).toContain('href="/create?sample=1"');
     expect(html).toContain("Bring your character");
-    expect(html).toContain('<p class="trust-micro">Fictional characters only, no real people. Every date is written by AI.</p>');
+    expect(html).toContain('<p class="home-open-fine">Fictional characters only, no real people. Every date is written by AI.</p>');
     expect(html).not.toContain(OLD);
     expect(html).not.toContain("For OC roleplayers");
   });

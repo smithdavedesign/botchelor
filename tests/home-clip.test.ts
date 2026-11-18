@@ -293,7 +293,7 @@ describe("the home hero", () => {
     expect(html).toContain(`href="/episodes/${d.id}?play=1"`);
     expect(html).toContain("Watch the whole date");
     // What was there stays.
-    expect(html).toContain("<h1>Give your character a love life.</h1>");
+    expect(html).toContain('<h2 class="hero-title">Give your character a love life.</h2>'); // under the first screen (lib/home-open.ts)
     expect(html).toContain('href="/create">Make your character</a>');
     // The clip's "Watch the whole date" is the way to watch; the hero doesn't ask twice (design review 2026-11-16, D-18).
     expect(html).not.toContain('href="/watch">Watch episodes</a>');
