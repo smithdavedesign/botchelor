@@ -177,6 +177,9 @@
     "scene-catalog",
     "settings"
   ],
+  "lib/show-shots.ts": [
+    "moderation"
+  ],
   "lib/showcase-check.ts": [
     "moderation"
   ],
