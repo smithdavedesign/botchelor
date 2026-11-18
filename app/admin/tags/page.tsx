@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getDb } from "@/lib/db";
-import { characterTypeDemand, DEMAND_DAYS, RAW_CAP, SHRINK, showRoleplayDemand } from "@/lib/tag-demand";
+import { artStyleDemand, characterTypeDemand, DEMAND_DAYS, lineupDemand, RAW_CAP, SHRINK, showRoleplayDemand } from "@/lib/tag-demand";
 import { signedInAdmin } from "../signed-in-admin";
 import DemandTable from "./DemandTable";
 
@@ -11,7 +11,9 @@ export const metadata: Metadata = { title: "Tags · Admin · Botchelor", robots:
 /**
  * Admin: what people on Botchelor pick, by tag (lib/tag-demand.ts, docs/tags.md "Demand"): the show's roleplays (dates
  * and companion scenes) and the character types people talk to, against what's on offer, beside the census's numbers
- * and the blend the pickers order by. After Dark's is its own page (app/admin/after-dark/tags).
+ * and the blend the pickers order by. After Dark's is its own page (app/admin/after-dark/tags). Below them, two facets
+ * that aren't tags (docs/PRDs/styles-and-storylines.md phase 7): how people want their characters drawn, and who they
+ * look for, each with where the picks came from.
  */
 export default async function AdminTagsPage() {
   if (!(await signedInAdmin())) {
@@ -23,7 +25,7 @@ export default async function AdminTagsPage() {
     );
   }
   const db = await getDb();
-  const [roleplays, types] = await Promise.all([showRoleplayDemand(db), characterTypeDemand(db)]);
+  const [roleplays, types, styles, lineup] = await Promise.all([showRoleplayDemand(db), characterTypeDemand(db), artStyleDemand(db), lineupDemand(db)]);
   return (
     <article className="admin-wide">
       <p className="kicker">
@@ -40,6 +42,20 @@ export default async function AdminTagsPage() {
       <DemandTable demand={roleplays} caption="Show dates and companion scenes" />
       <h2>Who people talk to ({types.total} conversations)</h2>
       <DemandTable demand={types} caption="Companion conversations by character type" />
+      <h2>How they&apos;re drawn ({styles.total} picks)</h2>
+      <p className="muted">
+        Characters made in each style on Create, the style filter on Companions and Characters, and conversations started with a character drawn that
+        way, against the characters anyone may find. The census rank by art style is the prior.
+      </p>
+      <DemandTable
+        demand={styles}
+        caption="Art style"
+        item="Style"
+        sources={{ by: styles.sources, labels: { made: "Made", filtered: "Filter", chats: "Chats" } }}
+      />
+      <h2>Who people look for ({lineup.total} picks)</h2>
+      <p className="muted">The pronouns filter on Companions and conversations started, by the pronouns of who they&apos;re with. The prior is even.</p>
+      <DemandTable demand={lineup} caption="Lineup" item="Pronouns" sources={{ by: lineup.sources, labels: { filtered: "Filter", chats: "Chats" } }} />
     </article>
   );
 }
