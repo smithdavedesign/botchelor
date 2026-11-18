@@ -301,8 +301,13 @@ rich but controlled color, clean linework on faces, expressive eyes, reality-sho
   - an opening line (Voice);
   - a first-date scenario (Dating profile);
   - up to three secrets, revealed over dates.
-- **Not yet:** season-gen's writer drafts about 370 words. It aims for the band once phase 4's season-gen changes are
-  in.
+- **Season-gen** used to draft about 370 words. Its writer is now asked for the band. To get there, it writes:
+  - a longer bio: three or four sentences, up to 500 characters, as on the site;
+  - a sentence or two for each part of the inner life;
+  - a third prompt;
+  - four more details: the first date they'd pick, a hidden talent, a pet peeve and a green flag.
+
+  A draft outside the band is still kept.
 
 ## 7. Measurement
 
