@@ -72,7 +72,7 @@ export type GenerateOptions = {
    */
   keyForSide?: (side: "a" | "b") => Model | null;
   /** Each finished conversation line as it's written, for the live theater (lib/jobs.ts saves them). */
-  onTurn?: (transcript: Turn[]) => void | Promise<void>;
+  onTurn?: (transcript: Turn[], models: (string | null)[]) => void | Promise<void>;
   /** How long the date and the texts after run (lib/talk.ts); the format's own length (or the standard) when absent. */
   talk?: { date: number; texts: number };
   /** The date can move when both characters agree (lib/moves.ts); off unless the booking said so (setup.moves). */
@@ -212,7 +212,7 @@ export async function generateDate(
   const { producer, venue: venueId } = built.setup;
 
   // The theater plays each line as it's written, never its inner life (lib/inner-life.ts: it's kept for after the date airs).
-  const onTurn = opts.onTurn ? (lines: Turn[]) => opts.onTurn!(lines.map(outerLine)) : undefined;
+  const onTurn = opts.onTurn ? (lines: Turn[], models: (string | null)[]) => opts.onTurn!(lines.map(outerLine), models) : undefined;
   let plan: DatePlan | null = null;
   let transcript: Turn[] = [];
   let conversationError: unknown = null;

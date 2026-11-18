@@ -264,7 +264,8 @@ describe("backfillTranscripts", () => {
     const filled = await row();
     expect(filled.transcript).toHaveLength(CONVERSATION_TURNS);
     expect(filled.turn_meta).toHaveLength(filled.transcript.length);
-    for (const m of filled.turn_meta) expect(m).toEqual({ at: expect.any(String), by: "show" });
+    // model: the scripted test model doesn't report itself, so the backfill can't name one (turn_meta[].model, 2026-11-18).
+    for (const m of filled.turn_meta) expect(m).toEqual({ at: expect.any(String), by: "show", model: null });
   });
 
   /** A creator's date on a model whose turns answer while `ok(n)` says so for the n-th turn call (0-based), "model down" otherwise. */

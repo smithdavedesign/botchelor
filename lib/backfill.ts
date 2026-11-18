@@ -58,7 +58,7 @@ type Row = {
   box_score: Record<DateVariable, VariableArc> | null;
   sides: [SideOutcome, SideOutcome] | null;
   transcript: Turn[];
-  turn_meta: { at: string; by: string }[] | null;
+  turn_meta: { at: string; by: string; model?: string | null }[] | null;
   /** Lines were kept from a conversation that failed partway (J1): the backfill picks up after them. */
   partial: boolean;
   a_id: string; a_name: string; a_age: number; a_bio: string; a_traits: string[]; a_want: string; a_dealbreaker: string; a_house: boolean; a_appearance: string | null; a_pronouns: string | null; a_voice: string | null;
@@ -181,10 +181,12 @@ export async function backfillTranscripts(db: Db, limit = 2): Promise<BackfillRe
       // The transcript was written later, by these models: recorded beside whatever wrote the rest (lib/pipeline.ts).
       const backfilledWith = { actor: actor.served(), director: director.served(), prompts: PROMPT_VERSION };
       // turn_meta stays line for line with the transcript (episodes.turn_meta): kept lines keep theirs, every
-      // backfilled line is the show's, now.
+      // backfilled line is the show's, now, and its model when only one answered (a fallback mid-run leaves it unknown).
       const at = new Date().toISOString();
       const kept = r.partial ? r.transcript.length : 0;
-      const meta = [...(r.turn_meta ?? []).slice(0, kept), ...transcript.slice(kept).map(() => ({ at, by: "show" }))];
+      const served = backfilledWith.actor;
+      const model = served.length === 1 ? served[0] : null;
+      const meta = [...(r.turn_meta ?? []).slice(0, kept), ...transcript.slice(kept).map(() => ({ at, by: "show", model }))];
       await db.query(
         `update episodes set transcript = $2::jsonb, turn_meta = $4::jsonb,
                 generated_with = (coalesce(generated_with, '{}'::jsonb) - 'transcript_partial') || jsonb_build_object('transcript_backfill', $3::jsonb)

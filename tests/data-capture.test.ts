@@ -288,6 +288,8 @@ describe("engine_trace: why the engine decided what it did", () => {
     expect(row.engine_trace.ending).toBe(row.wishes?.engine ?? row.ending);
     expect(row.turn_meta).toHaveLength(row.transcript.length);
     for (const m of row.turn_meta) expect(m).toMatchObject({ at: expect.any(String), by: expect.stringMatching(/^(show|byok)$/) });
+    // Which model wrote each line (provenance): a key on every line, null when the model didn't report itself.
+    for (const m of row.turn_meta) expect(m).toHaveProperty("model");
   });
 
   it("the fixed test engine stores no trace", async () => {
