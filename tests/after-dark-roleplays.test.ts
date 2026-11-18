@@ -79,8 +79,9 @@ function scripted(reply: () => unknown = six) {
 
 describe("roleplays for a chapter", () => {
   it("are reviewed against the lines: two adults, both willing, no family, step-family, babysitter, teacher, school or age-play", () => {
-    // 20 since October, 13 more from the census of public character listings and 10 for its gaps (both 2026-11-17).
-    expect(ROLEPLAYS).toHaveLength(43);
+    // 20 since October, 13 more from the census of public character listings and 10 for its gaps (both 2026-11-17), and
+    // two more bodyguards (PRD styles-and-storylines phase 4).
+    expect(ROLEPLAYS).toHaveLength(45);
     expect(new Set(ROLEPLAYS.map((r) => r.id)).size).toBe(ROLEPLAYS.length);
     // The scenarios' list, less boss and employee: David asked for the boss setup (2026-10-25), and it's written mutual,
     // said out loud, with nobody's job depending on the answer.

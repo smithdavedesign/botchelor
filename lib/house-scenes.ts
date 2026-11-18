@@ -832,7 +832,8 @@ export const houseVoiceOn = (): boolean => voiceEnabled;
  */
 export async function beatFor(db: Db, day: string, env: Record<string, string | undefined> = process.env): Promise<Pick<Tension, "kind" | "a" | "b" | "about"> | null> {
   const beat = await producersBeat(db, day, env).catch(() => null);
-  return beat && beat.who.length >= 2 ? { kind: beat.tension, a: beat.who[0], b: beat.who[1], about: beat.about } : null;
+  // An arc's beat (lib/story-arcs.ts) stages a date, not a tension: the state's own tensions choose the scene.
+  return beat?.tension && beat.who.length >= 2 ? { kind: beat.tension, a: beat.who[0], b: beat.who[1], about: beat.about } : null;
 }
 
 /**

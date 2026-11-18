@@ -256,6 +256,9 @@ export async function startTestDb() {
         "season_recaps",
         // This season's cast secrets (lib/cast-secrets.ts) hang off the house cast, which outlives a reset.
         "cast_secrets",
+        // Links from before the show and the arcs they play (lib/character-links.ts, lib/story-arcs.ts) hang off it too.
+        "character_links",
+        "story_arcs",
         "cast_chats",
         // The story state (lib/story-state.ts) hangs off the house cast too.
         "character_knows_said",

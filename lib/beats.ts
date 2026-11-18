@@ -258,8 +258,11 @@ export function dateFacts(input: DateInput, outcome: Outcome, characters: [Chara
   // The relationship graph (lib/relationships.ts): where they stand, their inside jokes, and a second date's plan.
   // It also knows a date that hasn't aired yet, so a second date booked the morning after is never played cold.
   const pair = characters[0].pair ?? characters[1].pair;
+  // Who they were to each other before the show (lib/character-links.ts): history even on their first date here.
+  const before = characters[0].knownBefore ?? characters[1].knownBefore;
+  if (before) facts.push(`${before} They aren't strangers: play them as two people with history, and let it come up in act one.`);
   if (pair) {
-    if (!met) facts.push(`${names[0]} and ${names[1]} have met before (${pair.times_together === 1 ? "one date" : `${pair.times_together} dates`}). Play it as people who remember each other.`);
+    if (!met && typeof pair.times_together === "number" && pair.times_together > 0) facts.push(`${names[0]} and ${names[1]} have met before (${pair.times_together === 1 ? "one date" : `${pair.times_together} dates`}). Play it as people who remember each other.`);
     if (typeof pair.where_you_stand_now === "string") facts.push(`Where they stand: ${pair.where_you_stand_now.toLowerCase()}.`);
     if (Array.isArray(pair.your_inside_jokes) && pair.your_inside_jokes.length) facts.push(`Their inside jokes: ${pair.your_inside_jokes.map((j) => `"${j}"`).join(", ")}. One can come back, unforced.`);
     if (Array.isArray(pair.tonight_is_the_plan_you_made)) facts.push(`Tonight is the ${dateLabel(input.date_number ?? 2).toLowerCase()} they planned in their texts: ${pair.tonight_is_the_plan_you_made.join(" ")} Act one opens on that plan.`);
@@ -398,19 +401,23 @@ export function rulesPlan(
 ): DatePlan {
   const v = venue(venueId);
   // A rematch (the pair has aired a date before) opens as two people who remember each other, not strangers.
+  const before = characters[0].knownBefore ?? characters[1].knownBefore;
+  const pairOnly = (p: Character["pair"]) => Boolean(p && Object.keys(p).some((k) => k !== "before_the_show"));
   const rematch = Boolean(
     characters[0].memory?.people?.some((p) => p.id === characters[1].id) ||
       characters[1].memory?.people?.some((p) => p.id === characters[0].id) ||
-      characters[0].pair ||
-      characters[1].pair,
+      pairOnly(characters[0].pair) ||
+      pairOnly(characters[1].pair),
   );
   // A date they planned by text opens on the plan (lib/plans.ts).
   const planned = Boolean(characters[0].tonightsPlan?.length || characters[1].tonightsPlan?.length);
   const scene0 = rematch
     ? `They meet again at ${v.prompt}${planned ? ", the plan they made in their texts" : ""}. They remember each other and last time, and tonight picks up from there.`
-    : planned
-      ? `They meet at ${v.prompt}, the date they planned in their texts. They've only texted until now: first impressions in person, and finding out whether they're who they seemed.`
-      : `They meet at ${v.prompt}. First impressions: they size each other up and start finding out who the other is.`;
+    : before
+      ? `They meet at ${v.prompt}, their first date on the show, though not as strangers: they knew each other before it, and it shows from the first look.`
+      : planned
+        ? `They meet at ${v.prompt}, the date they planned in their texts. They've only texted until now: first impressions in person, and finding out whether they're who they seemed.`
+        : `They meet at ${v.prompt}. First impressions: they size each other up and start finding out who the other is.`;
   // Act two already leans toward the ending (a spark, easy company, or the start of a clash).
   const lean = { second_date: ", and pulls them closer", friends: ", and they find they get on", disaster: ", and starts to pull them apart" }[outcome.ending];
   const scene1 = `${capitalize(producerEvent(producer).prompt)} — it shows who each of them really is${lean}.`;

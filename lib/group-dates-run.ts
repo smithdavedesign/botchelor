@@ -19,7 +19,8 @@ import { MCP_CALL_URL, USER_COOKIE } from "./http";
 import { shortName } from "./names";
 import { notify } from "./notifications";
 import { venuePhrase } from "./venues";
-import { playOrder, roundOf } from "./mixer-room";
+import { keepApart, playOrder, roundOf, type Duo } from "./mixer-room";
+import { bestFriendsAmong } from "./character-links";
 import { fillMixerTonight } from "./mixer-fill";
 import { writeRoomOpening } from "./mixer-voice";
 import { HOUSE_BOOKER, markHouseRequest } from "./house-booker";
@@ -193,18 +194,27 @@ export async function bookDoubleNight(
 /* ------------------------------------------------ mixers (M2) ------------------------------------------------ */
 
 /** The same dealt shuffle every run would deal (seeded by the night), so a retry can't redraw who meets whom. */
-function drawRotations(nightId: string, seats: { character_id: string; booker: string; house_fill?: boolean }[]): Rotation[] {
-  const order = [...seats];
+function drawRotations(nightId: string, seats: { character_id: string; booker: string; house_fill?: boolean }[], duos: readonly Duo[] = []): Rotation[] {
+  const shuffled = [...seats];
   let seed = seedFrom(nightId);
-  for (let i = order.length - 1; i > 0; i--) {
+  for (let i = shuffled.length - 1; i > 0; i--) {
     seed = (seed * 1103515245 + 12345) % 2147483648;
     const j = seed % (i + 1);
-    [order[i], order[j]] = [order[j], order[i]];
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
   }
+  // Best friends sit apart, so each spends the night on someone new and wingmans the other (lib/mixer-room.ts).
+  const order = keepApart(shuffled, duos);
   // A circle: everyone meets their two neighbours, and books exactly one of those rotations (one date each). Each
   // rotation carries the round the bell calls it in (lib/mixer-room.ts): the room plays round by round.
   return order.map((s, i) => ({ a: s.character_id, b: order[(i + 1) % order.length].character_id, booker: s.booker, round: roundOf(i, order.length), ...(s.house_fill ? { house_paid: true } : {}) }));
 }
+
+/** The best friends among a night's seats (lib/character-links.ts), or none if the lookup fails: a duo is flavour. */
+const duosOf = (db: Db, seats: readonly { character_id: string }[]): Promise<Duo[]> =>
+  bestFriendsAmong(
+    db,
+    seats.map((s) => s.character_id),
+  ).catch(() => []);
 
 export type MixerRun = { ran: number; booked: number; failed: number; cancelled: number; waiting: number; filled?: number };
 
@@ -248,10 +258,11 @@ export async function runDueMixers(db: Db, now: Date = new Date()): Promise<Mixe
     return out;
   }
   // Claim it (an overlapping run finds it 'running' and does nothing), then draw who meets whom.
-  const rotations = drawRotations(open.night.id, open.seats);
+  const duos = await duosOf(db, open.seats);
+  const rotations = drawRotations(open.night.id, open.seats, duos);
   const claimed = await db.query(
-    `update group_nights set rotations = $2::jsonb, status = 'running', decided_at = $3 where id = $1 and status = 'open' returning id`,
-    [open.night.id, JSON.stringify(rotations), now.toISOString()],
+    `update group_nights set rotations = $2::jsonb, status = 'running', decided_at = $3, duos = $4::jsonb where id = $1 and status = 'open' returning id`,
+    [open.night.id, JSON.stringify(rotations), now.toISOString(), duos.length ? JSON.stringify(duos) : null],
   );
   if (!claimed.rows.length) return out;
   out.ran = 1;
@@ -307,10 +318,11 @@ export async function runSeatedNight(
   opts: { noteFor?: (a: string, b: string) => string | null } = {},
 ): Promise<{ booked: number; failed: number }> {
   const seats = await mixerSeats(db, nightId);
-  const rotations = drawRotations(nightId, seats);
+  const duos = await duosOf(db, seats);
+  const rotations = drawRotations(nightId, seats, duos);
   const claimed = await db.query(
-    `update group_nights set rotations = $2::jsonb, status = 'running', decided_at = now() where id = $1 and status = 'open' returning id`,
-    [nightId, JSON.stringify(rotations)],
+    `update group_nights set rotations = $2::jsonb, status = 'running', decided_at = now(), duos = $3::jsonb where id = $1 and status = 'open' returning id`,
+    [nightId, JSON.stringify(rotations), duos.length ? JSON.stringify(duos) : null],
   );
   if (!claimed.rows.length) return { booked: 0, failed: 0 };
   await writeRoomOpening(db, nightId).catch(() => false);

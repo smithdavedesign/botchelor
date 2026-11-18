@@ -3327,7 +3327,7 @@ David, 2026-11-17, after comparing Botchelor's roleplay with Chub and nine other
 level of context behind the scenes when someone chooses it". The whole design is in [scene-cards.md](scene-cards.md);
 this is After Dark's part.
 
-**The roleplays** (`lib/adult/roleplays.ts`): 43, up from 20. The first 13 new ones are the tropes people look for most in
+**The roleplays** (`lib/adult/roleplays.ts`): 45, up from 20 (two more bodyguards, `bodyguard-off-duty` and `bodyguard-gala`, came with the styles-and-storylines PRD's phase 4). The first 13 new ones are the tropes people look for most in
 David's census of 38,912 public character listings, each written inside the lines at the top of that file:
 - `your-rules` (one leads, one follows: agreed out loud first, with a word that stops everything);
 - `dons-truce` (the heads of two rival outfits, as equals) and `two-captains`;
@@ -3425,7 +3425,7 @@ where it's open to the viewer.
    Dark's check, their own switched-in characters). Never anyone else's.
 2. **Where:** a place from the scene catalog (`stepInPlaces`: the library's venues, the scenario packs' places, the
    roleplay places; not the double date, and not a set someone typed in), with its backdrop.
-3. **The roleplay:** one of After Dark's 43 or none, and which side the viewer plays. The page shows the card from the
+3. **The roleplay:** one of After Dark's 45 or none, and which side the viewer plays. The page shows the card from the
    viewer's side (`cardForYou`: "you", the verbs agreeing). The viewer's own library roleplays and venues aren't
    offered in v1.
 4. **How it opens:** the card's three openings (the generic three with no roleplay), "Surprise me", or one sentence

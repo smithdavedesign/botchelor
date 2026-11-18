@@ -9,7 +9,8 @@ import { loadCharacter } from "@/lib/character";
 import { ALL_HOUSE_CHARACTERS, HOUSE_CHARACTERS } from "@/lib/house";
 import { sessionCookies } from "@/lib/http";
 import { ensureSeasonCast, refreshSeasonCast, resetStoredSeasonCastForTests, seasonCastCards, seasonCastIds, setSeasonCastForTests } from "@/lib/season-cast";
-import { CANDIDATES, generateCandidates, listCandidates, NEWCOMERS, parseDraft, reviewCandidate, seasonGenerationDue } from "@/lib/season-gen";
+import { CANDIDATES, generateCandidates, listCandidates, NEWCOMERS, newcomerPronouns, pairPlan, parseDraft, reviewCandidate, seasonGenerationDue } from "@/lib/season-gen";
+import { linksOf } from "@/lib/character-links";
 import { getDirectorModel, type Model } from "@/lib/model";
 import { characterPortrait } from "@/lib/portraits";
 import { api, BASE_URL, newUserCookie, scriptedModel, startTestDb, userIdOf, validCharacter } from "./helpers";
@@ -137,6 +138,53 @@ describe("writing a candidate", () => {
     expect((await served()).status).toBe(200);
     // Topping up again writes nothing: there are already three.
     expect((await generateCandidates(t.db, "2026-11-01", script([]))).made).toEqual([]);
+  });
+
+  it("drafts the newcomers as a linked pair: the first knows someone returning, the rest are the first's rival, ex, fake partner or best friend", async () => {
+    await keys();
+    fakeProviders();
+    const cast = HOUSE_CHARACTERS.slice(0, 4).map((c) => c.id);
+    setSeasonCastForTests(cast);
+    const plan = await pairPlan(t.db, "2026-12-01");
+    expect(plan.returning).toMatchObject({ id: expect.stringMatching(/^house-/) });
+    expect(plan.returning!.kind).not.toBe(plan.kind);
+    const returning = HOUSE_CHARACTERS.find((h) => h.id === plan.returning!.id)!;
+    const { calls } = scriptedModel([
+      JSON.stringify(draft("Odessa Brine", { pronouns: plan.pronouns[0], link_story: `She and ${returning.name.split(" ")[0]} go back to the ferry strike of last winter.` })),
+      JSON.stringify(draft("Bram Tolliver", { pronouns: plan.pronouns[1], link_story: "They share a dock, a grudge and a very loud foghorn." })),
+      // A draft that leaves link_story out still gets its link, in the kind's own words.
+      JSON.stringify(draft("Wynn Arbor", { pronouns: plan.pronouns[1] })),
+    ]);
+    const r = await generateCandidates(t.db, "2026-12-01", getDirectorModel());
+    expect(r).toEqual({ made: ["house-odessa", "house-bram", "house-wynn"], errors: [] });
+
+    // Each draft was asked for its pronouns, and who it already knows.
+    const system = (i: number) => calls[i][0].content;
+    expect(system(0)).toContain(`This contestant uses ${plan.pronouns[0]}.`);
+    expect(system(0)).toContain(`They arrive with history. ${returning.name} (`);
+    expect(calls[0][1].content).toContain('and "link_story" (one line');
+    expect(system(1)).toContain(`This contestant uses ${plan.pronouns[1]}.`);
+    expect(system(1)).toContain("They arrive with history. Odessa Brine (The commentator: A ferry captain");
+    expect(system(2)).toContain("They arrive with history. Odessa Brine (");
+
+    const links = await linksOf(t.db, ["house-odessa"]);
+    const of = (other: string) => links.find((l) => l.lo === other || l.hi === other);
+    expect(of(returning.id)).toMatchObject({ kind: plan.returning!.kind, story: expect.stringMatching(/ferry strike/), source: "season_gen" });
+    expect(of("house-bram")).toMatchObject({ kind: plan.kind, story: "They share a dock, a grudge and a very loud foghorn." });
+    expect(of("house-wynn")).toMatchObject({ kind: plan.kind, story: expect.stringMatching(/\.$/) });
+    expect(links).toHaveLength(3);
+
+    // Next season's pair isn't this one's kind again.
+    const next = await pairPlan(t.db, "2027-01-01");
+    expect(next.kind).not.toBe(plan.kind);
+  });
+
+  it("balances the newcomers against the survivors: one of each, unless the survivors lean one way", () => {
+    expect(newcomerPronouns(["she/her", "he/him"])).toEqual(["she/her", "he/him"]);
+    expect(newcomerPronouns(["she/her", "she/her"])).toEqual(["he/him", "he/him"]);
+    expect(newcomerPronouns(["he/him", "he/him"])).toEqual(["she/her", "she/her"]);
+    expect(newcomerPronouns(["they/them", "she/her"])).toEqual(["he/him", "she/her"]);
+    expect(newcomerPronouns([])).toEqual(["she/her", "he/him"]);
   });
 
   it("discards a portrait the check refuses, and keeps the candidate without one", async () => {

@@ -2,8 +2,12 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { handleMcpMessage, type McpContext } from "@/lib/mcp";
 import { episodeJson, scriptedModel, scriptOutcome, startTestDb, validCharacter } from "./helpers";
 import { runDueMixers } from "@/lib/group-dates-run";
-import { fillMixerTonight, MIXER_FILL_HOUR_UTC } from "@/lib/mixer-fill";
+import { fillMixerTonight, MIXER_FILL_HOUR_UTC, pickFillers } from "@/lib/mixer-fill";
 import { mixerNightView } from "@/lib/mixer-night";
+import { addLink } from "@/lib/character-links";
+import { HOUSE_CHARACTERS } from "@/lib/house";
+import { shortName } from "@/lib/names";
+import { setSeasonCastForTests } from "@/lib/season-cast";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Any = any;
@@ -128,5 +132,54 @@ describe("the nightly mixer fill (lib/mixer-fill.ts)", () => {
     expect((await call("mixer", { leave: p.id, agent_id: p.agentId }, p.ctx)).isError).toBeUndefined();
     await t.db.query(`update group_nights set status = 'done', decided_at = $1`, [evening(0, 18).toISOString()]);
     expect(await fillMixerTonight(t.db, evening())).toBeNull();
+  });
+
+  it("brings best friends in the cast together, seats them at different tables, and the room says so", async () => {
+    const [x, y, z] = HOUSE_CHARACTERS;
+    setSeasonCastForTests([x.id, y.id, z.id]);
+    try {
+      await addLink(t.db, x.id, y.id, "friends_to_more", "Neighbours for a decade.");
+      // A people-only room gets the cast, never the crowd: three seats, the cast's share (one) first.
+      const p = await agent("Juni Marsh");
+      await t.db.query(`update characters set open_audience = 'people' where id = $1`, [p.id]);
+      expect((await call("mixer", { join: p.id, agent_id: p.agentId }, p.ctx)).isError).toBeUndefined();
+      scriptOutcome({ ending: "friends" });
+      scriptedModel(Array.from({ length: 4 }, () => episodeJson()));
+      expect(await runDueMixers(t.db, evening())).toMatchObject({ ran: 1, filled: 3, booked: 4 });
+      const night = (await t.db.query<Any>(`select id, rotations, duos, room_opening from group_nights where kind = 'mixer'`)).rows[0];
+      expect(night.duos).toEqual([[x.id, y.id].sort()]);
+      // Never at one table: each spends the night on someone new.
+      for (const r of night.rotations) expect([r.a, r.b].sort()).not.toEqual([x.id, y.id].sort());
+      expect(night.room_opening).toContain(`arrive together, best friends, each here to wingman the other.`);
+      // Every table either of them sits at hears who came with them.
+      const eps = (await t.db.query<Any>(`select character_a, character_b, setup->>'table' as table from episodes`)).rows;
+      const theirs = eps.filter((e: Any) => [e.character_a, e.character_b].includes(x.id));
+      expect(theirs.length).toBeGreaterThan(0);
+      for (const e of theirs) expect(e.table).toContain(`${shortName(x.name)} came tonight with best friend ${shortName(y.name)}`);
+      // The night page tells the same room.
+      const view = (await mixerNightView(t.db, night.id, null))!;
+      expect(view.opening).toBe(night.room_opening);
+      expect(view.tables.some((tb) => tb.beats.some((b) => b.text.startsWith(shortName(y.name)) && b.text.includes(shortName(x.name))))).toBe(true);
+    } finally {
+      setSeasonCastForTests(null);
+    }
+  });
+});
+
+describe("who fills the seats (pickFillers, pure)", () => {
+  const c = (id: string) => ({ id });
+  const ids = (xs: { id: string }[]) => xs.map((x) => x.id);
+  it("brings best friends together or not at all, and splits them only when the room can't fill otherwise", () => {
+    // The cast's share is two: a duo dealt first takes both seats.
+    expect(ids(pickFillers([c("x"), c("z"), c("y")], [c("b1"), c("b2")], 4, [["x", "y"]]))).toEqual(["x", "y", "b1", "b2"]);
+    // A share of one: the duo is passed over for a single, and the crowd fills the rest.
+    expect(ids(pickFillers([c("x"), c("y"), c("z")], [c("b1"), c("b2")], 3, [["x", "y"]]))).toEqual(["z", "b1", "b2"]);
+    // The crowd short: the duo comes on the cast's second pass, two seats being left.
+    expect(ids(pickFillers([c("z"), c("x"), c("y")], [c("b1")], 5, [["x", "y"]]))).toEqual(["z", "b1", "x", "y"]);
+    // One seat left and nobody else free: the room fills, and one of them comes alone.
+    expect(ids(pickFillers([c("x"), c("y")], [c("b1"), c("b2")], 3, [["x", "y"]]))).toEqual(["b1", "b2", "x"]);
+    // No duos: the deal's order, as before; never two who unmatched.
+    expect(ids(pickFillers([c("x"), c("y"), c("z")], [c("b1"), c("b2")], 4, []))).toEqual(["x", "y", "b1", "b2"]);
+    expect(ids(pickFillers([c("x"), c("z")], [c("b1"), c("b2"), c("b3")], 4, [], (p, q) => [p, q].sort().join() === "b1,x"))).toEqual(["x", "z", "b2", "b3"]);
   });
 });

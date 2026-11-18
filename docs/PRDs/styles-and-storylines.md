@@ -179,7 +179,8 @@ rich but controlled color, clean linework on faces, expressive eyes, reality-sho
 
 ## 4. Storylines
 
-- **Arcs** (`lib/arcs.ts`, table `story_arcs`) run over three dates for a linked pair: spark, then setback, then reveal.
+- **Arcs** (`lib/story-arcs.ts`, table `story_arcs`; `lib/arcs.ts` is already the viewers' arc predictions) run over
+  three dates for a linked pair: spark, then setback, then reveal.
   - **Setups:** `rivals`, `second_chance`, `fake_dating` and `friends_to_more`.
   - **Each step chooses** the pair's next date's roleplay (one tagged with that setup), its format (`ex_returns` for
     exes), each side's want and the Previously/Tonight lines.
@@ -194,6 +195,43 @@ rich but controlled color, clean linework on faces, expressive eyes, reality-sho
 - **Wingman duos:** on a group date, best friends arrive together, and one hypes the other.
 - **After Dark:** two more bodyguard roleplays (it has one). Dirty talk stays in the backlog, because a card can't show
   it without explicit words.
+
+### Built 2026-11-17
+
+- **Links** (`lib/character-links.ts`, table `character_links`): one link a pair, either way round, written by
+  season-gen or an admin.
+  - **Both sides of a linked pair's date know it** from the first date on: "You and Rafe are exes: …" in each one's pair
+    memory. The director and narrator get it in the third person.
+  - The date is told as "not strangers": the format note, the rules plan's first scene, and the director's facts all
+    say so. A link alone never reads as "dated before".
+  - **Flavour only:** the engine's input is the same date, so the ending stays the engine's.
+  - Finding an ex for the `ex_returns` format prefers a `second_chance` link.
+- **Linked newcomers** (`lib/season-gen.ts` `pairPlan`):
+  - The two newcomers are drafted as a pair, linked by the setup people pick most (roleplay demand), never the same
+    setup as last season's pair.
+  - The first newcomer also knows someone likely to return (the season's best-reviewed).
+  - Pronouns balance the lineup: one man and one woman, unless the survivors lean two or more one way.
+  - The writer is told who they know and how, and returns `link_story`, the line the audience hears.
+- **Arcs** (`lib/story-arcs.ts`): every link inside the season's cast opens an arc. At most every other night, the
+  producer stages the next arc due (two days since its last date) as an `arc_step` beat:
+  - the pair's next house room, with a roleplay tagged for the setup that they haven't played;
+  - both sides' wants, symmetric, per setup and step;
+  - Previously and Tonight lines that say how the last step ended, and a logline.
+  - The step counts once its date airs. A pair whose date never comes, or never airs, is staged again later. Three
+    misses close the arc as faded, and a day the owner skipped never counts.
+  - The reveal closes the arc: together after a second date, apart otherwise. A mixer table between them never counts
+    as a step.
+  - `ARCS=0` or `PRODUCER=0` turns it off; a lead season has no arcs. /admin/season shows each arc step.
+- **Wingman duos** (`lib/mixer-room.ts` `Duo`): best friends in the cast arrive at the house's mixer together, or not
+  at all unless the room can't fill otherwise. The draw seats them at different tables.
+  - The opening says they arrive together.
+  - Each one's tables hear who came with them.
+  - A wingman beat comes first around their table ("Sol gives Juni a thumbs-up from across the room").
+  - The night stores its duos (`group_nights.duos`), so the prompt and the page tell the same room.
+- **After Dark:** "The bodyguard's night off" and "Bodyguard for one gala" (45 roleplays).
+- **Not built yet:**
+  - The arc's own format per step.
+  - A setback that comes from outside (a rumour in a house scene) when the setback date goes well.
 
 ## 5. Originals only
 

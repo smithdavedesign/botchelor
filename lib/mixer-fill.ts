@@ -17,6 +17,9 @@
  * cent a speed date). The cast has no owner, so the house books their rotations itself (lib/house-booker.ts). The night
  * page tags every house seat "House", and no filler (nor the house) gets a mixer notice.
  *
+ * Best friends (a friends_to_more link, lib/character-links.ts) in the cast arrive together or not at all, and the draw
+ * seats them at different tables so each wingmans the other (lib/mixer-room.ts Duo).
+ *
  * Who can fill: public; not unmatched with anyone already in the room or with another filler; audience settings allowed
  * both ways; didn't fill yesterday's mixer, so the same faces don't come back two nights in a row. A crowd bot also has
  * to be open to dates, not taken (a one-partner couple) and not across a block with anyone seated; a cast member has to
@@ -32,11 +35,52 @@ import { takenSql } from "./partners";
 import type { PlaceId } from "./venues";
 import { HOUSE_BOOKER } from "./house-booker";
 import { seasonCastIds } from "./season-cast";
+import { bestFriendsAmong } from "./character-links";
 import { nextRecouplingDay } from "./season-format";
 import { seasonFormatNow } from "./season-format-store";
 
 /** How many of `need` filler seats go to the season's house cast first: half, rounded down (the crowd gets the rest). */
 export const castShare = (need: number): number => Math.floor(need / 2);
+
+/**
+ * Who fills `need` seats, from the dealt cast and crowd: the cast's share first, then the crowd, then the cast again if
+ * the crowd is short. Never two who unmatched each other (`apart`). Best friends (`duos`) arrive together: whichever of
+ * the two is dealt first brings the other when two seats are left, and is passed over when only one is; a duo splits
+ * only when the room can't fill any other way.
+ */
+export function pickFillers<T extends { id: string }>(
+  castOrder: readonly T[],
+  botOrder: readonly T[],
+  need: number,
+  duos: readonly (readonly [string, string])[],
+  apart: (x: string, y: string) => boolean = () => false,
+): T[] {
+  const picked: T[] = [];
+  const has = (id: string) => picked.some((p) => p.id === id);
+  const friendOf = (id: string) => {
+    const d = duos.find(([x, y]) => x === id || y === id);
+    return d ? (d[0] === id ? d[1] : d[0]) : null;
+  };
+  const take = (from: readonly T[], upTo: number, together: boolean) => {
+    for (const c of from) {
+      if (picked.length >= upTo) return;
+      if (has(c.id) || picked.some((p) => apart(p.id, c.id))) continue;
+      const fid = friendOf(c.id);
+      const friend = together && fid ? from.find((x) => x.id === fid) : undefined;
+      if (friend && !has(friend.id) && !apart(c.id, friend.id) && !picked.some((p) => apart(p.id, friend.id))) {
+        if (picked.length + 2 > upTo) continue;
+        picked.push(c, friend);
+        continue;
+      }
+      picked.push(c);
+    }
+  };
+  take(castOrder, castShare(need), true);
+  take(botOrder, need, true);
+  take(castOrder, need, true);
+  if (picked.length < need) take(castOrder, need, false);
+  return picked;
+}
 
 export { MIXER_FILL_HOUR_UTC };
 /** Where a house-only night happens (the same rooms a people's mixer is dealt). */
@@ -129,17 +173,12 @@ export async function fillMixerTonight(db: Db, now: Date = new Date(), env: Reco
     ? (await db.query<{ character_lo: string; character_hi: string }>(`select character_lo, character_hi from unmatches where character_lo = any($1) and character_hi = any($1)`, [ids])).rows
     : [];
   const apart = (x: string, y: string) => unmatched.some((u) => (u.character_lo === x && u.character_hi === y) || (u.character_lo === y && u.character_hi === x));
-  const picked: { id: string; owner_id: string }[] = [];
-  const take = (from: { id: string; owner_id: string }[], upTo: number) => {
-    for (const c of from) {
-      if (picked.length >= upTo) return;
-      if (picked.some((p) => p.id === c.id || apart(p.id, c.id))) continue;
-      picked.push(c);
-    }
-  };
-  take(castOrder, castShare(need));
-  take(botOrder, need);
-  take(castOrder, need);
+  // Best friends in the cast (lib/mixer-room.ts Duo) arrive together.
+  const duos = await bestFriendsAmong(
+    db,
+    cast.map((c) => c.id),
+  ).catch(() => [] as [string, string][]);
+  const picked = pickFillers(castOrder, botOrder, need, duos, apart);
   if (picked.length < need) return null; // not enough of the house free tonight: the night stays as it is
 
   let nightId = open?.night.id ?? null;

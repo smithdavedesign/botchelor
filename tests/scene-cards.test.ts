@@ -84,7 +84,7 @@ describe("After Dark's scene cards", () => {
   const NEVER = /\b(sister|brother|sibling|mother|father|mom|mum|dad|daughter|son|step\w*|aunt|uncle|cousin|babysit\w*|nanny|teacher|student|pupil|professor|tutor|lesson|classroom|school|campus|dorm|teen|teenage|young|younger|girl|boy|kid|child|drunk|tipsy|wasted|asleep|unconscious|sedated|forced|force|kidnap\w*|captive|tied|against (her|his|their) will|blackmail|paid|pays|payment|intern)\b/i;
 
   it("every one of After Dark's roleplays has a story card: inside its lines, and with no explicit word, in every form", () => {
-    expect(ROLEPLAYS).toHaveLength(43);
+    expect(ROLEPLAYS).toHaveLength(45);
     for (const r of ROLEPLAYS) {
       expect(adultCardIssue(r.card), r.id).toBeNull();
       for (const { field, text } of everyForm(r.card)) {

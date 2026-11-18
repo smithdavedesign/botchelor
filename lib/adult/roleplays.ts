@@ -287,6 +287,56 @@ export const ROLEPLAYS: readonly HouseRoleplay[] = [
       ],
     },
   },
+  // Two more for the census's bodyguard setup (PRD styles-and-storylines phase 4): off duty, and a booking that ends.
+  {
+    id: "bodyguard-off-duty", title: "The bodyguard's night off", icon: "🍸", category: "nightlife", roles: ["the bodyguard, off duty", "the one they usually guard"], costumes: ["a leather jacket over a plain black t-shirt and dark jeans", "a silk shirt and tailored trousers"],
+    tags: ["bodyguard", "slow_burn", "romance", "tease"],
+    premise: "For once {a} is off duty, and {b} has slipped out alone to the same quiet bar, on purpose. No earpiece and nobody watching the door: just a year of looks neither of them mentioned, said out loud at last, with the job kept out of it.",
+    card: {
+      // Either side as "you": no verb after a comma that leans on the name before it.
+      setup: "{a} has the night off for the first time in months. {b} walks into the same quiet bar alone and on purpose. The contract has nothing to do with tonight, and {b} says so first.",
+      wants: [
+        "{a} wants to find out who {b} is without a guest list or an exit to watch; switching off a year of habits is harder than it sounds.",
+        "{b} wants {a} as a person and not as staff for one evening; that is why {b} came alone and said so first.",
+      ],
+      beats: [
+        "{a} checks the exits out of habit, and {b} counts how many times.",
+        "They agree on one rule for the night: nobody mentions work.",
+        "The rule breaks once, over something only the two of them would know.",
+        "One of them asks what the other has wanted to say for a year.",
+      ],
+      tone: "off duty, playful, a year of looks finally talked about",
+      openings: [
+        "{b} sits down on the next stool and says this is not a coincidence.",
+        "For once, {a} stays sitting when {b} walks in alone.",
+        "{b} asks to meet the off-duty version of {a}.",
+      ],
+    },
+  },
+  {
+    id: "bodyguard-gala", title: "Bodyguard for one gala", icon: "🎟️", category: "nightlife", roles: ["the bodyguard for the night", "the guest of honour"], costumes: ["a tailored black suit with an earpiece", "a formal evening look in deep velvet"],
+    tags: ["bodyguard", "strangers", "drama", "tease"],
+    premise: "{a} was booked to guard {b} for one gala, from the red carpet to the car at midnight: two strangers an arm's length apart all evening, catching each other's eye. At midnight the booking is over, and neither of them calls the car.",
+    card: {
+      setup: "The gala is over, the last photographer has gone home and the car is waiting downstairs. {a}'s booking ended at midnight, two minutes ago, and {b} asks out loud whether {a} is still on the clock.",
+      wants: [
+        "{a} wants to hear the question properly before answering it; a whole evening of professional distance does not switch off in two minutes.",
+        "{b} wants to know whether the looks across the ballroom were part of the job; asking out loud is the only way to find out.",
+      ],
+      beats: [
+        "They compare notes on the evening: who {a} watched, and who watched {a}.",
+        "{b} admits to walking the long way round the ballroom on purpose, twice.",
+        "{a} says the earpiece has been silent for an hour and leaves it on the table.",
+        "They decide together what happens to the waiting car.",
+      ],
+      tone: "glamorous, after the party, a strictly professional evening that ended on time",
+      openings: [
+        "{b} asks whether {a} is still on the clock, and {a} checks a watch slowly.",
+        "{a} holds the car door open, and {b} does not get in.",
+        "{b} offers {a} the slice of gala cake nobody had time to eat.",
+      ],
+    },
+  },
   {
     id: "celebrity", title: "The star and the stranger", icon: "⭐", category: "nightlife", roles: ["the famous one", "the one who doesn't recognise them"], costumes: ["designer clothes, sunglasses pushed up into the hair", "everyday casual clothes"],
     tags: ["strangers", "slice_of_life"],

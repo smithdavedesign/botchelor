@@ -11,7 +11,7 @@ import type { Db } from "./db";
 import { getEpisodeView, type CharacterRef } from "./game";
 import type { GroupNight, Rotation } from "./group-dates";
 import { houseBotCharacterIds } from "./house-bots";
-import { backgroundBeats, playOrder, roomClosing, roomOpening, rotationRound, type RoomBeat } from "./mixer-room";
+import { backgroundBeats, duoNamesOf, playOrder, roomClosing, roomOpening, rotationRound, type Duo, type RoomBeat } from "./mixer-room";
 import { endingLabel, type Ending } from "./rules";
 
 export type MixerTableState = "ready" | "airs_soon" | "generating" | "private" | "hidden" | "failed";
@@ -50,8 +50,8 @@ export type MixerNightView = {
 type SeatRow = { id: string; name: string; is_house: boolean; hue: number | null; portrait: string | null; agent: boolean; private: boolean };
 
 export async function mixerNightView(db: Db, nightId: string, viewerId: string | null): Promise<MixerNightView | null> {
-  const g = (await db.query<{ id: string; venue: string; theme: string | null; status: GroupNight["status"]; rotations: Rotation[] | null; room_opening: string | null; room_closing: string | null }>(
-    `select id, venue, theme, status, rotations, room_opening, room_closing from group_nights where id = $1 and kind = 'mixer'`,
+  const g = (await db.query<{ id: string; venue: string; theme: string | null; status: GroupNight["status"]; rotations: Rotation[] | null; room_opening: string | null; room_closing: string | null; duos: Duo[] | null }>(
+    `select id, venue, theme, status, rotations, room_opening, room_closing, duos from group_nights where id = $1 and kind = 'mixer'`,
     [nightId],
   )).rows[0];
   if (!g) return null;
@@ -88,7 +88,7 @@ export async function mixerNightView(db: Db, nightId: string, viewerId: string |
   const tables: MixerTable[] = [];
   for (const i of playOrder(rotations)) {
     const r = rotations[i];
-    const base = { index: i, round: rotationRound(rotations, i), episode_id: r.episode_id ?? null, beats: backgroundBeats(g.id, rotations, i, names, seatIds) };
+    const base = { index: i, round: rotationRound(rotations, i), episode_id: r.episode_id ?? null, beats: backgroundBeats(g.id, rotations, i, names, seatIds, g.duos ?? []) };
     if (!r.episode_id) {
       tables.push({ ...base, characters: [ref(r.a), ref(r.b)], state: "failed", turns: [], ending_label: null });
       continue;
@@ -128,7 +128,7 @@ export async function mixerNightView(db: Db, nightId: string, viewerId: string |
       closing = g.room_closing ?? roomClosing(g.venue, endings, names, seatIds);
     }
   }
-  return { id: g.id, venue: g.venue, theme: g.theme ?? null, status: g.status, rounds, seats, opening: g.room_opening ?? roomOpening(g.id, g.venue, seats.map((s) => s.name)), closing, tables };
+  return { id: g.id, venue: g.venue, theme: g.theme ?? null, status: g.status, rounds, seats, opening: g.room_opening ?? roomOpening(g.id, g.venue, seats.map((s) => s.name), duoNamesOf(g.duos, names)), closing, tables };
 }
 
 /** The mixer night an episode was one table of (the episode page's link back to the whole room), with its round. */

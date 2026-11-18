@@ -15,7 +15,7 @@ import type { Db } from "./db";
 import { trimTo } from "./conversation";
 import { needsTranslation } from "./language-check";
 import { getModel, type Model } from "./model";
-import { roomClosing, roomOpening } from "./mixer-room";
+import { duoArrival, duoNamesOf, roomClosing, roomOpening, type Duo } from "./mixer-room";
 import { shortName } from "./names";
 import type { Ending } from "./rules";
 import { checkFields } from "./safety";
@@ -69,7 +69,15 @@ export async function writeBeat(model: Model, ask: string, mustName: readonly st
   return clean;
 }
 
-type NightRow = { id: string; venue: string; kind: string; room_opening: string | null; room_closing: string | null; rotations: { a: string; b: string; episode_id?: string | null }[] | null };
+type NightRow = {
+  id: string;
+  venue: string;
+  kind: string;
+  room_opening: string | null;
+  room_closing: string | null;
+  rotations: { a: string; b: string; episode_id?: string | null }[] | null;
+  duos?: Duo[] | null;
+};
 
 async function seatsOf(db: Db, nightId: string): Promise<{ ids: string[]; names: Map<string, string> }> {
   const { rows } = await db.query<{ id: string; name: string }>(
@@ -81,22 +89,25 @@ async function seatsOf(db: Db, nightId: string): Promise<{ ids: string[]; names:
 
 /** Writes and stores the night's opening (the mixer run, once it's claimed). True when the model wrote it. */
 export async function writeRoomOpening(db: Db, nightId: string, model?: Model): Promise<boolean> {
-  const g = (await db.query<NightRow>(`select id, venue, kind, room_opening, room_closing, rotations from group_nights where id = $1`, [nightId])).rows[0];
+  const g = (await db.query<NightRow>(`select id, venue, kind, room_opening, room_closing, rotations, duos from group_nights where id = $1`, [nightId])).rows[0];
   if (!g || g.kind !== "mixer" || g.room_opening) return false;
   const { ids, names } = await seatsOf(db, nightId);
   const all = ids.map((id) => names.get(id)!);
   const firsts = all.map((n) => shortName(n));
+  // Best friends who came together (lib/mixer-room.ts Duo): a fact the opening keeps, so both of them must be named.
+  const duoNames = duoNamesOf(g.duos, names);
+  const duoFirsts = duoNames.flatMap(([x, y]) => [shortName(x), shortName(y)]);
   const text = voiceEnabled
     ? await writeBeat(
         model ?? getModel(undefined, false),
-        `The mixer opens at ${venuePhrase(g.venue)}. In the room: ${firsts.join(", ")}. Write the opening: everyone arriving and taking their seats, ` +
+        `The mixer opens at ${venuePhrase(g.venue)}. In the room: ${firsts.join(", ")}. ${duoArrival(duoNames)}${duoNames.length ? " " : ""}Write the opening: everyone arriving and taking their seats, ` +
           `sizing each other up, and the bell on the bar (six lines with each match, then it rings). Name everyone.`,
-        firsts.slice(0, 3),
+        [...new Set([...firsts.slice(0, 3), ...duoFirsts])],
       )
     : null;
   await db.query(`update group_nights set room_opening = $2, room_opening_by = $3 where id = $1 and room_opening is null`, [
     nightId,
-    text ?? roomOpening(nightId, g.venue, all),
+    text ?? roomOpening(nightId, g.venue, all, duoNames),
     text ? "model" : "template",
   ]);
   return Boolean(text);
