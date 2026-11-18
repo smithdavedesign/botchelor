@@ -3,8 +3,8 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 /**
  * How many database round trips each heavy page waits on, one after another (the 2026-11-04 performance audit). The
  * apps run in New York and the database in Oregon, so each round trip costs ~70 ms on prod: a page that waits on 20 in
- * a row spends ~1.4 s before its first byte. Every query here is slowed by LATENCY_MS, so a page's time over LATENCY_MS
- * is its depth: the round trips it waits on in sequence. Budgets keep a page from sliding back.
+ * a row spends ~1.4 s before its first byte. Every query here is slowed by LATENCY_MS, so a page's time over LATENCY_MS,
+ * rounded down, is its depth: the round trips it waits on in sequence. Budgets keep a page from sliding back.
  */
 const jar = vi.hoisted(() => ({ cookies: new Map<string, string>() }));
 vi.mock("next/headers", () => ({
@@ -19,7 +19,7 @@ import { setDbForTests, type Db } from "@/lib/db";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import { api, episodeJson, newUserCookie, scriptedModel, scriptOutcome, startTestDb, validCharacter } from "./helpers";
 
-const LATENCY_MS = 30;
+const LATENCY_MS = 100;
 
 let t: Awaited<ReturnType<typeof startTestDb>>;
 const counter = { n: 0 };
@@ -54,7 +54,7 @@ const timed = async (sql: string, params?: unknown[]) => {
     counter.n++;
     if (traceStart) {
       const from = (new Error().stack ?? "").split("\n").slice(2).map((l) => /\/(app|lib)\/([^:]+):(\d+)/.exec(l)).filter(Boolean).slice(0, 2).map((m) => `${m![1]}/${m![2]}:${m![3]}`).join(" < ");
-      trace.push({ at: Math.round((performance.now() - traceStart) / LATENCY_MS), sql: sql.replace(/\s+/g, " ").trim().slice(0, 70), from });
+      trace.push({ at: Math.floor((performance.now() - traceStart) / LATENCY_MS), sql: sql.replace(/\s+/g, " ").trim().slice(0, 70), from });
     }
     await new Promise((r) => setTimeout(r, LATENCY_MS));
     return t.db.query(sql, params);
@@ -102,6 +102,12 @@ function side() {
  * Depth is wall-clock time, and a busy machine only ever adds to it (other suites, local models): one warm run failed a
  * different page by 1–4 round trips on different runs (2026-11-08) while main and the branch measured the same alone.
  * So the best of WARM_RUNS is the page's own cost; a real extra round trip still adds LATENCY_MS to every run.
+ * Rounded down, not to the nearest: each round trip adds a whole LATENCY_MS, so the floor never misses one, and a page's
+ * own work between them (rendering, under LATENCY_MS in all) never reads as one. LATENCY_MS is 100 so that work stays a
+ * small part of it: the heaviest here, the owner's character page, renders in ~50 ms of its ~950. At 30 ms and rounded
+ * to the nearest, render time read as one more round trip on 13 of these pages every run, and on the visitor's home
+ * page (three round trips and ~14 ms of rendering, 102–105 ms, the same before and after #1790–#1802) on some runs, so
+ * it flipped between 3 and 4 against its budget of 3 (2026-11-17).
  */
 const WARM_RUNS = 3;
 let tracing = false;
@@ -115,7 +121,7 @@ async function measure(run: () => Promise<unknown>) {
     await run();
     const ms = performance.now() - start;
     traceStart = 0;
-    if (ms < best.ms) best = { depth: Math.round(ms / LATENCY_MS), queries: counter.n, ms: Math.round(ms) };
+    if (ms < best.ms) best = { depth: Math.floor(ms / LATENCY_MS), queries: counter.n, ms: Math.round(ms) };
   }
   return best;
 }
