@@ -644,6 +644,8 @@ create index if not exists episodes_group_idx on episodes (group_id) where group
 -- house-paid), and when the house topped a night up (once a UTC day; a filled night runs without the doors wait).
 alter table group_night_seats add column if not exists house_fill boolean not null default false;
 alter table group_nights add column if not exists filled_at timestamptz;
+-- A mixer's best friends ([[a, b], …], lib/mixer-room.ts Duo): stored when the night is drawn, so the prompt and the page agree.
+alter table group_nights add column if not exists duos jsonb;
 -- The room's own words (lib/mixer-voice.ts): a mixer night's opening and closing, written once (by the model, or the
 -- template when the call failed or was refused: *_by says which).
 alter table group_nights add column if not exists room_opening text;
@@ -2219,6 +2221,20 @@ create table if not exists season_candidates (
   reviewed_at timestamptz
 );
 create index if not exists season_candidates_season_idx on season_candidates (season_id, status);
+-- Who already knew whom before the show (lib/character-links.ts): a season's newcomers arrive as a linked pair, and one
+-- knows someone returning. Lower id first, one link a pair; kind is a roleplay setup tag (rivals, second_chance,
+-- fake_dating, friends_to_more). The date-derived graph (relationships) drops a pair with no dates; this never lapses.
+create table if not exists character_links (
+  character_a text not null references characters (id) on delete cascade,
+  character_b text not null references characters (id) on delete cascade,
+  kind text not null,
+  story text not null,
+  source text not null default 'season_gen',
+  created_at timestamptz not null default now(),
+  primary key (character_a, character_b),
+  check (character_a < character_b)
+);
+create index if not exists character_links_b_idx on character_links (character_b);
 -- Private characters (David, 2026-10-19): listed in the /characters directory but not linked, and their card shows
 -- only their name to anyone but the owner. House characters are always public.
 alter table characters add column if not exists visibility text not null default 'public'
@@ -4073,6 +4089,31 @@ create table if not exists story_beats (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+-- A story arc's step (lib/story-arcs.ts ArcBeat): set only on a beat of kind 'arc_step', whose tension is null.
+alter table story_beats add column if not exists arc jsonb;
+-- Story arcs (lib/story-arcs.ts): three dates (spark, setback, reveal) for a pair who knew each other before the show
+-- (character_links). One a pair, ever; lower id first. staged_day is the beat day its next step is staged for, with
+-- that step's roleplay and who plays its first role; dates is what each played step's date was and how it ended.
+create table if not exists story_arcs (
+  id text primary key,
+  season_id text not null,
+  character_a text not null references characters (id) on delete cascade,
+  character_b text not null references characters (id) on delete cascade,
+  kind text not null,
+  step text not null default 'spark',
+  status text not null default 'active',   -- active | done
+  outcome text,                            -- together | apart | faded, once done
+  staged_day text,
+  roleplay text,
+  first_role text,
+  misses int not null default 0,
+  dates jsonb not null default '[]'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (character_a, character_b),
+  check (character_a < character_b)
+);
+create index if not exists story_arcs_active_idx on story_arcs (status, staged_day);
 -- The date plans written at night (lib/night-plans.ts): one per house date expected the next day. episode_id is the id
 -- reserved for that date (its seed), fit_key what the date must turn out to be for the plan to fit (the pair in order,
 -- the place, the situation and the engine's decision, hashed), plan the beat sheet in lib/beats.ts DatePlan shape (null

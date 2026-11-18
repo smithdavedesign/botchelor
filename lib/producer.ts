@@ -53,6 +53,23 @@ import { seasonIdOf } from "./season-window";
 import { setWant, storyStateOn, tensions, type Tension, type TensionKind, type WantKind } from "./story-state";
 import { VENUE_IDS, venueName, venuePhrase, type VenueId } from "./venues";
 import { inFlight } from "./shared-cache";
+import { LINK_WORDS, type LinkKind } from "./character-links";
+import { dateRoleplayById } from "./roleplays";
+import {
+  ARC_STEPS,
+  arcLines,
+  arcLinesOk,
+  arcRoleplay,
+  arcsOn,
+  arcWants,
+  dueArc,
+  markStaged,
+  openArcs,
+  settleArcs,
+  unstage,
+  type ArcBeat,
+  type ArcStep,
+} from "./story-arcs";
 
 type Env = Record<string, string | undefined>;
 
@@ -76,7 +93,8 @@ export const producedDay = (now: Date): string => (now.getUTCHours() >= PRODUCER
 
 /* ------------------------------------------------ shapes ------------------------------------------------ */
 
-export const BEAT_KINDS = ["surface_claim", "same_room", "rival_date"] as const;
+/** `arc_step`: a story arc's next date (lib/story-arcs.ts), staged on its own night instead of a tension. */
+export const BEAT_KINDS = ["surface_claim", "same_room", "rival_date", "arc_step"] as const;
 export type BeatKind = (typeof BEAT_KINDS)[number];
 /** staged: picked, its day running or ahead. played / missed: what came of it. skipped: the owner's control. none: nothing worth staging. */
 export type BeatStatus = "pending" | "staged" | "played" | "missed" | "skipped" | "none";
@@ -89,7 +107,7 @@ export const LINE_MAX = 140;
 export const REPEAT_DAYS = 2;
 export const TWISTS_MAX = 3;
 
-const KIND_OF: Record<TensionKind, BeatKind> = { knows_said: "same_room", mutual_distrust: "same_room", opposing_claims: "surface_claim", rivals: "rival_date" };
+const KIND_OF: Record<TensionKind, Exclude<BeatKind, "arc_step">> = { knows_said: "same_room", mutual_distrust: "same_room", opposing_claims: "surface_claim", rivals: "rival_date" };
 const SCENE_OF: Record<TensionKind, BeatScene> = { knows_said: "confrontation", mutual_distrust: "confrontation", opposing_claims: "kitchen", rivals: "challenge" };
 
 /** One thing the day's vote can pick: a situation, never an ending. */
@@ -113,7 +131,10 @@ export type Beat = {
   season_id: string;
   kind: BeatKind;
   status: BeatStatus;
-  tension: TensionKind;
+  /** The tension it stages; null on an arc's beat, which stages `arc` instead. */
+  tension: TensionKind | null;
+  /** A story arc's step (lib/story-arcs.ts), on a beat of kind `arc_step`. */
+  arc: ArcBeat | null;
   /** The two it is between, then the one it is over when that is someone else. */
   who: string[];
   about: string | null;
@@ -158,32 +179,41 @@ type BeatRow = {
   choices: Twist[] | null;
   wants: BeatWant[] | null;
   outcome: BeatOutcome | null;
+  arc: ArcBeat | null;
 };
 
-const BEAT_COLS = `day, season_id, kind, status, tension, who, about, evidence, why, logline, logline_by, previously, tonight, choices, wants, outcome`;
+const BEAT_COLS = `day, season_id, kind, status, tension, who, about, evidence, why, logline, logline_by, previously, tonight, choices, wants, outcome, arc`;
 
-const beatOf = (r: BeatRow): Beat | null =>
-  r.tension && (BEAT_KINDS as readonly string[]).includes(r.kind)
-    ? {
-        day: r.day,
-        season_id: r.season_id,
-        kind: r.kind as BeatKind,
-        status: r.status,
-        tension: r.tension,
-        who: r.who ?? [],
-        about: r.about,
-        evidence: r.evidence ?? {},
-        why: r.why ?? "",
-        logline: r.logline ?? "",
-        logline_by: r.logline_by === "model" ? "model" : "template",
-        previously: r.previously ?? "",
-        tonight: r.tonight ?? "",
-        choices: Array.isArray(r.choices) && r.choices.length >= 2 ? r.choices : null,
-        wants: r.wants ?? [],
-        outcome: r.outcome,
-        scene: SCENE_OF[r.tension],
-      }
-    : null;
+/** An arc beat's step as stored, or null when it isn't one. */
+const arcBeatOf = (r: Pick<BeatRow, "kind" | "arc">): ArcBeat | null =>
+  r.kind === "arc_step" && r.arc && typeof r.arc.id === "string" && (ARC_STEPS as readonly string[]).includes(r.arc.step) ? r.arc : null;
+
+const beatOf = (r: BeatRow): Beat | null => {
+  if (!(BEAT_KINDS as readonly string[]).includes(r.kind)) return null;
+  const arc = arcBeatOf(r);
+  if (!r.tension && !arc) return null;
+  return {
+    day: r.day,
+    season_id: r.season_id,
+    kind: r.kind as BeatKind,
+    status: r.status,
+    tension: r.tension ?? null,
+    arc,
+    who: r.who ?? [],
+    about: r.about,
+    evidence: r.evidence ?? {},
+    why: r.why ?? "",
+    logline: r.logline ?? "",
+    logline_by: r.logline_by === "model" ? "model" : "template",
+    previously: r.previously ?? "",
+    tonight: r.tonight ?? "",
+    choices: Array.isArray(r.choices) && r.choices.length >= 2 ? r.choices : null,
+    wants: r.wants ?? [],
+    outcome: r.outcome,
+    // An arc's date is two people with history in a room: the house's gossip suits it.
+    scene: r.tension ? SCENE_OF[r.tension] : "kitchen",
+  };
+};
 
 /* ------------------------------------------------ reading a beat ------------------------------------------------ */
 
@@ -401,7 +431,8 @@ async function writeLogline(model: Model, lines: { previously: string; tonight: 
 export type ProducerRun =
   | { day: string; skipped: "off" | "already" | "owner" }
   | { day: string; beat: null; reason: "no_tension" | "no_cast" | "season_turn" }
-  | { day: string; beat: BeatKind; tension: TensionKind; who: string[]; wants: number; twists: number; logline_by: "model" | "template" };
+  | { day: string; beat: Exclude<BeatKind, "arc_step">; tension: TensionKind; who: string[]; wants: number; twists: number; logline_by: "model" | "template" }
+  | { day: string; beat: "arc_step"; arc: { id: string; kind: LinkKind; step: ArcStep }; who: string[]; wants: number; roleplay: string | null; logline_by: "model" | "template" };
 
 async function namesOf(db: Db, ids: readonly string[]): Promise<Map<string, string>> {
   if (!ids.length) return new Map();
@@ -436,8 +467,10 @@ export async function runProducer(db: Db, now: Date = new Date(), opts: { model?
   try {
     return await produce(db, day, now, opts);
   } catch (err) {
-    // A run that died part way frees the day, so the next hourly pass tries again instead of leaving it beatless.
-    await db.query(`delete from story_beats where day = $1 and status = 'pending'`, [day]).catch(() => {});
+    // A run that died part way frees the day, so the next hourly pass tries again instead of leaving it beatless,
+    // and frees an arc step it had staged for the day, so the pass can stage it again.
+    const freed = await db.query(`delete from story_beats where day = $1 and status = 'pending' returning day`, [day]).catch(() => ({ rows: [] }));
+    if (freed.rows.length) await unstage(db, day).catch(() => {});
     throw err;
   }
 }
@@ -454,6 +487,14 @@ async function produce(db: Db, day: string, now: Date, opts: { model?: Model | n
   if (season !== seasonIdOf(now)) return none("season_turn");
   const stage = await stageOf(db, at);
   if (stage.cast.size < 2) return none("no_cast");
+  // Story arcs (lib/story-arcs.ts): open the cast's, move on the ones whose date aired, and stage the one that's due.
+  if (arcsOn(opts.env)) {
+    const arc = await produceArc(db, day, season, stage, opts).catch((err) => {
+      console.warn("[producer] the arcs' pass failed:", err instanceof Error ? err.message : err);
+      return null;
+    });
+    if (arc) return arc;
+  }
   const list = await tensions(db, season, { now });
   const recent = new Set(
     (await db.query<{ tension: TensionKind; who: string[]; about: string | null }>(`select tension, who, about from story_beats where day >= $1 and day < $2 and tension is not null and status <> 'skipped'`, [dayAfter(day, -REPEAT_DAYS), day])).rows.map(
@@ -488,6 +529,53 @@ async function produce(db: Db, day: string, now: Date, opts: { model?: Model | n
      lines.previously.slice(0, LINE_MAX), lines.tonight.slice(0, LINE_MAX), twists ? JSON.stringify(twists) : null, JSON.stringify(wants)],
   );
   return { day, beat: KIND_OF[picked.kind], tension: picked.kind, who, wants: wants.length, twists: twists?.length ?? 0, logline_by: written ? "model" : "template" };
+}
+
+/**
+ * The night's arc pass (lib/story-arcs.ts): opens the cast's arcs, moves on the ones whose date aired, and stages the one
+ * that's due as the day's beat. Null when no arc is staged (tonight is the tensions'): the night before was an arc's, none
+ * is due, or the season can't book its pair.
+ */
+async function produceArc(db: Db, day: string, season: string, stage: Stage, opts: { model?: Model | null; env?: Env }): Promise<ProducerRun | null> {
+  await openArcs(db, season, [...stage.cast]);
+  await settleArcs(db, day);
+  // Arcs and the house's tensions take turns: never two arc nights running.
+  const before = (await db.query<{ kind: string }>(`select kind from story_beats where day = $1`, [dayAfter(day, -1)])).rows[0]?.kind;
+  if (before === "arc_step") return null;
+  // The house books the arc's date like any of its own: never on a lead season, which only dates the lead.
+  const arc = await dueArc(db, day, (a, b) => !stage.lead && stagedPair(a, b, stage) !== null);
+  if (!arc) return null;
+  const names = await namesOf(db, [arc.a, arc.b]);
+  const nm: Names = (id) => names.get(id) ?? "someone";
+  const lines = arcLines(arc, nm);
+  const wants = arcWants(arc, nm, stage.cast);
+  if (!arcLinesOk(lines, wants)) return null;
+  const rp = arcRoleplay(arc, day);
+  if (!(await markStaged(db, arc.id, day, rp?.def.id ?? null, rp?.first ?? null))) return null;
+  try {
+    const model = opts.model !== undefined ? opts.model : voiceEnabled ? getModel("minimal", false) : null;
+    const written = model ? await writeLogline(model, lines, [arc.a, arc.b].map(nm)) : null;
+    const set: BeatWant[] = [];
+    for (const w of wants) {
+      if (await setWant(db, { holder: w.holder, want: w.want, kind: w.kind, about: w.about, setBy: "producer", now: noonOf(day) }).catch(() => false)) set.push(w);
+    }
+    const beatArc: ArcBeat = { id: arc.id, kind: arc.kind, step: arc.step, roleplay: rp?.def.id ?? null, first: rp?.first ?? null };
+    const why = `Step ${ARC_STEPS.indexOf(arc.step) + 1} of ${ARC_STEPS.length} (${arc.step}) of ${nm(arc.a)} and ${nm(arc.b)}'s arc: ${LINK_WORDS[arc.kind].pair} before the show${
+      rp ? `, playing "${rp.def.title}"` : ""
+    }. The day's first house date is theirs.`;
+    await db.query(
+      `update story_beats set kind = 'arc_step', status = 'staged', tension = null, who = $2::jsonb, about = null, evidence = '{}'::jsonb, why = $3, logline = $4, logline_by = $5,
+              previously = $6, tonight = $7, choices = null, wants = $8::jsonb, arc = $9::jsonb, updated_at = now()
+        where day = $1`,
+      [day, JSON.stringify([arc.a, arc.b]), why.slice(0, 600), (written ?? lines.logline).slice(0, 200), written ? "model" : "template",
+       lines.previously.slice(0, LINE_MAX), lines.tonight.slice(0, LINE_MAX), JSON.stringify(set), JSON.stringify(beatArc)],
+    );
+    return { day, beat: "arc_step", arc: { id: arc.id, kind: arc.kind, step: arc.step }, who: [arc.a, arc.b], wants: set.length, roleplay: rp?.def.id ?? null, logline_by: written ? "model" : "template" };
+  } catch (err) {
+    // Staged but never written: free the step, so a later night stages it again.
+    await unstage(db, day).catch(() => {});
+    throw err;
+  }
 }
 
 /* ------------------------------------------------ what came of it ------------------------------------------------ */
@@ -603,7 +691,7 @@ export async function skipBeat(db: Db, day: string): Promise<void> {
 
 /** Takes a skip back. A day the producer hadn't reached is freed for its run; a beat that was withdrawn is staged again. */
 export async function unskipBeat(db: Db, day: string): Promise<void> {
-  await db.query(`delete from story_beats where day = $1 and status = 'skipped' and tension is null`, [day]);
+  await db.query(`delete from story_beats where day = $1 and status = 'skipped' and tension is null and arc is null`, [day]);
   await db.query(`update story_beats set status = 'staged', updated_at = now() where day = $1 and status = 'skipped'`, [day]);
 }
 
@@ -612,6 +700,8 @@ export type ProducerBeatView = {
   status: BeatStatus;
   kind: string;
   tension: TensionKind | null;
+  /** A story arc's step (lib/story-arcs.ts): the setup in words, the step, and the roleplay's title. */
+  arc: { kind: string; step: ArcStep; roleplay: string | null } | null;
   who: { id: string; name: string }[];
   why: string | null;
   logline: string | null;
@@ -626,12 +716,15 @@ export type ProducerBeatView = {
   came: string;
 };
 
-function cameWords(o: BeatOutcome | null, status: BeatStatus, nm: Names): string {
+function cameWords(o: BeatOutcome | null, status: BeatStatus, nm: Names, arc = false): string {
   if (status === "skipped") return "Skipped by the owner.";
   if (status === "none" || status === "pending") return "No beat that day.";
   if (!o) return "Its night isn't over yet.";
   const parts: string[] = [];
-  if (o.vote) parts.push(`The vote ${o.vote.twist ? "staged it" : "went to a dealt roleplay"}: ${o.vote.title ?? o.vote.pick}, ${o.vote.votes} of ${o.vote.total} votes.`);
+  // An arc's date is the day's first house date, not the vote's.
+  if (arc) {
+    if (!o.dates.length) parts.push("The house made no date for them that day, so the step waits for another night.");
+  } else if (o.vote) parts.push(`The vote ${o.vote.twist ? "staged it" : "went to a dealt roleplay"}: ${o.vote.title ?? o.vote.pick}, ${o.vote.votes} of ${o.vote.total} votes.`);
   else parts.push("Nobody voted, so the house made no date for it.");
   for (const d of o.dates) parts.push(`${nm(d.a)} × ${nm(d.b)} went on a date${d.aired ? `, which aired and ended "${String(d.ending).replace(/_/g, " ")}"` : " (not aired yet)"}.`);
   if (o.claims_used) parts.push(`${o.claims_used} ${o.claims_used === 1 ? "claim" : "claims"} from the evidence came up on a date.`);
@@ -672,6 +765,10 @@ export async function producerView(db: Db, now: Date = new Date(), env: Env = pr
       status: r.status,
       kind: r.kind,
       tension: r.tension,
+      arc: (() => {
+        const a = arcBeatOf(r);
+        return a ? { kind: LINK_WORDS[a.kind]?.pair ?? a.kind, step: a.step, roleplay: dateRoleplayById(a.roleplay)?.title ?? null } : null;
+      })(),
       who: (r.who ?? []).map((id) => ({ id, name: nm(id) })),
       why: r.why,
       logline: r.logline,
@@ -682,7 +779,7 @@ export async function producerView(db: Db, now: Date = new Date(), env: Env = pr
       wants: (r.wants ?? []).map((w) => ({ name: nm(w.holder), want: w.want })),
       evidence: ev,
       outcome,
-      came: cameWords(outcome, r.status, nm),
+      came: cameWords(outcome, r.status, nm, r.kind === "arc_step"),
     });
   }
   return { on: producerOn(env), next_day: next, next_skipped: rows.some((r) => r.day === next && r.status === "skipped"), beats };

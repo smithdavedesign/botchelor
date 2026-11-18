@@ -90,7 +90,7 @@ export const FORMATS: readonly ShowFormat[] = [
  * dated before (a rematch isn't "two strangers"), and the roleplay the date plays, as one sentence (lib/roleplays.ts
  * roleplayNote), so the director, the narrator, the morning after and the reflections all know it.
  */
-export type FormatContext = { chaperone?: string; ex?: string; metBefore?: boolean; roleplay?: string };
+export type FormatContext = { chaperone?: string; ex?: string; metBefore?: boolean; knewBefore?: boolean; roleplay?: string };
 
 /**
  * A format's note with any real names filled in — a named house regular as the meet-the-parents chaperone,
@@ -99,7 +99,10 @@ export type FormatContext = { chaperone?: string; ex?: string; metBefore?: boole
  */
 export function formatNote(id: FormatId | null | undefined, ctx: FormatContext = {}): string {
   const note = format(id).note
-    .replace("two strangers meeting for the first time", ctx.metBefore ? "two people who have dated before, meeting again" : "two strangers meeting for the first time")
+    .replace(
+      "two strangers meeting for the first time",
+      ctx.metBefore ? "two people who have dated before, meeting again" : ctx.knewBefore ? "two people who knew each other before the show" : "two strangers meeting for the first time",
+    )
     .replace("{chaperone}", ctx.chaperone ? `A protective house regular, ${ctx.chaperone},` : "A protective older house regular")
     .replace("{ex}", ctx.ex ? `${ctx.ex}, an ex of one of the characters,` : "an ex of one of the characters");
   return ctx.roleplay ? `${note} ${ctx.roleplay}` : note;
@@ -111,10 +114,12 @@ export function formatNote(id: FormatId | null | undefined, ctx: FormatContext =
  */
 export function formatContextOf(built: {
   setup: { chaperone?: string; ex?: string; roleplay?: RoleplayTerms };
-  characters: readonly { id: string; name: string }[];
+  characters: readonly { id: string; name: string; knownBefore?: string }[];
 }): FormatContext {
   const roleplay = roleplayNote(built.setup.roleplay, built.characters);
-  return { chaperone: built.setup.chaperone, ex: built.setup.ex, ...(roleplay ? { roleplay } : {}) };
+  // A pair who knew each other before the show (lib/character-links.ts) isn't two strangers, even on their first date here.
+  const knew = built.characters.some((c) => c.knownBefore);
+  return { chaperone: built.setup.chaperone, ex: built.setup.ex, ...(roleplay ? { roleplay } : {}), ...(knew ? { knewBefore: true } : {}) };
 }
 
 export const DEFAULT_FORMAT: FormatId = "classic";

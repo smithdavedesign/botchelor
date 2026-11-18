@@ -7,6 +7,8 @@ type BeatView = {
   status: string;
   kind: string;
   tension: string | null;
+  /** A story arc's step (lib/story-arcs.ts). */
+  arc: { kind: string; step: string; roleplay: string | null } | null;
   who: { id: string; name: string }[];
   why: string | null;
   logline: string | null;
@@ -29,6 +31,7 @@ type View = {
 };
 
 const KIND: Record<string, string> = { surface_claim: "a claim that should surface", same_room: "two people who should be put in a room", rival_date: "a rival who should get the date" };
+const STEP: Record<string, string> = { spark: "the spark (1 of 3)", setback: "the setback (2 of 3)", reveal: "the reveal (3 of 3)" };
 
 /** One night's plan, in words: whether one was written, and whether the date it was for used it. */
 function planLine(p: PlanView): string {
@@ -80,7 +83,8 @@ export default function ProducerPanel() {
     <section className="card" id="producer">
       <h2>The producer</h2>
       <p className="muted small">
-        Once a night (23:20 UTC) it reads the story state and picks tomorrow&apos;s beat: who should end up in a room, which claim should surface. It sets
+        Once a night (23:20 UTC) it reads the story state and picks tomorrow&apos;s beat: who should end up in a room, which claim should surface, or every other
+        night the next date of a story arc (two of the cast who knew each other before the show). It sets
         situations and never an outcome. {view.switches.producer ? "On." : "Off (PRODUCER=0)."}{" "}
         {view.switches.date_plan_at_night ? "No date waits on the director before its first line" : "Dates still ask the director first (DATE_PLAN_AT_NIGHT=0)"}
         {view.switches.night_plans ? "; tomorrow's house date gets its plan written at night." : "; no plans are written at night (PRODUCER_PLANS=1 turns that on)."}
@@ -110,7 +114,12 @@ export default function ProducerPanel() {
           <li key={b.day}>
             <p>
               <strong>{b.day}</strong> <span className="badge">{b.status}</span>{" "}
-              {b.tension ? (
+              {b.arc ? (
+                <>
+                  {b.who.map((w) => w.name).join(" and ")}, {b.arc.kind} before the show: {STEP[b.arc.step] ?? b.arc.step}
+                  {b.arc.roleplay ? `, playing “${b.arc.roleplay}”` : ""}
+                </>
+              ) : b.tension ? (
                 <>
                   {b.who.map((w) => w.name).join(", ")}: {KIND[b.kind] ?? b.kind}
                 </>
@@ -128,7 +137,7 @@ export default function ProducerPanel() {
                 {b.previously} {b.tonight}
               </p>
             )}
-            {b.tension && (
+            {(b.tension || b.arc) && (
               <details className="ux-fold">
                 <summary>Why, the evidence, and what came of it</summary>
                 {b.why && <p className="small">{b.why}</p>}

@@ -13,16 +13,19 @@ import { z } from "zod";
 import { recordAsset, reviewAsset } from "./assets";
 import { loadCharacter } from "./character";
 import type { Db } from "./db";
+import { addLink, LINK_KINDS, LINK_WORDS, type LinkKind } from "./character-links";
 import { ExtrasInput, normaliseExtras, type CharacterExtras } from "./extras";
 import { NO_FRANCHISE_WORDS } from "./franchise-words";
 import { franchiseHits, franchiseRefusal } from "./franchises";
 import { ALL_HOUSE_CHARACTERS } from "./house";
 import { getDirectorModel, type ChatMessage, type Model } from "./model";
 import { characterPortrait } from "./portraits";
-import { PRONOUNS, VOICE_MAX } from "./rules";
+import { popularity } from "./reviews";
+import { PRONOUNS, VOICE_MAX, type Pronouns } from "./rules";
 import { checkShowText } from "./safety";
 import { DEFAULT_SEASON_CAST_SIZE, seasonCastIds, SURVIVORS } from "./season-cast";
-import { nextSeasonStart, seasonIdOf } from "./season-window";
+import { nextSeasonStart, seasonIdOf, seasonWindow } from "./season-window";
+import { demandMap, showRoleplayDemand } from "./tag-demand";
 import { saveSoul } from "./souls";
 import { HivePausedError } from "./adult/hive-limit";
 import { checkMedia, checkReady, mediaGate } from "./adult/moderation";
@@ -66,13 +69,30 @@ export const Draft = z.object({
   signals: z.object({ warmth: signal, openness: signal, guardedness: signal, humor: signal }),
   soul: z.object({ values: soulText, insecurities: soulText, humor: soulText, boundaries: soulText, romantic: soulText, communication: soulText }),
   kit: ExtrasInput,
+  /** When the brief gave them someone they already know: how, in a line (lib/character-links.ts). */
+  link_story: z.string().trim().min(10).max(200).optional(),
 });
 export type DraftCharacter = z.infer<typeof Draft>;
 
 const EXAMPLE = ALL_HOUSE_CHARACTERS[0];
 
+/**
+ * What a draft is asked for beyond a new contestant (PRD styles-and-storylines phase 4): their pronouns, so the season's
+ * lineup balances, and who they already know from before the show (lib/character-links.ts).
+ */
+export type DraftBrief = { pronouns?: Pronouns; link?: { to: { name: string; archetype: string; bio: string }; kind: LinkKind } };
+
+/** The link's story when a draft leaves it out: the kind alone, in a line the audience could hear. */
+const LINK_FALLBACK: Record<LinkKind, string> = {
+  rivals: "They've been competing at the same thing since long before the show.",
+  second_chance: "They dated once, it ended, and neither has said why.",
+  fake_dating: "They once pretended to be a couple, and it fooled everyone but them.",
+  friends_to_more: "Years of friendship, and one of them has wondered about more.",
+};
+
 /** The prompt: who's already on the show (so nobody's a copy), what a house character is, and the JSON to return. */
-export function draftMessages(taken: { name: string; archetype: string }[]): ChatMessage[] {
+export function draftMessages(taken: { name: string; archetype: string }[], brief: DraftBrief = {}): ChatMessage[] {
+  const link = brief.link;
   const system = [
     "You create a new house contestant for Botchelor, a dating show where AI characters go on dates the audience watches and predicts.",
     "A house character is an original, specific, warm-hearted adult with a distinctive job, a funny contradiction, a clear want and a dealbreaker, and a voice you could pick out of a crowd.",
@@ -80,6 +100,13 @@ export function draftMessages(taken: { name: string; archetype: string }[]): Cha
     "An original, too: no character, name, costume or catchphrase from a film, TV show, game, anime, comic or book.",
     `Don't copy anyone already on the show. Taken names and archetypes: ${taken.map((t) => `${t.name} (${t.archetype})`).join("; ")}.`,
     `For flavour, one existing contestant: ${JSON.stringify({ name: EXAMPLE.name, age: EXAMPLE.age, bio: EXAMPLE.bio, traits: EXAMPLE.traits, want: EXAMPLE.want, dealbreaker: EXAMPLE.dealbreaker, archetype: EXAMPLE.archetype, voice: EXAMPLE.voice, appearance: EXAMPLE.appearance, look: EXAMPLE.look })}`,
+    ...(brief.pronouns ? [`This contestant uses ${brief.pronouns}.`] : []),
+    ...(link
+      ? [
+          `They arrive with history. ${link.to.name} (${link.to.archetype}: ${link.to.bio}) is their ${LINK_WORDS[link.kind].one} from before the show: ${LINK_WORDS[link.kind].brief}. ` +
+            `Write someone that history fits, and that the audience will want to see meet ${link.to.name.split(/\s+/)[0]} again. Nothing in it is sexual, cruel or unkind.`,
+        ]
+      : []),
   ].join("\n");
   const user =
     "Write one new contestant as a JSON object with exactly these keys: " +
@@ -90,7 +117,8 @@ export function draftMessages(taken: { name: string; archetype: string }[]): Cha
     '"hue" (1 to 360, their colour), "signals" ({"warmth", "openness", "guardedness", "humor"}, each 0 to 1, matching the archetype), ' +
     '"soul" (private, only the show sees it: {"values", "insecurities", "humor", "boundaries", "romantic", "communication"}, a sentence each), ' +
     '"kit" ({"occupation", "hometown", "quirk", "catchphrase", "hobbies": [three], "prompts": [{"id": "win_me_over" or "irrational_fear" or "two_truths" or "together_we_could" or "unpopular_opinion", "answer"}, two of them], ' +
-    '"lines": {"hello", "dodge", "flirt", "upset"} in their voice, "tells": {"nervous", "smitten", "bored", "annoyed"} as what they do, "never_says": [two phrases]}).';
+    '"lines": {"hello", "dodge", "flirt", "upset"} in their voice, "tells": {"nervous", "smitten", "bored", "annoyed"} as what they do, "never_says": [two phrases]})' +
+    (link ? `, and "link_story" (one line, under 200 characters: how they and ${link.to.name.split(/\s+/)[0]} know each other, as the audience would hear it).` : ".");
   return [
     { role: "system", content: system },
     { role: "user", content: user },
@@ -112,7 +140,7 @@ export function parseDraft(raw: string, takenNames: string[]): { ok: true; draft
   const kit = normaliseExtras(d.kit);
   const text = {
     name: d.name, bio: d.bio, traits: d.traits, want: d.want, dealbreaker: d.dealbreaker, voice: d.voice, appearance: d.appearance, look: d.look,
-    soul: Object.values(d.soul), kit: kitTexts(kit),
+    soul: Object.values(d.soul), kit: kitTexts(kit), link_story: d.link_story,
   };
   const check = checkShowText(text);
   if (!check.ok) return { ok: false, reason: `${check.field}: ${check.reason}` };
@@ -159,7 +187,7 @@ export async function saveDraft(db: Db, d: DraftCharacter, seasonId: string): Pr
 }
 
 /** Writes one new character on the model, retrying a bad draft a couple of times. Null when every try failed. */
-export async function draftCharacter(db: Db, model: Model, tries = 3): Promise<{ draft: DraftCharacter } | { error: string }> {
+export async function draftCharacter(db: Db, model: Model, tries = 3, brief: DraftBrief = {}): Promise<{ draft: DraftCharacter } | { error: string }> {
   const taken = (
     await db.query<{ name: string; archetype: string | null }>(
       `select c.name, sc.archetype from characters c left join season_candidates sc on sc.character_id = c.id where c.is_house`,
@@ -167,7 +195,7 @@ export async function draftCharacter(db: Db, model: Model, tries = 3): Promise<{
   ).rows.map((r) => ({ name: r.name, archetype: r.archetype ?? ALL_HOUSE_CHARACTERS.find((h) => h.name === r.name)?.archetype ?? "" }));
   let last = "no reply";
   for (let i = 0; i < tries; i++) {
-    const raw = await model.complete(draftMessages(taken), { temperature: 1, maxTokens: 2000 }).catch((e: unknown) => {
+    const raw = await model.complete(draftMessages(taken, brief), { temperature: 1, maxTokens: 2000 }).catch((e: unknown) => {
       last = e instanceof Error ? e.message : "model error";
       return null;
     });
@@ -269,20 +297,102 @@ export async function reviewCandidate(db: Db, characterId: string, status: "appr
 }
 
 /**
+ * The newcomers' pronouns, from the survivors': one man and one woman, unless the survivors already lean one way (two
+ * more on one side), when both newcomers balance them. The first newcomer takes the side with fewer.
+ */
+export function newcomerPronouns(survivors: readonly (string | null)[]): [Pronouns, Pronouns] {
+  const she = survivors.filter((p) => p === "she/her").length;
+  const he = survivors.filter((p) => p === "he/him").length;
+  if (she - he >= 2) return ["he/him", "he/him"];
+  if (he - she >= 2) return ["she/her", "she/her"];
+  return she > he ? ["he/him", "she/her"] : ["she/her", "he/him"];
+}
+
+/** Who a season's newcomers are drafted as (PRD styles-and-storylines phase 4). */
+export type PairPlan = {
+  /** How the two newcomers know each other: the setup people pick most (lib/tag-demand.ts), not last season's. */
+  kind: LinkKind;
+  /** The first newcomer's, then the second's (and a spare's): newcomerPronouns. */
+  pronouns: [Pronouns, Pronouns];
+  /** Who the first newcomer knows among those likely to return (the season's best-reviewed so far), and how; null with no cast. */
+  returning: { id: string; name: string; archetype: string; bio: string; kind: LinkKind } | null;
+};
+
+/** The plan for a season's newcomers, from this season's cast and the show's roleplay demand. */
+export async function pairPlan(db: Db, seasonId: string, now: Date = new Date()): Promise<PairPlan> {
+  const demand = await showRoleplayDemand(db)
+    .then(demandMap)
+    .catch(() => ({}) as Record<string, number>);
+  // The latest other season's pair: the link between two of its own newcomers (not the one to someone returning).
+  const last = (
+    await db.query<{ kind: string }>(
+      `select l.kind from character_links l
+         join season_candidates x on x.character_id = l.character_a
+         join season_candidates y on y.character_id = l.character_b and y.season_id = x.season_id
+        where l.source = 'season_gen' and x.season_id <> $1
+        order by x.season_id desc, l.created_at desc limit 1`,
+      [seasonId],
+    )
+  ).rows[0]?.kind;
+  const ranked = [...LINK_KINDS].sort((x, y) => (demand[y] ?? 1) - (demand[x] ?? 1) || LINK_KINDS.indexOf(x) - LINK_KINDS.indexOf(y));
+  const kind = ranked.find((k) => k !== last) ?? ranked[0];
+  const cast = seasonCastIds(now);
+  const people = cast.length
+    ? (
+        await db.query<{ id: string; name: string; bio: string; pronouns: string | null; archetype: string | null }>(
+          `select c.id, c.name, c.bio, c.pronouns, sc.archetype from characters c left join season_candidates sc on sc.character_id = c.id where c.id = any($1)`,
+          [cast],
+        )
+      ).rows
+    : [];
+  const ranking = (await popularity(db, cast, seasonWindow(now).start, now).catch(() => [])).map((p) => p.id);
+  const likely = [...ranking, ...cast.filter((id) => !ranking.includes(id))];
+  const survivors = likely.slice(0, SURVIVORS).map((id) => people.find((p) => p.id === id)?.pronouns ?? null);
+  const top = people.find((p) => p.id === likely[0]);
+  return {
+    kind,
+    pronouns: newcomerPronouns(survivors),
+    returning: top
+      ? { id: top.id, name: top.name, bio: top.bio, archetype: top.archetype ?? ALL_HOUSE_CHARACTERS.find((h) => h.id === top.id)?.archetype ?? "", kind: ranked.find((k) => k !== kind) ?? kind }
+      : null,
+  };
+}
+
+/**
  * Tops a season's candidates up to CANDIDATES (not counting rejected ones), each with its portrait. Returns how many
  * it wrote and what went wrong. The daily job runs it from the 20th for next month; an admin can run it any time.
+ *
+ * Linked pairs (PRD styles-and-storylines phase 4, pairPlan): the first newcomer is drafted knowing someone likely to
+ * return; each one after (the second, and a spare in case one is rejected) as the first's rival, ex, fake partner or
+ * best friend. Each link is stored (lib/character-links.ts) with its story.
  */
 export async function generateCandidates(db: Db, seasonId: string, model: Model = getDirectorModel(), want = CANDIDATES): Promise<{ made: string[]; errors: string[] }> {
-  const live = (await db.query<{ n: number }>(`select count(*)::int as n from season_candidates where season_id = $1 and status <> 'rejected'`, [seasonId])).rows[0].n;
+  const live = (
+    await db.query<{ character_id: string; name: string; bio: string; archetype: string }>(
+      `select sc.character_id, c.name, c.bio, coalesce(sc.archetype, '') as archetype from season_candidates sc join characters c on c.id = sc.character_id
+        where sc.season_id = $1 and sc.status <> 'rejected' order by sc.created_at, sc.character_id`,
+      [seasonId],
+    )
+  ).rows;
   const made: string[] = [];
   const errors: string[] = [];
-  for (let i = live; i < want; i++) {
-    const r = await draftCharacter(db, model);
+  const plan = live.length < want ? await pairPlan(db, seasonId).catch(() => null) : null;
+  for (let i = live.length; i < want; i++) {
+    const anchor = live[0] ?? null;
+    const brief: DraftBrief = !plan
+      ? {}
+      : anchor
+        ? { pronouns: plan.pronouns[1], link: { to: anchor, kind: plan.kind } }
+        : { pronouns: plan.pronouns[0], ...(plan.returning ? { link: { to: plan.returning, kind: plan.returning.kind } } : {}) };
+    const r = await draftCharacter(db, model, 3, brief);
     if ("error" in r) {
       errors.push(r.error);
       continue;
     }
     const id = await saveDraft(db, r.draft, seasonId);
+    const linkTo = anchor?.character_id ?? plan?.returning?.id;
+    if (brief.link && linkTo) await addLink(db, id, linkTo, brief.link.kind, r.draft.link_story ?? LINK_FALLBACK[brief.link.kind]);
+    live.push({ character_id: id, name: r.draft.name, bio: r.draft.bio, archetype: r.draft.archetype });
     const portrait = await makePortrait(db, id);
     if (portrait !== "made") errors.push(`${id}: ${portrait}`);
     made.push(id);

@@ -23,7 +23,7 @@ import { seasonCastIds } from "./season-cast";
 import { shortName } from "./names";
 import { notify } from "./notifications";
 import { venuePhrase, type PlaceId } from "./venues";
-import { roomLine } from "./mixer-room";
+import { roomLine, type Duo } from "./mixer-room";
 import { HOUSE_BOOKER } from "./house-booker";
 import type { Ending } from "./rules";
 
@@ -61,6 +61,8 @@ export type GroupNight = {
   created_at: string;
   /** When the house topped this mixer up (lib/mixer-fill.ts), or null. */
   filled_at?: string | null;
+  /** A mixer's best friends, stored when it was drawn (lib/mixer-room.ts Duo), or null. */
+  duos?: Duo[] | null;
 };
 
 const night = (r: Record<string, unknown>): GroupNight => ({
@@ -77,6 +79,7 @@ const night = (r: Record<string, unknown>): GroupNight => ({
   rotations: (r.rotations as Rotation[] | null) ?? null,
   created_at: new Date(r.created_at as string).toISOString(),
   filled_at: r.filled_at ? new Date(r.filled_at as string).toISOString() : null,
+  duos: Array.isArray(r.duos) ? (r.duos as Duo[]) : null,
 });
 
 type CharLite = { id: string; name: string; owner_id: string | null; is_house: boolean; visibility: string };
@@ -463,6 +466,7 @@ export async function groupBookingFor(
       names: new Map(seats.map((x) => [x.character_id, x.name])),
       seatIds: seats.map((x) => x.character_id),
       endings,
+      duos: g.duos ?? [],
     });
     // The house books only its own house-paid rotations (lib/house-booker.ts).
     if (r.booker === HOUSE_BOOKER && !r.house_paid) return { ok: false, status: 403, error: "not_your_table", message: "This rotation is its own booker's to book." };

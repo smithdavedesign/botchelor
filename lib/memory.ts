@@ -1086,6 +1086,8 @@ export function remembered(
     ...(met?.something_they_said ? { one_line_they_said: met.something_they_said } : {}),
     ...(met?.something_you_said ? { one_line_you_said: met.something_you_said } : {}),
     ...(plan.length ? { tonight_is_the_plan: plan } : {}),
+    // Who they were to each other before the show (lib/character-links.ts), as this side tells it.
+    ...(typeof pair?.before_the_show === "string" ? { before_the_show: pair.before_the_show } : {}),
     // What After Dark left behind, only ever its PG note (lib/adult/memory.ts).
     ...(typeof pair?.what_happened_after_your_last_date === "string" ? { what_happened_after_your_last_date: pair.what_happened_after_your_last_date } : {}),
   };

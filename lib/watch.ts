@@ -28,6 +28,8 @@ import { claimPaidDate } from "./limits";
 import { getDirectorModel, getModel, paidDefaultOn } from "./model";
 import { generateDate } from "./pipeline";
 import { claimNightPlan, datePlanAtNightOn, planIfFits } from "./night-plans";
+import { beatFor } from "./producer";
+import { arcDate, arcsOn } from "./story-arcs";
 import type { BuiltDate } from "./simulation";
 import type { EngineTrace, Outcome } from "./engine";
 import { ensureHotTakes } from "./hot-takes";
@@ -1102,8 +1104,15 @@ export async function lobbyDeal(db: Db, now: Date, n: number): Promise<{ a: stri
   if (courting) return { a: courting[0], b: courting[1], thumbs };
   // Any other format: the day's first house date goes to the week's challenge winner and their pick, when there is
   // one (lib/season-cast.ts firstPickOn). The same number of dates as any day; only who is on the first changes.
-  const picked = !def?.lead && n === 0 ? firstPickOn(day, cast) : null;
-  if (picked) return { a: picked[0], b: picked[1], thumbs };
+  const prize = !def?.lead ? firstPickOn(day, cast) : null;
+  if (prize && n === 0) return { a: prize[0], b: prize[1], thumbs };
+  // A story arc's step (lib/story-arcs.ts) the producer staged for the day: the day's first house date after the prize is
+  // the linked pair's, playing a roleplay of their setup. Its retry (an odd deal) is dealt like any other.
+  if (!def?.lead && n === (prize ? 2 : 0) && arcsOn()) {
+    const beat = await beatFor(db, day).catch(() => null);
+    const date = beat?.arc ? arcDate(beat.arc, beat.who, cast) : null;
+    if (date) return { a: date.a, b: date.b, thumbs: { ...thumbs, roleplay: date.roleplay } };
+  }
   if (cast.length < 2) return null;
   const fresh =
     twist?.pairing === "newcomer"

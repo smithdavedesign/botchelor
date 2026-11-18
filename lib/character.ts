@@ -78,6 +78,11 @@ export type Character = {
   nudge?: string | null;
   /** Set only on a date's characters: who else it's seeing, from the public record (lib/between-dates.ts). */
   alsoSeeing?: string[];
+  /**
+   * Set only on a linked pair's date (lib/character-links.ts): who they were to each other before the show, as one
+   * third-person line for the director and the narrator. Each side's own `pair.before_the_show` says it as "you".
+   */
+  knownBefore?: string;
   /** Set only on a double date's characters: the other couple at the table, as one line (lib/group-dates.ts). */
   table?: string;
   /**

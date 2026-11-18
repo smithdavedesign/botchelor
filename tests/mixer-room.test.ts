@@ -3,7 +3,7 @@ import { handleMcpMessage, type McpContext } from "@/lib/mcp";
 import { episodeJson, scriptedModel, scriptOutcome, startTestDb, validCharacter } from "./helpers";
 import { runDueMixers } from "@/lib/group-dates-run";
 import { airEpisode } from "@/lib/air";
-import { backgroundBeats, leftTogether, playOrder, roomClosing, roomLine, roomOpening, roundCount, roundOf, rotationRound, type RoomRotation } from "@/lib/mixer-room";
+import { backgroundBeats, duoNamesOf, keepApart, leftTogether, playOrder, roomClosing, roomLine, roomOpening, roundCount, roundOf, rotationRound, type Duo, type RoomRotation } from "@/lib/mixer-room";
 import { mixerNightOf, mixerNightView } from "@/lib/mixer-night";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -84,6 +84,50 @@ describe("the mixer's rounds and room (lib/mixer-room.ts, pure)", () => {
         { a: "s3", b: "s0", ending: "friends" },
       ]),
     ).toEqual([["s0", "s1"]]);
+  });
+
+  it("keeps best friends apart in the circle, and each wingmans the other from across the room", () => {
+    const seat = (id: string) => ({ character_id: id });
+    const ids = (xs: { character_id: string }[]) => xs.map((s) => s.character_id);
+    const four = ["s0", "s1", "s2", "s3"].map(seat);
+    // s0 and s1 side by side would spend their one date on each other: the draw parts them.
+    const parted = ids(keepApart(four, [["s0", "s1"]]));
+    expect([...parted].sort()).toEqual(["s0", "s1", "s2", "s3"]);
+    expect(Math.abs(parted.indexOf("s0") - parted.indexOf("s1"))).toBe(2);
+    // Already apart, no duo, or a circle too small to part anyone: the draw's order.
+    expect(ids(keepApart(four, [["s0", "s2"]]))).toEqual(["s0", "s1", "s2", "s3"]);
+    expect(ids(keepApart(four, []))).toEqual(["s0", "s1", "s2", "s3"]);
+    expect(ids(keepApart(four.slice(0, 3), [["s0", "s1"]]))).toEqual(["s0", "s1", "s2"]);
+    // Six seats, two duos side by side: both parted.
+    const six = ids(keepApart(["a", "b", "c", "d", "e", "f"].map(seat), [["a", "b"], ["c", "d"]]));
+    const meet = (x: string, y: string) => [1, 5].includes(Math.abs(six.indexOf(x) - six.indexOf(y)));
+    expect(meet("a", "b")).toBe(false);
+    expect(meet("c", "d")).toBe(false);
+
+    // The room: Juni (s0) and Sol (s2) are best friends, at different tables every round.
+    const rots = circle(4);
+    const names = new Map([["s0", "Juni Marsh"], ["s1", "Pia Voss"], ["s2", "Sol Vega"], ["s3", "Kit Crag"]]);
+    const seats = ["s0", "s1", "s2", "s3"];
+    const duos: Duo[] = [["s0", "s2"]];
+    // The wingman beat comes first, so it's always one of the two the table gets.
+    expect(backgroundBeats("n1", rots, 0, names, seats, duos)[0].text).toMatch(/^Sol .*Juni/);
+    expect(backgroundBeats("n1", rots, 2, names, seats, duos)[0].text).toMatch(/^Juni .*Sol/);
+    // A table with neither of them: the beats as before.
+    expect(backgroundBeats("n1", circle(6), 2, new Map(), ["s0", "s1", "s2", "s3", "s4", "s5"], [["s0", "s5"]])).toEqual(
+      backgroundBeats("n1", circle(6), 2, new Map(), ["s0", "s1", "s2", "s3", "s4", "s5"]),
+    );
+    const line = roomLine({ nightId: "n1", venue: "dive_bar", rotations: rots, i: 0, names, seatIds: seats, endings: new Map(), duos });
+    expect(line).toContain("Juni came tonight with best friend Sol, who is rooting for Juni from across the room.");
+    expect(line).not.toContain("Pia came tonight");
+    // At the same table (a circle too small to part them): said once, and no wingman beat.
+    const same: Duo[] = [["s0", "s1"]];
+    const sameLine = roomLine({ nightId: "n1", venue: "dive_bar", rotations: rots, i: 0, names, seatIds: seats, endings: new Map(), duos: same });
+    expect(sameLine.match(/best friends who came tonight together/g)).toHaveLength(1);
+    expect(backgroundBeats("n1", rots, 0, names, seats, same)).toEqual(backgroundBeats("n1", rots, 0, names, seats));
+    // The opening: they arrive together. A duo the room no longer seats is left out.
+    expect(roomOpening("n1", "dive_bar", [...names.values()], duoNamesOf(duos, names))).toContain("Juni and Sol arrive together, best friends, each here to wingman the other.");
+    expect(duoNamesOf([["s0", "gone"]], names)).toEqual([]);
+    expect(roomOpening("n1", "dive_bar", [...names.values()])).toBe(roomOpening("n1", "dive_bar", [...names.values()], []));
   });
 });
 

@@ -384,7 +384,8 @@ export function buildTurnMessages(
     // They moved (lib/moves.ts): where they've been, and the act's plan kept but set where they are now.
     ...(moved ? { you_moved: `You started at ${shape!.segments.map((s) => venuePhrase(s.place)).join(", then went to ")}. You're there now.` } : {}),
     // The roleplay has its own block below (with this side's role), so the format's note leaves it out.
-    the_show_format: formatNote(formatId, { ...formatCtx, roleplay: undefined, metBefore: hasMet }),
+    // A pair who only knew each other before the show (lib/character-links.ts) haven't dated: the format note says so.
+    the_show_format: formatNote(formatId, { ...formatCtx, roleplay: undefined, metBefore: hasMet && !(together?.times === 0 && typeof together.before_the_show === "string") }),
     // Its opening is for each side's first line only: once this side has spoken, the scene is open and it leaves the data.
     ...(meChar.roleplay ? { tonights_roleplay: transcript.some((t) => t.side === side) ? withoutOpening(meChar.roleplay) : meChar.roleplay } : {}),
     act: {

@@ -181,6 +181,8 @@ export function buildMessages(
     date_location: venue(venueId).prompt,
     act_two_situation: producerEvent(producer).prompt,
     show_format: formatNote(formatId, formatCtx),
+    // Who they were to each other before the show (lib/character-links.ts), so the recap doesn't write two strangers.
+    ...(characters[0].knownBefore ? { before_the_show: characters[0].knownBefore } : {}),
     ...(story?.plan ? { what_this_date_is_about: story.plan.spine } : {}),
     ...(story && story.transcript.length
       ? {

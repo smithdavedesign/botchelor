@@ -32,6 +32,7 @@ import { activeNudge, alsoSeeing } from "./between-dates";
 import { agreedPlan, planLines, type AgreedPlan, type PlanText } from "./plans";
 import { afterDarkNote, withAfterDark } from "./adult/memory";
 import { nightTogetherFact } from "./overnight";
+import { linkBetween, linkContext, linkLine, type CharacterLink } from "./character-links";
 import { engineHistory, loadRelationship, pairContext, pairKey, pairSharedWords, PUBLIC_ONLY, refreshRelationship, type End, type Relationship } from "./relationships";
 import { planPlace } from "./places";
 import { warnWhenSparksOut } from "./partners";
@@ -96,10 +97,22 @@ function pickChaperone(seed: number, excludeIds: string[]): string {
 }
 
 /**
- * The ex-returns format's real ex: A's most recent OTHER past partner from the relationship graph — one it once had a
- * second date with when there is one. Public edges only, so a private date's partner never turns up on air.
+ * The ex-returns format's real ex: A's ex from before the show when it has one (lib/character-links.ts), else A's most
+ * recent OTHER past partner from the relationship graph — one it once had a second date with when there is one. Public
+ * edges only, so a private date's partner never turns up on air.
  */
 async function findEx(db: Db, aId: string, bId: string): Promise<string | undefined> {
+  // An ex from before the show (lib/character-links.ts, a second_chance link) comes first: the season cast them to return.
+  const linked = await db
+    .query<{ name: string }>(
+      `select c.name from character_links l
+         join characters c on c.id = case when l.character_a = $1 then l.character_b else l.character_a end
+        where l.kind = 'second_chance' and $1 in (l.character_a, l.character_b) and $2 not in (l.character_a, l.character_b)
+        order by l.created_at desc limit 1`,
+      [aId, bId],
+    )
+    .catch(() => ({ rows: [] as { name: string }[] }));
+  if (linked.rows[0]) return linked.rows[0].name;
   const { rows } = await db.query<{ name: string }>(
     `select case when r.character_a = $1 then cb.name else ca.name end as name
        from relationships r
@@ -162,6 +175,8 @@ export type DateParts = {
   afterDark?: { a: string | null; b: string | null };
   /** The one fixed fact a continued overnight date left (lib/overnight.ts nightTogetherFact), or null. Both sides get the same sentence. */
   nightTogether?: string | null;
+  /** Who they were to each other before the show (lib/character-links.ts), or null. Both sides know it; the engine never reads it. */
+  link?: CharacterLink | null;
   followupOf?: string | null;
   /** Which date this is for the couple (setup.date_number), for the words only: DateInput.date_number. */
   dateNumber?: number | null;
@@ -263,6 +278,14 @@ export function assembleDate(p: DateParts): BuiltDate {
   // same slot, a template sentence, so their next date isn't written as if nothing happened. Never the engine.
   if (p.nightTogether && !p.afterDark?.a) charA.pair = withAfterDark(charA.pair ?? null, p.nightTogether);
   if (p.nightTogether && !p.afterDark?.b) charB.pair = withAfterDark(charB.pair ?? null, p.nightTogether);
+  // Who they were to each other before the show (lib/character-links.ts): both know it, from their first date on, so
+  // its story is words both already know; the director and the narrator get it in the third person.
+  if (p.link) {
+    charA.pair = { ...(charA.pair ?? {}), ...linkContext(p.link, b.name) };
+    charB.pair = { ...(charB.pair ?? {}), ...linkContext(p.link, a.name) };
+    charA.knownBefore = charB.knownBefore = linkLine(p.link, a.name, b.name) ?? undefined;
+    charA.pairShared = charB.pairShared = `${charA.pairShared ?? ""} ${p.link.story}`.trim();
+  }
   if (agreed) charA.pairShared = charB.pairShared = `${charA.pairShared ?? ""} ${agreed.texts.map((t) => t.text).join(" ")}`.trim();
   // Their texts go into the date (David: "the full text history going into the date"). Both of them sent and read every
   // one, so each side carries the whole thread, and its words are things both already know.
@@ -457,6 +480,7 @@ export async function buildDate(
   ]);
   const afterDark = { a: await afterDarkNote(db, a.id, b.id), b: await afterDarkNote(db, b.id, a.id) };
   const nightTogether = await nightTogetherFact(db, a.id, b.id);
+  const link = await linkBetween(db, a.id, b.id).catch(() => null);
   // What each has leaned on across its recent aired dates (lib/memory.ts), so a voice tic doesn't recur every date.
   const [overusedA, overusedB] = await Promise.all([leanedOnWords(db, a.id).catch(() => []), leanedOnWords(db, b.id).catch(() => [])]);
   // The texts this date's creator may bring in: every text between dates, and the morning afters of the dates they can use.
@@ -503,7 +527,7 @@ export async function buildDate(
     soulA, soulB, memoryA: withPairMemory(withPendingReflections(memoryA, pendingA), pairA), memoryB: withPairMemory(withPendingReflections(memoryB, pendingB), pairB), history, ex, signalsOverride,
     relationship, creatorId: opts.creatorId, followupOf: opts.followupOf ?? null,
     dateNumber: opts.dateNumber !== undefined ? opts.dateNumber : opts.followupOf ? null : ((await nextDateNumber(db, a.id, b.id, episodeId)) ?? 1),
-    nudges, alsoSeeing: { a: seeingA, b: seeingB }, texts, afterDark, nightTogether, table: opts.table ?? null, roleplay: opts.roleplay ?? null,
+    nudges, alsoSeeing: { a: seeingA, b: seeingB }, texts, afterDark, nightTogether, link, table: opts.table ?? null, roleplay: opts.roleplay ?? null,
     venuePool: opts.venuePool ?? null, producerPick: opts.producerPick ?? null,
     extrasA: rowOf(a.id)?.extras ?? null, extrasB: rowOf(b.id)?.extras ?? null,
     hotTakesA: rowOf(a.id)?.hot_takes ?? null, hotTakesB: rowOf(b.id)?.hot_takes ?? null,

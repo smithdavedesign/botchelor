@@ -25,6 +25,47 @@ import { venuePhrase } from "./venues";
 export type RoomRotation = { a: string; b: string; round?: number; episode_id?: string | null; failed?: string };
 
 /**
+ * Two best friends in the room (a friends_to_more link, lib/character-links.ts): they arrive together, the draw seats
+ * them at different tables, and each one wingmans the other from across the room. Stored on the night when it's drawn
+ * (group_nights.duos), so the actors' prompt and the night page tell the same room.
+ */
+export type Duo = readonly [string, string];
+
+/** True when seats `i` and `j` of an `n`-seat circle meet (neighbours, the circle's ends included). */
+const neighbours = (i: number, j: number, n: number) => Math.abs(i - j) === 1 || Math.abs(i - j) === n - 1;
+
+/**
+ * The circle's order with each duo kept apart (seat i meets seat i+1, so neighbours would spend their one date on each
+ * other): a duo found side by side has its second friend swapped to the first seat that parts every duo. Best effort,
+ * and only from 4 seats (in a circle of 3 everyone neighbours everyone); an order with no duo comes back unchanged.
+ */
+export function keepApart<T extends { character_id: string }>(order: readonly T[], duos: readonly Duo[]): T[] {
+  const out = [...order];
+  const n = out.length;
+  if (n < 4 || !duos.length) return out;
+  const at = (id: string) => out.findIndex((s) => s.character_id === id);
+  const together = () => duos.some(([x, y]) => at(x) >= 0 && at(y) >= 0 && neighbours(at(x), at(y), n));
+  for (const [x, y] of duos) {
+    const i = at(x);
+    const j = at(y);
+    if (i < 0 || j < 0 || !neighbours(i, j, n)) continue;
+    for (let k = 0; k < n; k++) {
+      if (k === i || k === j) continue;
+      [out[j], out[k]] = [out[k], out[j]];
+      if (!together()) break;
+      [out[j], out[k]] = [out[k], out[j]];
+    }
+  }
+  return out;
+}
+
+/** The best friend `id` came with tonight, if any. */
+const friendOf = (duos: readonly Duo[], id: string): string | null => {
+  const d = duos.find(([x, y]) => x === id || y === id);
+  return d ? (d[0] === id ? d[1] : d[0]) : null;
+};
+
+/**
  * Which round the bell calls rotation `i` of an `n`-seat circle in. Rotation i is seat i with seat i+1, so neighbours
  * alternate: even rotations in round 0, odd in round 1 — and an odd circle's closing rotation (seat n-1 with seat 0)
  * touches both, so it gets a round of its own.
@@ -73,15 +114,29 @@ const BAR_BEATS = [
   (x: string) => `${x} watches from the bar, drink in hand.`,
   (x: string) => `${x} catches someone's eye across the room and looks away first.`,
 ];
+/** A best friend wingmanning `d` (at this table, with `p`) from across the room: `f` is at the bar or another table. */
+const WING_BEATS = [
+  (f: string, d: string) => `${f} gives ${d} a thumbs-up from across the room.`,
+  (f: string, d: string, p: string) => `${f} raises a glass to ${d} and ${p} from across the room.`,
+  (f: string, d: string) => `${f} catches ${d}'s eye and grins, wingman on duty.`,
+];
 
 /** Draws an index from a seed string, so the same night always deals the same beats. */
 const deal = (key: string, n: number) => seedFrom(key) % n;
 
 /**
- * The beats around rotation `i` this round (at most two): the other tables in its round first, then whoever is sitting
- * this round out at the bar. Dealt from the night, so the actors' prompt and the night page show the same moments.
+ * The beats around rotation `i` this round (at most two): a best friend wingmanning someone at this table first (the
+ * night's duos), then the other tables in its round, then whoever is sitting this round out at the bar. Dealt from the
+ * night, so the actors' prompt and the night page show the same moments.
  */
-export function backgroundBeats(nightId: string, rotations: readonly RoomRotation[], i: number, names: ReadonlyMap<string, string>, seatIds: readonly string[]): RoomBeat[] {
+export function backgroundBeats(
+  nightId: string,
+  rotations: readonly RoomRotation[],
+  i: number,
+  names: ReadonlyMap<string, string>,
+  seatIds: readonly string[],
+  duos: readonly Duo[] = [],
+): RoomBeat[] {
   const me = rotations[i];
   if (!me) return [];
   const round = rotationRound(rotations, i);
@@ -92,6 +147,13 @@ export function backgroundBeats(nightId: string, rotations: readonly RoomRotatio
   const busy = new Set([me.a, me.b, ...others.flatMap(({ r }) => [r.a, r.b])]);
   const atBar = seatIds.filter((id) => !busy.has(id));
   const lines: string[] = [];
+  for (const [d, p] of [
+    [me.a, me.b],
+    [me.b, me.a],
+  ] as const) {
+    const f = friendOf(duos, d);
+    if (f && f !== p && seatIds.includes(f)) lines.push(WING_BEATS[deal(`${nightId}:${i}:wing:${d}`, WING_BEATS.length)](nm(f), nm(d), nm(p)));
+  }
   for (const { r, j } of others) lines.push(PAIR_BEATS[deal(`${nightId}:${i}:${j}`, PAIR_BEATS.length)](nm(r.a), nm(r.b)));
   for (const id of atBar) lines.push(BAR_BEATS[deal(`${nightId}:${i}:${id}`, BAR_BEATS.length)](nm(id)));
   // Two at most, landing after the second and the fourth of the table's six lines.
@@ -111,8 +173,10 @@ export function roomLine(opts: {
   names: ReadonlyMap<string, string>;
   seatIds: readonly string[];
   endings: ReadonlyMap<number, Ending>;
+  /** The night's best friends (group_nights.duos): each one at this table hears who came with them. */
+  duos?: readonly Duo[];
 }): string {
-  const { nightId, venue, rotations, i, names, seatIds, endings } = opts;
+  const { nightId, venue, rotations, i, names, seatIds, endings, duos = [] } = opts;
   const me = rotations[i];
   const nm = (id: string) => shortName(names.get(id) ?? "someone");
   const round = rotationRound(rotations, i);
@@ -129,14 +193,27 @@ export function roomLine(opts: {
     .filter(({ r, j }) => rotationRound(rotations, j) < round && !r.failed && endings.has(j))
     .map(({ r, j }) => `${nm(r.a)} and ${nm(r.b)}: ${LOOKED[endings.get(j)!]}`);
   if (earlier.length) parts.push(`Earlier tonight, from across the room — ${earlier.join("; ")}.`);
-  const beats = backgroundBeats(nightId, rotations, i, names, seatIds);
+  for (const d of [me.a, me.b]) {
+    const f = friendOf(duos, d);
+    if (!f || !seatIds.includes(f)) continue;
+    if (f === me.a || f === me.b) {
+      // Both of them at this table: say it once.
+      if (d === me.a) parts.push(`${nm(me.a)} and ${nm(me.b)} are best friends who came tonight together, and the bell has sat them at the same table.`);
+    } else parts.push(`${nm(d)} came tonight with best friend ${nm(f)}, who is rooting for ${nm(d)} from across the room.`);
+  }
+  const beats = backgroundBeats(nightId, rotations, i, names, seatIds, duos);
   if (beats.length) parts.push(`Around you this round: ${beats.map((b) => b.text).join(" ")}`);
   parts.push("The others can come up in a glance or a line; this date is yours two.");
   return parts.join(" ");
 }
 
-/** The room's opening beat on the night page: who takes a seat, and the bell. */
-export function roomOpening(nightId: string, venue: string, names: readonly string[]): string {
+/** The best friends' arrival, by name ("Juni and Pia arrive together…"): one sentence per duo, or "" for none. */
+export function duoArrival(duos: readonly (readonly [string, string])[]): string {
+  return duos.map(([x, y]) => `${shortName(x)} and ${shortName(y)} arrive together, best friends, each here to wingman the other.`).join(" ");
+}
+
+/** The room's opening beat on the night page: who takes a seat, any best friends arriving together, and the bell. */
+export function roomOpening(nightId: string, venue: string, names: readonly string[], duoNames: readonly (readonly [string, string])[] = []): string {
   const firsts = names.map((n) => shortName(n));
   const list = firsts.length > 1 ? `${firsts.slice(0, -1).join(", ")} and ${firsts[firsts.length - 1]}` : firsts.join("");
   const place = venuePhrase(venue);
@@ -145,7 +222,13 @@ export function roomOpening(nightId: string, venue: string, names: readonly stri
     `The mixer starts at ${place}. ${list} find their seats and size each other up.`,
     `Drinks, name tags, nerves: ${list} settle in at ${place}.`,
   ];
-  return `${opens[deal(`${nightId}:open`, opens.length)]} The bell sits on the bar: six lines with each match, then it rings.`;
+  const duos = duoArrival(duoNames);
+  return `${opens[deal(`${nightId}:open`, opens.length)]}${duos ? ` ${duos}` : ""} The bell sits on the bar: six lines with each match, then it rings.`;
+}
+
+/** The night's duos by name, for the opening (ids the room no longer seats are left out). */
+export function duoNamesOf(duos: readonly Duo[] | null | undefined, names: ReadonlyMap<string, string>): [string, string][] {
+  return (duos ?? []).flatMap(([x, y]) => (names.has(x) && names.has(y) ? [[names.get(x)!, names.get(y)!] as [string, string]] : []));
 }
 
 /**
