@@ -9,7 +9,7 @@ import { ART_STYLES } from "@/lib/art-style";
 import { sessionCookies } from "@/lib/http";
 import { characterPortrait, HOUSE_PORTRAIT_IDS } from "@/lib/portraits";
 import { checkAdultText } from "@/lib/safety";
-import { drawShowShots, EXPRESSION_LOOKS, SHOT_ATTEMPTS, SHOT_NEURONS, shotFile, shotPrompt, shotsFor, shotSeed, SHOTS_RESERVE_NEURONS } from "@/lib/show-shots";
+import { drawShowShots, EXPRESSION_LOOKS, KEEP_AGE, SHOT_ATTEMPTS, SHOT_NEURONS, shotFile, shotPrompt, shotsFor, shotSeed, SHOTS_RESERVE_NEURONS } from "@/lib/show-shots";
 import { EXPRESSIONS, expressionFor, expressionOfWord, faceForTurn, latestFace, SHOTS, type Shot } from "@/lib/show-shots-shared";
 import { api, BASE_URL, newUserCookie, setupEpisode, startTestDb, userIdOf, validCharacter } from "./helpers";
 
@@ -171,7 +171,9 @@ describe("the prompts", () => {
     }
     expect(shotPrompt("rose", "realistic")).toContain("in a warm, soft spotlight");
     expect(shotPrompt("rose", "realistic")).not.toContain("dramatic");
-    for (const e of EXPRESSIONS) expect(shotPrompt(e, "realistic")).toContain(`Change only the expression to ${EXPRESSION_LOOKS[e]}.`);
+    for (const e of EXPRESSIONS) expect(shotPrompt(e, "realistic")).toContain(`Change only the expression to ${EXPRESSION_LOOKS[e]}. ${KEEP_AGE} Head and shoulders`);
+    // Only the expressions: a scene shot changes the pose and setting, not the face.
+    for (const s of ["reveal", "rose", "confessional"] as const) expect(shotPrompt(s, "semi_real")).not.toContain(KEEP_AGE);
     expect(shotPrompt("smug", "realistic")).toContain("the same person, ");
     expect(shotPrompt("smug", "realistic")).toContain("the same photographic look");
     expect(shotPrompt("smug", "semi_real")).toContain("the same character, ");
