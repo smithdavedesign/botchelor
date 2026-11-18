@@ -15,6 +15,7 @@ import {
   type CharacterExtras,
 } from "@/lib/extras";
 import type { SetExtras } from "./DetailsStep";
+import DepthMeter from "./DepthMeter";
 
 /**
  * "Go deeper" (optional, David 2026-11-01): what makes a date with them more than small talk. Each one is used on their
@@ -26,6 +27,10 @@ import type { SetExtras } from "./DetailsStep";
  *     open up, and what lands on them when the other does it.
  *   - fun or serious (extras.mood, on the card): how they play a date; a mismatch is planned in.
  * Every list grows from blank rows or the idea chips, which only ever fill a blank. Nothing here is needed to save.
+ *
+ * It opens with where a date goes further (PRD styles-and-storylines phase 6): an opening line (Voice's hello), a
+ * scenario (Dating profile's ideal first date) and three secrets that come out over dates, each ticked once written,
+ * and the sheet's length against the 400–999-word sweet spot (app/create/DepthMeter.tsx).
  */
 export default function DeeperStep({
   extras,
@@ -34,6 +39,8 @@ export default function DeeperStep({
   setHiding,
   hidingOut = [],
   name,
+  words,
+  jump,
 }: {
   extras: CharacterExtras;
   setExtras: SetExtras;
@@ -42,11 +49,25 @@ export default function DeeperStep({
   /** Editing: the secrets that already slipped out on a date. They stay, whatever the list says (setOwnSecrets). */
   hidingOut?: string[];
   name: string;
+  /** The whole sheet's length in words (lib/sheet-words.ts). */
+  words: number;
+  /** Opens the step that holds a suggestion (the wizard's own step change). */
+  jump?: (to: "voice" | "details") => void;
 }) {
   const who = name.trim().split(/\s+/)[0] || "them";
   const takes = extras.hot_takes ?? [];
   const setTakes = (next: string[]) => setExtras((p) => ({ ...p, hot_takes: next.length ? next : undefined }));
   const setText = (k: "baggage" | "wins_them_over", v: string) => setExtras((p) => ({ ...p, [k]: v || undefined }));
+  const secrets = hiding.filter((h) => h.trim()).length;
+  const further: { done: boolean; what: string; to?: { step: "voice" | "details"; label: string } }[] = [
+    { done: Boolean(extras.lines?.hello?.trim()), what: `An opening line: how ${who} says hello, the first thing a date hears.`, to: { step: "voice", label: "Write it in Voice" } },
+    {
+      done: Boolean(extras.ideal_first_date?.trim()),
+      what: `A scenario: ${who}'s ideal first date, a scene their dates can start from.`,
+      to: { step: "details", label: "Write it in Dating profile" },
+    },
+    { done: secrets >= MAX_HIDING, what: `${MAX_HIDING} things ${who} is hiding, below: each one a date draws out comes out on air, so their story unfolds over dates.` },
+  ];
 
   return (
     <fieldset className="wizard-fields deeper">
@@ -54,6 +75,24 @@ export default function DeeperStep({
       <p className="muted">
         What makes a date with {who} more than small talk. Every answer is used on their dates; skip any of it.
       </p>
+
+      <div className="deeper-further">
+        <p className="deeper-further-title">Where a date with {who} goes further</p>
+        <ul className="deeper-further-list">
+          {further.map((f) => (
+            <li key={f.what} data-done={f.done ? "yes" : "no"}>
+              <span aria-hidden>{f.done ? "✓" : "○"}</span> <span className="sr-only">{f.done ? "Done: " : "To do: "}</span>
+              {f.what}{" "}
+              {!f.done && f.to && jump && (
+                <button type="button" className="link-button" onClick={() => jump(f.to!.step)}>
+                  {f.to.label}
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+        <DepthMeter words={words} />
+      </div>
 
       <ListField
         title="🔥 Hot takes"

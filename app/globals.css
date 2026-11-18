@@ -7130,6 +7130,55 @@ button.table-more {
   }
 }
 
+/* Go deeper's "where a date goes further" (app/create/DeeperStep.tsx): three suggestions, ticked once written. */
+.deeper-further {
+  margin: 0.5rem 0 1rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+.deeper-further-title {
+  margin: 0 0 0.35rem;
+  font-weight: 600;
+}
+.deeper-further-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.3rem;
+}
+.deeper-further-list li[data-done="yes"] {
+  color: var(--muted);
+}
+.deeper-further-list li[data-done="yes"] > span:first-child {
+  color: var(--ok-text);
+}
+
+/* The sheet's length (app/create/DepthMeter.tsx): the fill, with the 400–999-word sweet spot marked on the track. */
+.depth-meter {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 0.6rem;
+}
+.depth-meter .meter-track {
+  position: relative;
+  display: block;
+}
+.depth-meter-sweet {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-left: 2px solid var(--ok);
+  border-right: 2px solid var(--ok);
+}
+.depth-meter[data-band="sweet"] .meter-fill {
+  background: var(--ok);
+}
+.depth-meter p {
+  margin: 0;
+}
+
 /* Go deeper (app/create/DeeperStep.tsx): a row is one line and its Remove, at every width. */
 .deeper .fact-row.deeper-row {
   grid-template-columns: minmax(0, 1fr) auto;
