@@ -152,6 +152,28 @@ rich but controlled color, clean linework on faces, expressive eyes, reality-sho
     new model calls.
 - **Episode moments:** the premiere reveal (full body on the stage) and the finale's rose moment, for the season page and
   the premiere.
+- **Built 2026-11-18 (3b):** `lib/show-shots.ts` draws the six expressions and three moments (the reveal, the rose and
+  the confessional) per contestant.
+  - **How:** klein edits the contestant's own portrait (their newest approved show portrait, or a house character's
+    file) in their art style. Each shot is checked like every free picture, explicit question included, and kept per
+    portrait and style, so a new portrait or style never shows old faces. A refused shot isn't drawn again, and a
+    failing one is tried three times at most.
+  - **When:** the hourly job draws from 20:00 UTC, the house cast first, then whoever aired the most dates in the last
+    two weeks. It leaves 1,500 neurons of the day for people's own pictures. An admin can draw one character's kit at
+    any time (`/api/admin/show-shots`). There's never a paid fallback.
+  - **Which face a line shows:** this changed from the plan. The line's own emotion word decides (each line already
+    carries one), else interest (0.8 and up is smitten, 0.2 and down is unimpressed). A walk-out is unimpressed or
+    heartbroken. Wants and dealbreakers aren't per line, so they don't decide it. In the 30 days to 2026-11-17, 7,781 of
+    7,790 aired lines had a word, and about six in ten map to a face: laughing 29%, smug 14%, smitten 7%, unimpressed
+    and flustered 4% each. Warm, curious and intrigued keep the portrait.
+  - **Where:**
+    - chat lines and the theater's stage show the speaker's face for the line;
+    - each confessional line shows the confessional shot;
+    - the rose ceremony card shows the lead holding out their rose;
+    - a character's page has an "On the show" strip with all nine shots.
+  - **Not yet:** the closed season pages read a frozen snapshot, so the reveal and rose aren't on them.
+  - **Cost:** about 990 neurons a contestant, all free. The batch takes 12 shots an hour, so 48 an evening, about five
+    contestants. The 17 house characters take three to four evenings.
 
 ## 4. Storylines
 

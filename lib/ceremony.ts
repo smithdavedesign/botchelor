@@ -36,6 +36,7 @@ import { ceremonySundays, nextCeremonySunday, type SeasonFormatDef } from "./sea
 import { seasonFormatNow } from "./season-format-store";
 import { seasonNumber } from "./season-ref";
 import { seasonIdOf, seasonWindow } from "./season-window";
+import { shotsJsonSql, shotUrl } from "./show-shots-sql";
 import { winnerOf } from "./situations";
 import { venuePhrase } from "./venues";
 
@@ -439,7 +440,8 @@ export type SuitorState = "in" | "out" | "final_rose" | "runner_up";
 
 export type CeremonyBoard = {
   title: string;
-  lead: CeremonyFace;
+  /** With their rose shot (lib/show-shots.ts) once it's drawn: the card shows them holding it out. */
+  lead: CeremonyFace & { rose: string | null };
   suitors: (CeremonyFace & { state: SuitorState; week: number | null })[];
   /** The next ceremony (today's until it's held), when the season has one left. */
   next: { held_on: string; runs_at: string; week: number; finale: boolean } | null;
@@ -459,10 +461,18 @@ export type CeremonyBoard = {
   challenge: { winner: CeremonyFace; title: string | null; day: string; scene_path: string | null } | null;
 };
 
-async function facesOf(db: Db, ids: readonly string[]): Promise<Map<string, CeremonyFace>> {
-  if (!ids.length) return new Map();
-  const { rows } = await db.query<CeremonyFace>(`select c.id, c.name, c.avatar_hue as hue, ${portraitPathSql("c")} as portrait, c.is_house as house from characters c where c.id = any($1)`, [[...ids]]);
-  return new Map(rows.map((r) => [r.id, r]));
+async function facesOf(db: Db, ids: readonly string[]): Promise<{ faces: Map<string, CeremonyFace>; roses: Map<string, string> }> {
+  if (!ids.length) return { faces: new Map(), roses: new Map() };
+  // With each one's rose shot (lib/show-shots.ts) in the same read: the card shows the lead holding theirs out.
+  const { rows } = await db.query<CeremonyFace & { rose_id: string | null }>(
+    `select c.id, c.name, c.avatar_hue as hue, ${portraitPathSql("c")} as portrait, c.is_house as house, ${shotsJsonSql("c.id")} ->> 'rose' as rose_id
+       from characters c where c.id = any($1)`,
+    [[...ids]],
+  );
+  return {
+    faces: new Map(rows.map((r) => [r.id, { id: r.id, name: r.name, hue: r.hue, portrait: r.portrait, house: r.house }])),
+    roses: new Map(rows.flatMap((r) => (r.rose_id ? [[r.id, shotUrl(r.rose_id)] as const] : []))),
+  };
 }
 
 /** The Botchelor card's data for one viewer (/watch): null on any season without a lead, so a classic page is unchanged. */
@@ -486,7 +496,7 @@ export async function ceremonyBoard(db: Db, viewerId: string | null, now: Date =
     ),
   ]);
   const ids = [lead, ...all.rows.map((r) => r.character_id)];
-  const faces = await facesOf(db, ids);
+  const { faces, roses } = await facesOf(db, ids);
   const badgeOf = new Map(badges.rows.map((b) => [b.character_id, b]));
   const face = (id: string): CeremonyFace => faces.get(id) ?? { id, name: "A suitor", hue: null, portrait: null, house: false };
   const suitorCards = all.rows.map((r) => {
@@ -531,7 +541,7 @@ export async function ceremonyBoard(db: Db, viewerId: string | null, now: Date =
   const challenge: CeremonyBoard["challenge"] = prize
     ? { winner: face(prize.winner), title: prize.title, day: prize.day, scene_path: prize.scene ? `/house?scene=${encodeURIComponent(prize.scene)}#scene-${prize.scene}` : null }
     : null;
-  return { title: def.title, lead: face(lead), suitors: suitorCards, next, vote, last, walk_ons: await walkOnsP, challenge };
+  return { title: def.title, lead: { ...face(lead), rose: roses.get(lead) ?? null }, suitors: suitorCards, next, vote, last, walk_ons: await walkOnsP, challenge };
 }
 
 export type CeremonySummary = {
@@ -596,7 +606,7 @@ export async function ceremonySummary(db: Db, seasonId: string): Promise<Ceremon
 export async function finalRoseAward(db: Db, seasonId: string): Promise<{ title: string; name: string; detail: string; chars: CeremonyFace[] } | null> {
   const row = (await db.query<{ final_rose: string; lead_id: string; week: number }>(`select final_rose, lead_id, week from ceremonies where season_id = $1 and finale and final_rose is not null`, [seasonId])).rows[0];
   if (!row) return null;
-  const faces = await facesOf(db, [row.final_rose, row.lead_id]);
+  const { faces } = await facesOf(db, [row.final_rose, row.lead_id]);
   const rose = faces.get(row.final_rose);
   const lead = faces.get(row.lead_id);
   if (!rose || !lead) return null;

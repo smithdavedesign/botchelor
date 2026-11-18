@@ -14551,3 +14551,40 @@ button.thread-menu-item:hover:not(:disabled) {
 .confessional-set .confessional {
   margin: var(--space-2) 0;
 }
+/* The show kit's shots (lib/show-shots.ts): a confessional line beside its confessional shot, the ceremony card's lead
+   holding out their rose, and the "On the show" strip on a character's page. */
+.confessional-with-shot {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: var(--space-2) 0;
+}
+.confessional-with-shot .confessional {
+  margin: 0;
+  min-width: 0;
+}
+.confessional-shot,
+.botchelor-lead-rose {
+  flex: none;
+  width: 4rem;
+  height: auto;
+  aspect-ratio: 4 / 5;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+}
+.botchelor-lead-rose {
+  width: 4.5rem;
+}
+.show-kit li {
+  display: grid;
+  gap: var(--space-1);
+  text-align: center;
+}
+.show-kit li img {
+  aspect-ratio: 4 / 5;
+}
+/* The reveal is the whole figure, head to shoes: shown whole on the photo ground rather than cropped. */
+.show-kit li.is-reveal img {
+  object-fit: contain;
+  background-color: var(--photo-bg);
+}

@@ -368,11 +368,13 @@ export default async function EpisodePage({
   const [a, b] = episode.characters;
   const names: [string, string] = [a.name, b.name];
   const nameOf = (characterId: string) => episode.characters.find((c) => c.id === characterId)?.name;
-  // A speaker's face and name, for the agendas and confessionals.
-  const who = (id: string) => {
+  // A speaker's face and name, for the agendas and confessionals (the name alone beside a confessional shot).
+  const who = (id: string, avatar = true) => {
     const c = episode.characters.find((x) => x.id === id);
-    return c ? <CharacterName character={c} strong /> : null;
+    return c ? <CharacterName character={c} strong avatar={avatar} /> : null;
   };
+  // Their confessional shot (lib/show-shots.ts): waist-up in the confessional's armchair, once it's drawn.
+  const confessionalShot = (id: string) => episode.characters.find((x) => x.id === id)?.shots?.confessional ?? null;
   // A creator of a house date has nobody to block; everyone else blocks "whoever made this".
   const canBlock = !episode.is_creator || episode.characters.every((c) => !c.house);
 
@@ -764,11 +766,22 @@ export default async function EpisodePage({
                 <h3>The confessionals</h3>
                 {/* Said to the camera in the confessional (lib/show-sets.ts). */}
                 <div className="confessional-set on-set" style={{ backgroundImage: showSetBackground("confessional", 0.55) }}>
-                  {episode.confessionals.map((c) => (
-                    <p key={c.character_id} className="confessional">
-                      {who(c.character_id)}: “{c.line}”
-                    </p>
-                  ))}
+                  {episode.confessionals.map((c) => {
+                    const shot = confessionalShot(c.character_id);
+                    return shot ? (
+                      <div key={c.character_id} className="confessional-with-shot">
+                        {/* eslint-disable-next-line @next/next/no-img-element -- a PG shot from its own route, already small */}
+                        <img className="confessional-shot" src={shot} alt="" width={64} height={80} loading="lazy" />
+                        <p className="confessional">
+                          {who(c.character_id, false)}: “{c.line}”
+                        </p>
+                      </div>
+                    ) : (
+                      <p key={c.character_id} className="confessional">
+                        {who(c.character_id)}: “{c.line}”
+                      </p>
+                    );
+                  })}
                 </div>
                 {episode.is_host && <ConfessionalShare episodeId={episode.id} shared={episode.confessionals_shared} />}
               </>

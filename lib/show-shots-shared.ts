@@ -24,7 +24,10 @@ export const isShot = (v: unknown): v is Shot => typeof v === "string" && (SHOTS
 /** A character's ready shots, as picture addresses (/api/shots/<id>.webp). */
 export type ShotUrls = Partial<Record<Shot, string>>;
 
-/** Each shot in a caption's words, in the order a page lists them: the moments, then the faces. */
+/** The order a page lists them in: the moments, then the faces. */
+export const SHOT_ORDER: readonly Shot[] = [...MOMENTS, ...EXPRESSIONS];
+
+/** Each shot in a caption's words. */
 export const SHOT_LABELS: Readonly<Record<Shot, string>> = {
   reveal: "The reveal",
   rose: "The rose",

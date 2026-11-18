@@ -54,7 +54,13 @@ export default function BotchelorCard({
       {/* The lead and the suitors on the show's stage, and the last verdict under the rose (lib/show-sets.ts). */}
       <div className="botchelor-house on-set" style={{ backgroundImage: showSetBackground("stage", 0.35) }}>
         <Link href={`/characters/${board.lead.id}`} className="botchelor-lead">
-          <Avatar seed={board.lead.id} name={board.lead.name} hue={board.lead.hue} house={board.lead.house} portraitSrc={board.lead.portrait} size={56} />
+          {/* The lead holding out a rose, once their show kit has it (lib/show-shots.ts); their face until then. */}
+          {board.lead.rose ? (
+            // eslint-disable-next-line @next/next/no-img-element -- a PG shot from its own route, already small
+            <img className="botchelor-lead-rose" src={board.lead.rose} alt="" width={72} height={90} />
+          ) : (
+            <Avatar seed={board.lead.id} name={board.lead.name} hue={board.lead.hue} house={board.lead.house} portraitSrc={board.lead.portrait} size={56} />
+          )}
           <span>
             <strong>{board.lead.name}</strong>
             <span className="muted small"> · the lead</span>
