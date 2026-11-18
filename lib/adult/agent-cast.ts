@@ -13,6 +13,7 @@
 import type { Db } from "../db";
 import { companionModel } from "../companion";
 import { jsonOf } from "../companion-prompt";
+import { sheetRefusal } from "../franchises";
 import type { Model } from "../model";
 import { loadOurIds } from "../our-traffic";
 import { DELETED_OWNER } from "../rules";
@@ -79,7 +80,10 @@ export async function checkSheets(db: Db, opts: { dryRun?: boolean; limit?: numb
   let failed = 0;
   for (const c of rows) {
     let verdict: SheetVerdict;
+    // Originals only (lib/franchises.ts): a sheet that names a franchise fails without a call, as an age under 18 does.
+    const copy = sheetRefusal(c, "After Dark");
     if (!(c.age >= 18)) verdict = { ok: false, reason: `Stated age ${c.age}.` };
+    else if (copy) verdict = { ok: false, reason: copy };
     else {
       const sheet = JSON.stringify({ name: c.name, age: c.age, bio: c.bio, traits: c.traits, want: c.want, dealbreaker: c.dealbreaker, appearance: c.appearance, extras: c.extras ?? {} });
       try {

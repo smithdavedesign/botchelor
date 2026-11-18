@@ -14,6 +14,7 @@
  * client component) and the API share this file.
  */
 import { z } from "zod";
+import { NO_FRANCHISE_WORDS } from "./franchise-words";
 import type { KindId } from "./kinds";
 
 export const GENDERS = ["woman", "man"] as const;
@@ -614,7 +615,7 @@ export function pgPrompt(s: Subject, framing: string, anime = false, detail?: st
     ...(detail ? [`${detail}.`] : []),
     `Wearing ${s.outfit}.`,
     `${framing}.`,
-    `${finish}. Soft even studio lighting, plain warm light-grey backdrop, a single person, tasteful, no nudity, no text, no watermark.`,
+    `${finish}. Soft even studio lighting, plain warm light-grey backdrop, a single person, tasteful, no nudity, no text, no watermark, ${NO_FRANCHISE_WORDS}.`,
   ].join(" ");
 }
 

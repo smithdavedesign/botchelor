@@ -170,6 +170,41 @@ rich but controlled color, clean linework on faces, expressive eyes, reality-sho
   Dark for everyone.
 - The show's negative prompts gain "logo, brand name, insignia, franchise costume".
 
+### Built 2026-11-18
+
+- **The table** (`lib/franchises.ts`): 117 franchises and their names, written from the census by a script that stays
+  in the private library.
+  - It leaves out names a bio could use for anything else, so they never count: everyday words, real first names and
+    places, figures from myth and folk tales, studios a character could work at, and stock phrases.
+  - 51 franchises are marked school-age: their main cast is, or is often drawn as, under 18.
+  - **A fan isn't a copy.** A title ("plays Genshin", "Pokémon cards", "a Star Wars marathon") counts only in the
+    fields that say who a character is: the name, appearance, look, role and costume. A character's name or a place
+    ("Tifa Lockhart", "Hogwarts") counts anywhere. So do hero names used as figures of speech ("a real Wonder Woman at
+    work").
+  - The table is server-only. The words for the picture prompts live in their own small file
+    (`lib/franchise-words.ts`), because the prompts are bundled into the browser.
+- **People's characters are warned, never refused.**
+  - The originality report gains `franchise`, a warning that leads the tips.
+  - It costs 20 points, as a look-alike on the show does, and the verdict reads "consider changing".
+  - The create flow's panel shows it first, and MCP `create_character` returns it as `franchise_warning`, on
+    `check_only` too.
+- **Our own characters are refused:**
+  - **The house cast:** a test reads every house character's words.
+  - **Season-gen:** a draft that names a franchise is drafted again. The writer's prompt now asks for an original.
+  - **The house crowd:** MCP `create_character` from a `botchelor-loop-` client is refused.
+  - **The recast:** the admin edit and the portrait role are refused, with nothing changed.
+  - **The After Dark agent cast:** its sheet check fails without a model call.
+- **After Dark, for everyone:** a character whose words name a franchise can't be switched in (the switch, admin
+  route and MCP).
+- **The prompts** (show portraits, look tiles, clips, newcomer and recast portraits) say "no logo, brand name or
+  insignia, no costume from a film, game or anime".
+- **Not yet:**
+  - **Typed After Dark text.** After Dark's text check (`checkAdultText`) is bundled into the browser, so the table
+    can't go there as it stands. A server-side pass over typed After Dark text, starting with the school-age
+    franchises, should come before phase 8.
+  - **Characters switched in before this.** A character already switched in that names a franchise stays in until
+    someone switches it off. Nothing reads the existing switches again.
+
 ## 6. Checks and profile depth
 
 - **Lookalike check:** a script in the private research library compares the house and season pictures with the census

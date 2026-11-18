@@ -27,6 +27,7 @@ import { createHash } from "node:crypto";
 import { notPersonaSql } from "./step-in-shared";
 import type { Db } from "./db";
 import type { CharacterExtras } from "./extras";
+import { franchiseHits, franchiseWarning, sheetFields } from "./franchises";
 import { kindLabel } from "./kinds";
 import { originality, type Lookalike, type OriginalityReport, type SheetDraft } from "./originality";
 import { DELETED_OWNER } from "./rules";
@@ -399,7 +400,25 @@ export async function conceptLookalikes(
  * The originality check (lib/originality.ts) with twins by meaning weighed in when concept checks are on: what every
  * server caller runs (the route, MCP create_character and check_originality). Server-only, like this whole module.
  */
-export function originalityWithConcepts(db: Db, sheet: SheetDraft, excludeId: string | null = null, by: string | null = null): Promise<OriginalityReport> {
+export async function originalityWithConcepts(db: Db, sheet: SheetDraft, excludeId: string | null = null, by: string | null = null): Promise<OriginalityReport> {
   const twins = conceptLookalikes(db, sheet, excludeId).then((list) => list.map((c): Lookalike => ({ id: c.id, name: c.name, kind: "concept", why: c.why })));
-  return originality(db, sheet, excludeId, twins, by);
+  return withFranchise(await originality(db, sheet, excludeId, twins, by), sheet);
+}
+
+/**
+ * Originals only (lib/franchises.ts, PRD styles-and-storylines phase 5): a sheet whose words name a franchise gets a
+ * warning that leads the tips, costs what a look-alike on the show costs (20), and reads "consider changing". A
+ * person's character is warned, never refused; the show's own are refused where they're made.
+ */
+export function withFranchise(report: OriginalityReport, sheet: SheetDraft): OriginalityReport {
+  const warning = franchiseWarning(franchiseHits(sheetFields(sheet)));
+  if (!warning) return report;
+  return {
+    ...report,
+    franchise: warning,
+    score: Math.max(0, report.score - 20),
+    tips: [warning, ...report.tips.filter((t) => t !== warning)].slice(0, 5),
+    verdict: "consider changing",
+    verdict_note: "It borrows from someone else's story: a name and a story of its own come first. You can still create it.",
+  };
 }

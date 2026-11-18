@@ -103,6 +103,14 @@ describe("writing a candidate", () => {
     expect(parseDraft(JSON.stringify(draft("Odessa Brine", { bio: "She's 17 and runs the ferry with her dad. Loves the sea more than anything." })), [])).toMatchObject({ ok: false, reason: expect.stringMatching(/minor/) });
     expect(parseDraft(JSON.stringify(draft("Odessa Brine", { want: "To meet Taylor Swift" })), [])).toMatchObject({ ok: false, reason: expect.stringMatching(/real_person/) });
     expect(parseDraft(JSON.stringify(draft("Rafe Moss")), ["Rafe Calloway"])).toMatchObject({ ok: false, reason: expect.stringMatching(/name taken/) });
+    // Originals only (lib/franchises.ts): a franchise's character named anywhere in the draft, its kit included, is drafted
+    // again; a fan's title in a hobby isn't a copy.
+    const hobbies = (h: string[]) => JSON.stringify(draft("Odessa Brine", { kit: { ...draft("x").kit, hobbies: h } }));
+    expect(parseDraft(hobbies(["Weather", "Cosplaying Raiden Shogun", "Darts"]), [])).toMatchObject({
+      ok: false,
+      reason: expect.stringMatching(/^The show keeps to original characters: the profile says "Raiden Shogun", which reads like Genshin Impact\./),
+    });
+    expect(parseDraft(hobbies(["Weather", "Pokémon cards", "Darts"]), []).ok).toBe(true);
     expect(parseDraft(JSON.stringify(draft("Odessa Brine", { age: 19 })), [])).toMatchObject({ ok: false });
     expect(parseDraft("not json at all", [])).toEqual({ ok: false, reason: "not JSON" });
   });
