@@ -7168,6 +7168,10 @@ button.table-more {
 .deeper-further-list li[data-done="yes"] > span:first-child {
   color: var(--ok-text);
 }
+/* A to-do's ○ in the words' own ink read as a capital O ("O A scenario"): quiet, it reads as the empty mark. */
+.deeper-further-list li:not([data-done="yes"]) > span:first-child {
+  color: var(--muted);
+}
 
 /* The sheet's length (app/create/DepthMeter.tsx): the fill, with the 400–999-word sweet spot marked on the track. */
 .depth-meter {
