@@ -85,7 +85,8 @@ describe("the create flow shows it", () => {
     expect(deeper).toContain("A scenario: ${who}'s ideal first date");
     expect(deeper).toContain("things ${who} is hiding");
     const wizard = readFileSync("app/create/CreateWizard.tsx", "utf8");
-    expect(wizard.match(/<DepthMeter words=\{words\} \/>/g)).toHaveLength(1);
+    expect(wizard.match(/<DepthMeter words=\{sheetLength\} \/>/g)).toHaveLength(1);
+    expect(wizard).toContain("words={sheetLength}");
     expect(wizard).toContain("jump={(to) => jump(to === \"voice\" ? S.voice : S.details)}");
   });
 });
