@@ -39,6 +39,14 @@ export const DRAWN_IN: Record<DrawnStyle, string> = { anime: "anime", semi_real:
 export const artStyleSql = (alias: string): string =>
   `(case when ${alias}.extras->'looks'->>'style' in (${DRAWN_STYLES.map((s) => `'${s}'`).join(", ")}) then ${alias}.extras->'looks'->>'style' else 'realistic' end)`;
 
+/**
+ * The house look's portraits (PRD styles-and-storylines phase 3, look A of the pilot, David's pick): a house character
+ * redrawn in 2.5D from their own portrait, kept in the asset ledger with this prompt_version. Their own style
+ * (extras.looks.style) stays unset, so After Dark keeps them and keeps drawing them from the portrait before
+ * (lib/adult/media.ts showPortrait), until phase 8's gates let drawn styles in.
+ */
+export const HOUSE_LOOK_VERSION = "house-look-a";
+
 /** SQL on `alias`: the character is photographed, not drawn, so After Dark may draw them. */
 export const notDrawnSql = (alias: string): string => `coalesce(${alias}.extras->'looks'->>'style', '') not in (${DRAWN_STYLES.map((s) => `'${s}'`).join(", ")})`;
 

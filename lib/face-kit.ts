@@ -29,7 +29,8 @@
 import { track } from "./analytics";
 import type { Db } from "./db";
 import { keepBytes, readBytes } from "./object-store";
-import { artStyleOf, DRAWN_STYLES, isDrawnStyle, STYLE_WORDS, type ArtStyle, type DrawnStyle } from "./art-style";
+import { artStyleFrom, DRAWN_STYLES, isDrawnStyle, STYLE_WORDS, type ArtStyle, type DrawnStyle } from "./art-style";
+import { showStyleSql } from "./portrait-sql";
 import { characterPortrait } from "./portraits";
 import { overLimit } from "./limits";
 import { checkRating } from "./adult/moderation";
@@ -126,9 +127,10 @@ export async function faceSource(db: Db, characterId: string, baseUrl: string): 
         order by created_at desc limit 1`,
       [characterId],
     ),
-    db.query<{ extras: { looks?: { style?: string } } | null }>(`select extras from characters where id = $1`, [characterId]),
+    // The show's style (showStyleSql): a house-look face is drawn in 2.5D though their own style stays unset for After Dark.
+    db.query<{ style: string }>(`select ${showStyleSql("c")} as style from characters c where c.id = $1`, [characterId]),
   ]);
-  const style = artStyleOf(who.rows[0]);
+  const style = artStyleFrom(who.rows[0]?.style);
   const a = rows[0];
   if (a) return { id: styleKey(a.id, style), url: new URL(a.url.startsWith("/") ? a.url : `/api/assets/${a.id}`, baseUrl).toString(), style };
   const house = characterPortrait(characterId);

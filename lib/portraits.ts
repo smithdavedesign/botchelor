@@ -10,18 +10,23 @@
  * Client-safe: pure constants and functions, no server imports, so `app/Avatar.tsx` can use it on both the
  * server and the client, and a visitor's own OC (not in these sets) simply keeps its gradient avatar.
  */
+import { artStyleOf, type ArtStyle } from "./art-style";
 import { placeParts, type PlaceId } from "./venues";
 
-const PORTRAIT_VERSION = "v3";
+/**
+ * v5 (PRD styles-and-storylines phase 3): the house look, every house character redrawn in 2.5D from their own portrait
+ * (look A of the pilot, drawn free on the Workers AI Worker, David's pick). Before it, v3 for most and v4 for three.
+ */
+const PORTRAIT_VERSION = "v5";
 const BACKDROP_VERSION = "v2";
 
 /**
- * The house characters redrawn since v3, and their file's version. On 2026-11-08 Nell, Juniper and Sable, then the
- * illustrated faces among a photoreal season cast, were redrawn in photoreal (2026-11-07 audit, item 15) through the
- * admin redraw: Venice in safe mode from their house look, Hive-checked PG, kept in the asset ledger, then reviewed and
- * committed here as the faces the show draws them with.
+ * Each house character's portrait before the house look, which After Dark still draws them from (lib/adult/media.ts
+ * showPortrait): After Dark only draws photographs, so a 2.5D face never becomes its starting point (phase 8's gates).
+ * v3 for most; v4 for the three redrawn in photoreal on 2026-11-08 (2026-11-07 audit, item 15) through the admin
+ * redraw: Venice in safe mode from their house look, Hive-checked PG, kept in the asset ledger, then committed here.
  */
-const PORTRAIT_VERSIONS: Readonly<Record<string, string>> = { "house-nell": "v4", "house-juniper": "v4", "house-sable": "v4" };
+const BEFORE_HOUSE_LOOK: Readonly<Record<string, string>> = { "house-nell": "v4", "house-juniper": "v4", "house-sable": "v4" };
 
 /**
  * The house characters that have a reviewed portrait (all 17 today). Listed explicitly rather than derived
@@ -37,9 +42,20 @@ export const HOUSE_PORTRAIT_IDS: ReadonlySet<string> = new Set([
 
 /** The portrait path for a character, or null when it has none — every visitor OC, so they keep the gradient. */
 export function characterPortrait(characterId: string | null | undefined): string | null {
-  return characterId && HOUSE_PORTRAIT_IDS.has(characterId)
-    ? `/cast/${characterId}-${PORTRAIT_VERSIONS[characterId] ?? PORTRAIT_VERSION}.webp`
-    : null;
+  return characterId && HOUSE_PORTRAIT_IDS.has(characterId) ? `/cast/${characterId}-${PORTRAIT_VERSION}.webp` : null;
+}
+
+/**
+ * How the show draws a character, where only the row is at hand: the house look (2.5D) for the fixed house cast, whose
+ * committed file is their house-look portrait, else their own style. showStyleSql (lib/art-style.ts) is the same in SQL,
+ * read from the face itself, so it also covers a newcomer's ledger portrait.
+ */
+export const showStyleOf = (c: { id: string; extras?: { looks?: { style?: string } | null } | null }): ArtStyle =>
+  HOUSE_PORTRAIT_IDS.has(c.id) ? "semi_real" : artStyleOf(c);
+
+/** The face After Dark starts a house character's pictures from: their portrait before the house look, or null. */
+export function afterDarkPortrait(characterId: string | null | undefined): string | null {
+  return characterId && HOUSE_PORTRAIT_IDS.has(characterId) ? `/cast/${characterId}-${BEFORE_HOUSE_LOOK[characterId] ?? "v3"}.webp` : null;
 }
 
 /**

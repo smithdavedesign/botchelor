@@ -1,7 +1,7 @@
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { characterPortrait, HOUSE_PORTRAIT_IDS, venueBackdrop, VENUES_WITH_BACKDROPS } from "@/lib/portraits";
+import { afterDarkPortrait, characterPortrait, HOUSE_PORTRAIT_IDS, showStyleOf, venueBackdrop, VENUES_WITH_BACKDROPS } from "@/lib/portraits";
 import { HOUSE_CHARACTERS, PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
 import { EXTRA_VENUES, VENUE_IDS } from "@/lib/venues";
 
@@ -9,14 +9,27 @@ const CAST_DIR = join(process.cwd(), "public", "cast");
 const files = new Set(readdirSync(CAST_DIR));
 
 describe("portraits — mapping", () => {
-  it("maps a house character to its portrait, and a visitor OC to none", () => {
-    expect(characterPortrait("house-rafe")).toBe("/cast/house-rafe-v3.webp");
+  it("maps a house character to its house-look portrait (v5), and a visitor OC to none", () => {
+    expect(characterPortrait("house-rafe")).toBe("/cast/house-rafe-v5.webp");
+    expect(characterPortrait("house-nell")).toBe("/cast/house-nell-v5.webp");
     expect(characterPortrait("some-random-oc-id")).toBeNull();
     expect(characterPortrait(null)).toBeNull();
   });
 
-  it("maps the cast redrawn in photoreal to their new files (2026-11-07 audit, item 15)", () => {
-    for (const id of ["house-nell", "house-juniper", "house-sable"]) expect(characterPortrait(id)).toBe(`/cast/${id}-v4.webp`);
+  it("After Dark keeps each house character's portrait from before the house look: v4 for the three redrawn in photoreal, else v3", () => {
+    for (const id of ["house-nell", "house-juniper", "house-sable"]) expect(afterDarkPortrait(id)).toBe(`/cast/${id}-v4.webp`);
+    expect(afterDarkPortrait("house-rafe")).toBe("/cast/house-rafe-v3.webp");
+    expect(afterDarkPortrait("some-random-oc-id")).toBeNull();
+    for (const id of HOUSE_PORTRAIT_IDS) {
+      expect(afterDarkPortrait(id)).not.toBe(characterPortrait(id));
+      expect(files.has(afterDarkPortrait(id)!.replace("/cast/", "")), id).toBe(true);
+    }
+  });
+
+  it("the show draws the fixed house cast in 2.5D and anyone else in their own style", () => {
+    expect(showStyleOf({ id: "house-rafe", extras: null })).toBe("semi_real");
+    expect(showStyleOf({ id: "oc-1", extras: { looks: { style: "anime" } } })).toBe("anime");
+    expect(showStyleOf({ id: "oc-2", extras: null })).toBe("realistic");
   });
 
   it("maps a venue to its backdrop; a venue without one yet, or an unknown id, to none", () => {

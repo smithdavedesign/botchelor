@@ -134,6 +134,19 @@ rich but controlled color, clean linework on faces, expressive eyes, reality-sho
 - **The house look:** the house and season cast are redrawn in the chosen look: hero, full body, confessional and six
   expressions each. That's about 180 pictures over 2–3 days of free budget (about 80 a day), uploaded through the
   checked admin path. Six faces drawn to one sheet would make that about 80 pictures.
+  - **Built (3c), on David's pick of look A:** all 18 house characters were redrawn from their own portraits in look A
+    (painterly 2.5D) on the free Worker, reviewed side by side (likeness, skin tone, age), and committed as
+    `public/cast/house-<id>-v5.webp`. One redraw lightened a deep brown face, so it was drawn again with a line keeping
+    the photograph's skin tone, which every redraw now carries.
+    - **Their face on the show** is the house-look portrait (`prompt_version` `house-look-a` in the asset ledger).
+      `showStyleSql` (`lib/portrait-sql.ts`) reads the face, so their show shots, the face kit, PG Studio, the style
+      filter and the demand counts treat them as 2.5D.
+    - **After Dark doesn't change.** Their own style stays unset, so its gate still lets them in, and it keeps starting
+      their pictures from the portrait before the house look (`afterDarkPortrait`; ledger rows of the house look are
+      skipped), until phase 8's gates.
+    - **Newcomers:** season-gen draws each one's photograph on Venice as before, then redraws it in the house look on the
+      Worker (`lib/house-look.ts`). The house-look one is their face and the one the admin reviews; approving a
+      candidate approves both. With no free pictures left, the photograph stays their face until a redraw.
 - **Sets** (16:9, empty, no lettering, not even a sign):
   - the stage, the blind-date booth, the confessional and elimination;
   - four themed venues with their sets: a gothic manor (spooky, supernatural), a countryside picnic (cozy), a

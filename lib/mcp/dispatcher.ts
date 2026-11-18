@@ -128,7 +128,8 @@ import { OC_QUESTION_THEMES } from "../oc-questions";
 import { characterCredits, characterCreditsOn } from "../profile/credits";
 import { characterStatuses, characterTags } from "../character-tags";
 import { CHARACTER_TAG_IDS, isCharacterTag } from "../character-tags-shared";
-import { ART_STYLES, artStyleFrom, artStyleSql, isArtStyle, type ArtStyle } from "../art-style";
+import { ART_STYLES, artStyleFrom, isArtStyle, type ArtStyle } from "../art-style";
+import { showStyleSql } from "../portrait-sql";
 import { isStatus, STATUS_IDS, STATUSES } from "../tags";
 import { listShowIdeasTool, proposeShowIdeaTool, voteShowIdeaTool } from "./shows";
 import { getHouseScene, getHouseTalk, getStorySoFar, HOUSE_TOOL_NAMES, HOUSE_TOOLS_OFF, isHouseTool, mcpHouseOn, myStoryState, sceneAbout } from "./house";
@@ -5522,7 +5523,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const [{ episodes, record }, memory, week, credits, tagged, love] = await Promise.all([
         getCharacterHistory(db, id, 5),
         loadCharacterMemory(db, id),
-        db.query<{ this_week: StoredThisWeek | null; art_style: string }>(`select c.this_week, ${artStyleSql("c")} as art_style from characters c where c.id = $1`, [id]),
+        db.query<{ this_week: StoredThisWeek | null; art_style: string }>(`select c.this_week, ${showStyleSql("c")} as art_style from characters c where c.id = $1`, [id]),
         // 2.34.0: the seasons it has been in, as what, and what came of it (lib/profile/credits.ts): the public record.
         characterCreditsOn() ? characterCredits(db, [id]).then((m) => m.get(id) ?? [], () => []) : Promise.resolve([]),
         // 2.36.0: what kind of person (lib/character-tags.ts) and their love life, read from the graph's public layer.

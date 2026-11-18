@@ -130,6 +130,9 @@
     "replicate",
     "settings"
   ],
+  "lib/house-look.ts": [
+    "moderation"
+  ],
   "lib/key-store-admin.ts": [
     "settings"
   ],

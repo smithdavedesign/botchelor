@@ -49,10 +49,10 @@ const episodePage = async (id: string, cookie: string | null) => {
   as(cookie);
   return renderToStaticMarkup(await EpisodePage({ params: Promise.resolve({ id }), searchParams: Promise.resolve({}) }));
 };
-/** Ready shots of a house character, drawn from their portrait file in the photographic style they have. */
+/** Ready shots of a house character, drawn from their portrait file in the house look (2.5D, the show's style for them). */
 async function readyShots(characterId: string, shots: readonly Shot[]) {
   for (const s of shots) {
-    await t.db.query(`insert into show_shots (id, character_id, portrait_key, style, shot, status, model) values ($1, $2, $3, 'realistic', $4, 'ready', 'm')`, [
+    await t.db.query(`insert into show_shots (id, character_id, portrait_key, style, shot, status, model) values ($1, $2, $3, 'semi_real', $4, 'ready', 'm')`, [
       `${s}-${characterId}`,
       characterId,
       `static:${characterPortrait(characterId)}`,

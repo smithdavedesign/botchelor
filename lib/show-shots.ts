@@ -15,7 +15,8 @@
  *
  * Served by /api/shots/<id>.webp (public, PG, never changes once ready), marked AI-generated like every drawn picture.
  */
-import { artStyleFrom, artStyleSql, isDrawnStyle, STYLE_WORDS, type ArtStyle } from "./art-style";
+import { artStyleFrom, isDrawnStyle, STYLE_WORDS, type ArtStyle } from "./art-style";
+import { showStyleSql } from "./portrait-sql";
 import { checkMedia, checkReady, isVerdict } from "./adult/moderation";
 import type { Db } from "./db";
 import { dataColumn, keepBytes, readBytes } from "./object-store";
@@ -115,7 +116,7 @@ export { shotsFor, shotsJsonSql, shotUrl, shotUrlsOf } from "./show-shots-sql";
 /** The portrait a character's shots come from: their newest approved PG portrait, else a house character's file. */
 export async function shotSource(db: Db, characterId: string, baseUrl: string): Promise<{ portraitKey: string; url: string; style: ArtStyle } | null> {
   const { rows } = await db.query<{ asset_id: string | null; asset_url: string | null; style: string }>(
-    `select a.id as asset_id, a.url as asset_url, ${artStyleSql("c")} as style
+    `select a.id as asset_id, a.url as asset_url, ${showStyleSql("c")} as style
        from characters c
        left join lateral (
          select id, url from character_assets

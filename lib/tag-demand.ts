@@ -22,6 +22,7 @@
  *  - lineup (lineupDemand): the pronouns filter and conversations, by the pronouns of who people look for.
  */
 import { ART_STYLE_LABEL, artStyleSql } from "./art-style";
+import { showStyleSql } from "./portrait-sql";
 import type { Db } from "./db";
 import { loadOurIds } from "./our-traffic";
 import { DATE_ROLEPLAYS } from "./roleplays";
@@ -164,12 +165,12 @@ export async function artStyleDemand(db: Db): Promise<Demand & { sources: FacetS
     ),
     countBy(
       db,
-      `select ${artStyleSql("c")} as v, count(*)::int as n from companion_threads t join characters c on c.id = t.character_id
+      `select ${showStyleSql("c")} as v, count(*)::int as n from companion_threads t join characters c on c.id = t.character_id
         where not (t.user_id = any($1::text[])) and t.created_at > now() - make_interval(days => $2::int)
         group by 1`,
       [us, DEMAND_DAYS],
     ),
-    supplyBy(db, artStyleSql("c")),
+    supplyBy(db, showStyleSql("c")),
   ]);
   const d = facetDemand("art_style", sumOf(made, filtered, chats), supply, ART_STYLE_VALUES);
   return { ...d, sources: sourcesOf(ART_STYLE_VALUES, { made, filtered, chats }) };

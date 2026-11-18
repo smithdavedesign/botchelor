@@ -1,3 +1,4 @@
+import sharp from "sharp";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { GET as assetGet } from "@/app/api/assets/[id]/route";
 import { GET as adminGet, POST as adminPost } from "@/app/api/admin/season/route";
@@ -25,6 +26,8 @@ import { SHEET_WORDS_MAX, SHEET_WORDS_MIN } from "@/lib/sheet-words";
 import { linksOf } from "@/lib/character-links";
 import { getDirectorModel, type Model } from "@/lib/model";
 import { characterPortrait } from "@/lib/portraits";
+import { showStyleSql } from "@/lib/portrait-sql";
+import { artStyleSql, HOUSE_LOOK_VERSION, HOUSE_LOOK_WORDS } from "@/lib/art-style";
 import { api, BASE_URL, newUserCookie, scriptedModel, startTestDb, userIdOf, validCharacter } from "./helpers";
 
 /** The model, scripted with these replies. */
@@ -212,6 +215,66 @@ describe("writing a candidate", () => {
     expect(newcomerPronouns(["he/him", "he/him"])).toEqual(["she/her", "she/her"]);
     expect(newcomerPronouns(["they/them", "she/her"])).toEqual(["he/him", "she/her"]);
     expect(newcomerPronouns([])).toEqual(["she/her", "he/him"]);
+  });
+
+  it("redraws a newcomer in the house look from their photograph: the show's face, while After Dark keeps the photograph", async () => {
+    await keys();
+    fakeProviders();
+    // A real picture this time: the redraw shrinks the photograph to send it as image 0.
+    const photo = (await sharp({ create: { width: 48, height: 64, channels: 3, background: { r: 120, g: 80, b: 60 } } }).png().toBuffer()).toString("base64");
+    setMediaFetchForTests(async () => Response.json({ images: [photo] }));
+    // The Worker's pictures have no filter of their own, so their check asks the explicit question too (general_nsfw).
+    setCheckFetchForTests(async (input: RequestInfo | URL) =>
+      Response.json(
+        String(input) === HIVE_VLM
+          ? { choices: [{ message: { content: "ADULTS" } }] }
+          : { output: [{ classes: [{ class: "yes_child_present", value: 0.01 }, { class: "no_child_present", value: 0.99 }, { class: "general_nsfw", value: 0.01 }] }] },
+      ),
+    );
+    vi.stubEnv("WORKERS_AI_URL", "https://images.worker.test");
+    vi.stubEnv("WORKERS_AI_KEY", "a-test-gate-key-0123456789");
+    const asked: string[] = [];
+    vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input) !== "https://images.worker.test/draw") return new Response("?", { status: 500 });
+      asked.push(String((init?.body as FormData).get("prompt")));
+      return Response.json({ image: photo, model: "@cf/black-forest-labs/flux-2-klein-4b", neurons: 109.6, used: 109.6, limit: 9000 });
+    });
+    try {
+      const r = await generateCandidates(t.db, "2026-11-01", script([JSON.stringify(draft("Odessa Brine"))]), 1);
+      expect(r.errors).toEqual([]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+    expect(asked).toHaveLength(1);
+    expect(asked[0]).toContain(HOUSE_LOOK_WORDS);
+    expect(asked[0]).toMatch(/grey-streaked locs/);
+    expect(asked[0]).toMatch(/Keep their skin exactly as light or dark as in image 0/);
+
+    const assets = async () =>
+      (await t.db.query<{ id: string; prompt_version: string; review_status: string }>(`select id, prompt_version, review_status from character_assets where character_id = 'house-odessa' order by created_at`)).rows;
+    const [shot, look] = await assets();
+    expect([shot.prompt_version, look.prompt_version]).toEqual(["season-gen-v1", HOUSE_LOOK_VERSION]);
+    // The admin reviews the face the show will use; approving approves both.
+    const [c] = await listCandidates(t.db, "2026-11-01");
+    expect(c.portrait_asset).toBe(look.id);
+    await reviewCandidate(t.db, "house-odessa", "approved");
+    expect((await assets()).map((a) => a.review_status)).toEqual(["approved", "approved"]);
+
+    const style = async (sql: string) => (await t.db.query<{ s: string }>(`select ${sql} as s from characters c where c.id = 'house-odessa'`)).rows[0].s;
+    expect(await style(showStyleSql("c"))).toBe("semi_real");
+    // After Dark's gate reads their own style, which stays a photograph's.
+    expect(await style(artStyleSql("c"))).toBe("realistic");
+  });
+
+  it("keeps the photograph as a newcomer's face when the free pictures are off", async () => {
+    await keys();
+    fakeProviders();
+    await generateCandidates(t.db, "2026-11-01", script([JSON.stringify(draft("Odessa Brine"))]), 1);
+    const [c] = await listCandidates(t.db, "2026-11-01");
+    const rows = (await t.db.query<{ id: string; prompt_version: string }>(`select id, prompt_version from character_assets where character_id = 'house-odessa'`)).rows;
+    expect(rows).toEqual([{ id: c.portrait_asset, prompt_version: "season-gen-v1" }]);
+    await reviewCandidate(t.db, "house-odessa", "approved");
+    expect((await t.db.query<{ s: string }>(`select ${showStyleSql("c")} as s from characters c where c.id = 'house-odessa'`)).rows[0].s).toBe("realistic");
   });
 
   it("discards a portrait the check refuses, and keeps the candidate without one", async () => {

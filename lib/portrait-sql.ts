@@ -2,7 +2,9 @@
  * The portrait SQL, apart from lib/assets.ts so a module the browser bundle also reads (lib/originality.ts, via
  * /create) can use it: lib/assets.ts pulls in sharp (lib/compact-image.ts), which can't build for the browser.
  */
+import { artStyleSql, HOUSE_LOOK_VERSION } from "./art-style";
 import type { Db } from "./db";
+import { HOUSE_PORTRAIT_IDS } from "./portraits";
 
 /**
  * The newest approved portrait of the character whose id is the SQL expression `characterId`. Only a pg one: a
@@ -37,3 +39,16 @@ export async function withPortraits<T extends { id: string }>(db: Db, items: T[]
   return items.map((i) => ({ ...i, portrait: byId.get(i.id) ?? null }));
 }
 
+/**
+ * SQL on `alias`: how the show draws the character (PRD styles-and-storylines phase 3). A house character whose face is
+ * a house-look portrait is drawn in 2.5D: their newest approved PG portrait is one (HOUSE_LOOK_VERSION), or they have
+ * none and their committed file is (lib/portraits.ts v5), the same face the shots start from (lib/show-shots.ts
+ * shotSource). Anyone else, in their own style (artStyleSql). It goes by the face, not by is_house alone, so a newcomer
+ * whose house-look redraw hasn't been drawn yet keeps a photograph's shots until it is. Their own style stays unset, and
+ * After Dark's gate reads artStyleSql, never this, so the house cast stays in After Dark as photographs.
+ */
+export const showStyleSql = (alias: string): string =>
+  `(case when ${alias}.is_house and coalesce(
+      (select coalesce(portrait_asset.prompt_version, '') ${approvedPortraitSelect(`${alias}.id`).replace(/^select portrait_asset\.id /, "")}),
+      case when ${alias}.id in (${[...HOUSE_PORTRAIT_IDS].map((id) => `'${id}'`).join(", ")}) then '${HOUSE_LOOK_VERSION}' end
+    ) = '${HOUSE_LOOK_VERSION}' then 'semi_real' else ${artStyleSql(alias)} end)`;
