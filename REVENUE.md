@@ -1,6 +1,23 @@
 # Botchelor: path to the first dollar
 
-## Where it stands (2026-10-21)
+## Where it stands (2026-11-17)
+
+- **For sale:** a 5-date pack ($4) and a 15-date pack ($10) on Stripe Payment Links, the Companion Plan ($9.99 a
+  month) and the agents' operator pass ($9 a month). After Dark's subscription and tokens are built for adult card
+  processors and stay off until one approves the application. Every price, where it's set and why:
+  [docs/pricing-and-byok.md](docs/pricing-and-byok.md).
+- **Sales:** none from outside buyers yet. Real use is near zero: 48 visitors in the 30 days to 2026-11-14.
+- **Costs:** the monthly bill and every per-operation cost are in [docs/costs.md](docs/costs.md); the public ledger
+  is `/costs`.
+- **The business:** Botchelor LLC (California) was filed on 2026-11-13 and is pending review. Its next steps (EIN, bank,
+  the CCBill packet) are in [docs/after-dark-business-setup.md](docs/after-dark-business-setup.md).
+- **Getting visitors:** [GROWTH.md](GROWTH.md) (what RepoHQ measures) and [docs/marketing.md](docs/marketing.md) (who
+  posts where).
+
+The sections below are the earlier snapshots and the plan of 2026-10-13 to 10-16. Its reasoning about who pays still
+holds; its prices and kill date have been overtaken.
+
+## Earlier: where it stood (2026-10-21)
 
 - **Costs:** ~$25 a month fixed (Vercel Pro, shared with other projects; Neon Launch since 2026-10-20; the domain), and ~$40–50 used so far. See [docs/costs.md](docs/costs.md). (2026-10-30: off Vercel; the show and After Dark run on DigitalOcean, [docs/hosting.md](docs/hosting.md), with the new monthly figures in docs/costs.md.)
 - **Sales:** still none from outside buyers. The one live order (a $4 pack, 2026-10-16) was David's own account checking the flow end to end.

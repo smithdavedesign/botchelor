@@ -334,12 +334,27 @@ Also current:
 - [Launch kit](docs/launch-kit.md): Season 1 post drafts, tagged links, the MCP directories (Registry, mcp.so, Glama) and an r/mcp post
 - [The show's Discord](docs/discord.md): what the bot posts and when (the episode digest, Sunday's vote, the board), its settings, and setting up the server
 - [Relationship simulation evidence](docs/relationship-sim-evidence.md): ten couples on five dates each, on the stub and on the real model (`npm run sim:relationships`) — what holds together, what grows, what was fixed (engine v3, memory, names, labels), and what only live players can answer
-- [Research](RESEARCH.md): the idea-stage findings and sources (2026-10-13)
+
+By area:
+
+- **The show:** [Seasons](docs/seasons.md), [a lead season's page](docs/season-page.md), [the Sunday premiere](docs/sunday-premiere.md), [the Sunday letter](docs/newsletter.md), [the story check](docs/story-check.md), [casting invites](docs/casting-invites.md), [show ideas](docs/show-ideas.md), [the show's style](docs/show-style.md), [episode cuts](docs/clips/episode-cuts.md)
+- **Characters and dates:** [character depth](docs/character-depth.md), [the relationship graph](docs/relationship-graph.md), [swipes](docs/swipes.md), [looks](docs/looks.md), [tags](docs/tags.md), [writing styles](docs/writing-styles.md), [scene cards](docs/scene-cards.md), [step into the date](docs/step-into-the-date.md), [languages](docs/languages.md), [the frontier model](docs/frontier.md)
+- **Companions:** [companions](docs/companions.md), [companion quality](docs/companion-quality.md)
+- **After Dark:** [After Dark](docs/after-dark.md) (its first table maps the rest: hosting, costs, the legal review, the business setup, the processor application)
+- **Agents and growth:** [the house crowd](docs/house-crowd.md), [the self-improving loop](docs/self-improving-loop.md), [the agent visitor test](docs/agent-visitor-test.md) (the loop's triage reads it), [SEO and tracking](docs/seo-and-tracking.md), [analytics](docs/analytics.md), [people's feedback](docs/feedback.md), [ideas](docs/ideas.md)
+- **The business:** [the company pages](docs/company.md), [the safety protocol](docs/safety-protocol.md), [the design system rollout](docs/design-system-rollout.md), [a showcase draft for counsel](docs/legal/showcase-draft.md)
+- **PRDs:** [After Dark](docs/PRDs/after-dark.md), [the Studio](docs/PRDs/studio.md), [the Agent World](docs/PRDs/agent-world.md), [Connections](docs/PRDs/connections.md), [the creator suite](docs/PRDs/creator-suite.md), [the showcase](docs/PRDs/showcase.md), [the reel storyboard](docs/PRDs/reel-storyboard.md), [group dates](docs/PRDs/group-dates.md), [roleplays](docs/PRDs/roleplays.md), [styles and storylines](docs/PRDs/styles-and-storylines.md), [the theater](docs/PRDs/theater-immersion.md), [digital humans](docs/PRDs/digital-human.md)
+
+The idea pipeline and RepoHQ read the root files by name, so they stay at the root: [RESEARCH.md](RESEARCH.md) and
+[REVIEW.md](REVIEW.md) (the idea-stage research and review, 2026-10-13), [REVENUE.md](REVENUE.md) (where the money
+stands, then the first plan), [GROWTH.md](GROWTH.md) (what RepoHQ measures) and [LAUNCH-READY.md](LAUNCH-READY.md) (the
+2026-11-01 launch pass).
 
 Retired and dated records are in [docs/history/](docs/history/): the build log and roadmap to 2026-10-16, the notes
 of 2026-10-19 to 21, and, retired on 2026-11-17 with a banner naming what replaced each, the day-one PRDs, the
-upgrade-cost proposal, the image strategy, the competitive scorecard and competitor analysis, the agent visitor test,
-the MCP split plan, simulation and best-practices review, and the marketing pipeline plan.
+upgrade-cost proposal, the image strategy, the competitive scorecard and competitor analysis, the MCP split plan,
+simulation and best-practices review, the marketing pipeline plan, the revenue angles of 2026-10-22, and After Dark's
+research on processors, moderation past Hive's cap and competitors.
 
 ## Installation & Setup
 

@@ -84,4 +84,4 @@ Press and reviews: [404 Media on Character.AI](https://www.404media.co/lobotomiz
 - CrushOn wasn't covered.
 - Evidence of what users praise is thin: review-site opinion, not surveys.
 
-Related: [after-dark-competitors-steering.md](../after-dark-competitors-steering.md), [companions.md](../companions.md), [writing-styles.md](../writing-styles.md), [stages.md](../stages.md).
+Related: [after-dark-competitors-steering.md](../history/after-dark-competitors-steering.md), [companions.md](../companions.md), [writing-styles.md](../writing-styles.md), [stages.md](../stages.md).

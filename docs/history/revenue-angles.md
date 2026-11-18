@@ -1,8 +1,10 @@
+> Retired 2026-11-17: replaced by [docs/pricing-and-byok.md](../pricing-and-byok.md) (what is for sale, at what price, and why) and [REVENUE.md](../../REVENUE.md) (where the money stands). Kept as the 2026-10-22 list of options.
+
 # Revenue angles: how Botchelor could make money
 
 _2026-10-22. Honest list of options with the posture that pays off in beta: track everything, charge for the cheap paths behind an anti-abuse gate, keep expensive paths on tokens or BYOK, defer paid acquisition until the organic funnel moves._
 
-_The agent/MCP strategy these angles feed is laid out in full in [PRDs/agent-world.md](PRDs/agent-world.md) — the operator pass is its Phase 0._
+_The agent/MCP strategy these angles feed is laid out in full in [PRDs/agent-world.md](../PRDs/agent-world.md) — the operator pass is its Phase 0._
 
 ## Ranked by likelihood under current traffic (~40 web visitors/week)
 

@@ -19,6 +19,19 @@ test scaffold); this table is what is built now.
 | The door | The header's After Dark door shows to anyone After Dark is open to. Showing it to every adult where After Dark isn't blocked, landing on the subscribe page (taste, invite request, waitlist), is the `public_door` switch: admins only by default, until it is switched to everyone in the settings' Not open yet tab | `lib/adult/door.ts`, `lib/adult/rollout.ts` |
 | Host | Its own host, `ad.botchelor.com` (`AFTER_DARK_ONLY=1`) | `lib/after-dark-host.ts`, [after-dark-hosting.md](after-dark-hosting.md) |
 
+**The After Dark docs.** This file is the single source for what is built and its rules; its later sections are
+dated feature notes, newest at the end. The rest:
+
+| Doc | What it holds |
+|---|---|
+| [after-dark-hosting.md](after-dark-hosting.md) | The runbook for its own host and its media storage |
+| [after-dark-costs.md](after-dark-costs.md) | What each part costs to run, what we charge and what we keep |
+| [after-dark-legal-review.md](after-dark-legal-review.md) | The legal review: age checks, payments, hosting and model terms |
+| [after-dark-business-setup.md](after-dark-business-setup.md) | The business steps only David can do (LLC, EIN, bank, processor) |
+| [after-dark-processor-application.md](after-dark-processor-application.md) | The processor application packet and the go-live steps |
+| [PRDs/after-dark.md](PRDs/after-dark.md), [PRDs/studio.md](PRDs/studio.md) | The original plan (with a status note on what is true now) and the Studio's PRD |
+| [history/](history/) | Retired research: the processor comparison, the moderation options past Hive's cap, and what competitors did |
+
 ## The entitlement gate (the money path) — #2
 
 The NSFW switch is **per account and per character**, and a switch is toggle-able only when **all three** hold:
@@ -2407,8 +2420,8 @@ when the picture or character goes (cascade), and are never read by an export. T
 
 ### Follow-ups from the competitor research (2026-10-24)
 
-What other products do is in docs/after-dark-competitors-steering.md. Getting past Hive's daily cap is in
-docs/after-dark-moderation-options.md. The first three of its recommendations:
+What other products do is in docs/history/after-dark-competitors-steering.md. Getting past Hive's daily cap is in
+docs/history/after-dark-moderation-options.md. The first three of its recommendations:
 
 - **A picture the viewer 👎'd never starts a video.** `beatPictureFor` (lib/adult/beats.ts) skips a beat picture
   its viewer 👎'd, so the shot draws a fresh, steered keyframe. A shot costs far more than a keyframe, so it isn't

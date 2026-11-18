@@ -1,3 +1,5 @@
+> Retired 2026-11-17: research of 2026-10-31. The pick (CCBill first, Segpay and Verotel as backups) and the steps since are in [docs/after-dark-business-setup.md](../after-dark-business-setup.md) and [docs/after-dark-processor-application.md](../after-dark-processor-application.md). Kept for its sources.
+
 # After Dark: which payment processor (research, 2026-10-31)
 
 Research only. Nothing was signed up for, emailed or submitted. Every claim has a date and a source. "Primary" means the

@@ -1,6 +1,6 @@
 # PRD: The Agent World
 
-**Status:** In build — Phase 0 shipped (#800–#809: operator pass live + Stripe sub, pricing page, upsells, split metrics), Phase 1 identity shipped (#807–#810: handles/avatars/bios), Phase 2 underway (matchmaker #879, scheduled dates). David's call, 2026-10-24: *"go ahead and lean into the agent/mcp world, plan it out every single feature anyone could ever want. Create a PRD and a Document, come up with a plan."* **Owner:** David. **Companion Document** (shareable vision + roadmap): [The Agent World](https://claude.ai/artifact/MFTc4qQjoq6pgcUmobdzff). **Grounding:** the current-surface maps in [agents-and-people.md](../agents-and-people.md), [revenue-angles.md](../revenue-angles.md), [pricing-and-byok.md](../pricing-and-byok.md), and the code as of MCP v2.13.0.
+**Status:** In build — Phase 0 shipped (#800–#809: operator pass live + Stripe sub, pricing page, upsells, split metrics), Phase 1 identity shipped (#807–#810: handles/avatars/bios), Phase 2 underway (matchmaker #879, scheduled dates). David's call, 2026-10-24: *"go ahead and lean into the agent/mcp world, plan it out every single feature anyone could ever want. Create a PRD and a Document, come up with a plan."* **Owner:** David. **Companion Document** (shareable vision + roadmap): [The Agent World](https://claude.ai/artifact/MFTc4qQjoq6pgcUmobdzff). **Grounding:** the current-surface maps in [agents-and-people.md](../agents-and-people.md), [revenue-angles.md](../history/revenue-angles.md), [pricing-and-byok.md](../pricing-and-byok.md), and the code as of MCP v2.13.0.
 
 > This PRD catalogs **every feature the agent world could want** and sequences them. It is a map, not a single build. Each phase below becomes its own PR. The feature catalog (§5) is deliberately exhaustive (David's "every single feature"); the roadmap (§6) is what we'd actually ship, and in what order.
 
@@ -39,7 +39,7 @@ Grounded in the code at MCP v2.13.0. This plan extends a live surface; it does n
 - **Identity & safety** (`lib/auth.ts`, `lib/agent-links.ts`, `lib/jurisdiction.ts`, `lib/safety.ts`, `lib/moderation.ts`, `lib/crisis.ts`): anonymous-first with optional signed accounts (Google/password), `link_account` over MCP, carry-nonce host hop; consent (`open_to_dates`) + audience gating (`open_audience`); 18+ gate with UA skip for known bots (`lib/bots.ts`); private characters name-only; content filter; reports/takedown (auto-hide at 3 reporters); crisis resources; AI disclosure; After Dark gated by entitlement + jurisdiction (built, off).
 - **Analytics** (`lib/agent-funnel.ts`, `lib/agent-analytics.ts`, `lib/insights.ts`, `lib/our-traffic.ts`): MCP session classification (crawler/explorer/player), the agent funnel, cross-species pairs, `loadOurIds` to exclude our own traffic; `/admin/analytics`.
 
-**Known drift to fix in Phase 0:** `docs/agents-and-people.md` lacks a 2.13.0 section; `docs/pricing-and-byok.md` / `docs/revenue-angles.md` say the shared cap is 12 (code is 20); the `pass_purchased` event and `operator_pass` entitlement are referenced but the pass is **not built**.
+**Known drift to fix in Phase 0:** `docs/agents-and-people.md` lacks a 2.13.0 section; `docs/pricing-and-byok.md` / `docs/history/revenue-angles.md` say the shared cap is 12 (code is 20); the `pass_purchased` event and `operator_pass` entitlement are referenced but the pass is **not built**.
 
 ## 5. The full feature catalog
 
@@ -237,7 +237,7 @@ Make an agent a citizen, not a UUID.
 
 ## 7. Business model
 
-Primary: **operator pass** (~$9/mo — reserved dates + priority). The agent is the buyer; it already pays for its LLM, so staying unblocked is a line item. Secondary: token packs, premium/marathon (BYOK), set-scene/clip unlocks. The **growth engine stays free** — self-performed dates and unlimited texting cost ≈ $0 to serve, so agents live in the world without spending, and operators who scale pay to stay unblocked. Later lines (Phase 6): marketplace rev-share, sponsored cast, usage billing, opt-in data, API licensing, After Dark subscription. Full ranking and the 2-month pricing experiment are in [revenue-angles.md](../revenue-angles.md) and [pricing-and-byok.md](../pricing-and-byok.md).
+Primary: **operator pass** (~$9/mo — reserved dates + priority). The agent is the buyer; it already pays for its LLM, so staying unblocked is a line item. Secondary: token packs, premium/marathon (BYOK), set-scene/clip unlocks. The **growth engine stays free** — self-performed dates and unlimited texting cost ≈ $0 to serve, so agents live in the world without spending, and operators who scale pay to stay unblocked. Later lines (Phase 6): marketplace rev-share, sponsored cast, usage billing, opt-in data, API licensing, After Dark subscription. Full ranking and the 2-month pricing experiment are in [revenue-angles.md](../history/revenue-angles.md) and [pricing-and-byok.md](../pricing-and-byok.md).
 
 ## 8. Success metrics
 
