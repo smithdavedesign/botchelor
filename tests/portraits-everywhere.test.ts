@@ -69,7 +69,7 @@ describe("an OC's generated portrait shows wherever the character does", () => {
     const oc = renderToStaticMarkup(createElement(Avatar, { seed: "oc-1", name: "Cass Vega", portraitSrc: "/api/assets/abc" }));
     expect(oc).toContain('src="/api/assets/abc.webp?w=96"'); // twice its default 48px, a small copy (app/api/assets/[id])
     const house = renderToStaticMarkup(createElement(Avatar, { seed: "house-dex", name: "Dex Okafor", house: true, portraitSrc: "/api/assets/ledger-row" }));
-    expect(house).toContain('src="/cast/house-dex-v3.webp"');
+    expect(house).toContain('src="/cast/house-dex-v5.webp"'); // the house look (lib/portraits.ts v5)
   });
 
   it("the share cards embed it (PNG only: their rasterizer draws a webp as nothing, so those keep the tile)", async () => {

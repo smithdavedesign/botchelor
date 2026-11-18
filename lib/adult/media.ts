@@ -17,7 +17,8 @@
 import type { Character } from "../character";
 import type { Db } from "../db";
 import { ALL_HOUSE_CHARACTERS } from "../house";
-import { characterPortrait } from "../portraits";
+import { HOUSE_LOOK_VERSION } from "../art-style";
+import { afterDarkPortrait } from "../portraits";
 import { siteUrl } from "../site";
 import { IMAGE_MIN_AGE, LOOK_STEPS, looksPictureWords, optionPrompt, optionsFor, type Gender } from "../looks";
 import { crossesTaboo } from "./acts";
@@ -630,18 +631,19 @@ async function baselineFromPortrait(db: Db, ownerId: string, c: Character, url: 
 /**
  * The show portrait a baseline starts from: a house character's file, else their newest approved pg portrait that a
  * model drew (never an uploaded one). Without the second, a people's or recast character's baseline was drawn from words,
- * a stranger (2026-11-04: Carson Vallis kept his pre-recast face in After Dark).
+ * a stranger (2026-11-04: Carson Vallis kept his pre-recast face in After Dark). Never a house-look one: After Dark only
+ * draws photographs, so the house cast starts from their portrait before the 2.5D redraw (lib/portraits.ts).
  */
-async function showPortrait(db: Db, c: Character): Promise<string | null> {
-  const house = characterPortrait(c.id);
+export async function showPortrait(db: Db, c: Character): Promise<string | null> {
+  const house = afterDarkPortrait(c.id);
   if (house) return house;
   const { rows } = await db
     .query<{ id: string }>(
       `select a.id from character_assets a
         where a.character_id = $1 and a.kind = 'portrait' and a.review_status = 'approved' and a.url is not null
-          and a.content_rating = 'pg' and a.source_type = 'generated'
+          and a.content_rating = 'pg' and a.source_type = 'generated' and coalesce(a.prompt_version, '') <> $2
         order by a.created_at desc limit 1`,
-      [c.id],
+      [c.id, HOUSE_LOOK_VERSION],
     )
     .catch(() => ({ rows: [] as { id: string }[] }));
   return rows[0] ? `/api/assets/${rows[0].id}` : null;

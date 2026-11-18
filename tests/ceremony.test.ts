@@ -146,7 +146,7 @@ describe("the vote (lib/ceremony.ts)", () => {
     expect(board.lead.id).toBe(LEAD);
     // The lead's rose shot (lib/show-shots.ts) rides along once it's drawn: the card shows them holding it out.
     expect(board.lead.rose).toBeNull();
-    await t.db.query(`insert into show_shots (id, character_id, portrait_key, style, shot, status, model) values ('rose-1', $1, $2, 'realistic', 'rose', 'ready', 'm')`, [
+    await t.db.query(`insert into show_shots (id, character_id, portrait_key, style, shot, status, model) values ('rose-1', $1, $2, 'semi_real', 'rose', 'ready', 'm')`, [
       LEAD,
       `static:${characterPortrait(LEAD)}`,
     ]);

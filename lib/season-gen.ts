@@ -19,6 +19,7 @@ import { BIO_MAX } from "./field-limits";
 import { NO_FRANCHISE_WORDS } from "./franchise-words";
 import { franchiseHits, franchiseRefusal } from "./franchises";
 import { ALL_HOUSE_CHARACTERS } from "./house";
+import { drawHouseLook } from "./house-look";
 import { getDirectorModel, type ChatMessage, type Model } from "./model";
 import { characterPortrait } from "./portraits";
 import { popularity } from "./reviews";
@@ -262,9 +263,14 @@ export async function makePortrait(db: Db, characterId: string): Promise<string>
       // Venice's safe mode, and the show's check passed it.
       content_rating: "pg",
     });
-    await db.query(`update season_candidates set portrait_asset = $2, check_note = 'passed' where character_id = $1`, [characterId, asset]);
+    // The house look (lib/house-look.ts): their face on the show, redrawn in 2.5D from this photograph on the free Worker.
+    // The photograph stays in the ledger as After Dark's. Out of free pictures, the photograph is their face until a redraw.
+    const look = c.house ? await drawHouseLook(db, { id: c.id, look: houseLook ?? c.look.physical ?? physicalLook(c), age: c.age, hue: c.look.hue }, pic.bytes) : null;
+    const face = look?.ok ? look.assetId : asset;
+    await db.query(`update season_candidates set portrait_asset = $2, check_note = 'passed' where character_id = $1`, [characterId, face]);
     if (c.house && !(await unapprovedCandidate(db, characterId))) {
       await reviewAsset(db, asset, "approved", "the show's own portrait, redrawn by an admin: drawn from their look in safe mode, PG-checked");
+      if (look?.ok) await reviewAsset(db, look.assetId, "approved", "the show's own portrait in the house look, redrawn from that photograph: PG-checked");
       const file = characterPortrait(characterId);
       return file ? `made and approved: the show draws them from ${file} until this one is committed there (lib/portraits.ts)` : "made: it's their portrait now";
     }
@@ -295,11 +301,19 @@ export async function listCandidates(db: Db, seasonId: string): Promise<Candidat
   return rows.map((r) => ({ ...r, created_at: new Date(r.created_at).toISOString() }));
 }
 
-/** An admin's decision on a candidate: approving also approves its portrait; rejecting rejects both. */
+/**
+ * An admin's decision on a candidate: approving also approves their portraits; rejecting rejects them all. Portraits,
+ * plural: the photograph (After Dark's) and the house-look one drawn from it (the show's, lib/house-look.ts).
+ */
 export async function reviewCandidate(db: Db, characterId: string, status: "approved" | "rejected"): Promise<boolean> {
   const row = (await db.query<{ portrait_asset: string | null }>(`update season_candidates set status = $2, reviewed_at = now() where character_id = $1 returning portrait_asset`, [characterId, status])).rows[0];
   if (!row) return false;
-  if (row.portrait_asset) await reviewAsset(db, row.portrait_asset, status, "season candidate");
+  const pending = await db.query<{ id: string }>(
+    `select id from character_assets where character_id = $1 and kind = 'portrait' and review_status = 'pending' order by created_at`,
+    [characterId],
+  );
+  const ids = new Set([...pending.rows.map((r) => r.id), ...(row.portrait_asset ? [row.portrait_asset] : [])]);
+  for (const id of ids) await reviewAsset(db, id, status, "season candidate");
   return true;
 }
 

@@ -2,7 +2,7 @@
  * Reading the show kit's shots (lib/show-shots.ts) for a page: which are current, as addresses. Kept apart from the
  * drawing so the pages' queries (lib/game.ts, lib/watch.ts, lib/ceremony.ts) don't load the checker or the image code.
  */
-import { artStyleSql } from "./art-style";
+import { showStyleSql } from "./portrait-sql";
 import type { Db } from "./db";
 import { SHOTS, type Shot, type ShotUrls } from "./show-shots-shared";
 
@@ -21,7 +21,7 @@ const CURRENT_SHOTS = `
           order by created_at desc limit 1
        ) a on true
       where s.status = 'ready'
-        and s.style = ${artStyleSql("c")}
+        and s.style = ${showStyleSql("c")}
         and (s.portrait_key = a.id or (a.id is null and s.portrait_key like 'static:%'))`;
 
 /** SQL: one character's ready shots as {shot: id}, or null, for a query that already has their id (`idExpr`). */

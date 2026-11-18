@@ -136,12 +136,18 @@ describe("finding characters by style", () => {
     const anime = await character("Tsukiha Aoi", "anime");
     const photo = await character("Mara Quill");
     const ids = async (style: "realistic" | "anime" | "semi_real") => (await searchDirectory(t.db, "", 200, { style })).entries.map((e) => e.id);
-    expect(await ids("semi_real")).toEqual([painted]);
+    // The house cast is drawn in the house look (2.5D) on the show, so the 2.5D search finds them too; their own style
+    // stays unset (After Dark's gate), and a person's character is found by its own.
+    const twoAndAHalf = await ids("semi_real");
+    expect(twoAndAHalf).toContain(painted);
+    expect(twoAndAHalf.filter((id) => !id.startsWith("house-"))).toEqual([painted]);
+    expect(twoAndAHalf.filter((id) => id.startsWith("house-")).length).toBeGreaterThan(0);
     expect(await ids("anime")).toEqual([anime]);
     const real = await ids("realistic");
     expect(real).toContain(photo);
     expect(real).not.toContain(painted);
     expect(real).not.toContain(anime);
+    expect(real.some((id) => id.startsWith("house-"))).toBe(false);
   });
 });
 
