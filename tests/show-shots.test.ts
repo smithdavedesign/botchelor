@@ -159,11 +159,18 @@ describe("the prompts", () => {
         const p = shotPrompt(shot, style);
         expect(p).toContain("image 0");
         expect(p).toContain("the same face, skin tone, hair, age and outfit");
-        expect(p).toContain("A clearly grown adult with mature features and adult proportions, fully clothed.");
+        // Drawing drifts young, so the drawn styles carry the full cue; a photograph drifted old with it, so it keeps
+        // the portrait's own age.
+        if (style === "realistic") {
+          expect(p).toContain("A grown adult, as old as in image 0 and no older, fully clothed.");
+          expect(p).not.toContain("mature features");
+        } else expect(p).toContain("A clearly grown adult with mature features and adult proportions, fully clothed.");
         expect(p).toContain("No text, no logo, no watermark.");
         expect(checkAdultText({ prompt: p }).ok).toBe(true);
       }
     }
+    expect(shotPrompt("rose", "realistic")).toContain("in a warm, soft spotlight");
+    expect(shotPrompt("rose", "realistic")).not.toContain("dramatic");
     for (const e of EXPRESSIONS) expect(shotPrompt(e, "realistic")).toContain(`Change only the expression to ${EXPRESSION_LOOKS[e]}.`);
     expect(shotPrompt("smug", "realistic")).toContain("the same person, ");
     expect(shotPrompt("smug", "realistic")).toContain("the same photographic look");
@@ -360,5 +367,29 @@ describe("the admin route", () => {
     const seen = await (await list(c.id, admin)).json();
     expect(Object.keys(seen.shots).sort()).toEqual([...SHOTS].sort());
     expect(seen.rows).toHaveLength(9);
+
+    // One shot drifted from their face: redo draws only that one again, as its next take (another seed, since the same
+    // take draws the same picture, and a new address), and the other eight stay as they were.
+    const ids = async () => Object.fromEntries((await t.db.query<{ shot: string; id: string }>(`select shot, id from show_shots where character_id = $1`, [c.id])).rows.map((r) => [r.shot, r.id]));
+    const before = await ids();
+    const key = (await rowsOf(c.id))[0].portrait_key;
+    expect((await post({ character_id: c.id, redo: true, shot: "selfie" }, admin)).status).toBe(422);
+    expect((await post({ character_id: c.id, redo: true, shot: "rose" }, admin)).status).toBe(202);
+    await vi.waitFor(async () => expect((await rowsOf(c.id)).filter((r) => r.status === "ready")).toHaveLength(9), { timeout: 15_000, interval: 50 });
+    const after = await ids();
+    expect(after.rose).not.toBe(before.rose);
+    for (const shot of SHOTS.filter((s) => s !== "rose")) expect(after[shot]).toBe(before[shot]);
+    const seeds = w.draws().map((d) => d.seed);
+    expect(seeds).toHaveLength(10);
+    expect(seeds).toContain(String(shotSeed(key, "rose")));
+    expect(seeds.at(-1)).toBe(String(shotSeed(key, "rose", 1)));
+    expect(shotSeed(key, "rose", 1)).not.toBe(shotSeed(key, "rose"));
+
+    // A refused shot isn't fished for with another seed: the look changes first.
+    await t.db.query(`update show_shots set status = 'refused' where character_id = $1 and shot = 'smug'`, [c.id]);
+    const refused = await post({ character_id: c.id, redo: true, shot: "smug" }, admin);
+    expect(refused.status).toBe(409);
+    expect((await refused.json()).error).toBe("refused");
+    expect((await ids()).smug).toBe(before.smug);
   });
 });
