@@ -281,9 +281,9 @@ export function assembleDate(p: DateParts): BuiltDate {
   // Who they were to each other before the show (lib/character-links.ts): both know it, from their first date on, so
   // its story is words both already know; the director and the narrator get it in the third person.
   if (p.link) {
-    charA.pair = { ...(charA.pair ?? {}), ...linkContext(p.link, b.name) };
-    charB.pair = { ...(charB.pair ?? {}), ...linkContext(p.link, a.name) };
-    charA.knownBefore = charB.knownBefore = linkLine(p.link, a.name, b.name) ?? undefined;
+    charA.pair = { ...(charA.pair ?? {}), ...linkContext(p.link, b.sheet.name) };
+    charB.pair = { ...(charB.pair ?? {}), ...linkContext(p.link, a.sheet.name) };
+    charA.knownBefore = charB.knownBefore = linkLine(p.link, a.sheet.name, b.sheet.name) ?? undefined;
     charA.pairShared = charB.pairShared = `${charA.pairShared ?? ""} ${p.link.story}`.trim();
   }
   if (agreed) charA.pairShared = charB.pairShared = `${charA.pairShared ?? ""} ${agreed.texts.map((t) => t.text).join(" ")}`.trim();
