@@ -128,6 +128,7 @@ import { OC_QUESTION_THEMES } from "../oc-questions";
 import { characterCredits, characterCreditsOn } from "../profile/credits";
 import { characterStatuses, characterTags } from "../character-tags";
 import { CHARACTER_TAG_IDS, isCharacterTag } from "../character-tags-shared";
+import { ART_STYLES, artStyleFrom, artStyleSql, isArtStyle, type ArtStyle } from "../art-style";
 import { isStatus, STATUS_IDS, STATUSES } from "../tags";
 import { listShowIdeasTool, proposeShowIdeaTool, voteShowIdeaTool } from "./shows";
 import { getHouseScene, getHouseTalk, getStorySoFar, HOUSE_TOOL_NAMES, HOUSE_TOOLS_OFF, isHouseTool, mcpHouseOn, myStoryState, sceneAbout } from "./house";
@@ -291,7 +292,10 @@ export const MCP_PROTOCOL_VERSION = "2025-06-18";
 // 2.36.0 (2026-11-17): tags (lib/tags.ts, docs/tags.md): create/update_character take type tags, get_character and
 // search_characters carry tags and love_life (the graph's public layer) and filter by them, companion list and the
 // roleplay catalog carry tags. New arguments and reply fields only.
-export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.36.0" } as const;
+// 2.37.0 (2026-11-17): art_style (lib/art-style.ts, PRD styles-and-storylines phase 2): create/update_character take
+// how their pictures are drawn (realistic, anime or semi_real, the 2.5D house look), kept as their looks' style;
+// get_character returns it. New arguments and reply fields only.
+export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.37.0" } as const;
 
 /** Where every tool is listed: the default list is the core (2026-10-20: 53 tools were ~14k tokens in every agent's context). */
 export const ALL_TOOLS_HINT = "/api/mcp?tools=all";
@@ -767,6 +771,9 @@ export const ENUM_SOURCES: Record<string, readonly unknown[]> = {
   "create_character.while_away": WHILE_AWAY_MODES,
   "update_character.while_away": WHILE_AWAY_MODES,
   "update_character.talk": TALK_LEVELS,
+  // 2.37.0: how their pictures are drawn (lib/art-style.ts).
+  "create_character.art_style": ART_STYLES,
+  "update_character.art_style": ART_STYLES,
   "set_open_to_dates.audience": AUDIENCES,
   "go_on_date.format": FORMAT_IDS,
   "go_on_date.visibility": DATE_VISIBILITIES,
@@ -1141,6 +1148,19 @@ async function writingProgress(db: Db, id: string): Promise<{ lines_so_far: numb
 }
 
 /** A sheet as the look-alike checks read it, from create_character's arguments or the saved character. */
+/** A wrong art_style (2.37.0), with every one there is. */
+const ART_STYLE_ERROR = `art_style is one of ${ART_STYLES.join(", ")}: realistic (photographs), anime, or semi_real (2.5D, the show's painterly look).`;
+
+/**
+ * The extras to save with an art_style (2.37.0): the style goes into their looks (extras.looks.style, lib/art-style.ts),
+ * on top of the looks they have (`had`) and any sent, so setting the style never drops the rest of the look.
+ */
+function withArtStyle(sent: unknown, had: Record<string, unknown>, style: ArtStyle): Record<string, unknown> {
+  const obj = (v: unknown): Record<string, unknown> => (v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
+  const extras = obj(sent);
+  return { ...extras, looks: { ...obj(had.looks), ...obj(extras.looks), style } };
+}
+
 function sheetDraftOf(x: Record<string, unknown>): SheetDraft {
   let extras: CharacterExtras | null = null;
   try {
@@ -5502,7 +5522,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const [{ episodes, record }, memory, week, credits, tagged, love] = await Promise.all([
         getCharacterHistory(db, id, 5),
         loadCharacterMemory(db, id),
-        db.query<{ this_week: StoredThisWeek | null }>(`select this_week from characters where id = $1`, [id]),
+        db.query<{ this_week: StoredThisWeek | null; art_style: string }>(`select c.this_week, ${artStyleSql("c")} as art_style from characters c where c.id = $1`, [id]),
         // 2.34.0: the seasons it has been in, as what, and what came of it (lib/profile/credits.ts): the public record.
         characterCreditsOn() ? characterCredits(db, [id]).then((m) => m.get(id) ?? [], () => []) : Promise.resolve([]),
         // 2.36.0: what kind of person (lib/character-tags.ts) and their love life, read from the graph's public layer.
@@ -5520,6 +5540,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           character: labelRunBy(profile, activity.get(id)),
           ...(tagged?.tags.length ? { tags: tagged.tags, tags_from: tagged.source } : {}),
           love_life: love,
+          // 2.37.0: how their pictures are drawn (lib/art-style.ts).
+          art_style: artStyleFrom(week.rows[0]?.art_style),
           ...(photos.length ? { photo_urls: photos.map((p) => `${siteUrl()}${p.url}`) } : {}),
           ...(style ? partnerStyleEcho(style.choice, style.decided) : {}),
           stage: stageFor(memory?.dates ?? 0),
@@ -6278,6 +6300,11 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       return { data: { removed: textKeys.length > 0, note: textKeys.length ? "Your dates are back on the shared pool." : "There was no key to remove." }, identity: who };
     }
     case "create_character": {
+      // 2.37.0: how their pictures are drawn, kept as their looks' style (lib/art-style.ts).
+      if (args.art_style !== undefined) {
+        if (!isArtStyle(args.art_style)) return { error: ART_STYLE_ERROR };
+        args = { ...args, extras: withArtStyle(args.extras, {}, args.art_style) };
+      }
       // Anti-abuse (free path): a healthy agent won't hit this; a probe making dozens of characters a minute will.
       {
         const who = resolveIdentity(args, session, false);
@@ -6537,12 +6564,17 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const who = resolveIdentity(args, session, false);
       if (!who) return { error: NEEDS_IDENTITY };
       const body = pick(args, [...SHEET_KEYS, "keep_name", "open_to_dates", "open_audience", "partner_style", "talk", "while_away"]);
+      // 2.37.0: how their pictures are drawn (lib/art-style.ts), merged into the looks they have so the rest stays.
+      if (args.art_style !== undefined && !isArtStyle(args.art_style)) return { error: ART_STYLE_ERROR };
       // #372: extras merge into what's saved (a key set to null removes it), so a partial update keeps the dating profile.
       // #1213: what was there before, also to say which extras keys were set and which removed.
-      const extrasSent = body.extras && typeof body.extras === "object" ? (body.extras as Record<string, unknown>) : null;
-      const had = extrasSent
-        ? ((await db.query<{ extras: Record<string, unknown> | null }>(`select extras from characters where id = $1 and owner_id = $2`, [String(args.character_id ?? ""), who.id])).rows[0]?.extras ?? {})
-        : {};
+      const sentAsIs = body.extras && typeof body.extras === "object" ? (body.extras as Record<string, unknown>) : null;
+      const had =
+        sentAsIs || args.art_style !== undefined
+          ? ((await db.query<{ extras: Record<string, unknown> | null }>(`select extras from characters where id = $1 and owner_id = $2`, [String(args.character_id ?? ""), who.id])).rows[0]?.extras ?? {})
+          : {};
+      const extrasSent = isArtStyle(args.art_style) ? withArtStyle(sentAsIs, had, args.art_style) : sentAsIs;
+      if (extrasSent) body.extras = extrasSent;
       if (extrasSent && args.replace_extras !== true) {
         const merged: Record<string, unknown> = { ...had, ...extrasSent };
         for (const [k, v] of Object.entries(merged)) if (v === null) delete merged[k];

@@ -4,6 +4,7 @@
  * (characters.visibility; David, #309/#509) is listed in its tab and counted, by name only: no link, no portrait, no
  * traits or reviews. Its page shows only its name to anyone but its owner.
  */
+import { artStyleSql, type ArtStyle } from "./art-style";
 import { portraitPathSql } from "./assets";
 import type { Db } from "./db";
 import { originSql, type Origin } from "./origin";
@@ -160,21 +161,23 @@ export async function searchDirectory(
   db: Db,
   query: string,
   limit = DIRECTORY_SEARCH_LIMIT,
-  filters: { type?: TagId | null; status?: Status | null } = {},
+  filters: { type?: TagId | null; status?: Status | null; style?: ArtStyle | null } = {},
 ): Promise<{ entries: DirectoryEntry[]; more: boolean }> {
   const q = parseDirectoryQuery(query).toLowerCase();
   const words = [...new Set(q.split(" ").filter(Boolean))].slice(0, SEARCH_WORDS_MAX);
   const type = filters.type ?? null;
   const status = filters.status ?? null;
-  if (!words.length && !type && !status) return { entries: [], more: false };
+  const style = filters.style ?? null;
+  if (!words.length && !type && !status && !style) return { entries: [], more: false };
   const { rows } = await db.query<DirectoryEntry>(
     `${SELECT}
       where ${LISTED} and c.visibility <> 'private' and ${SEARCHABLE} like all($2::text[])
         and ($5::text is null or exists (select 1 from character_tags t where t.character_id = c.id and t.tag = $5))
         and ($6::text is null or ${statusSql("c.id")} = $6)
+        and ($7::text is null or ${artStyleSql("c")} = $7)
       order by lower(c.name) like $3 desc, c.is_house desc, lower(c.name), c.id
       limit $4`,
-    [DELETED_OWNER, words.map(likeWord), q ? likeWord(q) : "", limit + 1, type, status],
+    [DELETED_OWNER, words.map(likeWord), q ? likeWord(q) : "", limit + 1, type, status, style],
   );
   return { entries: rows.slice(0, limit).map(shown), more: rows.length > limit };
 }

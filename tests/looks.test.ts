@@ -25,7 +25,7 @@ import {
   tileSpecs,
   GENDERS,
 } from "@/lib/looks";
-import { drawMissingTiles, drawTile, LOOKS_PG_MODEL, PORTRAITS_PER_CHARACTER, setLooksFetchForTests, setLooksPauseForTests } from "@/lib/looks-draw";
+import { drawMissingTiles, drawTile, LOOKS_PG_MODEL, PORTRAITS_PER_CHARACTER, setLooksFetchForTests, setLooksPauseForTests, WORKERS_AI_MODEL } from "@/lib/looks-draw";
 import { checkAdultText } from "@/lib/safety";
 import { api, BASE_URL, newUserCookie, startTestDb, userIdOf, validCharacter } from "./helpers";
 
@@ -318,5 +318,134 @@ describe("the portrait from the picks", () => {
     vi.stubEnv("LOOKS_PORTRAITS_PER_DAY", "0");
     const id = (await (await api.createCharacter(validCharacter({ extras: { looks: { gender: "woman" } } }), cookie)).json()).id;
     expect((await draw(id, cookie)).status).toBe(429);
+  });
+});
+
+// PRD styles-and-storylines phase 2: the show's pictures are drawn free on Workers AI (the botchelor-images Worker,
+// lib/workers-ai.ts) while its daily budget lasts, then on fal as before. Workers AI has no safety checker of its own,
+// so its pictures' check also asks whether they're explicit.
+describe("free show pictures on Workers AI", () => {
+  const WORKER = "https://images.worker.test";
+  const NSFW = { output: [{ classes: [{ class: "no_child_present", value: 0.99 }, { class: "yes_child_present", value: 0.01 }, { class: "general_nsfw", value: 0.5 }] }] };
+  const workerOn = () => {
+    vi.stubEnv("WORKERS_AI_URL", WORKER);
+    vi.stubEnv("WORKERS_AI_KEY", "a-test-gate-key-0123456789");
+  };
+  /** The Worker answers with `worker()`; fal and its file as fakeProviders does. */
+  function fakeWorker(worker: () => Response) {
+    const calls: { to: "worker" | "fal"; prompt: string; size?: string; seed?: string | null }[] = [];
+    setLooksFetchForTests(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url === `${WORKER}/draw`) {
+        const form = init?.body as FormData;
+        expect(new Headers(init?.headers).get("authorization")).toBe("Bearer a-test-gate-key-0123456789");
+        calls.push({ to: "worker", prompt: String(form.get("prompt")), size: `${form.get("width")}x${form.get("height")}`, seed: form.get("seed") as string | null });
+        return worker();
+      }
+      if (url === `https://fal.run/${LOOKS_PG_MODEL}`) {
+        calls.push({ to: "fal", prompt: JSON.parse(String(init?.body)).prompt });
+        return Response.json({ images: [{ url: "https://cdn.fal.test/tile.jpg" }], has_nsfw_concepts: [false] });
+      }
+      return new Response(JPEG, { headers: { "content-type": "image/jpeg" } });
+    });
+    return calls;
+  }
+  const drawn = () => Response.json({ image: Buffer.from(JPEG).toString("base64"), model: "@cf/black-forest-labs/flux-2-klein-4b", neurons: 104.2, used: 104.2, limit: 9000 });
+  const tile = (id: string) => tileSpecs().find((s) => s.id === id)!;
+  // Drawn tiles outlive the reset (they're drawn once): each test here starts from none.
+  beforeEach(async () => {
+    await t.db.query(`delete from look_tiles`);
+  });
+  const modelOf = async (id: string) => (await t.db.query<{ model: string; status: string }>(`select model, status from look_tiles where id = $1`, [id])).rows[0];
+
+  it("has a 2.5D tile in the style step, drawn in the house look and said to be a grown adult", () => {
+    for (const g of GENDERS) {
+      const spec = tile(`pg-${g}-style-semi_real`);
+      expect(spec.prompt).toMatch(/^Semi-realistic painterly 2\.5D digital illustration of a \d+-year-old /);
+      expect(spec.prompt).toContain("a clearly grown adult with mature adult features and proportions");
+      expect(spec.prompt).not.toMatch(/photograph|photoreal/i);
+      expect(checkAdultText({ prompt: spec.prompt }).ok).toBe(true);
+    }
+    // The other steps' tiles stay photographs.
+    expect(tile("pg-woman-eyes-brown").prompt).toMatch(/^Photorealistic studio photograph of /);
+    expect(looksAppearance({ gender: "woman", style: "semi_real" })).toBe("painterly 2.5D-style");
+    expect(looksPortraitPrompt({ gender: "man", style: "semi_real" }, 34)).toMatch(/^Semi-realistic painterly 2\.5D digital illustration of a 34-year-old /);
+  });
+
+  it("draws a tile free, asks the check about explicit content too, and records Workers AI as what drew it", async () => {
+    await keys();
+    workerOn();
+    const calls = fakeWorker(drawn);
+    let hiveCalls = 0;
+    setCheckFetchForTests(async (input: RequestInfo | URL) => {
+      hiveCalls++;
+      return String(input) === HIVE_MODERATION ? Response.json(CLEAN) : Response.json(ADULTS);
+    });
+    const spec = tile("pg-woman-style-semi_real");
+    expect(await drawTile(t.db, spec)).toBe("ready");
+    expect(calls).toEqual([{ to: "worker", prompt: spec.prompt, size: "512x640", seed: String(spec.seed) }]);
+    expect(hiveCalls).toBe(2);
+    expect(await modelOf(spec.id)).toEqual({ model: WORKERS_AI_MODEL, status: "ready" });
+    expect((await serve(spec.id)).status).toBe(200);
+  });
+
+  it("refuses a free picture Hive scores as explicit, which a fal picture (its own checker on) would pass", async () => {
+    await keys();
+    workerOn();
+    const calls = fakeWorker(drawn);
+    hive(ADULTS, NSFW);
+    const spec = tile("pg-man-style-semi_real");
+    expect(await drawTile(t.db, spec)).toBe("refused");
+    expect((await t.db.query<{ reason: string }>(`select reason from look_tiles where id = $1`, [spec.id])).rows[0].reason).toBe("moderation: general_nsfw 0.50");
+    expect(calls.map((c) => c.to)).toEqual(["worker"]);
+    // The same score on fal's picture: fal's own checker covers explicit content there, as before.
+    vi.stubEnv("WORKERS_AI_URL", "");
+    fakeProviders();
+    expect(await drawTile(t.db, tile("pg-man-eyes-brown"))).toBe("ready");
+  });
+
+  it("falls back to fal once the day's free budget is spent, or the Worker fails", async () => {
+    await keys();
+    workerOn();
+    hive();
+    let answer = () => Response.json({ error: "budget", day: "2026-11-17", used: 8960, limit: 9000, neurons: 104.2 }, { status: 429 });
+    const calls = fakeWorker(() => answer());
+    const spent = tile("pg-woman-style-semi_real");
+    expect(await drawTile(t.db, spent)).toBe("ready");
+    expect(calls.map((c) => c.to)).toEqual(["worker", "fal"]);
+    expect((await modelOf(spent.id)).model).toBe(LOOKS_PG_MODEL);
+    answer = () => Response.json({ error: "model_failed", detail: "3040: Capacity temporarily exceeded" }, { status: 502 });
+    expect(await drawTile(t.db, tile("pg-man-style-semi_real"))).toBe("ready");
+    expect(calls.map((c) => c.to)).toEqual(["worker", "fal", "worker", "fal"]);
+  });
+
+  it("screens a kept free picture again from its bytes, explicit question and all, without drawing it twice", async () => {
+    await keys();
+    workerOn();
+    const calls = fakeWorker(drawn);
+    setCheckFetchForTests(async () => new Response("slow down", { status: 429 }));
+    const spec = tile("pg-woman-style-semi_real");
+    expect(await drawTile(t.db, spec)).toBe("failed");
+    await t.db.query(`update look_tiles set updated_at = now() - interval '1 hour' where id = $1`, [spec.id]);
+    await t.db.query(`delete from adult_media_cooldowns`);
+    hive(ADULTS, NSFW);
+    expect(await drawTile(t.db, spec)).toBe("refused");
+    expect(calls).toHaveLength(1);
+  });
+
+  it("draws a portrait from the picks free, and the ledger says Workers AI drew it", async () => {
+    await keys();
+    workerOn();
+    const calls = fakeWorker(drawn);
+    hive();
+    const cookie = newUserCookie();
+    const id = (await (await api.createCharacter(validCharacter({ extras: { looks: { gender: "woman", style: "semi_real" } } }), cookie)).json()).id;
+    const res = await postLooksPortrait(new Request(`${BASE_URL}/api/characters/${id}/looks-portrait`, { method: "POST", headers: { cookie } }), { params: Promise.resolve({ id }) });
+    expect(res.status).toBe(201);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatchObject({ to: "worker", size: "640x800" });
+    expect(calls[0].prompt).toMatch(/^Semi-realistic painterly 2\.5D digital illustration of /);
+    const asset = (await t.db.query<{ source_model: string }>(`select source_model from character_assets where character_id = $1 and kind = 'portrait'`, [id])).rows[0];
+    expect(asset.source_model).toBe("workers-ai:flux-2-klein-4b");
   });
 });

@@ -14,6 +14,7 @@
  * Identity rules and the save (POST /api/characters: checkSheetText in any language, the 18+ rule, the name check) judge
  * it again, and the person ticks the same "fictional adult, my own" box before anything is created.
  */
+import { artStyleInWords } from "./art-style";
 import { NAME_MAX } from "./field-limits";
 import { importFromFields, readyToDate, statedAge, stillMissing, SOURCE_KEYS, type ImportedDraft, type SourceFields } from "./import-character";
 import { LOOK_STEPS, optionsFor, WORK_OUTFITS, type Gender, type Looks } from "./looks";
@@ -253,7 +254,7 @@ export function suggestLooks(o: { pronouns: string; words: string; occupation?: 
 
   const looks: Looks = {
     gender,
-    style: /\banime\b|\bmanga\b/.test(words) ? "anime" : "realistic",
+    style: artStyleInWords(words),
     eyes: valid("eyes", read(words, EYES)) ?? pickBy(ids("eyes"), seed),
     hair_color: valid("hair_color", read(words, HAIR_COLOR)) ?? pickBy(["brunette", "black", "blonde", "red"], seed >>> 3),
     hair_style: valid("hair_style", read(words, HAIR_STYLE[gender])) ?? pickBy(gender === "man" ? ["short", "curly", "slicked", "long"] : ["straight", "curly", "short", "ponytail", "bangs"], seed >>> 6),

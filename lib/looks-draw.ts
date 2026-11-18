@@ -1,6 +1,7 @@
 /**
  * Draws the looks builder's tiles (lib/looks.ts) and a character's portrait from its picks. Each tile is drawn once and
- * kept in look_tiles. The show's tiles and portraits are drawn on fal (FLUX [dev], fal's own safety checker on), and
+ * kept in look_tiles. The show's tiles and portraits are drawn free on Workers AI first (lib/workers-ai.ts, FLUX.2
+ * klein, inside the botchelor-images Worker's daily budget), else on fal (FLUX [dev], fal's own safety checker on), and
  * After Dark's on Venice (fal bans explicit output; lib/adult/settings.ts). Hive screens every picture before it's
  * kept, and a refusal is never stored: anyone shown must read as an adult, and a show picture must not be explicit.
  * Paid from the admin's keys in After Dark's settings; with none saved, nothing is drawn and the builder shows labels.
@@ -23,6 +24,7 @@ import { dataColumn, keepBytes, objectStore, readBytes } from "./object-store";
 import type { KindId } from "./kinds";
 import { looksPortraitPrompt, tileSpecs, type Looks, type TileSpec, type TileVariant } from "./looks";
 import { studioTileSpecs } from "./adult/studio-tiles";
+import { drawWithWorkersAi } from "./workers-ai";
 
 /** FLUX [dev] on fal: faces and fabric good enough to choose from, about 1.3¢ for a tile this size. */
 export const LOOKS_PG_MODEL = "fal-ai/flux/dev";
@@ -47,7 +49,13 @@ export function setLooksFetchForTests(f: Fetch | null): void {
 }
 const doFetch: Fetch = (...a) => (testFetch ?? fetch)(...a);
 
-type Picture = { bytes: Buffer; mime: string; url: string | null };
+/** What drew a show picture on Workers AI, as look_tiles and the asset ledger record it (fal's is LOOKS_PG_MODEL). */
+export const WORKERS_AI_MODEL = "workers-ai/flux-2-klein-4b";
+/** A picture from a source with no safety checker of its own (Workers AI): its check also asks whether it's explicit. */
+const isUnfiltered = (model: string | null | undefined): boolean => Boolean(model?.startsWith("workers-ai/"));
+
+/** `model`: what drew it (WORKERS_AI_MODEL, LOOKS_PG_MODEL or "venice"). */
+type Picture = { bytes: Buffer; mime: string; url: string | null; model: string };
 type Keys = { fal: string | null; venice: string | null; hive: string | null };
 /** A picture that was made but couldn't be screened (Hive busy or down): kept to check again, never shown. */
 type Unchecked = Picture & { unchecked: string };
@@ -59,13 +67,14 @@ const UNCHECKED_PREFIX = "unchecked: ";
 
 /**
  * Screens a show picture: everyone an adult (Hive's child classifier and its age check). Nothing explicit is fal's own
- * safety checker's job (on for every show picture; drawPg refuses what it flags), so Hive isn't asked twice: self-serve
- * Hive has a small daily quota, and the site's sets and After Dark pictures share it.
+ * safety checker's job (on for every fal picture; drawPg refuses what it flags), so Hive isn't asked twice: self-serve
+ * Hive has a small daily quota, and the site's sets and After Dark pictures share it. A picture from Workers AI has no
+ * safety checker, so `unfiltered` makes the check ask whether it's explicit too (PRD styles-and-storylines, phase 1).
  */
-async function screenPg(db: Db, url: string): Promise<{ ok: true } | { refused: string } | { unchecked: string }> {
+async function screenPg(db: Db, media: string | { base64: string; mime: string }, unfiltered = false): Promise<{ ok: true } | { refused: string } | { unchecked: string }> {
   // Held to Hive's daily limit (lib/adult/hive-limit.ts), or the alternative the settings pick for the show's own pictures
   // (lib/adult/moderation.ts): with no verdict, nothing is kept and the picture waits unscreened.
-  const v = await checkMedia(db, url, "pg_image");
+  const v = await checkMedia(db, media, "pg_image", unfiltered ? { unfiltered: true } : {});
   if (v.ok) return { ok: true };
   return UNCHECKED.test(v.reason) ? { unchecked: v.reason } : { refused: v.reason };
 }
@@ -77,9 +86,20 @@ async function screenNsfw(db: Db, b64: string, mime: string): Promise<{ ok: true
   return UNCHECKED.test(v.reason) ? { unchecked: v.reason } : { refused: v.reason };
 }
 
-/** A show picture on fal, then Hive. */
+/**
+ * A show picture: free on Workers AI while its daily budget lasts, else on fal; then the show's check. Workers AI
+ * being off, over its budget or failing falls back to fal, inside fal's own caps as before.
+ */
 async function drawPg(db: Db, keys: Keys, prompt: string, seed: number | null, size: { width: number; height: number }): Promise<Drawn> {
-  if (!keys.fal || !(await checkReady(db, { pg: true }))) return { failed: "no fal key or no checker saved" };
+  if (!(await checkReady(db, { pg: true }))) return { failed: "no fal key or no checker saved" };
+  const free = await drawWithWorkersAi({ prompt, width: size.width, height: size.height, ...(seed === null ? {} : { seed }) }, { fetchImpl: doFetch });
+  if (free.ok) {
+    if (free.bytes.length > MAX_BYTES) return { failed: "file too large" };
+    const pic = { bytes: free.bytes, mime: free.mime, url: null, model: WORKERS_AI_MODEL };
+    const v = await screenPg(db, { base64: free.base64, mime: free.mime }, true);
+    return "ok" in v ? pic : "refused" in v ? v : { ...pic, unchecked: v.unchecked };
+  }
+  if (!keys.fal) return { failed: free.reason === "off" ? "no fal key or no checker saved" : `no fal key, and Workers AI: ${free.detail}`.slice(0, 200) };
   const res = await doFetch(`${FAL_RUN}/${LOOKS_PG_MODEL}`, {
     method: "POST",
     headers: { authorization: `Key ${keys.fal}`, "content-type": "application/json" },
@@ -94,7 +114,7 @@ async function drawPg(db: Db, keys: Keys, prompt: string, seed: number | null, s
   if (!file.ok) return { failed: `download ${file.status}` };
   const bytes = Buffer.from(await file.arrayBuffer());
   if (bytes.length > MAX_BYTES) return { failed: "file too large" };
-  const pic = { bytes, mime: file.headers.get("content-type") ?? "image/jpeg", url };
+  const pic = { bytes, mime: file.headers.get("content-type") ?? "image/jpeg", url, model: LOOKS_PG_MODEL };
   const v = await screenPg(db, url);
   return "ok" in v ? pic : "refused" in v ? v : { ...pic, unchecked: v.unchecked };
 }
@@ -114,7 +134,7 @@ async function drawNsfw(db: Db, keys: Keys, prompt: string, seed: number): Promi
   if (!b64) return { failed: "Venice returned no picture" };
   const bytes = Buffer.from(b64, "base64");
   if (bytes.length > MAX_BYTES) return { failed: "file too large" };
-  const pic = { bytes, mime: "image/webp", url: null };
+  const pic = { bytes, mime: "image/webp", url: null, model: "venice" };
   const v = await screenNsfw(db, b64, pic.mime);
   return "ok" in v ? pic : "refused" in v ? v : { ...pic, unchecked: v.unchecked };
 }
@@ -133,11 +153,11 @@ const RETRYABLE = `(look_tiles.status = 'failed' and look_tiles.updated_at < now
 
 /** Draws one tile if it isn't drawn (or refused, or being drawn). Never throws. */
 export async function drawTile(db: Db, spec: TileSpec, keys?: Keys): Promise<string> {
-  const claimed = await db.query<{ data: Buffer | Uint8Array | null; object_key: string | null; mime: string | null; reason: string | null; remote_url: string | null }>(
+  const claimed = await db.query<{ data: Buffer | Uint8Array | null; object_key: string | null; mime: string | null; reason: string | null; remote_url: string | null; model: string | null }>(
     `insert into look_tiles (id, variant, status, prompt) values ($1, $2, 'drawing', $3)
      on conflict (id) do update set status = 'drawing', prompt = excluded.prompt, updated_at = now()
        where ${RETRYABLE}
-     returning ${dataColumn("look_tiles")}, object_key, mime, reason, remote_url`,
+     returning ${dataColumn("look_tiles")}, object_key, mime, reason, remote_url, model`,
     [spec.id, spec.variant, spec.prompt, RETRY_AFTER_MS],
   );
   if (!claimed.rows.length) return "exists";
@@ -153,7 +173,7 @@ export async function drawTile(db: Db, spec: TileSpec, keys?: Keys): Promise<str
       file?.mime ?? null,
       kept.data,
       kept.object_key,
-      spec.variant === "pg" ? LOOKS_PG_MODEL : "venice",
+      file?.model ?? (spec.variant === "pg" ? LOOKS_PG_MODEL : "venice"),
       file?.url ?? null,
     ]);
     // A refusal is never kept: a picture that was kept unscreened, then refused, leaves the bucket too.
@@ -165,8 +185,11 @@ export async function drawTile(db: Db, spec: TileSpec, keys?: Keys): Promise<str
     // Made before but not screened: screen the kept picture again, rather than paying to draw a new one.
     const prevBytes = prev.mime && prev.reason?.startsWith(UNCHECKED_PREFIX) ? await readBytes(prev) : null;
     if (prevBytes && prev.mime) {
-      const pic = { bytes: prevBytes, mime: prev.mime, url: prev.remote_url };
-      const v = spec.variant === "pg" ? (pic.url ? await screenPg(db, pic.url) : { refused: "nothing to screen" }) : await screenNsfw(db, pic.bytes.toString("base64"), pic.mime);
+      const pic = { bytes: prevBytes, mime: prev.mime, url: prev.remote_url, model: prev.model ?? (spec.variant === "pg" ? LOOKS_PG_MODEL : "venice") };
+      // A Workers AI picture has no link to screen: its bytes are, and its check asks whether it's explicit too.
+      const pg = (): ReturnType<typeof screenPg> =>
+        isUnfiltered(pic.model) ? screenPg(db, { base64: pic.bytes.toString("base64"), mime: pic.mime }, true) : pic.url ? screenPg(db, pic.url) : Promise.resolve({ refused: "nothing to screen" });
+      const v = spec.variant === "pg" ? await pg() : await screenNsfw(db, pic.bytes.toString("base64"), pic.mime);
       if ("ok" in v) return done("ready", null, pic, prev.object_key);
       if ("refused" in v) return done("refused", v.refused);
       return done("failed", UNCHECKED_PREFIX + v.unchecked, pic, prev.object_key);
@@ -269,7 +292,7 @@ export async function getTile(db: Db, id: string, opts: { bytes?: boolean } = {}
 export type PortraitResult = { ok: true; asset_id: string } | { ok: false; status: number; error: string; message: string };
 
 /**
- * A character's portrait from its picks, on our fal key, screened by Hive, recorded in the asset ledger and approved
+ * A character's portrait from its picks, free on Workers AI or on our fal key, screened, recorded in the asset ledger and approved
  * (Hive-screened generation from fixed option words, nothing typed). Capped per character and per day.
  */
 export async function drawLooksPortrait(db: Db, characterId: string, env: Record<string, string | undefined> = process.env): Promise<PortraitResult> {
@@ -300,11 +323,11 @@ export async function drawLooksPortrait(db: Db, characterId: string, env: Record
     character_id: characterId,
     kind: "portrait",
     source_type: "generated",
-    source_model: `fal:${LOOKS_PG_MODEL}`,
+    source_model: r.model === WORKERS_AI_MODEL ? "workers-ai:flux-2-klein-4b" : `fal:${LOOKS_PG_MODEL}`,
     prompt,
     prompt_version: LOOKS_PORTRAIT_VERSION,
     url: `data:${r.mime};base64,${r.bytes.toString("base64")}`,
-    // fal's safety checker refused anything explicit, and the show's check passed it.
+    // fal's safety checker refused anything explicit (a Workers AI picture's check asked), and the show's check passed it.
     content_rating: "pg",
   });
   await reviewAsset(db, assetId, "approved", "looks: Hive-screened generation from the builder's fixed option words");

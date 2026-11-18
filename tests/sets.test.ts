@@ -2,7 +2,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { GET } from "@/app/api/sets/[slug]/route";
 import { HIVE_MODERATION, setCheckFetchForTests } from "@/lib/adult/check";
 import { saveAdultSettings } from "@/lib/adult/settings";
-import { drawQueuedSets, ensureSet, listSetQueue, SET_MODEL, setPrompt, setSetsFetchForTests } from "@/lib/sets";
+import { drawQueuedSets, ensureSet, listSetQueue, SET_FREE_MODEL, SET_MODEL, setPrompt, setSetsFetchForTests } from "@/lib/sets";
 import { normalizeScene, setPath } from "@/lib/venues";
 import { BASE_URL, startTestDb } from "./helpers";
 
@@ -110,5 +110,71 @@ describe("the queue of sets still to draw (David, 2026-10-26: \"if we don't have
     expect(done.every((d) => d.status === "ready")).toBe(true);
     expect(drawn).toHaveLength(2);
     expect((await listSetQueue(t.db)).map((q) => q.label).sort()).toEqual(["cellar", "dungeon"]);
+  });
+});
+
+// PRD styles-and-storylines phase 2: a set is drawn free on Workers AI (the botchelor-images Worker) while its daily
+// budget lasts, then on fal as before; Hive's set check holds either to the same explicit-content line.
+describe("free sets on Workers AI", () => {
+  const WORKER = "https://images.worker.test";
+  beforeEach(() => {
+    vi.stubEnv("WORKERS_AI_URL", WORKER);
+    vi.stubEnv("WORKERS_AI_KEY", "a-test-gate-key-0123456789");
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+  function fakeWorker(answer: () => Response) {
+    const calls: string[] = [];
+    setSetsFetchForTests(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url === `${WORKER}/draw`) {
+        const form = init?.body as FormData;
+        calls.push(`worker ${form.get("width")}x${form.get("height")}: ${form.get("prompt")}`);
+        return answer();
+      }
+      if (url === `https://fal.run/${SET_MODEL}`) {
+        calls.push("fal");
+        return Response.json({ images: [{ url: "https://cdn.fal.test/set.jpg" }] });
+      }
+      return new Response(JPEG, { headers: { "content-type": "image/jpeg" } });
+    });
+    return calls;
+  }
+  const drawn = () => Response.json({ image: Buffer.from(JPEG).toString("base64"), model: "@cf/black-forest-labs/flux-2-klein-4b", neurons: 104.2, used: 104.2, limit: 9000 });
+  const modelOf = async (normalized: string) => (await t.db.query<{ model: string; status: string }>(`select model, status from place_sets where normalized = $1`, [normalized])).rows[0];
+
+  it("draws a set free at 16:9, screened, records what drew it, and serves it", async () => {
+    await keys();
+    const calls = fakeWorker(drawn);
+    hive(CLEAN);
+    expect(await ensureSet(t.db, "elsewhere@the observatory")).toBe("ready");
+    expect(calls).toEqual([`worker 1024x576: ${setPrompt("the observatory")}`]);
+    expect(await modelOf(normalizeScene("the observatory"))).toEqual({ model: SET_FREE_MODEL, status: "ready" });
+    expect((await serve("the observatory")).status).toBe(200);
+  });
+
+  it("keeps nothing Hive refuses as explicit, and falls back to fal once the free budget is spent", async () => {
+    await keys();
+    let answer = drawn;
+    const calls = fakeWorker(() => answer());
+    hive({ output: [{ classes: [{ class: "no_child_present", value: 0.9 }, { class: "general_nsfw", value: 0.8 }] }] });
+    expect(await ensureSet(t.db, "elsewhere@a sauna")).toBe("refused");
+    expect(calls).toHaveLength(1);
+    answer = () => Response.json({ error: "budget", day: "2026-11-17", used: 8960, limit: 9000, neurons: 104.2 }, { status: 429 });
+    hive(CLEAN);
+    expect(await ensureSet(t.db, "elsewhere@a lighthouse")).toBe("ready");
+    expect(calls.slice(1).map((c) => c.split(" ")[0])).toEqual(["worker", "fal"]);
+    expect((await modelOf(normalizeScene("a lighthouse"))).model).toBe(SET_MODEL);
+  });
+
+  it("draws free without a fal key, and nothing without a checker", async () => {
+    await saveAdultSettings(t.db, { hive_key: "placeholder-hive" });
+    const calls = fakeWorker(drawn);
+    hive(CLEAN);
+    expect(await ensureSet(t.db, "elsewhere@a greenhouse")).toBe("ready");
+    await t.reset();
+    expect(await ensureSet(t.db, "elsewhere@a rooftop")).toBe("failed");
+    expect(calls).toHaveLength(1);
   });
 });

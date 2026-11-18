@@ -5,6 +5,7 @@
  * pgIdentityPack) and pure, so the page can name the views. Never "turned three…" or a number next to "years" but the
  * adult's own age: the age check reads that as an age (lib/adult/acts.ts), and it's right to be that strict.
  */
+import { isDrawnStyle, STYLE_WORDS, type ArtStyle } from "../art-style";
 
 export const IDENTITY_VIEWS = [
   { id: "front", label: "Straight on", words: "a tight head-and-shoulders close-up, looking straight at the camera, the face filling the frame" },
@@ -21,10 +22,10 @@ export const IDENTITY_VIEW_IDS: IdentityViewId[] = IDENTITY_VIEWS.map((v) => v.i
 export const isIdentityView = (v: unknown): v is IdentityViewId => typeof v === "string" && (IDENTITY_VIEW_IDS as string[]).includes(v);
 
 /**
- * Who the view shows, as a prompt reads it: a woman, a man or a person, their age (an adult's), their look, and whether
- * they're drawn in anime (lib/looks.ts isAnime): an anime character's views stay anime, not photographs of them.
+ * Who the view shows, as a prompt reads it: a woman, a man or a person, their age (an adult's), their look, and how
+ * they're drawn (lib/art-style.ts): a drawn character's views stay in their style, never photographs of them.
  */
-export type ViewSubject = { noun: "woman" | "man" | "person"; age: number; look: string; anime?: boolean };
+export type ViewSubject = { noun: "woman" | "man" | "person"; age: number; look: string; style?: ArtStyle };
 
 /**
  * One view's prompt: the same person as Picture 1 (the face they keep), at that angle, on a plain backdrop, dressed (a
@@ -36,10 +37,10 @@ export function identityViewPrompt(view: IdentityViewId, subject: ViewSubject, o
   const age = Math.max(21, Math.round(subject.age || 21));
   const body = opts.body && view === "full_body" ? ", with the body from Picture 2" : "";
   const worn = opts.outfit ? `Wearing ${opts.outfit}.` : "Dressed in simple, fitted everyday clothes.";
-  const medium = subject.anime ? "anime illustration" : "photograph";
-  const finish = subject.anime ? "Clean modern anime illustration, cel shading, mature adult proportions." : "Photorealistic.";
+  const style = subject.style ?? "realistic";
+  const { noun: medium, short: finish } = STYLE_WORDS[style];
   return [
-    `Make one ${medium} of the ${subject.noun} from Picture 1${body}, a ${age}-year-old adult${subject.look ? ` (${subject.look})` : ""}: the very same face, features, hair and ${subject.anime ? "colours" : "skin tone"}, unchanged.`,
+    `Make one ${medium} of the ${subject.noun} from Picture 1${body}, a ${age}-year-old adult${subject.look ? ` (${subject.look})` : ""}: the very same face, features, hair and ${isDrawnStyle(style) ? "colours" : "skin tone"}, unchanged.`,
     `${v.words[0].toUpperCase()}${v.words.slice(1)}, against a plain light-grey studio backdrop, soft even light, sharp focus on the face.`,
     worn,
     "One person only.",

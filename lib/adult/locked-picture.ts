@@ -34,7 +34,8 @@ import { shared } from "../shared-cache";
 import { billingOn } from "./billing";
 import { adBridgeOn, invitePath } from "./bridge";
 import { seasonCastIds } from "../season-cast";
-import { eligibleIds, notAnimeSql } from "./characters";
+import { notDrawnSql } from "../art-style";
+import { eligibleIds } from "./characters";
 import { canAfterDark, openEverywhere, type Entitlement } from "./entitlement";
 import { getInvite, type InviteStatus } from "./invites";
 import { adultAvailable } from "./mode";
@@ -174,7 +175,7 @@ export async function lockedDoors(
  *  - anyone without an account, or never seen 18+ in an open place within LOCKED_PICTURE_RULES.seenWithinDays (an
  *    admin or a processor's reviewer is open wherever they are, as everywhere else);
  *  - anyone for whom the pair's night could never open: each of the two must be in After Dark for everyone (this
- *    season's cast, the open agent cast) or be that person's own, and not drawn in anime. Another person's character is
+ *    season's cast, the open agent cast) or be that person's own, and not drawn (anime or 2.5D, lib/art-style.ts). Another person's character is
  *    never in someone's After Dark (lib/adult/characters.ts), so a text about a night with one would promise nothing;
  *  - in After Dark already, but without pictures (a taste; last seen by After Dark where pictures aren't allowed:
  *    mediaAllowedFor), or with one of the two not in THEIR After Dark (their own character isn't switched in: that
@@ -192,14 +193,14 @@ export async function whoMayBeSent(db: Db, userIds: readonly string[], pair: rea
       `select user_id, coalesce(after_dark_seen_mode = 'open' and after_dark_seen_at >= $2::timestamptz, false) as seen_open from accounts where user_id = any($1)`,
       [ids, since],
     ),
-    db.query<{ id: string; owner_id: string | null; open_to_all: boolean; anime: boolean }>(
-      `select c.id, c.owner_id, (c.after_dark_open and c.visibility <> 'private') as open_to_all, not ${notAnimeSql("c")} as anime from characters c where c.id = any($1)`,
+    db.query<{ id: string; owner_id: string | null; open_to_all: boolean; drawn: boolean }>(
+      `select c.id, c.owner_id, (c.after_dark_open and c.visibility <> 'private') as open_to_all, not ${notDrawnSql("c")} as drawn from characters c where c.id = any($1)`,
       [[...pair]],
     ),
   ]);
   if (two.rows.length !== 2) return out;
   const cast = new Set(seasonCastIds());
-  const couldOpenFor = (userId: string) => two.rows.every((c) => cast.has(c.id) || (!c.anime && (c.open_to_all || c.owner_id === userId)));
+  const couldOpenFor = (userId: string) => two.rows.every((c) => cast.has(c.id) || (!c.drawn && (c.open_to_all || c.owner_id === userId)));
   for (const r of people.rows) {
     if (!couldOpenFor(r.user_id)) continue;
     const entitlement = await canAfterDark(db, { userId: r.user_id, authenticated: true }, now);

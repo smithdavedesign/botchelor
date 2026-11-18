@@ -15,6 +15,7 @@ import CharacterName from "@/app/CharacterName";
 import { dateWatchedLive, msSinceDateStarted, theaterLeftProps } from "@/lib/engagement-keys";
 import ShareEnding from "./ShareEnding";
 import VerdictCard from "./VerdictCard";
+import { latestFace } from "@/lib/show-shots-shared";
 
 /** What the verdict card needs beyond the theater's own props (app/episodes/[id]/page.tsx hands it over for a creator). */
 export type TheaterVerdict = {
@@ -140,6 +141,8 @@ function Playback({ episodeId, characters, venue, transcript, endingLabel, justF
             venue={placeAt(shown, venue)}
             lineA={lastOf(shown, "a")}
             lineB={lastOf(shown, "b")}
+            moodA={latestFace(characters[0].shots, shown, "a")}
+            moodB={latestFace(characters[1].shots, shown, "b")}
             actLabel={actLabel}
             placeholder="The date begins…"
           />

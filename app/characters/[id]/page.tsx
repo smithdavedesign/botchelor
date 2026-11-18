@@ -90,6 +90,8 @@ import { adultAvailable } from "@/lib/adult/mode";
 import { studioAccess } from "@/lib/adult/studio";
 import { pgAccess } from "@/lib/studio/pg";
 import { profilePhotos } from "@/lib/studio/profile-photos";
+import { shotsFor } from "@/lib/show-shots-sql";
+import { SHOT_LABELS, SHOT_ORDER } from "@/lib/show-shots-shared";
 import { mediaAllowed } from "@/lib/jurisdiction";
 import { afterDarkHref } from "@/lib/after-dark-host";
 
@@ -289,6 +291,8 @@ export default async function CharacterPage({ params, searchParams }: Props) {
       : Promise.resolve(null);
   // Their profile photos: PG Studio pictures their owner pinned (lib/studio/profile-photos.ts).
   const photosP = profilePhotos(db, id);
+  // Their show kit (lib/show-shots.ts): the reveal, the rose, the confessional and the six faces drawn so far.
+  const shotsP = shotsFor(db, [id]).then((s) => s[id] ?? null).catch(() => null);
   // Their own After Dark pictures of them, as blurred teasers: the owner's page only.
   const adPhotosP = isOwner && viewerId && !c.house ? afterDarkPhotosOf(c.id, viewerId).catch(() => null) : Promise.resolve(null);
   // Owner only: how the engine reads it on a date (its effective temperament, learned drift included).
@@ -340,6 +344,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
     mine,
     talk,
     photos,
+    shots,
     adPhotos,
     plays,
     forgotten,
@@ -370,6 +375,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
     mineP,
     talkP,
     photosP,
+    shotsP,
     adPhotosP,
     playsP,
     forgottenP,
@@ -874,6 +880,27 @@ export default async function CharacterPage({ params, searchParams }: Props) {
                 <img src={p.url} alt={`A photo of ${c.name}`} loading="lazy" />
               </li>
             ))}
+          </ul>
+          <AiTag />
+        </section>
+      )}
+      {/* Their show kit (lib/show-shots.ts): the premiere reveal, the rose, the confessional and the faces a date shows. */}
+      {shots && (
+        <section className="card profile-photos show-kit" aria-labelledby="show-kit-title">
+          <h2 id="show-kit-title">On the show</h2>
+          <ul>
+            {SHOT_ORDER.flatMap((s) => {
+              const src = shots[s];
+              return src
+                ? [
+                    <li key={s} className={s === "reveal" ? "is-reveal" : undefined}>
+                      {/* eslint-disable-next-line @next/next/no-img-element -- a PG shot from its own route, already small */}
+                      <img src={src} alt={`${c.name}: ${SHOT_LABELS[s].toLowerCase()}`} loading="lazy" />
+                      <span className="muted small">{SHOT_LABELS[s]}</span>
+                    </li>,
+                  ]
+                : [];
+            })}
           </ul>
           <AiTag />
         </section>

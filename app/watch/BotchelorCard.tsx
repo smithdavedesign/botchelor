@@ -8,6 +8,7 @@ import { countdown } from "@/lib/countdown";
 import { showCrowd, tallyLine } from "@/lib/crowd-threshold";
 import type { CeremonyBoard, SuitorState } from "@/lib/ceremony";
 import type { NextPremiere } from "@/lib/premiere-clock";
+import { showSetBackground } from "@/lib/show-sets";
 
 const STATE_WORD: Record<SuitorState, string> = { in: "still in", out: "went home", final_rose: "the final rose", runner_up: "runner-up" };
 
@@ -50,9 +51,16 @@ export default function BotchelorCard({
     <section id="rose-ceremony" className="card botchelor-card" aria-labelledby="botchelor-head" data-track-area="rose-ceremony">
       <p className="kicker">This season · one lead, your characters as the suitors</p>
       <h2 id="botchelor-head">🌹 {board.title}</h2>
-      <div className="botchelor-house">
+      {/* The lead and the suitors on the show's stage, and the last verdict under the rose (lib/show-sets.ts). */}
+      <div className="botchelor-house on-set" style={{ backgroundImage: showSetBackground("stage", 0.35) }}>
         <Link href={`/characters/${board.lead.id}`} className="botchelor-lead">
-          <Avatar seed={board.lead.id} name={board.lead.name} hue={board.lead.hue} house={board.lead.house} portraitSrc={board.lead.portrait} size={56} />
+          {/* The lead holding out a rose, once their show kit has it (lib/show-shots.ts); their face until then. */}
+          {board.lead.rose ? (
+            // eslint-disable-next-line @next/next/no-img-element -- a PG shot from its own route, already small
+            <img className="botchelor-lead-rose" src={board.lead.rose} alt="" width={72} height={90} />
+          ) : (
+            <Avatar seed={board.lead.id} name={board.lead.name} hue={board.lead.hue} house={board.lead.house} portraitSrc={board.lead.portrait} size={56} />
+          )}
           <span>
             <strong>{board.lead.name}</strong>
             <span className="muted small"> · the lead</span>
@@ -125,7 +133,7 @@ export default function BotchelorCard({
         </p>
       )}
       {board.last && (
-        <div className="botchelor-last">
+        <div className="botchelor-last on-set" style={{ backgroundImage: showSetBackground("elimination", 0.45) }}>
           <p className="small">
             <strong>{board.last.finale ? "The finale" : `Week ${board.last.week}'s ceremony`}</strong>
             {showCrowd(board.last.total, { insider }) ? <span className="muted"> · {board.last.total} {board.last.total === 1 ? "vote" : "votes"}</span> : null}
