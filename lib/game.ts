@@ -48,6 +48,8 @@ import type { Turn } from "./conversation";
 import type { AfterglowLine, AfterglowVerdict } from "./afterglow";
 import { isDefaultFormat, type FormatId } from "./formats";
 import { featurableFlag, featurableSql, storyPassedSql } from "./story-check-gate";
+import { shotsJsonSql, shotUrlsOf } from "./show-shots-sql";
+import type { ShotUrls } from "./show-shots-shared";
 
 // The rules moved to lib/rules.ts (client-safe); M1 code and tests import them from here.
 export { ENDING_LABELS, ENDINGS, POINTS_PER_CORRECT_PICK, pointsFor, type Ending };
@@ -64,6 +66,8 @@ export type CharacterRef = {
   portrait: string | null;
   /** A realistic headshot that wins over every other face (After Dark: the face the viewer keeps for them), or none. */
   photo?: string | null;
+  /** The show kit's faces (lib/show-shots.ts): the expressions and moments drawn of them so far, or none. */
+  shots?: ShotUrls | null;
   /** Made by an AI agent over MCP rather than by a person on the website (characters.created_via). */
   agent?: boolean;
   /** Private to someone other than the viewer (characters.visibility): its name is shown, never linked (app/CharacterName.tsx). */
@@ -761,17 +765,22 @@ function toView(row: EpisodeRow): EpisodeView {
  * A hidden episode is still returned (with `hidden: true`); callers show it to its creators only.
  */
 export async function getEpisodeView(db: Db, id: string, viewerId: string | null): Promise<EpisodeView | null> {
-  const { rows } = await db.query<EpisodeRow>(`${EPISODE_SELECT} where e.id = $3`, [
-    viewerId,
-    REPORT_HIDE_THRESHOLD,
-    id,
-  ]);
+  // With each side's show-kit faces (lib/show-shots.ts) in the same round trip: a line shows its speaker's expression.
+  const { rows } = await db.query<EpisodeRow & { a_shots: Record<string, string> | null; b_shots: Record<string, string> | null }>(
+    `select q.*, ${shotsJsonSql("q.a_id")} as a_shots, ${shotsJsonSql("q.b_id")} as b_shots from (${EPISODE_SELECT} where e.id = $3) q`,
+    [viewerId, REPORT_HIDE_THRESHOLD, id],
+  );
   const row = rows[0];
   if (!row) return null;
   // A private date is the creator's alone: a character owner or the host, nobody else. ('unlisted' is
   // viewable by anyone with the link, so it is not gated here — only kept out of the feed below.)
   if (row.visibility === "private" && !row.is_creator && !row.is_host) return null;
-  return toView(row);
+  const view = toView(row);
+  const [a, b] = view.characters;
+  const shotsA = shotUrlsOf(row.a_shots);
+  const shotsB = shotUrlsOf(row.b_shots);
+  if (shotsA || shotsB) view.characters = [shotsA ? { ...a, shots: shotsA } : a, shotsB ? { ...b, shots: shotsB } : b];
+  return view;
 }
 
 /**
