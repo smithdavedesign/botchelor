@@ -696,11 +696,18 @@ export async function simulateConversation(
    * another user's private soul (lib/keys, lib/pipeline keyForSide).
    */
   actorForSide?: (side: "a" | "b") => Model | null,
-  /** Each finished line, as it's written (the creator's theater plays the date while it's filmed). Never throws into the date. */
-  onTurn?: (transcript: Turn[]) => void | Promise<void>,
+  /**
+   * Each finished line, as it's written (the creator's theater plays the date while it's filmed). Never throws into the date.
+   * `models` is line for line with the transcript: the model that answered the call whose line was kept (its onModel id),
+   * null when unknown (a line it was handed in `opts.from`, or a model that doesn't report itself). Data provenance:
+   * episodes.turn_meta[].model, docs/data-plan.md.
+   */
+  onTurn?: (transcript: Turn[], models: (string | null)[]) => void | Promise<void>,
   opts: ConversationOptions = {},
 ): Promise<Turn[]> {
   const transcript: Turn[] = [...(opts.from ?? [])];
+  // Which model wrote each line (onTurn's `models`); lines handed in were written before this call and aren't known here.
+  const lineModels: (string | null)[] = transcript.map(() => null);
   const reasons: string[] = [];
   // A date in another language: each line's English (languageBlock), so the critic reads what it can (never stored).
   const english = speaksOtherThanEnglish(...characters);
@@ -744,11 +751,15 @@ export async function simulateConversation(
     let line: { turn: Turn; reply: MoveReply; english?: string; inner?: LineInner; walkOut?: true } | null = null;
     let draft: { turn: Turn; reply: MoveReply; english?: string; inner?: LineInner; walkOut?: true } | null = null; // a parsed line the critic sent back: kept if the revision doesn't work out
     let draftNotes = "";
+    // The model that answered the call each of them came from.
+    let lineBy: string | null = null;
+    let draftBy: string | null = null;
     let prompt = messages;
     for (let attempt = 0; attempt < TURN_ATTEMPTS && !line; attempt++) {
       let raw: string;
+      let answeredBy: string | null = null;
       try {
-        raw = await turnModel.complete(prompt, { temperature: TURN_TEMPERATURE });
+        raw = await turnModel.complete(prompt, { temperature: TURN_TEMPERATURE, onModel: (id) => void (answeredBy = id) });
       } catch (err) {
         reasons.push(err instanceof ModelError ? err.message : "model_error");
         if (draft) break; // the critic never costs more than its one revision
@@ -765,11 +776,13 @@ export async function simulateConversation(
       const notes = draft ? [] : [critiqueTurn(transcript.map(inEnglish), critiqued, input, characters, venueId), moveProblem(parsed.reply, shape, names, shortName(names.other), parsed.turn.dialogue)].filter(Boolean);
       if (notes.length && attempt + 1 < TURN_ATTEMPTS) {
         draft = parsed;
+        draftBy = answeredBy;
         draftNotes = notes.join("; ");
         prompt = [...messages, { role: "assistant", content: raw }, { role: "user", content: `Revise that line: ${notes.join("; ")}. Reply with the JSON again.` }];
         continue;
       }
       line = parsed;
+      lineBy = answeredBy;
     }
     // The revision won: the draft it replaced is the rejected half of a pair (never throws into the date).
     if (line && draft && line !== draft && opts.onDraft) {
@@ -780,6 +793,7 @@ export async function simulateConversation(
         /* a lost draft never costs the date */
       }
     }
+    const writtenBy = line ? lineBy : draftBy;
     line ??= draft;
     if (!line) throw new ConversationError(reasons, [...transcript]);
     const turn = settleLine(line.turn, line.reply, shape, names);
@@ -814,7 +828,8 @@ export async function simulateConversation(
       delete turn.done;
     }
     transcript.push(turn);
-    if (onTurn) await Promise.resolve().then(() => onTurn([...transcript])).catch(() => {});
+    lineModels.push(writtenBy);
+    if (onTurn) await Promise.resolve().then(() => onTurn([...transcript], [...lineModels])).catch(() => {});
     if (turn.walked_out) break;
     // The actor's own "I'm done" signal, respected only in the goodbye stretch (David 2026-10-18: let dates close
     // when they've landed rather than run to a fixed length). Keeps the engine's decided ending — short dates

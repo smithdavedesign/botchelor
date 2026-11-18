@@ -229,6 +229,52 @@ describe("the turn critic", () => {
     expect(kept).toEqual([]);
   });
 
+  it("tells onTurn which model wrote each line (data provenance, turn_meta[].model): the kept call's, a standing draft's own, null when unknown", async () => {
+    // A model that reports a new id on every call ("test/m1", "test/m2", ...), as a fallback chain's onModel does.
+    const reporting = (outputs: string[]): Model => {
+      let n = 0;
+      return {
+        async complete(_messages, options) {
+          n++;
+          options?.onModel?.(`test/m${n}`);
+          const next = outputs.shift();
+          if (next === undefined) throw new Error("scripted model out of outputs");
+          return next;
+        },
+      };
+    };
+    const rest = Array.from({ length: CONVERSATION_TURNS }, (_, i) => turnJson(`Line ${i}: something friendly to say.`));
+    let seen: { lines: number; models: (string | null)[] }[] = [];
+    const onTurn = (lines: unknown[], models: (string | null)[]) => void seen.push({ lines: lines.length, models });
+
+    // The revision won: line 1 is the third call's, not the draft's.
+    const revised = await simulateConversation(
+      reporting([turnJson("Hi. I'm Mira. I brought a compass, just in case."), turnJson("A cartographer who wants a map reader, huh?"), turnJson("So what do you do when you're not on a date?"), ...rest]),
+      INPUT, OUTCOME, CHARS, PRODUCER, VENUE, undefined, undefined, undefined, undefined, undefined, onTurn,
+    );
+    for (const s of seen) expect(s.models).toHaveLength(s.lines);
+    expect(seen.at(-1)!.models).toHaveLength(revised.length);
+    expect(seen.at(-1)!.models.slice(0, 3)).toEqual(["test/m1", "test/m3", "test/m4"]);
+    expect(seen.at(-1)!.models.every((m) => typeof m === "string")).toBe(true);
+
+    // The revision failed and the draft stood: line 1 is the draft's call.
+    seen = [];
+    await simulateConversation(
+      reporting([turnJson("hello there, stranger"), turnJson("A cartographer who wants a map reader, huh?"), "not json", ...rest]),
+      INPUT, OUTCOME, CHARS, PRODUCER, VENUE, undefined, undefined, undefined, undefined, undefined, onTurn,
+    );
+    expect(seen.at(-1)!.models.slice(0, 3)).toEqual(["test/m1", "test/m2", "test/m4"]);
+
+    // Lines handed in (a pick-up from a partial date) and a model that doesn't report itself: unknown.
+    seen = [];
+    const { model: silent } = turnModel(rest);
+    await simulateConversation(silent, INPUT, OUTCOME, CHARS, PRODUCER, VENUE, undefined, undefined, undefined, undefined, undefined, onTurn, {
+      from: revised.slice(0, 2),
+    });
+    expect(seen[0].models).toEqual([null, null, null]);
+    expect(seen.at(-1)!.models.every((m) => m === null)).toBe(true);
+  });
+
   it("never stores a never_says phrase in a draft's reason: the model is told it, the kept reason names it generically", async () => {
     const drafts: { reason: string; rejected: string }[] = [];
     const rafe = assembleCharacter({ id: "rafe-house", sheet: sheetB, soul: soul(BETA), memory: null, extras: { never_says: ["Splendid Weather"] } });

@@ -288,12 +288,16 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
     void ensureSet(db, built.setup.venue);
     // When each line was written (episodes.turn_meta), stamped as the theater saves it.
     const lineAt: string[] = [];
+    // And which model wrote it (turn_meta[].model; null when unknown). Kept across the conversation's pick-up (J1), which
+    // hands back the lines already said with no model of its own.
+    const lineModel: (string | null)[] = [];
     // Set once the ending stands (onOutcome): the lease then covers the recap and texts still to come.
     let endingStands = false;
-    // Per line, aligned with the transcript: when, and whether the show's model or an owner's own key spoke it. Every
-    // write of the transcript writes this beside it, so the two are always the same length.
+    // Per line, aligned with the transcript: when, whether the show's model or an owner's own key spoke it, and which
+    // model that was (data provenance: a dataset can keep only lines whose writer's terms allow it, docs/data-plan.md).
+    // Every write of the transcript writes this beside it, so the two are always the same length.
     const metaOf = (lines: readonly { side?: string }[], at: string) =>
-      lines.map((t, i) => ({ at: lineAt[i] ?? at, by: keyForSide?.(t.side === "b" ? "b" : "a") ? "byok" : "show" }));
+      lines.map((t, i) => ({ at: lineAt[i] ?? at, by: keyForSide?.(t.side === "b" ? "b" : "a") ? "byok" : "show", model: lineModel[i] ?? null }));
     // Lines the critic sent back and a revision replaced: stored as turn_drafts once the date is saved.
     const drafts: { turn_index: number; side: "a" | "b"; reason: string; rejected: string }[] = [];
     // When each part happened, from the claim (generated_with.timing): the next "where do the seconds go" is one query.
@@ -351,8 +355,9 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
       },
       // The creator's theater plays the date while it's filmed: each line is saved as it's written (only the
       // creator sees a transcript before it airs, lib/game.ts), and the finished date overwrites it below.
-      onTurn: (lines) => {
+      onTurn: (lines, models) => {
         while (lineAt.length < lines.length) lineAt.push(new Date().toISOString());
+        models.forEach((m, i) => void (m && (lineModel[i] = m)));
         timing.first_line_ms ??= Date.now() - t0;
         timing.last_line_ms = Date.now() - t0;
         // A move somewhere new: start drawing its set now, so it's there by the time they arrive (lib/sets.ts).
@@ -391,7 +396,11 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
       // A few more calls before the date is saved: the lease covers them.
       void renewLease(db, episodeId, row.attempts, AFTER_OUTCOME_LEASE_SECONDS).catch(() => {});
       // The show's narrator (lib/narrate-date.ts): the frontier with its thinking off when this date ran on it, else the director.
-      const done = await narrateDate(frontier ? showNarrator() : models.director, kept, built.characters, built.setup.venue, (u) => void used.push(u)).catch(() => null);
+      // Which models wrote the prose (generated_with.narration.models): the lines' own writers are in turn_meta.
+      const narrator = frontier ? showNarrator() : models.director;
+      const narratedBy = new Set<string>();
+      const recordingNarrator: typeof narrator = { complete: (m, o) => narrator.complete(m, { ...o, onModel: (id) => (narratedBy.add(id), o?.onModel?.(id)) }) };
+      const done = await narrateDate(recordingNarrator, kept, built.characters, built.setup.venue, (u) => void used.push(u)).catch(() => null);
       if (done) {
         kept = done.turns;
         narration = {
@@ -402,6 +411,7 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
           failed: done.narration.failed,
           ms: Date.now() - n0,
           usage: summarizeUsage(used, Math.ceil(kept.length / NARRATE_BATCH)),
+          models: [...narratedBy],
         };
       } else narration = { failed: true, of: kept.length };
     }
