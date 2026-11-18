@@ -95,7 +95,7 @@ export const SHEET_PROPS = {
   // 2.36.0: what kind of person (lib/character-tags-shared.ts); a wrong one is refused with the whole list.
   tags: { type: "array", items: { type: "string" }, maxItems: 4, description: 'Optional type tags, e.g. ["cold","nerd"]; [] reads them from the traits.' },
   // 2.37.0: how their pictures are drawn (lib/art-style.ts), kept as their looks' style.
-  art_style: { type: "string", enum: [...ART_STYLES], description: "Optional: how they're drawn; semi_real is 2.5D." },
+  art_style: { type: "string", enum: [...ART_STYLES], description: "How they're drawn; semi_real is 2.5D." },
   soul: {
     type: "object",
     description: "Optional private soul: owner-only, never shown to the audience or the other character; it shapes how your character behaves on a date. Same content rules.",
