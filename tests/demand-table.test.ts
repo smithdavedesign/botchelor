@@ -1,0 +1,47 @@
+/**
+ * Admin → Tags' demand tables (app/admin/tags/DemandTable.tsx): each facet's table names itself once, and its caption
+ * sits where the cells' words do, clear of the scroller's rounded corner (app/globals.css `.table-scroll`).
+ */
+import { readFileSync } from "node:fs";
+import { renderToStaticMarkup } from "react-dom/server";
+import { describe, expect, it } from "vitest";
+import DemandTable from "@/app/admin/tags/DemandTable";
+import type { Demand, DemandRow } from "@/lib/tag-demand";
+
+const row = (facet: string, tag: string, blended: number): DemandRow => ({
+  tag,
+  label: tag,
+  icon: "·",
+  facet,
+  picks: 1,
+  supply: 1,
+  raw: 1,
+  census: 1,
+  blended,
+});
+const demand = (rows: DemandRow[]): Demand => ({ side: "sfw", total: rows.length, rows });
+const captions = (html: string): string[] => [...html.matchAll(/<caption>([^<]*)<\/caption>/g)].map((m) => m[1]);
+
+describe("the demand table", () => {
+  it("names a lone facet's table by its caption alone, and each of several by caption and facet", () => {
+    const one = renderToStaticMarkup(
+      DemandTable({ demand: demand([row("art_style", "anime", 1.06), row("art_style", "photo", 0.97)]), caption: "Art style", item: "Style" }),
+    );
+    expect(captions(one)).toEqual(["Art style"]);
+    expect(one).toContain('aria-label="Art style"');
+    const two = renderToStaticMarkup(
+      DemandTable({ demand: demand([row("setup", "rivals", 1.2), row("genre", "drama", 1.1)]), caption: "Roleplays" }),
+    );
+    expect(captions(two)).toEqual(["Roleplays · setup", "Roleplays · genre"]);
+  });
+
+  it("starts a shown caption where the cells' words start, and leaves the hidden ones alone", () => {
+    const css = readFileSync("app/globals.css", "utf8");
+    const cell = css.match(/\.board th,\s*\.board td \{[^}]*padding: [^ ;]+ ([^;]+);/)?.[1];
+    const shown = css.match(/\.table-scroll \.board caption:not\(\.sr-only\) \{([^}]*)\}/)?.[1] ?? "";
+    expect(cell).toBe("0.8rem");
+    // At the box's edge the scroller's 16px rounded corner (overflow-x: auto) cut the top off "Lineup"'s L.
+    expect(shown).toMatch(/padding: 0 0\.8rem 0\.35rem;/);
+    expect(css).toMatch(/\.table-scroll \{[^}]*overflow-x: auto;[^}]*border-radius: var\(--radius\);/);
+  });
+});
