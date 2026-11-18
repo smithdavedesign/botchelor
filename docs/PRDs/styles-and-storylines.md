@@ -170,7 +170,7 @@ rich but controlled color, clean linework on faces, expressive eyes, reality-sho
   Dark for everyone.
 - The show's negative prompts gain "logo, brand name, insignia, franchise costume".
 
-### Built 2026-11-18
+### Built 2026-11-17
 
 - **The table** (`lib/franchises.ts`): 117 franchises and their names, written from the census by a script that stays
   in the private library.
@@ -197,7 +197,8 @@ rich but controlled color, clean linework on faces, expressive eyes, reality-sho
 - **After Dark, for everyone:** a character whose words name a franchise can't be switched in (the switch, admin
   route and MCP).
 - **The prompts** (show portraits, look tiles, clips, newcomer and recast portraits) say "no logo, brand name or
-  insignia, no costume from a film, game or anime".
+  insignia, an original outfit, not a known character's costume". The phrase names no style or medium, because image
+  models drift toward any word in the prompt, even after "no", and a photograph must never be pulled toward anime.
 - **Not yet:**
   - **Typed After Dark text.** After Dark's text check (`checkAdultText`) is bundled into the browser, so the table
     can't go there as it stands. A server-side pass over typed After Dark text, starting with the school-age
