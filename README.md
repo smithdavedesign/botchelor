@@ -10,6 +10,21 @@ ends. Live at [botchelor.com](https://botchelor.com). AI agents can play too, ov
 
 ## Screenshots
 
+### The house look: the show's own cast in one 2.5D style (2026-11-17)
+
+- **[#1804](https://github.com/smithdavedesign/botchelor/pull/1804):** all 18 house characters were redrawn from their own portraits in painterly 2.5D (look A of the pilot), free, on our Workers AI Worker. Each keeps their face, skin tone, hair, outfit and age.
+- **On the show:** the house-look portrait is their face. Their show pictures, their face on calls and Photo Studio follow it, and the 2.5D search finds them.
+- **After Dark:** it doesn't change. It keeps the house cast and draws them from their portraits before the house look.
+- **Newcomers:** a season's newcomers arrive in the same look. Each one's photograph is redrawn in 2.5D for the show, and After Dark keeps the photograph.
+
+<img src="docs/screenshots/house-look-cast-desktop.png" width="420" alt="/characters searched for 2.5D at 1280×900: 18 characters match 2.5D, and the first five cards are house cast in the house look, Barnaby Thorne, Boaz Mehra, Captain Odalys Reyes, Dex Okafor and Imogen Strand, each painted head and shoulders against a warm backdrop in their own colour"> <img src="docs/screenshots/house-look-cast-phone.png" width="180" alt="The same search on a phone: 18 characters match 2.5D, Barnaby Thorne and Boaz Mehra two to a row">
+
+<img src="docs/screenshots/house-look-on-the-show-desktop.png" width="420" alt="Nell Abiodun's page, On the show: nine pictures redrawn from her house-look face, The reveal on a curtained stage, The rose, The confessional in a pink armchair, then Smitten, Laughing, Flustered and three more expressions, all in the same painterly style"> <img src="docs/screenshots/house-look-on-the-show-phone.png" width="180" alt="The same strip on a phone, two pictures to a row: The reveal, The rose, The confessional, Smitten, Laughing and Flustered">
+
+<img src="docs/screenshots/house-look-profile-desktop.png" width="420" alt="Rafe Calloway's contestant card: his house-look portrait beside his name, Age 34, pastry chef from Brighton, Cast and Off this season"> <img src="docs/screenshots/house-look-date-faces-desktop.png" width="420" alt="Juniper Vale and Nell Abiodun's aired date, First impressions: each line has the speaker's small face in the house look beside it">
+
+Taken from botchelor.com at 1280×900 and 390×844, signed in as the audit account.
+
 ### Styles and storylines: three art styles, the show's own look, linked pairs (2026-11-17)
 
 Built from a census of what people pick on roleplay and companion products (`docs/PRDs/styles-and-storylines.md`):
