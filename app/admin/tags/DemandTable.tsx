@@ -22,14 +22,15 @@ export default function DemandTable({
 }) {
   const facets = [...new Set(demand.rows.map((r) => r.facet))];
   const cols = sources ? Object.keys(sources.labels) : [];
+  // A table names its facet only when there are several (a roleplay's setup and genre): alone, it would just repeat
+  // its own key ("Art style · art_style").
+  const label = (f: string): string => (facets.length > 1 ? `${caption} · ${f}` : caption);
   return (
     <>
       {facets.map((f) => (
-        <div key={f} className="table-scroll" tabIndex={0} role="region" aria-label={`${caption} · ${f}`}>
+        <div key={f} className="table-scroll" tabIndex={0} role="region" aria-label={label(f)}>
           <table className="board">
-            <caption>
-              {caption} · {f}
-            </caption>
+            <caption>{label(f)}</caption>
             <thead>
               <tr>
                 <th scope="col">{item}</th>

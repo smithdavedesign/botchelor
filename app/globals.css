@@ -6350,6 +6350,11 @@ button.sheet-x:hover:not(:disabled) {
     max-height: 100dvh;
     border-radius: 0;
   }
+  /* Its body is a grid as tall as the screen: the rows sit at the top instead of stretching to fill it, which spread the
+     looks builder down the page and made its Done button 120px tall (2026-11-17). */
+  .sheet-dialog.is-wide .sheet-body {
+    align-content: start;
+  }
   .sheet-body::before {
     content: "";
     display: block;
@@ -6555,6 +6560,11 @@ main:has(> .admin-wide) {
 }
 .table-scroll .board th {
   white-space: nowrap;
+}
+/* A wide table's caption starts where the table does: centred, it sat over the middle of the scrolled-away width,
+   half off a phone's screen (/admin/tags, 2026-11-17). */
+.table-scroll .board caption {
+  text-align: start;
 }
 .board .num {
   text-align: right;
