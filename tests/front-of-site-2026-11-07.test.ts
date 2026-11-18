@@ -323,4 +323,14 @@ describe("the read's fold (app/episodes/[id]/TranscriptRead.tsx)", () => {
     expect(css).toContain(".episode-read.has-more:has(> .episode-read-more:not([open])) .chat-thread > .chat-item:nth-child(n + 5),");
     expect(css).toContain(".episode-read.has-more:has(> .episode-read-more:not([open])) .chat-walkout {");
   });
+
+  it("keeps a house face's whole ring inside the thread, so the fold's fade never cuts it", async () => {
+    const { readFileSync } = await import("node:fs");
+    const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+    // The fade is a mask, and a mask paints only inside the thread's box: the ring has to fit within its padding.
+    const ring = css.match(/\.avatar-house \{\s*outline: (\d+)px solid [^;]+;\s*outline-offset: (\d+)px;/);
+    const pad = css.match(/\.episode-read \.chat-thread \{\s*padding-inline: (\d+)px;/);
+    expect(ring && pad).toBeTruthy();
+    expect(Number(pad![1])).toBeGreaterThanOrEqual(Number(ring![1]) + Number(ring![2]));
+  });
 });

@@ -6562,9 +6562,13 @@ main:has(> .admin-wide) {
   white-space: nowrap;
 }
 /* A wide table's caption starts where the table does: centred, it sat over the middle of the scrolled-away width,
-   half off a phone's screen (/admin/tags, 2026-11-17). */
+   half off a phone's screen (/admin/tags, 2026-11-17). A shown caption also starts where the cells' words do: at the
+   box's very edge, the scroller's rounded corner (overflow plus --radius) cut the top off its first letter ("Lineup"). */
 .table-scroll .board caption {
   text-align: start;
+}
+.table-scroll .board caption:not(.sr-only) {
+  padding: 0 0.8rem 0.35rem;
 }
 .board .num {
   text-align: right;
@@ -7163,6 +7167,10 @@ button.table-more {
 }
 .deeper-further-list li[data-done="yes"] > span:first-child {
   color: var(--ok-text);
+}
+/* A to-do's ○ in the words' own ink read as a capital O ("O A scenario"): quiet, it reads as the empty mark. */
+.deeper-further-list li:not([data-done="yes"]) > span:first-child {
+  color: var(--muted);
 }
 
 /* The sheet's length (app/create/DepthMeter.tsx): the fill, with the 400–999-word sweet spot marked on the track. */
@@ -11342,6 +11350,12 @@ main:has(> .episode-page) {
 .episode-read.has-more:has(> .episode-read-more:not([open])) .chat-thread {
   -webkit-mask-image: linear-gradient(180deg, var(--ink) calc(100% - 4rem), transparent);
   mask-image: linear-gradient(180deg, var(--ink) calc(100% - 4rem), transparent);
+}
+/* A mask paints only inside the thread's box, and a house face's ring (.avatar-house: a 2px outline 2px out) reaches
+   4px past it at the thread's edge, so the fade cut each ring flat on its outer side. The thread keeps that 4px inside,
+   open or folded, so opening the fold never moves a line. */
+.episode-read .chat-thread {
+  padding-inline: 4px;
 }
 .episode-read-more {
   margin-top: var(--space-2);

@@ -89,4 +89,10 @@ describe("the create flow shows it", () => {
     expect(wizard).toContain("words={sheetLength}");
     expect(wizard).toContain("jump={(to) => jump(to === \"voice\" ? S.voice : S.details)}");
   });
+
+  it("marks a done suggestion green and a to-do quiet, so its ○ never reads as a letter", () => {
+    const css = readFileSync("app/globals.css", "utf8");
+    expect(css).toMatch(/\.deeper-further-list li\[data-done="yes"\] > span:first-child \{\s*color: var\(--ok-text\);/);
+    expect(css).toMatch(/\.deeper-further-list li:not\(\[data-done="yes"\]\) > span:first-child \{\s*color: var\(--muted\);/);
+  });
 });
