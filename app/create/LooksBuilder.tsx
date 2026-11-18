@@ -184,7 +184,8 @@ export default function LooksBuilder({ looks, setLooks, age, tiles, afterDark, o
               </span>
               {step.title}
             </h3>
-            <ul className={`looks-grid${step.id === "gender" || step.id === "style" ? " two" : ""}`}>
+            {/* Big tiles for the two first choices: two genders side by side, the three styles in one row. */}
+            <ul className={`looks-grid${step.id === "gender" ? " two" : step.id === "style" ? " three" : ""}`}>
               {(step.id === "gender" ? (["woman", "man"] as const).map((g) => ({ id: g, label: g === "woman" ? "Woman" : "Man" })) : optionsFor(step, gender, adTab)).map((o) => {
                 const id = step.id === "gender" ? genderTileId(o.id as Gender) : tileId(gender, step.id, o.id, adTab && afterDark);
                 // Locked: the show's tile, blurred. An explicit one is never sent to someone who can't open After Dark.

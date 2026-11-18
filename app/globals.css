@@ -8741,6 +8741,9 @@ body.ad-host {
 .looks-grid.two {
   grid-template-columns: repeat(2, minmax(0, 200px));
 }
+.looks-grid.three {
+  grid-template-columns: repeat(3, minmax(0, 200px));
+}
 .looks-tile {
   position: relative;
   display: block;
@@ -8923,6 +8926,9 @@ body.ad-host {
   }
   .looks-grid.two {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .looks-grid.three {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
   .looks-tile-label {
     font-size: var(--text-2xs);
