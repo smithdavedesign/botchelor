@@ -848,8 +848,9 @@ export default function CreateWizard({
     setTriedNext(false);
     setStep(i);
   }
-  // The whole sheet's length (lib/sheet-words.ts): Go deeper and the review show it against the 400–999 sweet spot.
-  const words = sheetWords({ bio: sheet.bio, want: sheet.want, dealbreaker: sheet.dealbreaker, traits, voice, appearance, soul, extras, hiding, week });
+  // The whole sheet's length (lib/sheet-words.ts): Go deeper and the review show it against the 400–999 sweet spot. Not
+  // `words`, which is the bio's own counter above.
+  const sheetLength = sheetWords({ bio: sheet.bio, want: sheet.want, dealbreaker: sheet.dealbreaker, traits, voice, appearance, soul, extras, hiding, week });
 
   async function createCharacter() {
     const soulEntries = (Object.keys(EMPTY_SOUL) as (keyof Soul)[])
@@ -1507,7 +1508,7 @@ export default function CreateWizard({
             setHiding={setHiding}
             hidingOut={init?.hidingOut}
             name={sheet.name}
-            words={words}
+            words={sheetLength}
             jump={(to) => jump(to === "voice" ? S.voice : S.details)}
           />
         )}
@@ -1651,7 +1652,7 @@ export default function CreateWizard({
                 ));
             })()}
 
-            <DepthMeter words={words} />
+            <DepthMeter words={sheetLength} />
 
             <OriginalityPanel
               draft={{ name: sheet.name, bio: sheet.bio, traits, want: sheet.want, dealbreaker: sheet.dealbreaker, voice, extras: normaliseExtras(extras) }}
