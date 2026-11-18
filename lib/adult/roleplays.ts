@@ -316,7 +316,7 @@ export const ROLEPLAYS: readonly HouseRoleplay[] = [
   {
     id: "bodyguard-gala", title: "Bodyguard for one gala", icon: "🎟️", category: "nightlife", roles: ["the bodyguard for the night", "the guest of honour"], costumes: ["a tailored black suit with an earpiece", "a formal evening look in deep velvet"],
     tags: ["bodyguard", "strangers", "drama", "tease"],
-    premise: "{a} was booked to guard {b} for one gala, from the red carpet to the car at midnight: two strangers a step apart all evening, catching each other's eye. At midnight the booking is over, and neither of them calls the car.",
+    premise: "{a} was booked to guard {b} for one gala, from the red carpet to the car at midnight: two strangers an arm's length apart all evening, catching each other's eye. At midnight the booking is over, and neither of them calls the car.",
     card: {
       setup: "The gala is over, the last photographer has gone home and the car is waiting downstairs. {a}'s booking ended at midnight, two minutes ago, and {b} asks out loud whether {a} is still on the clock.",
       wants: [
