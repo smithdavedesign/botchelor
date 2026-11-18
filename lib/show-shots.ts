@@ -64,6 +64,12 @@ const ADULT_DRAWN = "A clearly grown adult with mature features and adult propor
 const ADULT_PHOTO = "A grown adult, as old as in image 0 and no older, fully clothed.";
 const CLEAN = "No text, no logo, no watermark.";
 
+/**
+ * What every expression keeps from the portrait. A strong expression (smug, unimpressed, heartbroken) carved lines into
+ * the face and aged it some twenty years (Nell, 35, read nearer 55; 2026-11-18); this sentence kept the face its own age.
+ */
+export const KEEP_AGE = "Keep their skin as smooth and their age exactly as in image 0: the expression adds no lines, wrinkles or creases.";
+
 /** One shot's prompt, in their style: image 0 is their portrait. */
 export function shotPrompt(shot: Shot, style: ArtStyle): string {
   const drawn = isDrawnStyle(style);
@@ -74,7 +80,7 @@ export function shotPrompt(shot: Shot, style: ArtStyle): string {
   if ((EXPRESSIONS as readonly string[]).includes(shot)) {
     return (
       `Edit image 0: the same ${who}, ${same}, the same background and the same ${drawn ? `${noun} style` : "photographic look"}. ` +
-      `Change only the expression to ${EXPRESSION_LOOKS[shot as Expression]}. Head and shoulders, centred for a square crop. ${end}`
+      `Change only the expression to ${EXPRESSION_LOOKS[shot as Expression]}. ${KEEP_AGE} Head and shoulders, centred for a square crop. ${end}`
     );
   }
   if (shot === "reveal") {
