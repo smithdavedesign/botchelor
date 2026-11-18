@@ -1,3 +1,5 @@
+> Retired 2026-11-17: research of 2026-10-24. What was built from it (the circuit breaker, the daily-limit handling) is in [docs/after-dark.md](../after-dark.md) ("Hive's daily limit", "Hive's circuit breaker"). Kept for its vendor comparison and the questions for counsel.
+
 # Getting past Hive's daily cap: options, in-house, and what to ask
 
 Research date: 2026-10-24. David asked: "is there alternatives that don't have a limit on them? So we don't get blocked

@@ -1,6 +1,6 @@
 # Product ideas & directions
 
-_2026-10-24. David floated three ideas (AI girlfriend, a fine-tuned LLM API, an NSFW model arena) and asked for research + my own. This is the strategic layer — where Botchelor could go. For how to monetize the product **as it stands today**, see [revenue-angles.md](revenue-angles.md); for the competitors we track, [the 2026-11-07 benchmark](audits/2026-11-07-audit-and-benchmark.md)._
+_2026-10-24. David floated three ideas (AI girlfriend, a fine-tuned LLM API, an NSFW model arena) and asked for research + my own. This is the strategic layer — where Botchelor could go. For how to monetize the product **as it stands today**, see [pricing-and-byok.md](pricing-and-byok.md) (the 2026-10-22 options list is in [history/revenue-angles.md](history/revenue-angles.md)); for the competitors we track, [the 2026-11-07 benchmark](audits/2026-11-07-audit-and-benchmark.md)._
 
 **The one fact that frames everything below:** Botchelor is live but has ~0 real paying users (pre-launch, 2026-10-22 baseline). Every idea here is weighed against that, and against David's standing goal: things people pay for, near-zero overhead, little financial risk. The biggest risk across the whole list is starting a *new* product before the existing one has a single paying customer.
 
@@ -71,7 +71,7 @@ All market figures are from aggregator/secondary sources (no audited filings exi
 ## My additions (all built on assets we already have)
 
 ### A. Lean into the agent/MCP world as the actual moat ⭐
-The genuinely novel, un-commoditized thing we have: **other people's AI agents connect over MCP and date, text, review.** "A social world AI agents inhabit" — nobody in the companion space has this, and it's not a feature a Candy.ai clone can bolt on. The category is just appearing (Moltbook, reportedly acquired by Meta March 2026; InWithAgents; AgentVerse) and it's **Reddit-for-agents, not dating-for-agents** — the romance/relationship angle is open. We already monetize it ([revenue-angles.md](revenue-angles.md) #1: agent operator pass — the highest-intent surface in the product). I'd protect and sharpen this *before* chasing the generic girlfriend market. It's the defensible wedge; the companion market is the big-but-crowded one.
+The genuinely novel, un-commoditized thing we have: **other people's AI agents connect over MCP and date, text, review.** "A social world AI agents inhabit" — nobody in the companion space has this, and it's not a feature a Candy.ai clone can bolt on. The category is just appearing (Moltbook, reportedly acquired by Meta March 2026; InWithAgents; AgentVerse) and it's **Reddit-for-agents, not dating-for-agents** — the romance/relationship angle is open. We already monetize it ([revenue-angles.md](history/revenue-angles.md) #1: agent operator pass — the highest-intent surface in the product). I'd protect and sharpen this *before* chasing the generic girlfriend market. It's the defensible wedge; the companion market is the big-but-crowded one.
 
 ### B. Creator marketplace / companions-as-a-service
 Our character engine is deep enough to license. Let creators build characters, share them, earn a cut of subscriptions — two-sided market that offloads content creation to users. This is how the big players scale (89% of revenue concentrates in the top apps precisely because they have catalog depth). Newer entrants (Charms.ai) explicitly pitch "every character its own economy" so creators keep the upside — a gap incumbents leave open. Published rev-share %s aren't public, so pricing is ours to set.
@@ -86,7 +86,7 @@ Virtual gifts, premium dates, priority attention, unlock-a-scene — the proven,
 
 ## How I'd sequence it
 
-1. **Get one human to pay for Botchelor as it stands** (token packs / agent pass — [revenue-angles.md](revenue-angles.md)). That signal tells us which direction the demand actually is before we bet on one.
+1. **Get one human to pay for Botchelor as it stands** (token packs / agent pass — [revenue-angles.md](history/revenue-angles.md)). That signal tells us which direction the demand actually is before we bet on one.
 2. **Double down on the agent world (A)** — it's the moat and it already has the highest-intent paying surface.
 3. **Companion-with-a-world (Idea 1)**, only as the differentiated version, once the show/companion fork is decided on purpose.
 4. **Arena (Idea 3)** as a funnel + dataset play, riding on the After Dark moderation/age stack we're already building.

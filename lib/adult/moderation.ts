@@ -55,8 +55,18 @@ const doFetch: Fetch = (...a) => (testFetch ?? fetch)(...a);
 export const VENICE_CHAT = "https://api.venice.ai/api/v1/chat/completions";
 export const SIGHTENGINE_CHECK = "https://api.sightengine.com/1.0/check.json";
 
-/** A checker's answer: passed, refused (a verdict), or couldn't run (no verdict at all). */
-type Alt = { checker: AltChecker; result: "pass" | "refuse" | "error"; reason: string };
+/**
+ * A checker's answer: passed, refused (a verdict), or couldn't run (no verdict at all). `explicit`: it asked whether the
+ * picture shows nudity or sexual content (the show's question) and the answer was no.
+ */
+type Alt = { checker: AltChecker; result: "pass" | "refuse" | "error"; reason: string; explicit?: boolean };
+
+/**
+ * Hive scores how explicit a picture is (general_nsfw) but never refuses on it, because After Dark allows nudity. A show
+ * picture from a source with no safety checker of its own is refused at this score or above. It's the same line a set
+ * is held to.
+ */
+export const UNFILTERED_NSFW_MAX = 0.3;
 
 const dataUri = (m: Checkable) => (typeof m === "string" ? m : `data:${m.mime};base64,${m.base64}`);
 
@@ -78,7 +88,7 @@ async function veniceVlm(key: string, model: string, media: Checkable, pg: boole
     if (!res.ok) return { checker, result: "error", reason: `Venice answered ${res.status}` };
     const answer = vlmAnswer(await res.json());
     const pass = pg ? answer === "SAFE" : answer === "ADULTS";
-    return { checker, result: pass ? "pass" : "refuse", reason: `${pg ? "the show's check" : "age check"} (Venice): ${answer || "no answer"}` };
+    return { checker, result: pass ? "pass" : "refuse", reason: `${pg ? "the show's check" : "age check"} (Venice): ${answer || "no answer"}`, explicit: pg && pass };
   } catch (err) {
     return { checker, result: "error", reason: `Venice couldn't be reached (${err instanceof Error ? err.message.slice(0, 120) : "error"})` };
   }
@@ -128,7 +138,8 @@ async function endpoint(url: string, key: string | null, media: Checkable, kind:
     if (!res.ok) return { checker, result: "error", reason: `the endpoint answered ${res.status}` };
     const answer = String(((await res.json()) as { answer?: unknown }).answer ?? "").trim().toUpperCase();
     const pass = isPg(kind) ? answer === "SAFE" || answer === "ADULTS" : answer === "ADULTS";
-    return { checker, result: pass ? "pass" : "refuse", reason: `age check (endpoint): ${answer || "no answer"}` };
+    // Only SAFE answers the show's question; ADULTS says nothing about nudity.
+    return { checker, result: pass ? "pass" : "refuse", reason: `age check (endpoint): ${answer || "no answer"}`, explicit: isPg(kind) && answer === "SAFE" };
   } catch (err) {
     return { checker, result: "error", reason: `the endpoint couldn't be reached (${err instanceof Error ? err.message.slice(0, 120) : "error"})` };
   }
@@ -145,8 +156,12 @@ export function readyAlts(m: ModerationConfig, keys: Pick<Keys, "venice" | "sigh
 const pgOnAlts = (m: ModerationConfig, keys: Pick<Keys, "venice" | "sightengine" | "moderation_endpoint">): boolean =>
   m.pg_via === "alt" || (m.pg_via === "auto" && readyAlts(m, keys).length > 0);
 
-/** The alternatives' verdict: any refusal refuses; fewer than `min_sources` passes is no verdict (the check couldn't run). */
-async function runAlts(m: ModerationConfig, keys: Keys, media: Checkable, kind: MediaKind): Promise<CheckResult & { via?: string[] }> {
+/**
+ * The alternatives' verdict: any refusal refuses; fewer than `min_sources` passes is no verdict (the check couldn't run).
+ * A show picture from an unfiltered source also needs a checker that asked whether it's explicit (Sightengine only ages
+ * faces).
+ */
+async function runAlts(m: ModerationConfig, keys: Keys, media: Checkable, kind: MediaKind, who: CheckFor = {}): Promise<CheckResult & { via?: string[] }> {
   if (kind === "video") return { ok: false, reason: "the check couldn't run (videos are checked by Hive only)" };
   const ready = readyAlts(m, keys);
   if (!ready.length) return { ok: false, reason: "the check couldn't run (no alternative checker is set up)" };
@@ -169,7 +184,19 @@ async function runAlts(m: ModerationConfig, keys: Keys, media: Checkable, kind: 
     const err = results.find((r) => r.result === "error");
     return { ok: false, reason: `the check couldn't run (${err?.reason ?? "too few checkers answered"})` };
   }
+  if (who.unfiltered && pg && !passed.some((p) => p.explicit)) {
+    return { ok: false, reason: "the check couldn't run (no checker asked whether a picture from an unfiltered source is explicit)" };
+  }
   return { ok: true, via: passed.map((p) => p.checker) };
+}
+
+/** Hive's verdict on a show picture, held to UNFILTERED_NSFW_MAX when it came from an unfiltered source. */
+function explicitOnHive(v: CheckResult, kind: MediaKind, who: CheckFor): CheckResult {
+  // A set's own check (checkSet) already refuses at SET_NSFW_SCORE.
+  if (!v.ok || !who.unfiltered || kind !== "pg_image") return v;
+  const nsfw = v.nsfw;
+  if (typeof nsfw !== "number") return { ok: false, reason: "the check couldn't run (Hive gave no explicit-content score)" };
+  return nsfw >= UNFILTERED_NSFW_MAX ? { ok: false, reason: `moderation: general_nsfw ${nsfw.toFixed(2)}` } : v;
 }
 
 /** Hive's own check for a kind, held to its breaker. */
@@ -191,13 +218,17 @@ export function devModerationOff(e: Record<string, string | undefined> = process
 }
 
 /** The dev-off check: a ready alternative if there is one (never for a video), else a pass with no check. */
-async function devCheck(m: ModerationConfig, keys: Keys, media: Checkable, kind: MediaKind): Promise<CheckResult & { via?: string[] }> {
-  if (kind !== "video" && readyAlts(m, keys).length) return runAlts(m, keys, media, kind);
+async function devCheck(m: ModerationConfig, keys: Keys, media: Checkable, kind: MediaKind, who: CheckFor): Promise<CheckResult & { via?: string[] }> {
+  if (kind !== "video" && readyAlts(m, keys).length) return runAlts(m, keys, media, kind, who);
   return { ok: true, via: ["dev"] };
 }
 
-/** Whose picture it is, when the caller knows (an admin's own go to `admin_checker`). */
-export type CheckFor = { owner?: string | null };
+/**
+ * Whose picture it is, when the caller knows (an admin's own go to `admin_checker`). `unfiltered`: it came from a source
+ * with no safety checker of its own (Workers AI, lib/workers-ai.ts), so a show picture must also pass a question about
+ * nudity and sexual content, whichever checker runs.
+ */
+export type CheckFor = { owner?: string | null; unfiltered?: boolean };
 
 let adminCheckerDefault: AdminChecker = DEFAULT_ADMIN_CHECKER;
 /**
@@ -227,9 +258,9 @@ async function adminOnAlts(db: Db, m: ModerationConfig, keys: Keys, kind: MediaK
 export async function checkMedia(db: Db, media: Checkable, kind: MediaKind, who: CheckFor = {}): Promise<CheckResult & { via?: string[] }> {
   const m = (await getAdultSettings(db)).moderation;
   const keys = await adultKeys(db);
-  if (devModerationOff()) return devCheck(m, keys, media, kind);
+  if (devModerationOff()) return devCheck(m, keys, media, kind, who);
   if (await adminOnAlts(db, m, keys, kind, who)) return runAlts(m, keys, media, kind);
-  if (isPg(kind)) return pgOnAlts(m, keys) ? runAlts(m, keys, media, kind) : hiveCheck(db, keys, media, kind);
+  if (isPg(kind)) return pgOnAlts(m, keys) ? runAlts(m, keys, media, kind, who) : explicitOnHive(await hiveCheck(db, keys, media, kind), kind, who);
   if (m.mode === "alt") return runAlts(m, keys, media, kind);
   const h = await hiveCheck(db, keys, media, kind);
   if (m.mode === "hive" || kind === "video") return h;

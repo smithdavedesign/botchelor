@@ -1,5 +1,10 @@
 # After Dark: the business setup (sole proprietor, EIN, bank, CCBill)
 
+> **Update 2026-11-17: the LLC came first after all.** Botchelor LLC (California) was filed on 2026-11-13 and is
+> pending the state's review. The order from here: a new EIN in the LLC's name (the sole-proprietor EIN can't move to
+> it), then a business bank account that accepts adult-merchant payouts, then the CCBill application packet, then the
+> Statement of Information within 90 days. The sole-proprietor steps below are kept as the record.
+
 David's picks (2026-10-30): **start as a sole proprietor** (David Smith, trading as Botchelor) and form a California
 LLC later, once subscriptions pay for its $800 yearly tax; and **CCBill** as the first processor (Segpay and Verotel stay
 wired as backups). The code side is done (CCBill is built and off: `lib/adult/billing-ccbill.ts`, docs/after-dark.md
@@ -15,13 +20,13 @@ before it. If CCBill says it needs an LLC (question 4 of the inquiry, sent 2026-
 | Step | Status |
 |---|---|
 | EIN (sole proprietor, dba Botchelor) | Done. The letter is in David's "business" folder |
-| Marin County fictitious business name | Signed. Mailed with a $42 check and a stamped return envelope |
-| Newspaper notice | Next, within 45 days of filing (Marin IJ or a paper on the county's approved list) |
+| County fictitious business name | Signed. Mailed with a $42 check and a stamped return envelope |
+| Newspaper notice | Next, within 45 days of filing (a paper on the county's approved list) |
 | Business bank account | After the filed statement comes back. Ask the bank whether it banks adult merchants |
-| CCBill inquiry | Sent. Mili (MiliT@ccbill.com) answered the same day |
+| CCBill inquiry | Sent. A CCBill sales rep answered the same day |
 | CCBill follow-up answers | Sent. Country and entity, owner, ID, $12.99 a month, how content is made, the controls, the service |
 | CCBill reviewer login | Sent. Account `ccbill_review`, with a reviewer pass until 2026-11-29 (docs/after-dark.md "Reviewer pass", #994) |
-| CCBill AI Guidelines (PDF) | Not read: the Gmail connector can't download attachments. Our reply maps our controls to the card-network rules and asks Mili to flag any gap |
+| CCBill AI Guidelines (PDF) | Not read: the Gmail connector can't download attachments. Our reply maps our controls to the card-network rules and asks the rep to flag any gap |
 | CCBill application | After the bank account. Then FlexForms, the webhook, the `CCBILL_*` settings and one test purchase |
 
 **What CCBill said** (2026-10-30):
@@ -162,4 +167,4 @@ subscriptions pay for it.
 - **The terms:** `GOVERNING_STATE` is California since 2026-10-30. The operator becomes the LLC once it's formed.
 - **A lawyer's flat-fee review** of the terms (the six questions in docs/after-dark-legal-review.md).
 
-**Processor comparison (2026-10-31):** `docs/after-dark-processor-research.md`. CCBill primary, Segpay backup, Verotel last resort; ask CCBill whether the Visa/Mastercard registration fees are paid up front.
+**Processor comparison (2026-10-31):** `docs/history/after-dark-processor-research.md`. CCBill primary, Segpay backup, Verotel last resort; ask CCBill whether the Visa/Mastercard registration fees are paid up front.

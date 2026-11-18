@@ -1,5 +1,10 @@
 # Launch ready: Botchelor (2026-11-01)
 
+> **A record of the 2026-11-01 launch pass.** RepoHQ's "Go live" step reads this file, so it stays here. For what
+> protects the show now, see [docs/launch-readiness.md](docs/launch-readiness.md); for prices, [docs/pricing-and-byok.md](docs/pricing-and-byok.md);
+> for search and tracking, [docs/seo-and-tracking.md](docs/seo-and-tracking.md). The site has run on DigitalOcean since
+> 2026-10-30 ([docs/hosting.md](docs/hosting.md)).
+
 Botchelor was already live on https://botchelor.com with most launch basics in place: robots.txt, a sitemap, a share
 card, terms, privacy, a Buy button and RepoHQ's beacon. This pass completes them and makes each one checkable, without
 changing what the show does. Nobody was available to ask, so the decisions are written down below.
