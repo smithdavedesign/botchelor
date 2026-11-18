@@ -1,8 +1,8 @@
 /**
  * How long a character's sheet is, in words, across everything its creator wrote (PRD styles-and-storylines phase 6).
  * The census of public character profiles found 400–999 words in total ranked best: a few lines ranked lowest, and
- * the fullest sheets ranked below the middle. So /create shows a soft meter (app/create/DepthMeter.tsx), and nothing is
- * ever refused for its length.
+ * the fullest sheets ranked below the middle. So /create shows a soft meter (app/create/DepthMeter.tsx), season-gen
+ * asks its writer for the same (lib/season-gen.ts), and nothing is ever refused for its length.
  *
  * Client-safe: the create flow counts as people type.
  */

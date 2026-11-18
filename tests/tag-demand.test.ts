@@ -8,10 +8,15 @@ import { ROLEPLAYS } from "@/lib/adult/roleplays";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import { DATE_ROLEPLAYS } from "@/lib/roleplays";
 import {
+  ART_STYLE_VALUES,
+  artStyleDemand,
   characterTypeDemand,
   demandMap,
   demandOf,
+  facetDemand,
   forgetPickerDemandForTests,
+  LINEUP_VALUES,
+  lineupDemand,
   pickerDemand,
   RAW_CAP,
   SHRINK,
@@ -146,6 +151,87 @@ describe("whose picks count", () => {
     expect(await pickerDemand(t.db, 2000)).toBe(first); // within the hour: the same answer
     forgetPickerDemandForTests();
     expect((await pickerDemand(t.db, 3000)).roleplays.rivals).toBeGreaterThan(first.roleplays.rivals!);
+  });
+});
+
+describe("facets that aren't tags (art style, lineup; PRD styles-and-storylines phase 7)", () => {
+  it("is the tags' index and blend, with the census's rank by style as the prior", () => {
+    const supply = new Map([["realistic", 8], ["anime", 2]]);
+    expect(demandMap(facetDemand("art_style", new Map(), supply, ART_STYLE_VALUES))).toEqual({ realistic: 0.92, anime: 1.08, semi_real: 1.05 });
+    // Anime is a fifth of what's on offer and gets half the picks: two and a half times its share.
+    const d = facetDemand("art_style", new Map([["realistic", 5], ["anime", 5]]), supply, ART_STYLE_VALUES);
+    expect(d.total).toBe(10);
+    const anime = d.rows.find((r) => r.tag === "anime")!;
+    expect(anime).toMatchObject({ facet: "art_style", picks: 5, supply: 2, census: 1.08 });
+    expect(anime.raw).toBeCloseTo(2.5, 5);
+    expect(anime.blended).toBeCloseTo((5 * 2.5 + SHRINK * 1.08) / (5 + SHRINK), 3);
+    expect(d.rows.find((r) => r.tag === "realistic")!.blended).toBeLessThan(0.92);
+    // Nothing drawn in 2.5D on offer yet: no number of ours, the census's stands.
+    expect(d.rows.find((r) => r.tag === "semi_real")).toMatchObject({ picks: 0, supply: 0, raw: null, blended: 1.05 });
+  });
+
+  it("has an even prior for the lineup, one value per pronoun the characters table allows", () => {
+    expect(LINEUP_VALUES.map((v) => v.id)).toEqual(["she/her", "he/him", "they/them"]);
+    expect(demandMap(facetDemand("lineup", new Map(), new Map(), LINEUP_VALUES))).toEqual({ "she/her": 1, "he/him": 1, "they/them": 1 });
+  });
+
+  async function character(id: string, owner: string, style: string | null, pronouns: string | null, daysAgo = 1, visibility = "public") {
+    await t.db.query(
+      `insert into characters (id, owner_id, name, age, bio, traits, want, dealbreaker, extras, pronouns, visibility, created_at)
+       values ($1, $2, $1, 30, 'A florist.', '["bold","gentle","precise"]'::jsonb, 'Quiet.', 'Fireworks.', $3::jsonb, $4, $5, now() - make_interval(days => $6::int))`,
+      [id, owner, JSON.stringify(style ? { looks: { style } } : {}), pronouns, visibility, daysAgo],
+    );
+  }
+  const event = (name: string, props: Record<string, string>, user: string | null = null) =>
+    t.db.query(`insert into web_events (visitor, session, user_id, event, path, props) values ('v1', 's1', $1, $2, '/companion', $3::jsonb)`, [
+      user,
+      name,
+      JSON.stringify(props),
+    ]);
+
+  it("counts styles made, the style filter and conversations by style, never ours", async () => {
+    const before = await artStyleDemand(t.db);
+    await t.db.query(`insert into admins (user_id) values ('u-admin') on conflict do nothing`);
+    await character("c-anime", "u-real", "anime", "she/her");
+    await character("c-anime-2", "u-real", "anime", "he/him", 1, "private");
+    await character("c-semi", "u-real", "semi_real", "they/them");
+    await character("c-old", "u-old", "anime", null, 100);
+    await character("c-ours", "u-admin", "anime", null);
+    await character("c-photo", "u-real", null, "she/her");
+    await event("style_filter", { style: "anime", page: "companion" });
+    await event("style_filter", { style: "semi_real", page: "characters" }, "u-real");
+    await event("style_filter", { style: "anime", page: "characters" }, "u-admin");
+    await t.db.query(`insert into companion_threads (id, user_id, character_id) values ('t1', 'u-real', 'c-anime'), ('t2', 'u-admin', 'c-anime'), ('t3', 'u-two', 'c-photo')`);
+
+    const d = await artStyleDemand(t.db);
+    // Made: two anime (a private one is still a pick), one 2.5D, one photographed; the old one and ours don't count.
+    expect(d.sources.anime).toEqual({ made: 2, filtered: 1, chats: 1 });
+    expect(d.sources.semi_real).toEqual({ made: 1, filtered: 1, chats: 0 });
+    expect(d.sources.realistic!.made).toBe(before.sources.realistic!.made + 1);
+    expect(d.sources.realistic!.chats).toBe(before.sources.realistic!.chats + 1);
+    const anime = d.rows.find((r) => r.tag === "anime")!;
+    expect(anime.picks).toBe(4);
+    // On offer: everyone anyone may find, ours and old ones too, but not the private one.
+    expect(anime.supply).toBe(before.rows.find((r) => r.tag === "anime")!.supply + 3);
+    expect(d.rows.find((r) => r.tag === "semi_real")!.supply).toBe(before.rows.find((r) => r.tag === "semi_real")!.supply + 1);
+    expect(anime.raw).toBeGreaterThan(1);
+    expect(anime.blended).toBeGreaterThan(1.08);
+  });
+
+  it("counts the pronouns filter and conversations by who they're with", async () => {
+    await character("c-she", "u-real", null, "she/her");
+    await character("c-they", "u-real", null, "they/them");
+    await event("pronouns_filter", { pronouns: "they/them", page: "companion" });
+    await event("pronouns_filter", { pronouns: "they/them", page: "companion" }, "u-real");
+    await t.db.query(`insert into admins (user_id) values ('u-admin') on conflict do nothing`);
+    await event("pronouns_filter", { pronouns: "she/her", page: "companion" }, "u-admin");
+    await t.db.query(`insert into companion_threads (id, user_id, character_id) values ('t1', 'u-real', 'c-she'), ('t2', 'u-real', 'c-they')`);
+    const d = await lineupDemand(t.db);
+    expect(d.sources["they/them"]).toEqual({ filtered: 2, chats: 1 });
+    expect(d.sources["she/her"]).toEqual({ filtered: 0, chats: 1 });
+    expect(d.rows.find((r) => r.tag === "they/them")!.picks).toBe(3);
+    expect(d.total).toBe(4);
+    expect(new Set(d.rows.map((r) => r.facet))).toEqual(new Set(["lineup"]));
   });
 });
 

@@ -10,6 +10,7 @@ import { ART_STYLE_LABEL, ART_STYLES } from "@/lib/art-style";
 import type { CompanionListItem, CompanionSource } from "@/lib/companion";
 import { byDemand, STATUSES, tagById, tagsIn } from "@/lib/tags";
 import { useTagDemand } from "@/app/useTagDemand";
+import { queueEvent } from "@/app/engagement";
 import TalkButton from "./TalkButton";
 
 const first = (name: string) => name.split(/\s+/)[0] || name;
@@ -264,7 +265,14 @@ export default function CompanionBrowser({
         <div className="companion-selects">
           <label>
             <span className="sr-only">Pronouns</span>
-            <select value={pronouns} onChange={(e) => setPronouns(e.target.value as Pronouns)}>
+            <select
+              value={pronouns}
+              onChange={(e) => {
+                setPronouns(e.target.value as Pronouns);
+                // Who people look for (lib/tag-demand.ts lineupDemand): the pick, never anything typed.
+                if (e.target.value !== "any") queueEvent("pronouns_filter", { pronouns: e.target.value, page: "companion" });
+              }}
+            >
               {PRONOUNS.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.label}
@@ -275,7 +283,14 @@ export default function CompanionBrowser({
           {(anyDrawn || style !== "any") && (
             <label>
               <span className="sr-only">Style</span>
-              <select value={style} onChange={(e) => setStyle(e.target.value as Style)}>
+              <select
+                value={style}
+                onChange={(e) => {
+                  setStyle(e.target.value as Style);
+                  // How people want them drawn (lib/tag-demand.ts artStyleDemand).
+                  if (e.target.value !== "any") queueEvent("style_filter", { style: e.target.value, page: "companion" });
+                }}
+              >
                 {STYLES.map((st) => (
                   <option key={st.id} value={st.id}>
                     {st.label}

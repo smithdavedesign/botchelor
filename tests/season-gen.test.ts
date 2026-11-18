@@ -9,7 +9,19 @@ import { loadCharacter } from "@/lib/character";
 import { ALL_HOUSE_CHARACTERS, HOUSE_CHARACTERS } from "@/lib/house";
 import { sessionCookies } from "@/lib/http";
 import { ensureSeasonCast, refreshSeasonCast, resetStoredSeasonCastForTests, seasonCastCards, seasonCastIds, setSeasonCastForTests } from "@/lib/season-cast";
-import { CANDIDATES, generateCandidates, listCandidates, NEWCOMERS, newcomerPronouns, pairPlan, parseDraft, reviewCandidate, seasonGenerationDue } from "@/lib/season-gen";
+import {
+  CANDIDATES,
+  draftMessages,
+  generateCandidates,
+  listCandidates,
+  NEWCOMERS,
+  newcomerPronouns,
+  pairPlan,
+  parseDraft,
+  reviewCandidate,
+  seasonGenerationDue,
+} from "@/lib/season-gen";
+import { SHEET_WORDS_MAX, SHEET_WORDS_MIN } from "@/lib/sheet-words";
 import { linksOf } from "@/lib/character-links";
 import { getDirectorModel, type Model } from "@/lib/model";
 import { characterPortrait } from "@/lib/portraits";
@@ -99,6 +111,21 @@ function fakeProviders(vlm = "ADULTS") {
 const keys = () => saveAdultSettings(t.db, { venice_key: "placeholder-venice", hive_key: "placeholder-hive", moderation: { pg_via: "hive" } });
 
 describe("writing a candidate", () => {
+  it("asks for a whole profile in the census's sweet spot, with the first date they'd pick and a longer bio", () => {
+    const user = String(draftMessages([])[1]!.content);
+    expect(user).toContain(`${SHEET_WORDS_MIN} to ${SHEET_WORDS_MAX} words`);
+    expect(user).toMatch(/"ideal_first_date"/);
+    expect(user).toMatch(/three of them/);
+    const bio =
+      "A ferry captain who narrates the weather to her passengers like a sports commentator. Has never once been seasick, and brags. " +
+      "She keeps a scorebook of every storm she has sailed through. Her deckhands bet on her forecasts and lose.";
+    expect(bio.length).toBeGreaterThan(200);
+    const extra = { ideal_first_date: "A dawn crossing with thermos coffee and a running commentary on the gulls.", hidden_talent: "Splices rope blindfolded", pet_peeve: "Umbrellas on deck", green_flag: "Laughs at her own bad forecasts" };
+    const parsed = parseDraft(JSON.stringify(draft("Odessa Brine", { bio, kit: { ...draft("x").kit, ...extra } })), []);
+    expect(parsed.ok).toBe(true);
+    if (parsed.ok) expect(parsed.draft.kit).toMatchObject(extra);
+  });
+
   it("takes a full draft, and refuses a minor, a real person, a taken name or bad JSON", () => {
     expect(parseDraft(JSON.stringify(draft("Odessa Brine")), ["Rafe Calloway"]).ok).toBe(true);
     expect(parseDraft(JSON.stringify(draft("Odessa Brine", { bio: "She's 17 and runs the ferry with her dad. Loves the sea more than anything." })), [])).toMatchObject({ ok: false, reason: expect.stringMatching(/minor/) });

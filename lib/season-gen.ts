@@ -15,6 +15,7 @@ import { loadCharacter } from "./character";
 import type { Db } from "./db";
 import { addLink, LINK_KINDS, LINK_WORDS, type LinkKind } from "./character-links";
 import { ExtrasInput, normaliseExtras, type CharacterExtras } from "./extras";
+import { BIO_MAX } from "./field-limits";
 import { NO_FRANCHISE_WORDS } from "./franchise-words";
 import { franchiseHits, franchiseRefusal } from "./franchises";
 import { ALL_HOUSE_CHARACTERS } from "./house";
@@ -25,6 +26,7 @@ import { PRONOUNS, VOICE_MAX, type Pronouns } from "./rules";
 import { checkShowText } from "./safety";
 import { DEFAULT_SEASON_CAST_SIZE, seasonCastIds, SURVIVORS } from "./season-cast";
 import { nextSeasonStart, seasonIdOf, seasonWindow } from "./season-window";
+import { SHEET_WORDS_MAX, SHEET_WORDS_MIN } from "./sheet-words";
 import { demandMap, showRoleplayDemand } from "./tag-demand";
 import { saveSoul } from "./souls";
 import { HivePausedError } from "./adult/hive-limit";
@@ -57,7 +59,7 @@ export const Draft = z.object({
   name: z.string().trim().min(3).max(40).refine((s) => s.split(/\s+/).length <= 3, "At most three words."),
   age: z.number().int().min(25).max(65),
   pronouns: z.enum(PRONOUNS),
-  bio: z.string().trim().min(20).max(300),
+  bio: z.string().trim().min(20).max(BIO_MAX),
   traits: z.array(z.string().trim().min(2).max(30)).length(3),
   want: z.string().trim().min(5).max(140),
   dealbreaker: z.string().trim().min(5).max(140),
@@ -110,15 +112,20 @@ export function draftMessages(taken: { name: string; archetype: string }[], brie
   ].join("\n");
   const user =
     "Write one new contestant as a JSON object with exactly these keys: " +
-    '"name" (first and last, invented), "age" (25 to 65), "pronouns" ("she/her", "he/him" or "they/them"), "bio" (two sentences, specific and funny), ' +
+    '"name" (first and last, invented), "age" (25 to 65), "pronouns" ("she/her", "he/him" or "they/them"), ' +
+    `"bio" (three or four sentences, specific and funny, under ${BIO_MAX} characters), ` +
     '"traits" (three single words), "want" (one line), "dealbreaker" (one line), "archetype" ("The ___", a temperament not taken), ' +
     '"voice" (how they talk: rhythm, vocabulary, tics, under 200 characters), "appearance" (a vibe line others notice, under 140 characters), ' +
     '"look" (for the portrait painter only: "a woman in her late thirties with …" — age as it shows, skin, hair, build, one item of clothing), ' +
     '"hue" (1 to 360, their colour), "signals" ({"warmth", "openness", "guardedness", "humor"}, each 0 to 1, matching the archetype), ' +
-    '"soul" (private, only the show sees it: {"values", "insecurities", "humor", "boundaries", "romantic", "communication"}, a sentence each), ' +
-    '"kit" ({"occupation", "hometown", "quirk", "catchphrase", "hobbies": [three], "prompts": [{"id": "win_me_over" or "irrational_fear" or "two_truths" or "together_we_could" or "unpopular_opinion", "answer"}, two of them], ' +
+    '"soul" (private, only the show sees it: {"values", "insecurities", "humor", "boundaries", "romantic", "communication"}, a sentence or two each, under 300 characters), ' +
+    '"kit" ({"occupation", "hometown", "quirk", "catchphrase", "ideal_first_date" (the scene they would pick, under 120 characters), ' +
+    '"hidden_talent", "pet_peeve", "green_flag" (under 80 characters each), "hobbies": [three], ' +
+    '"prompts": [{"id": "win_me_over" or "irrational_fear" or "two_truths" or "together_we_could" or "unpopular_opinion", "answer"}, three of them], ' +
     '"lines": {"hello", "dodge", "flirt", "upset"} in their voice, "tells": {"nervous", "smitten", "bored", "annoyed"} as what they do, "never_says": [two phrases]})' +
-    (link ? `, and "link_story" (one line, under 200 characters: how they and ${link.to.name.split(/\s+/)[0]} know each other, as the audience would hear it).` : ".");
+    (link ? `, and "link_story" (one line, under 200 characters: how they and ${link.to.name.split(/\s+/)[0]} know each other, as the audience would hear it).` : ".") +
+    // The census's sweet spot for a whole profile (lib/sheet-words.ts): enough for a date to draw on, every line counting.
+    ` Across every field, aim for ${SHEET_WORDS_MIN} to ${SHEET_WORDS_MAX} words in all, with every line earning its place.`;
   return [
     { role: "system", content: system },
     { role: "user", content: user },
@@ -195,7 +202,7 @@ export async function draftCharacter(db: Db, model: Model, tries = 3, brief: Dra
   ).rows.map((r) => ({ name: r.name, archetype: r.archetype ?? ALL_HOUSE_CHARACTERS.find((h) => h.name === r.name)?.archetype ?? "" }));
   let last = "no reply";
   for (let i = 0; i < tries; i++) {
-    const raw = await model.complete(draftMessages(taken, brief), { temperature: 1, maxTokens: 2000 }).catch((e: unknown) => {
+    const raw = await model.complete(draftMessages(taken, brief), { temperature: 1, maxTokens: 3000 }).catch((e: unknown) => {
       last = e instanceof Error ? e.message : "model error";
       return null;
     });

@@ -648,6 +648,8 @@ async function main() {
       { name: "admin-analytics-signed-in", path: "/admin/analytics", as: "admin" },
       // The Product tab, where Real use is: the creator journey and the return count's Studio split (lib/creator-journey.ts).
       { name: "admin-analytics-product", path: "/admin/analytics?tab=product", as: "admin" },
+      // Demand by tag, by art style and by lineup (lib/tag-demand.ts): wide tables that each scroll on their own on a phone.
+      { name: "admin-tags", path: "/admin/tags", as: "admin" },
       { name: "account-signed-in", path: "/account", as: "member" },
       { name: "account-keys", path: "/account/keys", as: "member" },
       // The one-time offer after signing in from a browser that had made a character (lib/account-claim.ts).

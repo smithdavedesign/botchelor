@@ -16,7 +16,12 @@
  *    the date ("custom") counts toward nothing.
  *  - character types: companion conversations (companion_threads) by the type tags of the character talked to, against
  *    the characters anyone may talk to (lib/character-tags.ts).
+ *
+ * And two facets that aren't tags (PRD styles-and-storylines phase 7), on /admin/tags with where their picks came from:
+ *  - art style (artStyleDemand): characters made in each style, the style filter, conversations by style;
+ *  - lineup (lineupDemand): the pronouns filter and conversations, by the pronouns of who people look for.
  */
+import { ART_STYLE_LABEL, artStyleSql } from "./art-style";
 import type { Db } from "./db";
 import { loadOurIds } from "./our-traffic";
 import { DATE_ROLEPLAYS } from "./roleplays";
@@ -63,12 +68,139 @@ export function demandOf(
     const having = offer.filter((o) => o.tags?.includes(t.id));
     const n = having.reduce((sum, o) => sum + (picks.get(o.id) ?? 0), 0);
     const supplyShare = offer.length ? having.length / offer.length : 0;
-    const raw = total > 0 && supplyShare > 0 ? n / total / supplyShare : null;
     const census = t.census[side] ?? t.census[side === "sfw" ? "nsfw" : "sfw"] ?? 1;
-    const blended = raw === null ? census : (n * Math.min(raw, RAW_CAP) + SHRINK * census) / (n + SHRINK);
-    return { tag: t.id, label: t.label, icon: t.icon, facet: t.facet, picks: n, supply: having.length, raw, census, blended: Math.round(blended * 1000) / 1000 };
+    return { tag: t.id, label: t.label, icon: t.icon, facet: t.facet, picks: n, supply: having.length, ...blend(n, total, supplyShare, census) };
   });
   return { side, total, rows };
+}
+
+/** Ours (share of picks ÷ share of supply) and the blend toward the census: the one formula every measure here uses. */
+function blend(n: number, total: number, supplyShare: number, census: number): { raw: number | null; census: number; blended: number } {
+  const raw = total > 0 && supplyShare > 0 ? n / total / supplyShare : null;
+  const blended = raw === null ? census : (n * Math.min(raw, RAW_CAP) + SHRINK * census) / (n + SHRINK);
+  return { raw, census, blended: Math.round(blended * 1000) / 1000 };
+}
+
+/** One value of a facet that isn't a tag (an art style, a lineup), with the census's number for it (1 where it had none). */
+export type FacetValue = { id: string; label: string; icon: string; census: number };
+
+/**
+ * Demand per value of a facet, from pick counts and supply counts per value (PRD styles-and-storylines phase 7): the
+ * same index and blend as the tags. Pure.
+ */
+export function facetDemand(facet: string, picks: ReadonlyMap<string, number>, supply: ReadonlyMap<string, number>, values: readonly FacetValue[]): Demand {
+  const total = values.reduce((n, v) => n + (picks.get(v.id) ?? 0), 0);
+  const offered = values.reduce((n, v) => n + (supply.get(v.id) ?? 0), 0);
+  const rows = values.map((v) => {
+    const n = picks.get(v.id) ?? 0;
+    const s = supply.get(v.id) ?? 0;
+    return { tag: v.id, label: v.label, icon: v.icon, facet, picks: n, supply: s, ...blend(n, total, offered ? s / offered : 0, v.census) };
+  });
+  return { side: "sfw", total, rows };
+}
+
+/**
+ * How they're drawn (lib/art-style.ts), with the census's rank by art style across platforms as the prior: anime
+ * 1.08×, 2.5D 1.05×, photoreal 0.92× (docs/PRDs/styles-and-storylines.md).
+ */
+export const ART_STYLE_VALUES: readonly FacetValue[] = [
+  { id: "realistic", label: ART_STYLE_LABEL.realistic, icon: "📷", census: 0.92 },
+  { id: "anime", label: ART_STYLE_LABEL.anime, icon: "🎨", census: 1.08 },
+  { id: "semi_real", label: ART_STYLE_LABEL.semi_real, icon: "✏️", census: 1.05 },
+];
+
+/** Who's in the lineup, by pronouns: the census has no number of its own for these, so the prior is even. */
+export const LINEUP_VALUES: readonly FacetValue[] = [
+  { id: "she/her", label: "She/her", icon: "♀️", census: 1 },
+  { id: "he/him", label: "He/him", icon: "♂️", census: 1 },
+  { id: "they/them", label: "They/them", icon: "⚧️", census: 1 },
+];
+
+/** Where a facet's picks came from, per value: what /admin/tags shows beside the index. */
+export type FacetSources = Record<string, Record<string, number>>;
+
+async function countBy(db: Db, sql: string, params: unknown[]): Promise<Map<string, number>> {
+  const { rows } = await db.query<{ v: string | null; n: number }>(sql, params);
+  const out = new Map<string, number>();
+  for (const r of rows) if (r.v) out.set(r.v, (out.get(r.v) ?? 0) + Number(r.n));
+  return out;
+}
+
+const sumOf = (...maps: ReadonlyMap<string, number>[]): Map<string, number> => {
+  const out = new Map<string, number>();
+  for (const m of maps) for (const [k, n] of m) out.set(k, (out.get(k) ?? 0) + n);
+  return out;
+};
+
+const sourcesOf = (values: readonly FacetValue[], by: Record<string, ReadonlyMap<string, number>>): FacetSources =>
+  Object.fromEntries(values.map((v) => [v.id, Object.fromEntries(Object.entries(by).map(([k, m]) => [k, m.get(v.id) ?? 0]))]));
+
+/** The characters anyone may find (not private), counted by an expression over `c`: a facet's supply. */
+const supplyBy = (db: Db, expr: string) => countBy(db, `select ${expr} as v, count(*)::int as n from characters c where c.visibility <> 'private' group by 1`, []);
+
+/**
+ * Art-style demand (PRD styles-and-storylines phase 7), the last DEMAND_DAYS, real people and agents only: characters
+ * made in each style on /create, the style filter on /companion and /characters (the style_filter event), and
+ * companion conversations started with a character drawn that way. Against the characters anyone may find, by style.
+ */
+export async function artStyleDemand(db: Db): Promise<Demand & { sources: FacetSources }> {
+  const us = await loadOurIds(db);
+  const [made, filtered, chats, supply] = await Promise.all([
+    countBy(
+      db,
+      `select ${artStyleSql("c")} as v, count(*)::int as n from characters c
+        where c.owner_id is not null and not (c.owner_id = any($1::text[])) and not c.is_house
+          and c.created_at > now() - make_interval(days => $2::int)
+        group by 1`,
+      [us, DEMAND_DAYS],
+    ),
+    countBy(
+      db,
+      `select w.props->>'style' as v, count(*)::int as n from web_events w
+        where w.event = 'style_filter' and (w.user_id is null or not (w.user_id = any($1::text[])))
+          and w.at > now() - make_interval(days => $2::int)
+        group by 1`,
+      [us, DEMAND_DAYS],
+    ),
+    countBy(
+      db,
+      `select ${artStyleSql("c")} as v, count(*)::int as n from companion_threads t join characters c on c.id = t.character_id
+        where not (t.user_id = any($1::text[])) and t.created_at > now() - make_interval(days => $2::int)
+        group by 1`,
+      [us, DEMAND_DAYS],
+    ),
+    supplyBy(db, artStyleSql("c")),
+  ]);
+  const d = facetDemand("art_style", sumOf(made, filtered, chats), supply, ART_STYLE_VALUES);
+  return { ...d, sources: sourcesOf(ART_STYLE_VALUES, { made, filtered, chats }) };
+}
+
+/**
+ * Lineup demand: who people look for and talk to, by pronouns. The pronouns filter on /companion (the
+ * pronouns_filter event) and companion conversations started, against the characters anyone may find.
+ */
+export async function lineupDemand(db: Db): Promise<Demand & { sources: FacetSources }> {
+  const us = await loadOurIds(db);
+  const [filtered, chats, supply] = await Promise.all([
+    countBy(
+      db,
+      `select w.props->>'pronouns' as v, count(*)::int as n from web_events w
+        where w.event = 'pronouns_filter' and (w.user_id is null or not (w.user_id = any($1::text[])))
+          and w.at > now() - make_interval(days => $2::int)
+        group by 1`,
+      [us, DEMAND_DAYS],
+    ),
+    countBy(
+      db,
+      `select c.pronouns as v, count(*)::int as n from companion_threads t join characters c on c.id = t.character_id
+        where not (t.user_id = any($1::text[])) and t.created_at > now() - make_interval(days => $2::int)
+        group by 1`,
+      [us, DEMAND_DAYS],
+    ),
+    supplyBy(db, "c.pronouns"),
+  ]);
+  const d = facetDemand("lineup", sumOf(filtered, chats), supply, LINEUP_VALUES);
+  return { ...d, sources: sourcesOf(LINEUP_VALUES, { filtered, chats }) };
 }
 
 /** A demand as the pickers take it: tag → blended. */

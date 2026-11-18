@@ -40,6 +40,7 @@ import { isCharacterTag } from "@/lib/character-tags-shared";
 import { ART_STYLE_LABEL, ART_STYLES, isArtStyle, type ArtStyle } from "@/lib/art-style";
 import { pickerDemand } from "@/lib/tag-demand";
 import { byDemand, isStatus, STATUSES, tagById, tagsIn, type Status, type TagId } from "@/lib/tags";
+import FilterSeen from "./FilterSeen";
 
 export const dynamic = "force-dynamic";
 
@@ -272,6 +273,7 @@ function SearchForm({ q, find: { type, status, style }, demand }: { q: string; f
       <button type="submit" className="button secondary">
         Find
       </button>
+      {style && <FilterSeen event="style_filter" props={{ style, page: "characters" }} />}
     </form>
   );
 }

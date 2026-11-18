@@ -303,8 +303,13 @@ rich but controlled color, clean linework on faces, expressive eyes, reality-sho
   - an opening line (Voice);
   - a first-date scenario (Dating profile);
   - up to three secrets, revealed over dates.
-- **Not yet:** season-gen's writer drafts about 370 words. It aims for the band once phase 4's season-gen changes are
-  in.
+- **Season-gen** used to draft about 370 words. Its writer is now asked for the band. To get there, it writes:
+  - a longer bio: three or four sentences, up to 500 characters, as on the site;
+  - a sentence or two for each part of the inner life;
+  - a third prompt;
+  - four more details: the first date they'd pick, a hidden talent, a pet peeve and a green flag.
+
+  A draft outside the band is still kept.
 
 ## 7. Measurement
 
@@ -313,6 +318,25 @@ rich but controlled color, clean linework on faces, expressive eyes, reality-sho
   - style filter use on /companion and /characters;
   - companion chats started per style.
 - The census prior holds until 30 real picks, as with tags. /admin/tags shows both facets.
+
+### Built 2026-11-17
+
+- **Two facets** in `lib/tag-demand.ts`, with the same index and blend as the tags (`facetDemand`). Picks are real
+  people's and agents' from the last 90 days; ours are left out.
+  - **Art style** (`artStyleDemand`) counts three things:
+    - characters made in each style, private ones included;
+    - the style filter: the select on /companion, and /characters opened with `?style=`;
+    - companion chats started with a character drawn that way.
+
+    The supply is the characters anyone may find, by style. The prior is the census rank: anime 1.08×, 2.5D 1.05×,
+    realistic 0.92×.
+  - **Lineup** (`lineupDemand`) counts the pronouns filter on /companion and companion chats started, by the pronouns of
+    who they're with. The census has no number for this, so the prior is even.
+- **Filter use is two new events,** `style_filter` and `pronouns_filter`, with small enum props. They're needed because
+  the stored path drops the query string. They follow the beacon's consent rules like every event.
+- **/admin/tags** shows both facets, with a column for each source. Each wide table scrolls on its own on a phone.
+- **Not yet:** nothing orders by these numbers. The style tiles keep their order, and season-gen balances the lineup by
+  the cast, not by demand.
 
 ## Later: drawn styles in After Dark (phase 8)
 
