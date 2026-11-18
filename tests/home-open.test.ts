@@ -64,7 +64,10 @@ describe("the first screen's words", () => {
   });
 
   it("says where in the season tonight is, and next month's format with its lead when known", () => {
-    expect(openKicker(new Date("2026-11-18T20:00:00Z"), null)).toMatch(/^Season 2 · Night 18 · \d+ days to the finale$/);
+    const k = openKicker(new Date("2026-11-18T20:00:00Z"), null);
+    expect(k?.head).toBe("Season 2 · Night 18");
+    expect(k?.long).toMatch(/^\d+ days to the finale$/);
+    expect(k?.short).toMatch(/^\d+ days left$/);
     expect(nextSeasonLine("December", "The Botchelor", { month: "December", name: "Nell Abiodun" })).toBe("December: The Botchelor, with Nell.");
     expect(nextSeasonLine("December", "The Botchelor", { month: "November", name: "Nell Abiodun" })).toBe("December: The Botchelor.");
     expect(nextSeasonLine("December", null, null)).toBeNull();

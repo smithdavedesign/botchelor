@@ -2,7 +2,7 @@ import Link from "next/link";
 import Avatar from "./Avatar";
 import Icon from "./Icon";
 import { showSetPath } from "@/lib/show-sets";
-import type { OpenFace, OpenTonight } from "@/lib/home-open";
+import type { OpenFace, OpenKicker, OpenTonight } from "@/lib/home-open";
 
 /**
  * A stranger's first screen on home (lib/home-open.ts; the design system's first screen B, "the season promo",
@@ -21,7 +21,7 @@ export default function HomeOpen({
   watch,
   next,
 }: {
-  kicker: string | null;
+  kicker: OpenKicker | null;
   line: { face: OpenFace; lead: boolean }[];
   tonight: OpenTonight | null;
   /** On a night with no story: the date the call opens, named ("This week's best date: Sable × Juniper, …"). */
@@ -44,7 +44,12 @@ export default function HomeOpen({
             ))}
           </ul>
         )}
-        {kicker && <p className="kicker home-open-kicker">{kicker}</p>}
+        {kicker && (
+          <p className="kicker home-open-kicker">
+            {kicker.head} · <span className="season-arc-long">{kicker.long}</span>
+            <span className="season-arc-short">{kicker.short}</span>
+          </p>
+        )}
         <h1 id="home-open-title" className="home-open-title">
           A blind-date show where nobody steers.
         </h1>

@@ -124,17 +124,22 @@ export function openWatch(x: {
 
 const days = (n: number) => `${n} ${n === 1 ? "day" : "days"}`;
 
+export type OpenKicker = { head: string; long: string; short: string };
+
 /**
  * The eyebrow over the title: where in the season tonight is, as the season strip under the header says it
- * (app/SeasonBanner.tsx), which the first screen stands in for. Null outside a monthly season.
+ * (app/SeasonBanner.tsx), which the first screen stands in for. `long` and `short` are its last part on a wide screen
+ * and on a phone ("12 days to the finale", "12 days left"), so the line stays one line. Null outside a monthly season.
  */
-export function openKicker(now: Date, def: SeasonFormatDef | null): string | null {
+export function openKicker(now: Date, def: SeasonFormatDef | null): OpenKicker | null {
   const id = seasonIdOf(now);
   const number = seasonNumber(id);
   if (!isMonthlySeason(id) || number === null) return null;
   const { night, left, to } = seasonArc(now, def);
-  const tail = to === "end" ? (left === 0 ? "the last night" : `${days(left)} left`) : left === 0 ? "the finale is tonight" : `${days(left)} to the finale`;
-  return `Season ${number} · Night ${night} · ${tail}`;
+  const head = `Season ${number} · Night ${night}`;
+  if (to === "end") return { head, long: left === 0 ? "The last night" : `${days(left)} left`, short: left === 0 ? "Last night" : `${days(left)} left` };
+  if (left === 0) return { head, long: "The finale is tonight", short: "Finale tonight" };
+  return { head, long: `${days(left)} to the finale`, short: `${days(left)} left` };
 }
 
 /** The season stays in view: this one's cast on the stage, tonight's people in the middle at nearly twice the size. */
