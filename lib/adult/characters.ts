@@ -11,6 +11,7 @@
  */
 import { artStyleFrom, artStyleSql, DRAWN_IN, isDrawnStyle, notDrawnSql, type DrawnStyle } from "../art-style";
 import type { Db } from "../db";
+import { sheetRefusal } from "../franchises";
 import { portraitPathSql } from "../portrait-sql";
 import { lastSeasonOn, seasonCastIds, seasonMonth } from "../season-cast";
 
@@ -138,7 +139,22 @@ async function mayFlip(db: Db, ownerId: string, characterId: string): Promise<bo
   return Boolean(c && (c.is_house || c.owner_id === ownerId));
 }
 
+/**
+ * Originals only (lib/franchises.ts, PRD styles-and-storylines phase 5): why a character whose words name a franchise
+ * stays out of After Dark, for everyone; null for an original (or no such character).
+ */
+export async function franchiseOut(db: Db, characterId: string): Promise<string | null> {
+  const c = (
+    await db.query<{ name: string; bio: string; appearance: string | null; voice: string | null; traits: string[]; want: string; dealbreaker: string; extras: unknown }>(
+      `select name, bio, appearance, voice, traits, want, dealbreaker, extras from characters where id = $1`,
+      [characterId],
+    )
+  ).rows[0];
+  return c ? sheetRefusal(c, "After Dark") : null;
+}
+
 export async function setAdultSwitch(db: Db, ownerId: string, characterId: string, on: boolean): Promise<boolean> {
+  if (on && (await franchiseOut(db, characterId))) return false;
   if (!(await mayFlip(db, ownerId, characterId))) return false;
   if (on && (await drawnStyleOf(db, characterId))) return false;
   if (on) await db.query(`insert into adult_switches (owner_id, character_id) values ($1, $2) on conflict do nothing`, [ownerId, characterId]);

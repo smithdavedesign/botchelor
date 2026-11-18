@@ -23,6 +23,7 @@ import type { Db } from "./db";
 import { lookFor } from "./agent-portraits";
 import { DELETED_OWNER } from "./rules";
 import { checkPgPictureText } from "./safety";
+import { NO_FRANCHISE_WORDS } from "./franchise-words";
 import { portraitPrompt } from "./season-gen";
 import { showIdentityViews } from "./studio/pg";
 
@@ -109,7 +110,7 @@ export function recastPortraitPrompt(look: string, age: number, r: RecastRole | 
       role ? `They are ${role}${props ? `, with ${props}` : ""}.` : "",
       scene ? `Behind them, ${scene}.` : "A soft painted background.",
       push && role ? `It must be unmistakable at a glance that they are ${role}: ${props ? `${props} prominent, in focus and in frame, ` : ""}${scene ? "the setting clearly visible behind them" : "the costume clearly visible"}.` : "",
-      `${DRAWN_PORTRAIT_FINISH[style]} Clearly a grown adult of ${Math.max(21, age)} with mature adult proportions and an adult face. Looking at the viewer, fully clothed, tasteful.`,
+      `${DRAWN_PORTRAIT_FINISH[style]} Clearly a grown adult of ${Math.max(21, age)} with mature adult proportions and an adult face. Looking at the viewer, fully clothed, tasteful, ${NO_FRANCHISE_WORDS}.`,
     ]
       .filter(Boolean)
       .join(" ");
@@ -120,7 +121,7 @@ export function recastPortraitPrompt(look: string, age: number, r: RecastRole | 
     `They are ${tidy(r.role)}${props ? `, with ${props}` : ""}.`,
     scene ? `Behind them, ${scene}.` : "",
     push ? `It must be unmistakable at a glance that they are ${tidy(r.role)}: ${props ? `${props} prominent, in focus and in frame, ` : ""}${scene ? "the setting clearly visible behind them" : "the costume clearly visible"}.` : "",
-    `Clearly ${age} years old, an adult. Looking at the camera, photorealistic, fully clothed.`,
+    `Clearly ${age} years old, an adult. Looking at the camera, photorealistic, fully clothed, ${NO_FRANCHISE_WORDS}.`,
   ]
     .filter(Boolean)
     .join(" ");

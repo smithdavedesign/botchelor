@@ -12,6 +12,7 @@
  * its approved (provider-moderated) portrait when it has one, so the clip looks like their card. Veo's filters run
  * on top; a blocked clip comes back with no video and isn't charged by Google.
  */
+import { NO_FRANCHISE_WORDS } from "./franchise-words";
 import type { PortraitInput } from "./image";
 
 export const VEO_BASE_URL = "https://generativelanguage.googleapis.com/v1beta";
@@ -49,7 +50,7 @@ export function veoClipPrompt(c: PortraitInput, fromPortrait: boolean, style: Po
   return (
     `${lead}${c.name}${who}, an adult around ${Math.max(18, c.age)}, described as ${c.traits.join(", ")}.${look} ` +
     `They look at the camera, smile and give a small friendly wave; gentle camera push-in; warm studio light. ` +
-    `${styleHold} No text, no captions, no watermark, fully clothed, suitable for all audiences.`
+    `${styleHold} No text, no captions, no watermark, ${NO_FRANCHISE_WORDS}, fully clothed, suitable for all audiences.`
   );
 }
 

@@ -87,6 +87,7 @@ import { COMPANION_ACTIONS, COMPANION_REPORT_REASONS, companionOpen, REPLY_LENGT
 import { listThreads, markPairNoticesRead, markTextsRead, sweepAnsweredTexts, unreadTextsByPair } from "../inbox";
 import { rescueStuckJob } from "../jobs";
 import { findLookalikes, type Lookalike, lookAlikeGateOn, matchedFields, recentAgentTwins, type SheetDraft, TWIN_WARN_HOURS, unusedJobs } from "../originality";
+import { sheetRefusal } from "../franchises";
 import { originalityWithConcepts } from "../originality-concept";
 import { twinsOfCharacter as twinsOf } from "../twins";
 import { pairNames, shortName } from "../names";
@@ -131,7 +132,7 @@ import { ART_STYLES, artStyleFrom, artStyleSql, isArtStyle, type ArtStyle } from
 import { isStatus, STATUS_IDS, STATUSES } from "../tags";
 import { listShowIdeasTool, proposeShowIdeaTool, voteShowIdeaTool } from "./shows";
 import { getHouseScene, getHouseTalk, getStorySoFar, HOUSE_TOOL_NAMES, HOUSE_TOOLS_OFF, isHouseTool, mcpHouseOn, myStoryState, sceneAbout } from "./house";
-import { CROWD_CLIENT_PREFIX, crowdMinutesToWake, HOUSE_BOT_CLIENT_PREFIX, houseBotRefusal } from "../house-bots";
+import { CROWD_CLIENT_PREFIX, crowdMinutesToWake, HOUSE_BOT_CLIENT_PREFIX, houseBotRefusal, isHouseBotAgent } from "../house-bots";
 import { siteUrl } from "../site";
 import { profilePhotos } from "../studio/profile-photos";
 import { POST as postCharacter } from "@/app/api/characters/route";
@@ -6357,6 +6358,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           return {
             data: {
               ...(checkWarning ? { warning: checkWarning } : {}),
+              ...(typeof report.franchise === "string" ? { franchise_warning: report.franchise } : {}),
               saved: false,
               ...(gated ? { keep_look_alike_needed: true, keep_look_alike_note: KEEP_LOOK_ALIKE_NOTE } : {}),
               // 2026-10-23 (a visitor: "check_only never says whether a sheet passes the content rules"): it ran them above.
@@ -6384,6 +6386,14 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         }
       }
       if (example) return { error: "That's the guide's example character (Odile Ferrant, the carousel restorer): it's an example of the shape, not one to copy. Make your own: a name, a job and a story of yours." };
+      // Originals only (lib/franchises.ts): the show's own agents (the house crowd) make none whose words name a franchise.
+      // Anyone else's is warned in the reply (franchise_warning), never refused.
+      {
+        const copy = sheetRefusal({ ...sheetDraftOf(args), appearance: args.appearance });
+        const ours = async () =>
+          (session?.client ?? "").startsWith(HOUSE_BOT_CLIENT_PREFIX) || (await isHouseBotAgent(db, resolveIdentity(args, session, false)?.id).catch(() => false));
+        if (copy && (await ours())) return { error: copy };
+      }
       if (wanted && args.keep_name !== true) {
         if (twin) {
           const free = await freeNames();
@@ -6457,7 +6467,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       if (args.compact === "min") {
         return {
           data: {
-            character_id: id, name: String(sheet.name ?? ""), saved: true, ...(twinWarning ? { warning: twinWarning } : {}), in_decks: deck.in_decks, profile_complete: profile.complete !== false,
+            character_id: id, name: String(sheet.name ?? ""), saved: true, ...(twinWarning ? { warning: twinWarning } : {}), ...(report.franchise ? { franchise_warning: report.franchise } : {}), in_decks: deck.in_decks, profile_complete: profile.complete !== false,
             ...(toldModel ? { model_family: toldModel.family } : "model_note" in modelFields ? modelFields : {}),
             next_calls: nexts,
           },
@@ -6470,6 +6480,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           character_id: id,
           name: String(sheet.name ?? ""),
           ...(twinWarning ? { warning: twinWarning } : {}),
+          // Originals only (lib/franchises.ts): what its words borrow, beside the look-alike warning.
+          ...(report.franchise ? { franchise_warning: report.franchise } : {}),
           ...(savedTwins ? lookAlikeFields(savedTwins) : {}),
           saved: true,
           // 2.8.0 (#651): open_to_dates said outright, false when left out (the route echoes only what it was sent).

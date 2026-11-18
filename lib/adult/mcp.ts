@@ -11,7 +11,7 @@ import { ROLEPLAY_IDS } from "./roleplays";
 import { SCENARIOS } from "./scenarios";
 import { AdultSettingsInput, SETTINGS_KEY_FIELDS } from "./settings-input";
 import type { Db } from "../db";
-import { drawnOutMessage, drawnStyleOf, listSwitchable, playableIds, setAdultSwitch } from "./characters";
+import { drawnOutMessage, drawnStyleOf, franchiseOut, listSwitchable, playableIds, setAdultSwitch } from "./characters";
 import { hiveState, mediaPauses } from "./hive-limit";
 import { baselinePrompt, listMedia, makePicture } from "./media";
 import { loadCharacter } from "../character";
@@ -475,6 +475,8 @@ export async function runAdultTool(db: Db, name: string, args: Record<string, un
     case "after_dark_switch": {
       const drawn = args.on === true ? await drawnStyleOf(db, String(args.character_id ?? "")) : null;
       if (drawn) return { error: drawnOutMessage(drawn) };
+      const copy = args.on === true ? await franchiseOut(db, String(args.character_id ?? "")) : null;
+      if (copy) return { error: copy };
       const ok = await setAdultSwitch(db, owner, String(args.character_id ?? ""), args.on === true);
       return ok ? { data: { characters: await listSwitchable(db, owner) } } : { error: "Only the admin's own characters, and house characters, can be switched on." };
     }

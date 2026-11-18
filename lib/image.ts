@@ -8,6 +8,8 @@
  * The result is a PNG data URL. The caller records it in the asset ledger (lib/assets) and serves it through
  * the assets route, so the heavy bytes never sit inline in a page or an API body.
  */
+import { NO_FRANCHISE_WORDS } from "./franchise-words";
+
 export const PROMPT_VERSION = "portrait-v1";
 /**
  * The portrait model. OpenAI retires gpt-image-1 on 2026-10-23 (its /v1/models entry carries a shutdown_date), so
@@ -82,7 +84,7 @@ export function portraitPrompt(c: PortraitInput, style: PortraitStyle = DEFAULT_
     `${STYLE_PROMPT[style]} for a fictional adult dating-show contestant. ` +
     `${c.name}${who}, an adult around ${Math.max(18, c.age)}, described as ${c.traits.join(", ")}.${look} ` +
     `Head and shoulders, warm studio lighting, friendly expression, clean simple background. ` +
-    `No text, no watermark, fully clothed, suitable for all audiences.`
+    `No text, no watermark, ${NO_FRANCHISE_WORDS}, fully clothed, suitable for all audiences.`
   );
 }
 

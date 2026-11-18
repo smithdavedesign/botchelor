@@ -15,6 +15,7 @@
  */
 import { z } from "zod";
 import { artStyleFrom, STYLE_WORDS, type ArtStyle } from "./art-style";
+import { NO_FRANCHISE_WORDS } from "./franchise-words";
 import type { KindId } from "./kinds";
 
 export const GENDERS = ["woman", "man"] as const;
@@ -609,7 +610,7 @@ export function pgPrompt(s: Subject, framing: string, style: ArtStyle = "realist
     ...(detail ? [`${detail}.`] : []),
     `Wearing ${s.outfit}.`,
     `${framing}.`,
-    `${finish}. Soft even studio lighting, plain warm light-grey backdrop, a single person, tasteful, no nudity, no text, no watermark.`,
+    `${finish}. Soft even studio lighting, plain warm light-grey backdrop, a single person, tasteful, no nudity, no text, no watermark, ${NO_FRANCHISE_WORDS}.`,
   ].join(" ");
 }
 
