@@ -24,6 +24,7 @@ import { houseRoomTextsOn, isAfterglowEnabled } from "./afterglow";
 import { firstPickOn, showCastIds, suitorInTurn } from "./season-cast";
 import type { BoxScore, CharacterRef, DateSetup } from "./game";
 import { portraitPathSql } from "./assets";
+import { shotsJsonSql, shotUrlsOf } from "./show-shots-sql";
 import { claimPaidDate } from "./limits";
 import { getDirectorModel, getModel, paidDefaultOn } from "./model";
 import { generateDate } from "./pipeline";
@@ -329,6 +330,9 @@ type RoomRow = {
   b_portrait: string | null;
   a_private: boolean;
   b_private: boolean;
+  /** Each one's show-kit faces as {shot: id} (lib/show-shots.ts), or null. */
+  a_shots: Record<string, string> | null;
+  b_shots: Record<string, string> | null;
   is_creator: boolean;
   /** Which date it is for the couple (lib/date-number.ts), or null for a first date. */
   date_number: number | null;
@@ -343,7 +347,8 @@ const ROOM_SELECT = `
          coalesce($2::text in (a.owner_id, b.owner_id), false) as is_creator,
          ${dateNumberSql("e")} as date_number,
          (a.visibility = 'private' and a.owner_id is distinct from $2::text) as a_private,
-         (b.visibility = 'private' and b.owner_id is distinct from $2::text) as b_private
+         (b.visibility = 'private' and b.owner_id is distinct from $2::text) as b_private,
+         ${shotsJsonSql("a.id")} as a_shots, ${shotsJsonSql("b.id")} as b_shots
     from watch_parties w
     join episodes e on e.id = w.episode_id
     join characters a on a.id = e.character_a
@@ -511,9 +516,12 @@ export async function getRoomState(
   const challenge =
     idx >= ACT2_INDEX && row.setup ? capitalize(producerEvent(row.setup.producer).prompt) + "." : null;
 
+  // Each one's show-kit faces (lib/show-shots.ts): the stage and the thread show the expression of the line.
+  const shotsA = shotUrlsOf(row.a_shots);
+  const shotsB = shotUrlsOf(row.b_shots);
   const characters: [CharacterRef, CharacterRef] = [
-    { id: row.a_id, name: row.a_name, house: row.a_house, hue: row.a_hue, portrait: row.a_portrait, ...(row.a_private ? { private: true } : {}) },
-    { id: row.b_id, name: row.b_name, house: row.b_house, hue: row.b_hue, portrait: row.b_portrait, ...(row.b_private ? { private: true } : {}) },
+    { id: row.a_id, name: row.a_name, house: row.a_house, hue: row.a_hue, portrait: row.a_portrait, ...(row.a_private ? { private: true } : {}), ...(shotsA ? { shots: shotsA } : {}) },
+    { id: row.b_id, name: row.b_name, house: row.b_house, hue: row.b_hue, portrait: row.b_portrait, ...(row.b_private ? { private: true } : {}), ...(shotsB ? { shots: shotsB } : {}) },
   ];
   const names: [string, string] = [row.a_name, row.b_name];
 

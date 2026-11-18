@@ -14,13 +14,14 @@
  * client component) and the API share this file.
  */
 import { z } from "zod";
+import { artStyleFrom, STYLE_WORDS, type ArtStyle } from "./art-style";
 import type { KindId } from "./kinds";
 
 export const GENDERS = ["woman", "man"] as const;
 export type Gender = (typeof GENDERS)[number];
 
 /** One option of a step: its id, its label (per gender where it differs) and the words it puts in a prompt. */
-export type LookOption = { id: string; label: string; labelMan?: string; prompt: string; promptMan?: string; anime?: true };
+export type LookOption = { id: string; label: string; labelMan?: string; prompt: string; promptMan?: string };
 
 /** A step: which genders it's for, and whether it's After Dark only. */
 export type LookStep = {
@@ -43,12 +44,6 @@ export const LOOK_MIN_AGE = 18;
 export const LOOK_MAX_AGE = 60;
 export const IMAGE_MIN_AGE = 21;
 export const LOOK_AGES: readonly number[] = Array.from({ length: LOOK_MAX_AGE - LOOK_MIN_AGE + 1 }, (_, i) => LOOK_MIN_AGE + i);
-
-/**
- * Drawn in anime: their looks' style says so (the builder's Anime tile, or the show's own anime cast, 2026-11-08). The
- * show's pictures follow it; After Dark never draws anime and leaves anime characters out of its cast.
- */
-export const isAnime = (c: { extras?: { looks?: { style?: string } | null } | null } | null | undefined): boolean => c?.extras?.looks?.style === "anime";
 
 /**
  * "Work clothes": dressed for their job. The occupation is typed, and nothing typed reaches the image model, so it only
@@ -107,7 +102,9 @@ export const LOOK_STEPS: readonly LookStep[] = [
     title: "Choose a style",
     options: [
       { id: "realistic", label: "Realistic", prompt: "photorealistic" },
-      { id: "anime", label: "Anime", prompt: "anime", anime: true },
+      { id: "anime", label: "Anime", prompt: "anime" },
+      // The house look (lib/art-style.ts): painterly, semi-realistic. Drawn, so After Dark leaves it out, as it does anime.
+      { id: "semi_real", label: "2.5D", prompt: "painterly 2.5D" },
     ],
   },
   {
@@ -499,7 +496,7 @@ export function looksAppearance(l: Looks | undefined): string {
   if (!l?.gender) return "";
   const g = l.gender;
   const parts = [
-    l.style === "anime" ? "anime-style" : "",
+    STYLE_WORDS[artStyleFrom(l.style)].appearance,
     l.ethnicity ? optionLabel(pick("ethnicity", g, l.ethnicity)!, g).replace(" / Afro", "") : "",
     detailWords("skin_tone", l.skin_tone) ?? "",
     hairWords(g, l.hair_style, l.hair_color),
@@ -517,7 +514,7 @@ export function looksAppearance(l: Looks | undefined): string {
  * Every pick, for After Dark's pictures (lib/adult/media.ts): the body's words, and the outfit apart so a picture can
  * leave it out once they undress (null: nude, or none picked). The After Dark picks (butt, outfit) are private, so
  * `own` says whether the picture is the owner's; the After Dark outfit wins over the show's. Realistic only: After
- * Dark never draws anime.
+ * Dark never draws a drawn style (anime or 2.5D, lib/art-style.ts).
  */
 /**
  * The ethnicity as a picture reads it: the tile's own words (skin and features) rather than its label (the audit,
@@ -604,11 +601,9 @@ function subjectWords({ gender, looks }: Subject): string {
     .join(", ");
 }
 
-/** A show (PG) tile's prompt: a clean studio photograph, fully dressed. */
-export function pgPrompt(s: Subject, framing: string, anime = false, detail?: string): string {
-  const [medium, finish] = anime
-    ? ["Clean modern anime illustration", "Cel shading, a clearly grown adult character with mature adult proportions"]
-    : ["Photorealistic studio photograph", "85mm lens, sharp focus, natural skin texture"];
+/** A show (PG) tile's prompt: a clean studio picture in their art style (lib/art-style.ts), fully dressed. */
+export function pgPrompt(s: Subject, framing: string, style: ArtStyle = "realistic", detail?: string): string {
+  const { medium, finish } = STYLE_WORDS[style];
   return [
     `${medium} of ${subjectWords(s)}.`,
     ...(detail ? [`${detail}.`] : []),
@@ -646,7 +641,7 @@ export function tileSpecs(): TileSpec[] {
         const looks = { ...base, [step.id]: o.id } as Looks & { age: number };
         const outfit = outfitWords(gender, step.id === "outfit" ? o.id : d.outfit, false);
         const framing = FRAMING[step.id] ?? FRAMING.style!;
-        out.push({ id: `pg-${gender}-${step.id}-${o.id}`, variant: "pg", gender, step: step.id, option: o.id, seed: SEEDS[gender], prompt: pgPrompt({ gender, looks, outfit }, framing, o.anime) });
+        out.push({ id: `pg-${gender}-${step.id}-${o.id}`, variant: "pg", gender, step: step.id, option: o.id, seed: SEEDS[gender], prompt: pgPrompt({ gender, looks, outfit }, framing, step.id === "style" ? artStyleFrom(o.id) : "realistic") });
       }
     }
     // After Dark: the steps whose pictures change there. Nude for the body steps, the outfit for the outfit step.
@@ -734,7 +729,7 @@ export function looksPortraitPrompt(l: Looks, age: number, kind?: KindId | null,
   return pgPrompt(
     { gender: l.gender, looks, outfit: outfitWords(l.gender, l.outfit ?? d.outfit, false, occupation) },
     "Head-and-shoulders portrait, facing the camera, warm natural smile",
-    l.style === "anime",
+    artStyleFrom(l.style),
     kind ? KIND_LOOK_WORDS[kind] : undefined,
   );
 }

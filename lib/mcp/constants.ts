@@ -79,6 +79,7 @@ function detailsByMax(): string {
   for (const k of TEXT_DETAIL_KEYS) by.set(TEXT_DETAILS[k].max, [...(by.get(TEXT_DETAILS[k].max) ?? []), k]);
   return [...by].sort(([x], [y]) => x - y).map(([max, keys]) => `≤${max} ${keys.join(", ")}`).join("; ");
 }
+import { ART_STYLES } from "../art-style";
 import { APPEARANCE_MAX, BIO_MAX, DEALBREAKER_MAX, NAME_MAX, PROMPT_ANSWER_MAX, TRAIT_MAX, WANT_MAX } from "../field-limits";
 
 export const SHEET_PROPS = {
@@ -93,6 +94,8 @@ export const SHEET_PROPS = {
   voice: str(200, "Optional but recommended: how they talk — it's what makes their dates sound like them."),
   // 2.36.0: what kind of person (lib/character-tags-shared.ts); a wrong one is refused with the whole list.
   tags: { type: "array", items: { type: "string" }, maxItems: 4, description: 'Optional type tags, e.g. ["cold","nerd"]; [] reads them from the traits.' },
+  // 2.37.0: how their pictures are drawn (lib/art-style.ts), kept as their looks' style.
+  art_style: { type: "string", enum: [...ART_STYLES], description: "How they're drawn; semi_real is 2.5D." },
   soul: {
     type: "object",
     description: "Optional private soul: owner-only, never shown to the audience or the other character; it shapes how your character behaves on a date. Same content rules.",

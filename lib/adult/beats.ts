@@ -16,6 +16,7 @@
  * Free, like the chapter's automatic picture (lib/adult/auto-pictures.ts), and counted against the month's pictures.
  * Off when the setting is (beat_pictures), or when pictures can't be made.
  */
+import { artStyleFrom, isDrawnStyle } from "../art-style";
 import { loadCharacter, type Character } from "../character";
 import type { Db } from "../db";
 import { checkAdultText } from "../safety";
@@ -641,14 +642,15 @@ export const OLDER_WORDS =
   "Both are grown adults, clearly in their late twenties or older: mature adult faces and bodies, adult proportions, nothing youthful or childlike about either of them.";
 
 /**
- * Which of them an age check most likely read as young, to name in the note: the younger, else one drawn in an anime
- * style (it reads young), else the owner's own (the house cast is reviewed). Null when nothing points either way.
+ * Which of them an age check most likely read as young, to name in the note: the younger, else one drawn in a drawn
+ * style (anime or 2.5D, lib/art-style.ts: it reads young), else the owner's own (the house cast is reviewed). Null when
+ * nothing points either way.
  */
 export function youngerLooking(people: readonly [Character, Character], owner: string): Character | null {
   const [a, b] = people;
   if (a.age !== b.age) return a.age < b.age ? a : b;
-  const anime = people.filter((c) => (c.extras?.looks as { style?: string } | undefined)?.style === "anime");
-  if (anime.length === 1) return anime[0];
+  const drawn = people.filter((c) => isDrawnStyle(artStyleFrom((c.extras?.looks as { style?: string } | undefined)?.style)));
+  if (drawn.length === 1) return drawn[0];
   const own = people.filter((c) => c.ownerId === owner);
   return own.length === 1 ? own[0] : null;
 }

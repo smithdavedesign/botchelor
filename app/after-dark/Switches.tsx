@@ -4,12 +4,13 @@ import { useRouter } from "next/navigation";
 import { type ReactNode, useState } from "react";
 import { requestJson } from "@/app/request";
 import type { Switchable } from "@/lib/adult/characters";
+import { DRAWN_IN } from "@/lib/art-style";
 import CharacterName from "@/app/CharacterName";
 
 /**
  * Your characters and the house characters they date: a switch each (this season's cast is always in). `only`: just
  * that one character's switch, under its own heading (#1176: one made on the show, brought in from its finish screen).
- * One drawn in anime stays out, its switch off and saying so (After Dark only draws photographs). `headingId`: an id for
+ * One drawn in anime or 2.5D stays out, its switch off and saying so (After Dark only draws photographs). `headingId`: an id for
  * the heading, so a link can land on it (/after-dark/studio#ad-whos-in). Its own rows (.ad-whos-in-*, after-dark.css),
  * not the Account page's character tiles they once borrowed: a long state ("In (this season's cast)") wraps under the
  * name instead of running into the next column and out of the card (David's screenshot, 2026-11-15).
@@ -59,10 +60,10 @@ export default function Switches({
                 type="checkbox"
                 id={`ad-switch-${c.id}`}
                 checked={c.on}
-                disabled={c.season || c.anime || busy === c.id}
+                disabled={c.season || c.drawn !== null || busy === c.id}
                 onChange={(e) => void flip(c.id, e.target.checked)}
               />{" "}
-              {c.anime ? "Out (drawn in anime)" : c.season ? "In (this season's cast)" : c.on ? "In" : "Out"}
+              {c.drawn ? `Out (drawn in ${DRAWN_IN[c.drawn]})` : c.season ? "In (this season's cast)" : c.on ? "In" : "Out"}
             </label>
           </li>
         ))}

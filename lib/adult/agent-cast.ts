@@ -10,6 +10,7 @@
  * Passing both sets characters.after_dark_open. An outside agent's character never joins: its maker never agreed to it.
  * Every verdict is kept in adult_cast_checks, with why, and a character that fails isn't asked again.
  */
+import { notDrawnSql } from "../art-style";
 import type { Db } from "../db";
 import { companionModel } from "../companion";
 import { jsonOf } from "../companion-prompt";
@@ -24,10 +25,10 @@ export const PORTRAITS_PER_DAY = 30;
 
 /**
  * The show's own agent-made characters, by the same rule companions open them by (lib/companion.ts openOurAgentCast),
- * except the ones drawn in anime (lib/looks.ts isAnime; the show's anime cast, 2026-11-08): After Dark never draws anime,
- * and anime reads young to every age check, so they stay on the show and are never asked about here.
+ * except the ones drawn in anime or 2.5D (lib/art-style.ts; the show's anime cast, 2026-11-08): After Dark never draws a
+ * drawn style, and drawings read young to every age check, so they stay on the show and are never asked about here.
  */
-const OURS = `c.created_via = 'mcp' and not c.is_house and c.owner_id = any($1::text[]) and c.owner_id <> $2 and c.visibility <> 'private' and coalesce(c.extras->'looks'->>'style', '') <> 'anime'`;
+const OURS = `c.created_via = 'mcp' and not c.is_house and c.owner_id = any($1::text[]) and c.owner_id <> $2 and c.visibility <> 'private' and ${notDrawnSql("c")}`;
 
 export type SheetVerdict = { ok: boolean; reason: string };
 

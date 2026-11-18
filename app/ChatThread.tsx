@@ -7,6 +7,7 @@ import { DATE_ACTS } from "@/lib/rules";
 import type { Turn } from "@/lib/conversation";
 import type { CharacterRef } from "@/lib/game";
 import { venuePhrase } from "@/lib/venues";
+import { faceForTurn } from "@/lib/show-shots-shared";
 
 export type { LineFeedbackRef } from "./useLineVotes";
 
@@ -163,7 +164,8 @@ export default function ChatThread({ characters, turns, typing = null, challenge
             {newAct && <p className="chat-act">{DATE_ACTS[t.act] ?? `Act ${t.act + 1}`}</p>}
             {newAct && t.act === 1 && challenge && <p className="chat-note">🎬 {challenge}</p>}
             <div className={`chat-row chat-row-${t.side}`}>
-              <Avatar seed={c.id} name={c.name} hue={c.hue} house={c.house} portraitSrc={c.portrait} photoSrc={c.photo} size={30} />
+              {/* The face for the line (lib/show-shots-shared.ts): their expression once it's drawn, else their portrait. */}
+              <Avatar seed={c.id} name={c.name} hue={c.hue} house={c.house} portraitSrc={c.portrait} photoSrc={faceForTurn(c.shots, t) ?? c.photo} size={30} />
               <div className="chat-col">
                 {named && <span className="chat-name">{c.name}</span>}
                 {beat?.before && <p className="chat-beat">{beat.before}</p>}
