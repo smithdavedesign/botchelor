@@ -10071,7 +10071,8 @@ html.ad-studio-locked {
   padding-bottom: var(--space-4);
 }
 @media (min-width: 64rem) {
-  .ad-studio-main.is-full .ad-studio-work {
+  /* Two columns only when pictures sit beside the menus (Studio.tsx has-side); the Gallery tab takes the whole width. */
+  .ad-studio-main.is-full .ad-studio-work.has-side {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(20rem, 42%);
     gap: var(--space-5, 1.5rem);
