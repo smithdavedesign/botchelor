@@ -21,7 +21,7 @@ import { setModerationFetchForTests } from "@/lib/adult/moderation";
 import { saveAdultSettings } from "@/lib/adult/settings";
 import { COMPANIONS_LISTED, listCompanions, type CompanionListItem } from "@/lib/companion";
 import { HOUSE_CHARACTERS } from "@/lib/house";
-import { isAnime } from "@/lib/looks";
+import { artStyleOf } from "@/lib/art-style";
 import type { Model } from "@/lib/model";
 import { ANIME_NEGATIVE_PROMPT, recastPortraitPrompt } from "@/lib/recast";
 import { checkPgPictureText } from "@/lib/safety";
@@ -64,7 +64,7 @@ const LOOK = "a tall woman with long silver hair in a high ponytail and calm vio
 
 describe("the anime portrait prompt (lib/recast.ts recastPortraitPrompt)", () => {
   it("draws in anime, says twice over that they're a grown adult, and passes the show's PG word check", () => {
-    const p = recastPortraitPrompt(LOOK, 27, ROLE, false, true);
+    const p = recastPortraitPrompt(LOOK, 27, ROLE, false, "anime");
     expect(p).toMatch(/^Clean modern anime illustration, a chest-up character portrait of a tall woman/);
     expect(p).toContain("They are a wandering swordswoman, with a sheathed katana.");
     expect(p).toContain("Behind them, a moonlit shrine gate.");
@@ -75,9 +75,9 @@ describe("the anime portrait prompt (lib/recast.ts recastPortraitPrompt)", () =>
   });
 
   it("is never drawn younger than 21, pushes the role on the second try, and needs no role", () => {
-    expect(recastPortraitPrompt(LOOK, 19, ROLE, false, true)).toContain("a grown adult of 21 ");
-    expect(recastPortraitPrompt(LOOK, 27, ROLE, true, true)).toContain("It must be unmistakable at a glance that they are a wandering swordswoman: a sheathed katana prominent");
-    const plain = recastPortraitPrompt(LOOK, 30, null, false, true);
+    expect(recastPortraitPrompt(LOOK, 19, ROLE, false, "anime")).toContain("a grown adult of 21 ");
+    expect(recastPortraitPrompt(LOOK, 27, ROLE, true, "anime")).toContain("It must be unmistakable at a glance that they are a wandering swordswoman: a sheathed katana prominent");
+    const plain = recastPortraitPrompt(LOOK, 30, null, false, "anime");
     expect(plain).toContain("A soft painted background.");
     expect(plain).not.toContain("They are");
     expect(checkPgPictureText({ prompt: plain }).ok).toBe(true);
@@ -97,17 +97,17 @@ describe("the anime portrait prompt (lib/recast.ts recastPortraitPrompt)", () =>
     expect(words(ANIME_NEGATIVE_PROMPT)).not.toContain("illustration");
   });
 
-  it("knows an anime character by their looks", () => {
-    expect(isAnime({ extras: { looks: { style: "anime" } } })).toBe(true);
-    expect(isAnime({ extras: { looks: { style: "realistic" } } })).toBe(false);
-    expect(isAnime({ extras: {} })).toBe(false);
-    expect(isAnime(null)).toBe(false);
+  it("knows an anime character by their looks (lib/art-style.ts)", () => {
+    expect(artStyleOf({ extras: { looks: { style: "anime" } } })).toBe("anime");
+    expect(artStyleOf({ extras: { looks: { style: "realistic" } } })).toBe("realistic");
+    expect(artStyleOf({ extras: {} })).toBe("realistic");
+    expect(artStyleOf(null)).toBe("realistic");
   });
 });
 
 describe("an anime character's views (lib/studio/identity-views.ts)", () => {
   it("stay anime, not photographs of them, and still say adult", () => {
-    const p = identityViewPrompt("full_body", { noun: "woman", age: 26, look: "long silver hair", anime: true }, { pg: true, outfit: "a dark kimono-style coat" });
+    const p = identityViewPrompt("full_body", { noun: "woman", age: 26, look: "long silver hair", style: "anime" }, { pg: true, outfit: "a dark kimono-style coat" });
     expect(p).toMatch(/^Make one anime illustration of the woman from Picture 1, a 26-year-old adult \(long silver hair\): the very same face, features, hair and colours, unchanged\./);
     expect(p).toContain("Clean modern anime illustration, cel shading, mature adult proportions. Everyone shown is an adult.");
     expect(p).not.toContain("Photorealistic");
@@ -229,9 +229,12 @@ describe("the companions list (lib/companion.ts listCompanions)", () => {
     const anime = await character(owner, "Sayo Kirishima", { companion: true });
     await setLooks(anime, ANIME);
     const real = await character(owner, "Rook Marrow", { companion: true });
+    const painted = await character(owner, "Ilse Varga", { companion: true });
+    await setLooks(painted, { gender: "woman", style: "semi_real" });
     const { cast } = await listCompanions(t.db, "a-viewer");
     expect(cast.find((c) => c.id === anime)?.style).toBe("anime");
     expect(cast.find((c) => c.id === real)?.style).toBe("realistic");
+    expect(cast.find((c) => c.id === painted)?.style).toBe("semi_real");
     expect(cast.filter((c) => c.house).every((c) => c.style === "realistic")).toBe(true);
   });
 

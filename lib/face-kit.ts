@@ -22,14 +22,14 @@
  * that has none (ensureFaceKit), a few a day at most (FACE_KIT_PER_DAY, about 30¢ each on Replicate), or by an admin
  * (/api/admin/face-kit). A new approved portrait means a new kit; the old one stays until it's made.
  *
- * A character drawn in anime (lib/looks.ts isAnime) gets an anime kit (animeFace): the same edits, kept in their
- * drawing style, never turned into a photograph of a real-looking person (David, 2026-11-13). The style is part of the
- * kit's key (faceSource), so a kit drawn in the other style is never shown and is replaced on the next call.
+ * A character drawn in anime or 2.5D (lib/art-style.ts) gets a kit in that style (styledFace): the same edits, kept in
+ * their drawing style, never turned into a photograph of a real-looking person (David, 2026-11-13). The style is part of
+ * the kit's key (faceSource), so a kit drawn in another style is never shown and is replaced on the next call.
  */
 import { track } from "./analytics";
 import type { Db } from "./db";
 import { keepBytes, readBytes } from "./object-store";
-import { isAnime } from "./looks";
+import { artStyleOf, DRAWN_STYLES, isDrawnStyle, STYLE_WORDS, type ArtStyle, type DrawnStyle } from "./art-style";
 import { characterPortrait } from "./portraits";
 import { overLimit } from "./limits";
 import { checkRating } from "./adult/moderation";
@@ -66,16 +66,22 @@ export const FACE_LOOP_PROMPT =
   "The person in the picture stays still and natural, as if listening: they breathe, blink, and glance at the camera with a small natural smile. " +
   "The camera doesn't move. No talking, no gestures, nobody else comes in, the same clothes, place and light. They end as they began. Fully clothed, safe for work. Photorealistic. An adult.";
 
-/** How an anime character's face is drawn: in their own style, said to be a grown adult (anime reads young, and every
- * still goes through the PG check's age question). */
-const ANIME_FINISH = "Clean modern anime illustration in the same drawing style as Picture 1: cel shading, clean linework, a clearly grown adult with mature adult proportions.";
+/** Who a drawn character is in a face prompt: "the anime character in the picture". */
+const DRAWN_WHO: Record<DrawnStyle, string> = { anime: "anime character", semi_real: "illustrated character" };
 
-/** A face prompt for a character drawn in anime: an illustration of them in their style, not a photograph. */
-export const animeFace = (prompt: string): string =>
-  prompt
-    .replace(/Make one photograph of the person in Picture 1/g, "Make one anime illustration of the character in Picture 1")
-    .replace(/The person in the picture/g, "The anime character in the picture")
-    .replace(/Photorealistic\./g, ANIME_FINISH);
+/**
+ * A face prompt in their art style: a drawn character's face is an illustration of them in their own style (the style's
+ * editFinish), said to be a grown adult (drawings read young, and every still goes through the PG check's age question).
+ * A photograph's prompt is unchanged.
+ */
+export function styledFace(prompt: string, style: ArtStyle): string {
+  if (!isDrawnStyle(style)) return prompt;
+  const { noun, editFinish } = STYLE_WORDS[style];
+  return prompt
+    .replace(/Make one photograph of the person in Picture 1/g, `Make one ${noun} of the character in Picture 1`)
+    .replace(/The person in the picture/g, `The ${DRAWN_WHO[style]} in the picture`)
+    .replace(/Photorealistic\./g, editFinish ?? "");
+}
 
 /** What one kit costs, about: eight Qwen edits (the page's seven and the talking still) and one Wan 2.2 clip at 480p (docs/costs.md). */
 export const FACE_STILL_USD = 0.03;
@@ -105,15 +111,15 @@ export const faceKitUrl = (id: string) => `/api/face-kit/${encodeURIComponent(id
 
 type Row = { id: string; part: FacePart; status: "making" | "ready" | "failed"; error: string | null; queue_id: string | null; updated_at: Date | string; created_at: Date | string };
 
-/** Marks a kit drawn in anime in its key (faceSource's id), so one drawn as a photograph never stands in for it. */
-const ANIME_KEY = "#anime";
+/** Marks a kit drawn in a drawn style in its key (faceSource's id: "#anime", "#semi_real"), so one drawn as a photograph never stands in for it. */
+const styleKey = (id: string, style: ArtStyle): string => (isDrawnStyle(style) ? `${id}#${style}` : id);
 
 /**
  * The portrait a character's kit is made from: its newest approved safe portrait (the ledger's), or a house character's
- * reviewed file. `id` keys the kit (and the live face built from it): the portrait's, plus ANIME_KEY when they're drawn
- * in anime, so the kit follows the style as it follows the portrait.
+ * reviewed file. `id` keys the kit (and the live face built from it): the portrait's, plus their style when they're
+ * drawn (styleKey), so the kit follows the style as it follows the portrait.
  */
-export async function faceSource(db: Db, characterId: string, baseUrl: string): Promise<{ id: string; url: string; anime: boolean } | null> {
+export async function faceSource(db: Db, characterId: string, baseUrl: string): Promise<{ id: string; url: string; style: ArtStyle } | null> {
   const [{ rows }, who] = await Promise.all([
     db.query<{ id: string; url: string }>(
       `select id, url from character_assets where character_id = $1 and kind = 'portrait' and review_status = 'approved' and content_rating = 'pg' and url is not null
@@ -122,12 +128,11 @@ export async function faceSource(db: Db, characterId: string, baseUrl: string): 
     ),
     db.query<{ extras: { looks?: { style?: string } } | null }>(`select extras from characters where id = $1`, [characterId]),
   ]);
-  const anime = isAnime(who.rows[0]);
-  const keyed = (id: string) => (anime ? `${id}${ANIME_KEY}` : id);
+  const style = artStyleOf(who.rows[0]);
   const a = rows[0];
-  if (a) return { id: keyed(a.id), url: new URL(a.url.startsWith("/") ? a.url : `/api/assets/${a.id}`, baseUrl).toString(), anime };
+  if (a) return { id: styleKey(a.id, style), url: new URL(a.url.startsWith("/") ? a.url : `/api/assets/${a.id}`, baseUrl).toString(), style };
   const house = characterPortrait(characterId);
-  return house ? { id: keyed(`static:${house}`), url: new URL(house, baseUrl).toString(), anime } : null;
+  return house ? { id: styleKey(`static:${house}`, style), url: new URL(house, baseUrl).toString(), style } : null;
 }
 
 async function rowsFor(db: Db, characterId: string, sourceId: string): Promise<Row[]> {
@@ -183,7 +188,7 @@ export async function makeFaceKit(db: Db, characterId: string, baseUrl: string, 
   const source = (await faceSource(db, characterId, baseUrl))!;
   const [keys, settings] = await Promise.all([adultKeys(db), getAdultSettings(db)]);
   const token = keys.replicate!;
-  const styled = (prompt: string) => (source.anime ? animeFace(prompt) : prompt);
+  const styled = (prompt: string) => styledFace(prompt, source.style);
   const editModel = settings.replicate_keyframe_model;
   // `redo`: start over from the portrait as it is now (a kit drawn the old way, or one that lost what makes them them).
   if (opts.redo) await db.query(`delete from face_kits where character_id = $1`, [characterId]);
@@ -366,7 +371,7 @@ export const faceKitBytes = (f: { object_key: string | null; data: Buffer | null
 /** Every prompt here holds to the show's own PG word check (tests). */
 export function facePromptsPass(): boolean {
   const all = [FACE_PORTRAIT_PROMPT, FACE_LOOP_PROMPT, ...Object.values(FACE_PROMPTS)];
-  return [...all, ...all.map(animeFace)].every((prompt) => checkPgPictureText({ prompt }).ok);
+  return [...all, ...DRAWN_STYLES.flatMap((style) => all.map((p) => styledFace(p, style)))].every((prompt) => checkPgPictureText({ prompt }).ok);
 }
 
 async function upsert(db: Db, p: { character: string; source: string; part: FacePart; status: Row["status"]; model?: string; queue?: string; error?: string; file?: { bytes: Buffer; mime: string } }): Promise<string> {

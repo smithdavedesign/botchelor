@@ -5,25 +5,28 @@
  * along; never another person's character, which would put it in explicit scenes without its owner. One person's
  * switches never change anyone else's after dark.
  *
- * Never a character drawn in anime (lib/looks.ts isAnime): After Dark draws photographs, and one made in anime on purpose
- * is never drawn as a real-looking person (David, 2026-11-13). Their switch stays off and says why.
+ * Never a character drawn in anime or 2.5D (lib/art-style.ts): After Dark draws photographs, and one made in a drawn
+ * style on purpose is never drawn as a real-looking person (David, 2026-11-13). Their switch stays off and says why.
+ * Drawn styles stay out until the PRD's phase 8 gates are met (docs/PRDs/styles-and-storylines.md).
  */
+import { artStyleFrom, artStyleSql, DRAWN_IN, isDrawnStyle, notDrawnSql, type DrawnStyle } from "../art-style";
 import type { Db } from "../db";
 import { sheetRefusal } from "../franchises";
 import { portraitPathSql } from "../portrait-sql";
 import { lastSeasonOn, seasonCastIds, seasonMonth } from "../season-cast";
 
-export type Switchable = { id: string; name: string; house: boolean; portrait: string | null; on: boolean; season: boolean; anime: boolean };
+/** `drawn`: the style they're drawn in when it isn't a photograph, which keeps them out (null: photographed). */
+export type Switchable = { id: string; name: string; house: boolean; portrait: string | null; on: boolean; season: boolean; drawn: DrawnStyle | null };
 
-/** SQL on `alias`: the character isn't drawn in anime (lib/looks.ts isAnime), so After Dark may draw them. */
-export const notAnimeSql = (alias: string): string => `coalesce(${alias}.extras->'looks'->>'style', '') <> 'anime'`;
+/** Why a drawn character's switch stays off, said wherever someone tries it. */
+export const drawnOutMessage = (style: DrawnStyle): string =>
+  `They're drawn in ${DRAWN_IN[style]}, and After Dark only draws photographs, so they stay out rather than be drawn as a real-looking person.`;
 
-/** Why an anime character's switch stays off, said wherever someone tries it. */
-export const ANIME_OUT_MESSAGE = "They're drawn in anime, and After Dark only draws photographs, so they stay out rather than be drawn as a real-looking person.";
-
-/** Whether this character is drawn in anime, so After Dark leaves them out. */
-export async function isAnimeCharacter(db: Db, characterId: string): Promise<boolean> {
-  return (await db.query(`select 1 from characters c where c.id = $1 and not ${notAnimeSql("c")}`, [characterId])).rows.length > 0;
+/** The drawn style this character is drawn in, which keeps them out of After Dark; null when they're photographed (or don't exist). */
+export async function drawnStyleOf(db: Db, characterId: string): Promise<DrawnStyle | null> {
+  const r = (await db.query<{ style: string }>(`select ${artStyleSql("c")} as style from characters c where c.id = $1`, [characterId])).rows[0];
+  const style = artStyleFrom(r?.style);
+  return isDrawnStyle(style) ? style : null;
 }
 
 /** The show's own: a house character, or one of the agent cast After Dark opened (lib/adult/agent-cast.ts). SQL on `alias`. */
@@ -37,8 +40,8 @@ export async function isShowsOwn(db: Db, characterId: string): Promise<boolean> 
 /** Everyone who can be in this person's scenes: the season's cast, the agent cast that's open, and the characters they've switched on. */
 export async function eligibleIds(db: Db, ownerId: string): Promise<Set<string>> {
   const { rows } = await db.query<{ id: string }>(
-    `select a.character_id as id from adult_switches a join characters c on c.id = a.character_id where a.owner_id = $1 and ${notAnimeSql("c")}
-     union select c.id from characters c where c.after_dark_open and c.visibility <> 'private' and ${notAnimeSql("c")}`,
+    `select a.character_id as id from adult_switches a join characters c on c.id = a.character_id where a.owner_id = $1 and ${notDrawnSql("c")}
+     union select c.id from characters c where c.after_dark_open and c.visibility <> 'private' and ${notDrawnSql("c")}`,
     [ownerId],
   );
   return new Set([...seasonCastIds(), ...rows.map((r) => r.id)]);
@@ -153,7 +156,7 @@ export async function franchiseOut(db: Db, characterId: string): Promise<string 
 export async function setAdultSwitch(db: Db, ownerId: string, characterId: string, on: boolean): Promise<boolean> {
   if (on && (await franchiseOut(db, characterId))) return false;
   if (!(await mayFlip(db, ownerId, characterId))) return false;
-  if (on && (await isAnimeCharacter(db, characterId))) return false;
+  if (on && (await drawnStyleOf(db, characterId))) return false;
   if (on) await db.query(`insert into adult_switches (owner_id, character_id) values ($1, $2) on conflict do nothing`, [ownerId, characterId]);
   else await db.query(`delete from adult_switches where owner_id = $1 and character_id = $2`, [ownerId, characterId]);
   return true;
@@ -162,7 +165,7 @@ export async function setAdultSwitch(db: Db, ownerId: string, characterId: strin
 /** The person's own characters and the house characters they've dated, with each switch. */
 export async function listSwitchable(db: Db, ownerId: string): Promise<Switchable[]> {
   const season = new Set(seasonCastIds());
-  const { rows } = await db.query<{ id: string; name: string; is_house: boolean; portrait: string | null; on: boolean; anime: boolean }>(
+  const { rows } = await db.query<{ id: string; name: string; is_house: boolean; portrait: string | null; on: boolean; style: string }>(
     `with mine as (select id from characters where owner_id = $1),
           dated as (
             select case when e.character_a in (select id from mine) then e.character_b else e.character_a end as id
@@ -170,11 +173,15 @@ export async function listSwitchable(db: Db, ownerId: string): Promise<Switchabl
              where e.status = 'ready' and (e.character_a in (select id from mine) or e.character_b in (select id from mine))
           )
      select c.id, c.name, c.is_house, ${portraitPathSql("c")} as portrait, exists (select 1 from adult_switches a where a.owner_id = $1 and a.character_id = c.id) as on,
-            not ${notAnimeSql("c")} as anime
+            ${artStyleSql("c")} as style
        from characters c
       where c.id in (select id from mine) or (c.is_house and c.id in (select id from dated))
       order by c.is_house, c.name`,
     [ownerId],
   );
-  return rows.map((r) => ({ id: r.id, name: r.name, house: r.is_house, portrait: r.portrait, on: !r.anime && (r.on || season.has(r.id)), season: season.has(r.id), anime: r.anime }));
+  return rows.map((r) => {
+    const style = artStyleFrom(r.style);
+    const drawn = isDrawnStyle(style) ? style : null;
+    return { id: r.id, name: r.name, house: r.is_house, portrait: r.portrait, on: !drawn && (r.on || season.has(r.id)), season: season.has(r.id), drawn };
+  });
 }

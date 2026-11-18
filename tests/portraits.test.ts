@@ -48,7 +48,9 @@ describe("portraits — in sync with the cast, the venues and the files", () => 
     const real = new Set<string>([...VENUE_IDS, ...EXTRA_VENUES.map((v) => v.id)]);
     for (const id of VENUES_WITH_BACKDROPS) {
       expect(real.has(id)).toBe(true);
-      expect(files.has(`venue-${id}-v2.webp`)).toBe(true);
+      // v2 for the library, v3 for the themed nights (2026-11-17): whatever version venueBackdrop names is on disk.
+      expect(files.has(venueBackdrop(id)!.replace(/^\/cast\//, "")), id).toBe(true);
     }
+    expect(venueBackdrop("gothic_manor")).toBe("/cast/venue-gothic_manor-v3.webp");
   });
 });

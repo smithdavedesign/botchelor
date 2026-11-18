@@ -99,6 +99,11 @@ const VENUE_META: Record<string, Meta> = {
   pier_at_night: [["romance", "nightlife"], ["Romantic", "Outdoors", "Night", "Water"]],
   jazz_bar: [["nightlife", "romance"], ["Romantic", "Public", "Indoors", "Night"]],
   late_bookshop: [["romance", "nightin"], ["Cozy", "Indoors", "Night"]],
+  // The themed nights (2026-11-17).
+  gothic_manor: [["mystery", "fantasy"], ["Luxe", "Private", "Indoors", "Night"]],
+  countryside_picnic: [["romance", "outdoors"], ["Cozy", "Outdoors"]],
+  space_lounge: [["scifi", "romance"], ["Luxe", "Indoors", "Night"]],
+  cavern_lounge: [["fantasy", "getaway"], ["Wild", "Private", "Indoors"]],
   home: [["nightin"], ["Cozy", "Private", "Indoors"]],
 };
 

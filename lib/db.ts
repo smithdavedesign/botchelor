@@ -1214,6 +1214,28 @@ create unique index if not exists face_kits_one on face_kits (character_id, sour
 alter table face_kits drop constraint if exists face_kits_part_check;
 alter table face_kits add constraint face_kits_part_check
   check (part in ('portrait', 'mouth_small', 'mouth_open', 'mouth_round', 'blink', 'smile', 'surprised', 'talk', 'loop'));
+-- The show kit's shots (lib/show-shots.ts; docs/PRDs/styles-and-storylines.md phase 3): six expressions and three moments
+-- per contestant, drawn free on Workers AI from the portrait they have now (portrait_key: the asset's id, or "static:" and
+-- a house file's path) in their art style. PG-checked, explicit question and all, before it's kept; bytes in the looks
+-- area of the object store (data stays null there). Pages read only the current portrait's and style's.
+create table if not exists show_shots (
+  id text primary key,
+  character_id text not null references characters (id) on delete cascade,
+  portrait_key text not null,
+  style text not null,
+  shot text not null check (shot in ('smitten', 'laughing', 'flustered', 'smug', 'unimpressed', 'heartbroken', 'reveal', 'rose', 'confessional')),
+  status text not null check (status in ('making', 'ready', 'refused', 'failed')),
+  model text,
+  mime text,
+  data bytea,
+  object_key text,
+  error text,
+  attempts integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create unique index if not exists show_shots_one on show_shots (character_id, portrait_key, style, shot);
+create index if not exists show_shots_ready_idx on show_shots (character_id) where status = 'ready';
 -- A character's live face at a renderer (lib/live-face/index.ts; docs/PRDs/digital-human.md Tier 1): one per character per
 -- kit portrait per provider, built by an admin (hours), the renderer's face id once it exists. Sessions aren't rows:
 -- a call's face time is on companion_live_calls (face_provider, face_seconds) for the spend view.

@@ -6,6 +6,7 @@ import Avatar from "@/app/Avatar";
 import Icon from "@/app/Icon";
 import EmptyState from "@/app/EmptyState";
 import When from "@/app/When";
+import { ART_STYLE_LABEL, ART_STYLES } from "@/lib/art-style";
 import type { CompanionListItem, CompanionSource } from "@/lib/companion";
 import { byDemand, STATUSES, tagById, tagsIn } from "@/lib/tags";
 import { useTagDemand } from "@/app/useTagDemand";
@@ -32,12 +33,8 @@ const PRONOUNS = [
 ] as const;
 type Pronouns = (typeof PRONOUNS)[number]["id"];
 
-/** How they're drawn (lib/companion.ts CompanionStyle): shown once anyone listed is drawn in anime (the show's anime cast, 2026-11-08). */
-const STYLES = [
-  { id: "any", label: "Any style" },
-  { id: "realistic", label: "Realistic" },
-  { id: "anime", label: "Anime" },
-] as const;
+/** How they're drawn (lib/art-style.ts): shown once anyone listed is drawn rather than photographed (the show's anime cast, 2026-11-08; 2.5D, 2026-11-17). */
+const STYLES = [{ id: "any", label: "Any style" }, ...ART_STYLES.map((id) => ({ id, label: ART_STYLE_LABEL[id] }))] as const;
 type Style = (typeof STYLES)[number]["id"];
 export const matchesStyle = (c: CompanionListItem, style: Style) => style === "any" || c.style === style;
 
@@ -224,7 +221,7 @@ export default function CompanionBrowser({
     () => sorted(others.filter((c) => matchesWho(c, who) && (pronouns === "any" || c.pronouns === pronouns) && matchesStyle(c, style) && matchesType(c, type) && matchesLove(c, love) && matchesQuery(c, q)), sort),
     [others, who, pronouns, style, type, love, q, sort],
   );
-  const anyAnime = useMemo(() => others.some((c) => c.style === "anime"), [others]);
+  const anyDrawn = useMemo(() => others.some((c) => c.style !== "realistic"), [others]);
   const filtered = q.trim() !== "" || who !== "all" || pronouns !== "any" || style !== "any" || type !== "any" || love !== "any";
   // Only the types and love lives someone listed has: a menu entry with nobody behind it is a dead end.
   const typeDemand = useTagDemand()?.types;
@@ -275,7 +272,7 @@ export default function CompanionBrowser({
               ))}
             </select>
           </label>
-          {(anyAnime || style !== "any") && (
+          {(anyDrawn || style !== "any") && (
             <label>
               <span className="sr-only">Style</span>
               <select value={style} onChange={(e) => setStyle(e.target.value as Style)}>

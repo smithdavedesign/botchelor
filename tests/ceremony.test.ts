@@ -15,6 +15,7 @@ import {
   voteCeremony,
 } from "@/lib/ceremony";
 import { HOUSE_CHARACTERS } from "@/lib/house";
+import { characterPortrait } from "@/lib/portraits";
 import { setSeasonCastForTests } from "@/lib/season-cast";
 import { ceremonySundays, nextCeremonySunday, recouplingNightDays, seasonFormat } from "@/lib/season-format";
 import { setSeasonFormatForTests } from "@/lib/season-format-store";
@@ -143,6 +144,13 @@ describe("the vote (lib/ceremony.ts)", () => {
     expect(board.next).toMatchObject({ held_on: "2026-12-06", runs_at: "2026-12-06T23:20:00.000Z", week: 1, finale: false });
     expect(board.suitors.every((s) => s.state === "in")).toBe(true);
     expect(board.lead.id).toBe(LEAD);
+    // The lead's rose shot (lib/show-shots.ts) rides along once it's drawn: the card shows them holding it out.
+    expect(board.lead.rose).toBeNull();
+    await t.db.query(`insert into show_shots (id, character_id, portrait_key, style, shot, status, model) values ('rose-1', $1, $2, 'realistic', 'rose', 'ready', 'm')`, [
+      LEAD,
+      `static:${characterPortrait(LEAD)}`,
+    ]);
+    expect((await ceremonyBoard(t.db, "fan-1", DEC(4)))!.lead.rose).toBe("/api/shots/rose-1.webp");
   });
 
   it("404s with no vote open, and votes over the API with the visitor's cookie", async () => {

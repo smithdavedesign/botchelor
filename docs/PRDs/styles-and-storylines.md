@@ -113,28 +113,38 @@ rich but controlled color, clean linework on faces, expressive eyes, reality-sho
 
 ## 2. One art style per character
 
-- `lib/art-style.ts` defines `realistic | anime | semi_real` ("Photo", "Anime", "2.5D") and `artStyleOf(character)`,
-  read from `extras.looks.style`. Each style carries its own prompt words, negatives and age cues. The drawn styles keep
-  every age word in the negatives and add "adult proportions, mature features".
+- `lib/art-style.ts` defines `realistic | anime | semi_real` ("Realistic", "Anime", "2.5D", the labels the builder and
+  the filters already used) and `artStyleOf(character)`, read from `extras.looks.style`. Each style carries its own
+  prompt words, negatives and age cues. The drawn styles keep every age word in the negatives and add "adult
+  proportions, mature features". The 2.5D words are look A's (the brief's tokens) until David picks.
 - Every `isAnime` check reads `artStyleOf` instead: portraits, recast, PG Studio, identity views, the face kit,
-  companions and After Dark.
-- After Dark refuses both drawn styles until phase 8.
-- **/create:** a third tile, 2.5D, in the looks builder's style step. Its tiles are drawn free.
+  companions and After Dark. PG Studio's shoots and carousels follow the style too (they were always photographs).
+- After Dark refuses both drawn styles until phase 8, and says which style keeps them out.
+- **/create:** a third tile, 2.5D, in the looks builder's style step. Its tiles are drawn free. The quick start reads
+  "2.5D", "semi-realistic" or "painterly" in a description as 2.5D.
 - **Filters and MCP:**
-  - /companion's style filter gains 2.5D, and /characters gets the same filter.
-  - The MCP's create, update and get carry `art_style`.
-- **Sources:** show pictures try Workers AI first and fall back to fal once the day's free budget is spent. The fal caps
-  don't change.
+  - /companion's style filter gains 2.5D, and /characters gets the same filter (`?style=`).
+  - The MCP's create, update and get carry `art_style` (2.37.0). Setting it keeps the rest of the look.
+- **Sources:** show tiles, portraits from the picks and sets try Workers AI first and fall back to fal once the day's
+  free budget is spent (or the Worker fails). The fal caps don't change. What drew each picture is recorded, so a kept
+  picture whose check couldn't run is checked again from its bytes, explicit question and all.
 
 ## 3. House look and show kit
 
 - **The house look:** the house and season cast are redrawn in the chosen look: hero, full body, confessional and six
   expressions each. That's about 180 pictures over 2–3 days of free budget (about 80 a day), uploaded through the
   checked admin path. Six faces drawn to one sheet would make that about 80 pictures.
-- **Sets** (16:9, empty, no text but the sign):
+- **Sets** (16:9, empty, no lettering, not even a sign):
   - the stage, the blind-date booth, the confessional and elimination;
   - four themed venues with their sets: a gothic manor (spooky, supernatural), a countryside picnic (cozy), a
     space-station lounge (sci-fi) and a cavern lounge (fantasy).
+  - **Built 2026-11-17 (3a):** all eight were drawn free on Workers AI and reviewed, then committed to `public/cast`.
+    - The prompt is backdrop-v3 (`scripts/prompts.mjs`). klein painted a dialogue box into 10 of 16 v2 plates, most of
+      them with garbled text, because it read "room for a dialogue overlay" literally.
+    - `lib/show-sets.ts` places them: the stage behind the rose ceremony's lead and suitors, elimination behind its last
+      verdict, the booth behind a date that's still being filmed, and the confessional behind an episode's confessionals.
+    - The themed venues are dealt like any other. Plans and moves find them (`lib/places.ts`), and After Dark lists them
+      under their genres.
 - **Six expressions per contestant:** smitten, laughing, flustered, smug, unimpressed and heartbroken.
   - They're made like the face kit's stills: the hero card is edited, with only the expression changing.
   - Chat bubbles (`app/ChatThread.tsx`) and the theater (`app/Scene.tsx`) show the speaker's face for the moment.
@@ -142,6 +152,28 @@ rich but controlled color, clean linework on faces, expressive eyes, reality-sho
     new model calls.
 - **Episode moments:** the premiere reveal (full body on the stage) and the finale's rose moment, for the season page and
   the premiere.
+- **Built 2026-11-18 (3b):** `lib/show-shots.ts` draws the six expressions and three moments (the reveal, the rose and
+  the confessional) per contestant.
+  - **How:** klein edits the contestant's own portrait (their newest approved show portrait, or a house character's
+    file) in their art style. Each shot is checked like every free picture, explicit question included, and kept per
+    portrait and style, so a new portrait or style never shows old faces. A refused shot isn't drawn again, and a
+    failing one is tried three times at most.
+  - **When:** the hourly job draws from 20:00 UTC, the house cast first, then whoever aired the most dates in the last
+    two weeks. It leaves 1,500 neurons of the day for people's own pictures. An admin can draw one character's kit at
+    any time (`/api/admin/show-shots`). There's never a paid fallback.
+  - **Which face a line shows:** this changed from the plan. The line's own emotion word decides (each line already
+    carries one), else interest (0.8 and up is smitten, 0.2 and down is unimpressed). A walk-out is unimpressed or
+    heartbroken. Wants and dealbreakers aren't per line, so they don't decide it. In the 30 days to 2026-11-17, 7,781 of
+    7,790 aired lines had a word, and about six in ten map to a face: laughing 29%, smug 14%, smitten 7%, unimpressed
+    and flustered 4% each. Warm, curious and intrigued keep the portrait.
+  - **Where:**
+    - chat lines and the theater's stage show the speaker's face for the line;
+    - each confessional line shows the confessional shot;
+    - the rose ceremony card shows the lead holding out their rose;
+    - a character's page has an "On the show" strip with all nine shots.
+  - **Not yet:** the closed season pages read a frozen snapshot, so the reveal and rose aren't on them.
+  - **Cost:** about 990 neurons a contestant, all free. The batch takes 12 shots an hour, so 48 an evening, about five
+    contestants. The 17 house characters take three to four evenings.
 
 ## 4. Storylines
 
@@ -208,7 +240,7 @@ rich but controlled color, clean linework on faces, expressive eyes, reality-sho
   Dark for everyone.
 - The show's negative prompts gain "logo, brand name, insignia, franchise costume".
 
-### Built 2026-11-18
+### Built 2026-11-17
 
 - **The table** (`lib/franchises.ts`): 117 franchises and their names, written from the census by a script that stays
   in the private library.
@@ -235,7 +267,8 @@ rich but controlled color, clean linework on faces, expressive eyes, reality-sho
 - **After Dark, for everyone:** a character whose words name a franchise can't be switched in (the switch, admin
   route and MCP).
 - **The prompts** (show portraits, look tiles, clips, newcomer and recast portraits) say "no logo, brand name or
-  insignia, no costume from a film, game or anime".
+  insignia, an original outfit, not a known character's costume". The phrase names no style or medium, because image
+  models drift toward any word in the prompt, even after "no", and a photograph must never be pulled toward anime.
 - **Not yet:**
   - **Typed After Dark text.** After Dark's text check (`checkAdultText`) is bundled into the browser, so the table
     can't go there as it stands. A server-side pass over typed After Dark text, starting with the school-age
