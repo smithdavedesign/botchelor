@@ -87,10 +87,13 @@ export function shotPrompt(shot: Shot, style: ArtStyle): string {
   );
 }
 
-/** A steady seed per portrait and shot, so drawing again draws the same picture. */
-export function shotSeed(portraitKey: string, shot: Shot): number {
+/**
+ * A steady seed per portrait, shot and take, so drawing again draws the same picture. An admin's redo of one shot that
+ * drifted from their face is the next take (app/api/admin/show-shots), so it's drawn from another seed.
+ */
+export function shotSeed(portraitKey: string, shot: Shot, take = 0): number {
   let h = 2166136261 >>> 0;
-  for (const ch of `${portraitKey}:${shot}`) {
+  for (const ch of take ? `${portraitKey}:${shot}:${take}` : `${portraitKey}:${shot}`) {
     h ^= ch.charCodeAt(0);
     h = Math.imul(h, 16777619);
   }
@@ -133,7 +136,7 @@ export async function shotFile(db: Db, id: string): Promise<{ bytes: Buffer; mim
   return bytes ? { bytes, mime: r.mime || "image/webp" } : null;
 }
 
-type Row = { id: string; shot: Shot; status: "making" | "ready" | "refused" | "failed"; attempts: number; updated_at: Date | string };
+type Row = { id: string; shot: Shot; status: "making" | "ready" | "refused" | "failed"; attempts: number; take: number; updated_at: Date | string };
 
 export type ShotsRun = {
   drawn: number;
@@ -199,7 +202,7 @@ export async function drawShowShots(db: Db, opts: RunOpts = {}): Promise<ShotsRu
     if (!source) continue;
     // A new portrait or style: the old shots go, and the new ones are drawn.
     await db.query(`delete from show_shots where character_id = $1 and (portrait_key <> $2 or style <> $3)`, [characterId, source.portraitKey, source.style]);
-    const { rows } = await db.query<Row>(`select id, shot, status, attempts, updated_at from show_shots where character_id = $1`, [characterId]);
+    const { rows } = await db.query<Row>(`select id, shot, status, attempts, take, updated_at from show_shots where character_id = $1`, [characterId]);
     const had = new Map(rows.map((r) => [r.shot, r]));
     const todo = SHOTS.filter((shot) => {
       const r = had.get(shot);
@@ -231,7 +234,7 @@ export async function drawShowShots(db: Db, opts: RunOpts = {}): Promise<ShotsRu
       );
       const frame = FRAME[shot];
       const drawn = await drawWithWorkersAi(
-        { prompt: shotPrompt(shot, source.style), width: frame.width, height: frame.height, refs: [portrait], seed: shotSeed(source.portraitKey, shot) },
+        { prompt: shotPrompt(shot, source.style), width: frame.width, height: frame.height, refs: [portrait], seed: shotSeed(source.portraitKey, shot, had.get(shot)?.take ?? 0) },
         { env, fetchImpl: doFetch },
       );
       if (!drawn.ok) {

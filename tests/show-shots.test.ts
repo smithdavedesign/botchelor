@@ -361,15 +361,28 @@ describe("the admin route", () => {
     expect(Object.keys(seen.shots).sort()).toEqual([...SHOTS].sort());
     expect(seen.rows).toHaveLength(9);
 
-    // One shot drifted from their face: redo throws away only that one, and the other eight stay as they were.
+    // One shot drifted from their face: redo draws only that one again, as its next take (another seed, since the same
+    // take draws the same picture, and a new address), and the other eight stay as they were.
     const ids = async () => Object.fromEntries((await t.db.query<{ shot: string; id: string }>(`select shot, id from show_shots where character_id = $1`, [c.id])).rows.map((r) => [r.shot, r.id]));
     const before = await ids();
+    const key = (await rowsOf(c.id))[0].portrait_key;
     expect((await post({ character_id: c.id, redo: true, shot: "selfie" }, admin)).status).toBe(422);
     expect((await post({ character_id: c.id, redo: true, shot: "rose" }, admin)).status).toBe(202);
-    await vi.waitFor(async () => expect((await ids()).rose).toBeDefined(), { timeout: 15_000, interval: 50 });
     await vi.waitFor(async () => expect((await rowsOf(c.id)).filter((r) => r.status === "ready")).toHaveLength(9), { timeout: 15_000, interval: 50 });
     const after = await ids();
     expect(after.rose).not.toBe(before.rose);
     for (const shot of SHOTS.filter((s) => s !== "rose")) expect(after[shot]).toBe(before[shot]);
+    const seeds = w.draws().map((d) => d.seed);
+    expect(seeds).toHaveLength(10);
+    expect(seeds).toContain(String(shotSeed(key, "rose")));
+    expect(seeds.at(-1)).toBe(String(shotSeed(key, "rose", 1)));
+    expect(shotSeed(key, "rose", 1)).not.toBe(shotSeed(key, "rose"));
+
+    // A refused shot isn't fished for with another seed: the look changes first.
+    await t.db.query(`update show_shots set status = 'refused' where character_id = $1 and shot = 'smug'`, [c.id]);
+    const refused = await post({ character_id: c.id, redo: true, shot: "smug" }, admin);
+    expect(refused.status).toBe(409);
+    expect((await refused.json()).error).toBe("refused");
+    expect((await ids()).smug).toBe(before.smug);
   });
 });

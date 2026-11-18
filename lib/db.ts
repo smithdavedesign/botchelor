@@ -1234,6 +1234,8 @@ create table if not exists show_shots (
 );
 create unique index if not exists show_shots_one on show_shots (character_id, portrait_key, style, shot);
 create index if not exists show_shots_ready_idx on show_shots (character_id) where status = 'ready';
+-- An admin's redo of one shot is a new take, drawn from a new seed (lib/show-shots.ts shotSeed); 0 is the first.
+alter table show_shots add column if not exists take integer not null default 0;
 -- A character's live face at a renderer (lib/live-face/index.ts; docs/PRDs/digital-human.md Tier 1): one per character per
 -- kit portrait per provider, built by an admin (hours), the renderer's face id once it exists. Sessions aren't rows:
 -- a call's face time is on companion_live_calls (face_provider, face_seconds) for the spend view.
