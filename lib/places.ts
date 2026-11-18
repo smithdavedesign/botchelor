@@ -42,6 +42,13 @@ const SPECIFIC: [RegExp, VenueId][] = [
   [/\b(horse ?back|horse ?riding|trail ride|horses?)\b/i, "trail_ride"],
   [/\b(comedy|stand-?up|open mic)\b/i, "comedy_club"],
   [/\b(climbing|bouldering|climb)\b/i, "climbing_wall"],
+  // 2026-11-17: the themed nights. A plain "cave" stays a place of their own (the caves someone made things in,
+  // tests/mcp-run-0215.test.ts); a cavern, a crystal cave or lava is the cavern lounge. A ghost tour of a manor is still
+  // the haunted house: that pattern comes first. Before the phase-two venues, so the manor's library isn't the bookshop.
+  [/\b(manors?|gothic)\b/i, "gothic_manor"],
+  [/\b(picnics?|meadows?)\b/i, "countryside_picnic"],
+  [/\b(space ?stations?|spaceships?|starships?|in orbit|zero[ -]?g(?:ravity)?)\b/i, "space_lounge"],
+  [/\b(caverns?|crystal caves?|lava)\b/i, "cavern_lounge"],
   // 2026-10-25 (prod scene requests: "the night market", "the 24-hour diner", "the sea wall" all landed on the
   // placeholder): the eight phase-two venues were never wired in here, so plans and moves to places the library has a
   // reviewed set for were drawing throwaway sets instead. Named-place detection runs after SPECIFIC, so these win.
@@ -70,7 +77,8 @@ const KINDS: [RegExp, VenueId, "near"?][] = [
   [/\b(arcade|pinball)\b/i, "retro_arcade"],
   [/\b(beach|ocean|shore)\b/i, "night_beach"],
   // Not a car park (#1119: "the top floor of a car park" was dealt the botanic park), which keeps their own words.
-  [/(?<!\bcar[\s-]?)\bpark\b|\b(garden|botanic|greenhouse|picnic)\b/i, "botanic_park"],
+  // A picnic is the countryside picnic's now (SPECIFIC, 2026-11-17).
+  [/(?<!\bcar[\s-]?)\bpark\b|\b(garden|botanic|greenhouse)\b/i, "botanic_park"],
   // "night market" and "diner" moved to SPECIFIC (2026-10-25): they're venues of their own now.
   [/\b(food truck|street food|chill?i|tacos?|noodles?|ramen|dumplings?|stall|burgers?|pizza|fries|sandwich(?:es)?|brunch|breakfast|bagels?)\b/i, "corner_cafe", "near"],
   [/\b(rooftop|cocktails?)\b/i, "rooftop_bar"],

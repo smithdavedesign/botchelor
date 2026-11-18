@@ -14522,3 +14522,32 @@ button.thread-menu-item:hover:not(:disabled) {
 .botchelor-line {
   margin: 0.25rem 0;
 }
+
+/* A show set behind a block (lib/show-sets.ts: the picture under a dark scrim, set inline): light words on it in both
+   themes, like a hero's. The stage behind the ceremony's lead and suitors, elimination behind its last verdict, the
+   confessional behind an episode's confessionals. */
+.on-set {
+  background-color: var(--photo-bg);
+  background-size: cover;
+  background-position: center;
+  color: var(--on-photo);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+}
+.on-set a {
+  color: var(--on-photo);
+}
+.on-set .muted {
+  color: color-mix(in srgb, var(--on-photo) 78%, transparent);
+}
+.botchelor-house.on-set {
+  align-items: flex-end;
+  min-height: 9rem;
+}
+.botchelor-last.on-set {
+  border-top: 0;
+  min-height: 7rem;
+}
+.confessional-set .confessional {
+  margin: var(--space-2) 0;
+}

@@ -116,10 +116,17 @@ rich but controlled color, clean linework on faces, expressive eyes, reality-sho
 
 - **The house look:** the house and season cast are redrawn in the chosen look: hero, full body, confessional and six
   expressions each. That's about 180 pictures over 2–3 days of free budget, uploaded through the checked admin path.
-- **Sets** (16:9, empty, no text but the sign):
+- **Sets** (16:9, empty, no lettering, not even a sign):
   - the stage, the blind-date booth, the confessional and elimination;
   - four themed venues with their sets: a gothic manor (spooky, supernatural), a countryside picnic (cozy), a
     space-station lounge (sci-fi) and a cavern lounge (fantasy).
+  - **Built 2026-11-17 (3a):** all eight were drawn free on Workers AI and reviewed, then committed to `public/cast`.
+    - The prompt is backdrop-v3 (`scripts/prompts.mjs`). klein painted a dialogue box into 10 of 16 v2 plates, most of
+      them with garbled text, because it read "room for a dialogue overlay" literally.
+    - `lib/show-sets.ts` places them: the stage behind the rose ceremony's lead and suitors, elimination behind its last
+      verdict, the booth behind a date that's still being filmed, and the confessional behind an episode's confessionals.
+    - The themed venues are dealt like any other. Plans and moves find them (`lib/places.ts`), and After Dark lists them
+      under their genres.
 - **Six expressions per contestant:** smitten, laughing, flustered, smug, unimpressed and heartbroken.
   - They're made like the face kit's stills: the hero card is edited, with only the expression changing.
   - Chat bubbles (`app/ChatThread.tsx`) and the theater (`app/Scene.tsx`) show the speaker's face for the moment.

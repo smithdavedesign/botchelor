@@ -17,8 +17,10 @@ export type ImageJob = {
 
 export const PORTRAIT_PROMPT_VERSION: string;
 export const BACKDROP_PROMPT_VERSION: string;
+export const FREE_BACKDROP_PROMPT_VERSION: string;
 export const NEGATIVE_PROMPT: string;
 export function portraitPrompt(c: HouseCharacter): string;
-export function backdropPrompt(v: Venue): string;
+export function backdropPrompt(v: Pick<Venue, "plate">): string;
+export function freeBackdropPrompt(v: Pick<Venue, "plate">): string;
 export function jobSeed(id: string): number;
 export function buildBatch(input: { house: readonly HouseCharacter[]; venues: readonly Venue[] }): ImageJob[];
