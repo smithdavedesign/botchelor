@@ -322,7 +322,8 @@ describe("the home page", () => {
   it("a stranger sees no phone: the page they had", async () => {
     const html = await home();
     expect(html).not.toContain("char-phone");
-    expect(html).toContain("<h1>Give your character a love life.</h1>");
+    // A stranger's home opens on the first screen (lib/home-open.ts); the hero's headline is a level down under it.
+    expect(html).toContain('<h2 class="hero-title">Give your character a love life.</h2>');
     // A visitor with a cookie and no character, too.
     as(newUserCookie());
     expect(await home()).not.toContain("char-phone");
@@ -341,7 +342,7 @@ describe("the home page", () => {
     expect(phoneAt).toBeGreaterThan(-1);
     expect(sinceAt).toBeGreaterThan(phoneAt);
     // The stranger's hero is still on the page, below.
-    expect(html.indexOf("<h1>Give your character a love life.</h1>")).toBeGreaterThan(sinceAt);
+    expect(html.indexOf('<h1 class="hero-title">Give your character a love life.</h1>')).toBeGreaterThan(sinceAt);
   });
 
   it("HOME_PHONE=0: the owner's page as it was", async () => {

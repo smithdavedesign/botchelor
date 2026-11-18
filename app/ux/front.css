@@ -531,7 +531,7 @@
     order: 3;
   }
   .hero.has-clip .hero-copy > .kicker,
-  .hero.has-clip .hero-copy > h1 {
+  .hero.has-clip .hero-copy > .hero-title {
     order: 0;
   }
   .hero.has-clip .hero-copy > .home-express {
@@ -548,5 +548,190 @@
 @media (max-width: 480px) {
   .home-express-row {
     flex-direction: column;
+  }
+}
+
+/* ── A stranger's first screen (app/HomeOpen.tsx, lib/home-open.ts; the design system's first screen B, 2026-11-18) ──
+   The cast on the stage under the neon heart, tonight's people stepped forward, one call. Dark in both themes, like the
+   show's other stages. Edge to edge under the header, out of the page's column (the Constellation's stage does the
+   same); the body clips the sideways overflow 100vw makes where a scrollbar takes room. */
+.home-open {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  display: grid;
+  align-content: start;
+  width: 100vw;
+  margin: -1.25rem 0 var(--space-6) calc(50% - 50vw);
+  background: var(--card-dark);
+  color: var(--on-photo);
+}
+body:has(.home-open) {
+  overflow-x: clip;
+}
+/* Its eyebrow says where in the season tonight is, so the season strip under the header steps aside (in a month's
+   first week the strip is the last season's recap link instead, and stays). */
+body:has(.home-open--arc) .season-strip {
+  display: none;
+}
+/* On a phone the 16:9 stage is a band at its own ratio (a full-bleed crop would keep only the heart), and the cast
+   stands on its lower edge. */
+.home-open-art {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  background: var(--card-dark);
+}
+.home-open-scrim {
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 76%;
+  background: linear-gradient(to bottom, rgba(20, 10, 30, 0) 0%, rgba(20, 10, 30, 0.72) 26%, rgba(20, 10, 30, 0.96) 52%, var(--card-dark) 100%);
+}
+.home-open-body {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.55rem;
+  width: 100%;
+  max-width: var(--page-wide);
+  margin: -3.6rem auto 0;
+  padding: 0 var(--gutter) var(--space-5);
+  text-align: center;
+}
+.home-open-body > p {
+  margin: 0;
+  max-width: 40rem;
+}
+/* One line, tonight's people in the middle at nearly twice the size and lit, the rest smaller and stepped back. No face
+   is ever behind another (in the design, overlap read as a glitch rather than as depth). */
+.home-open-cast {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 0.375rem;
+  margin: 0 0 0.3rem;
+  padding: 0;
+  list-style: none;
+}
+.home-open-cast > li {
+  flex: 0 0 auto;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+}
+.home-open-cast .avatar {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.home-open-back {
+  width: 2.5rem;
+  height: 2.5rem;
+  opacity: 0.82;
+  filter: saturate(0.88) brightness(0.74);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.3);
+}
+.home-open-lead {
+  width: 4.25rem;
+  height: 4.25rem;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.92), 0 14px 34px -12px rgba(0, 0, 0, 0.95);
+}
+.home-open-kicker {
+  margin: 0.2rem 0 0;
+  color: rgba(255, 255, 255, 0.82);
+}
+.home-open-title {
+  max-width: 20ch;
+  margin: 0;
+  color: var(--on-photo);
+  text-wrap: balance;
+}
+.home-open-tonight {
+  font-size: var(--text-sm);
+}
+.home-open-quiet {
+  color: rgba(255, 255, 255, 0.82);
+}
+.home-open-chip {
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
+  color: var(--on-photo);
+  vertical-align: 0.05em;
+}
+.home-open-calls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2) var(--space-4);
+}
+.home-open-body > .home-open-calls {
+  margin-top: 0.35rem;
+}
+.home-open-calls .button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 3rem;
+  margin-top: 0;
+}
+.home-open-second {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  color: var(--on-photo);
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-color: rgba(255, 255, 255, 0.5);
+  text-underline-offset: 0.2em;
+}
+.home-open-next {
+  font-size: var(--text-sm);
+  color: rgba(255, 255, 255, 0.8);
+}
+.home-open-fine {
+  font-size: var(--text-2xs);
+  color: rgba(255, 255, 255, 0.72);
+}
+/* Under the first screen the hero is the way in to making one: its headline is a level down. */
+.hero-copy > h2.hero-title {
+  margin: 0.25rem 0 0.5rem;
+  font-size: var(--text-2xl);
+  line-height: 1.1;
+}
+@media (min-width: 861px) {
+  /* On a wide screen the stage has room to be itself: it fills the screen behind the words. */
+  .home-open {
+    align-content: end;
+    min-height: min(46rem, calc(100svh - 9.5rem));
+  }
+  .home-open-art {
+    position: absolute;
+    inset: 0;
+    height: 100%;
+    aspect-ratio: auto;
+  }
+  .home-open-scrim {
+    inset: 0;
+    height: auto;
+    background: linear-gradient(to bottom, rgba(20, 10, 30, 0.58) 0%, rgba(20, 10, 30, 0.12) 18%, rgba(20, 10, 30, 0.3) 40%, rgba(20, 10, 30, 0.84) 68%, rgba(20, 10, 30, 0.97) 100%);
+  }
+  .home-open-body {
+    margin-top: 0;
+    padding: var(--space-6) var(--gutter);
+  }
+  .home-open-cast {
+    gap: 1.1rem;
+  }
+  .home-open-back {
+    width: 3rem;
+    height: 3rem;
+  }
+  .home-open-lead {
+    width: 5.5rem;
+    height: 5.5rem;
   }
 }

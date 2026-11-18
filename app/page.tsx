@@ -55,6 +55,10 @@ import { forViewer, shared } from "@/lib/shared-cache";
 import { clipCaption, homeExpressBoxOn, homeHeroClipOn, latestHomeClip } from "@/lib/home-clip";
 import HomeClip from "./HomeClip";
 import HomeExpressBox from "./HomeExpressBox";
+import HomeOpen from "./HomeOpen";
+import { homeOpenOn, nextSeasonLine, openKicker, openLine, openTonight, openWatch, type OpenTonight } from "@/lib/home-open";
+import type { SeasonFormatDef } from "@/lib/season-format";
+import { nextSeasonStart, seasonIdOf, seasonLabel } from "@/lib/season-window";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = pageMetadata({ title: SITE_TITLE, description: SITE_DESCRIPTION, path: "/" });
@@ -124,7 +128,17 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
   );
   // Their character's phone (lib/character-phone.ts): one read next to "Since you were here", no round trip of its own.
   const phoneP = myCharactersP.then((mine) => (db && viewerId && mine.length ? characterPhone(db, viewerId, mine).catch(() => null) : null));
-  const [owned, tokens, myCharacters, [since, unread], phone, profileName, sharer, showNews, [aired, standout, sky, situation, dares, record, airing, rooms, onSeason, reveal, seasonDef, ceremony, house, story, clipRow, premiere]] = await Promise.all([
+  // A stranger's first screen (lib/home-open.ts): tonight's story and next month's format, read only for someone with
+  // no character while HOME_OPEN is on; the same few seconds' shared copy for everyone.
+  const openP: Promise<[OpenTonight | null, SeasonFormatDef | null] | null> = myCharactersP.then((mine) =>
+    mine.length || !homeOpenOn()
+      ? null
+      : Promise.all([
+          shared("home:open-tonight", () => openTonight(conn)).catch(() => null),
+          shared("watch:season-format-next", () => seasonFormatNow(conn, nextSeasonStart(new Date()))).catch(() => null),
+        ]),
+  );
+  const [owned, tokens, myCharacters, [since, unread], phone, profileName, sharer, showNews, [aired, standout, sky, situation, dares, record, airing, rooms, onSeason, reveal, seasonDef, ceremony, house, story, clipRow, premiere], openRead] = await Promise.all([
     db && viewerId ? ownedSkus(db, viewerId) : Promise.resolve<string[]>([]),
     db && viewerId ? episodeAllowance(db, viewerId) : freshAllowance(),
     myCharactersP,
@@ -172,6 +186,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
       // on a Sunday (UTC), the same for everyone.
       new Date().getUTCDay() === 0 ? shared("premiere:next", () => nextPremiere(conn)).catch(() => null) : null,
     ]),
+    openP,
   ]);
 
   // Plus any premium house character this viewer owns.
@@ -188,7 +203,8 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
   const airedEpisodes = feedEpisodes(aired?.items ?? []);
   // The hero's real date (lib/featured-date.ts): the best moment of one of the week's best-rated dates (2026-11-11
   // bounce review: the newest one was often hard to follow cold), else the newest date's opening.
-  const featured = pickFeaturedDate(standout, undefined, { best: true }) ?? pickFeaturedDate(airedEpisodes);
+  const best = pickFeaturedDate(standout, undefined, { best: true });
+  const featured = best ?? pickFeaturedDate(airedEpisodes);
   // Next month's newcomers are written from the 20th (lib/season-gen.ts): from then, the cast strip points at them.
   const candidatesOut = new Date().getUTCDate() >= GENERATE_FROM_DAY;
   const creator = myCharacters.length > 0;
@@ -200,6 +216,25 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
   const expressBox = !creator && homeExpressBoxOn();
   // The band is there for a first visit too, on a quiet night as well (the design system's visitor home, all-screens
   // board, 2026-11-11): what just aired, what's open for predictions, and what's live, as proof the show is on.
+  // The first screen for someone with no character (lib/home-open.ts): the cast on the stage, tonight's story, one call.
+  const open = (() => {
+    if (!openRead) return null;
+    const [openStory, nextDef] = openRead;
+    const now = new Date();
+    const leads = openStory?.who ?? (featured ? [...featured.characters] : []);
+    const nextMonth = seasonLabel(seasonIdOf(nextSeasonStart(now))).split(" ")[0];
+    const first = (name: string) => name.split(" ")[0];
+    return {
+      kicker: openKicker(now, seasonDef),
+      line: openLine(onSeason, leads),
+      tonight: openStory,
+      latest: featured ? { label: best ? "This week's best date" : "The latest date", names: `${first(featured.characters[0].name)} × ${first(featured.characters[1].name)}`, title: featured.title } : null,
+      watch: openWatch({ tonight: openStory, live: rooms.find((r) => r.status === "live") ?? null, featured, best: Boolean(best) }),
+      next: nextDef?.lead && nextDef.slug !== seasonDef?.slug ? nextSeasonLine(nextMonth, nextDef.title, casting ? { month: casting.month, name: casting.lead.name } : null) : null,
+    };
+  })();
+  // Under the first screen the hero is the way in to making one, so its headline steps down a level.
+  const HeroTitle = open ? "h2" : "h1";
   const tonight = <TonightBand rooms={rooms} airing={airing} situation={situation} reveal={reveal} ceremony={ceremony} latest={airedEpisodes[0] ?? null} house={house} now={Date.now()} insider={creator} story={story} premiere={premiere} />;
 
   return (
@@ -249,11 +284,12 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
           </p>
         </section>
       )}
+      {open && <HomeOpen {...open} />}
       <section className={clip ? "hero has-clip" : "hero"}>
         <div className="hero-copy">
           {/* The promise (docs/ideas.md "The core, 2026-11-14"): your character has a love life, and you're in their corner. */}
           <p className="kicker">Your character&apos;s love life</p>
-          <h1>Give your character a love life.</h1>
+          <HeroTitle className="hero-title">Give your character a love life.</HeroTitle>
           <p className="lede">
             {casting
               ? `${castingHeroLine(casting)} `
@@ -288,7 +324,8 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
               .
             </p>
           )}
-          <p className="trust-micro">Fictional characters only, no real people. Every date is written by AI.</p>
+          {/* The first screen carries this line when it's there. */}
+          {!open && <p className="trust-micro">Fictional characters only, no real people. Every date is written by AI.</p>}
         </div>
         {/* The show itself where a made-up box score used to be (2026-11-07 audit, item 2): a few lines of a real aired
             date (its best moment, 2026-11-11), typing in, and the way to watch how it ends. The old matchup only when
