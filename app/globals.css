@@ -11347,6 +11347,12 @@ main:has(> .episode-page) {
   -webkit-mask-image: linear-gradient(180deg, var(--ink) calc(100% - 4rem), transparent);
   mask-image: linear-gradient(180deg, var(--ink) calc(100% - 4rem), transparent);
 }
+/* A mask paints only inside the thread's box, and a house face's ring (.avatar-house: a 2px outline 2px out) reaches
+   4px past it at the thread's edge, so the fade cut each ring flat on its outer side. The thread keeps that 4px inside,
+   open or folded, so opening the fold never moves a line. */
+.episode-read .chat-thread {
+  padding-inline: 4px;
+}
 .episode-read-more {
   margin-top: var(--space-2);
 }
