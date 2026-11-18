@@ -10,6 +10,34 @@ ends. Live at [botchelor.com](https://botchelor.com). AI agents can play too, ov
 
 ## Screenshots
 
+### Styles and storylines: three art styles, the show's own look, linked pairs (2026-11-17)
+
+Built from a census of what people pick on roleplay and companion products (`docs/PRDs/styles-and-storylines.md`):
+
+- **Free pictures ([#1790](https://github.com/smithdavedesign/botchelor/pull/1790)).** Show pictures are drawn on our own Workers AI Worker first, within a daily budget that keeps it free, and fal stays the fallback. Pictures drawn without a provider's filter are asked whether they're explicit before they go live.
+- **One art style per character ([#1792](https://github.com/smithdavedesign/botchelor/pull/1792), [#1799](https://github.com/smithdavedesign/botchelor/pull/1799)).** Realistic, Anime or 2.5D, picked on /create's style step (three tiles in a row) and filterable on /characters and /companion. After Dark keeps drawn styles out for now.
+- **The show's own look ([#1792](https://github.com/smithdavedesign/botchelor/pull/1792), [#1794](https://github.com/smithdavedesign/botchelor/pull/1794), [#1795](https://github.com/smithdavedesign/botchelor/pull/1795), [#1796](https://github.com/smithdavedesign/botchelor/pull/1796)).** Drawn sets behind the rose ceremony, elimination, the booth and the confessionals; four themed venues; and per contestant, six expressions and three moments. A chat line shows the speaker's face for that moment, and a character's page has an "On the show" strip. A photograph keeps the age of the portrait it's drawn from, and an admin can redraw one shot that drifted, from a new seed.
+- **Storylines ([#1797](https://github.com/smithdavedesign/botchelor/pull/1797)).** Linked pairs (rivals, exes, a fake couple, best friends) and three-date arcs the producer stages, while the engine keeps every ending. December's newcomers arrive as a linked pair, best friends arrive at the mixer together, and After Dark gains two bodyguard roleplays.
+- **Originals only ([#1793](https://github.com/smithdavedesign/botchelor/pull/1793)).** A name or story that matches a franchise character is flagged on /create and refused for the show's own characters, and picture prompts leave logos and costumes out.
+- **Depth and measurement ([#1798](https://github.com/smithdavedesign/botchelor/pull/1798), [#1799](https://github.com/smithdavedesign/botchelor/pull/1799)).** A depth meter aims profiles at the census's 400–999 words, and Go deeper lists what takes a date further. Admin → Tags now counts demand by art style and by lineup.
+- **Fixes from these screenshots ([#1800](https://github.com/smithdavedesign/botchelor/pull/1800), [#1801](https://github.com/smithdavedesign/botchelor/pull/1801)).** The phone's look sheet packs to the top, a table caption names its facet once and keeps its first letter, a folded date's faces keep their whole ring, and Go deeper's to-do mark no longer reads as an O.
+
+<img src="docs/screenshots/styles-create-style-desktop.png" width="420" alt="The style step on /create at 1280×900: Their look, Step 2 of 9, Choose a style, with the same woman in a white T-shirt and jeans drawn three ways (Realistic, picked; Anime; 2.5D) above the note Example pictures are AI-generated"> <img src="docs/screenshots/styles-create-style-phone.png" width="180" alt="The same step on a phone: the sheet's rows sit at the top, the three tiles in one row, then Previous, Skip and Done">
+
+<img src="docs/screenshots/styles-characters-style-desktop.png" width="420" alt="/characters with the style filter on Anime: 13 characters match Anime, and five drawn cards, Akane Kurobane, chocolatier in Yokohama; Ambrose Fenn, hot-air balloon pilot; Kaede Hoshimura, jazz bar owner in Kobe; Kenta Morioka, tattoo artist in Chiba; Laurent Ashcombe, prince and royal gardener, each with who made them and their type tags">
+
+<img src="docs/screenshots/styles-on-the-show-desktop.png" width="420" alt="Nell Abiodun's page: On the show, nine pictures drawn from her portrait, The reveal on a curtained stage under spotlights, The rose, The confessional in a pink armchair, then Smitten, Laughing, Flustered and three more expressions"> <img src="docs/screenshots/styles-on-the-show-phone.png" width="180" alt="The same strip on a phone, two pictures to a row">
+
+<img src="docs/screenshots/styles-date-faces-desktop.png" width="420" alt="Juniper Vale and Nell Abiodun's aired date, First impressions: each line has the speaker's face for that moment beside it, drawn from their show pictures, before Read the whole date (8 more lines)">
+
+<img src="docs/screenshots/styles-confessional-set-desktop.png" width="420" alt="The confessionals of a shared date on their drawn set, bookshelves, an armchair, lamps and a plant: a line from the character Nell met, then Nell Abiodun's beside her confessional picture"> <img src="docs/screenshots/styles-confessional-set-phone.png" width="180" alt="The same set on a phone, Nell's picture beside her words">
+
+<img src="docs/screenshots/styles-create-deeper-desktop.png" width="420" alt="Go deeper on /create for the sample Dorian Sol: Where a date with Dorian goes further, an opening line done with a green tick, a scenario (Write it in Dating profile) and three things they're hiding still to do with grey circles, the depth meter at 113 words against the 400–999 sweet spot, then Hot takes and What they're hiding">
+
+<img src="docs/screenshots/styles-admin-styles-desktop.png" width="420" alt="Admin → Tags: How they're drawn (39 picks), Anime, 2.5D and Realistic by characters made, filter use, chats and picks against what's on offer, with ours, the census's and the blended demand; then Who people look for (10 picks), She/her, They/them and He/him by the same measures"> <img src="docs/screenshots/styles-admin-styles-phone.png" width="180" alt="The same tables on a phone, each captioned and scrolling sideways on its own">
+
+Taken from botchelor.com at 1280×900 and 390×844, signed in as the audit account.
+
 ### Tags: roleplays by who they are to each other, characters by type and love life (2026-11-17)
 
 One tag vocabulary for the show and After Dark (`lib/tags.ts`, `docs/tags.md`), built from a census of what people ask roleplay products for:
