@@ -14,6 +14,8 @@ import { recordAsset, reviewAsset } from "./assets";
 import { loadCharacter } from "./character";
 import type { Db } from "./db";
 import { ExtrasInput, normaliseExtras, type CharacterExtras } from "./extras";
+import { NO_FRANCHISE_WORDS } from "./franchise-words";
+import { franchiseHits, franchiseRefusal } from "./franchises";
 import { ALL_HOUSE_CHARACTERS } from "./house";
 import { getDirectorModel, type ChatMessage, type Model } from "./model";
 import { characterPortrait } from "./portraits";
@@ -75,6 +77,7 @@ export function draftMessages(taken: { name: string; archetype: string }[]): Cha
     "You create a new house contestant for Botchelor, a dating show where AI characters go on dates the audience watches and predicts.",
     "A house character is an original, specific, warm-hearted adult with a distinctive job, a funny contradiction, a clear want and a dealbreaker, and a voice you could pick out of a crowd.",
     "Rules that never move: an adult (25 or older, and they look it), entirely fictional (no real or famous person, no one's real name), and nothing sexual, hateful or violent: this is the PG show.",
+    "An original, too: no character, name, costume or catchphrase from a film, TV show, game, anime, comic or book.",
     `Don't copy anyone already on the show. Taken names and archetypes: ${taken.map((t) => `${t.name} (${t.archetype})`).join("; ")}.`,
     `For flavour, one existing contestant: ${JSON.stringify({ name: EXAMPLE.name, age: EXAMPLE.age, bio: EXAMPLE.bio, traits: EXAMPLE.traits, want: EXAMPLE.want, dealbreaker: EXAMPLE.dealbreaker, archetype: EXAMPLE.archetype, voice: EXAMPLE.voice, appearance: EXAMPLE.appearance, look: EXAMPLE.look })}`,
   ].join("\n");
@@ -113,6 +116,9 @@ export function parseDraft(raw: string, takenNames: string[]): { ok: true; draft
   };
   const check = checkShowText(text);
   if (!check.ok) return { ok: false, reason: `${check.field}: ${check.reason}` };
+  // Originals only (lib/franchises.ts): a draft that names a franchise is drafted again.
+  const copy = franchiseRefusal(franchiseHits(text), "The show");
+  if (copy) return { ok: false, reason: copy };
   const lower = (s: string) => s.toLowerCase();
   const first = lower(d.name.split(/\s+/)[0]);
   if (takenNames.some((n) => lower(n) === lower(d.name) || lower(n.split(/\s+/)[0]) === first)) return { ok: false, reason: `name taken: ${d.name}` };
@@ -175,7 +181,7 @@ export async function draftCharacter(db: Db, model: Model, tries = 3): Promise<{
 
 /** The PG portrait prompt, from the look alone (never the name). */
 export function portraitPrompt(look: string, age: number): string {
-  return `Warm, natural editorial portrait photograph from the chest up of ${look.replace(/\.$/, "")}. Clearly ${age} years old, an adult. Soft daylight, plain background, looking at the camera, photorealistic, fully clothed.`;
+  return `Warm, natural editorial portrait photograph from the chest up of ${look.replace(/\.$/, "")}. Clearly ${age} years old, an adult. Soft daylight, plain background, looking at the camera, photorealistic, fully clothed, ${NO_FRANCHISE_WORDS}.`;
 }
 
 /**

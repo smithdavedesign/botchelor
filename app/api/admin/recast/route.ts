@@ -3,6 +3,7 @@ import { PATCH as patchCharacter } from "@/app/api/characters/[id]/route";
 import { adminAuthorized, NOT_AUTHORIZED } from "@/lib/admin-auth";
 import { findMatches } from "@/lib/dating";
 import { getDb } from "@/lib/db";
+import { franchiseHits, franchiseRefusal } from "@/lib/franchises";
 import { handle, json, parseBody, readJson, sessionCookies } from "@/lib/http";
 import { drawRecastBody, drawRecastPortrait, PROPS_MAX, RECAST_LOOK_MAX, recastOwner, ROLE_MAX, SCENE_MAX, KIND_MAX, type RecastRole } from "@/lib/recast";
 import { DELETED_OWNER } from "@/lib/rules";
@@ -62,6 +63,14 @@ export const POST = handle(async (req: Request) => {
   }
   const owner = await recastOwner(db, input.character_id);
   if (!owner) return json({ error: "character_not_found", message: "No agent-made character on the show with that id." }, 404);
+  // Originals only (lib/franchises.ts): the show's own characters take no franchise's name, costume or story.
+  const words =
+    input.action === "update" ? input.patch
+    : input.action === "portrait" ? { look: input.look, role: input.role, props: input.props, scene: input.scene, kind: input.kind }
+    : input.action === "body" ? { outfit: input.outfit, role: input.role, props: input.props, scene: input.scene, kind: input.kind }
+    : {};
+  const copy = franchiseRefusal(franchiseHits(words));
+  if (copy) return json({ error: "franchise", message: copy }, 422);
 
   switch (input.action) {
     case "update": {

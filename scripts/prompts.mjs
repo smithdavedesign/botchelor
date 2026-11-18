@@ -24,9 +24,15 @@
  * text, which has people in it, so "a smug couple" and "a hovering waiter" were drawn into sets meant
  * to be empty, and the arcade's marquees came out as garbled pseudo-lettering. v2 uses a people-free
  * `plate` per venue (lib/venues.ts) and blanks every screen and sign.
+ *
+ * backdrop-v3 (2026-11-17) is v2 for FLUX.2 klein on Workers AI, which drew the themed nights and the show sets free
+ * (docs/PRDs/styles-and-storylines.md, phase 3). klein took v2's "room in the frame for a dialogue overlay" literally:
+ * 10 of 16 test plates came back with a dialogue box painted in, seven of them full of garbled pseudo-text. v3 asks for
+ * the painting to fill the frame, and says no text boxes or borders.
  */
 export const PORTRAIT_PROMPT_VERSION = "portrait-v3";
 export const BACKDROP_PROMPT_VERSION = "backdrop-v2";
+export const FREE_BACKDROP_PROMPT_VERSION = "backdrop-v3";
 
 /**
  * What an image must not contain, passed to the model as a negative prompt. The safety half (no
@@ -82,6 +88,16 @@ export function backdropPrompt(v) {
     "COMPOSITION: wide establishing shot, 16:9, room in the frame for a dialogue overlay.",
     `CONSTRAINTS: ${CONSTRAINTS.replace("Original character design.", "Original design.").replace("A mature adult with age-appropriate features; fully clothed. ", "")} No people, no lettering, no signage.`,
   ].join("\n");
+}
+
+/**
+ * backdrop-v3: the same plate for FLUX.2 klein (Workers AI), which paints a "dialogue overlay" in when asked for room for
+ * one. Also draws the show sets (lib/show-sets.ts), whose plates are empty sets in the same style.
+ */
+export function freeBackdropPrompt(v) {
+  return backdropPrompt(v)
+    .replace("room in the frame for a dialogue overlay", "the painting fills the whole frame edge to edge")
+    .replace("No people, no lettering, no signage.", "No people, no lettering, no signage, no text boxes, no captions, no borders.");
 }
 
 /** A stable per-job seed, so re-running the batch reproduces the same images. */

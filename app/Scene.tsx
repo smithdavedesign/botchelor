@@ -35,6 +35,9 @@ type SceneProps = {
   faceB?: ReactNode;
   /** The avatars' size: 132 on the show's full stage, less on a shorter one (a companion's scene). */
   faceSize?: number;
+  /** The face each one's latest line shows (lib/show-shots-shared.ts latestFace): an expression's picture, or null for their portrait. */
+  moodA?: string | null;
+  moodB?: string | null;
 };
 
 /**
@@ -42,7 +45,7 @@ type SceneProps = {
  * persistent speech bubble. Desktop-first; on a phone the venue becomes a mood banner over
  * the <ChatThread> (David's "chat window with character icons"). Presentational and shared by the watch theater and the episode replay.
  */
-export default function Scene({ characters, venue, lineA, lineB, actLabel, placeholder, setUrl, faceA, faceB, faceSize = 132 }: SceneProps) {
+export default function Scene({ characters, venue, lineA, lineB, actLabel, placeholder, setUrl, faceA, faceB, faceSize = 132, moodA = null, moodB = null }: SceneProps) {
   const [a, b] = characters;
   return (
     <div className="scene" style={{ backgroundImage: sceneBackground(venue, setUrl) }}>
@@ -54,12 +57,12 @@ export default function Scene({ characters, venue, lineA, lineB, actLabel, place
       <div className="scene-cast">
         <figure className="scene-char scene-char-a">
           {lineA && <p className="scene-bubble">{lineA}</p>}
-          {faceA ?? <Avatar seed={a.id} name={a.name} hue={a.hue} house={a.house} portraitSrc={a.portrait} photoSrc={a.photo} size={faceSize} />}
+          {faceA ?? <Avatar seed={a.id} name={a.name} hue={a.hue} house={a.house} portraitSrc={a.portrait} photoSrc={moodA ?? a.photo} size={faceSize} />}
           <figcaption className="scene-name">{a.name}</figcaption>
         </figure>
         <figure className="scene-char scene-char-b">
           {lineB && <p className="scene-bubble">{lineB}</p>}
-          {faceB ?? <Avatar seed={b.id} name={b.name} hue={b.hue} house={b.house} portraitSrc={b.portrait} photoSrc={b.photo} size={faceSize} />}
+          {faceB ?? <Avatar seed={b.id} name={b.name} hue={b.hue} house={b.house} portraitSrc={b.portrait} photoSrc={moodB ?? b.photo} size={faceSize} />}
           <figcaption className="scene-name">{b.name}</figcaption>
         </figure>
       </div>

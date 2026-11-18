@@ -38,6 +38,7 @@ import { postDueDiscord } from "@/lib/discord-posts";
 import { runNewsletter } from "@/lib/newsletter-issue";
 import { bookHouseOvernight } from "@/lib/overnight-house";
 import { storyCheckSweep } from "@/lib/story-check";
+import { drawShowShots, SHOTS_FROM_HOUR } from "@/lib/show-shots";
 
 // One template date (~10 model calls) when the lobby has no open room left to start.
 export const maxDuration = 300;
@@ -147,6 +148,16 @@ async function run(req: Request): Promise<Response> {
       after(plans);
     } catch {
       void plans(); // outside a request (a test): just run it
+    }
+  }
+  // The show kit's shots (lib/show-shots.ts): from 20:00 UTC, a dozen a pass, free on Workers AI with what's left of the
+  // day's budget (people's own pictures keep a reserve). After the response: each takes seconds, and nobody is waiting.
+  if (new Date().getUTCHours() >= SHOTS_FROM_HOUR) {
+    const shots = () => drawShowShots(db, { max: 12 }).catch(() => null);
+    try {
+      after(shots);
+    } catch {
+      void shots(); // outside a request (a test): just run it
     }
   }
   // The show's Discord (lib/discord-posts.ts, docs/discord.md): the episode digest, Sunday's vote and the board, each

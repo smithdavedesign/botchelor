@@ -394,6 +394,8 @@ export async function startTestDb() {
         "companion_voice",
         "companion_live_calls",
         "face_kits",
+        // The show kit's shots (lib/show-shots.ts): the house cast outlives a reset, so its shots would too.
+        "show_shots",
         "live_faces",
         "plan_entitlements",
         "plan_checkouts",

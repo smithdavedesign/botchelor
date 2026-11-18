@@ -37,12 +37,13 @@ import { graphTeaser, type GraphTeaser as Teaser } from "@/app/graph/teaser";
 import { cachedConstellation } from "@/lib/graph-cache";
 import type { OriginGroup, SkyGroup } from "@/lib/origin-group";
 import { isCharacterTag } from "@/lib/character-tags-shared";
+import { ART_STYLE_LABEL, ART_STYLES, isArtStyle, type ArtStyle } from "@/lib/art-style";
 import { pickerDemand } from "@/lib/tag-demand";
 import { byDemand, isStatus, STATUSES, tagById, tagsIn, type Status, type TagId } from "@/lib/tags";
 
 export const dynamic = "force-dynamic";
 
-type Search = { tab?: string | string[]; page?: string | string[]; pairs?: string | string[]; q?: string | string[]; type?: string | string[]; status?: string | string[] };
+type Search = { tab?: string | string[]; page?: string | string[]; pairs?: string | string[]; q?: string | string[]; type?: string | string[]; status?: string | string[]; style?: string | string[] };
 
 /** The relationship graph on the cast tab: this many couples a page (?pairs=N). */
 const PAIRS_PAGE = 10;
@@ -67,7 +68,8 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
     path: tabHref(tab, tab === "cast" ? 1 : page),
   });
   // A search's results are for the person searching, not for a search engine (the tabs are the crawlable list).
-  return parseDirectoryQuery(sp.q) || findFilters(sp).type || findFilters(sp).status ? { ...meta, title: "Find a character on Botchelor", robots: { index: false, follow: true } } : meta;
+  const find = findFilters(sp);
+  return parseDirectoryQuery(sp.q) || find.type || find.status || find.style ? { ...meta, title: "Find a character on Botchelor", robots: { index: false, follow: true } } : meta;
 }
 
 /** A private character's name (David, #309/#509): never linked, no portrait, no details. */
@@ -202,19 +204,21 @@ function Entry({ e, badge, origin = true, talk = false, eager = false, actions, 
   );
 }
 
-/** ?type= and ?status= as the search reads them: a known type tag and a known status, else nothing. */
-function findFilters(sp: Search): { type: TagId | null; status: Status | null } {
+/** The filters the search reads: ?type=, ?status= and ?style= (lib/art-style.ts), each only when it's a known one. */
+type Find = { type: TagId | null; status: Status | null; style: ArtStyle | null };
+function findFilters(sp: Search): Find {
   const type = one(sp.type);
   const status = one(sp.status);
-  return { type: isCharacterTag(type) ? type : null, status: isStatus(status) ? status : null };
+  const style = one(sp.style);
+  return { type: isCharacterTag(type) ? type : null, status: isStatus(status) ? status : null, style: isArtStyle(style) ? style : null };
 }
 
 
 /**
- * Find a character by name, trait or a word from their bio, and narrow it by type and love life (docs/tags.md): a
- * plain GET form (?q=&type=&status=), so it works without a script.
+ * Find a character by name, trait or a word from their bio, and narrow it by type, love life (docs/tags.md) and how
+ * they're drawn (lib/art-style.ts): a plain GET form (?q=&type=&status=&style=), so it works without a script.
  */
-function SearchForm({ q, type, status, demand }: { q: string; type: TagId | null; status: Status | null; demand?: Record<string, number> }) {
+function SearchForm({ q, find: { type, status, style }, demand }: { q: string; find: Find; demand?: Record<string, number> }) {
   // The type menu, most wanted first: who people talk to here (lib/tag-demand.ts), else the census (lib/tags.ts).
   const typeMenu = byDemand(tagsIn("type"), "sfw", demand);
   return (
@@ -254,6 +258,17 @@ function SearchForm({ q, type, status, demand }: { q: string; type: TagId | null
           </option>
         ))}
       </select>
+      <label className="sr-only" htmlFor="characters-style">
+        Style
+      </label>
+      <select id="characters-style" name="style" defaultValue={style ?? ""}>
+        <option value="">Any style</option>
+        {ART_STYLES.map((id) => (
+          <option key={id} value={id}>
+            {ART_STYLE_LABEL[id]}
+          </option>
+        ))}
+      </select>
       <button type="submit" className="button secondary">
         Find
       </button>
@@ -288,7 +303,7 @@ export default async function CharactersPage({ searchParams }: Props) {
   const viewerId = auth?.userId ?? null;
   const q = parseDirectoryQuery(sp.q);
   const find = findFilters(sp);
-  const finding = Boolean(q || find.type || find.status);
+  const finding = Boolean(q || find.type || find.status || find.style);
   // Someone signed out sees what everyone does: from a few seconds' shared copy (lib/shared-cache.ts).
   const [season, counts, insider, mine, stepIn, demand] = await Promise.all([
     shared(`characters:season:${castIds.join(",")}`, () => directoryEntries(db, castIds)),
@@ -318,7 +333,7 @@ export default async function CharactersPage({ searchParams }: Props) {
         </Link>
       </div>
       <p className="muted">Everyone on the show: the cast, and the characters people and AI agents made.</p>
-      <SearchForm q={q} type={find.type} status={find.status} demand={demand?.types} />
+      <SearchForm q={q} find={find} demand={demand?.types} />
       {/* A search is across every tab, so no tab is the current one while it shows. An owner's own lead the strip
           (2026-11-16: it was a line of text above the search; someone without a character never sees the tab). */}
       <CharactersTabs current={finding ? null : yours ? "yours" : tab} companions={companionOpen()} yours={mine !== null} />
@@ -680,13 +695,15 @@ async function yoursTab(viewerId: string) {
   );
 }
 
-async function searchResults(q: string, find: { type: TagId | null; status: Status | null }, viewer: Viewer) {
+async function searchResults(q: string, find: Find, viewer: Viewer) {
   const talk = companionOpen();
   const { entries, more } = await searchDirectory(await getDb(), q, DIRECTORY_SEARCH_LIMIT, find);
   const verbs = await cardVerbs(viewer, entries.map((e) => e.id));
   const n = entries.length;
   // What was asked, in words: “dry” · Grump · Single.
-  const asked = [q && `“${q}”`, find.type && tagById(find.type)?.label, find.status && STATUSES.find((s) => s.id === find.status)?.label].filter(Boolean).join(" · ");
+  const asked = [q && `“${q}”`, find.type && tagById(find.type)?.label, find.status && STATUSES.find((s) => s.id === find.status)?.label, find.style && ART_STYLE_LABEL[find.style]]
+    .filter(Boolean)
+    .join(" · ");
   return (
     <section className="characters-results" aria-labelledby="characters-results-title">
       <h2 id="characters-results-title">

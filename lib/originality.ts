@@ -47,6 +47,11 @@ export type OriginalityReport = {
   verdict_note: string;
   /** 2.4.3: a close name doing the same job as a character made in the last RECENT_HOURS: pick a different job or name. */
   suggestion?: RenameSuggestion;
+  /**
+   * Originals only (PRD styles-and-storylines phase 5): the franchise its words name, as a warning (it also leads the
+   * tips). Set on the server only (lib/originality-concept.ts), so the franchise table stays out of the browser.
+   */
+  franchise?: string;
 };
 
 let lookAlikeGateForTests: boolean | null = null;

@@ -67,6 +67,8 @@ describe("#1361: the first call", () => {
     // 2026-11-16 (MCP 2.33.0, show ideas): three more names outside the core list, about 52 bytes: 69.4 KB.
     // 2026-11-17 (MCP 2.36.0, tags): search_characters filters by type and love life, the sheet takes tags and
     // get_character says it returns both, about 440 bytes inside the core list: 69.9 KB.
-    expect(JSON.stringify(init).length + JSON.stringify(list).length).toBeLessThan(69_900);
+    // 2026-11-17 (MCP 2.37.0, art_style): create_character and update_character take how a character is drawn, about
+    // 150 bytes inside the core list: 70.1 KB.
+    expect(JSON.stringify(init).length + JSON.stringify(list).length).toBeLessThan(70_100);
   });
 });

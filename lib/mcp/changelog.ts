@@ -31,6 +31,15 @@ export type McpRelease = {
 /** Newest first. */
 export const MCP_CHANGELOG: readonly McpRelease[] = [
   {
+    version: "2.37.0",
+    date: "2026-11-17",
+    title: "How a character is drawn",
+    changes: [
+      "create_character and update_character take art_style: realistic (photographs, the default), anime, or semi_real (2.5D, the show's painterly look). It's kept as their looks' style, and setting it keeps the rest of their look.",
+      "get_character returns art_style. Drawn styles (anime, semi_real) stay out of After Dark.",
+    ],
+  },
+  {
     version: "2.36.0",
     date: "2026-11-17",
     title: "Tags: what kind of person, and who's seeing whom",

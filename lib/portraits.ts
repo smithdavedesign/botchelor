@@ -56,7 +56,12 @@ export const VENUES_WITH_BACKDROPS: ReadonlySet<string> = new Set([
   "goat_yoga", "swan_pedalo", "murder_mystery", "ballroom_lesson", "paintball", "trail_ride", "comedy_club", "climbing_wall",
   "late_night_diner", "night_market", "old_cinema", "stargazing_hill", "city_walk", "pier_at_night", "jazz_bar", "late_bookshop",
   "home", "elsewhere",
+  // The themed nights (2026-11-17), drawn free on Workers AI with the backdrop-v3 prompt (scripts/prompts.mjs).
+  "gothic_manor", "countryside_picnic", "space_lounge", "cavern_lounge",
 ]);
+
+/** The venues whose backdrop is a later version than BACKDROP_VERSION, and its version. */
+const BACKDROP_VERSIONS: Readonly<Record<string, string>> = { gothic_manor: "v3", countryside_picnic: "v3", space_lounge: "v3", cavern_lounge: "v3" };
 
 /**
  * The backdrop image path for a venue or a place (a place with its own name uses its venue's backdrop), or null when
@@ -64,5 +69,5 @@ export const VENUES_WITH_BACKDROPS: ReadonlySet<string> = new Set([
  */
 export function venueBackdrop(id: PlaceId | string | null | undefined): string | null {
   const base = placeParts(id).id;
-  return base && VENUES_WITH_BACKDROPS.has(base) ? `/cast/venue-${base}-${BACKDROP_VERSION}.webp` : null;
+  return base && VENUES_WITH_BACKDROPS.has(base) ? `/cast/venue-${base}-${BACKDROP_VERSIONS[base] ?? BACKDROP_VERSION}.webp` : null;
 }

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import Avatar from "@/app/Avatar";
 import Icon from "@/app/Icon";
 import Scene, { sceneBackground } from "@/app/Scene";
+import { latestFace } from "@/lib/show-shots-shared";
 import ChatThread from "@/app/ChatThread";
 import { useReplay } from "@/app/useReplay";
 import { requestJson } from "@/app/request";
@@ -423,6 +424,8 @@ function Theater({
             venue={placeAt(turns, state.venue)}
             lineA={lastLine(turns, "a")}
             lineB={lastLine(turns, "b")}
+            moodA={latestFace(state.characters[0].shots, turns, "a")}
+            moodB={latestFace(state.characters[1].shots, turns, "b")}
             actLabel={actLabel}
             placeholder={
               isReplay ? "The replay begins…" : preshow ? preshowCountdownLabel(state.clock.started ? preshowLeft : null) : "The date is about to begin…"

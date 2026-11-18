@@ -14,15 +14,16 @@
  *  - **Dates:** the deck's own ranking (lib/dating.ts findMatches) picks who suits whom; a like is the ordinary swipe
  *    (lib/swipes.ts), an answer the ordinary answer_match, and the booking /api/admin/book-date.
  */
+import { artStyleOf, isDrawnStyle, STYLE_WORDS, type ArtStyle, type DrawnStyle } from "./art-style";
 import { recordAsset, reviewAsset } from "./assets";
 import { checkMedia, checkRating, mediaGate, showsRole } from "./adult/moderation";
 import { NEGATIVE_PROMPT, venicePicture } from "./adult/media";
 import { loadCharacter } from "./character";
 import type { Db } from "./db";
 import { lookFor } from "./agent-portraits";
-import { isAnime } from "./looks";
 import { DELETED_OWNER } from "./rules";
 import { checkPgPictureText } from "./safety";
+import { NO_FRANCHISE_WORDS } from "./franchise-words";
 import { portraitPrompt } from "./season-gen";
 import { showIdentityViews } from "./studio/pg";
 
@@ -61,39 +62,55 @@ export const SCENE_MAX = 160;
 const tidy = (s: string | null | undefined): string => (s ?? "").trim().replace(/[.\s]+$/, "");
 
 /**
- * An anime portrait's negative prompt: every word of the usual steer away from anyone young-looking (lib/adult/media.ts
- * NEGATIVE_PROMPT, which venicePicture sends by default) but its "cartoon, anime, illustration", which would pull an anime
- * portrait back to a photograph; then the childlike looks anime drifts to, and a photograph.
+ * A drawn portrait's negative prompt: every word of the usual steer away from anyone young-looking (lib/adult/media.ts
+ * NEGATIVE_PROMPT, which venicePicture sends by default) but the ones that would pull it back to a photograph (`drop`);
+ * then the childlike looks a drawing drifts to, and a photograph.
  */
-export const ANIME_NEGATIVE_PROMPT = [
-  ...NEGATIVE_PROMPT.split(",")
-    .map((w) => w.trim())
-    .filter((w) => w && !/^(cartoon|anime|illustration)$/i.test(w)),
-  "childlike face",
-  "childlike body",
-  "chibi",
-  "photograph",
-  "photorealistic",
-].join(", ");
+const drawnNegative = (drop: RegExp): string =>
+  [
+    ...NEGATIVE_PROMPT.split(",")
+      .map((w) => w.trim())
+      .filter((w) => w && !drop.test(w)),
+    "childlike face",
+    "childlike body",
+    "chibi",
+    "photograph",
+    "photorealistic",
+  ].join(", ");
+
+/** An anime portrait's: without the usual "cartoon, anime, illustration". */
+export const ANIME_NEGATIVE_PROMPT = drawnNegative(/^(cartoon|anime|illustration)$/i);
+/** A 2.5D portrait's: without the usual "illustration" (it is one); "cartoon" and "anime" still steer it away from those. */
+export const SEMI_REAL_NEGATIVE_PROMPT = drawnNegative(/^illustration$/i);
+
+/** The negative prompt for a portrait in this style; undefined for a photograph (venicePicture's default). */
+export const negativePromptFor = (style: ArtStyle): string | undefined =>
+  style === "anime" ? ANIME_NEGATIVE_PROMPT : style === "semi_real" ? SEMI_REAL_NEGATIVE_PROMPT : undefined;
+
+/** How a drawn portrait is finished, before the words about age. */
+const DRAWN_PORTRAIT_FINISH: Record<DrawnStyle, string> = {
+  anime: "Cel shading, clean linework, rich colour.",
+  semi_real: "Soft cinematic rim light, warm key light, rich but controlled colour, clean linework on the face, expressive eyes.",
+};
 
 /**
- * The portrait's prompt: their look, then what makes them recognisably them, pushed harder on the second try. `anime`
- * (their looks' style, lib/looks.ts) draws the same in clean modern anime (David, 2026-11-08: "add the most popular type
- * of anime characters"), said twice over to be a grown adult: anime reads young, and the PG checks refuse anyone who
- * might be under 18 (checkMedia's minor check, the rating's ADULTS question), so the prompt asks for an adult's face and
- * proportions outright.
+ * The portrait's prompt: their look, then what makes them recognisably them, pushed harder on the second try. A drawn
+ * `style` (their looks', lib/art-style.ts) draws the same in clean modern anime (David, 2026-11-08: "add the most popular
+ * type of anime characters") or the painterly 2.5D house look, said twice over to be a grown adult: drawings read young,
+ * and the PG checks refuse anyone who might be under 18 (checkMedia's minor check, the rating's ADULTS question), so the
+ * prompt asks for an adult's face and proportions outright.
  */
-export function recastPortraitPrompt(look: string, age: number, r: RecastRole | null, push = false, anime = false): string {
+export function recastPortraitPrompt(look: string, age: number, r: RecastRole | null, push = false, style: ArtStyle = "realistic"): string {
   const props = tidy(r?.props);
   const scene = tidy(r?.scene);
-  if (anime) {
+  if (isDrawnStyle(style)) {
     const role = r?.role ? tidy(r.role) : "";
     return [
-      `Clean modern anime illustration, a chest-up character portrait of ${tidy(look)}.`,
+      `${STYLE_WORDS[style].medium}, a chest-up character portrait of ${tidy(look)}.`,
       role ? `They are ${role}${props ? `, with ${props}` : ""}.` : "",
       scene ? `Behind them, ${scene}.` : "A soft painted background.",
       push && role ? `It must be unmistakable at a glance that they are ${role}: ${props ? `${props} prominent, in focus and in frame, ` : ""}${scene ? "the setting clearly visible behind them" : "the costume clearly visible"}.` : "",
-      `Cel shading, clean linework, rich colour. Clearly a grown adult of ${Math.max(21, age)} with mature adult proportions and an adult face. Looking at the viewer, fully clothed, tasteful.`,
+      `${DRAWN_PORTRAIT_FINISH[style]} Clearly a grown adult of ${Math.max(21, age)} with mature adult proportions and an adult face. Looking at the viewer, fully clothed, tasteful, ${NO_FRANCHISE_WORDS}.`,
     ]
       .filter(Boolean)
       .join(" ");
@@ -104,7 +121,7 @@ export function recastPortraitPrompt(look: string, age: number, r: RecastRole | 
     `They are ${tidy(r.role)}${props ? `, with ${props}` : ""}.`,
     scene ? `Behind them, ${scene}.` : "",
     push ? `It must be unmistakable at a glance that they are ${tidy(r.role)}: ${props ? `${props} prominent, in focus and in frame, ` : ""}${scene ? "the setting clearly visible behind them" : "the costume clearly visible"}.` : "",
-    `Clearly ${age} years old, an adult. Looking at the camera, photorealistic, fully clothed.`,
+    `Clearly ${age} years old, an adult. Looking at the camera, photorealistic, fully clothed, ${NO_FRANCHISE_WORDS}.`,
   ]
     .filter(Boolean)
     .join(" ");
@@ -133,16 +150,17 @@ export type RecastPortrait =
 type Drawn = { ok: true; pic: { bytes: Buffer; mime: string }; prompt: string; via: string[]; role_ok: boolean | null } | { ok: false; reason: string; again: boolean };
 
 /**
- * One try: drawn in safe mode, through the show's PG check and the clothed rating, then asked if it reads as them. An
- * anime one is steered by ANIME_NEGATIVE_PROMPT instead of the default.
+ * One try: drawn in safe mode, through the show's PG check and the clothed rating, then asked if it reads as them. A
+ * drawn one is steered by its style's negative prompt (negativePromptFor) instead of the default.
  */
-async function drawOnce(db: Db, prompt: string, r: RecastRole | null, anime = false): Promise<Drawn> {
+async function drawOnce(db: Db, prompt: string, r: RecastRole | null, style: ArtStyle = "realistic"): Promise<Drawn> {
   if (!checkPgPictureText({ prompt }).ok) return { ok: false, reason: "their words don't pass the show's PG word check", again: false };
   const gate = await mediaGate(db, { pg: true });
   if (!gate.ok) return { ok: false, reason: gate.reason, again: true };
   let pic: { bytes: Buffer; mime: string };
   try {
-    pic = await venicePicture(db, prompt, { safe: true, model: RECAST_PORTRAIT_MODEL, ...(anime ? { negative: ANIME_NEGATIVE_PROMPT } : {}) });
+    const negative = negativePromptFor(style);
+    pic = await venicePicture(db, prompt, { safe: true, model: RECAST_PORTRAIT_MODEL, ...(negative ? { negative } : {}) });
   } catch (err) {
     return { ok: false, reason: err instanceof Error ? err.message.slice(0, 160) : "error", again: true };
   }
@@ -179,12 +197,12 @@ export async function drawRecastPortrait(db: Db, characterId: string, look?: str
   const who = lookFor(c);
   if (!who) return no("nothing written about them to draw from");
   const r = role?.role ? role : null;
-  const anime = isAnime(c);
+  const style = artStyleOf(c);
   let tries = 1;
-  let drawn = await drawOnce(db, recastPortraitPrompt(who, c.age, r, false, anime), r, anime);
+  let drawn = await drawOnce(db, recastPortraitPrompt(who, c.age, r, false, style), r, style);
   if (drawn.ok && drawn.role_ok === false) {
     tries = 2;
-    const again = await drawOnce(db, recastPortraitPrompt(who, c.age, r, true, anime), r, anime);
+    const again = await drawOnce(db, recastPortraitPrompt(who, c.age, r, true, style), r, style);
     // The pushed try is kept when it passed the PG checks; otherwise the first (safe, just not clearly them) stays.
     if (again.ok) drawn = again;
   }
