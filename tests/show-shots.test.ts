@@ -360,5 +360,16 @@ describe("the admin route", () => {
     const seen = await (await list(c.id, admin)).json();
     expect(Object.keys(seen.shots).sort()).toEqual([...SHOTS].sort());
     expect(seen.rows).toHaveLength(9);
+
+    // One shot drifted from their face: redo throws away only that one, and the other eight stay as they were.
+    const ids = async () => Object.fromEntries((await t.db.query<{ shot: string; id: string }>(`select shot, id from show_shots where character_id = $1`, [c.id])).rows.map((r) => [r.shot, r.id]));
+    const before = await ids();
+    expect((await post({ character_id: c.id, redo: true, shot: "selfie" }, admin)).status).toBe(422);
+    expect((await post({ character_id: c.id, redo: true, shot: "rose" }, admin)).status).toBe(202);
+    await vi.waitFor(async () => expect((await ids()).rose).toBeDefined(), { timeout: 15_000, interval: 50 });
+    await vi.waitFor(async () => expect((await rowsOf(c.id)).filter((r) => r.status === "ready")).toHaveLength(9), { timeout: 15_000, interval: 50 });
+    const after = await ids();
+    expect(after.rose).not.toBe(before.rose);
+    for (const shot of SHOTS.filter((s) => s !== "rose")) expect(after[shot]).toBe(before[shot]);
   });
 });
