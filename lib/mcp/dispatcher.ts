@@ -770,6 +770,9 @@ export const ENUM_SOURCES: Record<string, readonly unknown[]> = {
   "create_character.while_away": WHILE_AWAY_MODES,
   "update_character.while_away": WHILE_AWAY_MODES,
   "update_character.talk": TALK_LEVELS,
+  // 2.37.0: how their pictures are drawn (lib/art-style.ts).
+  "create_character.art_style": ART_STYLES,
+  "update_character.art_style": ART_STYLES,
   "set_open_to_dates.audience": AUDIENCES,
   "go_on_date.format": FORMAT_IDS,
   "go_on_date.visibility": DATE_VISIBILITIES,

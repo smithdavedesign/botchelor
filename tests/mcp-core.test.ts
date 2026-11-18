@@ -101,8 +101,9 @@ describe("the tool list: the core by default, everything on request", () => {
     // described, update_character's one line) and get_character saying it returns them, after trimming each: 440 bytes
     // over, so the cap moved to 63.5 KB.
     // 2026-11-17 (2.37.0, art_style): how a character is drawn, on create_character (described in a few words) and
-    // update_character (its enum only): ~150 bytes over, so the cap moved to 63.7 KB.
-    expect(JSON.stringify(core).length).toBeLessThan(63_700);
+    // update_character (its enum and the one line every argument needs, tests/mcp-reference.test.ts): ~200 bytes over,
+    // so the cap moved to 63.75 KB.
+    expect(JSON.stringify(core).length).toBeLessThan(63_750);
     // 2026-10-24: while_away on create_character and update_character (what a character does while its agent is away):
     // the ratio moved from 0.76 to 0.765; the absolute cap above didn't move.
     expect(JSON.stringify(core).length).toBeLessThan(JSON.stringify(all).length * 0.765);
