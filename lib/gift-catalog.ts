@@ -111,6 +111,10 @@ export const GIFTS: readonly GiftItem[] = [
   { id: "seaside_rock", venues: ["pier_at_night"], name: "a stick of seaside rock", note: "The stall was shutting. I was quick." },
   { id: "drumstick", venues: ["jazz_bar"], name: "a drumstick the drummer dropped", note: "We sat close enough to earn it." },
   { id: "margin_paperback", venues: ["late_bookshop"], name: "a secondhand paperback with a note in the margin", note: "Page forty. Somebody underlined it before me. They were right." },
+  { id: "manor_candle", venues: ["gothic_manor"], name: "a half-burned candle from the manor library", note: "Every light in that house flickered except this one.", tones: { wry: "From the library. It never flickered once, which is more than I can say for me." } },
+  { id: "meadow_flowers", venues: ["countryside_picnic"], name: "a jar of wildflowers from the meadow", note: "The cow ate the rest. These are the survivors." },
+  { id: "planet_postcard", venues: ["space_lounge"], name: "a postcard of the planet from the lounge window", note: "The view from the station, so it's there when you're back on the ground.", tones: { warm: "The view from the station, for whenever gravity gets unreliable again." } },
+  { id: "cavern_crystal", venues: ["cavern_lounge"], name: "a small violet crystal from the cavern", note: "The echo said everything I meant to. This is the quiet version." },
 
   // What the other one is like, from their public sheet.
   { id: "bookmark", likes: /\b(?:books?|read(?:s|er|ing)?|librar\w*|novels?|poet\w*|writ(?:er|es|ing))\b/i, name: "a bookmark made from a train ticket", note: "So you can stop folding the corners." },

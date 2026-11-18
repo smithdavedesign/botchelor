@@ -139,7 +139,8 @@ describe("where the show uses it", () => {
       veoClipPrompt(c, true),
       newcomerPortraitPrompt("a woman in her early thirties with short dark hair", 31),
       recastPortraitPrompt("a woman in her early thirties", 31, { role: "a lighthouse keeper", props: "a brass lantern" }),
-      recastPortraitPrompt("a woman in her early thirties", 31, { role: "a lighthouse keeper" }, false, true),
+      recastPortraitPrompt("a woman in her early thirties", 31, { role: "a lighthouse keeper" }, false, "anime"),
+      recastPortraitPrompt("a woman in her early thirties", 31, { role: "a lighthouse keeper" }, false, "semi_real"),
     ];
     for (const p of prompts) expect(p).toContain(NO_FRANCHISE_WORDS);
   });
