@@ -14,7 +14,9 @@ const Input = z.object({ character_id: z.string().min(1).max(120), redo: z.boole
 /**
  * An admin draws one character's show kit (lib/show-shots.ts) at any hour, free while the day's Workers AI budget lasts:
  * `POST { character_id }` starts it after the response (`redo: true` throws away their shots first, refused ones too).
- * `redo` with a `shot` throws away only that one, as when a single shot drifted from their face, and the rest stay.
+ * `redo` with a `shot` draws only that one again, as when a single shot drifted from their face, and the rest stay. It's
+ * the shot's next take: another seed (the same take draws the same picture) under a new address (a ready shot's
+ * address never changes, so caches would keep the old one). A refused shot isn't redone: the look changes first.
  * `GET ?character=` is what the pages see.
  */
 export const POST = handle(async (req: Request) => {
@@ -24,8 +26,22 @@ export const POST = handle(async (req: Request) => {
   const found = (await db.query(`select 1 from characters where id = $1`, [input.character_id])).rows.length > 0;
   if (!found) return json({ error: "not_found", message: "There's no such character." }, 404);
   const base = requestBase(req);
-  if (input.redo) {
-    await db.query(`delete from show_shots where character_id = $1 and ($2::text is null or shot = $2)`, [input.character_id, input.shot ?? null]);
+  if (input.redo && input.shot) {
+    const { rows } = await db.query<{ id: string; status: string }>(
+      `select id, status from show_shots where character_id = $1 and shot = $2 order by created_at desc limit 1`,
+      [input.character_id, input.shot],
+    );
+    if (rows[0]?.status === "refused") {
+      return json({ error: "refused", message: "That shot was refused, so it's drawn again only once the look changes." }, 409);
+    }
+    if (rows[0]) {
+      await db.query(`update show_shots set id = $2, status = 'failed', attempts = 0, take = take + 1, error = null, updated_at = now() where id = $1`, [
+        rows[0].id,
+        crypto.randomUUID(),
+      ]);
+    }
+  } else if (input.redo) {
+    await db.query(`delete from show_shots where character_id = $1`, [input.character_id]);
   }
   inBackground(async () => {
     const run = await drawShowShots(db, { characterId: input.character_id, baseUrl: base, max: 9 });

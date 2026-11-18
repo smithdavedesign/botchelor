@@ -160,8 +160,9 @@ rich but controlled color, clean linework on faces, expressive eyes, reality-sho
     failing one is tried three times at most.
   - **When:** the hourly job draws from 20:00 UTC, the house cast first, then whoever aired the most dates in the last
     two weeks. It leaves 1,500 neurons of the day for people's own pictures. An admin can draw one character's kit at
-    any time (`/api/admin/show-shots`), or redo a single shot that drifted from their face (`redo` with a `shot`).
-    There's never a paid fallback.
+    any time (`/api/admin/show-shots`), or redo a single shot that drifted from their face (`redo` with a `shot`). That's
+    the shot's next take, drawn from another seed because the same take draws the same picture. A refused shot isn't
+    redone, since the look changes first. There's never a paid fallback.
   - **Which face a line shows:** this changed from the plan. The line's own emotion word decides (each line already
     carries one), else interest (0.8 and up is smitten, 0.2 and down is unimpressed). A walk-out is unimpressed or
     heartbroken. Wants and dealbreakers aren't per line, so they don't decide it. In the 30 days to 2026-11-17, 7,781 of
