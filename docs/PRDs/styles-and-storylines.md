@@ -286,6 +286,24 @@ rich but controlled color, clean linework on faces, expressive eyes, reality-sho
   - A soft meter shows 400–999 words across the sheet.
   - Season-gen aims for the same.
 
+### Built 2026-11-17
+
+- **A soft meter** (`lib/sheet-words.ts`, `app/create/DepthMeter.tsx`) counts the words across everything a creator
+  wrote:
+  - the bio, want, dealbreaker, traits, voice and appearance;
+  - the inner life, every text detail and extra;
+  - their secrets and the week's line.
+
+  It shows the count against the 400–999 band on the Go deeper step and on the review. Below the band, it says what
+  adds the most. Above it, it says a date draws on the strongest details, so cutting the weakest helps. Nothing is
+  refused for its length.
+- **Go deeper suggests three things,** each ticked once written, with a link to the step where it goes:
+  - an opening line (Voice);
+  - a first-date scenario (Dating profile);
+  - up to three secrets, revealed over dates.
+- **Not yet:** season-gen's writer drafts about 370 words. It aims for the band once phase 4's season-gen changes are
+  in.
+
 ## 7. Measurement
 
 - `lib/tag-demand.ts` gains `art_style` and `lineup` facets. They count:
