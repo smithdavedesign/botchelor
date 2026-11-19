@@ -446,6 +446,9 @@ export function normaliseLooks(l: Looks | null | undefined): Looks | undefined {
   for (const step of LOOK_STEPS) {
     const k = step.id as keyof Looks;
     if (step.afterDark || step.id === "gender" || step.id === "age" || out[k] === undefined) continue;
+    // Every art style is a style (LooksInput takes ART_STYLES), not only the builder's three tiles: oil paint, 3D, comic,
+    // ink and pixel were dropped here and drew as photographs (2026-11-19).
+    if (step.id === "style" && (ART_STYLES as readonly string[]).includes(String(out[k]))) continue;
     const valid = g ? (!step.only || step.only === g) && optionsFor(step, g).some((o) => o.id === out[k]) : !step.only;
     if (!valid) delete out[k];
   }
