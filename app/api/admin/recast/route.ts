@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { PATCH as patchCharacter } from "@/app/api/characters/[id]/route";
+import { DELETE as deleteCharacterRoute, PATCH as patchCharacter } from "@/app/api/characters/[id]/route";
 import { adminAuthorized, NOT_AUTHORIZED } from "@/lib/admin-auth";
 import { findMatches } from "@/lib/dating";
 import { getDb } from "@/lib/db";
@@ -38,6 +38,9 @@ const Input = z.discriminatedUnion("action", [
   // "have my characters ... like all of the new agent characters"). Likes only: never a pass or an answer, and a
   // person's character still answers a match for itself (lib/swipes.ts personAnswers).
   z.object({ action: z.literal("owner_like"), character_id: id, target_id: id }),
+  // Taken down, as its owner deletes it (the owner's own delete: kept as a tombstone if it already aired). For an
+  // agent-made character that shouldn't be on the show at all (David, 2026-11-18: one whose portrait read as a minor).
+  z.object({ action: z.literal("remove"), character_id: id }),
 ]);
 
 /**
@@ -90,6 +93,13 @@ export const POST = handle(async (req: Request) => {
       const res = await patchCharacter(edit, { params: Promise.resolve({ id: input.character_id }) });
       const body = await res.json().catch(() => ({}));
       return json({ updated: res.ok, status: res.status, result: body }, res.ok ? 200 : res.status);
+    }
+    case "remove": {
+      const cookie = sessionCookies({ userId: owner, authenticated: true })[0].split(";")[0];
+      const del = new Request(new URL(`/api/characters/${input.character_id}`, req.url), { method: "DELETE", headers: { cookie } });
+      const res = await deleteCharacterRoute(del, { params: Promise.resolve({ id: input.character_id }) });
+      const body = await res.json().catch(() => ({}));
+      return json({ removed: res.ok, status: res.status, result: body }, res.ok ? 200 : res.status);
     }
     case "portrait": {
       const r = await drawRecastPortrait(db, input.character_id, input.look, roleOf(input));
