@@ -170,6 +170,11 @@ describe("the watch page is honest about what's playing", () => {
     const made = await refreshLobby(t.db, new Date(), { ensureFresh: true });
     expect(made.created).toBeTruthy();
     expect(await statusOf(made.created!)).toBe("ready");
+    // A room whose date already aired on its own (a house room nobody started, lib/air.ts) isn't ready any more.
+    await t.db.query("update episodes set revealed_at = now() where id = (select episode_id from watch_parties where id = $1)", [made.created]);
+    scriptOutcome({ ending: "friends" });
+    scriptedModel([planJson(), ...turns(CONVERSATION_TURNS), episodeJson()]);
+    expect((await refreshLobby(t.db, new Date(), { ensureFresh: true })).created).toBeTruthy();
     // At the day's limit it stops, even with nothing ready.
     await t.db.query("update watch_parties set starts_at = now()");
     expect(await refreshLobby(t.db, new Date(), { ensureFresh: true, maxPerDay: 2 })).toEqual({ created: null, reason: "daily_limit" });

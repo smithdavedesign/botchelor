@@ -39,7 +39,7 @@ const EACH: Row[] = [
   { what: "An After Dark scene step (6 lines)", cost: "0.25–0.5¢" },
   { what: "An After Dark picture", cost: "about 1.5¢", note: "Including its moderation and age check." },
   { what: "A 15-second After Dark clip", cost: "$0.30–0.80" },
-  { what: "The video of the night (about 40 seconds, four 10-second shots)", cost: "$5.40–5.50", note: "It sells for about what it costs." },
+  { what: "The video of the night (about 40 seconds, four 10-second shots)", cost: "$5.40–5.50", note: "It sells for 10 tokens." },
   { what: "An age check (Didit)", cost: "about 10¢", note: "Only where the law asks for one." },
   { what: "A card payment", cost: "2.9% + 30¢", note: "Stripe's fee: about 42¢ on a $4 pack." },
   { what: "A date or text on your own model or key", cost: "$0 to us", note: "You pay your provider directly." },

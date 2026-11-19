@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, expect, it, vi } from "vitest";
-import { airDueDates, airTimings, WATCH_DECISION_SECONDS } from "@/lib/air";
+import { airDueDates, airTimings, HOUSE_ROOM_AIR_HOURS, HOUSE_ROOM_AIR_MAX_DAYS, HOUSE_ROOM_UNSTARTED_NOTE, WATCH_DECISION_SECONDS, WATCH_PARTY_UNSTARTED_NOTE } from "@/lib/air";
 import { handleMcpMessage, type McpContext } from "@/lib/mcp";
 import { episodeJson, HOUSE_PARTNER_ID, scriptedModel, scriptOutcome, startTestDb, validCharacter } from "./helpers";
 
@@ -69,4 +69,27 @@ it("a watch party with a start time still ahead has no airs_note; one with none 
   expect((await airTimings(t.db, [id])).get(id)!.airs_note).toBeUndefined();
   await t.db.query(`update watch_parties set starts_at = null where id = 'wp-839'`);
   expect((await airTimings(t.db, [id])).get(id)!.airs_note).toMatch(/No start time/);
+});
+
+it("a house room nobody started airs its date after 24 hours, never a weeks-old one, never a creator's premiere (David, 2026-11-19)", async () => {
+  const [fresh, old, stale, premiere] = [await booked(await agent("Ada Lumen")), await booked(await agent("Cy Marlow")), await booked(await agent("Dee Vance")), await booked(await agent("Eli Brook"))];
+  await t.db.query(`update episodes set created_at = now() - interval '30 days' where id = any($1)`, [[fresh, old, stale, premiere]]);
+  const hoursAgo = (h: number) => new Date(Date.now() - h * 3600_000).toISOString();
+  await t.db.query(
+    `insert into watch_parties (id, episode_id, kind, created_at) values ('wp-fresh', $1, 'template', $2), ('wp-old', $3, 'template', $4), ('wp-stale', $5, 'template', $6), ('wp-mine', $7, 'premiere', $4)`,
+    [fresh, hoursAgo(2), old, hoursAgo(HOUSE_ROOM_AIR_HOURS + 1), stale, hoursAgo(24 * HOUSE_ROOM_AIR_MAX_DAYS + 1), premiere],
+  );
+  const timing = await airTimings(t.db, [fresh, old, stale, premiere]);
+  // Two hours old: it waits for a viewer, and says when it airs anyway.
+  expect(timing.get(fresh)).toMatchObject({ airs: "watch_party", airs_note: HOUSE_ROOM_UNSTARTED_NOTE });
+  expect(new Date(timing.get(fresh)!.airs_at!).getTime()).toBeGreaterThan(Date.now() + 21 * 3600_000);
+  expect(timing.get(old)).toMatchObject({ airs: "due", seconds_left: 0 });
+  // Older than the cap, or someone's own premiere: they keep waiting on their room.
+  expect(timing.get(stale)).toMatchObject({ airs: "watch_party", airs_at: null, airs_note: WATCH_PARTY_UNSTARTED_NOTE });
+  expect(timing.get(premiere)).toMatchObject({ airs: "watch_party", airs_at: null });
+
+  expect((await airDueDates(t.db)).map((a) => a.id)).toEqual([old]);
+  const aired = (await t.db.query(`select id from episodes where revealed_at is not null`)).rows.map((r) => r.id);
+  expect(aired).toEqual([old]);
+  expect([HOUSE_ROOM_AIR_HOURS, HOUSE_ROOM_AIR_MAX_DAYS]).toEqual([24, 7]);
 });

@@ -246,6 +246,30 @@ export type AirTiming = {
   airs_note?: string;
 };
 
+/**
+ * A house room (kind 'template') nobody ever started airs its date this long after the room was made (David, 2026-11-19:
+ * "air old rooms after 24h"). A room waits to play live for its first viewer, and on a quiet day nobody comes: 12 of 42
+ * had never aired, the oldest from 10-19, so neither character remembered those dates and the show's story stood still.
+ * Someone who opens it later still watches it play. A creator's own premiere keeps waiting for its start.
+ */
+export const HOUSE_ROOM_AIR_HOURS = 24;
+/**
+ * Never a room older than this: airing a weeks-old date sends its morning-after texts and memories about a night long
+ * past (the backlog when this shipped stayed as it was).
+ */
+export const HOUSE_ROOM_AIR_MAX_DAYS = 7;
+/** SQL: watch party `w` is a house room nobody started that's old enough to air its date, and not too old. */
+const houseRoomDue = (w: string): string =>
+  `(${w}.kind = 'template' and ${w}.starts_at is null and ${w}.created_at <= now() - interval '${HOUSE_ROOM_AIR_HOURS} hours' and ${w}.created_at > now() - interval '${HOUSE_ROOM_AIR_MAX_DAYS} days')`;
+/** When a house room nobody started airs its date on its own, or null when it won't (not one, or too old). */
+export function houseRoomAirsAt(kind: string | null, startsAt: Date | string | null, roomMadeAt: Date | string | null, now: Date = new Date()): Date | null {
+  if (kind !== "template" || startsAt || !roomMadeAt) return null;
+  const made = new Date(roomMadeAt).getTime();
+  if (made <= now.getTime() - HOUSE_ROOM_AIR_MAX_DAYS * 86_400_000) return null;
+  return new Date(made + HOUSE_ROOM_AIR_HOURS * 3_600_000);
+}
+export const HOUSE_ROOM_UNSTARTED_NOTE = `No start time: it premieres when someone opens its room on /watch, or airs on its own at airs_at (${HOUSE_ROOM_AIR_HOURS} hours after the room opened).`;
+
 export const WATCH_PARTY_UNSTARTED_NOTE =
   "No start time: it premieres only when someone opens its watch party on /watch, so a pick on it may wait a long while.";
 /** A watch party's date that won't air on its own any time soon: its room has no start time. */
@@ -253,8 +277,17 @@ export const waitsOnRoom = (t: AirTiming): boolean => t.airs === "watch_party" &
 
 export async function airTimings(db: Db, ids: string[], now: Date = new Date(), env: Record<string, string | undefined> = process.env): Promise<Map<string, AirTiming>> {
   if (!ids.length) return new Map();
-  const { rows } = await db.query<{ id: string; status: string; created_at: Date | string; air_after: Date | string | null; party: boolean; party_at: Date | string | null }>(
-    `select e.id, e.status, e.created_at, e.air_after, w.id is not null as party, w.starts_at as party_at
+  const { rows } = await db.query<{
+    id: string;
+    status: string;
+    created_at: Date | string;
+    air_after: Date | string | null;
+    party: boolean;
+    party_at: Date | string | null;
+    party_kind: string | null;
+    party_made: Date | string | null;
+  }>(
+    `select e.id, e.status, e.created_at, e.air_after, w.id is not null as party, w.starts_at as party_at, w.kind as party_kind, w.created_at as party_made
        from episodes e left join watch_parties w on w.episode_id = e.id
       where e.id = any($1) and e.revealed_at is null`,
     [ids],
@@ -266,7 +299,13 @@ export async function airTimings(db: Db, ids: string[], now: Date = new Date(), 
   for (const r of rows) {
     const close = "when_it_airs" as const;
     const at = r.party_at ? new Date(r.party_at) : null;
-    if (r.party && (!at || at.getTime() + WATCH_DECISION_SECONDS * 1000 > now.getTime())) {
+    // A house room nobody started: it waits for a viewer until HOUSE_ROOM_AIR_HOURS, then it's due like any date.
+    const house = r.party ? houseRoomAirsAt(r.party_kind, r.party_at, r.party_made) : null;
+    if (house && house.getTime() > now.getTime() && r.status === "ready") {
+      out.set(r.id, { airs_at: house.toISOString(), ...left(house), airs: "watch_party", predictions_close: close, airs_note: HOUSE_ROOM_UNSTARTED_NOTE });
+      continue;
+    }
+    if (r.party && !house && (!at || at.getTime() + WATCH_DECISION_SECONDS * 1000 > now.getTime())) {
       out.set(r.id, { airs_at: at ? at.toISOString() : null, ...left(at), airs: "watch_party", predictions_close: close, ...(at ? {} : { airs_note: WATCH_PARTY_UNSTARTED_NOTE }) });
       continue;
     }
@@ -300,13 +339,14 @@ export async function scheduleAir(db: Db, id: string, hostId: string, at: Date):
 /**
  * The dates that air now ($1 is the window in minutes): ready and unaired, either scheduled and due, or (by default)
  * public or unlisted and past the window. Never a private ("offline") date nobody scheduled, nor a watch party's until
- * its room's decision has passed (a room nobody has started holds its date).
+ * its room's decision has passed (a room nobody has started holds its date, except a house room from
+ * HOUSE_ROOM_AIR_HOURS old up to HOUSE_ROOM_AIR_MAX_DAYS).
  */
 const DUE = `e.status = 'ready' and e.revealed_at is null and e.creator_id is not null
   and ((e.air_after is not null and e.air_after <= now())
        or (e.air_after is null and e.visibility <> 'private' and e.created_at <= now() - $1 * interval '1 minute'))
   and not exists (select 1 from watch_parties w where w.episode_id = e.id
-                   and (w.starts_at is null or w.starts_at > now() - ${WATCH_DECISION_SECONDS} * interval '1 second'))`;
+                   and ((w.starts_at is null and not ${houseRoomDue("w")}) or w.starts_at > now() - ${WATCH_DECISION_SECONDS} * interval '1 second'))`;
 
 /** Airs one date if it's due (an episode being opened airs it, so nobody waits for the hourly job). */
 export async function airIfDue(db: Db, id: string, env: Record<string, string | undefined> = process.env): Promise<Aired | null> {

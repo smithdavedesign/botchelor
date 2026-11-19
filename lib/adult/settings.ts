@@ -44,11 +44,11 @@ export const DEFAULT_REEL_MODEL = "wan-3-0-image-to-video";
 // cost six shorter ones had, so the reel's price stays.
 export const DEFAULT_REEL_SHOTS = 4;
 /**
- * 8 since 2026-11-01 (David: "update the token cost"): on Replicate, shots with a line now say it on Wan 2.6 (#1240),
- * $3.25 to $6.40 a video (a line over 13 words takes a 10 s shot), against about $5.45 in at 8; Wan 3.0 on Venice
- * ($4.25 to $5.50) is covered too.
+ * 10 since 2026-11-19 (David: "up the price"): four 10 s shots on Venice's Wan 3.0 cost about $5.40 to $5.50 (#1813), and
+ * at 8 a video about broke even. 10, not more, so the smallest After Dark pack (10 tokens, lib/adult/tokens.ts) still buys
+ * one; about $7.20 to $8.60 in after fees. A shot filmed again is its share, 3 (refilmTokens). 8 from 2026-11-01, 7 before.
  */
-export const DEFAULT_REEL_TOKENS = 8;
+export const DEFAULT_REEL_TOKENS = 10;
 /**
  * A clip on demand (lib/adult/clips.ts): one shot of the two of them, from the act menu or the scene's latest moment, or
  * kept going from the last one. About $0.70 to make on Venice (a keyframe and 5 s of Wan 3.0), about $0.15 on
