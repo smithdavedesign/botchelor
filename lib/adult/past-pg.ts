@@ -22,8 +22,10 @@
  *
  * This file is pure (a client component imports the copy); lib/adult/past-pg-viewer.ts reads the database and the request.
  */
-import type { RejectReason } from "../safety";
 import type { AfterDarkMode } from "../jurisdiction";
+
+/** The refusals that open the door (lib/safety.ts, where the show's reasons live): past PG, and nothing else. */
+export { isPastPg } from "../safety";
 
 type Env = Record<string, string | undefined>;
 
@@ -34,11 +36,6 @@ export function pastPgDoorOn(env: Env = process.env): boolean {
 
 /** The source the door's link carries (adult_invites.source), so the owner's review says where a request came from. */
 export const PAST_PG_SOURCE = "past_pg";
-
-/** The refusals that open the door: past PG, and nothing else (never a minor, a real person or an unread language). */
-export function isPastPg(reason: unknown): reason is Extract<RejectReason, "sexual" | "innuendo"> {
-  return reason === "sexual" || reason === "innuendo";
-}
 
 /** The door for one viewer: where it leads, and whether that page asks for an invite or sells the subscription. */
 export type PastPgDoor = { href: string; kind: "invite" | "join" };

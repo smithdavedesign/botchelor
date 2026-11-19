@@ -18,8 +18,7 @@ import { artStyleInWords } from "./art-style";
 import { NAME_MAX } from "./field-limits";
 import { importFromFields, readyToDate, statedAge, stillMissing, SOURCE_KEYS, type ImportedDraft, type SourceFields } from "./import-character";
 import { LOOK_STEPS, optionsFor, WORK_OUTFITS, type Gender, type Looks } from "./looks";
-import { CHARACTER_REJECTION_MESSAGES, checkSheetText, type RejectReason } from "./safety";
-import { isPastPg } from "./adult/past-pg";
+import { CHARACTER_REJECTION_MESSAGES, checkSheetText, isPastPg, type RejectReason } from "./safety";
 
 /** The box takes about a tweet: a sentence or two, not a card (that is /import's job). */
 export const EXPRESS_TEXT_MAX = 280;
@@ -113,7 +112,7 @@ export function screenExpressText(text: string, name: string): { ok: true } | { 
   if (statedUnderage(text)) return { ok: false, reason: "minor", message: CHARACTER_REJECTION_MESSAGES.minor };
   const verdict = checkSheetText({ bio: text, name });
   if (verdict.ok) return { ok: true };
-  // Past PG (sexual content or innuendo, never a minor or a real person): the builder can offer After Dark (lib/adult/past-pg.ts).
+  // Past PG (sexual content or innuendo, never a minor or a real person): the builder can offer After Dark (lib/safety.ts isPastPg).
   return { ok: false, reason: refusalOf(verdict.reason), message: CHARACTER_REJECTION_MESSAGES[verdict.reason], ...(isPastPg(verdict.reason) ? { pastPg: true as const } : {}) };
 }
 

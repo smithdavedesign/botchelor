@@ -4,6 +4,9 @@ import { useEffect, useRef } from "react";
 import { queueEvent } from "@/app/engagement";
 import { PAST_PG_COPY, type PastPgDoor as Door } from "@/lib/adult/past-pg";
 
+/** The door's link for one viewer (lib/adult/past-pg-viewer.ts), as the builder hands it down. */
+export type PastPgDoorLink = Door;
+
 /**
  * The past-PG door on /create (lib/adult/past-pg.ts says who sees it): a character refused for going past PG gets two ways
  * on instead of a dead end. "Keep them PG" takes them to the bio, where their words already are; After Dark is the

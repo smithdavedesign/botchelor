@@ -96,8 +96,8 @@ import {
   type ExpressEvent,
   type ExpressFailure,
 } from "@/lib/express-create";
-import { isPastPg, type PastPgDoor as PastPgDoorLink } from "@/lib/adult/past-pg";
-import PastPgDoor from "./PastPgDoor";
+import { isPastPg } from "@/lib/safety";
+import PastPgDoor, { type PastPgDoorLink } from "./PastPgDoor";
 
 export type Partner = {
   id: string;
