@@ -3186,9 +3186,10 @@ showcase pages, videos should play on hover or automatically preferably, and the
 - **A post's rating decides its host** (`lib/showcase-paths.ts`): the safe side is the show's Gallery (`/showcase`,
   `/showcase/reels`); the explicit side is After Dark's own, `/after-dark/showcase` and `/after-dark/showcase/reels`,
   served from ad.botchelor.com behind its 18+ gate.
-- **The header** is Scenes · Studio · Gallery · Episodes. Gallery has two rooms (`app/after-dark/GalleryTabs.tsx`):
-  Yours (`/after-dark/gallery`) and Showcase, the second only for whoever may see that side (an admin until
-  `explicit_open`). The hub's 🌟 Showcase button went with the header's door.
+- **The header** was Scenes · Studio · Gallery · Episodes (Scenes · Studio · Gallery since the hub's redo, below).
+  Gallery has two rooms (`app/after-dark/GalleryTabs.tsx`): Yours (`/after-dark/gallery`) and Showcase, the second
+  only for whoever may see that side (an admin until `explicit_open`). The hub's 🌟 Showcase button went with the
+  header's door.
 - **Old addresses move** (`middleware.ts` `moveShowcaseSide`): `/showcase`, its reels and a creator's page asked with
   `?side=after_dark` go to After Dark's page with their filters (a creator's page becomes `?creator=`), through the
   sign-in hop from the show. The show's deployment never lists an explicit post (`seenFilters`).
@@ -3198,6 +3199,30 @@ showcase pages, videos should play on hover or automatically preferably, and the
   After Dark's privacy blur instead of its own veil.
 - **Living portraits** (the show's PG clips, `lib/showcase-loops.ts`) are left out of every After Dark gallery:
   `ownMedia`, `galleryCounts`, `listMedia` and `characterMedia` (`NOT_A_LIVING_PORTRAIT`). They stay on the show.
+
+### The hub as a landing page; Episodes a section of Scenes (2026-11-18)
+
+David: "Move the episodes tab into scenes as a section and clean this page up … make it a flagship landing page with
+more assets … change the choose a new pair to be better ux like a picker with a search."
+- **The header is Scenes · Studio · Gallery** (`app/Nav.tsx`). `/after-dark/shorts` stays (every episode and the Call
+  it board), with Scenes marked current there. The hub's **Episodes** section shows the newest six
+  (`app/after-dark/shorts/EpisodeCards.tsx`, shared with that page).
+- **The hub is the whole screen wide** (`.page-full`, an 84rem measure). The hero's words sit beside the night to pick
+  up: its newest picture, who, and its last line. With no night under way, this season's faces show instead.
+- **Continue** shows each night under way as a card with its newest picture (`pairCovers`, `lib/adult/scenes.ts`). The
+  newest eight show first, then "Show all".
+- **The pair picker** (`app/after-dark/PairPicker.tsx`, logic in `lib/adult/pair-pick.ts`):
+  - two slots, a search box (accents and case aside, a name that starts with what's typed first), and Everyone ·
+    House cast · Yours where those split the cast;
+  - the faces in a panel that scrolls: from your nights first, then everyone else A to Z;
+  - once one is picked, who they can be with, their nights first (with how far each has got);
+  - both picked: the pair large with Start or Continue; 🎲 draws a pair not yet started.
+  - Enter takes the first face; Escape clears what's typed, then the last pick.
+- **The page sends the cast, not every pair.** Any two of the cast are a pair, and 151 of them made 11,325 pairs: the
+  live hub was 4.6 MB of HTML. The picker makes a pair nobody has started from its two faces, at the same address
+  (`pairPath`). `listCastPairs` still lists every pair for the admin MCP.
+- **Further down:** Your latest (six, a sideways row on a phone), and **On the Showcase**: the Showcase room's most
+  liked this week, for whoever may see it.
 - **Clips play by themselves** while mostly on screen, on every screen (`app/useInViewAutoplay.ts`, at most six at once,
   never while blurred or with reduced motion), on the show's Gallery, a creator's page, After Dark's Showcase and
   Yours. Those pages are the whole screen wide (`.page-full`). The hook is the show's and knows nothing of After Dark

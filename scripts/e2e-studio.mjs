@@ -613,23 +613,31 @@ async function main() {
       await page.locator(".ad-studio-group").first().waitFor({ timeout: 30_000 });
     });
 
-    await step("the pair picker: faces, then who with, then a way in; Start over brings every face back", async () => {
+    await step("the pair picker: faces, then who with, then a way in; search finds by name; Start over brings every face back", async () => {
       await page.goto(`${app.base}/after-dark`);
       const picker = page.locator(".ad-pair-picker");
       await picker.waitFor({ timeout: 15_000 });
-      assert((await picker.locator("li.card").count()) === 0 || (await picker.getByRole("heading", { name: "Continue" }).count()) > 0, "a list of new pairs is still shown");
-      const faces = picker.locator(".ad-cast-chips button.ad-cast-chip");
+      assert((await picker.locator("li.ad-night").count()) === 0 || (await picker.getByRole("heading", { name: "Continue" }).count()) > 0, "a list of new pairs is still shown");
+      const faces = picker.locator(".ad-pp-panel button.ad-pp-face");
       const all = await faces.count();
       assert(all >= 2, `faces: ${all}`);
+      // The search box (2026-11-18): a name typed leaves its matches; Escape brings everyone back.
+      const search = picker.locator("input.ad-pp-search");
+      const name = ((await faces.first().getAttribute("title")) ?? "").split(/\s+/)[0];
+      await search.fill(name);
+      const found = await faces.count();
+      assert(found >= 1 && found <= all, `searching "${name}" left ${found} of ${all}`);
+      await search.press("Escape");
+      assert((await faces.count()) === all, "Escape didn't bring every face back");
       await faces.first().click();
-      assert((await picker.locator(".ad-pair-picked button.ad-cast-chip.on").count()) === 1, "the first pick isn't shown as picked");
+      assert((await picker.locator(".ad-pp-slots button.ad-pp-slot.is-filled").count()) === 1, "the first pick isn't shown as picked");
       const partners = await faces.count();
       assert(partners >= 1 && partners < all, `after one pick, ${partners} of ${all} faces show`);
       await picker.getByRole("button", { name: "Start over" }).click();
       assert((await faces.count()) === all, "Start over didn't bring every face back");
       await faces.first().click();
       await faces.first().click();
-      const go = picker.locator(".ad-pair-go a");
+      const go = picker.locator(".ad-pp-chosen .ad-pair-go a");
       await go.waitFor({ timeout: 5_000 });
       assert(/^(Start|Continue) /.test((await go.innerText()).trim()), `the way in says "${await go.innerText()}"`);
       await picker.getByRole("button", { name: "Start over" }).click();

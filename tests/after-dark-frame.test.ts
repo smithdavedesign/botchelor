@@ -2,8 +2,9 @@ import { randomUUID } from "node:crypto";
 import { createElement } from "react";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 // After Dark's frame (the design kit's After Dark header, 2026-11-12; its doors 2026-11-15, lib/adult/doors.ts): on its
-// own host the header is Scenes · Studio · Gallery · Episodes, and the account as an icon after them (the Showcase door
-// became a room of the Gallery on 2026-11-18: it took them out of After Dark, app/after-dark/GalleryTabs.tsx). Who's in
+// own host the header is Scenes · Studio · Gallery, and the account as an icon after them (the Showcase door became a room
+// of the Gallery on 2026-11-18: it took them out of After Dark, app/after-dark/GalleryTabs.tsx; Episodes a section of
+// Scenes the same day, David: "move the episodes tab into scenes as a section"). Who's in
 // and the Studio are on the Studio door's page (/after-dark/characters sends there); the writer and privacy on Account.
 // Nothing dropped: each is one tap from the header, and the hub's row carries them where the header is the show's.
 const jar = vi.hoisted(() => ({ cookies: new Map<string, string>(), path: "/after-dark", adOnly: false }));
@@ -30,7 +31,9 @@ import Nav from "@/app/Nav";
 import { claimAdmin } from "@/lib/admins";
 import { setAdultSwitch } from "@/lib/adult/characters";
 import { HOUSE_CHARACTERS } from "@/lib/house";
+import { pairPath } from "@/lib/adult/pair-pick";
 import { setSeasonCastForTests } from "@/lib/season-cast";
+import { A, B, C, publishNight, session, wholeNight } from "./after-dark-shorts-fixtures";
 import { signedInCookie, startTestDb, TEST_SESSION_SECRET } from "./helpers";
 
 let t: Awaited<ReturnType<typeof startTestDb>>;
@@ -77,19 +80,20 @@ describe("the header on After Dark's host", () => {
   const nav = (doors: { studio: boolean; showcase: boolean }) =>
     renderToStaticMarkup(createElement(Nav, { tokens: 0, meter: "none", adHost: true, afterDark: true, hasCharacter: true, adDoors: doors, showHref: "https://show.example" }));
 
-  it("is Scenes, Studio, Gallery and Episodes, then the account, with the page you're on marked", () => {
+  it("is Scenes, Studio and Gallery, then the account, with the page you're on marked", () => {
     jar.path = "/after-dark/studio";
     const html = nav({ studio: true, showcase: true });
-    expect(navLinks(html).map(([, label]) => label)).toEqual(expect.arrayContaining(["Scenes", "Studio", "Gallery", "Episodes", "Account"]));
+    expect(navLinks(html).map(([, label]) => label)).toEqual(expect.arrayContaining(["Scenes", "Studio", "Gallery", "Account"]));
     expect(current(html, "/after-dark/studio")).toBe(true);
     expect(current(html, "/after-dark")).toBe(false);
     // David, 2026-11-18: no door out to the show's showcase ("it takes you out of after dark"); it's the Gallery's room.
     expect(navLinks(html).map(([, label]) => label)).not.toContain("Showcase");
     expect(html).not.toContain("side=after_dark");
     expect(html).not.toContain('href="https://show.example/showcase');
-    // Shorts and Characters are Episodes and Studio now, at the same addresses (Characters sends to Studio).
+    // Characters is Studio now (/after-dark/characters sends there). Episodes is a section of Scenes, not a door.
     expect(navLinks(html).map(([, label]) => label)).not.toContain("Shorts");
-    expect(html).toContain('href="/after-dark/shorts"');
+    expect(navLinks(html).map(([, label]) => label)).not.toContain("Episodes");
+    expect(html).not.toContain('href="/after-dark/shorts"');
     // The show's own links stay on the show.
     expect(navLinks(html).map(([href]) => href)).not.toContain("/watch");
   });
@@ -113,9 +117,13 @@ describe("the header on After Dark's host", () => {
     }
   });
 
-  it("marks Scenes on a pair's night, the Studio door on a Studio, and Account on the tokens page", () => {
+  it("marks Scenes on a pair's night and the episodes, the Studio door on a Studio, and Account on the tokens page", () => {
     jar.path = `/after-dark/${HOUSE_CHARACTERS[0].id}/${HOUSE_CHARACTERS[1].id}`;
     expect(current(nav({ studio: true, showcase: false }), "/after-dark")).toBe(true);
+    for (const path of ["/after-dark/shorts", "/after-dark/shorts/abc"]) {
+      jar.path = path;
+      expect(current(nav({ studio: true, showcase: false }), "/after-dark"), path).toBe(true);
+    }
     jar.path = `/after-dark/studio/${HOUSE_CHARACTERS[0].id}`;
     expect(current(nav({ studio: true, showcase: false }), "/after-dark/studio")).toBe(true);
     expect(current(nav({ studio: true, showcase: false }), "/after-dark")).toBe(false);
@@ -247,7 +255,8 @@ describe("the home's hero", () => {
     expect(html).toContain("data-ad-hero");
     expect(html).toContain('<a class="button" href="#scenes">Pick a pair</a>');
     expect(html).not.toContain("data-latest-night");
-    expect(html).toContain('<section id="scenes"><h2>Scenes</h2>');
+    expect(html).not.toContain("data-ad-feature");
+    expect(html).toContain('<section id="scenes" class="ad-home-section"><h2>Scenes</h2>');
   });
 
   it("picks up the latest played night, and leads into the scenes", async () => {
@@ -269,8 +278,72 @@ describe("the home's hero", () => {
     const html = await home();
     const path = `/after-dark/${x}/${y}`;
     expect(html).toMatch(new RegExp(`<a class="button" data-latest-night="${path}" title="[^"]+" href="${path}">▶ Pick up where they left off</a>`));
-    // The hero leads into the scenes, the row of other pages under them.
-    expect(html.indexOf("data-ad-hero")).toBeLessThan(html.indexOf('<section id="scenes">'));
-    expect(html.indexOf('<section id="scenes">')).toBeLessThan(html.indexOf('class="ad-hub-links"'));
+    // Beside the words, the night itself: a card that opens it, with its last line.
+    expect(html).toMatch(new RegExp(`<a class="ad-home-feature" data-ad-feature="true" href="${path}">`));
+    expect(html).toContain("Stay a while.");
+    // The hero leads into the scenes, then the episodes, the row of other pages under them.
+    expect(html.indexOf("data-ad-hero")).toBeLessThan(html.indexOf('<section id="scenes"'));
+    expect(html.indexOf('<section id="scenes"')).toBeLessThan(html.indexOf('<section id="episodes"'));
+    expect(html.indexOf('<section id="episodes"')).toBeLessThan(html.indexOf('class="ad-hub-links"'));
+  });
+});
+
+// The home as a landing page (David, 2026-11-18: "move the episodes tab into scenes as a section … make it a flagship
+// landing page with more assets … the choose a new pair … a picker with a search").
+describe("the home as a landing page", () => {
+  const home = async () => renderToStaticMarkup(await AfterDarkHome({ searchParams: Promise.resolve({}) }));
+
+  it("has Episodes as a section: the newest published, each opening its page, and a way to all of them and the board", async () => {
+    const { id } = await admin();
+    setSeasonCastForTests([A, B, C]);
+    let html = await home();
+    expect(html).toContain('<section id="episodes"');
+    expect(html).toContain("No episodes yet");
+    expect(html).toContain('href="/after-dark/shorts"');
+    await wholeNight(t.db, id);
+    const short = await publishNight({ cookie: session(id) }, "A harbour night");
+    html = await home();
+    expect(html).toContain(`data-episode="${short}"`);
+    expect(html).toContain(`href="/after-dark/shorts/${short}"`);
+    expect(text(html)).toContain("A harbour night");
+    expect(html).not.toContain("No episodes yet");
+    // The hero says it's here too.
+    expect(html).toContain('href="#episodes"');
+  });
+
+  it("puts each night's newest picture on its card and the hero, and sends the picker the cast, not every pair", async () => {
+    const { id } = await admin();
+    setSeasonCastForTests([A, B, C]);
+    await t.db.query(`insert into adult_scenes (id, owner_id, character_a, character_b, lines, updated_at) values ('s-ab', $1, $2, $3, $4::jsonb, now())`, [
+      id,
+      A,
+      B,
+      JSON.stringify([{ who: "a", text: "Hello." }]),
+    ]);
+    const picture = (mid: string, a: string, b: string | null, at: string, kind = "scene") =>
+      t.db.query(`insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, status, created_at) values ($1, $2, $3, $4, $5, 'x', 'image/png', 'ready', $6)`, [
+        mid,
+        id,
+        a,
+        b,
+        kind,
+        at,
+      ]);
+    await picture("older-ab", A, B, "2026-11-01T00:00:00Z");
+    // Stored either way round, it's still theirs; the newest wins.
+    await picture("newest-ab", B, A, "2026-11-10T00:00:00Z");
+    // Not a cover: one of them alone, or a clip.
+    await picture("solo-a", A, null, "2026-11-12T00:00:00Z");
+    await picture("clip-ab", A, B, "2026-11-13T00:00:00Z", "video");
+    const html = await home();
+    expect(html).toContain('src="/api/admin/after-dark/media/newest-ab?w=640"');
+    expect(html).toContain('src="/api/admin/after-dark/media/newest-ab?w=960"');
+    expect(html).not.toContain("older-ab?w=");
+    expect(html).not.toContain("solo-a?w=");
+    expect(html).not.toContain("clip-ab?w=");
+    // A pair nobody has started isn't on the page (the picker makes it from its two faces): 151 of the cast made a
+    // 4.6 MB hub of 11,325 pairs.
+    expect(html).not.toContain(pairPath(B, C));
+    expect(html).toContain('class="ad-pp-search"');
   });
 });

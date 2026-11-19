@@ -318,9 +318,11 @@ export async function eligiblePair(db: Db, ownerId: string, x: string, y: string
 
 /** Every pair of the characters who can be in after dark, with how far each pair's scene has gone for this admin. */
 /** One pair on the hub: who, how far their night has got, and (under way) where it was left. */
+/** One of a pair: their name and faces, and whether they're the house cast's or this person's own (the picker's filters). */
+export type CastMember = { id: string; name: string; portrait: string | null; photo?: string | null; house?: boolean; mine?: boolean };
 export type CastPair = {
-  a: { id: string; name: string; portrait: string | null; photo?: string | null };
-  b: { id: string; name: string; portrait: string | null; photo?: string | null };
+  a: CastMember;
+  b: CastMember;
   lines: number;
   path: string;
   /** Under way: the night's last line ("Sweet: …", its action out), its chapter, and when it was last played. */
@@ -329,6 +331,8 @@ export type CastPair = {
   updated_at?: string | null;
   /** A pair kept from an earlier cast (lib/adult/characters.ts keptPairs, #1132): "From October's cast". */
   earlier?: string;
+  /** The night's newest picture, as its card's cover on the hub (pairCovers): its media route, a size (?w=) added where it's shown. */
+  cover?: string | null;
 };
 
 /**
@@ -344,10 +348,14 @@ export async function listCastPairs(db: Db, adminId: string): Promise<CastPair[]
   const everyone = [...new Set([...cast, ...kept.flatMap((k) => k.gone)])];
   // Their approved PG portrait too (2026-11-03: the hub showed initials for everyone without an After Dark face).
   const people = (
-    await db.query<{ id: string; name: string; portrait: string | null }>(`select c.id, c.name, ${portraitPathSql("c")} as portrait from characters c where c.id = any($1)`, [everyone])
+    await db.query<{ id: string; name: string; portrait: string | null; house: boolean; mine: boolean }>(
+      `select c.id, c.name, ${portraitPathSql("c")} as portrait, c.is_house as house, c.owner_id is not distinct from $2 as mine from characters c where c.id = any($1)`,
+      [everyone, adminId],
+    )
   ).rows;
   const names = new Map(people.map((r) => [r.id, r.name]));
   const portraits = new Map(people.map((r) => [r.id, r.portrait]));
+  const kinds = new Map(people.map((r) => [r.id, { house: Boolean(r.house), mine: Boolean(r.mine) }]));
   type Row = { character_a: string; character_b: string; n: number; chapter: number; updated_at: Date | string | null; last: { who?: string; text?: string } | null };
   const scenes = new Map(
     (
@@ -374,7 +382,13 @@ export async function listCastPairs(db: Db, adminId: string): Promise<CastPair[]
     // Under way: lines in this chapter, or chapters filed (a new chapter starts empty). A kept pair always is: its nights
     // may all be saved (Start over), and it's listed only because there are some.
     const going = Boolean(earlier) || lines > 0 || (row?.chapter ?? 1) > 1;
-    const who = (id: string) => ({ id, name: names.get(id) ?? id, portrait: portraits.get(id) ?? null, ...(going ? { photo: faces.get(id) ?? null } : {}) });
+    const who = (id: string): CastMember => ({
+      id,
+      name: names.get(id) ?? id,
+      portrait: portraits.get(id) ?? null,
+      ...(kinds.get(id) ?? {}),
+      ...(going ? { photo: faces.get(id) ?? null } : {}),
+    });
     const said = row?.last?.text ? row.last.text.replace(/\*[^*]*\*/g, " ").replace(/\s+/g, " ").trim() : "";
     return {
       a: who(a),
@@ -399,6 +413,34 @@ export async function listCastPairs(db: Db, adminId: string): Promise<CastPair[]
   for (const k of kept) pairs.push(pairOf(k.pair[0], k.pair[1], k.label));
   return pairs;
 }
+
+/**
+ * Each night's newest picture of the two of them, by the pair's path key ("a/b", the two ids in order), for the hub's
+ * cards (David, 2026-11-18: "a flagship landing page with more assets"): this person's own, ready, not a version another
+ * was kept over, as its media route (the page adds the size it shows it at: ?w=640 or 960, lib/thumbs.ts). Only for the
+ * pairs asked (the nights under way).
+ */
+export async function pairCovers(db: Db, ownerId: string, pairs: readonly (readonly [string, string])[]): Promise<Map<string, string>> {
+  if (!pairs.length) return new Map();
+  const ids = [...new Set(pairs.flat())];
+  const keys = new Set(pairs.map(([a, b]) => coverKey(a, b)));
+  // least/greatest only group the two either way round; the key is made here, so it sorts as the page's does.
+  const { rows } = await db.query<{ x: string; y: string; id: string }>(
+    `select distinct on (x, y) x, y, id from (
+       select least(i.character_id, i.character_b) as x, greatest(i.character_id, i.character_b) as y, i.id, i.created_at
+         from adult_images i
+        where i.owner_id = $1 and i.character_id = any($2) and i.character_b = any($2) and i.kind = 'scene'
+          and i.status = 'ready' and i.mime like 'image/%' and i.superseded_by is null
+     ) m order by x, y, created_at desc`,
+    [ownerId, ids],
+  );
+  const out = new Map<string, string>();
+  for (const r of rows) if (keys.has(coverKey(r.x, r.y))) out.set(coverKey(r.x, r.y), `/api/admin/after-dark/media/${encodeURIComponent(r.id)}`);
+  return out;
+}
+
+/** A pair's key for pairCovers: the two ids in JavaScript's order, either way round. */
+export const coverKey = (a: string, b: string): string => [a, b].sort().join("/");
 
 async function latestDate(db: Db, a: string, b: string): Promise<LatestDate | null> {
   const { rows } = await db.query<LatestDate>(
