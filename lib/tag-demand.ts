@@ -108,6 +108,12 @@ export const ART_STYLE_VALUES: readonly FacetValue[] = [
   { id: "realistic", label: ART_STYLE_LABEL.realistic, icon: "📷", census: 0.92 },
   { id: "anime", label: ART_STYLE_LABEL.anime, icon: "🎨", census: 1.08 },
   { id: "semi_real", label: ART_STYLE_LABEL.semi_real, icon: "✏️", census: 1.05 },
+  // The newer drawn styles (2026-11-18): no census rank of their own yet, so an even prior.
+  { id: "oil_painting", label: ART_STYLE_LABEL.oil_painting, icon: "🖼️", census: 1 },
+  { id: "render_3d", label: ART_STYLE_LABEL.render_3d, icon: "🧊", census: 1 },
+  { id: "comic", label: ART_STYLE_LABEL.comic, icon: "💥", census: 1 },
+  { id: "ink", label: ART_STYLE_LABEL.ink, icon: "🖋️", census: 1 },
+  { id: "pixel", label: ART_STYLE_LABEL.pixel, icon: "👾", census: 1 },
 ];
 
 /** Who's in the lineup, by pronouns: the census has no number of its own for these, so the prior is even. */

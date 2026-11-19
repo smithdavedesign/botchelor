@@ -62,6 +62,10 @@ export const MAX_HOBBIES = 5;
 export const TEXT_DETAILS = {
   occupation: { label: "Occupation", max: 60 },
   hometown: { label: "Hometown", max: 60 },
+  /** Where they come from when it isn't our world (a fantasy kingdom, a starship, an underwater city). */
+  world: { label: "Their world", max: 80 },
+  /** A few sentences of past (David, 2026-11-18): where they're from, what shaped them, why they're dating now. */
+  backstory: { label: "Backstory", max: 600 },
   style: { label: "Style", max: 80 },
   signature_item: { label: "Signature item", max: 60 },
   go_to_order: { label: "Go-to order", max: 60 },

@@ -68,7 +68,15 @@ export const FACE_LOOP_PROMPT =
   "The camera doesn't move. No talking, no gestures, nobody else comes in, the same clothes, place and light. They end as they began. Fully clothed, safe for work. Photorealistic. An adult.";
 
 /** Who a drawn character is in a face prompt: "the anime character in the picture". */
-const DRAWN_WHO: Record<DrawnStyle, string> = { anime: "anime character", semi_real: "illustrated character" };
+const DRAWN_WHO: Record<DrawnStyle, string> = {
+  anime: "anime character",
+  semi_real: "illustrated character",
+  oil_painting: "painted character",
+  render_3d: "3D character",
+  comic: "comic character",
+  ink: "ink-drawn character",
+  pixel: "pixel-art character",
+};
 
 /**
  * A face prompt in their art style: a drawn character's face is an illustration of them in their own style (the style's

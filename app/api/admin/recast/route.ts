@@ -21,7 +21,9 @@ const roleFields = {
 };
 const Input = z.discriminatedUnion("action", [
   // The owner's own edit, as the owner (the PATCH body: every check of an ordinary edit applies).
-  z.object({ action: z.literal("update"), character_id: id, patch: z.record(z.string(), z.unknown()) }),
+  // merge_extras: the patch's extras are laid over the saved ones key by key (as update_character does), so a backfill
+  // can add a field without sending, or losing, the private ones (baggage, private facts, After Dark looks).
+  z.object({ action: z.literal("update"), character_id: id, patch: z.record(z.string(), z.unknown()), merge_extras: z.boolean().optional() }),
   // Their portrait from their look (saved first when given), showing who they are (role, props, setting).
   z.object({ action: z.literal("portrait"), character_id: id, look: z.string().trim().max(RECAST_LOOK_MAX).optional(), ...roleFields }),
   // Their full-body reference from that portrait, in what they wear and hold.
@@ -74,11 +76,16 @@ export const POST = handle(async (req: Request) => {
 
   switch (input.action) {
     case "update": {
+      let patch = input.patch;
+      if (input.merge_extras && patch.extras && typeof patch.extras === "object" && !Array.isArray(patch.extras)) {
+        const saved = (await db.query<{ extras: Record<string, unknown> | null }>(`select extras from characters where id = $1`, [input.character_id])).rows[0]?.extras ?? {};
+        patch = { ...patch, extras: { ...saved, ...(patch.extras as Record<string, unknown>) } };
+      }
       const cookie = sessionCookies({ userId: owner, authenticated: true })[0].split(";")[0];
       const edit = new Request(new URL(`/api/characters/${input.character_id}`, req.url), {
         method: "PATCH",
         headers: { "content-type": "application/json", cookie },
-        body: JSON.stringify(input.patch),
+        body: JSON.stringify(patch),
       });
       const res = await patchCharacter(edit, { params: Promise.resolve({ id: input.character_id }) });
       const body = await res.json().catch(() => ({}));

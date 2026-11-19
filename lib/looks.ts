@@ -14,7 +14,7 @@
  * client component) and the API share this file.
  */
 import { z } from "zod";
-import { artStyleFrom, STYLE_WORDS, type ArtStyle } from "./art-style";
+import { ART_STYLES, artStyleFrom, STYLE_WORDS, type ArtStyle } from "./art-style";
 import { NO_FRANCHISE_WORDS } from "./franchise-words";
 import type { KindId } from "./kinds";
 
@@ -406,7 +406,8 @@ const ids = (step: LookStepId, extra: readonly LookOption[] = []) => {
 export const LooksInput = z
   .object({
     gender: z.enum(GENDERS).optional(),
-    style: z.enum(ids("style")).optional(),
+    // Every art style (lib/art-style.ts), not only the builder's tiles: an agent or the house can pick the newer ones.
+    style: z.enum(ART_STYLES).optional(),
     ethnicity: z.enum(ids("ethnicity")).optional(),
     age: z.number().int().min(LOOK_MIN_AGE).max(LOOK_MAX_AGE).optional(),
     eyes: z.enum(ids("eyes")).optional(),

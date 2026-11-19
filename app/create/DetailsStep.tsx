@@ -26,6 +26,8 @@ export type SetExtras = (update: (prev: CharacterExtras) => CharacterExtras) => 
 const PLACEHOLDERS: Partial<Record<TextDetail, string>> = {
   occupation: "Lighthouse keeper",
   hometown: "a fishing village",
+  world: "Ours, or a floating sky-city, a starship, an elven court",
+  backstory: "Grew up above her parents' bakery, ran away to sea at 19, came home to take over the ovens and has been too busy to date since",
   style: "Thrifted cardigans and mismatched socks",
   signature_item: "a yellow raincoat",
   go_to_order: "Two desserts, no main",
@@ -48,7 +50,11 @@ export function DetailField({ k, extras, setExtras }: { k: TextDetail; extras: C
     <label className="detail-field">
       {label}
       <span className="detail-row">
-        <input type="text" name={`extra_${k}`} maxLength={max} placeholder={PLACEHOLDERS[k] && `e.g. ${PLACEHOLDERS[k]}`} value={extras[k] ?? ""} onChange={(e) => set(e.target.value)} />
+        {max > 200 ? (
+          <textarea name={`extra_${k}`} maxLength={max} rows={4} placeholder={PLACEHOLDERS[k] && `e.g. ${PLACEHOLDERS[k]}`} value={extras[k] ?? ""} onChange={(e) => set(e.target.value)} />
+        ) : (
+          <input type="text" name={`extra_${k}`} maxLength={max} placeholder={PLACEHOLDERS[k] && `e.g. ${PLACEHOLDERS[k]}`} value={extras[k] ?? ""} onChange={(e) => set(e.target.value)} />
+        )}
         {SUGGESTIONS[k] && (
           <button type="button" className="dice" aria-label={`Suggest a ${label.toLowerCase()}`} title="Suggest one" onClick={() => set(suggest(k))}>
             🎲
@@ -250,9 +256,11 @@ export default function DetailsStep({ extras, setExtras, name }: { extras: Chara
       </Group>
 
       <p className="detail-section-label">Optional: it all shows on their card</p>
-      <Group title="The basics" filled={filledOf(extras, ["occupation", "hometown", "star_sign", "love_language", "language"])}>
+      <Group title="The basics" filled={filledOf(extras, ["occupation", "hometown", "world", "backstory", "star_sign", "love_language", "language"])}>
         <DetailField k="occupation" extras={extras} setExtras={setExtras} />
         <DetailField k="hometown" extras={extras} setExtras={setExtras} />
+        <DetailField k="world" extras={extras} setExtras={setExtras} />
+        <DetailField k="backstory" extras={extras} setExtras={setExtras} />
         <div className="detail-pair">
           <label>
             Star sign

@@ -11,15 +11,32 @@
  * Pure data, no server imports: the builder, the companions browser and the API share it.
  */
 
-export const ART_STYLES = ["realistic", "anime", "semi_real"] as const;
+/**
+ * The first three are the builder's style tiles (lib/looks.ts). The rest (David, 2026-11-18: "feel free to expand art
+ * styles") came with the catalog of 5,000 house pictures, whose top styles reach past anime and 2.5D: an agent, the API
+ * and the house cast can pick them now; the builder shows them once their tiles are drawn. Every one but realistic is
+ * drawn, so After Dark leaves them all out (notDrawnSql).
+ */
+export const ART_STYLES = ["realistic", "anime", "semi_real", "oil_painting", "render_3d", "comic", "ink", "pixel"] as const;
+/** The styles the builder has tiles for. */
+export const BUILDER_ART_STYLES = ["realistic", "anime", "semi_real"] as const;
 export type ArtStyle = (typeof ART_STYLES)[number];
 
 /** The drawn styles: anything but a photograph. */
 export type DrawnStyle = Exclude<ArtStyle, "realistic">;
-export const DRAWN_STYLES: readonly DrawnStyle[] = ["anime", "semi_real"];
+export const DRAWN_STYLES: readonly DrawnStyle[] = ["anime", "semi_real", "oil_painting", "render_3d", "comic", "ink", "pixel"];
 
 /** Each style's name on a page. */
-export const ART_STYLE_LABEL: Record<ArtStyle, string> = { realistic: "Realistic", anime: "Anime", semi_real: "2.5D" };
+export const ART_STYLE_LABEL: Record<ArtStyle, string> = {
+  realistic: "Realistic",
+  anime: "Anime",
+  semi_real: "2.5D",
+  oil_painting: "Oil painting",
+  render_3d: "3D",
+  comic: "Comic",
+  ink: "Ink",
+  pixel: "Pixel art",
+};
 
 export const isArtStyle = (v: unknown): v is ArtStyle => typeof v === "string" && (ART_STYLES as readonly string[]).includes(v);
 
@@ -29,11 +46,19 @@ export const artStyleFrom = (v: unknown): ArtStyle => (isArtStyle(v) ? v : "real
 /** A character's style, from its looks. */
 export const artStyleOf = (c: { extras?: { looks?: { style?: string } | null } | null } | null | undefined): ArtStyle => artStyleFrom(c?.extras?.looks?.style);
 
-/** Drawn rather than photographed: anime or 2.5D. */
+/** Drawn rather than photographed: every style but realistic. */
 export const isDrawnStyle = (s: ArtStyle): s is DrawnStyle => s !== "realistic";
 
 /** A drawn style as a sentence names it: "drawn in anime", "drawn in 2.5D". */
-export const DRAWN_IN: Record<DrawnStyle, string> = { anime: "anime", semi_real: "2.5D" };
+export const DRAWN_IN: Record<DrawnStyle, string> = {
+  anime: "anime",
+  semi_real: "2.5D",
+  oil_painting: "oil paint",
+  render_3d: "3D",
+  comic: "comic style",
+  ink: "ink",
+  pixel: "pixel art",
+};
 
 /** SQL on `alias`: the character's style, realistic when unset or unknown. */
 export const artStyleSql = (alias: string): string =>
@@ -104,6 +129,46 @@ export const STYLE_WORDS: Record<ArtStyle, StyleWords> = {
     editFinish: `Semi-realistic painterly 2.5D digital illustration in the same style as Picture 1: soft cinematic light, clean linework on the face, ${DRAWN_ADULT_WORDS}.`,
     appearance: "painterly 2.5D-style",
   },
+  oil_painting: {
+    medium: "Classical oil painting portrait",
+    noun: "oil painting",
+    finish: `Visible brushwork, rich glazed colour, soft chiaroscuro light, ${DRAWN_ADULT_WORDS}`,
+    short: "Classical oil painting, visible brushwork, soft chiaroscuro light, mature adult features and proportions.",
+    editFinish: `Classical oil painting in the same style as Picture 1: visible brushwork, rich glazed colour, ${DRAWN_ADULT_WORDS}.`,
+    appearance: "oil-painted",
+  },
+  render_3d: {
+    medium: "Stylised 3D character render",
+    noun: "3D render",
+    finish: `Soft global illumination, subsurface skin shading, clean studio backdrop, ${DRAWN_ADULT_WORDS}`,
+    short: "Stylised 3D character render, soft global illumination, mature adult features and proportions.",
+    editFinish: `Stylised 3D character render in the same style as Picture 1: soft global illumination, ${DRAWN_ADULT_WORDS}.`,
+    appearance: "3D-rendered",
+  },
+  comic: {
+    medium: "Bold comic-book illustration",
+    noun: "comic illustration",
+    finish: `Confident ink outlines, flat bold colour, halftone shading, ${DRAWN_ADULT_WORDS}`,
+    short: "Bold comic-book illustration, ink outlines, flat colour, mature adult features and proportions.",
+    editFinish: `Bold comic-book illustration in the same style as Picture 1: ink outlines, flat bold colour, ${DRAWN_ADULT_WORDS}.`,
+    appearance: "comic-style",
+  },
+  ink: {
+    medium: "Black-and-white ink illustration",
+    noun: "ink illustration",
+    finish: `Fine pen linework, cross-hatching and ink wash, high contrast, ${DRAWN_ADULT_WORDS}`,
+    short: "Black-and-white ink illustration, fine linework and ink wash, mature adult features and proportions.",
+    editFinish: `Black-and-white ink illustration in the same style as Picture 1: fine linework and ink wash, ${DRAWN_ADULT_WORDS}.`,
+    appearance: "ink-drawn",
+  },
+  pixel: {
+    medium: "Detailed pixel-art character portrait",
+    noun: "pixel art",
+    finish: `Crisp pixels, a limited palette, clean dithering, ${DRAWN_ADULT_WORDS}`,
+    short: "Detailed pixel art, crisp pixels and a limited palette, mature adult features and proportions.",
+    editFinish: `Detailed pixel art in the same style as Picture 1: crisp pixels, a limited palette, ${DRAWN_ADULT_WORDS}.`,
+    appearance: "pixel-art",
+  },
 };
 
 /** The style some words ask for (a sentence on /create's quick start): anime or manga, 2.5D or semi-realistic, else realistic. */
@@ -111,5 +176,11 @@ export function artStyleInWords(words: string): ArtStyle {
   const w = ` ${words.toLowerCase()} `;
   if (/\banime\b|\bmanga\b/.test(w)) return "anime";
   if (/\b2\.5d\b|\bsemi-?realistic\b|\bsemi-?real\b|\bpainterly\b/.test(w)) return "semi_real";
+  // The newer styles only on words that ask for a look, never on a job or a hobby ("a tattoo ink artist", "a 3D printing nerd").
+  if (/\b(oil[- ]painted|in oils?|oil[- ]painting style)\b/.test(w)) return "oil_painting";
+  if (/\b(3d[- ](render(ed)?|style|animated|cgi)|cgi[- ]animated)\b/.test(w)) return "render_3d";
+  if (/\b(comic[- ]book style|comic style|drawn like a comic)\b/.test(w)) return "comic";
+  if (/\b(pen[- ]and[- ]ink|ink drawing|ink wash|ink[- ]drawn|line art)\b/.test(w)) return "ink";
+  if (/\b(pixel[- ]art|8-?bit style|16-?bit style)\b/.test(w)) return "pixel";
   return "realistic";
 }

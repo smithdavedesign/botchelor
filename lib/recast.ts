@@ -83,14 +83,35 @@ export const ANIME_NEGATIVE_PROMPT = drawnNegative(/^(cartoon|anime|illustration
 /** A 2.5D portrait's: without the usual "illustration" (it is one); "cartoon" and "anime" still steer it away from those. */
 export const SEMI_REAL_NEGATIVE_PROMPT = drawnNegative(/^illustration$/i);
 
+/** The newer drawn styles' (lib/art-style.ts): each keeps every age word and drops only what names its own medium. */
+export const OIL_PAINTING_NEGATIVE_PROMPT = drawnNegative(/^illustration$/i);
+export const RENDER_3D_NEGATIVE_PROMPT = drawnNegative(/^(cartoon|illustration)$/i);
+export const COMIC_NEGATIVE_PROMPT = drawnNegative(/^(cartoon|illustration)$/i);
+export const INK_NEGATIVE_PROMPT = drawnNegative(/^illustration$/i);
+export const PIXEL_NEGATIVE_PROMPT = drawnNegative(/^(cartoon|illustration)$/i);
+
+const NEGATIVE_BY_STYLE: Record<DrawnStyle, string> = {
+  anime: ANIME_NEGATIVE_PROMPT,
+  semi_real: SEMI_REAL_NEGATIVE_PROMPT,
+  oil_painting: OIL_PAINTING_NEGATIVE_PROMPT,
+  render_3d: RENDER_3D_NEGATIVE_PROMPT,
+  comic: COMIC_NEGATIVE_PROMPT,
+  ink: INK_NEGATIVE_PROMPT,
+  pixel: PIXEL_NEGATIVE_PROMPT,
+};
+
 /** The negative prompt for a portrait in this style; undefined for a photograph (venicePicture's default). */
-export const negativePromptFor = (style: ArtStyle): string | undefined =>
-  style === "anime" ? ANIME_NEGATIVE_PROMPT : style === "semi_real" ? SEMI_REAL_NEGATIVE_PROMPT : undefined;
+export const negativePromptFor = (style: ArtStyle): string | undefined => (style === "realistic" ? undefined : NEGATIVE_BY_STYLE[style]);
 
 /** How a drawn portrait is finished, before the words about age. */
 const DRAWN_PORTRAIT_FINISH: Record<DrawnStyle, string> = {
   anime: "Cel shading, clean linework, rich colour.",
   semi_real: "Soft cinematic rim light, warm key light, rich but controlled colour, clean linework on the face, expressive eyes.",
+  oil_painting: "Visible brushwork, rich glazed colour, soft chiaroscuro light.",
+  render_3d: "Soft global illumination, subsurface skin shading, a clean studio backdrop.",
+  comic: "Confident ink outlines, flat bold colour, halftone shading.",
+  ink: "Fine pen linework, cross-hatching and ink wash, high contrast, black and white.",
+  pixel: "Crisp pixels, a limited palette, clean dithering.",
 };
 
 /**

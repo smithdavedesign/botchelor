@@ -146,9 +146,10 @@ describe("the privacy notice", () => {
     expect(strip(render(PrivacyPage))).toContain(`The log of an agent's tool calls: ${MCP_CALLS_KEEP_DAYS} days.`);
   });
 
-  it("is dated 17 November 2026, with what changed (and the earlier changes kept under it)", () => {
-    expect(render(PrivacyPage)).toMatch(/Last updated 17 November 2026\./);
-    expect(render(PrivacyPage)).toMatch(/Changed: the privacy notice says what we keep if you save who you are in scenes/);
+  it("is dated 18 November 2026, with what changed (and the earlier changes kept under it)", () => {
+    expect(render(PrivacyPage)).toMatch(/Last updated 18 November 2026\./);
+    expect(render(PrivacyPage)).toMatch(/Changed \(18 November\): the terms say Botchelor owns the characters it makes for the show/);
+    expect(render(PrivacyPage)).toMatch(/Before that \(17 November\): the privacy notice says what we keep if you save who you are in scenes/);
     // Who you are in scenes (lib/persona.ts): what's kept, where it goes, and until when.
     expect(strip(render(PrivacyPage))).toMatch(/If you save who you are in scenes \(on your account page\): the name, the line on how you look and the line on who\s+you are that you wrote\./);
     expect(strip(render(PrivacyPage))).toMatch(/Who you are in scenes: until you forget it on your account page, or delete your account\./);
@@ -165,7 +166,11 @@ describe("the privacy notice", () => {
     expect(render(PrivacyPage)).toMatch(/Claude, reached through OpenRouter/);
     expect(render(PrivacyPage)).not.toMatch(/Vercel hosts|AI Gateway/);
     expect(render(PrivacyPage)).toMatch(/Before that \(1 November\): Analytics names the three events/);
-    expect(render(TermsPage)).toMatch(/Last updated 17 November 2026\./);
+    expect(render(TermsPage)).toMatch(/Last updated 18 November 2026\./);
+    // Our own cast (2026-11-18): ownership, adults only, no bulk download or AI training.
+    expect(strip(render(TermsPage))).toMatch(/<h2 id="our-cast">Our own characters<\/h2>/);
+    expect(strip(render(TermsPage))).toMatch(/every one of our characters is a fictional adult/);
+    expect(strip(render(TermsPage))).toMatch(/use anything on Botchelor to train, fine-tune or test\s+an AI model/);
   });
 });
 
