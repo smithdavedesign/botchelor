@@ -232,6 +232,9 @@ rich but controlled color, clean linework on faces, expressive eyes, reality-sho
   - Previously and Tonight lines that say how the last step ended, and a logline.
   - The step counts once its date airs. A pair whose date never comes, or never airs, is staged again later. Three
     misses close the arc as faded, and a day the owner skipped never counts.
+  - A house room nobody starts never airs on its own (it waits to play live for its first viewer). So from the second
+    night after the arc's day, an arc's date whose room was never started airs anyway (`ARC_AIR_DAYS`, 2026-11-19): on a
+    quiet week the arc moves on instead of fading. A started room still airs at its decision.
   - The reveal closes the arc: together after a second date, apart otherwise. A mixer table between them never counts
     as a step.
   - `ARCS=0` or `PRODUCER=0` turns it off; a lead season has no arcs. /admin/season shows each arc step.
