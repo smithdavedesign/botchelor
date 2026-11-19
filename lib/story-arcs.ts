@@ -11,7 +11,8 @@
  *    Tonight lines.
  *  - The day's first house date (lib/watch.ts lobbyDeal, after a challenge winner's) is then theirs, playing one of the
  *    show's roleplays tagged with their setup (lib/roleplays.ts), one they haven't played yet, dealt from the day.
- *  - Once that date airs, the arc keeps its ending and moves on; the next step's lines say what happened. The ending
+ *  - Once that date airs, the arc keeps its ending and moves on; the next step's lines say what happened. A date whose
+ *    house room nobody started airs on its own from ARC_AIR_DAYS after its day, so a quiet week doesn't stall the arc. The ending
  *    stays the engine's, and the arc adapts to it: a reveal that ends in a second date closes the arc "together", any
  *    other ending closes it "apart" (it didn't happen). A step whose date never came, or never aired, is staged again
  *    on a later night; after ARC_MISSES_MAX of those in a row the arc closes "faded".
@@ -42,6 +43,12 @@ export type ArcOutcome = "together" | "apart" | "faded";
 export const ARC_GAP_DAYS = 2;
 /** How long a staged step's date has to air, in days after its day, before the step is staged again later. */
 export const ARC_WAIT_DAYS = 3;
+/**
+ * From how many days after its day a step's date airs on its own when its house room was never started (2026-11-19).
+ * A room waits for its first viewer to play live (lib/air.ts never airs a date whose room hasn't started), so on a quiet
+ * week the arc's dates sat unaired and the arc faded: the room has its day and the next, then the date airs anyway.
+ */
+export const ARC_AIR_DAYS = 2;
 /** Steps that never played, in a row, before the arc closes. */
 export const ARC_MISSES_MAX = 3;
 
@@ -171,8 +178,9 @@ export async function settleArcs(db: Db, day: string): Promise<number> {
     // The step's date: the first public date between the two of them made on its day or the next. Never a mixer's
     // table (group_id): six lines at a speed date aren't the step the producer staged.
     const date = (
-      await db.query<{ id: string; ending: Ending; aired: boolean }>(
-        `select e.id, e.ending, (e.revealed_at is not null) as aired
+      await db.query<{ id: string; ending: Ending; aired: boolean; creator_id: string | null; unstarted: boolean }>(
+        `select e.id, e.ending, (e.revealed_at is not null) as aired, e.creator_id,
+                exists (select 1 from watch_parties w where w.episode_id = e.id and w.starts_at is null) as unstarted
            from episodes e
           where ((e.character_a = $1 and e.character_b = $2) or (e.character_a = $2 and e.character_b = $1))
             and e.created_at >= $3 and e.created_at < $4 and e.status = 'ready' and e.visibility = 'public' and e.group_id is null
@@ -180,6 +188,12 @@ export async function settleArcs(db: Db, day: string): Promise<number> {
         [arc.a, arc.b, startOf(staged).toISOString(), startOf(dayPlus(staged, 2)).toISOString()],
       )
     ).rows[0];
+    // Its room never started and its day and the next have passed: it airs now, the way any other date airs.
+    if (date && !date.aired && date.unstarted && date.creator_id && day >= dayPlus(staged, ARC_AIR_DAYS)) {
+      const { airEpisode } = await import("./air");
+      const done = await airEpisode(db, date.id, date.creator_id).catch(() => null);
+      if (done) Object.assign(date, { aired: true, ending: done.ending });
+    }
     if (date?.aired && (ENDINGS as readonly string[]).includes(date.ending)) {
       const dates: ArcDate[] = [...arc.dates, { step: arc.step, day: staged, episode_id: date.id, ending: date.ending, roleplay: arc.roleplay }];
       const next = nextStep(arc.step);

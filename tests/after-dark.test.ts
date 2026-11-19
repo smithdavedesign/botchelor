@@ -927,6 +927,7 @@ import {
   placesOf,
   placeWords,
   reelCast,
+  replyTo,
   tellApart,
   setReelFetchForTests,
   setReelPausesForTests,
@@ -1029,8 +1030,9 @@ describe("the video of the night", () => {
     const queued = seen.filter((s) => s.path === "/video/queue");
     expect(queued.map((q) => mediaOf(q.body.image_url)).sort()).toEqual(frames.map((f) => f.id).sort());
     for (const q of queued) {
-      // By default Wan 3.0 says the line itself (David's pick), with both of them kept in one continuous shot.
-      expect(q.body).toMatchObject({ model: "wan-3-0-image-to-video", audio: true, aspect_ratio: "adaptive" });
+      // By default Wan 3.0 says the line itself (David's pick), with both of them kept in one continuous shot, 10 s a
+      // shot like a Studio animation (David, 2026-11-18), whatever the line's length.
+      expect(q.body).toMatchObject({ model: "wan-3-0-image-to-video", audio: true, aspect_ratio: "adaptive", duration: "10s" });
       expect(q.body.audio_url).toBeUndefined();
       expect(q.body.prompt).toMatch(/Two people only: the (man|woman) and the (man|woman), exactly as in the picture/);
       expect(q.body.prompt).toContain("One continuous shot, the camera steady: no cuts, nobody else comes in.");
@@ -1038,7 +1040,7 @@ describe("the video of the night", () => {
       expect(q.body.prompt).not.toMatch(/Rafe|Juniper/);
     }
     expect(String(queued.find((q) => String(q.body.prompt).includes("rolls her hips"))!.body.prompt)).toContain("She rolls her hips; the man grips her waist.");
-    expect(String(queued.find((q) => String(q.body.prompt).includes("Line number 2"))!.body.prompt)).toMatch(/says: "Line number 2 says something rather vivid here\." The (man|woman) says it with (his|her) mouth free, not kissing or covered, face turned so the lips show; the (man|woman) stays quiet, listening\.$/);
+    expect(String(queued.find((q) => String(q.body.prompt).includes("Line number 2"))!.body.prompt)).toMatch(/says: "Line number 2 says something rather vivid here\."( The (man|woman), in .+, answers: ".+")?$/);
     expect(seen.some((s) => s.path === "/audio/speech")).toBe(false);
     // Two shots per poll (Hive rate-limits a burst), then the last one; each video row names its keyframe.
     expect((await advance(started.id, cookie)).shots.filter((s) => s.status === "ready")).toHaveLength(2);
@@ -1312,7 +1314,11 @@ describe("the video of the night", () => {
     let asked = "";
     setAdultModelForTests({ complete: async (msgs) => ((asked = msgs.map((m) => m.content).join("\n")), "not json") });
     const picks = await pickShots(t.db, night, 4, cast, night.map(() => "the kitchen"), night.map(() => 2));
-    expect(asked).toContain("Every shot shows the two of them together in one frame, doing what the script has them doing at that line");
+    expect(asked).toContain("Every shot is a 10-second clip of the two of them together in one frame, doing what the script has them doing at that line");
+    // The act named plainly, the speaker's mouth free for the line, and no place the script doesn't name (2026-11-18).
+    expect(asked).toContain("Name the act plainly and specifically");
+    expect(asked).toContain("never a moment where their mouth is busy");
+    expect(asked).toContain("never another room, vehicle or spot the script doesn't name");
     expect(asked).toContain("named only like this, never by name");
     // Lying down from a wide angle came out tangled, a face hidden (the first live reel): from the side, faces to camera.
     expect(asked).toContain("lying down, a medium shot from the side with both faces toward the camera, never from above");
@@ -1396,7 +1402,14 @@ describe("the video of the night", () => {
     expect(keyframePrompt(cast, "x", null, 3, false)).toMatch(/they're half undressed, as the moment says\..*Explicit, uncensored, photorealistic\./);
     expect(keyframePrompt(cast, "x", null, 1, false)).toMatch(/they're dressed as the moment says, not nude: both fully clothed, shirts and tops on and done up\..*Photorealistic\. Both are adults\.$/);
     const s = { who: "b" as const, text: "Come here.", motion: "They kiss." };
-    expect(shotPrompt(cast, s, false)).toMatch(new RegExp(`^They kiss\\. Two people only: .* ${cast[1].tag[0].toUpperCase()}${cast[1].tag.slice(1)}, in a [a-z ,']+voice, says: "Come here\\." ${cast[1].tag[0].toUpperCase()}${cast[1].tag.slice(1)} says it with (his|her) mouth free, not kissing or covered, face turned so the lips show; ${cast[0].tag} stays quiet, listening\\.$`));
+    // The action leads, as a Studio animation's direction does; a model that voices the line gets no "mouth free" (2026-11-18).
+    expect(shotPrompt(cast, s, false)).toMatch(new RegExp(`^Most important, do exactly this: They kiss\\. Two people only: .* ${cast[1].tag[0].toUpperCase()}${cast[1].tag.slice(1)}, in a [a-z ,']+voice, says: "Come here\\."$`));
+    // The other one's answer, in the same shot, in their own voice.
+    const answered = shotPrompt(cast, { ...s, reply: { who: "a", text: "Make me." } }, false);
+    expect(answered).toMatch(new RegExp(`says: "Come here\\." ${cast[0].tag[0].toUpperCase()}${cast[0].tag.slice(1)}, in a [a-z ,']+voice, answers: "Make me\\."$`));
+    // A reply by the same one, or on a lip-sync model (one voice), isn't said.
+    expect(shotPrompt(cast, { ...s, reply: { who: "b", text: "Make me." } }, false)).not.toContain("answers");
+    expect(shotPrompt(cast, { ...s, reply: { who: "a", text: "Make me." } }, true)).not.toContain("answers");
     expect(shotPrompt(cast, s, true)).toMatch(/is the one speaking, lips moving with the words\. The (man|woman) says it with (his|her) mouth free, not kissing or covered, face turned so the lips show; the (man|woman) stays quiet, listening\.$/);
   });
 
@@ -1418,6 +1431,34 @@ describe("the video of the night", () => {
 });
 
 import { CHAPTER_LINES } from "@/lib/adult/scenes";
+
+describe("a night's shot: one or two lines (David, 2026-11-18)", () => {
+  type Line = Parameters<typeof replyTo>[0][number];
+  const places = ["the kitchen", "the kitchen", "the kitchen"];
+  const stages = [2, 2, 2];
+
+  it("gives a shot the other one's answer when it comes right after, fits the 10 seconds and stays in the moment", () => {
+    const lines = [
+      { who: "a", text: "Come here." },
+      { who: "b", text: "*smiles* Make me." },
+      { who: "a", text: "Gladly." },
+    ] as Line[];
+    expect(replyTo(lines, 0, places, stages, null)).toEqual({ who: "b", text: "Make me." });
+    // An action-only line in between is skipped; the next spoken one is still the answer.
+    expect(replyTo([lines[0], { who: "b", text: "*laughs*" }, { who: "b", text: "Make me." }] as Line[], 0, places, stages, null)).toEqual({ who: "b", text: "Make me." });
+  });
+
+  it("gives none when the same one speaks next, the moment moves on, or both lines won't fit one shot", () => {
+    const first = { who: "a", text: "Come here." } as Line;
+    expect(replyTo([first, { who: "a", text: "Now." }] as Line[], 0, places, stages, null)).toBeNull();
+    expect(replyTo([first, { who: "b", text: "Make me." }] as Line[], 0, ["the kitchen", "the hall"], stages, null)).toBeNull();
+    expect(replyTo([first, { who: "b", text: "Make me." }] as Line[], 0, places, [2, 3], null)).toBeNull();
+    expect(replyTo([first, { who: "b", text: "Make me." }] as Line[], 0, places, stages, { chapterOf: [0, 1] })).toBeNull();
+    expect(replyTo([first, { who: "b", text: Array.from({ length: 30 }, () => "word").join(" ") }] as Line[], 0, places, stages, null)).toBeNull();
+    // Three lines on is a different moment.
+    expect(replyTo([first, { who: "a", text: "*waits*" }, { who: "a", text: "*waits*" }, { who: "b", text: "Make me." }] as Line[], 0, places, stages, null)).toBeNull();
+  });
+});
 
 describe("chapters: a long night runs on, and remembers how it began", () => {
   it("files a full chapter as a saved night, recaps it, carries the last lines over, and the next prompt holds the recap", async () => {

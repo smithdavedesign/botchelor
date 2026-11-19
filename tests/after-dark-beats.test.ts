@@ -3,7 +3,7 @@ import { GET, POST } from "@/app/api/admin/after-dark/route";
 import { POST as settingsPost } from "@/app/api/admin/after-dark/settings/route";
 import { GET as drawAheadGet, POST as drawAheadPost } from "@/app/api/admin/after-dark/draw-ahead/route";
 import { NO_MEDIA_LIMITS } from "@/lib/adult/acts";
-import { BEATS_PER_CHAPTER, beatFrame, beatLabel, beatPictureFor, beatPicturesSettled, fileBeats, findBeats, poseHere, positionIn, rewindBeats } from "@/lib/adult/beats";
+import { BEAT_REUSE_LINES, BEATS_PER_CHAPTER, beatFrame, beatLabel, beatPictureFor, beatPicturesSettled, fileBeats, findBeats, poseHere, positionIn, rewindBeats } from "@/lib/adult/beats";
 import { rateMedia } from "@/lib/adult/steering";
 import { HIVE_VLM, setCheckFetchForTests, setCheckSleepForTests } from "@/lib/adult/check";
 import { aheadBudget, settleDrawAhead } from "@/lib/adult/draw-ahead";
@@ -291,7 +291,7 @@ describe("beats as the scene is written", () => {
 });
 
 describe("a video of the night", () => {
-  it("starts a shot from the beat picture before its line, at the same stage and place, each picture once", async () => {
+  it("starts a shot from the beat picture just before its line (at most BEAT_REUSE_LINES), at the same stage and place, each picture once", async () => {
     const { id, cookie } = await admin();
     const scene = await ready(cookie, id);
     fakeMedia();
@@ -301,16 +301,19 @@ describe("a video of the night", () => {
     await beatPicturesSettled();
     const pic = (await beatsOf(scene.id))[0].picture_id!;
     const pair = [JUNIPER, RAFE].sort() as [string, string];
-    expect(await beatPictureFor(t.db, id, pair, { chapter: 1, night_id: null }, 5, 4, "her bedroom")).toEqual({ id: pic, eyes: null });
+    expect(await beatPictureFor(t.db, id, pair, { chapter: 1, night_id: null }, 3, 4, "her bedroom")).toEqual({ id: pic, eyes: null });
     expect(await beatPictureFor(t.db, id, pair, { chapter: 1, night_id: null }, 0, 4, "her bedroom")).toBeNull();
-    expect(await beatPictureFor(t.db, id, pair, { chapter: 1, night_id: null }, 5, 3, "her bedroom")).toBeNull();
-    expect(await beatPictureFor(t.db, id, pair, { chapter: 1, night_id: null }, 5, 4, "the kitchen")).toBeNull();
+    // The beat is on line 1: three lines on, it shows an earlier moment than the shot's (2026-11-18), so a new keyframe.
+    expect(BEAT_REUSE_LINES).toBe(2);
+    expect(await beatPictureFor(t.db, id, pair, { chapter: 1, night_id: null }, 4, 4, "her bedroom")).toBeNull();
+    expect(await beatPictureFor(t.db, id, pair, { chapter: 1, night_id: null }, 3, 3, "her bedroom")).toBeNull();
+    expect(await beatPictureFor(t.db, id, pair, { chapter: 1, night_id: null }, 3, 4, "the kitchen")).toBeNull();
     // One the viewer 👎'd doesn't start a shot (a fresh, steered keyframe does), and does again once the 👎 is taken back.
     expect(await rateMedia(t.db, id, pic, -1, ["face"])).toMatchObject({ ok: true });
-    expect(await beatPictureFor(t.db, id, pair, { chapter: 1, night_id: null }, 5, 4, "her bedroom")).toBeNull();
+    expect(await beatPictureFor(t.db, id, pair, { chapter: 1, night_id: null }, 3, 4, "her bedroom")).toBeNull();
     await rateMedia(t.db, id, pic, 0);
-    expect(await beatPictureFor(t.db, id, pair, { chapter: 1, night_id: null }, 5, 4, "her bedroom")).toEqual({ id: pic, eyes: null });
-    const shots: ReelShot[] = [2, 5].map((line) => ({ line, who: "a", text: "Now.", motion: "m", status: "queued" }));
+    expect(await beatPictureFor(t.db, id, pair, { chapter: 1, night_id: null }, 3, 4, "her bedroom")).toEqual({ id: pic, eyes: null });
+    const shots: ReelShot[] = [2, 3].map((line) => ({ line, who: "a", text: "Now.", motion: "m", status: "queued" }));
     await reuseBeatPictures(t.db, id, pair, shots, { chapters: [{ chapter: 1, night_id: null, lines: 7 }], chapterOf: Array(7).fill(0) }, [0], Array(7).fill("her bedroom"), Array(7).fill(4));
     expect(shots.map((s) => [s.from_beat ?? false, s.media_id ?? null])).toEqual([
       [true, pic],

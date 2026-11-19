@@ -15,6 +15,7 @@ import { checkShowText } from "@/lib/safety";
 import { setSeasonCastForTests } from "@/lib/season-cast";
 import { setSeasonFormatForTests } from "@/lib/season-format-store";
 import {
+  ARC_AIR_DAYS,
   ARC_MISSES_MAX,
   ARC_STEPS,
   arcDate,
@@ -252,6 +253,42 @@ describe("an arc's three dates", () => {
     await settleArcs(t.db, "2026-11-26");
     expect(ARC_MISSES_MAX).toBe(3);
     expect(await arcOf()).toMatchObject({ misses: 3, status: "done", outcome: "faded" });
+  });
+
+  it("a date in a room nobody started airs from the night after next, so a quiet week doesn't fade the arc (2026-11-19)", async () => {
+    await addLink(t.db, A, B, "second_chance", "One summer, a ring box never opened.");
+    await openArcs(t.db, "2026-11-01", CAST.map((c) => c.id));
+    const arc = await arcOf();
+    await markStaged(t.db, arc.id, "2026-11-13", null, null);
+    // The day's house date, in a lobby room that was never started (lib/air.ts never airs it on its own).
+    await t.db.query(
+      `insert into episodes (id, creator_id, character_a, character_b, setting, goals, scenes, twist, finale, ending, revealed_at, visibility, created_at, status)
+       values ('room-date', 'system', $1, $2, 'a bar', '[]'::jsonb, '[]'::jsonb, 'T', 'F', 'second_date', null, 'public', $3, 'ready')`,
+      [A, B, new Date("2026-11-13T16:20:00Z").toISOString()],
+    );
+    await t.db.query(`insert into watch_parties (id, episode_id, kind) values ('room-1', 'room-date', 'template')`);
+    // Its day and the next: the room still waits for a viewer.
+    expect(await settleArcs(t.db, "2026-11-14")).toBe(0);
+    expect((await t.db.query(`select revealed_at from episodes where id = 'room-date'`)).rows[0].revealed_at).toBeNull();
+    // Then it airs, and the arc moves on with its ending.
+    expect(ARC_AIR_DAYS).toBe(2);
+    expect(await settleArcs(t.db, "2026-11-15")).toBe(1);
+    expect((await t.db.query(`select revealed_at from episodes where id = 'room-date'`)).rows[0].revealed_at).not.toBeNull();
+    expect(await arcOf()).toMatchObject({ step: "setback", staged_day: null, misses: 0, dates: [{ step: "spark", day: "2026-11-13", episode_id: "room-date", ending: "second_date" }] });
+  });
+
+  it("a started room's date isn't aired by the arc: the room airs it at its decision", async () => {
+    await addLink(t.db, A, B, "rivals", "They both bid on the same lighthouse.");
+    await openArcs(t.db, "2026-11-01", CAST.map((c) => c.id));
+    await markStaged(t.db, (await arcOf()).id, "2026-11-13", null, null);
+    await t.db.query(
+      `insert into episodes (id, creator_id, character_a, character_b, setting, goals, scenes, twist, finale, ending, revealed_at, visibility, created_at, status)
+       values ('live-date', 'system', $1, $2, 'a bar', '[]'::jsonb, '[]'::jsonb, 'T', 'F', 'friends', null, 'public', $3, 'ready')`,
+      [A, B, new Date("2026-11-13T16:20:00Z").toISOString()],
+    );
+    await t.db.query(`insert into watch_parties (id, episode_id, kind, starts_at) values ('room-2', 'live-date', 'template', $1)`, [new Date("2026-11-15T23:00:00Z").toISOString()]);
+    expect(await settleArcs(t.db, "2026-11-15")).toBe(0);
+    expect((await t.db.query(`select revealed_at from episodes where id = 'live-date'`)).rows[0].revealed_at).toBeNull();
   });
 
   it("only when the season lets the house book the pair, and only with ARCS on", async () => {
