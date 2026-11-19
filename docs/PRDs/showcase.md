@@ -106,6 +106,9 @@ or automatically preferably, and the page should be full width".
 - **📣 Publish's "See it on the showcase"** opens an explicit post on After Dark's showcase.
 - **Living portraits** are no longer listed in After Dark's galleries; they stay here.
 - **Clips autoplay** in view (muted, at most six), and the Gallery pages take the whole screen (`.page-full`).
+- **The show's own date clips no longer lead the Gallery** (David: "remove the clips from the show, no one cares in
+  the asset gallery/showcase page"). The "From the show" row, its query (`listShowClips`) and its switch
+  (`GALLERY_SHOW_CLIPS`) are gone; the clips still play on the home page and open their dates.
 
 ## Reels and the way in (2026-10-29)
 

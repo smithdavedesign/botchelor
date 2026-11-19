@@ -64,7 +64,6 @@ Rule two: **one read per question, used by every surface.** A page does not asse
 | What has this character been in, as what, and what came of it? | `characterCredits(db, ids, { viewerId })` in `lib/profile/credits.ts`: one statement for any number of characters. `creditLine` is its one-line form. | The character page ("On the show"), Gallery cards, a creator's page, MCP `get_character` (`on_the_show`) |
 | Which season was on air at this moment? | `seasonAtSql(at, show)` in `lib/show-seasons.ts` | Stamping a date when it airs; the backfill; the health check |
 | What format is this season? | `seasonFormatSlug` in `lib/season-format-store.ts`: the admin's row, else the frozen value, else the live ballot (a season that hasn't started), else classic | Everything that names a season's show |
-| Which clips has the show made? | `listShowClips(db, { characterId })` in `lib/home-clip.ts` | The Gallery's "From the show" row |
 | How whole are the keys? | `GET /api/admin/model-health` | Us, after a deploy |
 
 Reads take a list of ids where a list page needs them, so a page of cards costs one round trip. They are derived on
@@ -126,6 +125,5 @@ what happened on each show should be tagged with the show so one continuity neve
 |---|---|---|
 | `SEASON_KEYS` | on | Stamps a date's season when it airs and runs the backfill. Off: the columns stay null; nothing that reads them lacks a fallback. |
 | `CHARACTER_CREDITS` | on | Shows credits on the character page, Gallery cards, creator pages and in `get_character`. |
-| `GALLERY_SHOW_CLIPS` | on | The Gallery's "From the show" row. |
 | `CHAT_DATE_LINKS` | on | The links between a chat message and its date. |
 | `ACCOUNT_CLAIM` | on | Offering anonymous work to the account that signs in. |
