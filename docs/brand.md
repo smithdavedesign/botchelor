@@ -152,11 +152,13 @@ is, not by eye:
 --radius-pill 999px  pills and round buttons (50% for a circle)
 ```
 
-**Layout: two widths** (2026-11-08 audit; there had been four). `main` is the reading column, `--page-read`
-(46rem): forms, settings, an account page, legal text, a conversation. The pages you browse, home, Watch,
-Characters, Companions, the showcase and creators, Reunion, Reviews and the graph, opt into `--page-wide` (72rem)
-by putting `.page-wide` on their root element (`main:has(> .page-wide)` in app/ux/catalog.css); an episode is wide by
-its own rule. Both are centred with `--gutter` sides, so phones never scroll sideways. A wide page still keeps
+**Layout: two widths, and the whole screen** (2026-11-08 audit; there had been four). `main` is the reading column,
+`--page-read` (46rem): forms, settings, an account page, legal text, a conversation. The pages you browse, home, Watch,
+Characters, Companions, Reunion, Reviews and the graph, opt into `--page-wide` (72rem) by putting `.page-wide` on their
+root element (`main:has(> .page-wide)` in app/ux/catalog.css); an episode is wide by its own rule. The Gallery pages,
+the showcase, a creator's page and After Dark's Gallery (Yours and Showcase), take the whole screen with `.page-full`
+(2026-11-18, David: "full width for an immersive experience"): their grids add columns of big tiles as the screen
+grows, and their own paragraphs keep a 40rem measure. Both are centred with `--gutter` sides, so phones never scroll sideways. A wide page still keeps
 running text to a readable measure: a paragraph in a wide page should sit in a card, a column or a `max-width`
 of about 40rem, never across the whole 72rem. The layout's `<main id="main">` is the only `main`: a page's root is
 an `article` or a `div`, never another `main`. Two exceptions size themselves to their own layout and say why in a

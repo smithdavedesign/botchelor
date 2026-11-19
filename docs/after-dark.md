@@ -3178,6 +3178,32 @@ meta data of model used and prompt used, character(s)."
     the PG side.
   - A twin's viewer never names its original.
 
+### After Dark's side moves onto After Dark (2026-11-18)
+
+David: "There are PG videos on after dark, can we move them out?", "remove the showcase tab because it takes you out
+of after dark", "consolidate the after dark showcase in ad.botchelor", "keep the reel page as is, I like it", and "on
+showcase pages, videos should play on hover or automatically preferably, and the page should be full width".
+- **A post's rating decides its host** (`lib/showcase-paths.ts`): the safe side is the show's Gallery (`/showcase`,
+  `/showcase/reels`); the explicit side is After Dark's own, `/after-dark/showcase` and `/after-dark/showcase/reels`,
+  served from ad.botchelor.com behind its 18+ gate.
+- **The header** is Scenes · Studio · Gallery · Episodes. Gallery has two rooms (`app/after-dark/GalleryTabs.tsx`):
+  Yours (`/after-dark/gallery`) and Showcase, the second only for whoever may see that side (an admin until
+  `explicit_open`). The hub's 🌟 Showcase button went with the header's door.
+- **Old addresses move** (`middleware.ts` `moveShowcaseSide`): `/showcase`, its reels and a creator's page asked with
+  `?side=after_dark` go to After Dark's page with their filters (a creator's page becomes `?creator=`), through the
+  sign-in hop from the show. The show's deployment never lists an explicit post (`seenFilters`).
+- **The reels are the same page** (`app/showcase/reels/feed.tsx` renders both; `ReelFeed` unchanged). On After Dark
+  they keep their own one-tap veil, so the privacy blur steps aside inside `data-ad-own-veil` (`lib/adult/discreet.ts`).
+- **The showcase grid on After Dark** has no side bar, links that stay there (a creator or character is a filter), and
+  After Dark's privacy blur instead of its own veil.
+- **Living portraits** (the show's PG clips, `lib/showcase-loops.ts`) are left out of every After Dark gallery:
+  `ownMedia`, `galleryCounts`, `listMedia` and `characterMedia` (`NOT_A_LIVING_PORTRAIT`). They stay on the show.
+- **Clips play by themselves** while mostly on screen, on every screen (`app/useInViewAutoplay.ts`, at most six at once,
+  never while blurred or with reduced motion), on the show's Gallery, a creator's page, After Dark's Showcase and
+  Yours. Those pages are the whole screen wide (`.page-full`). The hook is the show's and knows nothing of After Dark
+  (`tests/adult-imports.test.ts`): After Dark's frame tells it what the blur still covers (`app/after-dark/AutoplayVeil.tsx`),
+  so a covered clip waits for its tap and then plays.
+
 ## The galleries' filters (2026-10-29)
 
 David, 2026-10-29: "in studio and anywhere where we see assets cleanup the organization by adding filters like tags,

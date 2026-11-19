@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { notFound } from "next/navigation";
 import Icon from "@/app/Icon";
 import { afterDarkTitle } from "@/lib/adult/discreet";
+import { afterDarkDoors } from "@/lib/adult/doors";
 import { canAfterDark } from "@/lib/adult/entitlement";
 import { GALLERY_PAGE, GALLERY_TAB_LABEL, GALLERY_TABS, galleryCounts, galleryLimit, galleryTab, type GalleryTab } from "@/lib/adult/gallery";
 import { ownMedia } from "@/lib/adult/media";
@@ -13,6 +14,7 @@ import { lockedForCookies } from "@/lib/adult/privacy";
 import { getDb } from "@/lib/db";
 import { authFromCookieStore } from "@/lib/http";
 import { currentHere, currentView } from "../view";
+import GalleryTabs from "../GalleryTabs";
 import LockedPreview from "../LockedPreview";
 import GalleryGrid from "./GalleryGrid";
 import ReelCards from "./ReelCards";
@@ -31,7 +33,9 @@ export async function generateMetadata(): Promise<Metadata> {
  * them to ... give them a signup link"): blurred tiles and the way in, never a picture.
  *
  * In tabs since 2026-11-15 (lib/adult/gallery.ts): Videos (each night's reel as one card, then the clips, from nights
- * or the Studio), Pictures and Faces, each loading its own, `?n=` a page more at a time.
+ * or the Studio), Pictures and Faces, each loading its own, `?n=` a page more at a time. Since 2026-11-18 it's the
+ * Gallery's first room, Yours, beside Showcase (./showcase, for whoever may see it: ../GalleryTabs.tsx), the full
+ * width of the screen, its clips playing by themselves once shown.
  */
 export default async function AfterDarkGalleryPage({ searchParams }: { searchParams: Promise<{ tab?: string; n?: string; source?: string }> }) {
   const db = await getDb();
@@ -39,9 +43,10 @@ export default async function AfterDarkGalleryPage({ searchParams }: { searchPar
   const auth = authFromCookieStore(store);
   if (!(await canAfterDark(db, auth)).ok) return <LockedPreview kind="gallery" source={(await searchParams).source} next="/after-dark/gallery" />;
   if (await lockedForCookies(db, auth!.userId, store)) notFound();
-  const here = await currentHere();
+  const [here, doors] = await Promise.all([currentHere(), afterDarkDoors(db, auth!.userId)]);
   const head = (
     <>
+      <GalleryTabs current="yours" showcase={doors.showcase} />
       <p className="kicker">
         <Icon name="moon" /> After Dark · private
       </p>
@@ -86,7 +91,7 @@ export default async function AfterDarkGalleryPage({ searchParams }: { searchPar
     faces: <>No faces yet. A character&apos;s face and body are set up in their Studio, the first time they&apos;re drawn.</>,
   };
   return (
-    <div className="after-dark-mode">
+    <div className="after-dark-mode page-full">
       <article className="after-dark ad-gallery-page">
         {head}
         <p className="muted">

@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { AI_FICTION_AFTER_DARK, AiFiction } from "@/app/AiLabel";
 import { DISCREET_ATTR, discreetValue } from "@/lib/adult/discreet";
 import type { AfterDarkView } from "@/lib/adult/privacy";
+import AutoplayVeil from "./AutoplayVeil";
 import DiscreetMedia from "./DiscreetMedia";
 import { showHome } from "@/lib/site";
 import PinGate from "./PinGate";
@@ -18,7 +19,8 @@ export default function AfterDarkFrame({ view, children }: { view: AfterDarkView
   const hook = { [DISCREET_ATTR]: discreetValue(view.blur) };
   return (
     <div className="ad-discreet" {...hook}>
-      {children}
+      {/* Clips that play by themselves wait while the blur covers them (app/useInViewAutoplay.ts). */}
+      <AutoplayVeil>{children}</AutoplayVeil>
       {/* The AI disclosure on every After Dark page (EU AI Act Art. 50; docs/after-dark.md 2026-10-24). */}
       <AiFiction text={AI_FICTION_AFTER_DARK} className="ad-ai-fiction" />
       {view.blur && <DiscreetMedia />}

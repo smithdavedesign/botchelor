@@ -18,6 +18,7 @@ import {
 import { signCarry, signSession, verifySession } from "@/lib/auth";
 import { getDb, setDbForTests, type Db } from "@/lib/db";
 import { SECURITY_HEADERS } from "@/lib/security-headers";
+import { seenFilters, type ShowcaseViewer } from "@/lib/showcase";
 import { requestBase } from "@/lib/site";
 import { middleware } from "@/middleware";
 
@@ -489,5 +490,45 @@ describe("After Dark's own address (#1034)", () => {
     expect(afterDarkPageMove("/", "", { identity: true, bot: false, show: SHOW }, env)).toEqual({ redirect: `${SHOW}/after-dark` });
     expect(afterDarkPageMove("/watch", "", { identity: true, bot: false, show: SHOW }, env)).toEqual({ redirect: `${SHOW}/watch` });
     expect(afterDarkPageMove("/after-dark", "", { identity: true, bot: false, show: SHOW }, env)).toBeNull();
+  });
+});
+
+// David, 2026-11-18: "can we consolidate the after dark showcase in ad.botchelor". Its After Dark side is After Dark's
+// own page now (lib/showcase-paths.ts): an address that asks for it the old way goes there, from either host, and the
+// show's deployment never lists an explicit post.
+describe("the showcase's After Dark side", () => {
+  it("moves from the show to After Dark's page: through the hop with an identity, its filters and the reel to open at kept", () => {
+    asShow();
+    expect(page(`${SHOW}/showcase?side=after_dark&creator=mara&medium=clip`, { cookie: `bz_adult=1; bz_uid=${UID}` })).toBe(
+      `307 ${AD}/api/auth/carry?to=%2Fafter-dark%2Fshowcase%3Fcreator%3Dmara%26medium%3Dclip - -`,
+    );
+    expect(page(`${SHOW}/showcase/reels?side=after_dark&start=p1`)).toBe(`307 ${AD}/after-dark/showcase/reels?start=p1 - -`);
+    expect(page(`${SHOW}/creators/mara?side=after_dark`, { "user-agent": GOOGLEBOT })).toBe(`307 ${AD}/after-dark/showcase?creator=mara - -`);
+    // A link's fetch gets the plain answer, so Next loads the page in full and that load moves.
+    const fetched = middleware(new NextRequest(`${SHOW}/showcase?side=after_dark`, { headers: { "user-agent": CHROME, "sec-fetch-dest": "empty", "sec-fetch-mode": "cors" } }));
+    expect([fetched.status, fetched.headers.get("location")]).toEqual([200, null]);
+    // The safe side, and the showcase's other pages, stay.
+    for (const stays of ["/showcase", "/showcase?side=pg", "/showcase/reels", "/creators/mara", "/showcase/requests?side=after_dark"]) {
+      expect(`${stays} ${page(`${SHOW}${stays}`)}`).toBe(`${stays} 200 - next -`);
+    }
+  });
+
+  it("moves within After Dark's own host (the reels' own side tabs and links), and within one host with the switch off", () => {
+    asAfterDark();
+    expect(page(`${AD}/showcase/reels?side=after_dark&start=p1`, { cookie: "bz_adult=1" })).toBe(`307 ${AD}/after-dark/showcase/reels?start=p1 - -`);
+    expect(page(`${AD}/showcase?character=c1&side=after_dark`, { cookie: "bz_adult=1" })).toBe(`307 ${AD}/after-dark/showcase?character=c1 - -`);
+    // The safe side is the show's, as every show page is.
+    expect(page(`${AD}/showcase/reels`, { cookie: "bz_adult=1" })).toBe(`307 ${SHOW}/showcase/reels - -`);
+    vi.unstubAllEnvs();
+    expect(page(`${SHOW}/showcase?side=after_dark&page=2`)).toBe(`307 ${SHOW}/after-dark/showcase?page=2 - -`);
+    expect(page(`${SHOW}/creators/mara?side=after_dark&medium=clip`)).toBe(`307 ${SHOW}/after-dark/showcase?medium=clip&creator=mara - -`);
+  });
+
+  it("is never listed by the show's deployment, even for an admin", () => {
+    const admin: ShowcaseViewer = { id: "a", admin: true, ratings: ["pg", "suggestive", "nsfw"] };
+    expect(seenFilters(admin, { side: "after_dark", creator: "mara" }, { AFTER_DARK_ORIGIN: AD })).toEqual({ side: undefined, creator: "mara" });
+    expect(seenFilters(admin, { side: "after_dark" }, { AFTER_DARK_ORIGIN: AD, AFTER_DARK_ONLY: "1" })).toEqual({ side: "after_dark" });
+    expect(seenFilters(admin, { side: "after_dark" }, {})).toEqual({ side: "after_dark" });
+    expect(seenFilters({ ...admin, admin: false, ratings: ["pg", "suggestive"] }, { side: "after_dark" }, {})).toEqual({ side: undefined });
   });
 });

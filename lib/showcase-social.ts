@@ -12,6 +12,7 @@
 import type { Db } from "./db";
 import { notify } from "./notifications";
 import { postMedia, type ShowcaseViewer } from "./showcase";
+import { postHref } from "./showcase-paths";
 
 /** A creator who went live: their followers told, each at most once a day for that creator. */
 export async function tellFollowers(db: Db, creatorId: string): Promise<void> {
@@ -58,7 +59,12 @@ export async function myRequests(db: Db, viewer: string): Promise<Request[]> {
 export async function answerOk(db: Db, viewer: string, postId: string, yes: boolean): Promise<{ ok: true; status: "live" | "pending" | "declined" } | { ok: false }> {
   const r = await db.query(`update showcase_consents set status = $3 where post_id = $1 and owner_id = $2 and status = 'asked' returning post_id`, [postId, viewer, yes ? "yes" : "no"]);
   if (!r.rows.length) return { ok: false };
-  const post = (await db.query<{ owner_id: string }>(`select owner_id from showcase_posts where id = $1`, [postId])).rows[0];
+  const post = (
+    await db.query<{ owner_id: string; rating: string; handle: string | null }>(
+      `select p.owner_id, p.rating, cp.handle from showcase_posts p left join creator_profiles cp on cp.user_id = p.owner_id where p.id = $1`,
+      [postId],
+    )
+  ).rows[0];
   if (!post) return { ok: false };
   if (!yes) {
     await db.query(`delete from showcase_posts where id = $1`, [postId]);
@@ -68,7 +74,8 @@ export async function answerOk(db: Db, viewer: string, postId: string, yes: bool
   const waiting = (await db.query(`select 1 from showcase_consents where post_id = $1 and status <> 'yes'`, [postId])).rows.length > 0;
   if (waiting) return { ok: true, status: "pending" };
   await db.query(`update showcase_posts set status = 'live', published_at = now() where id = $1 and status = 'pending'`, [postId]);
-  await notify(db, post.owner_id, { kind: "showcase_answer", title: "📣 Your showcase post is live: the other owner said yes", link: "/showcase" });
+  // To where it is: an explicit one on After Dark's showcase, not the show's Gallery, which never lists it.
+  await notify(db, post.owner_id, { kind: "showcase_answer", title: "📣 Your showcase post is live: the other owner said yes", link: postHref(post.rating, post.handle) });
   await tellFollowers(db, post.owner_id);
   return { ok: true, status: "live" };
 }

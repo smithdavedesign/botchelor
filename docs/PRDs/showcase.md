@@ -88,6 +88,28 @@ Every filter is a link, so a filtered view can be shared, and the PG side can be
 - Whether explicit posts ever go beyond After Dark viewers (never planned).
 - Commercial terms for creators (tips, subscriptions): not in v1.
 
+## Each side on its own host (2026-11-18)
+
+David: "consolidate the after dark showcase in ad.botchelor", "keep the reel page as is", "videos should play on hover
+or automatically preferably, and the page should be full width".
+- **The rule** (`lib/showcase-paths.ts`): a post's rating decides its host, and each host has one Gallery with two
+  rooms, everyone's and yours.
+
+  | | Everyone's (published) | Yours (private) |
+  |---|---|---|
+  | botchelor.com (pg, suggestive) | Studio → Gallery `/showcase`, reels `/showcase/reels` | Studio → My studio `/studio` |
+  | ad.botchelor.com (explicit) | Gallery → Showcase `/after-dark/showcase`, reels `/after-dark/showcase/reels` | Gallery → Yours `/after-dark/gallery` |
+
+- **Old `?side=after_dark` addresses** (shared reels, bookmarks, the reels' own side tabs) move there in
+  `middleware.ts`; `/creators/<h>?side=after_dark` becomes `/after-dark/showcase?creator=<h>`.
+- **The reels page is unchanged**: one body for both routes (`app/showcase/reels/feed.tsx`).
+- **📣 Publish's "See it on the showcase"** opens an explicit post on After Dark's showcase.
+- **Living portraits** are no longer listed in After Dark's galleries; they stay here.
+- **Clips autoplay** in view (muted, at most six), and the Gallery pages take the whole screen (`.page-full`).
+- **The show's own date clips no longer lead the Gallery** (David: "remove the clips from the show, no one cares in
+  the asset gallery/showcase page"). The "From the show" row, its query (`listShowClips`) and its switch
+  (`GALLERY_SHOW_CLIPS`) are gone; the clips still play on the home page and open their dates.
+
 ## Reels and the way in (2026-10-29)
 
 David asked for "an infinite reel / video, scroll-swipe. Like candy.ai has, instagram, ticktock. One idea Similar to

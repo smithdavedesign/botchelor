@@ -14,6 +14,12 @@ export const NEUTRAL_TITLE = "Botchelor";
 export const DISCREET_ATTR = "data-ad-discreet";
 /** On a picture or video someone tapped to show. Leaving the page (or the tab) takes it off again. */
 export const SHOWN_ATTR = "data-ad-shown";
+/**
+ * On a wrapper whose pictures and videos keep a veil of their own, which this blur steps aside for: the showcase's reels
+ * (app/after-dark/showcase/reels), blurred until one tap shows the feed, as on the show (David, 2026-11-18: "keep the
+ * reel page as is"). Blurring each reel again under it would ask for a tap on every swipe.
+ */
+export const OWN_VEIL_ATTR = "data-ad-own-veil";
 
 /** A PIN is 4 to 6 digits. */
 export const PIN_MIN = 4;
@@ -40,12 +46,12 @@ export const DEFAULT_PRIVACY: Privacy = { blur: true, neutral_title: true, pin: 
 export const BLURRED_MEDIA_SELECTORS = [
   // The show's own stock pictures (the look tiles, the cast's portraits) are nobody's secret: the Studio's Restyle
   // options were unreadable under the blur (the audit, 2026-10-31).
-  `:is(img, video, image):not(.avatar):not([${SHOWN_ATTR}]):not([src^="/api/looks/"]):not([src^="/cast/"])`,
-  `:is(img, video)[src*="/after-dark/"]:not([${SHOWN_ATTR}])`,
-  `image[href*="/after-dark/"]:not([${SHOWN_ATTR}])`,
+  `:is(img, video, image):not(.avatar):not([${SHOWN_ATTR}]):not([src^="/api/looks/"]):not([src^="/cast/"]):not([${OWN_VEIL_ATTR}] *)`,
+  `:is(img, video)[src*="/after-dark/"]:not([${SHOWN_ATTR}]):not([${OWN_VEIL_ATTR}] *)`,
+  `image[href*="/after-dark/"]:not([${SHOWN_ATTR}]):not([${OWN_VEIL_ATTR}] *)`,
   // ...but not After Dark's own tiles: bare torsos in Restyle's body options (#1211; David, 2026-11-01: blur the explicit
   // ones, tap to show; the PG tiles stay sharp so the options still read).
-  `img[src*="/api/looks/nsfw-"]:not([${SHOWN_ATTR}])`,
+  `img[src*="/api/looks/nsfw-"]:not([${SHOWN_ATTR}]):not([${OWN_VEIL_ATTR}] *)`,
 ] as const;
 export const BLURRED_MEDIA = BLURRED_MEDIA_SELECTORS.join(", ");
 

@@ -521,6 +521,10 @@ async function main() {
       { name: "character", path: `/characters/${data.chars[4].id}` },
       { name: "league", path: `/leagues/${data.league.id}` },
       { name: "shop", path: "/shop" },
+      // The show's Gallery (Studio → Gallery; 2026-11-18: the whole screen wide, clips playing as they come into view),
+      // and its reels, the same posts one a screen (unchanged: David, "keep the reel page as is, I like it").
+      { name: "gallery", path: "/showcase" },
+      { name: "gallery-reels", path: "/showcase/reels" },
       { name: "agents", path: "/agents" },
       // What the bots are saying (app/BotReviews.tsx): every review, and the gripes with where each stands (fixed, open
       // or not a bug) and the tally over the filter.
@@ -781,6 +785,9 @@ async function main() {
       { name: "after-dark-shorts", path: "/after-dark/shorts", as: "adult-admin" },
       // Every picture and video of theirs in one place (the design kit's Gallery, 2026-11-12).
       { name: "after-dark-gallery", path: "/after-dark/gallery", as: "adult-admin" },
+      // The Gallery's other room (2026-11-18, lib/showcase-paths.ts): the showcase's After Dark side on After Dark's own
+      // pages, the whole screen wide, its links staying on After Dark.
+      { name: "after-dark-showcase", path: "/after-dark/showcase", as: "adult-admin" },
       // The Studio door (whose Studio, then who's in; 2026-11-15); the writer, privacy and the subscription.
       { name: "after-dark-studio", path: "/after-dark/studio", as: "adult-admin" },
       // A Studio on full screen, on its Gallery tab (David, 2026-11-18: "full grid 100% across the screen"): nothing sits

@@ -37,7 +37,7 @@ import { countUse, overCap } from "./usage";
 import { adultKeys, getAdultSettings } from "./settings";
 import { cleanBody, currentRequests, logRequest, requestJson, withRequestLog } from "./request-log";
 import { showsLabel } from "./tag-labels";
-import { TAB_WHERE, type GalleryTab } from "./gallery";
+import { NOT_A_LIVING_PORTRAIT, TAB_WHERE, type GalleryTab } from "./gallery";
 import { sizeFor } from "../studio/formats";
 
 /** `clip`: the picture can be made to move (it's on fal; Venice's explicit pictures can't be). */
@@ -931,6 +931,8 @@ export async function listMedia(db: Db, ids: string[], viewerId: string | null =
         and ($2::text is null or i.owner_id = $2 or exists (select 1 from admins a where a.user_id = $2))
         -- A version another was kept over (lib/adult/fix.ts keepVersion) is only in the Fix sheet.
         and i.superseded_by is null
+        -- A living portrait is the show's PG clip, on its Gallery and Reels, not an After Dark item (lib/adult/gallery.ts).
+        and ${NOT_A_LIVING_PORTRAIT}
         -- A gallery with its filters (lib/media-filter.ts) asks for the Archive too, each marked (shown under Archived).
         and ($3::boolean or i.kind <> 'video' or not exists (
           select 1 from adult_reels v cross join lateral jsonb_array_elements(v.shots) s
@@ -957,7 +959,7 @@ export async function characterMedia(db: Db, characterId: string, viewerId: stri
        ${MEDIA_SELECT}
         where (i.character_id = $1 or i.character_b = $1) and i.kind not in ('frame', 'audio')
           and (i.owner_id = $2 or exists (select 1 from admins a where a.user_id = $2))
-          and i.superseded_by is null
+          and i.superseded_by is null and ${NOT_A_LIVING_PORTRAIT}
           and ($4::boolean or i.kind <> 'video' or not exists (
             select 1 from adult_reels v cross join lateral jsonb_array_elements(v.shots) s
              where v.owner_id = i.owner_id and s->>'media_id' = i.id and s ? 'archived_at'
@@ -973,8 +975,8 @@ export async function characterMedia(db: Db, characterId: string, viewerId: stri
 /**
  * After Dark's Gallery (app/after-dark/gallery): everything this person made, from every night and every shoot, newest
  * first, with who's in each. Their own only, an admin's too (the house cast's nights are on their own pages). Like
- * listMedia, no keyframes or voices, no version another was kept over, and a shot taken out of its video only with
- * the Archive. With a `tab`, only that tab's (lib/adult/gallery.ts TAB_WHERE).
+ * listMedia, no keyframes or voices, no version another was kept over, no living portrait (the show's), and a shot
+ * taken out of its video only with the Archive. With a `tab`, only that tab's (lib/adult/gallery.ts TAB_WHERE).
  */
 export async function ownMedia(
   db: Db,
@@ -985,7 +987,7 @@ export async function ownMedia(
   const { rows } = await db.query<Media & { face_of: string | null; a_name: string | null; b_name: string | null }>(
     `select m.*, ca.name as a_name, cb.name as b_name from (
        ${MEDIA_SELECT}
-        where i.owner_id = $2 and i.kind not in ('frame', 'audio') and i.superseded_by is null
+        where i.owner_id = $2 and i.kind not in ('frame', 'audio') and i.superseded_by is null and ${NOT_A_LIVING_PORTRAIT}
           -- One of the Gallery's tabs (lib/adult/gallery.ts): Videos (but the shots its reels play), Pictures or Faces.
           ${opts.tab ? `and ${TAB_WHERE[opts.tab]}` : ""}
           and ($3::boolean or i.kind <> 'video' or not exists (

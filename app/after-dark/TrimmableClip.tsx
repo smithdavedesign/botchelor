@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { AUTOPLAY_ATTR } from "@/app/useInViewAutoplay";
 import type { Media } from "@/lib/adult/media";
 import type { Trim } from "@/lib/adult/trim";
 import MomentTools from "./MomentTools";
@@ -11,7 +12,8 @@ import TrimmedVideo from "./TrimmedVideo";
  * A clip tile that plays its trim and, for its owner, trims it (lib/adult/trim.ts; David, 2026-10-25): ✂️ opens the
  * panel under the clip, where "Now" reads this player's time. With `onMoment`, 📸 Moments opens the clip's moments
  * (app/after-dark/MomentTools.tsx: a still of the second it's paused on, a boomerang, a loop), and what's made is handed
- * back for the gallery. The Studio's and the scene gallery's clips.
+ * back for the gallery. The Studio's and the scene gallery's clips. With `autoplay` (the Gallery's grid, 2026-11-18) it
+ * plays muted and looping while it's on screen (app/useInViewAutoplay.ts, the grid's), except while a panel is open.
  */
 export default function TrimmableClip({
   id,
@@ -20,6 +22,7 @@ export default function TrimmableClip({
   canTrim,
   label,
   onMoment,
+  autoplay = false,
 }: {
   id: string;
   src: string;
@@ -27,6 +30,7 @@ export default function TrimmableClip({
   canTrim: boolean;
   label: string;
   onMoment?: (m: Media) => void;
+  autoplay?: boolean;
 }) {
   const video = useRef<HTMLVideoElement>(null);
   const [trim, setTrim] = useState<Trim | null>(first);
@@ -37,7 +41,16 @@ export default function TrimmableClip({
   };
   return (
     <>
-      <TrimmedVideo ref={video} src={src} trim={trim} controls playsInline preload="metadata" aria-label={label} />
+      <TrimmedVideo
+        ref={video}
+        src={src}
+        trim={trim}
+        controls
+        playsInline
+        preload="metadata"
+        aria-label={label}
+        {...(autoplay ? { muted: true, loop: true, ...(open ? {} : { [AUTOPLAY_ATTR]: "" }) } : {})}
+      />
       {canTrim && (
         <button type="button" className={`button-ghost small ad-trim-toggle${trim ? " on" : ""}`} aria-expanded={open === "trim"} onClick={() => toggle("trim")}>
           ✂️ {trim ? "Trimmed" : "Trim"}

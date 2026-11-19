@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import Icon from "@/app/Icon";
 import Link from "next/link";
-import { showcaseHref, studioDoorLabel } from "@/lib/adult/door-links";
+import { studioDoorLabel } from "@/lib/adult/door-links";
 import { afterDarkDoors } from "@/lib/adult/doors";
 import { notFound, redirect } from "next/navigation";
 import { listSwitchable } from "@/lib/adult/characters";
@@ -193,11 +193,6 @@ export default async function AfterDarkPage({ searchParams }: { searchParams?: P
               <Link className="button-ghost" href="/after-dark/gallery">
                 🖼 Gallery
               </Link>
-              {doors.showcase && (
-                <Link className="button-ghost" href={showcaseHref(showHome())}>
-                  🌟 Showcase
-                </Link>
-              )}
               <Link className="button-ghost" href="/after-dark/shorts">
                 📺 Episodes
               </Link>

@@ -80,6 +80,9 @@ describe("the other owner's OK", () => {
     expect(await (await requestsPost(req("/api/showcase/requests", { method: "POST", cookie: them.cookie, body: JSON.stringify({ post_id: post.post_id, yes: true }) }))).json()).toMatchObject({ status: "live" });
     expect(await status(post.post_id)).toBe("live");
     expect(await kinds(me.id)).toContain("showcase_answer");
+    // Told where it is: an explicit post is on After Dark's showcase (lib/showcase-paths.ts postHref).
+    const told = (await t.db.query<{ link: string }>(`select link from notifications where user_id = $1 and kind = 'showcase_answer'`, [me.id])).rows[0].link;
+    expect(told).toBe("/after-dark/showcase?creator=mara");
     // Either of them can take it down.
     expect((await postDelete(req("/x", { method: "DELETE", cookie: them.cookie }), params({ id: post.post_id }))).status).toBe(200);
     expect(await status(post.post_id)).toBeNull();
