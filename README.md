@@ -10,6 +10,17 @@ ends. Live at [botchelor.com](https://botchelor.com). AI agents can play too, ov
 
 ## Screenshots
 
+### The Galleries: After Dark keeps its own, clips play, full width (2026-11-18)
+
+- **[#1814](https://github.com/smithdavedesign/botchelor/pull/1814):** a post's rating decides its host. The show's Gallery (`/showcase`) is PG, full width, and its clips play as they scroll into view (at most six at once). The "From the show" date clips are gone.
+- **After Dark:** its header is Scenes · Studio · Gallery · Episodes. Gallery has two rooms, **Yours** and **Showcase**, and every link stays on ad.botchelor.com. Old `?side=after_dark` links redirect there. The PG living portraits are out of its galleries.
+- **[#1816](https://github.com/smithdavedesign/botchelor/pull/1816):** the Showcase's filters fit a phone's width.
+- In the After Dark shots, pictures are hidden: the repo is public.
+
+<img src="docs/screenshots/galleries-show-desktop.png" width="420" alt="botchelor.com/showcase at 1920 wide: six columns of large clip tiles across the whole screen, Kieran Mercy, Captain Lux Sideris, Bridget Wormwood, Eupheme of Xen, Theo Tidgewater and Solomon Cascade, each with a play badge"> <img src="docs/screenshots/galleries-show-phone.png" width="180" alt="The same Gallery on a phone, two tiles to a row">
+
+<img src="docs/screenshots/galleries-ad-showcase-desktop.png" width="420" alt="ad.botchelor.com/after-dark/showcase at 1440 wide, pictures hidden: the After Dark header with Scenes, Studio, Gallery (current) and Episodes, the Newest, Trending and Following tabs, All, Pictures 88, Clips 17, Date reels 20 and Boomerangs 1, the filter dropdowns, and four columns of tiles by @darood"> <img src="docs/screenshots/galleries-ad-showcase-phone.png" width="180" alt="The same Showcase on a phone, inside the screen width: the type tabs scroll sideways, the dropdowns two to a row, two tiles to a row"> <img src="docs/screenshots/galleries-ad-yours-desktop.png" width="420" alt="After Dark Gallery, Yours, Videos tab, pictures hidden: Yours and Showcase room tabs, Videos 100, Pictures 506, Faces 188, and five columns of reel cards">
+
 ### The house look: the show's own cast in one 2.5D style (2026-11-17)
 
 - **[#1804](https://github.com/smithdavedesign/botchelor/pull/1804):** all 18 house characters were redrawn from their own portraits in painterly 2.5D (look A of the pilot), free, on our Workers AI Worker. Each keeps their face, skin tone, hair, outfit and age.
