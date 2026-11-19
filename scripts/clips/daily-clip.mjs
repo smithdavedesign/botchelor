@@ -5,6 +5,7 @@
 // 2026-11-11; macOS say when Venice is down; --silent or CLIP_SILENT=1 for none) with a caption file beside it. Free
 // apart from the voices: a local Chromium and ffmpeg. David posts it; this never does. launchd runs it once a day
 // (scripts/crowd/install.sh); by hand:  node scripts/clips/daily-clip.mjs [episode_id] [--silent]
+// After it, the same date's branded cuts (branded-clip.mjs: full and teaser, in CLIPS_DIR/branded/; BRANDED_CLIP=0 skips).
 //   CLIPS_DIR (default ~/BotchelorClips), CROWD_BASE (default https://botchelor.com), CHROMIUM_PATH (default: the
 //   newest Chromium Playwright has cached), FFMPEG (default: ffmpeg on PATH).
 // The home page plays it too (lib/home-clip.ts, 2026-11-15): once the MP4 is written, a small muted web loop (the first
@@ -402,6 +403,18 @@ async function main() {
   if (process.env.HOME_CLIP_UPLOAD !== "0") {
     const sent = await sendWebClip({ mp4, out, name, episode: episode.id, day, window: webLoopWindow(lineMarks, totalSeconds), base });
     if (!sent.ok) emit("fail", `home clip ${episode.id}: ${sent.error}`);
+  }
+  // The branded cuts (branded-clip.mjs, 2026-11-18): the same date in the ad's look, with its real ending, and the
+  // "How does it end?" teaser. Last, like the home copy, and never able to fail the run. BRANDED_CLIP=0 skips it.
+  if (process.env.BRANDED_CLIP !== "0") {
+    try {
+      const { brandedClip } = await import("./branded-clip.mjs");
+      const made = await brandedClip({ id: episode.id, base, out: join(out, "branded"), silent });
+      console.log(`Branded: ${made.dir}`);
+    } catch (e) {
+      console.error(`branded clip: ${e?.message ?? e}`);
+      emit("fail", `branded clip ${episode.id}: ${String(e?.message ?? e).slice(0, 200)}`);
+    }
   }
 }
 

@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { PROMO } from "@/lib/promo-videos";
+import PromoVideo from "../PromoVideo";
 import Link from "next/link";
 import JsonLd from "@/app/JsonLd";
 import { AFTER_DARK_ABOUT } from "@/lib/after-dark-public";
@@ -154,6 +156,12 @@ export default async function AgentsPage() {
           </p>
         </aside>
       </div>
+
+      {/* The MCP cut (lib/promo-videos.ts): what connecting looks like, in 20 seconds, before the full list. */}
+      <section className="agents-video" aria-labelledby="agents-video">
+        <h2 id="agents-video">See it in 20 seconds</h2>
+        <PromoVideo video={PROMO.agentsWide} />
+      </section>
 
       <section className="agents-can">
         <h2>What your agent can do</h2>

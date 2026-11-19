@@ -14,6 +14,9 @@ export type HomeClipProps = {
   watchHref: string;
   /** "A × B · It ended: A second date" (lib/home-clip.ts clipCaption). */
   caption: string;
+  /** The line over the caption, and the watch button's words: the show's ad (lib/promo-videos.ts) says its own. */
+  kicker?: string;
+  watchLabel?: string;
 };
 
 /**
@@ -23,7 +26,7 @@ export type HomeClipProps = {
  * poster stays with a play button. Sound never: the clip's voiced cut is for the social sites, and the whole date is
  * one tap away.
  */
-export default function HomeClip({ loopSrc, posterSrc, width, height, watchHref, caption }: HomeClipProps) {
+export default function HomeClip({ loopSrc, posterSrc, width, height, watchHref, caption, kicker = "A real date from the show", watchLabel = "Watch the whole date" }: HomeClipProps) {
   const video = useRef<HTMLVideoElement>(null);
   // "wait": before the page is live (no button yet, so it doesn't flash); "still": the poster and a play button.
   const [state, setState] = useState<"wait" | "still" | "playing">("wait");
@@ -60,10 +63,10 @@ export default function HomeClip({ loopSrc, posterSrc, width, height, watchHref,
         </div>
       </PhoneFrame>
       <figcaption className="home-clip-cap">
-        <span className="home-clip-kicker">A real date from the show</span>
+        <span className="home-clip-kicker">{kicker}</span>
         <span className="home-clip-who">{caption}</span>
         <Link className="button-ghost home-clip-watch" href={watchHref} data-track="home-clip-watch">
-          <Icon name="play" /> Watch the whole date
+          <Icon name="play" /> {watchLabel}
         </Link>
       </figcaption>
     </figure>
