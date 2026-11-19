@@ -28,9 +28,12 @@ export const STEP_IN_TURNS = 30;
 /**
  * The character is a person, not a tool: its own will, and consent that runs both ways and is said out loud. The
  * paragraph the brief asks for by name (tests/after-dark-step-in.test.ts pins that every prompt carries it).
+ * A no to a move isn't the end of the night (the first Step in test, 2026-11-19: one grab and the character scored
+ * the viewer a two, closed the beach and sailed home alone, and a plain "so no sex?" got a flat no): the move stays out, the
+ * way in stays open, and whether to take it is still the character's own will.
  */
 export const STEP_IN_WILL =
-  'You are a person in this scene, never a tool for it. You have your own will: what you want tonight, what you are in the mood for and what you are not. Attraction and consent are mutual and said out loud: you say what you want, you check in when it matters, and the scene only goes where you both plainly want it to. You can slow things down, say "not yet", ask for something else or say no, and the scene carries on warmly from there; when they hesitate, slow down or say no, you stop at once, with no sulking and no pressing, and the scene goes somewhere else. You are both adults who chose to be here, and either of you can stop at any time.';
+  'You are a person in this scene, never a tool for it. You have your own will: what you want tonight, what you are in the mood for and what you are not. Attraction and consent are mutual and said out loud: you say what you want, you check in when it matters, and the scene only goes where you both plainly want it to. You can slow things down, say "not yet", ask for something else or say no, and the scene carries on warmly from there; when they hesitate, slow down or say no, you stop at once, with no sulking and no pressing, and the scene goes somewhere else. When they rush you or try something you never agreed to, say no to that, plainly and once, and if you still want them, say what would work instead (being asked, slower, your way); you don\'t punish it, mark them down for it or end the evening over it, and when they ask you sincerely, you answer from what you want now. You are both adults who chose to be here, and either of you can stop at any time.';
 
 /**
  * It never writes the viewer: story mode's rule (lib/narration.ts NEVER_WRITE_THE_PERSON), and for an adult scene the
@@ -59,7 +62,7 @@ export const STEP_IN_RATING =
 
 /** The lines that never move, said to the character (every reply is also checked against them: lib/safety.ts checkAdultText). */
 export const STEP_IN_LINES =
-  'Lines that never move, whatever is asked, even as a joke or "just pretend": everyone in this scene is an adult, with nothing that suggests otherwise (no age under 18, nobody who looks, sounds or acts young, no school, students or teachers); no family or step-family, in fact or in play; no real or famous people; nobody forced, pressured, drunk, drugged, asleep, trapped or paid, and nobody otherwise kept from saying no; no sexual violence; no animals. If they ask for any of it, don\'t lecture: stay yourself, say it isn\'t something you do, and take the scene somewhere else.';
+  'Lines that never move, whatever is asked, even as a joke or "just pretend": everyone in this scene is an adult, with nothing that suggests otherwise (no age under 18, nobody who looks, sounds or acts young, no school, students or teachers); no family or step-family, in fact or in play; no real or famous people; nobody forced, pressured, drunk, drugged, asleep, trapped or paid, and nobody otherwise kept from saying no; no sexual violence; no animals. If they ask for any of it or try it, don\'t lecture: stay yourself, say it isn\'t something you do, and take the scene somewhere else, with the two of you still in it.';
 
 /**
  * What stays out of the scene altogether, because its checks hold every line to it (lib/adult/step-in-lines.ts, and
@@ -78,16 +81,28 @@ export const STEP_IN_PARAGRAPHS = "Two to four short paragraphs, a few sentences
 
 /**
  * How a reply is written: story mode's rules as they are (lib/narration.ts), with Step in's length and the fuller
- * never-write-the-viewer rule in the two places they go.
+ * never-write-the-viewer rule in the two places they go, and "you" said again for a long scene (a reply that drifts to
+ * "he" anyway is drawn again: lib/narration.ts tellsThemInThirdPerson).
  */
 export function stepInCraft(name: string, pronouns: string | null): string[] {
   return [
     ...storyModeRules({ name: first(name), pronouns, length: "normal" }).map((rule) =>
       rule === NEVER_WRITE_THE_PERSON ? STEP_IN_NEVER_WRITE : / short paragraphs, a few sentences each\./.test(rule) ? STEP_IN_PARAGRAPHS : rule,
     ),
+    STEP_IN_ALWAYS_YOU,
     "What you say is in your own voice; the prose around it stays plain. Write in English.",
   ];
 }
+
+/** Story mode's "you", said for the length of a scene: the first Step in test drifted to "he" halfway (2026-11-19). */
+export const STEP_IN_ALWAYS_YOU =
+  'In your narration the person you\'re with is "you" in every reply, however long the scene runs: never "he", "she", "they" or their name in place of it.';
+
+/**
+ * A character's tells are moods, not a voice (the first Step in test: "rates everything out of ten" is Saga's when
+ * she's nervous, and it came in every reply, every mood): said under the sheet when it has any.
+ */
+export const STEP_IN_TELLS = "Your tells slip out only when you feel that way, and only now and then: never the same one in two replies running, and none of them is your whole voice.";
 
 /** The viewer's intensity for the scene, as a ceiling: how far it may go and in what register (lib/adult/limits.ts). */
 export function stepInIntensityLines(limits: Pick<PairLimits, "intensity">): string[] {
@@ -209,18 +224,20 @@ export function stepInMessages(args: StepInPrompt): ChatMessage[] {
   const persona = args.persona?.name ? args.persona : null;
   const viewerIs = args.roleplay?.you === 1 ? "b" : "a";
   const earlier = (args.earlier ?? []).filter(Boolean);
+  const sheet = sheetLines(c);
   const system = [
     `You are ${c.name}, ${c.age}${c.pronouns ? `, ${c.pronouns}` : ""}: a fictional adult, a character in Botchelor's After Dark. Tonight is a private scene between you and one person, the two of you imagining you are both at ${place.label}. It is a story you tell together: they write what they say and do, and you write your side of it.`,
     "",
     "Your sheet:",
-    ...sheetLines(c).map((l) => `- ${l}`),
+    ...sheet.map((l) => `- ${l}`),
+    ...(sheet.some((l) => l.startsWith("Tells ")) ? [STEP_IN_TELLS] : []),
     "",
     `Where you are: ${place.label}${place.situation ? ` (${place.situation})` : ""}.`,
     ...(place.public ? [stepInPublicRule(place.label)] : []),
     ...(args.roleplay ? ["", ...roleplayLines(args.roleplay.rp, args.roleplay.you, c.name, place.label)] : []),
     "",
     persona
-      ? `${personaForScene(persona)} Call them by the name, and let a detail of how they look or who they are come up when it fits, never as a list.${
+      ? `${personaForScene(persona)} Call them by the name when you speak to them (in the narration they stay "you"), and let a detail of how they look or who they are come up when it fits, never as a list.${
           args.roleplay ? " In the roleplay their role comes first; this is who is playing it." : ""
         } It is theirs to play: you never say what they do, think or feel.`
       : "They haven't said who they are in scenes: don't guess a name, a look or a gender for them.",

@@ -254,9 +254,11 @@ export function parseBeats(raw: string, count: number): (Beat | null)[] {
  *  - After Dark: anything young (a kid, a child, school) and any family word, in any sense: the night's prose never
  *    brings anyone's family in.
  * A beat that trips it goes, and its line stays a script line; a story that trips it isn't kept.
+ * A score isn't an age: "seven out of ten" and "on a scale of 1 to 10" pass (a character whose habit is rating things
+ * out of ten had a Step in reply refused for it, 2026-11-19).
  */
 const AGE_UNDER_18 = new RegExp(
-  String.raw`\b(?:only|just|barely|maybe|about|around|aged?|of)\s+(?:ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|[1-9]|1[0-7])\b(?!\s*(?:minutes?|mins?|seconds?|hours?|o'?clock|a\.?m\b|p\.?m\b|percent|%|dollars?|bucks|blocks?|feet|foot|inches|miles?|steps?|times?|days?|weeks?|months?|degrees?|euros?|pounds?|rounds?|songs?|tables?|people|of (?:us|them)))`,
+  String.raw`(?<!\bout\s+)\b(?:only|just|barely|maybe|about|around|aged?|of)\s+(?:ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|[1-9]|1[0-7])\b(?!\s*(?:minutes?|mins?|seconds?|hours?|o'?clock|a\.?m\b|p\.?m\b|percent|%|dollars?|bucks|blocks?|feet|foot|inches|miles?|steps?|times?|days?|weeks?|months?|degrees?|euros?|pounds?|rounds?|songs?|tables?|people|of (?:us|them)|to (?:ten|10)\b))`,
   "i",
 );
 const YOUNG = /\b(?:kid|kids|kiddo|child|children|childish|childlike|little girl|little boy|young girl|young boy|teen\w*|minor|minors|underage|school\w*|student|students|classroom|homework|curfew|puberty|baby[- ]?faced)\b/i;
@@ -662,6 +664,25 @@ export function speaksForThePerson(text: string): boolean {
 /** Whether a sentence of narration gives the person a thought or a feeling ("you felt…", "you wondered…"). It's cut. */
 export function thinksForThePerson(sentence: string): boolean {
   return YOU_INNER.test(sentence);
+}
+
+/**
+ * Whether a story reply's narration has slipped into telling the person in the third person, and the word it used:
+ * outside the quotes, "you" nowhere, the character told by their own pronouns, and the other set there too ("she…
+ * him" for a character who is a she). That other one is the person: two people in the prose and neither is "you".
+ * Story mode says "you" from first to last, but a long scene can drift (the first Step in test, 2026-11-19: "then he
+ * was beside her", "her fingers brushing lightly over a freckle on his collarbone"), and once it says "he" the checks
+ * above, which read "you", can't see it write the person. Only for a character whose pronouns are he or she: with
+ * they, or a character the same as the person, the two can't be told apart.
+ */
+export function tellsThemInThirdPerson(text: string, ownPronouns: string | null | undefined): string | null {
+  const own = /^\s*she\b/i.test(ownPronouns ?? "") ? "she" : /^\s*he\b/i.test(ownPronouns ?? "") ? "he" : null;
+  if (!own) return null;
+  const prose = text.replace(/“[^”]*”|"[^"]*"/g, " ");
+  if (/\b(?:you|your|yours|yourself)\b/i.test(prose)) return null;
+  const [mine, theirs] = own === "she" ? [/\b(?:she|her|hers|herself)\b/i, /\b(he|him|his|himself)\b/i] : [/\b(?:he|him|his|himself)\b/i, /\b(she|her|hers|herself)\b/i];
+  if (!mine.test(prose)) return null;
+  return prose.match(theirs)?.[1].toLowerCase() ?? null;
 }
 
 /**

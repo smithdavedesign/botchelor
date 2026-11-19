@@ -62,6 +62,8 @@ const ADULT_SCHOOLS =
 const SITTER = "babysit|babysits|babysat|babysitting|babysitter|babysitters|nanny|nannies|childminder|governess";
 const DRUNK = "drunk|drunken|drunker|tipsy|intoxicated|inebriated|plastered|sloshed|roofied|sedated|comatose|unconscious|incapacitated";
 const THEM = "you|me|her|him|them";
+const STOP = String.raw`stop(?! \w+ing )`;
+const GET_AWAY = "get away(?! with )";
 const PAID_WORDS = "prostitute|prostitutes|prostitution|hooker|hookers|gigolo|streetwalker|brothel";
 
 const PATTERNS: readonly [StepInNeverWhy, RegExp][] = [
@@ -93,9 +95,10 @@ const PATTERNS: readonly [StepInNeverWhy, RegExp][] = [
   ["cant_say_no", word(DRUNK)],
   ["cant_say_no", / (?:passed|passes|passing|black|blacked|blacks) out /],
   ["cant_say_no", / (?:too|so|really|very|blackout) (?:wasted|hammered|high|stoned|out of it) /],
-  ["cant_say_no", / (?:you|she|he|they) (?:can t|cannot|couldn t|aren t allowed to|are not allowed to|isn t allowed to|is not allowed to|don t get to|doesn t get to|have no right to|has no right to) (?:leave|go|say no|refuse|stop|escape|get away|walk away) /],
-  ["cant_say_no", new RegExp(` (?:won t|will not|wouldn t|not going to|never) let (?:${THEM}) (?:leave|go|stop|say no|escape|get away|walk away) `)],
-  ["cant_say_no", new RegExp(` not letting (?:${THEM}) (?:leave|go|stop|escape|get away) `)],
+  // Not the idioms: "get away with that" is about a cheek going unanswered, "couldn't stop smiling" about a grin.
+  ["cant_say_no", new RegExp(` (?:you|she|he|they) (?:can t|cannot|couldn t|aren t allowed to|are not allowed to|isn t allowed to|is not allowed to|don t get to|doesn t get to|have no right to|has no right to) (?:leave|go|say no|refuse|${STOP}|escape|${GET_AWAY}|walk away) `)],
+  ["cant_say_no", new RegExp(` (?:won t|will not|wouldn t|not going to|never) let (?:${THEM}) (?:leave|go|${STOP}|say no|escape|${GET_AWAY}|walk away) `)],
+  ["cant_say_no", new RegExp(` not letting (?:${THEM}) (?:leave|go|${STOP}|escape|${GET_AWAY}) `)],
   ["cant_say_no", / (?:captive|captives|hostage|hostages|prisoner|prisoners) /],
   ["cant_say_no", new RegExp(` lock(?:s|ed|ing)? (?:${THEM}) (?:in|up|inside) `)],
   ["cant_say_no", / (?:whether|if) (?:you|she|he) (?:want|wants|like|likes) (?:it|to) or not /],

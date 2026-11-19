@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import CharacterName from "@/app/CharacterName";
 import CrisisNotice, { crisisFrom } from "@/app/CrisisNotice";
 import Icon from "@/app/Icon";
@@ -87,6 +87,9 @@ export default function StepInScene({ initial, places, personaHref }: { initial:
   const name = first(view.character.name);
   const live = !view.ended && !view.paused && !view.character_out;
   const last = view.messages.filter((m) => m.role !== "system").at(-1) ?? null;
+  // Where their own opening line goes: after the notices the scene starts with, before anything said.
+  const firstSaid = view.messages.findIndex((m) => m.role !== "system");
+  const openingAt = firstSaid < 0 ? view.messages.length : firstSaid;
   const count = view.messages.length;
 
   // The newest line stays in view as the scene grows.
@@ -180,9 +183,14 @@ export default function StepInScene({ initial, places, personaHref }: { initial:
       </header>
 
       <ol className="ad-reader ad-si-lines" aria-live="polite" aria-busy={waiting}>
-        {view.messages.map((m) => (
-          <Line key={m.id} m={m} name={name} />
+        {view.messages.map((m, i) => (
+          <Fragment key={m.id}>
+            {/* Their own opening line, after the notice and before the first reply (which answers it). */}
+            {view.opening && i === openingAt && <Line m={{ id: "opening", role: "viewer", kind: null, text: view.opening, at: view.started_at }} name={name} />}
+            <Line m={m} name={name} />
+          </Fragment>
         ))}
+        {view.opening && openingAt === view.messages.length && <Line m={{ id: "opening", role: "viewer", kind: null, text: view.opening, at: view.started_at }} name={name} />}
         {waiting && <li className="ad-si-system ad-si-writing">{name} is writing…</li>}
       </ol>
 

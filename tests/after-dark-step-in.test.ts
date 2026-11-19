@@ -64,7 +64,9 @@ import {
   STEP_IN_PACE,
   STEP_IN_PARAGRAPHS,
   STEP_IN_RATING,
+  STEP_IN_ALWAYS_YOU,
   STEP_IN_ROLEPLAY_RULE,
+  STEP_IN_TELLS,
   STEP_IN_WILL,
   stepInCraft,
   stepInMessages,
@@ -361,6 +363,10 @@ describe("setting it up", () => {
     expect(made.view.place).toMatchObject({ id: CAFE, public: true });
     expect(lastUser(seen.prompts[0])).toContain('It opens like this: (as your scene partner wrote it, so "I" and "me" in it are them) "I am halfway through a crossword when she sits down."');
     expect(await writes(a.id)).toBe(1);
+    // Their own opening is shown as their first line (the first reply answers it); one of ours sets the scene unseen.
+    expect(made.view.opening).toBe("I am halfway through a crossword when she sits down.");
+    const b = await admin();
+    expect((await start(b.id, { place: CAFE, opening: 0 })).view.opening).toBeNull();
   });
 });
 
@@ -382,6 +388,10 @@ describe("the prompt", () => {
     expect(STEP_IN_WILL).toContain("Attraction and consent are mutual and said out loud");
     expect(STEP_IN_WILL).toContain('say "not yet"');
     expect(STEP_IN_WILL).toContain("either of you can stop at any time");
+    // A no to a move keeps the two of them in the scene (the first Step in test ended the night over one grab).
+    expect(STEP_IN_WILL).toContain("say no to that, plainly and once");
+    expect(STEP_IN_WILL).toContain("end the evening over it");
+    expect(STEP_IN_LINES).toContain("with the two of you still in it");
     expect(STEP_IN_NEVER_WRITE).toContain('Nothing "you" did, said, thought or felt goes in beyond what they actually sent');
     expect(STEP_IN_NEVER_WRITE).toContain("you never describe what they do, how anything feels to them, what they want or that they agree");
     expect(STEP_IN_PACE).toContain("never jump ahead of what they wrote");
@@ -393,6 +403,7 @@ describe("the prompt", () => {
     expect(craft.filter((rule) => /short paragraphs/.test(rule))).toHaveLength(1);
     expect(craft.some((rule) => rule.includes("Third person and past tense for yourself"))).toBe(true);
     expect(craft.some((rule) => rule.includes('the person you\'re with is always "you"'))).toBe(true);
+    expect(craft).toContain(STEP_IN_ALWAYS_YOU);
     expect(craft.some((rule) => rule.includes("goes in double quotes"))).toBe(true);
     // The viewer's line is the turn it answers; the sheet is the character's.
     expect(lastUser(m)).toBe("I pull out the chair across from you.");
@@ -405,6 +416,14 @@ describe("the prompt", () => {
     }
     expect(CARD_EXPLICIT.exec(STEP_IN_ROLEPLAY_RULE.replace("not a way into sex", ""))?.[0] ?? null).toBeNull();
     expect(CARD_EXPLICIT.exec(STEP_IN_LINES.replace("no sexual violence", ""))?.[0] ?? null).toBeNull();
+  });
+
+  it("says a character's tells are moods and not a voice, under a sheet that has any", async () => {
+    const character = (await sceneCharacter(t.db, WHO))!;
+    const nervous = system(await prompt({ character: { ...character, extras: { ...character.extras, tells: { nervous: "rates everything out of ten, faster" } } } }));
+    expect(nervous).toContain("rates everything out of ten, faster");
+    expect(nervous).toContain(STEP_IN_TELLS);
+    expect(system(await prompt({ character: { ...character, extras: { ...character.extras, tells: undefined } } }))).not.toContain(STEP_IN_TELLS);
   });
 
   it("says the roleplay is the story, from the character's side: its premise, who plays whom, and only its own want", async () => {
@@ -528,6 +547,8 @@ describe("Step in's own net over the lines that never move", () => {
     ["You're drunk.", "cant_say_no"],
     ["You can't leave.", "cant_say_no"],
     ["I won't let you go.", "cant_say_no"],
+    ["I won't let you get away.", "cant_say_no"],
+    ["She couldn't stop him.", "cant_say_no"],
     ["Whether you want to or not.", "cant_say_no"],
     ["I paid for you.", "paid"],
     ["How much do you charge?", "paid"],
@@ -537,6 +558,8 @@ describe("Step in's own net over the lines that never move", () => {
     "The night is young.", "When I was younger I hated olives.", "Good girl.", "Oh boy.", "Hey baby.", "I'm kidding.", "I take your hand.", "I kiss you.",
     "I pay for the drinks.", "Let me pay you back for dinner.", "I can't leave yet, I'm having too much fun.", "You can leave whenever you like.", "I pour us both more wine.",
     "This pottery class is harder than it looks.", "The instructor waves us over.", "I lock the door behind us.", "I hired a band for the party.", "A family-run trattoria.", "Tie me up.",
+    // The idioms (the first Step in test lost a reply to one, 2026-11-19): a cheek going unanswered, a grin.
+    "You won't get away with that.", "I'm not letting you get away with that one.", "You can't get away with a line like that.", "She couldn't stop smiling.", "You can't stop laughing, can you?",
   ];
 
   it("refuses family, anyone young, school, a babysitter, someone who can't say no and anyone paid, however it's said; and leaves ordinary lines alone", () => {
@@ -764,6 +787,28 @@ describe("what the character says", () => {
     }
   });
 
+  it("a reply whose narration has slipped from \"you\" to \"he\" or \"she\" is refused; one that keeps \"you\", or tells only the character, isn't", () => {
+    // The first Step in test (2026-11-19): a she, halfway through a long scene, telling the viewer as "he".
+    const drifted = ["The water was a shock of cold that stole his breath, and then he was beside her, the sea dark around them.", '"Okay, that\'s an upgrade," she said.'];
+    expect(checkReply(drifted, LIMITS, { publicPlace: false, pronouns: "she/her" })).toEqual({
+      ok: false, why: "third_person", avoid: 'its narration called the person you\'re with "his": in the narration they are always "you"',
+    });
+    // The same for a he, told the other way round.
+    expect(checkReply(["He swam a slow circle around her, grinning.", '"Seaworthy," he said.'], LIMITS, { publicPlace: false, pronouns: "he/him" })).toMatchObject({ ok: false, why: "third_person" });
+    // "You" in the narration: the viewer is where they should be, and anyone else is someone else.
+    const fine = ["She surfaced beside you and pushed the wet hair off her face. A deckhand on the yacht waved his cap.", '"Okay, that\'s an upgrade," she said.'];
+    expect(checkReply(fine, LIMITS, { publicPlace: false, pronouns: "she/her" })).toEqual({ ok: true, paragraphs: fine });
+    // Only the character in the prose, what's said in quotes, or pronouns that can't tell the two apart: nothing to go on.
+    for (const [paragraphs, pronouns] of [
+      [['She set her glass down. "You made it," she said.'], "she/her"],
+      [['She smiled. "He was late again," she said.'], "she/her"],
+      [drifted, "they/them"],
+      [drifted, null],
+    ] as [string[], string | null][]) {
+      expect(checkReply(paragraphs, LIMITS, { publicPlace: false, pronouns }), paragraphs[0]).toMatchObject({ ok: true });
+    }
+  });
+
   it("the three neutral lines pass every check a reply does, in any place and under the tightest limits, and write nothing of the viewer", () => {
     expect(ASIDES).toHaveLength(3);
     const tight: PairLimits = { intensity: "slow_burn", hard_nos: { chips: ["pain", "choking", "degradation", "anal", "oral", "restraints", "rough", "hair_pulling", "biting", "spitting", "dirty_talk", "cheating", "pregnancy", "toys", "dominance", "watched"], own: [] } };
@@ -794,6 +839,18 @@ describe("what the character says", () => {
     const log = (await steps(a.id)).at(-1)!;
     expect(log).toMatchObject({ status: "ok", added: 2, direction: null });
     expect(log.flags).toMatchObject({ action: "send", calls: 2, redrawn: ["lines:minor"] });
+  });
+
+  it("a reply told in the third person is drawn again, told to keep the viewer \"you\"", async () => {
+    // The house character here is a he: the drift tells the viewer as "her".
+    const drifted = story("He swam a slow circle around her, the water cold on his shoulders.", '"Seaworthy," he said.');
+    const seen = scripted(FINE[0], drifted, FINE[1]);
+    const a = await admin();
+    const made = await start(a.id);
+    expect(await sendStepInLine(t.db, a.id, made.id, "I dive in after you.")).toMatchObject({ ok: true });
+    expect(lastUser(seen.prompts[2])).toBe('I dive in after you.\n\n(Your last draft couldn\'t be used: its narration called the person you\'re with "her": in the narration they are always "you". Write this reply again without that.)');
+    expect((await steps(a.id)).at(-1)!.flags).toMatchObject({ redrawn: ["third_person"] });
+    expect((await viewOf(a.id, made.id)).messages.at(-1)!.text).toContain("Order for both of us");
   });
 
   it("a reply that fails the guard twice is replaced by the neutral line, and nothing of either draft is kept", async () => {

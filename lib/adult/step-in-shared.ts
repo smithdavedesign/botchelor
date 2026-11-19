@@ -45,6 +45,11 @@ export type StepInSceneView = {
   /** They have a persona, and the scene's checks leave it out (it plays without it). */
   persona_left_out: boolean;
   limits: PairLimits;
+  /**
+   * The viewer's own opening line, when they wrote one (null for one of ours, which sets the scene and isn't a line
+   * anyone said): shown as their first line, since the character's first reply answers it.
+   */
+  opening: string | null;
   /** The scene as it stands: a redrawn reply's earlier draws left out. */
   messages: StepInMessageView[];
   /** The newest reply's draws, when there's more than one: how many, and which is showing. */
