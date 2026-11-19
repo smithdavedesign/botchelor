@@ -1,0 +1,22 @@
+{
+  "name": "botchelor-video",
+  "private": true,
+  "description": "The show's branded video (Remotion): the ad, the daily branded clip and teaser, the bumper and the MCP cut. Rendered on the Mac, never by the app. See README.md.",
+  "type": "module",
+  "scripts": {
+    "studio": "remotion studio src/index.ts --public-dir ../public",
+    "render:ads": "node render-ads.mjs"
+  },
+  "dependencies": {
+    "@fontsource/fraunces": "5.3.0",
+    "@fontsource/inter": "5.3.0",
+    "@remotion/cli": "4.0.545",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "remotion": "4.0.545"
+  },
+  "devDependencies": {
+    "@types/react": "18.3.31",
+    "typescript": "5.9.3"
+  }
+}

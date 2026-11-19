@@ -18,8 +18,9 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { POST as upload } from "@/app/api/admin/home-clip/route";
 import { GET as clipFile } from "@/app/api/home-clip/[id]/[file]/route";
 import { expressEventAt, expressStartedEvent, EXPRESS_SAY_KEY, EXPRESS_TEXT_MAX, EXPRESS_TEXT_MIN } from "@/lib/express-create";
+import { generateMetadata as episodeMeta } from "@/app/episodes/[id]/page";
 import { getEpisodeView } from "@/lib/game";
-import { CLIP_FRESH_DAYS, clipCaption, clipRefusal, homeExpressBoxOn, homeHeroClipOn, latestHomeClip, LOOP_MAX_BYTES, looksLikeJpeg, looksLikeMp4, saveHomeClip } from "@/lib/home-clip";
+import { CLIP_FRESH_DAYS, clipCaption, clipRefusal, episodeClip, homeExpressBoxOn, homeHeroClipOn, latestHomeClip, LOOP_MAX_BYTES, looksLikeJpeg, looksLikeMp4, saveHomeClip } from "@/lib/home-clip";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import { setObjectStoreForTests, type ObjectStore } from "@/lib/object-store";
 import { api, BASE_URL, episodeJson, newUserCookie, scriptedModel, scriptOutcome, startTestDb, userIdOf, validCharacter } from "./helpers";
@@ -265,6 +266,24 @@ describe("latestHomeClip", () => {
     for (let i = 0; i < 3; i++) expect((await api.report({ episode_id: d.id, reason: "other" }, newUserCookie())).status).toBeLessThan(300);
     expect(await latestHomeClip(t.db)).toBeNull();
     expect((await file(id, "loop.mp4")).status).toBe(404);
+  });
+});
+
+describe("a date's own clip on its link card", () => {
+  const videos = async (id: string) => [(await episodeMeta({ params: Promise.resolve({ id }) })).openGraph?.videos ?? []].flat() as { url: string; type?: string; width?: number }[];
+
+  it("unfurls as the date's clip, at any age, while the date is still public", async () => {
+    const d = await date();
+    expect(await episodeClip(t.db, d.id)).toBeNull();
+    expect(await videos(d.id)).toEqual([]);
+    const { id } = await saveHomeClip(t.db, { episode_id: d.id, day: "2026-01-02", loop: MP4, poster: JPEG, width: 480, height: 854, seconds: 12 });
+    await t.db.query(`update home_clips set created_at = now() - interval '90 days' where id = $1`, [id]);
+    expect(await episodeClip(t.db, d.id)).toMatchObject({ id, loop_src: `/api/home-clip/${id}/loop.mp4`, width: 480, height: 854 });
+    expect(await videos(d.id)).toEqual([expect.objectContaining({ url: `/api/home-clip/${id}/loop.mp4`, type: "video/mp4", width: 480 })]);
+
+    await t.db.query(`update episodes set visibility = 'unlisted' where id = $1`, [d.id]);
+    expect(await episodeClip(t.db, d.id)).toBeNull();
+    expect(await videos(d.id)).toEqual([]);
   });
 });
 

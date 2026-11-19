@@ -137,6 +137,28 @@ export async function latestHomeClip(db: Db, now: Date = new Date()): Promise<Ho
   };
 }
 
+/**
+ * The newest clip kept for one date, while the date is still public and featurable, or null: what the episode page's
+ * link card plays as its video (og:video, 2026-11-18). Any age: it's that date's own clip, not "last night's". The loop
+ * is the date's opening lines, never its ending, so the card still asks how it ends.
+ */
+export async function episodeClip(db: Db, episodeId: string): Promise<Pick<HomeClip, "id" | "loop_src" | "poster_src" | "width" | "height"> | null> {
+  const row = (
+    await db.query<{ id: string; width: number; height: number }>(
+      `select c.id, c.width, c.height
+         from home_clips c
+         join episodes e on e.id = c.episode_id
+         join characters a on a.id = e.character_a
+         join characters b on b.id = e.character_b
+        where c.episode_id = $2 and ${STILL_PUBLIC} and ${featurableSql("e")}
+        order by c.created_at desc
+        limit 1`,
+      [REPORT_HIDE_THRESHOLD, episodeId],
+    )
+  ).rows[0];
+  return row ? { id: row.id, loop_src: `/api/home-clip/${row.id}/loop.mp4`, poster_src: `/api/home-clip/${row.id}/poster.jpg`, width: row.width, height: row.height } : null;
+}
+
 /** The line under the clip: who, and how it ended when that is public (it is, once the date has aired). */
 export function clipCaption(clip: Pick<HomeClip, "names" | "ending">): string {
   const pair = `${clip.names[0]} × ${clip.names[1]}`;
