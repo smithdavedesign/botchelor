@@ -80,11 +80,12 @@ npm run typecheck
 | `npm run screenshots:season` | Plays a sample season and regenerates most of `docs/screenshots/` |
 | `npm run check:launch` | Search, sharing, legal and Buy-button checks on a local production build ([LAUNCH-READY.md](LAUNCH-READY.md)) |
 
-**CI** (`.github/workflows/ci.yml`: typecheck and `npm test`) runs by hand only (`gh workflow run ci.yml --ref
-<branch>`), by choice. It was switched off for pull requests on 2026-10-21, when the repo was private and every run
-spent the account's free Actions minutes. The repo is public now, and Actions minutes are free on a public repo. PRs merge after `npx tsc --noEmit -p .` and the full `npx vitest run` pass locally on the branch merged
-with current main (say so on the PR); the check left on a PR is GitGuardian. Botchelor runs on DigitalOcean since
-2026-10-30, and the Vercel project skips every build since 2026-10-31; a "Vercel" check, if one shows, is ignored. The MCP Registry
+**Gates.** Before a PR, run `npm run gate` locally (a few minutes): `tsc` plus the tests related to the files the
+branch changed, and the CSS checks when a .css file changed. **CI** (`.github/workflows/ci.yml`) then runs the
+typecheck and the full suite on every PR and every push to main, on GitHub's free runners (the repo is public), split
+over 4 parallel shards. Merge when every PR check is green. `npm run e2e:visual` is no longer a per-PR gate: run it
+(or `ONLY=<route>` for one page) when a change is mostly layout. Botchelor runs on DigitalOcean since 2026-10-30;
+deploys run `next build` only (about 5 minutes), no tests. A "Vercel" check, if one shows, is ignored. The MCP Registry
 publish is an Action too and runs when `registry/server.json` changes on main (a few seconds); if it can't run,
 run `mcp-publisher publish registry/server.json` by hand ([docs/launch-kit.md](docs/launch-kit.md)).
 
