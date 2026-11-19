@@ -783,6 +783,30 @@ async function main() {
       { name: "after-dark-gallery", path: "/after-dark/gallery", as: "adult-admin" },
       // The Studio door (whose Studio, then who's in; 2026-11-15); the writer, privacy and the subscription.
       { name: "after-dark-studio", path: "/after-dark/studio", as: "adult-admin" },
+      // A Studio on full screen, on its Gallery tab (David, 2026-11-18: "full grid 100% across the screen"): nothing sits
+      // beside the Gallery, so it spans the window; an empty second column there fails the walk.
+      {
+        name: "after-dark-studio-full-gallery",
+        path: "/after-dark/studio",
+        as: "adult-admin",
+        walk: async (page) => {
+          // The first Studio the door offers, then (on a wide screen; a phone's Studio is always the whole screen and has no
+          // switch, globals.css) full screen and the Gallery tab.
+          await page.locator(".ad-studio-card-link").first().click();
+          await page.locator(".ad-studio-main").waitFor({ timeout: 20_000 });
+          const toggle = page.locator(".ad-studio-full-toggle");
+          if (!(await toggle.isVisible())) return;
+          await toggle.click();
+          await page.locator(".ad-studio-tabs [role=tab]", { hasText: "Gallery" }).click();
+          await page.waitForTimeout(250);
+          const { panes, main } = await page.evaluate(() => ({
+            panes: document.querySelector(".ad-studio-main.is-full .ad-studio-panes")?.getBoundingClientRect().width ?? 0,
+            main: document.querySelector(".ad-studio-main.is-full")?.clientWidth ?? 0,
+          }));
+          if (!main || panes < main * 0.85) throw new Error(`full-screen Gallery is ${Math.round(panes)}px of ${main}px: not across the screen`);
+          console.log(`    full-screen Gallery: ${Math.round(panes)}px of ${main}px`);
+        },
+      },
       { name: "after-dark-account", path: "/after-dark/account", as: "adult-admin" },
       // Step in (the viewer in the scene with one character): its set-up, and a scene under way.
       { name: "after-dark-step-in", path: "/after-dark/step-in", as: "adult-admin" },

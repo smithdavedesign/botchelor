@@ -869,6 +869,10 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
   );
   // The latest few, as the gallery shows them by default (no 👎 or 1–3★).
   const latest = fresh && fresh.pictures.length > 0 ? null : filterMedia(s.gallery, DEFAULT_FILTER).slice(0, 4);
+  // Whether a column of pictures sits beside the menus on full screen (below). Without one (the Gallery tab), the tab
+  // takes the whole width instead of leaving an empty column (David, 2026-11-18: "full grid 100% across the screen").
+  const freshNow = Boolean(fresh && fresh.pictures.length > 0);
+  const latestBeside = !freshNow && full && tab !== "gallery" && Boolean(latest && latest.length > 0);
 
   return (
     <section className={`ad-studio-main${full ? " is-full" : ""}`} aria-label={full ? `${c.name}'s Studio, full screen` : undefined}>
@@ -942,7 +946,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
         </p>
       )}
 
-      <div className="ad-studio-work">
+      <div className={`ad-studio-work${freshNow || latestBeside ? " has-side" : ""}`}>
       <div className="ad-studio-panes">
       {tab === "shoot" && (
         <div className="ad-studio-panel">
@@ -1741,16 +1745,14 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
       )}
       </div>
       {/* The pictures just made; on full screen, beside the menus (their latest when nothing's new). */}
-      {fresh && fresh.pictures.length > 0 ? (
+      {fresh && freshNow ? (
         <section className="ad-studio-fresh" ref={freshRef}>
           <h2>{fresh.title}</h2>
           {gallery(fresh.pictures, { rivals: fresh.kind === "restyle" || fresh.kind === "recast" ? fresh.pictures.map((p) => p.id) : [], pair: fresh.kind === "pair" })}
         </section>
       ) : (
-        full &&
-        tab !== "gallery" &&
-        latest &&
-        latest.length > 0 && (
+        latestBeside &&
+        latest && (
           <section className="ad-studio-fresh">
             <h2>Latest</h2>
             {gallery(latest)}
