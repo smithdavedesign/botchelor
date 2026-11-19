@@ -131,7 +131,10 @@ stranger"), so the clip run sends the site a small copy once the MP4 is written:
 - **A failed upload never fails the clip:** it is logged (`~/.botchelor-crowd/logs/clip.log`, and a `fail` event in the
   system log) and the MP4 and caption are already on disk. `HOME_CLIP_UPLOAD=0` in `~/.botchelor-crowd/env` skips the step.
 - **Nothing to install:** the launchd job runs the crowd's own clone on the newest main (`scripts/crowd/run.sh`), which
-  has ffmpeg on its PATH and the keychain of the signed-in user.
+  has ffmpeg on its PATH and the keychain of the signed-in user. A change made inside that clone is kept in
+  `~/.botchelor-crowd/logs/<time>-local-changes.diff` and set aside so the update still happens, and a failed update is a
+  `clone-update` event in the system log (2026-11-19: an `npm install` there had held every job on Nov 13's code for six
+  days, the clip's web copy included).
 - **A clip already rendered** (the first one, or after a failed upload), without recording again:
 
   ```

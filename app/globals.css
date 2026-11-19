@@ -4550,7 +4550,7 @@ button.rating-chip:hover {
   aspect-ratio: 9 / 16;
   margin: 0 auto;
   border-radius: var(--radius);
-  background: #000;
+  background: var(--media-bg);
 }
 /* The creator's verdict card (app/episodes/[id]/VerdictCard.tsx): the ending with a next step, so it stacks, and scrolls
    inside the stage when a short screen can't hold all of it. */
