@@ -300,6 +300,12 @@ export default function Storyboard({
                       <strong>{first(s.who === "a" ? names.a : names.b)}</strong> “{s.text}”{s.picked ? <span className="small muted"> · your pick</span> : null}
                     </p>
                   ) : null}
+                  {/* The other one's answer, said in the same 10-second shot (lib/adult/reels.ts replyTo). */}
+                  {s.text && s.reply?.text ? (
+                    <p className="ad-shot-line">
+                      <strong>{first(s.reply.who === "a" ? names.a : names.b)}</strong> “{s.reply.text}”
+                    </p>
+                  ) : null}
                   {motion ? (
                     <p className="small muted ad-shot-motion">
                       🎬 {motion}

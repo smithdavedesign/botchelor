@@ -165,7 +165,7 @@ Paid extras take **bought** tokens only. The weekly free tokens stay for dates. 
 - Hive checks every shot before it's kept. A discarded shot gives back its share of the tokens.
 - The shots play in order, with each line as a caption.
 
-**Settings:** the model, the number of shots and the price (`reel_model`, `reel_shots`, `reel_tokens`). The defaults are Wan 3.0, 6 shots (about 30 s) and 8 tokens (7 from #1005 on 2026-10-30, 15 before).
+**Settings:** the model, the number of shots and the price (`reel_model`, `reel_shots`, `reel_tokens`). The defaults are Wan 3.0, 4 shots of 10 s (about 40 s; 6 shots of about 5 s until 2026-11-18) and 8 tokens (7 from #1005 on 2026-10-30, 15 before).
 
 | Default video (6 shots, Wan 3.0, about 30 s) | Cost |
 |---|---|
@@ -190,6 +190,12 @@ what the silent shot and its voice cost (about $0.13), so the token price stays.
 on Wan 2.2 and the voice already said plays beside it. The setting is `replicate_speech_model` ("Lip-sync video model";
 "off" goes back to silent). A bake-off on 2026-11-09 (one stage-4 frame) ruled out OmniHuman 1.5 (refuses sexual
 content), Ovi (makes its own voice), lipsync-2-pro (needs a visible mouth) and MultiTalk (3 s clips, slow).
+
+**Night videos back on Venice, four 10 s shots, since 2026-11-18** (docs/after-dark.md, "Night videos like Animate"):
+a night's shots film on Venice's Wan 3.0 whenever its key is set, 10 s each with sound, like Studio's Animate; keyframes
+stay on the media provider. 4 × $1.30 = **$5.20** of video, plus 4 keyframes (about $0.12 to $0.16) and Hive (4
+requests), so **about $5.40 to $5.50** a video, against about $5.75 in at 8 tokens after Stripe's fee: about break even,
+and the price stays (David, 2026-11-18). Clips stay on the media provider.
 
 At **7 tokens** (#1005, 2026-10-30 to 2026-11-01: break even on Venice) we take in about $5.05 after Stripe's fee (about $4.75 with an adult processor), so a video about breaks even (from about $0.50 kept to about $0.75 lost on a long one). At the old 15 we kept about $5.30 to $6.50. Test B's route (Wan 2.6 with our own voices) would cost about $3.50, but it lip-syncs the wrong face in a two-person shot.
 

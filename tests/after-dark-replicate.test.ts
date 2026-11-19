@@ -495,6 +495,36 @@ describe("the video of the night on Replicate", () => {
     expect(started.shots.some((s) => s.voiceless)).toBe(false);
   });
 
+  it("films the night on Venice's Wan 3.0 at 10 s a shot when its key is set, as a Studio animation is, the keyframes still on Replicate (David, 2026-11-18)", async () => {
+    const { id, cookie } = await admin();
+    await ready(cookie, id, { venice_key: "placeholder-venice-VNCE", replicate_talk_model: "", replicate_speech_model: "" });
+    const veniceQueued: Record<string, unknown>[] = [];
+    setReelFetchForTests(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const path = String(input).replace(/^https:\/\/api\.venice\.ai\/api\/v1/, "");
+      if (path === "/video/queue") {
+        veniceQueued.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+        return Response.json({ queue_id: `vq${veniceQueued.length}` });
+      }
+      return new Response("unexpected", { status: 500 });
+    });
+    const replicate = fakeReplicate();
+    fakeHive();
+    threeShots();
+    const started = (await (await make(cookie)).json()).reel as Reel;
+    // Pictures where media_provider says (Replicate); every video on Venice, none on Replicate's video, talk or speech models.
+    expect(replicate.creates(KEYFRAME)).toHaveLength(3);
+    expect(replicate.creates(VIDEO)).toHaveLength(0);
+    expect(replicate.creates(TALK)).toHaveLength(0);
+    expect(replicate.creates(S2V)).toHaveLength(0);
+    expect(veniceQueued).toHaveLength(3);
+    for (const q of veniceQueued) {
+      expect(q).toMatchObject({ model: "wan-3-0-image-to-video", duration: "10s", audio: true });
+      expect(String(q.prompt)).toMatch(/says: "Line number \d+ says something rather vivid here\."/);
+    }
+    expect(started.shots.every((s) => s.status === "queued" && s.model === "wan-3-0-image-to-video" && s.provider === undefined)).toBe(true);
+    setReelFetchForTests(null);
+  });
+
   it("films a shot with a line on the talk model, which says it itself, and one it can't make on Wan 2.2 with the voice beside it", async () => {
     const { id, cookie } = await admin();
     await ready(cookie, id, { replicate_talk_model: "", replicate_video_lora: "https://huggingface.co/x/y/resolve/main/both.safetensors" });
@@ -516,7 +546,7 @@ describe("the video of the night on Replicate", () => {
       expect(input).not.toHaveProperty("disable_safety_checker");
       expect(mediaOf(input.image)).toBeTruthy();
       // The line itself, quoted (the action written as what they do), with who says it.
-      expect(String(input.prompt)).toMatch(/The (man|woman), in .+, says: "Line number \d+ says something rather vivid here\." The \1 says it with (his|her) mouth free/);
+      expect(String(input.prompt)).toMatch(/The (man|woman), in .+, says: "Line number \d+ says something rather vivid here\."/);
     }
     expect(replicate.creates(VIDEO)).toHaveLength(0);
 

@@ -6,7 +6,7 @@ import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson } from "@/lib/http";
 import { requestBase } from "@/lib/site";
 
-// Drawing, checking and queueing six shots' keyframes takes a minute or so.
+// Drawing, checking and queueing the shots' keyframes (four by default) takes a minute or so.
 export const maxDuration = 300;
 
 const id = z.string().min(1).max(64);
