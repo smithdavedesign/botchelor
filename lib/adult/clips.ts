@@ -388,7 +388,7 @@ export async function makeClip(db: Db, ownerId: string, ask: ClipAsk, baseUrl: s
   const settings = await getAdultSettings(db);
   const keys = await adultKeys(db);
   // On their own key (Connections, After Dark videos) or After Dark's, and Hive's for the checks.
-  const media = await reelMedia(db, ownerId, settings, keys);
+  const media = await reelMedia(db, ownerId, settings, keys, "clip");
   if (!media.ok) return refuse(media.status, media.error, media.message.replace(/^Videos need/, "Clips need"));
   const onReplicate = media.media.provider === "replicate";
   // Hive over its daily limit (lib/adult/hive-limit.ts): refused before the director, a draw or a token is spent.

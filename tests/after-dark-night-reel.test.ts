@@ -674,7 +674,7 @@ describe("the storyboard: plan, draw, then film", () => {
     const filmed = (await (await make(cookie, { action: "film", id: plan.id })).json()).reel as Reel;
     expect(filmed.shots.every((s) => s.status === "queued")).toBe(true);
     const queued = seen.filter((x) => x.path === "/video/queue");
-    expect(String(queued[0].body.prompt)).toMatch(/^she laughs and pulls him down onto the bench /);
+    expect(String(queued[0].body.prompt)).toMatch(/^Most important, do exactly this: she laughs and pulls him down onto the bench\. /);
     expect(String(queued[1].body.prompt)).toContain(plan.shots[1].motion);
     // Only a draft takes them.
     expect((await make(cookie, { action: "video_words", id: plan.id, shot: 0, words: "x" })).status).toBe(409);
@@ -687,7 +687,7 @@ describe("the storyboard: plan, draw, then film", () => {
     const again = (await (await make(cookie, { action: "refilm", id: plan.id, media_id: done.shots[1].media_id, video_words: "he slowly turns her around to face the sea" })).json()).reel as Reel;
     expect(again.shots[1]).toMatchObject({ status: "queued", video_words: "he slowly turns her around to face the sea" });
     const requeued = seen.filter((x) => x.path === "/video/queue");
-    expect(String(requeued[requeued.length - 1].body.prompt)).toMatch(/^he slowly turns her around to face the sea /);
+    expect(String(requeued[requeued.length - 1].body.prompt)).toMatch(/^Most important, do exactly this: he slowly turns her around to face the sea\. /);
   });
 
   it("suggests each shot's best-fitting pictures of theirs by its tags, and draws a shot like one (its pose, framing and place)", async () => {

@@ -977,9 +977,13 @@ export async function clearBeats(db: Db, sceneId: string): Promise<void> {
   await db.query(`delete from adult_beats where scene_id = $1 and night_id is null`, [sceneId]);
 }
 
+/** A night's video starts a shot from the scene picture drawn at most this many lines before its line, never earlier. */
+export const BEAT_REUSE_LINES = 2;
+
 /**
  * The beat picture a shot of a video can start from: the latest drawn beat at or before its line in its chapter (the
- * running chapter's, or the saved night's), still at the same stage and in the same place. Null when there's none.
+ * running chapter's, or the saved night's), at most BEAT_REUSE_LINES before it, still at the same stage and in the same
+ * place. Null when there's none (the shot then draws its own keyframe of that moment).
  */
 export async function beatPictureFor(
   db: Db,
@@ -991,10 +995,12 @@ export async function beatPictureFor(
   place: string | null,
 ): Promise<{ id: string; eyes: Eyes | null } | null> {
   if (part.chapter === null) return null;
+  // Only a picture of this moment (BEAT_REUSE_LINES): one from earlier in the chapter showed something else (2026-11-18:
+  // a shot of them mid-sex started from the picture of them undressing in the car, so its video matched neither).
   const { rows } = await db.query<BeatRow>(
-    `select * from adult_beats where owner_id = $1 and character_a = $2 and character_b = $3 and chapter = $4 and night_id is not distinct from $5 and line <= $6 and status = 'drawn' and picture_id is not null
+    `select * from adult_beats where owner_id = $1 and character_a = $2 and character_b = $3 and chapter = $4 and night_id is not distinct from $5 and line <= $6 and line >= $6 - $7 and status = 'drawn' and picture_id is not null
       order by line desc limit 1`,
-    [ownerId, pair[0], pair[1], part.chapter, part.night_id, line],
+    [ownerId, pair[0], pair[1], part.chapter, part.night_id, line, BEAT_REUSE_LINES],
   );
   const b = rows[0];
   if (!b) return null;

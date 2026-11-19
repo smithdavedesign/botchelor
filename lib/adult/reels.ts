@@ -131,6 +131,13 @@ export type ReelShot = {
   line: number;
   who: "a" | "b";
   text: string;
+  /**
+   * The other one's answer, said in the same shot (David, 2026-11-18: "one or two lines" a clip): the next line of the
+   * script when it's theirs, right after, and both fit the shot. Said only by a model that voices quoted lines itself.
+   */
+  reply?: { who: "a" | "b"; text: string };
+  /** How long the shot runs on Venice (a night's shots: 10, like a Studio animation); unset, as long as its line needs. */
+  seconds?: number;
   /** The director's still of the two of them at this line: what the keyframe shows. */
   frame?: string;
   /** What they do next: what the shot shows. */
@@ -761,9 +768,10 @@ export async function pickShots(
                 `Take them from across the night${want >= night!.chapters.length ? ", at least one from each chapter" : ""}, not only the latest chapter. Prefer short, vivid spoken lines, and give both of them lines${each}.`
               : `Pick the ${want} lines that make the best short film of this night, in order: how it starts, how it builds, its most intense moment (usually in the middle or later, not at either end) and how it lands. ` +
                 `Prefer short, vivid spoken lines, and give both of them lines${each}.`,
-            "Every shot shows the two of them together in one frame, doing what the script has them doing at that line: its action, and the lines just before it. For each shot write:",
-            `- "frame": one photograph of that moment, in one or two sentences: where they are in the place, where each of them is (one on the left or in front, the other on the right or behind) and how their bodies are posed toward each other, what's touching, what they're wearing or not by then, and the framing (wide, medium or close, varied from shot to shot; lying down, a medium shot from the side with both faces toward the camera, never from above). Both faces visible, two people only.`,
-            `- "motion": one sentence: what each of them does over the next few seconds, carrying on from that photograph, as the line is said.`,
+            "Every shot is a 10-second clip of the two of them together in one frame, doing what the script has them doing at that line: its action, and the lines just before it. For each shot write:",
+            `- "frame": one photograph of that moment, already under way, in one or two sentences: where they are (exactly the place in that line's "where" column, never another room, vehicle or spot the script doesn't name), where each of them is (one on the left or in front, the other on the right or behind) and how their bodies are posed toward each other, what's touching, what they're wearing or not by then, and the framing (wide, medium or close, varied from shot to shot; lying down, a medium shot from the side with both faces toward the camera, never from above). Both faces visible, two people only.`,
+            `- "motion": one or two sentences, the most important thing in the shot: what each of them does over the 10 seconds, carrying on from that photograph. Name the act plainly and specifically, as the script does, who does what to whom (never a vague "deepens the rhythm" or "moves together").`,
+            "The one who says the line must be free to say it at that moment: never a moment where their mouth is busy (a kiss, oral); show the moment just before or after it instead.",
             `- "eyes": null; or, for up to ${POV_SHOTS_MAX} shots where it suits the moment, one of the two exactly as named above: the shot is then seen through that one's eyes, first person, its frame showing only the other in full (the first one's hands or body at the edge of the frame at most, never a face).`,
             ...(hint ? [hint] : []),
             "Concrete and physical, like a shot list: no feelings, no dialogue, no names.",
@@ -1002,9 +1010,20 @@ const mouthFree = (speaker: ReelPerson, other: ReelPerson | null): string =>
   ` ${cap(speaker.tag)} says it with ${possessive(speaker)} mouth free, not kissing or covered, face turned so the lips show${other ? `; ${other.tag} stays quiet, listening` : ""}.`;
 
 /** A shot's prompt: what they do, both kept as they are, one continuous shot, and who says the line (or that nobody does). */
-export function shotPrompt(cast: readonly [ReelPerson, ReelPerson], s: Pick<ReelShot, "who" | "text" | "motion" | "eyes" | "camera" | "video_words">, audioIn: boolean): string {
+export function shotPrompt(cast: readonly [ReelPerson, ReelPerson], s: Pick<ReelShot, "who" | "text" | "motion" | "eyes" | "camera" | "video_words" | "reply">, audioIn: boolean): string {
   const speaker = cast[s.who === "a" ? 0 : 1];
-  const motion = shotMotion(s);
+  // What happens leads, as a Studio animation's direction does (David, 2026-11-18: Animate does what it's asked, the
+  // night's video didn't): "Most important, do exactly this".
+  const what = shotMotion(s).trim();
+  const motion = what ? `Most important, do exactly this: ${what.replace(/[.\s]*$/, "")}.` : "";
+  // Said by a model that voices quoted lines itself: the line, and the other one's answer when the shot has one. The
+  // "mouth free" sentence is for the lip-sync models only (it fought the act on the rest: a line said mid-kiss).
+  const answer = (): string => {
+    const r = s.reply;
+    if (!r?.text.trim() || r.who === s.who) return "";
+    const other = cast[r.who === "a" ? 0 : 1];
+    return ` ${cap(other.tag)}, in ${other.voice}, answers: "${r.text}"`;
+  };
   if (s.eyes) {
     // First person (an act's view through one of their eyes): the one in full is the picture's, the other never a face.
     const viewer = cast[s.eyes === "a" ? 0 : 1];
@@ -1015,7 +1034,7 @@ export function shotPrompt(cast: readonly [ReelPerson, ReelPerson], s: Pick<Reel
     if (!s.text.trim()) return `${base} Neither of them speaks: only their breathing and the sounds of the room.`;
     // Said by the one whose eyes these are: off camera, so no mouth on screen is made to say it.
     if (s.who === s.eyes) return `${base} ${cap(viewer.tag)}, off camera, in ${viewer.voice}, says: "${s.text}"`;
-    return (audioIn ? `${base} ${cap(shown.tag)} is the one speaking, lips moving with the words.` : `${base} ${cap(shown.tag)}, in ${shown.voice}, says: "${s.text}"`) + mouthFree(shown, null);
+    return audioIn ? `${base} ${cap(shown.tag)} is the one speaking, lips moving with the words.${mouthFree(shown, null)}` : `${base} ${cap(shown.tag)}, in ${shown.voice}, says: "${s.text}"`;
   }
   const base =
     `${motion || "The two of them stay close, moving together."} Two people only: ${cast[0].tag} and ${cast[1].tag}, exactly as in the picture, ` +
@@ -1023,7 +1042,7 @@ export function shotPrompt(cast: readonly [ReelPerson, ReelPerson], s: Pick<Reel
   // A clip with no line in it (lib/adult/clips.ts, an act from the menu): nobody speaks.
   if (!s.text.trim()) return `${base} Neither of them speaks: only their breathing and the sounds of the room.`;
   const other = cast[s.who === "a" ? 1 : 0];
-  return (audioIn ? `${base} ${cap(speaker.tag)} is the one speaking, lips moving with the words.` : `${base} ${cap(speaker.tag)}, in ${speaker.voice}, says: "${s.text}"`) + mouthFree(speaker, other);
+  return audioIn ? `${base} ${cap(speaker.tag)} is the one speaking, lips moving with the words.${mouthFree(speaker, other)}` : `${base} ${cap(speaker.tag)}, in ${speaker.voice}, says: "${s.text}"${answer()}`;
 }
 
 /**
@@ -1315,6 +1334,11 @@ export type ShotContext = {
    */
   provider?: MediaProvider;
   /**
+   * Where the videos are filmed, when not where the pictures are (David, 2026-11-18): a night's shots film on Venice's
+   * Wan 3.0 like a Studio animation whenever the Venice key is set, whatever `provider` draws the keyframes. Unset: `provider`.
+   */
+  videoProvider?: MediaProvider;
+  /**
    * A clip's own keyframe (lib/adult/clips.ts): its prompt, and the third picture, a keyframe id to carry on from (Keep
    * going) or the place's set. Unset: a night's reel, the director's still in the line's place.
    */
@@ -1400,9 +1424,10 @@ async function withSteering(db: Db, ownerId: string, ctxIn: ShotContext): Promis
  * runMedia for a reel's keyframe or video: on someone's own key, straight there, since their key's limits are theirs
  * (nothing cools down for everyone, nothing falls back to ours).
  */
-function runShotMedia<T>(db: Db, job: "keyframe" | "video", run: (p: MediaProvider) => Promise<T>, ctx: Pick<ShotContext, "provider" | "replicate" | "venice" | "own">) {
+function runShotMedia<T>(db: Db, job: "keyframe" | "video", run: (p: MediaProvider) => Promise<T>, ctx: Pick<ShotContext, "provider" | "videoProvider" | "replicate" | "venice" | "own">) {
   const own = ctx.own?.provider;
-  return own ? run(own).then((value) => ({ value, provider: own, fell_back: false })) : runMedia(db, job, run, providersOf(ctx));
+  if (own) return run(own).then((value) => ({ value, provider: own, fell_back: false }));
+  return runMedia(db, job, run, providersOf(job === "video" && ctx.videoProvider ? { ...ctx, provider: ctx.videoProvider } : ctx));
 }
 
 /** The configured provider and what's available, for runMedia's fallback. */
@@ -1587,7 +1612,7 @@ async function queueShot(ctx: Pick<ShotContext, "cast" | "venice" | "model" | "b
   const audioIn = AUDIO_IN.test(ctx.model) && !(s.eyes && s.who === s.eyes);
   const body: Record<string, unknown> = {
     model: ctx.model,
-    duration: s.text.split(" ").length <= WORDS_5S ? "5s" : "10s",
+    duration: s.seconds ? `${s.seconds}s` : s.text.split(" ").length <= WORDS_5S ? "5s" : "10s",
     resolution: "720p",
     prompt: shotPrompt(ctx.cast, s, audioIn),
     negative_prompt: ctx.avoid ? `${SHOT_NEGATIVE}, ${ctx.avoid}` : SHOT_NEGATIVE,
@@ -1698,6 +1723,36 @@ type ReelBuild = { ca: Loaded; cb: Loaded; cast: [ReelPerson, ReelPerson]; place
  * One planned shot of the night's line `p.line`, or null when its words or directions cross David's lines: what it says
  * (spoken), where and how far along it was, the lines just before it for the storyboard, and its own chapter's line.
  */
+/** A night's shot runs this long on Venice, as a Studio animation does (David, 2026-11-18: "10 secs each clip"). */
+export const NIGHT_SHOT_SECONDS = 10;
+/** Both of a shot's lines together fit its 10 seconds at this many words (about 3 a second, with a breath each). */
+export const SHOT_WORDS_MAX = 24;
+
+/**
+ * The other one's answer in a shot (David, 2026-11-18: "one or two lines"): the next spoken line of the script, if it's
+ * theirs, comes within two lines, in the same place, stage and chapter, passes the same checks, and both lines fit the
+ * shot together. Null otherwise: the shot has its one line.
+ */
+export function replyTo(
+  lines: readonly SceneLine[],
+  at: number,
+  places: readonly (string | null)[],
+  stages: readonly number[],
+  whole: Pick<ReelNight, "chapterOf"> | null,
+): { who: "a" | "b"; text: string } | null {
+  const said = spoken(lines[at].text).speech;
+  for (let j = at + 1; j <= at + 2 && j < lines.length; j++) {
+    const { speech } = spoken(lines[j].text);
+    if (!speech.trim()) continue;
+    if (lines[j].who === lines[at].who) return null;
+    const same = (places[j] ?? null) === (places[at] ?? null) && (stages[j] ?? 0) === (stages[at] ?? 0) && whole?.chapterOf[j] === whole?.chapterOf[at];
+    const words = `${said} ${speech}`.split(/\s+/).filter(Boolean).length;
+    if (!same || words > SHOT_WORDS_MAX || !checkAdultText({ speech }).ok || crossesTaboo(speech)) return null;
+    return { who: lines[j].who, text: speech };
+  }
+  return null;
+}
+
 function lineShot(
   lines: readonly SceneLine[],
   p: ShotPick,
@@ -1715,12 +1770,15 @@ function lineShot(
   if (!checkAdultText({ speech, frame: p.frame, motion: p.motion }).ok || crossesTaboo(`${speech} ${p.frame} ${p.motion}`)) return null;
   const k = whole?.chapterOf[p.line];
   const from = k === undefined ? null : { chapter: whole!.chapters[k].chapter, night_id: whole!.chapters[k].night_id, chapter_line: p.line - starts[k] };
+  const reply = p.eyes ? null : replyTo(lines, p.line, places, stages, whole);
   // Where in the night it is: the lines just before it, for the storyboard (David, 2026-10-24).
   const before = lines.slice(Math.max(0, p.line - SHOT_CONTEXT), p.line).map((x) => ({ who: x.who, text: x.text.replace(/\s+/g, " ").slice(0, 240) }));
   return {
     line: p.line,
     who: l.who,
     text: speech,
+    ...(reply ? { reply } : {}),
+    seconds: NIGHT_SHOT_SECONDS,
     frame: p.frame,
     motion: p.motion,
     ...(lineAction ? { line_action: lineAction } : {}),
@@ -1773,7 +1831,7 @@ const replicateMedia = (keys: Awaited<ReturnType<typeof adultKeys>>, settings: S
     : null;
 
 /** Where a video's pictures and shots are made, and on whose key. */
-export type ReelMedia = Pick<ShotContext, "venice" | "replicate" | "provider" | "model" | "own">;
+export type ReelMedia = Pick<ShotContext, "venice" | "replicate" | "provider" | "videoProvider" | "model" | "own">;
 type ReelFail = { ok: false; status: number; error: string; message: string };
 
 /**
@@ -1782,7 +1840,7 @@ type ReelFail = { ok: false; status: number; error: string; message: string };
  * keyframes on that key too and nothing falling back to ours, free of tokens (`own`); otherwise on After Dark's keys
  * (`media_provider`), for tokens. A key that's paused (over its cap, or refused) says so rather than charging tokens.
  */
-export async function reelMedia(db: Db, ownerId: string, settings: Settings, keys: Awaited<ReturnType<typeof adultKeys>>): Promise<{ ok: true; media: ReelMedia } | ReelFail> {
+export async function reelMedia(db: Db, ownerId: string, settings: Settings, keys: Awaited<ReturnType<typeof adultKeys>>, kind: "night" | "clip" = "night"): Promise<{ ok: true; media: ReelMedia } | ReelFail> {
   const usable = await jobUsability(db, ownerId, "after_dark_video");
   if (usable.state !== "none") {
     if (usable.state !== "ok") return { ok: false, status: 409, error: "own_key_paused", message: usable.message };
@@ -1811,7 +1869,11 @@ export async function reelMedia(db: Db, ownerId: string, settings: Settings, key
   if (!(onReplicate ? keys.replicate : keys.venice) || !keys.hive) {
     return { ok: false, status: 409, error: "not_set_up", message: `Videos need the ${onReplicate ? "Replicate" : "Venice"} and Hive keys in After Dark's settings.` };
   }
-  return { ok: true, media: { venice: keys.venice ?? "", replicate: replicateMedia(keys, settings), provider: settings.media_provider, model: settings.reel_model, own: null } };
+  // A night's video is filmed where a Studio animation is (David, 2026-11-18: "the animate option … is much more
+  // effective"): Venice's reel model (Wan 3.0) whenever its key is set, Replicate then only its fallback; the keyframes
+  // stay on media_provider. A clip from the theater's camera stays on media_provider (its price is set for it).
+  const videoProvider = kind === "night" && keys.venice ? ("venice" as const) : undefined;
+  return { ok: true, media: { venice: keys.venice ?? "", replicate: replicateMedia(keys, settings), provider: settings.media_provider, ...(videoProvider ? { videoProvider } : {}), model: settings.reel_model, own: null } };
 }
 
 /** A refusal of someone's own key (invalid, out of credit) goes on its Connections card, as a Studio picture's does. */
@@ -1825,14 +1887,14 @@ async function ownKeyRefused(db: Db, userId: string, provider: string, err: unkn
  * per prediction): Wan 2.2 with its voice about 11¢; a talking model about 10¢ a second (Replicate's Wan 2.6, 720p),
  * Venice's Wan 3.0 about 13¢; and its keyframe, about 4¢.
  */
-export function ownShotUsd(s: Pick<ReelShot, "model" | "text" | "speaks" | "from_beat" | "from_picture" | "said_s">): number {
+export function ownShotUsd(s: Pick<ReelShot, "model" | "text" | "speaks" | "from_beat" | "from_picture" | "said_s" | "seconds">): number {
   const keyframe = s.from_beat || s.from_picture ? 0 : 0.04;
   const model = s.model ?? "";
   // The speech model: $0.02 a second of video, as long as its padded line, and the voice (about half a cent).
   if (/s2v/.test(model) && s.speaks) return keyframe + 0.02 * Math.max(SPEECH_MIN_S, s.said_s ?? 0) + 0.005;
   if (/wan-2\.2/.test(model) && !s.speaks) return keyframe + 0.11;
   const seconds = s.text.split(/\s+/).filter(Boolean).length / WORDS_PER_SECOND + BREATH_S;
-  const shot = /wan-2\.7/.test(model) ? Math.min(15, Math.max(5, Math.ceil(seconds))) : seconds <= 5 ? 5 : 10;
+  const shot = s.seconds && /^wan-3/.test(model) ? s.seconds : /wan-2\.7/.test(model) ? Math.min(15, Math.max(5, Math.ceil(seconds))) : seconds <= 5 ? 5 : 10;
   return keyframe + shot * (/^wan-3-0/.test(model) ? 0.13 : 0.1);
 }
 
@@ -2840,7 +2902,7 @@ export async function refilmShot(db: Db, ownerId: string, reelId: string, mediaI
   const settings = await getAdultSettings(db);
   const keys = await adultKeys(db);
   // On their own key (Connections) or ours, and Hive's for the checks.
-  const where = await reelMedia(db, ownerId, settings, keys);
+  const where = await reelMedia(db, ownerId, settings, keys, r.kind === "clip" ? "clip" : "night");
   if (!where.ok) return where;
   const busy = await busyReel(db, ownerId);
   if (busy) return { ok: false, status: 409, error: "busy", message: busyMessage(busy), busy };

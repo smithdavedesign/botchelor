@@ -226,7 +226,7 @@ describe("a clip from the menu", () => {
     const queued = seen.find((s) => s.path === "/video/queue")!;
     expect(mediaOf(queued.body.image_url)).toBe(frame.id);
     expect(queued.body).toMatchObject({ model: "wan-3-0-image-to-video", duration: "5s", audio: true });
-    expect(String(queued.body.prompt)).toMatch(/^The woman rides him slowly, rolling her hips; the man holds the woman's hips and moves with her\. Two people only/);
+    expect(String(queued.body.prompt)).toMatch(/^Most important, do exactly this: The woman rides him slowly, rolling her hips; the man holds the woman's hips and moves with her\. Two people only/);
     expect(String(queued.body.prompt)).toMatch(/Neither of them speaks: only their breathing and the sounds of the room\.$/);
     // Collected by the reel poll, checked again (moderation, on the shot), and listed with the pair's videos as a clip.
     const done = await advance(started.id, cookie);
@@ -417,8 +417,10 @@ describe("a clip from here", () => {
     expect(prompt).toContain("By the window, the woman with her back to the glass and the man close in front of her, kissing, both dressed.");
     expect(prompt).toContain("they're dressed as the moment says, not nude");
     const queued = seen.find((s) => s.path === "/video/queue")!;
-    expect(String(queued.body.prompt)).toMatch(/^The man pulls the woman in by the waist; she laughs into the kiss\./);
-    expect(String(queued.body.prompt)).toMatch(/The man, in a man's voice, says: "Come here, you menace\." The man says it with his mouth free, not kissing or covered, face turned so the lips show; the woman stays quiet, listening\.$/);
+    expect(String(queued.body.prompt)).toMatch(/^Most important, do exactly this: The man pulls the woman in by the waist; she laughs into the kiss\./);
+    expect(String(queued.body.prompt)).toMatch(/The man, in a man's voice, says: "Come here, you menace\."$/);
+    // Said by Wan 3.0 itself: no "mouth free" sentence (it fought the act, 2026-11-18); that's for the lip-sync models.
+    expect(String(queued.body.prompt)).not.toContain("mouth free");
   });
 
   it("falls back to the plain still when what the director wrote goes past the night, or crosses a limit", async () => {
@@ -465,7 +467,7 @@ describe("keep going", () => {
     expect((edit.body.images as string[]).map(mediaOf)).toEqual(["base-juniper", "base-rafe", firstFrame]);
     expect(String(edit.body.prompt)).toMatch(/^Make one photograph of the woman from Picture 1 and the man from Picture 2 together, a few seconds after the moment in Picture 3\./);
     expect(String(edit.body.prompt)).toContain("after this: They kiss slowly and deeply; the woman's thumb strokes the man's cheek.");
-    expect(String(seen.find((s) => s.path === "/video/queue")!.body.prompt)).toMatch(/^They part for a breath, foreheads together, then kiss again, deeper\./);
+    expect(String(seen.find((s) => s.path === "/video/queue")!.body.prompt)).toMatch(/^Most important, do exactly this: They part for a breath, foreheads together, then kiss again, deeper\./);
     // Someone else's clip isn't theirs to keep going, even another admin's.
     expect((await clip((await admin()).cookie, { continue: first.id })).status).toBe(404);
     // A chain stops at CHAIN_MAX shots.
