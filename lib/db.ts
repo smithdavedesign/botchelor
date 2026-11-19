@@ -1062,6 +1062,15 @@ create table if not exists adult_cast_checks (
   portrait_reason text,
   portrait_checked_at timestamptz
 );
+-- The age check when a person switches their own character into After Dark (lib/adult/switch-check.ts): the verdict,
+-- what it was read from (sig: the sheet and the portrait), and which check said no ('sheet' or 'portrait').
+create table if not exists adult_switch_checks (
+  character_id text primary key references characters(id) on delete cascade,
+  sig text not null,
+  ok boolean not null,
+  reason text not null,
+  checked_at timestamptz not null default now()
+);
 create table if not exists companion_threads (
   id text primary key,
   user_id text not null,

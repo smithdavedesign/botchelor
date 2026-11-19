@@ -11,7 +11,8 @@ import { ROLEPLAY_IDS } from "./roleplays";
 import { SCENARIOS } from "./scenarios";
 import { AdultSettingsInput, SETTINGS_KEY_FIELDS } from "./settings-input";
 import type { Db } from "../db";
-import { drawnOutMessage, drawnStyleOf, franchiseOut, listSwitchable, playableIds, setAdultSwitch } from "./characters";
+import { drawnOutMessage, drawnStyleOf, franchiseOut, listSwitchable, mayFlip, playableIds, setAdultSwitch } from "./characters";
+import { switchAgeCheck } from "./switch-check";
 import { hiveState, mediaPauses } from "./hive-limit";
 import { baselinePrompt, listMedia, makePicture } from "./media";
 import { loadCharacter } from "../character";
@@ -270,7 +271,7 @@ export const ADULT_TOOLS: { name: string; title: string; description: string; in
   {
     name: "after_dark_switch",
     title: "After dark: switch a character in or out",
-    description: "Admin only. Switches one of your characters, or a house character, in or out of after dark (this season's cast is always in).",
+    description: "Admin only. Switches one of your characters, or a house character, in or out of after dark (this season's cast is always in). Switching your own one in first asks whether its profile and portrait read as a grown adult; one that reads young stays out, and the error says why.",
     inputSchema: { type: "object", required: ["character_id", "on"], properties: { character_id: id, on: { type: "boolean" } } },
     annotations: { readOnlyHint: false },
   },
@@ -477,6 +478,11 @@ export async function runAdultTool(db: Db, name: string, args: Record<string, un
       if (drawn) return { error: drawnOutMessage(drawn) };
       const copy = args.on === true ? await franchiseOut(db, String(args.character_id ?? "")) : null;
       if (copy) return { error: copy };
+      // Too young in their profile or portrait (lib/adult/switch-check.ts): they stay out, and the reason is said.
+      if (args.on === true && (await mayFlip(db, owner, String(args.character_id ?? "")))) {
+        const age = await switchAgeCheck(db, owner, String(args.character_id ?? ""));
+        if (age.state !== "passed") return { error: age.message };
+      }
       const ok = await setAdultSwitch(db, owner, String(args.character_id ?? ""), args.on === true);
       return ok ? { data: { characters: await listSwitchable(db, owner) } } : { error: "Only the admin's own characters, and house characters, can be switched on." };
     }

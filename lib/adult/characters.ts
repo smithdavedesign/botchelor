@@ -134,7 +134,8 @@ export async function pairAbsence(db: Db, ownerId: string, x: string, y: string)
 }
 
 /** Whether this person may flip this character's switch: their own, or a house character. */
-async function mayFlip(db: Db, ownerId: string, characterId: string): Promise<boolean> {
+/** Whether this person may switch this character: their own, or a house character. */
+export async function mayFlip(db: Db, ownerId: string, characterId: string): Promise<boolean> {
   const c = (await db.query<{ owner_id: string | null; is_house: boolean }>(`select owner_id, is_house from characters where id = $1`, [characterId])).rows[0];
   return Boolean(c && (c.is_house || c.owner_id === ownerId));
 }

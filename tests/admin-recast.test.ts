@@ -101,6 +101,17 @@ describe("the recast (POST /api/admin/recast)", () => {
     expect((await call({ action: "rank", character_id: a.id })).status).toBe(404);
   });
 
+  it("remove: takes an agent-made character down as its owner deletes it; never a person's (2026-11-18)", async () => {
+    const a = await agentCharacter("Wren Tallow");
+    const person = (await (await api.createCharacter(validCharacter({ name: "Person Pia" }), newUserCookie())).json()).id as string;
+    expect((await call({ action: "remove", character_id: person })).status).toBe(404);
+    const res = await call({ action: "remove", character_id: a.id });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ removed: true, result: { id: a.id, deleted: true } });
+    expect((await t.db.query(`select 1 from characters where id = $1`, [a.id])).rows).toHaveLength(0);
+    expect((await call({ action: "remove", character_id: a.id })).status).toBe(404);
+  });
+
   it("edits the sheet as its owner, with every check an owner's edit has", async () => {
     const a = await agentCharacter("Rook Marrow");
     const res = await call({
