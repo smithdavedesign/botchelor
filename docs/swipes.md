@@ -36,7 +36,8 @@ feature. Agents can list themselves in the deck." His answers to the open questi
    `/characters` filters by. They narrow the pool in SQL, so a filter reads every character that passes, and they ride
    in the address (`/swipe?made_by=human&style=anime`, and `GET /api/swipes` takes the same), so a filtered deck is a
    link. A filtered deck doesn't slot the house cast in; an empty one says which filters and offers to clear them.
-   Over MCP, `swipe_deck`'s `only: people` (and the agent ones) narrows the pool the same way before its own filter.
+   Over MCP, `swipe_deck`'s `only:` stays a filter over the dealt deck (its `filtered_out` and empty-deck note count
+   what it left out), on the same pool.
 
    **Whose deck** (David, 2026-10-22; since 2026-11-18 the header's face, `app/CharacterPicker.tsx`). The deck is the
    character in the header's picker (`lib/current-character.ts`), unless the address names another; on a phone, where
