@@ -138,6 +138,23 @@ describe("a local baseline for the agent cast", () => {
     expect((await send(a.cookie, { character_id: c, owner_id: a.id }, PNG, "text/plain")).status).toBe(415);
     expect((await t.db.query(`select 1 from adult_images`)).rows).toHaveLength(0);
   });
+
+  it("shoot (the Mac's nightly shoots, 2026-11-19): admins only, an admin owner, and the Studio's own checks on the choices", async () => {
+    const a = await admin();
+    const id = await castMember(a.id);
+    const post = (cookie: string | null, body: object) =>
+      castPost(new Request(`${BASE_URL}/api/admin/after-dark/agent-cast`, { method: "POST", headers: { "content-type": "application/json", ...(cookie ? { cookie } : {}) }, body: JSON.stringify({ action: "shoot", ...body }) }));
+    const choices = { pose: "standing", custom: "a slow smile over the shoulder" };
+    expect((await post(null, { character_id: id, owner_id: a.id, choices })).status).toBe(403);
+    expect((await post(a.cookie, { character_id: id, owner_id: crypto.randomUUID(), choices })).status).toBe(400);
+    expect((await post(a.cookie, { character_id: id, owner_id: a.id, choices: { ...choices, custom: "x".repeat(401) } })).status).toBe(422);
+    expect((await post(a.cookie, { character_id: id, owner_id: a.id, choices: { ...choices, not_a_group: "x" } })).status).toBe(422);
+    // A size the Studio doesn't offer is the Studio's own refusal, before anything is drawn.
+    const odd = await post(a.cookie, { character_id: id, owner_id: a.id, choices, size: 3 });
+    expect(odd.status).toBe(422);
+    expect((await odd.json()).error).toBe("unknown_size");
+    expect((await t.db.query(`select 1 from adult_images`)).rows).toHaveLength(0);
+  });
 });
 
 // The local ones looked like a head pasted on a body (David, 2026-11-12), so the cast is redrawn with the Studio's editor:
@@ -172,6 +189,23 @@ describe("an editor-drawn baseline for the agent cast", () => {
     expect((await post(null, { character_id: id, owner_id: a.id })).status).toBe(403);
     expect((await post(a.cookie, { character_id: id, owner_id: crypto.randomUUID() })).status).toBe(400);
     expect((await post(a.cookie, { character_id: closed, owner_id: a.id })).status).toBe(404);
+    expect((await t.db.query(`select 1 from adult_images`)).rows).toHaveLength(0);
+  });
+
+  it("shoot (the Mac's nightly shoots, 2026-11-19): admins only, an admin owner, and the Studio's own checks on the choices", async () => {
+    const a = await admin();
+    const id = await castMember(a.id);
+    const post = (cookie: string | null, body: object) =>
+      castPost(new Request(`${BASE_URL}/api/admin/after-dark/agent-cast`, { method: "POST", headers: { "content-type": "application/json", ...(cookie ? { cookie } : {}) }, body: JSON.stringify({ action: "shoot", ...body }) }));
+    const choices = { pose: "standing", custom: "a slow smile over the shoulder" };
+    expect((await post(null, { character_id: id, owner_id: a.id, choices })).status).toBe(403);
+    expect((await post(a.cookie, { character_id: id, owner_id: crypto.randomUUID(), choices })).status).toBe(400);
+    expect((await post(a.cookie, { character_id: id, owner_id: a.id, choices: { ...choices, custom: "x".repeat(401) } })).status).toBe(422);
+    expect((await post(a.cookie, { character_id: id, owner_id: a.id, choices: { ...choices, not_a_group: "x" } })).status).toBe(422);
+    // A size the Studio doesn't offer is the Studio's own refusal, before anything is drawn.
+    const odd = await post(a.cookie, { character_id: id, owner_id: a.id, choices, size: 3 });
+    expect(odd.status).toBe(422);
+    expect((await odd.json()).error).toBe("unknown_size");
     expect((await t.db.query(`select 1 from adult_images`)).rows).toHaveLength(0);
   });
 });
