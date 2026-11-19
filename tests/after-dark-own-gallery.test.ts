@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { GALLERY_MAX, GALLERY_PAGE, galleryCounts, galleryLimit, galleryTab, sourceOf } from "@/lib/adult/gallery";
-import { ownMedia } from "@/lib/adult/media";
+import { characterMedia, listMedia, ownMedia } from "@/lib/adult/media";
 import { ownReels } from "@/lib/adult/reels";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import { newUserCookie, startTestDb, userIdOf } from "./helpers";
@@ -120,6 +120,50 @@ describe("the Gallery's tabs", () => {
     expect(reels.map((r) => r.id)).toEqual(["being-made", "night"]);
     expect(reels[1]).toMatchObject({ a: A.id, b: B.id, a_name: A.name, b_name: B.name, kind: "night" });
     expect(reels[1].shots).toHaveLength(3);
+  });
+});
+
+// David, 2026-11-18: "There are PG videos on after dark, can we move them out?" They were the living portraits
+// (lib/showcase-loops.ts): PG clips made for the show's Gallery and Reels, stored in After Dark's media store. No After
+// Dark gallery lists them now: not the Gallery (any tab, or its counts), not a night's, not a character's (an admin
+// sees everyone's, the show's own included).
+describe("living portraits stay on the show", () => {
+  const add = (id: string, owner: string, kind: string, b: string | null, at: string, mime = "image/png") =>
+    t.db.query(`insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, status, created_at) values ($1, $2, $3, $4, $5, 'x', $6, 'ready', $7)`, [
+      id,
+      owner,
+      A.id,
+      b,
+      kind,
+      mime,
+      at,
+    ]);
+  const loop = (media: string, owner: string, source: "post" | "portrait") =>
+    t.db.query(`insert into showcase_loops (id, owner_id, source, source_id, character_id, status, media_id) values ($1, $2, $3, $4, $5, 'ready', $1)`, [
+      media,
+      owner,
+      source,
+      `src-${media}`,
+      A.id,
+    ]);
+
+  it("leaves them out of every After Dark listing, and keeps the clips beside them", async () => {
+    const me = userIdOf(newUserCookie());
+    await t.db.query("insert into admins (user_id) values ($1)", [me]);
+    await add("my-clip", me, "video", null, "2026-11-01T00:00:00Z", "video/mp4");
+    await add("my-portrait-loop", me, "video", null, "2026-11-02T00:00:00Z", "video/mp4");
+    await add("show-loop", "botchelor-show", "video", null, "2026-11-03T00:00:00Z", "video/mp4");
+    await add("my-pair-pic", me, "scene", B.id, "2026-11-04T00:00:00Z");
+    await loop("my-portrait-loop", me, "post");
+    await loop("show-loop", "botchelor-show", "portrait");
+
+    const ids = (items: { id: string }[]) => items.map((m) => m.id);
+    expect(ids(await ownMedia(t.db, me))).toEqual(["my-pair-pic", "my-clip"]);
+    expect(ids(await ownMedia(t.db, me, 120, { tab: "videos" }))).toEqual(["my-clip"]);
+    expect(await galleryCounts(t.db, me)).toEqual({ videos: 1, pictures: 1, faces: 0, reels: 0, clips: 1 });
+    expect(await galleryCounts(t.db, "botchelor-show")).toMatchObject({ videos: 0, clips: 0 });
+    expect(ids(await listMedia(t.db, [A.id, B.id], me))).toEqual(["my-pair-pic", "my-clip"]);
+    expect(ids(await characterMedia(t.db, A.id, me))).toEqual(["my-pair-pic", "my-clip"]);
   });
 });
 

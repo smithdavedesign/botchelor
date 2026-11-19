@@ -50,6 +50,14 @@ export const SHOWN_NIGHT_REEL = `coalesce(adult_reels.kind, 'night') <> 'clip' a
 export const IN_NIGHT_REEL = `exists (select 1 from adult_reels v cross join lateral jsonb_array_elements(v.shots) s
   where v.owner_id = i.owner_id and coalesce(v.kind, 'night') <> 'clip' and v.status <> 'draft' and s->>'media_id' = i.id and not s ? 'archived_at')`;
 
+/**
+ * Not a living portrait (lib/showcase-loops.ts), on adult_images aliased `i`: a PG clip made for the show's Gallery and
+ * Reels, from a PG picture post or a show portrait. It's an After Dark row only because After Dark's media store makes
+ * it, so no After Dark gallery lists it (David, 2026-11-18: "There are PG videos on after dark, can we move them out?").
+ * It stays on the show's side, as its showcase post.
+ */
+export const NOT_A_LIVING_PORTRAIT = `not exists (select 1 from showcase_loops l where l.media_id = i.id)`;
+
 /** Each tab's rows, on adult_images aliased `i`. */
 export const TAB_WHERE: Record<GalleryTab, string> = {
   videos: `i.kind = 'video' and not ${IN_NIGHT_REEL}`,
@@ -64,7 +72,7 @@ export async function galleryCounts(db: Db, ownerId: string): Promise<GalleryCou
       `select count(*) filter (where ${TAB_WHERE.videos}) as clips, count(*) filter (where ${TAB_WHERE.pictures}) as pictures,
               count(*) filter (where ${TAB_WHERE.faces}) as faces
          from adult_images i
-        where i.owner_id = $1 and i.kind not in ('frame', 'audio') and i.superseded_by is null`,
+        where i.owner_id = $1 and i.kind not in ('frame', 'audio') and i.superseded_by is null and ${NOT_A_LIVING_PORTRAIT}`,
       [ownerId],
     ),
     db.query<{ n: string }>(`select count(*) as n from adult_reels where owner_id = $1 and ${SHOWN_NIGHT_REEL}`, [ownerId]),
