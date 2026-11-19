@@ -200,6 +200,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
       premium: true,
     })),
   ];
+  const [heroA, heroB] = onSeason;
   const airedEpisodes = feedEpisodes(aired?.items ?? []);
   // The hero's real date (lib/featured-date.ts): the best moment of one of the week's best-rated dates (2026-11-11
   // bounce review: the newest one was often hard to follow cold), else the newest date's opening.
@@ -340,9 +341,22 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
             {/* A first visit calls the ending on the card (app/FirstRunCall.tsx); a creator's hero just plays it. */}
             <DateExcerpt date={featured} call={!creator} />
           </div>
+        ) : creator ? (
+          // An owner's hero is as it was: no clip, so the matchup of two house faces.
+          heroA &&
+          heroB && (
+            <div className="hero-art">
+              <div className="matchup">
+                <Avatar seed={heroA.id} name={heroA.name} house size={64} />
+                <span className="vs">×</span>
+                <Avatar seed={heroB.id} name={heroB.name} house size={64} />
+              </div>
+              <p className="muted mini-cap">An engine decides how every date ends; friends guess it first.</p>
+            </div>
+          )
         ) : (
-          // Nothing aired to show yet (a new database, a quiet fortnight): the show's own ad (lib/promo-videos.ts),
-          // where the matchup of two house faces used to stand.
+          // A stranger with nothing aired to show (a new database, a quiet fortnight): the show's own ad
+          // (lib/promo-videos.ts), where the matchup of two house faces used to stand.
           <div className="hero-art has-clip">
             <HomeClip
               loopSrc={PROMO.homeLoop.src}
