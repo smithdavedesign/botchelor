@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { NEGATIVE_PROMPT } from "@/lib/adult/media";
-import { ART_STYLE_LABEL, ART_STYLES, artStyleFrom, artStyleInWords, artStyleOf, DRAWN_STYLES, isDrawnStyle, STYLE_WORDS } from "@/lib/art-style";
+import { ART_STYLE_LABEL, ART_STYLES, artStyleFrom, BUILDER_ART_STYLES, artStyleInWords, artStyleOf, DRAWN_STYLES, isDrawnStyle, STYLE_WORDS } from "@/lib/art-style";
 import { searchDirectory } from "@/lib/directory";
 import { suggestLooks } from "@/lib/express-create";
 import { FACE_LOOP_PROMPT, FACE_PORTRAIT_PROMPT, FACE_PROMPTS, facePromptsPass, styledFace } from "@/lib/face-kit";
@@ -38,8 +38,9 @@ const words = (s: string) => s.split(",").map((w) => w.trim());
 
 describe("the styles", () => {
   it("reads a character's style from their looks, realistic for anything else", () => {
-    expect(ART_STYLES).toEqual(["realistic", "anime", "semi_real"]);
-    expect(ART_STYLE_LABEL).toEqual({ realistic: "Realistic", anime: "Anime", semi_real: "2.5D" });
+    expect(ART_STYLES).toEqual(["realistic", "anime", "semi_real", "oil_painting", "render_3d", "comic", "ink", "pixel"]);
+    expect(ART_STYLE_LABEL).toMatchObject({ realistic: "Realistic", anime: "Anime", semi_real: "2.5D", render_3d: "3D", pixel: "Pixel art" });
+    expect(DRAWN_STYLES).toEqual(ART_STYLES.filter((s) => s !== "realistic"));
     expect(artStyleOf({ extras: { looks: { style: "semi_real" } } })).toBe("semi_real");
     expect(artStyleOf({ extras: { looks: { style: "watercolour" } } })).toBe("realistic");
     expect(artStyleOf({ extras: null })).toBe("realistic");
@@ -48,8 +49,23 @@ describe("the styles", () => {
     expect(isDrawnStyle("realistic")).toBe(false);
   });
 
-  it("has one tile per style in the builder's style step", () => {
-    expect(LOOK_STEPS.find((s) => s.id === "style")!.options.map((o) => o.id)).toEqual([...ART_STYLES]);
+  it("has one tile per builder style; the newer styles wait for their tiles", () => {
+    expect(LOOK_STEPS.find((s) => s.id === "style")!.options.map((o) => o.id)).toEqual([...BUILDER_ART_STYLES]);
+  });
+
+  it("asks for an adult in every drawn style, and only picks a newer style from words about a look", () => {
+    for (const s of DRAWN_STYLES) {
+      expect(STYLE_WORDS[s].finish).toMatch(/clearly grown adult/);
+      expect(STYLE_WORDS[s].editFinish).toMatch(/clearly grown adult/);
+    }
+    expect(artStyleInWords("an oil-painted duchess")).toBe("oil_painting");
+    expect(artStyleInWords("a 3D-rendered space pilot")).toBe("render_3d");
+    expect(artStyleInWords("drawn in comic-book style")).toBe("comic");
+    expect(artStyleInWords("a pen-and-ink detective")).toBe("ink");
+    expect(artStyleInWords("a pixel-art knight")).toBe("pixel");
+    expect(artStyleInWords("a tattoo ink artist")).toBe("realistic");
+    expect(artStyleInWords("a 3D printing hobbyist")).toBe("realistic");
+    expect(artStyleInWords("owns a comic book shop")).toBe("realistic");
   });
 
   it("finds the style a sentence asks for, and the quick start picks it", () => {
@@ -164,8 +180,8 @@ describe("over MCP (2.37.0)", () => {
   const looksOf = async (id: string) => (await t.db.query<{ looks: Record<string, unknown> | null }>(`select extras->'looks' as looks from characters where id = $1`, [id])).rows[0].looks;
 
   it("is the newest version, with its entry", () => {
-    expect(MCP_SERVER_INFO.version).toBe("2.37.0");
-    expect(MCP_CHANGELOG[0]).toMatchObject({ version: "2.37.0" });
+    expect(MCP_SERVER_INFO.version).toBe("2.38.0");
+    expect(MCP_CHANGELOG[0]).toMatchObject({ version: "2.38.0" });
   });
 
   it("creates a character in a style, changes it without losing the rest of the look, and says it on get_character", async () => {

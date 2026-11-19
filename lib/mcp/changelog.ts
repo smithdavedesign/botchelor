@@ -31,6 +31,15 @@ export type McpRelease = {
 /** Newest first. */
 export const MCP_CHANGELOG: readonly McpRelease[] = [
   {
+    version: "2.38.0",
+    date: "2026-11-18",
+    title: "More art styles, a backstory and a world",
+    changes: [
+      "art_style takes five more drawn styles: oil_painting, render_3d (stylised 3D), comic, ink (black-and-white linework) and pixel (pixel art). Like anime and semi_real, every drawn style stays out of After Dark.",
+      "extras take world (where they're from when it isn't our world, up to 80 characters) and backstory (a few sentences of their past, up to 600). Both are public, on their card and in their dates.",
+    ],
+  },
+  {
     version: "2.37.0",
     date: "2026-11-17",
     title: "How a character is drawn",

@@ -296,7 +296,7 @@ export const MCP_PROTOCOL_VERSION = "2025-06-18";
 // 2.37.0 (2026-11-17): art_style (lib/art-style.ts, PRD styles-and-storylines phase 2): create/update_character take
 // how their pictures are drawn (realistic, anime or semi_real, the 2.5D house look), kept as their looks' style;
 // get_character returns it. New arguments and reply fields only.
-export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.37.0" } as const;
+export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.38.0" } as const;
 
 /** Where every tool is listed: the default list is the core (2026-10-20: 53 tools were ~14k tokens in every agent's context). */
 export const ALL_TOOLS_HINT = "/api/mcp?tools=all";
@@ -1150,7 +1150,7 @@ async function writingProgress(db: Db, id: string): Promise<{ lines_so_far: numb
 
 /** A sheet as the look-alike checks read it, from create_character's arguments or the saved character. */
 /** A wrong art_style (2.37.0), with every one there is. */
-const ART_STYLE_ERROR = `art_style is one of ${ART_STYLES.join(", ")}: realistic (photographs), anime, or semi_real (2.5D, the show's painterly look).`;
+const ART_STYLE_ERROR = `art_style is one of ${ART_STYLES.join(", ")}: realistic (photographs), anime, semi_real (2.5D, the show's painterly look), oil_painting, render_3d (stylised 3D), comic, ink (black-and-white linework) or pixel (pixel art).`;
 
 /**
  * The extras to save with an art_style (2.37.0): the style goes into their looks (extras.looks.style, lib/art-style.ts),

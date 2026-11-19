@@ -69,6 +69,8 @@ describe("#1361: the first call", () => {
     // get_character says it returns both, about 440 bytes inside the core list: 69.9 KB.
     // 2026-11-17 (MCP 2.37.0, art_style): create_character and update_character take how a character is drawn, about
     // 150 bytes inside the core list: 70.1 KB.
-    expect(JSON.stringify(init).length + JSON.stringify(list).length).toBeLessThan(70_100);
+    // 2026-11-18 (MCP 2.38.0, more art styles, world and backstory): five more art_style values and two more extras,
+    // about 115 bytes inside the core list: 70.3 KB.
+    expect(JSON.stringify(init).length + JSON.stringify(list).length).toBeLessThan(70_300);
   });
 });
