@@ -124,13 +124,13 @@ async function main() {
         assert((await page.goto(`${base}/after-dark`)).ok(), "/after-dark should open for an admin");
         await page.getByRole("heading", { name: "Scenes" }).waitFor({ timeout: 10_000 });
         // The pair picker (app/after-dark/PairPicker.tsx): a face, then who they're with, then Start; Start over clears it.
-        const faces = page.locator(".ad-pair-picker .ad-cast-chips button.ad-cast-chip");
+        const faces = page.locator(".ad-pp-panel button.ad-pp-face");
         await faces.first().click();
-        await page.locator(".ad-pair-picked").getByRole("button", { name: "Start over" }).click();
+        await page.locator(".ad-pp-slots").getByRole("button", { name: "Start over" }).click();
         assert((await faces.count()) >= 2, "Start over should bring every face back");
         await faces.first().click();
-        await page.locator(".ad-pair-picker .ad-cast-chips button.ad-cast-chip").first().click();
-        const start = page.locator(".ad-pair-go a");
+        await faces.first().click();
+        const start = page.locator(".ad-pp-chosen .ad-pair-go a");
         scenePath = (await start.getAttribute("href")) ?? "";
         assert(scenePath.startsWith("/after-dark/"), `picking two should show the way in (got ${scenePath || "none"})`);
         await start.click();

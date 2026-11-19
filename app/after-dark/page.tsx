@@ -13,14 +13,22 @@ import { adultAvailable } from "@/lib/adult/mode";
 import { LATEST_LOOK, latestMade, NEW_FOR_MS } from "@/lib/adult/latest";
 import { ownMedia } from "@/lib/adult/media";
 import { lockedForCookies } from "@/lib/adult/privacy";
-import { listCastPairs, type CastPair } from "@/lib/adult/scenes";
+import { pickerData } from "@/lib/adult/pair-pick";
+import { coverKey, listCastPairs, pairCovers, type CastMember } from "@/lib/adult/scenes";
 import { sharedWithMe } from "@/lib/adult/shares";
+import { listShorts, watchedOf } from "@/lib/adult/shorts";
 import { stepInOpen } from "@/lib/adult/step-in";
 import { afterDarkOnly } from "@/lib/after-dark-host";
-import { getDb } from "@/lib/db";
+import { getDb, type Db } from "@/lib/db";
+import { listShowcase } from "@/lib/showcase";
+import { showcasePaths } from "@/lib/showcase-paths";
 import { showHome } from "@/lib/site";
 import { authFromCookieStore } from "@/lib/http";
+import Avatar from "@/app/Avatar";
+import ShowcaseGrid from "@/app/showcase/ShowcaseGrid";
+import { pageViewer } from "@/app/showcase/viewer";
 import Switches from "./Switches";
+import EpisodeCards from "./shorts/EpisodeCards";
 import PairPicker from "./PairPicker";
 import SharedWithYou from "./SharedWithYou";
 import { currentHere, currentView } from "./view";
@@ -67,7 +75,7 @@ export default async function AfterDarkPage({ searchParams }: { searchParams?: P
     );
   }
   const owner = auth!.userId;
-  const [pairs, switchable, shared, here, doors, recent, stepIn] = await Promise.all([
+  const [pairs, switchable, shared, here, doors, recent, stepIn, shorts] = await Promise.all([
     listCastPairs(db, owner),
     listSwitchable(db, owner),
     sharedWithMe(db, owner),
@@ -76,10 +84,22 @@ export default async function AfterDarkPage({ searchParams }: { searchParams?: P
     ownMedia(db, owner, LATEST_LOOK),
     // Step in (lib/adult/step-in.ts): its tile and the picker's row only where it's open to this viewer (admins, for now).
     stepInOpen(db, owner),
+    // Episodes (lib/adult/shorts.ts): a section here since 2026-11-18 (David: "move the episodes tab into scenes as a section").
+    listShorts(db, EPISODES_SHOWN),
   ]);
+  const textOnly = here.mode === "text_only";
+  // What the picker needs, not every pair (lib/adult/pair-pick.ts): the cast and the nights under way.
+  const { cast, nights, firstScene } = pickerData(pairs);
+  // The pictures (none where only the scenes are allowed): each night's newest, and the showcase's most liked this week.
+  const [covers, watched, showcase] = await Promise.all([
+    textOnly ? new Map<string, string>() : pairCovers(db, owner, nights.map((p) => [p.a.id, p.b.id] as const)),
+    watchedOf(db, owner, shorts.map((s) => s.id)),
+    doors.showcase && !textOnly ? showcasePicks(db) : null,
+  ]);
+  const withCovers = covers.size ? nights.map((p) => ({ ...p, cover: covers.get(coverKey(p.a.id, p.b.id)) ?? null })) : nights;
   // What they made last (David, 2026-11-15: a finished video sat on its pair's page, and the hub never said so): the
   // newest few pictures and videos, each a tap from the Gallery. None where only the scenes are allowed.
-  const made = here.mode === "text_only" ? [] : latestMade(recent);
+  const made = textOnly ? [] : latestMade(recent, LATEST_ON_HOME);
   // The Studio door's word (lib/adult/doors.ts): "Studio", or "Characters" where the Studio isn't open to them.
   const studioWord = studioDoorLabel(doors);
   // #1176: one of theirs just made on the show (its finish screen's "Bring … into After Dark"), its switch first.
@@ -89,41 +109,83 @@ export default async function AfterDarkPage({ searchParams }: { searchParams?: P
   const yoursOut = switchable.filter((c) => !c.house && !c.on).length;
   // Switches keeps what it was given, so it remounts with the new state after a switch.
   const onKey = switchable.filter((c) => c.on).map((c) => c.id).join(",");
-  // On After Dark's own host the header has Scenes, Studio, Gallery, Showcase, Episodes and the account (app/Nav.tsx).
-  // Where After Dark shares the show's host (local, tests), the header is the show's, so this row carries them.
+  // On After Dark's own host the header has Scenes, Studio, Gallery and the account (app/Nav.tsx). Where After Dark shares
+  // the show's host (local, tests), the header is the show's, so this row carries them.
   const inHeader = afterDarkOnly();
   const pending = shared.shares.filter((x) => x.status === "pending").length;
   // The night to pick up: the latest played of those under way (PairPicker's Continue, its first).
-  const latest = latestNight(pairs);
+  const latest = withCovers[0] ?? null;
+  // With no night under way, the hero shows who's in instead: this season's faces, the house cast's first.
+  const faces = latest ? [] : castFaces(cast, HERO_FACES);
   return (
-    <div className="after-dark-mode">
+    <div className="after-dark-mode page-full ad-home">
       <article className="after-dark">
-        {/* The design kit's After Dark home (2026-11-12): what it is, and one tap back into the latest night. */}
+        {/* The design kit's After Dark home (2026-11-12), a landing page since 2026-11-18 (David: "make this a flagship
+            landing page with more assets"): what it is and the way in on one side, the night to pick up (its picture) on the other. */}
         <section className="ad-home-hero" data-ad-hero>
-          <p className="kicker">
-            <Icon name="moon" /> After Dark · private
-          </p>
-          <h1>You watched them flirt. Now watch what happens next.</h1>
-          <p className="ad-home-lede">
-            The adult season: this season&apos;s cast, and any of your characters you switch on, once the doors are locked and the lights are low.
-          </p>
-          <p className="ad-home-actions">
-            {latest ? (
-              <>
-                <Link className="button" href={latest.path} data-latest-night={latest.path} title={`${first(latest.a.name)} × ${first(latest.b.name)}`}>
-                  ▶ Pick up where they left off
-                </Link>
-                <a className="button-ghost" href="#scenes">
-                  All your scenes
+          <div className="ad-home-hero-copy">
+            <p className="kicker">
+              <Icon name="moon" /> After Dark · private
+            </p>
+            <h1>You watched them flirt. Now watch what happens next.</h1>
+            <p className="ad-home-lede">
+              The adult season: this season&apos;s cast, and any of your characters you switch on, once the doors are locked and the lights are low.
+            </p>
+            <p className="ad-home-actions">
+              {latest ? (
+                <>
+                  <Link className="button" href={latest.path} data-latest-night={latest.path} title={`${first(latest.a.name)} × ${first(latest.b.name)}`}>
+                    ▶ Pick up where they left off
+                  </Link>
+                  <a className="button-ghost" href="#scenes">
+                    All your scenes
+                  </a>
+                </>
+              ) : (
+                <a className="button" href="#scenes">
+                  Pick a pair
                 </a>
-              </>
-            ) : (
-              <a className="button" href="#scenes">
-                Pick a pair
-              </a>
-            )}
-          </p>
-          <p className="muted small">Two lines hold: nobody under 18, and no real people. Nothing here is shown anywhere in the show.</p>
+              )}
+              {shorts.length > 0 && (
+                <a className="button-ghost" href="#episodes">
+                  📺 Episodes
+                </a>
+              )}
+            </p>
+            <p className="muted small">Two lines hold: nobody under 18, and no real people. Nothing here is shown anywhere in the show.</p>
+          </div>
+          {latest ? (
+            <Link className="ad-home-feature" href={latest.path} data-ad-feature>
+              <span className={`ad-home-feature-art${latest.cover ? "" : " is-faces"}`}>
+                {latest.cover ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- a private file from the media route
+                  <img src={`${latest.cover}?w=960`} alt="" />
+                ) : (
+                  <span className="ad-home-feature-duo" aria-hidden="true">
+                    <Avatar seed={latest.a.id} name={latest.a.name} house={latest.a.house ?? false} portraitSrc={latest.a.portrait} photoSrc={latest.a.photo ?? null} size={128} decorative round />
+                    <Avatar seed={latest.b.id} name={latest.b.name} house={latest.b.house ?? false} portraitSrc={latest.b.portrait} photoSrc={latest.b.photo ?? null} size={128} decorative round />
+                  </span>
+                )}
+              </span>
+              <span className="ad-home-feature-body">
+                <span className="ad-home-eyebrow">Last night · {[latest.chapter && latest.chapter > 1 ? `Chapter ${latest.chapter}` : "", latest.lines ? `${latest.lines} lines` : ""].filter(Boolean).join(" · ") || "under way"}</span>
+                <strong className="ad-home-feature-names">
+                  {first(latest.a.name)} × {first(latest.b.name)}
+                </strong>
+                {latest.last && (
+                  <span className="ad-home-feature-line">
+                    {latest.last.who}: “{latest.last.text}”
+                  </span>
+                )}
+              </span>
+            </Link>
+          ) : faces.length >= 4 ? (
+            <div className="ad-home-cast" aria-hidden="true">
+              {faces.map((c) => (
+                <Avatar key={c.id} seed={c.id} name={c.name} house={c.house ?? false} portraitSrc={c.portrait} size={112} decorative round />
+              ))}
+            </div>
+          ) : null}
         </section>
         {bring && (
           <div data-bring={bring.id}>
@@ -142,9 +204,27 @@ export default async function AfterDarkPage({ searchParams }: { searchParams?: P
             <Link href="/after-dark/studio">switch them In on {studioWord}</Link>.
           </p>
         )}
+        {/* Your nights first, then a new one (the audit, 2026-10-29: the hub opened on a checklist of switches). */}
+        <section id="scenes" className="ad-home-section">
+          <h2>Scenes</h2>
+          <PairPicker cast={cast} nights={withCovers} firstScene={firstScene} stepIn={stepIn} />
+        </section>
+        {/* Episodes (lib/adult/shorts.ts): the house cast's nights, published. Its own page keeps all of them and the board. */}
+        <section id="episodes" className="ad-home-section" aria-labelledby="ad-episodes" data-ad-episodes>
+          <div className="ad-home-head">
+            <h2 id="ad-episodes">Episodes</h2>
+            <Link href="/after-dark/shorts">{shorts.length ? "All episodes and the 📣 board →" : "📣 The Call it board →"}</Link>
+          </div>
+          <p className="muted small ad-home-sub">The house cast&apos;s nights, published as episodes to read and watch. Included in the subscription.</p>
+          {shorts.length ? (
+            <EpisodeCards shorts={shorts} watched={watched} textOnly={textOnly} />
+          ) : (
+            <p className="muted ad-home-empty">No episodes yet: the house cast&apos;s nights land here as they&apos;re published.</p>
+          )}
+        </section>
         {made.length > 0 && (
-          <section className="ad-home-latest" aria-labelledby="ad-latest" data-latest>
-            <div className="ad-home-latest-head">
+          <section className="ad-home-section ad-home-latest" aria-labelledby="ad-latest" data-latest>
+            <div className="ad-home-head">
               <h2 id="ad-latest">Your latest</h2>
               <Link href="/after-dark/gallery">See all in the Gallery →</Link>
             </div>
@@ -165,11 +245,17 @@ export default async function AfterDarkPage({ searchParams }: { searchParams?: P
             </ul>
           </section>
         )}
-        {/* Your nights first, then a new one (the audit, 2026-10-29: the hub opened on a checklist of switches). */}
-        <section id="scenes">
-          <h2>Scenes</h2>
-          <PairPicker pairs={pairs} stepIn={stepIn} />
-        </section>
+        {/* The Gallery's Showcase room (/after-dark/showcase): what creators published to After Dark, the most liked this week. */}
+        {showcase && showcase.posts.length > 0 && (
+          <section className="ad-home-section ad-home-showcase" aria-labelledby="ad-showcase" data-ad-showcase>
+            <div className="ad-home-head">
+              <h2 id="ad-showcase">On the Showcase</h2>
+              <Link href={showcasePaths("after_dark").base}>See the Showcase →</Link>
+            </div>
+            <p className="muted small ad-home-sub">What creators published to After Dark, the most liked this week first.</p>
+            <ShowcaseGrid posts={showcase.posts} admin={showcase.admin} reels="sort=trending" place="after_dark" />
+          </section>
+        )}
         {/* Step in (lib/adult/step-in.ts): the other shape of a night, the viewer in the scene with one of them. */}
         {stepIn && (
           <section className="card ad-si-tile" aria-labelledby="ad-si-tile" data-step-in-tile>
@@ -183,7 +269,7 @@ export default async function AfterDarkPage({ searchParams }: { searchParams?: P
             </p>
           </section>
         )}
-        {/* The hub's other pages as one row of small buttons, under the scenes: the hero leads into the nights (2026-11-12). */}
+        {/* The hub's other pages as one row of small buttons, at the end: the hero leads into the nights (2026-11-12). */}
         <nav className="ad-hub-links" aria-label="After Dark">
           {!inHeader && (
             <>
@@ -192,9 +278,6 @@ export default async function AfterDarkPage({ searchParams }: { searchParams?: P
               </Link>
               <Link className="button-ghost" href="/after-dark/gallery">
                 🖼 Gallery
-              </Link>
-              <Link className="button-ghost" href="/after-dark/shorts">
-                📺 Episodes
               </Link>
               <Link className="button-ghost" href="/after-dark/account">
                 🔒 Account
@@ -221,17 +304,34 @@ export default async function AfterDarkPage({ searchParams }: { searchParams?: P
             ← Back to the show
           </Link>
         </nav>
-        <SharedWithYou initial={shared} textOnly={here.mode === "text_only" ? here.reason : null} />
+        <SharedWithYou initial={shared} textOnly={textOnly ? here.reason : null} />
       </article>
     </div>
   );
 }
 
-/** The latest played of the nights under way (lines, a chapter filed, or kept from an earlier cast), or null. */
-function latestNight(pairs: CastPair[]): CastPair | null {
-  const going = pairs.filter((p) => p.earlier || p.lines > 0 || (p.chapter ?? 1) > 1);
-  return going.sort((x, y) => (y.updated_at ?? "").localeCompare(x.updated_at ?? ""))[0] ?? null;
+/** How many of their newest the hub shows: one row across a wide screen. */
+const LATEST_ON_HOME = 6;
+/** How many episodes the hub shows (the newest); the Episodes page has them all. */
+const EPISODES_SHOWN = 6;
+/** How many showcase posts the hub shows: two rows of the grid on a wide screen. */
+const SHOWCASE_SHOWN = 8;
+/** How many faces the hero shows when there's no night to pick up. */
+const HERO_FACES = 8;
+
+/** This season's faces with a portrait, the house cast's first. */
+const castFaces = (cast: readonly CastMember[], n: number): CastMember[] =>
+  cast.filter((c) => c.portrait).sort((x, y) => Number(y.house ?? false) - Number(x.house ?? false) || x.name.localeCompare(y.name)).slice(0, n);
+
+/**
+ * The Showcase room's most liked this week (lib/showcase.ts), for whoever may see that side (the same rule as
+ * /after-dark/showcase: its viewer's ratings), or null.
+ */
+async function showcasePicks(db: Db): Promise<{ posts: Awaited<ReturnType<typeof listShowcase>>["posts"]; admin: boolean } | null> {
+  const viewer = await pageViewer(db);
+  if (!viewer.ratings.includes("nsfw")) return null;
+  const { posts } = await listShowcase(db, viewer, { side: "after_dark", sort: "trending" }, { pageSize: SHOWCASE_SHOWN });
+  return { posts, admin: viewer.admin };
 }
 
 const first = (name: string) => name.split(/\s+/)[0];
-

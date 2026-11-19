@@ -1,7 +1,7 @@
 /**
  * After Dark's doors that depend on who's looking (David, 2026-11-15: "shouldn't we have an easier way to get to the
- * studio? or the showcase page in after dark?"). The header is Scenes · Studio · Gallery · Episodes, with the account
- * beside the token count (app/Nav.tsx):
+ * studio? or the showcase page in after dark?"). The header is Scenes · Studio · Gallery (Episodes a section of Scenes
+ * since 2026-11-18), with the account beside the token count (app/Nav.tsx):
  *  - Studio is a door of its own (/after-dark/studio: whose Studio, and who's in). Where the Studio isn't open to this
  *    viewer (`studio.open_to`: admins until payments and age checks, lib/adult/studio-config.ts), the same page only
  *    holds the switches, so the door says what it holds: "Characters".

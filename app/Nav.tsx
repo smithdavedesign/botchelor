@@ -52,7 +52,7 @@ const NEWCOMER_LINKS: readonly NavLink[] = [
  * After Dark's own host has its own doors (the design kit's After Dark header, 2026-11-12; David approved Watch and
  * Dating leaving it, "Back to the show" staying). Since 2026-11-15 (David: "shouldn't we have an easier way to get to the
  * studio? or the showcase page in after dark?", then "go build all three"): Scenes · Studio · Gallery · Showcase ·
- * Episodes, and the account as an icon after them (as the show's bell), lib/adult/doors.ts deciding the two that depend
+ * Episodes then, Scenes · Studio · Gallery since 2026-11-18, and the account as an icon after them (as the show's bell), lib/adult/doors.ts deciding the two that depend
  * on the viewer. What moved where:
  *  - Characters → Studio (/after-dark/studio: whose Studio, then who's in). Called "Characters" where the Studio isn't
  *    open to them, since then the page only holds the switches; /after-dark/characters sends there.
@@ -60,7 +60,9 @@ const NEWCOMER_LINKS: readonly NavLink[] = [
  *    Gallery.
  *  - Showcase → a room of the Gallery (2026-11-18, David: the door "takes you out of after dark"): the showcase's After
  *    Dark side is After Dark's own page now (/after-dark/showcase, lib/showcase-paths.ts), Yours | Showcase under
- *    Gallery (app/after-dark/GalleryTabs.tsx) for whoever may see that side. Scenes · Studio · Gallery · Episodes.
+ *    Gallery (app/after-dark/GalleryTabs.tsx) for whoever may see that side.
+ *  - Episodes → a section of Scenes (2026-11-18, David: "move the episodes tab into scenes as a section"): the hub shows
+ *    the newest and /after-dark/shorts keeps all of them and the board, Scenes marked current there. Scenes · Studio · Gallery.
  *  - Account → the icon at the row's end (a labelled item in the phone menu); it still covers tokens and subscribing.
  */
 export function adLinks(doors: AdDoors = NO_AD_DOORS): NavLink[] {
@@ -68,13 +70,12 @@ export function adLinks(doors: AdDoors = NO_AD_DOORS): NavLink[] {
     { href: "/after-dark", label: "Scenes" },
     { href: "/after-dark/studio", label: studioDoorLabel(doors), also: ["/after-dark/characters"] },
     { href: "/after-dark/gallery", label: "Gallery", also: [AD_SHOWCASE] },
-    { href: "/after-dark/shorts", label: "Episodes" },
   ];
 }
 /** After Dark's account (privacy, the writer, the subscription and tokens): the icon after the doors. */
 export const AD_ACCOUNT: NavLink = { href: "/after-dark/account", label: "Account", also: ["/after-dark/tokens", "/after-dark/subscribe"] };
-/** After Dark's pages that aren't a night: every door's but Scenes', and the account's. */
-const AD_PAGES = ["/after-dark/studio", "/after-dark/characters", "/after-dark/gallery", AD_SHOWCASE, "/after-dark/shorts", AD_ACCOUNT.href, ...(AD_ACCOUNT.also ?? [])];
+/** After Dark's pages that aren't Scenes' (a night, or the episodes): every other door's, and the account's. */
+const AD_PAGES = ["/after-dark/studio", "/after-dark/characters", "/after-dark/gallery", AD_SHOWCASE, AD_ACCOUNT.href, ...(AD_ACCOUNT.also ?? [])];
 
 /** The links for this viewer: After Dark's on its own host, else the show's (the same for everyone while `chat` is on). */
 function navLinks(hasCharacter: boolean, adHost = false, chat = true, doors: AdDoors = NO_AD_DOORS): readonly NavLink[] {

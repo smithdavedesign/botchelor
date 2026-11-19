@@ -3,19 +3,16 @@ import Icon from "@/app/Icon";
 import { cookies, headers } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import Avatar from "@/app/Avatar";
-import { AiTag } from "@/app/AiLabel";
 import { boardName, CALL_POINTS, callBoard } from "@/lib/adult/predictions";
 import { listShorts, shortsAccess, teaserShorts, watchedOf } from "@/lib/adult/shorts";
 import { detectBot } from "@/lib/bots";
 import { getDb } from "@/lib/db";
 import { authFromCookieStore } from "@/lib/http";
-import { shortName } from "@/lib/names";
 import { showHome } from "@/lib/site";
 import { currentHere } from "../view";
+import EpisodeCards from "./EpisodeCards";
 import { ShortTeaserCard, SubscribeToUnlock } from "./ShortTeaser";
 import styles from "./shorts.module.css";
-import CharacterName from "@/app/CharacterName";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Episodes · After Dark · Botchelor", robots: { index: false, follow: false } };
@@ -23,7 +20,9 @@ export const metadata: Metadata = { title: "Episodes · After Dark · Botchelor"
 /**
  * After Dark Shorts (lib/adult/shorts.ts), called Episodes on the page since 2026-11-15 ("Shorts" read as the viewer's
  * own videos, which are in the Gallery): the house cast's nights, published as episodes. An entitled viewer sees them
- * all; anyone else sees the blurred teaser and "Subscribe to unlock"; a bot gets not found.
+ * all; anyone else sees the blurred teaser and "Subscribe to unlock"; a bot gets not found. Since 2026-11-18 (David:
+ * "move the episodes tab into scenes as a section") the header has no Episodes door: the hub's Episodes section shows
+ * the newest and links here for all of them and the Call it board.
  */
 export default async function ShortsPage() {
   const h = await headers();
@@ -77,8 +76,8 @@ export default async function ShortsPage() {
     <div className="after-dark-mode ad-shorts-page">
       <article className="after-dark">
         <p className="kicker">
-          <Link href="/after-dark">
-            ← <Icon name="moon" /> After Dark
+          <Link href="/after-dark#episodes">
+            ← <Icon name="moon" /> Scenes
           </Link>
         </p>
         <h1>Episodes</h1>
@@ -88,32 +87,7 @@ export default async function ShortsPage() {
         </p>
         {access.admin && <p className="muted small">You publish an episode from a pair&apos;s page: 📺 Episodes, above the scene.</p>}
         {shorts.length ? (
-          <ul className={styles.grid}>
-            {shorts.map((s) => (
-              <li key={s.id} className={`card ${styles.card}`}>
-                <Link href={s.path}>
-                  {s.cover && !textOnly ? (
-                    // eslint-disable-next-line @next/next/no-img-element -- a private file from the Short's own route
-                    <img className={styles.cover} src={s.cover} alt={`The cover of ${s.title}`} loading="lazy" />
-                  ) : (
-                    <span className={styles.faces} aria-hidden="true">
-                      <Avatar seed={s.a.id} name={s.a.name} house portraitSrc={s.a.portrait} size={64} decorative />
-                      <Avatar seed={s.b.id} name={s.b.name} house portraitSrc={s.b.portrait} size={64} decorative />
-                    </span>
-                  )}
-                  <span className={styles.title}>{s.title}</span>
-                  {s.cover && <AiTag label="AI-generated cover" />}
-                </Link>
-                <p className={`muted small ${styles.meta}`}>
-                  <CharacterName character={{ ...s.a, house: true }} label={shortName(s.a.name)} link={false} /> ×{" "}
-                  <CharacterName character={{ ...s.b, house: true }} label={shortName(s.b.name)} link={false} /> · {s.lines} lines{s.video ? " · 🎬 with its video" : ""}
-                  {watched.has(s.id) ? " · watched" : ""}
-                  {/* #1132: one of the two has left the cast since it was published (a Short stays up). */}
-                  {s.earlier && <span data-earlier-cast="true"> · 🗓 {s.earlier}</span>}
-                </p>
-              </li>
-            ))}
-          </ul>
+          <EpisodeCards shorts={shorts} watched={watched} textOnly={textOnly} />
         ) : (
           <div className="ad-empty">
             <p className="ad-empty-icon" aria-hidden="true">

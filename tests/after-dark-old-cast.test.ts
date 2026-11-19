@@ -19,6 +19,7 @@ import { POST } from "@/app/api/admin/after-dark/route";
 import { POST as stepPost } from "@/app/api/admin/after-dark/steer/route";
 import AfterDarkScenePage from "@/app/after-dark/[a]/[b]/page";
 import PairPicker from "@/app/after-dark/PairPicker";
+import { pickerData } from "@/lib/adult/pair-pick";
 import { keptPairs, pairAbsence, playableIds, setAdultSwitch } from "@/lib/adult/characters";
 import { setAdultModelForTests } from "@/lib/adult/mode";
 import { eligiblePair, listCastPairs } from "@/lib/adult/scenes";
@@ -166,7 +167,7 @@ describe("#1132: a pair with someone who left the cast", () => {
   it("the hub lists it under Continue with its mark, and not as a face for a new pair", async () => {
     const me = await admin();
     await rollover(me);
-    const html = renderToStaticMarkup(createElement(PairPicker, { pairs: await listCastPairs(t.db, me.id) }));
+    const html = renderToStaticMarkup(createElement(PairPicker, pickerData(await listCastPairs(t.db, me.id))));
     expect(html).toMatch(/Continue/);
     expect(html).toMatch(/data-earlier-cast="true"[^>]*>🗓 From October&#x27;s cast/);
     expect(html).not.toContain(`title="${nameOf(H2)}"`);
