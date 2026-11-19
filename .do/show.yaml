@@ -371,6 +371,11 @@ services:
       # - key: AD_BRIDGE
       #   value: "0"
       #   scope: RUN_AND_BUILD_TIME
+      # The past-PG door (lib/adult/past-pg.ts): a /create refusal for going past PG offers "Keep them PG" or After Dark
+      # (source=past_pg). On by default; "0" takes it away without a deploy.
+      # - key: PAST_PG_DOOR
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
       # Overnight dates (lib/overnight-shared.ts; docs/hosting.md). Both on by default; "0" turns one off without a deploy:
       # OVERNIGHT_DATES is the whole feature, OVERNIGHT_AFTER_DARK only the "Continue the night in After Dark" button
       # (set that one on After Dark's app too, .do/app.yaml).

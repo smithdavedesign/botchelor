@@ -252,6 +252,9 @@ ignore it.
   (`lib/adult/bridge.ts`; [after-dark.md](after-dark.md), "The bridge from the show's verdict card"). `0` takes the
   line away without a deploy. It never touches After Dark's own `public_door` switch, and the invite page still takes
   `?source=` either way. Commented in `.do/show.yaml`.
+- **`PAST_PG_DOOR`** (the show's app, not a secret; default on): the past-PG door on `/create`, a refusal for going
+  past PG offering "Keep them PG" or After Dark with `source=past_pg` (`lib/adult/past-pg.ts`; [after-dark.md](after-dark.md),
+  "The past-PG door on /create"). `0` takes it away without a deploy; the refusal is then the plain sentence again.
 - **`OVERNIGHT_DATES`** (both apps, not a secret; default on): overnight dates
   ([relationship-graph.md](relationship-graph.md), "Overnight dates"). `0` turns them off without a deploy: no offer in a
   character's texts or on a couple's page, no house booking, no closing card, and nothing recorded or texted when one

@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { CastingProvider, type CastingForClient } from "@/app/CastingContext";
 import { canAfterDark } from "@/lib/adult/entitlement";
-import { safeFrom } from "@/lib/age";
+import { pastPgDoorFor } from "@/lib/adult/past-pg-viewer";
+import { ADULT_COOKIE, safeFrom } from "@/lib/age";
 import { episodeAllowance, freshAllowance } from "@/lib/allowance";
 import { formatPrice, PACK_5 } from "@/lib/catalog";
 import { castingLead, leadBilling } from "@/lib/casting";
@@ -84,7 +85,13 @@ export default async function CreatePage({ searchParams }: { searchParams: Searc
       premium: true,
     })),
   ];
-  const looks = await builderLooks(db ?? (await getDb()), auth);
+  // The past-PG door (lib/adult/past-pg.ts): asked beside the looks, so it adds no round trip; null for most visitors.
+  const [looks, pastPgDoor] = await Promise.all([
+    builderLooks(db ?? (await getDb()), auth),
+    headers()
+      .then(async (h) => pastPgDoorFor(db ?? (await getDb()), auth, h, cookieStore.get(ADULT_COOKIE)?.value === "1"))
+      .catch(() => null),
+  ]);
   // #1176: After Dark open to them (text-only places too, unlike the looks' tiles): the finish screen says how to bring one in.
   const afterDarkOpen = db && auth ? (await canAfterDark(db, auth).catch(() => ({ ok: false }))).ok : false;
   const offer = paymentLinkFromEnv()
@@ -122,6 +129,7 @@ export default async function CreatePage({ searchParams }: { searchParams: Searc
       lookTiles={looks.tiles}
       afterDark={looks.afterDark}
       afterDarkOpen={afterDarkOpen}
+      pastPgDoor={pastPgDoor}
       signedIn={auth?.authenticated === true}
       // One-sentence create (EXPRESS_CREATE, on unless "0"): a first character's first screen is one box.
       express={expressCreateOn(process.env)}
