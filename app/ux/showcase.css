@@ -7,8 +7,11 @@
 .showcase-page {
   padding: var(--space-2) 0 var(--space-4);
 }
+/* One column no wider than the page: without minmax(0, …) a bar of tabs too long for a phone widened the column, and
+   the page with it (After Dark's showcase at 390px was 541 wide); the bar scrolls sideways inside itself instead. */
 .showcase-filters {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-2);
   margin: var(--space-3) 0 var(--space-4);
 }
@@ -17,6 +20,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
+  min-width: 0;
 }
 .showcase-bar .showcase-sides {
   max-width: 100%;
