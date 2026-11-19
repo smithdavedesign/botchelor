@@ -98,7 +98,7 @@ describe("the packs and who sells them", () => {
       { tokens: 5, usd: 4.99 },
       { tokens: 30, usd: 24.99 },
     ]);
-    // A video (8 tokens) never brings in less than about 86¢ a token, on the biggest pack.
+    // A video (10 tokens) never brings in less than about 86¢ a token, on the biggest pack.
     for (const p of tokenPacks()) expect(p.usd / p.tokens).toBeGreaterThan(0.85);
     expect(adTokensOn()).toBe(false);
     expect(tokenProcessors()).toEqual([]);

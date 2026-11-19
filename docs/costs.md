@@ -50,7 +50,7 @@ have no billing API, so their top-ups are entered by hand.
 | An After Dark eval run (4 steps, `/api/jobs/eval-after-dark`) | OpenRouter: Dolphin v1 0.3¢, Dolphin v2 with facts 0.7¢, DeepSeek V3.1 1.4¢, Hermes 3 70B 1.6¢, Euryale 70B 2¢, Hermes 4 405B 3.5¢ | capped at $0.25 a run and $2 a day (botchelor-2c) |
 | One After Dark picture | Venice plus Hive moderation and age check | ~1.5¢ |
 | An admin's own picture check (since 2026-10-24) | The Venice vision model's age question (`qwen3-vl-235b-a22b`) instead of Hive (`moderation.admin_checker`) | ~0.03¢, with no daily cap. Videos still go to Hive. |
-| The video of the night (4 shots of 10 s, Wan 3.0, ~40 s, since 2026-11-18) | Venice video ($1.30 a shot), a keyframe of the two of them per shot, plus Hive on every shot | **~$5.40–5.50** (sells for 8 tokens, ~$5.75 after Stripe: about cost) |
+| The video of the night (4 shots of 10 s, Wan 3.0, ~40 s, since 2026-11-18) | Venice video ($1.30 a shot), a keyframe of the two of them per shot, plus Hive on every shot | **~$5.40–5.50** (sells for 10 tokens since 2026-11-19, ~$7.20 after Stripe) |
 | A 15 s clip, standard (LongCat) | Venice video plus Hive | $0.30–0.80 |
 | Email (Resend) | Free plan, 3,000 a month | $0 |
 | A sale | Stripe 2.9% + 30¢ | **42¢** on a $4 pack |

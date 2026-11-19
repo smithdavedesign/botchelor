@@ -2,7 +2,7 @@
  * After Dark's own tokens (David, 2026-11-04: "I agree with your price analysis, lets do it"). The show's tokens are
  * bought through Stripe, whose rules bar paying for adult content, so After Dark's extras (the video of the night, clips,
  * talking moments, Studio shoots…) get a balance of their own, bought only through the adult processors as one-time packs
- * of about $1 a token: a video at 8 tokens then pays for what it costs to make ($3.25–6.40) even on the biggest pack.
+ * of about $1 a token: a video at 10 tokens (8 until 2026-11-19) then pays for what it costs to make (about $5.50) even on the biggest pack.
  *
  * Built complete and off. The wallet runs once a processor can sell a pack (adTokensOn); until then every After Dark
  * spend and refund goes to the show's bought tokens, as before, so the beta keeps working, and the day a processor goes

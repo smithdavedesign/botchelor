@@ -1052,6 +1052,8 @@ export async function refreshLobby(
     const fresh = await db.query(
       `select 1 from watch_parties w join episodes e on e.id = w.episode_id
         where w.kind = 'template' and w.starts_at is null and jsonb_array_length(e.transcript) > 0
+          -- One whose date already aired on its own (lib/air.ts HOUSE_ROOM_AIR_HOURS) isn't a premiere any more.
+          and e.revealed_at is null
           and (select count(*) from reports r where r.episode_id = e.id) < $1
         limit 1`,
       [REPORT_HIDE_THRESHOLD],

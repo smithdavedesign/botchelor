@@ -1724,7 +1724,7 @@ match the scene. He wants each shot 10 s, one or two lines in it, and the scene'
 - A night's videos film on Venice's Wan 3.0 whenever its key is set (`videoProvider`), 10 s a shot (`NIGHT_SHOT_SECONDS`),
   with sound. Keyframes stay on the media provider. Clips are unchanged (they stay on `media_provider`).
 - Four shots by default (`DEFAULT_REEL_SHOTS`, was 6): about 40 s and $5.20 of Venice video, the same as six 5 s shots
-  before. The price stays 8 tokens (David, 2026-11-18).
+  before. The price went from 8 to 10 tokens the next day (David, 2026-11-19: "up the price"; docs/after-dark-costs.md).
 - A shot can carry the other one's answer (`replyTo`): the next spoken line within two, from the other person, in the
   same place, stage and chapter, both lines together 24 words at most (`SHOT_WORDS_MAX`), and the answer passes the same
   text checks. The prompt says "… says: "…" The woman, in …, answers: "…"", and the storyboard shows both lines.
