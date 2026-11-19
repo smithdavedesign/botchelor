@@ -11,7 +11,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Post } from "@/lib/showcase";
 import { actLabel, placeLabel, SHOW_HANDLE } from "@/lib/showcase-labels";
 import { showcasePaths, type ShowcasePlace } from "@/lib/showcase-paths";
-import { AUTOPLAY_ATTR, autoplaying, blurred, useInViewAutoplay } from "@/app/useInViewAutoplay";
+import { AUTOPLAY_ATTR, autoplaying, useHidden, useInViewAutoplay } from "@/app/useInViewAutoplay";
 
 const route = (p: Post) => `/api/showcase/${p.id}/media`;
 /** Where its file is (Post.media: After Dark's host straight away when the file is there), else the show's route. */
@@ -57,11 +57,13 @@ export default function ShowcaseGrid({
   const [open, setOpen] = useState<number | null>(null);
   const [shown, setShown] = useState<Set<string>>(new Set());
   const close = useCallback(() => setOpen(null), []);
-  // Each tile's clip, to play on hover (David, 2026-10-29: "if unblurred on hover have the video start").
+  // Each tile's clip, to play on hover (David, 2026-10-29: "if unblurred on hover have the video start"): never one still
+  // hidden, by this grid's veil or the page's (After Dark's blur, told by its frame).
   const clips = useRef(new Map<string, HTMLVideoElement>());
+  const hidden = useHidden();
   const play = (id: string) => {
     const v = clips.current.get(id);
-    if (v && !blurred(v)) void playClip(v);
+    if (v && !hidden(v)) void playClip(v);
   };
   const [sound] = useSound();
   // 🔇 on a tile: the switch for every clip, heard (or not) at once on this one, which a tap may start with sound.

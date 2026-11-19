@@ -3200,7 +3200,9 @@ showcase pages, videos should play on hover or automatically preferably, and the
   `ownMedia`, `galleryCounts`, `listMedia` and `characterMedia` (`NOT_A_LIVING_PORTRAIT`). They stay on the show.
 - **Clips play by themselves** while mostly on screen, on every screen (`app/useInViewAutoplay.ts`, at most six at once,
   never while blurred or with reduced motion), on the show's Gallery, a creator's page, After Dark's Showcase and
-  Yours. Those pages are the whole screen wide (`.page-full`).
+  Yours. Those pages are the whole screen wide (`.page-full`). The hook is the show's and knows nothing of After Dark
+  (`tests/adult-imports.test.ts`): After Dark's frame tells it what the blur still covers (`app/after-dark/AutoplayVeil.tsx`),
+  so a covered clip waits for its tap and then plays.
 
 ## The galleries' filters (2026-10-29)
 

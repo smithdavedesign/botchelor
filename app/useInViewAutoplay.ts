@@ -1,16 +1,34 @@
 "use client";
 
-import { useEffect } from "react";
-import { BLURRED_MEDIA, DISCREET_ATTR, SHOWN_ATTR } from "@/lib/adult/discreet";
+import { createContext, useCallback, useContext, useEffect } from "react";
 import { IN_VIEW, whichPlay } from "@/lib/autoplay";
 import { playClip } from "@/app/showcase/sound";
 
 /** On each <video> the hook looks after, inside its root. */
 export const AUTOPLAY_ATTR = "data-autoplay";
 
-/** Still hidden: the grid's own veil (data-veiled), or After Dark's privacy blur until it's tapped (lib/adult/discreet.ts). */
-export function blurred(v: Element): boolean {
-  return (v instanceof HTMLElement && v.dataset.veiled === "1") || Boolean(v.closest(`[${DISCREET_ATTR}="blur"]`) && v.matches(BLURRED_MEDIA));
+/** A grid's own veil on a clip (the show's showcase, app/showcase/ShowcaseGrid.tsx): `data-veiled="1"` until it's tapped. */
+const GRID_VEIL = "data-veiled";
+
+/**
+ * What a page's own privacy veil hides, as its frame says: After Dark's blur until a tap (app/after-dark/AutoplayVeil.tsx,
+ * in its frame). The hook knows nothing of After Dark (tests/adult-imports.test.ts): the page tells it. None on the show.
+ */
+export type AutoplayVeil = {
+  /** Still hidden by the page's veil: never played until it's shown. */
+  hides: (v: Element) => boolean;
+  /** The attributes whose change can show or hide a clip (a tap that lifts the veil): looked at again when they change. */
+  attrs: readonly string[];
+};
+
+const NO_VEIL: AutoplayVeil = { hides: () => false, attrs: [] };
+
+export const AutoplayVeilContext = createContext<AutoplayVeil>(NO_VEIL);
+
+/** Whether a clip is still hidden: the grid's own veil, or the page's (AutoplayVeil). Stable while the page's veil is. */
+export function useHidden(): (v: Element) => boolean {
+  const veil = useContext(AutoplayVeilContext);
+  return useCallback((v: Element) => (v instanceof HTMLElement && v.getAttribute(GRID_VEIL) === "1") || veil.hides(v), [veil]);
 }
 
 /** Whether the hook is playing it, so a pointer or focus leaving its tile leaves it playing. */
@@ -36,14 +54,16 @@ function start(v: HTMLVideoElement): void {
  * Clips that play by themselves while they're mostly on screen (David, 2026-11-18: "on showcase pages, videos should
  * play on hover or automatically preferably"), on every screen, not only a touch one: muted and looping, the most
  * visible first and at most MAX_PLAYING at once (lib/autoplay.ts), each paused once it's off screen. Never with reduced
- * motion (then hover and focus only, as before), never while blurred (it starts once tapped), and one the person
- * paused stays paused until it leaves the screen. `on`: false pauses them (a viewer open over the grid).
+ * motion (then hover and focus only, as before), never while hidden (useHidden: it starts once tapped), and one the
+ * person paused stays paused until it leaves the screen. `on`: false pauses them (a viewer open over the grid).
  *
  * The clips are the root's <video data-autoplay> (AUTOPLAY_ATTR), found again as the grid changes. `root`: the element
  * itself (a callback ref's, kept in state), so a grid that comes and goes with its filters is picked up each time. A
  * hover or a focus still plays a clip at once (the grid's own handlers); leaving it stops only a clip this didn't start.
  */
 export function useInViewAutoplay(root: HTMLElement | null, on = true): void {
+  const veil = useContext(AutoplayVeilContext);
+  const hidden = useHidden();
   useEffect(() => {
     const el = root;
     if (!el || typeof IntersectionObserver === "undefined" || typeof MutationObserver === "undefined") return;
@@ -60,7 +80,7 @@ export function useInViewAutoplay(root: HTMLElement | null, on = true): void {
     const ratio = new Map<HTMLVideoElement, number>();
     const settle = () => {
       const all = clips();
-      const play = new Set(whichPlay(all.map((v) => ({ key: v, ratio: ratio.get(v) ?? 0, skip: blurred(v) || v.dataset.held === "1" }))));
+      const play = new Set(whichPlay(all.map((v) => ({ key: v, ratio: ratio.get(v) ?? 0, skip: hidden(v) || v.dataset.held === "1" }))));
       for (const v of all) {
         if (play.has(v)) {
           v.dataset.auto = "1";
@@ -106,9 +126,10 @@ export function useInViewAutoplay(root: HTMLElement | null, on = true): void {
       settle();
     };
     el.addEventListener("pause", onPause, true);
-    // New tiles, a tap that shows one (data-ad-shown), the veil lifted, a clip opted in or out: look again.
+    // New tiles, a veil lifted (the grid's, or the page's: a tap that shows one), a clip opted in or out: look again.
+    // Never the hook's own marks (data-auto, data-held): setting one would call this again, and again.
     const mo = new MutationObserver(sync);
-    mo.observe(el, { childList: true, subtree: true, attributes: true, attributeFilter: [SHOWN_ATTR, "data-veiled", AUTOPLAY_ATTR] });
+    mo.observe(el, { childList: true, subtree: true, attributes: true, attributeFilter: [GRID_VEIL, AUTOPLAY_ATTR, ...veil.attrs] });
     sync();
     return () => {
       io.disconnect();
@@ -116,5 +137,5 @@ export function useInViewAutoplay(root: HTMLElement | null, on = true): void {
       el.removeEventListener("pause", onPause, true);
       for (const v of watched) if (autoplaying(v)) halt(v);
     };
-  }, [root, on]);
+  }, [root, on, veil, hidden]);
 }
