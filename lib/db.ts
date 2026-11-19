@@ -4545,8 +4545,8 @@ update showcase_posts p set from_date = (${madeInSql("i")} = 'night')
 
 /** Idempotent: creates the tables and upserts the house characters, free and premium. */
 export async function ensureSchema(db: Db): Promise<void> {
-  await db.exec(SCHEMA_SQL);
-  await db.exec(MADE_IN_SQL);
+  // One round trip: the made-in re-tag goes after the tables it reads, in the same exec.
+  await db.exec(SCHEMA_SQL + MADE_IN_SQL);
   const cast = [
     ...HOUSE_CHARACTERS.map((c) => ({ ...c, sku: null })),
     ...PREMIUM_HOUSE_CHARACTERS.map((c) => ({ ...c, sku: c.sku })),
