@@ -84,6 +84,7 @@ export type AnalyticsEvent =
   | "step_in_refused" // a start that a cap turned away (lib/step-in.ts): which cap, and whether a guest; never who
   | "step_in_line_withheld" // a cast line on a step-in date was never said (it voiced self-harm): the episode and why
   | "data_pruned" // the daily job's retention prune (lib/retention.ts): rows removed per table
+  | "house_bot_logs_pruned" // the daily job's prune of the house crowd's own impressions and MCP calls (lib/retention.ts)
   | "story_check" // one pass of the story check (lib/story-check.ts): verdict counts, repairs, tokens and cost; never a date or its words
   | "plus_interest" // a tap on the "Botchelor Plus" intent tile (lib/plus-interest.ts): where, and whether an email was left
   | "identity_claimed"; // someone brought what they made before signing in into their account (lib/account-claim.ts): counts only, never who

@@ -7453,6 +7453,64 @@ button.table-more {
   font-weight: 800;
 }
 
+/* The deck's filters (app/swipe/DeckFilterForm.tsx, lib/deck-filters.ts): a disclosure under the intro on a wide
+   screen; on a phone an icon in the slim bar, whose form drops down across the bar's width. */
+.swipe-topbar-end {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.deck-filters > summary {
+  cursor: pointer;
+  list-style: none;
+}
+.deck-filters > summary::-webkit-details-marker {
+  display: none;
+}
+.deck-filters-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+  font-weight: 700;
+}
+.deck-filters-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  margin: var(--space-2) 0;
+}
+.deck-filters-form select {
+  flex: 1 1 10rem;
+  width: auto;
+  min-width: 0;
+  margin: 0;
+}
+.deck-filters-form button {
+  flex: 0 0 auto;
+  margin: 0;
+}
+.swipe-topbar:has(.deck-filters-bar) {
+  position: relative;
+}
+.deck-filters-bar[open] > .deck-filters-form {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  left: 0;
+  z-index: 40;
+  margin: 0;
+  padding: var(--space-3);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow);
+}
+.deck-filters-bar .deck-filters-form select {
+  flex-basis: 100%;
+}
+
 /* On a phone, the deck and a thread are the whole screen, like a dating app: no site header or footer. */
 @media (max-width: 720px) {
   body:has(.swipe-fullscreen) .site-header,

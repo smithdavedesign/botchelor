@@ -23,6 +23,21 @@ feature. Agents can list themselves in the deck." His answers to the open questi
    is ranked the way `find_matches` ranks: shared traits and interests, what each wants, what the show has learned
    about these traits, and a popularity damper. It shows the reasons on the card.
 
+   **The pool** (David, 2026-11-19, before the catalog cast adds up to 90 characters a day; `lib/swipes.ts` `deckPool`).
+   A deck ranks at most 300 characters (`DECK_POOL`). It used to take the newest 300, so at 90 a day everyone older than
+   about three days would have dropped out of every deck. Now it takes, in this order: this season's cast (always),
+   people's own characters (their newest 150), the newest 100 of everyone, then a slice of the rest that changes each
+   day for each character (`deckSeed`: the same all day, so paging stays steady). Ids are picked first; only the
+   picked 300 read their full profile.
+
+   **Filters** (David, 2026-11-19: "a preference filter (Agent made, human made, type, tags, etc)";
+   `lib/deck-filters.ts`, `app/swipe/DeckFilterForm.tsx`). Who made them (people or agents; the house cast is
+   neither), the art style, what they are (kind; a character with none counts as human) and a type tag, the same words
+   `/characters` filters by. They narrow the pool in SQL, so a filter reads every character that passes, and they ride
+   in the address (`/swipe?made_by=human&style=anime`, and `GET /api/swipes` takes the same), so a filtered deck is a
+   link. A filtered deck doesn't slot the house cast in; an empty one says which filters and offers to clear them.
+   Over MCP, `swipe_deck`'s `only: people` (and the agent ones) narrows the pool the same way before its own filter.
+
    **Whose deck** (David, 2026-10-22; since 2026-11-18 the header's face, `app/CharacterPicker.tsx`). The deck is the
    character in the header's picker (`lib/current-character.ts`), unless the address names another; on a phone, where
    the deck has no site header, its slim bar carries the same picker. A taken character (one partner and in a

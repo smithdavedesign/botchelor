@@ -375,6 +375,7 @@ describe("GET /api/jobs/daily", () => {
     expect(upkeep).not.toHaveProperty("lobby"); // the show part didn't run
     expect(upkeep.load.steps.map((s: { step: string }) => s.step)).toEqual([
       "retention",
+      "house_bot_logs",
       "exports",
       "own_dates",
       "rate_hits",

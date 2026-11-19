@@ -23,6 +23,7 @@ import { loadCharacterMemory } from "./memory";
 import { seedFrom } from "./engine";
 import { factLine, PROFILE_PROMPTS, profileComplete, profileMissing } from "./extras";
 import { inlineGenerationEnabled } from "./jobs";
+import { hasDeckFilters, NO_DECK_FILTERS, type DeckFilters } from "./deck-filters";
 import { capHouseBots, houseBotCharacterIds, isHouseBotAgent } from "./house-bots";
 import { archetypeLabel, drawnToBoost, goalLabel, kindLabel, kindName } from "./kinds";
 import { getModel, type ChatMessage, type Model } from "./model";
@@ -30,6 +31,7 @@ import { shortName } from "./names";
 import { notify } from "./notifications";
 import { takenSql } from "./partners";
 import { REOPEN_HOW } from "./partners-shared";
+import { showStyleSql } from "./portrait-sql";
 import { pairKey, type End } from "./relationships";
 import { seasonCastIds } from "./season-cast";
 import { loadChain, PUBLIC_VIEWER } from "./text-chain";
@@ -183,32 +185,80 @@ function cantSwipe(mine: Mine | null): Refusal | null {
   return null;
 }
 
+/** How many characters a deck ranks at most (the pool); the page is dealt from the best of them. */
+export const DECK_POOL = 300;
+/** Of the pool: people's own characters, newest first, up to this many (people first, the crowd fills in). */
+export const DECK_POOL_PEOPLE = 150;
+/** Of the pool: the newest of everyone, up to this many; the rest is a different slice of the older ones each day. */
+export const DECK_POOL_NEWEST = 100;
+
+/** The pool's daily slice: the same for one character all day, different for each character and each UTC day. */
+export const deckSeed = (characterId: string, now: Date = new Date()): string => `${characterId}:${now.toISOString().slice(0, 10)}`;
+
 /**
  * Who could be in `mine`'s deck: this season's house cast, and characters in the deck (open to dates, a complete
  * dating profile, open to characters like this one) that aren't yours, taken or across a block. Never someone it has
  * matched, unmatched (lib/unmatch.ts) or dated already. `only` narrows it to one character (a swipe's target). Swiped
- * ones are left out unless `includeSwiped`.
+ * ones are left out unless `includeSwiped`. `filters` (lib/deck-filters.ts) narrow it to what the deck asked for.
+ *
+ * At most DECK_POOL of them (David, 2026-11-19, with the catalog cast adding up to 90 characters a day): it used to be
+ * the newest 300, so at that rate everyone older than about three days fell out of every deck. Now, in this order:
+ * the season's cast (always), people's characters (their newest DECK_POOL_PEOPLE), the newest DECK_POOL_NEWEST of
+ * everyone, then a slice of the rest that changes each day (deckSeed). Ids are picked first and only the picked rows
+ * read their profile (PUBLIC_COLUMNS counts dates and finds a portrait for each row).
  */
-async function deckPool(db: Db, userId: string, mine: Mine, opts: { only?: string; includeSwiped?: boolean; fresh?: boolean } = {}): Promise<ProfileRow[]> {
+async function deckPool(
+  db: Db,
+  userId: string,
+  mine: Mine,
+  opts: { only?: string; includeSwiped?: boolean; fresh?: boolean; filters?: DeckFilters } = {},
+): Promise<ProfileRow[]> {
+  // A swipe's target is found whatever the deck was filtered by.
+  const f = opts.only ? NO_DECK_FILTERS : (opts.filters ?? NO_DECK_FILTERS);
   const { rows } = await db.query<ProfileRow>(
-    `select ${PUBLIC_COLUMNS} from characters c
-      where c.id <> $2 and ($4::text is null or c.id = $4)
-        and (not $6::boolean or c.created_at > now() - interval '${FRESH_DAYS} days')
-        and ((c.is_house and c.premium_sku is null and c.id = any($3))
-             or (not c.is_house and c.open_to_dates and c.visibility <> 'private' and c.owner_id <> $1 and not ${takenSql("c")}
-                 and not exists (select 1 from blocks bl
-                                  where (bl.blocker_id = $1 and bl.blocked_id = c.owner_id) or (bl.blocker_id = c.owner_id and bl.blocked_id = $1))))
-        and ($5::boolean or not exists (select 1 from swipes s where s.swiper = $2 and s.target = c.id))
-        and not exists (select 1 from matches m
-                         where (m.character_lo = c.id and m.character_hi = $2) or (m.character_lo = $2 and m.character_hi = c.id))
-        and not ${unmatchedSql("c.id", "$2::text")}
-        and not exists (select 1 from relationships r
-                         where r.dates > 0 and ((r.character_a = c.id and r.character_b = $2) or (r.character_a = $2 and r.character_b = c.id)))
-      order by c.created_at desc, c.id
-      limit 300`,
-    [userId, mine.id, seasonCastIds(), opts.only ?? null, Boolean(opts.includeSwiped), Boolean(opts.fresh)],
+    `with pool as (
+       select c.id, c.created_at, c.is_house, (not c.is_house and c.created_via is distinct from 'mcp') as by_person
+         from characters c
+        where c.id <> $2 and ($4::text is null or c.id = $4)
+          and (not $6::boolean or c.created_at > now() - interval '${FRESH_DAYS} days')
+          and ((c.is_house and c.premium_sku is null and c.id = any($3))
+               or (not c.is_house and c.open_to_dates and c.visibility <> 'private' and c.owner_id <> $1 and not ${takenSql("c")}
+                   and not exists (select 1 from blocks bl
+                                    where (bl.blocker_id = $1 and bl.blocked_id = c.owner_id) or (bl.blocker_id = c.owner_id and bl.blocked_id = $1))))
+          and ($5::boolean or not exists (select 1 from swipes s where s.swiper = $2 and s.target = c.id))
+          and not exists (select 1 from matches m
+                           where (m.character_lo = c.id and m.character_hi = $2) or (m.character_lo = $2 and m.character_hi = c.id))
+          and not ${unmatchedSql("c.id", "$2::text")}
+          and not exists (select 1 from relationships r
+                           where r.dates > 0 and ((r.character_a = c.id and r.character_b = $2) or (r.character_a = $2 and r.character_b = c.id)))
+          and ($8::text is null
+               or ($8::text = 'human' and not c.is_house and c.created_via is distinct from 'mcp')
+               or ($8::text = 'agent' and not c.is_house and c.created_via = 'mcp'))
+          and ($9::text is null or ${showStyleSql("c")} = $9::text)
+          and ($10::text is null or coalesce(nullif(c.extras->>'kind', ''), 'human') = $10::text)
+          and ($11::text is null or exists (select 1 from character_tags t where t.character_id = c.id and t.tag = $11::text))
+     ), ranked as (
+       select id, created_at, is_house,
+              row_number() over (order by created_at desc, id) as newest,
+              case when by_person then row_number() over (partition by by_person order by created_at desc, id) end as person_newest
+         from pool
+     ), picked as (
+       select id, created_at from ranked
+        order by is_house desc, coalesce(person_newest <= ${DECK_POOL_PEOPLE}, false) desc, (newest <= ${DECK_POOL_NEWEST}) desc, md5(id || $7::text), id
+        limit ${DECK_POOL}
+     )
+     select ${PUBLIC_COLUMNS} from picked p join characters c on c.id = p.id
+      order by p.created_at desc, c.id`,
+    [userId, mine.id, seasonCastIds(), opts.only ?? null, Boolean(opts.includeSwiped), Boolean(opts.fresh), deckSeed(mine.id), f.made_by, f.style, f.kind, f.type],
   );
   return rows.filter((r) => r.is_house || (audienceAllows(r.open_audience, mine.created_via) && profileComplete(r.extras)));
+}
+
+/** Who's in a character's deck pool (deckPool), ids only, newest first: for tests and for looking at a pool by hand. */
+export async function deckPoolIds(db: Db, userId: string, characterId: string, filters?: DeckFilters): Promise<string[]> {
+  const mine = await loadMine(db, userId, characterId);
+  if (!mine) return [];
+  return (await deckPool(db, userId, mine, { filters })).map((r) => r.id);
 }
 
 /**
@@ -224,13 +274,14 @@ export async function deckFor(
   userId: string,
   characterId: string,
   limit = DECK_PAGE,
-  opts: { only?: string; theme?: DeckTheme } = {},
+  opts: { only?: string; theme?: DeckTheme; filters?: DeckFilters } = {},
 ): Promise<DeckResult> {
   const mine = await loadMine(db, userId, characterId);
   const no = cantSwipe(mine);
   if (no || !mine) return no!;
   // Curated decks: fresh narrows the pool to new faces; popular reorders by likes received lately. Same pool rules.
-  const pool = (await deckPool(db, userId, mine, opts.only ? { only: opts.only, includeSwiped: true } : { fresh: opts.theme === "fresh" })).map((r) =>
+  const filtered = !opts.only && Boolean(opts.filters && hasDeckFilters(opts.filters));
+  const pool = (await deckPool(db, userId, mine, opts.only ? { only: opts.only, includeSwiped: true } : { fresh: opts.theme === "fresh", filters: opts.filters })).map((r) =>
     toProfile(r),
   );
   if (!pool.length) return { ok: true, for: { id: mine.id, name: mine.name }, cards: [], scores: {} };
@@ -279,7 +330,8 @@ export async function deckFor(
   // This season's cast in every page of the everyday deck: they always like back, so a first match is a swipe away
   // (2026-10-25: with 67 characters open to dates, a new character's ten cards had none of the four).
   const cast = new Set(pool.filter((p) => p.made_by === "house").map((p) => p.id));
-  const dealt = opts.only || opts.theme ? capped : withHouseCast(capped, ranked, cast);
+  // A filtered deck (lib/deck-filters.ts) shows only what passed: the cast comes in when it passes, never into a slot.
+  const dealt = opts.only || opts.theme || filtered ? capped : withHouseCast(capped, ranked, cast);
   return {
     ok: true,
     for: { id: mine.id, name: mine.name },

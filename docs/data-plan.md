@@ -301,7 +301,7 @@ out of time never skips it. It logs `data_pruned` with the rows removed per tabl
 | Data | Kept |
 |---|---|
 | `choice_history` | 400 days, except `ml_consent` decisions: those stay as long as the account (the record of what someone agreed to, and when). |
-| `swipe_impressions` | 400 days (was `lib/swipes.ts pruneImpressions`, now here). |
+| `swipe_impressions` | 400 days (was `lib/swipes.ts pruneImpressions`, now here). The house crowd's own (a house-run bot is the viewer) 14 days, and its MCP calls in `mcp_calls` too (`pruneHouseBotLogs`, 2026-11-19): our scripts' traffic, about 50,000 rows a day. |
 | `turn_drafts` | 400 days. |
 | `relationship_events` | 400 days. A finale's `engaged` or `married` row is kept while the two characters exist: it is where the couple stands. |
 | `episode_variations` | 400 days from the first run. |

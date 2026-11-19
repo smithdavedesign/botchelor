@@ -1,12 +1,13 @@
 import { z } from "zod";
 import { getDb } from "@/lib/db";
+import { parseDeckFilters } from "@/lib/deck-filters";
 import { handle, json, parseBody, readJson, session } from "@/lib/http";
 import { withOrigins } from "@/lib/origin";
 import { DECK_PAGE, deckFor, scheduleMatchChat, swipe, undoLike } from "@/lib/swipes";
 
 /**
  * The swipe deck (lib/swipes.ts, docs/swipes.md): `GET ?character_id=` deals the next cards for one of your characters;
- * `POST` swipes one. A like both ways (or on a house character) is a match, and its opening chat runs after the reply.
+ * `POST` swipes one. The swipe page's filters ride along as ?made_by=&style=&kind=&type= (lib/deck-filters.ts). A like both ways (or on a house character) is a match, and its opening chat runs after the reply.
  * Dealing logs no impression: a dealt card isn't a seen one. The page reports each card as it comes on top
  * (POST /api/swipes/seen).
  */
@@ -15,7 +16,9 @@ export const GET = handle(async (req: Request) => {
   const params = new URL(req.url).searchParams;
   const limit = Number(params.get("limit") ?? DECK_PAGE);
   const db = await getDb();
-  const r = await deckFor(db, sess.userId, params.get("character_id")?.slice(0, 64) ?? "", Number.isFinite(limit) ? limit : DECK_PAGE);
+  // ?made_by=&style=&kind=&type= (lib/deck-filters.ts): the swipe page's filters, carried by its deck's next fetch.
+  const filters = parseDeckFilters((k) => params.get(k));
+  const r = await deckFor(db, sess.userId, params.get("character_id")?.slice(0, 64) ?? "", Number.isFinite(limit) ? limit : DECK_PAGE, { filters });
   if (!r.ok) return json({ error: r.error, message: r.message, ...(r.missing ? { missing: r.missing } : {}) }, r.status, sess);
   return json({ for: r.for, cards: await withOrigins(db, r.cards) }, 200, sess);
 });

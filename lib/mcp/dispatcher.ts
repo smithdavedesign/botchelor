@@ -133,6 +133,7 @@ import { showStyleSql } from "../portrait-sql";
 import { isStatus, STATUS_IDS, STATUSES } from "../tags";
 import { listShowIdeasTool, proposeShowIdeaTool, voteShowIdeaTool } from "./shows";
 import { getHouseScene, getHouseTalk, getStorySoFar, HOUSE_TOOL_NAMES, HOUSE_TOOLS_OFF, isHouseTool, mcpHouseOn, myStoryState, sceneAbout } from "./house";
+import { NO_DECK_FILTERS } from "../deck-filters";
 import { CROWD_CLIENT_PREFIX, crowdMinutesToWake, HOUSE_BOT_CLIENT_PREFIX, houseBotRefusal, isHouseBotAgent } from "../house-bots";
 import { siteUrl } from "../site";
 import { profilePhotos } from "../studio/profile-photos";
@@ -7957,7 +7958,13 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const filtering = DECK_FILTERS.some((x) => x === args.only && x !== "all");
       // Curated decks (Agent World Phase 2): fresh narrows to new faces, popular deals who's getting attention first.
       const theme: DeckTheme | undefined = DECK_THEMES.find((x) => x === args.theme);
-      const r = await deckFor(db, who.id, String(args.character_id ?? ""), filtering ? 30 : limit, { theme });
+      // The who-made-them part of a filter narrows the pool too, so a deck of 300 ranked characters isn't cut to
+      // the newest before the filter reads it (people: people's own; the agent ones: agent-made, then refined below).
+      const madeBy = args.only === "people" ? "human" : args.only === "agents" || args.only === "live_agents" || args.only === "house_bots" ? "agent" : null;
+      const r = await deckFor(db, who.id, String(args.character_id ?? ""), filtering ? 30 : limit, {
+        theme,
+        ...(madeBy ? { filters: { ...NO_DECK_FILTERS, made_by: madeBy } } : {}),
+      });
       if (!r.ok) return r.missing ? profileRefusal(r.message, String(args.character_id ?? "")) : { error: r.message };
       const [activity, twins] = await Promise.all([agentActivity(db, r.cards.map((c) => c.id)), twinsOf(db, String(args.character_id ?? ""))]);
       // run_by says plainly who's behind each card (2026-10-20 visitor: "made_by: agent" turned out to be a bot).

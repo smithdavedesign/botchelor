@@ -92,6 +92,25 @@ export function staticSitemap(base: string = siteUrl()): MetadataRoute.Sitemap {
  */
 export const SITEMAP_MIN_COUPLE_DATES = 2;
 
+/**
+ * A character page worth a search engine's time (David, 2026-11-19, before the catalog cast adds up to 90 characters a
+ * day): public, and either on this season's house cast or in a date that aired publicly. Until then the page is up,
+ * linked and followed, but says noindex and stays out of the sitemap and IndexNow: a fresh profile is a name and a bio,
+ * and Google reads many of those at once as scaled content (and judges a site's quality as a whole). `$cast` is the
+ * placeholder holding seasonCastIds().
+ */
+export const indexableCharacterSql = (alias: string, cast: string): string =>
+  `(${alias}.visibility = 'public' and ((${alias}.is_house and ${alias}.premium_sku is null and ${alias}.id = any(${cast}))
+     or exists (select 1 from episodes ie
+                 where (ie.character_a = ${alias}.id or ie.character_b = ${alias}.id)
+                   and ie.visibility = 'public' and ie.revealed_at is not null and ie.status = 'ready')))`;
+
+/** Whether one character's page is worth indexing (indexableCharacterSql). */
+export async function characterIndexable(db: Db, id: string): Promise<boolean> {
+  const { rows } = await db.query<{ ok: boolean }>(`select ${indexableCharacterSql("c", "$2")} as ok from characters c where c.id = $1`, [id, seasonCastIds()]);
+  return rows[0]?.ok === true;
+}
+
 /** The episodes and characters worth indexing. Bounded well under the 50,000-URL sitemap limit. */
 export async function contentSitemap(db: Db, base: string = siteUrl()): Promise<MetadataRoute.Sitemap> {
   const episodes = await db.query<{ id: string; at: Date | string }>(
@@ -103,14 +122,12 @@ export async function contentSitemap(db: Db, base: string = siteUrl()): Promise<
       limit 20000`,
     [REPORT_HIDE_THRESHOLD],
   );
-  // This season's house cast, every character open to dates, and anyone who has aired publicly.
+  // This season's house cast and anyone who has aired publicly (indexableCharacterSql). Open to dates alone isn't enough
+  // since 2026-11-19: a profile with no date yet is a name and a bio.
   const characters = await db.query<{ id: string; at: Date | string }>(
     `select c.id, c.created_at as at
        from characters c
-      where c.visibility = 'public' and ((c.is_house and c.premium_sku is null and c.id = any($1)) or c.open_to_dates
-         or exists (select 1 from episodes e
-                     where (e.character_a = c.id or e.character_b = c.id)
-                       and e.visibility = 'public' and e.revealed_at is not null))
+      where ${indexableCharacterSql("c", "$1")}
       order by c.is_house desc, c.created_at desc
       limit 20000`,
     [seasonCastIds()],

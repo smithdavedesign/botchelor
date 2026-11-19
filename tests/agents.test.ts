@@ -396,7 +396,7 @@ describe("the MCP route", () => {
 });
 
 describe("discoverability", () => {
-  it("the sitemap lists public aired episodes and the characters in them, open characters, and nothing private", async () => {
+  it("the sitemap lists public aired episodes and the characters in them, and nothing private; an open character waits for its first date", async () => {
     const creator = newUserCookie();
     const c = (await (await api.createCharacter(sheet("Seen Sam"), creator)).json()).id;
     scriptOutcome({ ending: "friends" });
@@ -418,7 +418,8 @@ describe("discoverability", () => {
     expect(urls).not.toContain(`https://b.test/episodes/${priv}`);
     expect(urls).not.toContain(`https://b.test/episodes/${unaired}`);
     expect(urls).toContain(`https://b.test/characters/${c}`);
-    expect(urls).toContain(`https://b.test/characters/${open}`);
+    // Open to dates but never aired (2026-11-19, lib/seo.ts indexableCharacterSql): in once a public date airs.
+    expect(urls).not.toContain(`https://b.test/characters/${open}`);
     expect(urls).toContain(`https://b.test/characters/${HOUSE_PARTNER_ID}`);
     expect(urls).not.toContain(`https://b.test/characters/${quiet}`);
 

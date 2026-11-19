@@ -55,7 +55,15 @@ export async function recentPublicUrls(db: Db, since: Date, base: string = siteU
         limit 5000`,
       [since.toISOString(), REPORT_HIDE_THRESHOLD],
     ),
-    db.query<{ id: string }>(`select id from characters where open_to_dates and created_at >= $1 limit 5000`, [since.toISOString()]),
+    // A character once it's worth indexing (lib/seo.ts indexableCharacterSql, 2026-11-19): when one of its dates airs
+    // publicly, not when it's made. Public ones only (a private character's page says noindex).
+    db.query<{ id: string }>(
+      `select distinct c.id from characters c
+         join episodes e on e.character_a = c.id or e.character_b = c.id
+        where c.visibility = 'public' and e.visibility = 'public' and e.status = 'ready' and e.revealed_at >= $1
+        limit 5000`,
+      [since.toISOString()],
+    ),
     db.query<{ a: string; b: string }>(`select character_a as a, character_b as b from relationships where public_dates >= $2 and public_last_at >= $1 limit 5000`, [since.toISOString(), SITEMAP_MIN_COUPLE_DATES]),
   ]);
   return [
