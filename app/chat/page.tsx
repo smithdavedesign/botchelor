@@ -6,9 +6,9 @@ import EmptyState from "@/app/EmptyState";
 import Pager from "@/app/Pager";
 import When from "@/app/When";
 import TalkButton from "@/app/companion/TalkButton";
-import CharacterTabs from "@/app/CharacterTabs";
 import RememberCharacter from "@/app/RememberCharacter";
-import { CHAT_FILTERS, chatFilter, filterChat, loadChat, newsOfRows, rowsOfCharacter, type ChatFace, type ChatFilter, type ChatInbox, type ChatRow } from "@/lib/chat-inbox";
+import { CHAT_FILTERS, chatFilter, filterChat, loadChat, rowsOfCharacter, type ChatFace, type ChatFilter, type ChatInbox, type ChatRow } from "@/lib/chat-inbox";
+import { pickCharacter, rememberedCharacter } from "@/lib/current-character";
 import { companionAccessFromCookies, companionGuestFromCookies } from "@/lib/companion-access";
 import { companionOpen } from "@/lib/companion-shared";
 import { getDb } from "@/lib/db";
@@ -87,9 +87,10 @@ function Row({ r }: { r: ChatRow }) {
  * says which it is and opens the thread's own page. Someone with nothing yet gets three of the cast to text now and
  * the way to a character of their own.
  *
- * Someone with several characters gets their faces above the list (lib/current-character.ts): "All" first and the
- * default, since nobody should miss a text because the wrong character was picked; a face narrows the list to that
- * character's threads (?character=) and is remembered for the next door. Each face carries what's new for it.
+ * Someone with several characters gets one filter above the list (lib/current-character.ts): every character's threads
+ * by default, since nobody should miss a text because the wrong character was picked (David agreed, 2026-11-18), and
+ * "Just {name}'s" for the one in the header's face (?character=), which a pick in the header then follows. What's new
+ * for each of the others is the header's to say.
  */
 export default async function ChatPage({ searchParams }: Props = {}) {
   const sp = (await searchParams) ?? {};
@@ -111,6 +112,8 @@ export default async function ChatPage({ searchParams }: Props = {}) {
   // One of their characters, when the address asks for it (never the remembered one: Chat opens on everything).
   const asked = Array.isArray(sp.character) ? sp.character[0] : sp.character;
   const only = inbox.characters.find((c) => c.id === asked) ?? null;
+  // The one "Just …" offers and the buttons speak for: the one picked, else the header's (the remembered one).
+  const lead = only ?? pickCharacter(inbox.characters, null, rememberedCharacter(store));
   const mineRows = only ? rowsOfCharacter(inbox.rows, only.id) : inbox.rows;
   const counts: Record<ChatFilter, number> = only
     ? { all: mineRows.length, you: mineRows.filter((r) => r.kind === "you").length, dating: mineRows.filter((r) => r.kind === "dating").length }
@@ -118,10 +121,8 @@ export default async function ChatPage({ searchParams }: Props = {}) {
   const rows = filterChat(mineRows, filter);
   const shown = pageOf(rows, parsePage(sp.page), CHAT_PAGE);
   const href = (f: ChatFilter, n = 1) => pageHref("/chat", { character: only?.id, show: f === "all" ? undefined : f }, "page", n);
-  const lead = only ?? inbox.characters[0] ?? null;
   const first = lead ? shortName(lead.name) : null;
   const findMatch = lead ? `/swipe?character=${encodeURIComponent(lead.id)}` : null;
-  const news = newsOfRows(inbox.rows, inbox.characters.map((c) => c.id));
 
   return (
     <article className="chat-page matches-page">
@@ -152,7 +153,26 @@ export default async function ChatPage({ searchParams }: Props = {}) {
       </p>
       {only && <RememberCharacter id={only.id} />}
       {/* Whose chats (lib/current-character.ts): nothing for someone with one character or none. */}
-      <CharacterTabs characters={inbox.characters} current={only?.id ?? ""} href="/chat?character=" label="Whose chats" news={news} all={{ href: "/chat", label: "All" }} />
+      {lead && inbox.characters.length > 1 && (
+        <p className="chat-who">
+          {only ? (
+            <>
+              <span className="chat-who-chip" aria-current="true">
+                <Avatar seed={lead.id} name={lead.name} hue={lead.hue} portraitSrc={lead.portrait} size={20} decorative round />
+                Just {first}&apos;s chats
+              </span>
+              <Link href={pageHref("/chat", { show: filter === "all" ? undefined : filter }, "page", 1)} className="chat-who-clear" scroll={false}>
+                Show every character&apos;s
+              </Link>
+            </>
+          ) : (
+            <Link href={pageHref("/chat", { character: lead.id, show: filter === "all" ? undefined : filter }, "page", 1)} className="chat-who-chip" scroll={false}>
+              <Avatar seed={lead.id} name={lead.name} hue={lead.hue} portraitSrc={lead.portrait} size={20} decorative round />
+              Just {first}&apos;s
+            </Link>
+          )}
+        </p>
+      )}
       {inbox.counts.all > 0 && (
         <nav className="segmented chat-filter" aria-label="Which chats">
           {CHAT_FILTERS.map((f) => (

@@ -44,6 +44,8 @@ import NewsletterSignup from "./NewsletterSignup";
 import FooterGroup from "./FooterGroup";
 import SocialLinks from "./SocialLinks";
 import { unreadChatTexts, unreadTexts } from "@/lib/inbox";
+import { rememberedCharacter } from "@/lib/current-character";
+import { pickerCharacters } from "@/lib/my-characters";
 import { navChatOn } from "@/lib/nav-chat";
 import { CrisisResources } from "./Notices";
 import Icon from "@/app/Icon";
@@ -145,7 +147,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   const socials = socialLinks(process.env, adHost);
   const support = contactEmail();
   const navChat = navChatOn();
-  const [, door, dates, unread, texts, hasCharacter, adTokens, seasonDef, adDoors, nextDef] = await Promise.all([
+  const [, door, dates, unread, texts, mine, adTokens, seasonDef, adDoors, nextDef] = await Promise.all([
     // They're here (lib/activity.ts): their characters' likes wait for them rather than answering themselves. Throttled.
     db && viewerId ? touchOwner(db, viewerId).catch(() => {}) : null,
     // After Dark's link shows to someone it's open to (lib/adult/entitlement.ts), only where it's offered
@@ -158,10 +160,9 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
     // Chat's count (lib/nav-chat.ts): unread texts of both kinds, a character's to them and their characters' own
     // (lib/inbox.ts). With NAV_CHAT=0 it's the Dating link's, the characters' own only.
     db && viewerId ? (navChat ? unreadChatTexts(db, viewerId) : unreadTexts(db, viewerId)).catch(() => 0) : 0,
-    // The nav changes once there's a character of theirs (app/Nav.tsx): until then, the show and one create button.
-    db && viewerId
-      ? db.query(`select 1 from characters where owner_id = $1 and not is_house limit 1`, [viewerId]).then((r) => r.rows.length > 0, () => false)
-      : false,
+    // The nav changes once there's a character of theirs (app/Nav.tsx): until then, the show and one create button;
+    // after, the face of the one they're working with, which switches it (app/CharacterPicker.tsx). One round trip.
+    db && viewerId ? pickerCharacters(db, viewerId).catch(() => []) : [],
     db && viewerId && adHost && adTokensOn() ? adTokenBalance(db, viewerId).catch(() => null) : null,
     // The season's format for the arc under the header (app/SeasonStrip.tsx): one shared copy for every visitor.
     adHost ? null : shared("watch:season-format", async () => seasonFormatNow(await getDb())).catch(() => null),
@@ -170,6 +171,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
     // Next month's format, for the arc's "December: The Botchelor" beside this month's (app/SeasonBanner.tsx `next`).
     adHost ? null : shared("watch:season-format-next", async () => seasonFormatNow(await getDb(), nextSeasonStart(new Date()))).catch(() => null),
   ]);
+  const hasCharacter = mine.length > 0;
   const afterDark = door.door;
   // Google tags wait for consent in the EEA/UK/CH (Consent Mode v2); Vercel sets the visitor's country header.
   const google = Boolean(TRACKING.gaId || TRACKING.gtmId);
@@ -214,7 +216,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
               <span>After Dark</span>
             </span>
           )}
-          <Nav tokens={adHost && viewerId ? (adTokens ?? dates.pack_left) : dates.left} meter={adHost ? (viewerId && afterDark ? "tokens" : "none") : "dates"} personal={Boolean(viewerId)} unread={unread} texts={texts} afterDark={afterDark} adHost={adHost} showHref={showHome()} hasCharacter={hasCharacter} prefetchShow={!adHost} companions={companionOpen()} chat={navChat} adDoors={adDoors} />
+          <Nav tokens={adHost && viewerId ? (adTokens ?? dates.pack_left) : dates.left} meter={adHost ? (viewerId && afterDark ? "tokens" : "none") : "dates"} personal={Boolean(viewerId)} unread={unread} texts={texts} afterDark={afterDark} adHost={adHost} showHref={showHome()} hasCharacter={hasCharacter} prefetchShow={!adHost} companions={companionOpen()} chat={navChat} adDoors={adDoors} characters={adHost ? [] : mine} character={rememberedCharacter(cookieStore)} />
         </header>
         {/* The season's arc runs under the header on the show's spectator pages (the design system's all-screens board).
             A lead season's (The Botchelor) counts to the final rose and opens its own page (docs/season-page.md). */}

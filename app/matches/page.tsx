@@ -7,11 +7,11 @@ import Avatar from "@/app/Avatar";
 import { getDb } from "@/lib/db";
 import { listMyDatingProfiles } from "@/lib/dating";
 import { userIdFromCookieStore } from "@/lib/http";
-import { characterToOpen, listThreads, newsByCharacter, type Thread } from "@/lib/inbox";
+import { listThreads, type Thread } from "@/lib/inbox";
 import { shortName } from "@/lib/names";
 import { takenWith } from "@/lib/partners";
-import CharacterTabs from "@/app/CharacterTabs";
 import RememberCharacter from "@/app/RememberCharacter";
+import SwitchCharacter from "@/app/SwitchCharacter";
 import { pickCharacter, rememberedCharacter } from "@/lib/current-character";
 import MixerJoin from "@/app/MixerJoin";
 import CastPreview from "@/app/CastPreview";
@@ -64,7 +64,8 @@ const filedAway = (t: Thread) => t.over && !t.new_match && t.unread === 0;
 /**
  * Matches (David, 2026-10-18): one of your characters at a time, like a dating app. New matches with no texts yet
  * are a row of faces; everyone else is a conversation, newest first, with the last text. Each opens the thread and
- * nothing else (/messages). A swipe match and anyone it has dated both count: they all text.
+ * nothing else (/messages). A swipe match and anyone it has dated both count: they all text. Whose matches follows the
+ * header's face (lib/current-character.ts, 2026-11-18), which also says which of the others has news.
  */
 export default async function MatchesPage({ searchParams }: Props) {
   const { character, page, show, all } = await searchParams;
@@ -86,14 +87,10 @@ export default async function MatchesPage({ searchParams }: Props) {
       </article>
     );
   }
-  // Without one asked for, open on the character the newest news is about (the nav's count can be anyone's). The taken
-  // ones are marked on the faces, the same as on /swipe.
-  const ids = mine.map((c) => c.id);
-  const [news, taken] = await Promise.all([newsByCharacter(db, viewerId, ids), takenWith(db, ids)]);
-  // The address first; then whoever has news (never hidden behind a remembered face); then the character they were last
-  // working with on Chat, the Studio or the deck (lib/current-character.ts); then the newest.
-  const withNews = [...news.values()].some((n) => n.texts + n.matches > 0) ? characterToOpen(mine, news) : undefined;
-  const me = mine.find((c) => c.id === character) ?? withNews ?? pickCharacter(mine, null, rememberedCharacter(store)) ?? mine[0];
+  // The address first; then the one they're working with (the header's face); then the newest. Never whoever has news
+  // (David, 2026-11-18): that swapped characters behind the header's back; the header's dot says where news is.
+  const me = pickCharacter(mine, character, rememberedCharacter(store))!;
+  const taken = await takenWith(db, [me.id]);
   const everyone = (await listThreads(db, viewerId, me.id)) ?? { fresh: [], conversations: [] };
   // Two lists, one at a time (David, 2026-11-11: "Show N that didn't work out" mixed them back in with everyone, so it
   // didn't filter): the open ones, and the ones that didn't work out (?show=over; ?all=1 is the old link to it).
@@ -141,12 +138,18 @@ export default async function MatchesPage({ searchParams }: Props) {
   return (
     <article className="matches-page">
       <RememberCharacter id={me.id} />
-      {/* 2026-10-31 UX audit: the name was said three times up here. With two or more characters the tabs below say whose
-          matches these are; with one, the heading does, and its face opens their card. */}
+      {/* 2026-10-31 UX audit: the name was said three times up here. The heading says whose matches these are: with one
+          character its face opens their card; with several the name opens the header's picker. */}
       <header className="matches-head">
         <h1>
           {mine.length > 1 ? (
-            "Matches"
+            <span className="heading-face">
+              <Avatar seed={me.id} name={me.name} hue={me.hue} portraitSrc={me.portrait} size={32} decorative round />
+              <span>
+                <SwitchCharacter name={first} />
+                &apos;s matches
+              </span>
+            </span>
           ) : (
             <>
               <CharacterName character={me} label={first} size={32} />
@@ -158,7 +161,6 @@ export default async function MatchesPage({ searchParams }: Props) {
           Swipe for {first}
         </Link>
       </header>
-      <CharacterTabs characters={mine} current={me.id} href="/matches?character=" label="Whose matches" news={news} taken={taken} takenNote="closed to other dates" />
       {(filed.length > 0 || showOver) && (
         <nav className="tabs matches-filter" aria-label="Which matches">
           <Link href={listHref(false)} aria-current={showOver ? undefined : "page"} scroll={false}>

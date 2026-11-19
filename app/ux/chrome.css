@@ -519,3 +519,277 @@ body:has(.feedback-fab) .site-footer {
 .chat-cast-talk:hover:not(:disabled) .talk-label {
   background: var(--soft);
 }
+
+/* ---------------- the character you're working with (app/CharacterPicker.tsx; lib/current-character.ts) ----------------
+   David, 2026-11-18: one face in the header instead of a switcher on every page. Their face and short name at the bar's
+   end (before the menu button on a phone, where the newcomer's call to action would be), a dot when another of theirs
+   has news, and a panel of all of them under the header. The deck's slim bar carries the same picker on a phone. */
+.char-picker {
+  display: flex;
+  align-items: center;
+}
+.char-picker-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--control-h-sm);
+  margin: 0;
+  padding: var(--space-1) var(--space-3) var(--space-1) var(--space-1);
+  border: 1.5px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--card);
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  line-height: 1.2;
+  box-shadow: none;
+}
+.char-picker-button:hover:not(:disabled),
+.char-picker[data-open="true"] .char-picker-button {
+  transform: none;
+  border-color: var(--accent);
+  background: var(--soft);
+  box-shadow: none;
+}
+.char-picker-name {
+  max-width: 8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.char-picker-chevron {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  transition: transform 0.15s ease;
+}
+.char-picker[data-open="true"] .char-picker-chevron {
+  transform: rotate(180deg);
+}
+/* On the face's corner: another of theirs has news (the menu says which). */
+.char-picker-dot {
+  position: absolute;
+  top: 0;
+  left: 1.6rem;
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  background: var(--accent-btn);
+  border: 1.5px solid var(--card);
+}
+/* The panel hangs from the header's right edge (the sticky header is what it's placed against), over the page. */
+.char-picker-menu {
+  position: absolute;
+  top: 100%;
+  right: var(--gutter);
+  z-index: 30;
+  display: grid;
+  gap: var(--space-3);
+  width: min(23rem, calc(100vw - 2 * var(--gutter)));
+  max-height: min(70vh, 32rem);
+  margin-top: var(--space-1);
+  padding: var(--space-3);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  box-shadow: var(--shadow);
+  text-align: left;
+}
+.char-picker-menu[hidden] {
+  display: none;
+}
+.char-picker-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  margin: 0;
+  font-size: var(--text-sm);
+}
+.char-picker-head .badge {
+  margin-left: 0;
+}
+.char-picker-menu a {
+  padding: var(--space-1) var(--space-2);
+}
+.char-picker-page {
+  margin-left: auto;
+}
+.char-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(5.25rem, 1fr));
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.char-picker-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: var(--space-2) var(--space-1);
+  border: 1.5px solid transparent;
+  border-radius: var(--radius-md);
+  background: none;
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
+  box-shadow: none;
+}
+.char-picker-tile:hover:not(:disabled) {
+  transform: none;
+  background: var(--soft);
+  box-shadow: none;
+}
+.char-picker-tile[aria-current="true"] {
+  border-color: var(--accent);
+  background: var(--soft);
+  color: var(--accent-text);
+}
+.char-picker-tile-name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.char-picker-tile .nav-count {
+  position: absolute;
+  top: var(--space-1);
+  right: calc(50% - 1.9rem);
+}
+.char-picker-tile .taken-tag {
+  margin: 0;
+  font-size: var(--text-2xs);
+}
+/* Taken (lib/partners.ts: with someone and wanting one partner): a faded face and a muted name, still a choice. */
+.char-picker-tile.is-taken {
+  color: var(--muted);
+}
+.char-picker-tile.is-taken .avatar {
+  opacity: 0.55;
+  filter: grayscale(0.8);
+}
+.char-picker-foot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin: 0;
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--line);
+  font-size: var(--text-sm);
+}
+/* The deck's slim bar (a phone): the picker in its middle, its panel centred under it. */
+.char-picker--bar {
+  position: relative;
+  min-width: 0;
+}
+.char-picker--bar .char-picker-button {
+  border-color: transparent;
+  background: none;
+}
+.char-picker--bar .char-picker-menu {
+  top: calc(100% + var(--space-1));
+  right: auto;
+  left: 50%;
+  z-index: 40;
+  width: min(23rem, calc(100vw - 2 * var(--space-3)));
+  transform: translateX(-50%);
+}
+/* The bar tightens under 1180px: the face says who, the name waits in the panel. */
+@media (max-width: 1180px) {
+  .char-picker--nav .char-picker-name {
+    display: none;
+  }
+  .char-picker--nav .char-picker-button {
+    padding-right: var(--space-2);
+  }
+}
+/* Under 900px the links fold behind the menu button: the face sits just before it. */
+@media (max-width: 900px) {
+  .nav > .char-picker {
+    order: 1;
+  }
+  .nav > .nav-toggle {
+    order: 2;
+  }
+}
+/* A phone's bar is the wordmark, the door, the meter, the face and the menu button: the face alone, in its ring. */
+@media (max-width: 560px) {
+  .char-picker--nav .char-picker-chevron {
+    display: none;
+  }
+  .char-picker--nav .char-picker-button {
+    padding: var(--space-1);
+  }
+}
+
+/* A character's name in a page's heading that opens the picker (app/SwitchCharacter.tsx): the heading's own type,
+   underlined in dots. */
+.heading-switch {
+  display: inline;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+  letter-spacing: inherit;
+  text-align: inherit;
+  text-decoration: underline dotted color-mix(in srgb, var(--accent) 60%, transparent);
+  text-decoration-thickness: 0.06em;
+  text-underline-offset: 0.14em;
+  cursor: pointer;
+}
+.heading-switch:hover:not(:disabled) {
+  transform: none;
+  box-shadow: none;
+  color: var(--accent-text);
+}
+
+/* Chat's one filter for someone with several characters (app/chat/page.tsx): every character's threads, or just the
+   header's one's. */
+.chat-who {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  margin: var(--space-2) 0 var(--space-3);
+  font-size: var(--text-sm);
+}
+.chat-who-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--control-h-sm);
+  padding: var(--space-1) var(--space-3) var(--space-1) var(--space-1);
+  border: 1.5px solid var(--line);
+  border-radius: var(--radius-pill);
+  color: var(--ink);
+  font-weight: 600;
+  text-decoration: none;
+}
+a.chat-who-chip:hover {
+  border-color: var(--accent);
+  background: var(--soft);
+}
+.chat-who-chip[aria-current="true"] {
+  border-color: var(--accent);
+  background: var(--soft);
+  color: var(--accent-text);
+}
+.chat-who-clear {
+  font-weight: 600;
+}

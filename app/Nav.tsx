@@ -4,9 +4,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Fragment, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import CharacterPicker from "@/app/CharacterPicker";
 import Icon from "@/app/Icon";
 import { afterDarkHref } from "@/lib/after-dark-host";
 import { NO_AD_DOORS, showcaseHref, studioDoorLabel, type AdDoors } from "@/lib/adult/door-links";
+import type { PickerCharacter } from "@/lib/my-characters";
 import { openFeedback } from "@/lib/user-feedback-shared";
 
 /**
@@ -114,6 +116,8 @@ export default function Nav({
   companions = false,
   chat = true,
   adDoors = NO_AD_DOORS,
+  characters = [],
+  character = null,
 }: {
   tokens: number;
   /**
@@ -140,6 +144,13 @@ export default function Nav({
   prefetchShow?: boolean;
   /** On After Dark's own host: whether the Studio is open to them and whether they may see the showcase's After Dark side (lib/adult/doors.ts). */
   adDoors?: AdDoors;
+  /**
+   * The viewer's own characters (lib/my-characters.ts): the face at the bar's end is the one they're working with,
+   * and switches it everywhere (app/CharacterPicker.tsx). Not on After Dark's host, whose Studio picks its own.
+   */
+  characters?: PickerCharacter[];
+  /** The one this browser remembers (lib/current-character.ts), for the first paint. */
+  character?: string | null;
 }) {
   const pf = prefetchShow ? undefined : false;
   const [open, setOpen] = useState(false);
@@ -316,6 +327,9 @@ export default function Nav({
           <Icon name="chat" /> Give us feedback
         </button>
       </div>
+      {/* Who they're working with: last in the bar on a wide screen, before the menu button on a phone (the newcomer's
+          call to action holds this place for someone without a character, docs/brand.md Header). */}
+      {!adHost && characters.length > 0 && <CharacterPicker characters={characters} initial={character} />}
     </nav>
   );
 }

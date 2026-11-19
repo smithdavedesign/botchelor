@@ -116,7 +116,7 @@ describe("rolling out to couples that already exist", () => {
   });
 });
 
-describe("which of yours are taken: the faces on /swipe and /matches (app/CharacterTabs.tsx)", () => {
+describe("which of yours are taken: the header's faces (app/CharacterPicker.tsx) and the deck", () => {
   it("takenWith marks a one-partner character in a relationship, with who it's with, newest first; nobody else", async () => {
     const owner = newUserCookie();
     const PROFILE = {

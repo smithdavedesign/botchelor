@@ -108,10 +108,18 @@ export function characterVerb(viewer: VerbViewer, f: Omit<VerbFacts, "textable">
   return f.dateable ? { kind: "make", label: `Make a character to date ${them}`, href: makeHref(f.id, f.steppable), track: "verb-make" } : null;
 }
 
-/** The viewer's character that goes by default: their most recent (lib/date-cta.ts ctaMine lists them in this order). */
-export async function viewerCharacter(db: Db, viewerId: string | null): Promise<{ id: string; name: string } | null> {
+/**
+ * The viewer's character that goes by default: the one they're working with (`preferred`, the header's face,
+ * lib/current-character.ts) when it's still theirs, else their most recent (lib/date-cta.ts ctaMine lists them in
+ * this order). Before 2026-11-18 it was always the most recent, so a card said "Send Lexi" while the header and the
+ * Studio were on Ambrose.
+ */
+export async function viewerCharacter(db: Db, viewerId: string | null, preferred: string | null = null): Promise<{ id: string; name: string } | null> {
   if (!viewerId) return null;
-  const { rows } = await db.query<{ id: string; name: string }>(`select c.id, c.name from characters c where c.owner_id = $1 and not c.is_house order by c.created_at desc, c.id limit 1`, [viewerId]);
+  const { rows } = await db.query<{ id: string; name: string }>(
+    `select c.id, c.name from characters c where c.owner_id = $1 and not c.is_house order by (c.id = $2) desc, c.created_at desc, c.id limit 1`,
+    [viewerId, preferred ?? ""],
+  );
   return rows[0] ?? null;
 }
 

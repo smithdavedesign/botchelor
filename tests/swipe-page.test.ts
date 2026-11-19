@@ -19,9 +19,13 @@ import { twinsLast } from "@/lib/twins";
 import { setSeasonCastForTests } from "@/lib/season-cast";
 import { api, HOUSE_PARTNER_ID, newUserCookie, startTestDb, userIdOf, validCharacter } from "./helpers";
 import { HOUSE_CHARACTERS } from "@/lib/house";
+import { CHARACTER_COOKIE } from "@/lib/current-character";
+import { pairKey } from "@/lib/relationships";
 
 // David, 2026-10-22: the swipe page picks whose deck it is the way /matches picks whose matches, with your characters'
-// faces instead of a drop-down, and a taken one (in a relationship, wanting one partner) easy to tell apart.
+// faces instead of a drop-down, and a taken one (in a relationship, wanting one partner) easy to tell apart. Since
+// 2026-11-18 those faces live in the header's picker (app/CharacterPicker.tsx), and the deck follows it; on a phone the
+// deck's slim bar carries the same picker, since the header isn't there.
 let t: Awaited<ReturnType<typeof startTestDb>>;
 beforeAll(async () => {
   t = await startTestDb();
@@ -66,37 +70,45 @@ async function ownerWithATakenOne() {
   await t.db.query(`insert into relationships (character_a, character_b, dates, second_dates, stage, computed_at) values ($1, $2, 3, 2, 'dating', now())`, [lo, hi]);
   jar.cookies.clear();
   jar.cookies.set(owner.split("=")[0], owner.split("=")[1]);
-  return { wren, lexi, dex };
+  return { owner, wren, lexi, dex };
 }
 
 const swipePage = async (character?: string) => renderToStaticMarkup(await SwipePage({ searchParams: Promise.resolve(character ? { character } : {}) }));
-/** A face's link in the (first) row of faces, by character id. */
-const face = (html: string, id: string) => {
-  const row = html.match(/<nav class="character-tabs"[^>]*>.*?<\/nav>/)?.[0] ?? "";
-  return row.match(new RegExp(`<a[^>]*href="[^"]*=${id}"[^>]*>.*?</a>`))?.[0] ?? "";
-};
+/** The faces in the slim bar's picker, in order. */
+const tiles = (html: string) => [...html.matchAll(/<button[^>]*class="char-picker-tile[^"]*"[^>]*>.*?<\/button>/g)].map((m) => m[0]);
+/** One face in the bar's picker, by its short name. */
+const tile = (html: string, first: string) => tiles(html).find((t) => t.includes(`>${first}<`)) ?? "";
 
 describe("the swipe page: whose deck, as faces", () => {
-  it("shows your characters as faces, not a drop-down, a taken one dimmed and tagged, and opens on one that can swipe", async () => {
+  it("follows the header: the bar carries the same picker, a taken one dimmed and tagged, and with nobody remembered it opens on one that can swipe", async () => {
     const { wren, lexi } = await ownerWithATakenOne();
     const html = await swipePage();
     expect(html).not.toContain("<select");
-    // The same row under the phone's slim bar (which names whose deck it is) and in the desktop's intro.
-    expect(html.match(/<nav class="character-tabs" aria-label="Whose deck">/g)).toHaveLength(2);
-    expect(html).toContain('<div class="swipe-faces"><nav class="character-tabs"');
-    expect(html).toContain('<span class="swipe-topbar-name">Wren</span>');
-    const lexiFace = face(html, lexi);
-    expect(lexiFace).toContain(`href="/swipe?character=${lexi}"`);
-    expect(lexiFace).toContain('class="character-tab is-taken"');
-    expect(lexiFace).toContain('aria-label="Lexi: taken (dating Dex), can&#x27;t swipe"');
+    expect(html).not.toContain("character-tabs");
+    // One picker, in the phone's slim bar (the header's own is the layout's); it names whose deck it is.
+    expect(html.match(/class="char-picker char-picker--bar"/g)).toHaveLength(1);
+    expect(html).toContain('<span class="char-picker-name">Wren</span>');
+    const lexiFace = tile(html, "Lexi");
+    expect(lexiFace).toContain('class="char-picker-tile is-taken"');
+    expect(lexiFace).toContain('aria-label="Lexi: taken (dating Dex)"');
     expect(lexiFace).toContain(">💍 Taken<");
-    // Lexi is the newer one (first in the row), but she can't swipe: without one asked for, the deck opens on Wren.
-    expect(html.indexOf(`/swipe?character=${lexi}`)).toBeLessThan(html.indexOf(`/swipe?character=${wren}`));
-    const wrenFace = face(html, wren);
-    expect(wrenFace).toContain('aria-current="page"');
-    expect(wrenFace).not.toContain("Taken");
-    expect(html).toContain("Who should Wren meet?");
+    // Lexi is the newer one (first among the faces), but she can't swipe: without one asked for or remembered, the
+    // deck opens on Wren, and says so to the header.
+    expect(tiles(html).map((t) => (t.includes(">Lexi<") ? "lexi" : "wren"))).toEqual(["lexi", "wren"]);
+    expect(tile(html, "Wren")).toContain('aria-current="true"');
+    expect(tile(html, "Wren")).not.toContain("Taken");
+    expect(html).toMatch(/Who should <button type="button" class="heading-switch"[^>]*>Wren<\/button> meet\?/);
     expect(html).not.toContain("can&#x27;t swipe right now");
+    expect(wren).not.toBe(lexi);
+  });
+
+  it("the one remembered in the header wins even when it's taken: the deck says why, and offers another", async () => {
+    const { lexi } = await ownerWithATakenOne();
+    jar.cookies.set(CHARACTER_COOKIE, lexi);
+    const html = await swipePage();
+    expect(html).toContain('<span class="char-picker-name">Lexi</span>');
+    expect(html).toContain("Lexi can&#x27;t swipe right now");
+    expect(html).toContain('<button type="button" class="button secondary" aria-haspopup="dialog">Swipe for another of yours</button>');
   });
 
   it("a card that reads like your own character says so on the web too, and twins go to the end of the page (#426 on the web)", async () => {
@@ -117,21 +129,23 @@ describe("the swipe page: whose deck, as faces", () => {
     expect(twinsLast(cards, new Map()).map((c) => c.id)).toEqual(["a", "twin", "b", "twin2"]);
   });
 
-  it("a taken one stays a choice: picking it shows why it can't swipe", async () => {
+  it("a taken one stays a choice: asked for in the address, it shows why it can't swipe", async () => {
     const { lexi } = await ownerWithATakenOne();
     const html = await swipePage(lexi);
-    expect(face(html, lexi)).toContain('aria-current="page"');
+    expect(tile(html, "Lexi")).toContain('aria-current="true"');
     expect(html).toContain("Lexi can&#x27;t swipe right now");
     expect(html).toContain("Lexi is with someone and wants one partner");
   });
 
-  it("one character: no faces, just its name", async () => {
+  it("one character: no picker, just its name", async () => {
     const owner = newUserCookie();
     await make("Wren Kestrel", owner);
     jar.cookies.set(owner.split("=")[0], owner.split("=")[1]);
     const html = await swipePage();
-    expect(html).not.toContain("character-tabs");
+    expect(html).not.toContain("char-picker");
+    expect(html).not.toContain("heading-switch");
     expect(html).toContain('<span class="swipe-topbar-name">Wren</span>');
+    expect(html).toContain("Who should Wren meet?");
   });
 
   // David, 2026-11-11: new matches "didn't appear", and "Show N that didn't work out" mixed them back in with everyone
@@ -193,13 +207,19 @@ describe("the swipe page: whose deck, as faces", () => {
     expect(html).toContain(">Bo</span>");
   });
 
-  it("/matches marks the same taken face", async () => {
-    const { wren, lexi } = await ownerWithATakenOne();
-    const html = renderToStaticMarkup(await MatchesPage({ searchParams: Promise.resolve({ character: wren }) }));
-    expect(html).toContain('<nav class="character-tabs" aria-label="Whose matches">');
-    expect(face(html, lexi)).toContain('class="character-tab is-taken"');
-    expect(face(html, lexi)).toContain('aria-label="Lexi: taken (dating Dex), closed to other dates"');
-    expect(face(html, wren)).toContain('aria-current="page"');
+  it("/matches follows the header's character, never the one with news (the header's dot says where that is)", async () => {
+    const { owner, wren, lexi, dex } = await ownerWithATakenOne();
+    const [lo, hi] = pairKey(lexi, dex);
+    await t.db.query(`insert into notifications (id, user_id, kind, title, link) values (gen_random_uuid()::text, $1, 'texted', 'n', $2)`, [userIdOf(owner), `/messages/${lo}/${hi}`]);
+    jar.cookies.set(CHARACTER_COOKIE, wren);
+    const html = renderToStaticMarkup(await MatchesPage({ searchParams: Promise.resolve({}) }));
+    expect(html).not.toContain("character-tabs");
+    // The heading names whose matches these are, and its name opens the header's picker.
+    expect(html).toMatch(/<button type="button" class="heading-switch"[^>]*>Wren<\/button>&#x27;s matches/);
+    expect(html).toContain(`href="/swipe?character=${wren}"`);
+    // The address still wins.
+    const asked = renderToStaticMarkup(await MatchesPage({ searchParams: Promise.resolve({ character: lexi }) }));
+    expect(asked).toMatch(/class="heading-switch"[^>]*>Lexi</);
   });
 });
 

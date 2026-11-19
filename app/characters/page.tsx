@@ -19,6 +19,7 @@ import { DIRECTORY_QUERY_MAX, DIRECTORY_SEARCH_LIMIT, directoryEntries, listTab,
 import { authFromCookieStore } from "@/lib/http";
 import { stepInAccessFromCookies } from "@/lib/step-in-access";
 import { actionsFor, type CardActions, type TextAccess, textVerb, type VerbViewer, viewerCharacter } from "@/lib/character-verb";
+import { rememberedCharacter } from "@/lib/current-character";
 import { shortName } from "@/lib/names";
 import { listCast, listMyProposals, listRelationshipEdges } from "@/lib/mechanics";
 import { isAgentMade, parseTab, TAB_LABEL, tabHref, TABS, type Tab } from "@/lib/origin";
@@ -313,7 +314,7 @@ export default async function CharactersPage({ searchParams }: Props) {
     isInsider(db, viewerId),
     // Who's looking, for each card's verb (lib/character-verb.ts): the character of theirs that would go, and whether
     // they can step into a date themselves (lib/step-in-access.ts: a member or a guest; "sign in first" isn't open).
-    viewerCharacter(db, viewerId).catch(() => null),
+    viewerCharacter(db, viewerId, rememberedCharacter(store)).catch(() => null),
     stepInAccessFromCookies(db, auth, store).catch(() => null),
     // Cached an hour (lib/tag-demand.ts); a failure only leaves the census's order.
     pickerDemand(db).catch(() => null),

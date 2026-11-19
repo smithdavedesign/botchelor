@@ -62,6 +62,7 @@ import { BackThem } from "@/app/BackCast";
 import { isFanCast, isOnSeasonCast, seasonIdAt, seasonMonth, showCastIds } from "@/lib/season-cast";
 import { stepInAccessFromCookies } from "@/lib/step-in-access";
 import { characterVerb, makeHref, textVerb } from "@/lib/character-verb";
+import { rememberedCharacter } from "@/lib/current-character";
 import { companionAllowed, companionEligible } from "@/lib/companion";
 import { companionOpen } from "@/lib/companion-shared";
 import TalkButton from "@/app/companion/TalkButton";
@@ -419,9 +420,11 @@ export default async function CharacterPage({ params, searchParams }: Props) {
   // With one of this season's cast, the builder makes the new character's first date with them (/create?meet=), as the cards' link does.
   const cta = madeCta.kind === "make" && c.house && isOnSeasonCast(id) && !PREMIUM_IDS.has(c.id) ? { ...madeCta, href: makeHref(c.id, true) } : madeCta;
   // The page's one primary action, by who's looking (lib/character-verb.ts, the cards' rule): theirs that goes is the
-  // one a card named (?send=), else the first that's free, as the picker below starts on.
+  // one a card named (?send=), else the one they're working with (the header's face, lib/current-character.ts) when
+  // it's free, else the first that's free, as the picker below starts on.
   const sendAs = typeof sp.send === "string" ? sp.send : null;
-  const goes = cta.kind === "send" ? (cta.mine.find((m) => m.id === sendAs) ?? cta.mine.find((m) => !m.taken) ?? cta.mine[0]) : null;
+  const working = rememberedCharacter(cookieStore);
+  const goes = cta.kind === "send" ? (cta.mine.find((m) => m.id === sendAs) ?? cta.mine.find((m) => m.id === working && !m.taken) ?? cta.mine.find((m) => !m.taken) ?? cta.mine[0]) : null;
   const verb = characterVerb(
     { mine: goes ? { id: goes.id, name: goes.name } : null, stepIn: stepIn?.kind === "member" || stepIn?.kind === "guest" },
     { id: c.id, name: c.name, own: ratings.is_owner, private: c.private, dateable: cta.kind === "send" || cta.kind === "make", ready: goes?.mode === "book", mineTaken: Boolean(goes?.taken), steppable: stepIn !== null },
@@ -645,7 +648,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
       {stepInLeads && stepInEntry}
       {!(stepInLeads && cta.kind === "make") && (
         <div id="date">
-          <DateThisCharacter cta={cta} targetId={c.id} first={shortName(c.name)} startWith={sendAs} />
+          <DateThisCharacter key={working ?? ""} cta={cta} targetId={c.id} first={shortName(c.name)} startWith={sendAs} preferred={working} />
         </div>
       )}
       {backing && <BackThem characterId={c.id} name={shortName(c.name)} board={backing} />}

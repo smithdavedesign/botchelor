@@ -185,7 +185,7 @@ export async function unreadTextsByPair(db: Db, userId: string): Promise<Map<str
 /**
  * What's new for each of the viewer's characters (David, 2026-10-21: "my account has a new match but when I go look I
  * can't tell what character it is for"): unread texts and new-match notices, counted by the pair each notice's link
- * names. `latest` is the newest of them, so /matches can open on the character it's about.
+ * names. `latest` is the newest of them. The header's face (lib/my-characters.ts) says it per character.
  */
 export type CharacterNews = { texts: number; matches: number; latest: string | null };
 
@@ -216,16 +216,6 @@ export async function newsByCharacter(
     }
   }
   return news;
-}
-
-/** The character /matches opens on without one asked for: the one with the newest unread news, else the first. */
-export function characterToOpen<T extends { id: string }>(mine: readonly T[], news: Map<string, CharacterNews>): T | undefined {
-  let best: T | undefined;
-  for (const c of mine) {
-    const at = news.get(c.id)?.latest;
-    if (at && (!best || at > news.get(best.id)!.latest!)) best = c;
-  }
-  return best ?? mine[0];
 }
 
 /** Null when the character isn't the viewer's. */

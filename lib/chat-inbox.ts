@@ -60,22 +60,10 @@ export type ChatInbox = {
 };
 
 /**
- * The rows that are one of the viewer's characters' (lib/current-character.ts: Chat's face row is a filter): its own
- * threads with other characters, and the viewer's thread with it.
+ * The rows that are one of the viewer's characters' (lib/current-character.ts: Chat's "Just {name}'s" is a filter): its
+ * own threads with other characters, and the viewer's thread with it.
  */
 export const rowsOfCharacter = (rows: readonly ChatRow[], characterId: string): ChatRow[] => rows.filter((r) => r.mine?.id === characterId || (r.kind === "you" && r.who.id === characterId));
-
-/** What's new for each of the viewer's characters in these rows: unread texts and unopened matches (the face row's counts). */
-export function newsOfRows(rows: readonly ChatRow[], characterIds: readonly string[]): Map<string, { texts: number; matches: number; latest: string | null }> {
-  const out = new Map<string, { texts: number; matches: number; latest: string | null }>();
-  for (const id of characterIds) {
-    const mine = rowsOfCharacter(rows, id);
-    const texts = mine.reduce((n, r) => n + r.unread, 0);
-    const matches = mine.filter((r) => r.new_match).length;
-    if (texts || matches) out.set(id, { texts, matches, latest: mine.find((r) => r.unread > 0 || r.new_match)?.at ?? null });
-  }
-  return out;
-}
 
 /**
  * How many of a person's characters have their threads merged in: each costs a handful of reads (lib/inbox.ts

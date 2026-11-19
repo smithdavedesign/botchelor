@@ -1,5 +1,6 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { characterToOpen, didntWorkOut, listThreads, loadThread, markPairNoticesRead, markTextsRead, newsByCharacter, nextStep, textedLinks, unreadTexts } from "@/lib/inbox";
+import { didntWorkOut, listThreads, loadThread, markPairNoticesRead, markTextsRead, newsByCharacter, nextStep, textedLinks, unreadTexts } from "@/lib/inbox";
+import { pickerCharacters } from "@/lib/my-characters";
 import { pairKey } from "@/lib/relationships";
 import { api, HOUSE_PARTNER_ID, newUserCookie, setupEpisode, startTestDb, userIdOf, validCharacter } from "./helpers";
 
@@ -229,7 +230,7 @@ describe("which of your characters the news is for (David, 2026-10-21)", () => {
   const notify = (userId: string, kind: string, link: string, minutesAgo: number) =>
     t.db.query(`insert into notifications (id, user_id, kind, title, link, created_at) values (gen_random_uuid()::text, $1, $2, 'n', $3, now() - make_interval(mins => $4))`, [userId, kind, link, minutesAgo]);
 
-  it("counts new texts and new matches per character, and /matches opens on the one with the newest", async () => {
+  it("counts new texts and new matches per character", async () => {
     const ada = await character("Ada Lumen");
     const ann = await character("Ann Lumen", ada.cookie);
     const bo = await character("Bo Quill");
@@ -246,8 +247,6 @@ describe("which of your characters the news is for (David, 2026-10-21)", () => {
     const news = await newsByCharacter(t.db, ada.userId, [ada.id, ann.id]);
     expect(news.get(ada.id)).toMatchObject({ texts: 1, matches: 0 });
     expect(news.get(ann.id)).toMatchObject({ texts: 0, matches: 1 });
-    expect(characterToOpen([{ id: ada.id }, { id: ann.id }], news)?.id).toBe(ann.id);
-    expect(characterToOpen([{ id: ada.id }], new Map())?.id).toBe(ada.id);
 
     // The match is marked new on Ann's page until its thread is opened.
     expect((await listThreads(t.db, ada.userId, ann.id))!.fresh[0]).toMatchObject({ with: { id: bo.id }, new_match: true });
@@ -256,80 +255,28 @@ describe("which of your characters the news is for (David, 2026-10-21)", () => {
     expect((await newsByCharacter(t.db, ada.userId, [ann.id])).get(ann.id)).toMatchObject({ matches: 0, latest: null });
   });
 
-  it("shows each character as a face with its count, the one on screen marked", async () => {
-    const { renderToStaticMarkup } = await import("react-dom/server");
-    const { createElement } = await import("react");
-    const { default: CharacterTabs } = await import("@/app/CharacterTabs");
-    const chars = [
-      { id: "a1", name: "Ada Lumen", hue: 10, portrait: null },
-      { id: "a2", name: "Ann Lumen", hue: 200, portrait: null },
-    ];
-    const news = new Map([["a2", { texts: 1, matches: 1, latest: "2026-10-21T00:00:00.000Z" }]]);
-    const tabs = { characters: chars, current: "a2", href: "/matches?character=", label: "Whose matches", news };
-    const html = renderToStaticMarkup(createElement(CharacterTabs, tabs));
-    expect(html).toContain('<nav class="character-tabs" aria-label="Whose matches">');
-    const current = html.match(/<a[^>]*aria-current="page"[^>]*>/)?.[0] ?? "";
-    expect(current).toContain('href="/matches?character=a2"');
-    expect(html).toContain('aria-label="1 new match, 1 new text"');
-    expect(html).toContain(">Ann<");
-    expect(html).not.toContain("Taken"); // nobody's taken unless the page says so
-    expect(renderToStaticMarkup(createElement(CharacterTabs, { ...tabs, characters: chars.slice(0, 1), current: "a1" }))).toBe("");
-  });
+  it("the header's faces (lib/my-characters.ts): newest first, each one's news, and who a taken one is dating", async () => {
+    const ada = await character("Ada Lumen");
+    const ann = await character("Ann Lumen", ada.cookie);
+    const bo = await character("Bo Quill");
+    const dex = await character("Dex Marlow");
+    // Ann is the newest, so she leads; she wants one partner and is dating Dex, so she's taken.
+    await t.db.query(`update characters set created_at = created_at + interval '1 minute' where id = $1`, [ann.id]);
+    await t.db.query(`update characters set partner_style = 'one' where id = $1`, [ann.id]);
+    const [dlo, dhi] = pairKey(ann.id, dex.id);
+    // computed_at set, so the graph doesn't recompute this hand-made edge from (no) episodes.
+    await t.db.query(`insert into relationships (character_a, character_b, dates, second_dates, stage, computed_at) values ($1, $2, 3, 2, 'dating', now())`, [dlo, dhi]);
+    // Ada has a new match with Bo and an unread text from him.
+    const [lo, hi] = pairKey(ada.id, bo.id);
+    await notify(ada.userId, "matched", `/messages/${lo}/${hi}`, 5);
+    await notify(ada.userId, "texted", `/messages/${lo}/${hi}`, 1);
 
-  it("more than a few fold into the one on screen, which opens a grid of all of them, those with news first (2026-11-04)", async () => {
-    const { renderToStaticMarkup } = await import("react-dom/server");
-    const { createElement } = await import("react");
-    const { default: CharacterTabs, TABS_ROW_MAX } = await import("@/app/CharacterTabs");
-    const chars = Array.from({ length: TABS_ROW_MAX + 3 }, (_, i) => ({ id: `c${i}`, name: `Char${i} Lumen`, hue: i * 20, portrait: null }));
-    const news = new Map([["c5", { texts: 2, matches: 0, latest: "2026-11-04T00:00:00.000Z" }]]);
-    const html = renderToStaticMarkup(createElement(CharacterTabs, { characters: chars, current: "c1", href: "/matches?character=", label: "Whose matches", news }));
-    expect(html).not.toContain('class="character-tabs"');
-    expect(html).toContain('<nav class="character-switch" aria-label="Whose matches"><details class="character-switch-menu">');
-    // The button is the one on screen, and says another has news.
-    expect(html).toMatch(/<summary[^>]*>.*Char1.*Char5 has news.*<\/summary>/);
-    const grid = html.match(/<div class="character-grid">.*<\/div>/)?.[0] ?? "";
-    expect(grid.match(/<a /g)).toHaveLength(chars.length);
-    expect(grid.indexOf("c5")).toBeLessThan(grid.indexOf("c0")); // news first
-    expect(grid.match(/<a[^>]*aria-current="page"[^>]*>/)?.[0]).toContain('href="/matches?character=c1"');
-    // With no news elsewhere, it says how many there are to switch between.
-    expect(renderToStaticMarkup(createElement(CharacterTabs, { characters: chars, current: "c1", href: "/swipe?character=", label: "Whose deck" }))).toContain(`Switch · ${chars.length}`);
-  });
-
-  it("marks a taken face (/swipe and /matches): dimmed, 💍 Taken, and a label that says who it's with; still a link", async () => {
-    const { renderToStaticMarkup } = await import("react-dom/server");
-    const { createElement } = await import("react");
-    const { default: CharacterTabs } = await import("@/app/CharacterTabs");
-    const chars = [
-      { id: "a1", name: "Ada Lumen", hue: 10, portrait: null },
-      { id: "a2", name: "Ann Lumen", hue: 200, portrait: null },
-      { id: "a3", name: "Avi Lumen", hue: 300, portrait: null },
-    ];
-    const taken = new Map([
-      ["a1", [{ name: "Dex Marlow" }]],
-      ["a3", [{ name: "Sam Reyes" }, { name: "Ro Vale" }]],
-    ]);
-    const tab = (html: string, id: string) => html.match(new RegExp(`<a[^>]*href="[^"]*=${id}"[^>]*>.*?</a>`))?.[0] ?? "";
-    const swipe = renderToStaticMarkup(createElement(CharacterTabs, { characters: chars, current: "a2", href: "/swipe?character=", label: "Whose deck", taken, takenNote: "can't swipe" }));
-    const ada = tab(swipe, "a1");
-    expect(ada).toContain('href="/swipe?character=a1"'); // still a link: picking it says why
-    expect(ada).toContain('class="character-tab is-taken"');
-    expect(ada).toContain('aria-label="Ada: taken (dating Dex), can&#x27;t swipe"');
-    expect(ada).toContain('title="Ada: taken (dating Dex), can&#x27;t swipe"');
-    expect(ada).toContain(">💍 Taken<");
-    expect(tab(swipe, "a3")).toContain('aria-label="Avi: taken (dating Sam and Ro), can&#x27;t swipe"');
-    const ann = tab(swipe, "a2");
-    expect(ann).toContain('class="character-tab"');
-    expect(ann).toContain('aria-current="page"');
-    expect(ann).not.toContain("Taken");
-
-    // The one on screen can be taken too; on /matches its news joins its label.
-    const news = new Map([["a1", { texts: 2, matches: 0, latest: "2026-10-21T00:00:00.000Z" }]]);
-    const matches = renderToStaticMarkup(
-      createElement(CharacterTabs, { characters: chars, current: "a1", href: "/matches?character=", label: "Whose matches", news, taken, takenNote: "closed to other dates" }),
-    );
-    const mine = tab(matches, "a1");
-    expect(mine).toContain('aria-current="page"');
-    expect(mine).toContain('class="character-tab is-taken"');
-    expect(mine).toContain('aria-label="Ada: taken (dating Dex), closed to other dates. 2 new texts"');
+    const faces = await pickerCharacters(t.db, ada.userId);
+    expect(faces.map((c) => c.name)).toEqual(["Ann Lumen", "Ada Lumen"]);
+    expect(faces[0]).toMatchObject({ id: ann.id, taken: ["Dex Marlow"], news: 0 });
+    expect(faces[1]).toMatchObject({ id: ada.id, taken: [], news: 2 });
+    // Someone else's characters, and the house cast, are never theirs.
+    expect((await pickerCharacters(t.db, bo.userId)).map((c) => c.id)).toEqual([bo.id]);
+    expect(await pickerCharacters(t.db, "nobody-here")).toEqual([]);
   });
 });
