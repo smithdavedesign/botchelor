@@ -225,22 +225,33 @@ export default function SeasonPanel() {
           ["This season", view.this_season],
           ["Next season", view.next_season],
         ] as const).map(([title, season]) => (
-          <p key={season.id}>
-            <strong>{title}</strong> ({season.label}):{" "}
-            {view.formats.map((f) => (
-              <span key={f.slug}>
-                <button
-                  type="button"
-                  className={season.format === f.slug ? "primary small" : "button-ghost small"}
-                  disabled={busy !== null || season.format === f.slug}
-                  onClick={() => act(`f-${season.id}-${f.slug}`, { action: "format", season_id: season.id, slug: f.slug })}
-                >
-                  {f.title ?? f.slug}
-                </button>{" "}
-              </span>
-            ))}
-            <span className="muted small"> · announces itself as “{view.formats.find((f) => f.slug === season.format)?.label}”</span>
-          </p>
+          <div key={season.id} className="season-format-row">
+            <p className="season-format-head">
+              <strong>{title}</strong> <span className="muted">· {season.label}</span>
+            </p>
+            <div className="segmented" role="group" aria-label={`${title} format`}>
+              {view.formats.map((f) => {
+                const on = season.format === f.slug;
+                return (
+                  <button
+                    key={f.slug}
+                    type="button"
+                    className="segmented-tab"
+                    aria-pressed={on}
+                    disabled={busy !== null}
+                    onClick={() => {
+                      if (!on) act(`f-${season.id}-${f.slug}`, { action: "format", season_id: season.id, slug: f.slug });
+                    }}
+                  >
+                    {f.title ?? f.slug}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="muted small season-format-note">
+              Announces itself as “{view.formats.find((f) => f.slug === season.format)?.label}”
+            </p>
+          </div>
         ))}
         {view.next_season.ballot && (
           <p className="muted small">

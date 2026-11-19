@@ -8926,6 +8926,32 @@ body.ad-host {
   background: var(--accent-btn);
   color: var(--accent-ink);
 }
+/* /admin/season Format: label line, then the choices as one segmented group, then what the season calls itself. */
+.season-format-row {
+  margin: var(--space-4) 0;
+}
+.season-format-row .season-format-head {
+  margin: 0;
+}
+.season-format-row .segmented {
+  margin: var(--space-2) 0 var(--space-1);
+  border-radius: var(--radius-lg);
+}
+.season-format-row .season-format-note {
+  margin: 0;
+}
+/* Seven formats, not three tabs: on a phone they wrap as whole pills instead of squeezing into one row. */
+@media (max-width: 600px) {
+  .season-format-row .segmented {
+    flex-wrap: wrap;
+  }
+  .season-format-row .segmented .segmented-tab {
+    flex: 0 0 auto;
+    min-height: 40px;
+    padding: 0 0.8rem;
+    white-space: nowrap;
+  }
+}
 .segmented-count {
   font-size: var(--text-xs);
   font-weight: 500;
