@@ -594,13 +594,35 @@ async function main() {
       // with a character's threads for its owner, and with the phone's menu open: Watch · Chat · Characters · Account.
       { name: "chat-none", path: "/chat" },
       { name: "chat", path: "/chat", as: "owner" },
-      // One of the owner's characters picked from the face row (lib/current-character.ts): the list narrowed to it.
+      // "Just {name}'s" (lib/current-character.ts): the list narrowed to the header's character.
       { name: "chat-character", path: `/chat?character=${swiper.id}`, as: "owner" },
       // The Studio door (app/studio): the way in for a visitor, an owner's own Studio, and their characters on Yours.
       { name: "studio-none", path: "/studio" },
-      // An owner on an anonymous session is asked to sign in; signed in ("member"), it is their Studio with the face row.
+      // An owner on an anonymous session is asked to sign in; signed in ("member"), it is their Studio, its name in the
+      // heading opening the header's picker.
       { name: "studio-signin", path: `/studio?character=${swiper.id}`, as: "owner" },
       { name: "studio", path: `/studio?character=${swiper.id}`, as: "member" },
+      {
+        // The header's character picker open (app/CharacterPicker.tsx, 2026-11-18): every one of theirs, news and 💍 on
+        // each, their page and Make another; under the header on a phone.
+        name: "picker",
+        path: `/studio?character=${swiper.id}`,
+        as: "member",
+        walk: async (page) => {
+          await page.locator(".char-picker-button:visible").first().click();
+          await page.locator(".char-picker-menu:not([hidden])").first().waitFor();
+        },
+      },
+      {
+        // The same picker in the deck's slim bar on a phone (no site header there); the header's on a computer.
+        name: "swipe-picker",
+        path: `/swipe?character=${swiper.id}`,
+        as: "owner",
+        walk: async (page) => {
+          await page.locator(".char-picker-button:visible").first().click();
+          await page.locator(".char-picker-menu:not([hidden])").first().waitFor();
+        },
+      },
       { name: "characters-yours", path: "/characters?tab=yours", as: "owner" },
       {
         name: "chat-menu",

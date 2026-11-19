@@ -64,8 +64,8 @@ export async function currentPartners(db: Db, id: string): Promise<{ id: string;
 }
 
 /**
- * Which of these characters are taken (takenSql), each with who it's with, newest first: what the pickers on /swipe and
- * /matches mark (app/CharacterTabs.tsx). One query for any number; a character that isn't taken isn't in the map.
+ * Which of these characters are taken (takenSql), each with who it's with, newest first (the header's picker reads the
+ * same in its own statement, lib/my-characters.ts). One query for any number; a character that isn't taken isn't in the map.
  */
 export async function takenWith(db: Db, ids: string[]): Promise<Map<string, { id: string; name: string }[]>> {
   const out = new Map<string, { id: string; name: string }[]>();

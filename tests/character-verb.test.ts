@@ -181,6 +181,17 @@ describe("what the booking would take, read ahead (verbFacts)", () => {
     expect(await viewerCharacter(t.db, null)).toBeNull();
   });
 
+  it("the cards send the one in the header's face (2026-11-18), not always the newest; someone else's never", async () => {
+    const older = await made("Ira Fenn");
+    const newer = await made("Nell Abiodun", {}, older.cookie);
+    await t.db.query(`update characters set created_at = created_at + interval '1 minute' where id = $1`, [newer.id]);
+    const someoneElses = await made("Bo Quill");
+    expect(await viewerCharacter(t.db, older.userId)).toEqual({ id: newer.id, name: "Nell Abiodun" });
+    expect(await viewerCharacter(t.db, older.userId, older.id)).toEqual({ id: older.id, name: "Ira Fenn" });
+    expect(await viewerCharacter(t.db, older.userId, someoneElses.id)).toEqual({ id: newer.id, name: "Nell Abiodun" });
+    expect(await viewerCharacter(t.db, older.userId, null)).toEqual({ id: newer.id, name: "Nell Abiodun" });
+  });
+
   it("behind the swipe gate a first date with someone else's character takes a match; the house cast never does", async () => {
     setSwipeGateForTests(true);
     const me = await made("Ira Fenn");

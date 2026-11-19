@@ -6,11 +6,12 @@ import { listMyDatingProfiles } from "@/lib/dating";
 import { userIdFromCookieStore } from "@/lib/http";
 import { shortName } from "@/lib/names";
 import CastPreview from "@/app/CastPreview";
-import CharacterTabs from "@/app/CharacterTabs";
+import CharacterPicker from "@/app/CharacterPicker";
 import RememberCharacter from "@/app/RememberCharacter";
-import { rememberedCharacter } from "@/lib/current-character";
+import SwitchCharacter from "@/app/SwitchCharacter";
+import { pickCharacter, rememberedCharacter } from "@/lib/current-character";
 import { unreadTexts } from "@/lib/inbox";
-import { takenWith } from "@/lib/partners";
+import { pickerCharacters } from "@/lib/my-characters";
 import { deckFor, demoDeck, UNDO_MINUTES } from "@/lib/swipes";
 import { withOrigins } from "@/lib/origin";
 import { twinsLast, twinsOfCharacter } from "@/lib/twins";
@@ -32,8 +33,9 @@ type Props = { searchParams: Promise<{ character?: string }> };
 /**
  * The swipe deck (lib/swipes.ts, docs/swipes.md): you swipe for one of your characters; a match opens its chat, and
  * the characters decide about the date themselves. On a phone it's the whole screen, like a dating app (David,
- * 2026-10-18): no site header or footer, a slim bar with ✕, whose deck it is and 💬 Matches. To switch whose deck it
- * is: your characters as a row of faces, as on /matches (David, 2026-10-22), a taken one dimmed and tagged 💍 Taken.
+ * 2026-10-18): no site header or footer, a slim bar with ✕, whose deck it is and 💬 Matches. Whose deck it is follows the
+ * header's face (lib/current-character.ts, 2026-11-18); on a phone the slim bar's face is that same picker, since the
+ * header isn't there. A taken one is a choice like any other: the deck then says why it can't swipe.
  */
 /**
  * The cards that read like the swiper's own character (#426, lib/twins.ts) say so on the card and go to the end of the
@@ -75,19 +77,19 @@ export default async function SwipePage({ searchParams }: Props) {
       </article>
     );
   }
-  // A taken one (lib/partners.ts: with someone and wanting one partner) is out of the deck (lib/swipes.ts cantSwipe), so
-  // without one asked for, the deck opens on one that can swipe. Picking a taken one still says why it can't.
-  const [taken, texts] = await Promise.all([takenWith(db, mine.map((c) => c.id)), unreadTexts(db, viewerId).catch(() => 0)]);
-  // The address first; then the character they were last working with (lib/current-character.ts) when it can swipe.
-  const remembered = mine.find((c) => c.id === rememberedCharacter(store) && !taken.has(c.id));
-  const me = mine.find((c) => c.id === character) ?? remembered ?? mine.find((c) => !taken.has(c.id)) ?? mine[0];
+  // A taken one (lib/partners.ts: with someone and wanting one partner) is out of the deck (lib/swipes.ts cantSwipe).
+  // With one character there's nobody to switch to, so neither the bar's picker nor who's taken is needed.
+  const several = mine.length > 1;
+  const [faces, texts] = await Promise.all([several ? pickerCharacters(db, viewerId).catch(() => []) : [], unreadTexts(db, viewerId).catch(() => 0)]);
+  const taken = new Set(faces.filter((c) => c.taken.length).map((c) => c.id));
+  // The address first; then the one they're working with (the header's face), taken or not, so the deck never swaps
+  // characters behind the header's back; with neither, the newest that can swipe.
+  const me = pickCharacter(mine, character, rememberedCharacter(store), mine.find((c) => !taken.has(c.id)))!;
   const deck = await deckFor(db, viewerId, me.id);
   // Dealing isn't seeing: the deck reports each card as it comes on top, under this visit's id (lib/swipes.ts logShownCard).
   const serveId = crypto.randomUUID();
   const first = shortName(me.name);
   const matchesHref = `/matches?character=${encodeURIComponent(me.id)}`;
-  // The same row of faces under the phone's slim bar and in the desktop's intro (only one of them shows at a time).
-  const faces = <CharacterTabs characters={mine} current={me.id} href="/swipe?character=" label="Whose deck" taken={taken} takenNote="can't swipe" />;
 
   return (
     <article className="swipe-page swipe-fullscreen">
@@ -96,31 +98,35 @@ export default async function SwipePage({ searchParams }: Props) {
         <Link href="/" className="swipe-topbar-btn" aria-label="Close the deck">
           ✕
         </Link>
-        <span className="swipe-topbar-who">
-          <Avatar seed={me.id} name={me.name} hue={me.hue} portraitSrc={me.portrait} size={24} decorative round />
-          <span className="swipe-topbar-name">{first}</span>
-        </span>
+        {several && faces.length ? (
+          <CharacterPicker characters={faces} initial={me.id} variant="bar" />
+        ) : (
+          <span className="swipe-topbar-who">
+            <Avatar seed={me.id} name={me.name} hue={me.hue} portraitSrc={me.portrait} size={24} decorative round />
+            <span className="swipe-topbar-name">{first}</span>
+          </span>
+        )}
         <Link href={matchesHref} className="swipe-topbar-btn" aria-label={texts ? `Matches, ${texts} unread texts` : "Matches"}>
           💬{texts > 0 && <span className="nav-count">{texts > 99 ? "99+" : texts}</span>}
         </Link>
       </div>
-      {mine.length > 1 && <div className="swipe-faces">{faces}</div>}
       <div className="swipe-intro">
         <p className="kicker">Swipe</p>
         <div className="matches-head">
           <h1 className="heading-face">
             <Avatar seed={me.id} name={me.name} hue={me.hue} portraitSrc={me.portrait} size={36} decorative round />
-            <span>Who should {first} meet?</span>
+            <span>Who should {several ? <SwitchCharacter name={first} /> : first} meet?</span>
           </h1>
         </div>
-        {faces}
         <p className="muted">
           You swipe for {first}. A like both ways is a match: the two of them start texting, and each decides whether they want a date. If both
           do, you book it. This season&apos;s house characters are always in the deck. <Link href={matchesHref}>{first}&apos;s matches</Link>
         </p>
       </div>
       {deck.ok ? (
-        <SwipeDeck character={{ id: me.id, name: me.name, hue: me.hue, portrait: me.portrait }} initial={await withTwins(db, me.id, await withOrigins(db, deck.cards))} serveId={serveId} undoMinutes={UNDO_MINUTES} pushKey={pushKeys()?.publicKey ?? null} />
+        // Keyed by the character: a pick in the header reads the page again, and a deck kept from before would deal the
+        // last one's cards to the new one.
+        <SwipeDeck key={me.id} character={{ id: me.id, name: me.name, hue: me.hue, portrait: me.portrait }} initial={await withTwins(db, me.id, await withOrigins(db, deck.cards))} serveId={serveId} undoMinutes={UNDO_MINUTES} pushKey={pushKeys()?.publicKey ?? null} />
       ) : (
         <section className="card">
           <h2>{deck.error === "profile_incomplete" ? `Finish ${first}'s dating profile` : `${first} can't swipe right now`}</h2>
@@ -137,6 +143,7 @@ export default async function SwipePage({ searchParams }: Props) {
               Fill in {first}&apos;s profile
             </Link>
           )}
+          {deck.error === "taken" && several && <SwitchCharacter name={first} label="Swipe for another of yours" />}
         </section>
       )}
     </article>

@@ -213,7 +213,8 @@ All in `globals.css`; reuse the class, don't restyle.
 ## Header
 
 Five kinds of thing and no more (the design system, 2026-11-11): the wordmark, the After Dark door, the meter, one
-call to action, the links (the bell is a link). The tagline belongs in the hero; the theme setting in Account.
+call to action, the links (the bell is a link). The tagline belongs in the hero; the theme setting in Account. The
+call to action's place is a newcomer's; someone with a character has their character's face there instead (below).
 
 - **The door** (`.nav-ad-link`) is a link to After Dark's own host, never a toggle, night-coloured in every theme so
   it reads as the adult side; its ↗ says it leaves the site. On that host it turns into "Back to the show", and the
@@ -228,8 +229,15 @@ call to action, the links (the bell is a link). The tagline belongs in the hero;
   and on the Gallery (`/showcase`) for anyone without a character. Chat's count (`.nav-count`) is unread texts of both
   kinds. A phone repeats them as the tab bar at the foot (`.tabbar`, `app/PhoneTabBar.tsx`: Watch · Chat · Characters
   · Studio · You), with a dot on Chat instead of a number.
-- **Breakpoints.** Under 1180px the bar tightens (the meter drops its word, the door keeps its words). Under 900px
-  the links fold behind the menu button and the tools stay. Under 560px the door and the badge are marks.
+- **Your character** (`.char-picker`, `app/CharacterPicker.tsx`; David, 2026-11-18): for someone with a character,
+  the face and short name of the one they're working with (`lib/current-character.ts`), last in the bar, with a dot
+  when another of theirs has news. It opens a panel of every one of theirs (what's new on each, a taken one dimmed and
+  tagged 💍), their page and "Make another character". A pick switches every page that's about one character (My
+  studio, Matches, the deck, the cards' "Send {mine}"), which no longer carry a switcher of their own; a page's
+  heading names its character, and that name (`.heading-switch`) opens the same panel. Not on After Dark's host.
+- **Breakpoints.** Under 1180px the bar tightens (the meter drops its word, the door keeps its words, your character
+  is its face). Under 900px the links fold behind the menu button and the tools stay, your character's face just
+  before the button. Under 560px the door and the badge are marks.
 
 ## Themes
 

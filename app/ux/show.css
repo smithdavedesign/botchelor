@@ -2143,20 +2143,6 @@ main:has(> .couple-page) {
   text-decoration: underline;
 }
 
-/* ---------------- one selected character across Chat, the Studio, Matches and the deck (lib/current-character.ts) ---------------- */
-/* Chat's "All" entry in the face row: no face, so it carries its own padding and stands as tall as a face does. */
-.character-tab.character-tab-all {
-  padding: var(--space-1) var(--space-3);
-  min-height: var(--control-h-sm);
-}
-.character-tab.character-tab-all[aria-current="page"],
-.character-tile.character-tab-all[aria-current="page"] {
-  border-color: var(--accent);
-  color: var(--accent-text);
-}
-.character-tile.character-tab-all {
-  justify-content: center;
-}
 /* The Studio door (app/studio/StudioTabs.tsx): its two rooms above the Gallery and My studio. */
 .my-studio-page .studio-tabs,
 .showcase-page .studio-tabs {

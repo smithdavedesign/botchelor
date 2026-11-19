@@ -26,6 +26,7 @@ export default function DateThisCharacter({
   roleplays = false,
   signedIn = false,
   startWith = null,
+  preferred = null,
 }: {
   cta: DateCta;
   targetId: string;
@@ -38,12 +39,14 @@ export default function DateThisCharacter({
    * picked, and when it can book, the confirm sheet is already open. Nothing is spent until they press Send.
    */
   startWith?: string | null;
+  /** The one they're working with (the header's face, lib/current-character.ts): picked first when it's free; no sheet opens. */
+  preferred?: string | null;
 }) {
   const router = useRouter();
   const mine = cta.kind === "send" ? cta.mine : [];
   // One that's free to go first (a taken one, with someone else and wanting only them, is listed but can't go).
   const asked = startWith ? mine.find((m) => m.id === startWith) : undefined;
-  const [pick, setPick] = useState((asked ?? mine.find((m) => !m.taken) ?? mine[0])?.id ?? "");
+  const [pick, setPick] = useState((asked ?? mine.find((m) => m.id === preferred && !m.taken) ?? mine.find((m) => !m.taken) ?? mine[0])?.id ?? "");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ text: string; shop?: boolean; link?: { href: string; label: string } } | null>(null);
   // David, 2026-10-23: the booker may say where the date happens (else a texted plan, else the show picks).

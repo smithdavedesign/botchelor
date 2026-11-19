@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import { cookies, headers } from "next/headers";
 import Link from "next/link";
-import CharacterTabs from "@/app/CharacterTabs";
 import Icon from "@/app/Icon";
 import RememberCharacter from "@/app/RememberCharacter";
+import SwitchCharacter from "@/app/SwitchCharacter";
 import PgStudio from "@/app/characters/[id]/studio/PgStudio";
 import { ADULT_COOKIE } from "@/lib/age";
 import { studioDoorFor } from "@/lib/adult/studio-door";
@@ -26,8 +26,8 @@ type Props = { searchParams?: Promise<{ character?: string | string[] }> };
 /**
  * My studio (lib/studio/pg.ts; David, 2026-11-16): the Studio as a place of its own, beside the Gallery, instead of a
  * page under each character. It is about one character at a time: the one in the address (?character=), else the one
- * they were last working with on Chat, Matches or the deck (lib/current-character.ts), else their newest. Someone with
- * several picks from their faces above; the pick is remembered.
+ * they were working with (the header's face, lib/current-character.ts), else their newest. Someone with several
+ * switches with the header's face, or its name in the heading, which opens that picker.
  *
  * The Studio's own rule decides who may use it (pgState: signed in, their own character; an admin also the house
  * cast, by its address). Anyone else gets the way in: sign in, or make a character.
@@ -108,11 +108,12 @@ export default async function MyStudioPage({ searchParams }: Props = {}) {
     <article className="pg-studio-page my-studio-page">
       <StudioTabs current="studio" />
       {mine.some((m) => m.id === c.id) && <RememberCharacter id={c.id} />}
-      <CharacterTabs characters={mine} current={c.id} href="/studio?character=" label="Whose studio" />
       <p className="kicker">
         <Link href={`/characters/${c.id}`}>← {c.name}</Link> · Studio
       </p>
-      <h1>📸 {c.name}&apos;s Studio</h1>
+      <h1>
+        📸 {mine.length > 1 && mine.some((m) => m.id === c.id) ? <SwitchCharacter name={c.name} /> : c.name}&apos;s Studio
+      </h1>
       <p className="muted">
         Photo shoots for the show: pick a shot, a place, what they wear and the details, and get {r.state.shoot_size} pictures that keep their face. Everything here is
         safe for everyone: every picture is checked before it&apos;s kept.
