@@ -2,26 +2,28 @@
  * Who runs Botchelor, in one place, for the terms, the privacy notice and the policy pages (/terms, /privacy,
  * /content-policy, /2257, /report, /cancel). Change a constant here and every page follows.
  *
- * Today the operator is David Smith, an individual in the United States, trading as Botchelor (no company yet). When an
- * LLC is formed, set OPERATOR to its legal name ("Botchelor LLC, a California limited liability company"; David's
- * pick, 2026-10-30: his home state). Pure: no env reads except contactEmail().
+ * The operator is Botchelor LLC, a California limited liability company: filed 2026-11-13, approved by the Secretary of
+ * State 2026-11-19 (entity B20260500784, docs/after-dark-business-setup.md). Before that it was David Smith, an individual,
+ * trading as Botchelor. Pure: no env reads except contactEmail().
  */
 import { AGE_CHECK_COUNTRIES, TEXT_ONLY_COUNTRIES, US_AGE_CHECK_STATES } from "./jurisdiction";
 
 /** The legal person who runs the service and is the other party to the terms. */
-export const OPERATOR = "David Smith";
+export const OPERATOR = "Botchelor LLC";
 /** The name the service trades under. */
 export const TRADING_AS = "Botchelor";
 /** Where the operator is. */
 export const OPERATOR_COUNTRY = "the United States";
-/** "David Smith, trading as Botchelor": how the pages name the operator in full. */
-export const OPERATOR_FULL = `${OPERATOR}, an individual in ${OPERATOR_COUNTRY}, trading as ${TRADING_AS}`;
+/** Where the LLC was formed, and whose LLC law it answers to. */
+export const OPERATOR_STATE = "California";
+/** "Botchelor LLC, a California limited liability company": how the pages name the operator in full. */
+export const OPERATOR_FULL = `${OPERATOR}, a ${OPERATOR_STATE} limited liability company`;
 
 /**
  * The state whose law governs the terms, and where arbitration and any court case sit.
- * David's home state (2026-10-30), and the LLC's once it's formed there (docs/after-dark-business-setup.md).
+ * David's home state (2026-10-30), and the LLC's (docs/after-dark-business-setup.md).
  */
-export const GOVERNING_STATE = "California";
+export const GOVERNING_STATE = OPERATOR_STATE;
 
 /** The support address: CONTACT_EMAIL, read per request so one set after the build shows. Null when it isn't set. */
 export function contactEmail(env: Record<string, string | undefined> = process.env): string | null {

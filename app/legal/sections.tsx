@@ -11,7 +11,6 @@ import {
   DMCA_AGENT,
   GOVERNING_STATE,
   LIABILITY_FLOOR_USD,
-  OPERATOR,
   OPERATOR_FULL,
   PROCESSORS,
   REPORT_RESPONSE,
@@ -29,12 +28,12 @@ import { ConsentChoice } from "../ConsentBanner";
  */
 
 /** The other policy pages' date (content policy, 2257, cancelling). */
-export const LAST_UPDATED = "Last updated 24 October 2026.";
+export const LAST_UPDATED = "Last updated 19 November 2026.";
 /** The terms' and the privacy notice's date: they changed after the rest. */
-export const TERMS_PRIVACY_UPDATED = "Last updated 18 November 2026.";
+export const TERMS_PRIVACY_UPDATED = "Last updated 19 November 2026.";
 /** What changed last time, in a line. */
 export const PRIVACY_CHANGES =
-  "Changed (18 November): the terms say Botchelor owns the characters it makes for the show (their sheets, portraits and the cast as a whole), that every one of them is an adult, and that you may not bulk-download the show or use it to train AI models. Before that (17 November): the privacy notice says what we keep if you save who you are in scenes (a name, a line on how you look and a line on who you are, written as make-believe for the scenes you play yourself), and that it's in your account export. Before that (16 November): the terms name both packs of dates on sale (5 for $4 and 15 for $10), and say that a character's sheet can be the writing of the person who made it, while every date, text and picture on the show is written or drawn by AI. Before that (15 November): you can delete one message of a companion conversation on its own, and your account export now has your companion conversations, what each companion remembers about you, and the record of your live calls. Also: when you open a character's texts signed in, having said you're 18 or older, we note with your account whether After Dark could be offered where you are (that alone, not the country), so a character never texts you about it where it isn't. Earlier the same day: what happens on a call with a companion now has a section of its own (your audio, your words, who makes the voice and the face, what's kept and how to delete it), and it names Runpod, whose GPUs our face renderer runs on; and on a live call with the Companion Plan, where it's offered, a companion's face can move as they talk, drawn by our own renderer from their portrait and voice (never yours) at no charge beyond the call's minutes. Before that (10 November): a recovery email you can add to a handle-and-password account, used only to reset a forgotten password and to tell you when the password or that address changes; the Sunday letter, a weekly email you can sign up for (confirmed by email, with an unsubscribe in every letter, and an address taken off when its emails bounce or are reported as spam); who hosts the show and carries its traffic (DigitalOcean and Cloudflare, no longer Vercel), and that the show's model is reached through OpenRouter; live calls with a companion, where they're offered: Deepgram hears your voice and makes the companion's, and the terms say how call minutes are charged. Before that (1 November): Analytics names the three events our own dashboard counts (visit, activate, checkout) and says the site you came from goes with a visit only when it's another site; the terms state the pack's price. Before that (24 October): who runs Botchelor, After Dark's data and where it's offered, the location and age we read, everyone who processes data, your rights, and the complaint form.";
+  "Changed (19 November): Botchelor is now run by Botchelor LLC, a California limited liability company. It takes David Smith's place as the other party to the terms and as the one responsible for your data; nothing else about the terms or your data changes. Before that (18 November): the terms say Botchelor owns the characters it makes for the show (their sheets, portraits and the cast as a whole), that every one of them is an adult, and that you may not bulk-download the show or use it to train AI models. Before that (17 November): the privacy notice says what we keep if you save who you are in scenes (a name, a line on how you look and a line on who you are, written as make-believe for the scenes you play yourself), and that it's in your account export. Before that (16 November): the terms name both packs of dates on sale (5 for $4 and 15 for $10), and say that a character's sheet can be the writing of the person who made it, while every date, text and picture on the show is written or drawn by AI. Before that (15 November): you can delete one message of a companion conversation on its own, and your account export now has your companion conversations, what each companion remembers about you, and the record of your live calls. Also: when you open a character's texts signed in, having said you're 18 or older, we note with your account whether After Dark could be offered where you are (that alone, not the country), so a character never texts you about it where it isn't. Earlier the same day: what happens on a call with a companion now has a section of its own (your audio, your words, who makes the voice and the face, what's kept and how to delete it), and it names Runpod, whose GPUs our face renderer runs on; and on a live call with the Companion Plan, where it's offered, a companion's face can move as they talk, drawn by our own renderer from their portrait and voice (never yours) at no charge beyond the call's minutes. Before that (10 November): a recovery email you can add to a handle-and-password account, used only to reset a forgotten password and to tell you when the password or that address changes; the Sunday letter, a weekly email you can sign up for (confirmed by email, with an unsubscribe in every letter, and an address taken off when its emails bounce or are reported as spam); who hosts the show and carries its traffic (DigitalOcean and Cloudflare, no longer Vercel), and that the show's model is reached through OpenRouter; live calls with a companion, where they're offered: Deepgram hears your voice and makes the companion's, and the terms say how call minutes are charged. Before that (1 November): Analytics names the three events our own dashboard counts (visit, activate, checkout) and says the site you came from goes with a visit only when it's another site; the terms state the pack's price. Before that (24 October): who runs Botchelor, After Dark's data and where it's offered, the location and age we read, everyone who processes data, your rights, and the complaint form.";
 
 /** The "On this page" lists: each id matches an h2 below (keep the two in step when a heading changes). */
 export const TERMS_HEADINGS = [
@@ -1108,13 +1107,13 @@ export function Contact() {
       <h2 id="contact">Contact</h2>
       {contact ? (
         <p>
-          {OPERATOR}, trading as {TRADING_AS}. Refunds, restores, cancelling, privacy requests, copyright notices, removal
+          {OPERATOR_FULL}. Refunds, restores, cancelling, privacy requests, copyright notices, removal
           from the waitlist and anything else: <a href={`mailto:${contact}`}>{contact}</a>. To report content, use the{" "}
           <Link href="/report">report form</Link>. {FEEDBACK_NOTE}
         </p>
       ) : (
         <p>
-          {OPERATOR}, trading as {TRADING_AS}. The contact address will be posted here before purchases open. To report
+          {OPERATOR_FULL}. The contact address will be posted here before purchases open. To report
           content, use the <Link href="/report">report form</Link>. {FEEDBACK_NOTE}
         </p>
       )}

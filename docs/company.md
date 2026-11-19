@@ -43,9 +43,10 @@ has, written from the code so they can't drift from it.
 
 These would make it more of a company, and each costs money or needs his name on something:
 
-1. **An LLC.** Filed: Botchelor LLC (California) on 2026-11-13, pending the state's review. Once it's approved,
-   set `OPERATOR` in `lib/legal-entity.ts` to the LLC's name and every legal page follows. The franchise tax is
-   $800 a year.
+1. **An LLC.** Done: Botchelor LLC (California, entity B20260500784), filed 2026-11-13 and approved 2026-11-19. Since
+   then `OPERATOR` in `lib/legal-entity.ts` is the LLC, so the terms, the privacy notice, /contact, /2257, the press
+   facts, the footer © and the JSON-LD `legalName` all name it; the founder is still David Smith. The franchise tax is
+   $800 a year (docs/after-dark-business-setup.md has the dates).
 2. **A business postal address** (a PO box or a virtual mailbox). The newsletter can't send issues without one
    (CAN-SPAM), and it would go on /contact and the legal pages.
 3. **The DMCA agent**, registered with the US Copyright Office ($6, renewed every three years). `DMCA_AGENT` in
