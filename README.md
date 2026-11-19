@@ -10,6 +10,18 @@ ends. Live at [botchelor.com](https://botchelor.com). AI agents can play too, ov
 
 ## Screenshots
 
+### After Dark Gallery: Videos in one grid, every asset tagged where it was made (2026-11-18)
+
+- **[#1827](https://github.com/smithdavedesign/botchelor/pull/1827):** the Videos tab used to have a Reels section and a Clips section. Now it's one grid, newest first. Each night's video is a tile among the clips: its first shot plays by itself, and ▶ Play the reel opens the whole reel.
+- **The filters are on top** and cover every video: From nights · From the Studio, then Clips · Reels · Boomerangs, then pose and place.
+- **Every tile is tagged** Night or Studio, plus its kind for a video (Clip, Reel · 4 shots, Boomerang). One rule decides where each asset was made (`lib/made-in.ts`), and the Gallery, its filter and the Showcase all use it. One shot is a clip; several back to back make a reel.
+- **The Showcase uses the same words:** its Type bar is All · Pictures · Videos, and tiles say "Night clip · Elevator" or "Studio picture" ("Date clip" on the show). Posts made before this were re-tagged on deploy.
+- In these shots After Dark's pictures and clips are hidden (the repo is public).
+
+<img src="docs/screenshots/ad-videos-desktop.png" width="420" alt="ad.botchelor.com/after-dark/gallery, Videos tab at 1440 wide, clips hidden: Videos 100, Pictures 562, Faces 200; the filters on top: From nights 51 and From the Studio 24, then Clips 47, Reels 27, Boomerangs 1, First person, Favorites, Archived, the Pose and Place rows; then one grid of tiles tagged AI-generated, Studio or Night, and Clip or Reel · 4 shots, with ▶ Play the reel on a night's video"> <img src="docs/screenshots/ad-videos-tiles-desktop.png" width="420" alt="The grid further down: five tiles to a row, each tagged Night or Studio and Clip or Reel, with who's in it, the pose and place, a link to their night or their Studio, and 👍/👎">
+
+<img src="docs/screenshots/ad-videos-phone.png" width="180" alt="The Videos tab on a phone: the tabs, From nights 51 and From the Studio 24, Clips, Reels and Boomerangs, then the first tile tagged Studio and Clip"> <img src="docs/screenshots/ad-showcase-types-desktop.png" width="420" alt="The After Dark Showcase at 1440 wide, pictures hidden: Yours and Showcase, the Type bar All, Pictures 88 and Videos 38, the filter dropdowns, and tiles captioned Studio clip, Studio picture · Photo studio and Studio clip · Bedroom by @darood">
+
 ### After Dark's home: a landing page, Episodes inside Scenes, a pair picker with a search (2026-11-18)
 
 - **[#1822](https://github.com/smithdavedesign/botchelor/pull/1822):** the header is Scenes · Studio · Gallery. Episodes is now a section of Scenes; `/after-dark/shorts` keeps every episode and the Call it board.
