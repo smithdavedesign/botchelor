@@ -189,7 +189,10 @@ export async function seamlessLoop(video: Buffer, trim?: KeptTrim | null, fade =
   const length = lengthOf(parts);
   if (length < 1) throw new FfmpegError("the clip is too short to loop");
   const f = Math.min(fade, length / 4);
-  const graph = `${keptGraph(parts)};[base]split[m0][h0];[m0]trim=start=${sec(f)},setpts=PTS-STARTPTS[m];[h0]trim=end=${sec(f)},setpts=PTS-STARTPTS[h];[m][h]xfade=transition=fade:duration=${sec(f)}:offset=${sec(length - 2 * f)}[out]`;
+  // fps=24 again after each setpts: ffmpeg 7 (ffmpeg-static's Linux build, so production) reads a frame rate of 1/0
+  // after setpts and xfade refuses it; ffmpeg 6 (the Mac build) didn't mind, but its fps pads the short head, hence the
+  // second trim. Caught when CI moved to Linux (#1818).
+  const graph = `${keptGraph(parts)};[base]split[m0][h0];[m0]trim=start=${sec(f)},setpts=PTS-STARTPTS,fps=24[m];[h0]trim=end=${sec(f)},setpts=PTS-STARTPTS,fps=24,trim=end=${sec(f)}[h];[m][h]xfade=transition=fade:duration=${sec(f)}:offset=${sec(length - 2 * f)}[out]`;
   const { files } = await runFfmpeg({ args: ["-i", "in.mp4", "-filter_complex", graph, "-map", "[out]", ...VIDEO_OUT, "-y", "out.mp4"], inputs: { "in.mp4": video }, outputs: ["out.mp4"] });
   return files["out.mp4"];
 }
