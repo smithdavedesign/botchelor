@@ -97,6 +97,7 @@ describe("the Organization in every page's JSON-LD", () => {
     const org = organizationJsonLd("https://botchelor.com", { DISCORD_INVITE_URL: INVITE });
     expect(org.sameAs).toEqual([...SOCIALS.slice(0, 3).map((s) => s.url), INVITE, SOCIALS[3].url]);
     expect(org.founder).toEqual({ "@type": "Person", name: "David Smith" });
+    expect(org.legalName).toBe("Botchelor LLC");
     // A raster logo at 512px (Google's logo guidance), and the file is there.
     expect(org.logo).toEqual({ "@type": "ImageObject", url: "https://botchelor.com/icons/icon-512.png", width: 512, height: 512 });
     expect(existsSync(new URL("../public/icons/icon-512.png", import.meta.url))).toBe(true);

@@ -11,7 +11,7 @@ import { indexablePromptTags, promptTagPath } from "./prompts-library";
 import { closedSeasons } from "./season-ref";
 import { readName, shipPath } from "./ship-names";
 import { formatPrice, onSale } from "./catalog";
-import { BOILERPLATE, FOUNDER, socialLinks } from "./company";
+import { BOILERPLATE, COMPANY, FOUNDER, socialLinks } from "./company";
 import { contactEmail } from "./legal-entity";
 import type { Db } from "./db";
 import { FREE_EPISODES_PER_SEASON, REPORT_HIDE_THRESHOLD } from "./rules";
@@ -197,6 +197,7 @@ export function organizationJsonLd(base: string = siteUrl(), env: Record<string,
     "@type": "Organization",
     "@id": `${base}/#org`,
     name: "Botchelor",
+    legalName: COMPANY,
     url: base,
     // A raster logo of at least 112px is what Google's logo guidance asks for; the SVG stays the favicon.
     logo: { "@type": "ImageObject", url: `${base}/icons/icon-512.png`, width: 512, height: 512 },

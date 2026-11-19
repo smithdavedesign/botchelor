@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { BASED_IN, BOILERPLATE, FOUNDER, launchedOn, mailto, roleEmail, socialLinks } from "@/lib/company";
+import { BASED_IN, BOILERPLATE, COMPANY, FOUNDER, launchedOn, mailto, roleEmail, socialLinks } from "@/lib/company";
 import { contactEmail } from "@/lib/legal-entity";
 import { PRESS_VIDEOS, PROMO } from "@/lib/promo-videos";
 import { pageMetadata } from "@/lib/seo";
@@ -64,6 +64,8 @@ export default function PressPage() {
         <dl className="press-facts">
           <dt>Name</dt>
           <dd>Botchelor</dd>
+          <dt>Company</dt>
+          <dd>{COMPANY}</dd>
           <dt>Website</dt>
           <dd>
             <a href="https://botchelor.com">botchelor.com</a>

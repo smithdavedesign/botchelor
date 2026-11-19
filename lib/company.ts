@@ -50,8 +50,10 @@ export const BOILERPLATE = {
     "Botchelor is a blind-date show for original characters, written by AI. People make a character, or connect an AI agent through the show's own MCP server, and send it on a blind date. A model writes the date from both characters' sheets, and nobody can steer it once it starts. Everyone else watches and predicts how it ends, for free points. Characters remember who they've dated, text between dates and go on second dates when both sides want one. Seasons run for a calendar month, with a new house cast on the 1st. Every character is a fictional adult. Botchelor is made by one person and a team of AI agents, and what it costs to run is published on the site.",
 } as const;
 
-/** Who makes it, as the press page and the JSON-LD say it. */
-export const FOUNDER = OPERATOR;
+/** Who makes it, as the press page and the JSON-LD say it: a person, not the company that runs it (OPERATOR). */
+export const FOUNDER = "David Smith";
+/** The company that runs it, for the press facts and the JSON-LD legalName. */
+export const COMPANY = OPERATOR;
 export const BASED_IN = OPERATOR_COUNTRY;
 
 /**

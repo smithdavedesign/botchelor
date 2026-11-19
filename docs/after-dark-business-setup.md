@@ -1,9 +1,22 @@
 # After Dark: the business setup (sole proprietor, EIN, bank, CCBill)
 
-> **Update 2026-11-17: the LLC came first after all.** Botchelor LLC (California) was filed on 2026-11-13 and is
-> pending the state's review. The order from here: a new EIN in the LLC's name (the sole-proprietor EIN can't move to
-> it), then a business bank account that accepts adult-merchant payouts, then the CCBill application packet, then the
-> Statement of Information within 90 days. The sole-proprietor steps below are kept as the record.
+> **Update 2026-11-19: the LLC is approved.** Botchelor LLC (California, entity B20260500784) was filed on 2026-11-13
+> and approved by the Secretary of State on 2026-11-19. The site names it as the operator from the same day
+> (`lib/legal-entity.ts`). The order from here:
+>
+> 1. Download the filed Articles (free, bizfile Online → search the entity number) and read the Welcome Letter in "My
+>    Work Queue". The bank and CCBill both ask for the Articles.
+> 2. A new EIN in the LLC's exact name at irs.gov (the sole-proprietor EIN can't move to it).
+> 3. A business bank account that accepts adult-merchant payouts.
+> 4. The CCBill application packet (Articles, the 2026-11-13 formation date, ID, a bank letter or voided check, the
+>    address).
+> 5. Stripe's business details moved to the LLC and its EIN, so the seller on the card statement matches the terms.
+> 6. **Statement of Information (LLC-12, $20) by 2027-02-11** (90 days from filing), then every two years.
+> 7. **The $800 franchise tax (Form 3522), twice in the first few months:** the 2026 short year (2026-11-13 to 12-31)
+>    is due by 2027-02-15 (the 15th day of the 4th month), and the 2027 year by 2027-04-15, with the first Form 568.
+>    Ask an accountant before paying.
+>
+> The sole-proprietor steps below are kept as the record.
 
 David's picks (2026-10-30): **start as a sole proprietor** (David Smith, trading as Botchelor) and form a California
 LLC later, once subscriptions pay for its $800 yearly tax; and **CCBill** as the first processor (Segpay and Verotel stay

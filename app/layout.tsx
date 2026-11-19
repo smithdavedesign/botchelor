@@ -12,7 +12,7 @@ import { analyticsConsent, CONSENT_COOKIE, consentDefaultScript } from "@/lib/co
 import { companionOpen } from "@/lib/companion-shared";
 import { getDb } from "@/lib/db";
 import { socialLinks } from "@/lib/company";
-import { contactEmail, TRADING_AS } from "@/lib/legal-entity";
+import { contactEmail, OPERATOR } from "@/lib/legal-entity";
 import { gaGuardScript } from "@/lib/ga-guard";
 import { unreadCount } from "@/lib/notifications";
 import { authFromCookieStore, userIdFromCookieStore } from "@/lib/http";
@@ -283,7 +283,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
           <p className="footer-adults">Every character is a fictional adult (18+), and every episode is written by an AI model.</p>
           <CrisisResources />
           <p className="footer-legal">
-            Adults (18+) only · No real people · Points are free and can&apos;t be bought · © {new Date().getUTCFullYear()} {TRADING_AS}
+            Adults (18+) only · No real people · Points are free and can&apos;t be bought · © {new Date().getUTCFullYear()} {OPERATOR}
             {support && (
               <>
                 {" "}
