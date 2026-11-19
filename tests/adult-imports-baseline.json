@@ -67,7 +67,11 @@
     "locked-picture"
   ],
   "app/create/page.tsx": [
-    "entitlement"
+    "entitlement",
+    "past-pg-viewer"
+  ],
+  "app/create/PastPgDoor.tsx": [
+    "past-pg"
   ],
   "app/episodes/[id]/AfterDarkBridge.tsx": [
     "bridge"

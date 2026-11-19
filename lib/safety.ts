@@ -17,6 +17,15 @@ export type RejectReason = "minor" | "sexual" | "real_person" | "innuendo" | "un
 export type ExcludedTheme = "family" | "teacher_student" | "school" | "age_play" | "non_consent" | "bestiality" | "sexual_violence";
 export type SafetyResult = { ok: true } | { ok: false; reason: RejectReason; field: string; theme?: ExcludedTheme; /** `unread`: the language it's in. */ language?: string };
 
+/**
+ * The refusals that are about going past PG (sexual content or innuendo), and nothing else: never a minor, a real person or
+ * a language the check can't read. The show's own classification of its own reasons; /create offers After Dark's door on
+ * these alone (lib/adult/past-pg.ts).
+ */
+export function isPastPg(reason: unknown): reason is Extract<RejectReason, "sexual" | "innuendo"> {
+  return reason === "sexual" || reason === "innuendo";
+}
+
 /** What a refused character sheet is told: /create's save (POST /api/characters) and the OC chemistry test say the same. */
 export const CHARACTER_REJECTION_MESSAGES: Record<RejectReason, string> = {
   minor: "Characters must be adults, with nothing suggesting they are under 18.",

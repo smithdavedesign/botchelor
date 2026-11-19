@@ -86,16 +86,17 @@ async function freeName(db: Db, wanted: string, seedText: string): Promise<strin
  */
 export const POST = handle(async (req: Request) => {
   const sess = session(req);
-  const refuse = (status: number, reason: ExpressFailure, message?: string | null) => {
+  // `past_pg`: refused for going past PG (lib/adult/past-pg.ts), so the builder may offer After Dark instead of a dead end.
+  const refuse = (status: number, reason: ExpressFailure, message?: string | null, pastPg = false) => {
     track("express_draft", { ok: false, reason });
-    return json({ error: reason, reason, message: expressFailureLine(reason, message) }, status, sess);
+    return json({ error: reason, reason, message: expressFailureLine(reason, message), ...(pastPg ? { past_pg: true } : {}) }, status, sess);
   };
   if (!expressCreateOn()) return refuse(404, "off");
   const { text, name = "" } = parseBody(Body, await readJson(req), "invalid_draft");
 
   // Refused before any model reads it, by the check the bio would meet at the save.
   const screened = screenExpressText(text, name);
-  if (!screened.ok) return refuse(422, screened.reason, screened.message);
+  if (!screened.ok) return refuse(422, screened.reason, screened.message, screened.pastPg === true);
 
   const db = await getDb();
   const visitor = visitorKey(req.headers);

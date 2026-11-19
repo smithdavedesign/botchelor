@@ -96,6 +96,8 @@ import {
   type ExpressEvent,
   type ExpressFailure,
 } from "@/lib/express-create";
+import { isPastPg } from "@/lib/safety";
+import PastPgDoor, { type PastPgDoorLink } from "./PastPgDoor";
 
 export type Partner = {
   id: string;
@@ -295,6 +297,7 @@ export default function CreateWizard({
   lookTiles = [],
   afterDark = false,
   afterDarkOpen = false,
+  pastPgDoor = null,
   returnTo = null,
   signedIn = false,
   express = false,
@@ -328,6 +331,11 @@ export default function CreateWizard({
   afterDark?: boolean;
   /** After Dark is open to this viewer at all (#1176): the finish screen says how to bring the new character in. */
   afterDarkOpen?: boolean;
+  /**
+   * The past-PG door for this viewer (lib/adult/past-pg.ts, asked by the page): a refusal for going past PG, from the one
+   * box or the save, offers it beside keeping them PG. Null: the refusal stays the plain sentence.
+   */
+  pastPgDoor?: PastPgDoorLink | null;
   /** Where they came from when something needed a character (/create?next=): offered once the character exists. */
   returnTo?: { href: string; label: string } | null;
   /** Signed in to an account: the roleplay picker's ✨ Yours (the Create library) is accounts only. */
@@ -429,6 +437,8 @@ export default function CreateWizard({
   const expressExample = useRef<string | null>(null);
   // What the draft was, said where it matters: on the form when it fell short or failed, on Look and Review when it came.
   const [expressNote, setExpressNote] = useState<ExpressNote | null>(null);
+  // The save's refusal when it was for going past PG (lib/adult/past-pg.ts): the door shows under that error, and only that one.
+  const [savePastPg, setSavePastPg] = useState<string | null>(null);
 
   // Flow state.
   // Returning with ?character=id starts at the date step itself (not a flash of the builder before it).
@@ -574,9 +584,9 @@ export default function CreateWizard({
       const at = expressEventAt(ev, place);
       queueEvent(at.name, at.props);
     };
-    const failed = (reason: ExpressFailure, message?: string | null) => {
+    const failed = (reason: ExpressFailure, message?: string | null, pastPg = false) => {
       send(expressFailedEvent(reason));
-      openForm({ kind: "failed", line: expressFailureLine(reason, message) });
+      openForm({ kind: "failed", line: expressFailureLine(reason, message), pastPg });
     };
     setExpressBusy(true);
     setError(null);
@@ -586,7 +596,7 @@ export default function CreateWizard({
       const d = data.draft as ImportedDraft | undefined;
       if (!ok || !d || typeof d !== "object" || !d.sheet) {
         const reason: ExpressFailure = isExpressFailure(data.reason) ? data.reason : status === 429 ? "limited" : "model";
-        failed(reason, typeof data.message === "string" && ["minor", "real_person", "unsafe"].includes(reason) ? data.message : null);
+        failed(reason, typeof data.message === "string" && ["minor", "real_person", "unsafe"].includes(reason) ? data.message : null, reason === "unsafe" && data.past_pg === true);
         return;
       }
       const str = (v: unknown) => (typeof v === "string" ? v : "");
@@ -860,6 +870,7 @@ export default function CreateWizard({
     const soulPayload = soulEntries.length ? { ...Object.fromEntries(soulEntries), local_only: soul.local_only } : undefined;
     setBusy("character");
     setError(null);
+    setSavePastPg(null);
     // A first character skips the Dating profile step: an empty profile is filled from the sheet, so the swipe deck and
     // later dates with other creators' characters still have one. Anything they did write (the depth track) stays.
     const sent = firstCharacter
@@ -906,6 +917,7 @@ export default function CreateWizard({
         }
       } else {
         setError(message);
+        setSavePastPg(data.error === "content_rejected" && isPastPg(data.reason) ? message : null);
       }
     } catch {
       setError("Network error. Try again.");
@@ -1122,7 +1134,7 @@ export default function CreateWizard({
 
       {!edit && startPair && step === S.identity && <PairPrefill pair={startPair} />}
       {!edit && imported && step === S.identity && <ImportPrefill note={imported} />}
-      {!edit && expressNote && !expressOpen && step === S.identity && <ExpressPrefill note={expressNote} />}
+      {!edit && expressNote && !expressOpen && step === S.identity && <ExpressPrefill note={expressNote} door={pastPgDoor} />}
 
       <Stepper
         step={Math.max(0, track.indexOf(step))}
@@ -1766,6 +1778,7 @@ export default function CreateWizard({
         )}
         {edit && !identityOk && <p className="error">Fill in the Identity step (a name nobody on the show has, an adult age, bio, three traits, want, dealbreaker) to save.</p>}
         {error && <p className="error">{error}</p>}
+        {error && savePastPg === error && pastPgDoor && !edit && <PastPgDoor door={pastPgDoor} place="save" />}
       </form>
       )}
       </div>
@@ -1814,14 +1827,17 @@ type ImportNote = {
  * or a draft and how complete it was. Said on the form when there's something to do there, on Look and Review otherwise.
  */
 type ExpressNote =
-  | { kind: "failed"; line: string }
+  /** `pastPg`: refused for going past PG (the route's past_pg), so the door may show in place of the plain sentence. */
+  | { kind: "failed"; line: string; pastPg?: boolean }
   | { kind: "drafted"; ready: boolean; missing: string[]; nameTaken: boolean; inventedName: boolean; inventedAge: boolean; look: boolean };
 
-function ExpressPrefill({ note }: { note: ExpressNote }) {
+function ExpressPrefill({ note, door }: { note: ExpressNote; door: PastPgDoorLink | null }) {
   if (note.kind === "drafted" && note.ready) return null;
   return (
     <section className="card pair-prefill import-prefill express-prefill" aria-label="From your description" role="status">
-      {note.kind === "failed" ? (
+      {note.kind === "failed" && note.pastPg && door ? (
+        <PastPgDoor door={door} place="express" />
+      ) : note.kind === "failed" ? (
         <p>
           <strong>{note.line}</strong> Fill in the rest, or tap 🎲 to fill the blanks.
         </p>

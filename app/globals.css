@@ -10651,6 +10651,21 @@ html.ad-studio-locked {
   overflow-wrap: anywhere;
 }
 
+/* /create: the past-PG door (lib/adult/past-pg.ts), keep them PG or After Dark, in the refusal's card or under the save's error. */
+.past-pg-door p {
+  margin: 0 0 var(--space-2);
+}
+.past-pg-choices {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+.past-pg-door .past-pg-ad {
+  margin: 0;
+}
+
 /* ---------- Mobile audit, 2026-10-21 (docs/audits/2026-10-21-mobile-audit.md) ---------- */
 /* Touch screens get 44px targets on the controls people tap most. */
 @media (pointer: coarse) {

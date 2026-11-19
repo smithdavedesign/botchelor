@@ -350,6 +350,20 @@ copy; `lib/adult/bridge-viewer.ts`, who sees it; `app/episodes/[id]/AfterDarkBri
   verdict"), and `/invites/review` lists every request by source with how many wait, so David can see which door
   people use. Outreach links use their own label, e.g. `/after-dark/subscribe?source=refugees`
   ([launch-kit.md](launch-kit.md)).
+
+### The past-PG door on /create (2026-11-19)
+
+In the week to Nov 19, two of the three people who tried `/create`'s one-sentence box were refused for going past PG,
+and the refusal ended there. A refusal for sexual content or innuendo (`isPastPg`: never a minor, a real person or a
+language the check can't read) now offers two ways on: **Keep them PG** (back to the bio, where their words are) or
+After Dark, the same subscribe page carrying `?source=past_pg` ("It's invite only: ask for an invite" while it is,
+"Join After Dark" once a payment processor is set up). It shows in the one box's refusal card (the draft route's
+`past_pg: true`) and under the save's refusal (`content_rejected` with reason `sexual` or `innuendo`).
+`lib/adult/past-pg.ts` holds the rule and the copy, `lib/adult/past-pg-viewer.ts` who sees it (the bridge's rules:
+said they're 18 or older, After Dark on and allowed where they are, not in already, not asked already while it's invite
+only, not a crawler), `app/create/PastPgDoor.tsx` the card. Nothing they typed goes anywhere. Counted as
+`past_pg_door` (`place` express or save) and the clicks `past_pg_keep` / `past_pg_after_dark`; requests show as
+`past_pg` on `/invites/review`. `PAST_PG_DOOR=0` (the show's app) turns it off without a deploy.
 - **Counting.** The click is the engagement log's `ad-bridge` (`data-track`); the request is the existing
   `ad_invite_requested` conversion, now with the source.
 - **The page it leads to** also offers the free taste (above) where After Dark is fully open: that was already there,
