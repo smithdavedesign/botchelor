@@ -110,6 +110,21 @@ or automatically preferably, and the page should be full width".
   the asset gallery/showcase page"). The "From the show" row, its query (`listShowClips`) and its switch
   (`GALLERY_SHOW_CLIPS`) are gone; the clips still play on the home page and open their dates.
 
+## Pictures and videos, and where each was made (2026-11-18)
+
+David: "videos, clips, reels, boomerangs ect they are all still just videos ... tag accordingly if it's from the studio
+or from a after dark clip or date ... don't confuse the user looking at these gallerys or showcases."
+- **The Type bar is All · Pictures · Videos** (`?medium=video`: every kind of video). A link naming one kind
+  (`?medium=boomerang`) still works, shown as a chip with its ×.
+- **Each tile says where it was made and what it is**, in the galleries' words (`lib/made-in.ts` `madeLabel`): "Night
+  clip", "Studio boomerang", "Studio picture"; "Date clip" on the show's side. Before, any video from a date said
+  "Date reel", one shot or several.
+- **"From nights" / "From dates"** (the side's word) and "From the Studio" follow the one rule every gallery tags with
+  (`madeInSql`; `FROM_DATE` in `lib/showcase.ts`). `lib/db.ts` re-tags the posts kept before as it deploys: a living
+  portrait was "from a date" on some posts and not others.
+- **A reel is several shots back to back** (clips joined into one). A shot of a night's video posted on its own was
+  `medium = 'reel'`; it's a clip now, and the schema moves the old posts over.
+
 ## Reels and the way in (2026-10-29)
 
 David asked for "an infinite reel / video, scroll-swipe. Like candy.ai has, instagram, ticktock. One idea Similar to

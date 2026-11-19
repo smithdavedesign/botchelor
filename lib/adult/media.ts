@@ -39,6 +39,7 @@ import { cleanBody, currentRequests, logRequest, requestJson, withRequestLog } f
 import { showsLabel } from "./tag-labels";
 import { NOT_A_LIVING_PORTRAIT, TAB_WHERE, type GalleryTab } from "./gallery";
 import { sizeFor } from "../studio/formats";
+import { madeInSql, type MadeIn } from "../made-in";
 
 /** `clip`: the picture can be made to move (it's on fal; Venice's explicit pictures can't be). */
 export type Media = {
@@ -94,6 +95,10 @@ export type Media = {
   reel_kind?: string | null;
   /** An SFW twin of another picture (lib/adult/sfw-twin.ts): safe for work, kept here because it's of two. */
   twin?: boolean;
+  /** Where it was made: on one of their nights, or in the Studio (lib/made-in.ts, one rule for every gallery's tag). */
+  made_in?: MadeIn;
+  /** A night's whole video as one of the Gallery's videos (lib/adult/gallery.ts reelItem): how many shots it plays. */
+  reel_shots?: number | null;
 };
 /** Where a scene picture was drawn: its chapter and place, for the gallery's caption. */
 export type PictureScene = { scene_chapter?: number | null; scene_place?: string | null };
@@ -888,6 +893,8 @@ const MEDIA_SELECT = `select i.id, i.character_id, i.character_b, i.kind, i.stat
             exists (select 1 from adult_reels v cross join lateral jsonb_array_elements(v.shots) s where v.owner_id = i.owner_id and s->>'media_id' = i.id and s ? 'archived_at') as archived,
             (select v.kind from adult_reels v cross join lateral jsonb_array_elements(v.shots) s where v.owner_id = i.owner_id and s->>'media_id' = i.id limit 1) as reel_kind,
             (i.twin_of is not null) as twin,
+            -- Where it was made, a night or the Studio (lib/made-in.ts): every gallery's tag and filter.
+            ${madeInSql("i")} as made_in,
             -- What it shows, for the tile's label (lib/adult/tag-labels.ts showsLabel).
             (select json_agg(json_build_object('kind', st.kind, 'value', st.value) order by st.source = 'manual' desc, st.created_at)
                from adult_media_tags st where st.media_id = i.id and not st.removed and st.kind in ('act', 'place', 'pov')) as show_tags

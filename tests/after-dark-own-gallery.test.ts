@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { GALLERY_MAX, GALLERY_PAGE, galleryCounts, galleryLimit, galleryTab, sourceOf } from "@/lib/adult/gallery";
+import { GALLERY_MAX, GALLERY_PAGE, galleryCounts, galleryLimit, galleryTab, galleryVideos, reelItem } from "@/lib/adult/gallery";
+import { typeOf } from "@/lib/media-filter";
 import { characterMedia, listMedia, ownMedia } from "@/lib/adult/media";
 import { ownReels } from "@/lib/adult/reels";
 import { HOUSE_CHARACTERS } from "@/lib/house";
@@ -121,6 +122,46 @@ describe("the Gallery's tabs", () => {
     expect(reels[1]).toMatchObject({ a: A.id, b: B.id, a_name: A.name, b_name: B.name, kind: "night" });
     expect(reels[1].shots).toHaveLength(3);
   });
+
+  // David, 2026-11-18: "we have reels and clips, really they are the same thing ... have one combined section ... still
+  // offer the filtering at the top": a night's video is one of the Videos, among the clips, under the same filters.
+  it("makes each night's video one of the videos: a reel of the shots it plays, made on their night, with what they show and its stars", async () => {
+    const me = userIdOf(newUserCookie());
+    await seed(me);
+    const tag = (id: string, kind: string, value: string, removed = false) =>
+      t.db.query(`insert into adult_media_tags (media_id, owner_id, kind, value, source, removed) values ($1, $2, $3, $4, 'model', $5)`, [id, me, kind, value, removed]);
+    await tag("shot-1", "act", "kiss");
+    await tag("shot-2", "act", "kiss");
+    await tag("shot-2", "place", "hotel");
+    await tag("shot-1", "act", "oral", true);
+    // The shot taken out of the video shows nothing for it any more.
+    await tag("shot-out", "place", "pool");
+    await t.db.query(`insert into adult_media_ratings (user_id, item_id, item_kind, rating) values ($1, 'night', 'reel', 4), ('someone', 'night', 'reel', 5)`, [me]);
+    const [reel] = await ownReels(t.db, me);
+    expect(reel.show_tags).toEqual([
+      { kind: "act", value: "kiss" },
+      { kind: "place", value: "hotel" },
+    ]);
+    expect(reel.stars).toBe(4.5);
+    const item = reelItem(reel);
+    expect(item).toMatchObject({ id: "night", kind: "video", status: "ready", made_in: "night", reel_shots: 2, character_id: A.id, character_b: B.id, a_name: A.name, archived: false });
+    expect(item.shows).toBe("A slow kiss · Hotel");
+    expect(typeOf(item)).toBe("reel");
+    expect(reelItem({ ...reel, status: "making", shots: [] })).toMatchObject({ status: "pending", reel_shots: 0 });
+  });
+
+  it("lists the clips and the nights' videos as one, the newest first, a page at a time", async () => {
+    const me = userIdOf(newUserCookie());
+    await seed(me);
+    await reel("later-night", me, "ready", "night", [{ media_id: "shot-1", status: "ready" }], "2026-11-03T12:00:00Z");
+    const clips = await ownMedia(t.db, me, 120, { withArchived: true, tab: "videos" });
+    const reels = await ownReels(t.db, me);
+    const all = galleryVideos(clips, reels, 120);
+    // The night's video (Nov 5), the Studio's clip (Nov 4), the later night's (Nov 3, noon), the clip (Nov 3), the shot taken out (Nov 2).
+    expect(all.map((m) => m.id)).toEqual(["night", "studio-clip", "later-night", "a-clip", "shot-out"]);
+    expect(all.map((m) => typeOf(m))).toEqual(["reel", "clip", "reel", "clip", "clip"]);
+    expect(galleryVideos(clips, reels, 2).map((m) => m.id)).toEqual(["night", "studio-clip"]);
+  });
 });
 
 // David, 2026-11-18: "There are PG videos on after dark, can we move them out?" They were the living portraits
@@ -181,9 +222,4 @@ describe("the Gallery's pure rules", () => {
     expect(galleryLimit("999999")).toBe(GALLERY_MAX);
   });
 
-  it("says a Studio shoot, or one of them alone, came from the Studio, and a pair's from a night", () => {
-    expect(sourceOf({ studio: true, character_b: "b" })).toBe("studio");
-    expect(sourceOf({ studio: false, character_b: null })).toBe("studio");
-    expect(sourceOf({ studio: false, character_b: "b" })).toBe("night");
-  });
 });

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Db } from "@/lib/db";
-import { listShowcase, MEDIUM_LABEL, MEDIUMS, seenFilters, showcaseFacets, sideOf, type Filters, type ShowcaseViewer } from "@/lib/showcase";
+import { listShowcase, MEDIUM_LABEL, seenFilters, showcaseFacets, sideOf, type Filters, type ShowcaseViewer } from "@/lib/showcase";
+import { madeInFilter } from "@/lib/made-in";
 import { actLabel, placeLabel, shapeLabel } from "@/lib/showcase-labels";
 import FilterForm from "./FilterForm";
 import ShowcaseGrid from "./ShowcaseGrid";
@@ -11,7 +12,6 @@ import { showcasePaths, type ShowcasePlace } from "@/lib/showcase-paths";
 
 type Key = keyof Omit<Filters, "page">;
 
-const FROM_LABEL: Record<string, string> = { date: "From dates", studio: "From the Studio" };
 
 /**
  * The showcase's filters and grid (lib/showcase.ts), the same on /showcase and a creator's page. A filtered view is its
@@ -102,11 +102,18 @@ export default async function ShowcaseBrowser({
     const q = query({ side: undefined }, { ...sideKeep, creator: fixed.creator }, false);
     return afterDarkHref(q ? `${showcasePaths("after_dark").base}?${q}` : showcasePaths("after_dark").base);
   };
-  const mediumCount = new Map(facets.medium);
-  const mediums = MEDIUMS.filter((m) => mediumCount.has(m));
+  // The Type bar: pictures, or videos of every kind (David, 2026-11-18: "they are all still just videos"); each tile
+  // says which kind (ShowcaseGrid). A link naming one kind of video still shows only that, as a chip with its ×.
+  const pictures = facets.medium.find(([m]) => m === "picture")?.[1] ?? 0;
+  const videos = facets.medium.reduce((n, [m, k]) => (m === "picture" ? n : n + k), 0);
+  const oneKind = f.medium && f.medium !== "picture" && f.medium !== "video" ? f.medium : null;
+  // How it was made, in the side's words: After Dark's dates are nights (lib/made-in.ts).
+  const madeWords = place === "after_dark" ? "after_dark" : "show";
+  const FROM_LABEL: Record<string, string> = { date: madeInFilter("night", madeWords), studio: madeInFilter("studio", madeWords) };
   const characterName = new Map(facets.character.map(([id, name]) => [id, name]));
   // What's picked, in words, each with its own ×; the side, the sort and the type are the bars above, not filters.
   const picked: [Key, string][] = [];
+  if (oneKind) picked.push(["medium", MEDIUM_LABEL[oneKind]]);
   if (filters.creator) picked.push(["creator", `@${filters.creator}`]);
   if (filters.character) picked.push(["character", characterName.get(filters.character) ?? "That character"]);
   if (filters.partner) picked.push(["partner", `With ${characterName.get(filters.partner) ?? "them"}`]);
@@ -145,10 +152,11 @@ export default async function ShowcaseBrowser({
             {seg("trending", f.sort === "trending" && !f.following, href({ sort: "trending", following: undefined }), "Trending")}
             {viewer.id && seg("following", Boolean(f.following), href({ following: true, sort: undefined }), "Following")}
           </div>
-          {(mediums.length > 1 || f.medium) && (
+          {((pictures > 0 && videos > 0) || f.medium) && (
             <div className="showcase-sides" role="group" aria-label="Type">
               {seg("all", !f.medium, href({ medium: undefined }), "All")}
-              {mediums.map((m) => seg(m, f.medium === m, href({ medium: m }), MEDIUM_LABEL[m], mediumCount.get(m)))}
+              {seg("picture", f.medium === "picture", href({ medium: "picture" }), MEDIUM_LABEL.picture, pictures)}
+              {seg("video", f.medium === "video", href({ medium: "video" }), "Videos", videos)}
             </div>
           )}
         </div>
@@ -169,7 +177,7 @@ export default async function ShowcaseBrowser({
                 {label} <span aria-hidden="true">×</span>
               </Link>
             ))}
-            <Link href={href({}, { side: filters.side, sort: filters.sort, following: filters.following, medium: filters.medium })} scroll={false} className="showcase-clear">
+            <Link href={href({}, { side: filters.side, sort: filters.sort, following: filters.following, medium: oneKind ? undefined : filters.medium })} scroll={false} className="showcase-clear">
               Clear the filters
             </Link>
           </p>

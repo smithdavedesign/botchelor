@@ -26,11 +26,18 @@ import { detectBot } from "./bots";
 import { ratingOf, type ContentRating } from "./content-rating";
 import type { Db } from "./db";
 import { authFromRequest } from "./http";
+import { madeInSql } from "./made-in";
 import { checkAdultText, checkPgPictureText } from "./safety";
 
 export const MEDIUMS = ["picture", "clip", "reel", "boomerang", "loop"] as const;
 export type Medium = (typeof MEDIUMS)[number];
-export const MEDIUM_LABEL: Record<Medium, string> = { picture: "Pictures", clip: "Clips", reel: "Date reels", boomerang: "Boomerangs", loop: "Loops" };
+/** A reel is several shots back to back (clips joined); one shot is a clip (lib/made-in.ts, 2026-11-18). */
+export const MEDIUM_LABEL: Record<Medium, string> = { picture: "Pictures", clip: "Clips", reel: "Reels", boomerang: "Boomerangs", loop: "Loops" };
+/**
+ * The Type bar's choices (David, 2026-11-18: "videos, clips, reels, boomerangs ect they are all still just videos"):
+ * pictures, or every kind of video. A link that names one kind (`?medium=boomerang`) still shows only that kind.
+ */
+export type MediumFilter = Medium | "video";
 export type ShowcaseSource = "after_dark" | "pg";
 
 export type Fail = { ok: false; status: number; error: string; message: string };
@@ -115,21 +122,23 @@ export type Post = {
 };
 
 type SourceRow = {
-  id: string; owner_id: string; character_id: string; character_b: string | null; kind: string; mime: string; aspect: string | null; rating: string | null; derived: string | null; reel_kind: string | null; shoot_id: string | null;
+  id: string; owner_id: string; character_id: string; character_b: string | null; kind: string; mime: string; aspect: string | null; rating: string | null; derived: string | null; shoot_id: string | null;
   /** Made on one of their dates (the "From dates" filter): never a Studio item, a portrait, an SFW twin, or one cut from a Studio item. */
   from_date: boolean;
 };
 
-/** Whether an After Dark item `i` was made on a date (lib/db.ts puts the same rule on the posts kept before it). */
-const FROM_DATE = `i.kind <> 'baseline' and i.shoot_id is null and i.twin_of is null
-  and not exists (select 1 from adult_images src where src.id = i.source_image and src.shoot_id is not null)`;
+/**
+ * Whether an After Dark item `i` was made on a date, a night, rather than in the Studio: the one rule every gallery tags
+ * with (lib/made-in.ts; lib/db.ts puts it on the posts kept before it).
+ */
+const FROM_DATE = `${madeInSql("i")} = 'night'`;
 
 /** The item behind a post: one of theirs, ready, a picture or clip (never a voice or a keyframe). */
 async function sourceOf(db: Db, owner: string, source: ShowcaseSource, mediaId: string): Promise<SourceRow | null> {
   if (source === "pg") {
     return (
       await db.query<SourceRow>(
-        `select id, owner_id, character_id, null as character_b, 'scene' as kind, mime, aspect, content_rating as rating, null as derived, null as reel_kind, shoot_id, false as from_date
+        `select id, owner_id, character_id, null as character_b, 'scene' as kind, mime, aspect, content_rating as rating, null as derived, shoot_id, false as from_date
            from studio_pg_pictures where id = $1 and owner_id = $2`,
         [mediaId, owner],
       )
@@ -138,7 +147,6 @@ async function sourceOf(db: Db, owner: string, source: ShowcaseSource, mediaId: 
   return (
     await db.query<SourceRow>(
       `select i.id, i.owner_id, i.character_id, i.character_b, i.kind, i.mime, i.aspect, i.content_rating as rating, i.derived, i.shoot_id,
-              (select r.kind from adult_reels r cross join lateral jsonb_array_elements(r.shots) s where r.owner_id = i.owner_id and s->>'media_id' = i.id limit 1) as reel_kind,
               (${FROM_DATE}) as from_date
          from adult_images i
         where i.id = $1 and i.owner_id = $2 and i.status = 'ready' and i.kind in ('scene', 'baseline', 'video') and i.character_id is not null`,
@@ -147,13 +155,16 @@ async function sourceOf(db: Db, owner: string, source: ShowcaseSource, mediaId: 
   ).rows[0] ?? null;
 }
 
-/** What kind of thing it is, for the Medium filter. */
-export function mediumOf(r: Pick<SourceRow, "kind" | "derived" | "reel_kind">): Medium {
+/**
+ * What kind of thing it is, for the Medium filter and its tag: a picture, a boomerang, a loop, a reel (clips joined
+ * into one, lib/adult/moments.ts joinClips) or a clip. A shot of a night's video, posted on its own, is a clip: one shot
+ * (David, 2026-11-18: "we have reels and clips, really they are the same thing").
+ */
+export function mediumOf(r: Pick<SourceRow, "kind" | "derived">): Medium {
   if (r.kind !== "video") return "picture";
   if (r.derived === "boomerang" || r.derived === "loop") return r.derived;
-  // A chain of clips joined into one (lib/adult/moments.ts joinClips): posted as one reel.
   if (r.derived === "chain") return "reel";
-  return r.reel_kind && r.reel_kind !== "clip" ? "reel" : "clip";
+  return "clip";
 }
 
 /** The first of each kind of tag it was made with (removed ones left out), for the filters. */
@@ -278,7 +289,7 @@ export async function postsOf(db: Db, owner: string, source: ShowcaseSource, med
 /* -------------------------------------------------- the feed -------------------------------------------------- */
 
 export type Filters = {
-  creator?: string; character?: string; partner?: string; medium?: Medium; act?: string; place?: string; pov?: boolean;
+  creator?: string; character?: string; partner?: string; medium?: MediumFilter; act?: string; place?: string; pov?: boolean;
   from?: "studio" | "date";
   /** Safe for work (pg and suggestive: the default, for everyone) or After Dark (explicit), by each post's rating. */
   side?: "pg" | "after_dark";
@@ -301,7 +312,7 @@ export function parseFilters(q: URLSearchParams | Record<string, string | string
   const shape = get("shape");
   return {
     creator: get("creator"), character: get("character"), partner: get("partner"),
-    medium: (MEDIUMS as readonly string[]).includes(medium ?? "") ? (medium as Medium) : undefined,
+    medium: medium === "video" || (MEDIUMS as readonly string[]).includes(medium ?? "") ? (medium as MediumFilter) : undefined,
     act: get("act"), place: get("place"), pov: get("pov") === "1" || undefined,
     from: from === "studio" || from === "date" ? from : undefined,
     side: side === "pg" || side === "after_dark" ? side : undefined,
@@ -342,7 +353,8 @@ function where(v: ShowcaseViewer, f: Filters, opts: { anySide?: boolean } = {}):
   if (f.character) add("(p.character_id = ? or p.character_b = ?)", f.character);
   // With someone: a picture of two with them in it (with a character filter too, that pair).
   if (f.partner) add("(p.character_b is not null and (p.character_id = ? or p.character_b = ?))", f.partner);
-  if (f.medium) add("p.medium = ?", f.medium);
+  if (f.medium === "video") parts.push("p.medium <> 'picture'");
+  else if (f.medium) add("p.medium = ?", f.medium);
   if (f.act) add("p.act = ?", f.act);
   if (f.place) add("p.place = ?", f.place);
   if (f.pov) parts.push("p.pov");

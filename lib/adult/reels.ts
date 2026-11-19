@@ -2609,24 +2609,40 @@ export async function listReels(db: Db, ownerId: string, x: string, y: string): 
 }
 
 /** A reel as the Gallery lists it: with the names of the two in it. */
-export type GalleryReel = Reel & { a_name: string | null; b_name: string | null };
+export type GalleryReel = Reel & {
+  a_name: string | null;
+  b_name: string | null;
+  /** What its shots show (act, place, pov), the most shown first, for the Gallery's filters and label; and its stars. */
+  show_tags?: { kind: string; value: string }[];
+  stars?: number | null;
+};
 
 /**
- * Every night's video of this person's, from every pair, newest first (the Gallery's Videos → Reels, lib/adult/gallery.ts
- * SHOWN_NIGHT_REEL): each as one reel that plays its shots in order, not as loose clips. Their own only (an admin's own
+ * Every night's video of this person's, from every pair, newest first (the Gallery's Videos, among the clips:
+ * lib/adult/gallery.ts SHOWN_NIGHT_REEL, reelItem): each as one reel that plays its shots in order, not as loose clips. Their own only (an admin's own
  * too: the house cast's nights are on their pages), with their 👍/👎 on each shot as the pair's page has them.
  */
 export async function ownReels(db: Db, ownerId: string, limit = 120): Promise<GalleryReel[]> {
-  const { rows } = await db.query<ReelRow & { a_name: string | null; b_name: string | null }>(
-    `select r.*, ca.name as a_name, cb.name as b_name from (
+  const { rows } = await db.query<ReelRow & { a_name: string | null; b_name: string | null; show_tags: { kind: string; value: string }[] | null; stars: number | null }>(
+    `select r.*, ca.name as a_name, cb.name as b_name,
+            -- What the shots it plays show, each once, the most shown first (lib/adult/gallery.ts reelItem: its filters).
+            (select json_agg(json_build_object('kind', t.kind, 'value', t.value) order by t.n desc, t.kind, t.value)
+               from (select st.kind, st.value, count(*) as n
+                       from jsonb_array_elements(r.shots) s
+                       join adult_media_tags st on st.media_id = s->>'media_id' and not st.removed and st.kind in ('act', 'place', 'pov')
+                      where s->>'status' = 'ready' and not s ? 'archived_at'
+                      group by 1, 2) t) as show_tags,
+            -- Its stars (the library's, for the reel).
+            (select round(avg(sr.rating)::numeric, 1)::float from adult_media_ratings sr where sr.item_kind = 'reel' and sr.item_id = r.id) as stars
+       from (
        select ${REEL_COLUMNS} from adult_reels where owner_id = $1 and ${SHOWN_NIGHT_REEL} order by created_at desc limit $2
      ) r left join characters ca on ca.id = r.character_a left join characters cb on cb.id = r.character_b
      order by r.created_at desc`,
     [ownerId, limit],
   );
-  const names = new Map(rows.map((r) => [r.id, { a_name: r.a_name, b_name: r.b_name }]));
+  const extra = new Map(rows.map((r) => [r.id, { a_name: r.a_name, b_name: r.b_name, show_tags: r.show_tags ?? [], stars: r.stars ?? null }]));
   const reels = await withRatings(db, ownerId, rows.map(reelOf));
-  return reels.map((r) => ({ ...r, ...(names.get(r.id) ?? { a_name: null, b_name: null }) }));
+  return reels.map((r) => ({ ...r, ...(extra.get(r.id) ?? { a_name: null, b_name: null, show_tags: [], stars: null }) }));
 }
 
 /** Each shot that came through with the viewer's 👍/👎 on it (lib/adult/steering.ts), for the page's rating buttons. */

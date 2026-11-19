@@ -7,7 +7,7 @@ import Icon from "@/app/Icon";
 import { afterDarkTitle } from "@/lib/adult/discreet";
 import { afterDarkDoors } from "@/lib/adult/doors";
 import { canAfterDark } from "@/lib/adult/entitlement";
-import { GALLERY_PAGE, GALLERY_TAB_LABEL, GALLERY_TABS, galleryCounts, galleryLimit, galleryTab, type GalleryTab } from "@/lib/adult/gallery";
+import { GALLERY_PAGE, GALLERY_TAB_LABEL, GALLERY_TABS, galleryCounts, galleryLimit, galleryTab, galleryVideos, type GalleryTab } from "@/lib/adult/gallery";
 import { ownMedia } from "@/lib/adult/media";
 import { ownReels } from "@/lib/adult/reels";
 import { lockedForCookies } from "@/lib/adult/privacy";
@@ -17,7 +17,6 @@ import { currentHere, currentView } from "../view";
 import GalleryTabs from "../GalleryTabs";
 import LockedPreview from "../LockedPreview";
 import GalleryGrid from "./GalleryGrid";
-import ReelCards from "./ReelCards";
 
 export const dynamic = "force-dynamic";
 
@@ -32,10 +31,12 @@ export async function generateMetadata(): Promise<Metadata> {
  * After Dark isn't open to gets the locked preview instead (app/after-dark/LockedPreview.tsx; David, 2026-11-16: "allow
  * them to ... give them a signup link"): blurred tiles and the way in, never a picture.
  *
- * In tabs since 2026-11-15 (lib/adult/gallery.ts): Videos (each night's reel as one card, then the clips, from nights
- * or the Studio), Pictures and Faces, each loading its own, `?n=` a page more at a time. Since 2026-11-18 it's the
- * Gallery's first room, Yours, beside Showcase (./showcase, for whoever may see it: ../GalleryTabs.tsx), the full
- * width of the screen, its clips playing by themselves once shown.
+ * In tabs since 2026-11-15 (lib/adult/gallery.ts): Videos, Pictures and Faces, each loading its own, `?n=` a page more
+ * at a time. Since 2026-11-18 it's the Gallery's first room, Yours, beside Showcase (./showcase, for whoever may see it:
+ * ../GalleryTabs.tsx), the full width of the screen, its clips playing by themselves once shown. Videos is one grid
+ * (David, 2026-11-18: "we have reels and clips, really they are the same thing ... have one combined section ... still
+ * offer the filtering at the top"): each night's video as one tile among the clips, the newest first, under one set of
+ * filters, every tile tagged where it was made (a night or the Studio, lib/made-in.ts) and what kind of video it is.
  */
 export default async function AfterDarkGalleryPage({ searchParams }: { searchParams: Promise<{ tab?: string; n?: string; source?: string }> }) {
   const db = await getDb();
@@ -72,10 +73,11 @@ export default async function AfterDarkGalleryPage({ searchParams }: { searchPar
   const counts = await galleryCounts(db, owner);
   const tab = galleryTab(sp.tab, counts);
   const limit = galleryLimit(sp.n);
-  const [items, reels] = await Promise.all([ownMedia(db, owner, limit, { withArchived: true, tab }), tab === "videos" ? ownReels(db, owner, limit) : []]);
+  const [own, reels] = await Promise.all([ownMedia(db, owner, limit, { withArchived: true, tab }), tab === "videos" ? ownReels(db, owner, limit) : []]);
+  // Videos: the clips and the nights' videos as one list, newest first (the newest `limit` of both).
+  const items = tab === "videos" ? galleryVideos(own, reels, limit) : own;
   const tabHref = (t: GalleryTab, n?: number) => `/after-dark/gallery?tab=${t}${n ? `&n=${n}` : ""}`;
-  // More than this page holds, of the grid's or of the reels: one link loads a page more of both.
-  const more = (tab === "videos" ? Math.max(counts.clips, counts.reels) : counts[tab]) > limit;
+  const more = counts[tab] > limit;
   const empty: Record<GalleryTab, ReactNode> = {
     videos: (
       <>
@@ -95,8 +97,8 @@ export default async function AfterDarkGalleryPage({ searchParams }: { searchPar
       <article className="after-dark ad-gallery-page">
         {head}
         <p className="muted">
-          Every picture, clip and video from your nights and your Studio shoots, newest first. Blurred until tapped, as everything here is. To fix
-          one or make it move, open its night.
+          Everything you&apos;ve made, newest first, each tagged where it was made: on one of your nights, or in the Studio. Blurred until tapped,
+          as everything here is. To fix one or make it move, open where it was made.
         </p>
         <nav className="segmented ad-gallery-tabs" aria-label="Gallery">
           {GALLERY_TABS.map((t) => (
@@ -105,30 +107,16 @@ export default async function AfterDarkGalleryPage({ searchParams }: { searchPar
             </Link>
           ))}
         </nav>
-        {reels.length > 0 && (
-          <section className="ad-gallery-section" aria-labelledby="ad-gallery-reels">
-            <h2 id="ad-gallery-reels">
-              Reels <span className="muted small">· each night&apos;s video, its shots in order</span>
-            </h2>
-            <ReelCards reels={reels} />
-          </section>
-        )}
         {items.length > 0 && (
           <section className="ad-gallery-section" aria-labelledby="ad-gallery-items">
-            {tab === "videos" ? (
-              <h2 id="ad-gallery-items">
-                Clips <span className="muted small">· from your nights and the Studio</span>
-              </h2>
-            ) : (
-              <h2 id="ad-gallery-items" className="sr-only">
-                {GALLERY_TAB_LABEL[tab]}
-              </h2>
-            )}
+            <h2 id="ad-gallery-items" className="sr-only">
+              {GALLERY_TAB_LABEL[tab]}
+            </h2>
             {/* Keyed by the tab: its filters start fresh on each. */}
             <GalleryGrid key={tab} items={items} />
           </section>
         )}
-        {!items.length && !reels.length && (
+        {!items.length && (
           <p className="muted" data-gallery-empty>
             {empty[tab]}
           </p>

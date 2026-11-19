@@ -3229,6 +3229,44 @@ more assets … change the choose a new pair to be better ux like a picker with 
   (`tests/adult-imports.test.ts`): After Dark's frame tells it what the blur still covers (`app/after-dark/AutoplayVeil.tsx`),
   so a covered clip waits for its tap and then plays.
 
+### Videos in one grid; every asset tagged where it was made (2026-11-18)
+
+David: "on … /after-dark/gallery we have reels and clips, really they are the same thing. Can we move the tag filters
+up from clips section. remove the clips and have one combined section. Then … go through all assets and tag accordingly
+if it's from the studio or from a after dark clip or date … they are all still just videos … have a better system
+overall but don't confuse the user looking at these galleries or showcases … still offer the filtering at the top."
+- **Videos is one grid** (`app/after-dark/gallery/GalleryGrid.tsx`). Each night's video is one tile among the clips
+  (`ReelTile.tsx`, `lib/adult/gallery.ts` `reelItem`/`galleryVideos`), newest first, the newest page of both. The
+  "Reels" and "Clips" sections are gone. A reel's tile plays its first shot by itself like a clip, from its keyframe;
+  ▶ plays the whole reel across the grid.
+- **The filters sit on top and cover every video**: where it was made first, then what it is (Reels · Clips ·
+  Boomerangs · Loops), pose, place, first person, ⭐, 🗄 and the rating. A reel filters by what its shots show (the
+  most shown first) and by its stars.
+- **Two tags on every tile** (`TileTags.tsx`): **Night** or **Studio** (pictures too; not faces, which are all the
+  Studio's), and a video's kind: Clip, Reel · N shots, Boomerang, Loop.
+- **One rule for where a thing was made** (`lib/made-in.ts` `madeInSql`, on every media row as `made_in`):
+  - **the Studio:** a shoot or animation (its `shoot_id`; a fix keeps it), a face, an SFW twin, one of them alone (a
+    night is always two), a living portrait;
+  - **cut from a clip or fixed** (boomerang, loop, joined clips, a still): wherever that came from;
+  - **everything else, on a night:** its pictures, its clips, its video's shots, even one filmed from a picture pinned
+    from the Studio.
+  It's worked out from how each was made, so every asset carries it, old and new. On prod (2026-11-18, every live
+  asset but the 335 living portraits, which After Dark doesn't list) it reads:
+
+  | | Pictures | Faces | SFW twins | Clips | Reels | Boomerangs |
+  |---|---|---|---|---|---|---|
+  | Night | 340 | | | 144 | 2 joined, plus 26 nights' videos | |
+  | Studio | 280 | 217 | 76 | 29 | 2 joined | 1 |
+
+  It replaced two rules that disagreed: the Gallery's "one alone or a shoot is the Studio's", and the showcase's
+  `FROM_DATE`, which called 71 living portraits and a solo picture "from a date". `lib/db.ts` re-tags those posts as
+  it deploys, and moves 18 single shots posted as "reels" to clips.
+- **One shot is a clip; several back to back are a reel** (`typeOf`, `mediumOf`). A shot of a night's video seen on
+  its own is a clip, wherever it's listed; "Date reels" is now "Reels". A night's page still sorts its own clips from
+  its video's shots in sections.
+- **Every After Dark filter bar** (a night's gallery, the Studio's) shows the same "From nights · From the Studio" row
+  where it holds both.
+
 ## The galleries' filters (2026-10-29)
 
 David, 2026-10-29: "in studio and anywhere where we see assets cleanup the organization by adding filters like tags,
@@ -3237,7 +3275,8 @@ reels, images, boomerangs, rating, archived … we shouldn't see thumbs down or 
 - **One filter everywhere** (`lib/media-filter.ts`, `app/after-dark/MediaFilterBar.tsx`). It's used in the Studio's
   Gallery tab (Studio, Dates, Favorites), its Together tab, a scene's gallery, and the Studio's latest-four strip.
 - **Filters:**
-  - What it is: pictures, faces, clips, date reels' shots, boomerangs, loops.
+  - What it is: pictures, faces, clips, reels (several shots: since 2026-11-18 a shot on its own is a clip),
+    boomerangs, loops; and where it was made (a night or the Studio, `lib/made-in.ts`).
   - Pose (`act` tags), place, first person.
   - ⭐ Favorites, 🗄 Archived.
   - Rating: by default it hides 👎 and 1–3★. The other choices are 👍 or 4–5★ only, not rated yet, 👎 or 1–3★, and

@@ -10,6 +10,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Post } from "@/lib/showcase";
 import { actLabel, placeLabel, SHOW_HANDLE } from "@/lib/showcase-labels";
+import { madeInPhrase, madeLabel } from "@/lib/made-in";
 import { showcasePaths, type ShowcasePlace } from "@/lib/showcase-paths";
 import { AUTOPLAY_ATTR, autoplaying, useHidden, useInViewAutoplay } from "@/app/useInViewAutoplay";
 
@@ -171,7 +172,8 @@ export default function ShowcaseGrid({
                 {credits[x.character.id] && <span className="showcase-credit muted" title={credits[x.character.id]}>{credits[x.character.id]}</span>}
               </p>
               <p className="showcase-meta small muted">
-                {[x.medium === "picture" ? "Picture" : x.from_date ? "Date reel" : "Clip", x.place ? placeLabel(x.place) : ""].filter(Boolean).join(" · ")}
+                {/* Where it was made and what it is, in the galleries' words (lib/made-in.ts): "Night clip", "Studio picture". */}
+                {[madeLabel(x.from_date ? "night" : "studio", x.medium, place), x.place ? placeLabel(x.place) : ""].filter(Boolean).join(" · ")}
                 {x.creator.handle !== SHOW_HANDLE && (
                   <>
                     {" · by "}
@@ -204,7 +206,7 @@ export default function ShowcaseGrid({
               <p>
                 <LikeButton key={p.id} postId={p.id} likes={p.likes} liked={p.liked} />
               </p>
-              <p className="muted small">{[p.act ? actLabel(p.act) : "", p.place ? placeLabel(p.place) : "", p.pov ? "First person" : "", p.from_date ? "From a date" : "From the Studio"].filter(Boolean).join(" · ")}</p>
+              <p className="muted small">{[p.act ? actLabel(p.act) : "", p.place ? placeLabel(p.place) : "", p.pov ? "First person" : "", madeInPhrase(p.from_date ? "night" : "studio", place)].filter(Boolean).join(" · ")}</p>
               <MadeWith postId={p.id} />
               <p className="small">
                 <Link href={`${paths.reels}?start=${encodeURIComponent(p.id)}${reels ? `&${reels}` : place === "show" && p.rating === "nsfw" ? "&side=after_dark" : ""}`}>▶ Watch full screen from here</Link>
