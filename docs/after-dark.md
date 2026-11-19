@@ -3528,7 +3528,12 @@ its rating paragraph and in what it says about the character, not in its craft.
 
 **The character is a person, not a tool** (in every prompt; `tests/after-dark-step-in.test.ts` pins each):
 - `STEP_IN_WILL`: its own will; attraction and consent mutual and said out loud; it can slow down, say "not yet",
-  check in or decline, and the scene goes on from there; either can stop at any time.
+  check in or decline, and the scene goes on from there; either can stop at any time. When the viewer rushes it or
+  tries something it never agreed to, it says no to that once and, if it still wants them, what would work instead:
+  no marking them down, no ending the evening over it (the first test, 2026-11-19, closed the scene over one grab).
+- `STEP_IN_ALWAYS_YOU`: "you" in the narration for the whole scene, never "he", "she" or their name (the first test
+  drifted to "he" halfway). `STEP_IN_TELLS`, under a sheet with tells: they're moods that slip out now and then, never
+  the same one two replies running (Saga's nervous "rates everything out of ten" came in every reply).
 - `SCENE_DRIVE_RULE`: it drives, at most one question, never "what would you like to do?".
 - `STEP_IN_NEVER_WRITE`: story mode's rule, and for an adult scene the part that matters most: never the viewer's
   body, how anything feels to them, what they want, or that they agree.
@@ -3549,7 +3554,7 @@ its rating paragraph and in what it says about the character, not in its craft.
 | What the character says (`checkReply`) | 1. `checkAdultText` on the whole reply, Step in's own net (what's said out loud included), and the crisis list | Drawn once more with a note of what to avoid (in words, never the draft) |
 | | 2. The viewer's hard nos (`hardNoHit`) and intensity (`overIntensity`), and a public place's cap | The same |
 | | 3. The narrator's guard on the prose outside the quotes (`guardStory(paragraph, "adult")`: nothing young, no family word, no age under 18) and its age rule inside them. Any hit refuses the reply; nothing is quietly cut | The same |
-| | 4. It never writes the viewer (`speaksForThePerson`); a sentence that feels or thinks for them, or uses a worn phrase, is cut, and a reply that loses a third that way isn't used | The same |
+| | 4. It never writes the viewer (`speaksForThePerson`), and its narration hasn't slipped into telling them as "he" or "she" (`tellsThemInThirdPerson`: no "you" outside the quotes, the character's own pronouns and the other set both there), where the checks that read "you" can't see it; a sentence that feels or thinks for them, or uses a worn phrase, is cut, and a reply that loses a third that way isn't used | The same |
 | | Then the repeat check (`repeatsEarlier`) | Drawn once more; a safe repeat is kept over the stand-in |
 
 **Step in's own net** (`lib/adult/step-in-lines.ts` `stepInNever`). `checkAdultText` was written for two characters the

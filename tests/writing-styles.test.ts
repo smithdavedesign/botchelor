@@ -116,6 +116,12 @@ describe("the checks a beat answers to", () => {
     expect(narrationGuard("He grinned like a kid.", "adult")).toBe("young");
     // Times and counts are no age, and the show's prose may talk about family.
     expect(narrationGuard("They'd been talking for about ten minutes.", "pg")).toBeNull();
+    // A score is no age either (a Step in reply was refused for "out of ten", 2026-11-19); an age still is.
+    for (const score of ["She gave the sunset a seven out of ten.", '"Seven out of 10," she said.', "On a scale of 1 to 10, it was a nine.", "Out of ten, she said, the view got an eight."]) {
+      expect(narrationGuard(score, "adult"), score).toBeNull();
+    }
+    expect(narrationGuard("A girl of fifteen walked past.", "adult")).toBe("age");
+    expect(narrationGuard("She was barely ten out there.", "adult")).toBe("age");
     expect(narrationGuard("She thought of her brother's terrible jokes.", "pg")).toBeNull();
   });
 

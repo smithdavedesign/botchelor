@@ -33,7 +33,7 @@ import { repeatsEarlier } from "../companion-prompt";
 import { countReferral, CRISIS_RESOURCES, crisisIntent, type CrisisResources, type CrisisSurface } from "../crisis";
 import type { Db } from "../db";
 import type { Model, ModelOptions, Usage } from "../model";
-import { guardStory, hasWornPhrase, narrationGuard, parseStoryReply, speaksForThePerson, thinksForThePerson } from "../narration";
+import { guardStory, hasWornPhrase, narrationGuard, parseStoryReply, speaksForThePerson, tellsThemInThirdPerson, thinksForThePerson } from "../narration";
 import { getPersona, personaIssue, type ScenePersona } from "../persona";
 import { portraitPathSql } from "../portrait-sql";
 import { CHARACTER_REJECTION_MESSAGES, checkAdultText, type SafetyResult } from "../safety";
@@ -55,7 +55,7 @@ import { getAdultSettings } from "./settings";
 import { stageShown } from "./stage-floor";
 import { STAGES } from "./stages";
 import { STEP_IN_NEVER_SAID, stepInNever, stepInNeverIn, type StepInNever } from "./step-in-lines";
-import { STEP_IN_REPLY_TOKENS, STEP_IN_TURNS, stepInMessages, type StepInTurn } from "./step-in-prompt";
+import { openingHasSides, STEP_IN_REPLY_TOKENS, STEP_IN_TURNS, stepInMessages, type StepInTurn } from "./step-in-prompt";
 import { placeInSentence, STEP_IN_LINE_MAX, type StepInCharacter, type StepInMessageView, type StepInPlace, type StepInSceneRef, type StepInSceneView } from "./step-in-shared";
 import { logStep, STEP_IN_PARTNER } from "./steps";
 import { countUse, overCap, usageLeft } from "./usage";
@@ -110,7 +110,7 @@ export const stepInNotice = (name: string): string => `${first(name)} is an AI c
  */
 export const ASIDES: readonly string[] = [
   "The moment drifted, the way moments do. The evening was still there, unhurried, with plenty of it left.",
-  "Somewhere nearby a sound broke the thread of it, and the thought was gone. The night had other places to go.",
+  "Somewhere nearby a sound broke the thread of it, and the thought was gone. There were other places for this to go.",
   "A pause settled in, easy and unhurried. Whatever came next could begin somewhere new.",
 ];
 
@@ -346,12 +346,14 @@ export type ReplyVerdict = { ok: true; paragraphs: string[] } | { ok: false; why
  *  2. the viewer's hard nos and intensity, and a public place's cap (nothing past kissing there);
  *  3. the narrator's guard on the prose outside the quotes (nothing young, no family word, no age under 18), and its
  *     age rule on what's said inside them: any hit refuses the reply, nothing is quietly cut;
- *  4. it never writes the viewer: a line put in their mouth refuses it.
+ *  4. it never writes the viewer: a line put in their mouth refuses it, and so does narration that has slipped into
+ *     telling them as "he" or "she" (`pronouns`: the character's own, which is how the two are told apart), where the
+ *     checks that read "you" can't see it write them.
  * Then the craft: a sentence of narration that feels or thinks for the viewer, or uses a worn phrase, is cut; a reply
  * that loses more than a third that way isn't used. `why` is a word for the step log, `avoid` the next draft's note:
  * neither holds more of the reply than one word of our own lists.
  */
-export function checkReply(paragraphs: readonly string[], limits: PairLimits, o: { publicPlace: boolean }): ReplyVerdict {
+export function checkReply(paragraphs: readonly string[], limits: PairLimits, o: { publicPlace: boolean; pronouns?: string | null }): ReplyVerdict {
   if (!paragraphs.length) return { ok: false, why: "empty", avoid: "there was no story in it" };
   const whole = paragraphs.join("\n\n");
   const crossed = linesNote(whole);
@@ -364,6 +366,8 @@ export function checkReply(paragraphs: readonly string[], limits: PairLimits, o:
     return { ok: false, why: "guard", avoid: `its narration brought in someone young, a family word or an age under 18${w ? ` (the word "${w}")` : ""}` };
   }
   if (speaksForThePerson(whole)) return { ok: false, why: "speaks_for_them", avoid: "it wrote a line for the person you're with: never write what they say or do" };
+  const third = tellsThemInThirdPerson(whole, o.pronouns);
+  if (third) return { ok: false, why: "third_person", avoid: `its narration called the person you're with "${third}": in the narration they are always "you"` };
   const kept = paragraphs.map((p) => guardStory(p, "adult", (sentence) => hasWornPhrase(sentence) || thinksForThePerson(sentence)).text).filter(Boolean);
   const left = kept.join("\n\n");
   if (!kept.length || left.length < (whole.length * 2) / 3) return { ok: false, why: "cut", avoid: "too much of it said what the person you're with felt or thought" };
@@ -488,6 +492,8 @@ async function viewOf(db: Db, s: SceneRow): Promise<StepInSceneView> {
     persona: who.persona ? { name: who.persona.name } : null,
     persona_left_out: who.leftOut,
     limits: limitsOf(s),
+    // Their own opening line is the first thing said: the character's first reply answers it.
+    opening: s.opening && !openingHasSides(s.opening) ? s.opening : null,
     messages: shown.map((m) => ({ id: m.id, role: m.role, kind: messageKind(m), text: m.text, at: iso(m.created_at)! })),
     draws: draws.length > 1 ? { count: draws.length, showing: draws.indexOf(last!) + 1 } : null,
     paused: Boolean(s.paused_at),
@@ -712,7 +718,7 @@ async function draw(
       if (attempt === 0) return { ok: false, fail: fail(502, "model_down", `${first(ctx.character.name)} can't answer right now. Try again in a moment.`), flags: { ...flags, model_down: true } };
       break;
     }
-    const verdict = checkReply(parseStoryReply(raw), ctx.limits, { publicPlace: ctx.place.public });
+    const verdict = checkReply(parseStoryReply(raw), ctx.limits, { publicPlace: ctx.place.public, pronouns: ctx.character.pronouns });
     if (!verdict.ok) {
       reasons.push(verdict.why);
       avoid = verdict.avoid;
