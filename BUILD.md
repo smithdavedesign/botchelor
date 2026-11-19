@@ -80,8 +80,8 @@ npm run typecheck
 | `npm run screenshots:season` | Plays a sample season and regenerates most of `docs/screenshots/` |
 | `npm run check:launch` | Search, sharing, legal and Buy-button checks on a local production build ([LAUNCH-READY.md](LAUNCH-READY.md)) |
 
-**Gates.** Before a PR, run `npm run gate` locally (a few minutes): `tsc` plus the tests related to the files the
-branch changed, and the CSS checks when a .css file changed. **CI** (`.github/workflows/ci.yml`) then runs the
+**Gates.** Before a PR, run `npm run gate` locally (a few minutes): `tsc` plus the test files the branch changed and
+the tests that import a changed file directly, and the CSS checks when a .css file changed. **CI** (`.github/workflows/ci.yml`) then runs the
 typecheck and the full suite on every PR and every push to main, on GitHub's free runners (the repo is public), split
 over 4 parallel shards. Merge when every PR check is green. `npm run e2e:visual` is no longer a per-PR gate: run it
 (or `ONLY=<route>` for one page) when a change is mostly layout. Botchelor runs on DigitalOcean since 2026-10-30;
