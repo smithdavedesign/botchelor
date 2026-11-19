@@ -7,7 +7,7 @@ changes the public pages, `/llms.txt`, or the analytics setup.
 
 | Layer | What | Where |
 |---|---|---|
-| Crawling | `robots.txt` (welcomes named AI crawlers), `sitemap.xml` (public pages + every public aired episode and public character) | `app/robots.ts`, `app/sitemap.ts`, `lib/seo.ts` |
+| Crawling | `robots.txt` (welcomes named AI crawlers), `sitemap.xml` (public pages + every public aired episode, and every public character on this season's cast or in a public aired date) | `app/robots.ts`, `app/sitemap.ts`, `lib/seo.ts` |
 | One host | botchelor.com is canonical. Pages on `www` 308 there (as the old `botchelor.vercel.app` did until it was deleted on 2026-10-31); a visitor with an identity cookie is first carried over by a one-minute signed token, so anonymous players keep their characters. The handshake starts on botchelor.com, which binds the token to a nonce cookie in the receiving browser, so a token can't be handed to someone else to plant an identity on them. `/api` (the Stripe webhook, MCP) and files (the verification files) stay on both hosts | `middleware.ts`, `app/api/auth/carry` |
 | Indexing | `noindex` on personal pages (`/account`, `/admin`, character edit, leagues, `/gate`); watch rooms point their canonical at the episode page | page `metadata` |
 | Search and share tags | Every public page in the sitemap has its own title and description, a canonical URL, and Open Graph and Twitter (`summary_large_image`) tags with a 1200×630 card: `pageMetadata()` sets them all, since a page that sets `openGraph` replaces the root layout's whole, card included. The root layout sets no og:title, so a page without its own tags shares under its own title. `npm run check:launch` checks the rendered HTML (2026-11-01) | `lib/seo.ts`, `app/opengraph-image.tsx`, `scripts/check-launch.mjs` |
@@ -76,3 +76,13 @@ choice is stored in the `bz_consent` cookie for a year and can be changed on /pr
   monthly season as `partOfSeason`. No `VideoObject`: there is no video file to point at.
 - **The gate**: `/tools/*`, `/ship/*` and `/alternatives/*` open to a person without the 18+ cookie (GROWTH.md's
   decision 1, taken on David's word). Everything they link to still meets it.
+
+## 2026-11-19: a character is indexed once it has aired
+
+Before the catalog cast starts adding up to 90 characters a day, a character page is worth indexing only when it's
+public and on this season's cast or in a date that aired publicly (`lib/seo.ts` `indexableCharacterSql`). Until then
+its page is up, linked and followed, but says `noindex`, and it's out of the sitemap and IndexNow. A fresh profile is a
+name and a bio; thousands of them at once read as scaled content to Google, which judges a site's quality as a whole.
+IndexNow sends a character when one of its public dates airs (public characters only; it used to send every new
+character open to dates, private ones included). Watch Search Console's Pages report: "Crawled, currently not indexed"
+should stop growing with the cast.

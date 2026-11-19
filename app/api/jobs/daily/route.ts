@@ -29,7 +29,7 @@ import { pruneMcpCalls } from "@/lib/agent-analytics";
 import { markDay7Returns } from "@/lib/agent-funnel";
 import { dailyMatchmakerPicks } from "@/lib/house-matchmaker";
 import { houseTextsSweep, houseWordUpkeep } from "@/lib/house-texts";
-import { pruneKeptData } from "@/lib/retention";
+import { pruneHouseBotLogs, pruneKeptData } from "@/lib/retention";
 import { pruneExports } from "@/lib/media-tools/export";
 import { getModel } from "@/lib/model";
 import { relationshipMetrics } from "@/lib/relationship-metrics";
@@ -67,6 +67,7 @@ type PartResult = { body: Record<string, unknown>; counts: Record<string, unknow
 async function upkeep({ db, step }: Ctx): Promise<PartResult> {
   // The data plan's retention (lib/retention.ts), first, so a run that runs out of time later never skips it.
   await step("retention", () => pruneKeptData(db).catch(() => {}));
+  await step("house_bot_logs", () => pruneHouseBotLogs(db).catch(() => {}));
   // Exports past their day (lib/media-tools/export.ts): their files in the bucket, then their rows.
   await step("exports", () => pruneExports(db).catch(() => {}));
   // Self-performed dates an agent started and never finished (never visible; lib/own-date.ts).

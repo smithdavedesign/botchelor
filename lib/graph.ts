@@ -414,6 +414,23 @@ export function publicPairFacts(rows: readonly PublicDateRow[]): Map<string, Pai
   return facts;
 }
 
+/**
+ * The two numbers the home page puts beside its Constellation link, the same as constellation()'s stats.characters and
+ * stats.couples, counted in SQL (2026-11-19, scaling for the catalog cast): the home page used to build the whole sky
+ * for them, and past Next's 2 MB cache entry limit that build would run on every home page visit.
+ */
+export async function skyCounts(db: Db): Promise<{ characters: number; couples: number }> {
+  const { rows } = await db.query<{ characters: number; couples: number }>(
+    `select (select count(*)::int from characters c where c.owner_id is distinct from $1) as characters,
+            (select count(*)::int from relationships r
+               join characters ca on ca.id = r.character_a and ca.owner_id is distinct from $1
+               join characters cb on cb.id = r.character_b and cb.owner_id is distinct from $1
+              where r.public_dates > 0) as couples`,
+    [DELETED_OWNER],
+  );
+  return rows[0] ?? { characters: 0, couples: 0 };
+}
+
 /** The whole public constellation in one read (the page caches it: lib/graph-cache.ts). */
 export async function constellation(db: Db, now = new Date()): Promise<GraphData> {
   await healRelationships(db);

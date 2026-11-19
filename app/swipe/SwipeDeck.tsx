@@ -9,6 +9,7 @@ import type { Origin } from "@/lib/origin";
 import OriginBadge from "@/app/OriginBadge";
 import PushToggle from "@/app/notifications/PushToggle";
 import { kindLabel } from "@/lib/kinds";
+import { deckFilterQuery, NO_DECK_FILTERS, type DeckFilters } from "@/lib/deck-filters";
 
 /** A deck card with who made it (lib/origin.ts withOrigins). */
 export type DeckCard = BaseCard & { origin?: Origin };
@@ -22,6 +23,10 @@ type Props = {
   undoMinutes: number;
   /** The site's push key (lib/push.ts), for "Tell me when they text" on a match; null when push isn't set up. */
   pushKey?: string | null;
+  /** The deck's filters (lib/deck-filters.ts): the next cards are fetched with them, and an empty deck says so. */
+  filters?: DeckFilters;
+  /** The filters in words, for the empty deck ("made by people, anime"); "" with none. */
+  filtersSaid?: string;
 };
 
 /** How far a card has to be dragged to count as a swipe. */
@@ -44,7 +49,7 @@ const HUMAN = kindLabel({ kind: "human" });
  * What's seen is what the preference data records (lib/swipes.ts logShownCard): each card is reported once, when it
  * comes on top, with its place in what this person has seen this visit. The hand that was dealt is never logged.
  */
-export default function SwipeDeck({ character, initial, serveId, undoMinutes, pushKey = null }: Props) {
+export default function SwipeDeck({ character, initial, serveId, undoMinutes, pushKey = null, filters = NO_DECK_FILTERS, filtersSaid = "" }: Props) {
   const [cards, setCards] = useState(initial);
   const [dragX, setDragX] = useState(0);
   const [dragging, setDragging] = useState(false);
@@ -77,7 +82,7 @@ export default function SwipeDeck({ character, initial, serveId, undoMinutes, pu
     if (refilling.current) return;
     refilling.current = true;
     try {
-      const res = await fetch(`/api/swipes?character_id=${encodeURIComponent(character.id)}`, { headers: { accept: "application/json" } });
+      const res = await fetch(`/api/swipes?character_id=${encodeURIComponent(character.id)}${deckFilterQuery(filters)}`, { headers: { accept: "application/json" } });
       if (!res.ok) return;
       const data = (await res.json()) as { cards: DeckCard[] };
       if (!data.cards.length) setExhausted(true);
@@ -285,10 +290,18 @@ export default function SwipeDeck({ character, initial, serveId, undoMinutes, pu
               💌
             </p>
             <p>
-              <strong>That&apos;s everyone for now.</strong>
+              <strong>{filtersSaid ? "Nobody else here fits these filters." : "That's everyone for now."}</strong>
             </p>
             <p className="muted small">
-              New characters join the deck every day. <Link href={`/matches?character=${encodeURIComponent(character.id)}`}>See {first}&apos;s matches</Link>.
+              {filtersSaid ? (
+                <>
+                  Showing only {filtersSaid}. <Link href={`/swipe?character=${encodeURIComponent(character.id)}`}>Clear the filters</Link>.
+                </>
+              ) : (
+                <>
+                  New characters join the deck every day. <Link href={`/matches?character=${encodeURIComponent(character.id)}`}>See {first}&apos;s matches</Link>.
+                </>
+              )}
             </p>
           </div>
         )}

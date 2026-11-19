@@ -17,6 +17,9 @@ import { withOrigins } from "@/lib/origin";
 import { twinsLast, twinsOfCharacter } from "@/lib/twins";
 import SwipeDeck from "./SwipeDeck";
 import DemoDeck from "./DemoDeck";
+import DeckFilterForm from "./DeckFilterForm";
+import { deckFilterQuery, deckFiltersFromSearch, deckFiltersSaid, hasDeckFilters } from "@/lib/deck-filters";
+import { tagById } from "@/lib/tags";
 import { pushKeys } from "@/lib/push";
 import Avatar from "@/app/Avatar";
 
@@ -28,7 +31,7 @@ export const metadata: Metadata = {
   robots: { index: false, follow: true },
 };
 
-type Props = { searchParams: Promise<{ character?: string }> };
+type Props = { searchParams: Promise<{ character?: string; made_by?: string; style?: string; kind?: string; type?: string }> };
 
 /**
  * The swipe deck (lib/swipes.ts, docs/swipes.md): you swipe for one of your characters; a match opens its chat, and
@@ -47,7 +50,10 @@ async function withTwins<T extends { id: string }>(db: Awaited<ReturnType<typeof
 }
 
 export default async function SwipePage({ searchParams }: Props) {
-  const { character } = await searchParams;
+  const sp = await searchParams;
+  const { character } = sp;
+  // The deck's filters (lib/deck-filters.ts): ?made_by=&style=&kind=&type=, from DeckFilterForm.
+  const filters = deckFiltersFromSearch(sp);
   const db = await getDb();
   const store = await cookies();
   const viewerId = userIdFromCookieStore(store);
@@ -85,7 +91,8 @@ export default async function SwipePage({ searchParams }: Props) {
   // The address first; then the one they're working with (the header's face), taken or not, so the deck never swaps
   // characters behind the header's back; with neither, the newest that can swipe.
   const me = pickCharacter(mine, character, rememberedCharacter(store), mine.find((c) => !taken.has(c.id)))!;
-  const deck = await deckFor(db, viewerId, me.id);
+  const deck = await deckFor(db, viewerId, me.id, undefined, { filters });
+  const filtersSaid = hasDeckFilters(filters) ? deckFiltersSaid(filters, (t) => tagById(t)?.label) : "";
   // Dealing isn't seeing: the deck reports each card as it comes on top, under this visit's id (lib/swipes.ts logShownCard).
   const serveId = crypto.randomUUID();
   const first = shortName(me.name);
@@ -106,9 +113,12 @@ export default async function SwipePage({ searchParams }: Props) {
             <span className="swipe-topbar-name">{first}</span>
           </span>
         )}
-        <Link href={matchesHref} className="swipe-topbar-btn" aria-label={texts ? `Matches, ${texts} unread texts` : "Matches"}>
-          💬{texts > 0 && <span className="nav-count">{texts > 99 ? "99+" : texts}</span>}
-        </Link>
+        <span className="swipe-topbar-end">
+          <DeckFilterForm characterId={me.id} filters={filters} variant="bar" />
+          <Link href={matchesHref} className="swipe-topbar-btn" aria-label={texts ? `Matches, ${texts} unread texts` : "Matches"}>
+            💬{texts > 0 && <span className="nav-count">{texts > 99 ? "99+" : texts}</span>}
+          </Link>
+        </span>
       </div>
       <div className="swipe-intro">
         <p className="kicker">Swipe</p>
@@ -122,11 +132,12 @@ export default async function SwipePage({ searchParams }: Props) {
           You swipe for {first}. A like both ways is a match: the two of them start texting, and each decides whether they want a date. If both
           do, you book it. This season&apos;s house characters are always in the deck. <Link href={matchesHref}>{first}&apos;s matches</Link>
         </p>
+        <DeckFilterForm characterId={me.id} filters={filters} variant="intro" />
       </div>
       {deck.ok ? (
-        // Keyed by the character: a pick in the header reads the page again, and a deck kept from before would deal the
-        // last one's cards to the new one.
-        <SwipeDeck key={me.id} character={{ id: me.id, name: me.name, hue: me.hue, portrait: me.portrait }} initial={await withTwins(db, me.id, await withOrigins(db, deck.cards))} serveId={serveId} undoMinutes={UNDO_MINUTES} pushKey={pushKeys()?.publicKey ?? null} />
+        // Keyed by the character and the filters: a pick in the header (or a filter) reads the page again, and a deck kept
+        // from before would deal the last one's cards.
+        <SwipeDeck key={`${me.id}${deckFilterQuery(filters)}`} character={{ id: me.id, name: me.name, hue: me.hue, portrait: me.portrait }} initial={await withTwins(db, me.id, await withOrigins(db, deck.cards))} serveId={serveId} undoMinutes={UNDO_MINUTES} pushKey={pushKeys()?.publicKey ?? null} filters={filters} filtersSaid={filtersSaid} />
       ) : (
         <section className="card">
           <h2>{deck.error === "profile_incomplete" ? `Finish ${first}'s dating profile` : `${first} can't swipe right now`}</h2>

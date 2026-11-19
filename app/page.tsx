@@ -19,7 +19,7 @@ import { characterPhone } from "@/lib/character-phone";
 import { showIdeasOn } from "@/lib/show-ideas-switch";
 import CharacterPhone from "./CharacterPhone";
 import When from "@/app/When";
-import { cachedConstellation } from "@/lib/graph-cache";
+import { skyCounts } from "@/lib/graph";
 import { PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
 import { seasonCastCards } from "@/lib/season-cast";
 import { seasonFormatNow } from "@/lib/season-format-store";
@@ -158,7 +158,8 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
       forViewer(viewerId, "home:feed", () => listAiredFeed(conn, viewerId, 1, 6)).catch(() => null),
       // The hero's sample date: the week's best-rated dates (lib/game.ts listStandoutDates), shared with the 18+ gate.
       forViewer(viewerId, "home:standout", () => listStandoutDates(conn, viewerId)).catch(() => []),
-      cachedConstellation(conn).catch(() => null), // the minute-old sky is plenty (2026-11-01 audit, R9)
+      // Two counts for the Constellation link, not the whole sky (2026-11-19): a few seconds' shared copy.
+      shared("home:sky-counts", () => skyCounts(conn)).catch(() => null),
       // Tonight's situation is everyone's, as on /watch: the design system's visitor home asks a first visit to pick it
       // too (all-screens board, 2026-11-11). The other audience boards stay a creator's, so a first visit doesn't pay for them.
       forViewer(viewerId, "home:situation", () => situationBoard(conn, viewerId)).catch(() => null),
@@ -468,7 +469,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
         {/* The Constellation's own card is gone (A2): its numbers ride on the link. */}
         <p className="muted small home-sky-line">
           <Link href="/graph">✨ The Constellation: a map of who&apos;s dated whom</Link>
-          {sky && sky.stats.couples > 0 && ` · ${sky.stats.characters} characters, ${sky.stats.couples} couples`}
+          {sky && sky.couples > 0 && ` · ${sky.characters} characters, ${sky.couples} couples`}
         </p>
         <p className="muted small home-sky-line">
           Free tools: <Link href="/tools/oc-chemistry-test">the OC chemistry test</Link> ·{" "}

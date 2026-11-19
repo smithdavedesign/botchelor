@@ -83,7 +83,8 @@ describe("the swipe page: whose deck, as faces", () => {
   it("follows the header: the bar carries the same picker, a taken one dimmed and tagged, and with nobody remembered it opens on one that can swipe", async () => {
     const { wren, lexi } = await ownerWithATakenOne();
     const html = await swipePage();
-    expect(html).not.toContain("<select");
+    // No character menu: the only menus are the deck's filters (app/swipe/DeckFilterForm.tsx).
+    expect(html.replace(/<details class="deck-filters[\s\S]*?<\/details>/g, "")).not.toContain("<select");
     expect(html).not.toContain("character-tabs");
     // One picker, in the phone's slim bar (the header's own is the layout's); it names whose deck it is.
     expect(html.match(/class="char-picker char-picker--bar"/g)).toHaveLength(1);
