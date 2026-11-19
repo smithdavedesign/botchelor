@@ -54,6 +54,7 @@ import { getProfileName } from "@/lib/people";
 import { forViewer, shared } from "@/lib/shared-cache";
 import { clipCaption, homeExpressBoxOn, homeHeroClipOn, latestHomeClip } from "@/lib/home-clip";
 import HomeClip from "./HomeClip";
+import { PROMO } from "@/lib/promo-videos";
 import HomeExpressBox from "./HomeExpressBox";
 import HomeOpen from "./HomeOpen";
 import { homeOpenOn, nextSeasonLine, openKicker, openLine, openTonight, openWatch, type OpenTonight } from "@/lib/home-open";
@@ -199,7 +200,6 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
       premium: true,
     })),
   ];
-  const [heroA, heroB] = onSeason;
   const airedEpisodes = feedEpisodes(aired?.items ?? []);
   // The hero's real date (lib/featured-date.ts): the best moment of one of the week's best-rated dates (2026-11-11
   // bounce review: the newest one was often hard to follow cold), else the newest date's opening.
@@ -341,17 +341,20 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
             <DateExcerpt date={featured} call={!creator} />
           </div>
         ) : (
-          heroA &&
-          heroB && (
-            <div className="hero-art">
-              <div className="matchup">
-                <Avatar seed={heroA.id} name={heroA.name} house size={64} />
-                <span className="vs">×</span>
-                <Avatar seed={heroB.id} name={heroB.name} house size={64} />
-              </div>
-              <p className="muted mini-cap">An engine decides how every date ends; friends guess it first.</p>
-            </div>
-          )
+          // Nothing aired to show yet (a new database, a quiet fortnight): the show's own ad (lib/promo-videos.ts),
+          // where the matchup of two house faces used to stand.
+          <div className="hero-art has-clip">
+            <HomeClip
+              loopSrc={PROMO.homeLoop.src}
+              posterSrc={PROMO.homeLoop.poster}
+              width={PROMO.homeLoop.width}
+              height={PROMO.homeLoop.height}
+              watchHref="/watch"
+              caption="Juniper Vale × Nell Abiodun · How does it end?"
+              kicker="Tonight on the show"
+              watchLabel="Watch episodes"
+            />
+          </div>
         )}
       </section>
       {/* With the clip in the hero, the real date a first visit calls the ending of (app/FirstRunCall.tsx) follows it. */}

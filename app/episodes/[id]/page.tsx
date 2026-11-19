@@ -24,6 +24,7 @@ import ShareRecord from "@/app/ShareRecord";
 import { shareOf } from "@/app/YourCalls";
 import { sharerOf } from "@/lib/share-record-name";
 import { getEpisodeView, getPoints } from "@/lib/game";
+import { episodeClip } from "@/lib/home-clip";
 import { partyIdForEpisode } from "@/lib/watch";
 import { PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
 import { authFromCookieStore, userIdFromCookieStore } from "@/lib/http";
@@ -85,7 +86,8 @@ const PREMIUM_IDS = new Set(PREMIUM_HOUSE_CHARACTERS.map((c) => c.id));
  */
 export async function generateMetadata({ params, searchParams }: { params: Promise<{ id: string }>; searchParams?: Promise<Record<string, string | string[] | undefined>> }): Promise<Metadata> {
   const { id } = await params;
-  const episode = await getEpisodeView(await getDb(), id, null);
+  const db = await getDb();
+  const [episode, clip] = await Promise.all([getEpisodeView(db, id, null), episodeClip(db, id).catch(() => null)]);
   if (!episode || episode.hidden) return { title: "Episode · Botchelor", robots: { index: false, follow: false } };
   const [a, b] = episode.characters;
   const names: [string, string] = [a.name, b.name];
@@ -109,7 +111,18 @@ export async function generateMetadata({ params, searchParams }: { params: Promi
     alternates: { canonical: `/episodes/${id}` },
     robots: indexable ? { index: true, follow: true } : { index: false, follow: false },
     // The root layout's openGraph and twitter are replaced, not merged, so the site's own fields are repeated here.
-    openGraph: { type: "website", siteName: "Botchelor", locale: "en_US", url: `/episodes/${id}`, title: headline, description, images: [card] },
+    // A date with a clip of its own (lib/home-clip.ts episodeClip) unfurls as a playable video where the app plays
+    // og:video (Discord, Facebook); the card picture stays for everything else, X included.
+    openGraph: {
+      type: "website",
+      siteName: "Botchelor",
+      locale: "en_US",
+      url: `/episodes/${id}`,
+      title: headline,
+      description,
+      images: [card],
+      ...(clip ? { videos: [{ url: clip.loop_src, type: "video/mp4", width: clip.width, height: clip.height }] } : {}),
+    },
     twitter: { card: "summary_large_image", title: headline, description, images: [{ url: card.url, alt: card.alt }] },
   };
 }

@@ -2,13 +2,15 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { BASED_IN, BOILERPLATE, FOUNDER, launchedOn, mailto, roleEmail, socialLinks } from "@/lib/company";
 import { contactEmail } from "@/lib/legal-entity";
+import { PRESS_VIDEOS, PROMO } from "@/lib/promo-videos";
 import { pageMetadata } from "@/lib/seo";
+import PromoVideo from "../PromoVideo";
 import SocialLinks from "../SocialLinks";
 
 export const metadata: Metadata = pageMetadata({
   title: "Press kit · Botchelor",
   description:
-    "Botchelor's press kit: the show in one line, a paragraph and a page, the key facts, the logo and screenshots to download, the brand colours, and who to contact for interviews or questions.",
+    "Botchelor's press kit: the show in one line, a paragraph and a page, the key facts, the logo, screenshots and video to download, the brand colours, and who to contact for interviews or questions.",
   path: "/press",
 });
 // Per request, so a CONTACT_EMAIL or DISCORD_INVITE_URL set after the build shows.
@@ -131,6 +133,27 @@ export default function PressPage() {
           The wordmark and headings are set in Fraunces; everything else in Inter. The brand gradient runs from pink to
           purple.
         </p>
+      </section>
+
+      <section aria-labelledby="press-video">
+        <h2 id="press-video">Video</h2>
+        <p>
+          Twenty seconds of the show: two of the house cast, three lines from their real date, and the question every date
+          asks. Embed it, cut it, or use a still.
+        </p>
+        <PromoVideo video={PROMO.adWide} className="press-player" />
+        <ul className="press-assets press-videos">
+          {PRESS_VIDEOS.map((v) => (
+            <li key={v.video.src}>
+              <a href={v.video.src} download data-track="press-video">
+                {/* eslint-disable-next-line @next/next/no-img-element -- the video's own poster frame */}
+                <img src={v.video.poster} alt={v.video.label} width={v.video.width} height={v.video.height} loading="lazy" />
+              </a>
+              <strong>{v.title}</strong>
+              <span className="muted small">{v.note}</span>
+            </li>
+          ))}
+        </ul>
       </section>
 
       <section aria-labelledby="press-contact">

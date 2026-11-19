@@ -440,3 +440,20 @@ a.about-chip:focus-visible {
   max-width: 44rem;
   margin-top: var(--space-6);
 }
+
+/* The press kit's video (lib/promo-videos.ts): the ad as a player, then each cut to download, poster-first. */
+.promo-video {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: var(--radius-md);
+  background: var(--media-bg);
+}
+.press-player {
+  margin: var(--space-3) 0;
+}
+.press-videos img {
+  aspect-ratio: 16 / 9;
+  object-position: center;
+  background: var(--media-bg);
+}
