@@ -1,3 +1,4 @@
+import { ART_STYLES, artStyleOf } from "@/lib/art-style";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { POST as postLooksPortrait } from "@/app/api/characters/[id]/looks-portrait/route";
 import { GET as getTileRoute } from "@/app/api/looks/[id]/route";
@@ -117,6 +118,11 @@ describe("the catalog", () => {
     expect(normaliseLooks({ gender: "woman", facial_hair: "full_beard", hair_style: "buzz", eyes: "blue" })).toEqual({ gender: "woman", eyes: "blue" });
     expect(normaliseLooks({ gender: "man", after_dark: { butt: "large", outfit: "towel" } })).toEqual({ gender: "man", after_dark: { outfit: "towel" } });
     expect(LOOK_STEPS.find((s) => s.id === "butt")?.afterDark).toBe(true);
+  });
+
+  it("keeps every art style, not only the builder's three tiles (2026-11-19: oil, 3D, comic and ink drew as photographs)", () => {
+    for (const style of ART_STYLES) expect(normaliseLooks({ gender: "woman", style })).toEqual({ gender: "woman", style });
+    expect(artStyleOf({ extras: { looks: normaliseLooks({ gender: "man", style: "render_3d" }) } })).toBe("render_3d");
   });
 
   it("takes the finer details as fixed choices, drops the ones that don't fit, and keeps grooming with After Dark's picks", () => {
