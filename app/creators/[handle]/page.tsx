@@ -47,7 +47,7 @@ export default async function CreatorPage({ params, searchParams }: Props) {
   ).rows;
   const credits = made.length && characterCreditsOn() ? await characterCredits(db, made.map((m) => m.id)).catch(() => new Map()) : new Map();
   return (
-    <div className="showcase-page page-wide">
+    <div className="showcase-page page-full">
       <header className="creator-head">
         <h1>{c.display_name}</h1>
         <p className="muted">@{c.handle}</p>

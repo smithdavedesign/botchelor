@@ -3,17 +3,10 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { requestJson } from "@/app/request";
+import { postHref } from "@/lib/showcase-paths";
 
 type PostState = { id: string; status: string } | null;
 type Profile = { handle: string; display_name: string; bio: string | null };
-
-/**
- * Where a post of theirs is on the showcase (David, 2026-11-15: "the showcase page in after dark?"): its side (explicit
- * on After Dark's, else the safe side), their own posts, newest first, the showcase's own order. A relative link: on
- * After Dark's host it's sent on to the show's (lib/after-dark-host.ts afterDarkPageMove), query and all.
- */
-export const postHref = (rating: string | null | undefined, handle?: string | null): string =>
-  `/showcase?${new URLSearchParams({ side: rating === "nsfw" ? "after_dark" : "pg", ...(handle ? { creator: handle } : {}) })}`;
 
 /**
  * 📣 Publish (lib/showcase.ts): one of their pictures or clips on the showcase under their creator handle, with a caption

@@ -6,6 +6,8 @@ import FilterForm from "./FilterForm";
 import ShowcaseGrid from "./ShowcaseGrid";
 import { shared } from "@/lib/shared-cache";
 import { characterCredits, characterCreditsOn, creditLine } from "@/lib/profile/credits";
+import { afterDarkHref } from "@/lib/after-dark-host";
+import { showcasePaths, type ShowcasePlace } from "@/lib/showcase-paths";
 
 type Key = keyof Omit<Filters, "page">;
 
@@ -19,8 +21,26 @@ const FROM_LABEL: Record<string, string> = { date: "From dates", studio: "From t
  * whoever may see it); one bar with how it's sorted and what type; one row of dropdowns for the rest (character, place,
  * pose, how it was made, shape), each with what it would find, shown only when there's a choice or one is picked; then
  * what's picked, each with its ×.
+ *
+ * `place` (lib/showcase-paths.ts, 2026-11-18): the show's, or After Dark's own showcase (app/after-dark/showcase), which
+ * has no side bar (its Gallery's tabs are the way between, and a "Safe for work" link would leave After Dark) and whose
+ * links stay on After Dark. On the show, After Dark's side is a link to After Dark's page.
  */
-export default async function ShowcaseBrowser({ db, viewer, base, filters: asked, fixed = {} }: { db: Db; viewer: ShowcaseViewer; base: string; filters: Filters; fixed?: Filters }) {
+export default async function ShowcaseBrowser({
+  db,
+  viewer,
+  base,
+  filters: asked,
+  fixed = {},
+  place = "show",
+}: {
+  db: Db;
+  viewer: ShowcaseViewer;
+  base: string;
+  filters: Filters;
+  fixed?: Filters;
+  place?: ShowcasePlace;
+}) {
   const filters = seenFilters(viewer, asked);
   const f = { ...filters, ...fixed };
   // Someone signed out sees what everyone with the same ratings does: from a few seconds' shared copy (lib/shared-cache.ts).
@@ -74,7 +94,14 @@ export default async function ShowcaseBrowser({ db, viewer, base, filters: asked
       </label>
     ) : null;
   const side = sideOf(f);
-  const explicit = viewer.ratings.includes("nsfw");
+  // The side bar, on the show only: After Dark's showcase is After Dark's whole page.
+  const explicit = viewer.ratings.includes("nsfw") && place === "show";
+  // After Dark's side, on its own page (through its sign-in hop when it's on a host of its own), the creator's own
+  // posts there when this is their page.
+  const afterDarkSide = () => {
+    const q = query({ side: undefined }, { ...sideKeep, creator: fixed.creator }, false);
+    return afterDarkHref(q ? `${showcasePaths("after_dark").base}?${q}` : showcasePaths("after_dark").base);
+  };
   const mediumCount = new Map(facets.medium);
   const mediums = MEDIUMS.filter((m) => mediumCount.has(m));
   const characterName = new Map(facets.character.map(([id, name]) => [id, name]));
@@ -109,7 +136,7 @@ export default async function ShowcaseBrowser({ db, viewer, base, filters: asked
         {explicit && (
           <div className="showcase-sides" role="group" aria-label="Which side">
             {seg("pg", side === "pg", href({ side: undefined }, sideKeep), "Safe for work", facets.sides.pg)}
-            {seg("ad", side === "after_dark", href({ side: "after_dark" }, sideKeep), "🌙 After Dark", facets.sides.after_dark)}
+            {seg("ad", side === "after_dark", afterDarkSide(), "🌙 After Dark", facets.sides.after_dark)}
           </div>
         )}
         <div className="showcase-bar">
@@ -149,7 +176,8 @@ export default async function ShowcaseBrowser({ db, viewer, base, filters: asked
         )}
       </nav>
       {posts.length ? (
-        <ShowcaseGrid posts={posts} admin={viewer.admin} reels={query({}, f, false)} credits={credits} />
+        // The reels' query: every filter, the page's own too; After Dark's reels are that side by their address.
+        <ShowcaseGrid posts={posts} admin={viewer.admin} reels={query({}, place === "after_dark" ? { ...f, side: undefined } : f, false)} credits={credits} place={place} />
       ) : (
         <p className="muted showcase-empty">Nothing here yet{Object.keys(filters).some((k) => k !== "page" && filters[k as Key] !== undefined) ? " with those filters" : ""}. Creators publish from their Studio: 📣 on any picture or clip.</p>
       )}

@@ -284,21 +284,27 @@ describe("the companions browser's pages (app/companion/CompanionBrowser.tsx)", 
 });
 
 // ---------------------------------------------------------------------------------------------------------------------
-// Items 5 and 6: two page widths; a short grid never ends on one lonely card.
+// Items 5 and 6: two page widths (a third since 2026-11-18, the Gallery pages'); a short grid never ends on one lonely card.
 
 describe("page widths (docs/brand.md, Layout)", () => {
-  it("are two: main's reading column, and the wide one the browsing pages opt into", () => {
+  it("are main's reading column, the wide one the browsing pages opt into, and the whole screen for the Gallery pages", () => {
     const globals = source("app/globals.css");
     expect(globals).toMatch(/--page-read: 46rem;/);
     expect(globals).toMatch(/--page-wide: 72rem;/);
     expect(globals).toMatch(/\nmain \{[^}]*max-width: var\(--page-read\);/);
     expect(source("app/ux/catalog.css")).toMatch(/main:has\(> \.page-wide\) \{\s*max-width: var\(--page-wide\);/);
+    // David, 2026-11-18: "the page should be full width for an immersive experience". After Dark's page roots sit in
+    // the blur's wrapper (app/after-dark/Frame.tsx), one level down.
+    expect(source("app/ux/catalog.css")).toMatch(/main:has\(> \.page-full\),\s*main:has\(> \.ad-discreet > \.page-full\) \{\s*max-width: none;/);
     for (const [page, root] of [
       ["app/page.tsx", '<div className="home page-wide">'],
       ["app/watch/page.tsx", 'className="watch-page page-wide"'],
       ["app/characters/page.tsx", 'className="characters-hub page-wide"'],
       ["app/companion/page.tsx", 'className="companion-page page-wide"'],
-      ["app/showcase/page.tsx", "showcase-page page-wide"],
+      ["app/showcase/page.tsx", "showcase-page page-full"],
+      ["app/creators/[handle]/page.tsx", "showcase-page page-full"],
+      ["app/after-dark/gallery/page.tsx", '<div className="after-dark-mode page-full">'],
+      ["app/after-dark/showcase/page.tsx", '<div className="after-dark-mode page-full">'],
       ["app/reunion/page.tsx", "page-wide"],
       ["app/reviews/page.tsx", "page-wide"],
       ["app/graph/page.tsx", "page-wide"],

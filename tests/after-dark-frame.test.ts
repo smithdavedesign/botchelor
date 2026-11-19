@@ -2,7 +2,8 @@ import { randomUUID } from "node:crypto";
 import { createElement } from "react";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 // After Dark's frame (the design kit's After Dark header, 2026-11-12; its doors 2026-11-15, lib/adult/doors.ts): on its
-// own host the header is Scenes · Studio · Gallery · Showcase · Episodes, and the account as an icon after them. Who's in
+// own host the header is Scenes · Studio · Gallery · Episodes, and the account as an icon after them (the Showcase door
+// became a room of the Gallery on 2026-11-18: it took them out of After Dark, app/after-dark/GalleryTabs.tsx). Who's in
 // and the Studio are on the Studio door's page (/after-dark/characters sends there); the writer and privacy on Account.
 // Nothing dropped: each is one tap from the header, and the hub's row carries them where the header is the show's.
 const jar = vi.hoisted(() => ({ cookies: new Map<string, string>(), path: "/after-dark", adOnly: false }));
@@ -76,14 +77,16 @@ describe("the header on After Dark's host", () => {
   const nav = (doors: { studio: boolean; showcase: boolean }) =>
     renderToStaticMarkup(createElement(Nav, { tokens: 0, meter: "none", adHost: true, afterDark: true, hasCharacter: true, adDoors: doors, showHref: "https://show.example" }));
 
-  it("is Scenes, Studio, Gallery, Showcase and Episodes, then the account, with the page you're on marked", () => {
+  it("is Scenes, Studio, Gallery and Episodes, then the account, with the page you're on marked", () => {
     jar.path = "/after-dark/studio";
     const html = nav({ studio: true, showcase: true });
-    expect(navLinks(html).map(([, label]) => label)).toEqual(expect.arrayContaining(["Scenes", "Studio", "Gallery", "Showcase", "Episodes", "Account"]));
+    expect(navLinks(html).map(([, label]) => label)).toEqual(expect.arrayContaining(["Scenes", "Studio", "Gallery", "Episodes", "Account"]));
     expect(current(html, "/after-dark/studio")).toBe(true);
     expect(current(html, "/after-dark")).toBe(false);
-    // The showcase's After Dark side, on the show's host.
-    expect(html).toContain('href="https://show.example/showcase?side=after_dark"');
+    // David, 2026-11-18: no door out to the show's showcase ("it takes you out of after dark"); it's the Gallery's room.
+    expect(navLinks(html).map(([, label]) => label)).not.toContain("Showcase");
+    expect(html).not.toContain("side=after_dark");
+    expect(html).not.toContain('href="https://show.example/showcase');
     // Shorts and Characters are Episodes and Studio now, at the same addresses (Characters sends to Studio).
     expect(navLinks(html).map(([, label]) => label)).not.toContain("Shorts");
     expect(html).toContain('href="/after-dark/shorts"');
@@ -99,6 +102,15 @@ describe("the header on After Dark's host", () => {
     expect(labels).not.toContain("Studio");
     expect(labels).not.toContain("Showcase");
     expect(current(html, "/after-dark/studio")).toBe(true);
+  });
+
+  it("marks Gallery on its Showcase room and that room's reels, not Scenes", () => {
+    for (const path of ["/after-dark/showcase", "/after-dark/showcase/reels"]) {
+      jar.path = path;
+      const html = nav({ studio: true, showcase: true });
+      expect(current(html, "/after-dark/gallery"), path).toBe(true);
+      expect(current(html, "/after-dark"), path).toBe(false);
+    }
   });
 
   it("marks Scenes on a pair's night, the Studio door on a Studio, and Account on the tokens page", () => {
@@ -178,8 +190,9 @@ describe("the hub", () => {
     expect(html).toContain("<h2>Scenes</h2>");
     for (const href of ["/after-dark/studio", "/after-dark/gallery", "/after-dark/shorts", "/after-dark/account", "#shared", "/"])
       expect(html).toContain(`href="${href}"`);
-    // An admin may see the showcase's After Dark side.
-    expect(html).toContain("showcase?side=after_dark");
+    // The showcase's After Dark side is a room of the Gallery now, not a button here that left After Dark.
+    expect(html).not.toContain("side=after_dark");
+    expect(text(html)).not.toContain("🌟 Showcase");
     expect(text(html)).toContain("Episodes");
   });
 

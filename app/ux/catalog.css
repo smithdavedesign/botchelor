@@ -8,6 +8,18 @@
 main:has(> .page-wide) {
   max-width: var(--page-wide);
 }
+/* And the whole screen, for the Gallery pages (2026-11-18; David: "the page should be full width for an immersive
+   experience"): the show's (/showcase, a creator's page) and After Dark's (Yours and Showcase, whose root sits inside
+   the blur's wrapper, app/after-dark/Frame.tsx), with .page-full on their root. Their grids take every column the
+   screen has; main keeps its gutters, and the page's own paragraphs keep a reading measure. */
+main:has(> .page-full),
+main:has(> .ad-discreet > .page-full) {
+  max-width: none;
+}
+.page-full > p,
+.page-full > article > p {
+  max-width: 40rem;
+}
 
 /* ---------------- headings: one scale (item 7) ---------------- */
 /* Every section heading is the same size on every page; it used to be the browser's 24px here and 17–19px on Watch,

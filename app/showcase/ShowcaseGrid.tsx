@@ -10,6 +10,8 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Post } from "@/lib/showcase";
 import { actLabel, placeLabel, SHOW_HANDLE } from "@/lib/showcase-labels";
+import { showcasePaths, type ShowcasePlace } from "@/lib/showcase-paths";
+import { AUTOPLAY_ATTR, autoplaying, blurred, useInViewAutoplay } from "@/app/useInViewAutoplay";
 
 const route = (p: Post) => `/api/showcase/${p.id}/media`;
 /** Where its file is (Post.media: After Dark's host straight away when the file is there), else the show's route. */
@@ -27,15 +29,31 @@ const fallBack = (p: Post, tile: boolean) => (e: { currentTarget: HTMLImageEleme
 
 /**
  * The showcase's grid and its viewer (lib/showcase.ts): a masonry of pictures and clips in their own shapes (clips play
- * looping: on hover or focus, or on a touch screen while mostly in view; never while still blurred; muted until 🔇 on a
+ * looping by themselves while mostly on screen, on every screen (app/useInViewAutoplay.ts; David, 2026-11-18: "play on
+ * hover or automatically preferably"), and at once on hover or focus; never while still blurred; muted until 🔇 on a
  * tile or the viewer's own control turns sound on for every clip, ./sound.ts), and a tap
  * opens one large with who made it, who's in it, what it shows, how it was made (the model
  * and prompt, MadeWith), and the ones either side
- * (← → and Esc). An explicit one (admins only for now) stays blurred until it's tapped. A clip's tile shows the picture
- * it was filmed from, or its first frame, never an empty box. `reels`: the filters as a query, so "Watch full screen
- * from here" opens the reels at this post with the same filters.
+ * (← → and Esc). On the show an explicit one (admins only for now) stays blurred until it's tapped; on After Dark's own
+ * showcase (`place`, lib/showcase-paths.ts) After Dark's privacy blur does that, as on its every page, and the links
+ * stay there. A clip's tile shows the picture it was filmed from, or its first frame, never an empty box. `reels`: the
+ * filters as a query, so "Watch full screen from here" opens the reels at this post with the same filters.
  */
-export default function ShowcaseGrid({ posts, admin = false, reels = "", credits = {} }: { posts: Post[]; admin?: boolean; reels?: string; /** By character id: the most telling thing it has been in (lib/profile/credits.ts creditLine). */ credits?: Record<string, string> }) {
+export default function ShowcaseGrid({
+  posts,
+  admin = false,
+  reels = "",
+  credits = {},
+  place = "show",
+}: {
+  posts: Post[];
+  admin?: boolean;
+  reels?: string;
+  /** By character id: the most telling thing it has been in (lib/profile/credits.ts creditLine). */
+  credits?: Record<string, string>;
+  place?: ShowcasePlace;
+}) {
+  const paths = showcasePaths(place);
   const [open, setOpen] = useState<number | null>(null);
   const [shown, setShown] = useState<Set<string>>(new Set());
   const close = useCallback(() => setOpen(null), []);
@@ -43,7 +61,7 @@ export default function ShowcaseGrid({ posts, admin = false, reels = "", credits
   const clips = useRef(new Map<string, HTMLVideoElement>());
   const play = (id: string) => {
     const v = clips.current.get(id);
-    if (v) void playClip(v);
+    if (v && !blurred(v)) void playClip(v);
   };
   const [sound] = useSound();
   // 🔇 on a tile: the switch for every clip, heard (or not) at once on this one, which a tap may start with sound.
@@ -56,28 +74,16 @@ export default function ShowcaseGrid({ posts, admin = false, reels = "", credits
   useEffect(() => {
     if (open !== null && bigRef.current) void playClip(bigRef.current);
   }, [open]);
+  // A hover or focus ending stops its clip, but not one playing because it's on screen.
   const stop = (id: string) => {
     const v = clips.current.get(id);
-    if (!v) return;
+    if (!v || autoplaying(v)) return;
     v.pause();
     v.currentTime = 0;
   };
-  // A touch screen has no hover: there a clip plays while it's mostly in view (never with reduced motion, never blurred).
-  useEffect(() => {
-    if (typeof IntersectionObserver === "undefined" || window.matchMedia("(hover: hover)").matches || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const io = new IntersectionObserver(
-      (entries) => {
-        for (const e of entries) {
-          const v = e.target as HTMLVideoElement;
-          if (e.intersectionRatio >= 0.6 && v.dataset.veiled !== "1") void playClip(v);
-          else v.pause();
-        }
-      },
-      { threshold: [0, 0.6] },
-    );
-    for (const v of clips.current.values()) io.observe(v);
-    return () => io.disconnect();
-  }, [posts, shown]);
+  // Every clip on screen plays by itself (app/useInViewAutoplay.ts), but not behind the viewer.
+  const [grid, setGrid] = useState<HTMLUListElement | null>(null);
+  useInViewAutoplay(grid, open === null);
   useEffect(() => {
     if (open === null) return;
     const onKey = (e: KeyboardEvent) => {
@@ -93,6 +99,7 @@ export default function ShowcaseGrid({ posts, admin = false, reels = "", credits
       <video
         ref={big ? bigRef : (el) => void (el ? clips.current.set(p.id, el) : clips.current.delete(p.id))}
         data-veiled={veiled ? "1" : undefined}
+        {...(big ? {} : { [AUTOPLAY_ATTR]: "" })}
         data-sound
         // A tile with no still of its own shows its first frame (a media fragment: browsers draw that frame on load).
         src={big || p.poster ? src(p) : `${src(p)}#t=0.1`}
@@ -122,9 +129,10 @@ export default function ShowcaseGrid({ posts, admin = false, reels = "", credits
   const p = open === null ? null : posts[open];
   return (
     <>
-      <ul className="showcase-grid">
+      <ul className="showcase-grid" ref={setGrid}>
         {posts.map((x, i) => {
-          const veiled = x.rating === "nsfw" && !shown.has(x.id);
+          // After Dark's own blur covers its showcase (app/after-dark/discreet.css): no second veil there.
+          const veiled = place === "show" && x.rating === "nsfw" && !shown.has(x.id);
           return (
             <li key={x.id} className={`showcase-tile${veiled ? " veiled" : ""}`}>
               {/* Hover on the picture and its 🔇 together: reaching for 🔇 doesn't stop the clip. */}
@@ -165,7 +173,7 @@ export default function ShowcaseGrid({ posts, admin = false, reels = "", credits
                 {x.creator.handle !== SHOW_HANDLE && (
                   <>
                     {" · by "}
-                    <Link href={`/creators/${x.creator.handle}`}>@{x.creator.handle}</Link>
+                    <Link href={paths.creator(x.creator.handle)}>@{x.creator.handle}</Link>
                   </>
                 )}
               </p>
@@ -179,14 +187,14 @@ export default function ShowcaseGrid({ posts, admin = false, reels = "", credits
             <div className="showcase-viewer-media">{media(p, true)}</div>
             <div className="showcase-viewer-side">
               <p>
-                <Link href={`/creators/${p.creator.handle}`}><strong>{p.creator.display_name}</strong> @{p.creator.handle}</Link>
+                <Link href={paths.creator(p.creator.handle)}><strong>{p.creator.display_name}</strong> @{p.creator.handle}</Link>
               </p>
               <p className="small">
-                <Link href={`/characters/${p.character.id}`}>{p.character.name}</Link>
+                <Link href={paths.character(p.character.id)}>{p.character.name}</Link>
                 {p.partner && (
                   <>
                     {" & "}
-                    <Link href={`/characters/${p.partner.id}`}>{p.partner.name}</Link>
+                    <Link href={paths.character(p.partner.id)}>{p.partner.name}</Link>
                   </>
                 )}
               </p>
@@ -197,7 +205,7 @@ export default function ShowcaseGrid({ posts, admin = false, reels = "", credits
               <p className="muted small">{[p.act ? actLabel(p.act) : "", p.place ? placeLabel(p.place) : "", p.pov ? "First person" : "", p.from_date ? "From a date" : "From the Studio"].filter(Boolean).join(" · ")}</p>
               <MadeWith postId={p.id} />
               <p className="small">
-                <Link href={`/showcase/reels?start=${encodeURIComponent(p.id)}${reels ? `&${reels}` : p.rating === "nsfw" ? "&side=after_dark" : ""}`}>▶ Watch full screen from here</Link>
+                <Link href={`${paths.reels}?start=${encodeURIComponent(p.id)}${reels ? `&${reels}` : place === "show" && p.rating === "nsfw" ? "&side=after_dark" : ""}`}>▶ Watch full screen from here</Link>
               </p>
               {admin && <AdminSide key={`side-${p.id}`} post={p} />}
               <RemixButton key={`remix-${p.id}`} post={p} />

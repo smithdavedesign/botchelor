@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { latestMade } from "@/lib/adult/latest";
-import { postHref } from "@/app/showcase/PublishButton";
+import { postHref } from "@/lib/showcase-paths";
 
 // After Dark's home shows what they made last (2026-11-15), and a post says where it is on the showcase.
 describe("latestMade", () => {
@@ -37,9 +37,11 @@ describe("latestMade", () => {
 });
 
 describe("postHref", () => {
-  it("opens an explicit post on After Dark's side, else the safe side, on their own posts", () => {
-    expect(postHref("nsfw", "darood")).toBe("/showcase?side=after_dark&creator=darood");
-    expect(postHref("pg", "darood")).toBe("/showcase?side=pg&creator=darood");
-    expect(postHref("suggestive", null)).toBe("/showcase?side=pg");
+  it("opens an explicit post on After Dark's own showcase, else the show's Gallery, on their own posts", () => {
+    // 2026-11-18 (lib/showcase-paths.ts): After Dark's side is After Dark's page, so the After Dark Studio's link stays there.
+    expect(postHref("nsfw", "darood")).toBe("/after-dark/showcase?creator=darood");
+    expect(postHref("nsfw", null)).toBe("/after-dark/showcase");
+    expect(postHref("pg", "darood")).toBe("/showcase?creator=darood");
+    expect(postHref("suggestive", null)).toBe("/showcase");
   });
 });

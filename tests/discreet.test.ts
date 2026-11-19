@@ -559,6 +559,13 @@ describe("blur until tapped", () => {
     expect(BLURRED_MEDIA).toContain('image[href*="/after-dark/"]:not([data-ad-shown])');
   });
 
+  it("steps aside where a page keeps its own veil: the showcase's reels, blurred until one tap shows the feed", () => {
+    // David, 2026-11-18: "keep the reel page as is". On After Dark's host its reels sit in this wrapper; blurring each
+    // reel again would ask for a tap on every swipe. The CSS and the tap script both read it from BLURRED_MEDIA.
+    for (const selector of BLURRED_MEDIA_SELECTORS) expect(selector).toMatch(/:not\(\[data-ad-own-veil\] \*\)$/);
+    expect(readFileSync(join(ROOT, "app", "after-dark", "showcase", "reels", "page.tsx"), "utf8")).toContain("[OWN_VEIL_ATTR]");
+  });
+
   it("#1211: blurs After Dark's own look tiles (Restyle's bare torsos), never the show's PG ones", () => {
     // David, 2026-11-01: the explicit tiles blur with tap to show; the PG tiles stay sharp so Restyle's options read.
     expect(BLURRED_MEDIA).toContain('img[src*="/api/looks/nsfw-"]:not([data-ad-shown])');

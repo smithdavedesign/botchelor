@@ -9,12 +9,13 @@
 }
 
 /* Blurred until tapped: every picture and video (and SVG image), except the show's own PG portraits (.avatar) unless one
-   is After Dark's own file. The same selectors as BLURRED_MEDIA in lib/adult/discreet.ts (tests/discreet.test.ts).
-   A tap sets data-ad-shown (app/after-dark/DiscreetMedia.tsx); leaving the page or the tab takes it off again. */
-[data-ad-discreet="blur"] :is(img, video, image):not(.avatar):not([data-ad-shown]):not([src^="/api/looks/"]):not([src^="/cast/"]),
-[data-ad-discreet="blur"] :is(img, video)[src*="/after-dark/"]:not([data-ad-shown]),
-[data-ad-discreet="blur"] image[href*="/after-dark/"]:not([data-ad-shown]),
-[data-ad-discreet="blur"] img[src*="/api/looks/nsfw-"]:not([data-ad-shown]) {
+   is After Dark's own file, and what keeps a veil of its own (data-ad-own-veil: the showcase's reels). The same
+   selectors as BLURRED_MEDIA in lib/adult/discreet.ts (tests/discreet.test.ts). A tap sets data-ad-shown
+   (app/after-dark/DiscreetMedia.tsx); leaving the page or the tab takes it off again. */
+[data-ad-discreet="blur"] :is(img, video, image):not(.avatar):not([data-ad-shown]):not([src^="/api/looks/"]):not([src^="/cast/"]):not([data-ad-own-veil] *),
+[data-ad-discreet="blur"] :is(img, video)[src*="/after-dark/"]:not([data-ad-shown]):not([data-ad-own-veil] *),
+[data-ad-discreet="blur"] image[href*="/after-dark/"]:not([data-ad-shown]):not([data-ad-own-veil] *),
+[data-ad-discreet="blur"] img[src*="/api/looks/nsfw-"]:not([data-ad-shown]):not([data-ad-own-veil] *) {
   filter: blur(28px) saturate(0.5) brightness(0.8);
   /* Keeps the blur inside the picture's own box, with the gallery's corners (the reel's stage clips its own). */
   clip-path: inset(0 round 0.8rem);
@@ -23,11 +24,11 @@
 /* #1029 (the 2026-10-30 ad visitor: "the avatars next to their names are empty dark circles", the faces "blurred colored
    squares"): a portrait keeps its circle, and a small one a lighter blur, so it reads as a blurred face, not a hole.
    Still nothing to make out at 18 to 30px; a tap shows it as before. */
-[data-ad-discreet="blur"] img.avatar[src*="/after-dark/"]:not([data-ad-shown]) {
+[data-ad-discreet="blur"] img.avatar[src*="/after-dark/"]:not([data-ad-shown]):not([data-ad-own-veil] *) {
   filter: blur(10px) saturate(0.7) brightness(0.9);
   clip-path: circle(50%);
 }
-[data-ad-discreet="blur"] :is(.chat-row, .char-name) img.avatar[src*="/after-dark/"]:not([data-ad-shown]) {
+[data-ad-discreet="blur"] :is(.chat-row, .char-name) img.avatar[src*="/after-dark/"]:not([data-ad-shown]):not([data-ad-own-veil] *) {
   filter: blur(3px) saturate(0.7) brightness(0.9);
 }
 @media (prefers-reduced-motion: no-preference) {
@@ -88,7 +89,9 @@
 [data-ad-discreet="blur"] .after-dark-gallery li {
   position: relative;
 }
-[data-ad-discreet="blur"] .after-dark-gallery li:has(:is(img, video):not(.avatar):not([data-ad-shown]))::after {
+/* After Dark's showcase (app/after-dark/showcase, 2026-11-18) says it the same way: its tiles have no veil of their own there. */
+[data-ad-discreet="blur"] .after-dark-gallery li:has(:is(img, video):not(.avatar):not([data-ad-shown]))::after,
+[data-ad-discreet="blur"] .showcase-grid .showcase-media:has(:is(img, video):not([data-ad-shown]))::after {
   content: "🔒 Tap to show";
   position: absolute;
   top: 0.5rem;
@@ -100,4 +103,16 @@
   color: var(--night-ink);
   font-size: var(--text-2xs);
   pointer-events: none;
+}
+/* On a showcase tile it sits low in the middle, where the show's own veil said "tap to show", clear of the ▶ badge; and a
+   clip's 🔇 waits until it's shown, as it did under that veil. */
+[data-ad-discreet="blur"] .showcase-grid .showcase-media:has(:is(img, video):not([data-ad-shown]))::after {
+  top: auto;
+  bottom: var(--space-3);
+  left: 50%;
+  translate: -50% 0;
+  white-space: nowrap;
+}
+[data-ad-discreet="blur"] .showcase-grid .showcase-media:has(video:not([data-ad-shown])) .showcase-sound {
+  display: none;
 }

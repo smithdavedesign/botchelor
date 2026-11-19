@@ -1,9 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { afterDarkOnly, afterDarkOrigin, afterDarkPageMove } from "@/lib/after-dark-host";
+import { afterDarkElsewhere, afterDarkOnly, afterDarkOrigin, afterDarkPageMove } from "@/lib/after-dark-host";
 import { ADULT_COOKIE } from "@/lib/age";
 import { PLACE_COOKIE, PLACE_TRIED_COOKIE, placeCookieFresh } from "@/lib/jurisdiction";
 import { track } from "@/lib/analytics";
 import { detectBot } from "@/lib/bots";
+import { showcaseSideMove } from "@/lib/showcase-paths";
 import { OLD_HOSTS, siteUrl } from "@/lib/site";
 import { NOTRACK_COOKIE } from "@/lib/tracking";
 
@@ -60,6 +61,32 @@ function moveForAfterDark(req: NextRequest): NextResponse | null {
   // sees it (#1037 missed that), so it's told by the browser's own: a fetch is `sec-fetch-dest: empty`, a page load
   // `document`.
   return fetchAnswer(req) ?? NextResponse.redirect(move.redirect, 307);
+}
+
+/**
+ * The showcase's After Dark side lives on After Dark's own pages (lib/showcase-paths.ts; David, 2026-11-18: "consolidate
+ * the after dark showcase in ad.botchelor"). An address that asks for it the old way (/showcase, its reels or a creator's
+ * page with `?side=after_dark`: a shared reel, a bookmark, the reels' own side tabs and "See all") goes there, on either
+ * host: from the show by After Dark's own move (its sign-in hop when there's an identity to bring), else on this host,
+ * where Next follows a redirect within it in a link's fetch too. A 307 here rather than in the page: /showcase has a
+ * loading screen, and a redirect from a page that's already streaming can only happen in the browser.
+ */
+function moveShowcaseSide(req: NextRequest): NextResponse | null {
+  const to = showcaseSideMove(req.nextUrl.pathname, req.nextUrl.search);
+  if (!to) return null;
+  if (afterDarkElsewhere()) {
+    const move = afterDarkPageMove(to.pathname, to.search, {
+      identity: IDENTITY_COOKIES.some((c) => req.cookies.has(c)),
+      adult: req.cookies.get(ADULT_COOKIE)?.value === "1",
+      bot: detectBot(req.headers.get("user-agent"), req.headers.get("signature-agent")) !== null,
+      show: siteUrl(),
+    });
+    if (move && "redirect" in move) return fetchAnswer(req) ?? NextResponse.redirect(move.redirect, 307);
+  }
+  const url = req.nextUrl.clone();
+  url.pathname = to.pathname;
+  url.search = to.search;
+  return NextResponse.redirect(url, 307);
 }
 
 /**
@@ -195,7 +222,7 @@ function renewPlace(req: NextRequest): NextResponse | null {
 }
 
 export function middleware(req: NextRequest): NextResponse {
-  const moved = moveToCanonical(req) ?? moveForAfterDark(req) ?? renewPlace(req);
+  const moved = moveToCanonical(req) ?? moveShowcaseSide(req) ?? moveForAfterDark(req) ?? renewPlace(req);
   if (moved) return moved; // the query (?repohq-notrack=1 included) travels with it and is handled on arrival
   const res = route(req);
   // After Dark's own host stays out of search (lib/after-dark-host.ts); its robots.txt says so too.

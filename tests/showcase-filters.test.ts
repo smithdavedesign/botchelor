@@ -146,8 +146,9 @@ describe("the showcase's filters", () => {
     expect(html).toContain('aria-label="Which side"');
     expect(html).toMatch(/Safe for work <span class="showcase-count">1<\/span>/);
     expect(html).toMatch(/🌙 After Dark <span class="showcase-count">1<\/span>/);
-    // Turning to After Dark keeps the sort, never the place.
-    expect(html).toContain('href="/showcase?sort=trending&amp;side=after_dark"');
+    // Turning to After Dark keeps the sort, never the place: on After Dark's own showcase page now (2026-11-18,
+    // lib/showcase-paths.ts; through its sign-in hop when it's on a host of its own).
+    expect(html).toContain('href="/after-dark/showcase?sort=trending"');
     expect(html).toContain('aria-label="Remove: Bar"');
     expect(html).toContain('href="/showcase?sort=trending"');
     // David, 2026-11-01 ("too many buttons"): sort and type are one bar; character, place, pose, made and shape are

@@ -121,8 +121,10 @@ a.showcase-picked-chip {
 .showcase-more {
   text-align: center;
 }
+/* As many columns of big tiles as the screen holds (its pages are the whole screen's width, .page-full, 2026-11-18);
+   two on a phone (below). */
 .showcase-grid {
-  columns: 4 220px;
+  columns: auto 18rem;
   column-gap: var(--space-3);
   margin: 0;
   padding: 0;

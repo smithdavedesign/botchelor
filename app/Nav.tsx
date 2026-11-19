@@ -7,7 +7,8 @@ import { createPortal } from "react-dom";
 import CharacterPicker from "@/app/CharacterPicker";
 import Icon from "@/app/Icon";
 import { afterDarkHref } from "@/lib/after-dark-host";
-import { NO_AD_DOORS, showcaseHref, studioDoorLabel, type AdDoors } from "@/lib/adult/door-links";
+import { NO_AD_DOORS, studioDoorLabel, type AdDoors } from "@/lib/adult/door-links";
+import { AD_SHOWCASE } from "@/lib/showcase-paths";
 import type { PickerCharacter } from "@/lib/my-characters";
 import { openFeedback } from "@/lib/user-feedback-shared";
 
@@ -57,26 +58,27 @@ const NEWCOMER_LINKS: readonly NavLink[] = [
  *    open to them, since then the page only holds the switches; /after-dark/characters sends there.
  *  - Shorts → Episodes (the same page, /after-dark/shorts): "Shorts" read as the viewer's own videos, which live in the
  *    Gallery.
- *  - Showcase (new): the showcase's After Dark side on the show's host, only for whoever may see that side.
+ *  - Showcase → a room of the Gallery (2026-11-18, David: the door "takes you out of after dark"): the showcase's After
+ *    Dark side is After Dark's own page now (/after-dark/showcase, lib/showcase-paths.ts), Yours | Showcase under
+ *    Gallery (app/after-dark/GalleryTabs.tsx) for whoever may see that side. Scenes · Studio · Gallery · Episodes.
  *  - Account → the icon at the row's end (a labelled item in the phone menu); it still covers tokens and subscribing.
  */
-export function adLinks(doors: AdDoors = NO_AD_DOORS, showHref = "/"): NavLink[] {
+export function adLinks(doors: AdDoors = NO_AD_DOORS): NavLink[] {
   return [
     { href: "/after-dark", label: "Scenes" },
     { href: "/after-dark/studio", label: studioDoorLabel(doors), also: ["/after-dark/characters"] },
-    { href: "/after-dark/gallery", label: "Gallery" },
-    ...(doors.showcase ? [{ href: showcaseHref(showHref), label: "Showcase" }] : []),
+    { href: "/after-dark/gallery", label: "Gallery", also: [AD_SHOWCASE] },
     { href: "/after-dark/shorts", label: "Episodes" },
   ];
 }
 /** After Dark's account (privacy, the writer, the subscription and tokens): the icon after the doors. */
 export const AD_ACCOUNT: NavLink = { href: "/after-dark/account", label: "Account", also: ["/after-dark/tokens", "/after-dark/subscribe"] };
 /** After Dark's pages that aren't a night: every door's but Scenes', and the account's. */
-const AD_PAGES = ["/after-dark/studio", "/after-dark/characters", "/after-dark/gallery", "/after-dark/shorts", AD_ACCOUNT.href, ...(AD_ACCOUNT.also ?? [])];
+const AD_PAGES = ["/after-dark/studio", "/after-dark/characters", "/after-dark/gallery", AD_SHOWCASE, "/after-dark/shorts", AD_ACCOUNT.href, ...(AD_ACCOUNT.also ?? [])];
 
 /** The links for this viewer: After Dark's on its own host, else the show's (the same for everyone while `chat` is on). */
-function navLinks(hasCharacter: boolean, adHost = false, chat = true, doors: AdDoors = NO_AD_DOORS, showHref = "/"): readonly NavLink[] {
-  if (adHost) return adLinks(doors, showHref);
+function navLinks(hasCharacter: boolean, adHost = false, chat = true, doors: AdDoors = NO_AD_DOORS): readonly NavLink[] {
+  if (adHost) return adLinks(doors);
   // The Studio door opens on what's theirs: an owner's own Studio; for everyone else the Gallery, which is open to all
   // since 2026-11-16 (a visitor's door is never an empty room).
   if (chat) return hasCharacter ? LINKS : LINKS.map((l) => (l.href === "/studio" ? { ...l, href: "/showcase", also: ["/studio", "/reels"] } : l));
@@ -276,7 +278,7 @@ export default function Nav({
             Make your character
           </Link>
         )}
-        {navLinks(hasCharacter, adHost, chat, adDoors, showHref).map((l) => (
+        {navLinks(hasCharacter, adHost, chat, adDoors).map((l) => (
           <Fragment key={l.href}>
             {/* After Dark's own links are on its own host, so they prefetch; the show's there only hop back. */}
             <Link prefetch={adHost ? undefined : pf} href={l.href} aria-current={atLink(l, pathname) ? "page" : undefined}>

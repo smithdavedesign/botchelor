@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { AiTag } from "@/app/AiLabel";
+import { useInViewAutoplay } from "@/app/useInViewAutoplay";
 import { tileRatio } from "@/app/studio/FormatChips";
 import type { Media } from "@/lib/adult/media";
 import { SOURCE_LABEL, sourceOf, type MediaSource } from "@/lib/adult/gallery";
@@ -27,6 +28,8 @@ const homeOf = (m: Item): { href: string; label: string } | null => {
  * The Gallery's grid: the night's filters (lib/media-filter.ts: no 👎, 1–3★ or Archive by default), each tile with who's
  * in it, what it is, 👍/👎 (they steer the next pictures, lib/adult/steering.ts) and a link to where it was made. When
  * it holds both, a first row splits what came from their nights from what came from the Studio (lib/adult/gallery.ts).
+ * Its clips play by themselves while on screen, muted, once they're shown (app/useInViewAutoplay.ts; David,
+ * 2026-11-18: "videos should play on hover or automatically preferably").
  */
 export default function GalleryGrid({ items }: { items: Item[] }) {
   const [filter, setFilter] = useState<MediaFilter>(DEFAULT_FILTER);
@@ -37,6 +40,8 @@ export default function GalleryGrid({ items }: { items: Item[] }) {
   const both = bySource.night.length > 0 && bySource.studio.length > 0;
   const pool = both && source ? bySource[source] : items;
   const shown = filterMedia(pool, filter, ratingOf);
+  const [grid, setGrid] = useState<HTMLUListElement | null>(null);
+  useInViewAutoplay(grid);
   return (
     <>
       {both && (
@@ -51,7 +56,7 @@ export default function GalleryGrid({ items }: { items: Item[] }) {
       )}
       <MediaFilterBar items={pool} value={filter} onChange={setFilter} ratingOf={ratingOf} shown={shown.length} />
       {shown.length ? (
-        <ul className="after-dark-gallery" data-gallery>
+        <ul className="after-dark-gallery" data-gallery ref={setGrid}>
           {shown.map((m) => {
             const home = homeOf(m);
             const who = m.character_b ? `${first(m.a_name)} × ${first(m.b_name)}` : first(m.a_name);
@@ -59,7 +64,7 @@ export default function GalleryGrid({ items }: { items: Item[] }) {
               <li key={m.id} data-media={m.id}>
                 {m.kind === "video" ? (
                   m.status === "ready" ? (
-                    <TrimmableClip id={m.id} src={mediaUrl(m.id)} trim={m.trim ?? null} canTrim={false} label={`A clip of ${who}`} />
+                    <TrimmableClip id={m.id} src={mediaUrl(m.id)} trim={m.trim ?? null} canTrim={false} label={`A clip of ${who}`} autoplay />
                   ) : (
                     <p className="muted small">{m.status === "failed" ? "The clip failed." : "Clip on its way…"}</p>
                   )

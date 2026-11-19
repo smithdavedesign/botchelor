@@ -2076,6 +2076,11 @@ button.ad-studio-fold-head:active:not(:disabled) {
 .ad-gallery-tabs {
   margin-top: var(--space-3);
 }
+/* On the Gallery's own page, the whole screen wide (.page-full, 2026-11-18): bigger tiles, as many columns as fit. A
+   night's gallery keeps the reading column's smaller ones. */
+.ad-gallery-page .after-dark-gallery {
+  grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+}
 .ad-gallery-section > h2 {
   margin: var(--space-4) 0 var(--space-1);
 }

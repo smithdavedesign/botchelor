@@ -59,7 +59,7 @@ export default async function ShowcasePage({ searchParams }: Props) {
     lead && filters.character ? db.query<{ name: string }>(`select name from characters where id = $1 and visibility = 'public'`, [filters.character]).then((r) => r.rows[0]?.name ?? null, () => null) : Promise.resolve(null),
   ]);
   return (
-    <div className="showcase-page page-wide">
+    <div className="showcase-page page-full">
       {/* The Studio door's first room (app/studio/StudioTabs.tsx, 2026-11-16): what everyone made, beside where it's made. */}
       <StudioTabs current="gallery" />
       <div className="showcase-head">
