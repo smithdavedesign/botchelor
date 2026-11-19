@@ -79,7 +79,8 @@ describe("creator handles", () => {
 describe("publishing", () => {
   it("needs a handle, takes only their own items, and copies what it shows onto the post for the filters", async () => {
     const me = await person({ admin: true });
-    const pic = await adPicture(me.id, me.character);
+    // A picture of a night: the two of them (lib/made-in.ts: one of them alone is the Studio's).
+    const pic = await adPicture(me.id, ...pairKey(me.character, HOUSE_CHARACTERS[0].id));
     await t.db.query(`insert into adult_media_tags (media_id, owner_id, kind, value, source) values ($1, $2, 'act', 'kiss', 'choice'), ($1, $2, 'place', 'bar', 'derived'), ($1, $2, 'pov', 'yes', 'choice')`, [pic, me.id]);
     expect((await publish(me.cookie, { source: "after_dark", media_id: pic })).status).toBe(409);
     await profile(me.cookie, "mara");
@@ -144,7 +145,7 @@ describe("taking posts down and filtering", () => {
   it("unpublishes at once; a moderator's removal can't be undone; and the filters narrow by what it is and shows", async () => {
     const me = await person({ admin: true });
     await profile(me.cookie, "mara");
-    const kiss = await adPicture(me.id, me.character);
+    const kiss = await adPicture(me.id, ...pairKey(me.character, HOUSE_CHARACTERS[0].id));
     await t.db.query(`insert into adult_media_tags (media_id, owner_id, kind, value, source) values ($1, $2, 'act', 'kiss', 'choice')`, [kiss, me.id]);
     const clip = await adPicture(me.id, me.character, null, { kind: "video", mime: "video/mp4", shoot: "s1" });
     for (const m of [kiss, clip]) await publish(me.cookie, { source: "after_dark", media_id: m });
@@ -164,12 +165,12 @@ describe("taking posts down and filtering", () => {
     expect((await publish(me.cookie, { source: "after_dark", media_id: clip })).status).toBe(403);
   });
 
-  it("names a video by how it was made", () => {
-    expect(mediumOf({ kind: "scene", derived: null, reel_kind: null })).toBe("picture");
-    expect(mediumOf({ kind: "video", derived: "boomerang", reel_kind: "clip" })).toBe("boomerang");
-    expect(mediumOf({ kind: "video", derived: null, reel_kind: "night" })).toBe("reel");
-    expect(mediumOf({ kind: "video", derived: null, reel_kind: "clip" })).toBe("clip");
-    expect(mediumOf({ kind: "video", derived: null, reel_kind: null })).toBe("clip");
+  it("names a video by how it was made: one shot a clip (a shot of a night's video too), clips joined a reel", () => {
+    expect(mediumOf({ kind: "scene", derived: null })).toBe("picture");
+    expect(mediumOf({ kind: "video", derived: "boomerang" })).toBe("boomerang");
+    expect(mediumOf({ kind: "video", derived: "loop" })).toBe("loop");
+    expect(mediumOf({ kind: "video", derived: "chain" })).toBe("reel");
+    expect(mediumOf({ kind: "video", derived: null })).toBe("clip");
   });
 });
 

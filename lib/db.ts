@@ -5,6 +5,7 @@ import { afterDarkOnly } from "./after-dark-host";
 import { HOUSE_CHARACTERS, PREMIUM_HOUSE_CHARACTERS } from "./house";
 import { HOUSE_KITS } from "./house-kits";
 import { isDeployed } from "./deploy";
+import { madeInSql } from "./made-in";
 
 /** The only database surface the app uses: parameterized queries, plus multi-statement DDL. */
 export interface Db {
@@ -3318,13 +3319,17 @@ create table if not exists showcase_loops (
 -- 2026-10-29: the first run's provider trouble (Replicate's "Model not found") was kept as failed: tried again now
 -- (lib/showcase-loops.ts RETRYABLE lets such a claim go from then on).
 delete from showcase_loops where status = 'failed' and error like 'Replicate: Model not found%';
--- A portrait, an SFW twin or one cut from a Studio item isn't from a date (the showcase's "From dates"; lib/showcase.ts
--- FROM_DATE decides it for new posts).
-update showcase_posts p set from_date = false
+-- Where each After Dark post was made, a date (a night) or the Studio, by the one rule every gallery tags with
+-- (lib/made-in.ts; 2026-11-18, David: "go through all assets and tag accordingly"). lib/showcase.ts FROM_DATE decides it
+-- for new posts; this puts it on the ones kept before (a living portrait was "from a date" on some posts and not others).
+update showcase_posts p set from_date = (${madeInSql("i")} = 'night')
   from adult_images i
- where p.source = 'after_dark' and p.from_date and i.id = p.media_id
-   and (i.kind = 'baseline' or i.shoot_id is not null or i.twin_of is not null
-        or exists (select 1 from adult_images src where src.id = i.source_image and src.shoot_id is not null));
+ where p.source = 'after_dark' and i.id = p.media_id and p.from_date is distinct from (${madeInSql("i")} = 'night');
+-- One shot is a clip, several back to back a reel (lib/made-in.ts; David, 2026-11-18: "we have reels and clips, really
+-- they are the same thing"): a shot of a night's video posted on its own was a "reel"; only clips joined into one are.
+update showcase_posts p set medium = 'clip'
+  from adult_images i
+ where p.source = 'after_dark' and p.medium = 'reel' and i.id = p.media_id and i.derived is distinct from 'chain';
 -- A video kept before its row named its model: the model its reel's shot names (the showcase says what made it).
 update adult_images i set model = s.model
   from (select distinct on (x->>'media_id') x->>'media_id' as media_id, x->>'model' as model

@@ -5,7 +5,7 @@ import MediaFilterBar from "@/app/after-dark/MediaFilterBar";
 import PgFilterBar from "@/app/studio/PgFilterBar";
 import type { Media } from "@/lib/adult/media";
 import type { PgPicture } from "@/lib/studio/pg";
-import { DEFAULT_FILTER, DEFAULT_PG_FILTER, filterMedia, filterPg, mediaFacets, pgFacets, typeOf } from "@/lib/media-filter";
+import { DEFAULT_FILTER, DEFAULT_PG_FILTER, filterMedia, filterPg, madeOf, mediaFacets, pgFacets, typeOf } from "@/lib/media-filter";
 
 // The galleries' filters (lib/media-filter.ts; David, 2026-10-29): what it is, pose, place, rating and the Archive, with
 // no 👎 and nothing at 1–3 stars by default.
@@ -14,15 +14,61 @@ const m = (id: string, more: Partial<Media> = {}): Media => ({ id, character_id:
 const ids = (xs: { id: string }[]) => xs.map((x) => x.id);
 
 describe("what a thing is", () => {
-  it("tells a picture, a face, a clip, a date reel's shot, a boomerang and a loop apart", () => {
+  it("tells a picture, a face, a clip, a reel, a boomerang and a loop apart: one shot is a clip, several a reel", () => {
     expect(typeOf(m("a"))).toBe("picture");
     expect(typeOf(m("a", { kind: "baseline" }))).toBe("face");
     expect(typeOf(m("a", { kind: "video", reel_kind: "clip" }))).toBe("clip");
     expect(typeOf(m("a", { kind: "video" }))).toBe("clip");
-    expect(typeOf(m("a", { kind: "video", reel_kind: "night" }))).toBe("reel");
+    // David, 2026-11-18: "we have reels and clips, really they are the same thing": a shot of a night's video, seen on
+    // its own, is a clip; the night's whole video (the Gallery's tile, reel_shots) and clips joined into one are reels.
+    expect(typeOf(m("a", { kind: "video", reel_kind: "night" }))).toBe("clip");
+    expect(typeOf(m("a", { kind: "video", reel_shots: 4 }))).toBe("reel");
+    expect(typeOf(m("a", { kind: "video", derived: "chain" }))).toBe("reel");
     expect(typeOf(m("a", { kind: "video", derived: "boomerang" }))).toBe("boomerang");
     expect(typeOf(m("a", { kind: "video", derived: "loop", reel_kind: "clip" }))).toBe("loop");
     expect(typeOf(m("a", { twin: true }))).toBe("twin");
+  });
+
+  it("says where it was made: its own tag, else a Studio shoot or one alone is the Studio's and a pair's a night's", () => {
+    expect(madeOf(m("a", { made_in: "night" }))).toBe("night");
+    expect(madeOf(m("a", { made_in: "studio", character_b: "b" }))).toBe("studio");
+    expect(madeOf(m("a", { character_b: "b" }))).toBe("night");
+    expect(madeOf(m("a", { character_b: "b", studio: true }))).toBe("studio");
+    expect(madeOf(m("a"))).toBe("studio");
+  });
+});
+
+describe("where it was made, as a filter", () => {
+  const items = [
+    m("night-clip", { kind: "video", character_b: "b", made_in: "night" }),
+    m("night-reel", { kind: "video", character_b: "b", made_in: "night", reel_shots: 5 }),
+    m("studio-clip", { kind: "video", made_in: "studio" }),
+    m("studio-boomerang", { kind: "video", derived: "boomerang", made_in: "studio" }),
+  ];
+
+  it("narrows to a night's or the Studio's, and counts each", () => {
+    expect(ids(filterMedia(items, { ...DEFAULT_FILTER, made: "night" }))).toEqual(["night-clip", "night-reel"]);
+    expect(ids(filterMedia(items, { ...DEFAULT_FILTER, made: "studio" }))).toEqual(["studio-clip", "studio-boomerang"]);
+    expect(ids(filterMedia(items, { ...DEFAULT_FILTER, made: "night", type: "reel" }))).toEqual(["night-reel"]);
+    expect(mediaFacets(items).made).toEqual([
+      ["night", 2],
+      ["studio", 2],
+    ]);
+    expect(mediaFacets(items).type).toEqual([
+      ["clip", 2],
+      ["reel", 1],
+      ["boomerang", 1],
+    ]);
+  });
+
+  it("is the bar's first row, in the galleries' words, only where there's both", () => {
+    const html = renderToStaticMarkup(createElement(MediaFilterBar, { items, value: DEFAULT_FILTER, onChange: () => {}, shown: 4 }));
+    expect(html).toMatch(/aria-label="Made in" data-made-filter="true">.*From nights<span class="media-filter-count">2<\/span>.*From the Studio<span class="media-filter-count">2<\/span>/);
+    expect(html.indexOf("From nights")).toBeLessThan(html.indexOf("Clips"));
+    expect(html).toContain("Reels<span");
+    expect(html).not.toContain("Date reels");
+    const studioOnly = renderToStaticMarkup(createElement(MediaFilterBar, { items: items.slice(2), value: DEFAULT_FILTER, onChange: () => {}, shown: 2 }));
+    expect(studioOnly).not.toContain("data-made-filter");
   });
 });
 

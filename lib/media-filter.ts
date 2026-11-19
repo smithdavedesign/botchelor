@@ -7,10 +7,12 @@
  * away (Rating, Archived).
  */
 import type { Media } from "./adult/media";
+import { MADE_IN, type MadeIn } from "./made-in";
 
 export const MEDIA_TYPES = ["picture", "twin", "face", "clip", "reel", "boomerang", "loop"] as const;
 export type MediaType = (typeof MEDIA_TYPES)[number];
-export const MEDIA_TYPE_LABEL: Record<MediaType, string> = { picture: "Pictures", twin: "SFW twins", face: "Faces", clip: "Clips", reel: "Date reels", boomerang: "Boomerangs", loop: "Loops" };
+/** A reel is several shots back to back; one shot, wherever it was filmed, is a clip (lib/made-in.ts, 2026-11-18). */
+export const MEDIA_TYPE_LABEL: Record<MediaType, string> = { picture: "Pictures", twin: "SFW twins", face: "Faces", clip: "Clips", reel: "Reels", boomerang: "Boomerangs", loop: "Loops" };
 
 export const RATING_VIEWS = ["good", "liked", "unrated", "disliked", "all"] as const;
 export type RatingView = (typeof RATING_VIEWS)[number];
@@ -22,19 +24,33 @@ export const RATING_LABEL: Record<RatingView, string> = {
   all: "Everything",
 };
 
-export type MediaFilter = { type: MediaType | null; act: string | null; place: string | null; pov: boolean; rating: RatingView; favorites: boolean; archived: boolean };
-export const DEFAULT_FILTER: MediaFilter = { type: null, act: null, place: null, pov: false, rating: "good", favorites: false, archived: false };
+export type MediaFilter = {
+  type: MediaType | null; act: string | null; place: string | null; pov: boolean; rating: RatingView; favorites: boolean; archived: boolean;
+  /** Where it was made: on one of their nights, or in the Studio (lib/made-in.ts). */
+  made: MadeIn | null;
+};
+export const DEFAULT_FILTER: MediaFilter = { type: null, act: null, place: null, pov: false, rating: "good", favorites: false, archived: false, made: null };
 
-/** What kind of thing it is: a picture, an SFW twin, a face (a baseline), a clip, a shot of a date's reel, a boomerang or a loop. */
-export function typeOf(m: Pick<Media, "kind" | "derived" | "reel_kind" | "twin">): MediaType {
+/**
+ * What kind of thing it is: a picture, an SFW twin, a face (a baseline), a clip, a reel, a boomerang or a loop. A reel
+ * is several shots back to back: a night's whole video (the Gallery lists it as one, `reel_shots`) or clips joined into
+ * one (lib/adult/moments.ts joinClips). A shot of a night's video on its own is a clip, like any other (David,
+ * 2026-11-18: "we have reels and clips, really they are the same thing").
+ */
+export function typeOf(m: Pick<Media, "kind" | "derived" | "twin" | "reel_shots">): MediaType {
   if (m.kind === "baseline") return "face";
   if (m.twin) return "twin";
   if (m.kind !== "video") return "picture";
   if (m.derived === "boomerang" || m.derived === "loop") return m.derived;
-  // A chain of clips joined into one (lib/adult/moments.ts joinClips) is a reel.
-  if (m.derived === "chain") return "reel";
-  return m.reel_kind && m.reel_kind !== "clip" ? "reel" : "clip";
+  if (m.derived === "chain" || typeof m.reel_shots === "number") return "reel";
+  return "clip";
 }
+
+/**
+ * Where it was made (lib/made-in.ts): its own tag, read with it; else, for an item listed without one, a Studio shoot or
+ * one of them alone is the Studio's and a pair's is a night's.
+ */
+export const madeOf = (m: Pick<Media, "made_in" | "studio" | "character_b">): MadeIn => m.made_in ?? (m.studio || !m.character_b ? "studio" : "night");
 
 /**
  * Disliked: their 👎, or 1–3 stars (an average under 3.5, as the library counts it: 3.5 rounds to 4). Liked: their 👍,
@@ -52,6 +68,7 @@ export function filterMedia<T extends Media>(items: readonly T[], f: MediaFilter
     const r = { rating: ratingOf(m), stars: m.stars };
     if (f.archived !== Boolean(m.archived)) return false;
     if (f.type && typeOf(m) !== f.type) return false;
+    if (f.made && madeOf(m) !== f.made) return false;
     if (f.act && !hasTag(m, "act", f.act)) return false;
     if (f.place && !hasTag(m, "place", f.place)) return false;
     if (f.pov && !hasTag(m, "pov")) return false;
@@ -64,7 +81,7 @@ export function filterMedia<T extends Media>(items: readonly T[], f: MediaFilter
   });
 }
 
-export type MediaFacets = { type: [MediaType, number][]; act: [string, number][]; place: [string, number][]; pov: number; favorites: number; archived: number; hidden: number };
+export type MediaFacets = { type: [MediaType, number][]; made: [MadeIn, number][]; act: [string, number][]; place: [string, number][]; pov: number; favorites: number; archived: number; hidden: number };
 
 /** What there is to filter by in these items (archived ones counted apart), and how many the default hides. */
 export function mediaFacets<T extends Media>(items: readonly T[], ratingOf: (m: T) => 1 | -1 | null = (m) => m.rating ?? null): MediaFacets {
@@ -77,6 +94,7 @@ export function mediaFacets<T extends Media>(items: readonly T[], ratingOf: (m: 
   const tags = (kind: string) => live.flatMap((m) => [...new Set((m.show_tags ?? []).filter((t) => t.kind === kind).map((t) => t.value))]);
   return {
     type: count(live.map((m) => typeOf(m))).sort((a, b) => MEDIA_TYPES.indexOf(a[0]) - MEDIA_TYPES.indexOf(b[0])),
+    made: count(live.map((m) => madeOf(m))).sort((a, b) => MADE_IN.indexOf(a[0]) - MADE_IN.indexOf(b[0])),
     act: count(tags("act")).slice(0, 12),
     place: count(tags("place")).slice(0, 12),
     pov: live.filter((m) => hasTag(m, "pov")).length,
