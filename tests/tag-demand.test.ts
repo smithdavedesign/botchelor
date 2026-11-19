@@ -157,7 +157,17 @@ describe("whose picks count", () => {
 describe("facets that aren't tags (art style, lineup; PRD styles-and-storylines phase 7)", () => {
   it("is the tags' index and blend, with the census's rank by style as the prior", () => {
     const supply = new Map([["realistic", 8], ["anime", 2]]);
-    expect(demandMap(facetDemand("art_style", new Map(), supply, ART_STYLE_VALUES))).toEqual({ realistic: 0.92, anime: 1.08, semi_real: 1.05 });
+    expect(demandMap(facetDemand("art_style", new Map(), supply, ART_STYLE_VALUES))).toEqual({
+      realistic: 0.92,
+      anime: 1.08,
+      semi_real: 1.05,
+      // The newer drawn styles (2026-11-18) have no census rank yet: an even prior.
+      oil_painting: 1,
+      render_3d: 1,
+      comic: 1,
+      ink: 1,
+      pixel: 1,
+    });
     // Anime is a fifth of what's on offer and gets half the picks: two and a half times its share.
     const d = facetDemand("art_style", new Map([["realistic", 5], ["anime", 5]]), supply, ART_STYLE_VALUES);
     expect(d.total).toBe(10);
