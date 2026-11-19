@@ -8,6 +8,7 @@
     "build": "next build",
     "start": "next start",
     "test": "vitest run",
+    "gate": "node scripts/gate.mjs",
     "e2e": "node scripts/e2e.mjs",
     "e2e:after-dark": "node scripts/e2e-after-dark.mjs",
     "e2e:after-dark-scene": "node scripts/e2e-after-dark-scene.mjs",

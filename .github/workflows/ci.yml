@@ -1,15 +1,14 @@
-# Typecheck + the unit suite, by hand. Runs on the hosted free runner.
+# Typecheck + the full unit suite on every PR and every push to main, on GitHub's free hosted runners
+# (the repo is public, so Actions minutes cost nothing). The suite is split over 4 parallel shards so the whole run
+# takes a few minutes and none of it lands on the 16 GB Mac. Locally, `npm run gate` is enough before a PR.
 #
-# The repo is public now, so Actions minutes are free. The guards stay:
-#   - concurrency cancels older runs on the same branch
-#   - a 15-minute timeout kills a hung run
-# gh workflow run ci.yml --ref <branch> starts a run.
+# Guards: concurrency cancels older runs on the same branch; a 15-minute timeout kills a hung job.
 name: CI
 
 on:
-  # By hand only (gh workflow run ci.yml --ref <branch>), by choice, as BUILD.md says. It was switched off for PRs and
-  # pushes on 2026-10-21 (#575), when the repo was private and every run spent the account's free Actions minutes.
-  # PRs merge on the local tsc + full vitest.
+  pull_request:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 concurrency:
@@ -20,7 +19,7 @@ permissions:
   contents: read
 
 jobs:
-  test:
+  typecheck:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -31,4 +30,20 @@ jobs:
           cache: npm
       - run: npm ci --no-audit --no-fund
       - run: npm run typecheck
-      - run: npm test
+
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    name: test (${{ matrix.shard }}/4)
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npx vitest run --shard=${{ matrix.shard }}/4
