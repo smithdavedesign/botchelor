@@ -2008,8 +2008,9 @@ button.ad-studio-fold-head:active:not(:disabled) {
 .after-dark-gallery .ad-new-badge {
   font-weight: 600;
 }
-/* The Gallery's tabs and sections (2026-11-15, lib/adult/gallery.ts): Videos, Pictures, Faces; under Videos, each night's
-   reel as one card (ReelCards.tsx), then the clips. A reel that's playing takes the grid's whole width. */
+/* The Gallery's tabs (2026-11-15, lib/adult/gallery.ts): Videos, Pictures, Faces. Under Videos, each night's video is a
+   tile among the clips (ReelTile.tsx, 2026-11-18: one grid, the filters on top); a reel that's playing takes the grid's
+   whole width. */
 .ad-gallery-tabs {
   margin-top: var(--space-3);
 }
@@ -2021,15 +2022,38 @@ button.ad-studio-fold-head:active:not(:disabled) {
 .ad-gallery-section > h2 {
   margin: var(--space-4) 0 var(--space-1);
 }
-.ad-gallery-sources {
-  margin-bottom: var(--space-1);
-}
-.ad-reel-cards li.is-open {
+.ad-gallery-page .after-dark-gallery li.is-open {
   grid-column: 1 / -1;
 }
-.ad-reel-cards li.is-open .after-dark-reel {
+.ad-gallery-page .after-dark-gallery li.is-open .after-dark-reel {
   width: 100%;
   margin: 0;
+}
+/* A tile's tags (TileTags.tsx, lib/made-in.ts): AI-generated, where it was made (a night or the Studio) and a video's
+   kind, as one row of the AI tag's pills. A night's tag wears After Dark's accent, the Studio's its plain line. */
+.ad-tile-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  align-items: center;
+}
+.ad-tag {
+  display: inline-block;
+  padding: 0.05rem 0.5rem;
+  border: 1px solid var(--ad-line);
+  border-radius: var(--radius-pill);
+  color: var(--ad-ink);
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+.ad-tag[data-made-in="night"] {
+  border-color: var(--ad-accent);
+}
+.ad-tag[data-kind] {
+  color: var(--ad-muted);
 }
 .ad-reel-card-wait {
   display: grid;
