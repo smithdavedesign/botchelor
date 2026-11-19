@@ -12,6 +12,10 @@
  *   row itself when none is configured. The files are read through /api/home-clip/<id>/loop.mp4 and /poster.jpg.
  * - **Switches:** HOME_HERO_CLIP (on unless "0"): the clip in the hero. HOME_EXPRESS_BOX (on unless "0"): the
  *   one-sentence box under the hero's headline (it also needs EXPRESS_CREATE, lib/express-create.ts).
+ * - **The cut** (2026-11-19, the first-minute fixes): the same render, whole and with its voices, cut small for the web,
+ *   sent with the loop when the script has it. The episode page offers it as "the 60-second version" (episodeCut), a
+ *   quick way in for a viewer who won't sit through the replay; it is the whole date, so its ending too, which is public
+ *   once the date has aired (and only an aired date has a clip). Read through /api/home-clip/<id>/cut.mp4.
  * Nothing here touches a date: it is a picture of one that already aired.
  */
 import { randomUUID } from "node:crypto";
@@ -30,6 +34,9 @@ export const LOOP_MAX_BYTES = 2_500_000;
 export const POSTER_MAX_BYTES = 400_000;
 /** A loop is a glance, not the date: the script cuts 10 to 14 seconds. */
 export const LOOP_MAX_SECONDS = 20;
+/** The most a cut may weigh (the script aims well under 12 MB; this is the route's hard stop) and run. */
+export const CUT_MAX_BYTES = 20_000_000;
+export const CUT_MAX_SECONDS = 150;
 
 export function homeHeroClipOn(env: Record<string, string | undefined> = process.env): boolean {
   return env.HOME_HERO_CLIP?.trim() !== "0";
@@ -58,25 +65,43 @@ export function clipRefusal(view: EpisodeView | null): "episode_not_found" | "no
 export const looksLikeMp4 = (b: Uint8Array) => b.length > 12 && Buffer.from(b.subarray(4, 8)).toString("latin1") === "ftyp";
 export const looksLikeJpeg = (b: Uint8Array) => b.length > 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff;
 
-export type HomeClipInput = { episode_id: string; day: string; loop: Buffer; poster: Buffer; width: number; height: number; seconds: number };
+export type HomeClipInput = {
+  episode_id: string;
+  day: string;
+  loop: Buffer;
+  poster: Buffer;
+  width: number;
+  height: number;
+  seconds: number;
+  /** The whole clip with its voices (optional): none keeps the cut the date already has. */
+  cut?: { bytes: Buffer; seconds: number } | null;
+};
 
-/** Keeps a clip: one per date (an upload for a date that has one replaces it). Returns its id. */
+/** Keeps a clip: one per date (an upload for a date that has one replaces it, its cut too when one is sent). Returns its id. */
 export async function saveHomeClip(db: Db, c: HomeClipInput): Promise<{ id: string }> {
   const id = randomUUID();
-  const before = (await db.query<{ loop_key: string | null; poster_key: string | null }>(`select loop_key, poster_key from home_clips where episode_id = $1`, [c.episode_id])).rows[0];
+  const before = (
+    await db.query<{ loop_key: string | null; poster_key: string | null; cut_key: string | null }>(`select loop_key, poster_key, cut_key from home_clips where episode_id = $1`, [c.episode_id])
+  ).rows[0];
   const loop = await keepBytes("clips", `${id}-loop`, c.loop, "video/mp4");
   const poster = await keepBytes("clips", `${id}-poster`, c.poster, "image/jpeg");
+  const cut = c.cut ? await keepBytes("clips", `${id}-cut`, c.cut.bytes, "video/mp4") : null;
   await db.query(
-    `insert into home_clips (id, episode_id, day, loop_key, loop_data, poster_key, poster_data, width, height, seconds)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+    `insert into home_clips (id, episode_id, day, loop_key, loop_data, poster_key, poster_data, width, height, seconds, cut_key, cut_data, cut_seconds)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
      on conflict (episode_id) do update set id = excluded.id, day = excluded.day, loop_key = excluded.loop_key, loop_data = excluded.loop_data,
        poster_key = excluded.poster_key, poster_data = excluded.poster_data, width = excluded.width, height = excluded.height,
-       seconds = excluded.seconds, created_at = now()`,
-    [id, c.episode_id, c.day, loop.object_key, loop.data, poster.object_key, poster.data, Math.round(c.width), Math.round(c.height), c.seconds],
+       seconds = excluded.seconds, created_at = now(),
+       cut_key = case when excluded.cut_seconds is null then home_clips.cut_key else excluded.cut_key end,
+       cut_data = case when excluded.cut_seconds is null then home_clips.cut_data else excluded.cut_data end,
+       cut_seconds = coalesce(excluded.cut_seconds, home_clips.cut_seconds)`,
+    [id, c.episode_id, c.day, loop.object_key, loop.data, poster.object_key, poster.data, Math.round(c.width), Math.round(c.height), c.seconds, cut?.object_key ?? null, cut?.data ?? null, c.cut ? c.cut.seconds : null],
   );
-  // The clip it replaced leaves the store too (best effort: a file left behind is only a file nobody links to).
-  const store = before?.loop_key || before?.poster_key ? objectStore() : null;
-  for (const key of [before?.loop_key, before?.poster_key]) if (store && key) await store.remove(key).catch(() => {});
+  // The files it replaced leave the store too (best effort: a file left behind is only a file nobody links to). A cut
+  // that wasn't replaced stays: the row still points at it.
+  const gone = [before?.loop_key, before?.poster_key, c.cut ? before?.cut_key : null].filter((k): k is string => Boolean(k));
+  const store = gone.length ? objectStore() : null;
+  for (const key of gone) if (store) await store.remove(key).catch(() => {});
   return { id };
 }
 
@@ -159,6 +184,31 @@ export async function episodeClip(db: Db, episodeId: string): Promise<Pick<HomeC
   return row ? { id: row.id, loop_src: `/api/home-clip/${row.id}/loop.mp4`, poster_src: `/api/home-clip/${row.id}/poster.jpg`, width: row.width, height: row.height } : null;
 }
 
+/** A date's cut, for its page: the whole clip with its voices, its poster, and how long it runs. */
+export type EpisodeCut = { id: string; src: string; poster_src: string; seconds: number };
+
+/**
+ * The cut kept for one date, while the date is still public and featurable, or null: the episode page's "60-second
+ * version" (the theater's cold open offers it too). Any age, like episodeClip.
+ */
+export async function episodeCut(db: Db, episodeId: string): Promise<EpisodeCut | null> {
+  const row = (
+    await db.query<{ id: string; cut_seconds: string }>(
+      `select c.id, c.cut_seconds
+         from home_clips c
+         join episodes e on e.id = c.episode_id
+         join characters a on a.id = e.character_a
+         join characters b on b.id = e.character_b
+        where c.episode_id = $2 and c.cut_seconds is not null and (c.cut_key is not null or c.cut_data is not null)
+          and ${STILL_PUBLIC} and ${featurableSql("e")}
+        order by c.created_at desc
+        limit 1`,
+      [REPORT_HIDE_THRESHOLD, episodeId],
+    )
+  ).rows[0];
+  return row ? { id: row.id, src: `/api/home-clip/${row.id}/cut.mp4`, poster_src: `/api/home-clip/${row.id}/poster.jpg`, seconds: Number(row.cut_seconds) } : null;
+}
+
 /** The line under the clip: who, and how it ended when that is public (it is, once the date has aired). */
 export function clipCaption(clip: Pick<HomeClip, "names" | "ending">): string {
   const pair = `${clip.names[0]} × ${clip.names[1]}`;
@@ -168,11 +218,11 @@ export function clipCaption(clip: Pick<HomeClip, "names" | "ending">): string {
 export type ClipFile = { key: string | null; bytes: Buffer | null; mime: "video/mp4" | "image/jpeg" };
 
 /**
- * One of a clip's two files, for its route: the store's key when it's there (the route redirects to a signed link), else
+ * One of a clip's files (loop, poster, cut), for its route: the store's key when it's there (the route redirects to a signed link), else
  * the bytes. Null when there's no such clip or its date is no longer public.
  */
-export async function homeClipFile(db: Db, id: string, which: "loop" | "poster"): Promise<ClipFile | null> {
-  const col = which === "loop" ? "loop" : "poster";
+export async function homeClipFile(db: Db, id: string, which: "loop" | "poster" | "cut"): Promise<ClipFile | null> {
+  const col = which === "loop" ? "loop" : which === "cut" ? "cut" : "poster";
   const row = (
     await db.query<{ object_key: string | null; data: Buffer | Uint8Array | null }>(
       `select c.${col}_key as object_key, c.${col}_data as data
@@ -185,7 +235,7 @@ export async function homeClipFile(db: Db, id: string, which: "loop" | "poster")
     )
   ).rows[0];
   if (!row) return null;
-  const mime = which === "loop" ? "video/mp4" : "image/jpeg";
+  const mime = which === "poster" ? "image/jpeg" : "video/mp4";
   if (row.object_key) return { key: row.object_key, bytes: null, mime };
   const bytes = await readBytes(row);
   return bytes ? { key: null, bytes, mime } : null;

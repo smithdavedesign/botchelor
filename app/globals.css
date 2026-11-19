@@ -4452,6 +4452,106 @@ button.rating-chip:hover {
 .theater-verdict .muted {
   color: rgba(255, 255, 255, 0.72);
 }
+/* The cold open (app/episodes/[id]/ColdOpenCard.tsx, lib/cold-open.ts): who they are and what's at stake, over the scene
+   before the first line. It sits under the HUD (before it in the page, the same layer), clear of it, and scrolls inside
+   the stage when a short screen can't hold all of it. */
+.cold-open {
+  position: absolute;
+  top: calc(50% + 1.75rem);
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 3;
+  width: min(34rem, calc(100% - 2 * var(--space-4)));
+  max-height: calc(100% - 7rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  border-radius: var(--radius-lg);
+  background: rgba(12, 8, 16, 0.86);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(8px);
+  color: var(--on-photo);
+}
+.cold-open p,
+.cold-open h2,
+.cold-open ul {
+  margin: 0;
+}
+.cold-open-kicker,
+.cold-open-label {
+  font-size: var(--text-eyebrow);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.7);
+}
+.cold-open-label {
+  margin-right: var(--space-1);
+}
+.cold-open-pair {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  font-size: var(--text-xl);
+  line-height: 1.2;
+  color: var(--on-photo);
+}
+.cold-open-pair .vs {
+  color: rgba(255, 255, 255, 0.6);
+}
+.cold-open-setting,
+.cold-open-prev,
+.cold-open-roleplay {
+  color: rgba(255, 255, 255, 0.86);
+}
+.cold-open-wants {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+.cold-open-wants li {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+.cold-open-stakes {
+  font-size: var(--text-lg);
+  font-weight: 700;
+}
+.cold-open-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.cold-open-meta {
+  font-size: var(--text-sm);
+  color: rgba(255, 255, 255, 0.6);
+}
+@media (max-width: 640px) {
+  .cold-open {
+    padding: var(--space-4);
+    gap: var(--space-2);
+  }
+  .cold-open-pair {
+    font-size: var(--text-lg);
+  }
+  .cold-open-actions > button {
+    flex: 1 1 100%;
+  }
+}
+/* The short version (app/episodes/[id]/CutPlayer.tsx): the vertical cut, as tall as the sheet allows. */
+.cut-video {
+  display: block;
+  height: min(70dvh, 34rem);
+  max-width: 100%;
+  aspect-ratio: 9 / 16;
+  margin: 0 auto;
+  border-radius: var(--radius);
+  background: #000;
+}
 /* The creator's verdict card (app/episodes/[id]/VerdictCard.tsx): the ending with a next step, so it stacks, and scrolls
    inside the stage when a short screen can't hold all of it. */
 .verdict-card {

@@ -650,6 +650,10 @@ async function capture(base, leagueId, viewer) {
       await home.getByRole("button", { name: "Watch in theater" }).scrollIntoViewIfNeeded();
       await home.getByRole("button", { name: "Watch in theater" }).click();
       await home.locator(".theater").waitFor();
+      // The cold open (lib/cold-open.ts): who they are and what's at stake, before the first line.
+      await home.locator(".theater .cold-open").waitFor();
+      await shot(home, "episode-cold-open");
+      await home.locator(".theater .cold-open").getByRole("button", { name: /Start the date/ }).click();
       await home.waitForTimeout(6000); // let a couple of turns play so both characters have a bubble
       await shot(home, "episode-theater");
       await home.getByRole("button", { name: "Exit" }).click();

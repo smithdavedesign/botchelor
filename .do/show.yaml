@@ -345,6 +345,11 @@ services:
       # - key: HOME_EXPRESS_BOX
       #   value: "0"
       #   scope: RUN_AND_BUILD_TIME
+      # The cold open (lib/cold-open.ts; docs/flows.md "A date's first minute"): a card before a date's first line in the
+      # theater, on by default. Uncomment with "0" to start the theater playing as it opens, without a deploy of code.
+      # - key: COLD_OPEN
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
       # The story check (lib/story-check.ts; docs/story-check.md): the hourly lobby job judges aired dates' endings
       # against their lines on the show's paid model (~0.04¢ a date), mends a contradicting recap finale when the record
       # allows, and keeps the rest off the home excerpt, the 18+ gate, the home clip and the daily clip. All on by

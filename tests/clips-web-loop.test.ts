@@ -4,7 +4,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
-import { adminKey, dayOfClip, parseUpload, posterArgs, uploadWebClip, WEB_LOOP, WEB_LOOP_FROM, webLoopArgs, webLoopWindow } from "../scripts/clips/daily-clip.mjs";
+import { adminKey, dayOfClip, makeWebCut, parseUpload, posterArgs, uploadWebClip, WEB_CUT, WEB_LOOP, WEB_LOOP_FROM, webCutArgs, webLoopArgs, webLoopWindow } from "../scripts/clips/daily-clip.mjs";
 
 describe("webLoopWindow", () => {
   it("starts just after the first line appears and ends a second after a line landed, 10 to 14 seconds on", () => {
@@ -44,6 +44,29 @@ describe("the ffmpeg arguments", () => {
     expect(WEB_LOOP.maxBytes).toBeLessThan(1_500_000);
     expect(args.at(-1)).toBe("out.mp4");
     expect(webLoopArgs({ src: "a", out: "b", start: 0, seconds: 1, crf: 36 })).toContain("36");
+  });
+  it("cut the whole clip for the date's page: voices kept, 540 wide, H.264 faststart, a capped bitrate", () => {
+    const args = webCutArgs({ src: "in.mp4", out: "cut.mp4" });
+    expect(args.slice(args.indexOf("-i"), args.indexOf("-i") + 2)).toEqual(["-i", "in.mp4"]);
+    // The whole clip: no start, no length, and the voices stay.
+    expect(args).not.toContain("-ss");
+    expect(args).not.toContain("-t");
+    expect(args).not.toContain("-an");
+    expect(args[args.indexOf("-c:a") + 1]).toBe("aac");
+    expect(args[args.indexOf("-vf") + 1]).toContain("scale=540:960");
+    expect(args[args.indexOf("-c:v") + 1]).toBe("libx264");
+    expect(args[args.indexOf("-pix_fmt") + 1]).toBe("yuv420p");
+    expect(args[args.indexOf("-movflags") + 1]).toBe("+faststart");
+    // 900 kbit/s of picture and 96 of voice, for the longest cut the route takes, stays under the route's 20 MB stop.
+    expect(args[args.indexOf("-maxrate") + 1]).toBe("900k");
+    expect(args[args.indexOf("-b:a") + 1]).toBe("96k");
+    expect(((900_000 + 96_000) / 8) * WEB_CUT.maxSeconds).toBeLessThan(20_000_000);
+    expect(args.at(-1)).toBe("cut.mp4");
+    expect(webCutArgs({ src: "a", out: "b", crf: 35 })).toContain("35");
+  });
+  it("make no cut of a clip longer than the route takes, or of one with no length", () => {
+    expect(makeWebCut({ mp4: "in.mp4", dir: "/nowhere", name: "x", seconds: WEB_CUT.maxSeconds + 1, ffmpeg: "/bin/false" })).toBeNull();
+    expect(makeWebCut({ mp4: "in.mp4", dir: "/nowhere", name: "x", seconds: 0, ffmpeg: "/bin/false" })).toBeNull();
   });
   it("take the poster from the loop's own first frame", () => {
     const args = posterArgs({ src: "in.mp4", out: "p.jpg", start: 2.3 });
@@ -120,6 +143,22 @@ describe("uploadWebClip", () => {
     expect(await (form.get("loop") as Blob).text()).toBe("loop-bytes");
     expect(await (form.get("poster") as Blob).text()).toBe("poster-bytes");
     expect([...form.values()].some((v) => v === secret)).toBe(false);
+  });
+
+  it("sends the cut and its length when there is one, and neither when there isn't", async () => {
+    const cut = join(dir, "clip-cut.mp4");
+    writeFileSync(cut, Buffer.from("cut-bytes"));
+    const forms: FormData[] = [];
+    const send = (async (_url: string, init: RequestInit) => {
+      forms.push(init.body as FormData);
+      return new Response(JSON.stringify({ ok: true, id: "clip-1" }), { status: 200 });
+    }) as typeof fetch;
+    await uploadWebClip({ ...base, cut, cutSeconds: 64.5, send });
+    await uploadWebClip({ ...base, send });
+    expect(await (forms[0].get("cut") as Blob).text()).toBe("cut-bytes");
+    expect(forms[0].get("cut_seconds")).toBe("64.5");
+    expect(forms[1].get("cut")).toBeNull();
+    expect(forms[1].get("cut_seconds")).toBeNull();
   });
 
   it("reports the route's refusal, and a network failure, without throwing", async () => {

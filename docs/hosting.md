@@ -208,6 +208,9 @@ ignore it.
   stranger's home hero (`lib/home-clip.ts`; `0`: the hero as it was, and `POST /api/admin/home-clip` answers 404) and the
   one-sentence box under the hero's headline (`0`: "Make your character" is the main button again; it is also off
   whenever `EXPRESS_CREATE` is). [flows.md](flows.md), "The home page, for a stranger".
+- **`COLD_OPEN`** (the show's app, not a secret; on unless `0`): the card before a date's first line in the theater
+  (`lib/cold-open.ts`; `0`: the theater starts playing as it opens, as before). The short version beside it needs no
+  switch: a date shows it only once a cut was uploaded. [flows.md](flows.md), "A date's first minute".
 - **`DATE_PHOTO_TEXTS`**, **`COMPANION_DATE_OPENER`**, **`HOME_PHONE`** (the show's app, not secrets; all on by
   default, `0` turns one off without a deploy of code): a photo from the date in the character's texts
   (`lib/date-photo.ts`; off: texts go without one, the photos already sent stay), a cast character's opener written from

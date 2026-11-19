@@ -50,6 +50,9 @@ export type Replay = {
   /** Who is "typing" the next line while playback runs (not across an act break), else null. */
   typing: "a" | "b" | null;
   toggle: () => void;
+  /** Carry on from the line on screen (from the top once it has ended); nothing while already playing. */
+  play: () => void;
+  pause: () => void;
   restart: () => void;
   /** Jump straight to the end (the whole conversation + the ending). */
   skip: () => void;
@@ -125,6 +128,11 @@ export function useReplay(
         setPlaying(true);
       } else setPlaying((p) => !p);
     },
+    play: () => {
+      if (done) setPos(0);
+      setPlaying(true);
+    },
+    pause: () => setPlaying(false),
     restart: () => {
       setPos(0);
       setPlaying(true);

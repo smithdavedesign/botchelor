@@ -20,7 +20,7 @@ import { GET as clipFile } from "@/app/api/home-clip/[id]/[file]/route";
 import { expressEventAt, expressStartedEvent, EXPRESS_SAY_KEY, EXPRESS_TEXT_MAX, EXPRESS_TEXT_MIN } from "@/lib/express-create";
 import { generateMetadata as episodeMeta } from "@/app/episodes/[id]/page";
 import { getEpisodeView } from "@/lib/game";
-import { CLIP_FRESH_DAYS, clipCaption, clipRefusal, episodeClip, homeExpressBoxOn, homeHeroClipOn, latestHomeClip, LOOP_MAX_BYTES, looksLikeJpeg, looksLikeMp4, saveHomeClip } from "@/lib/home-clip";
+import { CLIP_FRESH_DAYS, clipCaption, clipRefusal, CUT_MAX_BYTES, CUT_MAX_SECONDS, episodeClip, episodeCut, homeExpressBoxOn, homeHeroClipOn, latestHomeClip, LOOP_MAX_BYTES, looksLikeJpeg, looksLikeMp4, saveHomeClip } from "@/lib/home-clip";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import { setObjectStoreForTests, type ObjectStore } from "@/lib/object-store";
 import { api, BASE_URL, episodeJson, newUserCookie, scriptedModel, scriptOutcome, startTestDb, userIdOf, validCharacter } from "./helpers";
@@ -228,6 +228,128 @@ describe("POST /api/admin/home-clip", () => {
     await send(form(d.id));
     expect(kept.size).toBe(2);
     expect(kept.has(row.loop_key)).toBe(false);
+  });
+});
+
+describe("the cut: the whole clip with its voices, for the date's page (2026-11-19)", () => {
+  /** A cut: an MP4 by its first bytes, told apart from the loop by its tail. */
+  const CUT = Buffer.concat([MP4, Buffer.from("voices-and-all")]);
+  const withCut = (over: Record<string, string | Blob | null> = {}) => ({ cut: new Blob([new Uint8Array(CUT)], { type: "video/mp4" }), cut_seconds: "64.5", ...over });
+
+  it("goes up with the loop, is served with byte ranges, and is the date's 60-second version", async () => {
+    const d = await date();
+    expect(await episodeCut(t.db, d.id)).toBeNull();
+    const body = await (await send(form(d.id, withCut()))).json();
+    expect(body.cut).toBe(`/api/home-clip/${body.id}/cut.mp4`);
+    expect(await episodeCut(t.db, d.id)).toEqual({ id: body.id, src: `/api/home-clip/${body.id}/cut.mp4`, poster_src: `/api/home-clip/${body.id}/poster.jpg`, seconds: 64.5 });
+    const whole = await file(body.id, "cut.mp4");
+    expect(whole.status).toBe(200);
+    expect(whole.headers.get("content-type")).toBe("video/mp4");
+    expect(Buffer.from(await whole.arrayBuffer())).toEqual(CUT);
+    const part = await file(body.id, "cut.mp4", { range: "bytes=0-3" });
+    expect(part.status).toBe(206);
+    expect(part.headers.get("content-range")).toBe(`bytes 0-3/${CUT.length}`);
+    // The loop is still the loop.
+    expect(Buffer.from(await (await file(body.id, "loop.mp4")).arrayBuffer())).toEqual(MP4);
+  });
+
+  it("is optional: a date without one has none, and an upload without one keeps the cut the date has", async () => {
+    const d = await date();
+    const plain = await (await send(form(d.id))).json();
+    expect(plain.cut).toBeUndefined();
+    expect(await episodeCut(t.db, d.id)).toBeNull();
+    expect((await file(plain.id, "cut.mp4")).status).toBe(404);
+    await send(form(d.id, withCut()));
+    const again = await (await send(form(d.id, { day: "2026-11-17" }))).json();
+    expect(await episodeCut(t.db, d.id)).toMatchObject({ id: again.id, seconds: 64.5 });
+    expect(Buffer.from(await (await file(again.id, "cut.mp4")).arrayBuffer())).toEqual(CUT);
+    // A new cut replaces it.
+    const NEWER = Buffer.concat([MP4, Buffer.from("a newer render")]);
+    const third = await (await send(form(d.id, withCut({ cut: new Blob([new Uint8Array(NEWER)]), cut_seconds: "71" })))).json();
+    expect(await episodeCut(t.db, d.id)).toMatchObject({ id: third.id, seconds: 71 });
+    expect(Buffer.from(await (await file(third.id, "cut.mp4")).arrayBuffer())).toEqual(NEWER);
+  });
+
+  it("refuses a cut that isn't an MP4, has no length, runs too long or weighs too much", async () => {
+    const d = await date();
+    expect((await (await send(form(d.id, withCut({ cut: new Blob([new Uint8Array(JPEG)]) })))).json()).error).toBe("invalid_files");
+    expect((await (await send(form(d.id, withCut({ cut_seconds: null })))).json()).error).toBe("invalid_size");
+    expect((await (await send(form(d.id, withCut({ cut_seconds: String(CUT_MAX_SECONDS + 1) })))).json()).error).toBe("invalid_size");
+    expect((await send(form(d.id, withCut({ cut: new Blob([new Uint8Array(Buffer.concat([MP4, Buffer.alloc(CUT_MAX_BYTES)]))]) })))).status).toBe(413);
+    expect((await t.db.query("select 1 from home_clips")).rows).toHaveLength(0);
+  });
+
+  it("goes to the store when there is one, and leaves it when replaced", async () => {
+    const kept = new Map<string, Buffer>();
+    setObjectStoreForTests({
+      put: async (key, bytes) => void kept.set(key, bytes),
+      get: async (key) => kept.get(key) ?? null,
+      remove: async (key) => void kept.delete(key),
+      presign: async (key) => ({ url: `https://media.example/${key}?signed=1`, maxAge: 900 }),
+    });
+    const d = await date();
+    const body = await (await send(form(d.id, withCut()))).json();
+    expect(kept.size).toBe(3);
+    const row = (await t.db.query<{ cut_key: string; cut_data: Buffer | null }>("select cut_key, cut_data from home_clips")).rows[0];
+    expect(row.cut_key).toMatch(/^clips\/.+\.mp4$/);
+    expect(row.cut_data).toBeNull();
+    expect((await file(body.id, "cut.mp4")).headers.get("location")).toBe(`https://media.example/${row.cut_key}?signed=1`);
+    // Without a cut, the loop and poster are replaced and the cut stays; with one, the old cut leaves.
+    await send(form(d.id));
+    expect(kept.has(row.cut_key)).toBe(true);
+    expect(kept.size).toBe(3);
+    await send(form(d.id, withCut()));
+    expect(kept.has(row.cut_key)).toBe(false);
+    expect(kept.size).toBe(3);
+  });
+
+  it("goes with its date: private, reported away or a story that contradicts its ending", async () => {
+    const d = await date();
+    const { id } = await saveHomeClip(t.db, { episode_id: d.id, day: "2026-11-15", loop: MP4, poster: JPEG, width: 480, height: 854, seconds: 12, cut: { bytes: CUT, seconds: 60 } });
+    expect(await episodeCut(t.db, d.id)).toMatchObject({ id, seconds: 60 });
+    await t.db.query(`update episodes set visibility = 'unlisted' where id = $1`, [d.id]);
+    expect(await episodeCut(t.db, d.id)).toBeNull();
+    expect((await file(id, "cut.mp4")).status).toBe(404);
+  });
+});
+
+describe("the date's page: the short version and the cold open (2026-11-19)", () => {
+  const page = async (id: string, searchParams: Record<string, string> = {}) =>
+    text(renderToStaticMarkup(await (await import("@/app/episodes/[id]/page")).default({ params: Promise.resolve({ id }), searchParams: Promise.resolve(searchParams) })));
+  const cut = { cut: new Blob([new Uint8Array(MP4)], { type: "video/mp4" }), cut_seconds: "64.5" };
+
+  it("offers the short version beside Watch in theater once the date has one, and not once it's private", async () => {
+    const d = await date();
+    as(null);
+    expect(await page(d.id)).not.toContain("The short version");
+    await send(form(d.id, cut));
+    const out = await page(d.id);
+    expect(out).toContain("Watch in theater");
+    expect(out).toContain('data-track="episode-cut">🎬 The short version · 1:05</button>');
+    await t.db.query(`update episodes set visibility = 'unlisted' where id = $1`, [d.id]);
+    expect(await page(d.id)).not.toContain("The short version");
+  });
+
+  it("a visitor opening the theater meets the cold open first, with the short version on it; COLD_OPEN=0 skips it", async () => {
+    const d = await date();
+    await send(form(d.id, cut));
+    as(null);
+    const out = await page(d.id, { play: "1" });
+    expect(out).toContain('class="cold-open"');
+    expect(out).toContain("▶ Start the date");
+    expect(out).toContain('<p class="cold-open-stakes">Will there be a second date?</p>');
+    expect(out).toContain('data-track="cold-open-cut">🎬 The short version · 1:05</button>');
+    // Spoiler-free: the ending is on the page for the end of the theater, never on the card.
+    const card = out.slice(out.indexOf('class="cold-open"'), out.indexOf('class="theater-hud"'));
+    expect(card).not.toMatch(/ended|second date\b(?!\?)/i);
+    vi.stubEnv("COLD_OPEN", "0");
+    expect(await page(d.id, { play: "1" })).not.toContain('class="cold-open"');
+  });
+
+  it("the creator arriving from sending their date goes straight in", async () => {
+    const d = await date();
+    as(d.owner);
+    expect(await page(d.id, { play: "1" })).not.toContain('class="cold-open"');
   });
 });
 

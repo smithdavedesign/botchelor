@@ -13,6 +13,8 @@
 // ffmpeg and sent to POST /api/admin/home-clip, which itself refuses anything but a publicly aired date. The admin
 // password is read when it's needed (FRONTIER_PASSWORD, else the keychain's vault/botchelor/FRONTIER_PASSWORD), never
 // written or printed; a failed upload is logged and the clip run still succeeds. HOME_CLIP_UPLOAD=0 skips it.
+// With the loop goes the cut (2026-11-19): the whole clip with its voices, 540 px wide, under 12 MB, which the date's
+// page offers as "the 60-second version" (webCutArgs, makeWebCut). No cut (too long, too heavy) never stops the loop.
 // A clip already rendered:  node scripts/clips/daily-clip.mjs --upload <clip.mp4> --episode <id> [--from <seconds>] [--dry]
 //   (--from: where the loop starts in the clip, default 2; --dry: cut the files into CLIPS_DIR/web and send nothing).
 import { execFileSync } from "node:child_process";
@@ -122,6 +124,33 @@ export function webLoopArgs({ src, out, start, seconds, crf = 26 }) {
   ];
 }
 
+/**
+ * The cut (lib/home-clip.ts, the episode page's "60-second version", 2026-11-19): the whole clip with its voices, small
+ * enough for a phone to start at once. 540 wide (the theater's lines stay readable), 9:16 like the clip.
+ */
+/** Press the theater's "Start the date" when its cold open is up (COLD_OPEN=0, or a date with nothing to set up: none). */
+export async function startTheDate(page, timeout = 5_000) {
+  const start = page.locator(".theater .cold-open").getByRole("button", { name: /Start the date/ });
+  await start.waitFor({ timeout }).then(() => start.click(), () => {});
+}
+
+export const WEB_CUT = { width: 540, height: 960, maxBytes: 12_000_000, maxSeconds: 150 };
+const CUT_FIT = `scale=${WEB_CUT.width}:${WEB_CUT.height}:force_original_aspect_ratio=decrease,pad=${WEB_CUT.width}:${WEB_CUT.height}:(ow-iw)/2:(oh-ih)/2`;
+
+/** ffmpeg's arguments for the cut: the whole clip, voices kept (mono AAC), H.264 a phone plays inline, faststart, a capped bitrate. Pure. */
+export function webCutArgs({ src, out, crf = 27 }) {
+  return [
+    "-y", "-loglevel", "error", "-i", src,
+    "-vf", CUT_FIT,
+    "-c:v", "libx264", "-profile:v", "main", "-pix_fmt", "yuv420p", "-preset", "slow", "-crf", String(crf),
+    // 1 Mbit/s at most: 90 seconds is then about 11 MB whatever the picture does; a theater recording is mostly still.
+    "-maxrate", "900k", "-bufsize", "1800k",
+    "-c:a", "aac", "-b:a", "96k", "-ac", "1",
+    "-movflags", "+faststart",
+    out,
+  ];
+}
+
 /** ffmpeg's arguments for the poster: the loop's own first frame, so the video starts where the picture was. Pure. */
 export function posterArgs({ src, out, start }) {
   return ["-y", "-loglevel", "error", "-ss", String(start), "-i", src, "-frames:v", "1", "-vf", WEB_FIT, "-q:v", "5", out];
@@ -179,10 +208,26 @@ export function makeWebClip({ mp4, dir, name, window, ffmpeg = process.env.FFMPE
 }
 
 /**
- * Sends the loop and poster to the show (POST /api/admin/home-clip). Returns { ok, status, error }: the route's own
- * refusal (not aired, not public) comes back as its `error`. `send`: fetch (tests pass their own). Never throws.
+ * Cuts the whole clip for the web (webCutArgs) into `dir`, or null when it runs longer than the route takes. A cut that
+ * came out too heavy is cut again, coarser; still too heavy is null.
  */
-export async function uploadWebClip({ base, key, episode, day, loop, poster, seconds, send = fetch }) {
+export function makeWebCut({ mp4, dir, name, seconds, ffmpeg = process.env.FFMPEG || "ffmpeg" }) {
+  if (!(seconds > 0 && seconds <= WEB_CUT.maxSeconds)) return null;
+  mkdirSync(dir, { recursive: true });
+  const cut = join(dir, `${name}-cut.mp4`);
+  for (const crf of [27, 31, 35]) {
+    execFileSync(ffmpeg, webCutArgs({ src: mp4, out: cut, crf }));
+    if (statSync(cut).size <= WEB_CUT.maxBytes) return { cut, bytes: statSync(cut).size, seconds: Number(seconds.toFixed(2)) };
+  }
+  return null;
+}
+
+/**
+ * Sends the loop and poster to the show (POST /api/admin/home-clip), and the cut with its length when there is one.
+ * Returns { ok, status, error }: the route's own refusal (not aired, not public) comes back as its `error`. `send`: fetch
+ * (tests pass their own). Never throws.
+ */
+export async function uploadWebClip({ base, key, episode, day, loop, poster, seconds, cut = null, cutSeconds = null, send = fetch }) {
   try {
     const form = new FormData();
     form.set("episode", episode);
@@ -192,6 +237,10 @@ export async function uploadWebClip({ base, key, episode, day, loop, poster, sec
     form.set("seconds", String(seconds));
     form.set("loop", new Blob([readFileSync(loop)], { type: "video/mp4" }), "loop.mp4");
     form.set("poster", new Blob([readFileSync(poster)], { type: "image/jpeg" }), "poster.jpg");
+    if (cut && cutSeconds) {
+      form.set("cut", new Blob([readFileSync(cut)], { type: "video/mp4" }), "cut.mp4");
+      form.set("cut_seconds", String(cutSeconds));
+    }
     const res = await send(`${base}/api/admin/home-clip`, { method: "POST", headers: { "x-frontier-key": key, "user-agent": "botchelor-clip/1.0" }, body: form });
     const body = await res.json().catch(() => ({}));
     return { ok: res.ok && body.ok === true, status: res.status, error: res.ok ? null : String(body.error ?? `http_${res.status}`), id: body.id ?? null };
@@ -212,13 +261,22 @@ export async function sendWebClip({ mp4, out, name, episode, day, window, base, 
       console.error("home clip: the loop is still too heavy; not sent");
       return { ok: false, error: "too_large" };
     }
+    // The whole clip with its voices, for the date's page (best effort: no cut never stops the loop going up).
+    let cut = null;
+    try {
+      cut = makeWebCut({ mp4, dir: join(out, "web"), name, seconds: clipSeconds(mp4) });
+      if (cut) console.log(`Web cut: ${cut.cut} (${Math.round(cut.bytes / 1024)} KB, ${cut.seconds}s)`);
+      else console.error("home clip: no cut (too long or too heavy); the loop goes alone");
+    } catch (e) {
+      console.error(`home clip: no cut (${String(e?.message ?? e).slice(0, 160)})`);
+    }
     if (dry) return { ok: true, error: null, dry: true };
     const key = adminKey();
     if (!key) {
       console.error("home clip: no admin password (FRONTIER_PASSWORD or the keychain); not sent");
       return { ok: false, error: "no_key" };
     }
-    const sent = await uploadWebClip({ base, key, episode, day, loop: made.loop, poster: made.poster, seconds: window.seconds });
+    const sent = await uploadWebClip({ base, key, episode, day, loop: made.loop, poster: made.poster, seconds: window.seconds, cut: cut?.cut ?? null, cutSeconds: cut?.seconds ?? null });
     if (sent.ok) console.log(`Home clip: sent (${sent.id})`);
     else console.error(`home clip: not sent (${sent.status} ${sent.error})`);
     return sent;
@@ -328,6 +386,8 @@ async function main() {
     await page.goto(`${base}/episodes/${episode.id}`, { waitUntil: "networkidle" });
     await page.getByRole("button", { name: "Watch in theater" }).click({ timeout: 20_000 });
     await page.locator(".theater").waitFor({ timeout: 20_000 });
+    // The cold open (lib/cold-open.ts) holds the first line until Start: the clip starts where the date does, as before.
+    await startTheDate(page);
     const cdp = await context.newCDPSession(page);
     cdp.on("Page.screencastFrame", (f) => {
       // The wall clock when the first frame lands: the page's line marks (Date.now()) are measured from this, since the

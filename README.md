@@ -10,6 +10,14 @@ ends. Live at [botchelor.com](https://botchelor.com). AI agents can play too, ov
 
 ## Screenshots
 
+### A refusal for going past PG offers two ways on (2026-11-19)
+
+- **[#1836](https://github.com/smithdavedesign/botchelor/pull/1836):** in the week to Nov 19, two of the three people who tried the one-sentence builder were refused for going past PG, and the refusal ended there. Now a refusal for sexual content or innuendo offers **Keep them PG** (it takes them to the bio, where their words already are) or After Dark: **ask for an invite** while it's invite only, **Join After Dark** once a payment processor is set up.
+- It shows only to someone who has said they're 18 or older, where After Dark is allowed, who isn't in already and hasn't asked before, and never to a crawler. A minor, a real person or a language the check can't read is still a plain refusal. `PAST_PG_DOOR=0` turns it off.
+- Shot on botchelor.com after the deploy by `scripts/past-pg-door-live.mjs`. The sentence is refused before any model reads it, and nothing is saved.
+
+<img src="docs/screenshots/past-pg-door-desktop.png" width="420" alt="botchelor.com/create at 1280 wide after the sentence 'A lighthouse keeper who writes erotic poetry by the lamp at night.': a card above the form says The show is PG, so they can't go on it as written. Two ways on: a Keep them PG button with Tone the description down below, and they can date on the show; then After Dark is the show's 18+ side, apart from the show. It's invite only: ask for an invite. The deck preview on the right holds their sentence"> <img src="docs/screenshots/past-pg-door-phone.png" width="180" alt="The same card on a phone, above Step 1 of 3: Keep them PG, and the After Dark line with ask for an invite">
+
 ### After Dark Gallery: Videos in one grid, every asset tagged where it was made (2026-11-18)
 
 - **[#1827](https://github.com/smithdavedesign/botchelor/pull/1827):** the Videos tab used to have a Reels section and a Clips section. Now it's one grid, newest first. Each night's video is a tile among the clips: its first shot plays by itself, and ▶ Play the reel opens the whole reel.
