@@ -128,6 +128,35 @@ describe("the recast (POST /api/admin/recast)", () => {
     expect((await call({ action: "update", character_id: b.id, patch: { name: "Captain Isolde Brack" } })).status).toBe(409);
   });
 
+  it("with merge_extras, adds a field over the saved extras and keeps the private ones (2026-11-18 backfill)", async () => {
+    const a = await agentCharacter("Odile Fenwick");
+    const first = await call({
+      action: "update",
+      character_id: a.id,
+      patch: { extras: { occupation: "Clockmaker", baggage: "Still keeps her ex's watch running.", facts: [{ label: "Secret", value: "Hates cuckoos", private: true }] } },
+    });
+    expect(first.status).toBe(200);
+    const merged = await call({
+      action: "update",
+      character_id: a.id,
+      merge_extras: true,
+      patch: { extras: { backstory: "Apprenticed in Geneva at 16. Dating now because the clocks are finally quiet.", world: "A floating city of clock towers" } },
+    });
+    expect(merged.status).toBe(200);
+    const { extras } = (await t.db.query<{ extras: Record<string, unknown> }>(`select extras from characters where id = $1`, [a.id])).rows[0];
+    expect(extras).toMatchObject({
+      occupation: "Clockmaker",
+      baggage: "Still keeps her ex's watch running.",
+      facts: [{ label: "Secret", value: "Hates cuckoos", private: true }],
+      backstory: "Apprenticed in Geneva at 16. Dating now because the clocks are finally quiet.",
+      world: "A floating city of clock towers",
+    });
+    // Without it, extras are replaced whole, as before.
+    await call({ action: "update", character_id: a.id, patch: { extras: { occupation: "Clockmaker" } } });
+    const after = (await t.db.query<{ extras: Record<string, unknown> }>(`select extras from characters where id = $1`, [a.id])).rows[0].extras;
+    expect(after.backstory).toBeUndefined();
+  });
+
   it("draws their portrait from their written look, PG-checked, and makes it their face", async () => {
     const a = await agentCharacter("Rook Marrow");
     const asked = fakes();
