@@ -3319,12 +3319,7 @@ create table if not exists showcase_loops (
 -- 2026-10-29: the first run's provider trouble (Replicate's "Model not found") was kept as failed: tried again now
 -- (lib/showcase-loops.ts RETRYABLE lets such a claim go from then on).
 delete from showcase_loops where status = 'failed' and error like 'Replicate: Model not found%';
--- Where each After Dark post was made, a date (a night) or the Studio, by the one rule every gallery tags with
--- (lib/made-in.ts; 2026-11-18, David: "go through all assets and tag accordingly"). lib/showcase.ts FROM_DATE decides it
--- for new posts; this puts it on the ones kept before (a living portrait was "from a date" on some posts and not others).
-update showcase_posts p set from_date = (${madeInSql("i")} = 'night')
-  from adult_images i
- where p.source = 'after_dark' and i.id = p.media_id and p.from_date is distinct from (${madeInSql("i")} = 'night');
+-- Where each After Dark post was made: MADE_IN_SQL below, run after this (it's built from lib/made-in.ts).
 -- One shot is a clip, several back to back a reel (lib/made-in.ts; David, 2026-11-18: "we have reels and clips, really
 -- they are the same thing"): a shot of a night's video posted on its own was a "reel"; only clips joined into one are.
 update showcase_posts p set medium = 'clip'
@@ -4536,9 +4531,22 @@ create table if not exists character_tags (
 create index if not exists character_tags_tag_idx on character_tags (tag, character_id);
 `;
 
+/**
+ * Where each After Dark post was made, a date (a night) or the Studio, by the one rule every gallery tags with
+ * (lib/made-in.ts; 2026-11-18, David: "go through all assets and tag accordingly"). lib/showcase.ts FROM_DATE decides it
+ * for new posts; this puts it on the ones kept before (a living portrait was "from a date" on some posts and not others).
+ * Apart from SCHEMA_SQL because it's built from the rule, and SCHEMA_SQL stays plain text (tests/schema-sql.ts reads it).
+ */
+const MADE_IN_SQL = `
+update showcase_posts p set from_date = (${madeInSql("i")} = 'night')
+  from adult_images i
+ where p.source = 'after_dark' and i.id = p.media_id and p.from_date is distinct from (${madeInSql("i")} = 'night');
+`;
+
 /** Idempotent: creates the tables and upserts the house characters, free and premium. */
 export async function ensureSchema(db: Db): Promise<void> {
   await db.exec(SCHEMA_SQL);
+  await db.exec(MADE_IN_SQL);
   const cast = [
     ...HOUSE_CHARACTERS.map((c) => ({ ...c, sku: null })),
     ...PREMIUM_HOUSE_CHARACTERS.map((c) => ({ ...c, sku: c.sku })),
@@ -4568,10 +4576,11 @@ export async function ensureSchema(db: Db): Promise<void> {
   }
 }
 
-/** Everything ensureSchema writes, hashed: the DDL above and the house cast it upserts. */
+/** Everything ensureSchema writes, hashed: the DDL above, the made-in re-tag and the house cast it upserts. */
 export function schemaVersion(): string {
   return createHash("sha256")
     .update(SCHEMA_SQL)
+    .update(MADE_IN_SQL)
     .update(JSON.stringify([HOUSE_CHARACTERS, PREMIUM_HOUSE_CHARACTERS, HOUSE_KITS]))
     .digest("hex")
     .slice(0, 16);
