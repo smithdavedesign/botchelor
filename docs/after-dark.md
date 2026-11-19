@@ -1705,6 +1705,39 @@ shot's player shows its keyframe as the poster before it plays, and a shot with 
 **Screenshots** (`npm run screenshots:after-dark-media`, clips seeded locally from the repo's PG portraits, nothing
 generated): `docs/screenshots/after-dark-clips-*.png`.
 
+## Night videos like Animate: four 10 s shots on Venice (2026-11-18)
+
+**What David saw:** Studio's Animate on a picture does what it's told; the night's video ("the storyteller") doesn't
+match the scene. He wants each shot 10 s, one or two lines in it, and the scene's action happening.
+
+**Why they differed:**
+- **The engine.** Animate always runs Venice's Wan 3.0 (5 or 10 s). Night shots ran on the media provider, Replicate:
+  Wan 2.6 for a dressed line, S2V lip-sync for an explicit one (the video only as long as the voice, so the body barely
+  moves), Wan 2.2 at 5 s for the rest.
+- **The prompt.** Animate's prompt leads with what the person asked for ("Most important, do exactly this: …"). A night
+  shot led with the framing and voices, its motion was often vague ("they move together"), and a quoted line added "the
+  speaker's mouth free", which fought any act that uses the mouth.
+- **The start picture.** A reused beat picture could come from many lines earlier, so the shot started on a different
+  moment from its line. New keyframes sometimes invented a room the script never named.
+
+**What changed (`lib/adult/reels.ts`, `beats.ts`, `settings.ts`):**
+- A night's videos film on Venice's Wan 3.0 whenever its key is set (`videoProvider`), 10 s a shot (`NIGHT_SHOT_SECONDS`),
+  with sound. Keyframes stay on the media provider. Clips are unchanged (they stay on `media_provider`).
+- Four shots by default (`DEFAULT_REEL_SHOTS`, was 6): about 40 s and $5.20 of Venice video, the same as six 5 s shots
+  before. The price stays 8 tokens (David, 2026-11-18).
+- A shot can carry the other one's answer (`replyTo`): the next spoken line within two, from the other person, in the
+  same place, stage and chapter, both lines together 24 words at most (`SHOT_WORDS_MAX`), and the answer passes the same
+  text checks. The prompt says "… says: "…" The woman, in …, answers: "…"", and the storyboard shows both lines.
+- The prompt now starts with the action ("Most important, do exactly this: …"). The director is told each shot is 10 s
+  of the two of them together, to name the act plainly (who does what to whom), to keep to the place in that line's
+  "where", and never to give a line to someone whose mouth is busy (show the moment just before or after instead). "Mouth
+  free" is only added when a separate voice is lip-synced on.
+- A beat picture is reused only when it was drawn within two lines of the shot's line (`BEAT_REUSE_LINES`); otherwise the
+  shot gets a new keyframe of its own moment.
+
+**What to watch:** Venice's terms side letter is still unsigned, the same exposure Animate already has. The first real
+night video after deploy is the live proof; refilm a shot from the storyboard if one misses.
+
 ## Picture shot menus (2026-10-22)
 
 The second media feature from the competitor read. Code: `lib/adult/pictures-menu.ts`, `/api/admin/after-dark/pictures`,

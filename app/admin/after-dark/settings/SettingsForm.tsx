@@ -204,14 +204,14 @@ export default function SettingsForm({ hive = null }: { hive?: HiveState | null 
         <Field id="ad-reel-model" field="reel_model" label="Video model">
           {text("reel_model", "ad-reel-model")}
         </Field>
-        <Field id="ad-reel-shots" field="reel_shots" label="Shots per video" hint="About 5 seconds each.">
+        <Field id="ad-reel-shots" field="reel_shots" label="Shots per video" hint="10 seconds each, on Venice when its key is set.">
           <input
             id="ad-reel-shots"
             type="number"
             min={2}
             max={12}
             value={s.reel_shots}
-            onChange={(e) => edit({ reel_shots: Number(e.target.value) || 6 })}
+            onChange={(e) => edit({ reel_shots: Number(e.target.value) || 4 })}
             onBlur={() => commit("reel_shots")}
             onKeyDown={blurOnEnter}
           />

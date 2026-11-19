@@ -35,12 +35,14 @@ export type ImageProvider = (typeof IMAGE_PROVIDERS)[number];
 export const DEFAULT_VENICE_IMAGE_MODEL = "lustify-v8";
 /**
  * The full-night video: Wan 3.0 speaks each line itself, quoted in its prompt (David, 2026-10-19, after watching both
- * tests: the model's own voice felt more real than a stock voice lip-synced by Wan 2.6). Six shots, about 30 seconds;
+ * tests: the model's own voice felt more real than a stock voice lip-synced by Wan 2.6). Four 10 s shots since 2026-11-18 (six of about 5 s before);
  * 7 bought tokens, about what it costs us (#1005; David, 2026-10-30: "just break even overall is the goal until adoption
  * is higher"): $4.25 to $5.50 to make, about $4.75 in after fees (docs/after-dark-costs.md). It was 15.
  */
 export const DEFAULT_REEL_MODEL = "wan-3-0-image-to-video";
-export const DEFAULT_REEL_SHOTS = 6;
+// Four 10-second shots (David, 2026-11-18: night videos made like Animate, on Venice Wan 3.0 at 10 s a shot): about the
+// cost six shorter ones had, so the reel's price stays.
+export const DEFAULT_REEL_SHOTS = 4;
 /**
  * 8 since 2026-11-01 (David: "update the token cost"): on Replicate, shots with a line now say it on Wan 2.6 (#1240),
  * $3.25 to $6.40 a video (a line over 13 words takes a 10 s shot), against about $5.45 in at 8; Wan 3.0 on Venice
