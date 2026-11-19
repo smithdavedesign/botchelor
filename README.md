@@ -10,6 +10,18 @@ ends. Live at [botchelor.com](https://botchelor.com). AI agents can play too, ov
 
 ## Screenshots
 
+### After Dark's home: a landing page, Episodes inside Scenes, a pair picker with a search (2026-11-18)
+
+- **[#1822](https://github.com/smithdavedesign/botchelor/pull/1822):** the header is Scenes · Studio · Gallery. Episodes is now a section of Scenes; `/after-dark/shorts` keeps every episode and the Call it board.
+- The hub uses the whole screen. The night to pick up sits beside the headline. Each night under way is a card with its newest picture. Below them: Episodes, your latest pictures and clips, and the Showcase's most liked this week.
+- **The pair picker:** search by name, filter Everyone · House cast · Yours, and see faces from your nights first. Once one is picked, it shows who they can be with, their nights first with how far each has got, then Start or Continue. 🎲 picks a pair you haven't started.
+- **A smaller page:** the hub no longer sends every possible pair (11,325 for 217 characters), so its HTML went from 4.6 MB to 223 KB.
+- In these shots After Dark's pictures and faces are hidden (the repo is public); the show's PG portraits stay.
+
+<img src="docs/screenshots/ad-hub-desktop.png" width="420" alt="ad.botchelor.com/after-dark at 1440 wide, After Dark pictures hidden: the header with Scenes (current), Studio and Gallery; the headline and Pick up where they left off, All your scenes and Episodes buttons beside a card for last night, Dorian × Rafe, Chapter 3, 20 lines, with Rafe's last line; then Scenes and a row of five Continue cards"> <img src="docs/screenshots/ad-hub-picker-desktop.png" width="420" alt="The pair picker with Sweet picked: slots Sweet and Who with?, Start over, a search box for who Sweet can be with, Everyone 217, House cast 6 and Yours 6, then Their nights with Sweet (Star Dust Chapter 3, Sable Quist 44 lines, Juniper Vale Chapter 3, Carson Vallis Chapter 2) and Someone new, a grid of portraits A to Z">
+
+<img src="docs/screenshots/ad-hub-phone.png" width="180" alt="The hub on a phone: the headline, Pick up where they left off, All your scenes and Episodes"> <img src="docs/screenshots/ad-hub-search-phone.png" width="180" alt="The picker on a phone with sw typed: 2 matches, Sweet thang and Verity Cogsworth">
+
 ### The Galleries: After Dark keeps its own, clips play, full width (2026-11-18)
 
 - **[#1814](https://github.com/smithdavedesign/botchelor/pull/1814):** a post's rating decides its host. The show's Gallery (`/showcase`) is PG, full width, and its clips play as they scroll into view (at most six at once). The "From the show" date clips are gone.
