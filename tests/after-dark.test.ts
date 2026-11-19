@@ -18,6 +18,9 @@ beforeAll(async () => {
 afterAll(async () => {
   await t.close();
 });
+// The age check at switch-on (lib/adult/switch-check.ts) has its own tests; here every sheet reads as a grown-up.
+beforeEach(() => setSwitchCheckModelForTests({ complete: async () => JSON.stringify({ adult: true, reason: "x" }) } as never));
+afterEach(() => setSwitchCheckModelForTests(null));
 beforeEach(async () => {
   await t.reset();
   vi.spyOn(console, "log").mockImplementation(() => {});
@@ -1497,6 +1500,7 @@ describe("chapters: a long night runs on, and remembers how it began", () => {
 import { afterDarkNote, FALLBACK_NOTE } from "@/lib/adult/memory";
 import { assembleDate, DEFAULT_DATE_REQUEST } from "@/lib/simulation";
 import { remembered } from "@/lib/memory";
+import { setSwitchCheckModelForTests } from "@/lib/adult/switch-check";
 
 describe("what After Dark leaves behind (PG only)", () => {
   const night = Array.from({ length: 10 }, (_, i) => ({ who: (i % 2 ? "b" : "a") as "a" | "b", text: `Line ${i}.` }));

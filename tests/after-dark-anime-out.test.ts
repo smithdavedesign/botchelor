@@ -4,6 +4,7 @@ import { POST as switchPost } from "@/app/api/admin/after-dark/switch/route";
 import { claimAdmin } from "@/lib/admins";
 import { drawnOutMessage, eligibleIds, listSwitchable, setAdultSwitch } from "@/lib/adult/characters";
 import { BASE_URL, signedInCookie, startTestDb, TEST_SESSION_SECRET } from "./helpers";
+import { setSwitchCheckModelForTests } from "@/lib/adult/switch-check";
 
 // David, 2026-11-13: a character made in anime on purpose is never drawn as a real-looking person. After Dark draws
 // photographs, so a drawn character (anime, or 2.5D since PRD styles-and-storylines phase 2) stays out of it: their
@@ -15,6 +16,9 @@ beforeAll(async () => {
 afterAll(async () => {
   await t.close();
 });
+// The age check at switch-on (lib/adult/switch-check.ts) has its own tests; here every sheet reads as a grown-up.
+beforeEach(() => setSwitchCheckModelForTests({ complete: async () => JSON.stringify({ adult: true, reason: "x" }) } as never));
+afterEach(() => setSwitchCheckModelForTests(null));
 beforeEach(async () => {
   await t.reset();
   vi.stubEnv("SESSION_SECRET", TEST_SESSION_SECRET);
