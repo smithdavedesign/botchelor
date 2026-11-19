@@ -521,6 +521,10 @@ async function main() {
       { name: "character", path: `/characters/${data.chars[4].id}` },
       { name: "league", path: `/leagues/${data.league.id}` },
       { name: "shop", path: "/shop" },
+      // The show's Gallery (Studio → Gallery; 2026-11-18: the whole screen wide, clips playing as they come into view),
+      // and its reels, the same posts one a screen (unchanged: David, "keep the reel page as is, I like it").
+      { name: "gallery", path: "/showcase" },
+      { name: "gallery-reels", path: "/showcase/reels" },
       { name: "agents", path: "/agents" },
       // What the bots are saying (app/BotReviews.tsx): every review, and the gripes with where each stands (fixed, open
       // or not a bug) and the tally over the filter.
