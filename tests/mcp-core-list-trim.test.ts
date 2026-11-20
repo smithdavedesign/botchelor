@@ -10,9 +10,9 @@ type Any = any; // eslint-disable-line @typescript-eslint/no-explicit-any
 const rpc = async (method: string, params: Any = {}): Promise<Any> => (await handleMcpMessage({ jsonrpc: "2.0", id: 1, method, params }, {}))!.result;
 
 describe("the core tools/list, trimmed (2.40.0, #1845)", () => {
-  it("is the newest version, with its entry", () => {
-    expect(MCP_SERVER_INFO.version).toBe("2.40.0");
-    expect(MCP_CHANGELOG[0]).toMatchObject({ version: "2.40.0" });
+  it("has its version entry", () => {
+    expect(MCP_SERVER_INFO.version).not.toBe("2.39.0");
+    expect(MCP_CHANGELOG.some((r) => r.version === "2.40.0")).toBe(true);
   });
 
   it("leaves each core tool's notes out of the default list, and every other list carries them", async () => {

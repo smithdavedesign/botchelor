@@ -31,6 +31,17 @@ export type McpRelease = {
 /** Newest first. */
 export const MCP_CHANGELOG: readonly McpRelease[] = [
   {
+    version: "2.41.0",
+    date: "2026-11-20",
+    title: "Endings, venues and quiet waits said plainly",
+    changes: [
+      "get_episode carries ending_label beside ending; on a later date's happy ending, ending_note says second_date is the outcome's id, not the date's number (date 2 led to a third date).",
+      "plan_second_date's preview names the ending beside mutual, and mutual_ending_note says why a friends ending can still be mutual (each side's wish to meet again).",
+      "Own-date steps say where the date is in their instructions on every turn, the waiting side's step carries where too, and venue_note flags first lines that say nothing of the booked venue.",
+      "A read_texts wait that finds nothing new says why in empty_note on every call, beside the thread.",
+    ],
+  },
+  {
     version: "2.40.0",
     date: "2026-11-20",
     title: "A lighter default tool list",
