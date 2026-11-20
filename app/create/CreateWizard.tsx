@@ -27,6 +27,7 @@ import FactsStep from "./FactsStep";
 import DeeperStep from "./DeeperStep";
 import DepthMeter from "./DepthMeter";
 import { sheetWords } from "@/lib/sheet-words";
+import { SPARKS } from "@/lib/sparks";
 import DeckPreview, { SHEET_EXAMPLE } from "./DeckPreview";
 import { findCliches } from "@/lib/originality";
 import { AVATAR_HUES, imageTraits, type ImageSignals } from "@/lib/avatar";
@@ -175,6 +176,35 @@ async function checkName(name: string, except?: string): Promise<{ taken: boolea
   } catch {
     return null;
   }
+}
+
+/** How many samples "Start from a sample character" checks by name before it settles for one that's taken. */
+export const SAMPLE_TRIES = 4;
+
+/**
+ * Which sample to deal (2026-11-20): one nobody has saved yet. The People's tab was filling with the same four samples,
+ * and a taken one renamed under a free first name still kept its bio, so three characters shared one. It tries up to
+ * SAMPLE_TRIES samples in a random order and deals the first whose name is free; when all of them are taken, the last
+ * one keeps its surname under a free first name, as before. A failed check deals that sample as it is.
+ */
+export async function pickSample<T extends { name: string }>(
+  pool: readonly T[],
+  check: (name: string) => Promise<{ taken: boolean; free: string[] } | null>,
+  random: () => number = Math.random,
+): Promise<{ sample: T; name: string }> {
+  const order = [...pool];
+  for (let i = order.length - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1));
+    [order[i], order[j]] = [order[j], order[i]];
+  }
+  const tries = order.slice(0, Math.max(1, Math.min(SAMPLE_TRIES, order.length)));
+  let last: { sample: T; name: string } = { sample: tries[0], name: tries[0].name };
+  for (const sample of tries) {
+    const result = await check(sample.name);
+    if (!result || !result.taken) return { sample, name: sample.name };
+    last = { sample, name: result.free[0] ?? sample.name };
+  }
+  return last;
 }
 
 /** The steps, by name, so their order can change without renumbering every check. */
@@ -536,10 +566,8 @@ export default function CreateWizard({
    * Next clicks). Every step stays open there, each with its Edit link.
    */
   async function applySample() {
-    const t = SAMPLES[Math.floor(Math.random() * SAMPLES.length)];
-    // A sample someone already made keeps its surname under a free first name, so it isn't a second Juno Marlowe.
-    const check = await checkName(t.name);
-    const name = check?.taken && check.free[0] ? check.free[0] : t.name;
+    // The builder's samples and the sparks (lib/sparks.ts), skipping any someone has already saved (pickSample).
+    const { sample: t, name } = await pickSample([...SAMPLES, ...SPARKS], checkName);
     setSheet({ name, age: t.age, bio: t.bio, want: t.want, dealbreaker: t.dealbreaker });
     setTraits([...t.traits]);
     setAppearance(t.appearance);
