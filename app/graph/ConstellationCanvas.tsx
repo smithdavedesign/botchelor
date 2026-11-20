@@ -4,7 +4,8 @@ import { useEffect, useRef } from "react";
 import { sized } from "@/app/Avatar";
 import { avatarPalette, initials } from "@/lib/avatar";
 import { shade, starColor, type ColorBy } from "./colors";
-import type { GraphEdge, GraphNode } from "@/lib/graph";
+import { LINE_STYLES, SOCIAL_TOKENS, type SocialToken } from "@/lib/social/lenses";
+import { placeGlyph, type SkyEdge, type SkyNode } from "./lens";
 import { ALPHA_MIN, createSim, pick, REHEAT, settle, tick, warmStart, type Sim } from "./sim";
 import { LINE_STYLE, STAGE_GROUPS, stageGroup, type StageGroup } from "./stages";
 
@@ -14,9 +15,12 @@ const IMAGES_AT_ONCE = 4;
 export type Selection = { kind: "node"; id: string } | { kind: "edge"; a_id: string; b_id: string } | null;
 
 type Props = {
-  /** Already filtered by the wrapper; the sim rebuilds (deterministically) when these change. */
-  nodes: GraphNode[];
-  edges: GraphEdge[];
+  /**
+   * Already filtered by the wrapper; the sim rebuilds (deterministically) when these change. The Love view's pairs, or a
+   * social view's (./lens.ts): lines that carry one line a group, and places as stars with a spoke to each member.
+   */
+  nodes: SkyNode[];
+  edges: SkyEdge[];
   selection: Selection;
   onSelect: (s: Selection) => void;
   /** Search-to-focus: pan/zoom to this node and select it (cleared by the wrapper after use). */
@@ -27,20 +31,25 @@ type Props = {
   colorBy?: ColorBy;
   /** "Show what happened" is on: draw the chevrons (who got turned down). Off by default, like the episode's recap. */
   showOutcomes?: boolean;
+  /** What the sky shows, for a screen reader: the Love view's words by default. */
+  label?: string;
 };
 
 type View = { zoom: number; panX: number; panY: number };
-/** `lines`: each stage group's line colour (./stages.ts LINE_STYLE tokens). */
-type Theme = { bg: string; ink: string; muted: string; line: string; accent: string; accent2: string; lines: Record<StageGroup, string> };
+/** `lines`: each stage group's line colour (./stages.ts LINE_STYLE tokens); `social`: the social views' (lib/social/lenses.ts). */
+type Theme = { bg: string; ink: string; muted: string; line: string; accent: string; accent2: string; lines: Record<StageGroup, string>; social: Record<SocialToken, string> };
 
-const edgeKey = (e: GraphEdge) => `${e.a_id}~${e.b_id}`;
+const edgeKey = (e: SkyEdge) => `${e.a_id}~${e.b_id}${e.lines ? `:${e.lines.map((l) => l.g).join("+")}` : ""}`;
+
+/** The sim's view of the stars: a place's star stays small whatever its members (its size isn't anyone's popularity). */
+const simNodes = (ns: readonly SkyNode[]) => ns.map((n) => ({ id: n.id, degree: n.place ? 1 : n.degree }));
 
 /**
  * The night-sky canvas: hand-rolled force layout (./sim.ts), ego-network highlight on hover, drag/pan/pinch/wheel,
  * portraits drawn in circular clips with the avatar gradient as fallback. All per-frame state lives in refs — React
  * renders this component exactly once per data change. Colors come from the CSS tokens so both themes just work.
  */
-export default function ConstellationCanvas({ nodes, edges, selection, onSelect, focusId, fit = 0, colorBy = "character", showOutcomes = false }: Props) {
+export default function ConstellationCanvas({ nodes, edges, selection, onSelect, focusId, fit = 0, colorBy = "character", showOutcomes = false, label }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const simRef = useRef<Sim | null>(null);
   const viewRef = useRef<View>({ zoom: 1, panX: 0, panY: 0 });
@@ -72,6 +81,7 @@ export default function ConstellationCanvas({ nodes, edges, selection, onSelect,
         accent: s.getPropertyValue("--accent").trim() || "#e5356b",
         accent2,
         lines: Object.fromEntries(STAGE_GROUPS.map((g) => [g, s.getPropertyValue(LINE_STYLE[g].token).trim() || accent2])) as Record<StageGroup, string>,
+        social: Object.fromEntries(SOCIAL_TOKENS.map((t) => [t, s.getPropertyValue(t).trim() || accent2])) as Record<SocialToken, string>,
       };
     };
     themeRef.current = readTheme();
@@ -97,7 +107,7 @@ export default function ConstellationCanvas({ nodes, edges, selection, onSelect,
       const { w, h } = sizeRef.current;
       const { nodes: ns, edges: es } = propsRef.current;
       simRef.current = createSim(
-        ns.map((n) => ({ id: n.id, degree: n.degree })),
+        simNodes(ns),
         es.map((e) => ({ a_id: e.a_id, b_id: e.b_id, weight: e.weight })),
         w,
         h,
@@ -122,7 +132,7 @@ export default function ConstellationCanvas({ nodes, edges, selection, onSelect,
       const { nodes: ns, edges: es, selection: sel, colorBy: by, showOutcomes: outcomes } = propsRef.current;
       const byId = new Map(ns.map((n, i) => [n.id, i]));
       // A star's palette under the chosen colouring: its own, a kind's hue, a cluster's colour, or null for the grey.
-      const paletteOf = (id: string, n: GraphNode): { from: string; to: string } | null => {
+      const paletteOf = (id: string, n: SkyNode): { from: string; to: string } | null => {
         const c = starColor(n, by);
         if (c === null) return null;
         if (c === "own") return avatarPalette(id, n.hue);
@@ -159,6 +169,23 @@ export default function ConstellationCanvas({ nodes, edges, selection, onSelect,
       ctx.fillRect(0, 0, w, h);
       ctx.setTransform(dpr * v.zoom, 0, 0, dpr * v.zoom, dpr * v.panX, dpr * v.panY);
 
+      // A chevron along a line, pointing from one star at another: who got turned down, who told whom.
+      const chevron = (from: { x: number; y: number; r: number }, to: { x: number; y: number; r: number }) => {
+        const len = Math.hypot(to.x - from.x, to.y - from.y);
+        if (len <= from.r + to.r + 12) return;
+        const ux = (to.x - from.x) / len;
+        const uy = (to.y - from.y) / len;
+        const tipX = from.x + ux * len * 0.62;
+        const tipY = from.y + uy * len * 0.62;
+        const s = 5 / Math.sqrt(v.zoom) + 2;
+        ctx.setLineDash([]);
+        ctx.beginPath();
+        ctx.moveTo(tipX - ux * s - uy * s * 0.8, tipY - uy * s + ux * s * 0.8);
+        ctx.lineTo(tipX, tipY);
+        ctx.lineTo(tipX - ux * s + uy * s * 0.8, tipY - uy * s - ux * s * 0.8);
+        ctx.stroke();
+      };
+
       // Edges under nodes. Each line says where its pair stands (./stages.ts): its group's colour and its own dash, so
       // it reads without colour too; first dates thin and faint. A private pair stays the neutral grey dash it always was.
       for (let i = 0; i < sim.edges.length; i++) {
@@ -169,6 +196,47 @@ export default function ConstellationCanvas({ nodes, edges, selection, onSelect,
         const inEgo = ego.has(a.id) && ego.has(b.id);
         const isSel = selEdge && selEdge.a_id === data.a_id && selEdge.b_id === data.b_id;
         const hot = Boolean(isSel) || hoverEdge === se;
+        // A social view's pair (./lens.ts): one line a group, side by side, each in its kind's colour and dash
+        // (lib/social/lenses.ts LINE_STYLES), red when it feels bad, faded when it's over, and an arrow on who said it.
+        if (data.lines?.length) {
+          const n = data.lines.length;
+          const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+          const px = -(b.y - a.y) / len;
+          const py = (b.x - a.x) / len;
+          const base = 1 + 2 * se.weight;
+          const width = (base / v.zoom + base * 0.6) * (data.spoke ? 0.7 : 1);
+          const gap = width * 1.9;
+          if (hot) {
+            ctx.globalAlpha = 0.3;
+            ctx.strokeStyle = theme.ink;
+            ctx.lineWidth = width * n + gap * (n - 1) + 5 / v.zoom;
+            ctx.lineCap = "round";
+            ctx.setLineDash([]);
+            ctx.beginPath();
+            ctx.moveTo(a.x, a.y);
+            ctx.lineTo(b.x, b.y);
+            ctx.stroke();
+          }
+          data.lines.forEach((l, k) => {
+            const style: { token: SocialToken; dash: readonly number[]; faint?: boolean; arrow?: boolean } = LINE_STYLES[l.s] ?? LINE_STYLES.met;
+            const off = (k - (n - 1) / 2) * gap;
+            const faint = Boolean(style.faint) || Boolean(data.spoke);
+            ctx.globalAlpha = dimming && !inEgo ? 0.08 : hot ? 1 : faint ? (dimming ? 0.6 : 0.22 + 0.3 * se.weight) : l.e ? 0.4 : 0.55 + 0.4 * se.weight;
+            ctx.strokeStyle = l.v < 0 ? theme.social["--social-conflict"] : theme.social[style.token];
+            ctx.lineWidth = width * (faint && !hot ? 0.75 : 1);
+            ctx.lineCap = "round";
+            ctx.setLineDash(style.dash.length ? style.dash.map((d) => d * width) : []);
+            const from = { x: a.x + px * off, y: a.y + py * off, r: a.r };
+            const to = { x: b.x + px * off, y: b.y + py * off, r: b.r };
+            ctx.beginPath();
+            ctx.moveTo(from.x, from.y);
+            ctx.lineTo(to.x, to.y);
+            ctx.stroke();
+            if (style.arrow && l.d & 1) chevron(from, to);
+            if (style.arrow && l.d & 2) chevron(to, from);
+          });
+          continue;
+        }
         const group = data.masked ? null : stageGroup(data.stage_id);
         const style = group ? LINE_STYLE[group] : null;
         // A pair with no public stage (never on a public pair today) draws like a first date.
@@ -202,20 +270,7 @@ export default function ConstellationCanvas({ nodes, edges, selection, onSelect,
         const td = data.turned_down;
         if (outcomes && td && td.a !== td.b) {
           const [from, to] = td.a > td.b ? [a, b] : [b, a];
-          const len = Math.hypot(to.x - from.x, to.y - from.y);
-          if (len > from.r + to.r + 12) {
-            const ux = (to.x - from.x) / len;
-            const uy = (to.y - from.y) / len;
-            const tipX = from.x + ux * len * 0.62;
-            const tipY = from.y + uy * len * 0.62;
-            const s = 5 / Math.sqrt(v.zoom) + 2;
-            ctx.setLineDash([]);
-            ctx.beginPath();
-            ctx.moveTo(tipX - ux * s - uy * s * 0.8, tipY - uy * s + ux * s * 0.8);
-            ctx.lineTo(tipX, tipY);
-            ctx.lineTo(tipX - ux * s + uy * s * 0.8, tipY - uy * s - ux * s * 0.8);
-            ctx.stroke();
-          }
+          chevron(from, to);
         }
       }
       ctx.setLineDash([]);
@@ -229,6 +284,50 @@ export default function ConstellationCanvas({ nodes, edges, selection, onSelect,
         if (!data) continue;
         const dim = dimming && !ego.has(sn.id);
         ctx.globalAlpha = dim ? 0.15 : 1;
+        const selected = sel?.kind === "node" && sel.id === sn.id;
+
+        // A place (a social view's): a pin in its spokes' colour with its mark, and its name always beside it, since the
+        // places are the sky's landmarks.
+        if (data.place) {
+          const colour = theme.social[LINE_STYLES[data.place.group === "work" ? "work" : "place"].token];
+          const r = sn.r * 0.9;
+          const diamond = (pad: number) => {
+            ctx.beginPath();
+            ctx.moveTo(sn.x, sn.y - r - pad);
+            ctx.lineTo(sn.x + r + pad, sn.y);
+            ctx.lineTo(sn.x, sn.y + r + pad);
+            ctx.lineTo(sn.x - r - pad, sn.y);
+            ctx.closePath();
+          };
+          diamond(0);
+          ctx.fillStyle = theme.bg;
+          ctx.fill();
+          ctx.globalAlpha = dim ? 0.05 : 0.3;
+          ctx.fillStyle = colour;
+          ctx.fill();
+          ctx.globalAlpha = dim ? 0.15 : 1;
+          ctx.strokeStyle = colour;
+          ctx.lineWidth = 2 / v.zoom + 1;
+          ctx.stroke();
+          ctx.font = `${Math.max(9, r * 0.8)}px Inter, system-ui, sans-serif`;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillStyle = theme.ink;
+          ctx.fillText(placeGlyph(data.place.kind), sn.x, sn.y + 0.5);
+          if (selected || ego.has(sn.id)) {
+            ctx.strokeStyle = selected ? theme.accent : theme.accent2;
+            ctx.lineWidth = (selected ? 3 : 1.5) / v.zoom;
+            diamond(3 / v.zoom);
+            ctx.stroke();
+          }
+          if (!dim && v.zoom >= 0.5) {
+            ctx.font = `600 ${11 / v.zoom}px Inter, system-ui, sans-serif`;
+            ctx.textBaseline = "top";
+            ctx.fillStyle = theme.muted;
+            ctx.fillText(data.name, sn.x, sn.y + r + 4 / v.zoom);
+          }
+          continue;
+        }
 
         const img = data.portrait && !data.private ? images.get(sn.id) : undefined;
         if (data.portrait && !data.private && img === undefined) loadImage(sn.id, data.portrait);
@@ -280,7 +379,6 @@ export default function ConstellationCanvas({ nodes, edges, selection, onSelect,
           ctx.fillText(data.private ? "🔒" : initials(data.name), sn.x, sn.y + 0.5);
         }
 
-        const selected = sel?.kind === "node" && sel.id === sn.id;
         if (selected || ego.has(sn.id)) {
           ctx.strokeStyle = selected ? theme.accent : theme.accent2;
           ctx.lineWidth = (selected ? 3 : 1.5) / v.zoom;
@@ -513,7 +611,7 @@ export default function ConstellationCanvas({ nodes, edges, selection, onSelect,
     if (!canvas) return;
     const { w, h } = sizeRef.current;
     const sim = createSim(
-      nodes.map((n) => ({ id: n.id, degree: n.degree })),
+      simNodes(nodes),
       edges.map((e) => ({ a_id: e.a_id, b_id: e.b_id, weight: e.weight })),
       w,
       h,
@@ -573,5 +671,5 @@ export default function ConstellationCanvas({ nodes, edges, selection, onSelect,
     canvas.dispatchEvent(new Event("constellation:wake"));
   }, [fit]);
 
-  return <canvas ref={canvasRef} className="constellation-canvas" aria-label="The Botchelor constellation: every character and who they've dated" role="img" />;
+  return <canvas ref={canvasRef} className="constellation-canvas" aria-label={label ?? "The Botchelor constellation: every character and who they've dated"} role="img" />;
 }

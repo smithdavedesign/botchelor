@@ -37,6 +37,7 @@ layer of a wider one.
 - **Ties:** every public edge here is also a `dated` tie in `social_ties`, derived from the public layer only (`lib/social/derive.ts`). Its layer comes from the shown stage: friends is friendship, bad blood is conflict.
 - **Other ties:** kin, friends, coworkers, rivals, house feuds, told lines and off-screen people sit beside it, with places and who shares them.
 - **Reading it:** `lib/social/read.ts`, behind `/api/social/world/[id]`, `/api/social/pair/[a]/[b]` and `/api/social/sky?lens=`. It follows this graph's privacy rules: a pair touching a private character is existence only, and a deleted or persona character vanishes. It is cached like the Constellation, under the same tag (`lib/social/cache.ts`).
+- **On /graph:** the Constellation's views (Friends and family, Rivals, Gossip, Everything; below) draw it from `/api/graph/lens?lens=`, a build of the same public sky shaped for the canvas (`lib/social/lens-sky.ts`).
 
 ## Stages (`lib/relationship-stages.ts`, 2026-11-16)
 
@@ -222,7 +223,7 @@ date, then a disaster) and the rest didn't click; of 6 going steady, 3 are offic
 
   The controls sit above the sky, never over the stars. On a desktop that's two rows: who's on the sky (search, who
   made them, who they dated, what they are, the orbit, colour, full screen), then which lines (the chips, then When
-  and Still seeing each other; the social network's lens switch will go first in this row). On a phone the chips stay
+  and Still seeing each other; the views come first in this row). On a phone the chips stay
   on the sky, since they're its legend, and everything else sits behind one **Filters** button that counts what's on
   ("Filters · 2") and opens the show's bottom sheet (`app/Sheet.tsx`), with Reset and "Show 312 pairs" pinned at its
   foot.
@@ -240,6 +241,26 @@ date, then a disaster) and the rest didn't click; of 6 going steady, 3 are offic
 
   ![Just one character and their world: the line over the sky, the world framed, the centre's panel open](screenshots/graph-world-desktop.png)
   On a phone: [their world](screenshots/graph-world-mobile.png).
+
+  **Views** (`?lens=`, 2026-11-20, `SOCIAL_LENSES`, [PRD](PRDs/social-network.md) section 9): the lines row opens on a
+  switch between Love (everything above, unchanged), Friends and family, Rivals, Gossip and Everything, each its own
+  link (`/graph?lens=rivals`), a row of segmented tabs that scrolls on a phone. A view other than Love draws the social
+  network's public ties on the same canvas (`lib/social/lens-sky.ts` on `publicSky`, served as `/api/graph/lens?lens=`
+  and cached a minute under the Constellation's tag). A pair gets one line a group, side by side when they have
+  several (coworkers who are also exes), each group in its own colour and dash (`LINE_STYLES` in `lib/social/lenses.ts`),
+  red for a tie that feels bad whatever its kind, grey for a feud that cleared the air, and an arrow on the house's
+  gossip (who told whom, who talked about whom). Places are stars of their own, a pin with a spoke to each member:
+  regulars at the dive bar, both from Leeds, coworkers at a café are a group, never pairs (`SHARED` in
+  `lib/social/read.ts`), and a place stays on the sky while two or more of its members do. Each view's chips are its
+  groups and filter it as the Love chips do (`filterLens` in `app/graph/lens.ts`); who made them, what they are and
+  their world carry across views, while the Love-only controls (When, Still seeing each other, who they dated, the
+  orbit) step aside. A tap opens a character's ties in that view, a place and who shares it, or a pair's lines
+  (`app/graph/LensPanel.tsx`). Each view has its own numbers line where Love's sits ("6 feuds · 3 cleared the air ·
+  most at odds: Barnaby Thorne (4)"), counted from the whole view, not only the drawn ties. A view with nothing yet
+  says what will show there and how ties get made, with a way back to Love. A view is fetched when it's first opened,
+  so /graph's first load is the Love sky as before; an address that names a view is drawn by the server. In
+  Everything a pair touching a private character is a grey dash, as in Love, and the other views leave it out.
+  `SOCIAL_LENSES=0` drops the switch and /graph is as it was.
 
   ![/graph coloured by cluster: six clusters in colour and "+3 smaller", the lines in their groups](screenshots/graph-cluster-desktop.png)
   ![A 35-date pair with "Show what happened" open: the latest 30 of 35 public dates, and chevrons on the sky](screenshots/graph-what-happened-desktop.png)

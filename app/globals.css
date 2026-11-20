@@ -56,6 +56,17 @@
   --constellation-friends: #3987e5;
   --constellation-exes: #9c8fa6;
   --constellation-first: #cbb8d4;
+  /* The sky's social views (lib/social/lenses.ts LINE_STYLES): one hue a family of tie, the most a sky with every pair in
+     play keeps apart for colour-blind eyes (dataviz validator on both skies: green and red ΔE 7.1 deutan, in the band
+     that needs a second cue; every kind has its own dash, and the chips name them). Love is green and friends blue, as
+     Together and Friends are in the Love view; conflict is red, and a tie that feels bad is drawn in it whatever its
+     kind. Gossip and people who just met are the sky's neutrals, and so are exes and a conflict that cleared the air. */
+  --social-love: var(--constellation-together);
+  --social-friends: var(--constellation-friends);
+  --social-conflict: #e66767;
+  --social-talk: var(--constellation-first);
+  --social-met: var(--constellation-exes);
+  --social-calm: var(--constellation-exes);
   --frame-rose: #e64980;
   --frame-rose-bg: #fff0f6;
   --frame-gold: #e0a100;
@@ -12035,6 +12046,29 @@ html.constellation-locked body {
   padding: var(--space-2) var(--space-3);
   border-bottom: 1px solid var(--constellation-line);
 }
+/* The views (ConstellationApp.tsx): first in the lines row, since they pick which lines exist and the chips after them
+   filter within. Segmented tabs, as the /characters tabs are (each a link to its view), in one sideways row; on a phone
+   they take the row's whole width, the chips under them. */
+.constellation-lenses {
+  margin: 0;
+  flex: 0 1 auto;
+  min-width: 0;
+  gap: 2px;
+  padding: 3px;
+}
+.constellation-lenses .segmented-tab {
+  min-height: 36px;
+  padding: 0 0.8rem;
+}
+@media (max-width: 640px) {
+  .constellation-lenses {
+    flex: 1 1 100%;
+    border-radius: var(--radius-lg);
+  }
+  .constellation-lenses .segmented-tab {
+    min-height: 40px;
+  }
+}
 .constellation-stage-chips {
   display: flex;
   flex: 0 1 auto;
@@ -12237,6 +12271,21 @@ html.constellation-locked body {
   color: var(--on-photo);
   font-weight: 600;
   flex: none;
+}
+/* A place in a view's panel: its mark on a tile, in the place lines' blue. */
+.constellation-place-tile {
+  display: inline-grid;
+  place-items: center;
+  font-size: var(--text-lg);
+  background: color-mix(in srgb, var(--social-friends) 22%, var(--card));
+  border: 2px solid var(--social-friends);
+}
+/* A pair's lines in a view's panel: each kind's swatch beside its words. */
+.constellation-pair-lines li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
 }
 .constellation-pair {
   display: inline-flex;
