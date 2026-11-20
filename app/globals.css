@@ -4452,6 +4452,60 @@ button.rating-chip:hover {
 .theater-verdict .muted {
   color: rgba(255, 255, 255, 0.72);
 }
+/* An episode's replay (EpisodeTheater.tsx, mobile audit A3): Exit leads the title bar as the way back, and play, replay,
+   skip and who's who sit in a labelled bar at the foot. The ending card is solid, so the lines behind it don't show
+   through, and its share line is plain text on its own row, not a green "done". */
+.theater-replay .theater-hud {
+  justify-content: flex-start;
+}
+.theater-replay .theater-exit {
+  flex-shrink: 0;
+}
+.theater-transport {
+  position: absolute;
+  bottom: calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1);
+  border-radius: var(--radius-pill);
+  background: rgba(0, 0, 0, 0.45);
+}
+.theater-replay:has(.with-convo) .theater-transport {
+  left: calc(50% + min(190px, 17%));
+}
+.theater-transport .theater-transport-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  width: auto;
+  min-width: 2.75rem;
+  height: 2.75rem;
+  padding: 0 0.85rem;
+}
+.theater-transport-word {
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+.theater-transport .theater-transport-main {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 38%, rgba(0, 0, 0, 0.4));
+}
+.theater-replay .theater-verdict {
+  background: rgba(12, 8, 16, 0.97);
+  backdrop-filter: none;
+}
+.theater-replay .theater-verdict .share-ending {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 0;
+  color: rgba(255, 255, 255, 0.72);
+  font-weight: 400;
+}
 /* The cold open (app/episodes/[id]/ColdOpenCard.tsx, lib/cold-open.ts): who they are and what's at stake, over the scene
    before the first line. It sits under the HUD (before it in the page, the same layer), clear of it, and scrolls inside
    the stage when a short screen can't hold all of it. */
@@ -5044,6 +5098,58 @@ button.chat-vote-tag[aria-pressed="true"] .chat-vote-tag-face {
   }
   .theater-stage.with-convo .theater-verdict {
     left: 50%;
+  }
+  /* A phone: Exit and the names share the title row; the transport is the screen's last row, full width, each control
+     an icon over its word; the ending is a solid card under the last line, not floating over the thread. */
+  .theater-replay .theater-hud {
+    flex-wrap: nowrap;
+  }
+  .theater-replay .theater-id {
+    flex-basis: auto;
+  }
+  .theater-transport,
+  .theater-replay:has(.with-convo) .theater-transport {
+    position: static;
+    transform: none;
+    flex: 0 0 auto;
+    justify-content: space-around;
+    gap: var(--space-1);
+    padding: var(--space-1) var(--gutter) calc(var(--space-1) + env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 0;
+    background: rgba(12, 8, 16, 0.97);
+  }
+  .theater-transport .theater-transport-button {
+    flex: 1 1 0;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.1rem;
+    max-width: 6rem;
+    height: 3.25rem;
+    padding: 0 var(--space-1);
+    border-color: transparent;
+    border-radius: var(--radius-md);
+    background: transparent;
+  }
+  .theater-transport-word {
+    font-size: var(--text-2xs);
+  }
+  .theater-transport .theater-transport-button.on,
+  .theater-transport .theater-transport-main {
+    border-color: transparent;
+    background: color-mix(in srgb, var(--accent) 30%, transparent);
+  }
+  .theater-replay .theater-stage > .theater-verdict:not(.verdict-card) {
+    position: static;
+    order: 1;
+    flex: 0 0 auto;
+    width: auto;
+    max-height: 50%;
+    overflow-y: auto;
+    transform: none;
+    padding: var(--space-3) var(--gutter);
+    border-width: 1px 0 0;
+    border-radius: 0;
   }
   /* The verdict card sits at the foot of the phone's screen, over the thread, clear of the short scene banner. */
   .theater-stage .verdict-card {
@@ -7982,9 +8088,12 @@ button.table-more {
 
 /* After Dark's own look (David, 2026-10-18: never unsure which mode you're in): night colours and a moon badge, in
    both themes, on every after-dark page. On After Dark's own host the whole page wears it, the header and footer too
-   (body.ad-host, app/layout.tsx; the design kit's After Dark frame, 2026-11-12), so nothing there is the show's paper. */
+   (body.ad-host, app/layout.tsx; the design kit's After Dark frame, 2026-11-12), so nothing there is the show's paper.
+   On the show's host every After Dark page (the .ad-discreet frame, app/after-dark/Frame.tsx) does the same, rather
+   than a night card on the show's light page (mobile audit C11). */
 .after-dark-mode,
-body.ad-host {
+body.ad-host,
+body:has(.ad-discreet) {
   --ad-bg: var(--night-bg);
   --ad-card: var(--night-card);
   --ad-ink: var(--night-ink);
@@ -8018,7 +8127,8 @@ body.ad-host {
   border-radius: var(--radius);
 }
 /* The page behind the body (overscroll, a short page) is night too on After Dark's own host. */
-:root:has(> body.ad-host) {
+:root:has(> body.ad-host),
+:root:has(.ad-discreet) {
   background: var(--night-bg);
   color-scheme: dark;
 }

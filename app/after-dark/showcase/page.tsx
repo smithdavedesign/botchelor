@@ -47,7 +47,6 @@ export default async function AfterDarkShowcasePage({ searchParams }: Props) {
   const paths = showcasePaths("after_dark");
   const head = (
     <>
-      <GalleryTabs current="showcase" showcase />
       <p className="kicker">
         <Icon name="moon" /> After Dark · showcase
       </p>
@@ -60,6 +59,7 @@ export default async function AfterDarkShowcasePage({ searchParams }: Props) {
         <article className="after-dark">
           {head}
           <h1>Gallery</h1>
+          <GalleryTabs current="showcase" showcase />
           <p>{here.reason}</p>
         </article>
       </div>
@@ -76,6 +76,8 @@ export default async function AfterDarkShowcasePage({ searchParams }: Props) {
             <Icon name="play" /> Watch full screen
           </Link>
         </div>
+        {/* Under the title, not above it (mobile audit C10). */}
+        <GalleryTabs current="showcase" showcase />
         <p className="muted">
           What creators chose to publish to After Dark: explicit pictures and clips. Everything here was made with AI, and every character is a fictional adult.
         </p>

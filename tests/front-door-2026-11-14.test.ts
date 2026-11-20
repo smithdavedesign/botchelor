@@ -46,7 +46,13 @@ describe("the hero", () => {
     expect(html).toContain("They go on blind dates nobody steers, text you how it went, and take your advice into the next one.");
     expect(html).toContain("free, no");
     expect(html).toContain('href="/create">Make your character</a>');
-    expect(html).toContain('href="/watch">Watch episodes</a>');
+    // The first screen (lib/home-open.ts) carries the watch door and the first "Make your character"; the hero under it
+    // doesn't ask again (the 2026-11-20 mobile audit, A2), and the last one is at the end of the page.
+    expect(html).toContain('data-track="open-watch"');
+    expect(html).toContain('data-track="open-create" href="/create">Make your character</a>');
+    expect(html).not.toContain('id="hero-cta"');
+    expect(html.match(/>Make your character<\/a>/g)?.length).toBe(2);
+    expect(html.indexOf('class="cta-row cta-final"')).toBeGreaterThan(html.indexOf('class="faq"'));
     expect(html).toContain('href="/create?sample=1"');
     expect(html).toContain("Bring your character");
     expect(html).toContain('<p class="home-open-fine">Fictional characters only, no real people. Every date is written by AI.</p>');

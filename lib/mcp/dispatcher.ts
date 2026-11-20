@@ -3593,11 +3593,23 @@ const PREVIEW_SKIPS: Record<string, readonly string[]> = { answer_match: ["yes"]
 const BOOLEAN_WORDS_OK: Record<string, readonly string[]> = { swipe: ["like"], check_originality: ["attest", "open_to_dates"], vote_feedback: ["vote"] };
 
 /**
+ * #1880 (the 2026-11-20-0610 run: "predict accepted ending as an alias but its error says pick, and the docs say pick"):
+ * the arguments read under another name (normaliseArgs' "ending → pick"), so a refusal about one names what was sent too.
+ */
+export function sentAsOf(aliased: string[]): Record<string, string> {
+  return Object.fromEntries(aliased.flatMap((a) => {
+    const m = /^(\w+) → (\w+)$/.exec(a);
+    return m ? [[m[2], m[1]]] : [];
+  }));
+}
+const sentAsWords = (sentAs: Record<string, string>, k: string): string => (sentAs[k] ? ` (you sent ${sentAs[k]})` : "");
+
+/**
  * 2.7.0 (#642): a boolean or enum argument given as the wrong type. "true"/"false" as text read as the boolean (said in
  * read_arguments_as); anything else is refused with the type and an example, so nothing is done on a guess (answer_match
  * read yes: "yes" as a no, and a no is final). A wrong word for an enum is left to the tool, which reads synonyms.
  */
-function typeProblem(tool: string, args: Record<string, unknown>): { args: Record<string, unknown>; read: string[]; error?: string } {
+function typeProblem(tool: string, args: Record<string, unknown>, sentAs: Record<string, string> = {}): { args: Record<string, unknown>; read: string[]; error?: string } {
   const props = toolProps(tool);
   let out = args;
   const read: string[] = [];
@@ -3613,10 +3625,10 @@ function typeProblem(tool: string, args: Record<string, unknown>): { args: Recor
         read.push(`${k}: "${String(v)}" → ${as}`);
         continue;
       }
-      return { args, read, error: `Not valid — ${k}: true or false, not ${JSON.stringify(v)} (e.g. "${k}": true). Nothing was done.` };
+      return { args, read, error: `Not valid — ${k}${sentAsWords(sentAs, k)}: true or false, not ${JSON.stringify(v)} (e.g. "${k}": true). Nothing was done.` };
     }
     const shape = Array.isArray(p.enum) && p.enum.every((x) => typeof x === "string") && typeof v !== "string" ? argShape(p) : null;
-    if (shape) return { args, read, error: `Not valid — ${k}: ${shape.type}, not ${JSON.stringify(v)} (e.g. "${k}": ${JSON.stringify(shape.example)}). Nothing was done.` };
+    if (shape) return { args, read, error: `Not valid — ${k}${sentAsWords(sentAs, k)}: ${shape.type}, not ${JSON.stringify(v)} (e.g. "${k}": ${JSON.stringify(shape.example)}). Nothing was done.` };
     // #1213 (the 2026-11-01-1105 run: update_character's soul sent as a string came back "expected object, received string",
     // naming none of its keys): an object argument given as anything else is refused here, with the keys it takes.
     if (p.type === "object" && (typeof v !== "object" || Array.isArray(v))) {
@@ -3626,7 +3638,7 @@ function typeProblem(tool: string, args: Record<string, unknown>): { args: Recor
       return {
         args,
         read,
-        error: `Not valid — ${k}: an object, not ${what} (e.g. "${k}": ${JSON.stringify(example)}${keys.length ? `; keys: ${keys.join(", ")}` : ""}). Nothing was done.`,
+        error: `Not valid — ${k}${sentAsWords(sentAs, k)}: an object, not ${what} (e.g. "${k}": ${JSON.stringify(example)}${keys.length ? `; keys: ${keys.join(", ")}` : ""}). Nothing was done.`,
       };
     }
   }
@@ -3662,7 +3674,7 @@ const COSMETIC_ENUMS = new Set(["compact", "include"]);
  * a preview or a reply-shaping argument drops it, says so (warning, ignored_values) and runs with the default. An argument
  * the tool needs and has no default for is refused either way.
  */
-function enumProblem(tool: string, args: Record<string, unknown>): { args: Record<string, unknown>; read: string[]; notes: string[]; ignored: Record<string, unknown>; error?: string } {
+function enumProblem(tool: string, args: Record<string, unknown>, sentAs: Record<string, string> = {}): { args: Record<string, unknown>; read: string[]; notes: string[]; ignored: Record<string, unknown>; error?: string } {
   const props = toolProps(tool);
   const required = new Set(toolRequired(tool).map((r) => r.name));
   const dry = SAFETY_FLAGS.some((f) => truthy(args[f]));
@@ -3695,7 +3707,7 @@ function enumProblem(tool: string, args: Record<string, unknown>): { args: Recor
     if ((!reads && !dry && !COSMETIC_ENUMS.has(k)) || (required.has(k) && p.default === undefined && !Array.isArray(v))) {
       // What each value means, when the schema says (partner_style's one/open/decide), as the tools' own refusals did.
       const about = typeof p.description === "string" && p.description ? ` ${p.description.replace(/\s*$/, "").replace(/([^.])$/, "$1.")}` : "";
-      return { args, read, notes, ignored, error: `Not valid — ${k}: one of ${values}; got ${wrong}.${about} Nothing was done or spent.` };
+      return { args, read, notes, ignored, error: `Not valid — ${k}${sentAsWords(sentAs, k)}: one of ${values}; got ${wrong}.${about} Nothing was done or spent.` };
     }
     const kept = Array.isArray(v) ? v.filter((x) => typeof x !== "string" || allowed.has(x)) : undefined;
     if (kept && kept.length) out = { ...out, [k]: kept };
@@ -3704,7 +3716,7 @@ function enumProblem(tool: string, args: Record<string, unknown>): { args: Recor
       out = rest;
     }
     ignored[k] = v;
-    notes.push(`${wrong} isn't ${Array.isArray(v) ? "one of" : "a"} ${k}${Array.isArray(v) ? "'s values" : ""}: ${kept?.length ? "left out" : p.default !== undefined ? `used ${String(p.default)} (the default)` : "used the default"}; ${k} is one of ${values}.`);
+    notes.push(`${wrong} isn't ${Array.isArray(v) ? "one of" : "a"} ${k}${sentAsWords(sentAs, k)}${Array.isArray(v) ? "'s values" : ""}: ${kept?.length ? "left out" : p.default !== undefined ? `used ${String(p.default)} (the default)` : "used the default"}; ${k} is one of ${values}.`);
   }
   return { args: out, read, notes, ignored };
 }
@@ -10206,14 +10218,14 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
         // #1862: oc_chemistry_test's a or b as a string is a character's id, read in the handler (ocCharacterArgs), not a
         // sheet of the wrong type.
         const ocIds = name === "oc_chemistry_test" ? Object.fromEntries((["a", "b"] as const).filter((k) => typeof args[k] === "string").map((k) => [k, args[k]])) : {};
-        const typed = typeProblem(name, Object.fromEntries(Object.entries(args).filter(([k]) => !(k in ocIds))));
+        const typed = typeProblem(name, Object.fromEntries(Object.entries(args).filter(([k]) => !(k in ocIds))), sentAsOf(aliased));
         if (typed.error) return refuse({ error: `${typed.error} (${name} takes: ${[...known].join(", ")}.)` });
         args = { ...typed.args, ...ocIds };
         aliased.push(...typed.read);
       }
       // 2.8.0 (#650): a value outside an argument's list is read (the same word), refused (a call that spends or writes), or
       // noted and dropped (a read or a preview), never quietly swapped for the default.
-      const enums = enumProblem(name, args);
+      const enums = enumProblem(name, args, sentAsOf(aliased));
       if (enums.error) return refuse({ error: `${enums.error} (${name} takes: ${[...known].join(", ")}.)`, code: "invalid_argument" });
       args = enums.args;
       aliased.push(...enums.read);

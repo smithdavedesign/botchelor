@@ -32,7 +32,7 @@ export default function ShareEnding({ episodeId, names, dateNumber, kind }: { ep
           <strong>{wentWellTitle(names, dateNumber)}</strong> Tell someone: the link opens on their date, with the good news on its card.{" "}
         </>
       ) : (
-        <>Know someone who&apos;d call it differently? </>
+        <span className="share-ending-line">Know someone who&apos;d call it differently? </span>
       )}
       <ShareButton path={path} title={kind === "owner_well" ? wentWellTitle(names, dateNumber) : `${names[0]} × ${names[1]} on Botchelor`} targets={targets} track="share-ending" label={kind === "owner_well" ? "💘 Share the good news" : "🔗 Share this date"} />
     </p>

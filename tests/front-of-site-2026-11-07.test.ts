@@ -223,9 +223,11 @@ describe("an episode page (item 4)", () => {
     as(newUserCookie());
     const EpisodePage = (await import("@/app/episodes/[id]/page")).default;
     const html = renderToStaticMarkup(await EpisodePage({ params: Promise.resolve({ id }), searchParams: Promise.resolve({ play: "1" }) }));
-    expect(html).toContain('class="theater theater-clean"');
-    // A stranger's playback is a replay, never "Just filmed" (that's the creator's own date).
-    expect(html).toContain('<span class="chip">Replay</span>');
+    expect(html).toContain('class="theater theater-clean theater-replay"');
+    // A stranger's playback is a replay, never "Just filmed" (that's the creator's own date). No "Replay" chip beside the
+    // controls any more (mobile audit A3: it read as a second ↻); Replay is the labelled button in the transport.
+    expect(html).not.toContain(">Just filmed<");
+    expect(html).toMatch(/aria-label="Replay"[^>]*>[\s\S]{0,120}Replay<\/span>/);
     const talk = html.indexOf('id="episode-talk-head"');
     expect(talk).toBeGreaterThan(html.indexOf("<h2>The date</h2>"));
     expect(talk).toBeGreaterThan(html.indexOf('id="predict"'));
