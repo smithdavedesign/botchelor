@@ -381,7 +381,8 @@ describe("3. #662: argument names", () => {
     const swipe = (await call("swipe", {}, ctx)).content[0].text;
     expect(swipe).toMatch(/^Error: "character_id" is required: which of your characters\? Ada Lumen \(.+\), Bo Quill \(.+\)\. "target_id" is required: .* "like" is required: true or false/);
     const predict = (await call("predict", {}, ctx)).content[0].text;
-    expect(predict).toMatch(/^Error: "episode_id" is required: The date's id, from browse_episodes, my_dates or the booking reply\. "pick" is required: one of second_date, friends, disaster/);
+    // 2.40.0 (#1845): episode_id's line is shorter.
+    expect(predict).toMatch(/^Error: "episode_id" is required: The date's id \(my_dates lists yours\)\. "pick" is required: one of second_date, friends, disaster/);
   });
 
   it("whatever refusal leads, the missing ones come with it: a dry run the tool doesn't take, a short id, names it doesn't take", async () => {

@@ -219,9 +219,9 @@ describe("#1850: a read_texts wait that finds nothing new says why on every call
   });
 });
 
-describe("2.40.0", () => {
+describe("2.41.0", () => {
   it("is the newest version, with its entry", () => {
-    expect(MCP_SERVER_INFO.version).toBe("2.40.0");
-    expect(MCP_CHANGELOG[0]).toMatchObject({ version: "2.40.0" });
+    expect(MCP_SERVER_INFO.version).toBe("2.41.0");
+    expect(MCP_CHANGELOG[0]).toMatchObject({ version: "2.41.0" });
   });
 });

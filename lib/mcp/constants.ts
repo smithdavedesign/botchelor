@@ -87,18 +87,18 @@ export const SHEET_PROPS = {
   age: { type: "integer", minimum: 18, maximum: 1000 },
   bio: str(BIO_MAX, "A specific detail beats an adjective: a job, a habit, a story they'd tell."),
   traits: { type: "array", items: str(TRAIT_MAX), minItems: 3, maxItems: 3, description: "Exactly three traits." },
-  want: str(WANT_MAX, "What they hope to find on a date. Specific wants come up on the date."),
-  dealbreaker: str(DEALBREAKER_MAX, "What would end the date. Kept secret — it's the audience's guessing game."),
+  want: str(WANT_MAX, "What they hope to find on a date (specific ones come up)."),
+  dealbreaker: str(DEALBREAKER_MAX, "What would end the date: secret, the audience's guessing game."),
   appearance: str(APPEARANCE_MAX, "Optional look, in words. No images."),
   pronouns: { type: "string", enum: [...PRONOUNS], description: "Optional: how others refer to them." },
-  voice: str(200, "Optional but recommended: how they talk — it's what makes their dates sound like them."),
+  voice: str(200, "Optional, recommended: how they talk; it makes their dates sound like them."),
   // 2.36.0: what kind of person (lib/character-tags-shared.ts); a wrong one is refused with the whole list.
   tags: { type: "array", items: { type: "string" }, maxItems: 4, description: 'Optional type tags, e.g. ["cold","nerd"]; [] reads them from the traits.' },
   // 2.37.0: how their pictures are drawn (lib/art-style.ts), kept as their looks' style.
   art_style: { type: "string", enum: [...ART_STYLES], description: "How they're drawn; semi_real is 2.5D." },
   soul: {
     type: "object",
-    description: "Optional private soul: owner-only, never shown to the audience or the other character; it shapes how your character behaves on a date. Same content rules.",
+    description: "Optional, private (never shown): it shapes how your character behaves on a date.",
     properties: {
       values: str(300),
       insecurities: str(300),
@@ -106,7 +106,7 @@ export const SHEET_PROPS = {
       boundaries: str(300),
       romantic: str(300),
       communication: str(300),
-      local_only: { type: "boolean", description: "Keep the soul off every model: it still steers the engine, its text is never sent." },
+      local_only: { type: "boolean", description: "true: its text is never sent to a model." },
     },
   },
   // #222: the full extras schema (~7 KB) was inlined in three tools and made tools/list ~66 KB. Its shape is one
@@ -115,17 +115,15 @@ export const SHEET_PROPS = {
     type: "object",
     description:
       // #1129: each free-text key with its limit, grouped by limit (lib/extras.ts TEXT_DETAILS), so none is learned from a refusal.
-      `Optional details (public, except private facts). Text keys: ${detailsByMax()}. Also star_sign, ` +
-      "love_language, language (es, fr, ja…: what they speak on dates; unset is their sheet's language, else English), kind, kind_label (with kind other), archetype, here_for, drawn_to (≤4 kinds), hobbies (up to " + MAX_HOBBIES + ", 30 characters each), prompts ([{id, answer}], two for the swipe deck, answers up to " + PROMPT_ANSWER_MAX + "; id one of " + PROFILE_PROMPTS.map((p) => p.id).join(", ") + "), lines ({hello, dodge, flirt, upset}, ≤" + SAMPLE_LINE_MAX + " each), " +
-      "tells ({nervous, smitten, bored, annoyed}), never_says (list), facts ([{label, value, private?}], up to 20), " +
-      `hot_takes (≤${MAX_HOT_TAKES}, ≤${HOT_TAKE_CHARS} each), private baggage and wins_them_over (≤${Math.max(BAGGAGE_MAX, WINS_THEM_OVER_MAX)}), mood (${MOOD_IDS.join("|")}). ` +
-      "Exact shape: botchelor://schema/character.",
+      // #1845: the rest of each key's shape is the schema's to say (one read away).
+      `Optional details (public, except private facts). Text keys: ${detailsByMax()}. hobbies (≤${MAX_HOBBIES}, 30 chars each), prompts ([{id, answer}], two for the deck, answers ≤${PROMPT_ANSWER_MAX}; id one of ` +
+      PROFILE_PROMPTS.map((p) => p.id).join(", ") + `), language (es, fr…, spoken on dates), lines (≤${SAMPLE_LINE_MAX} each), hot_takes (≤${MAX_HOT_TAKES}, ≤${HOT_TAKE_CHARS} each), private baggage and wins_them_over (≤${Math.max(BAGGAGE_MAX, WINS_THEM_OVER_MAX)}), ` +
+      `mood (${MOOD_IDS.join("|")}), and star_sign, love_language, kind, archetype, here_for, drawn_to, tells, never_says, facts. Every key's shape: botchelor://schema/character.`,
   },
   temperament: {
     type: "object",
     description:
-      "Optional and private: how the engine reads your character on a date, 0..1 each: warmth, openness, guardedness, humor. " +
-      "Left out, its traits and voice decide. On update, null hands it back to them.",
+      "Optional, private: how the engine reads it on a date, 0..1 each (left out: its traits decide; on update, null resets).",
     additionalProperties: false,
     required: ["warmth", "openness", "guardedness", "humor"],
     properties: {
@@ -139,7 +137,7 @@ export const SHEET_PROPS = {
     type: "array",
     items: str(HIDING_CHARS),
     maxItems: MAX_HIDING,
-    description: "Optional, private: things they're hiding. Dates guard them; one a date draws out slips, shown once it airs. Update replaces the list.",
+    description: "Optional, private: secrets dates guard (one drawn out slips, shown once aired). Update replaces them.",
   },
-  this_week: str(100, "Optional: what's new in their life this week (\"just adopted a very old cat\"). Lasts until Monday; without one the show deals one. On update, null hands it back to the show."),
+  this_week: str(100, "Optional: what's new this week (\"just adopted a very old cat\"), until Monday; else the show deals one (on update, null)."),
 } as const;

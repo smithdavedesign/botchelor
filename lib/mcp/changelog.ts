@@ -31,7 +31,7 @@ export type McpRelease = {
 /** Newest first. */
 export const MCP_CHANGELOG: readonly McpRelease[] = [
   {
-    version: "2.40.0",
+    version: "2.41.0",
     date: "2026-11-20",
     title: "Endings, venues and quiet waits said plainly",
     changes: [
@@ -39,6 +39,16 @@ export const MCP_CHANGELOG: readonly McpRelease[] = [
       "plan_second_date's preview names the ending beside mutual, and mutual_ending_note says why a friends ending can still be mutual (each side's wish to meet again).",
       "Own-date steps say where the date is in their instructions on every turn, the waiting side's step carries where too, and venue_note flags first lines that say nothing of the booked venue.",
       "A read_texts wait that finds nothing new says why in empty_note on every call, beside the thread.",
+    ],
+  },
+  {
+    version: "2.40.0",
+    date: "2026-11-20",
+    title: "A lighter default tool list",
+    changes: [
+      "The default tools/list (the core tools) is about 48 KB, down from 64 KB: shorter descriptions and argument lines, a short cost line, and each tool's return shape and finer points moved to its notes.",
+      "A tool's notes ride on every other list (?tools=all or params { all: true }, names: [...], /llms-full.txt), after the description, and the cheatsheet (botchelor://cheatsheet) prints them, with the whole cost sentence, under each core tool's line.",
+      "params { lean: true } leaves out agent_id (optional everywhere) and carries the short cost line: about 15 KB. more_tools.how says where the notes are and that lean exists.",
     ],
   },
   {
