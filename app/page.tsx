@@ -472,7 +472,8 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
           {sky && sky.couples > 0 && ` · ${sky.characters} characters, ${sky.couples} couples`}
         </p>
         <p className="muted small home-sky-line">
-          Free tools: <Link href="/tools/oc-chemistry-test">the OC chemistry test</Link> ·{" "}
+          Free tools: <Link href="/tools/random-oc-generator">a random OC generator</Link> ·{" "}
+          <Link href="/tools/oc-chemistry-test">the OC chemistry test</Link> ·{" "}
           <Link href="/tools/ship-name-generator">a ship name generator</Link> ·{" "}
           <Link href="/tools/oc-name-generator">an OC name generator</Link> ·{" "}
           <Link href="/tools/oc-questions">questions to ask your OC</Link>

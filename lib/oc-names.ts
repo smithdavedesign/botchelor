@@ -86,7 +86,7 @@ const SCIFI_LAST = {
 } as const;
 
 /** A small seeded generator (mulberry32), seeded from a string: the same address always draws the same names. */
-function seeded(seed: string): () => number {
+export function seeded(seed: string): () => number {
   let h = 2166136261;
   for (let i = 0; i < seed.length; i++) h = Math.imul(h ^ seed.charCodeAt(i), 16777619);
   let a = h >>> 0;
@@ -99,7 +99,7 @@ function seeded(seed: string): () => number {
   };
 }
 
-const pick = <T>(rand: () => number, list: readonly T[]): T => list[Math.floor(rand() * list.length)];
+export const pick = <T>(rand: () => number, list: readonly T[]): T => list[Math.floor(rand() * list.length)];
 
 /** The kind one name is drawn as: "any" picks one of the three for each name. */
 function drawKind(rand: () => number, kind: OcNameKind): Exclude<OcNameKind, "any"> {
@@ -174,6 +174,27 @@ function drawName(rand: () => number, style: OcNameStyle, kind: OcNameKind): OcN
             ? listName(rand, k, COZY_FIRST, COZY_LAST)
             : listName(rand, k, MODERN_FIRST, MODERN_LAST);
   return { name, style, kind: k };
+}
+
+/**
+ * One name in a style, drawn from `rand` until the content filter takes it (the random OC generator, lib/random-oc.ts,
+ * draws its names here). `avoid`: first names and surname families already used, so a page never repeats one; null
+ * when none is free.
+ */
+export function drawOcName(rand: () => number, style: OcNameStyle, kind: OcNameKind, avoid: Set<string> = new Set()): OcName | null {
+  let drawn = drawName(rand, style, kind);
+  for (let tries = 0; tries < 40; tries++) {
+    const [first, last] = drawn.name.split(" ");
+    const family = `last:${last.split("-")[0]}`;
+    if (!avoid.has(first) && !avoid.has(family) && checkFields({ name: drawn.name }).ok) {
+      avoid.add(first);
+      avoid.add(family);
+      return drawn;
+    }
+    drawn = drawName(rand, style, kind);
+  }
+  // None free in forty draws (a small list, a full page): the caller draws again or stops.
+  return null;
 }
 
 /**

@@ -20,7 +20,7 @@ const OUT = process.env.OUT_DIR ?? "docs/screenshots";
 const PHONE_UA = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 botchelor-live-check/1.0 (Claude)";
 const DESKTOP_UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0 Safari/537.36 botchelor-live-check/1.0 (Claude)";
 const QUIET = /\/api\/e(?:\?|$)|google-analytics\.com|googletagmanager\.com|\/api\/ideas\/signal|\/_vercel\/(insights|speed-insights)\//;
-const TOOLS = ["/tools/oc-name-generator", "/tools/oc-questions", "/tools/ship-name-generator", "/tools/oc-chemistry-test"];
+const TOOLS = ["/tools/random-oc-generator", "/tools/oc-name-generator", "/tools/oc-questions", "/tools/ship-name-generator", "/tools/oc-chemistry-test"];
 
 const problems = [];
 const check = (ok, what) => {
@@ -51,7 +51,7 @@ try {
     for (const path of TOOLS) check((await page.locator(`main a[href="${path}"]`).count()) > 0, `${label}: /tools links ${path}`);
     check((await page.locator('link[rel="canonical"]').getAttribute("href")) === `${BASE}/tools`, `${label}: canonical is /tools`);
     const ld = await page.locator('script[type="application/ld+json"]').allTextContents();
-    check(ld.some((s) => s.includes('"ItemList"') && TOOLS.every((p) => s.includes(p))), `${label}: ItemList names the four tools`);
+    check(ld.some((s) => s.includes('"ItemList"') && TOOLS.every((p) => s.includes(p))), `${label}: ItemList names every tool`);
     await page.screenshot({ path: join(OUT, `tools-hub-${label}.png`) });
 
     // 2. A ship page's end: the other tools and the hub.

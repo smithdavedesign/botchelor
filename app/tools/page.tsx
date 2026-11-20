@@ -3,22 +3,34 @@ import JsonLd from "@/app/JsonLd";
 import { OC_NAME_STYLE_INFO, OC_NAME_STYLES, OC_NAMES_PATH, ocNamesHref } from "@/lib/oc-names";
 import { OC_QUESTION_THEMES, OC_QUESTIONS_PATH } from "@/lib/oc-questions";
 import { breadcrumbJsonLd, itemListJsonLd, pageMetadata } from "@/lib/seo";
-import { FREE_TOOLS, SHIP_TOOL_PATH, TOOLS_PATH } from "@/lib/tools";
+import { RANDOM_OC_GENRE_INFO, RANDOM_OC_GENRES, randomOcHref } from "@/lib/random-oc";
+import { FREE_TOOLS, RANDOM_OC_TOOL_PATH, SHIP_TOOL_PATH, TOOLS_PATH } from "@/lib/tools";
 
 const LIST_NAME = "Free tools for original characters";
 
 export const metadata = pageMetadata({
-  title: "Free OC tools: names, questions, ship names and chemistry · Botchelor",
+  title: "Free OC tools: random OCs, names, questions, ship names and chemistry · Botchelor",
   description:
-    "Free tools for original characters: an OC name generator, questions to ask your OC, a ship name generator and an " +
-    "OC chemistry test. No sign-up, no AI, every result on a link you can share.",
+    "Free tools for original characters: a random OC generator, an OC name generator, questions to ask your OC, a ship " +
+    "name generator and an OC chemistry test. No sign-up, no AI.",
   path: TOOLS_PATH,
   // Its own card beside it (app/tools/opengraph-image.tsx).
   image: null,
 });
 
-/** What each tool's card adds under its line: the name generator's style pages, the question themes, a ship to try. */
+/** What each tool's card adds under its line: the generator's genres, the name generator's style pages, the question themes, a ship to try. */
 function Extras({ path }: { path: string }) {
+  if (path === RANDOM_OC_TOOL_PATH) {
+    return (
+      <nav className="tools-links" aria-label="Genres">
+        {RANDOM_OC_GENRES.map((g) => (
+          <Link key={g} href={randomOcHref(g)}>
+            {`${RANDOM_OC_GENRE_INFO[g].label} characters`}
+          </Link>
+        ))}
+      </nav>
+    );
+  }
   if (path === OC_NAMES_PATH) {
     return (
       <nav className="tools-links" aria-label="Name styles">
@@ -63,7 +75,7 @@ export default function ToolsPage() {
         <p className="kicker">Free, no sign-up</p>
         <h1>{LIST_NAME}</h1>
         <p className="lede">
-          Name them, get to know them, ship them, and see if the ship holds. Four tools for people who make characters,
+          Roll a character, name them, get to know them, ship them, and see if the ship holds. Five tools for people who make characters,
           free and with no sign-up.
         </p>
         <p className="muted">
