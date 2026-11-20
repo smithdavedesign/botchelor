@@ -3579,6 +3579,17 @@ story mode only (`storyModeRules`, as the PG companion's scene uses them): third
 character, "you" for the viewer, speech in double quotes, two to four short paragraphs. The adult prompt differs in
 its rating paragraph and in what it says about the character, not in its craft.
 
+**The character in the scene** (2026-11-20, after joi.com's chat:
+[audits/2026-11-20-joi-teardown.md](audits/2026-11-20-joi-teardown.md)). The character stands in the place with the
+viewer (`app/stage/CharacterFigure.tsx`). On a wide screen they stand at the right edge and the prose moves over; on a
+tablet they stand behind the prose's right side; on a phone they fill the screen behind it, under a veil of the night.
+They stand on the window's bottom edge, where the newest lines are, wherever the scene is scrolled, and the stage is
+cut to the scene's edges, so neither they nor the place spill onto the footer. The picture is their PG portrait with the background taken out by our Cloudflare zone (`lib/cutout.ts`:
+`segment=foreground`, free up to 5,000 unique pictures a month, never billed). While the zone's transformations are
+off, the server's check says no and the portrait shows as it is, faded at its edges. Switch them on in Cloudflare →
+Images → Transformations → botchelor.com, and cutouts show within ten minutes, no deploy. The ⋯ menu hides the picture
+(kept in the browser). Discreet mode leaves it alone, as it does every show portrait.
+
 **The character is a person, not a tool** (in every prompt; `tests/after-dark-step-in.test.ts` pins each):
 - `STEP_IN_WILL`: its own will; attraction and consent mutual and said out loud; it can slow down, say "not yet",
   check in or decline, and the scene goes on from there; either can stop at any time. When the viewer rushes it or

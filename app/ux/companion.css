@@ -1304,3 +1304,46 @@ body:has(.companion-fullscreen) .site-footer {
   margin: 0;
   color: var(--muted);
 }
+
+/* A character standing beside a one-to-one scene (app/stage/CharacterFigure.tsx; Step in uses it, joi.com's chat is
+   the model). The picture sits on its box's bottom edge at its own shape, so the masks below follow the picture, not
+   the box: a cutout (lib/cutout.ts) only melts into the floor; a portrait as it is (no cutout yet) fades out at every
+   edge, a face in a pool of light rather than a framed photo. The page places the box. */
+.character-figure {
+  pointer-events: none;
+  user-select: none;
+}
+.character-figure-img {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 100%;
+  object-fit: cover;
+  object-position: center top;
+  box-shadow: none;
+  animation: character-figure-in 0.6s ease-out both;
+}
+.character-figure[data-figure="cutout"] .character-figure-img {
+  -webkit-mask-image: linear-gradient(to top, transparent, black 16%);
+  mask-image: linear-gradient(to top, transparent, black 16%);
+}
+.character-figure[data-figure="portrait"] .character-figure-img {
+  -webkit-mask-image: radial-gradient(farthest-side at 50% 42%, black 58%, transparent 100%);
+  mask-image: radial-gradient(farthest-side at 50% 42%, black 58%, transparent 100%);
+  opacity: 0.88;
+}
+@keyframes character-figure-in {
+  from {
+    opacity: 0;
+    transform: translateY(1.5%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .character-figure-img {
+    animation: none;
+  }
+}
