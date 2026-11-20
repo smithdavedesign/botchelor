@@ -47,6 +47,15 @@
   --constellation-ink: #f5e9f0;
   --constellation-tie: #a98bff;
   --constellation-accent: #ff5e8c;
+  /* The sky's lines, by where a pair stands (app/graph/stages.ts): three hues from the dataviz palette's dark steps, which
+     stay apart for colour-blind eyes with every pair on the sky in play (a fourth fails that check), and two neutrals.
+     Together is green and sparks pink, as "Together" and "Second date agreed" are on the story map above the sky. Each
+     kind also has its own dash, so none is told by colour alone. Dark-sky colours in both themes. */
+  --constellation-together: #0ca30c;
+  --constellation-sparks: #d55181;
+  --constellation-friends: #3987e5;
+  --constellation-exes: #9c8fa6;
+  --constellation-first: #cbb8d4;
   --frame-rose: #e64980;
   --frame-rose-bg: #fff0f6;
   --frame-gold: #e0a100;
@@ -11954,6 +11963,93 @@ html.constellation-locked body {
   padding: 2px 4px;
   white-space: nowrap;
 }
+/* The lines row (ConstellationApp.tsx): one chip per kind of pair, each drawn as its line is, so the row is the sky's
+   legend and its filter. Under the toolbar and above the sky; one sideways row (.scroll-row) when it doesn't fit. */
+.constellation-lines {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--constellation-line);
+}
+.constellation-stage-chips {
+  display: flex;
+  gap: var(--space-2);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.constellation-lines button.constellation-stage-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  margin: 0;
+  padding: 0 0.75rem 0 0.55rem;
+  border: 1px solid color-mix(in srgb, var(--chip-line) 70%, transparent);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--chip-line) 16%, transparent);
+  color: var(--constellation-ink);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: none;
+}
+.constellation-lines button.constellation-stage-chip:hover:not(:disabled) {
+  transform: none;
+  box-shadow: none;
+  background: color-mix(in srgb, var(--chip-line) 26%, transparent);
+}
+/* Off: an outline in the sky's own grey and a faded line, so the kinds being drawn stand out. */
+.constellation-lines button.constellation-stage-chip[aria-pressed="false"] {
+  border-color: var(--constellation-line);
+  background: transparent;
+  color: var(--constellation-label);
+}
+.constellation-lines button.constellation-stage-chip[aria-pressed="false"]:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--constellation-ink) 8%, transparent);
+}
+.constellation-stage-chip[aria-pressed="false"] .constellation-line-swatch {
+  opacity: 0.35;
+}
+.constellation-line-swatch {
+  flex: none;
+}
+.constellation-stage-count {
+  color: var(--constellation-label);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+/* No pair of the kinds picked: said on the sky, with the way back. Only the button takes a tap; the sky stays draggable. */
+.constellation-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: var(--space-2);
+  padding: var(--gutter);
+  text-align: center;
+  color: var(--constellation-label);
+  pointer-events: none;
+}
+.constellation-empty p {
+  margin: 0;
+}
+.constellation-empty button {
+  pointer-events: auto;
+  margin: 0;
+  border: 1px solid var(--constellation-line);
+  background: color-mix(in srgb, var(--constellation-ink) 8%, transparent);
+  color: var(--constellation-ink);
+  box-shadow: none;
+}
+.constellation-empty button:hover:not(:disabled) {
+  transform: none;
+  box-shadow: none;
+  background: color-mix(in srgb, var(--constellation-ink) 16%, transparent);
+}
 /* Under the sky, not on it: on a phone it wraps to three lines, which used to sit on the colour key and the stars. */
 .constellation-legend {
   margin: 0;
@@ -12142,9 +12238,12 @@ html.constellation-locked body {
   display: none;
 }
 @media (max-width: 640px) {
-  /* The sky fits the screen under the header and the toolbar's one row (D7), instead of a fixed share of it. */
+  /* The sky fits the screen under the header, the toolbar's one row (D7) and the lines row, instead of a fixed share of it. */
   .constellation-sky {
-    height: clamp(320px, calc(100svh - 11rem), 560px);
+    height: clamp(320px, calc(100svh - 14.25rem), 560px);
+  }
+  .constellation-lines {
+    padding: var(--space-2) var(--gutter);
   }
   .constellation-hud button.constellation-filters-btn {
     display: inline-flex;

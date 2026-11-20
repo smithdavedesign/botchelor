@@ -44,6 +44,7 @@ describe("the Constellation opens on its strongest pairs (item 17)", () => {
     dates: 1,
     second_dates: 0,
     stage: null,
+    stage_id: null,
     last_at: "2026-11-01T00:00:00.000Z",
     weight,
     first_at: null,

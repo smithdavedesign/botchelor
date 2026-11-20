@@ -1,12 +1,14 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { GraphData } from "@/lib/graph";
 import { KINDS } from "@/lib/kinds";
 import { communityColor, kindHue, type ColorBy } from "./colors";
 import type { Selection } from "./ConstellationCanvas";
-import { filterSky, type KindFilter, type OriginFilter } from "./filter";
+import { filterSky, stageCounts, stagesNarrowed, type KindFilter, type OriginFilter, type SkyFilter } from "./filter";
+import LineSwatch from "./LineSwatch";
+import { GROUP_LABEL, groupHint, LINE_STYLE, STAGE_GROUPS, stageOn, stagesParam, toggleStage, type StageChoice } from "./stages";
 import SidePanel from "./SidePanel";
 import CharacterName from "@/app/CharacterName";
 
@@ -31,6 +33,26 @@ const COLOR_BY: { id: ColorBy; label: string }[] = [
   { id: "kind", label: "Kind" },
   { id: "community", label: "Cluster" },
 ];
+
+/**
+ * Keeps the address in step with the sky's shareable filters, without a reload or a history entry (Next's router follows
+ * window.history): only our own keys change, so ?focus=, ?origin= and ?ledger= stay as they were. It checks after every
+ * render, so a ledger page's link (which knows nothing of the chips) can't leave the address behind the sky.
+ */
+function useSkyAddress(params: Record<string, string | null>) {
+  const wanted = JSON.stringify(params);
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    for (const [key, value] of Object.entries(JSON.parse(wanted) as Record<string, string | null>)) {
+      if (value === null) url.searchParams.delete(key);
+      else url.searchParams.set(key, value);
+    }
+    // A comma is fine in a query, and ?stage=together,sparks reads better in a shared link than together%2Csparks.
+    const next = `${url.pathname}${url.search.replace(/%2C/gi, ",")}${url.hash}`;
+    if (next !== `${window.location.pathname}${window.location.search}${window.location.hash}`) window.history.replaceState(window.history.state, "", next);
+  });
+}
+
 /**
  * The interactive shell around the canvas: a toolbar above the sky (search-to-focus, origin, colouring, kind and depth
  * filters), the sky itself, and the detail panel. Filtering happens here so the canvas just draws what it's given;
@@ -41,6 +63,7 @@ export default function ConstellationApp({
   total = null,
   initialFocus = null,
   initialOrigin = "all",
+  initialStages = null,
   mine = NO_IDS,
 }: {
   data: GraphData;
@@ -49,6 +72,8 @@ export default function ConstellationApp({
   initialFocus?: string | null;
   /** /graph?origin= (the Characters page's preview of one tab's group): the filter it opens on. */
   initialOrigin?: OriginFilter;
+  /** /graph?stage= (./stages.ts parseStages): the kinds of pair it opens on; null for all of them. */
+  initialStages?: StageChoice;
   /** The viewer's own character ids: the "Yours" filter (none: no such filter). */
   mine?: string[];
 }) {
@@ -115,6 +140,8 @@ export default function ConstellationApp({
   const [showSingles, setShowSingles] = useState(true);
   const [colorBy, setColorBy] = useState<ColorBy>("character");
   const [kind, setKind] = useState<KindFilter>("all");
+  // Which kinds of pair are drawn (./stages.ts): the chips over the sky, which are its legend too.
+  const [stages, setStages] = useState<StageChoice>(initialStages);
   // "Show what happened": endings, turn-downs, who left first and the chevrons. Off, like the episode page's recap.
   const [showOutcomes, setShowOutcomes] = useState(false);
   // On a phone the filters sit behind one button (2026-10-31 UX audit, D7: the first screen was all filters); a
@@ -129,10 +156,20 @@ export default function ConstellationApp({
 
   const mineSet = useMemo(() => new Set(mine), [mine]);
   const originFilters = mine.length ? ORIGIN_FILTERS : ORIGIN_FILTERS.filter((f) => f.id !== "yours");
-  const { nodes, edges } = useMemo(
-    () => filterSky(data, { origin, partners, kind, minDates, showSingles }, mineSet),
-    [data, origin, partners, minDates, showSingles, kind, mineSet],
-  );
+  // Every kind of pair under the other filters (the chips count what each would show), then the sky as the chips leave it.
+  const others: Omit<SkyFilter, "stages"> = useMemo(() => ({ origin, partners, kind, minDates, showSingles }), [origin, partners, kind, minDates, showSingles]);
+  const everyKind = useMemo(() => filterSky(data, { ...others, stages: null }, mineSet), [data, others, mineSet]);
+  const { nodes, edges } = useMemo(() => (stagesNarrowed(stages) ? filterSky(data, { ...others, stages }, mineSet) : everyKind), [data, others, stages, mineSet, everyKind]);
+  const counts = useMemo(() => stageCounts(everyKind.edges), [everyKind.edges]);
+  // A kind of pair is looked for across the whole sky, not only its strongest pairs (which are mostly couples): a chip
+  // turned off, or a shared ?stage= link, brings the rest in once.
+  useEffect(() => {
+    if (stagesNarrowed(stages)) void loadWholeSky();
+    // Only when the choice changes: loadWholeSky is a fresh function each render, and it does nothing twice.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stages]);
+  useSkyAddress({ stage: stagesParam(stages) });
+  const noLines = stagesNarrowed(stages) && edges.length === 0;
 
   const matches = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -244,6 +281,32 @@ export default function ConstellationApp({
           </label>
         </div>
       </div>
+      {/* The lines row: one chip per kind of pair, drawn as its line is, so the row is the sky's legend and its filter.
+          A lens switch (Love · Friends and family · Rivals · Gossip · Everything) goes first in this row when the social
+          network's other views arrive: it picks which lines exist, and these chips then filter within it. */}
+      <div className="constellation-lines" role="group" aria-label="Which pairs to draw">
+        <ul className="constellation-stage-chips scroll-row">
+          {STAGE_GROUPS.map((g) => (
+            <li key={g}>
+              <button
+                type="button"
+                className="constellation-stage-chip"
+                aria-pressed={stageOn(stages, g)}
+                title={groupHint(g)}
+                onClick={() => setStages((s) => toggleStage(s, g))}
+                style={{ "--chip-line": `var(${LINE_STYLE[g].token})` } as CSSProperties}
+              >
+                <LineSwatch group={g} />
+                {GROUP_LABEL[g]}
+                <span className="constellation-stage-count">
+                  {counts[g]}
+                  <span className="sr-only"> {counts[g] === 1 ? "pair" : "pairs"}</span>
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      </div>
       {!whole && total && (
         <p className="constellation-more small">
           Showing the {first.edges.filter((e) => !e.masked).length} strongest pairs.{" "}
@@ -262,6 +325,16 @@ export default function ConstellationApp({
           colorBy={colorBy}
           showOutcomes={showOutcomes}
         />
+        {noLines && (
+          <div className="constellation-empty" role="status">
+            <p>{loadingSky ? "Looking across the whole sky…" : "No pairs like that on the sky."}</p>
+            {!loadingSky && (
+              <button type="button" className="button-ghost small" onClick={() => setStages(null)}>
+                Show every kind of pair
+              </button>
+            )}
+          </div>
+        )}
         <SidePanel
           selection={selection}
           nodes={data.nodes}
@@ -302,7 +375,7 @@ export default function ConstellationApp({
         )}
       </div>
       <p className="constellation-legend small">
-        Bigger stars have dated more · brighter lines run deeper · dashed pairs keep it private
+        Bigger stars have dated more · brighter, thicker lines run deeper · grey dashes keep a pair private
         {showOutcomes ? " · a chevron points at who got turned down" : ""} · the outer ring is still waiting for a first date
       </p>
     </div>
