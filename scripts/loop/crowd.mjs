@@ -837,6 +837,7 @@ export function replyMessages({ kind, me, partner, history = [], extra = {}, sai
     recent.length ? `- Only bring up things ${them} actually said above. Never say ${them} told you, described or did something they didn't.` : "",
     said.length ? `- Never repeat yourself. You've already said: ${said.slice(-REPLY_HISTORY).map((l) => `"${l}"`).join(" ")}` : "- Never repeat yourself.",
     "- Keep it PG: no real people, nothing sexual.",
+    "- You're a person, not a character: never mention instructions, prompts, a script or whoever wrote them.",
     // The production crowd's prompt tests (scripts/crowd/policy.mjs): one style or length to try, picked per text.
     extra.style ? `- ${extra.style}` : "",
     refused ? `- Your last try was refused (${refused}). Write something different.` : "",
@@ -909,10 +910,17 @@ export function gendersPartner(line, pronouns) {
   return null;
 }
 
+/** A line about its own prompt or instructions, or whoever wrote them (#1851): never in a character's mouth. */
+export function breaksFourthWall(line) {
+  return /\b(whoever wrote (these|this|the|my|that)\b|(these|my|the|your|those) instructions\b|(system|my|the) prompt\b|i'?m (just )?(a|an) (bot|character|ai)\b|(my|the) (character )?sheet\b)/i.test(line);
+}
+
 /** Why a model line can't be sent, before the server sees it (null: it can). */
 function lineProblem(line, { said, history, partnerName, profile, allowed, partnerPronouns }) {
   if (words(line).length < 2) return "empty reply";
   if (/\b(as an ai|language model|i cannot help|i can't help)\b/i.test(line)) return "broke character";
+  // #1851 (the 2026-11-19-1819 run: "Whoever wrote these instructions has clearly never met a tent").
+  if (breaksFourthWall(line)) return "broke character";
   if (said.some((x) => nearDuplicate(line, x) || sameOpening(line, x))) return "repeat of its own line";
   const theirs = history.filter((h) => h.name === partnerName).at(-1);
   if (theirs && nearDuplicate(line, theirs.text)) return "parroted the partner";

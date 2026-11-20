@@ -60,6 +60,8 @@ describe("ship_names", () => {
     expect(d.ship_names).toEqual(shipNames("Draco", "Harry").map((s) => s.name));
     expect(d.ship_names).toContain("Drarry");
     expect(d.url).toMatch(/\/ship\/draco\/harry$/);
+    // #1847: name_a / name_b read as a and b.
+    expect((await data("ship_names", { name_a: "Draco", name_b: "Harry" })).ship_names).toContain("Drarry");
   });
   it("refuses a bad name and a real person with the page's messages", async () => {
     expect(await refused("ship_names", { a: "D", b: "Harry" })).toContain("2 to");

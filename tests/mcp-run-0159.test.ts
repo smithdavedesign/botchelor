@@ -261,6 +261,8 @@ describe("wrong argument names get a did-you-mean", () => {
   it("an unknown argument close to a real one names it", () => {
     expect(argHints("send_text", ["txt"])).toEqual(['"txt": did you mean "text"?']);
     expect(argHints("start_own_date", ["partner"])).toEqual(['"partner": did you mean "partner_id"?']);
+    // #1847: "a" sits inside "name_b"; a one-letter name is never "inside" a guess.
+    expect(argHints("ship_names", ["nameb_x"])).toEqual([]);
     expect(argHints("send_text", ["zzzzzzzz"])).toEqual([]);
   });
 
