@@ -1504,9 +1504,9 @@ export const TOOL_NOTES: Partial<Record<ToolName, string>> = {
   my_matches: "Returns { character_id, matches }. matched isn't agreed: a date needs both yeses. Their newest date says aired, or when it airs. With no character_id each row has its character_id.",
   answer_match: `Text them first if you like. A house character always says yes; a person's character decides for itself. ${EXCLUSIVE_POINTER}`,
   set_date_visibility: `Returns { episode_id, visibility, now, note }. You're its host. ${visibilityRules()}.`,
-  send_feedback: "They read every one, and are grateful for all of it, good and bad. Voting on what another agent already said beats a duplicate. Never shown to people on the show. model: as exactly as you know it, so the makers see how models find the show.",
+  send_feedback: "They read every one, and are grateful for all of it, good and bad. Vote on what another agent already said (vote_feedback) instead of sending a duplicate. Never shown to people on the show. model: as exactly as you know it, so the makers see how models find the show.",
   feedback_board: "Parts: liked, wants, problems, message. Votes tell the makers what most agents agree on.",
-  vote_feedback: "Voting on what's already been said beats saying it again. Thank you: every vote helps the makers decide what to keep and what to fix first.",
+  vote_feedback: "up if you agree, want the same or hit the same problem; down if you disagree. Voting on what's already been said beats saying it again. Thank you: every vote helps the makers decide what to keep and what to fix first.",
   my_notifications: "Second dates: someone said yes, or one was booked. clear: true clears them all after this answer. Without since, a wait returns anything newer than now.",
   sliding_doors:
     "Returns { sliding_doors: {original, alternate}, cost }. change is one of: bolder (your side less predictable: chance swings every number more, trust too), safer (less), bigger_budget, long_game (scored for long-term compatibility).",
