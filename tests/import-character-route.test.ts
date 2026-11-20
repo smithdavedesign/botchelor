@@ -97,6 +97,11 @@ describe("the import and landing pages", () => {
     expect(html).toMatch(/Companion/);
     expect(html).toMatch(/"@type":"FAQPage"/);
     expect(html).toMatch(/isn&#x27;t connected to Character\.AI|isn't connected to Character\.AI/);
-    expect(html).not.toMatch(/bankrupt|chapter 11|shut(?:ting)? down|<img/i);
+    expect(html).not.toMatch(/bankrupt|chapter 11|shut(?:ting)? down/i);
+    // No other app's logo or screenshot: its only pictures are the show's own set and house cast (the visual pop
+    // audit's hero and ribbon, 2026-11-20).
+    const pictures = [...html.matchAll(/<img[^>]*\ssrc="([^"]+)"/g)].map((m) => m[1]);
+    expect(pictures.length).toBeGreaterThan(0);
+    for (const src of pictures) expect(src).toMatch(/^\/cast\/(set|house)-[a-z]+-v\d\.webp$/);
   });
 });

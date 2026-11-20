@@ -1528,8 +1528,3 @@ button.chip-toggle.is-on {
 .mcp-release li {
   margin: var(--space-1) 0;
 }
-
-/* The MCP cut (lib/promo-videos.ts), at most a comfortable reading width. */
-.agents-video .promo-video {
-  max-width: 46rem;
-}

@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import SetHero from "@/app/SetHero";
+import ShowClip from "@/app/ShowClip";
 import { BASED_IN, BOILERPLATE, COMPANY, FOUNDER, launchedOn, mailto, roleEmail, socialLinks } from "@/lib/company";
 import { contactEmail } from "@/lib/legal-entity";
 import { PRESS_VIDEOS, PROMO } from "@/lib/promo-videos";
@@ -46,9 +48,14 @@ export default function PressPage() {
   const pressMail = mailto("Press", process.env, "press");
   return (
     <article className="legal-page company-page">
-      <p className="kicker">Press</p>
-      <h1>Press kit</h1>
-      <p className="lede">Writing about Botchelor? Everything here is yours to use.</p>
+      {/* On the stage, leading with the show's ad (the visual pop audit, 2026-11-20). */}
+      <SetHero
+        set="stage"
+        kicker="Press"
+        title="Press kit"
+        lede="Writing about Botchelor? Everything here is yours to use."
+        media={<ShowClip track="press-clip" kicker="The show's ad" watchHref="#press-video" watchLabel="Get the video" />}
+      />
 
       <section aria-labelledby="in-short">
         <h2 id="in-short">The show in short</h2>

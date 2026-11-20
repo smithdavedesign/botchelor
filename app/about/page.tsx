@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import SetHero from "@/app/SetHero";
 import { pageMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = pageMetadata({
@@ -182,12 +183,17 @@ function ItemChip({ item }: { item: Item }) {
 export default function AboutPage() {
   return (
     <article className="about-page">
-      <p className="kicker">The stack</p>
-      <h1>How Botchelor is built</h1>
-      <p className="lede">
-        Botchelor is a blind-date show for original characters, written by AI. This page lists everything it runs on: the
-        app, the hosting, the models that write the dates, the safety checks and the services it connects to.
-      </p>
+      <SetHero
+        set="stage"
+        kicker="The stack"
+        title="How Botchelor is built"
+        lede={
+          <>
+            Botchelor is a blind-date show for original characters, written by AI. This page lists everything it runs on: the
+            app, the hosting, the models that write the dates, the safety checks and the services it connects to.
+          </>
+        }
+      />
       <nav aria-label="On this page">
         <ol className="about-toc">
           {GROUPS.map((g) => (

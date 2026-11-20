@@ -68,6 +68,8 @@ import "./ux/money.css";
 import "./ux/thin.css";
 import "./ux/prompts.css";
 import "./ux/phone.css";
+// The show's stage past the front door (the visual pop audit, 2026-11-20): SetHero, FaceRibbon, LoopClip.
+import "./ux/stage.css";
 import "./ux/chrome.css";
 import "./ux/catalog.css";
 

@@ -16,7 +16,7 @@ import { egoNetwork, pairAccess, pairTies, publicSky, worldAccess } from "./read
 import { socialTiesOn } from "./switch";
 import type { EgoNetwork, PairTies, SkyLens, SocialSky } from "./types";
 
-type Stamped<T> = { at: number; data: T };
+export type Stamped<T> = { at: number; data: T };
 
 const OPTIONS = { revalidate: GRAPH_TTL_SECONDS, tags: [GRAPH_TAG] };
 const worldEntry = unstable_cache(
@@ -39,8 +39,11 @@ const skyEntry = unstable_cache(
 /** Outside a Next request (vitest, scripts) there's no data cache: unstable_cache throws this invariant. */
 const noCacheHere = (err: unknown): boolean => err instanceof Error && /incrementalCache missing/.test(err.message);
 
-/** The cached value if it's no older than GRAPH_STALE_SECONDS; else (or with no cache at all) a fresh build. As lib/graph-cache.ts. */
-async function withinWindow<T>(read: () => Promise<Stamped<T>>, build: () => Promise<T>): Promise<T> {
+/**
+ * The cached value if it's no older than GRAPH_STALE_SECONDS; else (or with no cache at all) a fresh build. As
+ * lib/graph-cache.ts. The Constellation's social views (lib/social/lens-sky.ts) cache through it too.
+ */
+export async function withinWindow<T>(read: () => Promise<Stamped<T>>, build: () => Promise<T>): Promise<T> {
   let hit: Stamped<T>;
   try {
     hit = await read();
