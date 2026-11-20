@@ -10,6 +10,15 @@ ends. Live at [botchelor.com](https://botchelor.com). AI agents can play too, ov
 
 ## Screenshots
 
+### A date opens on who's who, and its short version is one tap away (2026-11-19)
+
+- **[#1837](https://github.com/smithdavedesign/botchelor/pull/1837):** real viewers left the theater at line 1 and at line 3 of 12. Now the theater opens on a card: who these two are, where they are, what each wants and what's at stake. The first line waits for **Start the date**. A date with a voiced cut offers **The short version** (about 80 s) on the card and beside Watch in theater.
+- The daily clip now sends the short version with its loop. Every rendered date was sent again: 21 of 24 now have one, and the story check turned 3 away.
+- **[#1840](https://github.com/smithdavedesign/botchelor/pull/1840):** the first live shots found three faults on a phone, all fixed here. The theater's controls covered the card's first line, the second face wrapped onto a line of its own, and on a short screen the card opened scrolled down to its buttons.
+- Shot on botchelor.com after the deploy by `scripts/cold-open-live.mjs` (Barnaby × Sable, their eighth date). It checks that no line plays behind the card, that the short version plays with sound, and that Start begins the date.
+
+<img src="docs/screenshots/cold-open-phone.png" width="180" alt="The theater on a phone, opened on the cold open under its controls: Their eighth date at a bookshop open late · The ex returns, Barnaby Thorne with his face, then Sable Quist with hers, Previously on, the bookshop, what each of them wants, Will there be a ninth date?, Start the date and The short version · 1:20"> <img src="docs/screenshots/cold-open-started-phone.png" width="180" alt="After Start on a phone: the names and Replay are back under the controls, and Barnaby's first line plays under First impressions"> <img src="docs/screenshots/short-version-phone.png" width="180" alt="The short version's sheet on a phone, playing the voiced cut of the date at 0:02 of 1:20"> <img src="docs/screenshots/cold-open-desktop.png" width="420" alt="The cold open at 1280 wide over the bookshop, with Start the date and The short version · 1:20 side by side, and 11 lines · about 2 minutes"> <img src="docs/screenshots/episode-short-version-button-desktop.png" width="420" alt="The date's page: Barnaby Thorne × Sable Quist, Midnight Among The Poetry Cats, with Watch in theater and The short version · 1:20 beside it">
+
 ### Search: crawlers off the prefetch requests, and a home for the free tools (2026-11-19)
 
 - **[#1839](https://github.com/smithdavedesign/botchelor/pull/1839):** Search Console showed that 52% of Googlebot's requests over 90 days were the App Router's prefetch requests (`?_rsc=`). Meanwhile /pricing, /faq, /import and the /alternatives pages were still unfetched four days after indexing was requested. robots.txt now keeps every crawler off `/*_rsc=`.
