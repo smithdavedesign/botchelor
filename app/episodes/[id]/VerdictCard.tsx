@@ -31,6 +31,8 @@ export type VerdictCardProps = {
   pending?: boolean;
   /** The After Dark bridge's link, when this viewer sees the line on this date (lib/adult/bridge.ts); else nothing. */
   afterDark?: { href: string } | null;
+  /** The date's report card (lib/report-card.ts), once it has aired: graded, with its own share. Else nothing. */
+  reportCard?: string | null;
 };
 
 const firstNameOf = (name: string) => name.trim().split(/\s+/)[0] || name;
@@ -43,7 +45,7 @@ const firstNameOf = (name: string) => name.trim().split(/\s+/)[0] || name;
  * every viewer gets, and Watch again. Keeps `.theater-verdict` and `.ending`: scripts/clips/daily-clip.mjs records up to
  * them.
  */
-export default function VerdictCard({ episodeId, endingLabel, you, partner, preview, pushKey, onRestart, pending = false, afterDark = null }: VerdictCardProps) {
+export default function VerdictCard({ episodeId, endingLabel, you, partner, preview, pushKey, onRestart, pending = false, afterDark = null, reportCard = null }: VerdictCardProps) {
   const router = useRouter();
   const first = firstNameOf(you.name);
   const [busy, setBusy] = useState(false);
@@ -93,6 +95,13 @@ export default function VerdictCard({ episodeId, endingLabel, you, partner, prev
           {busy ? "Opening…" : `Hear from ${first}`}
         </button>
       </p>
+      {reportCard && (
+        <p className="verdict-report">
+          <Link className="button-ghost" href={reportCard} data-track="report-card-open">
+            📝 See its report card
+          </Link>
+        </p>
+      )}
       <CastingVerdictLine episodeId={episodeId} />
       {pending && (
         <p className="muted small verdict-pending" id="verdict-pending" role="status">

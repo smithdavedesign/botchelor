@@ -78,6 +78,7 @@ describe("what the beacon keeps", () => {
     expect(sourceOf({ ref: "invite" })).toBe("date_link");
     expect(sourceOf({ ref: "double" })).toBe("double_link");
     expect(sourceOf({ ref: "owner" })).toBe("owner_share");
+    expect(sourceOf({ ref: "report" })).toBe("report_share");
     expect(sourceOf({ ref: "casting_invite" })).toBe("invite");
     expect(sourceOf({ ref: "constructor" })).toBe("direct"); // not a known tag, and never a prototype name
     expect(sourceOf({ ref_host: "www.google.com" })).toBe("google");

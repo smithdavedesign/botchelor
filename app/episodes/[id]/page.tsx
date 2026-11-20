@@ -10,6 +10,7 @@ import { breadcrumbJsonLd } from "@/lib/seo";
 import { ENDING_CARD, endingCardAllowed, episodeCardPath, pageTitle, SHARE_QUESTION, shareDescription, shareTitle, wentWellTitle } from "@/lib/episode-share";
 import EpisodeNotices from "@/app/Notices";
 import { siteUrl } from "@/lib/site";
+import { reportCardPath } from "@/lib/report-card";
 import { getDb } from "@/lib/db";
 import { viewerBridge } from "@/lib/adult/bridge-viewer";
 import { viewerContinue } from "@/lib/adult/overnight";
@@ -477,6 +478,8 @@ export default async function EpisodePage({
           afterDark: episode.ending === "second_date" ? adBridge : null,
         }
       : null;
+  // The date's report card (lib/report-card.ts): only once it has aired, and never for a date only its creator sees.
+  const reportCard = episode.revealed && episode.box_score && episode.visibility !== "private" && !episode.hidden ? reportCardPath(episode.id) : null;
   // A creator's first date, just filmed: the page under the theater stays clear of the games (the card is the next step).
   const firstDateJustFilmed = play && episode.is_creator && (creatorSide?.dates ?? 0) <= 1;
   // Which date this is for the couple: a happy ending on their third date reads "A fourth date", never "A second date".
@@ -576,6 +579,7 @@ export default async function EpisodePage({
               verdict={verdict}
               coldOpen={coldOpen}
               cut={cut ? { src: cut.src, poster_src: cut.poster_src, seconds: cut.seconds } : null}
+              reportCard={reportCard}
             />
           ) : (
             episode.transcript &&
@@ -768,7 +772,7 @@ export default async function EpisodePage({
           </section>
         )}
 
-        {episode.box_score && <BoxScore boxScore={episode.box_score} bestLine={episode.best_line} why={episode.why} note={episode.box_score_note} />}
+        {episode.box_score && <BoxScore boxScore={episode.box_score} bestLine={episode.best_line} why={episode.why} note={episode.box_score_note} reportCard={reportCard} />}
 
         {/* Behind the scenes: the agendas and the confessionals, one card instead of two in a row (UX audit 2026-10-23). */}
         {(episode.agendas || episode.confessionals) && (

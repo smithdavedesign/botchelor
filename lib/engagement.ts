@@ -116,7 +116,7 @@ const SOURCES: [RegExp, string][] = [
  * A link's ?ref tag (app/funnel.ts BEACON_REFS) as a source: which kind of share the visitor followed. A visit that
  * starts on a creator's casting invite (lib/casting-invites.ts) is the "invite" source: which invites became applicants.
  */
-const REF_SOURCES: Readonly<Record<string, string>> = { share: "share_link", invite: "date_link", double: "double_link", owner: "owner_share", casting_invite: "invite" };
+const REF_SOURCES: Readonly<Record<string, string>> = { share: "share_link", invite: "date_link", double: "double_link", owner: "owner_share", casting_invite: "invite", report: "report_share" };
 
 /**
  * Where a visit came from, in one word: utm_source when the link was tagged, a share link's ref, our name for the
