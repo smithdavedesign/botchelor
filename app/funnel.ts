@@ -10,6 +10,7 @@
 import { safeFrom } from "@/lib/age";
 import { INVITE_PAGE, isInvitePath } from "@/lib/casting-invite-shared";
 import { SHARE_REF } from "@/lib/episode-share";
+import { REPORT_REF } from "@/lib/report-card";
 
 export const SIGNAL_URL = "https://idea-factory.1426davejobs.workers.dev/api/ideas/signal";
 export const SLUG = "botchelor";
@@ -70,11 +71,12 @@ export const CASTING_INVITE_REF = "casting_invite";
 /**
  * The tags a link may carry (?ref=…) and the only ones sent: an episode's share links (lib/episode-share.ts), a
  * creator's date link (`invite`, lib/date-invites.ts), a bring-a-friend double link (`double`, lib/double-links.ts) and
- * an owner's share of a date that went well (`owner`, lib/episode-share.ts); and a casting invite's page, which tags
+ * an owner's share of a date that went well (`owner`, lib/episode-share.ts), a date's report card (`report`,
+ * lib/report-card.ts); and a casting invite's page, which tags
  * itself (`casting_invite`). Each becomes its own source (lib/engagement.ts sourceOf), so the weekly report can say
  * which kind of share brings people.
  */
-export const BEACON_REFS: readonly string[] = [SHARE_REF, "invite", "double", "owner", CASTING_INVITE_REF];
+export const BEACON_REFS: readonly string[] = [SHARE_REF, "invite", "double", "owner", CASTING_INVITE_REF, REPORT_REF];
 
 /**
  * The tag a visit came with: this page's ?ref, or on the 18+ gate the ?ref of the page the visitor was headed to (the
