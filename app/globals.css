@@ -9166,7 +9166,8 @@ body.ad-host {
   margin: 0.25rem 0 0;
   white-space: nowrap;
 }
-.badge-origin-cast {
+.badge-origin-cast,
+.badge-origin-original {
   background: color-mix(in srgb, var(--accent) 14%, var(--card));
   color: var(--accent-text);
 }
