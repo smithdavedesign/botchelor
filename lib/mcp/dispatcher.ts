@@ -1610,6 +1610,22 @@ export function airedLate(bookedAt: Date | string, airedAt: Date | string, writt
 /** #1844: said when a character is made without pronouns, so the agent learns the field exists before a date genders it. */
 export const PRONOUNS_UNSET_NOTE = "No pronouns given: the show refers to them by name or as they/them. Set pronouns (she/her, he/him or they/them) with update_character if you'd like others.";
 
+/**
+ * #1858 (the 2026-11-19-1849 run: "the venue came back as home@Odalys's place"): a stored place token (lib/places.ts:
+ * "home@Odalys's place", "elsewhere@the lido") is never shown as is, whichever field forgot venueShown. A value that is
+ * the whole token reads as its name; one inside a sentence loses the prefix. Arguments a reply hands back for a next call
+ * (next_calls[].args, call.args) are left alone: they're for the server, not for reading.
+ */
+const PLACE_TOKEN = /\b(?:home|elsewhere)@/g;
+export function withoutPlaceTokens<T>(v: T): T {
+  if (typeof v === "string") return (/^(?:home|elsewhere)@/.test(v) ? venueName(v) : v.includes("@") ? v.replace(PLACE_TOKEN, "") : v) as T;
+  if (Array.isArray(v)) return v.map((x) => withoutPlaceTokens(x)) as T;
+  if (v && typeof v === "object" && Object.getPrototypeOf(v) === Object.prototype) {
+    return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, k === "args" ? x : withoutPlaceTokens(x)])) as T;
+  }
+  return v;
+}
+
 /** An episode as get_episode returns it: plus when it airs, or, while it's being written, how long it's been (#190). */
 async function episodeData(db: Db, args: Record<string, unknown>, session: Session | null): Promise<ToolOutcome> {
   const who = resolveIdentity(args, session, false);
@@ -2317,6 +2333,10 @@ async function agentBudgetRefusal(db: Db, userId?: string): Promise<{ error: str
   return { error: `The show's model is fully booked for agents today (${today.cap} dates). Try again after ${today.resets_at}.${CAP_UPSELL}` };
 }
 
+/** #1856: why booking a second date needs a show-model date even when it's your yes, and what's free instead. */
+export const SECOND_DATE_CAP_NOTE =
+  "A second date is written by the show's model, so booking it (your yes included) uses one of your shared daily dates. Free now: start_own_date with the same partner, where you write your side's lines.";
+
 /** A booked date's visibility as saved (2.8.0, the 2026-10-22-0400 run: "the booking reply had no visibility field"). */
 const visibilityOf = async (db: Db, episodeId: string): Promise<string> =>
   (await db.query<{ visibility: string }>(`select visibility from episodes where id = $1`, [episodeId]).catch(() => ({ rows: [] as { visibility: string }[] }))).rows[0]?.visibility ?? "public";
@@ -2708,8 +2728,10 @@ async function bookSecondDate(db: Db, who: Identity, episodeId: string, args: Re
     };
   }
   // Booking runs on the show's model like go_on_date, so it shares the agents' daily budget.
+  // #1856 (the 2026-11-19-1849 run: "saying yes costs nothing, so a refusal here was surprising"): the cap stays (the show's
+  // model writes it), and the refusal says the yes needs a date from the share and what's free instead.
   const full = await agentBudgetRefusal(db, who.id);
-  if (full) return full;
+  if (full) return { error: `${full.error} ${SECOND_DATE_CAP_NOTE}` };
   const [before, freeSecond] = await Promise.all([episodeAllowance(db, who.id).catch(() => null), secondDateFreeNow(db, who.id).catch(() => false)]);
   const r = await callRoute(postSecondDate as unknown as RouteHandler, { agentId: who.id, body: pick(args, ["visibility", "place", "character_id"]), params: { id: episodeId } });
   if (!r.ok) {
@@ -6218,9 +6240,15 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       if (!who) return { data: { dates: [], note: NEEDS_IDENTITY } };
       // #1709 (the 2026-11-16-0610 run: my_dates said aired: false while the notifications said it had aired): a date whose
       // time has come airs now, as browse_episodes and get_episode do, so it isn't listed as unaired with nothing left to wait.
-      let listed = await listMyEpisodes(db, who.id);
+      // #1857 (the 2026-11-19-1849 run: "my_dates doesn't take limit"): newest first, 50 unless limit says (1-100).
+      const limit = Math.max(1, Math.min(100, Math.floor(Number(args.limit)) || 50));
+      const page = async () => {
+        const all = await listMyEpisodes(db, who.id);
+        return { all: all.length, rows: all.slice(0, limit) };
+      };
+      let { all: total, rows: listed } = await page();
       const due = listed.filter((e) => !e.revealed && e.status === "ready" && e.visibility !== "private").map((e) => e.id);
-      if ((await Promise.all(due.map((id) => airIfDue(db, id).catch(() => null)))).some(Boolean)) listed = await listMyEpisodes(db, who.id);
+      if ((await Promise.all(due.map((id) => airIfDue(db, id).catch(() => null)))).some(Boolean)) ({ all: total, rows: listed } = await page());
       const dates = listed.map((e: EpisodeView) => trimEpisode(e as unknown as Record<string, unknown>));
       // #1517: the finished dates listed here, endings and all, are read: their "it's done" notices aren't waiting any more.
       const finished = dates.filter((d) => d.status === "ready").map((d) => `/episodes/${d.id}`);
@@ -6248,7 +6276,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
                 : {};
         return { ...d, aired: d.revealed === true, ...(other ? { with: other.name } : {}), ...when };
       });
-      return { data: { dates: shown }, identity: who };
+      const cut = total > shown.length ? { truncated: true, dates_in_all: total, more_note: `The newest ${shown.length} of ${total}: limit (up to 100) shows more.` } : {};
+      return { data: { dates: shown, ...cut }, identity: who };
     }
     case "link_account": {
       // An agent with no identity yet has nothing to show anyone: the link is for an agent that's played.
@@ -9254,7 +9283,7 @@ function toToolResult(out: ToolOutcome, session: Session | null, idNews = true):
     out.identity && !out.identity.given && idNews
       ? `Your agent_id is ${out.identity.id}${session ? " (this connection remembers it)" : ""} — pass it as "agent_id" on future connections to keep your characters, points and ratings.`
       : null;
-  const data = out.identity ? { ...out.data, agent_id: out.identity.id, ...(note ? { agent_id_note: note } : {}) } : out.data;
+  const data = withoutPlaceTokens(out.identity ? { ...out.data, agent_id: out.identity.id, ...(note ? { agent_id_note: note } : {}) } : out.data);
   // #414: the text copy is the same JSON, unindented (about a third smaller); structuredContent is the one to read.
   return { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: data };
 }
