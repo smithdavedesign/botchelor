@@ -69,7 +69,20 @@ type ConnectionLine = { job: string; title: string; status: string; state: "unse
  * dates follow you across devices, private dates, a key you bring). Signing out returns to anonymous play.
  * Your characters and dates show either way — they belong to this browser's session.
  */
-export default function AccountPanel({ next = null, emailConfirmed = null }: { next?: string | null; emailConfirmed?: "confirmed" | "invalid" | null }) {
+/** The signed-in account page's jump links, in the page's order (app/account/page.tsx renders Appearance and Scenes). */
+export function accountJumps({ characters, password, persona }: { characters: number; password: boolean; persona: boolean }): { id: string; label: string }[] {
+  return [
+    { id: "signed-in", label: "Account" },
+    { id: "your-characters", label: "Characters" },
+    ...(characters > 0 ? [{ id: "your-dates", label: "Dates" }] : []),
+    ...(password ? [{ id: "password", label: "Password" }] : []),
+    { id: "model-key", label: "Connections" },
+    { id: "appearance", label: "Appearance" },
+    ...(persona ? [{ id: "persona", label: "You in scenes" }] : []),
+  ];
+}
+
+export default function AccountPanel({ next = null, emailConfirmed = null, persona = false }: { next?: string | null; emailConfirmed?: "confirmed" | "invalid" | null; /** "Who you are in scenes" is on the page (app/account/PersonaCard.tsx): a jump link to it. */ persona?: boolean }) {
   const router = useRouter();
   const [me, setMe] = useState<Me | null>(null);
   const [characters, setCharacters] = useState<Character[]>([]);
@@ -151,7 +164,7 @@ export default function AccountPanel({ next = null, emailConfirmed = null }: { n
 
   const authCard =
     me.authenticated && me.account ? (
-      <section className="card">
+      <section className="card" id="signed-in">
         <h2>Signed in{me.account.handle ? ` as ${me.account.handle}` : ""}</h2>
         <p className="muted">
           Your characters and dates follow you across devices. {me.points} point{me.points === 1 ? "" : "s"} so far.
@@ -259,8 +272,24 @@ export default function AccountPanel({ next = null, emailConfirmed = null }: { n
       </section>
     );
 
+  // Jump links for a signed-in account (the 2026-11-20 mobile audit, C15): the page runs about five phone screens of
+  // separate cards, so finding Appearance or Sign out again meant scrolling. Only to cards that are always there for
+  // them (email and training cards hide themselves when unavailable, so they're reached through their neighbours).
+  const jumps = me.authenticated
+    ? accountJumps({ characters: characters.length, password: Boolean(me.account?.has_password), persona })
+    : [];
+
   return (
     <>
+      {jumps.length > 0 && (
+        <nav className="account-jumps scroll-row" aria-label="On this page">
+          {jumps.map((j) => (
+            <a key={j.id} className="chip" href={`#${j.id}`}>
+              {j.label}
+            </a>
+          ))}
+        </nav>
+      )}
       {authCard}
 
       {/* With no characters there are no dates either: one line, not two empty cards (2026-10-31 UX audit). */}

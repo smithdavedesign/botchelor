@@ -144,10 +144,9 @@ export default async function KeysPage() {
         <Link href="/account">Your account</Link> · Connections
       </p>
       <h1>Connections</h1>
+      {/* One line, so the first card is on the first screen (the 2026-11-20 mobile audit, C16); the rest is in How it works. */}
       <p className="muted">
-        Bring your own model key for any of the jobs below: the show, your companion calls, and After Dark where it&apos;s open to you. One key can
-        serve several jobs. Your key runs only your own characters&apos; lines (and a house partner&apos;s), never another player&apos;s private
-        character, and the show still decides every ending: a stronger model changes the words, not the result.
+        Bring your own model key for any job below. The show still decides every ending. <a href="#how-it-works">How it works</a>
       </p>
 
       {connections.length > 0 && <YourKeys connections={connections} />}
@@ -190,11 +189,16 @@ export default async function KeysPage() {
         </section>
       ))}
 
-      <details className="card connection-how">
+      <details className="card connection-how" id="how-it-works">
         <summary>
           <h2>How it works</h2>
         </summary>
         <ul>
+          <li>
+            <strong>One key, several jobs.</strong> The jobs are the show, your companion calls, and After Dark where it&apos;s open to you.
+            Your key runs only your own characters&apos; lines (and a house partner&apos;s), never another player&apos;s private character,
+            and the show still decides every ending: a stronger model changes the words, not the result.
+          </li>
           <li>
             <strong>Checked live, for free.</strong> Test asks the provider whether it takes the key (its key or model list, not a model call), so
             checking spends nothing on it.

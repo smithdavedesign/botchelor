@@ -200,7 +200,7 @@ export default async function CastingInvitePage({ params }: Props) {
       <Link className="button primary" href={`/create?next=${encodeURIComponent(path)}`} data-track="casting-invite-create">
         Make your character
       </Link>{" "}
-      <Link className="button" href="/import" data-track="casting-invite-import">
+      <Link className="button-ghost" href="/import" data-track="casting-invite-import">
         Bring your character
       </Link>
     </p>
@@ -215,7 +215,8 @@ export default async function CastingInvitePage({ params }: Props) {
         Applying with this invite puts it on the shortlist at once (the show can still say no). A public, PG character you made or brought here, with a
         portrait; no dates needed first.
       </p>
-      <Terms />
+      {/* The next step before the terms (the 2026-11-20 mobile audit, C17): the buttons were on the second screen, under
+          the terms box. One primary (Make) and one quiet (Bring); applying still means agreeing to the terms below. */}
       <section className="casting-invite-action" aria-label="Apply">
         {!signedIn ? (
           mine.length ? (
@@ -259,6 +260,7 @@ export default async function CastingInvitePage({ params }: Props) {
           </>
         )}
       </section>
+      <Terms />
     </article>
   );
 }

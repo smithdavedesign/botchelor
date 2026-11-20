@@ -87,12 +87,12 @@ export default function JobCard({ card, providers, also }: { card: JobCardView; 
     >
       <div className="connection-actions">
         {card.state === "unset" ? (
-          <button type="button" className="secondary" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+          <button type="button" className={open ? "link-button" : "secondary"} onClick={() => setOpen((o) => !o)} aria-expanded={open}>
             {open ? "Cancel" : card.reusable.length ? "Connect a key" : "Connect"}
           </button>
         ) : (
           <>
-            <button type="button" className="secondary" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+            <button type="button" className={open ? "link-button" : "secondary"} onClick={() => setOpen((o) => !o)} aria-expanded={open}>
               {open ? "Cancel" : "Change"}
             </button>
             <button type="button" className="secondary" onClick={checkNow} disabled={checking}>
