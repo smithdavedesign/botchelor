@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import SetHero from "@/app/SetHero";
 import { faqJsonLd, faqs, type Piece } from "@/lib/faq";
 import { pageMetadata } from "@/lib/seo";
 import JsonLd from "../JsonLd";
@@ -42,8 +43,7 @@ export default function FaqPage() {
       <JsonLd data={faqJsonLd(list)} />
       {/* /faq#refund opens that answer (a link from /contact or an email). */}
       <OpenOnHash />
-      <h1>Questions people ask</h1>
-      <p className="lede">The short answers. The long ones are linked from each.</p>
+      <SetHero set="confessional" kicker="FAQ" title="Questions people ask" lede="The short answers. The long ones are linked from each." />
       <div className="faq-list">
         {list.map((f, i) => (
           <details key={f.id} id={f.id} className="faq-item ux-fold" open={i < 3}>

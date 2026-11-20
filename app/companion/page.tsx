@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import FaceRibbon from "@/app/FaceRibbon";
 import NotOpenYet from "@/app/NotOpenYet";
 import CharactersTabs from "@/app/characters/CharactersTabs";
 import PhoneActionBar from "@/app/PhoneActionBar";
@@ -82,6 +83,8 @@ export default async function CompanionsPage({ searchParams }: { searchParams?: 
             {planLink("companion") && ` The Companion Plan has no daily limit, ${planPrice("companion")}.`}
           </p>
         </header>
+        {/* The house cast in a ribbon for a visitor (the visual pop audit, 2026-11-20); a member's page stays their list. */}
+        <FaceRibbon />
         <CompanionBrowser threads={threads} others={[...yours, ...cast]} signIn={left <= 0 || threads.length >= COMPANION_GUEST_THREADS} initial={initial} />
         <p className="muted small">
           PG, like the show. If you&apos;re having a hard time, <Link href="/safety">help is here</Link>.
@@ -112,6 +115,7 @@ export default async function CompanionsPage({ searchParams }: { searchParams?: 
             </Link>
           </p>
         </header>
+        <FaceRibbon />
         <PhoneActionBar watch="companion-cta">
           <Link className="button" href="/account?next=%2Fcompanion">
             Sign in to start talking

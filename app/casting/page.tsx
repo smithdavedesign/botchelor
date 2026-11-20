@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import Link from "next/link";
+import SetHero from "@/app/SetHero";
 import Avatar from "@/app/Avatar";
 import Icon from "@/app/Icon";
 import { AUDITION_MIN_DATES, castingBoard } from "@/lib/auditions";
@@ -144,14 +145,17 @@ export default async function CastingPage() {
   // character gets in and how to put one up. The rules are lib/season-cast.ts pickCast's, in words.
   return (
     <article className="casting-page page-wide">
-      <header>
-        <p className="kicker">Casting · {board.label}</p>
-        <h1>{def.lead ? `Who dates the lead on ${def.title}?` : "Who's on next month's show?"}</h1>
-        <p className="lede">
-          {def.lead
+      {/* On the stage, where the cast is chosen (the visual pop audit, 2026-11-20). */}
+      <SetHero
+        set="stage"
+        kicker={`Casting · ${board.label}`}
+        title={def.lead ? `Who dates the lead on ${def.title}?` : "Who's on next month's show?"}
+        lede={
+          def.lead
             ? `These are characters people made, applying to be the suitors on ${board.label}'s ${def.title}: one lead from the house, and a rose ceremony every Sunday. Vote for the one you want to watch: one vote a viewer, and voting again moves it.`
-            : `These are characters people made, auditioning for the ${board.label} cast. Vote for the one you want to watch: one vote a viewer, and voting again moves it.`}
-        </p>
+            : `These are characters people made, auditioning for the ${board.label} cast. Vote for the one you want to watch: one vote a viewer, and voting again moves it.`
+        }
+      >
         {/* The lead season's own page (docs/season-page.md): one quiet line, for whoever came to vote not knowing the show. */}
         {def.lead && seasonPageLiveOn() && (
           <p className="small casting-what">
@@ -160,7 +164,7 @@ export default async function CastingPage() {
             </Link>
           </p>
         )}
-      </header>
+      </SetHero>
       <div className="casting-layout">
         <div className="casting-main">
           {board.auditions.length ? <CastingBoard board={board} viewer={viewer} insider={insider} /> : <CastingSlots label={board.label} month={seasonMonth(board.season_id)} cast={cast} lead={lead} size={size} open={open} hasOwn={own.length > 0} def={def} />}
