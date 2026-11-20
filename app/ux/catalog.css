@@ -368,9 +368,11 @@ h3 {
 .grid-balanced > .card {
   margin: 0;
 }
+/* Each column stops at 22rem: one or two cards (a month's first candidate) used to stretch across the whole page,
+   blowing a portrait or its initials up to ~1700px (2026-11-20). A full row of 3–4 is under the cap anyway. */
 @media (min-width: 900px) {
   .grid-balanced {
-    grid-template-columns: repeat(var(--cols, 3), minmax(0, 1fr));
+    grid-template-columns: repeat(var(--cols, 3), minmax(0, 22rem));
   }
 }
 
