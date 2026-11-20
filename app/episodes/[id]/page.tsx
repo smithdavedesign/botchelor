@@ -24,7 +24,8 @@ import ShareRecord from "@/app/ShareRecord";
 import { shareOf } from "@/app/YourCalls";
 import { sharerOf } from "@/lib/share-record-name";
 import { getEpisodeView, getPoints } from "@/lib/game";
-import { episodeClip } from "@/lib/home-clip";
+import { episodeClip, episodeCut } from "@/lib/home-clip";
+import { coldOpenOf, coldOpenOn } from "@/lib/cold-open";
 import { partyIdForEpisode } from "@/lib/watch";
 import { PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
 import { authFromCookieStore, userIdFromCookieStore } from "@/lib/http";
@@ -289,6 +290,7 @@ export default async function EpisodePage({
     overnight,
     continueNight,
     textedAbout,
+    cut,
   ] = await Promise.all([
     // 🌙 on a date that carried an After Dark memory, only for someone After Dark is open to (never a hint to anyone else).
     episode.after_dark
@@ -369,6 +371,8 @@ export default async function EpisodePage({
     // "{Name} texted you about this" (lib/chat-date-links.ts): the viewer's own threads whose character texted them
     // about this date. Asked only for an owner of one of the two; nobody else is ever shown it. CHAT_DATE_LINKS=0: never.
     ready && episode.is_creator && viewerId && chatDateLinks() ? textsAboutDate(db, viewerId, id).catch((): TextedAbout[] => []) : ([] as TextedAbout[]),
+    // The date's short version (lib/home-clip.ts episodeCut): the voiced cut of an aired public date, when one was made.
+    ready && episode.revealed ? episodeCut(db, episode.id).catch(() => null) : null,
   ]);
   const { open: storyOpen, kept: keptStory, price: storyPrice } = await storyState.catch(() => ({ open: false, kept: null, price: undefined }));
   const talk = await talkP;
@@ -488,6 +492,21 @@ export default async function EpisodePage({
   // (lib/overnight-shared.ts, templates); any other date, and any other ending, keeps its own label.
   const endingUsual = episode.ending ? endingWithDetail(episode.ending, dateNo, episode.ending_detail) : "";
   const endingTold = overnight ? overnightEndingLabel(episode.ending, endingUsual) : endingUsual;
+  // The cold open (lib/cold-open.ts): who they are, what each wants and what's at stake, before the theater's first line.
+  // Only what the page already shows before the read, so it spoils nothing; the theater decides who sees it.
+  const coldOpen =
+    hasTheater && coldOpenOn()
+      ? coldOpenOf({
+          characters: episode.characters,
+          goals: episode.goals,
+          dateNumber: dateNo ?? null,
+          venue: typeof episode.venue === "string" ? venuePhrase(episode.venue) : null,
+          format: episode.format ? formatLabel(episode.format) : null,
+          roleplay: episode.roleplay ? { icon: episode.roleplay.icon, title: episode.roleplay.title } : null,
+          setting: episode.setting,
+          previously: prev?.line ?? null,
+        })
+      : null;
   const lastAct = episode.scenes?.length ? episode.scenes.length - 1 : -1;
   const finaleRepeats =
     lastAct >= 0 && Boolean(episode.finale) && squash(withoutActLabel(episode.scenes![lastAct], DATE_ACTS[lastAct])) === squash(episode.finale);
@@ -555,6 +574,8 @@ export default async function EpisodePage({
               startAt={play && episode.is_creator ? from : 0}
               roleplay={episode.roleplay ?? null}
               verdict={verdict}
+              coldOpen={coldOpen}
+              cut={cut ? { src: cut.src, poster_src: cut.poster_src, seconds: cut.seconds } : null}
             />
           ) : (
             episode.transcript &&

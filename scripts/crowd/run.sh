@@ -11,8 +11,23 @@ cd "$HOME_DIR/repo" || exit 1
 [ -f "$HOME_DIR/env" ] && set -a && . "$HOME_DIR/env" && set +a
 unset ANTHROPIC_API_KEY
 # The newest code, unless a crowd pass is running from this clone right now (its lock): then the next tick updates.
+# The clone is the jobs' own copy, so a change made in it (an `npm install` once rewrote package.json and the checkout
+# refused every tick from 2026-11-13 to 11-19, so every job ran old code without a word) is kept in logs/ and set aside,
+# and the system log hears of it; a failed update is logged too.
+EMIT="$HOME/ai-stack/bin/emit-event"
+note() { [ -x "$EMIT" ] && "$EMIT" botchelor crowd clone-update "$1" "$2" >/dev/null 2>&1; }
 if [ ! -f "$HOME_DIR/lock" ]; then
-  git fetch -q origin && git checkout -q --detach origin/main
+  if ! git fetch -q origin; then
+    note fail "git fetch failed in the crowd clone: the $MODE job runs the code it has"
+  elif ! git checkout -q --detach origin/main 2>/dev/null; then
+    kept="$HOME_DIR/logs/$(date +%Y-%m-%dT%H%M)-local-changes.diff"
+    git diff > "$kept" 2>/dev/null
+    if git checkout -q -f --detach origin/main; then
+      note info "local changes in the crowd clone set aside to update (kept in $kept)"
+    else
+      note fail "the crowd clone can't move to origin/main: the $MODE job runs old code"
+    fi
+  fi
 fi
 case "$MODE" in
   crowd) exec node scripts/crowd/prod-crowd.mjs >> "$HOME_DIR/logs/launchd-crowd.log" 2>&1 ;;

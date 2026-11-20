@@ -4227,6 +4227,11 @@ create table if not exists home_clips (
   created_at timestamptz not null default now()
 );
 create index if not exists home_clips_created_idx on home_clips (created_at desc);
+-- The date's whole clip with its voices, for the episode page's "60-second version" (lib/home-clip.ts, 2026-11-19): the
+-- web cut of the same render the loop comes from. Optional; an upload without one keeps the cut the date already has.
+alter table home_clips add column if not exists cut_key text;
+alter table home_clips add column if not exists cut_data bytea;
+alter table home_clips add column if not exists cut_seconds numeric(6, 2);
 -- A viewer's report of one line of a scene (lib/house-scenes.ts reportSceneLine): REPORT_HIDE_THRESHOLD hide the line
 -- and take what it told back out of the story state.
 create table if not exists house_scene_reports (

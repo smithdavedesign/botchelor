@@ -9,14 +9,15 @@ type Ctx = { params: Promise<{ id: string; file: string }> };
 const CACHE = "public, max-age=86400";
 
 /**
- * The home clip's two files (lib/home-clip.ts): /api/home-clip/<id>/loop.mp4 and /poster.jpg. Public, like the date they
+ * The home clip's files (lib/home-clip.ts): /api/home-clip/<id>/loop.mp4, /poster.jpg and /cut.mp4 (the whole clip with
+ * its voices, when the date has one). Public, like the date they
  * show, and only while that date is: the read checks it again (aired, public, not hidden, both characters public), so
  * a date taken down takes its clip with it. In the store, a redirect to a signed link (the store answers byte ranges);
  * from the database, sent from here with byte ranges, which Safari needs before it plays a video at all.
  */
 export async function GET(req: Request, ctx: Ctx) {
   const { id, file } = await ctx.params;
-  const which = file === "loop.mp4" ? "loop" : file === "poster.jpg" ? "poster" : null;
+  const which = file === "loop.mp4" ? "loop" : file === "poster.jpg" ? "poster" : file === "cut.mp4" ? "cut" : null;
   if (!which || !/^[\w-]{1,64}$/.test(id)) return new Response("Not found", { status: 404 });
   const found = await homeClipFile(await getDb(), id, which);
   if (!found) return new Response("Not found", { status: 404 });

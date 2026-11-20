@@ -6,7 +6,7 @@ import Icon from "@/app/Icon";
 import { flush, queueEvent } from "@/app/engagement";
 import Scene from "@/app/Scene";
 import ChatThread from "@/app/ChatThread";
-import { useReplay } from "@/app/useReplay";
+import { delayBefore, useReplay } from "@/app/useReplay";
 import { DATE_ACTS } from "@/lib/rules";
 import type { Turn } from "@/lib/conversation";
 import type { CharacterRef } from "@/lib/game";
@@ -16,6 +16,9 @@ import { dateWatchedLive, msSinceDateStarted, theaterLeftProps } from "@/lib/eng
 import ShareEnding from "./ShareEnding";
 import VerdictCard from "./VerdictCard";
 import { latestFace } from "@/lib/show-shots-shared";
+import type { ColdOpen } from "@/lib/cold-open";
+import ColdOpenCard, { cutButtonLabel, type CutLink } from "./ColdOpenCard";
+import CutPlayer, { type CutPlace } from "./CutPlayer";
 
 /** What the verdict card needs beyond the theater's own props (app/episodes/[id]/page.tsx hands it over for a creator). */
 export type TheaterVerdict = {
@@ -48,6 +51,13 @@ type Props = {
   roleplay?: { icon: string; title: string } | null;
   /** With `justFilmed`: the verdict card in place of the bare ending (VerdictCard.tsx). */
   verdict?: TheaterVerdict | null;
+  /**
+   * The cold open (lib/cold-open.ts): shown before the first line to anyone starting the date from the top, never to the
+   * creator who just filmed it nor to someone picking up where they watched live. Null: none (COLD_OPEN=0, or nothing to say).
+   */
+  coldOpen?: ColdOpen | null;
+  /** The date's short version (lib/home-clip.ts episodeCut), or null: a button beside "Watch in theater" and on the card. */
+  cut?: CutLink | null;
 };
 
 function lastOf(turns: Turn[], side: "a" | "b"): string | null {
@@ -62,13 +72,23 @@ function lastOf(turns: Turn[], side: "a" | "b"): string | null {
  */
 export default function EpisodeTheater(props: Props) {
   const [open, setOpen] = useState(props.autoOpen ?? false);
+  const [cutFrom, setCutFrom] = useState<CutPlace | null>(null);
   const router = useRouter();
   const pathname = usePathname();
   if (!open) {
     return (
-      <button type="button" className="primary" onClick={() => setOpen(true)}>
-        <Icon name="clapper" /> Watch in theater
-      </button>
+      <>
+        <button type="button" className="primary" onClick={() => setOpen(true)}>
+          <Icon name="clapper" /> Watch in theater
+        </button>
+        {props.cut && (
+          // The quick way in (2026-11-19): the same date as the show's short, with its voices.
+          <button type="button" className="secondary" onClick={() => setCutFrom("hero")} data-track="episode-cut">
+            {cutButtonLabel(props.cut.seconds)}
+          </button>
+        )}
+        {props.cut && cutFrom && <CutPlayer cut={props.cut} title={cutTitle(props.characters)} place={cutFrom} onClose={() => setCutFrom(null)} />}
+      </>
     );
   }
   return (
@@ -83,8 +103,44 @@ export default function EpisodeTheater(props: Props) {
   );
 }
 
-function Playback({ episodeId, characters, venue, transcript, endingLabel, justFilmed, startAt, roleplay, verdict, autoOpen, onExit }: Props & { onExit: () => void }) {
-  const replay = useReplay(transcript, true, { startAt });
+/** The short version's sheet title: "Ada × Bo, the short version". */
+function cutTitle([a, b]: [CharacterRef, CharacterRef]): string {
+  return `${a.name} × ${b.name}, the short version`;
+}
+
+/** How long the whole date plays in the theater from its first line, by the replay's own pacing. */
+function playMsOf(transcript: Turn[]): number {
+  let ms = 0;
+  for (let i = 0; i < transcript.length; i++) ms += delayBefore(transcript, i);
+  return ms;
+}
+
+function Playback({ episodeId, characters, venue, transcript, endingLabel, justFilmed, startAt, roleplay, verdict, autoOpen, coldOpen, cut, onExit }: Props & { onExit: () => void }) {
+  // The cold open comes first for anyone starting from the top (never the creator just filmed, nor picking up live).
+  const intro = Boolean(coldOpen) && !justFilmed && !(startAt && startAt > 0);
+  const [card, setCard] = useState<"first" | "again" | null>(intro ? "first" : null);
+  const [cutOpen, setCutOpen] = useState(false);
+  // The date waits behind the card: it starts when they press Start.
+  const replay = useReplay(transcript, !intro, { startAt });
+  // Playing when "Who's who" paused it, so going back carries on; paused, it stays paused.
+  const resume = useRef(true);
+  const shownCard = useRef(false);
+  useEffect(() => {
+    if (!intro || shownCard.current) return;
+    shownCard.current = true;
+    queueEvent("cold_open", { lines: transcript.length, cut: Boolean(cut), again: false });
+  }, [intro, transcript.length, cut]);
+  const closeCard = () => setCard(null);
+  const startFromCard = () => {
+    const again = card === "again";
+    setCard(null);
+    if (!again || resume.current) replay.play();
+  };
+  const reopenCard = () => {
+    resume.current = replay.playing && !replay.done;
+    replay.pause();
+    setCard("again");
+  };
   // Where a viewer gave up (lib/engagement-keys.ts theaterLeftProps): once per opening, by Exit or the tab going away,
   // and never once the ending played. The ref reads the line on screen at that moment, not at the last render's closure.
   const openedAt = useRef(Date.now());
@@ -94,7 +150,7 @@ function Playback({ episodeId, characters, venue, transcript, endingLabel, justF
   const leave = (via: "exit" | "hidden") => {
     if (left.current || at.current.done) return;
     left.current = true;
-    queueEvent("theater_left", theaterLeftProps({ line: at.current.line, of: transcript.length, openedAt: openedAt.current, now: Date.now(), via, auto: Boolean(autoOpen) }));
+    queueEvent("theater_left", theaterLeftProps({ line: at.current.line, of: transcript.length, openedAt: openedAt.current, now: Date.now(), via, auto: Boolean(autoOpen), intro }));
     if (via === "hidden") flush();
   };
   const leaveRef = useRef(leave);
@@ -122,10 +178,13 @@ function Playback({ episodeId, characters, venue, transcript, endingLabel, justF
       just_filmed: Boolean(justFilmed),
       skipped: skipped.current,
       ms_since_start: justFilmed ? msSinceDateStarted() : null,
+      // Whether this opening began with the cold open (lib/cold-open.ts), to compare endings watched with and without it.
+      intro,
     });
-  }, [replay.done, justFilmed, episodeId]);
+  }, [replay.done, justFilmed, episodeId, intro]);
   const skip = () => {
     skipped.current = true;
+    closeCard();
     replay.skip();
   };
   const shown = replay.shown;
@@ -151,6 +210,20 @@ function Playback({ episodeId, characters, venue, transcript, endingLabel, justF
           <ChatThread characters={characters} turns={shown} typing={replay.typing} tone="dark" follow empty="The conversation appears here, line by line." feedback={{ kind: "episode", refId: episodeId }} />
         </div>
 
+        {card && coldOpen && (
+          <ColdOpenCard
+            coldOpen={coldOpen}
+            characters={characters}
+            lines={transcript.length}
+            playMs={playMsOf(transcript)}
+            cut={cut ?? null}
+            again={card === "again"}
+            onStart={startFromCard}
+            onCut={() => setCutOpen(true)}
+          />
+        )}
+        {cut && cutOpen && <CutPlayer cut={cut} title={cutTitle(characters)} place="cold_open" onClose={() => setCutOpen(false)} />}
+
         <header className="theater-hud">
           <div className="theater-id">
             <strong>
@@ -164,10 +237,41 @@ function Playback({ episodeId, characters, venue, transcript, endingLabel, justF
             )}
           </div>
           <div className="theater-tools">
-            <button type="button" className="theater-icon" onClick={replay.toggle} aria-label={replay.playing ? "Pause" : "Play"} title={replay.playing ? "Pause" : "Play"}>
+            {coldOpen && (
+              <button
+                type="button"
+                className={`theater-icon${card ? " on" : ""}`}
+                onClick={card ? startFromCard : reopenCard}
+                aria-pressed={Boolean(card)}
+                aria-label="Who's who"
+                title="Who's who"
+                data-track="theater-whos-who"
+              >
+                👥
+              </button>
+            )}
+            <button
+              type="button"
+              className="theater-icon"
+              onClick={() => {
+                closeCard();
+                replay.toggle();
+              }}
+              aria-label={replay.playing ? "Pause" : "Play"}
+              title={replay.playing ? "Pause" : "Play"}
+            >
               {replay.playing ? "⏸" : "▶"}
             </button>
-            <button type="button" className="theater-icon" onClick={replay.restart} aria-label="Restart" title="Restart">
+            <button
+              type="button"
+              className="theater-icon"
+              onClick={() => {
+                closeCard();
+                replay.restart();
+              }}
+              aria-label="Restart"
+              title="Restart"
+            >
               ↻
             </button>
             <button type="button" className="theater-icon" onClick={skip} aria-label="Skip to the end" title="Skip to the end">
@@ -196,7 +300,8 @@ function Playback({ episodeId, characters, venue, transcript, endingLabel, justF
           </div>
         </header>
 
-        {replay.done &&
+        {!card &&
+          replay.done &&
           (justFilmed && verdict ? (
             // The creator's own date, just filmed: the ending with a next step (their character texts them).
             <VerdictCard

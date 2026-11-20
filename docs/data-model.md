@@ -48,7 +48,7 @@ erDiagram
 | Season | `show_seasons` | A row for every season from the first aired date to the one after now: show, number, span, and its **format, frozen once it starts** (the admin's pick, else the ballot as it stood, else classic). The id is the id every `season_id` column already held. | `lib/show-seasons.ts` |
 | Date | `episodes` | `season_id` (null until it airs) and `show_id`. | `lib/air.ts`, `lib/watch.ts` |
 | Honours | `season_awards` | A season's awards, one row per character named. Written when a recap freezes. | `lib/profile/credits.ts` |
-| The show's clips | `home_clips` | A clip of an aired public date: its `episode_id`, and through the date its season. | `lib/home-clip.ts` |
+| The show's clips | `home_clips` | A clip of an aired public date: its `episode_id`, and through the date its season. Its loop and poster, and (2026-11-19) the whole voiced cut the date's page plays. | `lib/home-clip.ts` |
 | Portrait | `character_assets.from_picture_id` | Which Studio picture a chosen portrait came from. | `lib/studio/picture-choice.ts` |
 | Message | `companion_messages.episode_id` | The date a text is about. The `action` tag stays as the dedupe key. | `lib/companion.ts` |
 | Event | `web_events.character_id`, `episode_id` | What a visit or click was about. | `lib/engagement.ts` |

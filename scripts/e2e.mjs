@@ -257,6 +257,12 @@ async function main() {
       await page.getByRole("button", { name: "Watch in theater" }).click();
       await page.locator(".theater .scene").waitFor({ timeout: 10_000 });
       assert((await page.locator(".theater-hud").count()) > 0, "the theater HUD is missing");
+      // The cold open (lib/cold-open.ts): who they are and what's at stake first, and no line until Start.
+      await page.locator(".theater .cold-open").waitFor({ timeout: 10_000 });
+      await page.waitForTimeout(1500);
+      assert((await page.locator(".theater-convo .chat-bubble:not(.chat-typing)").count()) === 0, "a line played behind the cold open");
+      await page.locator(".theater .cold-open").getByRole("button", { name: /Start the date/ }).click();
+      await page.locator(".theater .cold-open").waitFor({ state: "detached", timeout: 10_000 });
       // The replay plays line by line into the conversation thread (not all at once).
       await page.locator(".theater-convo .chat-bubble").first().waitFor({ timeout: 10_000 });
       const early = await page.locator(".theater-convo .chat-bubble:not(.chat-typing)").count();

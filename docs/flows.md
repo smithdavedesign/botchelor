@@ -109,6 +109,27 @@ only for someone with no character:
 - Tests: `tests/home-clip.test.ts`. The visual gate seeds a clip and walks the box (`scripts/visual.mjs` `home`,
   `home-express`).
 
+**A date's first minute (2026-11-19).** In the week to Nov 19 the few real viewers who pressed Watch left at the first
+line or the third of twelve: the lines started before anyone knew who was talking or why to care. Two changes to the
+date's page:
+
+- **The cold open** (`lib/cold-open.ts`, `app/episodes/[id]/ColdOpenCard.tsx`): the theater opens on a card over the
+  scene, and the first line waits for **▶ Start the date**. It says which date and where ("Their second date at the
+  night market"), the "previously on" line for a pair with history, the setting, the roleplay, what each of them wants
+  (their face and name, the goal said once), the question the date answers ("Will there be a third date?") and how long
+  it plays ("12 lines · about 3 minutes"). Only what the page already shows before the read, so it spoils nothing.
+  Never for the creator arriving from sending their own date (`?play=1`), nor for someone picking up where they watched
+  it live (`?from=`); **👥 Who's who** in the theater's bar pauses the date and brings the card back. `COLD_OPEN=0`
+  turns it off. The daily clip presses Start before it records (`scripts/clips/daily-clip.mjs` `startTheDate`).
+- **The short version** (`app/episodes/[id]/CutPlayer.tsx`, `lib/home-clip.ts` `episodeCut`): when the daily clip was
+  made of the date, its whole voiced cut (house-crowd.md, "The home page's copy") is a button beside **Watch in
+  theater** and on the card: "🎬 The short version · 1:05". It plays in a sheet, with sound since a tap opened it.
+  Only an aired public date between public characters has one; it leaves the site with its date.
+- Counted: `cold_open` when the card shows, its buttons by their `data-track` names, `intro` on `theater_left` and
+  `date_watched`, and `cut_play` / `cut_ended` / `cut_left` for the short version ([analytics.md](analytics.md)).
+- Tests: `tests/cold-open.test.ts` (the words, the card, who sees it, the scripts that press Start),
+  `tests/home-clip.test.ts` (the cut's upload, files and the page's buttons).
+
 | A stranger's home (phone) | The same on a desktop | The box's sentence, drafted on `/create` |
 |---|---|---|
 | ![Home on a phone: the headline, the sentence box, then the day's clip in a phone](screenshots/home-clip-mobile.png) | ![Home on a desktop: the clip in a phone beside the headline and the sentence box](screenshots/home-clip-desktop.png) | ![/create after the home box: the draft is ready on the Look step](screenshots/home-express-create-mobile.png) |

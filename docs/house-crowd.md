@@ -120,12 +120,21 @@ stranger"), so the clip run sends the site a small copy once the MP4 is written:
   files go where the show's own media goes (`lib/object-store.ts`, area `clips/`; the row itself when no store is set)
   and are read at `/api/home-clip/<id>/loop.mp4` and `/poster.jpg`, which check the date again on every read: a date
   reported away or made private takes its clip off the site.
+- **And the whole clip, with its voices** (2026-11-19): the same run cuts the whole render again for the date's own
+  page, 540×960, H.264 with faststart at most 900 kbit/s and AAC at 96 kbit/s (under 12 MB, cut again coarser if not;
+  a clip over 150 seconds or still too heavy sends no cut), and sends it with the loop as `cut` and `cut_seconds`. The
+  date's page offers it as **The short version** ([flows.md](flows.md), "A date's first minute"), read at
+  `/api/home-clip/<id>/cut.mp4` with the same checks. Sending a clip without a cut keeps the cut the date already has;
+  the route refuses a cut over 20 MB, not an MP4, or without a length from 0 to 150 seconds. `--upload` sends one too.
 - **The password** is read when it's needed, from `FRONTIER_PASSWORD` if the run has it, else the keychain
   (`security find-generic-password -s vault/botchelor/FRONTIER_PASSWORD -w`). It is never written to a file or printed.
 - **A failed upload never fails the clip:** it is logged (`~/.botchelor-crowd/logs/clip.log`, and a `fail` event in the
   system log) and the MP4 and caption are already on disk. `HOME_CLIP_UPLOAD=0` in `~/.botchelor-crowd/env` skips the step.
 - **Nothing to install:** the launchd job runs the crowd's own clone on the newest main (`scripts/crowd/run.sh`), which
-  has ffmpeg on its PATH and the keychain of the signed-in user.
+  has ffmpeg on its PATH and the keychain of the signed-in user. A change made inside that clone is kept in
+  `~/.botchelor-crowd/logs/<time>-local-changes.diff` and set aside so the update still happens, and a failed update is a
+  `clone-update` event in the system log (2026-11-19: an `npm install` there had held every job on Nov 13's code for six
+  days, the clip's web copy included).
 - **A clip already rendered** (the first one, or after a failed upload), without recording again:
 
   ```

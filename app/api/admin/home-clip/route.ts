@@ -1,7 +1,7 @@
 import { airIfDue } from "@/lib/air";
 import { getDb } from "@/lib/db";
 import { getEpisodeView } from "@/lib/game";
-import { clipRefusal, homeHeroClipOn, LOOP_MAX_BYTES, LOOP_MAX_SECONDS, looksLikeJpeg, looksLikeMp4, POSTER_MAX_BYTES, saveHomeClip } from "@/lib/home-clip";
+import { clipRefusal, CUT_MAX_BYTES, CUT_MAX_SECONDS, homeHeroClipOn, LOOP_MAX_BYTES, LOOP_MAX_SECONDS, looksLikeJpeg, looksLikeMp4, POSTER_MAX_BYTES, saveHomeClip } from "@/lib/home-clip";
 import { handle, json } from "@/lib/http";
 import { frontierAuthorized } from "@/lib/model";
 
@@ -18,7 +18,8 @@ const REFUSALS = {
  * Owner-only (the admin password, x-frontier-key): the day's clip for the home page (lib/home-clip.ts), sent by
  * scripts/clips/daily-clip.mjs once the clip is rendered. A multipart form: `episode` (the date's id), `loop` (a small
  * muted MP4), `poster` (a JPEG of its first frame), `width`, `height`, `seconds`, and optionally `day` (YYYY-MM-DD,
- * else today). The route itself checks the date: aired, public, not hidden, both characters public; anything else is
+ * else today) and `cut` with `cut_seconds` (the whole clip with its voices, for the episode page's 60-second version;
+ * without one the date keeps the cut it has). The route itself checks the date: aired, public, not hidden, both characters public; anything else is
  * refused, whatever the caller says. One clip per date: sending a date's clip again replaces it.
  */
 export const POST = handle(async (req: Request) => {
@@ -47,6 +48,17 @@ export const POST = handle(async (req: Request) => {
   if (!(width >= 120 && width <= 1080 && height >= 120 && height <= 1920 && seconds > 0 && seconds <= LOOP_MAX_SECONDS)) {
     return json({ error: "invalid_size", message: `width, height (up to 1080×1920) and seconds (up to ${LOOP_MAX_SECONDS}) are needed.` }, 400);
   }
+  // The cut (optional): an MP4 of the whole clip, voices and all.
+  const cutFile = form.get("cut");
+  let cut: { bytes: Buffer; seconds: number } | null = null;
+  if (cutFile instanceof Blob) {
+    if (cutFile.size > CUT_MAX_BYTES) return json({ error: "too_large", message: `The cut is at most ${CUT_MAX_BYTES} bytes.` }, 413);
+    const bytes = Buffer.from(await cutFile.arrayBuffer());
+    const cutSeconds = Number(form.get("cut_seconds"));
+    if (!looksLikeMp4(bytes)) return json({ error: "invalid_files", message: "cut must be an MP4." }, 400);
+    if (!(cutSeconds > 0 && cutSeconds <= CUT_MAX_SECONDS)) return json({ error: "invalid_size", message: `cut_seconds (up to ${CUT_MAX_SECONDS}) is needed with a cut.` }, 400);
+    cut = { bytes, seconds: Math.round(cutSeconds * 100) / 100 };
+  }
   const given = String(form.get("day") ?? "").trim();
   const day = /^\d{4}-\d{2}-\d{2}$/.test(given) ? given : new Date().toISOString().slice(0, 10);
 
@@ -56,6 +68,6 @@ export const POST = handle(async (req: Request) => {
   // As a stranger sees it: a private date is null here, an unaired one isn't revealed.
   const refusal = clipRefusal(await getEpisodeView(db, episodeId, null));
   if (refusal) return json({ error: refusal, message: REFUSALS[refusal] }, refusal === "episode_not_found" ? 404 : 409);
-  const { id } = await saveHomeClip(db, { episode_id: episodeId, day, loop, poster, width, height, seconds });
-  return json({ ok: true, id, episode_id: episodeId, day, loop: `/api/home-clip/${id}/loop.mp4`, poster: `/api/home-clip/${id}/poster.jpg` });
+  const { id } = await saveHomeClip(db, { episode_id: episodeId, day, loop, poster, width, height, seconds, cut });
+  return json({ ok: true, id, episode_id: episodeId, day, loop: `/api/home-clip/${id}/loop.mp4`, poster: `/api/home-clip/${id}/poster.jpg`, ...(cut ? { cut: `/api/home-clip/${id}/cut.mp4` } : {}) });
 });

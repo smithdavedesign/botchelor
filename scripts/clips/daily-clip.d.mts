@@ -21,9 +21,15 @@ export const WEB_LOOP_FROM: number;
 export function webLoopWindow(marks: (number | null)[] | null | undefined, totalSeconds: number, from?: number): { start: number; seconds: number };
 export function webLoopArgs(o: { src: string; out: string; start: number; seconds: number; crf?: number }): string[];
 export function posterArgs(o: { src: string; out: string; start: number }): string[];
+/** The page's 60-second version: the whole render with its voices, web-sized (lib/home-clip.ts cut). */
+export const WEB_CUT: { width: number; height: number; maxBytes: number; maxSeconds: number };
+export function webCutArgs(o: { src: string; out: string; crf?: number }): string[];
+export function makeWebCut(o: { mp4: string; dir: string; name: string; seconds: number; ffmpeg?: string }): { cut: string; seconds: number; bytes: number } | null;
+/** Press the theater's "Start the date" when its cold open is up (lib/cold-open.ts). */
+export function startTheDate(page: { locator(selector: string): { getByRole(role: string, o: { name: RegExp }): { waitFor(o: { timeout: number }): Promise<void>; click(): Promise<void> } } }, timeout?: number): Promise<void>;
 export function parseUpload(argv: string[]): { file: string; episode: string; from: number; dry: boolean } | null;
 export function dayOfClip(file: string): string | null;
 export function adminKey(env?: Record<string, string | undefined>, read?: () => string | null | undefined): string | null;
 export function makeWebClip(o: { mp4: string; dir: string; name: string; window: { start: number; seconds: number }; ffmpeg?: string }): { loop: string; poster: string; bytes: number };
-export function uploadWebClip(o: { base: string; key: string; episode: string; day?: string | null; loop: string; poster: string; seconds: number; send?: typeof fetch }): Promise<{ ok: boolean; status: number; error: string | null; id: string | null }>;
+export function uploadWebClip(o: { base: string; key: string; episode: string; day?: string | null; loop: string; poster: string; seconds: number; cut?: string | null; cutSeconds?: number | null; send?: typeof fetch }): Promise<{ ok: boolean; status: number; error: string | null; id: string | null }>;
 export function sendWebClip(o: { mp4: string; out: string; name: string; episode: string; day?: string | null; window: { start: number; seconds: number }; base: string; dry?: boolean }): Promise<{ ok: boolean; error: string | null; dry?: boolean }>;
