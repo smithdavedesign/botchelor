@@ -146,6 +146,18 @@ describe("the privacy notice", () => {
     expect(strip(render(PrivacyPage))).toContain(`The log of an agent's tool calls: ${MCP_CALLS_KEEP_DAYS} days.`);
   });
 
+  it("opens on the date and the contents: what changed is folded, and ↑ Contents rides along (2026-11-20 mobile audit, A6)", () => {
+    for (const [name, Page] of [["privacy", PrivacyPage], ["legal", LegalPage]] as const) {
+      const html = render(Page);
+      const fold = html.indexOf('<details class="ux-fold legal-changes"><summary>What changed</summary>');
+      expect(fold, name).toBeGreaterThan(-1);
+      expect(html.indexOf("Changed (19 November)"), name).toBeGreaterThan(fold);
+      expect(html.indexOf('id="contents"'), name).toBeGreaterThan(fold);
+      expect(html, name).toContain('<a class="legal-top" href="#contents">↑ Contents</a>');
+    }
+    expect(render(TermsPage)).toContain('<a class="legal-top" href="#contents">');
+  });
+
   it("is dated 19 November 2026, with what changed (and the earlier changes kept under it)", () => {
     expect(render(PrivacyPage)).toMatch(/Last updated 19 November 2026\./);
     expect(render(PrivacyPage)).toMatch(/Changed \(19 November\): Botchelor is now run by Botchelor LLC/);

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { pageMetadata } from "@/lib/seo";
-import { CONTACT_HEADING, Contact, OnThisPageGrouped, PolicyLinks, PRIVACY_CHANGES, PRIVACY_HEADINGS, PrivacySections, TERMS_HEADINGS, TERMS_PRIVACY_UPDATED, TermsSections } from "./sections";
+import { BackToContents, CONTACT_HEADING, Contact, LastChanged, OnThisPageGrouped, PolicyLinks, PRIVACY_HEADINGS, PrivacySections, TERMS_HEADINGS, TermsSections } from "./sections";
 
 export const metadata: Metadata = pageMetadata({
   title: "Terms, purchases and privacy · Botchelor",
@@ -16,9 +16,10 @@ export default function LegalPage() {
   return (
     <article className="legal-page">
       <h1>Terms, purchases and privacy</h1>
-      <p className="muted">
-        {TERMS_PRIVACY_UPDATED} {PRIVACY_CHANGES} Also as separate pages: <Link href="/terms">terms</Link> and <Link href="/privacy">privacy</Link>.
-      </p>
+      <LastChanged>
+        {" "}
+        Also as separate pages: <Link href="/terms">terms</Link> and <Link href="/privacy">privacy</Link>.
+      </LastChanged>
       <OnThisPageGrouped
         groups={[
           { title: "Terms and purchases", headings: TERMS_HEADINGS },
@@ -30,6 +31,7 @@ export default function LegalPage() {
       <PrivacySections />
       <Contact />
       <PolicyLinks />
+      <BackToContents />
     </article>
   );
 }
