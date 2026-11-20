@@ -49,7 +49,9 @@ export type IconName =
   | "image"
   | "wand"
   | "more"
-  | "vote";
+  | "vote"
+  // A gripe on /reviews and /agents (app/BotReviews.tsx, visual audit 2026-11-20: it was 🛠️). Lucide's wrench.
+  | "wrench";
 
 const PATHS: Record<IconName, ReactNode> = {
   bell: (
@@ -226,6 +228,7 @@ const PATHS: Record<IconName, ReactNode> = {
       <circle cx="5" cy="12" r="1" />
     </>
   ),
+  wrench: <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />,
 };
 
 export const ICON_NAMES = Object.keys(PATHS) as IconName[];

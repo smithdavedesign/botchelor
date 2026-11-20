@@ -62,8 +62,10 @@ export default async function RandomOcGeneratorPage({ searchParams }: Props) {
   const batch = readOcBatch(sp.batch);
   const ocs = randomOcs({ genre, kind, batch });
   const next = (batch % RANDOM_OC_MAX_BATCH) + 1;
+  // A wide page (docs/brand.md, Layout): six whole characters three across need the room; in the 46rem reading column
+  // "Make this character" wrapped and the sheet's values ran one word a line (visual audit 2026-11-20).
   return (
-    <>
+    <div className="page-wide random-oc-page">
       <section className="card names-tool random-oc-tool">
         <p className="kicker">
           <Link href={TOOLS_PATH}>Free OC tools</Link>
@@ -172,6 +174,6 @@ export default async function RandomOcGeneratorPage({ searchParams }: Props) {
           { name: TITLE, path: RANDOM_OC_PATH },
         ])}
       />
-    </>
+    </div>
   );
 }

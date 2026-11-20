@@ -4,6 +4,11 @@ import { describe, expect, it } from "vitest";
 import BotReviews from "@/app/BotReviews";
 import { BOT_REVIEWS, BOT_REVIEWS_PAGE, botReviewFilter, botReviewsPage, gripeStatus, gripeTally, innerQuotes, tallyLine, type BotReview } from "@/lib/bot-reviews";
 import { checkShowText } from "@/lib/safety";
+import { readFileSync } from "node:fs";
+
+/** A chip's drawn icon (app/Icon.tsx), then its words: the markers are icons, not emoji (visual audit 2026-11-20). */
+const ICON = /<svg class="icon"[^>]*>.*?<\/svg>/;
+const CHIP = (words: string) => new RegExp(`<span class="chip">${ICON.source} ${words}</span>`);
 
 const review = (n: number, o: Partial<BotReview> = {}): BotReview => ({
   id: `r${n}`, visitor: `run/${n}`, said: "loved", quote: `Line ${n}.`, rating: 8, model: "Claude Sonnet 5.5", date: "2026-10-20", ...o,
@@ -86,6 +91,28 @@ describe("what the bots are saying (David, 2026-10-20)", () => {
 
 // 2026-11-15: an outside review of the site quoted the look-alike gripe (#1518) as a live problem. It had been fixed and
 // closed two days before; the card still said "We're on it". A fixed gripe has to read as fixed, wherever it's quoted.
+describe("the filter and chips are drawn icons (docs/brand.md, Icons)", () => {
+  it("marks praise and gripes with icons, never emoji, on /reviews and the /agents strip", () => {
+    expect(readFileSync("app/BotReviews.tsx", "utf8")).not.toMatch(/💗|🛠|✅/u);
+    const html = renderToStaticMarkup(createElement(BotReviews, { said: undefined, page: undefined, keep: {} }));
+    expect(html).not.toMatch(/💗|🛠|✅/u);
+    const filter = html.slice(html.indexOf('<nav class="filter-pills"'), html.indexOf("</nav>"));
+    expect(filter).toMatch(new RegExp(`${ICON.source}Loved it</a>`));
+    expect(filter).toMatch(new RegExp(`${ICON.source}Gripes</a>`));
+    const loved = renderToStaticMarkup(createElement(BotReviews, { said: "loved", page: "1", keep: {} }));
+    expect(loved).toMatch(CHIP("Loved it"));
+  });
+
+  it("balances a page of quotes: six are three and three, the /agents strip's three one row", () => {
+    const list = Array.from({ length: BOT_REVIEWS_PAGE }, (_, i) => review(i + 1));
+    expect(BOT_REVIEWS_PAGE).toBe(6);
+    const html = renderToStaticMarkup(createElement(BotReviews, { said: undefined, page: undefined, keep: {}, reviews: list }));
+    expect(html).toContain('<ul class="bot-grid grid-balanced" style="--cols:3">');
+    const strip = renderToStaticMarkup(createElement(BotReviews, { said: undefined, page: undefined, keep: {}, compact: true, reviews: list }));
+    expect(strip).toContain('<ul class="bot-grid grid-balanced" style="--cols:3">');
+  });
+});
+
 describe("a fixed gripe reads as fixed", () => {
   /** agent-feedback issues quoted here that GitHub shows closed as completed (read 2026-11-15). Add one when it closes. */
   const CLOSED = [446, 467, 469, 472, 489, 502, 505, 514, 1518];
@@ -142,7 +169,7 @@ describe("a fixed gripe reads as fixed", () => {
     const html = Array.from({ length: pages }, (_, i) => renderToStaticMarkup(createElement(BotReviews, { said: "gripe", page: String(i + 1), keep: {} }))).join("");
     const lookalikes = card(html, "1113-1227-1-lookalikes");
     expect(lookalikes).toContain('class="card bot-card bot-gripe bot-fixed"');
-    expect(lookalikes).toContain('<span class="chip">✅ Fixed gripe</span>');
+    expect(lookalikes).toMatch(CHIP("Fixed gripe"));
     expect(lookalikes).toContain('<strong>Fixed Nov 13</strong> in <a class="issue-link" href="https://github.com/smithdavedesign/botchelor/pull/1538" target="_blank" rel="noreferrer">#1538</a>');
     expect(lookalikes).toContain('issues/1518"');
     expect(lookalikes).not.toMatch(/on it|Open/);
@@ -150,7 +177,7 @@ describe("a fixed gripe reads as fixed", () => {
       const c = card(html, r.id);
       const status = gripeStatus(r);
       expect(c, r.id).toContain(`bot-${status}"`);
-      expect(c.includes("✅ Fixed gripe"), r.id).toBe(status === "fixed");
+      expect(CHIP("Fixed gripe").test(c), r.id).toBe(status === "fixed");
       expect(c.includes("<strong>Open</strong>"), r.id).toBe(status === "open");
       if (status === "answered") expect(c, r.id).toContain("Gripe · not a bug");
     }
@@ -163,9 +190,9 @@ describe("a fixed gripe reads as fixed", () => {
     const list = [review(1, { said: "gripe", issue: 7, fixed: 9, fixedOn: "2026-11-02", quote: "It broke." }), review(2, { said: "gripe", issue: 8, quote: "Still broken." }), review(3), review(4)];
     const html = renderToStaticMarkup(createElement(BotReviews, { said: undefined, page: undefined, keep: {}, compact: true, reviews: list }));
     expect(html.match(/<li class="card bot-card/g)).toHaveLength(3);
-    expect(html).toContain('<li class="card bot-card bot-gripe bot-fixed"><span class="chip">✅ Fixed gripe</span>');
+    expect(html).toMatch(new RegExp(`<li class="card bot-card bot-gripe bot-fixed"><span class="chip">${ICON.source} Fixed gripe</span>`));
     expect(html).toContain('<strong>Fixed Nov 2</strong> in <a class="issue-link" href="https://github.com/smithdavedesign/botchelor/pull/9"');
-    expect(html).toContain('<li class="card bot-card bot-gripe bot-open"><span class="chip">🛠️ Gripe · open</span>');
+    expect(html).toMatch(new RegExp(`<li class="card bot-card bot-gripe bot-open"><span class="chip">${ICON.source} Gripe · open</span>`));
     expect(html).toContain("1 of 2 gripes fixed, 1 open.");
     expect(html).toContain("Read all 4 reviews");
     // They are AI agents' reviews, and the strip says so.

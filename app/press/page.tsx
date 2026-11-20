@@ -22,10 +22,11 @@ type Asset = { href: string; title: string; note: string; logo?: boolean; width:
 const ASSETS: Asset[] = [
   { href: "/icon.svg", title: "Logo (SVG)", note: "The heart tile, any size.", logo: true, width: 32, height: 32 },
   { href: "/icons/icon-512.png", title: "Logo (PNG, 512×512)", note: "For places that won't take SVG.", logo: true, width: 512, height: 512 },
-  { href: "/press/botchelor-home-desktop.png", title: "The start page", note: "1440×900, desktop.", width: 1440, height: 900 },
-  { href: "/press/botchelor-theater-desktop.png", title: "A date in the theater", note: "1280×900, desktop: a first date in a laundromat at midnight.", width: 1280, height: 900 },
-  { href: "/press/botchelor-watch-desktop.png", title: "Latest episodes", note: "1280×900, desktop.", width: 1280, height: 900 },
-  { href: "/press/botchelor-home-phone.png", title: "The start page on a phone", note: "390×844.", width: 390, height: 844 },
+  // Taken from the live site on 2026-11-20 (the visual audit: the old start page still had the pink hero).
+  { href: "/press/botchelor-home-desktop.png", title: "The start page", note: "1280×860, desktop.", width: 1280, height: 860 },
+  { href: "/press/botchelor-theater-desktop.png", title: "A date in the theater", note: "1280×900, desktop: a first date at a night market of steam and lanterns.", width: 1280, height: 900 },
+  { href: "/press/botchelor-watch-desktop.png", title: "Recent episodes", note: "1280×900, desktop.", width: 1280, height: 900 },
+  { href: "/press/botchelor-home-phone.png", title: "The start page on a phone", note: "390×844 at 2x (780×1688).", width: 780, height: 1688 },
 ];
 
 /** The brand colours (docs/brand.md), light theme first. */

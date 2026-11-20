@@ -5,10 +5,13 @@ import JsonLd from "@/app/JsonLd";
 import { getDb } from "@/lib/db";
 import { withPortraits } from "@/lib/portrait-sql";
 import { seasonCastCards, type CastCard } from "@/lib/season-cast";
+import type { SeasonFormatDef } from "@/lib/season-format";
+import { seasonFormatNow } from "@/lib/season-format-store";
 import { getSeasonRecap, type RecapChar, type SeasonRecap } from "@/lib/season-recap";
 import { seasonRef, closedSeasons } from "@/lib/season-ref";
 import { seasonIdOf } from "@/lib/season-window";
 import { breadcrumbJsonLd, itemListJsonLd, pageMetadata } from "@/lib/seo";
+import { shared } from "@/lib/shared-cache";
 import { daysLeftLabel } from "./season-visuals";
 
 export const revalidate = 3600;
@@ -34,16 +37,20 @@ export default async function SeasonsPage() {
   const closed = closedSeasons(now);
 
   let cast: CastCard[] = [];
+  // The running season's format, from the copy the header's arc reads (app/layout.tsx), so the clock counts as it does.
+  let def: SeasonFormatDef | null = null;
   const recaps = new Map<string, SeasonRecap>();
   const portraits = new Map<string, string | null>();
   const face = (c: RecapChar) => c.portrait ?? portraits.get(c.id) ?? null;
   try {
     const db = await getDb();
-    const [faces, finales] = await Promise.all([
+    const [faces, finales, format] = await Promise.all([
       running.number > 0 ? seasonCastCards(db).catch(() => [] as CastCard[]) : Promise.resolve([] as CastCard[]),
       Promise.all(closed.map((s) => getSeasonRecap(db, s.id).catch(() => null))),
+      shared("watch:season-format", async () => seasonFormatNow(db)).catch(() => null),
     ]);
     cast = faces;
+    def = format;
     finales.forEach((r, i) => {
       if (r?.status === "closed") recaps.set(closed[i].id, r.recap);
     });
@@ -75,7 +82,7 @@ export default async function SeasonsPage() {
         <section className="card season-now" aria-labelledby="season-now">
           <p className="kicker">Season {running.number} · on now</p>
           <h2 id="season-now">{running.label}</h2>
-          <p className="season-now-clock">{daysLeftLabel(now)}</p>
+          <p className="season-now-clock">{daysLeftLabel(now, def)}</p>
           {cast.length > 0 && (
             <ul className="season-faces season-now-faces" aria-label="This season's cast">
               {cast.slice(0, FACES_SHOWN).map((c) => (

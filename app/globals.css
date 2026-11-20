@@ -1459,6 +1459,13 @@ button:disabled {
   cursor: wait;
   box-shadow: none;
 }
+/* A disabled filled button still reads as a button (visual audit 2026-11-20: /create's "Meet them" and /import's "Bring
+   them in" were white on pale pink, the gradient faded to 55%): the gradient's place takes the ink, a solid that keeps
+   the label legible under the same fade (about 4:1 in either theme). Only what the gradient paints changes: an outline
+   or text button keeps its look, and a picked one (a chosen poll option, a pressed tile) keeps its gradient. */
+button:disabled:not(.chosen, [aria-pressed="true"]) {
+  --grad: var(--ink);
+}
 
 /* The outline button, for everything on a page but its one next step (2026-10-31 UX audit: an unstyled button is
    filled, so pages had three or four). On a link too: <Link className="button secondary">. */
@@ -10617,11 +10624,14 @@ html.ad-studio-locked {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--card);
+  min-width: 0;
+  container-type: inline-size;
 }
+/* A name wraps only between words, never inside one (visual audit 2026-11-20: "Barnabunipe / r"): it sizes down to
+   its tile instead, by its longest word (--len, set by the page; Fraunces runs about 0.6em a letter, 0.7 to be safe). */
 .ship-names strong {
   font-family: "Fraunces", Georgia, serif;
-  font-size: var(--text-xl);
-  overflow-wrap: anywhere;
+  font-size: min(var(--text-xl), calc(140cqi / var(--len, 8)));
 }
 .ship-names li:first-child {
   grid-column: 1 / -1;
@@ -10629,12 +10639,20 @@ html.ad-studio-locked {
   border-color: color-mix(in srgb, var(--accent) 35%, var(--line));
 }
 .ship-names li:first-child strong {
-  font-size: clamp(2rem, 6vw, 2.75rem);
+  font-size: min(var(--text-display), calc(140cqi / var(--len, 8)));
   line-height: 1.1;
+}
+/* A list with a name of 15 letters or more takes two columns, so none of them shrinks to nothing. */
+.ship-names[data-long="2"] {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 @media (max-width: 520px) {
   .ship-names {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  /* On a phone a name longer than ten letters gets the whole width. */
+  .ship-names[data-long] {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 .ship-how {
@@ -10727,6 +10745,10 @@ html.ad-studio-locked {
 
 /* ---------------- the random OC generator (/tools/random-oc-generator, lib/random-oc.ts) ---------------- */
 
+/* A wide page (.page-wide, visual audit 2026-11-20) for the characters; its words keep the reading measure. */
+.random-oc-page :is(.lede, .names-tips, .names-cta > p) {
+  max-width: var(--page-read);
+}
 /* Six whole characters: three across, two on a tablet, one on a phone. */
 .random-oc-list {
   list-style: none;

@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
+import type { CSSProperties } from "react";
 import Link from "next/link";
 import { getDb } from "@/lib/db";
+import { balancedColumns } from "@/lib/grid-balance";
 import { CREDIT_DAYS, publicMarketing, type Leads, type MarketingChannel, type MarketingPost, type PublicMarketing } from "@/lib/public-marketing";
 import { pageMetadata } from "@/lib/seo";
 
@@ -36,8 +38,9 @@ function Summary({ m }: { m: PublicMarketing }) {
     ["Dates they started", num(t.started)],
     ["Spent on marketing", usd(t.spent)],
   ];
+  // Six numbers are 3 + 3, not 4 + 2 (lib/grid-balance.ts; visual audit 2026-11-20).
   return (
-    <dl className="marketing-summary">
+    <dl className="marketing-summary grid-balanced" style={{ "--cols": balancedColumns(items.length, 4) } as CSSProperties}>
       {items.map(([k, v]) => (
         <div key={k}>
           <dt className="muted small">{k}</dt>
