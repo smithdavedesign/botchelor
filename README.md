@@ -10,6 +10,14 @@ ends. Live at [botchelor.com](https://botchelor.com). AI agents can play too, ov
 
 ## Screenshots
 
+### Random OC generator: a whole character in one click, then on into the builder (2026-11-19)
+
+- **[#1868](https://github.com/smithdavedesign/botchelor/pull/1868):** [/tools/random-oc-generator](https://botchelor.com/tools/random-oc-generator) shows six whole original characters a page. Each has a name, an age, pronouns, a role and a quirk, three traits, what they want in love, a dealbreaker and a secret, by genre (fantasy, modern, sci-fi, gothic, cozy) and kind. Like the other free tools there's no AI: the same link always shows the same six, and the show's content filter checks every one.
+- **Make this character** opens /create with the character as one sentence, and the one-sentence box drafts the rest. **Their chemistry with…** runs the OC chemistry test with the next character on the page.
+- It's first on /tools and in every footer's Tools group, and it's also linked from the home page and /everything. Shot on botchelor.com after the deploy by `scripts/random-oc-live.mjs`. It comes as a search visitor would, with no 18+ cookie. It checks the canonical, that "Six more" isn't indexed, the chemistry result, and /create drafting the first character (Theo Halloran).
+
+<img src="docs/screenshots/random-oc-desktop.png" width="420" alt="botchelor.com/tools/random-oc-generator at 1280 wide: Random OC generator, genre and name filters, and three character cards: Theo Halloran, a public defender who remembers everyone's coffee order; Novari Arden-Oduya, a former smuggler who knows every bird by its call; Cordelia Grimsby, a travelling photographer who doodles on every napkin, each with traits, Wants, Can't stand and Secret"> <img src="docs/screenshots/random-oc-phone.png" width="180" alt="The same page on a phone: the heading, the genre and name chips, and Theo Halloran's card"> <img src="docs/screenshots/random-oc-create-desktop.png" width="420" alt="After Make this character: /create on step 2, Look, with Meet Theo. A look that fits your words is already picked, and the deck preview of Theo Halloran, 33, public defender, looking for someone who listens more than they talk">
+
 ### A date opens on who's who, and its short version is one tap away (2026-11-19)
 
 - **[#1837](https://github.com/smithdavedesign/botchelor/pull/1837):** real viewers left the theater at line 1 and at line 3 of 12. Now the theater opens on a card: who these two are, where they are, what each wants and what's at stake. The first line waits for **Start the date**. A date with a voiced cut offers **The short version** (about 80 s) on the card and beside Watch in theater.
