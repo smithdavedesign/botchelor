@@ -8,11 +8,14 @@ import {
   linesNarrowed,
   parseStill,
   parseWhen,
+  parseWorld,
   stageCounts,
   stagesNarrowed,
   stillSeeing,
   whenParam,
   whenSince,
+  WORLD_STEPS,
+  worldOf,
   type SkyFilter,
 } from "@/app/graph/filter";
 import { createSim, warmStart, WARM } from "@/app/graph/sim";
@@ -276,6 +279,51 @@ describe("when they dated (app/graph/filter.ts)", () => {
     expect(activeFilters({ ...DEFAULT_FILTER, stages: new Set(["together"]) })).toBe(0);
     expect(activeFilters({ ...DEFAULT_FILTER, when: "season", still: true, showSingles: false })).toBe(3);
     expect(activeFilters({ ...DEFAULT_FILTER, origin: "cast", partners: false, kind: "human" })).toBe(3);
+  });
+});
+
+describe("just them and their world (app/graph/filter.ts worldOf)", () => {
+  it("walks two lines out: them, who they dated, and who those dated", () => {
+    const chain = [
+      { a_id: "a", b_id: "b" },
+      { a_id: "b", b_id: "c" },
+      { a_id: "c", b_id: "d" },
+      { a_id: "x", b_id: "y" },
+    ];
+    expect(WORLD_STEPS).toBe(2);
+    expect([...worldOf(chain, "a")].sort()).toEqual(["a", "b", "c"]);
+    expect([...worldOf(chain, "a", 1)].sort()).toEqual(["a", "b"]);
+    expect([...worldOf(chain, "c")].sort()).toEqual(["a", "b", "c", "d"]);
+    expect([...worldOf(chain, "nobody")]).toEqual(["nobody"]);
+  });
+
+  it("cuts the sky to that world: its stars and every line among them, the orbit gone", () => {
+    const w = filterSky(SKY, { ...DEFAULT_FILTER, world: "c1" });
+    // c2's private pair is on the sky already, so its far end is in c1's world too.
+    expect(ids(w.nodes)).toEqual(["c1", "c2", "n1", "p"]);
+    expect(pairs(w.edges)).toEqual(["c1-c2", "c1-n1", "c2-p"]);
+  });
+
+  it("is the same people whichever lines are drawn, so the chips count the lines among them", () => {
+    expect(stageCounts(filterSky(SKY, { ...DEFAULT_FILTER, world: "c1" }).edges)).toEqual({ together: 1, sparks: 0, friends: 0, exes: 0, first: 1 });
+    const together = filterSky(SKY, { ...DEFAULT_FILTER, world: "c1", stages: new Set(["together"]) });
+    expect(ids(together.nodes)).toEqual(["c1", "c2"]);
+    expect(pairs(together.edges)).toEqual(["c1-c2"]);
+  });
+
+  it("keeps the centre when none of their lines is left, and has nothing when a filter takes the centre off the sky", () => {
+    const lonely = filterSky(SKY, { ...DEFAULT_FILTER, world: "s1", stages: new Set(["together"]) });
+    expect(ids(lonely.nodes)).toEqual(["s1"]);
+    expect(lonely.edges).toEqual([]);
+    const kinded: GraphData = { ...SKY, nodes: SKY.nodes.map((n) => (n.id === "c1" ? { ...n, kind: "human" as const } : n)) };
+    expect(filterSky(kinded, { ...DEFAULT_FILTER, world: "c1", kind: "unsaid" })).toEqual({ nodes: [], edges: [] });
+  });
+
+  it("reads ?world=, and isn't one of the Filters button's count (it has its own line over the sky)", () => {
+    expect(parseWorld("house-nell")).toBe("house-nell");
+    expect(parseWorld([" house-nell ", "x"])).toBe("house-nell");
+    for (const v of [undefined, "", "  ", 3, "x".repeat(201)]) expect(parseWorld(v)).toBeNull();
+    expect(activeFilters({ ...DEFAULT_FILTER, world: "c1" })).toBe(0);
   });
 });
 

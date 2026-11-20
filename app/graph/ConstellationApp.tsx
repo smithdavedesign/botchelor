@@ -75,8 +75,9 @@ function useSkyAddress(params: Record<string, string | null>) {
 
 /**
  * The interactive shell around the canvas: two rows above the sky (who's on it: search-to-focus, origin, kind, the
- * orbit, colouring; which lines: the stage chips, when, still seeing each other), the sky itself, and the detail panel.
- * On a phone everything but search, the chips and full screen sits behind one Filters button, in a bottom sheet.
+ * orbit, colouring; which lines: the stage chips, when, still seeing each other), the sky itself, and the detail panel,
+ * whose "Just them and their world" cuts the sky to one character's world. On a phone everything but search, the chips
+ * and full screen sits behind one Filters button, in a bottom sheet.
  * Filtering happens here so the canvas just draws what it's given; edges are always cut down to pairs whose both ends
  * survived the node filter (the canvas relies on that alignment).
  */
@@ -88,6 +89,7 @@ export default function ConstellationApp({
   initialStages = null,
   initialWhen = "all",
   initialStill = false,
+  initialWorld = null,
   now,
   mine = NO_IDS,
 }: {
@@ -102,6 +104,8 @@ export default function ConstellationApp({
   /** /graph?when= and ?still=1 (./filter.ts): when the pairs drawn last dated. */
   initialWhen?: When;
   initialStill?: boolean;
+  /** /graph?world=<id>: the sky opens on just that character and their world (./filter.ts worldOf). */
+  initialWorld?: string | null;
   /** The server's clock (ms) when it rendered the page: "this season" and "the last 30 days" count from it on both sides. */
   now: number;
   /** The viewer's own character ids: the "Yours" filter (none: no such filter). */
@@ -174,6 +178,8 @@ export default function ConstellationApp({
   // When they last dated, and "Still seeing each other" (which replaced "2+ dates": the First date chip covers those).
   const [when, setWhen] = useState<When>(initialWhen);
   const [still, setStill] = useState(initialStill);
+  // "Just them and their world" (./filter.ts worldOf): a character's id, from their panel or ?world=.
+  const [world, setWorld] = useState<string | null>(initialWorld);
   // "Show what happened": endings, turn-downs, who left first and the chevrons. Off, like the episode page's recap.
   const [showOutcomes, setShowOutcomes] = useState(false);
   // On a phone the filters sit behind one button, in a bottom sheet (2026-10-31 UX audit, D7: the first screen was all
@@ -186,9 +192,19 @@ export default function ConstellationApp({
   const clusters = useMemo(() => [...new Set(data.nodes.map((n) => n.community).filter((c): c is number => c !== null))].sort((x, y) => x - y), [data.nodes]);
 
   const mineSet = useMemo(() => new Set(mine), [mine]);
+  // Their world needs them on the sky, and public (as ?focus= does). Until the whole sky is in, someone outside the
+  // first sky isn't found yet; once it is, a world nobody's in is dropped.
+  const worldNode = useMemo(() => (world ? (data.nodes.find((n) => n.id === world && !n.private) ?? null) : null), [data.nodes, world]);
+  const worldId = worldNode?.id ?? null;
+  useEffect(() => {
+    if (world && whole && !worldNode) setWorld(null);
+  }, [world, whole, worldNode]);
   const originFilters = mine.length ? ORIGIN_FILTERS : ORIGIN_FILTERS.filter((f) => f.id !== "yours");
   // Every kind of pair under the other filters (the chips count what each would show), then the sky as the chips leave it.
-  const others: Omit<SkyFilter, "stages"> = useMemo(() => ({ origin, partners, kind, showSingles, when, still }), [origin, partners, kind, showSingles, when, still]);
+  const others: Omit<SkyFilter, "stages"> = useMemo(
+    () => ({ origin, partners, kind, showSingles, when, still, world: worldId }),
+    [origin, partners, kind, showSingles, when, still, worldId],
+  );
   const everyKind = useMemo(() => filterSky(data, { ...others, stages: null }, mineSet, now), [data, others, mineSet, now]);
   const { nodes, edges } = useMemo(
     () => (stagesNarrowed(stages) ? filterSky(data, { ...others, stages }, mineSet, now) : everyKind),
@@ -198,15 +214,29 @@ export default function ConstellationApp({
   const filter: SkyFilter = { ...others, stages };
   const active = activeFilters(filter);
   const narrowed = linesNarrowed(filter);
-  // A kind of pair or a time is looked for across the whole sky, not only its strongest pairs (which are mostly couples):
-  // a chip turned off, a time picked or a shared link brings the rest in once.
+  // A kind of pair, a time or someone's world is looked for across the whole sky, not only its strongest pairs (which
+  // are mostly couples): a chip turned off, a time picked, a world or a shared link brings the rest in once.
+  const wantsWhole = narrowed || world !== null;
   useEffect(() => {
-    if (narrowed) void loadWholeSky();
+    if (wantsWhole) void loadWholeSky();
     // Only when that changes: loadWholeSky is a fresh function each render, and it does nothing twice.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [narrowed]);
-  useSkyAddress({ origin: origin === "all" ? null : origin, stage: stagesParam(stages), when: whenParam(when), still: still ? "1" : null });
-  const noLines = narrowed && edges.length === 0;
+  }, [wantsWhole]);
+  useSkyAddress({ origin: origin === "all" ? null : origin, stage: stagesParam(stages), when: whenParam(when), still: still ? "1" : null, world });
+  // Into a world (or out of one, or the whole sky arriving under one): once the stars have moved, frame all of them
+  // (`fit`). The centre's panel opens beside the sky on a wider screen; on a phone it would cover the world, so it closes.
+  const [fit, setFit] = useState(0);
+  const hadWorld = useRef(false);
+  useEffect(() => {
+    if (!worldId && !hadWorld.current) return;
+    hadWorld.current = worldId !== null;
+    if (worldId) setSelection(window.matchMedia("(max-width: 640px)").matches ? null : { kind: "node", id: worldId });
+    const t = setTimeout(() => setFit((n) => n + 1), 600);
+    return () => clearTimeout(t);
+  }, [worldId, whole]);
+  // Their world with the centre filtered off the sky (a kind or a group they aren't): nothing of it can be drawn.
+  const worldGone = worldNode !== null && !nodes.some((n) => n.id === worldNode.id);
+  const noLines = (narrowed && edges.length === 0) || worldGone;
   const resetFilters = () => {
     setOrigin("all");
     setPartners(true);
@@ -433,6 +463,17 @@ export default function ConstellationApp({
           </button>
         </p>
       )}
+      {worldNode && (
+        <p className="constellation-more constellation-world small" role="status">
+          <span>
+            Just <strong>{worldNode.name}</strong> and their world: who they dated, and who those dated ({nodes.length}{" "}
+            {nodes.length === 1 ? "character" : "characters"}).
+          </span>{" "}
+          <button type="button" className="button-ghost small" onClick={() => setWorld(null)} data-track="graph-world-off">
+            Show everyone
+          </button>
+        </p>
+      )}
       <div className="constellation-sky">
         <ConstellationCanvas
           nodes={nodes}
@@ -440,23 +481,33 @@ export default function ConstellationApp({
           selection={selection}
           onSelect={setSelection}
           focusId={focusId}
+          fit={fit}
           colorBy={colorBy}
           showOutcomes={showOutcomes}
         />
         {noLines && (
           <div className="constellation-empty" role="status">
-            <p>{loadingSky ? "Looking across the whole sky…" : "No pairs like that on the sky."}</p>
+            <p>
+              {loadingSky
+                ? "Looking across the whole sky…"
+                : worldGone
+                  ? `${worldNode.name} isn't on the sky with these filters.`
+                  : worldNode
+                    ? `No pairs like that in ${worldNode.name}'s world.`
+                    : "No pairs like that on the sky."}
+            </p>
             {!loadingSky && (
               <button
                 type="button"
                 className="button-ghost small"
                 onClick={() => {
+                  if (worldGone) resetFilters();
                   setStages(null);
                   setWhen("all");
                   setStill(false);
                 }}
               >
-                Show every pair
+                {worldGone ? "Clear the filters" : "Show every pair"}
               </button>
             )}
           </div>
@@ -467,6 +518,8 @@ export default function ConstellationApp({
           edges={data.edges}
           onClose={() => setSelection(null)}
           onFocus={focus}
+          world={worldId}
+          onWorld={setWorld}
           colorBy={colorBy}
           showOutcomes={showOutcomes}
           onShowOutcomes={setShowOutcomes}
