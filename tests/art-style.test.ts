@@ -179,9 +179,9 @@ describe("over MCP (2.37.0)", () => {
   }
   const looksOf = async (id: string) => (await t.db.query<{ looks: Record<string, unknown> | null }>(`select extras->'looks' as looks from characters where id = $1`, [id])).rows[0].looks;
 
-  it("is the newest version, with its entry", () => {
-    expect(MCP_SERVER_INFO.version).toBe("2.38.0");
-    expect(MCP_CHANGELOG[0]).toMatchObject({ version: "2.38.0" });
+  it("has its version's entry", () => {
+    expect(MCP_SERVER_INFO.version).toBeTruthy();
+    expect(MCP_CHANGELOG.find((r) => r.version === "2.38.0")).toBeTruthy();
   });
 
   it("creates a character in a style, changes it without losing the rest of the look, and says it on get_character", async () => {

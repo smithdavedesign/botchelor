@@ -71,6 +71,7 @@ describe("#1361: the first call", () => {
     // 150 bytes inside the core list: 70.1 KB.
     // 2026-11-18 (MCP 2.38.0, more art styles, world and backstory): five more art_style values and two more extras,
     // about 115 bytes inside the core list: 70.3 KB.
-    expect(JSON.stringify(init).length + JSON.stringify(list).length).toBeLessThan(70_300);
+    // 2026-11-20 (MCP 2.39.0, #1778): get_episode's transcript_only, about 90 bytes inside the core list: 70.4 KB.
+    expect(JSON.stringify(init).length + JSON.stringify(list).length).toBeLessThan(70_400);
   });
 });

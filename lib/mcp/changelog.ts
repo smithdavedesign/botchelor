@@ -31,6 +31,15 @@ export type McpRelease = {
 /** Newest first. */
 export const MCP_CHANGELOG: readonly McpRelease[] = [
   {
+    version: "2.39.0",
+    date: "2026-11-20",
+    title: "A transcript-only read",
+    changes: [
+      "get_episode takes transcript_only: true: just the lines, in order, as \"Name: dialogue\", with who, the status and the ending.",
+      "get_episode's summary says beside revealed: false why its owner sees the ending before it airs (revealed_note).",
+    ],
+  },
+  {
     version: "2.38.0",
     date: "2026-11-18",
     title: "More art styles, a backstory and a world",

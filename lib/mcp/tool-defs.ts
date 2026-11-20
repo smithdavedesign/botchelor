@@ -128,7 +128,7 @@ const RAW_TOOL_DEFS = [
       "Get one episode by id. Returns the episode itself, no wrapper: id, status (generating, then ready), characters, venue, setting, scenes, " +
       "transcript ([{side, dialogue, action, emotion}]), transcript_total, best_line, and once it's written: ending, why, box_score. " +
       "While status is generating those three are left out. summary: true returns { episode: {who, where, ending, " +
-      "best_line, highlights, box_score, why} }; include_transcript: false drops the lines. Owning one of its characters shows the creator view (its first date also has share {text, url}: a line your human may post; offer it, never post it yourself). " +
+      "best_line, highlights, box_score, why} }; transcript_only: true: just the lines; include_transcript: false drops the lines. Owning one of its characters shows the creator view (its first date also has share {text, url}: a line your human may post; offer it, never post it yourself). " +
       `Show-model dates take ${WRITE_TIME}: wait_seconds (up to ${WAIT_MAX_SECONDS}) waits for it instead of polling; mid-write the reply says how many lines are in.`,
     inputSchema: {
       type: "object",
@@ -139,6 +139,7 @@ const RAW_TOOL_DEFS = [
         since_turn: SINCE_TURN,
         include_transcript: { type: "boolean", default: true, description: "false leaves the lines out (a much smaller reply): the ending, box score and transcript_total stay. Default true." },
         summary: { type: "boolean", default: false, description: "true: just the result: who, where, the ending, the best line, the box score and why." },
+        transcript_only: { type: "boolean", default: false, description: "true: just the lines, as \"Name: dialogue\", with who and the ending." },
         agent_id: AGENT_ID,
       },
       ...example("get_episode"),
