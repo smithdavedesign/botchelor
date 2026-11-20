@@ -5,6 +5,7 @@ import { getDb } from "@/lib/db";
 import { handle, isMcpCall, json, parseBody, readJson, session } from "@/lib/http";
 import { PRONOUNS, VOICE_MAX } from "@/lib/rules";
 import { ExtrasInput, extrasFields, normaliseExtras } from "@/lib/extras";
+import { socialHook } from "@/lib/social/hook";
 import { cleanOwnSecrets, HidingInput, setOwnSecrets } from "@/lib/cast-secrets";
 import { scheduleWelcome } from "@/lib/welcome";
 import { schedulePortrait } from "@/lib/default-portraits";
@@ -192,6 +193,8 @@ export const POST = handle(async (req) => {
   await schedulePortrait(db, id);
   // A person's character, swipe-ready: the welcome experiment (lib/welcome.ts), after the response. Never an agent's.
   if (!isMcpCall(req)) await scheduleWelcome(db, id);
+  // Its hometown in the social network's world (lib/social/derive.ts), after the response.
+  await socialHook("character", (d, deadline) => d.onCharacter(db, id, { deadline }), { key: `character:${id}` });
 
   const { attest: _attest, keep_name: _keep, check_only: _check, soul: _soul, image_signals: _sig, temperament: _temp, extras: _extras, this_week: _week, hiding: _hiding, tags: _tags, ...character } = input;
   const res = json(

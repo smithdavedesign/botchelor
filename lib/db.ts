@@ -4657,6 +4657,14 @@ create table if not exists social_place_members (
   primary key (place_id, character_id, role)
 );
 create index if not exists social_place_members_character_idx on social_place_members (character_id);
+-- Where the hourly social backfill (lib/social/derive.ts backfillSocial) is in each of its steps: the cursor while it is
+-- part way through, and when it last finished (it goes round again a day later). No person data.
+create table if not exists social_backfill (
+  step text primary key,
+  cursor text,
+  done_at timestamptz,
+  updated_at timestamptz not null default now()
+);
 `;
 
 /**

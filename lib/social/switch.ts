@@ -11,3 +11,17 @@ export const socialTiesOn = (env: Env = process.env): boolean => env.SOCIAL_TIES
 
 /** Owner and agent declarations and proposals (Phase 2b). Off whenever SOCIAL_TIES is. */
 export const socialDeclareOn = (env: Env = process.env): boolean => socialTiesOn(env) && env.SOCIAL_DECLARE?.trim() !== "0";
+
+/** Tests turn the derivations off by default (tests/helpers.ts startTestDb), so an unrelated test's dates write no ties. */
+let derivingInTests: boolean | null = null;
+
+/**
+ * The derivations (lib/social/derive.ts): what aired makes ties. On with SOCIAL_TIES; in tests only when a test asks
+ * (setSocialDerivingForTests).
+ */
+export const socialDeriveOn = (env: Env = process.env): boolean => socialTiesOn(env) && derivingInTests !== false;
+
+/** Tests only: false turns the derivations off (startTestDb does), true back on, null back to the switch alone. */
+export function setSocialDerivingForTests(on: boolean | null): void {
+  derivingInTests = on;
+}

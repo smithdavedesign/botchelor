@@ -65,6 +65,7 @@ import { setPlaceForTests } from "@/lib/place";
 import { setCheckSleepForTests } from "@/lib/adult/check";
 import { clearEndingsLatelyForTests } from "@/lib/endings-lately";
 import { setWelcomeFromForTests } from "@/lib/welcome";
+import { setSocialDerivingForTests } from "@/lib/social/switch";
 import { POST as postAfterglow } from "@/app/api/episodes/[id]/afterglow/route";
 import { POST as postRating } from "@/app/api/characters/[id]/ratings/route";
 import type { Ending } from "@/lib/rules";
@@ -181,6 +182,9 @@ export async function startTestDb() {
   // The welcome experiment (lib/welcome.ts) is off in tests by default: a person's character would otherwise get likes
   // from any house-run bot in the suite. tests/house-crowd.test.ts turns it on.
   setWelcomeFromForTests("2099-01-01T00:00:00Z");
+  // The social network's derivations (lib/social/derive.ts) are off here: a suite's dates and scenes would otherwise write
+  // ties after every step. tests/social-derive.test.ts turns them on.
+  setSocialDerivingForTests(false);
   return {
     db,
     async reset() {
@@ -381,6 +385,7 @@ export async function startTestDb() {
         "social_ties",
         "social_place_members",
         "social_people",
+        "social_backfill",
         "season_casts",
         "season_cast_rotations",
         "season_candidates",
