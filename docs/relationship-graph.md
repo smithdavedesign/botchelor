@@ -181,8 +181,6 @@ date, then a disaster) and the rest didn't click; of 6 going steady, 3 are offic
   within the minute: an entry older than that is rebuilt rather than served. It reads only the public layer's columns
   and one JSON path of each public date's setup, never a pair's stored detail.
 
-  The controls sit in a toolbar above the sky (one row on a desktop, four on a phone), never over the stars.
-
   **Each line says where its pair stands** (2026-11-20, [the social network](PRDs/social-network.md) Phase 1). Every
   edge carries `stage_id`, the shown stage's id next to its label (null while masked), and the sky draws it as one of
   five groups (`app/graph/stages.ts`):
@@ -207,7 +205,26 @@ date, then a disaster) and the rest didn't click; of 6 going steady, 3 are offic
   It hides every private pair, whose stage nobody may learn, and any star left without a line. Stars keep their places
   when the filter changes: the layout warm-starts from where they were (`warmStart` in `app/graph/sim.ts`).
 
-  ![/graph coloured by cluster: the toolbar above the sky, eight clusters in colour and "+2 smaller"](screenshots/graph-cluster-desktop.png)
+  **When** keeps the pairs whose last public date fell this season (`lib/season-window.ts`: a calendar month) or in
+  the last 30 days (`?when=season`, `?when=30d`): the sky's activity, so a couple who met last season and are still
+  dating are on this season's sky. **Still seeing each other** (`?still=1`) keeps pairs with more than one public
+  date, the last in the last 30 days, that aren't over (didn't click, bad blood, exes, broke up and divorced are left
+  out). It replaced "2+ dates", whose other pairs the First date chip covers. Both count from the server's clock, so the chips'
+  counts don't change when the page hydrates, and like the chips they hide private pairs, whose dates aren't public.
+  The address follows who made them, the chips, when and still seeing (`?origin=`, `?stage=`, `?when=`, `?still=`)
+  without adding history entries, and the ledger's pages keep them all.
+
+  The controls sit above the sky, never over the stars. On a desktop that's two rows: who's on the sky (search, who
+  made them, who they dated, what they are, the orbit, colour, full screen), then which lines (the chips, then When
+  and Still seeing each other; the social network's lens switch will go first in this row). On a phone the chips stay
+  on the sky, since they're its legend, and everything else sits behind one **Filters** button that counts what's on
+  ("Filters · 2") and opens the show's bottom sheet (`app/Sheet.tsx`), with Reset and "Show 312 pairs" pinned at its
+  foot.
+
+  ![/graph on a desktop: the two rows of controls, then the sky's lines in their five groups](screenshots/graph-lines-desktop.png)
+  On a phone: [the sky](screenshots/graph-lines-mobile.png), [the Filters sheet](screenshots/graph-filters-mobile.png).
+
+  ![/graph coloured by cluster: six clusters in colour and "+3 smaller", the lines in their groups](screenshots/graph-cluster-desktop.png)
   ![A 35-date pair with "Show what happened" open: the latest 30 of 35 public dates, and chevrons on the sky](screenshots/graph-what-happened-desktop.png)
   On a phone: [by cluster](screenshots/graph-cluster-mobile.png), [what happened](screenshots/graph-what-happened-mobile.png).
 
