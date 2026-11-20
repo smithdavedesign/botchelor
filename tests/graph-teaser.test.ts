@@ -323,6 +323,18 @@ describe("the pages", () => {
     expect(plain).toMatch(/<input type="checkbox"\/>\s*Still seeing each other/);
   });
 
+  it("/graph?world= opens on just them and their world; a world nobody's in is no world", async () => {
+    await seedDate();
+    const { default: GraphPage } = await import("@/app/graph/page");
+    const html = renderToStaticMarkup(await GraphPage({ searchParams: Promise.resolve({ world: HOUSE }) }));
+    expect(html).toMatch(/Just <strong>[^<]+<\/strong> and their world: who they dated, and who those dated \(2 characters\)/);
+    expect(html).toContain("Show everyone");
+    for (const world of ["nobody-at-all", ""]) {
+      const plain = renderToStaticMarkup(await GraphPage({ searchParams: Promise.resolve({ world }) }));
+      expect(plain).not.toContain("and their world");
+    }
+  });
+
   /** Signed in (the plain visitor cookie) as a new person; their id, to own characters. */
   const signIn = () => {
     const [name, value] = newUserCookie().split("=");

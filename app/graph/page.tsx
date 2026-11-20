@@ -14,7 +14,7 @@ import { cachedConstellation } from "@/lib/graph-cache";
 import { kindLabel } from "@/lib/kinds";
 import { breadcrumbJsonLd, itemListJsonLd, pageMetadata } from "@/lib/seo";
 import ConstellationApp from "./ConstellationApp";
-import { parseStill, parseWhen, whenParam } from "./filter";
+import { parseStill, parseWhen, parseWorld, whenParam } from "./filter";
 import { parseStages, stagesParam } from "./stages";
 import ShowTabs from "@/app/ShowTabs";
 import StoryMap from "@/app/StoryMap";
@@ -81,12 +81,20 @@ export default async function GraphPage({ searchParams }: { searchParams: Search
   const origin = asked === "yours" && mine.length === 0 ? null : asked;
   const first = firstSky(origin ? groupSky({ nodes, edges, stats, kinds }, origin, new Set(mine)) : { nodes, edges, stats, kinds });
   // A shared, filtered sky: ?stage= (the kinds of pair, app/graph/stages.ts), ?when= and ?still=1 (when they last dated,
-  // app/graph/filter.ts). The ledger stays every pair.
+  // app/graph/filter.ts), ?world=<id> (just them and their world, the same file). The ledger stays every pair.
   const stages = parseStages(sp.stage);
   const when = parseWhen(sp.when);
   const still = parseStill(sp.still);
+  const world = parseWorld(sp.world);
   // What a ledger page's link keeps of the address, so paging the ledger doesn't reset the sky above it.
-  const kept = { focus: sp.focus, origin: origin ?? undefined, stage: stagesParam(stages) ?? undefined, when: whenParam(when) ?? undefined, still: still ? "1" : undefined };
+  const kept = {
+    focus: sp.focus,
+    origin: origin ?? undefined,
+    stage: stagesParam(stages) ?? undefined,
+    when: whenParam(when) ?? undefined,
+    still: still ? "1" : undefined,
+    world: world ?? undefined,
+  };
   // The clock "this season" and "the last 30 days" count from, handed to the browser so both renders draw the same sky.
   const now = Date.now();
 
@@ -116,6 +124,7 @@ export default async function GraphPage({ searchParams }: { searchParams: Search
         initialStages={stages}
         initialWhen={when}
         initialStill={still}
+        initialWorld={world}
         now={now}
         mine={mine}
       />
