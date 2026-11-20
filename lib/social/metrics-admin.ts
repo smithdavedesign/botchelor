@@ -25,7 +25,7 @@ export type NetworkDay = {
 
 /** The last `days` days of social_network_daily, newest first. */
 export async function networkHistory(db: Db, days = 30): Promise<NetworkDay[]> {
-  const { rows } = await db.query<NetworkDay & { day: string | Date }>(
+  const { rows } = await db.query<Omit<NetworkDay, "day"> & { day: string | Date }>(
     `select day, nodes, ties, density, clustering, modularity, communities, giant_component, reciprocity, balance, complete
        from social_network_daily
       order by day desc
@@ -67,8 +67,9 @@ export type LicensableCount = { key: string; ties: number; licensable: number };
 
 /**
  * The public, active ties between public characters (a tie to a public off-screen person counts with its holder), and
- * how many a dataset could hold today: every character on the tie is the show's or its owner had opted in when the tie
- * was made (the consent gate, the PRD's §8). By who made them (source), and by the model that wrote any part of them.
+ * how many a dataset could hold today: every character on the tie is the show's, or its owner has opted in to training
+ * and the character was theirs when the tie was made (the consent gate, lib/ml-consent.ts consentedCharacterSql; the
+ * PRD's §8). By who made them (source), and by the model that wrote any part of them.
  */
 export async function licensableTies(db: Db): Promise<{ total: LicensableCount; by_source: LicensableCount[]; by_model: LicensableCount[] }> {
   const { rows } = await db.query<{ source: string; model: string; ties: number; licensable: number }>(

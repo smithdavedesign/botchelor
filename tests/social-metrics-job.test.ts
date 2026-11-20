@@ -197,8 +197,8 @@ describe("what /admin/social reads", () => {
       { key: "none", ties: 6, licensable: 5 },
       { key: "glm-4.6", ties: 1, licensable: 1 },
     ]);
-    // Opting in after the tie was made doesn't reach back over it.
-    await t.db.query(`update ml_consents set decided_at = now() + interval '1 day' where user_id = 'u-yes'`);
+    // An owner who takes their yes back takes their character's ties out with it.
+    await t.db.query(`update ml_consents set granted = false where user_id = 'u-yes'`);
     expect((await licensableTies(t.db)).total).toEqual({ key: "all", ties: 7, licensable: 5 });
   });
 

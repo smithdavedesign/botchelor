@@ -181,8 +181,9 @@ export default async function AdminSocialPage() {
         <>
           <p className="muted">
             Public, active ties ({licensable.total.ties}), and the ones a dataset could license today ({licensable.total.licensable},{" "}
-            {share(licensable.total.licensable, licensable.total.ties)}): every character on the tie is the show&apos;s, or its owner had opted in to
-            training when the tie was made. A closed model&apos;s writing is also left out of a training set unless its terms allow it.
+            {share(licensable.total.licensable, licensable.total.ties)}): every character on the tie is the show&apos;s, or its owner has opted in to
+            training (the same consent gate as every dataset). A closed model&apos;s writing is also left out of a training set unless its terms
+            allow it.
           </p>
           <LicensableTable rows={licensable.by_source} caption="By who made the tie" item="Source" />
           <LicensableTable rows={licensable.by_model} caption="By the model that wrote any part of it" item="Model" />
