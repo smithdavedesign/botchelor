@@ -2574,6 +2574,42 @@ create table if not exists discord_posts (
   created_at timestamptz not null default now()
 );
 create index if not exists discord_posts_kind_idx on discord_posts (kind, posted_at);
+-- The /date bot (lib/discord-bot.ts; docs/discord.md "The /date bot"): a slash command in other people's servers, over
+-- Discord's interactions endpoint only, so no server message is ever read or kept. discord_members: a Discord user's
+-- 18+ attestation (when they pressed the button) and the show's identity the bot made for them, so their characters stay
+-- together (owner_id: a random id like a signed-out visitor's, never their Discord id). discord_dates: one row a /date,
+-- claimed before any work so the per-server and per-member daily caps hold; episode_id once it's booked, revealed_at
+-- when the server saw the ending (calls close then). discord_calls: a member's call on a date in that server, with the
+-- display name they had when they called (the board shows it escaped, never a mention). Never the words of any message.
+create table if not exists discord_members (
+  discord_id text primary key,
+  owner_id text not null unique,
+  attested_at timestamptz,
+  created_at timestamptz not null default now()
+);
+create table if not exists discord_dates (
+  id text primary key,
+  guild_id text not null,
+  discord_id text not null,
+  episode_id text unique,
+  message_id text,
+  calls_close_at timestamptz,
+  revealed_at timestamptz,
+  created_at timestamptz not null default now()
+);
+create index if not exists discord_dates_guild_idx on discord_dates (guild_id, created_at);
+create index if not exists discord_dates_member_idx on discord_dates (discord_id, created_at);
+create table if not exists discord_calls (
+  guild_id text not null,
+  episode_id text not null,
+  discord_id text not null,
+  display_name text not null,
+  pick text not null check (pick in ('second_date', 'friends', 'disaster')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (guild_id, episode_id, discord_id)
+);
+create index if not exists discord_calls_episode_idx on discord_calls (episode_id);
 
 -- After Dark's media fallback (lib/adult/fallback.ts, 2026-10-22): the other provider makes a job when the configured one
 -- is limited. A provider that answered 429 or 402 is skipped until its cooldown runs out, across every instance.

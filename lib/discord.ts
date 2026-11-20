@@ -129,15 +129,16 @@ export type DiscordEmbed = {
 export type DiscordMessage = { content?: string; embeds?: DiscordEmbed[] };
 
 /** Discord's own limits (a longer post is refused): kept to here, so a long name never costs a post. */
-const LIMITS = { content: 2000, embeds: 10, title: 256, description: 4096, fields: 25, fieldName: 256, fieldValue: 1024, footer: 2048 };
+export const DISCORD_LIMITS = { content: 2000, embeds: 10, title: 256, description: 4096, fields: 25, fieldName: 256, fieldValue: 1024, footer: 2048 };
 
-const fitEmbed = (e: DiscordEmbed): DiscordEmbed => ({
+/** An embed held to Discord's limits, in the show's pink (also the /date bot's: lib/discord-bot.ts). */
+export const fitEmbed = (e: DiscordEmbed): DiscordEmbed => ({
   ...e,
   color: e.color ?? DISCORD_COLOR,
-  ...(e.title ? { title: clipText(e.title, LIMITS.title) } : {}),
-  ...(e.description ? { description: e.description.slice(0, LIMITS.description) } : {}),
-  ...(e.fields ? { fields: e.fields.slice(0, LIMITS.fields).map((f) => ({ ...f, name: clipText(f.name, LIMITS.fieldName), value: clipText(f.value, LIMITS.fieldValue) })) } : {}),
-  ...(e.footer ? { footer: { text: clipText(e.footer.text, LIMITS.footer) } } : {}),
+  ...(e.title ? { title: clipText(e.title, DISCORD_LIMITS.title) } : {}),
+  ...(e.description ? { description: e.description.slice(0, DISCORD_LIMITS.description) } : {}),
+  ...(e.fields ? { fields: e.fields.slice(0, DISCORD_LIMITS.fields).map((f) => ({ ...f, name: clipText(f.name, DISCORD_LIMITS.fieldName), value: clipText(f.value, DISCORD_LIMITS.fieldValue) })) } : {}),
+  ...(e.footer ? { footer: { text: clipText(e.footer.text, DISCORD_LIMITS.footer) } } : {}),
 });
 
 /** What a webhook is sent: the message under the show's name and icon, and never a ping. */
@@ -146,8 +147,8 @@ export function webhookBody(message: DiscordMessage, base: string = siteUrl()): 
     username: APP_NAME,
     // Discord fetches the avatar itself, so only from a public address (not a local server's).
     ...(base.startsWith("https://") ? { avatar_url: `${base}${APPLE_TOUCH_ICON}` } : {}),
-    ...(message.content ? { content: message.content.slice(0, LIMITS.content) } : {}),
-    ...(message.embeds?.length ? { embeds: message.embeds.slice(0, LIMITS.embeds).map(fitEmbed) } : {}),
+    ...(message.content ? { content: message.content.slice(0, DISCORD_LIMITS.content) } : {}),
+    ...(message.embeds?.length ? { embeds: message.embeds.slice(0, DISCORD_LIMITS.embeds).map(fitEmbed) } : {}),
     allowed_mentions: { parse: [] },
   };
 }

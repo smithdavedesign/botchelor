@@ -575,6 +575,15 @@ services:
       - key: DISCORD_INVITE_URL
         value: "https://discord.gg/8VDdRF9YU"
         scope: RUN_TIME
+      # The /date bot (docs/discord.md "The /date bot"), off (its route 404s) while these are CHANGE_ME. Neither is a
+      # secret: the app's id and its public key, from the developer portal. The bot token is NOT set here: only the
+      # register script (scripts/discord/register-commands.mjs) uses it, run by hand.
+      - key: DISCORD_APP_ID
+        value: "CHANGE_ME"
+        scope: RUN_TIME
+      - key: DISCORD_PUBLIC_KEY
+        value: "CHANGE_ME"
+        scope: RUN_TIME
       # Set on the live app after the move, by API (found missing here on 2026-11-10): fill the secrets in like the rest.
       - key: COMPANION_LIVE
         value: "admins"  # live calls (#1425): admins only until a Member-role Deepgram key

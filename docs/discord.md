@@ -2,7 +2,8 @@
 
 The community home ([2026-11-07 audit](audits/2026-11-07-audit-and-benchmark.md), item 13): a server where the
 audience and agent owners talk, with a bot posting the episode digest, Sunday's vote and the board. Built and off:
-nothing posts and the site shows no invite until the settings below are set.
+nothing posts and the site shows no invite until the settings below are set. The `/date` slash-command bot for other
+people's servers is [its own section](#the-date-bot), off the same way.
 
 The posting is `lib/discord.ts` (webhooks, the once-only claim) and `lib/discord-posts.ts` (what posts when). The
 hourly lobby job (`app/api/jobs/lobby/route.ts`, at :20) runs it after the dates have aired, the reveal has run and the
@@ -142,3 +143,109 @@ Dark's app, but it calls `botchelor.com/api/jobs/lobby`, which the show serves.
 - **Safety settings**: verification level Medium (a verified email, on Discord over five minutes; High during a
   raid), and the explicit image filter on for all members.
 - **Moderators**: David, and one trusted regular once the server is busy.
+
+## The /date bot
+
+The communities that convert for Botchelor take down link posts, so the show goes into their servers (Dave's plan,
+2026-11-20). A member types `/date` with a sentence about their character; the bot drafts the character the way the
+site's one-sentence create does, sends it on a speed date with one of this season's house cast, and posts the date in
+that channel. The server calls the ending with three buttons before it's revealed; at the reveal the bot posts the
+ending, two lines from the date, who called it right and one link to the whole date on botchelor.com. `/leaderboard` is
+the server's best callers this month. Built and off: `/api/discord/interactions` answers 404 until the settings below
+are set.
+
+The code: `lib/discord-bot.ts` (the commands and buttons), `lib/discord-interactions.ts` (the settings, the signature
+check, the one client), `app/api/discord/interactions/route.ts`, and `scripts/discord/register-commands.mjs`. Tests:
+`tests/discord-bot.test.ts`.
+
+### What happens
+
+1. **`/date description:<a sentence>`.** The first time a member uses it, the bot answers only them with one button,
+   "I'm 18 or older, and this is my own fictional adult character" (the builder's box, same meaning). Pressing it keeps
+   their Discord id and the time, and nothing else about them; then they run `/date` again.
+2. The sentence meets the site's own checks before any model reads it (a minor, a real person, anything past PG is
+   refused with the site's sentence, only to them). Then the bot answers "thinking…" (only to them) and, after its
+   answer has gone: drafts the character with the show's free model (`lib/express-create.ts`, `lib/express-draft.ts`,
+   the same prompt, screen, adult-age rule and free name as `/create`), saves it through the character route as the
+   member's own show identity, picks the house partner the way a newcomer's first date does (`lib/first-date.ts`) and
+   books the date through the booking route in the first date's format (the speed date), **unlisted**: on the site by
+   link, never on the feed or in the digests.
+3. It tells the member, privately, who their character is, and posts the date in the channel: both names, the setting,
+   and the buttons **A second date**, **Just friends**, **A disaster** and **Reveal the ending**.
+4. **Calls.** Any member can call, and change their call, until the reveal; the member who sent the character can't
+   call their own. A call keeps the server, the date, the caller's Discord id, their pick and the display name they had
+   then (for the board).
+5. **The reveal.** Once the date is filmed and the calls have had at least `DISCORD_BOT_CALL_WINDOW_SECONDS`, the bot
+   reveals it by itself while the command's interaction token is still good (about 13 minutes); after that anyone can
+   press **Reveal the ending**. The date's message closes (its buttons go), the reveal follows as its own message, the
+   date airs on the site too (as its host would air it), and calls close. A date pulled by reports isn't revealed.
+6. **`/leaderboard`**, in the channel for everyone: the server's top ten callers this UTC month, by right calls on dates
+   revealed in that server, names escaped, nobody pinged.
+
+If the draft fails (the model is down or slow, the words are refused, the day's draft cap is spent), the member alone
+gets one plain sentence, nothing is posted, and the server's slot for the day is given back.
+
+### The safeguards
+
+- **No server messages, ever.** The bot is an HTTP interactions endpoint: Discord sends it only a command or a button
+  press, signed. No gateway connection, no Message Content intent, no reading of any channel, so no server message is
+  seen, stored, logged or trained on. The one thing a member typed that's kept is their `/date` sentence, which becomes
+  their character like it would on the site.
+- **18+, per member,** as above: no date runs without the attestation (`discord_members.attested_at`).
+- **PG only, never After Dark.** The site's screening at every step (the sentence, the draft, the save, the booking);
+  a sentence refused for going past PG gets the rule, never an offer of After Dark. Nothing from After Dark is read. On
+  After Dark's host (`AFTER_DARK_ONLY=1`) the route answers 404.
+- **Signed requests only.** Every request's `X-Signature-Ed25519` is checked against `DISCORD_PUBLIC_KEY` over
+  `X-Signature-Timestamp` + the raw body (Node's own Web Crypto), and a timestamp more than five minutes off is refused:
+  anything else is a 401.
+- **The token stays out.** The server never reads `DISCORD_BOT_TOKEN`: answering and following up on an interaction goes
+  through that interaction's own webhook, which needs no token. Only the register script uses it. An interaction token
+  is never stored or logged; a failed call logs `[discord-bot] edit failed: HTTP 404`, never the address.
+- **Never a ping.** Every message, answer and edit carries `allowed_mentions: { parse: [] }`, and names and lines are
+  escaped (`lib/discord.ts escapeDiscord`), so a character or member called "@everyone" pings nobody.
+- **The only calls out** are `PATCH /webhooks/<app id>/<token>/messages/@original` (or `/<message id>`) and
+  `POST /webhooks/<app id>/<token>` on discord.com.
+- **Caps.** On top of the site's own (the day's draft caps, this week's free dates per identity, one date at a time,
+  `FRONTIER_DAILY_DATE_CAP`, `BOTCHELOR_PAUSE`): `DISCORD_BOT_DAILY_DATES_PER_GUILD` a server and
+  `DISCORD_BOT_DAILY_DATES_PER_USER` a member each UTC day, claimed before any work.
+
+**Whose character is it?** The bot makes each member a show identity of their own the first time they confirm (a random
+id like a signed-out visitor's, in `discord_members.owner_id`, never their Discord id), so the same member's characters
+stay together and spend that identity's free dates like any newcomer's. Linking it to an account on the site ("claim on
+the site") isn't built: it would need its own proof that the account holder is that Discord member (Discord sign-in),
+since the site's claim only moves a signed browser session.
+
+### Settings (bot)
+
+On the **show's app, `botchelor-show`** only, never After Dark's.
+
+| Variable | What it does |
+|---|---|
+| `DISCORD_APP_ID` | The application's id (Developer Portal → General Information). Not a secret. With the key below, turns the bot on. |
+| `DISCORD_PUBLIC_KEY` | The application's public key (same page), 64 hex characters. Not a secret. |
+| `DISCORD_BOT_TOKEN` | **Not set on the app.** Only `scripts/discord/register-commands.mjs` uses it, in Dave's shell, from the keychain (`vault/botchelor/DISCORD_BOT_TOKEN`). |
+| `DISCORD_BOT_DAILY_DATES_PER_GUILD` | Dates a server a UTC day. Default 20. |
+| `DISCORD_BOT_DAILY_DATES_PER_USER` | Dates a member a UTC day. Default 3. |
+| `DISCORD_BOT_CALL_WINDOW_SECONDS` | How long calls stay open at least, from the booking. Default 120. |
+
+Off again: delete `DISCORD_APP_ID` or `DISCORD_PUBLIC_KEY` (or set either back to `CHANGE_ME`): the route 404s, and
+Discord shows members "This interaction failed".
+
+### Switching it on (Dave)
+
+1. **Create the app**: <https://discord.com/developers/applications> → New Application, named Botchelor, with the show's
+   icon (`public/icons/apple-touch-icon.png`). Under Bot, leave every Privileged Gateway Intent **off** (Message
+   Content included). Leave Public Bot on, so other servers' admins can add it.
+2. **Interactions URL**: General Information → Interactions Endpoint URL →
+   `https://botchelor.com/api/discord/interactions`. Discord saves it only once the route answers its signed PING, so
+   set the variables first (step 3) and save this after the deploy.
+3. **Settings**: DigitalOcean → Apps → `botchelor-show` → Settings → App-Level Environment Variables → Edit. Set
+   `DISCORD_APP_ID` and `DISCORD_PUBLIC_KEY` (and any cap), save; the app redeploys. Commit the two values to
+   `.do/show.yaml` in place of their `CHANGE_ME` (neither is a secret).
+4. **Register the commands**: Bot → Reset Token, keep it in the keychain, then from the repo root:
+   `DISCORD_APP_ID=<id> DISCORD_BOT_TOKEN=<token> node scripts/discord/register-commands.mjs`
+   (`--dry` first to see what it sends). New commands can take up to an hour to show everywhere.
+5. **Invite it**: OAuth2 → URL Generator → scope **`applications.commands`** only (no `bot` scope, no permissions) →
+   open the URL and pick the server. A server's admin does the same for theirs.
+6. **Check**: in a test server, `/date` asks for the 18+ confirmation, then posts a date within a minute or two.
+   `select guild_id, episode_id, revealed_at from discord_dates order by created_at desc limit 10` shows what ran.

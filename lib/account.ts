@@ -976,6 +976,8 @@ async function deleteTheRest(db: Db, userId: string): Promise<void> {
   await run("delete from live_face_compares where user_id = $1");
   await run("delete from owner_activity where user_id = $1");
   await run("delete from away_reports where owner_id = $1");
+  // The Discord bot's link from a member to this identity (lib/discord-bot.ts): their next /date starts afresh, 18+ asked again.
+  await run("delete from discord_members where owner_id = $1");
   await run("delete from analytics_events where user_id = $1");
   // Admin goes with the account: a deleted admin's id must not still open the admin tools.
   await run("delete from admins where user_id = $1");

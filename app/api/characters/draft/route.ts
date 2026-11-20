@@ -1,79 +1,27 @@
 import { z } from "zod";
 import { track } from "@/lib/analytics";
-import { getDb, type Db } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import {
   draftFromReading,
   expressCreateOn,
   expressFailureLine,
-  EXPRESS_PROMPT,
   EXPRESS_TEXT_MAX,
   EXPRESS_TEXT_MIN,
-  EXPRESS_TIMEOUT_MS,
   fieldsFromReply,
   screenExpressText,
   type ExpressFailure,
 } from "@/lib/express-create";
+import { askExpressModel, freeExpressName } from "@/lib/express-draft";
 import { NAME_MAX } from "@/lib/field-limits";
 import { handle, json, parseBody, readJson, session } from "@/lib/http";
 import { readyToDate, stillMissing } from "@/lib/import-character";
 import { EXPRESS_DRAFT_ALL_LIMITS, EXPRESS_DRAFT_IP_LIMITS, EXPRESS_DRAFT_LIMITS, overLimit, visitorKey } from "@/lib/limits";
-import { getModel } from "@/lib/model";
 import { nameCheck } from "@/lib/name-check";
-import { SPARE_FIRST_NAMES } from "@/lib/names";
-import { sheetPgIssue } from "@/lib/safety";
 
 const Body = z.object({
   text: z.string().trim().min(EXPRESS_TEXT_MIN, "Describe them in a sentence or two first.").max(EXPRESS_TEXT_MAX, `At most ${EXPRESS_TEXT_MAX} characters.`),
   name: z.string().trim().max(NAME_MAX).optional(),
 });
-
-/** The model's answer, or "timeout" after EXPRESS_TIMEOUT_MS: its own timeout and retries can run to a minute. */
-async function ask(text: string): Promise<string | "timeout" | null> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const late = new Promise<"timeout">((done) => {
-    timer = setTimeout(() => done("timeout"), EXPRESS_TIMEOUT_MS);
-  });
-  try {
-    // The show's FREE model only (allowPaid false), as /import's reader: never the frontier model, whatever FRONTIER_DEFAULT says.
-    const call = getModel("low", false).complete(
-      [
-        { role: "system", content: EXPRESS_PROMPT },
-        { role: "user", content: text },
-      ],
-      { temperature: 0.8, maxTokens: 700 },
-    );
-    // A call that fails after we stopped waiting must not become an unhandled rejection.
-    call.catch(() => {});
-    return await Promise.race([call, late]);
-  } catch {
-    return null;
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-/**
- * A name nobody on the show has (names are unique, #734/#737; lib/name-check.ts). The model's own when it's free; else
- * the same surname under one of the show's spare first names (freeNames); else, with no usable name at all, a spare first
- * name picked by the words. Never one the PG screen would drop.
- */
-async function freeName(db: Db, wanted: string, seedText: string): Promise<string> {
-  if (wanted) {
-    const { twin, freeNames } = await nameCheck(db, wanted);
-    if (!twin) return wanted;
-    const free = (await freeNames()).find((n) => !sheetPgIssue(n));
-    if (free) return free;
-  }
-  const taken = new Set((await db.query<{ name: string }>(`select lower(trim(name)) as name from characters`)).rows.map((r) => r.name));
-  const firsts = new Set([...taken].map((n) => n.split(/\s+/)[0]));
-  let seed = 0;
-  for (const ch of seedText) seed = (seed * 31 + ch.charCodeAt(0)) >>> 0;
-  for (let i = 0; i < SPARE_FIRST_NAMES.length; i++) {
-    const given = SPARE_FIRST_NAMES[(seed + i) % SPARE_FIRST_NAMES.length];
-    if (!taken.has(given.toLowerCase()) && !firsts.has(given.toLowerCase())) return given;
-  }
-  return "";
-}
 
 /**
  * One-sentence create (lib/express-create.ts): `{ text, name? }` in, a whole builder draft out, written by the show's
@@ -106,7 +54,7 @@ export const POST = handle(async (req: Request) => {
     (await overLimit(db, "express_draft_all", "all", EXPRESS_DRAFT_ALL_LIMITS));
   if (limited) return refuse(429, "limited");
 
-  const raw = await ask(text);
+  const raw = await askExpressModel(text);
   if (raw === "timeout") return refuse(503, "timeout");
   const reading = raw === null ? null : fieldsFromReply(raw);
   if (!reading) return refuse(503, "model");
@@ -126,7 +74,7 @@ export const POST = handle(async (req: Request) => {
       freeNames = await check.freeNames();
     }
   } else {
-    draft.sheet.name = await freeName(db, draft.sheet.name, text);
+    draft.sheet.name = await freeExpressName(db, draft.sheet.name, text);
     invented.name = Boolean(draft.sheet.name);
   }
   const missing = stillMissing(draft);

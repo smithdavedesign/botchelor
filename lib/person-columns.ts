@@ -116,6 +116,7 @@ export const PERSON_COLUMNS: readonly PersonColumn[] = [
   { table: "user_connection_jobs", column: "user_id", export: at("provider_keys"), delete: via("user_connections"), move: skip("goes with the key it uses (user_connections)") },
   { table: "user_connection_usage", column: "user_id", export: at("provider_spend"), delete: via("accounts"), move: skip("what a key spent stays with the key") },
   { table: "owner_activity", column: "user_id", export: at("last_seen"), delete: ROWS, move: SETTING },
+  { table: "discord_members", column: "owner_id", export: OPERATIONS, delete: ROWS, move: skip("the identity the Discord bot made for a member never had a browser session, so no sign-in can claim it (lib/account-claim.ts)") },
   { table: "away_reports", column: "owner_id", export: OPERATIONS, delete: ROWS, move: skip("how far an owner has been told what their characters did while they were away: a read marker, the account has its own") },
   { table: "ml_consents", column: "user_id", export: at("ml_consent"), delete: ROWS, move: CONSENT },
   { table: "identity_consents", column: "user_id", export: at("identity_reveals"), delete: ROWS, move: skip("a yes to showing THIS identity's name to the other owner: it is not a yes for the account's name") },
