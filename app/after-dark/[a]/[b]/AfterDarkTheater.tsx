@@ -2,6 +2,8 @@
 
 import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from "react";
 import Scene from "@/app/Scene";
+import OverlayClose from "@/app/OverlayClose";
+import { useOverlay } from "@/app/useOverlay";
 import ChatThread from "@/app/ChatThread";
 import { useReplay } from "@/app/useReplay";
 import { AUTOPLAY_THEATER_AHEAD } from "@/lib/adult/autoplay";
@@ -444,39 +446,21 @@ export default function AfterDarkTheater({
     return () => mq.removeEventListener("change", on);
   }, [phoneSheet]);
   const sheet = phoneSheet && phone;
-  useEffect(() => {
-    if (!making) return;
-    const close = (e: PointerEvent) => {
-      if (!(e.target instanceof Element && e.target.closest(".ad-make-more"))) setMaking(false);
-    };
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setMaking(false);
-    document.addEventListener("pointerdown", close);
-    window.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("pointerdown", close);
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [making]);
+  // Make more and the ⋯ tools are menus on the overlay primitive (app/useOverlay.ts; 2026-11-20 mobile audit, C6): Escape,
+  // their ✕ or a tap anywhere else closes the one on top (#1004: the ⋯ menu stayed open after other controls), and the
+  // night behind them is inert and still while one is open.
+  const makeRef = useRef<HTMLDivElement>(null);
+  useOverlay(making, { root: makeRef, onClose: () => setMaking(false) });
   // End the night asks once: the first tap says where its chapters go, the second ends it; the menu closing forgets it.
   const [ending, setEnding] = useState(false);
   useEffect(() => {
     if (!tools) setEnding(false);
   }, [tools]);
-  // #1004 (2026-10-30 prod loop: "the ⋯ menu stays open after I used other controls"): a tap anywhere else closes it.
-  useEffect(() => {
-    if (!tools) return;
-    const close = (e: PointerEvent) => {
-      if (!(e.target instanceof Element && e.target.closest(".ad-tools-more"))) setTools(false);
-    };
-    // Escape too, like the 📷 menu (CaptureMenu.tsx).
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setTools(false);
-    document.addEventListener("pointerdown", close);
-    window.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("pointerdown", close);
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [tools]);
+  // The theater is the whole screen: the page behind it is inert and still while it's up (Exit is the way out).
+  const theaterRef = useRef<HTMLDivElement>(null);
+  useOverlay(true, { root: theaterRef, outside: false });
+  const toolsRef = useRef<HTMLDivElement>(null);
+  useOverlay(tools, { root: toolsRef, onClose: () => setTools(false) });
   const [direction, setDirection] = useState("");
   // #1204 (the 2026-11-01 After Dark visitor: "While it writes, the steer box is disabled, so there is nothing to do"): a
   // steer typed while a step is being written waits here, and goes with the next step as soon as this one lands.
@@ -841,11 +825,15 @@ export default function AfterDarkTheater({
   // talking moment, bringing them to life, a new place, their Studio, and Keep going / Fix, which live on a clip or a
   // picture in the Gallery.
   const makeMenu = makeMore ? (
-    <div className={`ad-make-more${making ? " open" : ""}`} data-make-more>
+    <div className={`ad-make-more${making ? " open" : ""}`} data-make-more ref={makeRef}>
       <button type="button" className="secondary small ad-make-toggle" aria-expanded={making} onClick={() => setMaking((v) => !v)} title="Everything that makes more of tonight, each with its price">
         ✨ <span className="ad-tool-word">Make more</span>
       </button>
       <div className="ad-make-items" role="group" aria-label="Make more">
+        <p className="ad-sheet-head ad-make-head">
+          <strong>✨ Make more</strong>
+          <OverlayClose onClose={() => setMaking(false)} label="Close Make more" />
+        </p>
         {videoTool}
         {captureTool}
         {madeItems}
@@ -887,6 +875,7 @@ export default function AfterDarkTheater({
   );
   return (
     <div
+      ref={theaterRef}
       className="theater theater-clean theater-after-dark"
       role="dialog"
       aria-label={`${a.name} and ${b.name}, after dark`}
@@ -1128,7 +1117,7 @@ export default function AfterDarkTheater({
               </>
             )}
             {(steps || sheet) && (
-              <div className={`ad-tools-more${tools ? " open" : ""}${sheet ? " ad-sheet" : ""}`}>
+              <div className={`ad-tools-more${tools ? " open" : ""}${sheet ? " ad-sheet" : ""}`} ref={toolsRef}>
                 <button
                   type="button"
                   className="theater-icon ad-tools-toggle"
@@ -1140,14 +1129,10 @@ export default function AfterDarkTheater({
                   ⋯
                 </button>
                 <div className="ad-tools-items ad-tools-steps" {...(sheet ? { role: "dialog", "aria-label": "Tools" } : {})}>
-                  {sheet && (
-                    <p className="ad-sheet-head">
-                      <strong>Tools</strong>
-                      <button type="button" className="button-ghost small" onClick={() => setTools(false)}>
-                        Close
-                      </button>
-                    </p>
-                  )}
+                  <p className="ad-sheet-head">
+                    <strong>{sheet ? "Tools" : "More tools"}</strong>
+                    <OverlayClose onClose={() => setTools(false)} label="Close the tools" />
+                  </p>
                   {sheet && (
                     <>
                       {sceneTool}

@@ -5,6 +5,7 @@ import { DEFAULT_FILTER, filterMedia, type MediaFilter } from "@/lib/media-filte
 import PublishButton from "@/app/showcase/PublishButton";
 import SfwTwin from "../../SfwTwin";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useOverlay } from "@/app/useOverlay";
 import { requestJson } from "@/app/request";
 import { AiTag } from "@/app/AiLabel";
 import CrisisNotice, { crisisFrom } from "@/app/CrisisNotice";
@@ -239,12 +240,10 @@ export default function SceneWriter({
   // scene), and Back goes straight back to it. Out of the theater the tabs sit on the page as before.
   const [sheet, setSheet] = useState(false);
   const sheetOpen = theater && sheet;
-  useEffect(() => {
-    if (!sheetOpen) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setSheet(false);
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [sheetOpen]);
+  // Over the theater, on the overlay primitive (app/useOverlay.ts; 2026-11-20 mobile audit, C6): Escape or Back closes it,
+  // and the theater behind is inert and still while it's up.
+  const tabSheet = useRef<HTMLElement>(null);
+  useOverlay(sheetOpen, { root: tabSheet, onClose: () => setSheet(false), outside: false });
   // A steer is a nudge by default (worked toward at the scene's own pace); direct does it now.
   const [steerMode, setSteerMode] = useState<"nudge" | "direct">("nudge");
   // Or the words go to one of them only, as a whisper (lib/adult/director.ts): their secret, not the other's.
@@ -795,7 +794,7 @@ export default function SceneWriter({
             {mediaPaused}
           </p>
         )}
-        <section className={sheetOpen ? "ad-page-tabs ad-tab-sheet" : "ad-page-tabs"} {...(sheetOpen ? { role: "dialog", "aria-modal": true, "aria-label": "Their night" } : {})}>
+        <section ref={tabSheet} className={sheetOpen ? "ad-page-tabs ad-tab-sheet" : "ad-page-tabs"} {...(sheetOpen ? { role: "dialog", "aria-modal": true, "aria-label": "Their night" } : {})}>
           {sheetOpen && (
             <p className="ad-tab-sheet-back">
               <button type="button" className="primary" onClick={() => setSheet(false)} autoFocus>

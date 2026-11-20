@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
+import OverlayClose from "@/app/OverlayClose";
+import { useOverlay } from "@/app/useOverlay";
 import { requestJson } from "@/app/request";
 import type { WriterOptions } from "@/lib/adult/writer";
 import { plainName } from "@/lib/adult/writer-config";
@@ -26,18 +28,9 @@ export default function WriterPicker({
   const [w, setW] = useState(initial);
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
-  // The list closes on a tap anywhere else, or Escape.
-  useEffect(() => {
-    if (!open) return;
-    const away = (e: Event) => box.current && !box.current.contains(e.target as Node) && setOpen(false);
-    const esc = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
-    document.addEventListener("pointerdown", away);
-    document.addEventListener("keydown", esc);
-    return () => {
-      document.removeEventListener("pointerdown", away);
-      document.removeEventListener("keydown", esc);
-    };
-  }, [open]);
+  // A menu on the overlay primitive (app/useOverlay.ts; 2026-11-20 mobile audit, C6): Escape, its ✕ or a tap anywhere
+  // else closes the list, and what's behind it is inert and still while it's open.
+  useOverlay(open, { root: box, onClose: () => setOpen(false) });
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<{ text: string; error?: boolean } | null>(null);
   const chosen = w.models.find((m) => m.id === w.chosen);
@@ -83,6 +76,10 @@ export default function WriterPicker({
         </button>
         {open && (
           <div className="ad-writer-menu" role="menu" aria-label="Who writes the lines">
+            <p className="ad-sheet-head ad-writer-menu-head">
+              <strong>✍️ Who writes the lines</strong>
+              <OverlayClose onClose={() => setOpen(false)} label="Close the writers" />
+            </p>
             {w.models.map((m) => (
               <button
                 key={m.id}
