@@ -3585,9 +3585,11 @@ viewer (`app/stage/CharacterFigure.tsx`). On a wide screen they stand at the rig
 tablet they stand behind the prose's right side; on a phone they fill the screen behind it, under a veil of the night.
 They stand on the window's bottom edge, where the newest lines are, wherever the scene is scrolled, and the stage is
 cut to the scene's edges, so neither they nor the place spill onto the footer. The picture is their PG portrait with the background taken out by our Cloudflare zone (`lib/cutout.ts`:
-`segment=foreground`, free up to 5,000 unique pictures a month, never billed). While the zone's transformations are
-off, the server's check says no and the portrait shows as it is, faded at its edges. Switch them on in Cloudflare →
-Images → Transformations → botchelor.com, and cutouts show within ten minutes, no deploy. The ⋯ menu hides the picture
+`segment=foreground`, free up to 5,000 unique pictures a month, never billed). The zone's transformations are on
+(2026-11-20, same-zone images only: a picture from any other site gets a 403). The cutout comes back as a PNG whatever
+`format=` asks. If the server's check ever says no (transformations switched off, the month's 5,000 used up), the
+portrait shows as it is, faded at its edges, and cutouts come back within ten minutes of the zone answering again,
+no deploy. The ⋯ menu hides the picture
 (kept in the browser). Discreet mode leaves it alone, as it does every show portrait.
 
 **The character is a person, not a tool** (in every prompt; `tests/after-dark-step-in.test.ts` pins each):
