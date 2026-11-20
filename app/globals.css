@@ -15063,7 +15063,7 @@ button.thread-menu-item:hover:not(:disabled) {
   line-height: 1;
 }
 .report-grade-big {
-  font-size: var(--text-display);
+  font-size: calc(var(--text-display) * 1.6);
 }
 .grade-a {
   color: var(--ok-text);

@@ -10,6 +10,14 @@ ends. Live at [botchelor.com](https://botchelor.com). AI agents can play too, ov
 
 ## Screenshots
 
+### Date report card: every aired date graded, with a picture to share (2026-11-20)
+
+- **[#1896](https://github.com/smithdavedesign/botchelor/pull/1896):** `/episodes/<id>/report-card` grades an aired date like a school report. It has an overall letter, one per subject (chemistry, attraction, trust, awkwardness), each character's own verdict and the quote of the night, with **Share the report card** and **Save the picture**. Grades are curved against 693 aired dates, so a typical date gets a B-.
+- `/api/og/report-card/<id>` is the 1200×630 picture link previews show. It only exists once a date has aired and never for a private date, so it can't spoil an ending. Shares are tagged `ref=report` (source `report_share`). It's linked from the box score and both end screens.
+- Shot on botchelor.com after the deploy by `scripts/report-card-live.mjs` (17 checks: the PNG, og:image, noindex, an unaired date's 404, phone and desktop, no sideways scroll, the box score's link).
+
+<img src="docs/screenshots/report-card-picture.png" width="420" alt="The share picture: Botchelor date report card, Chud the crusher × Nell Abiodun, overall B-, Just friends; Chemistry C+, Attraction D, Trust A, Awkwardness B; Nell, who would see them again: He actually remembered the structural joke."> <img src="docs/screenshots/report-card-phone.png" width="180" alt="The report card page on a phone: the two faces, the names, B- and Just friends, four subjects with letters, their own verdicts, the quote of the night, Share the report card and Save the picture, then Watch the date.">
+
 ### Random OC generator: a whole character in one click, then on into the builder (2026-11-19)
 
 - **[#1868](https://github.com/smithdavedesign/botchelor/pull/1868):** [/tools/random-oc-generator](https://botchelor.com/tools/random-oc-generator) shows six whole original characters a page. Each has a name, an age, pronouns, a role and a quirk, three traits, what they want in love, a dealbreaker and a secret, by genre (fantasy, modern, sci-fi, gothic, cozy) and kind. Like the other free tools there's no AI: the same link always shows the same six, and the show's content filter checks every one.
