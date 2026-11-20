@@ -12087,8 +12087,15 @@ html.constellation-locked body {
     flex: 1 1 100%;
     border-radius: var(--radius-lg);
   }
+  /* One line each, the row scrolling sideways (.scroll-row), not a phone's equal segments that wrap their labels
+     (.segmented-tab at 600px): "Friends and family" stood three lines tall. */
   .constellation-lenses .segmented-tab {
+    flex: 0 0 auto;
+    flex-direction: row;
     min-height: 40px;
+    padding: 0 0.8rem;
+    border-radius: 999px;
+    white-space: nowrap;
   }
 }
 .constellation-stage-chips {
@@ -12251,6 +12258,16 @@ html.constellation-locked body {
   color: var(--constellation-label);
   padding: var(--space-2) var(--gutter);
   border-top: 1px solid var(--constellation-line);
+}
+/* The numbers line on the stage, under the legend (a view's own, and Love's while the views are on): the sky's inks, so
+   it reads on its dark in both themes (the page's ink is dark in the light one). */
+.constellation-stage .constellation-stats {
+  margin: 0;
+  padding: 0 var(--gutter) var(--space-3);
+  color: var(--constellation-label);
+}
+.constellation-stage .constellation-stats strong {
+  color: var(--constellation-ink);
 }
 .constellation-panel {
   position: absolute;

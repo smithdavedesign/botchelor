@@ -256,8 +256,8 @@ date, then a disaster) and the rest didn't click; of 6 going steady, 3 are offic
   groups and filter it as the Love chips do (`filterLens` in `app/graph/lens.ts`); who made them, what they are and
   their world carry across views, while the Love-only controls (When, Still seeing each other, who they dated, the
   orbit) step aside. A tap opens a character's ties in that view, a place and who shares it, or a pair's lines
-  (`app/graph/LensPanel.tsx`). Each view has its own numbers line where Love's sits ("6 feuds · 3 cleared the air ·
-  most at odds: Barnaby Thorne (4)"), counted from the whole view, not only the drawn ties. A view with nothing yet
+  (`app/graph/LensPanel.tsx`). Each view has its own numbers line where Love's sits ("9 feuds · 3 cleared the air ·
+  6 rivalries · most at odds: Barnaby Thorne (3)", "60 lines of gossip · most talked about: Sable Quist (10)"), counted from the whole view, not only the drawn ties. A view with nothing yet
   says what will show there and how ties get made, with a way back to Love. A view is fetched when it's first opened,
   so /graph's first load is the Love sky as before; an address that names a view is drawn by the server. In
   Everything a pair touching a private character is a grey dash, as in Love, and the other views leave it out.
