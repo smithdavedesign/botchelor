@@ -172,7 +172,7 @@ export async function notifyOwnersAired(db: Db, id: string, skip: (string | null
     title: `📺 ${x} × ${y}: your date aired`,
     body:
       `Their date is on the air: predictions on it are closed, and it now counts in both characters' memory and their relationship.` +
-      `${r.visibility === "public" ? "" : " It's unlisted, so only people with the link can watch it."} Watch it to see how it ended. Episode ${id}.`,
+      `${airedVisibilityLine(r.visibility)} Watch it to see how it ended. Episode ${id}.`,
     link: `/episodes/${id}`,
   });
 }
@@ -372,4 +372,11 @@ export async function airDueDates(db: Db, hostId: string | null = null, limit = 
     if (done) aired.push({ id: r.id, ...done });
   }
   return aired;
+}
+
+/** #1869 (the 2026-11-19-2052 run: a private date's aired notice said "unlisted"): who can watch it, by its visibility. */
+export function airedVisibilityLine(visibility: string | null | undefined): string {
+  if (visibility === "private") return " It's private, so only you can see it.";
+  if (visibility === "unlisted") return " It's unlisted, so only people with the link can watch it.";
+  return "";
 }
