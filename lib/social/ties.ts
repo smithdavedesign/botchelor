@@ -522,7 +522,15 @@ export async function upsertTie(db: Db, input: TieInput, env: Env = process.env)
 /* ------------------------------------------------ status and contact ------------------------------------------------ */
 
 /** Who moved a tie's status, and on what. `answeredBy`: the other owner who said yes or no to a proposal (null: it lapsed). */
-export type StatusOptions = { actor?: string; source?: Source; ref?: string; at?: string | Date; answeredBy?: string | null };
+export type StatusOptions = {
+  actor?: string;
+  source?: Source;
+  ref?: string;
+  at?: string | Date;
+  answeredBy?: string | null;
+  /** Ending a friendship that faded (lib/social/dynamics.ts): logged as `decayed` rather than `ended`. */
+  event?: Extract<TieEvent, "decayed">;
+};
 
 /**
  * Moves a tie's status (proposals, mostly: Phase 2b) and logs what it was: `proposed`, `accepted` (proposed to active),
@@ -542,7 +550,7 @@ export async function setStatus(db: Db, tieId: string, status: TieStatus, o: Sta
     const next: Tie = { ...before, status };
     if (status === "ended") next.ended_at = at;
     if (OPEN.includes(status)) next.ended_at = null;
-    const event = statusEvent(before.status, status);
+    const event = status === "ended" && o.event ? o.event : statusEvent(before.status, status);
     if (before.status === "proposed" && (status === "active" || status === "declined") && o.answeredBy !== undefined) next.answered_by = o.answeredBy;
     const written = await writeState(db, next, existing.v);
     if (!written) continue;

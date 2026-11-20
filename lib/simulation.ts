@@ -130,6 +130,9 @@ async function loadHistory(db: Db, aId: string, bId: string): Promise<DateHistor
   return engineHistory(await loadRelationship(db, aId, bId));
 }
 
+/** Who set a date up through a friend of both (lib/social/introductions.ts): each side's line, and the friend's name. */
+export type DateIntroduction = { a: string; b: string; by: string };
+
 export type BuiltDate = {
   input: DateInput;
   /** The two fully-assembled characters (identity + soul + learned memory): what the LLM prompts consume. */
@@ -195,6 +198,8 @@ export type DateParts = {
   agreedPlan?: AgreedPlan | null;
   /** A double date (lib/group-dates.ts): the other couple at the table, one line both actors see. */
   table?: string | null;
+  /** A friend of both set it up (lib/social/introductions.ts): each side's own line, and the friend's name. */
+  introduction?: DateIntroduction | null;
   /** The roleplay both sides agreed to (lib/roleplays.ts): each actor plays its role, and the setup keeps the terms. */
   roleplay?: DateRoleplay | null;
   /** The hot takes the show derived for each side (characters.hot_takes); a side's own extras.hot_takes win (lib/hot-takes.ts). */
@@ -299,6 +304,13 @@ export function assembleDate(p: DateParts): BuiltDate {
   if (p.nudges?.b) charB.nudge = p.nudges.b;
   // A double date: both actors know who else shares the table (lib/group-dates.ts tableLine). Flavour, never the engine.
   if (p.table) charA.table = charB.table = p.table;
+  // A friend of both set it up (lib/social/introductions.ts): each side is told who, in its own words, and the friend's
+  // name is something both already know. Flavour, never the engine.
+  if (p.introduction) {
+    charA.introducedBy = p.introduction.a;
+    charB.introducedBy = p.introduction.b;
+    charA.pairShared = charB.pairShared = `${charA.pairShared ?? ""} ${p.introduction.by}`.trim();
+  }
   // A roleplay both agreed to (lib/roleplays.ts): each side knows its role and theirs. Its words are both of theirs to say,
   // never "profile reading". Framing, never the engine.
   // How it opens (lib/scene-cards.ts): the opening that came with the terms, else one of its card's three by this date's
@@ -458,6 +470,8 @@ export async function buildDate(
     venuePool?: readonly VenueId[] | null;
     /** This week's twist producer event (lib/season-format.ts), for the lobby's house dates only. */
     producerPick?: ProducerId | null;
+    /** A friend of both set it up (lib/social/introductions.ts), for the lobby's house dates only: each side's line, and the friend's name. */
+    introduction?: DateIntroduction | null;
   } = {},
 ): Promise<BuiltDate> {
   const [soulA, soulB, memoryA, memoryB, relationship, ex, extras, nudges, seeingA, seeingB] = await Promise.all([
@@ -528,7 +542,7 @@ export async function buildDate(
     relationship, creatorId: opts.creatorId, followupOf: opts.followupOf ?? null,
     dateNumber: opts.dateNumber !== undefined ? opts.dateNumber : opts.followupOf ? null : ((await nextDateNumber(db, a.id, b.id, episodeId)) ?? 1),
     nudges, alsoSeeing: { a: seeingA, b: seeingB }, texts, afterDark, nightTogether, link, table: opts.table ?? null, roleplay: opts.roleplay ?? null,
-    venuePool: opts.venuePool ?? null, producerPick: opts.producerPick ?? null,
+    venuePool: opts.venuePool ?? null, producerPick: opts.producerPick ?? null, introduction: opts.introduction ?? null,
     extrasA: rowOf(a.id)?.extras ?? null, extrasB: rowOf(b.id)?.extras ?? null,
     hotTakesA: rowOf(a.id)?.hot_takes ?? null, hotTakesB: rowOf(b.id)?.hot_takes ?? null,
     claimsA, claimsB, secretsA, secretsB, lessonsA, lessonsB, storyA, storyB,

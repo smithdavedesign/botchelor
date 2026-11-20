@@ -10,7 +10,8 @@
  *     the day: the hottest tension, a tie dealt by the day, and a tension staged in the last two days steps behind one
  *     that wasn't (so the show doesn't tell the same story three nights running). The row keeps who it is about, the
  *     evidence ids from the tension, why it won, and what came of it (beatOutcome, written two nights later).
- *       knows_said, mutual_distrust -> kind 'same_room'      two people who should be put in a room
+ *       knows_said, mutual_distrust,
+ *       unbalanced_triangle         -> kind 'same_room'      two people who should be put in a room
  *       opposing_claims             -> kind 'surface_claim'  a claim that should surface
  *       rivals                      -> kind 'rival_date'     a rival who should be on tonight's date
  *  2. Wants: the two or three characters the beat is about get this week's want overwritten (setWant, setBy
@@ -108,8 +109,8 @@ export const LINE_MAX = 140;
 export const REPEAT_DAYS = 2;
 export const TWISTS_MAX = 3;
 
-const KIND_OF: Record<TensionKind, Exclude<BeatKind, "arc_step">> = { knows_said: "same_room", mutual_distrust: "same_room", opposing_claims: "surface_claim", rivals: "rival_date" };
-const SCENE_OF: Record<TensionKind, BeatScene> = { knows_said: "confrontation", mutual_distrust: "confrontation", opposing_claims: "kitchen", rivals: "challenge" };
+const KIND_OF: Record<TensionKind, Exclude<BeatKind, "arc_step">> = { knows_said: "same_room", mutual_distrust: "same_room", opposing_claims: "surface_claim", rivals: "rival_date", unbalanced_triangle: "same_room" };
+const SCENE_OF: Record<TensionKind, BeatScene> = { knows_said: "confrontation", mutual_distrust: "confrontation", opposing_claims: "kitchen", rivals: "challenge", unbalanced_triangle: "kitchen" };
 
 /** One thing the day's vote can pick: a situation, never an ending. */
 export type Twist = {
@@ -283,6 +284,10 @@ export function beatLines(t: Tension, nm: Names, voted: boolean): { previously: 
       prev = `${a} and ${b} both set their sights on ${x}.`;
       ton = voted ? `you pick who gets the date with ${x}.` : `neither of them is backing down.`;
       break;
+    case "unbalanced_triangle":
+      prev = `${a} and ${b} don't get on, and ${x} is close to both of them.`;
+      ton = voted ? `you pick where they sit down.` : `${x} is caught in the middle.`;
+      break;
     default:
       prev = `${a} and ${b} stopped trusting each other.`;
       ton = voted ? `you pick where they have it out.` : `neither of them wants to blink first.`;
@@ -312,6 +317,13 @@ export function beatWants(t: Tension, nm: Names, cast: ReadonlySet<string>): Bea
         add(t.a, t.about, "pursue", `Get time with ${nm(t.about)} before ${nm(t.b)} does.`);
         add(t.b, t.about, "pursue", `Get time with ${nm(t.about)} before ${nm(t.a)} does.`);
         add(t.about, null, "protect", `Work out which of ${nm(t.a)} and ${nm(t.b)} is really here for you.`);
+      }
+      break;
+    case "unbalanced_triangle":
+      if (t.about) {
+        add(t.a, t.b, "settle_score", `Make peace with ${nm(t.b)} for ${nm(t.about)}'s sake, or make it clear where you stand.`);
+        add(t.b, t.a, "settle_score", `Make peace with ${nm(t.a)} for ${nm(t.about)}'s sake, or make it clear where you stand.`);
+        add(t.about, null, "protect", `Keep the peace between ${nm(t.a)} and ${nm(t.b)}.`);
       }
       break;
     default:
@@ -376,7 +388,12 @@ export function beatTwists(t: Tension, nm: Names, stage: Stage, day: string): Tw
         push({
           title: `At ${venuePhrase(v)}`,
           icon: "🎬",
-          premise: t.kind === "knows_said" ? `${nm(t.a)} sits down with ${nm(t.b)} at ${venuePhrase(v)} and asks about what was said.` : `${nm(a)} and ${nm(b)} have it out at ${venuePhrase(v)}.`,
+          premise:
+            t.kind === "knows_said"
+              ? `${nm(t.a)} sits down with ${nm(t.b)} at ${venuePhrase(v)} and asks about what was said.`
+              : t.kind === "unbalanced_triangle" && t.about
+                ? `${nm(a)} and ${nm(b)} sit down at ${venuePhrase(v)}, for ${nm(t.about)}'s sake.`
+                : `${nm(a)} and ${nm(b)} have it out at ${venuePhrase(v)}.`,
           pair,
           venue: v,
           want: null,

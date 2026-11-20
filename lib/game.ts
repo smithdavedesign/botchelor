@@ -86,7 +86,7 @@ export type CreatorRef = { character_id: string; name: string };
 
 /** The per-date settings the owner chose (PRD budget & autonomy). Stored as episodes.setup (jsonb). */
 /** How a date came about (DateSetup.met_via). */
-export const MET_VIA = ["blind", "match", "proposal", "chosen", "second_date", "own_date", "show", "step_in", "casting"] as const;
+export const MET_VIA = ["blind", "match", "proposal", "chosen", "second_date", "own_date", "show", "step_in", "casting", "introduced"] as const;
 export type MetVia = (typeof MET_VIA)[number];
 
 export type DateSetup = {
@@ -196,6 +196,11 @@ export type DateSetup = {
    * dates booked before 2026-10-22. Server-side only: no public view carries it.
    */
   met_via?: MetVia;
+  /**
+   * A show date set up through a friend of both (`met_via` "introduced", lib/social/introductions.ts): that friend's
+   * character id. Server-side, like met_via.
+   */
+  introduced_by?: string;
   /** Each owner's standing nudge about the other, as booked (lib/between-dates.ts). Private, flavour only. */
   nudge_a?: string;
   nudge_b?: string;
