@@ -257,6 +257,19 @@ As built (2a, `lib/social/derive.ts`):
   - An unlisted or deleted character vanishes.
 - **Owner:** what an owner declared `owner`-only, plus pending proposals.
 - **Private:** engine-only.
+- **As built (2a, `lib/social/read.ts`):**
+  - **Masked pairs:** a masked pair is one entry with no kind, no layer and no tie id, since the id is a hash of the kind.
+    - On the sky it appears only in the `all` view, because a narrower view would give its layer away.
+    - A private character's world shows its name and that its public ties exist. Its people and places are hidden.
+    - `/api/social/pair` returns 404 for a pair touching a private character, as `/api/graph/[a]/[b]` does.
+  - **Owners:** the owner of either end of a tie sees it unmasked, sees it while it's `owner`-only, and sees it while it's proposed. The owner of a character sees its `owner`-only people and memberships.
+  - **History:** it never says who did something or which model wrote it. A `source_ref` shows only while that ref is still in the tie's evidence, so a withdrawn date doesn't linger.
+  - **Shared places** are worked out from current, public memberships:
+    - works and studied count on the work layer;
+    - lives, regular and from count on the place layer;
+    - living in the house doesn't count (that's the `housemate` tie), and nor does living in the city.
+    - A world names up to 50 co-members per place and role. The sky lists shared places as groups (members and a count), never as pairs.
+  - **Caching:** public builds are cached for 60 s under the Constellation's tag. A viewer who owns an end gets an uncached build of their own.
 - **Deletion:** every row cascades from `characters`. Account export lists the person's characters' people, ties, places and the proposals they made or answered. `lib/person-columns.ts` lists `created_by`, `answered_by`, `actor` and `viewer`.
 - **Retention:**
   - ties and people live as long as their character;
@@ -322,7 +335,7 @@ Each switch is on unless set to `"0"`. Off means the site is exactly as before.
 | Phase | What | Depends on | PRs |
 |---|---|---|---|
 | 1 | /graph filters and lines: stage colours and filter, time, still-seeing, phone filter sheet, focus with two-step world, corrected notes | — | #1913 lines and stage filter, #1914 when, still seeing, Filters sheet, #1917 just them and their world |
-| 2a | Core: schema (§5.2–5.4), kinds, `lib/social/` (kinds, ties, people, places, world, derive, read, algorithms basics: ego network, rings, signed triads), derivations and backfills (§6.1), read API (`/api/social/world/[id]`, `/api/social/pair/[a]/[b]`, `/api/social/sky`), data-plan coverage | — | |
+| 2a | Core: schema (§5.2–5.4), kinds, `lib/social/` (kinds, ties, people, places, world, derive, read, algorithms basics: ego network, rings, signed triads), derivations and backfills (§6.1), read API (`/api/social/world/[id]`, `/api/social/pair/[a]/[b]`, `/api/social/sky`), data-plan coverage | — | #1911 tie store, people, places and the world; #1915 derivations and the backfill; #1918 the read layer and API |
 | 2b | Declared: owner UI ("Their people", ties, places, proposals, notifications, rate limits), the generator, the local-model backfill and admin route, MCP tools, the prompt line | 2a | |
 | 3 | The page: views, "X's world", pair panel, tense triangles, place-named clusters, character page links | 2a | |
 | 4 | Living network, analytics, suggestions, dataset: dynamics (§7), `social_metrics`, `social_network_daily`, `suggestTies` and its log, `/admin/social`, the dataset builder, data-plan update | 2a | #1908 analytics, #1916 metrics job and /admin/social, #1920 dataset builder |

@@ -266,3 +266,157 @@ export type MembershipInput = {
   origin_model?: string | null;
   created_by?: string | null;
 };
+
+/* --------------------------------------------- the read layer (lib/social/read.ts) --------------------------------------------- */
+
+/**
+ * A character as the social views show it. A private one keeps its name and id only (the directory's rule, as /graph's
+ * lib/graph.ts maskNode), unless the viewer owns it.
+ */
+export type SocialNode = { id: string; name: string; private: boolean; portrait: string | null; hue: number | null };
+
+/**
+ * A tie as a page or the API may show it. Never the person columns (created_by, answered_by), the model that wrote it or
+ * its confidence. `source_ref` is the newest evidence's ref, shown only while that ref is still in `evidence`.
+ */
+export type TieView = {
+  id: string;
+  from: string;
+  /** A character, or null when the tie is to one of `from`'s off-screen people (`to_person`). */
+  to: string | null;
+  to_person: string | null;
+  kind: TieKindId;
+  layer: Layer;
+  directed: boolean;
+  valence: Valence;
+  closeness: number;
+  /** `active` or `ended`; a viewer who owns an end also sees `proposed`. Never `declined`. */
+  status: TieStatus;
+  /** `public`, or `owner` for a viewer who owns an end. Never `private`. */
+  visibility: Visibility;
+  source: Source;
+  source_ref: string | null;
+  evidence: Evidence[];
+  detail: Record<string, unknown>;
+  story: string | null;
+  since_text: string | null;
+  started_at: string | null;
+  ended_at: string | null;
+  last_contact_at: string | null;
+};
+
+/** A pair whose ties touch a private character: that they're tied, nothing else (no kind, no layer, one entry a pair). */
+export type MaskedPair = { a: string; b: string; masked: true };
+
+/**
+ * The roles that make two characters share a place, worked out when read (never stored as pairs): coworkers, classmates,
+ * neighbours, regulars, people from the same town. `visited` doesn't (one visit isn't a tie), and nor does living in
+ * the house (that's the `housemate` tie) or in the whole city.
+ */
+export const SHARED_ROLES = ["works", "studied", "lives", "regular", "from"] as const;
+export type SharedRole = (typeof SHARED_ROLES)[number];
+
+/** Two characters (a < b) who share a place in a role: "Coworkers at the lighthouse", "Both from Leeds". */
+export type SharedPlace = { a: string; b: string; place_id: string; role: SharedRole; layer: Layer; words: string };
+
+/** An off-screen person as a page shows them: never who wrote them or with what. */
+export type PersonView = {
+  id: string;
+  holder_id: string;
+  name: string;
+  pronouns: string | null;
+  note: string | null;
+  deceased: boolean;
+  visibility: Visibility;
+  promoted_to: string | null;
+};
+
+/** A place as a page shows it. */
+export type PlaceView = Pick<SocialPlace, "id" | "key" | "kind" | "name" | "parent_id" | "venue_id" | "description">;
+
+/** One of a character's memberships as a page shows it. */
+export type MembershipView = Pick<PlaceMembership, "place_id" | "role" | "since_text" | "started_at" | "ended_at" | "detail" | "visibility">;
+
+/** Who's in each ring of a character's world, closest first (lib/social/algorithms.ts rings); `beyond` is past 150. */
+export type Rings = Record<Ring, string[]> & { beyond: string[] };
+
+/**
+ * "X's world" (lib/social/read.ts egoNetwork): the centre's ties to characters and to its people, the pairs masked to
+ * existence, its places and who shares them, and its rings. O(the centre's degree) plus its places' members.
+ */
+export type EgoNetwork = {
+  centre: SocialNode;
+  /** Every other character in it, once. */
+  nodes: SocialNode[];
+  /** Strongest first. */
+  ties: TieView[];
+  masked: MaskedPair[];
+  people: PersonView[];
+  /** The centre's memberships, and the places they and `shared` name. */
+  memberships: MembershipView[];
+  places: PlaceView[];
+  shared: SharedPlace[];
+  /** Characters' and people's ids by ring, from the active ties and the shared places. */
+  rings: Rings;
+  /** True when some of it is there only for this viewer (they own an end): never cache it. */
+  personal: boolean;
+};
+
+/** One change in a tie's history, as a page shows it: never who did it. */
+export type TieEventView = {
+  tie_id: string;
+  kind: TieKindId;
+  event: TieEvent;
+  changes: Record<string, [unknown, unknown]>;
+  source: Source | null;
+  /** The ref behind it, shown only while it's still in its tie's evidence. */
+  source_ref: string | null;
+  at: string;
+};
+
+/** Every tie between two characters (lib/social/read.ts pairTies), across layers and time. `a` is the lower id. */
+export type PairTies = {
+  a: SocialNode;
+  b: SocialNode;
+  ties: TieView[];
+  /** Their ties' history, oldest first: the newest PAIR_EVENTS_KEPT. */
+  events: TieEventView[];
+  shared: SharedPlace[];
+  places: PlaceView[];
+  personal: boolean;
+};
+
+/**
+ * The sky's views beside Love (the Constellation, lib/graph.ts), each a set of layers (PRD section 9): Friends and
+ * family, Rivals, Gossip, and everything at once.
+ */
+export const SKY_LENSES = ["friends", "rivals", "gossip", "all"] as const;
+export type SkyLens = (typeof SKY_LENSES)[number];
+export const isSkyLens = (x: unknown): x is SkyLens => typeof x === "string" && (SKY_LENSES as readonly string[]).includes(x);
+export const LENS_LAYERS: Record<SkyLens, readonly Layer[]> = {
+  friends: ["kin", "friendship", "work", "place"],
+  rivals: ["conflict"],
+  gossip: ["communication"],
+  all: LAYERS,
+};
+
+/** A tie on the sky: what a line needs. The pair panel (pairTies) has the rest. */
+export type SkyTie = Pick<TieView, "from" | "kind" | "layer" | "directed" | "valence" | "closeness" | "status" | "detail" | "last_contact_at"> & { to: string };
+
+/** A place the sky's characters share, as one group (members, not pairs): it can name a cluster. */
+export type SkyPlace = PlaceView & { role: SharedRole; words: string; count: number; members: string[] };
+
+/** One lens of the public sky (lib/social/read.ts publicSky). */
+export type SocialSky = {
+  lens: SkyLens;
+  layers: Layer[];
+  nodes: SocialNode[];
+  /** The lens's strongest ties, at most the build's limit. */
+  ties: SkyTie[];
+  /** Pairs touching a private character, existence only: on `all` only, since a lens would tell their layer. */
+  masked: MaskedPair[];
+  /** Friends and all: the places two or more of the public cast share, biggest first. */
+  places: SkyPlace[];
+  /** Over the whole lens, not just what's drawn: the public ties, by kind and status (for its numbers line). */
+  stats: { ties: number; shown: number; byKind: Partial<Record<TieKindId, { active: number; ended: number }>> };
+};
