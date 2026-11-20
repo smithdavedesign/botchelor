@@ -249,6 +249,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
                 <li><Link prefetch={showPrefetch} href="/everything" className="footer-all">Everything on Botchelor →</Link></li>
               </FooterGroup>
               <FooterGroup title="Tools">
+                <li><Link prefetch={showPrefetch} href="/tools/random-oc-generator">Random OC generator</Link></li>
                 <li><Link prefetch={showPrefetch} href="/tools/oc-chemistry-test">OC chemistry test</Link></li>
                 <li><Link prefetch={showPrefetch} href="/tools/ship-name-generator">Ship name generator</Link></li>
                 {/* Every free tool (app/tools/page.tsx): the two newer ones and the hub itself get a link from every page (SEO, 2026-11-19). */}

@@ -20,7 +20,7 @@ import { OC_NAME_STYLES, OC_NAMES_PATH, ocNamesHref } from "@/lib/oc-names";
 import { OC_QUESTION_THEMES, OC_QUESTIONS_PATH } from "@/lib/oc-questions";
 import { staticSitemap } from "@/lib/seo";
 import { PUBLIC_PATHS } from "@/lib/site";
-import { CHEMISTRY_TOOL_PATH, FREE_TOOLS, SHIP_TOOL_PATH, TOOLS_PATH } from "@/lib/tools";
+import { CHEMISTRY_TOOL_PATH, FREE_TOOLS, RANDOM_OC_TOOL_PATH, SHIP_TOOL_PATH, TOOLS_PATH } from "@/lib/tools";
 
 const source = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 const text = (html: string) => html.replace(/&#x27;/g, "'").replace(/&quot;/g, '"').replace(/&amp;/g, "&");
@@ -69,7 +69,7 @@ describe("robots.txt and the framework's prefetch requests", () => {
 describe("the free tools hub (/tools, lib/tools.ts)", () => {
   it("lists tools that exist, each in the sitemap with the hub", () => {
     expect(CHEMISTRY_TOOL_PATH).toBe(CHEMISTRY_TEST_PATH);
-    expect(FREE_TOOLS.map((t) => t.path)).toEqual([OC_NAMES_PATH, OC_QUESTIONS_PATH, SHIP_TOOL_PATH, CHEMISTRY_TOOL_PATH]);
+    expect(FREE_TOOLS.map((t) => t.path)).toEqual([RANDOM_OC_TOOL_PATH, OC_NAMES_PATH, OC_QUESTIONS_PATH, SHIP_TOOL_PATH, CHEMISTRY_TOOL_PATH]);
     const sitemap = staticSitemap("https://botchelor.com").map((e) => new URL(e.url).pathname);
     for (const path of [TOOLS_PATH, ...FREE_TOOLS.map((t) => t.path)]) {
       expect(PUBLIC_PATHS, path).toContain(path);
@@ -93,7 +93,7 @@ describe("the free tools hub (/tools, lib/tools.ts)", () => {
     expect(ld.find((d) => d["@type"] === "BreadcrumbList")).toBeTruthy();
   });
 
-  it("has its own title, canonical and share card, and says what's true of all four (no sign-up, no AI)", () => {
+  it("has its own title, canonical and share card, and says what's true of all of them (no sign-up, no AI)", () => {
     expect(String(metadata.title)).toMatch(/^Free OC tools: /);
     expect(String(metadata.description)).toContain("No sign-up, no AI");
     expect(metadata.alternates?.canonical).toBe(TOOLS_PATH);
@@ -113,19 +113,20 @@ describe("the free tools hub (/tools, lib/tools.ts)", () => {
 });
 
 describe("each tool links the others and the hub (app/tools/MoreTools.tsx)", () => {
-  it("names the other three and the hub, never the page it's on", () => {
+  it("names the other tools and the hub, never the page it's on", () => {
     for (const t of FREE_TOOLS) {
       const html = text(renderToStaticMarkup(createElement(MoreTools, { current: t.path })));
       for (const other of FREE_TOOLS) expect(html.includes(`href="${other.path}"`), `${t.path} links ${other.path}`).toBe(other.path !== t.path);
       expect(html).toContain(`href="${TOOLS_PATH}"`);
     }
     expect(words(renderToStaticMarkup(createElement(MoreTools, { current: SHIP_TOOL_PATH })))).toBe(
-      "More free tools: the OC name generator, the questions to ask your OC and the OC chemistry test. All the free OC tools.",
+      "More free tools: the random OC generator, the OC name generator, the questions to ask your OC and the OC chemistry test. All the free OC tools.",
     );
   });
 
   it("ends each tool's page, the chemistry result and every ship page", async () => {
     for (const [file, current] of [
+      ["app/tools/random-oc-generator/page.tsx", "RANDOM_OC_PATH"],
       ["app/tools/ship-name-generator/page.tsx", "SHIP_TOOL_PATH"],
       ["app/tools/oc-chemistry-test/page.tsx", "CHEMISTRY_TEST_PATH"],
       ["app/tools/oc-chemistry-test/result/page.tsx", "CHEMISTRY_TEST_PATH"],

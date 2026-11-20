@@ -114,6 +114,7 @@ describe("launch checks: robots.txt, sitemap and og:image", () => {
         "/cancel",
         "/2257",
         "/tools",
+        "/tools/random-oc-generator",
         "/tools/ship-name-generator",
         "/tools/oc-chemistry-test",
         "/tools/oc-name-generator",

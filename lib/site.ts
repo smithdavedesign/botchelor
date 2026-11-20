@@ -75,6 +75,7 @@ export const PUBLIC_PATHS = [
   "/2257",
   // Every free tool on one page (app/tools/page.tsx, lib/tools.ts).
   "/tools",
+  "/tools/random-oc-generator",
   "/tools/ship-name-generator",
   "/tools/oc-chemistry-test",
   "/tools/oc-name-generator",

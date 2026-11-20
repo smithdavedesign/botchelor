@@ -72,6 +72,7 @@ export default function EverythingPage() {
         <section aria-labelledby="tools">
           <h2 id="tools">Tools</h2>
           <ul>
+            <li><Link href="/tools/random-oc-generator">Random OC generator</Link></li>
             <li><Link href="/tools/oc-chemistry-test">OC chemistry test</Link></li>
             <li><Link href="/tools/ship-name-generator">Ship name generator</Link></li>
             <li><Link href="/tools/oc-name-generator">OC name generator</Link></li>

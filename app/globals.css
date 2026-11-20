@@ -10492,6 +10492,82 @@ html.ad-studio-locked {
   border-color: color-mix(in srgb, var(--accent) 35%, var(--line));
 }
 
+/* ---------------- the random OC generator (/tools/random-oc-generator, lib/random-oc.ts) ---------------- */
+
+/* Six whole characters: three across, two on a tablet, one on a phone. */
+.random-oc-list {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin: var(--space-4) 0;
+  padding: 0;
+}
+.random-oc {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--card);
+  min-width: 0;
+}
+.random-oc p {
+  margin: 0;
+}
+.random-oc-name {
+  margin: 0;
+  font-size: var(--text-lg);
+  overflow-wrap: anywhere;
+}
+.random-oc-traits {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+}
+.random-oc-traits li {
+  padding: 0 var(--space-2);
+  border-radius: 999px;
+  background: var(--soft);
+  color: var(--accent-text);
+  font-size: var(--text-sm);
+}
+.random-oc-sheet {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+  font-size: var(--text-sm);
+}
+.random-oc-sheet dt {
+  font-weight: 600;
+}
+.random-oc-sheet dd {
+  margin: 0;
+}
+.random-oc-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  margin-top: auto;
+  padding-top: var(--space-2);
+}
+@media (max-width: 900px) {
+  .random-oc-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 560px) {
+  .random-oc-list {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ---------------- questions to ask your OC (/tools/oc-questions, lib/oc-questions.ts) ---------------- */
 
 .questions-ask {
