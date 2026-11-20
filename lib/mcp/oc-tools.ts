@@ -1,6 +1,9 @@
 /**
- * The site's four free OC tools over MCP (2.32.0): the same code the /tools pages run, so an agent gets the page's answer.
+ * The site's free OC tools over MCP (2.32.0; random_oc 2.44.0): the same code the /tools pages run, so an agent gets the
+ * page's answer.
  *
+ *  - random_oc: six whole characters in a genre, each ready for create_character (lib/random-oc.ts,
+ *    /tools/random-oc-generator).
  *  - ship_names: two names in, their ship names out (lib/ship-names.ts, /tools/ship-name-generator, /ship/<a>/<b>).
  *  - oc_chemistry_test: two character sheets in; a 0–100 score, the ending the date engine predicts for their first
  *    date and three reasons out (lib/chemistry-test.ts, /tools/oc-chemistry-test).
@@ -14,9 +17,10 @@ import { chemistryResultHref, createPairHref, chemistryTest, errorPlace, fieldPa
 import { createWithName, OC_NAME_STYLE_INFO, OC_NAMES_MAX_BATCH, ocNames, ocNamesHref, readBatch, readKind, readStyle } from "../oc-names";
 import { OC_QUESTION_THEMES, OC_QUESTIONS, OC_QUESTIONS_PATH, ocQuestionHref, nextQuestion, readQuestion, type OcQuestion } from "../oc-questions";
 import { SHIP_ERRORS, shipPair, shipPath } from "../ship-names";
+import { createFromOc, ocSentence, RANDOM_OC_GENRE_INFO, RANDOM_OC_MAX_BATCH, randomOcHref, randomOcs, readGenre, readOcBatch, roleLine, type RandomOc } from "../random-oc";
 import { siteUrl } from "../site";
 
-export const OC_TOOL_NAMES = ["ship_names", "oc_chemistry_test", "oc_names", "oc_question"] as const;
+export const OC_TOOL_NAMES = ["ship_names", "oc_chemistry_test", "oc_names", "oc_question", "random_oc"] as const;
 export type OcToolName = (typeof OC_TOOL_NAMES)[number];
 const OC_TOOLS = new Set<string>(OC_TOOL_NAMES);
 export const isOcTool = (name: string): name is OcToolName => OC_TOOLS.has(name);
@@ -104,6 +108,52 @@ export function ocNamesTool(args: Args): Outcome {
   };
 }
 
+/** A random character's bio for create_character: who they are and their secret, in the third person. */
+export function randomOcBio(oc: RandomOc): string {
+  const who = roleLine(oc);
+  return `${who[0].toUpperCase()}${who.slice(1)}. Secret: ${oc.secret}.`;
+}
+
+/** random_oc: genre (or none for a mix), kind, batch. */
+export function randomOcTool(args: Args): Outcome {
+  // A genre or kind outside the enum never gets here: the dispatcher drops it to the default with a warning.
+  const genre = readGenre(args.genre);
+  const kind = readKind(args.kind);
+  const batch = readOcBatch(args.batch === undefined ? undefined : String(args.batch));
+  const ocs = randomOcs({ genre, kind, batch });
+  return {
+    data: {
+      genre: genre ?? "mixed",
+      ...(genre ? { about: RANDOM_OC_GENRE_INFO[genre].world } : {}),
+      kind,
+      batch,
+      characters: ocs.map((oc, i) => {
+        const next = ocs[(i + 1) % ocs.length];
+        return {
+          name: oc.name,
+          pronouns: oc.pronouns,
+          age: oc.age,
+          genre: oc.genre,
+          role: oc.role,
+          quirk: oc.quirk,
+          traits: oc.traits,
+          want: oc.want,
+          dealbreaker: oc.dealbreaker,
+          secret: oc.secret,
+          sentence: ocSentence(oc),
+          // Everything create_character needs but attest (and the look, which it picks itself when left out).
+          create_character: { name: oc.name, age: oc.age, bio: randomOcBio(oc), traits: oc.traits, want: oc.want, dealbreaker: oc.dealbreaker },
+          create_url: link(createFromOc(oc)),
+          chemistry_with_next: { with: next.name, url: link(chemistryResultHref(oc, next)) },
+        };
+      }),
+      url: link(randomOcHref(genre, kind, batch)),
+      more: { batch: (batch % RANDOM_OC_MAX_BATCH) + 1, note: "The same genre, kind and batch always give the same six; another batch gives six more." },
+      use_one: "Pass a character's create_character fields to create_character (with attest: true); oc_chemistry_test takes two of them as a and b.",
+    },
+  };
+}
+
 const questionOut = (q: OcQuestion) => ({ id: q.id, question: q.text, theme: q.theme.id, url: link(ocQuestionHref(q)) });
 
 /** oc_question: id (that one), theme (all of a theme), after (the next one), or nothing (today's). */
@@ -148,5 +198,7 @@ export function runOcTool(name: OcToolName, args: Args): Outcome {
       return ocNamesTool(args);
     case "oc_question":
       return ocQuestionTool(args);
+    case "random_oc":
+      return randomOcTool(args);
   }
 }

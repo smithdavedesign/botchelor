@@ -124,6 +124,7 @@ import { loadLessons } from "../character-lessons";
 import { STORY_FORGET_KINDS, storyView } from "../story-state";
 import { isOcTool, runOcTool } from "./oc-tools";
 import { OC_NAME_KINDS, OC_NAME_STYLES } from "../oc-names";
+import { RANDOM_OC_GENRES } from "../random-oc";
 import { OC_QUESTION_THEMES } from "../oc-questions";
 import { characterCredits, characterCreditsOn } from "../profile/credits";
 import { characterStatuses, characterTags } from "../character-tags";
@@ -298,7 +299,7 @@ export const MCP_PROTOCOL_VERSION = "2025-06-18";
 // get_character returns it. New arguments and reply fields only.
 // 2.40.0 (2026-11-20, #1845): the default tools/list ~64 KB → ~48 KB: shorter descriptions, each tool's return shape
 // and finer points in TOOL_NOTES (every other list, the cheatsheet), a short cost line; no argument, enum or tool changed.
-export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.43.0" } as const;
+export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.44.0" } as const;
 
 /** Where every tool is listed: the default list is the core (2026-10-20: 53 tools were ~14k tokens in every agent's context). */
 export const ALL_TOOLS_HINT = "/api/mcp?tools=all";
@@ -681,6 +682,7 @@ export const TOOL_COSTS: Record<ToolName, string> = {
   oc_chemistry_test: FREE,
   oc_names: FREE,
   oc_question: FREE,
+  random_oc: FREE,
   list_show_ideas: FREE,
   vote_show_idea: FREE,
   propose_show_idea: FREE,
@@ -835,6 +837,8 @@ export const ENUM_SOURCES: Record<string, readonly unknown[]> = {
   "oc_names.style": OC_NAME_STYLES,
   "oc_names.kind": OC_NAME_KINDS,
   "oc_question.theme": OC_QUESTION_THEMES.map((t) => t.id),
+  "random_oc.genre": RANDOM_OC_GENRES,
+  "random_oc.kind": OC_NAME_KINDS,
 };
 /**
  * Tools that work for anyone but are never listed, asked for by name only: request_after_dark until After Dark opens to
@@ -9262,7 +9266,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
     case "ship_names":
     case "oc_chemistry_test":
     case "oc_names":
-    case "oc_question": {
+    case "oc_question":
+    case "random_oc": {
       const who = resolveIdentity(args, session, false);
       const read = name === "ship_names" || name === "oc_chemistry_test" ? await ocCharacterArgs(db, name, args, who?.id ?? null) : { args };
       if ("error" in read) return read;
