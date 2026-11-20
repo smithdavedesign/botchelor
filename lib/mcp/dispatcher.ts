@@ -1631,7 +1631,7 @@ export const PRONOUNS_UNSET_NOTE = "No pronouns given: the show refers to them b
  * #1858 (the 2026-11-19-1849 run: "the venue came back as home@Odalys's place"): a stored place token (lib/places.ts:
  * "home@Odalys's place", "elsewhere@the lido") is never shown as is, whichever field forgot venueShown. A value that is
  * the whole token reads as its name; one inside a sentence loses the prefix. Arguments a reply hands back for a next call
- * (next_calls[].args, call.args) and ids (id, place_id) are left alone: they're for the server, not for reading.
+ * (next_calls[].args, call.args) and ids (id, place_id, get_episode's places list) are left alone: they're for the server, not for reading.
  */
 const PLACE_TOKEN = /\b(?:home|elsewhere)@/g;
 export function withoutPlaceTokens<T>(v: T): T {
@@ -1639,7 +1639,7 @@ export function withoutPlaceTokens<T>(v: T): T {
   if (Array.isArray(v)) return v.map((x) => withoutPlaceTokens(x)) as T;
   if (v && typeof v === "object" && Object.getPrototypeOf(v) === Object.prototype) {
     // An id (id, place_id, …) is a value for the server, like a next call's args: kept as stored.
-    return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, k === "args" || k === "id" || k.endsWith("_id") ? x : withoutPlaceTokens(x)])) as T;
+    return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, k === "args" || k === "id" || k === "places" || k.endsWith("_id") || k.endsWith("_ids") ? x : withoutPlaceTokens(x)])) as T;
   }
   return v;
 }

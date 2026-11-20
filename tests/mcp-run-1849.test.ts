@@ -25,6 +25,7 @@ describe("the 2026-11-19-1849 run (2.41.0)", () => {
       place: { id: "elsewhere@the foundry", name: "The foundry" },
     });
     expect(out.place.id).toBe("elsewhere@the foundry");
+    expect(withoutPlaceTokens({ places: ["ice_rink", "elsewhere@a harbour wall"] }).places).toEqual(["ice_rink", "elsewhere@a harbour wall"]);
     expect(out.venue).toBe("Odalys's place");
     expect(out.note).toBe("They moved to Odalys's place, then the lido.");
     expect(out.next_calls[0].args.place).toBe("home@Odalys's place");
