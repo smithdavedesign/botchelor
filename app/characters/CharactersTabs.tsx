@@ -3,7 +3,7 @@ import { navChatOn } from "@/lib/nav-chat";
 import { tabHref, TABS, type Tab } from "@/lib/origin";
 
 /** The strip's own short words (a tab's page keeps its full name, lib/origin.ts TAB_LABEL): four fit one line on a phone. */
-const STRIP_LABEL: Record<Tab, string> = { people: "People's", cast: "The cast", agents: "AI agents" };
+const STRIP_LABEL: Record<Tab, string> = { people: "People's", cast: "The cast", originals: "Originals", agents: "AI agents" };
 
 /** Where an owner's own characters are listed (app/characters/page.tsx, ?tab=yours). */
 export const YOURS_HREF = "/characters?tab=yours";

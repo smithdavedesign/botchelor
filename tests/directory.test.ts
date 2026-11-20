@@ -52,7 +52,8 @@ async function everyTab() {
   const cast = [...(await directoryEntries(t.db, HOUSE_CHARACTERS.map((c) => c.id))), ...(await offSeasonHouse(t.db, HOUSE_CHARACTERS.map((c) => c.id)))].map((e) => e.id);
   const people = (await listTab(t.db, "people")).entries.map((e) => e.id);
   const agents = (await listTab(t.db, "agents")).entries.map((e) => e.id);
-  return { cast, people, agents };
+  const originals = (await listTab(t.db, "originals")).entries.map((e) => e.id);
+  return { cast, people, agents, originals };
 }
 
 describe("the Characters hub's tabs", () => {
@@ -63,21 +64,23 @@ describe("the Characters hub's tabs", () => {
     const agent = await agentMade("Ada Lumen");
     const bot = await agentMade("Bo Quill", "botchelor-loop-swipe-back");
     const crowd = await agentMade("Cy Fenn", "crowd-agent-7"); // an ordinary client name: a real agent
+    const original = await agentMade("Dee Marlow", "botchelor-cast"); // the show's own cast script: a Botchelor original (2026-11-20)
 
     const tabs = await everyTab();
     expect(tabs.people).toEqual([hidden.id, person.id]);
     const [named] = (await listTab(t.db, "people")).entries;
     expect(named).toMatchObject({ id: hidden.id, name: "Quiet Type", private: true, traits: [], portrait: null, reviews: 0, stars: null });
     expect(tabs.agents).toEqual([crowd.id, agent.id, bot.id]); // the house-run bot after the real agents
+    expect(tabs.originals).toEqual([original.id]); // never on the agents' tab
     expect(tabs.cast).toEqual(expect.arrayContaining(ALL_HOUSE_CHARACTERS.map((c) => c.id)));
     // A partition: nobody twice, everyone once.
-    const all = [...tabs.cast, ...tabs.people, ...tabs.agents];
+    const all = [...tabs.cast, ...tabs.people, ...tabs.agents, ...tabs.originals];
     expect(new Set(all).size).toBe(all.length);
-    expect(await tabCounts(t.db)).toEqual({ people: 2, agents: 3, private: 1 });
+    expect(await tabCounts(t.db)).toEqual({ people: 2, originals: 1, agents: 3, private: 1 });
 
-    const origins = await originsOf(t.db, [person.id, agent.id, bot.id, crowd.id, HOUSE_CHARACTERS[0].id]);
-    expect(Object.fromEntries(origins)).toEqual({ [person.id]: "person", [agent.id]: "agent", [bot.id]: "house_bot", [crowd.id]: "agent", [HOUSE_CHARACTERS[0].id]: "cast" });
-    expect([...origins.values()].map(tabOf).sort()).toEqual(["agents", "agents", "agents", "cast", "people"]);
+    const origins = await originsOf(t.db, [person.id, agent.id, bot.id, crowd.id, original.id, HOUSE_CHARACTERS[0].id]);
+    expect(Object.fromEntries(origins)).toEqual({ [person.id]: "person", [agent.id]: "agent", [bot.id]: "house_bot", [crowd.id]: "agent", [original.id]: "original", [HOUSE_CHARACTERS[0].id]: "cast" });
+    expect([...origins.values()].map(tabOf).sort()).toEqual(["agents", "agents", "agents", "cast", "originals", "people"]);
   });
 
   it("a person's character is a companion only once its owner opens it, and a private one never (Talk follows)", async () => {
@@ -111,11 +114,12 @@ describe("the Characters hub's tabs", () => {
   });
 
   it("reads ?tab= (the cast by default, anything unknown too) and links each tab by a plain address", () => {
-    expect([parseTab(undefined), parseTab("cast"), parseTab("people"), parseTab("agents"), parseTab("nope"), parseTab(["agents"])]).toEqual([
+    expect([parseTab(undefined), parseTab("cast"), parseTab("people"), parseTab("agents"), parseTab("originals"), parseTab("nope"), parseTab(["agents"])]).toEqual([
       "cast",
       "cast",
       "people",
       "agents",
+      "originals",
       "cast",
       "cast",
     ]);
@@ -133,7 +137,7 @@ describe("the Characters hub's tabs", () => {
     expect(cast).toMatch(/<h1>Characters<\/h1>/);
     // A stranger lands on the cast, and the strip names who's here without numbers (2026-11-15: "34 against 250" read
     // as bots talking to bots). The agents' tab keeps its plain label.
-    expect(cast).toContain(`<nav class="segmented" aria-label="Characters"><a class="segmented-tab" href="/characters?tab=people">People&#x27;s</a><a class="segmented-tab" aria-current="page" href="/characters">The cast</a><a class="segmented-tab" href="/characters?tab=agents">AI agents</a></nav>`);
+    expect(cast).toContain(`<nav class="segmented" aria-label="Characters"><a class="segmented-tab" href="/characters?tab=people">People&#x27;s</a><a class="segmented-tab" aria-current="page" href="/characters">The cast</a><a class="segmented-tab" href="/characters?tab=originals">Originals</a><a class="segmented-tab" href="/characters?tab=agents">AI agents</a></nav>`);
     expect(cast).not.toContain("segmented-count");
     expect(cast).toMatch(/This season: /);
     expect(cast).not.toMatch(/Next season&#x27;s candidates/); // shown only once there are candidates (UX audit 2026-10-31, A4)
@@ -154,6 +158,14 @@ describe("the Characters hub's tabs", () => {
     expect(agents).toContain(">🤖 Made by an AI agent</span>"); // plain words, not jargon (2026-11-07 audit, item 19)
     expect(agents).toContain(`/characters/${bot.id}`);
     expect(agents).toContain(">House-run bot</span>");
+
+    // The show's own originals (2026-11-20): their own tab and badge, never with the agents.
+    const original = await agentMade("Dee Marlow", "botchelor-cast");
+    const originals = await render({ tab: "originals" });
+    expect(originals).toContain(`/characters/${original.id}`);
+    expect(originals).toContain(">Botchelor original</span>");
+    expect(originals).toMatch(/written and drawn by Botchelor/);
+    expect(await render({ tab: "agents" })).not.toContain(`/characters/${original.id}`);
 
     // The private one: its name in its own tab, never linked, no traits; nowhere else.
     expect(people).toMatch(/<span class="directory-private"><strong>Quiet Type<\/strong>/);
