@@ -81,8 +81,8 @@ date and every person whose vote it reads.
 **What it doesn't cover:** what the show records to run itself (everything in the table above is recorded whatever the
 consent says), the admin dashboards and Real use, analytics, and the engine reading a character's history. Consent never
 lets in After Dark, private or unlisted dates, or a private soul. The dataset readers are the preference export, the
-#577 training-set builder (which reads `turn_drafts` too) and the #578 offline evaluators (swipes, impressions, matches,
-first and second dates), all through the same gate (below). Nothing exports choice history, and anything that ever does
+#577 training-set builder (which reads `turn_drafts` too), the #578 offline evaluators (swipes, impressions, matches,
+first and second dates) and the social network dataset (below), all through the same gate. Nothing exports choice history, and anything that ever does
 must go through it too.
 
 `lib/ml-consent.ts` also holds the two gates every reader shares, so none of them keeps a copy:
@@ -122,6 +122,52 @@ loads `lib/ml-consent.ts` through Vite's module runner (`loadConsent`, as `after
 so the gate is the app's own SQL, never a copy; `tests/ml-consent.test.ts` checks the two agree. The `publicOnly` and
 `consentOnly` options exist only for the tests of the record's shape. `loadLib(path)` loads any other lib module the same
 way; the scripts below use it.
+
+## The social network dataset (`scripts/social/export-dataset.mjs`)
+
+```sh
+DATABASE_URL="$(neon connection-string --profile davejobs-agent --project-id cool-boat-29098893)" \
+  node scripts/social/export-dataset.mjs [--out .data/social-dataset] [--version <today>] \
+    [--allow-model glm-4.6,local-chat | --allow-model all] [--db url | --pglite dir]
+```
+
+The characters' social network ([PRDs/social-network.md](PRDs/social-network.md) sections 8 and 10) as a versioned
+folder, to license to researchers and to train our own models. Licensing, not selling: the privacy page's promise
+stands. Admin and offline: every connection is read-only, the files stay on the Mac, nothing is uploaded, and no model
+is called.
+
+- `--out`: where versions go (default `.data/social-dataset`). `--version`: the folder's name (default today). A
+  version is written once: the script refuses a folder that exists.
+- `--allow-model`: the models whose writing may be in it (comma-separated, or `all`). Default: none.
+- `--db` / `--pglite`: the database, as the preference export's.
+- `--include-after-dark` is refused, and so is anything else it doesn't know.
+
+`<out>/<version>/` holds `nodes.jsonl` (the characters: house or not, origin, kind, public tags, the day made),
+`people.jsonl` (their off-screen people), `places.jsonl`, `memberships.jsonl`, `ties.jsonl`, `tie_events.jsonl` (every
+change to those ties, so the graph replays to any day), `metrics.jsonl` (`social_metrics`), `network_daily.jsonl`
+(finished days of `social_network_daily`), `datasheet.md` (the "Datasheets for Datasets" form, with the version's
+counts and what each filter left out) and `manifest.json` (counts, each file's bytes and sha256, the filters). The
+version's salt is `<out>/<version>.salt` (mode 600), beside the folder and never in it.
+
+The gates, all on, none of them a flag:
+
+1. **Consent.** A house character, or one whose owner passes the consent gate at the time of each row (a tie's, a
+   person's or a membership's creation). A tie needs both its characters, or its holder and a public person.
+2. **Public only.** Public characters still someone's (a deleted account's are out), and public rows: a tie only when
+   it's public and active or ended (never a proposal or a declined one). No social row comes from
+   `character_opinions`, `character_heard`, `character_wants`, a soul or the private relationship layer.
+3. **No account id.** Every id is a pseudonym: an HMAC-SHA256 under the version's own salt, typed (`c_`, `p_`, `pl_`,
+   `t_`), so a new version can't be joined to an old one on its ids. `actor` and the person columns (`created_by`,
+   `answered_by`) are never read, evidence becomes the kinds of record it came from (`{episode: 3, night: 1}`), and
+   a change's story text is dropped (it may have been written while the tie wasn't public).
+4. **No After Dark.** No social row comes from it (lib/social/derive.ts never reads it).
+5. **Model terms.** A row a model wrote (`origin_model`) is in only when that model is on `--allow-model`, so a closed
+   model's output reaches a training set only when its terms allow it.
+
+Like the preference export, it loads `lib/ml-consent.ts` (and `lib/origin.ts`) through `loadLib`, so the gate is the
+app's own SQL, never a copy. `tests/social-dataset.test.ts` builds a version from a fixture with a row for every way one
+can be left out, and checks that no raw id, account id or private story reaches any file and that the manifest's hashes
+match.
 
 ## When the learning can start (`lib/training-readiness.ts`)
 

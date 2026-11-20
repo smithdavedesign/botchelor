@@ -300,6 +300,7 @@ As built (2a, `lib/social/derive.ts`):
   - `manifest.json`, with counts and hashes.
   - Ids are pseudonymised with a per-version salt.
   - It filters through §8, and it writes only; nothing is uploaded.
+  - **As built (Phase 4 PR 5).** The gate is `lib/ml-consent.ts` loaded as the app's own code (`loadLib`, as the preference export does), judged at each row's creation (a tie's, a person's, a membership's). The salt is kept beside the folder (`<version>.salt`), never in it, so a version can be rebuilt with the same ids and two versions can't be joined. Evidence goes out as the kinds of record a tie came from (`{episode: 3}`), never their ids; a change's story text is dropped (it may predate the tie going public); `actor`, `created_by` and `answered_by` are never read. `--allow-model` lists the models whose writing may go in (none by default, or `all`). The datasheet counts what each filter left out. docs/data-plan.md has the section.
 
 The data points this produces, per character and per day: degree and closeness by layer, ring sizes, centrality, community, structural holes, balance, reputation (mean public in-valence), places and roles, off-screen people, and every tie's full history with provenance. Per network, per day: size, density, clustering, modularity, assortativity by kind, origin and tags, and balance. Link-prediction ground truth comes from the suggestion log.
 
