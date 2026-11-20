@@ -41,8 +41,9 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 /**
- * After Dark (lib/adult): Scenes, every pair's night. Not found for anyone it isn't open to. Who's in and the Studio are on
- * the Studio door (/after-dark/studio, was Characters), the writer and privacy on Account (/after-dark/account), since the design kit's
+ * After Dark (lib/adult): Scenes, every pair's night. Not found for anyone it isn't open to. Everyone they can have a night
+ * with is on Characters (/after-dark/characters, a page each: 2026-11-20), switching their own In and the Studio on the
+ * Studio door (/after-dark/studio), the writer and privacy on Account (/after-dark/account), since the design kit's
  * After Dark header (2026-11-12) gave them their own pages.
  */
 export default async function AfterDarkPage({ searchParams }: { searchParams?: Promise<Record<string, string | string[] | undefined>> } = {}) {
@@ -100,10 +101,14 @@ export default async function AfterDarkPage({ searchParams }: { searchParams?: P
   // What they made last (David, 2026-11-15: a finished video sat on its pair's page, and the hub never said so): the
   // newest few pictures and videos, each a tap from the Gallery. None where only the scenes are allowed.
   const made = textOnly ? [] : latestMade(recent, LATEST_ON_HOME);
-  // The Studio door's word (lib/adult/doors.ts): "Studio", or "Characters" where the Studio isn't open to them.
+  // The Studio door's word (lib/adult/door-links.ts): "Studio", or "Who's in" where the Studio isn't open to them.
   const studioWord = studioDoorLabel(doors);
   // #1176: one of theirs just made on the show (its finish screen's "Bring … into After Dark"), its switch first.
-  const bringId = (await searchParams)?.bring;
+  const sp = await searchParams;
+  const bringId = sp?.bring;
+  // ?with=: a character's page's "Start a night" (app/after-dark/characters/[id]): the picker has them picked already.
+  const withId = sp?.with;
+  const preselect = typeof withId === "string" && cast.some((c) => c.id === withId) ? withId : null;
   const bring = typeof bringId === "string" ? switchable.find((c) => c.id === bringId && !c.house) : undefined;
   // Their own that are Out: a line here says so, so the switch isn't a page away unannounced (#1176: "buried").
   const yoursOut = switchable.filter((c) => !c.house && !c.on).length;
@@ -207,7 +212,7 @@ export default async function AfterDarkPage({ searchParams }: { searchParams?: P
         {/* Your nights first, then a new one (the audit, 2026-10-29: the hub opened on a checklist of switches). */}
         <section id="scenes" className="ad-home-section">
           <h2>Scenes</h2>
-          <PairPicker cast={cast} nights={withCovers} firstScene={firstScene} stepIn={stepIn} />
+          <PairPicker cast={cast} nights={withCovers} firstScene={firstScene} stepIn={stepIn} preselect={preselect} />
         </section>
         {/* Episodes (lib/adult/shorts.ts): the house cast's nights, published. Its own page keeps all of them and the board. */}
         <section id="episodes" className="ad-home-section" aria-labelledby="ad-episodes" data-ad-episodes>
@@ -273,6 +278,9 @@ export default async function AfterDarkPage({ searchParams }: { searchParams?: P
         <nav className="ad-hub-links" aria-label="After Dark">
           {!inHeader && (
             <>
+              <Link className="button-ghost" href="/after-dark/characters">
+                👥 Characters
+              </Link>
               <Link className="button-ghost" href="/after-dark/studio">
                 🎨 {studioWord}
               </Link>

@@ -28,8 +28,9 @@ export async function generateMetadata(): Promise<Metadata> {
  * After Dark's Studio door (David, 2026-11-15: "shouldn't we have an easier way to get to the studio?"): every character
  * whose Studio is theirs to use, as a card that opens it (lib/adult/studio.ts studioAccess: their own that are in, and
  * for an admin the house cast that's in), then who's in (a switch each: this season's cast is always in, their own
- * start Out). It's the old Characters page (/after-dark/characters sends here) with the Studio first instead of a row
- * of names. Where the Studio isn't open to them yet, only the switches, and the door says "Characters". Someone After
+ * start Out). It was the Characters page too until 2026-11-20, when Characters became its own door (everyone they can
+ * have a night with, a page each: app/after-dark/characters). Where the Studio isn't open to them yet, only the
+ * switches, and the door says "Who's in". Someone After
  * Dark isn't open to gets the locked preview instead (app/after-dark/LockedPreview.tsx; David, 2026-11-16, also the PG
  * Studio's way here, ?source=pg-studio): blurred tiles and the way in, never a picture.
  */

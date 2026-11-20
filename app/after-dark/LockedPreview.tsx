@@ -21,12 +21,16 @@ const COPY: Record<PreviewKind, { title: string; lead: string }> = {
     title: "Studio",
     lead: "Private photo shoots of your own characters: the face and body every picture keeps, pictures you compose from menus, and clips that move. Your characters start Out, and nothing of theirs comes here until you switch them In. Here's some of what's been made in it, blurred until you're in.",
   },
+  characters: {
+    title: "Characters",
+    lead: "Everyone you can have a night with: this season's cast, the agent cast, and any of your own characters you switch In. Each has a page with their nights and what's been made of them. It's for members: here's some of it, blurred until you're in.",
+  },
 };
 
 const plural = (n: number, one: string) => `${n.toLocaleString("en-US")} ${one}${n === 1 ? "" : "s"}`;
 
 /**
- * After Dark's Gallery or Studio for someone it isn't open to (lib/adult/preview.ts; David, 2026-11-16): what it is, the
+ * After Dark's Gallery, Studio or Characters for someone it isn't open to (lib/adult/preview.ts; David, 2026-11-16): what it is, the
  * counts, a grid of server-blurred tiles where pictures are allowed, and one way in, to the subscribe page (with where
  * they came from, for the invite review). Not found for a crawler or an agent, and while After Dark is off altogether,
  * as before. A blocked place never gets here: the After Dark layout shows its notice, or not-found, first.

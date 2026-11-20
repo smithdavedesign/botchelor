@@ -983,13 +983,14 @@ export async function characterMedia(db: Db, characterId: string, viewerId: stri
  * After Dark's Gallery (app/after-dark/gallery): everything this person made, from every night and every shoot, newest
  * first, with who's in each. Their own only, an admin's too (the house cast's nights are on their own pages). Like
  * listMedia, no keyframes or voices, no version another was kept over, no living portrait (the show's), and a shot
- * taken out of its video only with the Archive. With a `tab`, only that tab's (lib/adult/gallery.ts TAB_WHERE).
+ * taken out of its video only with the Archive. With a `tab`, only that tab's (lib/adult/gallery.ts TAB_WHERE); with a
+ * `character`, only those they're in.
  */
 export async function ownMedia(
   db: Db,
   viewerId: string,
   limit = 120,
-  opts: { withArchived?: boolean; tab?: GalleryTab } = {},
+  opts: { withArchived?: boolean; tab?: GalleryTab; character?: string } = {},
 ): Promise<(Media & { a_name: string | null; b_name: string | null })[]> {
   const { rows } = await db.query<Media & { face_of: string | null; a_name: string | null; b_name: string | null }>(
     `select m.*, ca.name as a_name, cb.name as b_name from (
@@ -997,6 +998,8 @@ export async function ownMedia(
         where i.owner_id = $2 and i.kind not in ('frame', 'audio') and i.superseded_by is null and ${NOT_A_LIVING_PORTRAIT}
           -- One of the Gallery's tabs (lib/adult/gallery.ts): Videos (but the shots its reels play), Pictures or Faces.
           ${opts.tab ? `and ${TAB_WHERE[opts.tab]}` : ""}
+          -- Only those with one character in them (a character's page, app/after-dark/characters/[id]).
+          ${opts.character ? "and (i.character_id = $4 or i.character_b = $4)" : ""}
           and ($3::boolean or i.kind <> 'video' or not exists (
             select 1 from adult_reels v cross join lateral jsonb_array_elements(v.shots) s
              where v.owner_id = i.owner_id and s->>'media_id' = i.id and s ? 'archived_at'
@@ -1004,7 +1007,7 @@ export async function ownMedia(
         order by i.created_at desc limit $1
      ) m left join characters ca on ca.id = m.character_id left join characters cb on cb.id = m.character_b
      order by m.created_at desc`,
-    [limit, viewerId, opts.withArchived === true],
+    [limit, viewerId, opts.withArchived === true, ...(opts.character ? [opts.character] : [])],
   );
   return rows.map(({ a_name, b_name, ...r }) => ({ ...mediaRow(r), a_name, b_name }));
 }

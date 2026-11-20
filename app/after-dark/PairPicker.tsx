@@ -107,6 +107,22 @@ function PickFace({ c, meta, onPick }: { c: Who; meta?: string; onPick: () => vo
 }
 
 /**
+ * Nights under way as the hub's cards, on a page that isn't the hub (a character's: app/after-dark/characters/[id]).
+ * "6 min ago" once in the browser, as on the hub.
+ */
+export function NightList({ nights }: { nights: Pair[] }) {
+  const [now, setNow] = useState<number | null>(null);
+  useEffect(() => setNow(Date.now()), []);
+  return (
+    <ul className="ad-nights">
+      {nights.map((p) => (
+        <NightCard key={p.path} p={p} now={now} />
+      ))}
+    </ul>
+  );
+}
+
+/**
  * The hub's scenes (app/after-dark/page.tsx). The nights under way first, under Continue, as cards with their pictures
  * (the newest eight, then Show all). Then a new pair, picked by face (David, 2026-10-24: not the long list of every
  * pair) and, since 2026-11-18 ("change the choose a new pair to be better ux like a picker with a search"), found by
@@ -123,11 +139,14 @@ export default function PairPicker({
   nights: going,
   firstScene,
   stepIn = false,
+  preselect = null,
 }: PickerData & {
   /** Step in is open to this viewer (lib/adult/step-in.ts): a row offers it with whoever is picked. */
   stepIn?: boolean;
+  /** One of the cast picked already (the hub's ?with=, from a character's page, app/after-dark/characters/[id]): the box asks who they're with. */
+  preselect?: string | null;
 }) {
-  const [one, setOne] = useState<string | null>(null);
+  const [one, setOne] = useState<string | null>(() => (preselect && cast.some((c) => c.id === preselect) ? preselect : null));
   const [two, setTwo] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [whose, setWhose] = useState<Whose>("all");

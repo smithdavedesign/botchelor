@@ -15,8 +15,9 @@ no screenshots are kept here (the site is explicit).
 | # | Suggestion | Status |
 | --- | --- | --- |
 | 1 | The character standing beside the chat | Built: Step in's scene (#1907). A cutout once the Cloudflare zone makes them; until then the portrait with its edges faded. |
-| 2 | An After Dark Characters page and a page per character | Being built (separate PR). |
-| 3–8 | Below | Not built. |
+| 2 | An After Dark Characters page and a page per character | Built: `/after-dark/characters` (who the viewer can have a night with, a card each, search, Everyone · House cast · Yours, type tags) and `/after-dark/characters/<id>` (their nights, yours of them, their Showcase posts; a night with them, Step in where open). No ⭐: it stars pictures, not people. |
+| 7 | Counts on cards | Partly, with #2: the viewer's nights and pictures with each character on their card. |
+| 3–6, 8 | Below | Not built. |
 
 ## The short version
 

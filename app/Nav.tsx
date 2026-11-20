@@ -52,10 +52,12 @@ const NEWCOMER_LINKS: readonly NavLink[] = [
  * After Dark's own host has its own doors (the design kit's After Dark header, 2026-11-12; David approved Watch and
  * Dating leaving it, "Back to the show" staying). Since 2026-11-15 (David: "shouldn't we have an easier way to get to the
  * studio? or the showcase page in after dark?", then "go build all three"): Scenes · Studio · Gallery · Showcase ·
- * Episodes then, Scenes · Studio · Gallery since 2026-11-18, and the account as an icon after them (as the show's bell), lib/adult/doors.ts deciding the two that depend
- * on the viewer. What moved where:
- *  - Characters → Studio (/after-dark/studio: whose Studio, then who's in). Called "Characters" where the Studio isn't
- *    open to them, since then the page only holds the switches; /after-dark/characters sends there.
+ * Episodes then, Scenes · Studio · Gallery since 2026-11-18, Scenes · Characters · Studio · Gallery since 2026-11-20, and
+ * the account as an icon after them (as the show's bell), lib/adult/doors.ts deciding the two that depend on the viewer.
+ * What moved where:
+ *  - Characters → Studio (/after-dark/studio: whose Studio, then who's in) on 2026-11-15, then its own door again on
+ *    2026-11-20 (joi.com's teardown): everyone they can have a night with, a page each (/after-dark/characters). The
+ *    Studio door says "Who's in" where the Studio isn't open to them, since then its page only holds the switches.
  *  - Shorts → Episodes (the same page, /after-dark/shorts): "Shorts" read as the viewer's own videos, which live in the
  *    Gallery.
  *  - Showcase → a room of the Gallery (2026-11-18, David: the door "takes you out of after dark"): the showcase's After
@@ -68,7 +70,8 @@ const NEWCOMER_LINKS: readonly NavLink[] = [
 export function adLinks(doors: AdDoors = NO_AD_DOORS): NavLink[] {
   return [
     { href: "/after-dark", label: "Scenes" },
-    { href: "/after-dark/studio", label: studioDoorLabel(doors), also: ["/after-dark/characters"] },
+    { href: "/after-dark/characters", label: "Characters" },
+    { href: "/after-dark/studio", label: studioDoorLabel(doors) },
     { href: "/after-dark/gallery", label: "Gallery", also: [AD_SHOWCASE] },
   ];
 }
