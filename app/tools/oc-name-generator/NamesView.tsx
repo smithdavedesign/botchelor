@@ -6,11 +6,13 @@ import {
   OC_NAME_STYLE_INFO,
   OC_NAME_STYLES,
   OC_NAMES_MAX_BATCH,
+  OC_NAMES_PATH,
   ocNames,
   ocNamesHref,
   type OcNameKind,
   type OcNameStyle,
 } from "@/lib/oc-names";
+import MoreTools from "../MoreTools";
 
 /** How to name a character in each style: a few lines of help under the names, different on every style page. */
 const TIPS: Record<OcNameStyle | "mixed", string[]> = {
@@ -112,11 +114,6 @@ export default function NamesView({ style, kind, batch }: { style: OcNameStyle |
             <li key={tip}>{tip}</li>
           ))}
         </ul>
-        <p className="muted small">
-          Got two characters already? Try the <Link href="/tools/ship-name-generator">ship name generator</Link>, the{" "}
-          <Link href="/tools/oc-chemistry-test">OC chemistry test</Link> or the{" "}
-          <Link href="/tools/oc-questions">questions to ask your OC</Link>.
-        </p>
       </section>
 
       <section className="card names-cta">
@@ -128,6 +125,7 @@ export default function NamesView({ style, kind, batch }: { style: OcNameStyle |
         <Link className="button" href="/create">
           Make your character
         </Link>
+        <MoreTools current={OC_NAMES_PATH} />
       </section>
     </>
   );

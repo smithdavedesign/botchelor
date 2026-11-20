@@ -15,6 +15,7 @@ import {
 import { shortName } from "@/lib/names";
 import { ENDING_LABELS } from "@/lib/rules";
 import ChemistryForm from "../ChemistryForm";
+import MoreTools from "../../MoreTools";
 
 type Props = { searchParams: Promise<Record<string, string | string[] | undefined>> };
 
@@ -106,6 +107,7 @@ export default async function ChemistryResultPage({ searchParams }: Props) {
         <p className="muted small">
           {`Two characters made by the same person don't date each other, so ${first} meets this season's house cast, a match from the swipe deck, or a blind date.`}
         </p>
+        <MoreTools current={CHEMISTRY_TEST_PATH} />
       </section>
 
       <section className="card">

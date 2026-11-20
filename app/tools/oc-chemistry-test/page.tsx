@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { CHEMISTRY_TEST_PATH, chemistryResultHref, SCORE_BANDS, type OcSheet } from "@/lib/chemistry-test";
 import ChemistryForm from "./ChemistryForm";
+import MoreTools from "../MoreTools";
 
 const TITLE = "OC Chemistry Test";
 const DESCRIPTION =
@@ -91,6 +92,7 @@ export default function ChemistryTestPage() {
         <Link className="button" href="/create">
           Make your character
         </Link>
+        <MoreTools current={CHEMISTRY_TEST_PATH} />
       </section>
     </>
   );

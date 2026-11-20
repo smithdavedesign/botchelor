@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import ShareLink from "@/app/ShareLink";
+import MoreTools from "../MoreTools";
 import { nextQuestion, OC_QUESTION_THEMES, OC_QUESTIONS, OC_QUESTIONS_PATH, ocQuestionHref, readQuestion } from "@/lib/oc-questions";
 
 const COUNT = OC_QUESTIONS.length;
@@ -91,11 +92,7 @@ export default async function OcQuestionsPage({ searchParams }: Props) {
         <Link className="button" href="/create">
           Make your character
         </Link>
-        <p className="muted small">
-          More free tools: the <Link href="/tools/oc-name-generator">OC name generator</Link>, the{" "}
-          <Link href="/tools/ship-name-generator">ship name generator</Link> and the{" "}
-          <Link href="/tools/oc-chemistry-test">OC chemistry test</Link>.
-        </p>
+        <MoreTools current={OC_QUESTIONS_PATH} />
       </section>
     </>
   );

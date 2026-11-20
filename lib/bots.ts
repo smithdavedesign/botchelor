@@ -7,6 +7,16 @@
  * Pure and dependency-free so the middleware can import it.
  */
 
+/**
+ * The App Router's own data requests (the `_rsc` query on a page's address): when Googlebot renders a page, every link
+ * on it is prefetched as one, under a fresh hash each time. In Search Console's crawl stats (90 days to 2026-11-16) they
+ * were 52% of 12.2K Googlebot requests ("Other file type", `/tools/oc-chemistry-test?_rsc=…`), while /pricing, /faq,
+ * /import and the /alternatives pages waited in "Discovered - currently not indexed". They are never indexed and a
+ * rendered page doesn't need them (its first render's data is inline in the HTML), so robots.txt (app/robots.ts) keeps
+ * crawlers off them. `*` makes it match `?_rsc=` and `&_rsc=` alike, and it is longer than `Allow: /`, so it wins.
+ */
+export const RSC_PREFETCH = "/*_rsc=";
+
 /** The robots.txt tokens of AI crawlers and assistants, welcomed by name in app/robots.ts. */
 export const AI_ROBOTS_TOKENS = [
   "GPTBot",

@@ -10504,6 +10504,22 @@ html.ad-studio-locked {
   border-top: 1px solid var(--line);
 }
 
+/* ---------------- the free tools hub (/tools, lib/tools.ts) ---------------- */
+
+.tools-hub h1 {
+  margin-bottom: var(--space-3);
+}
+.tools-item h2 {
+  margin-bottom: var(--space-2);
+}
+/* A tool's own landings (the name styles, the question themes) as a row of links under its line. */
+.tools-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  margin-top: var(--space-3);
+}
+
 /* ---------------- the prompts library (/prompts, lib/prompts-library.ts) ---------------- */
 
 .prompts-intro h1 {
