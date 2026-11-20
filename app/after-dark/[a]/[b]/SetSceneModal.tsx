@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useOverlay } from "@/app/useOverlay";
 import TokenPrice from "../../TokenPrice";
 import { filterScenes, SCENE_CATEGORIES, SCENE_TAGS, type CatalogScene, type SceneCategory, type SceneTag } from "@/lib/adult/scene-catalog";
 import { normalizeScene } from "@/lib/venues";
@@ -101,12 +102,10 @@ export default function SetSceneModal({
     // Only on opening: the roleplay prop changes after a pick lands.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, openAt]);
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+  // Full screen over the theater, on the overlay primitive (app/useOverlay.ts; 2026-11-20 mobile audit, C6): the night
+  // behind is inert and still while it's open, and Escape closes it. A press on the dimmed edge closes it too (below).
+  const overlay = useRef<HTMLDivElement>(null);
+  useOverlay(open, { root: overlay, onClose, outside: false });
   // The ones with a picture first, so the list doesn't open on a row of plain gradients.
   const shown = useMemo(() => {
     const found = filterScenes(scenes, { category, tags, query });
@@ -139,7 +138,7 @@ export default function SetSceneModal({
   const fill = (text: string, swap: boolean) => text.replaceAll("{a}", swap ? names.b : names.a).replaceAll("{b}", swap ? names.a : names.b);
 
   return (
-    <div className="ad-scenes-overlay" hidden={!open} onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+    <div ref={overlay} className="ad-scenes-overlay" hidden={!open} onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="ad-scenes" role="dialog" aria-modal="true" aria-label="Scene and roleplay">
         <header className="ad-scenes-head">
           <div>

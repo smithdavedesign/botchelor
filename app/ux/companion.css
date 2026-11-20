@@ -239,6 +239,47 @@ body:has(.companion-fullscreen) .site-footer {
 .companion-menu-body p {
   margin: var(--space-2) 0 0;
 }
+/* Its title and ✕ (app/OverlayClose.tsx) on one row at the top. */
+.companion-menu-body p.companion-menu-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: calc(-1 * var(--space-2)) calc(-1 * var(--space-2)) var(--space-1) 0;
+}
+/* Where to go from here, as 44px rows (2026-11-20 mobile audit, C13), and the deletes set apart under a rule, in red. */
+.companion-menu-rows {
+  display: grid;
+  margin-top: var(--space-2);
+}
+.companion-menu-body .companion-menu-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 44px;
+  margin: 0;
+  padding: 0 var(--space-2);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: none;
+  box-shadow: none;
+  color: var(--ink);
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  text-decoration: none;
+}
+.companion-menu-body .companion-menu-row:hover:not(:disabled) {
+  background: var(--soft);
+  transform: none;
+  box-shadow: none;
+}
+.companion-menu-danger {
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--line);
+}
+.companion-menu-body .companion-menu-danger .companion-menu-row {
+  color: var(--bad-text);
+}
 .companion-scroll {
   flex: 1;
   overflow-y: auto;
@@ -499,6 +540,11 @@ body:has(.companion-fullscreen) .site-footer {
   justify-content: space-between;
   gap: var(--space-2);
   margin: 0 0 var(--space-3);
+}
+/* Cancel and ← Places: a thumb's 44px (2026-11-20 mobile audit, C14). */
+.place-picker-head .place-picker-cancel {
+  flex: none;
+  min-height: 44px;
 }
 .place-picker-head h2 {
   margin: 0;

@@ -26,7 +26,7 @@ export default function PlacePicker({
     <section className="place-picker" aria-label={title}>
       <header className="place-picker-head">
         <h2>{title}</h2>
-        <button type="button" className="button-ghost small" onClick={onClose}>
+        <button type="button" className="button-ghost small place-picker-cancel" onClick={onClose}>
           Cancel
         </button>
       </header>

@@ -12,6 +12,8 @@ import Scene from "@/app/Scene";
 import CrisisPause from "@/app/stage/CrisisPause";
 import RoleplayPicker, { choiceReady, roleplayFields, type RoleplayChoice } from "@/app/RoleplayPicker";
 import PlacePicker from "@/app/stage/PlacePicker";
+import OverlayClose from "@/app/OverlayClose";
+import { useOverlay } from "@/app/useOverlay";
 import { openingField, type OpeningChoice } from "@/lib/scene-opening";
 import { storyParagraphs, storySegments, storySpeech } from "@/lib/story-reply";
 import { useSpeech } from "@/app/stage/useSpeech";
@@ -145,6 +147,12 @@ export default function CompanionChat({
   const [editing, setEditing] = useState(false);
   const [reporting, setReporting] = useState<string | null>(null);
   const [picking, setPicking] = useState(false);
+  // ⚙️ Settings: a menu on the overlay primitive (app/useOverlay.ts): Escape, its ✕ or a tap outside closes it, and the
+  // thread behind is inert and still while it's open.
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDetailsElement>(null);
+  const closeMenu = () => setMenuOpen(false);
+  useOverlay(menuOpen, { root: menuRef, onClose: closeMenu });
   // The place picked, while the roleplay (or none) is chosen; and that roleplay.
   const [placed, setPlaced] = useState<VenueId | null>(null);
   const [roleplay, setRoleplay] = useState<RoleplayChoice | null>(null);
@@ -565,11 +573,15 @@ export default function CompanionChat({
               🎭<span className="companion-head-label"> Scene</span>
             </button>
           ))}
-        <details className="companion-menu">
+        <details className="companion-menu" ref={menuRef} open={menuOpen} onToggle={(e) => setMenuOpen(e.currentTarget.open)}>
           <summary className="button-ghost small">
             ⚙️<span className="companion-head-label"> Settings</span>
           </summary>
           <div className="companion-menu-body">
+            <p className="companion-menu-top">
+              <strong>Settings</strong>
+              <OverlayClose onClose={closeMenu} label="Close settings" />
+            </p>
             <fieldset>
               <legend>How much {first} says</legend>
               {REPLY_LENGTHS.map((l: ReplyLength) => (
@@ -622,37 +634,34 @@ export default function CompanionChat({
                       .join(" · ")}
               </p>
             )}
-            {!paused && !outOfReplies && !view.scene && lastIsCharacter && (
-              // Continue while texting lives here (in a scene it's beside the composer): one more thought from them.
-              <p>
-                <button type="button" className="linklike" onClick={() => void keepGoing()} disabled={busy} data-track="companion-continue">
+            {/* Where to go next, as rows a thumb can hit (2026-11-20 mobile audit, C13), then the deletes set apart below. */}
+            <div className="companion-menu-rows">
+              {!paused && !outOfReplies && !view.scene && lastIsCharacter && (
+                // Continue while texting lives here (in a scene it's beside the composer): one more thought from them.
+                <button type="button" className="companion-menu-row" onClick={() => (closeMenu(), void keepGoing())} disabled={busy} data-track="companion-continue">
                   Let {first} carry on
                 </button>
-              </p>
-            )}
-            <p>
-              <Link href={`/companion/${view.id}/memory`}>
+              )}
+              <Link className="companion-menu-row" href={`/companion/${view.id}/memory`}>
                 What {first} knows about you ({view.facts})
               </Link>
-            </p>
-            {!c.yours && (
-              <p>
-                <Link href={`/characters/${c.id}`}>{first}&apos;s profile</Link>
-              </p>
-            )}
-            {/* One message at a time, on a page of its own (./messages): never a control on the bubbles (the owner's call: too noisy). */}
-            {messageDelete && (
-              <p>
-                <Link href={`/companion/${view.id}/messages`} data-track="companion-delete-messages">
+              {!c.yours && (
+                <Link className="companion-menu-row" href={`/characters/${c.id}`}>
+                  {first}&apos;s profile
+                </Link>
+              )}
+            </div>
+            <div className="companion-menu-rows companion-menu-danger">
+              {/* One message at a time, on a page of its own (./messages): never a control on the bubbles (the owner's call: too noisy). */}
+              {messageDelete && (
+                <Link className="companion-menu-row" href={`/companion/${view.id}/messages`} data-track="companion-delete-messages">
                   Delete messages…
                 </Link>
-              </p>
-            )}
-            <p>
-              <button type="button" className="linklike" onClick={() => void remove()}>
+              )}
+              <button type="button" className="companion-menu-row" onClick={() => (closeMenu(), void remove())}>
                 Delete this conversation
               </button>
-            </p>
+            </div>
           </div>
         </details>
       </header>
@@ -673,7 +682,7 @@ export default function CompanionChat({
             <h2>
               {venueName(placed)}: play a roleplay?
             </h2>
-            <button type="button" className="button-ghost small" onClick={() => setPlaced(null)}>
+            <button type="button" className="button-ghost small place-picker-cancel" onClick={() => setPlaced(null)}>
               ← Places
             </button>
           </header>
@@ -964,7 +973,8 @@ export default function CompanionChat({
         </div>
       )}
 
-      {!paused && !outOfReplies && (
+      {/* Not while a scene is being picked (C14): Send under the picker sent a text mid-choice. */}
+      {!paused && !outOfReplies && !(picking && !view.scene) && (
         <form className="companion-composer" onSubmit={send}>
           <div className="companion-actions">
             {(lastIsCharacter || waitingOnThem || sceneWaiting) && (
