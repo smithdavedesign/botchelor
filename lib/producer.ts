@@ -203,7 +203,8 @@ const beatOf = (r: BeatRow): Beat | null => {
     about: r.about,
     evidence: r.evidence ?? {},
     why: r.why ?? "",
-    logline: r.logline ?? "",
+    // A line stored before loglineText unwrapped JSON answers (2026-11-20) reads as its words, too.
+    logline: loglineText(r.logline ?? ""),
     logline_by: r.logline_by === "model" ? "model" : "template",
     previously: r.previously ?? "",
     tonight: r.tonight ?? "",
@@ -401,10 +402,29 @@ Rules: ONE sentence, at most 110 characters. Use only the names given, exactly a
 /** Words that would say a rumour is or isn't true: a logline never does (story-state: is_true stays server-side). */
 const TRUTH = /\b(true|untrue|false|falsely|lie|lies|lied|lying|liar|made (it|that) up|rumou?r is)\b/i;
 
+/**
+ * The words of a model's answer (pure). The prompt's input is JSON, and the model sometimes answers in kind
+ * (`{"logline": "…"}`): the story line for 2026-11-20 went out to /api/story and the clip pipeline braces and all.
+ * A JSON object's first non-empty string is the line; anything else is the answer as it came.
+ */
+export function loglineText(raw: string): string {
+  const t = raw.trim();
+  if (t.startsWith("{")) {
+    try {
+      const v = Object.values(JSON.parse(t) as Record<string, unknown>).find((x): x is string => typeof x === "string" && x.trim() !== "");
+      if (v) return v.trim();
+    } catch {
+      /* not JSON after all: checked as it is, and refused for its braces below */
+    }
+  }
+  return t;
+}
+
 /** A model's logline, or null when it isn't one line in the show's voice that names someone in the beat and passes the checks. */
 export function checkLogline(raw: string, names: readonly string[]): string | null {
-  const line = raw.trim().replace(/^["“'`]+|["”'`]+$/g, "").replace(/\s+/g, " ");
-  if (line.length < 20 || line.length > LOGLINE_MAX || /[\n#]/.test(raw.trim())) return null;
+  const text = loglineText(raw);
+  const line = text.replace(/^["“'`]+|["”'`]+$/g, "").replace(/\s+/g, " ");
+  if (line.length < 20 || line.length > LOGLINE_MAX || /[\n#{}]/.test(text)) return null;
   if (!names.some((n) => n && line.includes(n))) return null;
   if (TRUTH.test(line) || needsTranslation(line)) return null;
   if (!checkSheetText({ line }).ok || !checkShowText({ line }).ok) return null;

@@ -72,3 +72,20 @@ The voices are Kokoro on Venice, at speed 1.1 (`VOICE_SPEED`). The key comes fro
 | 6 | confessional | Sable's line on three dates in 24 hours | Does Nell know? |
 
 Every closing card points to `botchelor.com/december`. That is a 307 in `lib/site-redirects.ts`: it goes to `/casting` until the December season page exists, then to that page. People type it from a video, so the redirect adds `utm_source=clip&utm_medium=clip&utm_campaign=december`, the way `/vote` does for the daily clips. The engagement log then counts those visits under campaign "december".
+
+## The daily episode (`scripts/clips/daily-episode.mjs`, 2026-11-19)
+Once the six hand-edited cuts are out, the loop's daily kit is cut the same way, automatically. `post-kit.mjs <episode>` (what the marketing loop runs) now builds it; `--recording` or `POST_KIT_RECORDING=1` makes the old recorded kit, and a date with fewer than 4 spoken lines falls back to it.
+
+Why: the recorded kit opened on a 55-word block of text faded up from black, then showed the theater at phone size with small type and the player's buttons. Seven of those on YouTube Shorts drew 72 views in all (2026-11-11 to 11-19).
+
+The edit, about 25 to 35 s (`TARGET_SECONDS` 34; the earliest lead-up lines go first when it runs long):
+
+1. **Cold open:** the best line's own sentence, voiced, on the first frame. The label says "Day N".
+2. **Day N:** the story the date belongs to: the producer's logline (`GET /api/story`), without its "Tonight, you pick…" sentence, read by the host. The cover (`cover.png`) is this card.
+3. **The lead-up and the answer:** up to three lines before the best line and the one after it, each shortened to its first sentences (under 150 characters).
+4. **How it ended,** read by the host.
+5. **Tonight:** the day's beat. When it's a vote ("you pick who gets the date with Sable") the card and the caption send people to `botchelor.com/vote`; otherwise to watch at botchelor.com.
+
+"Day N" counts the daily episodes already in `CLIPS_DIR/posts` (their checklists say `Daily episode: Day N`), so the numbering survives a skipped day.
+
+The renderer changed for every cut, hand-edited ones included: a spoken line's words come up part by part with its voice (`chunksOf`, `chunkTimes`), the push-in goes to 6% (`ZOOM`), beats cut hard, and only the very end fades. A first frame faded up from black was a black thumbnail on every platform. Cuts 4 to 6, waiting in `~/BotchelorClips/cuts`, were re-rendered on 2026-11-19; the first renders are in `~/BotchelorClips/cuts-replaced-2026-11-19`.

@@ -146,6 +146,9 @@ describe("picking the beat", () => {
     expect(checkLogline("Dex.", names)).toBeNull();
     expect(checkLogline(`Dex ${"really ".repeat(30)}wants an answer.`, names)).toBeNull();
     expect(checkLogline("Dex asks Sable.\n#botchelor", names)).toBeNull();
+    // 2026-11-20: the model answered in JSON, and the braces went out to /api/story and the daily clip.
+    expect(checkLogline('{"logline": "Dex and Sable go on a real date after pretending to be a couple."}', names)).toBe("Dex and Sable go on a real date after pretending to be a couple.");
+    expect(checkLogline('{"logline": "Dex and Sable', names)).toBeNull();
   });
 });
 

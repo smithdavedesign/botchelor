@@ -1,7 +1,7 @@
 /** Types for scripts/clips/episode-cut.mjs, which stays plain JS so it runs with no build step. */
 
-type CutCharacter = { id: string; name: string; pronouns?: string | null; portrait?: string | null; credit?: { handle: string; name: string } };
-type CutEpisode = {
+export type CutCharacter = { id: string; name: string; pronouns?: string | null; portrait?: string | null; credit?: { handle: string; name: string } };
+export type CutEpisode = {
   id: string;
   title?: string | null;
   venue?: string | null;
@@ -80,8 +80,34 @@ export function beatSeconds(beat: Pick<Beat, "kind" | "voiced" | "secs">, voiceS
 export function spokenText(beat: Pick<Beat, "kind" | "voiced" | "text" | "say">): string;
 export function textSize(text: string): number;
 export function backdropOf(venue: string | null | undefined): string | null;
-export function frameHtml(beat: Beat, opts: { base: string }): string;
-export function segmentArgs(input: { frame: string; voice: string | null; seconds: number; out: string }): string[];
+export function frameHtml(beat: Beat, opts: { base: string; shown?: number | null }): string;
+export const ZOOM: number;
+export const CHUNK_WORDS: number;
+/** A line in the parts it appears in as it's spoken; joined with spaces they are the line again. */
+export function chunksOf(text: string | null | undefined): string[];
+/** How long each part stays the newest on screen: the voice shared by the parts' lengths, breath at both ends. */
+export function chunkTimes(chunks: string[], voiceSeconds: number, seconds: number): number[];
+export function segmentArgs(input: {
+  frame?: string;
+  frames?: { file: string; secs: number }[];
+  voice: string | null;
+  seconds: number;
+  out: string;
+  fadeIn?: boolean;
+  fadeOut?: boolean;
+}): string[];
+export function fetchEpisodes(ids: string[], base: string, headers?: Record<string, string>): Promise<CutEpisode[]>;
+export function renderCut(
+  edl: Edl,
+  episodes: CutEpisode[],
+  opts: {
+    base: string;
+    out: string;
+    log?: (m: string) => void;
+    caption?: string | null;
+    checklist?: string[] | ((info: { total: number; beats: Beat[]; voices: string }) => string[]) | null;
+  },
+): Promise<{ total: number; beats: Beat[]; seconds: number[]; voices: string }>;
 export const LOUDNESS: string;
 export function joinArgs(list: string, out: string): string[];
 export function cutCaption(edl: Edl, episodes: CutEpisode[], base?: string): string;

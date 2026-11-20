@@ -11,7 +11,8 @@
 // are visibly the show's captions, never put in a character's mouth.
 //
 // Voices: Kokoro on Venice (voice.mjs, about a cent a clip, David's call 2026-11-11), macOS `say` as the fallback.
-// Pictures: one still per beat (Chromium), a slow push-in and a short fade (ffmpeg). Free apart from the voices.
+// Pictures: one still per beat (Chromium), a spoken line's words coming up part by part with its voice, a slow push-in, hard
+// cuts (ffmpeg). Free apart from the voices.
 //
 //   node scripts/clips/episode-cut.mjs <edl.json> [--out <dir>]      (CROWD_BASE, CHROMIUM_PATH, SAY=1 as elsewhere)
 import { execFileSync } from "node:child_process";
@@ -76,6 +77,68 @@ export function pickText(text, keep) {
     parts.push(all[i]);
   });
   return parts.join(" ");
+}
+
+/** The most words a line shows at once before the next part of it appears (chunksOf). */
+export const CHUNK_WORDS = 9;
+
+/**
+ * A line in the parts it appears in (pure), so the words come up with the voice instead of sitting still for seconds:
+ * whole sentences, a long one split at its commas, semicolons or dashes, and only then by words. Never a piece under
+ * three words where it can be helped. Joined with spaces, the parts are the line again.
+ */
+export function chunksOf(text) {
+  const words = (s) => s.split(" ").filter(Boolean).length;
+  const pieces = [];
+  for (const s of sentences(text)) {
+    if (words(s) <= CHUNK_WORDS) {
+      pieces.push(s);
+      continue;
+    }
+    let cur = "";
+    for (const part of s.split(/(?<=[,;:—–])\s+/)) {
+      const next = cur ? `${cur} ${part}` : part;
+      if (cur && words(next) > CHUNK_WORDS && words(cur) >= 3) {
+        pieces.push(cur);
+        cur = part;
+      } else cur = next;
+    }
+    if (cur) pieces.push(cur);
+  }
+  const out = [];
+  for (const piece of pieces) {
+    const w = piece.split(" ").filter(Boolean);
+    if (w.length <= Math.round(CHUNK_WORDS * 1.6)) {
+      out.push(piece);
+      continue;
+    }
+    const parts = [];
+    for (let i = 0; i < w.length; i += CHUNK_WORDS) parts.push(w.slice(i, i + CHUNK_WORDS));
+    if (parts.length > 1 && parts.at(-1).length < 3) parts.at(-2).push(...parts.pop());
+    out.push(...parts.map((p) => p.join(" ")));
+  }
+  // A lone "…" (pickText's gap) or a scrap under three words rides with its neighbour.
+  for (let i = out.length - 1; i > 0; i--) if (words(out[i]) < 3 || /^…$/.test(out[i])) out.splice(i - 1, 2, `${out[i - 1]} ${out[i]}`);
+  if (out.length > 1 && words(out[0]) < 3) out.splice(0, 2, `${out[0]} ${out[1]}`);
+  return out;
+}
+
+/** The kinds of beat whose words appear part by part with the voice. */
+const REVEALED = new Set(["cold", "line", "thought", "diary"]);
+
+/**
+ * How long each part of a spoken beat stays the newest one on screen (pure): the voice's length shared by the parts'
+ * lengths in characters, the breath before the voice on the first, the breath after it on the last. Sums to `seconds`.
+ */
+export function chunkTimes(chunks, voiceSeconds, seconds) {
+  if (chunks.length <= 1 || !(voiceSeconds > 0)) return [seconds];
+  const chars = chunks.map((c) => c.length);
+  const all = chars.reduce((a, b) => a + b, 0);
+  const times = chars.map((n) => (voiceSeconds * n) / all);
+  times[0] += LEAD_IN;
+  const used = times.reduce((a, b) => a + b, 0);
+  times[times.length - 1] += Math.max(0, seconds - used);
+  return times.map((t) => Math.round(t * 1000) / 1000);
 }
 
 /** A character of an episode by side ("a"/"b"), with the other one. */
@@ -184,8 +247,15 @@ export function backdropOf(venue) {
 }
 
 /** One frame's HTML (pure), in the site's type and colours, text kept out of the apps' bottom and side overlays. */
-export function frameHtml(beat, { base }) {
+export function frameHtml(beat, { base, shown = null }) {
   const e = beat.episode;
+  // The words on screen: all of them, or the first `shown` parts (chunksOf) with the rest held in place but hidden, so
+  // the bubble keeps its size while the line fills in.
+  const said = (text) => {
+    if (shown == null) return esc(text);
+    const parts = chunksOf(text);
+    return parts.map((p, i) => (i < shown ? esc(p) : `<span class="hide">${esc(p)}</span>`)).join(" ");
+  };
   const bg = backdropOf(e.venue);
   const face = (c, cls = "") => `<figure class="${cls}"><img src="${img(c.portrait, base)}" alt=""><figcaption>${esc(firstName(c.name))}</figcaption></figure>`;
   const top = `<header><span class="brand">Botchelor</span><span class="ep">${esc(e.title ?? "")}</span></header>`;
@@ -194,13 +264,13 @@ export function frameHtml(beat, { base }) {
     case "cold":
     case "line":
       body = `${top}<div class="stage">${face(beat.other, "other")}${face(beat.speaker, "speaker")}</div>
-        <div class="bubble ${beat.speaker === e.characters[0] ? "left" : "right"}">${beat.label ? `<p class="kick">${esc(beat.label)}</p>` : beat.kind === "cold" ? '<p class="kick">Tonight</p>' : ""}${beat.emotion ? `<span class="emo">${esc(beat.emotion)}</span>` : ""}<p class="said" style="font-size:${textSize(beat.text)}px">${esc(beat.text)}</p></div>`;
+        <div class="bubble ${beat.speaker === e.characters[0] ? "left" : "right"}">${beat.label ? `<p class="kick">${esc(beat.label)}</p>` : beat.kind === "cold" ? '<p class="kick">Tonight</p>' : ""}${beat.emotion ? `<span class="emo">${esc(beat.emotion)}</span>` : ""}<p class="said" style="font-size:${textSize(beat.text)}px">${said(beat.text)}</p></div>`;
       break;
     case "thought":
-      body = `${top}<div class="stage solo">${face(beat.speaker, "speaker think")}</div><div class="private"><p class="kick">${esc(beat.label)}</p><p class="said thought" style="font-size:${textSize(beat.text)}px">${esc(beat.text)}</p><p class="fine">A private thought, shown once the date aired</p></div>`;
+      body = `${top}<div class="stage solo">${face(beat.speaker, "speaker think")}</div><div class="private"><p class="kick">${esc(beat.label)}</p><p class="said thought" style="font-size:${textSize(beat.text)}px">${said(beat.text)}</p><p class="fine">A private thought, shown once the date aired</p></div>`;
       break;
     case "diary":
-      body = `${top}<div class="stage solo">${face(beat.speaker, "speaker diary")}</div><div class="private diarybox"><p class="kick"><span class="rec"></span>The diary cam</p><p class="said" style="font-size:${textSize(beat.text)}px">“${esc(beat.text)}”</p><p class="fine">${esc(beat.label)}</p></div>`;
+      body = `${top}<div class="stage solo">${face(beat.speaker, "speaker diary")}</div><div class="private diarybox"><p class="kick"><span class="rec"></span>The diary cam</p><p class="said" style="font-size:${textSize(beat.text)}px">“${said(beat.text)}”</p><p class="fine">${esc(beat.label)}</p></div>`;
       break;
     case "choice":
       body = `${top}<p class="kick center">${esc(beat.label)}</p><div class="stage pair">${e.characters
@@ -254,6 +324,7 @@ figure.diary img{border-color:#ff3b3b}
 .diarybox{border:2px solid rgba(255,59,59,.85)}
 .rec{display:inline-block;width:9px;height:9px;border-radius:50%;background:#ff3b3b;margin-right:7px;vertical-align:1px}
 .thought{font-style:italic;font-weight:500}
+.hide{visibility:hidden}
 .fine{font-size:11px;color:#d9c4e6}
 .answer{display:flex;flex-direction:column;align-items:center;gap:10px}
 .stamp{font-family:Fraunces,Georgia,serif;font-weight:700;font-size:24px;border-radius:12px;padding:4px 16px;border:3px solid currentColor;transform:rotate(-6deg)}
@@ -266,20 +337,34 @@ h1{font-family:Fraunces,Georgia,serif;font-weight:700;font-size:33px;line-height
 </style></head><body><div class="bg"></div><div class="veil"></div>${body}</body></html>`;
 }
 
-/** The ffmpeg arguments for one beat's segment (pure): the still with a slow push-in and short fades, its voice or silence. */
-export function segmentArgs({ frame, voice, seconds, out }) {
-  const frames = Math.max(1, Math.round(seconds * FRAME.fps));
+/** How far a beat's slow push-in goes by its end (1 + ZOOM): enough to read as movement on a phone, never a lurch. */
+export const ZOOM = 0.06;
+
+/**
+ * The ffmpeg arguments for one beat's segment (pure): its stills in order (one, or one per part of a line as it fills
+ * in: `frames` [{file, secs}]), one slow push-in across all of them, over its voice or silence. `fadeIn`/`fadeOut`: a
+ * short fade at either end (renderCut cuts hard between beats and fades only the end: a first frame faded up from
+ * black is a black thumbnail and a black first second in the feed).
+ */
+export function segmentArgs({ frame, frames, voice, seconds, out, fadeIn = true, fadeOut = true }) {
+  const list = frames?.length ? frames : [{ file: frame, secs: seconds }];
+  const total = Math.max(list.length, Math.round(seconds * FRAME.fps));
+  const counts = list.map((f) => Math.max(1, Math.round(f.secs * FRAME.fps)));
+  counts[counts.length - 1] = Math.max(1, total - counts.slice(0, -1).reduce((a, b) => a + b, 0));
   const { width, height } = FRAME.out;
-  const zoom = `zoompan=z='1+0.035*on/${frames}':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=${frames}:s=${width}x${height}:fps=${FRAME.fps}`;
-  const fadeOut = Math.max(0, seconds - 0.14).toFixed(2);
-  const video = `[0:v]${zoom},fade=t=in:st=0:d=0.12,fade=t=out:st=${fadeOut}:d=0.14,format=yuv420p[v]`;
+  const inputs = list.flatMap((f, i) => ["-loop", "1", "-framerate", String(FRAME.fps), "-t", (counts[i] / FRAME.fps).toFixed(3), "-i", f.file]);
+  const zoom = `zoompan=z='1+${ZOOM}*on/${total}':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=${width}x${height}:fps=${FRAME.fps}`;
+  const outAt = Math.max(0, seconds - 0.14).toFixed(2);
+  const joined = list.length > 1 ? `${list.map((_, i) => `[${i}:v]`).join("")}concat=n=${list.length}:v=1:a=0,` : "[0:v]";
+  const video = `${joined}${zoom},${fadeIn ? "fade=t=in:st=0:d=0.12," : ""}${fadeOut ? `fade=t=out:st=${outAt}:d=0.14,` : ""}format=yuv420p[v]`;
+  const a = list.length;
   const delay = Math.round(LEAD_IN * 1000);
   const audio = voice
-    ? `[1:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,adelay=${delay}|${delay},apad=whole_dur=${seconds.toFixed(3)},atrim=0:${seconds.toFixed(3)}[a]`
-    : `[1:a]atrim=0:${seconds.toFixed(3)}[a]`;
+    ? `[${a}:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,adelay=${delay}|${delay},apad=whole_dur=${seconds.toFixed(3)},atrim=0:${seconds.toFixed(3)}[a]`
+    : `[${a}:a]atrim=0:${seconds.toFixed(3)}[a]`;
   return [
     "-y", "-loglevel", "error",
-    "-i", frame,
+    ...inputs,
     ...(voice ? ["-i", voice] : ["-f", "lavfi", "-t", seconds.toFixed(3), "-i", "anullsrc=r=48000:cl=stereo"]),
     "-filter_complex", `${video};${audio}`,
     "-map", "[v]", "-map", "[a]", "-t", seconds.toFixed(3),
@@ -342,14 +427,9 @@ async function speak(beat, file, key, log, speed = VOICE_SPEED) {
   return `${file}.m4a`;
 }
 
-async function main() {
-  const edlFile = process.argv[2];
-  if (!edlFile || edlFile.startsWith("--")) throw new Error("usage: node scripts/clips/episode-cut.mjs <edl.json> [--out <dir>]");
-  const edl = JSON.parse(readFileSync(edlFile, "utf8"));
-  const base = (process.env.CROWD_BASE || "https://botchelor.com").replace(/\/$/, "");
-  const headers = { "user-agent": "botchelor-clip/1.0", cookie: "bz_adult=1" };
-  const ids = edl.episodes ?? [];
-  if (!ids.length) throw new Error("the EDL names no episodes");
+/** The public episodes an EDL names, each checked to be an aired public date (what the episode page shows). */
+export async function fetchEpisodes(ids, base, headers = { "user-agent": "botchelor-clip/1.0", cookie: "bz_adult=1" }) {
+  if (!ids?.length) throw new Error("the EDL names no episodes");
   const episodes = [];
   for (const id of ids) {
     const e = await (await fetch(`${base}/api/episodes/${id}`, { headers })).json();
@@ -357,59 +437,72 @@ async function main() {
     if (!e.revealed || e.visibility !== "public") throw new Error(`only a public date that has aired goes in a cut (${id})`);
     episodes.push(e);
   }
+  return episodes;
+}
+
+/**
+ * Renders a cut into `out`: post.mp4, cover.png (the frame of beat `edl.cover`, all its words shown), caption.txt,
+ * edl.json and, last, checklist.md (a folder is ready once that's there). `caption` and `checklist` replace the
+ * hand-edited cut's own (the daily episode writes its own; `checklist` may be a function of {total, beats, voices}).
+ * Returns {total, beats, seconds, voices}.
+ */
+export async function renderCut(edl, episodes, { base, out, log = (m) => console.error(m), caption = null, checklist = null }) {
   const beats = resolveBeats(edl, episodes);
-  // Staged in cuts/, never posts/: the marketing loop (idea-factory cutKit) releases one a day, in name order, as that
-  // day's video kit. A folder in posts/ would go to the follower channels (Shorts, Reels) at once.
-  const out = process.argv.includes("--out")
-    ? process.argv[process.argv.indexOf("--out") + 1]
-    : join(process.env.CLIPS_DIR || join(homedir(), "BotchelorClips"), "cuts", basename(edlFile).replace(/\.json$/, ""));
   mkdirSync(out, { recursive: true });
-  // A folder is ready to release once its checklist is written, and that's written last: clear an old one so a
-  // re-render isn't released half-made.
   rmSync(join(out, "checklist.md"), { force: true });
   const tmp = mkdtempSync(join(tmpdir(), "botchelor-cut-"));
-  const log = (m) => console.error(m);
   try {
     const key = process.env.SAY === "1" ? null : veniceKey();
     const voices = [];
     for (let i = 0; i < beats.length; i++) voices.push(await speak(beats[i], join(tmp, `v${String(i).padStart(2, "0")}`), key, log, edl.speed ?? VOICE_SPEED));
-    const seconds = beats.map((b, i) => beatSeconds(b, voices[i] ? soundSeconds(voices[i]) : 0));
+    const voiceSecs = voices.map((v) => (v ? soundSeconds(v) : 0));
+    const seconds = beats.map((b, i) => beatSeconds(b, voiceSecs[i]));
     const total = seconds.reduce((a, b) => a + b, 0);
     if (total > MAX_SECONDS) throw new Error(`the cut runs ${total.toFixed(1)} s, over ${MAX_SECONDS}: trim it`);
 
+    // Each beat's stills: one, or one per part of a spoken line as its words come up with the voice (chunksOf).
     const { chromium } = await import("playwright-core");
     const browser = await chromium.launch({ executablePath: chromiumPath() });
-    const frames = [];
+    const stills = [];
     try {
       const page = await browser.newPage({ viewport: FRAME.css, deviceScaleFactor: FRAME.scale });
       for (let i = 0; i < beats.length; i++) {
-        await page.setContent(frameHtml(beats[i], { base }), { waitUntil: "networkidle" });
-        await page.evaluate(() => document.fonts.ready);
-        const f = join(tmp, `f${String(i).padStart(2, "0")}.png`);
-        await page.screenshot({ path: f });
-        frames.push(f);
+        const b = beats[i];
+        const parts = REVEALED.has(b.kind) && voices[i] && edl.reveal !== false ? chunksOf(b.text) : [];
+        const times = parts.length > 1 ? chunkTimes(parts, voiceSecs[i], seconds[i]) : [seconds[i]];
+        const list = [];
+        for (let k = 0; k < times.length; k++) {
+          await page.setContent(frameHtml(b, { base, shown: times.length > 1 ? k + 1 : null }), { waitUntil: "networkidle" });
+          await page.evaluate(() => document.fonts.ready);
+          const f = join(tmp, `f${String(i).padStart(2, "0")}-${k}.png`);
+          await page.screenshot({ path: f });
+          list.push({ file: f, secs: times[k] });
+        }
+        stills.push(list);
       }
     } finally {
       await browser.close();
     }
 
     const ffmpeg = process.env.FFMPEG || "ffmpeg";
-    const parts = [];
+    const segs = [];
     for (let i = 0; i < beats.length; i++) {
       const seg = join(tmp, `s${String(i).padStart(2, "0")}.mp4`);
-      execFileSync(ffmpeg, segmentArgs({ frame: frames[i], voice: voices[i], seconds: seconds[i], out: seg }));
-      parts.push(seg);
+      // Hard cuts between beats, as short video is cut (a dip to black between every beat read as flicker on a phone, and
+      // the first frame faded up from black was a black thumbnail); only the very end fades out.
+      execFileSync(ffmpeg, segmentArgs({ frames: stills[i], voice: voices[i], seconds: seconds[i], out: seg, fadeIn: false, fadeOut: i === beats.length - 1 }));
+      segs.push(seg);
     }
     const list = join(tmp, "parts.txt");
-    writeFileSync(list, parts.map((p) => `file '${p}'`).join("\n") + "\n");
+    writeFileSync(list, segs.map((p) => `file '${p}'`).join("\n") + "\n");
     execFileSync(ffmpeg, joinArgs(list, join(out, "post.mp4")));
-    copyFileSync(frames[edl.cover ?? 0], join(out, "cover.png"));
-    writeFileSync(join(out, "caption.txt"), cutCaption(edl, episodes, base) + "\n");
+    copyFileSync(stills[edl.cover ?? 0].at(-1).file, join(out, "cover.png"));
+    writeFileSync(join(out, "caption.txt"), (caption ?? cutCaption(edl, episodes, base)) + "\n");
     writeFileSync(join(out, "edl.json"), JSON.stringify(edl, null, 2) + "\n");
     const pair = episodes[0].characters.map((c) => c.name).join(" × ");
     writeFileSync(
       join(out, "checklist.md"),
-      [
+      (typeof checklist === "function" ? checklist({ total, beats, voices: key ? "Kokoro (Venice)" : "macOS say" }) : checklist ?? [
         `# Posting the episode cut: ${edl.name ?? pair}`,
         "",
         ...episodes.map((e) => `Episode: ${base}/episodes/${e.id}`),
@@ -422,12 +515,27 @@ async function main() {
         "5. More options → turn on \"AI-generated content\".",
         "6. Audience: everyone (the show is PG); never post After Dark.",
         "",
-      ].join("\n"),
+      ]).join("\n"),
     );
-    console.log(`Episode cut: ${out}\n  post.mp4 (${total.toFixed(1)} s), cover.png, caption.txt, checklist.md, edl.json`);
+    return { total, beats, seconds, voices: key ? "Kokoro (Venice)" : "macOS say" };
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }
+}
+
+async function main() {
+  const edlFile = process.argv[2];
+  if (!edlFile || edlFile.startsWith("--")) throw new Error("usage: node scripts/clips/episode-cut.mjs <edl.json> [--out <dir>]");
+  const edl = JSON.parse(readFileSync(edlFile, "utf8"));
+  const base = (process.env.CROWD_BASE || "https://botchelor.com").replace(/\/$/, "");
+  const episodes = await fetchEpisodes(edl.episodes ?? [], base);
+  // Staged in cuts/, never posts/: the marketing loop (idea-factory cutKit) releases one a day, in name order, as that
+  // day's video kit. A folder in posts/ would go to the follower channels (Shorts, Reels) at once.
+  const out = process.argv.includes("--out")
+    ? process.argv[process.argv.indexOf("--out") + 1]
+    : join(process.env.CLIPS_DIR || join(homedir(), "BotchelorClips"), "cuts", basename(edlFile).replace(/\.json$/, ""));
+  const { total } = await renderCut(edl, episodes, { base, out });
+  console.log(`Episode cut: ${out}\n  post.mp4 (${total.toFixed(1)} s), cover.png, caption.txt, checklist.md, edl.json`);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
