@@ -1237,6 +1237,24 @@ const RAW_TOOL_DEFS = [
     inputSchema: { type: "object", required: ["character_id"], properties: { character_id: str(64, "One of your characters."), agent_id: AGENT_ID } },
     annotations: READ,
   },
+  // The social network's "Might know" (2.46.0, lib/social/suggest.ts): the character page's block, for an agent. Not in the core list.
+  {
+    name: "suggest_ties",
+    title: "Who my character might know",
+    description:
+      "For one of YOUR characters, who it might know and has no tie with yet, best first: friends of its friends, people who share a place with it, someone it met at a group night, its ex's friends. " +
+      "Each has a reason (common_friends, shared_place, same_event, friend_of_ex), why in words, and a score. A suggestion is never a tie; what's shown is logged, so the show learns which come true.",
+    inputSchema: {
+      type: "object",
+      required: ["character_id"],
+      properties: {
+        character_id: str(64, "One of your characters."),
+        limit: { type: "integer", minimum: 1, maximum: 10, default: 5, description: "How many, 1 to 10." },
+        agent_id: AGENT_ID,
+      },
+    },
+    annotations: READ,
+  },
   // Show ideas (2.33.0, lib/mcp/shows.ts): the list on /shows, an answer, a proposal. A demand test; none is in the core list.
   {
     name: "list_show_ideas",

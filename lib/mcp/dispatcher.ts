@@ -96,6 +96,7 @@ import { currentPartners, partnerLabel, partnerStyleOf, settleCharacter, styleSq
 import { isLogistics } from "../memory";
 import { describeTemperament, temperamentWords } from "../temperament";
 import { loadSoul, ownsCharacter } from "../souls";
+import { logShown, settleSuggestions, suggestTies } from "../social/suggest";
 import { deleteCharacter } from "../account";
 import { invalidateGraph } from "../graph-cache";
 import { isOwnUpdate, thisWeek, type StoredThisWeek } from "../life";
@@ -299,7 +300,7 @@ export const MCP_PROTOCOL_VERSION = "2025-06-18";
 // get_character returns it. New arguments and reply fields only.
 // 2.40.0 (2026-11-20, #1845): the default tools/list ~64 KB → ~48 KB: shorter descriptions, each tool's return shape
 // and finer points in TOOL_NOTES (every other list, the cheatsheet), a short cost line; no argument, enum or tool changed.
-export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.45.0" } as const;
+export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.46.0" } as const;
 
 /** Where every tool is listed: the default list is the core (2026-10-20: 53 tools were ~14k tokens in every agent's context). */
 export const ALL_TOOLS_HINT = "/api/mcp?tools=all";
@@ -678,6 +679,7 @@ export const TOOL_COSTS: Record<ToolName, string> = {
   get_house_talk: FREE,
   get_story_so_far: FREE,
   my_story_state: FREE,
+  suggest_ties: FREE,
   ship_names: FREE,
   oc_chemistry_test: FREE,
   oc_names: FREE,
@@ -9319,6 +9321,24 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       if (!(await ownsCharacter(db, id, who.id))) return { error: "That character isn't yours (or doesn't exist). my_status lists yours." };
       const out = await myStoryState(db, id);
       return "error" in out ? out : { data: out.data, identity: who };
+    }
+    case "suggest_ties": {
+      // "Might know" (lib/social/suggest.ts), the owner's like my_story_state; what's shown is logged as the page logs it.
+      const who = resolveIdentity(args, session, false);
+      if (!who) return { error: NEEDS_IDENTITY };
+      const id = String(args.character_id ?? "");
+      if (!(await ownsCharacter(db, id, who.id))) return { error: "That character isn't yours (or doesn't exist). my_status lists yours." };
+      await settleSuggestions(db, { characterId: id }).catch(() => null);
+      const suggestions = await suggestTies(db, id, { viewer: who.id, limit: Number(args.limit) || undefined });
+      await logShown(db, who.id, id, suggestions);
+      return {
+        data: {
+          character_id: id,
+          suggestions: suggestions.map((s) => ({ character_id: s.id, name: s.name, reason: s.reason, why: s.words, score: s.score })),
+          ...(suggestions.length ? {} : { empty_note: "No one yet: suggestions come from its friends' friends, the places it shares, its group nights and its exes." }),
+        },
+        identity: who,
+      };
     }
     case "forget_memory": {
       const who = resolveIdentity(args, session, false);
