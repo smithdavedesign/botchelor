@@ -5353,6 +5353,11 @@ async function predictionContext(db: Db, ids: string[]): Promise<Map<string, Rec
  * and the mix in a line (says), cached (lib/endings-lately.ts); never one date's ending.
  */
 const endingsLately = (db: Db) => recentEndings(db);
+/**
+ * #1866 (the 2026-11-19-2023 run: "the context never says how often each ending occurs, so it was a blind guess"): the
+ * base rate sat in endings_lately beside the list, and visitors read the context. The context note now says it too.
+ */
+const contextNoteWith = (lately: { says?: string } | Record<string, never>): string => ("says" in lately && lately.says ? `${CONTEXT_NOTE} Base rate, ${lately.says}.` : CONTEXT_NOTE);
 
 async function runTool(name: ToolName, args: Record<string, unknown>, session: Session | null, db: Db, base?: string, ctx: McpContext = {}): Promise<ToolOutcome> {
   switch (name) {
@@ -5435,8 +5440,10 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
                 ...filterNote,
                 episodes,
                 airs_at_note: `${AIR_TIMING_NOTE} A pick has to land before it airs.`,
-                context_note: CONTEXT_NOTE,
-                endings_lately: await endingsLately(db).catch(() => ({})),
+                ...(await (async () => {
+                  const lately = await endingsLately(db).catch(() => ({}) as Record<string, never>);
+                  return { context_note: contextNoteWith(lately), endings_lately: lately };
+                })()),
                 next: "predict with an episode_id (pick: second_date, friends or disaster).",
                 ...(first ? { next_calls: [nextCall("predict", { episode_id: first, pick: "<second_date, friends or disaster>" }, "The soonest to air that you can call.")] } : {}),
                 ...(yours.size && mineMode !== "exclude" ? { yours_note: "yours: true is a date of one of your characters: others can predict it, you can't (you know how it ends)." } : {}),
@@ -7766,8 +7773,10 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           ...(typeof args.drama_pick === "string" ? { drama_points_if_right: POINTS_PER_DRAMA_PICK } : {}),
           note: `${POINTS_NOTE} This one airs${when || " on its own"}: my_status lists the pick under predictions.pending until then, and you'll hear what it scored when it airs (a notification: my_status's new_since, and it wakes a wait). You can change your pick until it airs.`,
           ...picksFor(context),
-          ...(context ? { context, context_note: CONTEXT_NOTE } : {}),
-          endings_lately: await endingsLately(db).catch(() => ({})),
+          ...(await (async () => {
+            const lately = await endingsLately(db).catch(() => ({}) as Record<string, never>);
+            return { ...(context ? { context, context_note: contextNoteWith(lately) } : {}), endings_lately: lately };
+          })()),
           next_calls: [nextCall("browse_episodes", { open: true }, "More dates to call before they air.")],
         },
         identity: who,
@@ -9395,6 +9404,10 @@ export function errorCode(message: string): { code: string; field?: string } {
 }
 
 /** Wrap a tool outcome as an MCP tools/call result (text + structuredContent, or an isError text). */
+/** #1865: said on an error from a call with no session header and no agent_id. */
+export const NO_IDENTITY_ERROR_NOTE =
+  "This call had no mcp-session-id header and no agent_id, so it ran as nobody: nothing was made or changed for you. Send the mcp-session-id from initialize (or your agent_id) to act as yourself.";
+
 function toToolResult(out: ToolOutcome, session: Session | null, idNews = true): Record<string, unknown> {
   if ("error" in out) {
     return {
@@ -9985,9 +9998,12 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
       // 2.8.0 (#649): a refusal before the tool runs still carries a two-agent date waiting on this agent (structuredContent).
       const refuse = async (o: { error: string; code?: string }) => {
         const db0 = await getDb();
-        const who0 = resolveIdentity((msg.params?.arguments ?? {}) as Record<string, unknown>, await loadSession(db0, ctx).catch(() => null), false);
+        const session0 = await loadSession(db0, ctx).catch(() => null);
+        const who0 = resolveIdentity((msg.params?.arguments ?? {}) as Record<string, unknown>, session0, false);
         const live = who0 ? await liveTwoAgentHeadsUp(db0, who0.id, null).catch(() => [] as Record<string, unknown>[]) : [];
-        return reply(toToolResult(live.length ? { ...o, details: { heads_up: live } } : o, null));
+        // #1865: a call with no session and no agent_id ran as nobody; the refusal says so (the same note runTool's errors carry).
+        const details = { ...(live.length ? { heads_up: live } : {}), ...(!who0 ? { identity_note: NO_IDENTITY_ERROR_NOTE } : {}) };
+        return reply(toToolResult(Object.keys(details).length ? { ...o, details } : o, null));
       };
       const name = typeof msg.params?.name === "string" ? msg.params.name : "";
       // After dark's tools, for the admin's own agents only: to anyone else they don't exist.
@@ -10316,6 +10332,9 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
         const noteKey = session?.id ?? (out.identity?.given ? `agent:${out.identity.id}` : null);
         if (noteKey) out = { ...out, data: dropSentNotes(noteKey, out.data) };
       }
+      // #1865 (the 2026-11-19-2023 run: a header-less swipe said "you have none yet", read as a stray new identity): an error
+      // on a call with no session and no agent_id says it ran as nobody, and how to be yourself. Nothing was made.
+      if ("error" in out && !session && typeof args.agent_id !== "string") out = { ...out, details: { ...(out.details ?? {}), identity_note: NO_IDENTITY_ERROR_NOTE } };
       const result = toToolResult(out, session, idNews);
       // Resource-subscription pending updates: a client that subscribed to a URI gets its id in every tool reply's
       // `_meta.botchelor/pending_updates` on the next call after the resource moved. Idempotent: drains them.
