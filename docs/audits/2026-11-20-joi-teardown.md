@@ -14,7 +14,7 @@ no screenshots are kept here (the site is explicit).
 
 | # | Suggestion | Status |
 | --- | --- | --- |
-| 1 | The character standing beside the chat | Built: Step in's scene (#1907). A cutout once the Cloudflare zone makes them; until then the portrait with its edges faded. |
+| 1 | The character standing beside the chat | Built: Step in's scene (#1907). The Cloudflare zone's cutouts are on (2026-11-20); the portrait with its edges faded is the fallback. |
 | 2 | An After Dark Characters page and a page per character | Built in [#1909](https://github.com/smithdavedesign/botchelor/pull/1909): `/after-dark/characters` (who the viewer can have a night with, a card each, search, Everyone · House cast · Yours, type tags) and `/after-dark/characters/<id>` (their nights, yours of them, their Showcase posts; a night with them, Step in where open). No ⭐: it stars pictures, not people. |
 | 7 | Counts on cards | Partly, with #2: the viewer's nights and pictures with each character on their card. |
 | 3–6, 8 | Below | Not built. |
@@ -59,11 +59,12 @@ settings; on a phone the chat slides in with a view transition and tracks the iO
   transformation. The free plan allows 5,000 unique transformations a month (one per portrait, however often it's
   shown) and never bills: past the limit a new one fails, and the figure falls back to the portrait. Only a PG
   portrait goes in, only the zone's own pictures can be transformed, and `metadata=keep` keeps the AI-generated mark.
-- **The zone setting is off.** Cloudflare → Images → Transformations → botchelor.com → Enable (or the API's
-  `transformations_config` set to `on`, same-zone images only). The server asks once whether cutouts work (one 16px
-  cutout of a house portrait) and keeps the answer for an hour, or ten minutes when it's a no. So switching the
-  zone on shows cutouts within ten minutes, with no deploy. `CUTOUTS=0` turns them off whatever the zone says.
-- **Until then, the portrait as it is,** faded out at every edge: a face in a pool of light, not a framed photo.
+- **The zone setting is on** since 2026-11-20 (the API's `transformations_config` set to `on`: same-zone images only,
+  so a picture from any other site gets a 403). The server asks once whether cutouts work (one 16px cutout of a house
+  portrait) and keeps the answer for an hour, or ten minutes when it's a no. `CUTOUTS=0` turns them off whatever the
+  zone says.
+- **When the zone says no, the portrait as it is,** faded out at every edge: a face in a pool of light, not a framed
+  photo.
 - **Wide screen** (≥1100px): the figure at the right edge, 34% of the width (20 to 34rem), the prose column moved
   over to make room. **Tablet** (701–1099px): the figure stands behind the column's right side. **Phone**: the figure
   fills the screen behind the scene, under a veil of the night, and the prose card is thinned so it shows through.
@@ -134,7 +135,7 @@ Stream for video, view transitions for the phone chat, the Outfit font, consentm
 
 ## Recommendations, in order
 
-1. **The figure in Step in.** Built (#1907). Switch the zone's transformations on to get real cutouts.
+1. **The figure in Step in.** Built (#1907), with real cutouts since the zone's transformations went on (2026-11-20).
 2. **After Dark Characters + a page per character.** Yes, this belongs in After Dark. It's the one structural thing
    joi has that After Dark lacks, and it's being built now. The grid lists exactly who the viewer can have a night
    with. Each page has the character's nights and their public pictures (joi's "Community"), and the ways in that
