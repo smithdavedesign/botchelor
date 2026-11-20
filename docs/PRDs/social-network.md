@@ -249,6 +249,13 @@ As built (2a, `lib/social/derive.ts`):
 - **Balance:** a signed triangle census. An unbalanced public triangle becomes a new producer tension, `unbalanced_triangle`, in `lib/story-state.ts`, for example A dating B while B's best friend is A's rival. The producer can stage it, using the public record only.
 - **Introductions:** some show-arranged dates prefer a friend of a friend. The date records `met_via: "introduced"` and the introducer, and both actors know who set them up.
 - **Dialogue:** an actor's prompt can carry one or two lines about the people in its life, with mutual ties first ("you both know Mira; she's your coworker"). It uses public or own ties only, sits behind `SOCIAL_PEOPLE_IN_PROMPTS`, and the engine never reads it.
+- **As built (Phase 4 PR 3).**
+  - `lib/social/dynamics.ts` is a `social_dynamics` step of the daily job's `growth` part, before the metrics, with a 30-second budget. Each day a tie's closeness is replayed from its own event log: an aired contact lifts it 15% of the way to 1, and time decays it by its kind's half-life. A run is idempotent, and a missed day changes nothing.
+  - A declared tie takes the pair's aired contact from their other public ties, through `logContact`. `dated` (its closeness is the pair's tie strength) and ties to off-screen people are left alone.
+  - A friendship fades at the moment it crossed 0.15: it ends with a `decayed` event (a hook in 2a's `setStatus`), and an `old_friend` tie starts from when the friendship did.
+  - The metrics fill `social_network_daily.balance` and, on each character's all-layers row, its balanced and unbalanced triangles and its ring sizes, with 2a's `signedTriads` and `rings`.
+  - `unbalanced_triangle` comes from public, active ties between public characters only: two of the cast at odds who are both close to a third. Its weight is 4, a same-room beat; the house's confrontations take 5 and up.
+  - Introductions (`lib/social/introductions.ts`) are one in four of the lobby's seeded fallback deals: two of the cast who share a public friend and who haven't dated, aren't family and aren't at odds. `setup.introduced_by` holds the friend's character id.
 
 ## 8. Privacy, consent and licensing
 

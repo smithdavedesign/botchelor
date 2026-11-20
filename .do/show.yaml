@@ -340,6 +340,11 @@ services:
       # - key: SOCIAL_METRICS
       #   value: "0"
       #   scope: RUN_AND_BUILD_TIME
+      # SOCIAL_DYNAMICS "0" stops the living network: closeness moving with contact and time, friendships fading,
+      # introductions, the triangle tension (lib/social/dynamics.ts, lib/social/introductions.ts).
+      # - key: SOCIAL_DYNAMICS
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
       # How often a gift comes, as a multiple of the built-in chances (1 when unset; "0.5" halves them).
       # - key: CHARACTER_GIFTS_RATE
       #   value: "0.5"

@@ -87,7 +87,7 @@ export const challengesOn = (env: Record<string, string | undefined> = process.e
 
 /* ------------------------------------------------ confrontations ------------------------------------------------ */
 
-/** A tension this hot or hotter gets staged (lib/story-state.ts: knows_said 6-8, opposing_claims 5, rivals 4-5, mutual_distrust 3-5). */
+/** A tension this hot or hotter gets staged (lib/story-state.ts: knows_said 6-8, opposing_claims 5, rivals 4-5, mutual_distrust 3-5, unbalanced_triangle 4). */
 export const CONFRONT_MIN_WEIGHT = 5;
 export const CONFRONTATIONS_A_WEEK = 2;
 /** The same two don't have it out again for this many days (so never two days running). */
@@ -258,6 +258,7 @@ export function templateConfrontation(f: ConfrontFacts): SceneLine[] {
     opposing_claims: [`${B}, we can't both be right about what happened.`, "Then one of us was told wrong. I know which one I think it is."],
     rivals: [`${B}. We both know what this is about.`, "We want the same thing. I wasn't going to pretend otherwise."],
     mutual_distrust: [`${B}, I don't trust you. I'd rather say it than smile about it.`, `That makes two of us, ${A}.`],
+    unbalanced_triangle: [`${B}, we keep ending up in the same room. We should talk.`, "Fine. I'd rather that than all this smiling."],
   };
   const close: Record<Outcome, [string, string, string, string]> = {
     cleared_the_air: ["You could have come to me first.", "I should have. That part is on me.", "Fine. Then it's said, and it's over.", "Over. I'll put the kettle on."],

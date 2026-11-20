@@ -35,6 +35,8 @@ import {
   type Tie,
   type Valences,
 } from "./analytics";
+import { rings, type RingTie, type TriadCensus } from "./algorithms";
+import { isTieKind, TIE_KINDS } from "./kinds";
 
 /** One public, active tie between two characters, as the job reads it. */
 export type MetricTie = {
@@ -191,6 +193,99 @@ export function metricRows(m: LayerMeasures): CharacterMetricRow[] {
 
 /** Signed triangles, the whole network's census (lib/social/algorithms.ts signedTriads). */
 export type Balance = { balanced: number; unbalanced: number; share_balanced: number | null; by_signs: Record<string, number> };
+
+/**
+ * The most triangles the job keeps to count each character's (lib/social/algorithms.ts signedTriads `limit`). Past it,
+ * the network's totals still stand and each character's triangle counts stay unset that day, never half counted.
+ */
+export const TRIADS_KEPT = 200_000;
+
+/** A census cut at TRIADS_KEPT lists fewer triangles than it counted. */
+const wholeCensus = (c: TriadCensus): boolean => c.triads.length === c.balanced + c.unbalanced;
+
+/**
+ * The network's row of it: the totals, the balanced share, and how many of each sign pattern ("+++", "++-", "+--",
+ * "---"; empty when the census was cut short).
+ */
+export function balanceOf(census: TriadCensus): Balance {
+  const total = census.balanced + census.unbalanced;
+  const by_signs: Record<string, number> = {};
+  if (wholeCensus(census)) {
+    for (const t of census.triads) {
+      const key = t.signs.map((s) => (s > 0 ? "+" : "-")).sort().join("");
+      by_signs[key] = (by_signs[key] ?? 0) + 1;
+    }
+  }
+  return { balanced: census.balanced, unbalanced: census.unbalanced, share_balanced: total ? census.balanced / total : null, by_signs };
+}
+
+/** Each character's balanced and unbalanced triangles; null when the census was cut short. */
+export function triadsByCharacter(census: TriadCensus): Map<string, { balanced: number; unbalanced: number }> | null {
+  if (!wholeCensus(census)) return null;
+  const out = new Map<string, { balanced: number; unbalanced: number }>();
+  for (const t of census.triads) {
+    for (const id of t.ids) {
+      const c = out.get(id) ?? { balanced: 0, unbalanced: 0 };
+      if (t.balanced) c.balanced++;
+      else c.unbalanced++;
+      out.set(id, c);
+    }
+  }
+  return out;
+}
+
+/** A public, active tie from a character to one of its public off-screen people, as the rings read it. */
+export type PersonRingTie = { from_id: string; to_person_id: string; kind: string; closeness: number };
+export type RingSizes = { inner: number; close: number; friends: number; acquaintances: number };
+
+/**
+ * How many sit in each of a character's Dunbar rings (lib/social/algorithms.ts rings, as "X's world" places them): its
+ * public ties to characters and to its people, each placed by its closeness as far in as its kind allows. Shared places
+ * aren't counted here ("X's world" adds them when it's read).
+ */
+export function ringSizes(ties: readonly MetricTie[], people: readonly PersonRingTie[]): Map<string, RingSizes> {
+  const by = new Map<string, RingTie[]>();
+  const add = (id: string, t: RingTie) => {
+    const list = by.get(id);
+    if (list) list.push(t);
+    else by.set(id, [t]);
+  };
+  for (const t of ties) {
+    if (!isTieKind(t.kind)) continue;
+    const ring = TIE_KINDS[t.kind].ring;
+    add(t.from_id, { other: t.to_id, closeness: t.closeness, ring });
+    add(t.to_id, { other: t.from_id, closeness: t.closeness, ring });
+  }
+  for (const p of people) if (isTieKind(p.kind)) add(p.from_id, { other: p.to_person_id, closeness: p.closeness, ring: TIE_KINDS[p.kind].ring });
+  const out = new Map<string, RingSizes>();
+  for (const [id, list] of by) {
+    const r = rings(list);
+    out.set(id, { inner: r.inner.length, close: r.close.length, friends: r.friends.length, acquaintances: r.acquaintances.length });
+  }
+  return out;
+}
+
+/** Puts each character's triangles and ring sizes on its all-layers row; every other layer's stay null. */
+export function withBalanceAndRings(
+  rows: readonly CharacterMetricRow[],
+  triads: Map<string, { balanced: number; unbalanced: number }> | null,
+  sizes: Map<string, RingSizes>,
+): CharacterMetricRow[] {
+  return rows.map((r) => {
+    if (r.layer !== ALL_LAYERS) return r;
+    const t = triads ? (triads.get(r.character_id) ?? { balanced: 0, unbalanced: 0 }) : null;
+    const s = sizes.get(r.character_id);
+    return {
+      ...r,
+      triads_balanced: t ? t.balanced : null,
+      triads_unbalanced: t ? t.unbalanced : null,
+      ring_inner: s ? s.inner : null,
+      ring_close: s ? s.close : null,
+      ring_friends: s ? s.friends : null,
+      ring_acquaintances: s ? s.acquaintances : null,
+    };
+  });
+}
 
 /** One social_network_daily row (the day is the job's). */
 export type NetworkDailyRow = {

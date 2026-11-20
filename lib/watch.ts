@@ -18,6 +18,7 @@ import { isInsider, showCrowd } from "./crowd-threshold";
 import { getDb, type Db } from "./db";
 import { dateNumberSql } from "./date-number";
 import { decideTraced, seedFrom } from "./engine";
+import { introductionFor, type Introduction } from "./social/introductions";
 import { track, trackDateQuality, trackEpisodeCost } from "./analytics";
 import { failureReason } from "./jobs";
 import { houseRoomTextsOn, isAfterglowEnabled } from "./afterglow";
@@ -863,6 +864,8 @@ export type TemplateOpts = {
   format?: FormatId;
   producer?: ProducerId;
   venuePool?: readonly VenueId[];
+  /** A friend of both set it up (lib/social/introductions.ts, lobbyDeal): the date says so, and both actors know who. */
+  introduction?: Introduction | null;
 };
 
 /**
@@ -904,8 +907,11 @@ export async function buildTemplateDate(
     roleplay: opts.roleplay ?? null,
     venuePool: opts.venuePool ?? null,
     producerPick: opts.producer ?? null,
+    introduction: opts.introduction ? { ...(opts.introduction.a === aId ? opts.introduction.lines : { a: opts.introduction.lines.b, b: opts.introduction.lines.a }), by: opts.introduction.byName } : null,
   });
-  built.setup.met_via = "show"; // how it came about (data plan Tier 2): the show set it up for the lobby
+  // How it came about (data plan Tier 2): the show set it up for the lobby, or a friend of both did.
+  built.setup.met_via = opts.introduction ? "introduced" : "show";
+  if (opts.introduction) built.setup.introduced_by = opts.introduction.by;
   const { outcome: decided, trace } = decideTraced(built.input, built.seed, built.setup.engine_version);
   return { a, b, built, decided, trace };
 }
@@ -1130,6 +1136,10 @@ export async function lobbyDeal(db: Db, now: Date, n: number): Promise<{ a: stri
           .map((r) => r.character_id)
           .filter((id) => cast.includes(id))
       : [];
+  // Some deals the show sets up two of the cast who share a friend (lib/social/introductions.ts); not on newcomer week,
+  // whose pairing is its own. Without such a pair, or on the other deals, it's dealt as before.
+  const intro = fresh.length ? null : await introductionFor(db, cast, day, n).catch(() => null);
+  if (intro) return { a: intro.a, b: intro.b, thumbs: { ...thumbs, introduction: intro } };
   const dealt = seedFrom("lobby-a", day, n);
   const i = fresh.length ? cast.indexOf(fresh[dealt % fresh.length]) : dealt % cast.length;
   const j = (i + 1 + (seedFrom("lobby-b", day, n) % (cast.length - 1))) % cast.length;

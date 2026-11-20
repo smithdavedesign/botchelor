@@ -66,6 +66,7 @@ import { dateLabel, endingDetailOf, type DramaAnswer, type DramaQuestion, type E
 import { checkShowText } from "./safety";
 import { leadAndSuitors, showCastIds } from "./season-cast";
 import { seasonIdOf, seasonWindow, weekIdOf } from "./season-window";
+import { unbalancedTriangles } from "./social/dynamics";
 import { venuePhrase } from "./venues";
 
 /* ------------------------------------------------ the switch ------------------------------------------------ */
@@ -892,20 +893,20 @@ export async function ensureWants(db: Db, now: Date = new Date()): Promise<{ set
 
 /* ------------------------------------------------ tensions ------------------------------------------------ */
 
-export type TensionKind = "knows_said" | "opposing_claims" | "rivals" | "mutual_distrust";
+export type TensionKind = "knows_said" | "opposing_claims" | "rivals" | "mutual_distrust" | "unbalanced_triangle";
 export type Tension = {
   kind: TensionKind;
   /** The two it is between. knows_said: a = who knows, b = who said it. */
   a: string;
   b: string;
-  /** Who it is over: the one both want (rivals), the subject of the claims (opposing_claims), else null. */
+  /** Who it is over: the one both want (rivals), the subject of the claims (opposing_claims), the one both are close to (unbalanced_triangle), else null. */
   about: string | null;
-  /** Higher is hotter. knows_said 6 (8 when the claim was untrue), opposing_claims 5, rivals 4-5, mutual_distrust 3-5. */
+  /** Higher is hotter. knows_said 6 (8 when the claim was untrue), opposing_claims 5, rivals 4-5, mutual_distrust 3-5, unbalanced_triangle 4. */
   weight: number;
   /** One plain line for a writer's prompt. Built from names, public claims and the kind: never a private take. */
   line: string;
-  /** The rows behind it: character_knows_said ids, character_heard ids, opinions and wants by their keys. */
-  evidence: { knows?: string[]; heard?: string[]; opinions?: { holder: string; about: string }[]; wants?: { holder: string; week: string }[] };
+  /** The rows behind it: character_knows_said ids, character_heard ids, opinions and wants by their keys, social_ties ids. */
+  evidence: { knows?: string[]; heard?: string[]; opinions?: { holder: string; about: string }[]; wants?: { holder: string; week: string }[]; ties?: string[] };
 };
 
 /**
@@ -915,6 +916,8 @@ export type Tension = {
  *  - opposing_claims: two cast members hold claims about the same person where one is true and one isn't.
  *  - rivals: two want the same person (firsthand attraction of 1 or more, or this week's pursue / win_back want).
  *  - mutual_distrust: trust of -1 or lower both ways.
+ *  - unbalanced_triangle: two of the cast at odds who are both close to a third (lib/social/dynamics.ts
+ *    unbalancedTriangles: public, active ties only; SOCIAL_DYNAMICS), say A dating B while B's best friend is A's rival.
  * `seasonId` is the season (its start day): this season's holders are showCastIds, an earlier season's its stored
  * cast; rows count from the season's start. `holders` overrides who counts (tests, a scene's guest list).
  */
@@ -943,7 +946,8 @@ export async function tensions(db: Db, seasonId: string, opts: { now?: Date; hol
     db.query<OpinionRow>(`select ${OPINION_COLS} from character_opinions o join characters c on c.id = o.about_id where o.holder_id = any($1) and o.forgotten_at is null`, [cast]),
     db.query<Want>(`select holder_id, season_id, week_id, want, about_id, kind, set_by from character_wants where week_id = $1 and holder_id = any($2)`, [week, cast]),
   ]);
-  const names = new Map((await db.query<{ id: string; name: string }>(`select id, name from characters where id = any($1)`, [[...new Set([...cast, ...opinions.rows.map((o) => o.about_id), ...heard.rows.map((h) => h.about_id)])]])).rows.map((r) => [r.id, shortName(r.name)]));
+  const triangles = await unbalancedTriangles(db, cast).catch(() => []);
+  const names = new Map((await db.query<{ id: string; name: string }>(`select id, name from characters where id = any($1)`, [[...new Set([...cast, ...opinions.rows.map((o) => o.about_id), ...heard.rows.map((h) => h.about_id), ...triangles.map((x) => x.about)])]])).rows.map((r) => [r.id, shortName(r.name)]));
   const nm = (id: string) => names.get(id) ?? "someone";
   const out: Tension[] = [];
 
@@ -998,6 +1002,11 @@ export async function tensions(db: Db, seasonId: string, opts: { now?: Date; hol
     const back = opinions.rows.find((p) => p.holder_id === o.about_id && p.about_id === o.holder_id && p.trust <= -1);
     if (!back) continue;
     out.push({ kind: "mutual_distrust", a: o.holder_id, b: o.about_id, about: null, weight: 3 + (-o.trust - 1) + (-back.trust - 1), line: `${nm(o.holder_id)} and ${nm(o.about_id)} don't trust each other.`, evidence: { opinions: [{ holder: o.holder_id, about: o.about_id }, { holder: o.about_id, about: o.holder_id }] } });
+  }
+
+  // An unbalanced triangle in the public ties: two at odds, both close to a third. The record says so; no take, no claim.
+  for (const x of triangles) {
+    out.push({ kind: "unbalanced_triangle", a: x.a, b: x.b, about: x.about, weight: 4, line: `${nm(x.a)} and ${nm(x.b)} don't get on, and both are close to ${nm(x.about)}.`, evidence: { ties: x.ties } });
   }
 
   return out.sort((x, y) => y.weight - x.weight || x.kind.localeCompare(y.kind) || x.a.localeCompare(y.a) || x.b.localeCompare(y.b) || (x.about ?? "").localeCompare(y.about ?? ""));
