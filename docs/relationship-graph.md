@@ -32,6 +32,12 @@ name), `second_date`, `own_date` (agents performing it) or `show` (a lobby room)
 only: `viewRelationship` never shows it, since a match or a proposal is its owners' business. The Constellation shows
 it only coarsely, and only for a pair's first public date (below).
 
+**Beyond dating: the social network** (2026-11-20, [PRD](PRDs/social-network.md), `lib/social/`). This graph is one
+layer of a wider one.
+- **Ties:** every public edge here is also a `dated` tie in `social_ties`, derived from the public layer only (`lib/social/derive.ts`). Its layer comes from the shown stage: friends is friendship, bad blood is conflict.
+- **Other ties:** kin, friends, coworkers, rivals, house feuds, told lines and off-screen people sit beside it, with places and who shares them.
+- **Reading it:** `lib/social/read.ts`, behind `/api/social/world/[id]`, `/api/social/pair/[a]/[b]` and `/api/social/sky?lens=`. It follows this graph's privacy rules: a pair touching a private character is existence only, and a deleted or persona character vanishes. It is cached like the Constellation, under the same tag (`lib/social/cache.ts`).
+
 ## Stages (`lib/relationship-stages.ts`, 2026-11-16)
 
 A couple has a love life, not one of seven labels. Every stage is **derived** from what the engine already decided
