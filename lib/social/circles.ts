@@ -310,6 +310,22 @@ export async function pairHistory(db: Db, pairs: readonly [string, string][]): P
   return { romance, kin };
 }
 
+/**
+ * The full names (two words or more, lower case) among these that a public character on the site has: the show's
+ * off-screen people are never one of them (2026-11-20 dry run: a cast member's rival "Barnaby Thorne" was another
+ * cast member). A single first name ("Adele") is left alone: a parent's first name isn't someone's character.
+ */
+async function charactersNamed(db: Db, names: readonly (string | null | undefined)[]): Promise<Set<string>> {
+  const full = [...new Set(names.map((n) => lower(n ?? "")).filter((n) => n.includes(" ")))];
+  if (!full.length) return new Set();
+  const { rows } = await db.query<{ name: string }>(
+    `select distinct lower(c.name) as name from characters c
+      where lower(c.name) = any($1::text[]) and c.visibility = 'public' and c.owner_id is distinct from $2 and ${notPersonaSql("c")}`,
+    [full, DELETED_OWNER],
+  );
+  return new Set(rows.map((r) => r.name));
+}
+
 /** Why a tie of this kind can't join this pair's history: kin between two who've dated, or romance between kin. */
 export function pairClash(kind: TieKindId, pair: string, history: { romance: ReadonlySet<string>; kin: ReadonlySet<string> }): string | null {
   const layer = TIE_KINDS[kind].layer;
@@ -352,9 +368,10 @@ async function planCircle(db: Db, input: CircleIn, o: CircleOptions, show: Reado
   const me = input.character_id;
   const by = o.source;
 
-  // People: a name and relation the registry and the text check take; each name once.
+  // People: a name and relation the registry and the text check take; each name once; never someone on the site.
   const people: PlannedPerson[] = [];
   const personNames = new Set<string>();
+  const onSite = await charactersNamed(db, (input.people ?? []).slice(0, CIRCLE_LIMITS.people).map((p) => p.name));
   for (const p of (input.people ?? []).slice(0, CIRCLE_LIMITS.people)) {
     const what = clean(p.name) || "(no name)";
     const kind = kindFromWords(p.relation);
@@ -383,6 +400,10 @@ async function planCircle(db: Db, input: CircleIn, o: CircleOptions, show: Reado
     }
     if (personNames.has(lower(checked.name!))) {
       refused.push({ item: "person", what, reason: "named twice" });
+      continue;
+    }
+    if (onSite.has(lower(checked.name!))) {
+      refused.push({ item: "person", what, reason: "a character on the site: a tie, not an off-screen person" });
       continue;
     }
     personNames.add(lower(checked.name!));
