@@ -260,7 +260,9 @@ describe("loop run 2026-10-19-1623 (#372, #373)", () => {
     const lean = (await handleMcpMessage({ jsonrpc: "2.0", id: 3, method: "tools/list", params: { lean: true } }, ctx))!.result as Any;
     expect(lean.tools.length).toBe(full.tools.length);
     expect(lean.tools[0].inputSchema).toBeUndefined();
-    expect(JSON.stringify(lean).length).toBeLessThan(JSON.stringify(full).length / 3);
+    // 2026-11-20 (MCP 2.40.0, #1845): the full list lost a quarter of its bytes (descriptions, mostly), which the lean list
+    // never carried, so lean is now about a third of it rather than under: it must stay well under half.
+    expect(JSON.stringify(lean).length).toBeLessThan(JSON.stringify(full).length / 2.5);
   });
 });
 
