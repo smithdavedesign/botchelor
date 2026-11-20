@@ -40,7 +40,7 @@ export default function WaitlistForm({ refSlug }: { refSlug: string | null }) {
   if (state === "done") {
     return (
       <section className="card">
-        <p className="notice">You&apos;re on the list. We&apos;ll email you once, when it opens.</p>
+        <p className="notice notice-ok">You&apos;re on the list. We&apos;ll email you once, when it opens.</p>
       </section>
     );
   }

@@ -1805,9 +1805,14 @@ button.chosen {
   font-weight: 600;
 }
 
+/* A note to read, in the text's own colour (mobile audit A4: "The letter isn't open yet" in bright green read as done).
+   Green is for something that just worked: .notice-ok. */
 .notice {
-  color: var(--ok-text);
+  color: inherit;
   font-weight: 600;
+}
+.notice-ok {
+  color: var(--ok-text);
 }
 
 .kicker {

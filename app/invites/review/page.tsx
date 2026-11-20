@@ -45,7 +45,7 @@ export default async function InviteReview({ searchParams }: { searchParams: Sea
         <li className="muted small">Asked {new Date(invite.requested_at).toUTCString()}</li>
       </ul>
       {done === "approved" ? (
-        <p className="notice" data-invite-done="approved">
+        <p className="notice notice-ok" data-invite-done="approved">
           Approved: they have {BETA_DAYS} days of After Dark.{" "}
           {p.welcomed ? "The welcome email is on its way." : "The welcome email didn't go out (email is off or capped): let them know yourself."}
         </p>

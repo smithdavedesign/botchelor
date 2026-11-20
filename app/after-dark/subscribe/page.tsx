@@ -110,7 +110,7 @@ export default async function AfterDarkSubscribe({ searchParams }: { searchParam
         {preview && <PreviewNote as={preview} />}
         <AgeResult age={params.age} />
         {params.done === "1" && (
-          <p className="notice" data-subscribe-done>
+          <p className="notice notice-ok" data-subscribe-done>
             Thanks. Your subscription opens as soon as the payment is confirmed, usually within a minute: refresh this page. It renews monthly at{" "}
             {price} until you cancel, and you can cancel any time from <Link href="/account">your account</Link> or <Link href="/cancel">online</Link>.
           </p>
@@ -194,7 +194,7 @@ function PreviewNote({ as }: { as: "visitor" | "signed-in" }) {
 
 /** How an age check went, on the way back from Didit (app/api/after-dark/verify/return). */
 function AgeResult({ age }: { age: string | string[] | undefined }) {
-  if (age === "passed") return <p className="notice" data-age-result="passed">You&apos;ve verified your age. After Dark is open to you here for a year.</p>;
+  if (age === "passed") return <p className="notice notice-ok" data-age-result="passed">You&apos;ve verified your age. After Dark is open to you here for a year.</p>;
   if (age === "failed") return <p className="error" data-age-result="failed">The age check didn&apos;t pass, so After Dark stays as it was here.</p>;
   if (age === "pending") return <p className="notice" data-age-result="pending">Your age check is still being looked at. Refresh in a minute or two.</p>;
   return null;

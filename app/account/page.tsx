@@ -99,7 +99,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Sear
     <>
       <h1>Your account</h1>
       {claimed > 0 && (
-        <p className="notice" role="status" data-claimed>
+        <p className="notice notice-ok" role="status" data-claimed>
           {claimed === 1 ? "Your character is in this account now" : `${claimed} characters are in this account now`}: <a href="#your-characters">your characters</a>.
         </p>
       )}

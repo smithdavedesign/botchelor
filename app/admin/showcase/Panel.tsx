@@ -23,20 +23,35 @@ type TwinBatch = { made: { original: string; id: string }[]; failed: { original:
 /** About what one SFW twin costs on Venice (the PG Studio's edit model, studio.pg.usd). */
 const TWIN_USD = 0.03;
 
+/** What a failed load of the queue says: never an empty queue. */
+export function loadFailure(status: number | null): string {
+  if (status === 401 || status === 403) return `Couldn't load the queue (${status}): sign in again as an admin. Nothing here means it's empty.`;
+  return `Couldn't load the queue${status ? ` (${status})` : ""}. Nothing here means it's empty.`;
+}
+
 export default function ShowcaseModeration() {
   const [posts, setPosts] = useState<HeldPost[] | null>(null);
   const [mine, setMine] = useState<Mine | null>(null);
   const [form, setForm] = useState({ handle: "", display_name: "" });
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  // A failed load says so (mobile audit C18: a 403 showed as "Nothing held or reported", so a moderator would think the
+  // queue was clear).
+  const [failed, setFailed] = useState<string | null>(null);
   const load = () =>
     fetch("/api/admin/showcase")
-      .then((r) => (r.ok ? r.json() : { posts: [] }))
-      .then((d) => {
+      .then(async (r) => {
+        if (!r.ok) {
+          setFailed(loadFailure(r.status));
+          setPosts([]);
+          return;
+        }
+        const d = await r.json();
+        setFailed(null);
         setPosts(d.posts ?? []);
         setMine(d.mine ?? null);
       })
-      .catch(() => setPosts([]));
+      .catch(() => (setFailed(loadFailure(null)), setPosts([])));
   async function saveHandle() {
     setBusy(true);
     const res = await requestJson("/api/creator-profile", { handle: form.handle, display_name: form.display_name }).catch(() => null);
@@ -289,6 +304,15 @@ export default function ShowcaseModeration() {
     void load();
   }
   if (!posts) return <p className="muted">Loading…</p>;
+  if (failed)
+    return (
+      <p className="error" role="alert">
+        {failed}{" "}
+        <button type="button" className="link-button" onClick={() => void load()}>
+          Try again
+        </button>
+      </p>
+    );
   if (!posts.length)
     return (
       <>
