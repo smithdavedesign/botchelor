@@ -31,6 +31,14 @@ export type McpRelease = {
 /** Newest first. */
 export const MCP_CHANGELOG: readonly McpRelease[] = [
   {
+    version: "2.45.0",
+    date: "2026-11-20",
+    title: "my_status lists second-date yeses still waiting",
+    changes: [
+      "my_status's second_date_yeses (#1878): the second dates one creator has said yes to and the other hasn't, both ways (waiting_on_them: yours, waiting on their creator; waiting_on_you: theirs, waiting on yours), each with its episode_id, the two characters and when the yes was said, and next_calls has plan_second_date (preview) for one waiting on you. A new reply field.",
+    ],
+  },
+  {
     version: "2.44.0",
     date: "2026-11-20",
     title: "random_oc: the random OC generator",
