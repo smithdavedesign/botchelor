@@ -139,6 +139,26 @@ describe("the prompt and the reply", () => {
     ]);
   });
 
+  it("makes someone on the show named as an off-screen person a tie when they're offered, and leaves them out otherwise", () => {
+    const ola = char("ola", { name: "Ola Brandt" });
+    const barn = char("barn", { name: "Barnaby Thorne" });
+    const reply = {
+      people: [
+        { name: "ola brandt", relation: "rival" },
+        { name: "Barnaby Thorne", relation: "rival" },
+        { name: "Me Doe", relation: "twin" },
+        { name: "Rosa", relation: "mother" },
+      ],
+      knows: [{ name: "Ola", relation: "cousin" }, { name: "Ola Brandt", relation: "cousin" }],
+    };
+    const circle = toCircle(char("me"), reply, { candidates: [ola], workplaces: [], everyone: [ola, barn, char("me")] });
+    expect(circle.people.map((p) => p.name)).toEqual(["Rosa"]);
+    expect(circle.ties).toEqual([
+      { with: "ola", relation: "cousin", story: null },
+      { with: "ola", relation: "rival", story: null },
+    ]);
+  });
+
   it("remembers what was written: the ties both ways, a new workplace for the next character", () => {
     const me = char("me", { name: "Mae Rook" });
     const ola = char("ola");

@@ -177,11 +177,21 @@ const lower = (s) => String(s ?? "").trim().toLowerCase();
  * (a workplace by its key when it's one the show has, else by name, made new); knows by name to ids, among the
  * candidates only. Leaves the checks to the site; drops only what isn't the right shape.
  */
-export function toCircle(me, reply, { candidates, workplaces }) {
+export function toCircle(me, reply, { candidates, workplaces, everyone = [] }) {
+  // Someone on the show isn't an off-screen person (2026-11-20 dry run: "Barnaby Thorne, rival" as one of Juniper's
+  // people, while Barnaby is in the cast): one of the candidates becomes a tie, anyone else on the show is left out.
+  const onShow = new Set(everyone.map((c) => lower(c.name)));
+  const asTies = [];
   const people = (Array.isArray(reply?.people) ? reply.people : []).slice(0, 8).flatMap((p) => {
     const name = str(p?.name, 120);
     const relation = str(p?.relation, 80);
     if (!name || !relation) return [];
+    const candidate = candidates.find((c) => lower(c.name) === lower(name));
+    if (candidate) {
+      asTies.push({ name: candidate.name, relation });
+      return [];
+    }
+    if (onShow.has(lower(name)) || lower(name) === lower(me.name)) return [];
     return [{ name, relation, pronouns: str(p?.pronouns, 40), note: str(p?.note, 400), deceased: p?.deceased === true }];
   });
   const places = [];
@@ -197,12 +207,15 @@ export function toCircle(me, reply, { candidates, workplaces }) {
   const regular = str(reply?.regular, 80);
   if (regular) places.push({ role: "regular", place: regular });
   const byName = new Map(candidates.flatMap((c) => [[lower(c.name), c], [lower(first(c.name)), c]]));
-  const ties = (Array.isArray(reply?.knows) ? reply.knows : []).slice(0, 2).flatMap((k) => {
+  const knows = [...(Array.isArray(reply?.knows) ? reply.knows : []), ...asTies];
+  const ties = [];
+  for (const k of knows) {
     const other = byName.get(lower(k?.name)) ?? byName.get(lower(first(k?.name)));
     const relation = str(k?.relation, 80);
-    if (!other || other.id === me.id || !relation) return [];
-    return [{ with: other.id, relation, story: str(k?.story, 600) }];
-  });
+    if (!other || other.id === me.id || !relation || ties.some((t) => t.with === other.id && lower(t.relation) === lower(relation))) continue;
+    ties.push({ with: other.id, relation, story: str(k?.story, 600) });
+    if (ties.length === 2) break;
+  }
   return { character_id: me.id, people, places, ties };
 }
 
@@ -298,7 +311,7 @@ async function main() {
       try {
         const raw = await brain.complete(messages, { maxTokens: 1200, temperature: 0.8, json: true, onServed: (m) => (served = m) });
         const reply = parseReply(raw);
-        if (reply) circle = toCircle(me, reply, { candidates, workplaces: offered });
+        if (reply) circle = toCircle(me, reply, { candidates, workplaces: offered, everyone });
         else log(`${me.name}: reply ${attempt + 1} wasn't JSON`);
       } catch (e) {
         log(`${me.name}: model try ${attempt + 1} failed: ${e.message}`);
@@ -334,8 +347,9 @@ async function main() {
     totals.ties += r.ties;
     totals.refused += r.refused.length;
     const named = (ids) => ids.map((t) => `${t.relation} ${byId.get(t.with)?.name ?? t.with}`).join(", ");
+    const placed = circle.places.map((p) => `${p.role} ${p.name ?? p.place}${p.neighbourhood ? ` (${p.neighbourhood})` : ""}`).join(", ");
     log(
-      `${me.name} [${me.kind}]: ${r.people} people (${circle.people.map((p) => `${p.name}, ${p.relation}`).join("; ")}), ${r.places} places, ${r.ties} ties${circle.ties.length ? ` (${named(circle.ties)})` : ""}` +
+      `${me.name} [${me.kind}]: ${r.people} people (${circle.people.map((p) => `${p.name}, ${p.relation}`).join("; ")}), ${r.places} places${placed ? ` (${placed})` : ""}, ${r.ties} ties${circle.ties.length ? ` (${named(circle.ties)})` : ""}` +
         (r.refused.length ? `; refused: ${r.refused.map((x) => `${x.item} ${x.what}: ${x.reason}`).join("; ")}` : ""),
     );
     if (!o.dryRun) remember(me, circle, r, { byId, ties, workplaces, world });
