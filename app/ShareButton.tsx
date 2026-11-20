@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import OverlayClose from "./OverlayClose";
+import { useOverlay } from "./useOverlay";
 
 /**
  * One Share button (2026-10-31 UX audit, D3: a five-line share form under every episode): the phone's own share sheet
@@ -31,17 +33,8 @@ export default function ShareButton({
   useEffect(() => setShown(window.location.origin + path), [path]);
   const [copied, setCopied] = useState(false);
   const box = useRef<HTMLSpanElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const away = (e: PointerEvent) => !box.current?.contains(e.target as Node) && setOpen(false);
-    const esc = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
-    document.addEventListener("pointerdown", away);
-    document.addEventListener("keydown", esc);
-    return () => {
-      document.removeEventListener("pointerdown", away);
-      document.removeEventListener("keydown", esc);
-    };
-  }, [open]);
+  // Escape, its ✕ or a press outside closes it; while it's open the page behind is inert and still (app/useOverlay.ts).
+  useOverlay(open, { root: box, onClose: () => setOpen(false) });
 
   const url = () => new URL(path, window.location.origin).toString();
   async function share() {
@@ -64,6 +57,7 @@ export default function ShareButton({
       </button>
       {/* Rendered hidden rather than not at all, so its links are in the page for crawlers and the share tests. */}
       <span className="share-pop card" role="group" aria-label="Share" hidden={!open}>
+          <OverlayClose onClose={() => setOpen(false)} label="Close sharing" className="share-pop-x" />
           {field && <input type="text" readOnly value={shown} aria-label={field} onFocus={(e) => e.currentTarget.select()} />}
           <button type="button" className="secondary small" onClick={() => void copy()} data-track={track} data-track-target={track ? "copy" : undefined}>
             {copied ? "Link copied ✓" : "Copy link"}

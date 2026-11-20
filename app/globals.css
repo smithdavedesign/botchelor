@@ -6493,7 +6493,9 @@ html.feedback-open body {
   background: rgba(20, 8, 24, 0.45);
 }
 html:has(.sheet-dialog[open]),
-html:has(.sheet-dialog[open]) body {
+html:has(.sheet-dialog[open]) body,
+html.overlay-open,
+html.overlay-open body {
   overflow: hidden;
 }
 /* The scrolling part, so a scrollbar never belongs to the dialog (a press on the dialog itself means the backdrop). */
@@ -6536,6 +6538,32 @@ button.sheet-x {
 button.sheet-x:hover:not(:disabled) {
   background: var(--soft);
   color: var(--ink);
+  transform: none;
+  box-shadow: none;
+}
+/* The same ✕ on a hand-made menu or popover (app/OverlayClose.tsx, app/useOverlay.ts): 44px, in the colour it sits on. */
+button.overlay-x {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  box-shadow: none;
+  color: inherit;
+  opacity: 0.75;
+  font-size: var(--icon-md);
+  font-weight: 400;
+  line-height: 1;
+}
+button.overlay-x:hover:not(:disabled) {
+  background: color-mix(in srgb, currentColor 10%, transparent);
+  opacity: 1;
   transform: none;
   box-shadow: none;
 }
@@ -13540,6 +13568,10 @@ button.pg-group-head:hover {
 }
 .thread-menu-panel[hidden] {
   display: none;
+}
+/* Its ✕ (app/OverlayClose.tsx): the top row's right end, above the items. */
+.thread-menu-x {
+  justify-self: end;
 }
 .thread-menu-item,
 button.thread-menu-item {

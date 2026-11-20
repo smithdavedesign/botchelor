@@ -1030,6 +1030,11 @@ details.recap-toggle[open] .recap-toggle-hide {
 .share-pop[hidden] {
   display: none;
 }
+/* Its ✕ (app/OverlayClose.tsx): top right, over the padding. */
+.share-pop > button.share-pop-x {
+  justify-self: end;
+  margin: calc(-1 * var(--space-2)) calc(-1 * var(--space-2)) 0 0;
+}
 .share-pop > input {
   width: 100%;
   margin: 0;
