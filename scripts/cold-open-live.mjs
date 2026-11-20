@@ -43,6 +43,9 @@ try {
     // 1. The hero: Watch in theater, and the short version beside it.
     const short = page.locator(".episode-hero-cta").getByRole("button", { name: /The short version/ });
     await short.waitFor({ timeout: 20_000 }).catch(() => problems.push(`${label}: no short version on the page`));
+    // The portraits and the venue fade in after the page is up: shot before they land, the faces are their colour tiles.
+    await page.waitForLoadState("networkidle", { timeout: 20_000 }).catch(() => {});
+    await page.waitForTimeout(800);
     await shot("episode-short-version-button");
 
     // 2. The theater opens on the cold open; no line has played behind it.

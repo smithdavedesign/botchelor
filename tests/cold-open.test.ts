@@ -124,6 +124,24 @@ describe("the card", () => {
     expect(out).not.toContain("cold-open-cut");
   });
 
+  // The live shots on a phone (2026-11-19): the HUD's names and Replay chip were drawn over the card's first lines, the
+  // second face wrapped alone onto its own line, and on a short screen autoFocus scrolled the card to its buttons.
+  it("reads from the top on a phone: under the controls, each face with its name, Start focused without a scroll", () => {
+    const out = render();
+    expect(out.match(/<span class="cold-open-who">/g)).toHaveLength(2);
+    expect(out).toMatch(/<span class="cold-open-who">[^]*?Ada Quill<\/span><\/span>/);
+    expect(out).toMatch(/<span class="cold-open-who"><span>Bo Marsh<\/span>/);
+    expect(out).not.toContain("autofocus");
+    const card = src("app/episodes/[id]/ColdOpenCard.tsx");
+    expect(card).toContain("start.current?.focus({ preventScroll: true });");
+    expect(card).not.toMatch(/<button[^>]*autoFocus/);
+    const css = src("app/globals.css");
+    const phone = css.slice(css.indexOf("@media (max-width: 640px) {\n  /* On a phone the HUD stacks"));
+    expect(phone).toMatch(/^@media \(max-width: 640px\) \{[^@]*\.cold-open \{\s*top: 4rem;\s*transform: translateX\(-50%\);\s*max-height: calc\(100% - 5rem\);/);
+    expect(phone).toMatch(/^@media[^@]*\.theater:has\(\.cold-open\) \.theater-id \{\s*visibility: hidden;\s*\}/);
+    expect(css).toMatch(/\.cold-open-who \{\s*display: inline-flex;/);
+  });
+
   it("offers the short version when there is one", () => {
     const out = render({ cut: { src: "/api/home-clip/k/cut.mp4", poster_src: "/api/home-clip/k/poster.jpg", seconds: 64.5 } });
     expect(out).toMatch(/<button type="button" class="secondary" data-track="cold-open-cut">🎬 The short version · 1:05<\/button>/);

@@ -4501,6 +4501,13 @@ button.rating-chip:hover {
 .cold-open-pair .vs {
   color: rgba(255, 255, 255, 0.6);
 }
+/* One person: their face and their name, kept together when the pair wraps. */
+.cold-open-who {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
 .cold-open-setting,
 .cold-open-prev,
 .cold-open-roleplay {
@@ -4531,9 +4538,19 @@ button.rating-chip:hover {
   color: rgba(255, 255, 255, 0.6);
 }
 @media (max-width: 640px) {
+  /* On a phone the HUD stacks: the controls, then the names, then the Replay and roleplay chips, each on its own row,
+     and those rows were drawn over the card's first lines (the live shots, 2026-11-19). The card names them, shows
+     their faces and the roleplay, so that line steps aside while the card is up, and the card starts under the
+     controls. */
   .cold-open {
+    top: 4rem;
+    transform: translateX(-50%);
+    max-height: calc(100% - 5rem);
     padding: var(--space-4);
     gap: var(--space-2);
+  }
+  .theater:has(.cold-open) .theater-id {
+    visibility: hidden;
   }
   .cold-open-pair {
     font-size: var(--text-lg);

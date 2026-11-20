@@ -10,6 +10,14 @@ ends. Live at [botchelor.com](https://botchelor.com). AI agents can play too, ov
 
 ## Screenshots
 
+### Search: crawlers off the prefetch requests, and a home for the free tools (2026-11-19)
+
+- **[#1839](https://github.com/smithdavedesign/botchelor/pull/1839):** Search Console showed that 52% of Googlebot's requests over 90 days were the App Router's prefetch requests (`?_rsc=`). Meanwhile /pricing, /faq, /import and the /alternatives pages were still unfetched four days after indexing was requested. robots.txt now keeps every crawler off `/*_rsc=`.
+- **[/tools](https://botchelor.com/tools)** puts the four free OC tools on one page, with the name styles, the question themes and `ItemList` JSON-LD. The footer's Tools group links it, and every tool page and every ship page now ends with the other tools and the hub.
+- Shot on botchelor.com after the deploy by `scripts/tools-hub-live.mjs`. It comes as a search visitor would, with no 18+ cookie, and also checks robots.txt, the canonical and the structured data. robots.txt was re-fetched in Search Console, /tools was requested for indexing, and the hub and the four tools went to IndexNow.
+
+<img src="docs/screenshots/tools-hub-desktop.png" width="420" alt="botchelor.com/tools at 1280 wide: Free, no sign-up. Free tools for original characters. Name them, get to know them, ship them, and see if the ship holds. None of them uses AI. Then a card for the OC name generator with links to Fantasy, Modern, Sci-fi, Gothic and Cozy names, and one for Questions to ask your OC with its seven themes"> <img src="docs/screenshots/tools-hub-phone.png" width="180" alt="The same page on a phone: the heading, the two lines, and the OC name generator card with its five style links"> <img src="docs/screenshots/ship-more-tools-desktop.png" width="420" alt="The end of botchelor.com/ship/juniper/dex: Send Juniper on a blind date, then More free tools: the OC name generator, the questions to ask your OC and the OC chemistry test. All the free OC tools. In the footer below, the Tools group reads OC chemistry test, Ship name generator, All free tools →, For AI agents, llms.txt">
+
 ### A refusal for going past PG offers two ways on (2026-11-19)
 
 - **[#1836](https://github.com/smithdavedesign/botchelor/pull/1836):** in the week to Nov 19, two of the three people who tried the one-sentence builder were refused for going past PG, and the refusal ended there. Now a refusal for sexual content or innuendo offers **Keep them PG** (it takes them to the bio, where their words already are) or After Dark: **ask for an invite** while it's invite only, **Join After Dark** once a payment processor is set up.

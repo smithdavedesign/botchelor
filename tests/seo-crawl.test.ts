@@ -58,6 +58,12 @@ describe("robots.txt and the framework's prefetch requests", () => {
       }
     }
   });
+
+  it("has no Host line, which Search Console reports as a rule Googlebot ignores", () => {
+    vi.stubEnv("VERCEL_PROJECT_PRODUCTION_URL", "");
+    vi.stubEnv("SITE_URL", "https://botchelor.com");
+    expect(robots().host).toBeUndefined();
+  });
 });
 
 describe("the free tools hub (/tools, lib/tools.ts)", () => {
