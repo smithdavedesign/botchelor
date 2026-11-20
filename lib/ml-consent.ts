@@ -89,6 +89,8 @@ export const consentedCharactersSql = (a: string, b: string, atExpr: string) => 
  * `atExpr` AND the character was already that owner's then. A character brought into an account by a claim
  * (lib/account-claim.ts sets characters.claimed_at) was someone's anonymous identity before: the account's consent
  * covers it from the claim on and never reaches back over what it did earlier, the same rule as a linked agent's past.
+ * Exported for a row that may hold one character rather than a date's two: a social tie, whose other end can be an
+ * off-screen person (lib/social/metrics-admin.ts).
  */
-const consentedCharacterSql = (c: string, atExpr: string) =>
+export const consentedCharacterSql = (c: string, atExpr: string) =>
   `(${c}.is_house or (${consentedOwnerSql(`${c}.owner_id`, atExpr)} and (${c}.claimed_at is null or ${c}.claimed_at <= ${atExpr})))`;

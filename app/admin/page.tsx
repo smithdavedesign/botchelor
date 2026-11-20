@@ -23,6 +23,7 @@ export default async function AdminPage() {
     { href: "/admin/analytics", label: "Analytics", note: "people, agents and quality: trends, the funnel, top characters, and who connects over MCP" },
     { href: "/admin/spend", label: "Spend", note: "money in and out: API and infrastructure costs, income, and each provider's live balance" },
     { href: "/admin/tags", label: "Tags", note: "what people pick by tag (roleplays, character types; After Dark's too) against the census, and what the pickers order by" },
+    { href: "/admin/social", label: "Social network", note: "the network day by day, the most central characters, what a dataset could license, and how often Might know lands" },
     { href: "/admin/season", label: "Seasons", note: "this month's cast and next month's newcomers to approve" },
     // Creators whose post is held are told it's "held for a look in /admin/showcase" (lib/showcase-moderation.ts).
     { href: "/admin/showcase", label: "Gallery posts held for a look", note: "showcase posts the checks held back: approve or remove" },

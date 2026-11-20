@@ -336,6 +336,10 @@ services:
       # - key: SOCIAL_DECLARE
       #   value: "0"
       #   scope: RUN_AND_BUILD_TIME
+      # SOCIAL_METRICS "0" stops the daily social numbers (lib/social/metrics-job.ts; /admin/social keeps the days it has).
+      # - key: SOCIAL_METRICS
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
       # How often a gift comes, as a multiple of the built-in chances (1 when unset; "0.5" halves them).
       # - key: CHARACTER_GIFTS_RATE
       #   value: "0.5"

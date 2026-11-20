@@ -37,6 +37,7 @@ import { clearStaleOwnDates } from "@/lib/own-date";
 import { refreshLobby } from "@/lib/watch";
 import { seasonGenerationDue } from "@/lib/season-gen";
 import { backfillEmbeddings } from "@/lib/originality-concept";
+import { computeSocialMetrics, METRICS_BUDGET_MS } from "@/lib/social/metrics-job";
 
 // A fresh template date (~10 model calls) plus a few backfilled conversations (~8 calls each).
 export const maxDuration = 300;
@@ -53,7 +54,8 @@ const MAX_BACKFILL = 6;
  * - upkeep: retention and the other prunes (database deletes, a few bucket deletes).
  * - show: the lobby's fresh room, backfilled conversations, queued dates, arcs, backings, the weekly cast date.
  * - people: the couples' daily texts, then the digest (so today's texts are in it), reminders, nudges, matchmaker.
- * - growth: IndexNow, the characters' weekly lessons, next season's candidates, concept embeddings, the relationship metrics.
+ * - growth: IndexNow, the social network's numbers, the characters' weekly lessons, next season's candidates, concept
+ *   embeddings, the relationship metrics.
  */
 const PARTS = ["upkeep", "show", "people", "growth"] as const;
 type Part = (typeof PARTS)[number];
@@ -187,6 +189,21 @@ async function growth({ db, step, t0 }: Ctx): Promise<PartResult> {
       .then((urls) => submitIndexNow(urls))
       .catch(() => ({ submitted: 0, status: null })),
   );
+  // The social network's numbers (lib/social/metrics-job.ts, docs/PRDs/social-network.md section 5.5): the public ties
+  // between public characters measured once a day, a row per character and layer and one for the whole network, for
+  // /admin/social and the dataset. Before the lessons, so it always gets its time; no model call. It stops at its own
+  // budget, and the hourly job's passes finish a day it left short. SOCIAL_METRICS=0 (or SOCIAL_TIES=0): off.
+  const social = await step("social_metrics", () =>
+    computeSocialMetrics(db, { budgetMs: METRICS_BUDGET_MS }).catch(() => ({
+      day: "",
+      stopped: "error" as const,
+      ties: 0,
+      nodes: 0,
+      rows: 0,
+      complete: false,
+      ms: 0,
+    })),
+  );
   // Learning, weekly (lib/character-lessons.ts): what each character that has been out learned about itself, written once
   // a week from its own side of its aired dates, on the free model (the paid default as the fallback, then a template),
   // at most 40 characters a day, two seconds apart (the free model's per-minute limit is the live show's too), then the
@@ -245,8 +262,12 @@ async function growth({ db, step, t0 }: Ctx): Promise<PartResult> {
     });
   }
   return {
-    body: { indexnow, embeddings, character_lessons: lessons },
+    body: { indexnow, embeddings, character_lessons: lessons, social_metrics: social },
     counts: {
+      social_metrics_rows: social.rows,
+      social_metrics_nodes: social.nodes,
+      social_metrics_ties: social.ties,
+      social_metrics_stopped: social.stopped,
       lessons_written: lessons.written,
       lessons_by_template: lessons.by_template,
       lesson_texts: lessons.texts,

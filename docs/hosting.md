@@ -243,6 +243,11 @@ ignore it.
   `SOCIAL_TIES=0` stops every social write and read: nothing is declared, derived from what aired or backfilled, the
   shared world isn't seeded, and the social routes and pages close; rows already written stay. `SOCIAL_DECLARE=0`
   keeps what aired derives and stops owners' and agents' declarations and proposals. No model call, no cost.
+- **`SOCIAL_METRICS`** (the show's app, not a secret; on unless `0`, and off whenever `SOCIAL_TIES` is): the social
+  network's daily numbers (`lib/social/metrics-job.ts`, PRD §5.5 and §10). A step of the daily job's `growth` part
+  measures the public ties between public characters, within 45 seconds, and writes `social_metrics` and
+  `social_network_daily`; the hourly job finishes a day it left short. `/admin/social` reads them. Off: no new day is
+  measured, the days already written stay and the admin page says so. No model call, no cost.
 - **`HOUSE_ROOM_TEXTS`** (the show's app, not a secret; on by default, `0` turns it off without a deploy of code): a
   house room on Watch writes morning-after texts like a booked date does (`lib/watch.ts`, `lib/afterglow.ts`; a few
   short model calls a room, about a cent on the paid model), and a house couple's page shows each aired date's texts to

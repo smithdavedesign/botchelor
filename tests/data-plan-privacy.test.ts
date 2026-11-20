@@ -149,7 +149,37 @@ describe("retention (lib/retention.ts)", () => {
 
     // A tap on the Plus tile (lib/plus-interest.ts) is kept the same 400 days.
     await t.db.query(`insert into plus_interest (user_id, place, with_email, created_at) values ('fan', 'shop', false, $1), ('fan', 'out_of_dates', false, $2)`, [old, recent]);
-    expect(await pruneKeptData(t.db, now)).toEqual({ choice_history: 1, swipe_impressions: 1, turn_drafts: 1, relationship_events: 1, episode_variations: 1, language_seen: 1, web_events: 1, plus_interest: 1 });
+    // The social network (docs/PRDs/social-network.md §8): suggestions shown 400 days; the daily numbers 400 days a day,
+    // then one day a week (Mondays) stays.
+    for (const when of [old, recent]) {
+      await t.db.query(`insert into social_suggestion_log (viewer, character_id, suggested_id, reason, shown_at) values ('fan', $1, $2, 'common_friends', $3)`, [
+        d.character,
+        d.partner,
+        when,
+      ]);
+    }
+    const monday = new Date(old);
+    while (monday.getUTCDay() !== 1) monday.setUTCDate(monday.getUTCDate() - 1);
+    const tuesday = new Date(monday.getTime() - 6 * 86_400_000);
+    for (const day of [monday, tuesday, new Date(recent)]) {
+      await t.db.query(`insert into social_metrics (character_id, day, layer, degree) values ($1, $2::date, 'all', 1)`, [d.character, day.toISOString().slice(0, 10)]);
+    }
+    expect(await pruneKeptData(t.db, now)).toEqual({
+      choice_history: 1,
+      swipe_impressions: 1,
+      turn_drafts: 1,
+      relationship_events: 1,
+      episode_variations: 1,
+      language_seen: 1,
+      web_events: 1,
+      plus_interest: 1,
+      social_suggestion_log: 1,
+      social_metrics: 1,
+    });
+    expect((await t.db.query(`select to_char(day, 'YYYY-MM-DD') as day from social_metrics order by day`)).rows.map((r) => r.day)).toEqual([
+      monday.toISOString().slice(0, 10),
+      recent.slice(0, 10),
+    ]);
     expect((await t.db.query(`select place from plus_interest`)).rows).toEqual([{ place: "out_of_dates" }]);
     expect((await t.db.query(`select kind from choice_history where user_id = 'fan' order by kind`)).rows).toEqual([{ kind: "ml_consent" }, { kind: "prediction" }]);
     expect(await count(`select 1 from swipe_impressions where at < $1`, [recent])).toBe(0);

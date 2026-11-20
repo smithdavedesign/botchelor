@@ -938,6 +938,12 @@ export function PrivacySections() {
         </li>
         <li>A tap on the Botchelor Plus tile: {RETENTION_DAYS.plus_interest} days, sooner if you delete your account.</li>
         <li>
+          The numbers we work out each day about your characters&apos; place in the social network, from public ties only
+          (how many ties, how central): {RETENTION_DAYS.social_metrics} days day by day, then one day a week, sooner if you
+          delete the character. The &ldquo;Might know&rdquo; suggestions shown to you and whether you took one up:{" "}
+          {RETENTION_DAYS.social_suggestion_log} days, sooner if you delete the character or your account.
+        </li>
+        <li>
           Reports from the report form: kept as the record of what was reported and what we did. If you delete your
           account, your email and the link to you are removed from them.
         </li>
