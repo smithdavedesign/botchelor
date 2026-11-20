@@ -1036,14 +1036,22 @@ export async function createBrain({
     reason = why;
     log(`brain: off for the rest of the run: ${why}`);
   };
-  const run = async (messages, maxTokens) => {
+  const run = async (messages, { maxTokens, temperature = 0.9, json = false, onServed = null }) => {
     if (!enabled) throw failure(reason, reason);
     let res;
     try {
       res = await fetchImpl(`${baseUrl}/chat/completions`, {
         method: "POST",
         headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
-        body: JSON.stringify({ model, messages, temperature: 0.9, max_tokens: maxTokens, stream: false, disable_fallbacks: true }),
+        body: JSON.stringify({
+          model,
+          messages,
+          temperature,
+          max_tokens: maxTokens,
+          stream: false,
+          disable_fallbacks: true,
+          ...(json ? { response_format: { type: "json_object" } } : {}),
+        }),
         signal: AbortSignal.timeout(timeoutMs),
       });
     } catch (e) {
@@ -1067,6 +1075,8 @@ export async function createBrain({
     const content = body?.choices?.[0]?.message?.content;
     if (typeof content !== "string") throw failure("no content", "empty reply");
     failures = 0;
+    // Which model answered (a writer records it as the rows' origin_model): the deployment's own name when LiteLLM says.
+    if (onServed) onServed(served || body?.model || model);
     return content;
   };
   const brain = {
@@ -1085,9 +1095,12 @@ export async function createBrain({
     disable,
     count: (path, why) => counters.count(path, why ?? reason),
     summary: () => ({ ...counters.summary(enabled ? model : null, reason), ...(enabled ? {} : { model_was: model }) }),
-    /** One completion at a time (one local model), checked to have come from a local deployment. */
-    complete(messages, { maxTokens = 120 } = {}) {
-      const p = queue.then(() => run(messages, maxTokens));
+    /**
+     * One completion at a time (one local model), checked to have come from a local deployment. `temperature` (0.9 by
+     * default), `json` asks for a JSON object, and `onServed(name)` hears which deployment answered.
+     */
+    complete(messages, { maxTokens = 120, temperature, json, onServed } = {}) {
+      const p = queue.then(() => run(messages, { maxTokens, temperature, json, onServed }));
       queue = p.catch(() => {});
       return p;
     },
@@ -1103,7 +1116,7 @@ export async function createBrain({
  * LOOP_STUB=1 means scripted unless LOOP_CROWD_BRAIN=1 asks for the local model anyway (a local check of the brain on
  * a stubbed arena); LOOP_CROWD_BRAIN=0 always means scripted.
  */
-export async function brainFromEnv(env = process.env, { log = () => {} } = {}) {
+export async function brainFromEnv(env = process.env, { log = () => {}, timeoutMs } = {}) {
   if (env.LOOP_STUB === "1" && env.LOOP_CROWD_BRAIN !== "1") return createBrain({ stub: true, log });
   if (env.LOOP_CROWD_BRAIN === "0") {
     log("brain: scripted replies for the whole run: LOOP_CROWD_BRAIN=0");
@@ -1123,6 +1136,7 @@ export async function brainFromEnv(env = process.env, { log = () => {} } = {}) {
     configPath: env.LOOP_CROWD_LITELLM_CONFIG || DEFAULT_LITELLM_CONFIG,
     key,
     log,
+    ...(timeoutMs ? { timeoutMs } : {}),
   });
 }
 

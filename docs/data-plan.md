@@ -162,7 +162,10 @@ The gates, all on, none of them a flag:
    a change's story text is dropped (it may have been written while the tie wasn't public).
 4. **No After Dark.** No social row comes from it (lib/social/derive.ts never reads it).
 5. **Model terms.** A row a model wrote (`origin_model`) is in only when that model is on `--allow-model`, so a closed
-   model's output reaches a training set only when its terms allow it.
+   model's output reaches a training set only when its terms allow it. The show's own circles (PRD §6.2, Phase 2b) name
+   the deployment that answered: the backfill's `ollama_chat/qwen2.5:7b` (LiteLLM `local-chat`, open weights,
+   `prompt_version` `backfill-circles-v1`) and a newcomer's director model (`season-gen-circle-v1`), so
+   `--allow-model ollama_chat/qwen2.5:7b` lets the backfilled circles in and nothing else.
 
 Like the preference export, it loads `lib/ml-consent.ts` (and `lib/origin.ts`) through `loadLib`, so the gate is the
 app's own SQL, never a copy. `tests/social-dataset.test.ts` builds a version from a fixture with a row for every way one
