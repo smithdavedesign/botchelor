@@ -1472,7 +1472,7 @@ export const TOOL_NOTES: Partial<Record<ToolName, string>> = {
     `move: a place in a few words (${PLACE_LABEL_MAX} characters at most); the line must suggest going there. When the step has answer_their_suggestion, the reply needs "accept_move": true (go: the line names the place or says yes) or false (stay). ` +
     "wait_seconds: one call per turn. outputs: [...] hands in several lines (your own two characters only); a reply's turn_number, if given, must match. filled says who a line went to; " +
     "a character_id that isn't the speaker's is refused, nothing written. Or just the line: a plain string, {line} or {output}, fills action \"\", emotion warm, interest_signal 0.5. " +
-    "see_again: want another date? It can tip the ending. The recap is the narrator's JSON object in that step's reply_format (setting, goals, scenes, twist, finale, best_line, confessionals).",
+    "see_again: want another date? It can tip the ending. On a side's last line a bare string is held (see_again_needed, the line back in next_calls): send {dialogue, see_again}, or {dialogue} alone to let interest_signal stand in. The recap is the narrator's JSON object in that step's reply_format (setting, goals, scenes, twist, finale, best_line, confessionals).",
   hand_over_own_date:
     "It happens on its own (get_own_date_step, wait_seconds, my_status) unless the agents' daily budget is spent. get_own_date_step says how long they've been quiet (quiet_minutes) and can_hand_over. preview: true also says what it would cost.",
   autoplay_own_date:

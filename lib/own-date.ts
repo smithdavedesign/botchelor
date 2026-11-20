@@ -427,6 +427,8 @@ export type OwnDateResult =
       move_ignored?: string;
       /** 2.10.1 (#672): a see_again sent with something that carries none (the recap), and why. */
       wish_ignored?: string;
+      /** #1860: a side's last line came as a bare string and was held: whose it is and the line, for a resubmit with see_again. */
+      see_again_needed?: { character: string; dialogue: string };
       /** #1526: a side's last line went in without see_again: what stands in. */
       wish_defaulted?: WishDefaulted;
       /** #1522: a character_id sent with the recap, which no character speaks: ignored, and said. */
@@ -1987,6 +1989,12 @@ async function notFound(db: Db, userId: string, episodeId: string): Promise<OwnD
   return err(404, "own_date_not_found", "No self-performed date of yours with that id.");
 }
 
+/** #1860: a reply that came as a bare line of dialogue (a string that isn't a JSON object), which can't carry see_again. */
+const isBareLine = (output: unknown): boolean => typeof output === "string" && !output.trim().startsWith("{");
+/** #1860: why a bare last line was held, and the two ways on: the object form with see_again, or an object without it. */
+export const bareLastLineRefusal = (name: string): string =>
+  `this is ${name}'s last line, and a bare string can't carry see_again (private: does ${shortName(name)} want another date? With the other side's, it can tip the ending). ` +
+  `Send the same line as {"dialogue": "…", "see_again": true or false}. To let its interest_signal stand in instead, send {"dialogue": "…"} with no see_again.`;
 const asText = (output: unknown): string => (typeof output === "string" ? output : JSON.stringify(output ?? null));
 
 /** A submission for a turn another submission filled first (2.8.0, #648): refused, with the date as it is now. */
@@ -2042,7 +2050,13 @@ export function pinnedSide(pin: string, ids: readonly [string, string], names: r
  * pins a turn to the character it was written for: checked against the same read the save is guarded on, so a call that
  * lands after another took the turn is refused (wrong_speaker), never stored as the next character's line.
  */
-export async function submitOwnDateStep(db: Db, userId: string, episodeId: string, output: unknown, opts: { checkOnly?: boolean; speaker?: string } = {}): Promise<OwnDateResult> {
+export async function submitOwnDateStep(
+  db: Db,
+  userId: string,
+  episodeId: string,
+  output: unknown,
+  opts: { checkOnly?: boolean; speaker?: string; refuseBareLastLine?: boolean } = {},
+): Promise<OwnDateResult> {
   const row = await load(db, userId, episodeId);
   const over = await finishedRefusal(db, userId, episodeId, row);
   if (over) return over;
@@ -2106,6 +2120,14 @@ export async function submitOwnDateStep(db: Db, userId: string, episodeId: strin
     if (moveNote) {
       await draft("agent_refused", moveNote, parsed.turn.dialogue);
       return refuse(`${moveNote.charAt(0).toUpperCase()}${moveNote.slice(1)}.`);
+    }
+    // #1860 (the 2026-11-19-1952 run: three agents' bare-string last lines went in, and the date closed with no see_again;
+    // #1526's wish_defaulted said so only once the lever was gone): a single submit's bare line on a side's last line, with
+    // no see_again sent on an earlier line of the side's, is held, and asks for the object form. An object without see_again
+    // is the way to let the interest_signal stand in; a batch (outputs[]) keeps today's wish_defaulted note.
+    if (opts.refuseBareLastLine && current.see_again && typeof parsed.wish !== "boolean" && isBareLine(output) && typeof row.wishes?.[current.side] !== "boolean") {
+      await draft("agent_refused", "see_again_missing", parsed.turn.dialogue);
+      return { ok: true, step: forViewer(current, userId, performersOf(row), twoAgent, lastMove(row), botSide(row, userId)), rejected: bareLastLineRefusal(speaker.name), see_again_needed: { character: speaker.name, dialogue: parsed.turn.dialogue } };
     }
     // check_only (2026-10-20 visitors: "validate a line before it counts"): every check above passed; nothing is saved.
     if (opts.checkOnly) {

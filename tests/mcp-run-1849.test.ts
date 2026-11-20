@@ -5,9 +5,9 @@ import { MCP_SERVER_INFO, SECOND_DATE_CAP_NOTE, withoutPlaceTokens } from "@/lib
 
 // The 2026-11-19-1849 visitor run: #1857 (my_dates limit), #1858 (a raw home@ token), #1856 (a yes refused at the cap).
 describe("the 2026-11-19-1849 run (2.42.0)", () => {
-  it("is the newest version, with its entry", () => {
-    expect(MCP_SERVER_INFO.version).toBe("2.42.0");
-    expect(MCP_CHANGELOG[0]).toMatchObject({ version: "2.42.0" });
+  it("has its changelog entry", () => {
+    expect(MCP_SERVER_INFO.version).toMatch(/^2\.\d+\.\d+$/);
+    expect(MCP_CHANGELOG.some((r) => r.version === "2.42.0")).toBe(true);
   });
 
   it("my_dates takes limit (#1857)", () => {

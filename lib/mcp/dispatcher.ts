@@ -99,7 +99,7 @@ import { loadSoul, ownsCharacter } from "../souls";
 import { deleteCharacter } from "../account";
 import { invalidateGraph } from "../graph-cache";
 import { isOwnUpdate, thisWeek, type StoredThisWeek } from "../life";
-import { advanceQuietDatesFor, autoplayOwnDate, DATE_FINISHED, RECAP_FINALE_RULE, RECAP_REPLY, declineOwnDate, endingLine, episodeLines, getOwnDateStep, handOverOwnDate, houseBotDateNote, openOwnDates, quietPartnerNote, roleplayPlaceNote, type OpenOwnDate, ownDateInProgress, ownDateInProgressMessage, OWN_DATE_HANDOVER_MINUTES, OWN_DATE_NUDGE_MINUTES, type OwnDateStep, previewAutoplay, previewOwnDate, RACED, WRONG_SPEAKER, seeAgainLead, startOwnDate, submitOwnDateStep, TURN_FIELDS, TURN_SHAPES, turnDefaultsUsed, turnLead, twoAgentDatesFor, unwrapOutput, carriesSeeAgain, foldTurnFields, handOverClock, type KeptWish, type WishDefaulted } from "../own-date";
+import { advanceQuietDatesFor, autoplayOwnDate, DATE_FINISHED, RECAP_FINALE_RULE, RECAP_REPLY, declineOwnDate, endingLine, episodeLines, getOwnDateStep, handOverOwnDate, houseBotDateNote, openOwnDates, quietPartnerNote, roleplayPlaceNote, type OpenOwnDate, ownDateInProgress, ownDateInProgressMessage, OWN_DATE_HANDOVER_MINUTES, OWN_DATE_NUDGE_MINUTES, type OwnDateStep, previewAutoplay, previewOwnDate, RACED, WRONG_SPEAKER, seeAgainLead, sideLines, startOwnDate, submitOwnDateStep, TURN_FIELDS, TURN_SHAPES, turnDefaultsUsed, turnLead, twoAgentDatesFor, unwrapOutput, carriesSeeAgain, foldTurnFields, handOverClock, type KeptWish, type WishDefaulted } from "../own-date";
 import { extrasJsonSchema, MAX_HOBBIES, normaliseExtras, PROFILE_MIN_INTERESTS, PROFILE_MIN_PROMPTS, PROFILE_PROMPTS, profileComplete, profileMissing, type CharacterExtras } from "../extras";
 import { audienceAllows } from "../audience";
 import { rateCharacter, topRatedCharacters } from "../ratings";
@@ -298,7 +298,7 @@ export const MCP_PROTOCOL_VERSION = "2025-06-18";
 // get_character returns it. New arguments and reply fields only.
 // 2.40.0 (2026-11-20, #1845): the default tools/list ~64 KB → ~48 KB: shorter descriptions, each tool's return shape
 // and finer points in TOOL_NOTES (every other list, the cheatsheet), a short cost line; no argument, enum or tool changed.
-export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.42.0" } as const;
+export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.43.0" } as const;
 
 /** Where every tool is listed: the default list is the core (2026-10-20: 53 tools were ~14k tokens in every agent's context). */
 export const ALL_TOOLS_HINT = "/api/mcp?tools=all";
@@ -4019,6 +4019,18 @@ function wishDefaulted(w: WishDefaulted): Record<string, unknown> {
         : `No see_again with ${first}'s last line (turn ${w.turn_number}). ${standIn >= 0 ? w.stand_in.slice(standIn) : "Its interest_signal stands in."} It can't be changed now. On a last line send output as {"dialogue": "…", "see_again": true or false}: a bare string can't carry it.`,
   };
 }
+/** #1860: the resubmit for a held bare last line: the same line as an object, see_again to fill in. */
+function bareLastLineCall(step: Extract<OwnDateStep, { stage: "turn" }>, dialogue: string): NextCall {
+  return nextCall(
+    "submit_own_date_step",
+    {
+      episode_id: step.episode_id,
+      output: { dialogue, see_again: `<true or false: does ${step.speaker.name} want another date?>` },
+      ...(step.ending ? { character_id: step.speaker.id } : { wait_seconds: WAIT_MAX_SECONDS }),
+    },
+    `The same line for turn ${step.turn_number}, now carrying see_again (or leave see_again out of the object to let interest_signal stand in).`,
+  );
+}
 /** Each side's last line, in a sentence that leads with a space, from a turn step; "" for any other step (#1530). */
 function lastLineTurnsText(step: OwnDateStep): string {
   if (step.stage !== "turn") return "";
@@ -4077,6 +4089,18 @@ function swipePreview(p: SwipePreview, args: Record<string, unknown>): Record<st
 const SWIPE_WORDS: Record<string, boolean> = { true: true, like: true, liked: true, right: true, yes: true, false: false, pass: false, left: false, no: false, nope: false };
 const likeOf = (v: unknown): boolean | null => (typeof v === "boolean" ? v : (SWIPE_WORDS[String(v ?? "").trim().toLowerCase()] ?? null));
 
+/** #1861: the speaker's own line on a turn step: n of the side's `of` lines, and the date's turns that are the side's. */
+type YourLine = { n: number; of: number; turns: number[] };
+function yourLineOf(step: Extract<OwnDateStep, { stage: "turn" }>): YourLine {
+  const first = step.side === "a" ? 1 : 2;
+  const turns: number[] = [];
+  for (let t = first; t <= step.of; t += 2) turns.push(t);
+  return { n: Math.floor((step.turn_number - 1) / 2) + 1, of: sideLines(step.of, step.side), turns };
+}
+/** #1861: "Tamsin's line 2 of 6: turns alternate, hers are 1, 3, 5, …" in a few words, for the step summary. */
+const yourLineWords = (step: Extract<OwnDateStep, { stage: "turn" }>, y: YourLine): string =>
+  `${shortName(step.speaker.name)}'s line ${y.n} of ${y.of}: turns alternate between the two characters, ${shortName(step.speaker.name)}'s are ${y.turns.length > 4 ? `${y.turns.slice(0, 3).join(", ")}, … ${y.turns.at(-1)}` : y.turns.join(", ")}`;
+
 /** The own-date tools whose reply carries a step (#559): its key fields are mirrored at the top level too. */
 const STEP_TOOLS = new Set(["start_own_date", "get_own_date_step", "submit_own_date_step", "wait_for_my_turn", "autoplay_own_date", "hand_over_own_date"]);
 
@@ -4098,17 +4122,22 @@ export function stepTop(step: OwnDateStep): Record<string, unknown> {
   if (step.stage === "turn") {
     // #1541: how many lines to the end, this one included, so a batch can be sized to end exactly on the last line.
     const left = { lines_left: step.of - step.turn_number + 1 };
+    // #1861 (the 2026-11-19-1952 run: "my turns 1, 3, 5 of 6"): turn_number counts both sides' lines, so the speaker's own
+    // count rides beside it (your_line: n of the side's lines, and which turns are theirs), and the summary says it.
+    const yours = yourLineOf(step);
+    const mine = { your_line: yours };
+    const turnWords = `turn ${step.turn_number} of ${step.of} (${yourLineWords(step, yours)})`;
     // 2.10.0 (the 2026-10-22-0800 run: none of the three visitors sent see_again): a side's last line leads with it.
     if (step.see_again) {
       return {
-        ...base, turn_number: step.turn_number, of: step.of, ...left, your_move: true, whose_move: step.speaker.name, ...clock,
-        summary: `${seeAgainLead(step.see_again)} Your move: turn ${step.turn_number} of ${step.of}, ${step.speaker.name} speaks: hand submit_own_date_step {"dialogue": "…", "see_again": true or false} (a bare string can't carry see_again).`,
+        ...base, turn_number: step.turn_number, of: step.of, ...left, ...mine, your_move: true, whose_move: step.speaker.name, ...clock,
+        summary: `${seeAgainLead(step.see_again)} Your move: ${turnWords}, ${step.speaker.name} speaks: hand submit_own_date_step {"dialogue": "…", "see_again": true or false} (a bare string can't carry see_again).`,
         last_line: true,
       };
     }
     return {
-      ...base, turn_number: step.turn_number, of: step.of, ...left, your_move: true, whose_move: step.speaker.name, ...clock,
-      summary: `Your move: turn ${step.turn_number} of ${step.of}, ${step.speaker.name} speaks. Write ${step.speaker.name}'s line (a bare line of dialogue works) or run step.messages in ${step.speaker.name}'s own process, and hand it to submit_own_date_step.`,
+      ...base, turn_number: step.turn_number, of: step.of, ...left, ...mine, your_move: true, whose_move: step.speaker.name, ...clock,
+      summary: `Your move: ${turnWords}, ${step.speaker.name} speaks. Write ${step.speaker.name}'s line (a bare line of dialogue works) or run step.messages in ${step.speaker.name}'s own process, and hand it to submit_own_date_step.`,
     };
   }
   if (step.stage === "recap") {
@@ -7553,7 +7582,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           };
         }
       }
-      const r = await submitOwnDateStep(db, who.id, episodeId, unpinned(args.output), { checkOnly: args.check_only === true, speaker: speakerPin });
+      // #1860: a bare line on a side's last line is held (see_again_needed), so the see_again lever is asked for before the date closes.
+      const r = await submitOwnDateStep(db, who.id, episodeId, unpinned(args.output), { checkOnly: args.check_only === true, speaker: speakerPin, refuseBareLastLine: true });
       if (!r.ok) return ownDateError(r);
       if (r.checked) return { data: { checked: true, would_accept: true, note: "It passes every check. Nothing was handed in: submit it without check_only." }, identity: who };
       if (!r.rejected || r.step.stage !== "turn") await markTurnRead(db, who.id, episodeId);
@@ -7574,6 +7604,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
             ...(!MOVED_ON.has(r.rejected) ? { turn_used: false } : {}),
             ...(!MOVED_ON.has(r.rejected) && r.step.stage === "turn" ? { reply_format: r.step.reply_format, example_reply: r.step.example_reply, shapes: TURN_SHAPES } : {}),
             ...(!MOVED_ON.has(r.rejected) && r.step.stage === "recap" ? { reply_format: r.step.reply_format } : {}),
+            // #1860: the held last line comes back ready to resend, with only see_again to fill in.
+            ...(r.see_again_needed && r.step.stage === "turn" ? { see_again_needed: true, next_calls: [bareLastLineCall(r.step, r.see_again_needed.dialogue)] } : {}),
             step: compactIf(r.step, args),
           },
           identity: who,

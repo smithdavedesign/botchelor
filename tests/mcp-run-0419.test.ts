@@ -355,7 +355,11 @@ describe("8. a one-line mode for own dates", () => {
     // 2.8.0: later steps leave the prompt out and say a bare line works.
     expect(s.instructions).toMatch(/Write Bo Quill's line as output \(just the dialogue works/);
     let i = 0;
-    while (s.stage === "turn") s = (await call("submit_own_date_step", { episode_id: id, output: `Line number ${i++}, about the tide tables and the ferry.` }, A.ctx)).structuredContent.step;
+    // #1860: a last line carries see_again (a bare one is held).
+    while (s.stage === "turn") {
+      const said = `Line number ${i++}, about the tide tables and the ferry.`;
+      s = (await call("submit_own_date_step", { episode_id: id, output: s.see_again ? { dialogue: said, see_again: true } : said }, A.ctx)).structuredContent.step;
+    }
     expect(s.stage).toBe("recap");
     expect(s.instructions).toContain(`Example recap (exactly these keys: two goals, three scenes, two confessionals): ${RECAP_EXAMPLE}`);
     const done = (await call("submit_own_date_step", { episode_id: id, output: JSON.parse(RECAP_EXAMPLE) }, A.ctx)).structuredContent;

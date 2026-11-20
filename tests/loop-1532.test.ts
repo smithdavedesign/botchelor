@@ -98,8 +98,10 @@ describe("#1530, #1526, #1522: see_again placement, a defaulted wish, a recap wi
     expect(batch.accepted).toBe(true);
     expect(batch.warning).toMatch(/see_again on turn 4 went in with Bo Quill's line, which is not Bo's last line \(turn 6 is\)/);
     expect(batch.wishes_kept[0]).toMatchObject({ turn_number: 4, character: "Bo Quill", last_line: false });
-    // Ada's last line (turn 5) as a bare string: no see_again, so its interest_signal stands in, said.
-    const five = (await call("submit_own_date_step", { episode_id: id, output: "Then let's find out what the tide says." }, ctx)).structuredContent;
+    // Ada's last line (turn 5) without see_again: a bare string is held (#1860); {dialogue} alone lets its interest_signal stand in, said.
+    const held = (await call("submit_own_date_step", { episode_id: id, output: "Then let's find out what the tide says." }, ctx)).structuredContent;
+    expect(held).toMatchObject({ accepted: false, see_again_needed: true });
+    const five = (await call("submit_own_date_step", { episode_id: id, output: { dialogue: "Then let's find out what the tide says." } }, ctx)).structuredContent;
     expect(five.wish_defaulted).toMatchObject({ turn_number: 5, character: "Ada Lumen", see_again: null, stood_in: "interest_signal" });
     expect(five.wish_defaulted.note).toMatch(/can't be changed now/);
     // Bo's last line bare: the see_again Bo sent on turn 4 counts.
