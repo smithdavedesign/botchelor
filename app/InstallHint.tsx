@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { claimToastVisit, toastVisitFree, useToastRoom } from "./useToastRoom";
 import { INSTALL_HINT_KEY, installSteps, platformOf, shouldShowInstallHint, type InstallChoice, type Platform } from "@/lib/pwa";
 
 /** Chrome's install prompt (Android, desktop): kept until the person taps Install. */
@@ -78,7 +79,8 @@ export default function InstallHint({ hasCharacter = false }: { hasCharacter?: b
         ua: nav.userAgent,
         hasCharacter,
       });
-      if (!ok) return;
+      // One toast a visit (2026-11-20 mobile audit, B8): not after the beta prompt.
+      if (!ok || !toastVisitFree("install")) return;
       shownOn.current = pathname;
       setShow({ platform: platformOf(nav.userAgent, nav.maxTouchPoints) });
     }, DELAY_MS);
@@ -93,11 +95,14 @@ export default function InstallHint({ hasCharacter = false }: { hasCharacter?: b
     const seen = new IntersectionObserver((entries) => {
       if (!entries.some((e) => e.isIntersecting)) return;
       seen.disconnect();
+      claimToastVisit("install");
       if (!read()) write("shown");
     });
     seen.observe(el);
     return () => seen.disconnect();
   }, [show]);
+  // It waits while it would sit over the page's main button (B8: it covered "Get Mira dating"), and isn't counted till seen.
+  const waiting = useToastRoom(card, Boolean(show));
 
   if (!show) return null;
 
@@ -117,7 +122,7 @@ export default function InstallHint({ hasCharacter = false }: { hasCharacter?: b
   }
 
   return (
-    <div ref={card} className="install-hint" role="region" aria-label="Install the app" onKeyDown={(e) => e.key === "Escape" && dismiss()}>
+    <div ref={card} className="install-hint" role="region" aria-label="Install the app" hidden={waiting} onKeyDown={(e) => e.key === "Escape" && dismiss()}>
       {/* eslint-disable-next-line @next/next/no-img-element -- the app's own PG icon, a static file */}
       <img src="/icons/icon-192.png" alt="" width={36} height={36} />
       <p>
