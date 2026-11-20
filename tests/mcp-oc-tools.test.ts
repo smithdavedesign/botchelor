@@ -10,6 +10,7 @@ import { TOOL_IDENTITY } from "@/lib/mcp/reference";
 import { ocNames } from "@/lib/oc-names";
 import { OC_QUESTIONS } from "@/lib/oc-questions";
 import { shipNames } from "@/lib/ship-names";
+import { HOUSE_CHARACTERS } from "@/lib/house";
 import { startTestDb } from "./helpers";
 
 type Any = any; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -54,12 +55,26 @@ describe("the four tools' place in the lists", () => {
   });
 });
 
+describe("oc_chemistry_test by id (#1862)", () => {
+  it("reads a character's sheet from its id, and refuses an id nobody has", async () => {
+    const rafe = HOUSE_CHARACTERS[0];
+    const d = await data("oc_chemistry_test", { character_id: rafe.id, b: DEX });
+    expect(typeof d.score).toBe("number");
+    expect(await refused("oc_chemistry_test", { a: "00000000-0000-4000-8000-000000000000", b: DEX })).toContain("no character you can see");
+  });
+});
+
 describe("ship_names", () => {
   it("gives the page's ship names and its link", async () => {
     const d = await data("ship_names", { a: "Draco", b: "Harry" });
     expect(d.ship_names).toEqual(shipNames("Draco", "Harry").map((s) => s.name));
     expect(d.ship_names).toContain("Drarry");
     expect(d.url).toMatch(/\/ship\/draco\/harry$/);
+    // #1862: a character's id (character_id / with, or the id as a or b) reads as that character's name.
+    const rafe = HOUSE_CHARACTERS[0];
+    const byId = await data("ship_names", { character_id: rafe.id, with: "Harry" });
+    expect(byId.a).toBe(rafe.name);
+    expect((await data("ship_names", { a: "Draco", b: "Harry" })).a).toBe("Draco");
     // #1847: name_a / name_b read as a and b.
     expect((await data("ship_names", { name_a: "Draco", name_b: "Harry" })).ship_names).toContain("Drarry");
   });
