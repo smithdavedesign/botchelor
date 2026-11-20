@@ -3461,19 +3461,60 @@ fieldset.ad-si-step {
   font-style: italic;
 }
 
-/* The scene. The backdrop stays put behind the column as it scrolls (a div, so discreet mode's blur leaves a place alone). */
+/* The scene. Its stage (the place's backdrop, and the character standing in it: app/stage/CharacterFigure.tsx) stays put
+   behind the column as it scrolls: a layer behind the scene that takes no room of its own, cut to the scene's edges
+   (clip-path, which unlike overflow leaves sticky alone) so it never spills onto the footer, holding one sticky view
+   the window's height (a div, so discreet mode's blur leaves a place alone; the figure is the show's own PG portrait,
+   which it leaves alone too).
+   Where the character stands, after joi.com's chat (docs/audits/2026-11-20-joi-teardown.md): at the right edge of a
+   wide screen, the column moved over to make room; behind the column's right side on a tablet; behind everything on a
+   phone, the night drawn over them so the prose stays readable. The page is the whole screen wide (.page-full). */
 .ad-si-scene {
   position: relative;
+  /* The figure's width on a wide screen, and the room the column leaves it. */
+  --si-figure-w: clamp(20rem, 34vw, 34rem);
+}
+.ad-si-stage {
+  position: absolute;
+  /* Out to the night frame's edges (.after-dark-mode's padding), so the place and the character fill it side to side;
+     and a window's height above the scene, cut off, so the view can stay on the window's bottom edge while the scene's
+     top is still on screen. */
+  inset: -100vh calc(-1 * var(--space-4)) 0;
+  inset: -100dvh calc(-1 * var(--space-4)) 0;
+  clip-path: inset(100vh 0 0);
+  clip-path: inset(100dvh 0 0);
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+/* Held to the window's bottom edge, where the newest lines and the composer are, so the character stands on it however
+   long or short the scene is; a scene shorter than the window cuts the view at its top instead. */
+.ad-si-view {
+  position: sticky;
+  bottom: 0;
+  flex: none;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
 }
 .ad-si-backdrop {
-  position: sticky;
-  top: 0;
-  height: 100vh;
-  margin-bottom: -100vh;
+  position: absolute;
+  inset: 0;
   background-position: center;
   background-size: cover;
   opacity: 0.3;
-  pointer-events: none;
+}
+/* Under the sticky header, standing on the window's bottom edge. */
+.ad-si-figure {
+  position: absolute;
+  top: 4.5rem;
+  right: 0;
+  bottom: 0;
+  width: var(--si-figure-w);
+}
+.ad-si-col {
+  position: relative;
 }
 .ad-si-head,
 .ad-si-lines,
@@ -3481,11 +3522,58 @@ fieldset.ad-si-step {
 .ad-si-paused,
 .ad-si-ended,
 .ad-si-composer,
-.ad-si-scene > .error,
-.ad-si-scene > .crisis-notice {
+.ad-si-col > .error,
+.ad-si-col > .crisis-notice {
   position: relative;
   max-width: 42rem;
   margin-inline: auto;
+}
+@media (min-width: 1100px) {
+  .ad-si-scene:has(.ad-si-figure) .ad-si-col {
+    margin-right: var(--si-figure-w);
+  }
+}
+/* A tablet: the figure a little wider than the room beside the column, so they stand just behind its right side. */
+@media (min-width: 701px) and (max-width: 1099px) {
+  .ad-si-scene {
+    --si-figure-w: min(46vw, 30rem);
+  }
+}
+/* A tablet or a phone: the lines' card thinned where the character stands behind it, so they show through. */
+@media (max-width: 1099px) {
+  .ad-si-scene:has(.ad-si-figure) .ad-si-lines {
+    background: color-mix(in srgb, var(--night-bg) 72%, transparent);
+    -webkit-backdrop-filter: blur(2px);
+    backdrop-filter: blur(2px);
+  }
+}
+/* A phone: the character fills the stage behind the scene, the night drawn over them (joi's chat on a phone is its
+   character under a 70% veil). */
+@media (max-width: 700px) {
+  .ad-si-figure {
+    top: 3.5rem;
+    left: 0;
+    width: auto;
+  }
+  .ad-si-stage .ad-si-figure[data-figure] .character-figure-img {
+    width: 100%;
+    height: 100%;
+    max-height: none;
+    object-fit: cover;
+    object-position: center 18%;
+    -webkit-mask-image: linear-gradient(to bottom, transparent, black 12%);
+    mask-image: linear-gradient(to bottom, transparent, black 12%);
+  }
+  .ad-si-view:has(.ad-si-figure)::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: color-mix(in srgb, var(--night-bg) 50%, transparent);
+  }
+  /* A portrait keeps its own background, often a light one: a heavier veil, so the muted lines over it stay readable. */
+  .ad-si-view:has(.ad-si-figure[data-figure="portrait"])::after {
+    background: color-mix(in srgb, var(--night-bg) 65%, transparent);
+  }
 }
 .ad-si-head h1 {
   margin-bottom: var(--space-1);

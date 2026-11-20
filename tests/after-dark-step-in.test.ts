@@ -80,6 +80,7 @@ import type { ChatMessage } from "@/lib/model";
 import { NEVER_WRITE_THE_PERSON, SCENE_DRIVE_RULE, speaksForThePerson, STORY_MODE_ANSWER } from "@/lib/narration";
 import { setPersona } from "@/lib/persona";
 import { premiseForYou } from "@/lib/roleplays";
+import { CUTOUT_OPTIONS, setCutoutsForTests } from "@/lib/cutout";
 import { checkAdultText } from "@/lib/safety";
 import { adultCardTextIssue, CARD_EXPLICIT, cardForYou, cardTexts, GENERIC_OPENINGS } from "@/lib/scene-cards";
 import { setSeasonCastForTests } from "@/lib/season-cast";
@@ -111,6 +112,7 @@ afterEach(() => {
   setAdultModelForTests(null);
   setSeasonCastForTests(null);
   setStepInRandomForTests(null);
+  setCutoutsForTests(null);
 });
 
 const WHO = HOUSE_CHARACTERS[0].id;
@@ -274,6 +276,36 @@ describe("closed by default", () => {
     expect(await digest(StepInScenePage({ params: Promise.resolve({ id: made.id }) }))).toMatch(/404/);
     expect(await html(await StepInSetupPage())).toContain("data-step-in-setup");
     expect(await html(await AfterDarkHome({ searchParams: Promise.resolve({}) }))).toContain("data-step-in-tile");
+  });
+
+  it("the character stands beside the scene: the portrait as it is until the zone makes cutouts, then the cutout; nobody without a portrait", async () => {
+    scripted();
+    await saveAdultSettings(t.db, {});
+    const a = await admin();
+    const made = await start(a.id);
+    // No approved portrait: no figure, no picture switch.
+    let page = await html(await StepInScenePage({ params: Promise.resolve({ id: made.id }) }));
+    expect(page).not.toContain("character-figure");
+    expect(page).not.toContain("data-step-in-figure-toggle");
+    expect(page).toContain("page-full");
+
+    await t.db.query(
+      `insert into character_assets (id, character_id, kind, source_type, source_model, url, review_status, content_rating) values ($1, $2, 'portrait', 'generated', 'm', $3, 'approved', 'pg')`,
+      [`asset-${WHO}`, WHO, "/cast/house-juniper-v3.webp"],
+    );
+    page = await html(await StepInScenePage({ params: Promise.resolve({ id: made.id }) }));
+    expect(page).toContain('data-figure="portrait"');
+    expect(page).toContain(`src="/api/assets/asset-${WHO}"`);
+    expect(page).not.toContain("/cdn-cgi/image/");
+    expect(page).toContain("data-step-in-figure-toggle");
+
+    vi.stubEnv("SITE_URL", "https://botchelor.com");
+    setCutoutsForTests(true);
+    page = await html(await StepInScenePage({ params: Promise.resolve({ id: made.id }) }));
+    expect(page).toContain('data-figure="cutout"');
+    expect(page).toContain(`https://botchelor.com/cdn-cgi/image/${CUTOUT_OPTIONS}/api/assets/asset-${WHO}`);
+    // The show's own PG portrait: discreet mode's blur leaves it alone (.avatar).
+    expect(page).toMatch(/class="avatar character-figure-img"/);
   });
 });
 
