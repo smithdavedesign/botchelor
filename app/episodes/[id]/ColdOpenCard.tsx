@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import Avatar from "@/app/Avatar";
 import { clipLength, playLength, type ColdOpen } from "@/lib/cold-open";
 import type { CharacterRef } from "@/lib/game";
@@ -39,11 +40,25 @@ export default function ColdOpenCard({
 }) {
   const [a, b] = characters;
   const byId = (id: string) => characters.find((c) => c.id === id) ?? null;
+  // Start has the focus, so Enter begins the date, but the card isn't scrolled to it: on a short screen autoFocus put the
+  // card's end in view and its top (who, where, what's at stake) out of it (the live shots, 2026-11-19).
+  const start = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    start.current?.focus({ preventScroll: true });
+  }, []);
   return (
     <section className="cold-open" aria-labelledby="cold-open-title">
       <p className="cold-open-kicker">{coldOpen.kicker}</p>
+      {/* Each face kept with its own name: on a phone the line breaks between the two of them, never between a name and
+          its face (2026-11-19, the live shots had Sable's face alone under Barnaby's). */}
       <h2 id="cold-open-title" className="cold-open-pair">
-        <Face c={a} /> <span>{a.name}</span> <span className="vs">×</span> <span>{b.name}</span> <Face c={b} />
+        <span className="cold-open-who">
+          <Face c={a} /> <span>{a.name}</span>
+        </span>{" "}
+        <span className="vs">×</span>{" "}
+        <span className="cold-open-who">
+          <span>{b.name}</span> <Face c={b} />
+        </span>
       </h2>
       {coldOpen.previously && (
         <p className="cold-open-prev">
@@ -75,7 +90,7 @@ export default function ColdOpenCard({
       )}
       <p className="cold-open-stakes">{coldOpen.stakes}</p>
       <div className="cold-open-actions">
-        <button type="button" className="primary" onClick={onStart} autoFocus data-track={again ? "cold-open-back" : "cold-open-start"}>
+        <button ref={start} type="button" className="primary" onClick={onStart} data-track={again ? "cold-open-back" : "cold-open-start"}>
           ▶ {again ? "Back to the date" : "Start the date"}
         </button>
         {cut && (

@@ -25,7 +25,8 @@ export default function robots(): MetadataRoute.Robots {
       // Named, so the welcome is explicit: robots.txt allows everyone by default, and naming them says "you too".
       { userAgent: [...AI_ROBOTS_TOKENS], allow, disallow },
     ],
+    // No `Host:` line: only Yandex ever read it (and dropped it in 2018); Search Console flagged it "Rule ignored by
+    // Googlebot" (2026-11-19). The canonical address is each page's canonical link.
     sitemap: `${base}/sitemap.xml`,
-    host: base,
   };
 }
