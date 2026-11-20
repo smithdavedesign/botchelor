@@ -158,6 +158,50 @@
 .legal-toc-group > summary {
   font-weight: 600;
 }
+/* The date and the history folded under it, then the contents (the 2026-11-20 mobile audit, A6). */
+.legal-updated {
+  margin-bottom: var(--space-1);
+}
+.legal-changes {
+  margin: 0 0 var(--space-3);
+}
+.legal-changes > summary {
+  font-size: var(--text-sm);
+}
+/* "↑ Contents": at the end of the page in the markup, sticky to the foot of the screen while the page is read. Left,
+   so it never sits on the floating Feedback button; above the phone's tab bar. */
+.legal-top {
+  position: sticky;
+  bottom: var(--space-4);
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--control-h);
+  margin-top: var(--space-4);
+  padding: 0 var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--card);
+  box-shadow: var(--shadow-sm);
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  text-decoration: none;
+}
+@media (max-width: 720px) {
+  body:has(.tabbar-nav) .legal-top {
+    bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px) + var(--space-3));
+  }
+}
+/* /contact with no address set: the feedback form's button, right there. */
+.contact-feedback {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+.contact-feedback .button {
+  margin: 0;
+}
 .legal-toc-group[open] > ul {
   padding-bottom: var(--space-2);
 }

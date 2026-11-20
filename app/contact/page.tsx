@@ -34,15 +34,21 @@ export default function ContactPage() {
           </a>
         </p>
       ) : (
-        <p>Our email address is on its way. Until then, the feedback button at the foot of every page reaches us.</p>
+        // No address set (CONTACT_EMAIL; botchelor.com has support@botchelor.com): the feedback form, right here, rather than
+        // a pointer to a footer link a phone folds away (the 2026-11-20 mobile audit, A5).
+        <p className="contact-feedback">
+          <FeedbackLink className="button" label="Write to us" /> <span className="muted small">A person reads every message.</span>
+        </p>
       )}
       <p className="muted">
         We aim to act on reports within {REPORT_RESPONSE.standard}, and within {REPORT_RESPONSE.urgent} for anything that
         may involve a minor, a real person or an intimate image of you. A person reads every one.
       </p>
-      <p className="muted">
-        Or skip the email: <FeedbackLink /> from any page.
-      </p>
+      {email && (
+        <p className="muted">
+          Or skip the email: <FeedbackLink /> (it&apos;s in the ☰ menu on every page).
+        </p>
+      )}
 
       <section aria-labelledby="where">
         <h2 id="where">Where to go</h2>

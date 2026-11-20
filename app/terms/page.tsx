@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { formatPrice, PACK_5 } from "@/lib/catalog";
 import { pageMetadata } from "@/lib/seo";
-import { CONTACT_HEADING, Contact, OnThisPage, PolicyLinks, TERMS_HEADINGS, TERMS_PRIVACY_UPDATED, TermsSections } from "../legal/sections";
+import { BackToContents, CONTACT_HEADING, Contact, OnThisPage, PolicyLinks, TERMS_HEADINGS, TERMS_PRIVACY_UPDATED, TermsSections } from "../legal/sections";
 
 export const metadata: Metadata = pageMetadata({
   title: "Terms · Botchelor",
@@ -21,6 +21,7 @@ export default function TermsPage() {
       <TermsSections />
       <Contact />
       <PolicyLinks current="/terms" />
+      <BackToContents />
     </article>
   );
 }
