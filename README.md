@@ -446,7 +446,7 @@ The current single sources, one per subject:
 - [Launch readiness](docs/launch-readiness.md): status, spend and abuse guards, report review, monitoring, the live end-to-end check, owner decisions
 - [After Dark](docs/after-dark.md): the 18+ side, what is built (moderation, entitlement, billing, age checks) and its rules
 - [Hosting](docs/hosting.md): where it runs (DigitalOcean App Platform since 2026-10-30, off Vercel), deploys, scheduled jobs, DNS and settings
-- [The latest audit](docs/audits/2026-11-13-design-lift.md): the design lift of 2026-11-13; every dated review is in [docs/audits/](docs/audits/)
+- [The latest audit](docs/audits/2026-11-20-visual-pop-audit.md): the visual pop audit of 2026-11-20 (36 pages, effects, video, motion); every dated review is in [docs/audits/](docs/audits/)
 
 Also current:
 
