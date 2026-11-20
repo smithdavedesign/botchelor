@@ -157,11 +157,14 @@ describe("/companion/plan: the price over the faces, Free beside the plan", () =
     expect(html).toContain("<td>Calls that take turns are free</td>");
   });
 
-  it("is still not found while companions are closed", async () => {
+  it("says it isn't open yet while companions are closed, rather than a 404 (mobile audit C21)", async () => {
     notDeployed();
     vi.stubEnv("COMPANION_OPEN", "");
     const { default: PlanPage } = await import("@/app/companion/plan/page");
-    await expect(PlanPage({ searchParams: Promise.resolve({}) })).rejects.toThrow();
+    const html = await render(await PlanPage({ searchParams: Promise.resolve({}) }));
+    expect(html).toContain("data-not-open-yet");
+    expect(html).toContain("<h1>The Companion Plan</h1>");
+    expect(html).not.toContain("Subscribe");
   });
 });
 

@@ -32,7 +32,7 @@ export default function ReportScene({ sceneId, lines }: { sceneId: string; lines
     <details className="house-report">
       <summary>Something wrong with a line?</summary>
       {done ? (
-        <p className="notice">Thanks, it&apos;s reported. After {REPORT_HIDE_THRESHOLD} reports a line is hidden until it&apos;s reviewed.</p>
+        <p className="notice notice-ok">Thanks, it&apos;s reported. After {REPORT_HIDE_THRESHOLD} reports a line is hidden until it&apos;s reviewed.</p>
       ) : (
         <form className="report" onSubmit={report}>
           <label>

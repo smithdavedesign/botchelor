@@ -18,7 +18,7 @@ export default async function ConfirmNewsletterPage({ searchParams }: { searchPa
     <article className="legal-page newsletter-page">
       <h1>The Sunday letter</h1>
       {p.done ? (
-        <p className="notice">
+        <p className="notice notice-ok">
           {/* Until NEWSLETTER_POSTAL_ADDRESS is set no letter goes out (lib/newsletter.ts), so don't promise this Sunday's. */}
           {newsletterState() === "on"
             ? "You're on the list. The next letter comes on Sunday evening, after the reveal."

@@ -40,7 +40,7 @@ export default function InviteForm({ days, clipTokens, reelTokens, source = null
 
   if (sent) {
     return (
-      <p className="notice" data-invite-sent>
+      <p className="notice notice-ok" data-invite-sent>
         Thanks: your request is in. You&apos;ll get an email when it&apos;s approved.
       </p>
     );

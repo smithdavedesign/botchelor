@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import NotOpenYet from "@/app/NotOpenYet";
 import { cookies } from "next/headers";
-import { notFound } from "next/navigation";
 import Avatar from "@/app/Avatar";
 import Icon from "@/app/Icon";
 import { isAdmin } from "@/lib/admins";
@@ -66,7 +66,13 @@ export default async function CompanionPlanPage({ searchParams }: { searchParams
   const { checkout } = await searchParams;
   const auth = authFromCookieStore(await cookies());
   const db = await getDb();
-  if (!companionOpen() && !(auth?.authenticated && (await isAdmin(db, auth.userId)))) notFound();
+  if (!companionOpen() && !(auth?.authenticated && (await isAdmin(db, auth.userId))))
+    // Closed: say so, never a 404 (mobile audit C21).
+    return (
+      <NotOpenYet title="The Companion Plan">
+        Unlimited one-to-one chats and calls with the characters. Companions aren&apos;t open yet: the characters are on <Link href="/watch">Watch</Link> in the meantime.
+      </NotOpenYet>
+    );
   const price = planPrice("companion");
   const { amount, per } = priceParts(price);
   const onSale = planLink("companion") !== null;
