@@ -101,6 +101,22 @@ describe("with a database", () => {
     expect((await api.editCharacter(made.id, { want: "Someone who laughs at bad puns" }, cookie)).status).toBe(200);
   });
 
+  it("a refusal lists every refused text, not just the first, with the words that did it", async () => {
+    const cookie = newUserCookie();
+    const bad = await api.createCharacter(validCharacter({ dealbreaker: CHUD.dealbreaker, extras: { quirk: CHUD.quirk, hobbies: ["Chess", "making you moan"] } }), cookie);
+    expect(bad.status).toBe(422);
+    const body = await bad.json();
+    expect(body).toMatchObject({ error: "content_rejected", field: "dealbreaker" });
+    expect(body.issues).toEqual([
+      { field: "dealbreaker", index: 0, reason: "innuendo", phrase: "in the bedroom" },
+      { field: "quirk", index: 0, reason: "innuendo", phrase: "sleeping with him" },
+      { field: "hobbies", index: 1, reason: "innuendo", phrase: "making you moan" },
+    ]);
+    const made = await (await api.createCharacter(validCharacter(), cookie)).json();
+    const edit = await (await api.editCharacter(made.id, { want: CHUD.want, dealbreaker: CHUD.dealbreaker }, cookie)).json();
+    expect(edit.issues.map((i: { field: string }) => i.field)).toEqual(["want", "dealbreaker"]);
+  });
+
   it("an old row is shown softened, its owner told which fields, and its dealbreaker is never quizzed on", async () => {
     const { episode, character } = await setupEpisode("friends");
     // As it was saved before the check (no write path allows it now).

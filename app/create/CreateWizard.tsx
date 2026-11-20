@@ -5,7 +5,7 @@ import { shortName } from "@/lib/names";
 import { takenNote } from "@/lib/partners-shared";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Avatar from "../Avatar";
 import DateConfirm from "../DateConfirm";
 import OutOfDates, { outOfDatesFrom, type OutOfDatesData } from "../OutOfDates";
@@ -99,6 +99,8 @@ import {
 } from "@/lib/express-create";
 import { isPastPg } from "@/lib/safety";
 import PastPgDoor, { type PastPgDoorLink } from "./PastPgDoor";
+import { FieldIssue, IssueContext, invalidProps } from "./FieldIssue";
+import { placedTexts, placeServerIssues, selectorOf, sheetIssues, type FormIssue, type IssueStep, type SheetDraft } from "./sheet-issues";
 
 export type Partner = {
   id: string;
@@ -253,6 +255,34 @@ export function nextOnTrack(track: readonly number[], step: number): number {
   return track.find((s) => s > step) ?? track[track.length - 1];
 }
 
+/**
+ * By Save (or Create): every text on the sheet that won't pass the PG show's check, each a link to its field, so the
+ * person sees all of them at once and can go straight to each (app/create/sheet-issues.ts).
+ */
+function SheetIssueList({ issues, edit, stepLabel, onGo }: { issues: readonly FormIssue[]; edit: boolean; stepLabel: (s: IssueStep) => string; onGo: (i: FormIssue) => void }) {
+  const SHOWN = 8;
+  const n = issues.length;
+  return (
+    <div className="sheet-issues" role="status">
+      <p className="sheet-issues-title">
+        {n === 1 ? "One thing doesn't" : `${n} things don't`} fit the PG show yet. Fix {n === 1 ? "it" : "them"} to {edit ? "save" : "create them"}:
+      </p>
+      <ul>
+        {issues.slice(0, SHOWN).map((i) => (
+          <li key={i.key}>
+            <button type="button" className="link-button" onClick={() => onGo(i)}>
+              {i.label}
+            </button>
+            <span className="muted"> ({stepLabel(i.step)})</span>
+            {i.phrase && <span className="sheet-issue-phrase"> “{i.phrase}”</span>}
+          </li>
+        ))}
+      </ul>
+      {n > SHOWN && <p className="muted small">and {n - SHOWN} more, marked on their steps.</p>}
+    </div>
+  );
+}
+
 /** The build steps, shown as a tappable progress rail. The ones that can be skipped say so (2026-10-31 UX audit). */
 function Stepper({
   step,
@@ -260,12 +290,15 @@ function Stepper({
   onJump,
   labels,
   optional = [],
+  issues = [],
 }: {
   step: number;
   max: number;
   onJump: (i: number) => void;
   labels: readonly string[];
   optional?: readonly number[];
+  /** Per step, how many of its texts won't pass the show's check (app/create/sheet-issues.ts): those steps say so. */
+  issues?: readonly number[];
 }) {
   // Seven steps don't fit a 375px phone: the rail scrolls sideways, so bring the current step into view.
   const rail = useRef<HTMLOListElement>(null);
@@ -277,17 +310,18 @@ function Stepper({
     <ol ref={rail} className="wizard-rail" aria-label="Progress">
       {labels.map((label, i) => {
         const state = i === step ? "current" : i < max ? "done" : "todo";
+        const fix = issues[i] ?? 0;
         return (
-          <li key={label} className={`wizard-rail-step ${state}${optional.includes(i) ? " optional" : ""}`}>
+          <li key={label} className={`wizard-rail-step ${state}${optional.includes(i) ? " optional" : ""}${fix ? " has-issues" : ""}`}>
             <button
               type="button"
               className="wizard-rail-dot"
               aria-current={i === step ? "step" : undefined}
-              aria-label={`Step ${i + 1}: ${label}${i === step ? " (this step)" : i < max ? " (done)" : ""}`}
+              aria-label={`Step ${i + 1}: ${label}${i === step ? " (this step)" : i < max ? " (done)" : ""}${fix ? `, ${fix} to fix` : ""}`}
               disabled={i > max}
               onClick={() => i <= max && onJump(i)}
             >
-              <span className="wizard-rail-num">{i < max && i !== step ? "✓" : i + 1}</span>
+              <span className="wizard-rail-num">{fix ? "!" : i < max && i !== step ? "✓" : i + 1}</span>
             </button>
             <span className="wizard-rail-label">
               {label}
@@ -479,6 +513,26 @@ export default function CreateWizard({
   const [error, setError] = useState<string | null>(null);
   const [outOfTokens, setOutOfTokens] = useState(false);
   const draftLoaded = useRef(false);
+
+  // What won't pass the PG show's sheet check (app/create/sheet-issues.ts), field by field, as they type: the same check
+  // the save runs, so each one is marked where it is instead of a refusal at the bottom that names nothing.
+  const draft = useMemo<SheetDraft>(
+    () => ({ name: sheet.name, bio: sheet.bio, traits, want: sheet.want, dealbreaker: sheet.dealbreaker, appearance, voice, week, hiding, extras }),
+    [sheet.name, sheet.bio, sheet.want, sheet.dealbreaker, traits, appearance, voice, week, hiding, extras],
+  );
+  const liveIssues = useMemo(() => sheetIssues(draft), [draft]);
+  // What the save's refusal named that the form didn't (a text the server read in translation): kept until that text changes.
+  const [serverIssues, setServerIssues] = useState<{ issue: FormIssue; text: string }[]>([]);
+  const issues = useMemo(() => {
+    const now = new Map(placedTexts(draft).map((p) => [p.key, p.text]));
+    const extra = serverIssues.filter((s) => now.get(s.issue.key) === s.text && !liveIssues.some((l) => l.key === s.issue.key)).map((s) => s.issue);
+    return [...liveIssues, ...extra];
+  }, [draft, liveIssues, serverIssues]);
+  const issueMap = useMemo(() => new Map(issues.map((i) => [i.key, i.message])), [issues]);
+  // Save or Create was pressed with issues on the form: the list by the button stays up from then on.
+  const [triedSave, setTriedSave] = useState(false);
+  // The input to bring into view once its step has rendered (goToIssue).
+  const [focusKey, setFocusKey] = useState<string | null>(null);
 
   const setField = (k: keyof Sheet, v: string) => setSheet((p) => ({ ...p, [k]: v }));
 
@@ -855,6 +909,45 @@ export default function CreateWizard({
     el?.scrollIntoView({ block: "center", behavior: "smooth" });
     el?.focus({ preventScroll: true });
   };
+  /** Go to the step an issue is on, unfold its group and put the cursor in it. */
+  const goToIssue = (issue: Pick<FormIssue, "step" | "key">) => {
+    const to = S[issue.step];
+    // On the quick track a step it skips (Voice, the depth steps) is still where the problem is: open the full track.
+    if (!track.includes(to)) setDepth(true);
+    setTriedNext(false);
+    setMaxStep((m) => Math.max(m, to));
+    setStep(to);
+    setFocusKey(issue.key);
+  };
+  useEffect(() => {
+    if (!focusKey) return;
+    // After the step's inputs are on the page.
+    const t = window.setTimeout(() => {
+      showMe(selectorOf(focusKey));
+      setFocusKey(null);
+    }, 0);
+    return () => window.clearTimeout(t);
+  }, [focusKey, step]);
+  /** Before a save: when the form already knows it won't pass, go to the first problem instead of sending it. */
+  const stopForIssues = (): boolean => {
+    if (!issues.length) return false;
+    setTriedSave(true);
+    setError(null);
+    goToIssue(issues[0]);
+    return true;
+  };
+  /** A refusal from the server: mark every field it named on the form and go to the first. */
+  const takeRefusal = (data: Record<string, unknown>) => {
+    if (data.error === "name_taken") return goToIssue({ step: "identity", key: "name" });
+    if (data.error !== "content_rejected") return;
+    const placed = placeServerIssues(draft, data).filter((i) => i.reason !== "unread");
+    const now = new Map(placedTexts(draft).map((p) => [p.key, p.text]));
+    setServerIssues(placed.map((issue) => ({ issue, text: now.get(issue.key) ?? "" })));
+    if (placed[0]) {
+      setTriedSave(true);
+      goToIssue(placed[0]);
+    }
+  };
 
   // The step Next goes to: the next one on the track (the quick track skips Voice and the depth steps).
   const nextStep = nextOnTrack(track, step);
@@ -891,6 +984,7 @@ export default function CreateWizard({
   const sheetLength = sheetWords({ bio: sheet.bio, want: sheet.want, dealbreaker: sheet.dealbreaker, traits, voice, appearance, soul, extras, hiding, week });
 
   async function createCharacter() {
+    if (stopForIssues()) return;
     const soulEntries = (Object.keys(EMPTY_SOUL) as (keyof Soul)[])
       .filter((k) => k !== "local_only")
       .map((k) => [k, String(soul[k]).trim()] as const)
@@ -946,6 +1040,7 @@ export default function CreateWizard({
       } else {
         setError(message);
         setSavePastPg(data.error === "content_rejected" && isPastPg(data.reason) ? message : null);
+        takeRefusal(data);
       }
     } catch {
       setError("Network error. Try again.");
@@ -960,6 +1055,7 @@ export default function CreateWizard({
    */
   async function saveEdits() {
     if (!edit) return;
+    if (stopForIssues()) return;
     const soulChanged = JSON.stringify(soul) !== JSON.stringify(init?.soul ?? EMPTY_SOUL);
     const soulText = Object.fromEntries(
       (Object.keys(EMPTY_SOUL) as (keyof Soul)[]).filter((k) => k !== "local_only" && String(soul[k]).trim()).map((k) => [k, String(soul[k]).trim()]),
@@ -968,7 +1064,7 @@ export default function CreateWizard({
     setError(null);
     setSaved(false);
     try {
-      const { ok, message } = await requestJson(
+      const { ok, data, message } = await requestJson(
         `/api/characters/${edit.id}`,
         {
           name: sheet.name.trim(),
@@ -1004,6 +1100,7 @@ export default function CreateWizard({
         else leaveEdit();
       } else {
         setError(message);
+        takeRefusal(data);
       }
     } catch {
       setError("Network error. Try again.");
@@ -1173,6 +1270,7 @@ export default function CreateWizard({
         max={track.reduce((far, real, i) => (real <= maxStep ? i : far), 0)}
         onJump={(i) => jump(track[i] ?? i)}
         labels={track.map((i) => labels[i])}
+        issues={track.map((real) => issues.filter((x) => S[x.step] === real).length)}
         // On the depth track a first character's dating profile is optional too: an empty one is filled at Create.
         optional={edit || !depth ? [] : firstCharacter ? [...OPTIONAL_STEPS, S.details] : OPTIONAL_STEPS}
       />
@@ -1276,6 +1374,7 @@ export default function CreateWizard({
           </div>
         </form>
       ) : (
+      <IssueContext.Provider value={issueMap}>
       <form
         className="card wizard-step"
         noValidate
@@ -1323,11 +1422,12 @@ export default function CreateWizard({
                 maxLength={40}
                 placeholder={SHEET_EXAMPLE.name}
                 value={sheet.name}
-                aria-invalid={nameClash || nameTooLong || undefined}
-                aria-describedby={[nameClash ? "name-taken" : "", "name-words"].filter(Boolean).join(" ")}
+                aria-invalid={nameClash || nameTooLong || issueMap.has("name") || undefined}
+                aria-describedby={[nameClash ? "name-taken" : "", issueMap.has("name") ? "issue-name" : "", "name-words"].filter(Boolean).join(" ")}
                 onChange={(e) => setField("name", e.target.value)}
               />
             </label>
+            <FieldIssue k="name" />
             {/* Counted as they type (roleplay names run long): the save takes NAME_MAX_WORDS words. */}
             <p id="name-words" className={nameTooLong ? "error small name-words" : "muted small name-words"} aria-live="polite">
               {nameTooLong
@@ -1356,8 +1456,9 @@ export default function CreateWizard({
             </label>
             <label>
               Short bio
-              <textarea name="bio" required maxLength={500} rows={3} placeholder={SHEET_EXAMPLE.bio} value={sheet.bio} onChange={(e) => setField("bio", e.target.value)} />
+              <textarea name="bio" required maxLength={500} rows={3} placeholder={SHEET_EXAMPLE.bio} value={sheet.bio} onChange={(e) => setField("bio", e.target.value)} {...invalidProps(issueMap.get("bio"), "bio")} />
             </label>
+            <FieldIssue k="bio" />
             {bioHint && <p className="hint-nudge">💡 {bioHint}</p>}
             {stock && <p className="hint-nudge">✨ {stock}</p>}
             <label>Three traits</label>
@@ -1373,18 +1474,24 @@ export default function CreateWizard({
                   placeholder={SHEET_EXAMPLE.traits[i]}
                   value={traits[i]}
                   onChange={(e) => setTraits((prev) => prev.map((t, j) => (j === i ? e.target.value : t)))}
+                  {...invalidProps(issueMap.get(`trait${i + 1}`), `trait${i + 1}`)}
                 />
               ))}
             </div>
+            {[0, 1, 2].map((i) => (
+              <FieldIssue key={i} k={`trait${i + 1}`} />
+            ))}
             <TypeTagChips value={typeTags} onChange={setTypeTags} traits={traits} bio={sheet.bio} />
             <label>
               What they want from a date
-              <input type="text" name="want" required maxLength={WANT_MAX} placeholder={SHEET_EXAMPLE.want} value={sheet.want} onChange={(e) => setField("want", e.target.value)} />
+              <input type="text" name="want" required maxLength={WANT_MAX} placeholder={SHEET_EXAMPLE.want} value={sheet.want} onChange={(e) => setField("want", e.target.value)} {...invalidProps(issueMap.get("want"), "want")} />
             </label>
+            <FieldIssue k="want" />
             <label>
               Their dealbreaker <span className="muted">(kept secret — the audience tries to guess it)</span>
-              <input type="text" name="dealbreaker" required maxLength={DEALBREAKER_MAX} placeholder={SHEET_EXAMPLE.dealbreaker} value={sheet.dealbreaker} onChange={(e) => setField("dealbreaker", e.target.value)} />
+              <input type="text" name="dealbreaker" required maxLength={DEALBREAKER_MAX} placeholder={SHEET_EXAMPLE.dealbreaker} value={sheet.dealbreaker} onChange={(e) => setField("dealbreaker", e.target.value)} {...invalidProps(issueMap.get("dealbreaker"), "dealbreaker")} />
             </label>
+            <FieldIssue k="dealbreaker" />
             <fieldset className="pronoun-pick">
               <legend>
                 Pronouns <span className="muted">(so nobody on the date gets it wrong)</span>
@@ -1452,8 +1559,9 @@ export default function CreateWizard({
                   <input type="text" name="appearance" maxLength={APPEARANCE_MAX} placeholder="e.g. tall, freckled, always in a yellow raincoat" value={appearance} onChange={(e) => {
                       appearanceTyped.current = true;
                       setAppearance(e.target.value);
-                    }} />
+                    }} {...invalidProps(issueMap.get("appearance"), "appearance")} />
                 </label>
+                <FieldIssue k="appearance" />
                 <DetailField k="style" extras={extras} setExtras={setExtras} />
                 <DetailField k="signature_item" extras={extras} setExtras={setExtras} />
                 <p className="muted small">Their look, style and signature item are what a date sees at first glance.</p>
@@ -1533,7 +1641,9 @@ export default function CreateWizard({
                 placeholder={init?.thisWeekDealt ?? "Pet-sitting a very judgemental cat"}
                 value={week}
                 onChange={(e) => setWeek(e.target.value)}
+                {...invalidProps(issueMap.get("this_week"), "this_week")}
               />
+              <FieldIssue k="this_week" />
               <span className="muted small field-help">
                 Fresh small talk for their dates. Leave it blank and the show deals them something new every week; yours lasts
                 until Monday.
@@ -1828,9 +1938,15 @@ export default function CreateWizard({
           </>
         )}
         {edit && !identityOk && <p className="error">Fill in the Identity step (a name nobody on the show has, an adult age, bio, three traits, want, dealbreaker) to save.</p>}
+        {issues.length > 0 && (edit || triedSave || step === last) && (
+          <SheetIssueList issues={issues} edit={Boolean(edit)} stepLabel={(st) => labels[S[st]]} onGo={goToIssue} />
+        )}
+        {/* The past-PG door (lib/adult/past-pg.ts) once a Create stopped on going past PG, as it did on the server's refusal. */}
+        {!edit && pastPgDoor && triedSave && !error && issues.some((i) => isPastPg(i.reason)) && <PastPgDoor door={pastPgDoor} place="save" />}
         {error && <p className="error">{error}</p>}
         {error && savePastPg === error && pastPgDoor && !edit && <PastPgDoor door={pastPgDoor} place="save" />}
       </form>
+      </IssueContext.Provider>
       )}
       </div>
       <DeckPreview

@@ -1805,6 +1805,50 @@ button.chosen {
   font-weight: 600;
 }
 
+/* ---------------- the builder's PG check, field by field (app/create/sheet-issues.ts, FieldIssue.tsx) ---------------- */
+
+/* Under the input it's about: what crossed the line, in the words that did it. */
+.field-issue {
+  display: block;
+  margin-top: 0.3rem;
+  color: var(--bad-text);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  line-height: 1.35;
+}
+.chip.chip-issue {
+  background: color-mix(in srgb, var(--bad) 12%, var(--card));
+  color: var(--bad-text);
+  box-shadow: inset 0 0 0 1.5px var(--bad);
+}
+.badge.badge-issue {
+  background: color-mix(in srgb, var(--bad) 14%, var(--card));
+  color: var(--bad-text);
+}
+/* By Save / Create: every one of them, each a link to its field. */
+.sheet-issues {
+  margin-top: 0.75rem;
+  padding: 0.75rem 0.9rem;
+  border: 1.5px solid var(--bad);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--bad) 6%, var(--card));
+}
+.sheet-issues-title {
+  margin: 0 0 0.4rem;
+  color: var(--bad-text);
+  font-weight: 700;
+}
+.sheet-issues ul {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: 0.3rem;
+}
+.sheet-issue-phrase {
+  color: var(--bad-text);
+  overflow-wrap: anywhere;
+}
+
 /* A note to read, in the text's own colour (mobile audit A4: "The letter isn't open yet" in bright green read as done).
    Green is for something that just worked: .notice-ok. */
 .notice {
@@ -5494,6 +5538,15 @@ details.recap-toggle[open] > summary {
   background: var(--soft);
   color: var(--accent-text);
   border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+}
+/* A step with text that won't pass the PG show's check (app/create/sheet-issues.ts): "!" in red, wherever you are. */
+.wizard-rail-step.has-issues .wizard-rail-dot {
+  background: color-mix(in srgb, var(--bad) 10%, var(--card));
+  color: var(--bad-text);
+  border-color: var(--bad);
+}
+.wizard-rail-step.has-issues.current .wizard-rail-dot {
+  box-shadow: var(--control-ring-bad);
 }
 .wizard-rail-label {
   font-size: var(--text-2xs);
@@ -12719,6 +12772,9 @@ details > summary.small {
   }
   .wizard-rail-step.current .wizard-rail-dot::before {
     background: var(--grad);
+  }
+  .wizard-rail-step.has-issues .wizard-rail-dot::before {
+    background: var(--bad);
   }
   .wizard-rail-num {
     position: absolute;

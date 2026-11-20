@@ -20,6 +20,7 @@ import {
 } from "@/lib/extras";
 import { ARCHETYPES, DRAWN_TO_MAX, GOALS, KIND_LABEL_MAX, KINDS } from "@/lib/kinds";
 import { PROMPT_ANSWER_MAX } from "@/lib/field-limits";
+import { FieldIssue, invalidProps, useIssues } from "./FieldIssue";
 
 export type SetExtras = (update: (prev: CharacterExtras) => CharacterExtras) => void;
 
@@ -46,14 +47,16 @@ const PLACEHOLDERS: Partial<Record<TextDetail, string>> = {
 export function DetailField({ k, extras, setExtras }: { k: TextDetail; extras: CharacterExtras; setExtras: SetExtras }) {
   const { label, max } = TEXT_DETAILS[k];
   const set = (v: string) => setExtras((p) => ({ ...p, [k]: v }));
+  const key = `extra_${k}`;
+  const invalid = invalidProps(useIssues()(key), key);
   return (
     <label className="detail-field">
       {label}
       <span className="detail-row">
         {max > 200 ? (
-          <textarea name={`extra_${k}`} maxLength={max} rows={4} placeholder={PLACEHOLDERS[k] && `e.g. ${PLACEHOLDERS[k]}`} value={extras[k] ?? ""} onChange={(e) => set(e.target.value)} />
+          <textarea name={key} maxLength={max} rows={4} placeholder={PLACEHOLDERS[k] && `e.g. ${PLACEHOLDERS[k]}`} value={extras[k] ?? ""} onChange={(e) => set(e.target.value)} {...invalid} />
         ) : (
-          <input type="text" name={`extra_${k}`} maxLength={max} placeholder={PLACEHOLDERS[k] && `e.g. ${PLACEHOLDERS[k]}`} value={extras[k] ?? ""} onChange={(e) => set(e.target.value)} />
+          <input type="text" name={key} maxLength={max} placeholder={PLACEHOLDERS[k] && `e.g. ${PLACEHOLDERS[k]}`} value={extras[k] ?? ""} onChange={(e) => set(e.target.value)} {...invalid} />
         )}
         {SUGGESTIONS[k] && (
           <button type="button" className="dice" aria-label={`Suggest a ${label.toLowerCase()}`} title="Suggest one" onClick={() => set(suggest(k))}>
@@ -61,18 +64,20 @@ export function DetailField({ k, extras, setExtras }: { k: TextDetail; extras: C
           </button>
         )}
       </span>
+      <FieldIssue k={key} />
     </label>
   );
 }
 
-function Group({ title, filled, children, open = false }: { title: string; filled: number; children: ReactNode; open?: boolean }) {
-  // Open from the start when it's needed or already has something in it. Only at the start: Surprise me filling a
-  // group shows in its count, and doesn't unfold every group at once (2026-10-31 UX audit).
-  const [initial] = useState(open || filled > 0);
+function Group({ title, filled, children, open = false, issues = 0 }: { title: string; filled: number; children: ReactNode; open?: boolean; issues?: number }) {
+  // Open from the start when it's needed, already has something in it, or has something to fix. Only at the start:
+  // Surprise me filling a group shows in its count, and doesn't unfold every group at once (2026-10-31 UX audit).
+  const [initial] = useState(open || filled > 0 || issues > 0);
   return (
     <details className="detail-group" open={initial}>
       <summary>
         {title} {filled > 0 && <span className="badge">{filled}</span>}
+        {issues > 0 && <span className="badge badge-issue">{issues} to fix</span>}
       </summary>
       {children}
     </details>
@@ -112,6 +117,9 @@ export function surpriseFill(e: CharacterExtras): CharacterExtras {
  * the optional groups, folded. The 🎲 buttons draw ideas, and "Surprise me" fills only the blanks.
  */
 export default function DetailsStep({ extras, setExtras, name }: { extras: CharacterExtras; setExtras: SetExtras; name: string }) {
+  const issue = useIssues();
+  // A group's count of texts to fix (app/create/sheet-issues.ts keys), for its badge.
+  const toFix = (keys: string[]) => keys.filter((k) => issue(k)).length;
   const [hobbyDraft, setHobbyDraft] = useState("");
   const hobbies = extras.hobbies ?? [];
   const prompts = extras.prompts ?? [];
@@ -173,7 +181,7 @@ export default function DetailsStep({ extras, setExtras, name }: { extras: Chara
           </>
         )}
       </p>
-      <Group title="Profile prompts" filled={answeredPrompts} open>
+      <Group title="Profile prompts" filled={answeredPrompts} open issues={toFix(prompts.map((_, i) => `extra_prompt_${i}`))}>
         <p className="muted small">
           Answer {PROFILE_MIN_PROMPTS} (up to {MAX_PROMPTS}) in their voice: they&apos;re the heart of their card.
         </p>
@@ -191,8 +199,9 @@ export default function DetailsStep({ extras, setExtras, name }: { extras: Chara
             </label>
             <label>
               Their answer
-              <textarea name={`extra_prompt_${i}`} maxLength={PROMPT_ANSWER_MAX} rows={2} placeholder="Their answer, in their own words" value={p.answer} onChange={(e) => setPrompt(i, { answer: e.target.value })} />
+              <textarea name={`extra_prompt_${i}`} maxLength={PROMPT_ANSWER_MAX} rows={2} placeholder="Their answer, in their own words" value={p.answer} onChange={(e) => setPrompt(i, { answer: e.target.value })} {...invalidProps(issue(`extra_prompt_${i}`), `extra_prompt_${i}`)} />
             </label>
+            <FieldIssue k={`extra_prompt_${i}`} />
             <button type="button" className="link-button danger prompt-remove" onClick={() => removePrompt(i)}>
               Remove this prompt
             </button>
@@ -205,14 +214,15 @@ export default function DetailsStep({ extras, setExtras, name }: { extras: Chara
         )}
       </Group>
 
-      <Group title="Interests" filled={hobbies.length} open>
+      <Group title="Interests" filled={hobbies.length} open issues={toFix(hobbies.map((_, i) => `hobby_${i}`))}>
         <label htmlFor="hobby-input">
           Add an interest <span className="muted">(at least {PROFILE_MIN_INTERESTS}, up to {MAX_HOBBIES})</span>
         </label>
         {hobbies.length > 0 && (
           <ul className="chips">
-            {hobbies.map((h) => (
-              <li key={h} className="chip chip-removable">
+            {hobbies.map((h, i) => (
+              // A chip has no input: one that won't pass is marked, focusable for "go to it", and named below.
+              <li key={h} className={`chip chip-removable${issue(`hobby_${i}`) ? " chip-issue" : ""}`} data-issue={`hobby_${i}`} tabIndex={issue(`hobby_${i}`) ? -1 : undefined}>
                 {h}
                 <button type="button" aria-label={`Remove ${h}`} onClick={() => removeHobby(h)}>
                   ×
@@ -221,6 +231,11 @@ export default function DetailsStep({ extras, setExtras, name }: { extras: Chara
             ))}
           </ul>
         )}
+        {hobbies.map((h, i) => issue(`hobby_${i}`) && (
+          <span key={h} id={`issue-hobby_${i}`} className="field-issue">
+            {issue(`hobby_${i}`)} Remove it with ×.
+          </span>
+        ))}
         {hobbies.length < MAX_HOBBIES && (
           <span className="detail-row">
             <input
@@ -256,7 +271,7 @@ export default function DetailsStep({ extras, setExtras, name }: { extras: Chara
       </Group>
 
       <p className="detail-section-label">Optional: it all shows on their card</p>
-      <Group title="The basics" filled={filledOf(extras, ["occupation", "hometown", "world", "backstory", "star_sign", "love_language", "language"])}>
+      <Group title="The basics" filled={filledOf(extras, ["occupation", "hometown", "world", "backstory", "star_sign", "love_language", "language"])} issues={toFix(["extra_occupation", "extra_hometown", "extra_world", "extra_backstory"])}>
         <DetailField k="occupation" extras={extras} setExtras={setExtras} />
         <DetailField k="hometown" extras={extras} setExtras={setExtras} />
         <DetailField k="world" extras={extras} setExtras={setExtras} />
@@ -307,7 +322,7 @@ export default function DetailsStep({ extras, setExtras, name }: { extras: Chara
         </label>
       </Group>
 
-      <Group title="Type and what they want" filled={filledOf(extras, ["kind", "archetype", "here_for", "drawn_to"])}>
+      <Group title="Type and what they want" filled={filledOf(extras, ["kind", "archetype", "here_for", "drawn_to"])} issues={toFix(["extra_kind_label"])}>
         <div className="detail-pair">
           <label>
             What they are
@@ -334,7 +349,9 @@ export default function DetailsStep({ extras, setExtras, name }: { extras: Chara
                 placeholder="e.g. a lighthouse spirit"
                 value={extras.kind_label ?? ""}
                 onChange={(e) => setExtras((p) => ({ ...p, kind_label: e.target.value }))}
+                {...invalidProps(issue("extra_kind_label"), "extra_kind_label")}
               />
+              <FieldIssue k="extra_kind_label" />
             </label>
           )}
         </div>
@@ -402,12 +419,12 @@ export default function DetailsStep({ extras, setExtras, name }: { extras: Chara
         </fieldset>
       </Group>
 
-      <Group title="Favourites" filled={filledOf(extras, ["go_to_order", "walk_on_music"])}>
+      <Group title="Favourites" filled={filledOf(extras, ["go_to_order", "walk_on_music"])} issues={toFix(["extra_go_to_order", "extra_walk_on_music"])}>
         <DetailField k="go_to_order" extras={extras} setExtras={setExtras} />
         <DetailField k="walk_on_music" extras={extras} setExtras={setExtras} />
       </Group>
 
-      <Group title="Quirks" filled={filledOf(extras, ["quirk", "catchphrase", "hidden_talent", "pet_peeve", "guilty_pleasure"])}>
+      <Group title="Quirks" filled={filledOf(extras, ["quirk", "catchphrase", "hidden_talent", "pet_peeve", "guilty_pleasure"])} issues={toFix(["extra_quirk", "extra_catchphrase", "extra_hidden_talent", "extra_pet_peeve", "extra_guilty_pleasure"])}>
         <DetailField k="quirk" extras={extras} setExtras={setExtras} />
         <DetailField k="catchphrase" extras={extras} setExtras={setExtras} />
         <DetailField k="hidden_talent" extras={extras} setExtras={setExtras} />
@@ -415,7 +432,7 @@ export default function DetailsStep({ extras, setExtras, name }: { extras: Chara
         <DetailField k="guilty_pleasure" extras={extras} setExtras={setExtras} />
       </Group>
 
-      <Group title="On a date" filled={filledOf(extras, ["ideal_first_date", "green_flag", "red_flag"])}>
+      <Group title="On a date" filled={filledOf(extras, ["ideal_first_date", "green_flag", "red_flag"])} issues={toFix(["extra_ideal_first_date", "extra_green_flag", "extra_red_flag"])}>
         <DetailField k="ideal_first_date" extras={extras} setExtras={setExtras} />
         <DetailField k="green_flag" extras={extras} setExtras={setExtras} />
         <DetailField k="red_flag" extras={extras} setExtras={setExtras} />

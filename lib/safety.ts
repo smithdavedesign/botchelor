@@ -146,19 +146,36 @@ function joinSpelledOut(text: string): string {
 
 const hasPhrase = (haystack: string, phrase: string) => haystack.includes(` ${phrase} `);
 
-function classify(text: string): RejectReason | null {
+/** Why a text was refused, and the words (normalised: lower case, no punctuation) that did it. */
+export type SheetMatch = { reason: RejectReason; phrase: string };
+
+/** The first pattern that matches one of the texts, as the words it matched. */
+const firstMatch = (patterns: readonly RegExp[], texts: readonly string[]): string | null => {
+  for (const re of patterns) for (const t of texts) {
+    const m = re.exec(t);
+    if (m) return m[0].trim();
+  }
+  return null;
+};
+const firstTerm = (terms: readonly string[], texts: readonly string[]): string | null => terms.find((t) => texts.some((v) => hasPhrase(v, t))) ?? null;
+
+function classifyMatch(text: string): SheetMatch | null {
   const folded = fold(text);
   const plain = spaced(folded);
-  if (MINOR_TERMS.some((t) => hasPhrase(plain, t)) || MINOR_AGE_PATTERNS.some((re) => re.test(plain))) {
-    return "minor";
-  }
+  const minor = firstTerm(MINOR_TERMS, [plain]) ?? firstMatch(MINOR_AGE_PATTERNS, [plain]);
+  if (minor) return { reason: "minor", phrase: minor };
 
   const deleeted = spaced(folded.replace(/[013457@$!]/g, (c) => LEET[c]));
   const variants = [plain, deleeted, joinSpelledOut(plain), joinSpelledOut(deleeted)];
-  if (SEXUAL_TERMS.some((t) => variants.some((v) => hasPhrase(v, t)))) return "sexual";
+  const sexual = firstTerm(SEXUAL_TERMS, variants);
+  if (sexual) return { reason: "sexual", phrase: sexual };
 
-  const isRealPerson = REAL_PEOPLE_PATTERNS.some((re) => variants.some((v) => re.test(v))) || UNNAMED_LOOKALIKE.some((re) => re.test(plain));
-  return isRealPerson ? "real_person" : null;
+  const person = firstMatch(REAL_PEOPLE_PATTERNS, variants) ?? firstMatch(UNNAMED_LOOKALIKE, [plain]);
+  return person ? { reason: "real_person", phrase: person } : null;
+}
+
+function classify(text: string): RejectReason | null {
+  return classifyMatch(text)?.reason ?? null;
 }
 
 /**
@@ -475,12 +492,38 @@ export function checkSheetText(fields: Record<string, string | readonly string[]
 
 /** Why one public sheet text doesn't fit the PG show, or null when it does. */
 export function sheetPgIssue(text: string | null | undefined): RejectReason | null {
+  return sheetPgMatch(text)?.reason ?? null;
+}
+
+/**
+ * sheetPgIssue with the words that tripped it, so a form can say which ones ("“making you moan” reads as bedroom talk")
+ * instead of only that something somewhere did. Pure and dependency-free: /create runs it as the person types.
+ */
+export function sheetPgMatch(text: string | null | undefined): SheetMatch | null {
   if (!text) return null;
-  const first = classify(text);
+  const first = classifyMatch(text);
   if (first) return first;
-  const plain = spaced(fold(text));
-  if (INNUENDO_PATTERNS.some((re) => re.test(plain)) || SHEET_SUGGESTIVE.some((re) => re.test(plain))) return "innuendo";
-  return null;
+  const innuendo = firstMatch(INNUENDO_PATTERNS, [spaced(fold(text))]) ?? firstMatch(SHEET_SUGGESTIVE, [spaced(fold(text))]);
+  return innuendo ? { reason: "innuendo", phrase: innuendo } : null;
+}
+
+/** One refused text on a sheet: its field, its place in a list field (0 for a plain one), and why. */
+export type SheetIssue = SheetMatch & { field: string; index: number };
+
+/**
+ * Every refused text on a public sheet, not just the first (checkSheetText stops there): a save that fails says all
+ * of them at once, so nobody fixes one field, saves, and meets the next.
+ */
+export function sheetPgIssues(fields: Record<string, string | readonly string[] | undefined>): SheetIssue[] {
+  const out: SheetIssue[] = [];
+  for (const [field, value] of Object.entries(fields)) {
+    const texts = value === undefined ? [] : typeof value === "string" ? [value] : value;
+    texts.forEach((text, index) => {
+      const hit = sheetPgMatch(text);
+      if (hit) out.push({ ...hit, field, index });
+    });
+  }
+  return out;
 }
 
 /** Checks each field in order and reports the first one that fails. */
