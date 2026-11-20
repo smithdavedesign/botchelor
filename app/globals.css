@@ -6107,6 +6107,11 @@ button.dice:hover:not(:disabled) {
 body:has(.beta-toast) .install-hint {
   display: none;
 }
+/* Waiting for the page's main button to scroll clear (app/useToastRoom.ts): their own display would beat [hidden]. */
+.beta-toast[hidden],
+.install-hint[hidden] {
+  display: none;
+}
 /* While the hint is up it floats over the foot of the page, so the page gets that much more foot: the last row's
    controls (a date's visibility, a thread's Send) can scroll clear of it (2026-11-13 live review). */
 body:has(.install-hint) main {

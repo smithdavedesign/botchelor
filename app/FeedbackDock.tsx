@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import FeedbackModal from "./FeedbackModal";
 import Icon from "./Icon";
+import { claimToastVisit, toastVisitFree, useToastRoom } from "./useToastRoom";
 import { BETA_PROMPT_KEY, betaPromptDue, OPEN_FEEDBACK_EVENT, openFeedback, promptPathBlocked } from "@/lib/user-feedback-shared";
 
 /**
@@ -109,7 +110,8 @@ export default function FeedbackDock() {
         seenHere: Boolean(read(() => localStorage, BETA_PROMPT_KEY)),
         blocked: promptPathBlocked(window.location.pathname),
       });
-      if (due) setPrompt(true);
+      // One toast a visit (2026-11-20 mobile audit, B8): not after the install hint.
+      if (due && toastVisitFree("beta")) setPrompt(true);
     }, PROMPT_DELAY_MS);
     return () => {
       cancelled = true;
@@ -125,12 +127,16 @@ export default function FeedbackDock() {
     const seen = new IntersectionObserver((entries) => {
       if (!entries.some((e) => e.isIntersecting)) return;
       seen.disconnect();
+      claimToastVisit("beta");
       write(() => localStorage, BETA_PROMPT_KEY, new Date().toISOString());
       void fetch("/api/feedback/prompt", { method: "POST", headers: { "content-type": "application/json" }, body: "{}" }).catch(() => {});
     });
     seen.observe(el);
     return () => seen.disconnect();
   }, [prompt]);
+
+  // It waits while it would sit over the page's main button (B8), and isn't counted as seen till it shows.
+  const waiting = useToastRoom(toast, prompt);
 
   if (pathname === "/gate") return null;
 
@@ -150,6 +156,7 @@ export default function FeedbackDock() {
           <div
             ref={toast}
             className={`beta-toast${FLOATING_FEEDBACK_BUTTON ? "" : " no-fab"}`}
+            hidden={waiting}
             role="region"
             aria-label="Botchelor beta"
             onKeyDown={(e) => e.key === "Escape" && setPrompt(false)}

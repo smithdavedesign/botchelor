@@ -2213,11 +2213,12 @@ button.ad-studio-fold-head:active:not(:disabled) {
 .theater-after-dark .ad-blur-hint a {
   color: #d8b8ff;
 }
+/* Its ✕ is a thumb's 44px (2026-11-20 mobile audit, C23), pulled into the hint's padding so the line stays one high. */
 .ad-blur-hint-close {
   flex: 0 0 auto;
-  margin: 0 0 0 auto;
-  min-width: 32px;
-  min-height: 32px;
+  margin: -0.45rem -0.5rem -0.45rem auto;
+  min-width: 44px;
+  min-height: 44px;
   padding: 0;
   border: 0;
   background: transparent;
