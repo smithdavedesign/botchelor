@@ -26,6 +26,7 @@ import {
   clampValence,
   EVIDENCE_KEPT,
   type Evidence,
+  type EvidenceIn,
   type Layer,
   type Source,
   type Tie,
@@ -154,6 +155,14 @@ export async function getTie(db: Db, id: string): Promise<Tie | null> {
   return r && isTieKind(r.kind) ? tieFromRow(r) : null;
 }
 
+/** Ties by id, in one read (the ones that exist; an id of an unknown kind is left out). */
+export async function tiesByIds(db: Db, ids: readonly string[]): Promise<Map<string, Tie>> {
+  const unique = [...new Set(ids)];
+  if (!unique.length) return new Map();
+  const { rows } = await db.query<TieRow>(`select ${TIE_COLUMNS} from social_ties where id = any($1::text[])`, [unique]);
+  return new Map(rows.filter((r) => isTieKind(r.kind)).map((r) => [r.id, tieFromRow(r)]));
+}
+
 /** The tie with this key (either order for a symmetric pair), or null. */
 export async function findTie(db: Db, input: TieKeyInput): Promise<Tie | null> {
   const k = tieKey(input);
@@ -196,14 +205,35 @@ export async function removeTie(db: Db, id: string): Promise<boolean> {
 
 /* --------------------------------------------------- the write --------------------------------------------------- */
 
-/** Evidence as stored: the ref and an ISO time. */
-const evidenceOf = (e: TieInput["evidence"]): Evidence | null => (e && e.ref ? { ref: e.ref, at: iso(e.at ?? new Date())! } : null);
+const newestFirst = (x: Evidence, y: Evidence): number => (x.at < y.at ? 1 : x.at > y.at ? -1 : 0);
 
-/** Adds one piece of evidence: each ref once, newest first, at most EVIDENCE_KEPT. `added` is false for a repeat, or one too old to keep. */
-export function mergeEvidence(existing: readonly Evidence[], add: Evidence | null): { evidence: Evidence[]; added: boolean } {
-  if (!add || existing.some((e) => e.ref === add.ref)) return { evidence: [...existing], added: false };
-  const merged = [add, ...existing].sort((x, y) => (x.at < y.at ? 1 : x.at > y.at ? -1 : 0)).slice(0, EVIDENCE_KEPT);
-  const added = merged.some((e) => e.ref === add.ref);
+/**
+ * Evidence as stored, from what a write gives (one or several): ISO times (now when not given), each ref once (its
+ * newest time), newest first, at most EVIDENCE_KEPT.
+ */
+export function evidenceList(e: EvidenceIn | readonly EvidenceIn[] | null | undefined, now: Date = new Date()): Evidence[] {
+  const given: readonly EvidenceIn[] = !e ? [] : "ref" in e ? [e] : e;
+  const byRef = new Map<string, Evidence>();
+  for (const x of given) {
+    if (!x?.ref) continue;
+    const at = iso(x.at ?? now)!;
+    const had = byRef.get(x.ref);
+    if (!had || at > had.at) byRef.set(x.ref, { ref: x.ref, at });
+  }
+  return [...byRef.values()].sort(newestFirst).slice(0, EVIDENCE_KEPT);
+}
+
+/**
+ * Adds evidence (one piece or several): each ref once, newest first, at most EVIDENCE_KEPT. `added` is false when none
+ * of it is new, or all of it is too old to keep.
+ */
+export function mergeEvidence(existing: readonly Evidence[], add: Evidence | readonly Evidence[] | null): { evidence: Evidence[]; added: boolean } {
+  const have = new Set(existing.map((e) => e.ref));
+  const fresh = (!add ? [] : "ref" in add ? [add] : [...add]).filter((e, i, all) => e.ref && !have.has(e.ref) && all.findIndex((o) => o.ref === e.ref) === i);
+  if (!fresh.length) return { evidence: [...existing], added: false };
+  const merged = [...fresh, ...existing].sort(newestFirst).slice(0, EVIDENCE_KEPT);
+  const kept = new Set(merged.map((e) => e.ref));
+  const added = fresh.some((e) => kept.has(e.ref));
   return { evidence: added ? merged : [...existing], added };
 }
 
@@ -332,6 +362,88 @@ async function writeState(db: Db, t: Tie, version: string): Promise<TieRow | nul
   return rows[0] ?? null;
 }
 
+/** What a write would do to a tie that exists: its next state, what changed, and the one event that says so (null: nothing). */
+export type TiePlan = {
+  next: Tie;
+  changes: Record<string, [unknown, unknown]>;
+  /** Whether it brought evidence the tie didn't have. */
+  added: boolean;
+  event: TieEvent | null;
+  /** The newest evidence it brought, for the event: its ref and when. */
+  ref: string | null;
+  at: string | null;
+};
+
+/**
+ * The update path of upsertTie, without the database (pure): the given fields set and the rest kept, `detail` merged key
+ * by key, the evidence added once (or, with `wholeEvidence` from a derivation onto a derived row, replaced), and the
+ * event that says what happened. A derived write on a declared row brings evidence, contact and detail only. The text
+ * and exclusive-kind checks are upsertTie's. A derivation compares with it to skip writes that would change nothing.
+ */
+export function planTieUpdate(before: Tie, input: TieInput, now: Date = new Date()): TiePlan {
+  const next: Tie = { ...before, detail: { ...before.detail, ...(input.detail ?? {}) } };
+  // A derived write never rewrites what someone declared: it brings its evidence, its contact and its detail.
+  const declaredKept = input.source === "derived" && before.source !== "derived";
+  if (!declaredKept) {
+    if (input.valence !== undefined) next.valence = clampValence(input.valence);
+    if (input.closeness !== undefined) next.closeness = round3(clamp01(input.closeness));
+    if (input.status !== undefined) next.status = input.status;
+    if (input.visibility !== undefined) next.visibility = input.visibility;
+    if (input.story !== undefined) next.story = input.story?.trim() || null;
+    if (input.since_text !== undefined) next.since_text = input.since_text?.trim() || null;
+    if (input.origin_model !== undefined) next.origin_model = input.origin_model;
+    if (input.prompt_version !== undefined) next.prompt_version = input.prompt_version;
+    if (input.confidence !== undefined) next.confidence = round3(clamp01(input.confidence));
+    if (input.started_at !== undefined) next.started_at = iso(input.started_at);
+    // A kind's layer is the registry's, except `dated`, whose stage decides it.
+    if (before.kind === "dated") next.layer = input.layer ?? TIE_KINDS.dated.layer;
+    // A row someone declares on is theirs from then on (its source and who declared it); the first declarer stays.
+    if (before.source === "derived" && input.source !== "derived") {
+      next.source = input.source;
+      next.created_by = input.created_by ?? null;
+    }
+  }
+  const given = evidenceList(input.evidence, now);
+  const had = new Set(before.evidence.map((e) => e.ref));
+  const fresh = given.filter((e) => !had.has(e.ref));
+  let added: boolean;
+  let removed = 0;
+  if (input.wholeEvidence && input.source === "derived" && before.source === "derived") {
+    // The record's whole evidence: what it no longer has goes, and the contact is its newest.
+    const keep = new Set(given.map((e) => e.ref));
+    removed = before.evidence.filter((e) => !keep.has(e.ref)).length;
+    added = fresh.length > 0;
+    if (added || removed) {
+      next.evidence = given;
+      next.source_ref = given[0]?.ref ?? null;
+      next.last_contact_at = given[0]?.at ?? before.last_contact_at;
+    }
+  } else {
+    const merged = mergeEvidence(before.evidence, fresh);
+    added = merged.added;
+    next.evidence = merged.evidence;
+    if (added) {
+      next.source_ref = merged.evidence[0].ref;
+      if (!before.last_contact_at || fresh[0].at > before.last_contact_at) next.last_contact_at = fresh[0].at;
+    }
+  }
+  const newest = added ? fresh[0] : null;
+  if (next.status !== before.status) {
+    if (next.status === "ended" && input.ended_at === undefined) next.ended_at = newest?.at ?? now.toISOString();
+    if (OPEN.includes(next.status) && input.ended_at === undefined) next.ended_at = null;
+  }
+  if (!declaredKept && input.ended_at !== undefined) next.ended_at = iso(input.ended_at);
+
+  const changes = tieChanges(before, next);
+  if (removed) changes.evidence = [before.evidence.length, next.evidence.length];
+  const fields = Object.keys(changes);
+  let event: TieEvent | null = null;
+  if (fields.length || added) {
+    event = fields.every((f) => f === "last_contact_at") ? "contact" : next.status !== before.status ? statusEvent(before.status, next.status) : "changed";
+  }
+  return { next, changes, added, event, ref: newest?.ref ?? null, at: newest?.at ?? null };
+}
+
 /**
  * Creates or updates one tie (PRD section 4: events, then state). Idempotent: the same input twice changes nothing.
  *
@@ -351,7 +463,7 @@ export async function upsertTie(db: Db, input: TieInput, env: Env = process.env)
   const refusal = textRefusal(input.story, input.since_text);
   if (refusal) return { ok: false, reason: refusal };
   const def = TIE_KINDS[key.kind];
-  const add = evidenceOf(input.evidence);
+  const evidence = evidenceList(input.evidence);
   const actor = input.actor ?? input.created_by ?? "system";
   // A kind's layer is the registry's, except `dated`, whose stage decides it.
   const layer: Layer = key.kind === "dated" && input.layer ? input.layer : def.layer;
@@ -367,8 +479,9 @@ export async function upsertTie(db: Db, input: TieInput, env: Env = process.env)
       }
       const status = input.status ?? "active";
       if (OPEN.includes(status) && (await overExclusive(db, key, def, id))) return { ok: false, reason: "exclusive" };
-      const at = add?.at ?? null;
-      const started = input.started_at !== undefined ? iso(input.started_at) : at;
+      // The newest evidence is the last contact; the tie started at the earliest, unless the write says when.
+      const at = evidence[0]?.at ?? null;
+      const started = input.started_at !== undefined ? iso(input.started_at) : (evidence.at(-1)?.at ?? null);
       const ended = input.ended_at !== undefined ? iso(input.ended_at) : status === "ended" ? (at ?? new Date().toISOString()) : null;
       const { rows } = await db.query<TieRow>(
         `insert into social_ties (id, from_id, to_id, to_person_id, kind, layer, directed, valence, closeness, status, visibility, source, source_ref,
@@ -379,8 +492,8 @@ export async function upsertTie(db: Db, input: TieInput, env: Env = process.env)
          returning ${TIE_COLUMNS}`,
         [
           id, key.from_id, key.to_id, key.to_person_id, key.kind, layer, def.directed, clampValence(input.valence ?? def.valence),
-          round3(clamp01(input.closeness ?? def.closeness)), status, input.visibility ?? "public", input.source, add?.ref ?? null,
-          JSON.stringify(add ? [add] : []), JSON.stringify(input.detail ?? {}), input.story?.trim() || null, input.since_text?.trim() || null,
+          round3(clamp01(input.closeness ?? def.closeness)), status, input.visibility ?? "public", input.source, evidence[0]?.ref ?? null,
+          JSON.stringify(evidence), JSON.stringify(input.detail ?? {}), input.story?.trim() || null, input.since_text?.trim() || null,
           input.origin_model ?? null, input.prompt_version ?? null, round3(clamp01(input.confidence ?? 1)), input.created_by ?? null,
           started, ended, at,
         ],
@@ -388,54 +501,20 @@ export async function upsertTie(db: Db, input: TieInput, env: Env = process.env)
       if (!rows[0]) continue; // someone else created it a moment ago: update theirs
       const tie = tieFromRow(rows[0]);
       const event: TieEvent = status === "proposed" ? "proposed" : "created";
-      await logEvent(db, tie.id, event, initialChanges(tie), { source: input.source, ref: add?.ref, actor, at: started ?? at });
+      await logEvent(db, tie.id, event, initialChanges(tie), { source: input.source, ref: evidence[0]?.ref, actor, at: started ?? at });
       return { ok: true, tie, event };
     }
 
     const before = tieFromRow(existing);
-    const next: Tie = { ...before, detail: { ...before.detail, ...(input.detail ?? {}) } };
-    // A derived write never rewrites what someone declared: it brings its evidence, its contact and its detail.
-    const declaredKept = input.source === "derived" && before.source !== "derived";
-    if (!declaredKept) {
-      if (input.valence !== undefined) next.valence = clampValence(input.valence);
-      if (input.closeness !== undefined) next.closeness = round3(clamp01(input.closeness));
-      if (input.status !== undefined) next.status = input.status;
-      if (input.visibility !== undefined) next.visibility = input.visibility;
-      if (input.story !== undefined) next.story = input.story?.trim() || null;
-      if (input.since_text !== undefined) next.since_text = input.since_text?.trim() || null;
-      if (input.origin_model !== undefined) next.origin_model = input.origin_model;
-      if (input.prompt_version !== undefined) next.prompt_version = input.prompt_version;
-      if (input.confidence !== undefined) next.confidence = round3(clamp01(input.confidence));
-      if (input.started_at !== undefined) next.started_at = iso(input.started_at);
-      if (key.kind === "dated") next.layer = layer;
-      // A row someone declares on is theirs from then on (its source and who declared it); the first declarer stays.
-      if (before.source === "derived" && input.source !== "derived") {
-        next.source = input.source;
-        next.created_by = input.created_by ?? null;
-      }
-    }
-    const merged = mergeEvidence(before.evidence, add);
-    next.evidence = merged.evidence;
-    if (merged.added && add) {
-      next.source_ref = merged.evidence[0].ref;
-      if (!before.last_contact_at || add.at > before.last_contact_at) next.last_contact_at = add.at;
-    }
-    if (next.status !== before.status) {
-      if (OPEN.includes(next.status) && !OPEN.includes(before.status) && (await overExclusive(db, key, def, before.id))) return { ok: false, reason: "exclusive" };
-      if (next.status === "ended" && input.ended_at === undefined) next.ended_at = add?.at ?? new Date().toISOString();
-      if (OPEN.includes(next.status) && input.ended_at === undefined) next.ended_at = null;
-    }
-    if (!declaredKept && input.ended_at !== undefined) next.ended_at = iso(input.ended_at);
-
-    const changes = tieChanges(before, next);
-    const onlyContact = Object.keys(changes).every((f) => f === "last_contact_at");
-    if (!Object.keys(changes).length && !merged.added) return { ok: true, tie: before, event: null };
-    const event: TieEvent = onlyContact ? "contact" : next.status !== before.status ? statusEvent(before.status, next.status) : "changed";
-    const written = await writeState(db, next, existing.v);
+    const plan = planTieUpdate(before, input);
+    if (!plan.event) return { ok: true, tie: before, event: null };
+    const opens = OPEN.includes(plan.next.status) && !OPEN.includes(before.status);
+    if (opens && (await overExclusive(db, key, def, before.id))) return { ok: false, reason: "exclusive" };
+    const written = await writeState(db, plan.next, existing.v);
     if (!written) continue; // written by someone else in between: read again and redo
     const tie = tieFromRow(written);
-    await logEvent(db, tie.id, event, changes, { source: input.source, ref: add?.ref, actor, at: add?.at });
-    return { ok: true, tie, event };
+    await logEvent(db, tie.id, plan.event, plan.changes, { source: input.source, ref: plan.ref, actor, at: plan.at });
+    return { ok: true, tie, event: plan.event };
   }
   throw new Error(`social: tie ${id} kept changing under the write`);
 }
@@ -492,7 +571,7 @@ export async function logContact(
   env: Env = process.env,
 ): Promise<TieWrite> {
   if (!socialTiesOn(env)) return { ok: false, reason: "off" };
-  const add = evidenceOf({ ref: contact.ref, at: contact.at });
+  const add = evidenceList({ ref: contact.ref, at: contact.at })[0] ?? null;
   for (let attempt = 0; attempt < 3; attempt++) {
     const existing = (await db.query<Versioned>(`select ${TIE_COLUMNS}, xmin::text as v from social_ties where id = $1`, [tieId])).rows[0];
     if (!existing || !isTieKind(existing.kind)) return { ok: false, reason: "not_found" };

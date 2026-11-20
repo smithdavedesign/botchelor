@@ -24,6 +24,7 @@ import { seedFrom } from "./engine";
 import { HOUSE_CHARACTERS, type HouseCharacter } from "./house";
 import { popularity } from "./reviews";
 import { MONTHLY_FROM, previousSeasonStart, seasonIdOf, seasonWindow } from "./season-window";
+import { socialHook } from "./social/hook";
 
 export const DEFAULT_SEASON_CAST_SIZE = 4;
 /** The house places a season always keeps, whatever the auditions: the lobby and the blind-date fallback need two. */
@@ -330,6 +331,8 @@ export async function ensureSeasonCast(db: Db, now: Date = new Date(), env: Reco
   }
   const { tellCastOwners } = await import("./auditions");
   await tellCastOwners(db, season, picks).catch(() => {});
+  // The social network (lib/social/derive.ts): housemates, and who lives in the house this season. Best effort.
+  await socialHook("season", (d, deadline) => d.deriveSeasonCasts(db, { deadline }), { key: "season" });
   return picks;
 }
 

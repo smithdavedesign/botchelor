@@ -55,6 +55,7 @@ import { beatFor as producersBeat } from "./producer";
 import { dateLabel, REPORT_HIDE_THRESHOLD, REPORT_REASONS, type Ending } from "./rules";
 import { checkSheetText, checkShowText } from "./safety";
 import { showCastIds } from "./season-cast";
+import { socialHook } from "./social/hook";
 import { seasonIdOf } from "./season-window";
 import { airedClaim, ATTRACTION_LABELS, CLAIM_MAX, hear, stateFor, tensions, TRUST_LABELS, type Tension } from "./story-state";
 import { venueName, venuePhrase } from "./venues";
@@ -879,7 +880,14 @@ export async function storeScene(
     [id, s.place, JSON.stringify(s.cast), JSON.stringify(s.lines), JSON.stringify(s.told), s.source, s.spent.models[0] ?? null, s.spent.cost_usd, s.spent.input_tokens, s.spent.output_tokens, JSON.stringify(s.tension), JSON.stringify(s.result ?? null), s.now.toISOString()],
   );
   forgetLatestHouseScene();
+  await houseTies(db);
 }
+
+/**
+ * The house's ties in the social network (lib/social/derive.ts deriveHouse: feuds, rivals, who told whom, who talked
+ * about whom), worked out again from what /house shows. Best effort, after the response when there is one.
+ */
+const houseTies = (db: Db): Promise<void> => socialHook("house", (d, deadline) => d.deriveHouse(db, { deadline }), { key: "house" });
 
 /**
  * The hourly lobby job's part: writes today's scene once, on the first pass at or after HOUSE_SCENE_HOUR_UTC. It claims
@@ -941,6 +949,7 @@ export async function houseUpkeep(db: Db, now: Date = new Date()): Promise<{ ret
   const gone = await goneEpisodes(db, episodes);
   let retracted = 0;
   for (const r of rows) for (const t of r.told) if (gone.has(t.episode_id)) retracted += await retractLine(db, r.id, t.line);
+  if (retracted) await houseTies(db);
   return { retracted };
 }
 
@@ -977,6 +986,7 @@ export async function reportSceneLine(
   const n = (await db.query<{ n: number }>(`select count(*)::int as n from house_scene_reports where scene_id = $1 and line = $2`, [sceneId, line])).rows[0].n;
   const hidden = n >= REPORT_HIDE_THRESHOLD;
   if (hidden) await retractLine(db, sceneId, line);
+  if (hidden) await houseTies(db);
   return { ok: true, reported: made.rows.length > 0, hidden };
 }
 
@@ -1025,6 +1035,7 @@ export async function reviewSceneLine(db: Db, sceneId: string, line: number, dec
   } else {
     await applyTold(db, scene.told.filter((t) => t.line === line), new Date(scene.written_at ?? scene.created_at));
   }
+  await houseTies(db);
   return reviewed;
 }
 
@@ -1142,6 +1153,17 @@ export async function listHouseScenes(db: Db, opts: { limit?: number; offset?: n
     db.query<{ n: number }>(`select count(*)::int as n from house_scenes where ${where}`),
   ]);
   return { scenes: await sceneViews(db, rows), total: total.rows[0]?.n ?? 0 };
+}
+
+/**
+ * Every scene /house shows, newest first, read whole and whatever the switch (lib/social/derive.ts works the house's
+ * ties out from them, and decides for itself what to do while the house is off).
+ */
+export async function allHouseScenes(db: Db): Promise<HouseSceneView[]> {
+  const { rows } = await db.query<StoredScene>(
+    `select ${SCENE_COLS} from house_scenes where source in ('model', 'template') and jsonb_array_length(lines) > 0 order by day desc, ${KIND_ORDER}, created_at desc`,
+  );
+  return sceneViews(db, rows);
 }
 
 /** One scene by its id (a notification's or a text's link), or null. */

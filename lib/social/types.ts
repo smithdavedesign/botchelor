@@ -64,6 +64,8 @@ export type EvidenceRef = string;
 /** One piece of evidence on a tie: what it came from and when (ISO). A tie keeps the newest 20. */
 export type Evidence = { ref: EvidenceRef; at: string };
 export const EVIDENCE_KEPT = 20;
+/** Evidence as a write gives it: when it happened (now, if not given). */
+export type EvidenceIn = { ref: EvidenceRef; at?: string | Date };
 
 /** One tie, as stored (timestamps as ISO strings). */
 export type Tie = {
@@ -117,8 +119,17 @@ export type TieKey = { from_id: string; to_id: string | null; to_person_id: stri
  */
 export type TieInput = TieKeyInput & {
   source: Source;
-  /** The evidence this write brings: appended once (the same ref twice is a no-op), and its `at` is a contact. */
-  evidence?: { ref: EvidenceRef; at?: string | Date };
+  /**
+   * The evidence this write brings, one or several: each ref appended once (the same ref twice is a no-op), and the
+   * newest one's `at` is a contact. A new tie starts at the earliest unless `started_at` says otherwise.
+   */
+  evidence?: EvidenceIn | readonly EvidenceIn[];
+  /**
+   * The evidence given is the record's whole (its newest EVIDENCE_KEPT), not news: on a derived row a derived write
+   * then replaces what is stored, so a ref the record no longer has (a date made private, a line reported away) goes.
+   * lib/social/derive.ts sets it; a declared row only ever gains evidence.
+   */
+  wholeEvidence?: boolean;
   valence?: Valence;
   closeness?: number;
   status?: TieStatus;

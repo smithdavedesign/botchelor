@@ -28,6 +28,7 @@ import { ENDING_LABELS, endingLabel, REPORT_HIDE_THRESHOLD, type Ending } from "
 import { checkFields } from "./safety";
 import { venueFor } from "./places";
 import { overnightDatesOn } from "./overnight-shared";
+import { socialHook } from "./social/hook";
 import {
   isStage,
   shownStageOf,
@@ -564,6 +565,7 @@ export async function refreshRelationship(db: Db, x: string, y: string, env: Env
   if (!rows.length) {
     await db.query(`delete from relationships where character_a = $1 and character_b = $2`, [lo, hi]);
     await logStageEvents(db, lo, hi, before, { stage: null, public_stage: null, shown: null, public_shown: null }, { all: null, public: null }, env);
+    await socialDated(db, lo, hi, env);
     return null;
   }
   const name = (id: string) => nameRows.rows.find((r) => r.id === id)?.name ?? "";
@@ -597,8 +599,16 @@ export async function refreshRelationship(db: Db, x: string, y: string, env: Env
   const newest = rel.history[rel.history.length - 1]?.episode_id ?? null;
   const newestPublic = [...rel.history].reverse().find((h) => h.public)?.episode_id ?? null;
   await logStageEvents(db, lo, hi, before, { stage: a.stage, public_stage: p.stage, shown: a.shown, public_shown: p.shown }, { all: newest, public: newestPublic }, env);
+  await socialDated(db, lo, hi, env);
   return rel;
 }
+
+/**
+ * The pair's `dated` tie in the social network (lib/social/derive.ts), from the row just stored: written, changed, or
+ * gone with their last public date. Best effort, after the response when there is one.
+ */
+const socialDated = (db: Db, lo: string, hi: string, env: Env): Promise<void> =>
+  socialHook("dated", (d, deadline) => d.deriveDatedPair(db, lo, hi, { deadline, env }), { key: `dated:${lo}|${hi}`, env });
 
 type LayerStages = { stage: BaseStage | null; public_stage: BaseStage | null; shown: Stage | null; public_shown: Stage | null };
 
@@ -695,6 +705,8 @@ export async function backfillShownStages(db: Db, opts: { limit?: number; env?: 
 export async function refreshEpisodePair(db: Db, episodeId: string): Promise<void> {
   const r = (await db.query<{ character_a: string; character_b: string }>(`select character_a, character_b from episodes where id = $1`, [episodeId])).rows[0];
   if (r) await refreshRelationship(db, r.character_a, r.character_b);
+  // The social network: the date's venue and its group night count only while it is public (lib/social/derive.ts).
+  if (r) await socialHook("date", (d, deadline) => d.onDate(db, episodeId, { deadline }), { key: `date:${episodeId}` });
 }
 
 type RelRow = {
@@ -779,6 +791,15 @@ export async function relationshipsOf(db: Db, characterId: string): Promise<Rela
     [characterId],
   );
   return rows.map((r) => fromRow(r));
+}
+
+/**
+ * Stored pairs as they are, never refreshed or healed: `rest` is the statement after `from relationships` (a where, an
+ * order, a limit). The social network's derivations read the graph this way (lib/social/derive.ts).
+ */
+export async function storedRelationships(db: Db, rest: string, params: readonly unknown[] = [], env: Env = process.env): Promise<Relationship[]> {
+  const { rows } = await db.query<RelRow>(`select ${REL_COLUMNS} from relationships ${rest}`, [...params]);
+  return rows.map((r) => fromRow(r, env));
 }
 
 /* ----------------------------------------------------- layers ----------------------------------------------------- */
