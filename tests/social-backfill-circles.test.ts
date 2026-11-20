@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   circleMessages,
   familyHints,
+  isTitleOnly,
   offerWorkplaces,
   parseArgs,
   parseReply,
@@ -157,6 +158,20 @@ describe("the prompt and the reply", () => {
       { with: "ola", relation: "cousin", story: null },
       { with: "ola", relation: "rival", story: null },
     ]);
+  });
+
+  it("leaves out a title that isn't a name (Mum, Auntie), and keeps one with a name in it", () => {
+    const reply = {
+      people: [
+        { name: "Mum", relation: "mother" },
+        { name: "auntie", relation: "aunt" },
+        { name: "The Boss", relation: "boss" },
+        { name: "Auntie Meg", relation: "aunt" },
+        { name: "Al", relation: "best friend" },
+      ],
+    };
+    expect(toCircle(char("me"), reply, { candidates: [], workplaces: [] }).people.map((p) => p.name)).toEqual(["Auntie Meg", "Al"]);
+    expect([isTitleOnly("Mum"), isTitleOnly(" my  mum "), isTitleOnly("Uncle Fen"), isTitleOnly("Ma Rainey")]).toEqual([true, true, false, false]);
   });
 
   it("remembers what was written: the ties both ways, a new workplace for the next character", () => {

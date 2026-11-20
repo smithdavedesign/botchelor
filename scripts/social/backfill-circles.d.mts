@@ -58,6 +58,8 @@ export function circleMessages(
 ): ChatMessage[];
 export function parseReply(raw: string | null | undefined): Record<string, unknown> | null;
 /** `everyone`: the show's characters, so one of them named as an off-screen person is a tie (a candidate) or left out. */
+/** A title alone ("Mum", "Auntie"), not a name: the backfill leaves that person out. */
+export function isTitleOnly(name: string | null | undefined): boolean;
 export function toCircle(me: ShowCharacter, reply: Record<string, unknown>, o: { candidates: ShowCharacter[]; workplaces: Workplace[]; everyone?: ShowCharacter[] }): Circle;
 export function remember(
   me: ShowCharacter,

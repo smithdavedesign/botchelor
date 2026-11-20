@@ -142,7 +142,7 @@ export function circleMessages(me, { world, candidates, byId, workplaces }) {
     "",
     "Return this JSON:",
     "{",
-    '  "people": [3 to 6 people in their life, off the show: {"name": "a first name, or first and last", "relation": "their mother, father, sister, brother, son, daughter, grandmother, cousin, aunt, best friend, friend, ex, boss, coworker, neighbour, rival, mentor or roommate", "pronouns": "she/her, he/him or they/them", "note": "one specific, warm or funny line about them, under 120 characters", "deceased": false}],',
+    '  "people": [3 to 6 people in their life, off the show: {"name": "their own name: a first name, or first and last (a name, never only Mum, Dad or Auntie)", "relation": "their mother, father, sister, brother, son, daughter, grandmother, cousin, aunt, best friend, friend, ex, boss, coworker, neighbour, rival, mentor or roommate", "pronouns": "she/her, he/him or they/them", "note": "one specific, warm or funny line about them, under 120 characters", "deceased": false}],',
     '  "lives": "the neighbourhood they live in (its name)",',
     '  "works": {"name": "where they work: one of the workplaces above, or a new one with an invented name", "neighbourhood": "its neighbourhood"} (or null if they don\'t work),',
     '  "regular": "the id of one place they\'re a regular at",',
@@ -177,6 +177,13 @@ const lower = (s) => String(s ?? "").trim().toLowerCase();
  * (a workplace by its key when it's one the show has, else by name, made new); knows by name to ids, among the
  * candidates only. Leaves the checks to the site; drops only what isn't the right shape.
  */
+/**
+ * A title on its own isn't a name (2026-11-20 dry run: "Mum", "Auntie" and "Al" as Nell's three people): "Mum" alone is
+ * left out; "Auntie Meg" or "Uncle Fen" keeps its name.
+ */
+const TITLE_ONLY = /^(the\s+)?(mum|mom|mommy|mummy|mama|ma|mother|dad|daddy|papa|pa|pop|father|auntie|aunty|aunt|uncle|gran|granny|grandma|grandpa|grandmother|grandfather|nan|nana|nanna|gramps|sis|bro|sister|brother|cousin|boss|my\s+\w+)$/i;
+export const isTitleOnly = (name) => TITLE_ONLY.test(String(name ?? "").replace(/\s+/g, " ").trim());
+
 export function toCircle(me, reply, { candidates, workplaces, everyone = [] }) {
   // Someone on the show isn't an off-screen person (2026-11-20 dry run: "Barnaby Thorne, rival" as one of Juniper's
   // people, while Barnaby is in the cast): one of the candidates becomes a tie, anyone else on the show is left out.
@@ -191,7 +198,7 @@ export function toCircle(me, reply, { candidates, workplaces, everyone = [] }) {
       asTies.push({ name: candidate.name, relation });
       return [];
     }
-    if (onShow.has(lower(name)) || lower(name) === lower(me.name)) return [];
+    if (onShow.has(lower(name)) || lower(name) === lower(me.name) || isTitleOnly(name)) return [];
     return [{ name, relation, pronouns: str(p?.pronouns, 40), note: str(p?.note, 400), deceased: p?.deceased === true }];
   });
   const places = [];
