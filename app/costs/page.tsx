@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import SetHero from "@/app/SetHero";
 import { callEstimateBasis, callMinuteParts, callMinuteTotals, cents } from "@/lib/call-costs";
 import { getDb } from "@/lib/db";
 import { publicCosts } from "@/lib/public-costs";
@@ -87,12 +88,14 @@ export default async function CostsPage() {
     .catch(() => null);
   return (
     <article className="legal-page costs-page">
-      <h1>What Botchelor costs</h1>
-      <p>
-        Botchelor is run by one person and a team of AI agents, and we&apos;d rather show the numbers than talk around them.
-        This page reads the same ledger we keep for ourselves: the bills and top-ups, in US dollars. For what each service
-        does, see <Link href="/about">how it&apos;s built</Link>.
-      </p>
+      {/* In the confessional: the show owning up to what it spends (the visual pop audit, 2026-11-20). */}
+      <SetHero set="confessional" kicker="In the open" title="What Botchelor costs">
+        <p>
+          Botchelor is run by one person and a team of AI agents, and we&apos;d rather show the numbers than talk around them.
+          This page reads the same ledger we keep for ourselves: the bills and top-ups, in US dollars. For what each service
+          does, see <Link href="/about">how it&apos;s built</Link>.
+        </p>
+      </SetHero>
 
       <section id="spent">
         <h2>What we&apos;ve spent</h2>

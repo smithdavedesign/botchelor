@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import SetHero from "@/app/SetHero";
 import { formatPrice, onSale, PACK_5 } from "@/lib/catalog";
 import { COMPANION_EXTRAS, COMPANION_FAIR_USE_PER_MONTH, companionGuestReplies, companionGuestsOpen, companionOpen, extraTerms } from "@/lib/companion-shared";
 import { liveCallsOn } from "@/lib/companion-live";
@@ -41,10 +42,12 @@ export default function PricingPage() {
   const card = (id: string) => (featured === id ? "pricing-card pricing-card--featured" : "pricing-card");
   return (
     <article className="legal-page company-page">
-      <h1>Pricing</h1>
-      <p className="lede">
-        The show is free. Pay only if you want more dates than the free ones{companions ? ", or more time with the companions" : ""}.
-      </p>
+      <SetHero
+        set="booth"
+        kicker="Plans and packs"
+        title="Pricing"
+        lede={<>The show is free. Pay only if you want more dates than the free ones{companions ? ", or more time with the companions" : ""}.</>}
+      />
 
       <ul className="pricing-grid">
         <li className={card("free")} id="free">

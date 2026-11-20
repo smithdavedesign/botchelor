@@ -204,6 +204,7 @@ describe("writing a circle", () => {
           { name: "Tifa Lockhart", relation: "friend" },
           { name: "Rosa", relation: "mum" },
           { name: "Rosa", relation: "aunt" },
+          { name: "ines  caro", relation: "rival" },
         ],
         places: [
           { role: "lives", place: "Narnia" },
@@ -229,6 +230,8 @@ describe("writing a circle", () => {
       "person Nora": "they're single: on the show to date",
       "person Tifa Lockhart": expect.stringMatching(/^not an original: .*Final Fantasy/),
       "person Rosa": "named twice",
+      // Someone with a character on the site is a tie, never an off-screen person (a first name alone is anyone's).
+      "person ines caro": "a character on the site: a tie, not an off-screen person",
       "place lives Narnia": "not one of the city's neighbourhoods",
       "place haunts dive_bar": "not a role: haunts",
       "place regular the moon base": "no such place in the world",
