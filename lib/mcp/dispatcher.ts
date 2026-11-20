@@ -9618,6 +9618,10 @@ async function readResource(uri: string, db: Db, base?: string): Promise<{ mimeT
   if (uri === FULL_INSTRUCTIONS_URI) return { mimeType: "text/plain", text: fullInstructions() };
   if (uri === "botchelor://schema/character") return { mimeType: "application/schema+json", text: JSON.stringify(characterSchema(base), null, 2) };
   if (uri === "botchelor://stats") {
+    // #1870 (the 2026-11-19-2052 run: a stats read hung over 2 minutes): counts over every call ever made, so it's kept a
+    // minute per database; nobody needs them fresher.
+    const kept = statsCache.get(db);
+    if (kept && Date.now() - kept.at < STATS_TTL_MS) return { mimeType: "application/json", text: kept.text };
     // 2.8.0 (the 2026-10-22-0400 run: "agents_on_now read 0 at the start, though there were 9 agents"): my_status's count too,
     // and what each number counts, so the two read together.
     const onNow = (
@@ -9632,7 +9636,9 @@ async function readResource(uri: string, db: Db, base?: string): Promise<{ mimeT
     const counts_note =
       "agents: every identity that has ever called a tool, the show's own scripts (house-run bots) included; agents_last_7d: the same over 7 days; " +
       "agents_with_characters: the ones that made a character; agents_on_now: agents with a character that called in the last hour, house-run bots left out (my_status's agents_on_now, which also leaves you out).";
-    return { mimeType: "application/json", text: JSON.stringify({ ...(await agentStats(db)), agents_on_now: onNow, counts_note }, null, 2) };
+    const text = JSON.stringify({ ...(await agentStats(db)), agents_on_now: onNow, counts_note }, null, 2);
+    statsCache.set(db, { at: Date.now(), text });
+    return { mimeType: "application/json", text };
   }
   const character = /^botchelor:\/\/character\/([\w-]{1,64})$/.exec(uri);
   if (character) {
@@ -9650,6 +9656,18 @@ async function readResource(uri: string, db: Db, base?: string): Promise<{ mimeT
     return r.ok ? { mimeType: "application/json", text: JSON.stringify(r.data, null, 2) } : null;
   }
   return null;
+}
+
+const STATS_TTL_MS = 60_000;
+const statsCache = new WeakMap<object, { at: number; text: string }>();
+
+/** #1870: a tool call over SLOW_CALL_MS (not counting what it was asked to wait) goes to the server log by name. */
+export const SLOW_CALL_MS = 5_000;
+export function logSlowCall(tool: string, ms: number, args: Record<string, unknown> = {}): boolean {
+  const asked = ["wait_seconds", "timeout_seconds"].reduce((n, k) => Math.max(n, Number(args[k]) || 0), 0) * 1000;
+  if (ms - asked < SLOW_CALL_MS) return false;
+  console.warn(`[mcp] slow call: ${tool} took ${(ms / 1000).toFixed(1)} s${asked ? ` (asked to wait up to ${asked / 1000} s)` : ""}`);
+  return true;
 }
 
 /* ---------------------------------------- JSON-RPC handling ---------------------------------------- */
@@ -10194,7 +10212,10 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
         // own-date tools act on the date themselves: a hand-over asked for, or a decline, is that call's to make).
         if (!ACTS_ON_OWN_DATE.has(name)) await advanceQuietDatesFor(db, acting.id).catch(() => 0);
       }
+      const startedAt = Date.now();
       let ran = await runTool(name as ToolName, args, session, db, ctx.base, ctx);
+      // #1870 (the 2026-11-19-2052 run: "my_status took 15 s once"): a slow call says which tool it was, waits aside.
+      logSlowCall(name, Date.now() - startedAt, args);
       // 2.6.0: an error about an id says which kind of id the argument takes, and what the value given is.
       if ("error" in ran) {
         const failed = ran;
