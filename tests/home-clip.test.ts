@@ -476,7 +476,9 @@ describe("the home hero", () => {
     expect(userIdOf(d.owner)).toBeTruthy();
     expect(html).not.toContain("has-clip");
     expect(html).not.toContain("home-express");
-    expect(html).toContain('<a class="button" href="/create">Make your character</a>');
+    // No visitor pitch for an owner (the 2026-11-20 mobile audit, B10): "Since you were here" keeps its own create link.
+    expect(html).not.toContain('<a class="button" href="/create">Make your character</a>');
+    expect(html).toContain('href="/create">Build a new character</a>');
   });
 
   it("puts the sentence box under the headline for a visitor, and the old button back when express is off", async () => {
@@ -484,14 +486,15 @@ describe("the home hero", () => {
     const html = await home();
     const box = html.indexOf('class="home-express"');
     expect(box).toBeGreaterThan(html.indexOf("<h1>Give your character a love life.</h1>"));
-    expect(box).toBeLessThan(html.indexOf('id="hero-cta"'));
+    expect(box).toBeLessThan(html.indexOf('class="small hero-doors"'));
     expect(html).toContain('<form class="home-express" action="/create" method="get">');
     expect(html).toContain("Describe someone in a sentence");
     const input = /<input[^>]*name="say"[^>]*>/.exec(html)![0];
     for (const attr of ['required=""', `minLength="${EXPRESS_TEXT_MIN}"`, `maxLength="${EXPRESS_TEXT_MAX}"`]) expect(input, attr).toContain(attr);
     expect(html).toContain('data-track="home-express"');
-    // The box's button is the main one; the long way in, the sample and the import stay.
-    expect(html).toContain('<a class="button-ghost" href="/create">Make your character</a>');
+    // The box's button is the main one; the sample and the import stay. The first screen above carries "Make your
+    // character", so the hero doesn't repeat it (the 2026-11-20 mobile audit, A2).
+    expect(html).not.toContain('<a class="button-ghost" href="/create">Make your character</a>');
     expect(html).toContain('href="/create?sample=1"');
     expect(html).toContain('data-track="hero-import"');
 
