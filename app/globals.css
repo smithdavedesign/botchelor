@@ -6432,6 +6432,19 @@ button.sheet-x:hover:not(:disabled) {
 .sheet-actions > button {
   margin: 0;
 }
+/* A sheet whose content can outgrow the screen (DateConfirm with Date settings open, 2026-11-20 mobile audit, B7): its
+   buttons stay pinned to the sheet's foot while the rest scrolls under them, on the card's own background. The negative
+   margins reach over the body's padding so nothing shows through below or beside the bar. */
+.sheet-actions-pinned {
+  --pin-side: var(--space-5);
+  --pin-foot: var(--space-5);
+  position: sticky;
+  bottom: calc(-1 * var(--pin-foot));
+  z-index: 1;
+  margin: 0 calc(-1 * var(--pin-side)) calc(-1 * var(--pin-foot));
+  padding: var(--space-2) var(--pin-side) var(--pin-foot);
+  background: var(--card);
+}
 .sheet-error {
   color: var(--bad-text);
   font-size: var(--text-sm);
@@ -6481,6 +6494,10 @@ button.sheet-x:hover:not(:disabled) {
   }
   .sheet-actions > button {
     flex: 1 1 auto;
+  }
+  .sheet-actions-pinned {
+    --pin-side: var(--gutter);
+    --pin-foot: max(var(--space-4), env(safe-area-inset-bottom));
   }
 }
 /* A button that ends something for good (Unmatch): filled red, its label in the ink that reads on it in either theme. */
@@ -13074,6 +13091,34 @@ button.pg-group-head:hover {
 }
 .pg-go button {
   margin: 0;
+}
+.pg-go-fine {
+  margin-bottom: var(--space-2);
+}
+/* On a phone the Shoot bar sticks to the foot of the screen, above the tab bar, while the shot, place and outfit
+   choices scroll under it (2026-11-20 mobile audit, B9; like the create wizard's bar and the Studio's picking bar). */
+@media (max-width: 720px) {
+  .pg-go {
+    position: sticky;
+    bottom: var(--space-2);
+    z-index: 5;
+    gap: var(--space-1) var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    background: var(--card);
+    box-shadow: var(--shadow);
+  }
+  .pg-go button {
+    flex: 1 1 100%;
+  }
+  body:has(.tabbar-nav) .pg-go {
+    bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px) + var(--space-2));
+  }
+}
+/* The Gallery / My studio switch had the page's H1 right on top of it (B9). */
+.studio-tabs {
+  margin-bottom: var(--space-3);
 }
 .pg-pictures {
   display: grid;

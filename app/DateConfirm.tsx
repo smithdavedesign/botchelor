@@ -57,15 +57,6 @@ export default function DateConfirm({
           </>
         )}
       </p>
-      <div className="sheet-actions">
-        <button type="button" className="button-ghost" onClick={onClose} disabled={busy}>
-          Not yet
-        </button>
-        {/* Not disabled at 0: the server decides (an admin's or a pass's dates don't run out), and says why if not. */}
-        <button type="button" className="primary" onClick={onSend} disabled={busy || disabled}>
-          {busy ? busyLabel : sendLabel}
-        </button>
-      </div>
       {error?.wall && <OutOfDates data={error.wall} first={error.first ?? "them"} />}
       {error && !error.wall && (
         <p className="sheet-error" role="alert">
@@ -84,6 +75,17 @@ export default function DateConfirm({
           )}
         </p>
       )}
+      {/* Pinned to the sheet's foot (2026-11-20 mobile audit, B7): with Date settings open the sheet scrolls, and Send stays
+          in reach, any refusal just above it. */}
+      <div className="sheet-actions sheet-actions-pinned">
+        <button type="button" className="button-ghost" onClick={onClose} disabled={busy}>
+          Not yet
+        </button>
+        {/* Not disabled at 0: the server decides (an admin's or a pass's dates don't run out), and says why if not. */}
+        <button type="button" className="primary" onClick={onSend} disabled={busy || disabled}>
+          {busy ? busyLabel : sendLabel}
+        </button>
+      </div>
     </Sheet>
   );
 }

@@ -1764,7 +1764,40 @@ export default function CreateWizard({
             </span>
           </div>
         ) : (
+          <>
+          {step === last && !createOnTop && (
+            // The promise sits just above the bar (UX audit 2026-10-31, B7; 2026-11-20 mobile audit, B4: inside it, the bar
+            // took a fifth of a phone's screen): one line, right before Create. A first character's is at the top.
+            <label className="check wizard-attest">
+              <input id="wizard-attest" type="checkbox" checked={attest} onChange={(e) => setAttest(e.target.checked)} required />
+              <span>
+                <span aria-hidden>✍️ </span>This is my own original character: a fictional adult, not a real person.
+              </span>
+            </label>
+          )}
           <div className="wizard-actions">
+            {/* Why Create is greyed out, in the bar beside it (B4): it used to sit a screen below, after the form. */}
+            {step === last && busy === null && createWhy && (
+              <p className="wizard-still wizard-why" role="status">
+                {createWhy === "attest" ? (
+                  <>
+                    Tick{" "}
+                    <button type="button" className="link-button" onClick={() => document.getElementById("wizard-attest")?.focus()}>
+                      &ldquo;my own original character&rdquo;
+                    </button>{" "}
+                    above to create them.
+                  </>
+                ) : (
+                  <>
+                    To create them, finish{" "}
+                    <button type="button" className="link-button" onClick={() => jump(createWhy === "identity" ? S.identity : S.details)}>
+                      {createWhy === "identity" ? "the Identity step" : "the Dating profile"}
+                    </button>
+                    .
+                  </>
+                )}
+              </p>
+            )}
             {triedNext && stillNeeded.length > 0 && (
               <p className="wizard-still" role="status">
                 To go on, add {listWords(stillNeeded.map((m) => m.what))}.{" "}
@@ -1774,23 +1807,13 @@ export default function CreateWizard({
               </p>
             )}
             {step > 0 ? (
-              <button type="button" className="button-ghost" onClick={back} disabled={busy !== null}>
-                Back
+              <button type="button" className={step === last ? "link-button wizard-back" : "button-ghost"} onClick={back} disabled={busy !== null}>
+                {step === last ? "← Back" : "Back"}
               </button>
             ) : (
               <Link className="button-ghost" href="/">
                 Cancel
               </Link>
-            )}
-            {step === last && !createOnTop && (
-              // The promise sits on the bar beside Create (UX audit 2026-10-31, B7): on a phone it's in reach with the
-              // button, not under the whole review. A first character's is at the top, with Create.
-              <label className="check wizard-attest">
-                <input id="wizard-attest" type="checkbox" checked={attest} onChange={(e) => setAttest(e.target.checked)} required />
-                <span>
-                  <span aria-hidden>✍️ </span>This is my own original character: a fictional adult, not a real person.
-                </span>
-              </label>
             )}
             {step < last ? (
               <button type="submit">
@@ -1802,27 +1825,7 @@ export default function CreateWizard({
               </button>
             )}
           </div>
-        )}
-        {!edit && step === last && busy === null && createWhy && (
-          <p className="muted small" role="status">
-            {createWhy === "attest" ? (
-              <>
-                To create them, tick{" "}
-                <button type="button" className="link-button" onClick={() => document.getElementById("wizard-attest")?.focus()}>
-                  &ldquo;This is my own original character&rdquo;
-                </button>{" "}
-                first.
-              </>
-            ) : (
-              <>
-                To create them, finish{" "}
-                <button type="button" className="link-button" onClick={() => jump(createWhy === "identity" ? S.identity : S.details)}>
-                  {createWhy === "identity" ? "the Identity step" : "the Dating profile"}
-                </button>
-                .
-              </>
-            )}
-          </p>
+          </>
         )}
         {edit && !identityOk && <p className="error">Fill in the Identity step (a name nobody on the show has, an adult age, bio, three traits, want, dealbreaker) to save.</p>}
         {error && <p className="error">{error}</p>}
