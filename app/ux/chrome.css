@@ -439,11 +439,21 @@ body:has(.feedback-fab) .site-footer {
 }
 .chat-kind {
   flex: 0 20 auto;
-  min-width: 2rem;
+  min-width: 0;
   overflow: hidden;
   font-size: var(--text-xs);
   color: var(--muted);
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* On a phone a pair's row drops "texting each other": the two faces say it, and the names get the width (B3). */
+@media (max-width: 480px) {
+  .chat-faces.is-pair + .matches-row-body .chat-kind {
+    display: none;
+  }
+}
+.matches-row-preview .matches-new {
+  margin: 0 var(--space-1) 0 0;
   white-space: nowrap;
 }
 /* An empty inbox: one centred card, the cast in a row, then the way on. Scoped to /chat: a date's own empty line is
@@ -711,6 +721,23 @@ body:has(.feedback-fab) .site-footer {
   width: min(23rem, calc(100vw - 2 * var(--space-3)));
   transform: translateX(-50%);
 }
+/* The chip isn't centred in the bar (Back and the filters sit either side), so a panel centred on it hung 12px off the
+   left edge (2026-11-20 mobile audit, B1). In the deck's bar the panel hangs from the whole bar instead, its edges at the
+   bar's: never past the screen. */
+.swipe-topbar:has(> .char-picker--bar) {
+  position: relative;
+}
+.swipe-topbar > .char-picker--bar {
+  position: static;
+}
+.swipe-topbar > .char-picker--bar .char-picker-menu {
+  left: 0;
+  right: 0;
+  width: auto;
+  max-width: 23rem;
+  margin-inline: auto;
+  transform: none;
+}
 /* The bar tightens under 1180px: the face says who, the name waits in the panel. */
 @media (max-width: 1180px) {
   .char-picker--nav .char-picker-name {
@@ -758,6 +785,10 @@ body:has(.feedback-fab) .site-footer {
   text-decoration-thickness: 0.06em;
   text-underline-offset: 0.14em;
   cursor: pointer;
+}
+/* The name and its "'s" on one line (app/SwitchCharacter.tsx `suffix`, B2). */
+.heading-switch-keep {
+  white-space: nowrap;
 }
 .heading-switch:hover:not(:disabled) {
   transform: none;

@@ -112,7 +112,7 @@ export default async function MyStudioPage({ searchParams }: Props = {}) {
         <Link href={`/characters/${c.id}`}>← {c.name}</Link> · Studio
       </p>
       <h1>
-        📸 {mine.length > 1 && mine.some((m) => m.id === c.id) ? <SwitchCharacter name={c.name} /> : c.name}&apos;s Studio
+        📸 {mine.length > 1 && mine.some((m) => m.id === c.id) ? <SwitchCharacter name={c.name} suffix="'s" /> : `${c.name}'s`} Studio
       </h1>
       <p className="muted">
         Photo shoots for the show: pick a shot, a place, what they wear and the details, and get {r.state.shoot_size} pictures that keep their face. Everything here is
