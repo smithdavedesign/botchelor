@@ -14,6 +14,7 @@ import { cachedConstellation } from "@/lib/graph-cache";
 import { kindLabel } from "@/lib/kinds";
 import { breadcrumbJsonLd, itemListJsonLd, pageMetadata } from "@/lib/seo";
 import ConstellationApp from "./ConstellationApp";
+import { parseStages, stagesParam } from "./stages";
 import ShowTabs from "@/app/ShowTabs";
 import StoryMap from "@/app/StoryMap";
 import { cachedStoryMap } from "@/lib/story-map";
@@ -78,6 +79,10 @@ export default async function GraphPage({ searchParams }: { searchParams: Search
   const asked = parseSkyGroup(sp.origin);
   const origin = asked === "yours" && mine.length === 0 ? null : asked;
   const first = firstSky(origin ? groupSky({ nodes, edges, stats, kinds }, origin, new Set(mine)) : { nodes, edges, stats, kinds });
+  // ?stage= (a shared, filtered sky): the kinds of pair the sky opens on (app/graph/stages.ts). The ledger stays every pair.
+  const stages = parseStages(sp.stage);
+  // What a ledger page's link keeps of the address, so paging the ledger doesn't reset the sky above it.
+  const kept = { focus: sp.focus, origin: origin ?? undefined, stage: stagesParam(stages) ?? undefined };
 
   const jsonLd = (
       <JsonLd
@@ -102,6 +107,7 @@ export default async function GraphPage({ searchParams }: { searchParams: Search
         total={first.nodes.length === nodes.length && first.edges.length === edges.length ? null : { characters: nodes.length, pairs: edges.length }}
         initialFocus={typeof focusParam === "string" ? focusParam : null}
         initialOrigin={origin ?? "all"}
+        initialStages={stages}
         mine={mine}
       />
     </>
@@ -183,7 +189,7 @@ export default async function GraphPage({ searchParams }: { searchParams: Search
         ) : (
           <p className="muted">No public dates yet: the sky is all orbit. Send two characters on a date and the first line appears.</p>
         )}
-        <Pager page={ledger.page} pages={ledger.pages} label="Ledger pages" href={(n) => pageHref("/graph", { focus: sp.focus, origin: origin ?? undefined }, "ledger", n, "ledger")} scroll={false} />
+        <Pager page={ledger.page} pages={ledger.pages} label="Ledger pages" href={(n) => pageHref("/graph", kept, "ledger", n, "ledger")} scroll={false} />
         {singles.length > 0 && (
           <>
             <h3>In orbit (no public dates yet)</h3>
@@ -249,8 +255,10 @@ export default async function GraphPage({ searchParams }: { searchParams: Search
             light here. A public &quot;mutual spark&quot; opt-in would add pre-date edges.
           </li>
           <li>
-            <strong>Every edge is a pair.</strong> There are no group scenes or double dates, so triangles you see are derived from pairwise history, never
-            observed together.
+            <strong>Group nights and the house&apos;s scenes aren&apos;t drawn yet.</strong> Double dates and mixers air, and the house runs scenes of its
+            own, but every line here is still one pair&apos;s public dates: each couple at a group night&apos;s table is its own line, and the night they
+            shared isn&apos;t. So a triangle you see comes from three pairs&apos; separate histories, not a night the three spent together. Views of who
+            are friends, who are rivals and who talks about whom are coming.
           </li>
           <li>
             <strong>Texting between dates is private.</strong> Couples text after dates, but the volume is owner-only — a derived &quot;still texting&quot;

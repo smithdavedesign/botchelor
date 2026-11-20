@@ -5,7 +5,8 @@ import { sized } from "@/app/Avatar";
 import { avatarPalette, initials } from "@/lib/avatar";
 import { shade, starColor, type ColorBy } from "./colors";
 import type { GraphEdge, GraphNode } from "@/lib/graph";
-import { ALPHA_MIN, createSim, pick, REHEAT, settle, tick, type Sim } from "./sim";
+import { ALPHA_MIN, createSim, pick, REHEAT, settle, tick, warmStart, type Sim } from "./sim";
+import { LINE_STYLE, STAGE_GROUPS, stageGroup, type StageGroup } from "./stages";
 
 /** How many portraits the sky fetches at once. */
 const IMAGES_AT_ONCE = 4;
@@ -27,7 +28,8 @@ type Props = {
 };
 
 type View = { zoom: number; panX: number; panY: number };
-type Theme = { bg: string; ink: string; muted: string; line: string; accent: string; accent2: string };
+/** `lines`: each stage group's line colour (./stages.ts LINE_STYLE tokens). */
+type Theme = { bg: string; ink: string; muted: string; line: string; accent: string; accent2: string; lines: Record<StageGroup, string> };
 
 const edgeKey = (e: GraphEdge) => `${e.a_id}~${e.b_id}`;
 
@@ -58,13 +60,16 @@ export default function ConstellationCanvas({ nodes, edges, selection, onSelect,
 
     const readTheme = (): Theme => {
       const s = getComputedStyle(canvas);
+      const accent2 = s.getPropertyValue("--accent-2").trim() || "#7a36c9";
       return {
         bg: s.getPropertyValue("--constellation-bg").trim() || "#141018",
-        ink: s.getPropertyValue("--ink").trim() || "#fff",
+        // The sky's own ink (light in both themes, as the sky is dark in both), not the page's.
+        ink: s.getPropertyValue("--constellation-ink").trim() || "#fff",
         muted: s.getPropertyValue("--constellation-label").trim() || "#aaa",
         line: s.getPropertyValue("--constellation-line").trim() || "#444",
         accent: s.getPropertyValue("--accent").trim() || "#e5356b",
-        accent2: s.getPropertyValue("--accent-2").trim() || "#7a36c9",
+        accent2,
+        lines: Object.fromEntries(STAGE_GROUPS.map((g) => [g, s.getPropertyValue(LINE_STYLE[g].token).trim() || accent2])) as Record<StageGroup, string>,
       };
     };
     themeRef.current = readTheme();
@@ -152,7 +157,8 @@ export default function ConstellationCanvas({ nodes, edges, selection, onSelect,
       ctx.fillRect(0, 0, w, h);
       ctx.setTransform(dpr * v.zoom, 0, 0, dpr * v.zoom, dpr * v.panX, dpr * v.panY);
 
-      // Edges under nodes.
+      // Edges under nodes. Each line says where its pair stands (./stages.ts): its group's colour and its own dash, so
+      // it reads without colour too; first dates thin and faint. A private pair stays the neutral grey dash it always was.
       for (let i = 0; i < sim.edges.length; i++) {
         const se = sim.edges[i];
         const data = es[i];
@@ -160,10 +166,31 @@ export default function ConstellationCanvas({ nodes, edges, selection, onSelect,
         const b = sim.nodes[se.b];
         const inEgo = ego.has(a.id) && ego.has(b.id);
         const isSel = selEdge && selEdge.a_id === data.a_id && selEdge.b_id === data.b_id;
-        ctx.globalAlpha = dimming && !inEgo ? 0.08 : 0.25 + 0.6 * se.weight;
-        ctx.strokeStyle = isSel || hoverEdge === se ? theme.accent : data.masked ? theme.line : theme.accent2;
-        ctx.lineWidth = (isSel ? 2.5 : 1 + 2.5 * se.weight) / v.zoom + (1 + 2.5 * se.weight) * 0.6;
-        ctx.setLineDash(data.masked ? [4, 5] : []);
+        const hot = Boolean(isSel) || hoverEdge === se;
+        const group = data.masked ? null : stageGroup(data.stage_id);
+        const style = group ? LINE_STYLE[group] : null;
+        // A pair with no public stage (never on a public pair today) draws like a first date.
+        const faint = !data.masked && (!style || style.faint);
+        const base = 1 + 2.5 * se.weight;
+        const width = ((isSel ? 2.5 : base) / v.zoom + base * 0.6) * (faint && !hot ? 0.75 : 1);
+        if (hot) {
+          // A soft halo in the sky's ink under the picked or hovered line, which keeps its own colour on top.
+          ctx.globalAlpha = 0.3;
+          ctx.strokeStyle = theme.ink;
+          ctx.lineWidth = width + 5 / v.zoom;
+          ctx.lineCap = "round";
+          ctx.setLineDash([]);
+          ctx.beginPath();
+          ctx.moveTo(a.x, a.y);
+          ctx.lineTo(b.x, b.y);
+          ctx.stroke();
+        }
+        ctx.globalAlpha =
+          dimming && !inEgo ? 0.08 : hot ? 1 : data.masked ? 0.25 + 0.6 * se.weight : faint ? (dimming ? 0.6 : 0.16 + 0.34 * se.weight) : 0.5 + 0.45 * se.weight;
+        ctx.strokeStyle = data.masked ? theme.line : theme.lines[group ?? "first"];
+        ctx.lineWidth = width;
+        ctx.lineCap = data.masked ? "butt" : "round";
+        ctx.setLineDash(data.masked ? [4, 5] : style && style.dash.length ? style.dash.map((d) => d * width) : []);
         ctx.beginPath();
         ctx.moveTo(a.x, a.y);
         ctx.lineTo(b.x, b.y);
@@ -190,6 +217,7 @@ export default function ConstellationCanvas({ nodes, edges, selection, onSelect,
         }
       }
       ctx.setLineDash([]);
+      ctx.lineCap = "butt";
 
       // Nodes.
       const images = imagesRef.current;
@@ -436,7 +464,8 @@ export default function ConstellationCanvas({ nodes, edges, selection, onSelect,
     };
     const scheme = window.matchMedia("(prefers-color-scheme: dark)");
 
-    const onWake = () => wake(1);
+    // A rebuilt sky says how warm to start (./sim.ts warmStart): gently when most of it carried over.
+    const onWake = (ev: Event) => wake(ev instanceof CustomEvent && typeof ev.detail === "number" ? ev.detail : 1);
     // A new colouring or selection only repaints: the layout stays where it is.
     const onRedraw = () => {
       if (!rafRef.current) draw();
@@ -474,7 +503,8 @@ export default function ConstellationCanvas({ nodes, edges, selection, onSelect,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Rebuild the sim when the (filtered) data changes — deterministic seeds keep the layout familiar.
+  // Rebuild the sim when the (filtered) data changes. Everyone still on the sky keeps their place (./sim.ts warmStart),
+  // so a filter changes the sky under the viewer's eye; deterministic seeds place the newcomers.
   const dataKey = `${nodes.map((n) => n.id).join(",")}|${edges.map(edgeKey).join(",")}`;
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -486,9 +516,11 @@ export default function ConstellationCanvas({ nodes, edges, selection, onSelect,
       w,
       h,
     );
+    if (simRef.current) warmStart(simRef.current, sim);
+    const alpha = sim.alpha;
     if (reducedRef.current) settle(sim);
     simRef.current = sim;
-    canvas.dispatchEvent(new Event("constellation:wake"));
+    canvas.dispatchEvent(new CustomEvent("constellation:wake", { detail: alpha }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dataKey]);
 

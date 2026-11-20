@@ -49,6 +49,7 @@ const edge = (a_id: string, b_id: string, dates = 1, weight = 0.5, o: Partial<Gr
   dates,
   second_dates: 0,
   stage: null,
+  stage_id: null,
   last_at: null,
   weight,
   first_at: null,
