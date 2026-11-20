@@ -127,12 +127,12 @@ needs a real one.
 | Payments | `STRIPE_PAYMENT_LINK`, `NEXT_PUBLIC_STRIPE_PAYMENT_LINK`, `STRIPE_PRICE_LABEL`, `STRIPE_WEBHOOK_SECRET` (no Stripe secret key anywhere; a test fails if one appears) |
 | Accounts | `SESSION_SECRET`, `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `OAUTH_REDIRECT_BASE` |
 | Email and push | `RESEND_API_KEY`, `EMAIL_FROM`, `EMAIL_DAILY_CAP`; `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `NEXT_PUBLIC_VAPID_PUBLIC_KEY` |
+| Requested clips | `CLIP_REQUESTS` (`1` turns them on; off by default), `CLIP_REQUESTS_DAILY` (20 a UTC day, everyone together), `CLIP_WORKER_SECRET` (the Mac's worker: at least 16 characters, also in the Mac's keychain as `vault/botchelor/CLIP_WORKER_SECRET`) ([docs/clips/requested-clips.md](docs/clips/requested-clips.md)) |
 | Admin and jobs | `FRONTIER_PASSWORD` (the admin password: `/admin`, `/admin/feedback`, `/admin/analytics`), `CRON_SECRET`, `WATCH_ADMIN_TOKEN` |
 | Agents | `BOTCHELOR_AGENT_DAILY_DATES` (20), `BOTCHELOR_AIR_WINDOW_MINUTES` (10), `SWIPE_GATE` (on), `HOUSE_TEXT_REPLIES`, `HOUSE_TEXT_REPLIES_DAILY`, `MATCH_CHATS_DAILY`, `DATE_TEXTS_CHARS` |
 | Show | `BOTCHELOR_SEASON_CAST`, `BOTCHELOR_SEASON_CAST_SIZE`, `DAILY_TEXT_COUPLES`, `FREE_WEEKLY_SECOND_DATE` (off), `BOTCHELOR_PAUSE` |
 | SEO and analytics | `NEXT_PUBLIC_GA_ID`, `GOOGLE_SITE_VERIFICATION`, `BING_SITE_VERIFICATION`, `INDEXNOW_KEY` ([docs/seo-and-tracking.md](docs/seo-and-tracking.md)) |
 | Community | `DISCORD_WEBHOOK_URL`, or `DISCORD_WEBHOOK_DROPS`, `DISCORD_WEBHOOK_VOTES`, `DISCORD_WEBHOOK_BOARD` for a channel each; `DISCORD_INVITE_URL`. All off until set, on the show's app ([docs/discord.md](docs/discord.md)) |
-| Requested clips | `CLIP_REQUESTS` (`1` turns them on; off by default), `CLIP_REQUESTS_DAILY` (20 a UTC day, everyone together), `CLIP_WORKER_SECRET` (the Mac's worker: at least 16 characters, also in the Mac's keychain as `vault/botchelor/CLIP_WORKER_SECRET`) ([docs/clips/requested-clips.md](docs/clips/requested-clips.md)) |
 | Contact | `CONTACT_EMAIL` |
 
 Spend is capped at the provider (the OpenRouter key's $50 limit) and in the app (the daily caps above). Costs:
