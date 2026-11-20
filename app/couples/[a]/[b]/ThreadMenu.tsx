@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
+import OverlayClose from "@/app/OverlayClose";
+import { useOverlay } from "@/app/useOverlay";
 
 /** The menu's items that are showing: a wide screen hides the chats group (its ▾ switcher has room there). */
 const itemsIn = (panel: HTMLElement | null) =>
@@ -11,8 +13,9 @@ const itemsIn = (panel: HTMLElement | null) =>
  * dates and story, whose phone it is, a double date, the other chats, Unmatch. 2026-10-31 UX audit: on a phone, ⓘ,
  * 💞💞 Double? and ⋯ beside the action button squeezed the name out of the header (David: "make sure its not crowded
  * we group things"). A menu button as WAI-ARIA has it: opening focuses the first item, ↑ ↓ Home End move, Esc closes
- * back to ⋯, Tab or an outside click closes. A choice (an item with `data-close`) closes it and puts focus back on ⋯,
- * so a modal an item opens (app/Sheet.tsx) returns there. Its items stay mounted while it's shut, so that modal stays up.
+ * back to ⋯, and so do its ✕ and an outside press; Tab stays inside while it's open (the page behind is inert,
+ * app/useOverlay.ts). A choice (an item with `data-close`) closes it and puts focus back on ⋯, so a modal an item opens
+ * (app/Sheet.tsx) returns there. Its items stay mounted while it's shut, so that modal stays up.
  */
 export default function ThreadMenu({ label, children }: { label: string; children: ReactNode }) {
   const id = useId();
@@ -21,23 +24,14 @@ export default function ThreadMenu({ label, children }: { label: string; childre
   const button = useRef<HTMLButtonElement>(null);
   const panel = useRef<HTMLDivElement>(null);
 
+  const close = () => {
+    setOpen(false);
+    button.current?.focus();
+  };
+  // Escape or a press outside closes it; while it's open the page behind is inert and still (app/useOverlay.ts).
+  useOverlay(open, { root: box, onClose: close });
   useEffect(() => {
-    if (!open) return;
-    itemsIn(panel.current)[0]?.focus();
-    const onDown = (e: PointerEvent) => {
-      if (box.current && !box.current.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
-      setOpen(false);
-      button.current?.focus();
-    };
-    document.addEventListener("pointerdown", onDown);
-    window.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("pointerdown", onDown);
-      window.removeEventListener("keydown", onKey);
-    };
+    if (open) itemsIn(panel.current)[0]?.focus();
   }, [open]);
 
   const move = (e: ReactKeyboardEvent) => {
@@ -51,7 +45,6 @@ export default function ThreadMenu({ label, children }: { label: string; childre
     else if (e.key === "ArrowUp") go(at - 1);
     else if (e.key === "Home") go(0);
     else if (e.key === "End") go(list.length - 1);
-    else if (e.key === "Tab") setOpen(false);
   };
 
   return (
@@ -83,6 +76,7 @@ export default function ThreadMenu({ label, children }: { label: string; childre
           button.current?.focus();
         }}
       >
+        <OverlayClose onClose={close} label="Close the menu" className="thread-menu-x" />
         {children}
       </div>
     </span>

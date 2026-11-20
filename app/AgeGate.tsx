@@ -1,6 +1,7 @@
 "use client";
 
-import type { FormEvent } from "react";
+import { useRef, type FormEvent } from "react";
+import { useOverlay } from "./useOverlay";
 import Avatar from "./Avatar";
 import { ADULT_COOKIE, ADULT_COOKIE_MAX_AGE, safeFrom } from "@/lib/age";
 
@@ -37,6 +38,11 @@ export default function AgeGate({
   const dest = safeFrom(from);
   // The show's pair only: After Dark asks in its own words, with nothing of the show on its card.
   const pair = afterDark ? null : behind;
+  // The site header stays sharp above a blurred page: while the question is up everything outside it is inert (Tab stays
+  // in the card, the ☰ can't be used to slip past) and the page doesn't scroll (2026-11-20 mobile audit, A8). Nothing
+  // closes it but an answer.
+  const gate = useRef<HTMLDivElement>(null);
+  useOverlay(true, { root: gate, outside: false });
 
   function confirm(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -47,7 +53,7 @@ export default function AgeGate({
   }
 
   return (
-    <div className={`age-gate${backdrop ? " has-backdrop" : ""}`} role="dialog" aria-modal="true" aria-labelledby="age-gate-title">
+    <div ref={gate} className={`age-gate${backdrop ? " has-backdrop" : ""}`} role="dialog" aria-modal="true" aria-labelledby="age-gate-title">
       <div className="age-gate-card">
         {pair && (
           <div className="age-gate-pair">

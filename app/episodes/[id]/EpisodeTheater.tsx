@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Icon from "@/app/Icon";
+import { useOverlay } from "@/app/useOverlay";
 import { flush, queueEvent } from "@/app/engagement";
 import Scene from "@/app/Scene";
 import ChatThread from "@/app/ChatThread";
@@ -187,12 +188,24 @@ function Playback({ episodeId, characters, venue, transcript, endingLabel, justF
     closeCard();
     replay.skip();
   };
+  // Full screen over the page: the page behind is inert and still, and Escape closes "Who's who", else leaves the theater
+  // (app/useOverlay.ts; 2026-11-20 mobile audit).
+  const stage = useRef<HTMLDivElement>(null);
+  useOverlay(true, {
+    root: stage,
+    outside: false,
+    onClose: () => {
+      if (card) return startFromCard();
+      leave("exit");
+      onExit();
+    },
+  });
   const shown = replay.shown;
   const [a, b] = characters;
   const actLabel = shown.length ? DATE_ACTS[shown[shown.length - 1].act] ?? null : null;
 
   return (
-    <div className="theater theater-clean">
+    <div className="theater theater-clean" ref={stage}>
       <div className={`theater-stage${convo ? " with-convo" : ""}`}>
         <div className="theater-scene-area">
           <Scene

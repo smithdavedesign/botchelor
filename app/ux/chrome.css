@@ -617,6 +617,10 @@ body:has(.feedback-fab) .site-footer {
 .char-picker-page {
   margin-left: auto;
 }
+/* Its ✕ (app/OverlayClose.tsx) ends the head row, pulled into the panel's padding so the row stays one line tall. */
+.char-picker-x {
+  margin: calc(-1 * var(--space-2)) calc(-1 * var(--space-2)) calc(-1 * var(--space-2)) 0;
+}
 .char-picker-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(5.25rem, 1fr));

@@ -4,6 +4,8 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 import Avatar from "@/app/Avatar";
+import OverlayClose from "@/app/OverlayClose";
+import { useOverlay } from "@/app/useOverlay";
 import { CHARACTER_EVENT, PICKER_OPEN_EVENT, pickedHref, rememberCharacterInBrowser, rememberedFromCookieString } from "@/lib/current-character";
 import type { PickerCharacter } from "@/lib/my-characters";
 import { shortName } from "@/lib/names";
@@ -60,24 +62,12 @@ export default function CharacterPicker({ characters, initial, variant = "nav" }
     return () => window.removeEventListener(PICKER_OPEN_EVENT, ask);
   }, []);
   useEffect(() => setOpen(false), [pathname]);
-  // Escape, or a tap anywhere else, closes it.
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
-      setOpen(false);
-      button.current?.focus();
-    };
-    const onDown = (e: PointerEvent) => {
-      if (!root.current?.contains(e.target as Node)) setOpen(false);
-    };
-    window.addEventListener("keydown", onKey);
-    document.addEventListener("pointerdown", onDown);
-    return () => {
-      window.removeEventListener("keydown", onKey);
-      document.removeEventListener("pointerdown", onDown);
-    };
-  }, [open]);
+  // Escape, its ✕ or a tap anywhere else closes it; while it's open the page behind is inert and still (app/useOverlay.ts).
+  const close = () => {
+    setOpen(false);
+    button.current?.focus();
+  };
+  useOverlay(open, { root, onClose: close });
 
   if (!characters.length) return null;
   const me = characters.find((c) => c.id === picked) ?? characters[0];
@@ -121,6 +111,7 @@ export default function CharacterPicker({ characters, initial, variant = "nav" }
           <Link href={`/characters/${encodeURIComponent(me.id)}`} className="char-picker-page">
             {first}&apos;s page
           </Link>
+          <OverlayClose onClose={close} label="Close your characters" className="char-picker-x" />
         </p>
         {several && (
           <ul className="char-picker-grid">
