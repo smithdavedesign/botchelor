@@ -80,7 +80,7 @@ export function beatSeconds(beat: Pick<Beat, "kind" | "voiced" | "secs">, voiceS
 export function spokenText(beat: Pick<Beat, "kind" | "voiced" | "text" | "say">): string;
 export function textSize(text: string): number;
 export function backdropOf(venue: string | null | undefined): string | null;
-export function frameHtml(beat: Beat, opts: { base: string; shown?: number | null }): string;
+export function frameHtml(beat: Beat, opts: { base: string; shown?: number | null; credit?: string | null }): string;
 export const ZOOM: number;
 export const CHUNK_WORDS: number;
 /** A line in the parts it appears in as it's spoken; joined with spaces they are the line again. */
@@ -106,6 +106,7 @@ export function renderCut(
     log?: (m: string) => void;
     caption?: string | null;
     checklist?: string[] | ((info: { total: number; beats: Beat[]; voices: string }) => string[]) | null;
+    credit?: string | null;
   },
 ): Promise<{ total: number; beats: Beat[]; seconds: number[]; voices: string }>;
 export const LOUDNESS: string;

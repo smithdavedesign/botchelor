@@ -131,8 +131,11 @@ export const isVote = (tonight) => /\byou pick\b/i.test(String(tonight ?? ""));
 /**
  * The episode's edit decision list (pure), for episode-cut.mjs. `story`: GET /api/story ({day, tonight, episodes:
  * [{id, logline}]}) or null; `n`: the day number. Throws when the date has too little to cut.
+ * A clip someone asked for of their own date (clip-queue.mjs) is the same edit outside the daily series: `label` (the
+ * cold open's kicker, default "Day N"; null for the plain "Tonight"), `kicker` (the title's, default "Botchelor · Day N")
+ * and `card` (the closing card, default tonight's beat or "make your own character") replace the series' own.
  */
-export function autoEdl(e, { story = null, n = 1 } = {}) {
+export function autoEdl(e, { story = null, n = 1, label = `Day ${n}`, kicker = `Botchelor · Day ${n}`, card: closing = null } = {}) {
   const lines = (e.transcript ?? []).map((t, i) => ({ i, text: String(t?.dialogue ?? "").trim() })).filter((l) => l.text);
   if (lines.length < 4) throw new Error(`the date has ${lines.length} spoken lines; a daily episode needs 4`);
   const [a, b] = (e.characters ?? []).map((c) => firstName(c.name));
@@ -146,11 +149,11 @@ export function autoEdl(e, { story = null, n = 1 } = {}) {
     const idx = sentences(pick.text).findIndex((s) => /[?!]$/.test(s) && s.length <= 110);
     coldKeep = [Math.max(0, idx)];
   }
-  const cold = { kind: "cold", line: bi, keep: coldKeep, label: `Day ${n}` };
+  const cold = { kind: "cold", line: bi, keep: coldKeep, ...(label ? { label } : {}) };
 
   const line = storyLine(story?.episodes?.find((x) => x.id === e.id)?.logline);
   const titleText = line ?? `${a} and ${b}${e.title ? `: ${e.title}` : ""}.`;
-  const title = { kind: "title", kicker: `Botchelor · Day ${n}`, title: titleText, sub: line && e.title ? e.title : null, say: line ?? null };
+  const title = { kind: "title", kicker, title: titleText, sub: line && e.title ? e.title : null, say: line ?? null };
 
   // The body: up to BEFORE lines leading up to the best line, then the one that answers it, each shortened.
   const pos = lines.findIndex((l) => l.i === bi);
@@ -165,7 +168,9 @@ export function autoEdl(e, { story = null, n = 1 } = {}) {
 
   const tonight = tonightLine(story?.tonight);
   const vote = isVote(story?.tonight);
-  const card = tonight
+  const card = closing
+    ? closing
+    : tonight
     ? { kind: "card", kicker: "Tonight on Botchelor", title: tonight, url: vote ? "botchelor.com/vote" : "botchelor.com", say: `Tonight, ${tonight.charAt(0).toLowerCase()}${tonight.slice(1)} ${vote ? "Vote at botchelor dot com." : "Watch at botchelor dot com."}` }
     : { kind: "card", kicker: "Make your own character", title: "Send them on a date. Watch how it ends.", url: "botchelor.com", say: "Make your own character at botchelor dot com." };
 

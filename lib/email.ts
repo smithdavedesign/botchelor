@@ -36,6 +36,8 @@ export const IMMEDIATE_KINDS: ReadonlySet<NotificationKind> = new Set([
   "date_accepted",
   "date_roleplay",
   "date_booked_with_yours",
+  // The clip of their own date they asked for (lib/clip-requests.ts): they asked, and it's waiting.
+  "date_clip",
   "own_date_invite",
   "key_usage",
   "key_capped",

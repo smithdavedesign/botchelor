@@ -71,6 +71,8 @@ export type AccountExport = {
   /** Their writing styles (lib/writing-style.ts) and the After Dark stories made for them (lib/stories.ts). */
   writing_styles: Record<string, unknown>[];
   stories: Record<string, unknown>[];
+  /** The clips of their own dates they asked for (lib/clip-requests.ts): which date, the credit and caption, how it went. */
+  clips: Record<string, unknown>[];
   /** Who they are in scenes (lib/persona.ts): the name, look and line about themselves they wrote for scenes. */
   persona: Record<string, unknown>[];
   show_ideas_proposed: Record<string, unknown>[];
@@ -394,6 +396,8 @@ export async function exportAccount(db: Db, userId: string, o: { nested?: boolea
     // Writing styles (lib/writing-style.ts): the style they picked for each side, and the stories of their After Dark chapters.
     writing_styles: await q("select show_style, adult_style, updated_at from writing_prefs where user_id = $1", [userId]),
     stories: await q("select kind, ref_id, title, paragraphs, created_at from stories where owner_id = $1 order by created_at", [userId]),
+    // The clips of their own dates (lib/clip-requests.ts): never the video bytes, which their clip page serves.
+    clips: await q("select id, episode_id, character_id, status, charge, credit, caption, created_at, ready_at from clip_requests where owner_id = $1 order by created_at", [userId]),
     // Who they are in scenes (lib/persona.ts).
     persona: await q("select name, look, about, updated_at from personas where user_id = $1", [userId]),
     show_ideas_proposed: await q("select id, title, pitch, status, created_at from show_ideas where proposed_by = $1 order by created_at", [userId]),
@@ -914,6 +918,9 @@ async function deleteIdentity(db: Db, userId: string): Promise<AccountDeletion> 
   // Their writing styles and the stories made for them (lib/writing-style.ts, lib/stories.ts).
   await run("delete from writing_prefs where user_id = $1", [userId]);
   await run("delete from stories where owner_id = $1", [userId]);
+  // The clips of their own dates (lib/clip-requests.ts): the files in the store first, then the rows.
+  await (await import("./clip-requests")).removeClipFilesOf(db, userId).catch(() => {});
+  await run("delete from clip_requests where owner_id = $1", [userId]);
   // Who they are in scenes (lib/persona.ts).
   await run("delete from personas where user_id = $1", [userId]);
   // Show ideas (lib/show-ideas.ts): their answers, the ideas they proposed, and everyone's answers on those ideas.

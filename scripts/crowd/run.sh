@@ -1,5 +1,5 @@
 #!/bin/zsh
-# launchd entry for the house crowd (docs/house-crowd.md): run.sh crowd | report | clip. Runs from the crowd's own clone
+# launchd entry for the house crowd (docs/house-crowd.md): run.sh crowd | report | clip | clip-queue. Runs from the crowd's own clone
 # in ~/.botchelor-crowd/repo (launchd can't read ~/Documents), on the newest main.
 set -u
 export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
@@ -29,15 +29,27 @@ if [ ! -f "$HOME_DIR/lock" ]; then
     fi
   fi
 fi
+# The clips need playwright-core: the clone's dependencies, refreshed when the lockfile changes.
+deps() {
+  local sum
+  sum=$(shasum package-lock.json | cut -d' ' -f1)
+  if [ "$(cat "$HOME_DIR/.deps" 2>/dev/null)" != "$sum" ]; then
+    npm ci --ignore-scripts --no-audit --no-fund >> "$HOME_DIR/logs/$1" 2>&1 && echo "$sum" > "$HOME_DIR/.deps"
+  fi
+}
 case "$MODE" in
   crowd) exec node scripts/crowd/prod-crowd.mjs >> "$HOME_DIR/logs/launchd-crowd.log" 2>&1 ;;
   report) exec node scripts/crowd/weekly-report.mjs >> "$HOME_DIR/logs/report.log" 2>&1 ;;
   clip)
-    # The clip needs playwright-core: the clone's dependencies, refreshed when the lockfile changes.
-    sum=$(shasum package-lock.json | cut -d' ' -f1)
-    if [ "$(cat "$HOME_DIR/.deps" 2>/dev/null)" != "$sum" ]; then
-      npm ci --ignore-scripts --no-audit --no-fund >> "$HOME_DIR/logs/clip.log" 2>&1 && echo "$sum" > "$HOME_DIR/.deps"
-    fi
+    deps clip.log
     exec /usr/bin/caffeinate -i node scripts/clips/daily-clip.mjs >> "$HOME_DIR/logs/clip.log" 2>&1 ;;
-  *) echo "usage: run.sh crowd|report|clip" >&2; exit 2 ;;
+  clip-queue)
+    # Requested clips (docs/clips/requested-clips.md): every queued one, then stop. Its own lock, so a long render isn't
+    # started twice by the next tick.
+    [ -f "$HOME_DIR/clip-queue.lock" ] && [ -n "$(find "$HOME_DIR/clip-queue.lock" -mmin -60 2>/dev/null)" ] && exit 0
+    touch "$HOME_DIR/clip-queue.lock"
+    trap 'rm -f "$HOME_DIR/clip-queue.lock"' EXIT
+    deps clip-queue.log
+    /usr/bin/caffeinate -i node scripts/clips/clip-queue.mjs >> "$HOME_DIR/logs/clip-queue.log" 2>&1 ;;
+  *) echo "usage: run.sh crowd|report|clip|clip-queue" >&2; exit 2 ;;
 esac

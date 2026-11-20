@@ -246,8 +246,12 @@ export function backdropOf(venue) {
   return /^[a-z_]+$/.test(id) && id !== "elsewhere" ? `/cast/venue-${id}-v2.webp` : null;
 }
 
-/** One frame's HTML (pure), in the site's type and colours, text kept out of the apps' bottom and side overlays. */
-export function frameHtml(beat, { base, shown = null }) {
+/**
+ * One frame's HTML (pure), in the site's type and colours, text kept out of the apps' bottom and side overlays.
+ * `credit`: a line burned into every frame under the header (a requested clip's "Nell by @maker · botchelor.com",
+ * scripts/clips/clip-queue.mjs), so the credit stays with the video wherever it's reposted. None by default.
+ */
+export function frameHtml(beat, { base, shown = null, credit = null }) {
   const e = beat.episode;
   // The words on screen: all of them, or the first `shown` parts (chunksOf) with the rest held in place but hidden, so
   // the bubble keeps its size while the line fills in.
@@ -289,6 +293,7 @@ export function frameHtml(beat, { base, shown = null }) {
     default:
       body = "";
   }
+  if (credit) body += `<p class="credit">${esc(credit)}</p>`;
   return `<!doctype html><html><head><meta charset="utf-8">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,600;0,9..144,700;1,9..144,500&family=Inter:wght@500;600;700&display=block" rel="stylesheet">
 <style>
@@ -334,6 +339,7 @@ h1{font-family:Fraunces,Georgia,serif;font-weight:700;font-size:33px;line-height
 .ending{font-family:Fraunces,Georgia,serif;font-weight:700;font-size:40px;line-height:1.1}
 .ending.disaster{color:#ff8a8a}.ending.second_date{color:#ff9cc0}.ending.friends,.ending.close_friends{color:#ffd36b}
 .url{font-size:19px;font-weight:700;background:#e5356b;border-radius:999px;padding:11px 22px}
+.credit{position:absolute!important;top:40px;left:24px;right:24px;font-size:11px;font-weight:700;color:#ffd6e3;text-align:left;opacity:.92}
 </style></head><body><div class="bg"></div><div class="veil"></div>${body}</body></html>`;
 }
 
@@ -444,9 +450,10 @@ export async function fetchEpisodes(ids, base, headers = { "user-agent": "botche
  * Renders a cut into `out`: post.mp4, cover.png (the frame of beat `edl.cover`, all its words shown), caption.txt,
  * edl.json and, last, checklist.md (a folder is ready once that's there). `caption` and `checklist` replace the
  * hand-edited cut's own (the daily episode writes its own; `checklist` may be a function of {total, beats, voices}).
+ * `credit`: a line burned into every frame (frameHtml), for a clip someone asked for of their own date.
  * Returns {total, beats, seconds, voices}.
  */
-export async function renderCut(edl, episodes, { base, out, log = (m) => console.error(m), caption = null, checklist = null }) {
+export async function renderCut(edl, episodes, { base, out, log = (m) => console.error(m), caption = null, checklist = null, credit = null }) {
   const beats = resolveBeats(edl, episodes);
   mkdirSync(out, { recursive: true });
   rmSync(join(out, "checklist.md"), { force: true });
@@ -472,7 +479,7 @@ export async function renderCut(edl, episodes, { base, out, log = (m) => console
         const times = parts.length > 1 ? chunkTimes(parts, voiceSecs[i], seconds[i]) : [seconds[i]];
         const list = [];
         for (let k = 0; k < times.length; k++) {
-          await page.setContent(frameHtml(b, { base, shown: times.length > 1 ? k + 1 : null }), { waitUntil: "networkidle" });
+          await page.setContent(frameHtml(b, { base, shown: times.length > 1 ? k + 1 : null, credit }), { waitUntil: "networkidle" });
           await page.evaluate(() => document.fonts.ready);
           const f = join(tmp, `f${String(i).padStart(2, "0")}-${k}.png`);
           await page.screenshot({ path: f });

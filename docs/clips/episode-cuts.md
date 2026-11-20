@@ -89,3 +89,6 @@ The edit, about 25 to 35 s (`TARGET_SECONDS` 34; the earliest lead-up lines go f
 "Day N" counts the daily episodes already in `CLIPS_DIR/posts` (their checklists say `Daily episode: Day N`), so the numbering survives a skipped day.
 
 The renderer changed for every cut, hand-edited ones included: a spoken line's words come up part by part with its voice (`chunksOf`, `chunkTimes`), the push-in goes to 6% (`ZOOM`), beats cut hard, and only the very end fades. A first frame faded up from black was a black thumbnail on every platform. Cuts 4 to 6, waiting in `~/BotchelorClips/cuts`, were re-rendered on 2026-11-19; the first renders are in `~/BotchelorClips/cuts-replaced-2026-11-19`.
+
+## Requested clips (2026-11-20)
+The same daily-episode edit, made for one person on request: the owner of a character asks for a clip of one of its finished dates, credited to them, to post to their own followers. The flow, the rules and how the Mac runs it: [requested-clips.md](requested-clips.md).

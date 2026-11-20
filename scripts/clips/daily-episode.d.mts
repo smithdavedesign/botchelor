@@ -17,7 +17,7 @@ export function keepFor(text: string, phrase: string | null | undefined): number
 export function keepShort(text: string): number[] | null;
 export function tonightLine(tonight: string | null | undefined): string | null;
 export function isVote(tonight: string | null | undefined): boolean;
-export function autoEdl(e: DailyEpisode, opts?: { story?: DayStory; n?: number }): Edl;
+export function autoEdl(e: DailyEpisode, opts?: { story?: DayStory; n?: number; label?: string | null; kicker?: string; card?: Edl["segments"][number] | null }): Edl;
 export function dailyCaption(e: DailyEpisode, edl: Edl, opts?: { story?: DayStory; n?: number; base?: string }): string;
 export function fetchDayStory(base: string, headers?: Record<string, string>): Promise<DayStory>;
 export function nextDayNumber(postsDir: string): number;

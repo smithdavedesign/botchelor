@@ -1,7 +1,8 @@
 #!/bin/zsh
 # Installs the house crowd (docs/house-crowd.md) on this Mac: its own clone in ~/.botchelor-crowd/repo (launchd can't
 # read ~/Documents), the roster of bots, and three launchd jobs: the crowd every 30 minutes, the weekly report on Mondays
-# at 08:00 and the daily clip at 17:00 (local time). Re-run to update or to load a new roster.
+# at 08:00 and the daily clip at 17:00 (local time); a fourth, requested clips every 5 minutes, once CLIP_QUEUE=1 is in
+# ~/.botchelor-crowd/env (docs/clips/requested-clips.md). Re-run to update or to load a new roster.
 #   scripts/crowd/install.sh [roster.json]     roster: [{ id, owner, name }] (default: .data/crowd30/portraits.json, else bots30.json)
 #   scripts/crowd/install.sh --uninstall       removes the jobs (keeps ~/.botchelor-crowd: state, ledger, reports)
 # Pause without uninstalling: touch ~/.botchelor-crowd/PAUSE (rm it to resume), or HOUSE_CROWD_PAUSED=1 on Vercel.
@@ -9,7 +10,7 @@ set -eu
 HOME_DIR="${CROWD_HOME:-$HOME/.botchelor-crowd}"
 REPO="$(cd "$(dirname "$0")/../.." && pwd)"
 AGENTS="$HOME/Library/LaunchAgents"
-LABELS=(com.user.botchelor-crowd com.user.botchelor-crowd-report com.user.botchelor-clip)
+LABELS=(com.user.botchelor-crowd com.user.botchelor-crowd-report com.user.botchelor-clip com.user.botchelor-clip-queue)
 
 if [ "${1:-}" = "--uninstall" ]; then
   for L in $LABELS; do
@@ -64,6 +65,14 @@ PL
 job com.user.botchelor-crowd crowd "<key>StartInterval</key><integer>1800</integer>"
 job com.user.botchelor-crowd-report report "<key>StartCalendarInterval</key><dict><key>Weekday</key><integer>1</integer><key>Hour</key><integer>8</integer><key>Minute</key><integer>0</integer></dict>"
 job com.user.botchelor-clip clip "<key>StartCalendarInterval</key><dict><key>Hour</key><integer>17</integer><key>Minute</key><integer>0</integer></dict>"
+# Requested clips (docs/clips/requested-clips.md): every 5 minutes, only once CLIP_QUEUE=1 is in $HOME_DIR/env (the
+# worker secret is the keychain's vault/botchelor/CLIP_WORKER_SECRET), so installing never starts it by itself.
+if grep -q '^CLIP_QUEUE=1' "$HOME_DIR/env" 2>/dev/null; then
+  job com.user.botchelor-clip-queue clip-queue "<key>StartInterval</key><integer>300</integer>"
+else
+  launchctl bootout "gui/$(id -u)/com.user.botchelor-clip-queue" 2>/dev/null || true
+  rm -f "$AGENTS/com.user.botchelor-clip-queue.plist"
+fi
 cat <<DONE
 Installed the house crowd: a pass every 30 minutes, the report Mondays 08:00, a clip daily 17:00 (clips in ~/BotchelorClips).
   Logs:    $HOME_DIR/logs     Reports: $HOME_DIR/reports

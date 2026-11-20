@@ -17,7 +17,7 @@ import { isOvernight } from "@/lib/overnight";
 import { OVERNIGHT_COPY, overnightClose, overnightDatesOn, overnightEndingLabel } from "@/lib/overnight-shared";
 import { adultViewerFromCookies } from "@/lib/adult/mode";
 import { ADULT_COOKIE } from "@/lib/age";
-import { afterDarkHref } from "@/lib/after-dark-host";
+import { afterDarkHref, afterDarkOnly } from "@/lib/after-dark-host";
 import { dareReveal, VERDICT_WORDS } from "@/lib/dares";
 import { callRecord, NO_CALLS } from "@/lib/streaks";
 import ShareRecord from "@/app/ShareRecord";
@@ -66,6 +66,8 @@ import TranscriptRead from "./TranscriptRead";
 import { airIfDue, airWindowMinutes } from "@/lib/air";
 import { endingsLately } from "@/lib/endings-lately";
 import SafetyActions from "./SafetyActions";
+import ClipRequest from "./ClipRequest";
+import { chargeLabel, clipDateFacts, clipRefusal, clipRequestsOn, nextClipCharge, ownersClipFor } from "@/lib/clip-requests";
 import SlidingDoors from "./SlidingDoors";
 import WatchPartyLaunch from "./WatchPartyLaunch";
 import GeneratingPoller from "./GeneratingPoller";
@@ -268,6 +270,18 @@ export default async function EpisodePage({
           return out;
         })().catch(() => [])
       : Promise.resolve([]);
+  // A clip of this date to post (lib/clip-requests.ts): for the owner of one of its sides, once it has aired and while the
+  // rules allow one. Its own box below the share area, apart from the verdict card.
+  const clipP =
+    clipRequestsOn() && !afterDarkOnly() && ready && episode.revealed && episode.is_creator && viewerId
+      ? (async () => {
+          const facts = await clipDateFacts(db, id);
+          const verdict = clipRefusal(facts, viewerId);
+          if (!facts || !("side" in verdict)) return null;
+          const [initial, charge] = await Promise.all([ownersClipFor(db, id, viewerId), nextClipCharge(db, viewerId)]);
+          return { characterId: facts.characters[verdict.side].id, initial, price: chargeLabel(charge) };
+        })().catch(() => null)
+      : Promise.resolve(null);
   const [
     afterDarkLink,
     airsAt,
@@ -376,6 +390,7 @@ export default async function EpisodePage({
   ]);
   const { open: storyOpen, kept: keptStory, price: storyPrice } = await storyState.catch(() => ({ open: false, kept: null, price: undefined }));
   const talk = await talkP;
+  const clipBox = await clipP;
   const performer = performerRows.rows[0];
   const mixer = sibling ? null : mixerTable;
   // Step into the date (lib/step-in.ts): a person played one side live, the show's model the cast member's.
@@ -711,6 +726,8 @@ export default async function EpisodePage({
             lately={lately}
           />
         </div>
+
+        {clipBox && <ClipRequest episodeId={episode.id} characterId={clipBox.characterId} initial={clipBox.initial} price={clipBox.price} />}
 
         {episode.transcript && episode.transcript.length > 0 && (
           // The date itself, on the page (design audit 2026-11-14): its first exchange shows, the rest one tap away

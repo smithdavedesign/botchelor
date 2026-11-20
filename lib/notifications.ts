@@ -31,6 +31,7 @@ export type NotificationKind =
   | "couple_date" // a couple you follow went on another date
   | "arc_resolved" // a prediction you made about a couple's arc came true (or didn't)
   | "date_aired" // a date with your character (or that you booked) aired: on its own once its window closed, or by someone else (lib/air.ts notifyOwnersAired, #1032)
+  | "date_clip" // the clip of your own date you asked for is ready to post, or couldn't be made (lib/clip-requests.ts)
   | "date_filmed" // a date its creator asked to hear about is filmed (lib/jobs.ts notifyIfAsked, offered when one runs long)
   | "date_went_well" // the day after your character's date aired, when it ended in a second date: share it, or book the next (lib/air.ts notifyWentWell)
   | "welcome" // the account's first notice: what to do here (lib/auth.ts, the 2026-11-11 growth plan)

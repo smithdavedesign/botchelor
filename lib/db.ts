@@ -4534,6 +4534,39 @@ create table if not exists character_tags (
   primary key (character_id, tag)
 );
 create index if not exists character_tags_tag_idx on character_tags (tag, character_id);
+
+-- A person's own date as a clip to post (lib/clip-requests.ts, docs/clips/requested-clips.md; David, 2026-11-20): the
+-- owner of one of a finished date's two characters asks, David's Mac renders it (scripts/clips/clip-queue.mjs claims the
+-- oldest queued request through /api/clips/worker), and the MP4 and its cover come back here: the object store (area
+-- clips) or the bytea columns when none is configured. One live request a date and character (the unique index below);
+-- a failed one may be asked again. charge: what paid for it (their first clip free, the plan, or a bought date, given
+-- back when it fails). credit is the line burned into the clip, caption the one suggested for their post: both written
+-- by the show from their public creator page, never from their characters' words. Goes with their account.
+create table if not exists clip_requests (
+  id text primary key,
+  episode_id text not null references episodes (id) on delete cascade,
+  character_id text not null references characters (id) on delete cascade,
+  owner_id text not null,
+  status text not null default 'queued' check (status in ('queued', 'rendering', 'ready', 'failed')),
+  charge text not null check (charge in ('free', 'plan', 'tokens')),
+  credit text not null,
+  caption text not null,
+  attempts integer not null default 0,
+  leased_until timestamptz,
+  error text,
+  clip_key text,
+  clip_data bytea,
+  poster_key text,
+  poster_data bytea,
+  poster_mime text,
+  seconds numeric(6, 2),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  ready_at timestamptz
+);
+create unique index if not exists clip_requests_live_idx on clip_requests (episode_id, character_id) where status <> 'failed';
+create index if not exists clip_requests_owner_idx on clip_requests (owner_id, created_at desc);
+create index if not exists clip_requests_queue_idx on clip_requests (status, created_at) where status in ('queued', 'rendering');
 `;
 
 /**

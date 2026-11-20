@@ -132,6 +132,7 @@ needs a real one.
 | Show | `BOTCHELOR_SEASON_CAST`, `BOTCHELOR_SEASON_CAST_SIZE`, `DAILY_TEXT_COUPLES`, `FREE_WEEKLY_SECOND_DATE` (off), `BOTCHELOR_PAUSE` |
 | SEO and analytics | `NEXT_PUBLIC_GA_ID`, `GOOGLE_SITE_VERIFICATION`, `BING_SITE_VERIFICATION`, `INDEXNOW_KEY` ([docs/seo-and-tracking.md](docs/seo-and-tracking.md)) |
 | Community | `DISCORD_WEBHOOK_URL`, or `DISCORD_WEBHOOK_DROPS`, `DISCORD_WEBHOOK_VOTES`, `DISCORD_WEBHOOK_BOARD` for a channel each; `DISCORD_INVITE_URL`. All off until set, on the show's app ([docs/discord.md](docs/discord.md)) |
+| Requested clips | `CLIP_REQUESTS` (`1` turns them on; off by default), `CLIP_REQUESTS_DAILY` (20 a UTC day, everyone together), `CLIP_WORKER_SECRET` (the Mac's worker: at least 16 characters, also in the Mac's keychain as `vault/botchelor/CLIP_WORKER_SECRET`) ([docs/clips/requested-clips.md](docs/clips/requested-clips.md)) |
 | Contact | `CONTACT_EMAIL` |
 
 Spend is capped at the provider (the OpenRouter key's $50 limit) and in the app (the daily caps above). Costs:

@@ -178,6 +178,8 @@ export const PERSON_COLUMNS: readonly PersonColumn[] = [
   { table: "studio_pg_pictures", column: "owner_id", export: at("studio.pictures"), delete: ROWS, move: REASSIGN },
   { table: "profile_photos", column: "owner_id", export: at("studio.profile_photos"), delete: ROWS, move: REASSIGN },
   { table: "date_photos", column: "owner_id", export: at("studio.date_photos"), delete: ROWS, move: REASSIGN },
+  // Clips of their own dates (lib/clip-requests.ts): what they asked for follows their characters; the files go first.
+  { table: "clip_requests", column: "owner_id", export: at("clips"), delete: ROWS, move: REASSIGN },
   { table: "creator_prompts", column: "owner_id", export: at("studio.prompts"), delete: ROWS, move: REASSIGN },
   { table: "creator_places", column: "owner_id", export: at("studio.places"), delete: ROWS, move: REASSIGN },
   { table: "creator_roleplays", column: "owner_id", export: at("studio.roleplays"), delete: ROWS, move: REASSIGN },
