@@ -91,6 +91,12 @@ export type Character = {
    */
   introducedBy?: string;
   /**
+   * Set only on a date's characters (lib/social/people-lines.ts, SOCIAL_PEOPLE_IN_PROMPTS): one or two lines about the
+   * people in its life, from what its own owner may see of the social network, someone both of them know first. Its
+   * own prompt only; the engine never reads it.
+   */
+  peopleInYourLife?: string[];
+  /**
    * Set only on a date that plays a roleplay (lib/roleplays.ts): what both agreed to before it, from this side (its title,
    * the premise in their names, who plays whom). Both sides carry it; its words are things both already know. With a
    * scene card (lib/scene-cards.ts) it also has how it starts, where it can go, its tone and the opening, and this

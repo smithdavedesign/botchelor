@@ -421,6 +421,8 @@ export function buildTurnMessages(
     ...(meChar.table ? { also_at_your_table: meChar.table } : {}),
     // A friend of both set this date up (lib/social/introductions.ts): who, and what that friend is to each of them.
     ...(meChar.introducedBy ? { who_set_you_up: meChar.introducedBy } : {}),
+    // The people in its life (lib/social/people-lines.ts): someone both know, or one of its own off the show.
+    ...(meChar.peopleInYourLife?.length ? { people_in_your_life: meChar.peopleInYourLife } : {}),
     your_intention: side === "a" ? beat.a : beat.b,
     // A cast member's own secrets still hidden (lib/cast-secrets.ts), numbered for "let_slip". Its own side only.
     ...(meChar.secrets?.length ? { your_secrets: meChar.secrets.map((x, n) => `${n + 1}. ${x.secret}`) } : {}),

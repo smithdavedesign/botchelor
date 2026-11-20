@@ -34,6 +34,7 @@ import { afterDarkNote, withAfterDark } from "./adult/memory";
 import { nightTogetherFact } from "./overnight";
 import { linkBetween, linkContext, linkLine, type CharacterLink } from "./character-links";
 import { engineHistory, loadRelationship, pairContext, pairKey, pairSharedWords, PUBLIC_ONLY, refreshRelationship, type End, type Relationship } from "./relationships";
+import { peopleForDate, type DatePeople } from "./social/people-lines";
 import { planPlace } from "./places";
 import { warnWhenSparksOut } from "./partners";
 import { loadSoul, type StoredSoul } from "./souls";
@@ -200,6 +201,8 @@ export type DateParts = {
   table?: string | null;
   /** A friend of both set it up (lib/social/introductions.ts): each side's own line, and the friend's name. */
   introduction?: DateIntroduction | null;
+  /** The people in each one's life (lib/social/people-lines.ts): each side's own lines, and the names both sides' share. */
+  people?: DatePeople | null;
   /** The roleplay both sides agreed to (lib/roleplays.ts): each actor plays its role, and the setup keeps the terms. */
   roleplay?: DateRoleplay | null;
   /** The hot takes the show derived for each side (characters.hot_takes); a side's own extras.hot_takes win (lib/hot-takes.ts). */
@@ -310,6 +313,13 @@ export function assembleDate(p: DateParts): BuiltDate {
     charA.introducedBy = p.introduction.a;
     charB.introducedBy = p.introduction.b;
     charA.pairShared = charB.pairShared = `${charA.pairShared ?? ""} ${p.introduction.by}`.trim();
+  }
+  // The people in each one's life (lib/social/people-lines.ts): each side its own lines, from what its own owner may
+  // see; someone both of them know is a name both already know. Flavour, never the engine.
+  if (p.people) {
+    if (p.people.a.length) charA.peopleInYourLife = p.people.a;
+    if (p.people.b.length) charB.peopleInYourLife = p.people.b;
+    if (p.people.shared.length) charA.pairShared = charB.pairShared = `${charA.pairShared ?? ""} ${p.people.shared.join(" ")}`.trim();
   }
   // A roleplay both agreed to (lib/roleplays.ts): each side knows its role and theirs. Its words are both of theirs to say,
   // never "profile reading". Framing, never the engine.
@@ -519,7 +529,13 @@ export async function buildDate(
   // What each has learned about itself lately (lib/character-lessons.ts; null with CHARACTER_LESSONS=0): its own prompt only.
   const [lessonsA, lessonsB] = await Promise.all([lessonsForPrompt(db, a.id), lessonsForPrompt(db, b.id)]);
   // What each thinks of the other, has heard about them and wants this week (lib/story-state.ts; null with STORY_STATE=0).
-  const [storyA, storyB] = await Promise.all([stateFor(db, a.id, { withId: b.id }).catch(() => null), stateFor(db, b.id, { withId: a.id }).catch(() => null)]);
+  // And the people in each one's life (lib/social/people-lines.ts; null with SOCIAL_PEOPLE_IN_PROMPTS=0): read each build,
+  // never stored, the same while the network stands. Best effort: a failed read is a date without them.
+  const [storyA, storyB, people] = await Promise.all([
+    stateFor(db, a.id, { withId: b.id }).catch(() => null),
+    stateFor(db, b.id, { withId: a.id }).catch(() => null),
+    peopleForDate(db, a.id, b.id, episodeId).catch(() => null),
+  ]);
   const [lo] = pairKey(a.id, b.id);
   const texts = chain.some(isText) ? { a: promptTexts(chain, a.id === lo ? "lo" : "hi"), b: promptTexts(chain, b.id === lo ? "lo" : "hi") } : undefined;
   const names: Record<End, string> = a.id === lo ? { lo: a.sheet.name, hi: b.sheet.name } : { lo: b.sheet.name, hi: a.sheet.name };
@@ -542,7 +558,7 @@ export async function buildDate(
     relationship, creatorId: opts.creatorId, followupOf: opts.followupOf ?? null,
     dateNumber: opts.dateNumber !== undefined ? opts.dateNumber : opts.followupOf ? null : ((await nextDateNumber(db, a.id, b.id, episodeId)) ?? 1),
     nudges, alsoSeeing: { a: seeingA, b: seeingB }, texts, afterDark, nightTogether, link, table: opts.table ?? null, roleplay: opts.roleplay ?? null,
-    venuePool: opts.venuePool ?? null, producerPick: opts.producerPick ?? null, introduction: opts.introduction ?? null,
+    venuePool: opts.venuePool ?? null, producerPick: opts.producerPick ?? null, introduction: opts.introduction ?? null, people,
     extrasA: rowOf(a.id)?.extras ?? null, extrasB: rowOf(b.id)?.extras ?? null,
     hotTakesA: rowOf(a.id)?.hot_takes ?? null, hotTakesB: rowOf(b.id)?.hot_takes ?? null,
     claimsA, claimsB, secretsA, secretsB, lessonsA, lessonsB, storyA, storyB,
