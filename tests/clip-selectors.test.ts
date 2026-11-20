@@ -26,7 +26,7 @@ describe("the clip recorder's selectors", () => {
     expect(theater).toContain("Watch in theater");
     const used = locators(clip);
     expect(used).toEqual(expect.arrayContaining([".theater", ".theater-verdict"]));
-    expect(theater).toContain('className="theater theater-clean"');
+    expect(theater).toContain('className="theater theater-clean theater-replay"');
     // The ending card the clip records up to, in the theater and on the filming stage alike.
     expect(card).toContain('className="theater-verdict verdict-card"');
     expect(card).toContain('className="ending"');

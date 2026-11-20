@@ -192,7 +192,7 @@ function Playback({ episodeId, characters, venue, transcript, endingLabel, justF
   const actLabel = shown.length ? DATE_ACTS[shown[shown.length - 1].act] ?? null : null;
 
   return (
-    <div className="theater theater-clean">
+    <div className="theater theater-clean theater-replay">
       <div className={`theater-stage${convo ? " with-convo" : ""}`}>
         <div className="theater-scene-area">
           <Scene
@@ -224,79 +224,29 @@ function Playback({ episodeId, characters, venue, transcript, endingLabel, justF
         )}
         {cut && cutOpen && <CutPlayer cut={cut} title={cutTitle(characters)} place="cold_open" onClose={() => setCutOpen(false)} />}
 
+        {/* The title bar: Exit at the top left as the way back, then who's on (mobile audit A3: the transport moved to the
+            foot, in thumb reach and labelled). */}
         <header className="theater-hud">
+          <button
+            type="button"
+            className="secondary small theater-exit"
+            onClick={() => {
+              leave("exit");
+              onExit();
+            }}
+          >
+            <span aria-hidden="true">←</span> Exit
+          </button>
           <div className="theater-id">
             <strong>
               <CharacterName character={a} /> <span className="vs">×</span> <CharacterName character={b} />
             </strong>
-            <span className="chip">{justFilmed ? "Just filmed" : "Replay"}</span>
+            {justFilmed && <span className="chip">Just filmed</span>}
             {roleplay && (
               <span className="chip" title="A roleplay both sides agreed to: the lines are their roles'">
                 {roleplay.icon} {roleplay.title}
               </span>
             )}
-          </div>
-          <div className="theater-tools">
-            {coldOpen && (
-              <button
-                type="button"
-                className={`theater-icon${card ? " on" : ""}`}
-                onClick={card ? startFromCard : reopenCard}
-                aria-pressed={Boolean(card)}
-                aria-label="Who's who"
-                title="Who's who"
-                data-track="theater-whos-who"
-              >
-                👥
-              </button>
-            )}
-            <button
-              type="button"
-              className="theater-icon"
-              onClick={() => {
-                closeCard();
-                replay.toggle();
-              }}
-              aria-label={replay.playing ? "Pause" : "Play"}
-              title={replay.playing ? "Pause" : "Play"}
-            >
-              {replay.playing ? "⏸" : "▶"}
-            </button>
-            <button
-              type="button"
-              className="theater-icon"
-              onClick={() => {
-                closeCard();
-                replay.restart();
-              }}
-              aria-label="Restart"
-              title="Restart"
-            >
-              ↻
-            </button>
-            <button type="button" className="theater-icon" onClick={skip} aria-label="Skip to the end" title="Skip to the end">
-              ⏭
-            </button>
-            <button
-              type="button"
-              className={`theater-icon theater-icon-wide${convo ? " on" : ""}`}
-              onClick={() => setConvo((v) => !v)}
-              aria-pressed={convo}
-              aria-label="The conversation"
-              title="The conversation"
-            >
-              📜
-            </button>
-            <button
-              type="button"
-              className="secondary small"
-              onClick={() => {
-                leave("exit");
-                onExit();
-              }}
-            >
-              Exit
-            </button>
           </div>
         </header>
 
@@ -328,6 +278,71 @@ function Playback({ episodeId, characters, venue, transcript, endingLabel, justF
             </div>
           ))}
       </div>
+      {/* Play, Replay, Skip and Who's who at the foot, labelled: a phone's thumb reaches them there (mobile audit A3). */}
+      <nav className="theater-transport" aria-label="Playback">
+        {coldOpen && (
+          <button
+            type="button"
+            className={`theater-icon theater-transport-button${card ? " on" : ""}`}
+            onClick={card ? startFromCard : reopenCard}
+            aria-pressed={Boolean(card)}
+            aria-label="Who's who"
+            title="Who's who"
+            data-track="theater-whos-who"
+          >
+            <span aria-hidden="true">👥</span>
+            <span className="theater-transport-word" aria-hidden="true">
+              Who&apos;s who
+            </span>
+          </button>
+        )}
+        <button
+          type="button"
+          className="theater-icon theater-transport-button"
+          onClick={() => {
+            closeCard();
+            replay.restart();
+          }}
+          aria-label="Replay"
+          title="Replay from the start"
+        >
+          <span aria-hidden="true">↻</span>
+          <span className="theater-transport-word" aria-hidden="true">
+            Replay
+          </span>
+        </button>
+        <button
+          type="button"
+          className="theater-icon theater-transport-button theater-transport-main"
+          onClick={() => {
+            closeCard();
+            replay.toggle();
+          }}
+          aria-label={replay.playing ? "Pause" : "Play"}
+          title={replay.playing ? "Pause" : "Play"}
+        >
+          <span aria-hidden="true">{replay.playing ? "⏸" : "▶"}</span>
+          <span className="theater-transport-word" aria-hidden="true">
+            {replay.playing ? "Pause" : "Play"}
+          </span>
+        </button>
+        <button type="button" className="theater-icon theater-transport-button" onClick={skip} aria-label="Skip to the end" title="Skip to the end">
+          <span aria-hidden="true">⏭</span>
+          <span className="theater-transport-word" aria-hidden="true">
+            Skip
+          </span>
+        </button>
+        <button
+          type="button"
+          className={`theater-icon theater-icon-wide${convo ? " on" : ""}`}
+          onClick={() => setConvo((v) => !v)}
+          aria-pressed={convo}
+          aria-label="The conversation"
+          title="The conversation"
+        >
+          📜
+        </button>
+      </nav>
     </div>
   );
 }
