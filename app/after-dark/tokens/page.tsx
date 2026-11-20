@@ -96,7 +96,7 @@ export default async function AfterDarkTokensPage({ searchParams }: { searchPara
         </p>
         <h1>Tokens</h1>
         {own && params.done === "1" && (
-          <p className="notice" data-tokens-done>
+          <p className="notice notice-ok" data-tokens-done>
             Thanks. Your tokens arrive as soon as the payment is confirmed, usually within a minute: refresh this page.
           </p>
         )}

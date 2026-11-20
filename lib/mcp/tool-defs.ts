@@ -702,7 +702,8 @@ const RAW_TOOL_DEFS = [
       required: ["episode_id", "pick"],
       properties: {
         episode_id: str(64),
-        pick: { type: "string", enum: [...ENDINGS] },
+        // #1880: the names read as pick (lib/mcp/dispatcher.ts TOOL_ALIASES), said where the argument is.
+        pick: { type: "string", enum: [...ENDINGS], description: "The ending you predict. ending or outcome is read as pick." },
         drama_pick: {
           type: "string",
           enum: [...DRAMA_ANSWERS],

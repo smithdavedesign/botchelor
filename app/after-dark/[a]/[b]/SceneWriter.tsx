@@ -802,7 +802,7 @@ export default function SceneWriter({
               </button>
             </p>
           )}
-          <div className="ad-studio-tabs ad-page-tabbar" role="tablist" aria-label="Their night">
+          <div className="ad-studio-tabs ad-page-tabbar scroll-row" role="tablist" aria-label="Their night">
             {PAGE_TABS.filter((t) => !(t === "make" && textOnly)).map((t) => (
               <button key={t} type="button" role="tab" aria-selected={pageTab === t} className={pageTab === t ? "on" : ""} onClick={() => setPageTab(t)}>
                 {t === "gallery" ? `🖼 Gallery (${gallery.length + reelList.length})` : PAGE_TAB_LABEL[t]}
@@ -837,7 +837,7 @@ export default function SceneWriter({
           {pageTab === "sides" && <Fragment key={nightList.length}>{twoSides}</Fragment>}
           {pageTab === "gallery" && (
         <div className="ad-media-tabs">
-          <div className="ad-studio-tabs" role="tablist" aria-label="Their pictures, videos and nights">
+          <div className="ad-studio-tabs scroll-row" role="tablist" aria-label="Their pictures, videos and nights">
             {(
               [
                 ["pictures", `Pictures (${gallery.length})`],

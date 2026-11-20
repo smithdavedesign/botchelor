@@ -244,6 +244,8 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
       {/* A creator's show is on before anything else (docs/show-style.md: lead with tonight); a first visit meets the
           pitch first and the band right under it. */}
       {/* An owner lands on their character (2026-11-15): its phone first, then the show (HOME_PHONE=0: the show first, as before). */}
+      {/* An owner's home has no hero any more (B10), so its one h1 is for screen readers. */}
+      {creator && <h1 className="sr-only">Your characters and the show</h1>}
       {phone && <CharacterPhone phone={phone} />}
       {creator && tonight}
       {/* The first week of a month: last season's finale (lib/season-ref.ts). */}
@@ -287,6 +289,9 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
         </section>
       )}
       {open && <HomeOpen {...open} />}
+      {/* The pitch is a visitor's (the 2026-11-20 mobile audit, B10): an owner already made a character, so after "Since
+          you were here" their home goes straight to the show, without the hero, How it works or the FAQ. */}
+      {!creator && (
       <section className={clip ? "hero has-clip" : "hero"}>
         <div className="hero-copy">
           {/* The promise (docs/ideas.md "The core, 2026-11-14"): your character has a love life, and you're in their corner. */}
@@ -299,6 +304,9 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
             Make one in a minute — free, no sign-up.
           </p>
           {expressBox && <HomeExpressBox />}
+          {/* One "Make your character" door above the fold and one at the end (the 2026-11-20 mobile audit, A2): under the
+              first screen (lib/home-open.ts), which carries both its own doors, the hero doesn't ask again. */}
+          {!open && (
           <p className="cta-row" id="hero-cta">
             {/* With the box above, the box's own button is the main one and this is the long way in. */}
             <Link className={expressBox ? "button-ghost" : "button"} href="/create">
@@ -312,6 +320,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
               </Link>
             )}
           </p>
+          )}
           {/* The sample and the Character.AI rescue door (2026-11-14) share one quiet line, for a visitor with no character yet. */}
           {myCharacters.length === 0 && (
             <p className="small hero-doors">
@@ -372,6 +381,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
           </div>
         )}
       </section>
+      )}
       {/* With the clip in the hero, the real date a first visit calls the ending of (app/FirstRunCall.tsx) follows it. */}
       {clip && featured && (
         <section className="home-date" aria-label="A date from the show">
@@ -419,6 +429,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
         </p>
       )}
 
+      {!creator && (
       <section className="home-how">
         <h2>How it works</h2>
         <ol className="features home-features">
@@ -435,6 +446,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
           ))}
         </ol>
       </section>
+      )}
 
       <section>
         <h2>This season&apos;s cast</h2>
@@ -480,6 +492,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
         </p>
       </section>
 
+      {!creator && (
       <section className="faq">
         <h2>Questions</h2>
         {/* The three a first visit asks; the rest are on /faq (the audit, 2026-11-11, 2.1: eight rows repeated that page). */}
@@ -493,12 +506,15 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
           <Link href="/faq">More questions →</Link>
         </p>
       </section>
+      )}
 
-      <p className="cta-row cta-final">
-        <Link className="button" href="/create">
-          Make your character
-        </Link>
-      </p>
+      {!creator && (
+        <p className="cta-row cta-final">
+          <Link className="button" href="/create">
+            Make your character
+          </Link>
+        </p>
+      )}
 
       {/* LaunchNest's listing checks the home page for its badge (its embed code, as given). Only here, not on every page:
           it's a third-party image, so each load tells LaunchNest about the visit. */}

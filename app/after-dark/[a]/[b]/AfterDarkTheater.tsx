@@ -989,7 +989,7 @@ export default function AfterDarkTheater({
               )}
               {/* How it goes, once, before it starts (the 2026-11-01 After Dark review: visitors hunted for what to press). */}
               <p className="muted small ad-start-how">
-                ▶ Start, then <strong>Next</strong> for each step, or tick Autoplay. Type in the box below to steer them.
+                ▶ Start, then <strong>Next</strong> for each step, or tick Autoplay. Once it starts, a box at the foot steers them.
                 {live && writer ? ` ✍️ ${writer.models.find((m) => m.id === writer.chosen)?.label ?? "The writer"} writes it: switch at the top.` : ""}
               </p>
               <p className="ad-start-rp">{rpOf(scene.roleplay?.id) ? `${rpOf(scene.roleplay?.id)!.icon} ${rpOf(scene.roleplay?.id)!.title}` : "💬 No roleplay: just the two of them"}</p>
@@ -1048,7 +1048,7 @@ export default function AfterDarkTheater({
         </div>
         <div className="theater-convo">
           {/* #1040: meta shows each line's actions beside that line, and an action-only line as a stage direction. */}
-          <ChatThread characters={characters} turns={shown} typing={busy ? null : replay.typing} tone="dark" follow meta empty="The scene appears here, line by line." feedback={feedback} dividers={dividers} nameEvery />
+          <ChatThread characters={characters} turns={shown} typing={busy ? null : replay.typing} tone="dark" follow meta empty={waiting ? null : "The scene appears here, line by line."} feedback={feedback} dividers={dividers} nameEvery />
         </div>
 
         <header className="theater-hud">
@@ -1161,6 +1161,8 @@ export default function AfterDarkTheater({
 
         <div className="ad-theater-bottom" ref={bottomRef}>
           {/* Like a video player's controls (David, 2026-10-25): bottom right, over the stage. */}
+          {/* Nothing plays before the night starts, so Start the night is the one thing to press (mobile audit C2). */}
+          {!waiting && (
           <div className="ad-player" role="group" aria-label="Playback">
             <button type="button" className="theater-icon" onClick={replay.restart} aria-label="From the top" title="From the top">
               ⏮
@@ -1174,10 +1176,36 @@ export default function AfterDarkTheater({
             <TheaterListen lines={scene.lines} shown={shown.length} playing={replay.playing} a={a.id} b={b.id} nightId={live ? null : feedbackRef} onHold={setListenHold} onListening={setListening} />
             <PlaceSound venue={stage.venue} on={listening} playing={replay.playing} />
           </div>
+          )}
           {live ? (
             <form className="ad-theater-bar" onSubmit={next}>
               {whispers}
+              {!waiting && (
               <div className="ad-theater-steer">
+                {/* Nudge, Direct or a whisper to one of them: one control beside the box, not a row of radios (mobile
+                    audit C3: the dock was five rows). */}
+                {onSteerMode && (
+                  <select
+                    className="ad-steer-how"
+                    aria-label="How strongly"
+                    title="Nudge: worked toward at the scene's own pace. Direct: done now, it can skip ahead. 🤫: a secret for one of them alone."
+                    value={whisperTo ? `whisper-${whisperTo}` : steerMode}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (v === "whisper-a" || v === "whisper-b") onWhisperTo?.(v === "whisper-a" ? "a" : "b");
+                      else (onWhisperTo?.(null), onSteerMode(v === "direct" ? "direct" : "nudge"));
+                    }}
+                  >
+                    <option value="nudge">Nudge</option>
+                    <option value="direct">Direct</option>
+                    {onWhisperTo &&
+                      (["a", "b"] as const).map((who) => (
+                        <option key={who} value={`whisper-${who}`}>
+                          🤫 {firstName(who === "a" ? a : b)}
+                        </option>
+                      ))}
+                  </select>
+                )}
                 <input
                   aria-label={whisperName ? `Whisper to ${whisperName}` : "Steer it (optional)"}
                   value={direction}
@@ -1223,24 +1251,9 @@ export default function AfterDarkTheater({
                           </>}
                 </button>
               </div>
+              )}
+              {!waiting && (
               <div className="ad-theater-options">
-                {onSteerMode && (
-                  <span className="ad-steer-mode" role="radiogroup" aria-label="How strongly">
-                    <label title="Worked toward at the scene's own pace">
-                      <input type="radio" name="theater-steer-mode" checked={!whisperTo && steerMode === "nudge"} onChange={() => (onWhisperTo?.(null), onSteerMode("nudge"))} /> Nudge
-                    </label>
-                    <label title="Done now: it can skip ahead">
-                      <input type="radio" name="theater-steer-mode" checked={!whisperTo && steerMode === "direct"} onChange={() => (onWhisperTo?.(null), onSteerMode("direct"))} /> Direct
-                    </label>
-                    {onWhisperTo &&
-                      (["a", "b"] as const).map((who) => (
-                        <label key={who} title={`A secret for ${firstName(who === "a" ? a : b)} alone: ${firstName(who === "a" ? b : a)} won't know it`}>
-                          <input type="radio" name="theater-steer-mode" checked={whisperTo === who} onChange={() => onWhisperTo(who)} /> 🤫{" "}
-                          <CharacterName character={who === "a" ? a : b} label={firstName(who === "a" ? a : b)} link={false} size={18} />
-                        </label>
-                      ))}
-                  </span>
-                )}
                 {onAutoplay && (
                   <label className="ad-steer-mode" title="It carries on by itself, no Next needed, until the chapter ends">
                     <input type="checkbox" checked={autoplay} onChange={(e) => onAutoplay(e.target.checked)} /> Autoplay
@@ -1269,6 +1282,7 @@ export default function AfterDarkTheater({
                   </span>
                 )}
               </div>
+              )}
               {queued && (
                 <p className="ad-theater-note ad-steer-queued" role="status">
                   ⏳ Next step{whisperName ? `, whispered to ${whisperName}` : ""}: &ldquo;{queued}&rdquo;{" "}
@@ -1305,7 +1319,7 @@ export default function AfterDarkTheater({
             )
           )}
           {onPageTab && pageTabs?.length ? (
-            <nav className="ad-theater-tabs" aria-label="Their night">
+            <nav className="ad-theater-tabs scroll-row" aria-label="Their night">
               <span className="ad-theater-tab on" aria-current="page">
                 🎬 Scene
               </span>

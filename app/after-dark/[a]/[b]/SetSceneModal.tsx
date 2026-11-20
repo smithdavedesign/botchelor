@@ -180,7 +180,7 @@ export default function SetSceneModal({
               )}
             </div>
             {shelves.map((row, i) => (
-              <div key={i} className="ad-scenes-cats ad-rp-shelves" role="radiogroup" aria-label={i ? "Kind of story and heat" : "Who they are to each other"}>
+              <div key={i} className="ad-scenes-cats ad-rp-shelves scroll-row" role="radiogroup" aria-label={i ? "Kind of story and heat" : "Who they are to each other"}>
                 {i === 0 && (
                   <button type="button" role="radio" aria-checked={!rpShelf} className={!rpShelf ? "on" : ""} onClick={() => setRpShelf(null)}>
                     ✨ All <span className="ad-scenes-count">{allRoleplays.length}</span>
@@ -276,7 +276,7 @@ export default function SetSceneModal({
             🎭 Just the roleplay →
           </button>
         </div>
-        <div className="ad-scenes-cats" role="radiogroup" aria-label="Category">
+        <div className="ad-scenes-cats scroll-row" role="radiogroup" aria-label="Category">
           <button type="button" role="radio" aria-checked={!category} className={!category ? "on" : ""} onClick={() => setCategory(null)}>
             ✨ All <span className="ad-scenes-count">{filterScenes(scenes, { tags, query }).length}</span>
           </button>
@@ -286,7 +286,7 @@ export default function SetSceneModal({
             </button>
           ))}
         </div>
-        <div className="ad-scenes-tags" role="group" aria-label="Tags">
+        <div className="ad-scenes-tags scroll-row" role="group" aria-label="Tags">
           {SCENE_TAGS.map((t) => (
             <button key={t} type="button" aria-pressed={tags.includes(t)} className={tags.includes(t) ? "on" : ""} onClick={() => setTags((x) => (x.includes(t) ? x.filter((y) => y !== t) : [...x, t]))}>
               #{t}

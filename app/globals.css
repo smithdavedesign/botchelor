@@ -1805,9 +1805,14 @@ button.chosen {
   font-weight: 600;
 }
 
+/* A note to read, in the text's own colour (mobile audit A4: "The letter isn't open yet" in bright green read as done).
+   Green is for something that just worked: .notice-ok. */
 .notice {
-  color: var(--ok-text);
+  color: inherit;
   font-weight: 600;
+}
+.notice-ok {
+  color: var(--ok-text);
 }
 
 .kicker {
@@ -4452,6 +4457,60 @@ button.rating-chip:hover {
 .theater-verdict .muted {
   color: rgba(255, 255, 255, 0.72);
 }
+/* An episode's replay (EpisodeTheater.tsx, mobile audit A3): Exit leads the title bar as the way back, and play, replay,
+   skip and who's who sit in a labelled bar at the foot. The ending card is solid, so the lines behind it don't show
+   through, and its share line is plain text on its own row, not a green "done". */
+.theater-replay .theater-hud {
+  justify-content: flex-start;
+}
+.theater-replay .theater-exit {
+  flex-shrink: 0;
+}
+.theater-transport {
+  position: absolute;
+  bottom: calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1);
+  border-radius: var(--radius-pill);
+  background: rgba(0, 0, 0, 0.45);
+}
+.theater-replay:has(.with-convo) .theater-transport {
+  left: calc(50% + min(190px, 17%));
+}
+.theater-transport .theater-transport-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  width: auto;
+  min-width: 2.75rem;
+  height: 2.75rem;
+  padding: 0 0.85rem;
+}
+.theater-transport-word {
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+.theater-transport .theater-transport-main {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 38%, rgba(0, 0, 0, 0.4));
+}
+.theater-replay .theater-verdict {
+  background: rgba(12, 8, 16, 0.97);
+  backdrop-filter: none;
+}
+.theater-replay .theater-verdict .share-ending {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 0;
+  color: rgba(255, 255, 255, 0.72);
+  font-weight: 400;
+}
 /* The cold open (app/episodes/[id]/ColdOpenCard.tsx, lib/cold-open.ts): who they are and what's at stake, over the scene
    before the first line. It sits under the HUD (before it in the page, the same layer), clear of it, and scrolls inside
    the stage when a short screen can't hold all of it. */
@@ -5044,6 +5103,58 @@ button.chat-vote-tag[aria-pressed="true"] .chat-vote-tag-face {
   }
   .theater-stage.with-convo .theater-verdict {
     left: 50%;
+  }
+  /* A phone: Exit and the names share the title row; the transport is the screen's last row, full width, each control
+     an icon over its word; the ending is a solid card under the last line, not floating over the thread. */
+  .theater-replay .theater-hud {
+    flex-wrap: nowrap;
+  }
+  .theater-replay .theater-id {
+    flex-basis: auto;
+  }
+  .theater-transport,
+  .theater-replay:has(.with-convo) .theater-transport {
+    position: static;
+    transform: none;
+    flex: 0 0 auto;
+    justify-content: space-around;
+    gap: var(--space-1);
+    padding: var(--space-1) var(--gutter) calc(var(--space-1) + env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 0;
+    background: rgba(12, 8, 16, 0.97);
+  }
+  .theater-transport .theater-transport-button {
+    flex: 1 1 0;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.1rem;
+    max-width: 6rem;
+    height: 3.25rem;
+    padding: 0 var(--space-1);
+    border-color: transparent;
+    border-radius: var(--radius-md);
+    background: transparent;
+  }
+  .theater-transport-word {
+    font-size: var(--text-2xs);
+  }
+  .theater-transport .theater-transport-button.on,
+  .theater-transport .theater-transport-main {
+    border-color: transparent;
+    background: color-mix(in srgb, var(--accent) 30%, transparent);
+  }
+  .theater-replay .theater-stage > .theater-verdict:not(.verdict-card) {
+    position: static;
+    order: 1;
+    flex: 0 0 auto;
+    width: auto;
+    max-height: 50%;
+    overflow-y: auto;
+    transform: none;
+    padding: var(--space-3) var(--gutter);
+    border-width: 1px 0 0;
+    border-radius: 0;
   }
   /* The verdict card sits at the foot of the phone's screen, over the thread, clear of the short scene banner. */
   .theater-stage .verdict-card {
@@ -6107,6 +6218,11 @@ button.dice:hover:not(:disabled) {
 body:has(.beta-toast) .install-hint {
   display: none;
 }
+/* Waiting for the page's main button to scroll clear (app/useToastRoom.ts): their own display would beat [hidden]. */
+.beta-toast[hidden],
+.install-hint[hidden] {
+  display: none;
+}
 /* While the hint is up it floats over the foot of the page, so the page gets that much more foot: the last row's
    controls (a date's visibility, a thread's Send) can scroll clear of it (2026-11-13 live review). */
 body:has(.install-hint) main {
@@ -6460,6 +6576,19 @@ button.overlay-x:hover:not(:disabled) {
 .sheet-actions > button {
   margin: 0;
 }
+/* A sheet whose content can outgrow the screen (DateConfirm with Date settings open, 2026-11-20 mobile audit, B7): its
+   buttons stay pinned to the sheet's foot while the rest scrolls under them, on the card's own background. The negative
+   margins reach over the body's padding so nothing shows through below or beside the bar. */
+.sheet-actions-pinned {
+  --pin-side: var(--space-5);
+  --pin-foot: var(--space-5);
+  position: sticky;
+  bottom: calc(-1 * var(--pin-foot));
+  z-index: 1;
+  margin: 0 calc(-1 * var(--pin-side)) calc(-1 * var(--pin-foot));
+  padding: var(--space-2) var(--pin-side) var(--pin-foot);
+  background: var(--card);
+}
 .sheet-error {
   color: var(--bad-text);
   font-size: var(--text-sm);
@@ -6509,6 +6638,10 @@ button.overlay-x:hover:not(:disabled) {
   }
   .sheet-actions > button {
     flex: 1 1 auto;
+  }
+  .sheet-actions-pinned {
+    --pin-side: var(--gutter);
+    --pin-foot: max(var(--space-4), env(safe-area-inset-bottom));
   }
 }
 /* A button that ends something for good (Unmatch): filled red, its label in the ink that reads on it in either theme. */
@@ -7982,9 +8115,12 @@ button.table-more {
 
 /* After Dark's own look (David, 2026-10-18: never unsure which mode you're in): night colours and a moon badge, in
    both themes, on every after-dark page. On After Dark's own host the whole page wears it, the header and footer too
-   (body.ad-host, app/layout.tsx; the design kit's After Dark frame, 2026-11-12), so nothing there is the show's paper. */
+   (body.ad-host, app/layout.tsx; the design kit's After Dark frame, 2026-11-12), so nothing there is the show's paper.
+   On the show's host every After Dark page (the .ad-discreet frame, app/after-dark/Frame.tsx) does the same, rather
+   than a night card on the show's light page (mobile audit C11). */
 .after-dark-mode,
-body.ad-host {
+body.ad-host,
+body:has(.ad-discreet) {
   --ad-bg: var(--night-bg);
   --ad-card: var(--night-card);
   --ad-ink: var(--night-ink);
@@ -8018,7 +8154,8 @@ body.ad-host {
   border-radius: var(--radius);
 }
 /* The page behind the body (overscroll, a short page) is night too on After Dark's own host. */
-:root:has(> body.ad-host) {
+:root:has(> body.ad-host),
+:root:has(.ad-discreet) {
   background: var(--night-bg);
   color-scheme: dark;
 }
@@ -9799,11 +9936,10 @@ body.ad-host {
   border-bottom-color: var(--night-hot);
   font-weight: 700;
 }
-/* A phone: the six tabs (📸 Shoot … ✨ Create, #1500) wrap to two rows rather than hide half of them off the side. */
+/* A phone: the six tabs (📸 Shoot … ✨ Create, #1500) stay one row that scrolls with an edge fade (.scroll-row, the
+   2026-11-20 mobile audit C8/C9): wrapped to two rows, the last tab read as a heading. */
 @media (max-width: 600px) {
   .ad-studio-tabs {
-    flex-wrap: wrap;
-    overflow-x: visible;
     gap: 0;
   }
   .ad-studio-tabs button {
@@ -13102,6 +13238,34 @@ button.pg-group-head:hover {
 }
 .pg-go button {
   margin: 0;
+}
+.pg-go-fine {
+  margin-bottom: var(--space-2);
+}
+/* On a phone the Shoot bar sticks to the foot of the screen, above the tab bar, while the shot, place and outfit
+   choices scroll under it (2026-11-20 mobile audit, B9; like the create wizard's bar and the Studio's picking bar). */
+@media (max-width: 720px) {
+  .pg-go {
+    position: sticky;
+    bottom: var(--space-2);
+    z-index: 5;
+    gap: var(--space-1) var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    background: var(--card);
+    box-shadow: var(--shadow);
+  }
+  .pg-go button {
+    flex: 1 1 100%;
+  }
+  body:has(.tabbar-nav) .pg-go {
+    bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px) + var(--space-2));
+  }
+}
+/* The Gallery / My studio switch had the page's H1 right on top of it (B9). */
+.studio-tabs {
+  margin-bottom: var(--space-3);
 }
 .pg-pictures {
   display: grid;

@@ -286,6 +286,18 @@ button.ad-capture-item:disabled {
 .ad-theater-options > .button-ghost {
   margin: 0 0 0 auto;
 }
+/* Nudge, Direct or a whisper: one select at the front of the steer row (mobile audit C3). */
+.ad-theater-steer .ad-steer-how {
+  flex: 0 0 auto;
+  width: auto;
+  max-width: 8.5rem;
+  margin: 0;
+}
+.ad-theater-bar .ad-steer-how {
+  background: rgba(36, 26, 58, 0.9);
+  color: var(--night-ink);
+  border: 1px solid var(--night-line);
+}
 @media (max-width: 600px) {
   .theater-after-dark .theater-tools {
     flex-wrap: nowrap;
@@ -302,8 +314,14 @@ button.ad-capture-item:disabled {
     flex-shrink: 0;
     white-space: nowrap;
   }
+  /* Autoplay and the suggested moves share one row on a phone, the chips scrolling inside it: the dock is the steer
+     row and this one (mobile audit C3). */
   .ad-theater-options {
+    flex-wrap: nowrap;
     gap: var(--space-2) var(--space-3);
+  }
+  .ad-theater-options > .ad-suggestions {
+    flex: 1 1 auto;
   }
   .ad-theater-options > .button-ghost {
     --control-h: var(--control-h-sm);
@@ -2213,11 +2231,12 @@ button.ad-studio-fold-head:active:not(:disabled) {
 .theater-after-dark .ad-blur-hint a {
   color: #d8b8ff;
 }
+/* Its ✕ is a thumb's 44px (2026-11-20 mobile audit, C23), pulled into the hint's padding so the line stays one high. */
 .ad-blur-hint-close {
   flex: 0 0 auto;
-  margin: 0 0 0 auto;
-  min-width: 32px;
-  min-height: 32px;
+  margin: -0.45rem -0.5rem -0.45rem auto;
+  min-width: 44px;
+  min-height: 44px;
   padding: 0;
   border: 0;
   background: transparent;
@@ -3639,4 +3658,35 @@ fieldset.ad-si-step {
   .ad-si-lines > li.ad-si-you {
     max-width: 94%;
   }
+}
+
+/* After Dark's doors under the show's header (app/after-dark/AdSubNav.tsx, mobile audit C10): one row, the page you're
+   on marked, scrolling inside itself on a narrow screen. */
+.ad-subnav {
+  display: flex;
+  gap: var(--space-1);
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin: 0 0 var(--space-2);
+  padding: var(--space-1) 0;
+}
+.ad-subnav-link {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-pill);
+  color: var(--ad-muted);
+  font-weight: 600;
+  text-decoration: none;
+}
+.ad-subnav-link[aria-current="page"] {
+  background: var(--ad-card);
+  color: var(--ad-ink);
+  box-shadow: inset 0 -2px 0 var(--ad-accent);
+}
+/* Before the night starts the bar holds nothing (no steer yet, mobile audit C2), so it takes no room. */
+.ad-theater-bar:empty {
+  display: none;
 }

@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import NotOpenYet from "@/app/NotOpenYet";
 import CharactersTabs from "@/app/characters/CharactersTabs";
 import PhoneActionBar from "@/app/PhoneActionBar";
 import { cookies } from "next/headers";
-import { notFound } from "next/navigation";
 import { getDb } from "@/lib/db";
 import { sessionsSignable } from "@/lib/auth";
 import { authFromCookieStore, signedIdentityFromCookieStore } from "@/lib/http";
@@ -121,7 +121,27 @@ export default async function CompanionsPage({ searchParams }: { searchParams?: 
       </article>
     );
   }
-  if (!(await companionAllowed(db, auth))) notFound();
+  if (!(await companionAllowed(db, auth))) {
+    // Closed, or open but only with an account here: say which, never a 404 (mobile audit C21).
+    if (!companionOpen())
+      return (
+        <NotOpenYet title="Companions">
+          One-to-one chats with the characters, off the show. They aren&apos;t open yet: the characters are on <Link href="/watch">Watch</Link> in the meantime.
+        </NotOpenYet>
+      );
+    return (
+      <NotOpenYet
+        title="Companions"
+        action={
+          <Link className="button" href="/account?next=%2Fcompanion">
+            Sign in to start
+          </Link>
+        }
+      >
+        One-to-one chats with the characters, off the show. They take a free account.
+      </NotOpenYet>
+    );
+  }
   const [{ threads, yours, cast }, allowance] = await Promise.all([listCompanions(db, auth!.userId), companionAllowance(db, auth!.userId)]);
   return (
     <article className="companion-page page-wide">

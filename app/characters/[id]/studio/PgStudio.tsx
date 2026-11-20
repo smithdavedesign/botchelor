@@ -260,13 +260,18 @@ export default function PgStudio({ initial }: { initial: PgState }) {
             </p>
           )}
           <FormatChips value={format} onChange={setFormat} disabled={busy} />
+          <p className="muted small pg-go-fine">
+            Every picture is checked; one that doesn&apos;t pass isn&apos;t kept, and a shoot that keeps none gives the token back.
+          </p>
+          {/* Shoot stays in reach while the choices above scroll (2026-11-20 mobile audit, B9): a bar stuck to the foot of
+              the screen, with what it leaves under it. */}
           <p className="pg-go">
             <button type="button" className="primary" disabled={busy || !canPay || state.left_this_month < state.shoot_size} onClick={() => void shoot()}>
               {busy ? "Shooting… (about a minute)" : `Shoot ${state.shoot_size} · ${price}`}
             </button>
             <span className="muted small">
               {state.admin ? "" : `${state.tokens} token${state.tokens === 1 ? "" : "s"} · `}
-              {state.left_this_month} pictures left this month. Every picture is checked; one that doesn&apos;t pass isn&apos;t kept, and a shoot that keeps none gives the token back.
+              {state.left_this_month} pictures left this month
             </span>
           </p>
           {note && (

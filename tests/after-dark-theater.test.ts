@@ -14,15 +14,27 @@ const render = (props: Record<string, unknown>) =>
   renderToStaticMarkup(createElement(AfterDarkTheater, { scene, characters: chars, onExit: () => {}, ...props }));
 
 describe("After Dark theater steer (David, 2026-10-21: no direct way to steer from the theater)", () => {
-  it("has the page's Nudge/Direct choice beside the steer, showing the one in use", () => {
-    const html = render({ onWrite: async () => {}, steerMode: "direct", onSteerMode: () => {} });
+  it("has the page's Nudge/Direct choice beside the steer, one select showing the one in use (mobile audit C3)", () => {
+    const html = render({ onWrite: async () => {}, steerMode: "direct", onSteerMode: () => {}, onWhisperTo: () => {} });
     expect(html).toContain('aria-label="How strongly"');
-    expect(html).toMatch(/<input type="radio" name="theater-steer-mode" checked=""[^>]*\/> Direct/);
-    expect(html).toMatch(/<input type="radio" name="theater-steer-mode"(?! checked)[^>]*\/> Nudge/);
+    expect(html).toMatch(/<select class="ad-steer-how"[^>]*>[\s\S]*<option value="direct" selected="">Direct<\/option>/);
+    expect(html).toMatch(/<option value="whisper-b">🤫 (<!-- -->)?Bo<\/option>/);
+    // In the steer row, not a row of its own.
+    expect(html.indexOf('class="ad-steer-how"')).toBeGreaterThan(html.indexOf('class="ad-theater-steer"'));
+    expect(html).not.toContain("theater-steer-mode");
   });
 
   it("a saved night's playback has no steer at all", () => {
-    expect(render({})).not.toContain("theater-steer-mode");
+    expect(render({})).not.toContain("ad-steer-how");
+  });
+
+  it("before the night starts, Start the night is the only action: no player, no steer, no empty-thread text (mobile audit C2)", () => {
+    const html = render({ onWrite: async () => {}, onSteerMode: () => {}, onAutoplay: () => {}, scene: { ...scene, lines: [], chapter: 1 } });
+    expect(html).toContain("Start the night");
+    expect(html).not.toContain('class="ad-player"');
+    expect(html).not.toContain('class="ad-theater-steer"');
+    expect(html).not.toContain("ad-theater-options");
+    expect(html).not.toContain("The scene appears here");
   });
 
   it("the 📖 chip says which night it is, live and in a replay (David, 2026-11-04)", () => {
@@ -124,7 +136,7 @@ describe("the first evening (the 2026-11-01 After Dark review: tabs hidden in �
 
   it("the page's tabs are a strip along the theater's bottom, the scene first, and no longer in ⋯", () => {
     const html = render({ onWrite: async () => {}, pageTabs: tabs, onPageTab: () => {}, steps: { canRewind: false, canReset: false, onRewind() {}, onRedo() {}, onReset() {} } });
-    expect(html).toMatch(/<nav class="ad-theater-tabs" aria-label="Their night"><span class="ad-theater-tab on" aria-current="page">🎬 Scene<\/span><button[^>]*>🖼 Gallery \(2\)<\/button><button[^>]*>⚙️ Set up<\/button><\/nav>/);
+    expect(html).toMatch(/<nav class="ad-theater-tabs scroll-row" aria-label="Their night"><span class="ad-theater-tab on" aria-current="page">🎬 Scene<\/span><button[^>]*>🖼 Gallery \(2\)<\/button><button[^>]*>⚙️ Set up<\/button><\/nav>/);
     expect(html).not.toContain("ad-tools-page-tab");
   });
 
@@ -135,7 +147,7 @@ describe("the first evening (the 2026-11-01 After Dark review: tabs hidden in �
   it("before the first line: how it goes and who writes it, and no video or picture buttons yet", () => {
     const html = render({ scene: { ...scene, lines: [] }, onWrite: async () => {}, writer, onMakeVideo: () => {}, onPlanVideo: () => {} });
     expect(html).toContain('class="ad-start-card"');
-    expect(html).toMatch(/ad-start-how[^>]*>▶ Start, then <strong>Next<\/strong> for each step, or tick Autoplay\. Type in the box below to steer them\. ✍️ DeepSeek V3\.1 writes it: switch at the top\./);
+    expect(html).toMatch(/ad-start-how[^>]*>▶ Start, then <strong>Next<\/strong> for each step, or tick Autoplay\. Once it starts, a box at the foot steers them\. ✍️ DeepSeek V3\.1 writes it: switch at the top\./);
     expect(html).not.toContain("Video of the night");
     expect(html).not.toContain("ad-capture");
   });

@@ -44,7 +44,7 @@ export default function CreatorReveal({
   if (revealed) {
     return (
       <section className="card">
-        <p className="notice">{pair ? "You both agreed: your names are on the episode." : "Your name is on the episode."}</p>
+        <p className="notice notice-ok">{pair ? "You both agreed: your names are on the episode." : "Your name is on the episode."}</p>
       </section>
     );
   }

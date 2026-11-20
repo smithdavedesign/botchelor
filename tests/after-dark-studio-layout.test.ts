@@ -58,7 +58,7 @@ describe("the Shoot tab", () => {
 describe("the own-key switch", () => {
   it("folds to one line above the tabs, open when it's on or has a problem", () => {
     expect(src).toMatch(/<details className="ad-studio-own ad-studio-advanced" open=\{onOwn \|\| Boolean\(s\.own_key\.problem\) \|\| undefined\}>/);
-    expect(src.indexOf("ad-studio-own ad-studio-advanced")).toBeLessThan(src.indexOf('<nav className="ad-studio-tabs"'));
+    expect(src.indexOf("ad-studio-own ad-studio-advanced")).toBeLessThan(src.indexOf("<nav className=\"ad-studio-tabs"));
   });
 });
 
