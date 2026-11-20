@@ -13,6 +13,10 @@ import { currentHere, currentView } from "./view";
 import Threshold from "@/app/Threshold";
 import { adRollout } from "@/lib/adult/door";
 import { rolloutOn } from "@/lib/adult/rollout";
+import { afterDarkOnly } from "@/lib/after-dark-host";
+import { afterDarkDoors } from "@/lib/adult/doors";
+import { NO_AD_DOORS } from "@/lib/adult/door-links";
+import AdSubNav from "./AdSubNav";
 import "./discreet.css";
 
 /**
@@ -43,9 +47,12 @@ export default async function AfterDarkLayout({ children }: { children: ReactNod
   const taste = here.entitled.ok && here.entitled.why === "taste" && here.userId ? await tasteLeft(await getDb(), here.userId) : null;
   // The arrival screen, once a session (app/Threshold.tsx): admins while the public door is on admins only, then everyone.
   const threshold = rolloutOn(await adRollout(), "public_door", here.admin);
+  // Where the header is the show's, After Dark's own doors ride under it (on its own host the header is them).
+  const subNav = afterDarkOnly() ? null : here.userId ? await afterDarkDoors(await getDb(), here.userId).catch(() => NO_AD_DOORS) : NO_AD_DOORS;
   return (
     <AfterDarkFrame view={await currentView()}>
       {threshold && <Threshold side="after-dark" />}
+      {subNav && <AdSubNav doors={subNav} />}
       {taste && (
         <p className="muted small ad-text-only" data-taste-notice>
           Free taste: {taste.steps} scene step{taste.steps === 1 ? "" : "s"} left, until{" "}
