@@ -21,6 +21,7 @@ import {
   replyMessages,
   PROMPT_LABELS,
   nearDuplicate,
+  sameOpening,
   scriptedText,
   scriptedTurn,
   seedCrowd,
@@ -452,11 +453,40 @@ describe("the crowd's brain", () => {
       send: async (line) => (sent.push(line), { ok: true, result: line }),
       fallback: () => "Warm white or cool white? Important question.",
     });
-    expect(requests).toHaveLength(2); // one try and one retry
+    expect(requests).toHaveLength(3); // one try and two retries: a repeat earns a third (#1832)
+    // The retry names the line it repeated and restates what the partner just said.
+    expect(requests[1].messages[0].content).toContain('Your last try was refused (repeat of its own line: you already said "I fixed a sign today and it hummed."; open differently and answer what Vera just said: "What did you do today?")');
     expect(out).toBe("Warm white or cool white? Important question.");
     expect(sent).toEqual(["Warm white or cool white? Important question."]);
     expect(agent.said.get("c1")).toHaveLength(2);
     expect(brain.summary()).toMatchObject({ model: "local-chat", model_replies: 0, fallback_replies: 1, reason_if_fallback: "repeat of its own line" });
+  });
+
+  // 2026-11-19-0610 (#1832): Odile's "the R is a tough one" came back as "the E is a tough one" in a text.
+  it("hears the same opening with a word swapped as a repeat, and never credits the partner with what they didn't say", async () => {
+    expect(sameOpening("Ah, the E is a tough one, but I reckon the O might go first.", "The R is a tough one… just like your description of the sky.")).toBe("is a tough one");
+    // Common words in a row aren't an opening.
+    expect(sameOpening("I would love to see it.", "I would love to hear more about the ferry.")).toBeNull();
+    // Shared words late in the line don't count.
+    expect(sameOpening("Neon is hard work, the hum gets in your bones, it is a tough one honestly.", "The R is a tough one.")).toBeNull();
+    const me = { id: "c1", name: "Odile Brannock", entry: CROWD[0].characters[0] };
+    const prompt = replyMessages({ kind: "turn", me: me.entry, partner: { name: "Vera Atlas" }, history: [{ name: "Vera Atlas", text: "Which letter fails first?" }] })[0].content;
+    expect(prompt).toContain("Only bring up things Vera actually said above. Never say Vera told you, described or did something they didn't.");
+    // A third try that's fresh goes out from the model.
+    let n = 0;
+    reply = () => ({ content: ["The R is a tough one, always.", "Ah, the E is a tough one, I reckon.", "Honestly? The pink E, every winter."][n++] });
+    const brain = await brainOn();
+    const agent = { brain, said: new Map([["c1", ["The R is a tough one… just like the sky."]]]), def: CROWD[0] } as unknown as CrowdAgent;
+    const out = await speak(agent, {
+      kind: "text",
+      me,
+      partner: { name: "Vera Atlas", profile: [] },
+      history: [{ name: "Vera Atlas", text: "Which letter fails first?" }],
+      send: async (line) => ({ ok: true, result: line }),
+      fallback: () => "Canned line.",
+    });
+    expect(out).toBe("Honestly? The pink E, every winter.");
+    expect(brain.summary()).toMatchObject({ model_replies: 1, fallback_replies: 0 });
   });
 
   // 2026-10-22-0800: Rosalind praised a visitor's "lighthouse poems" when the visitor had said Rosalind wrote them.
