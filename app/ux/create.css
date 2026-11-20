@@ -472,14 +472,18 @@
 }
 
 /* The last step: the promise is the bar's first row, full width, with Back and Create under it (B7). */
-.wizard .wizard-actions > .wizard-attest {
-  flex: 1 0 100%;
-  margin-top: 0;
-}
+/* The promise on the review step sits just above the bar, one compact line on a phone (2026-11-20 mobile audit, B4); the
+   bar keeps one row: ← Back as text on the left, Create on the right, and why Create is greyed out above them. */
 @media (max-width: 640px) {
-  .wizard .wizard-actions > .wizard-attest {
+  .wizard .wizard-attest:has(+ .wizard-actions) {
     padding: var(--space-1) var(--space-2);
     font-size: var(--text-sm);
+  }
+  .wizard .wizard-actions .wizard-back {
+    flex: none;
+  }
+  .wizard .wizard-actions .wizard-why {
+    font-size: var(--text-xs);
   }
 }
 
