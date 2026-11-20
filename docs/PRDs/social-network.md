@@ -300,6 +300,7 @@ As built (2a, `lib/social/derive.ts`):
   - `manifest.json`, with counts and hashes.
   - Ids are pseudonymised with a per-version salt.
   - It filters through §8, and it writes only; nothing is uploaded.
+  - **As built (Phase 4 PR 5).** The gate is `lib/ml-consent.ts` loaded as the app's own code (`loadLib`, as the preference export does), judged at each row's creation (a tie's, a person's, a membership's). The salt is kept beside the folder (`<version>.salt`), never in it, so a version can be rebuilt with the same ids and two versions can't be joined. Evidence goes out as the kinds of record a tie came from (`{episode: 3}`), never their ids; a change's story text is dropped (it may predate the tie going public); `actor`, `created_by` and `answered_by` are never read. `--allow-model` lists the models whose writing may go in (none by default, or `all`). The datasheet counts what each filter left out. docs/data-plan.md has the section.
 
 The data points this produces, per character and per day: degree and closeness by layer, ring sizes, centrality, community, structural holes, balance, reputation (mean public in-valence), places and roles, off-screen people, and every tie's full history with provenance. Per network, per day: size, density, clustering, modularity, assortativity by kind, origin and tags, and balance. Link-prediction ground truth comes from the suggestion log.
 
@@ -324,7 +325,7 @@ Each switch is on unless set to `"0"`. Off means the site is exactly as before.
 | 2a | Core: schema (§5.2–5.4), kinds, `lib/social/` (kinds, ties, people, places, world, derive, read, algorithms basics: ego network, rings, signed triads), derivations and backfills (§6.1), read API (`/api/social/world/[id]`, `/api/social/pair/[a]/[b]`, `/api/social/sky`), data-plan coverage | — | |
 | 2b | Declared: owner UI ("Their people", ties, places, proposals, notifications, rate limits), the generator, the local-model backfill and admin route, MCP tools, the prompt line | 2a | |
 | 3 | The page: views, "X's world", pair panel, tense triangles, place-named clusters, character page links | 2a | |
-| 4 | Living network, analytics, suggestions, dataset: dynamics (§7), `social_metrics`, `social_network_daily`, `suggestTies` and its log, `/admin/social`, the dataset builder, data-plan update | 2a | #1908 analytics, #1916 metrics job and /admin/social |
+| 4 | Living network, analytics, suggestions, dataset: dynamics (§7), `social_metrics`, `social_network_daily`, `suggestTies` and its log, `/admin/social`, the dataset builder, data-plan update | 2a | #1908 analytics, #1916 metrics job and /admin/social, #1920 dataset builder |
 
 ## 13. Scaling notes
 
