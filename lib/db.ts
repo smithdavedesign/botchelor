@@ -4541,6 +4541,123 @@ create table if not exists character_tags (
 );
 create index if not exists character_tags_tag_idx on character_tags (tag, character_id);
 
+-- The social network (docs/PRDs/social-network.md sections 5.2 to 5.4; lib/social/). One store of typed ties between
+-- characters, or from a character to one of its off-screen people; the ties' append-only event log; those off-screen
+-- people; the places of the show's shared world and who belongs to them. Every row hangs off characters (on delete
+-- cascade), so deleting a character takes its circle with it; a character kept as a tombstone loses what was declared
+-- for it in lib/account.ts forgetEverything, and keeps what aired, like its dates. The open vocabularies (a tie's kind
+-- and layer, a place's kind, a membership's role, an event) are checked in code (lib/social/kinds.ts, types.ts), so a
+-- new one needs no migration; who may see a row (visibility), who made it (source) and a tie's status are checked here.
+-- created_by, answered_by and actor hold a person's id (lib/person-columns.ts).
+create table if not exists social_people (
+  id text primary key,
+  holder_id text not null references characters (id) on delete cascade,
+  name text not null check (char_length(name) between 1 and 40),
+  pronouns text check (pronouns is null or char_length(pronouns) <= 20),
+  note text check (note is null or char_length(note) <= 160),
+  deceased boolean not null default false,
+  visibility text not null default 'public' check (visibility in ('public', 'owner', 'private')),
+  source text not null check (source in ('owner', 'agent', 'house', 'derived', 'admin', 'import')),
+  origin_model text,
+  prompt_version text,
+  created_by text,
+  promoted_to text references characters (id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists social_people_holder_idx on social_people (holder_id);
+-- A tie: from_id is the lower id of a symmetric pair; a directed tie reads "to is from's <kind>" (a parent tie from A to
+-- B: B is A's parent); a tie to an off-screen person always starts at its holder. One row a pair a kind: evidence (the
+-- newest 20 refs) accumulates on it and its history is social_tie_events.
+create table if not exists social_ties (
+  id text primary key,
+  from_id text not null references characters (id) on delete cascade,
+  to_id text references characters (id) on delete cascade,
+  to_person_id text references social_people (id) on delete cascade,
+  kind text not null,
+  layer text not null,
+  directed boolean not null default false,
+  valence smallint not null default 1 check (valence between -2 and 2),
+  closeness real not null default 0.5 check (closeness >= 0 and closeness <= 1),
+  status text not null default 'active' check (status in ('proposed', 'active', 'ended', 'declined')),
+  visibility text not null default 'public' check (visibility in ('public', 'owner', 'private')),
+  source text not null check (source in ('owner', 'agent', 'house', 'derived', 'admin', 'import')),
+  source_ref text,
+  evidence jsonb not null default '[]',
+  detail jsonb not null default '{}',
+  story text check (story is null or char_length(story) <= 240),
+  since_text text check (since_text is null or char_length(since_text) <= 40),
+  origin_model text,
+  prompt_version text,
+  confidence real not null default 1 check (confidence >= 0 and confidence <= 1),
+  created_by text,
+  answered_by text,
+  started_at timestamptz,
+  ended_at timestamptz,
+  last_contact_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  check (num_nonnulls(to_id, to_person_id) = 1),
+  check (from_id <> to_id)
+);
+create unique index if not exists social_ties_pair_kind_idx on social_ties (from_id, coalesce(to_id, to_person_id), kind);
+create index if not exists social_ties_to_idx on social_ties (to_id) where to_id is not null;
+create index if not exists social_ties_person_idx on social_ties (to_person_id) where to_person_id is not null;
+create index if not exists social_ties_layer_idx on social_ties (layer, status);
+create index if not exists social_ties_source_idx on social_ties (source);
+create index if not exists social_ties_updated_idx on social_ties (updated_at);
+-- Its log: created, proposed, accepted, declined, changed, ended, revived, contact, decayed; changes as field: [from, to].
+-- One row a change, kept as long as its tie. Past about 10 million rows, partition it by month.
+create table if not exists social_tie_events (
+  id bigserial primary key,
+  tie_id text not null references social_ties (id) on delete cascade,
+  event text not null,
+  changes jsonb not null default '{}',
+  source text,
+  source_ref text,
+  actor text,
+  at timestamptz not null default now()
+);
+create index if not exists social_tie_events_tie_idx on social_tie_events (tie_id, at);
+create index if not exists social_tie_events_at_idx on social_tie_events (at);
+-- The shared world: the house and its rooms, every date venue, the show's city and its neighbourhoods (seeded from
+-- lib/social/world.ts), hometowns (from a character's extras), and later workplaces, schools and clubs. key is unique and
+-- normalised (venue:dive_bar, house:kitchen, hometown:leeds).
+create table if not exists social_places (
+  id text primary key,
+  key text not null unique,
+  kind text not null,
+  name text not null check (char_length(name) between 1 and 60),
+  parent_id text references social_places (id) on delete set null,
+  venue_id text,
+  description text check (description is null or char_length(description) <= 200),
+  visibility text not null default 'public' check (visibility in ('public', 'owner', 'private')),
+  source text not null check (source in ('owner', 'agent', 'house', 'derived', 'admin', 'import')),
+  origin_model text,
+  created_by text,
+  created_at timestamptz not null default now()
+);
+create index if not exists social_places_parent_idx on social_places (parent_id) where parent_id is not null;
+-- Who belongs to a place, and how (lives, works, regular, studied, from, visited). Pairs who share one (regulars at the
+-- dive bar, both from Leeds) are worked out when read, never stored, so a place stays one row a member.
+create table if not exists social_place_members (
+  place_id text not null references social_places (id) on delete cascade,
+  character_id text not null references characters (id) on delete cascade,
+  role text not null,
+  since_text text check (since_text is null or char_length(since_text) <= 40),
+  started_at timestamptz,
+  ended_at timestamptz,
+  source text not null check (source in ('owner', 'agent', 'house', 'derived', 'admin', 'import')),
+  visibility text not null default 'public' check (visibility in ('public', 'owner', 'private')),
+  detail jsonb not null default '{}',
+  origin_model text,
+  created_by text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (place_id, character_id, role)
+);
+create index if not exists social_place_members_character_idx on social_place_members (character_id);
+
 -- The social network's daily numbers (docs/PRDs/social-network.md section 5.5; lib/social/metrics-job.ts,
 -- SOCIAL_METRICS): one row per character, day and layer ('all' for every layer at once), measured from the public
 -- record only. Keyed to the character and cascading with it; no person column. Kept 400 days a day, then one day a

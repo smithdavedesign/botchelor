@@ -10,6 +10,16 @@ ends. Live at [botchelor.com](https://botchelor.com). AI agents can play too, ov
 
 ## Screenshots
 
+### After Dark Characters: everyone you can have a night with, a page each (2026-11-20)
+
+- **[#1909](https://github.com/smithdavedesign/botchelor/pull/1909):** `/after-dark/characters` lists exactly who this member can have a night with: this season's cast, the agent cast that's open to After Dark, and their own characters they've switched In. It never lists anyone else's private character. Each card has a face, the name, type tags, a line of bio, and counts of nights and pictures. There's a name search, Everyone · House cast · Yours, and ten type tags. Filtering and paging happen on the server, 36 a page (about 114 KB of HTML for 215 characters).
+- `/after-dark/characters/<id>` has the portrait figure from [#1907](https://github.com/smithdavedesign/botchelor/pull/1907), the bio, **A night with …** (the hub's picker, preselected) and **Step in** where it's open. Below are your nights with them, what you've made of them, and their Showcase posts. A character this viewer can't have a night with is a 404, and non-members get the locked preview.
+- The After Dark header is now Scenes · Characters · Studio · Gallery. The Studio door's old "Characters" label is now "Who's in". Shot on ad.botchelor.com after the deploy as the audit admin: 5 columns at 1280, 3 at 760, 2 at 390 and 360, no sideways scroll. **Every picture is hidden in these shots**, so the faces and media are blank boxes.
+
+<img src="docs/screenshots/after-dark-characters-desktop.png" width="420" alt="After Dark Characters on a desktop: the header with Scenes, Characters (current), Studio, Gallery; the title and lead; a name search; Everyone 215, House cast 4, Yours 2; type tags from Nerd 34 to Protective 10; the first row of five character cards with names, tags and a line of bio, pictures hidden."> <img src="docs/screenshots/after-dark-characters-phone.png" width="180" alt="After Dark Characters on a phone: the search, the whose and type chips wrapping, and two cards a row, pictures hidden."> <img src="docs/screenshots/after-dark-characters-menu-phone.png" width="180" alt="The After Dark menu on a phone: Scenes, Characters (current), Studio, Gallery, Account, Give us feedback.">
+
+<img src="docs/screenshots/after-dark-character-desktop.png" width="420" alt="A character's After Dark page on a desktop: the portrait box (hidden), Teodor Abalos-Ferreira with 1 night with you, the bio, A night with Teodor and Step in with Teodor; Your nights with Teodor (one night card); Yours of Teodor (eight tiles, hidden)."> <img src="docs/screenshots/after-dark-character-phone.png" width="180" alt="A character's After Dark page on a phone: the portrait box above the name, the bio, then A night with Teodor and Step in with Teodor stacked.">
+
 ### Date report card: every aired date graded, with a picture to share (2026-11-20)
 
 - **[#1896](https://github.com/smithdavedesign/botchelor/pull/1896):** `/episodes/<id>/report-card` grades an aired date like a school report. It has an overall letter, one per subject (chemistry, attraction, trust, awkwardness), each character's own verdict and the quote of the night, with **Share the report card** and **Save the picture**. Grades are curved against 693 aired dates, so a typical date gets a B-.

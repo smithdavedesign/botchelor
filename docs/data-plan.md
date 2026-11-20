@@ -36,9 +36,13 @@ Every write is best effort (a failed write never breaks the action it records) a
 | `episodes.setup.met_via` | `blind`, `match`, `proposal`, `chosen`, `second_date`, `own_date`, `show`. | How a date came about. Server-side only; the Constellation publishes only a coarse version. | #676 |
 | `line_feedback.tag` | Null, or `out_of_character` on a 👎 ("Not them", `lib/line-feedback.ts`). A 👍, a 👎 sent without it, or taking the vote back clears it. | What a 👎 was about: the line didn't sound like the character. Read by the export and the readiness readout (opted-in voters only), and, for signed-in viewers' flags on a character's own lines, by that character's weekly lessons (below). | 2026-11-15 |
 | `character_lessons` | `character_id`, `week`, `lines` (up to three first-person lines of at most 120 characters), `trying_next`, `episodes` (the aired dates they came from), `source` (`model`, `template`), `model`, `input_tokens`, `output_tokens`, `cost_usd`, `created_at`. | What a character has learned about itself, written weekly from its own side of its aired public dates (`lib/character-lessons.ts`, [character-depth.md](character-depth.md) §12). Private like the learned memory: its own prompts and its owner read it. **Not a dataset and never in one**; it's here because it is kept. | 2026-11-15 |
-| `social_metrics` | Per character, day and layer (`all` for every layer at once): `degree`, `weighted_degree`, `in_valence`, `out_valence`, `reciprocity`, `clustering`, `pagerank`, `betweenness`, `kcore`, `community`, `burt_constraint`, `triads_balanced`/`triads_unbalanced`, the four `ring_*` sizes, `computed_at`. No person column. | The social network's daily numbers ([PRDs/social-network.md](PRDs/social-network.md) §5.5, `lib/social/metrics-job.ts`, `SOCIAL_METRICS`), measured from public, active ties between public characters only: nothing private and nothing After Dark goes in, so the numbers are as public as the ties they come from. A time series for `/admin/social` and the social dataset. | 2026-11-20 |
-| `social_network_daily` | One row a day: `nodes`, `ties` by layer, `density`, `avg_degree`, `clustering`, `modularity`, `communities`, `giant_component`, `assortativity` (by kind, origin and tags), `balance`, `reciprocity`, `stats`, and `complete`/`progress` for a run that ran out of time. | The whole network's shape over time, from the same public ties. No character and no person in it. | 2026-11-20 |
-| `social_suggestion_log` | `viewer` (the owner it was shown to), `character_id`, `suggested_id`, `reason`, `score`, `shown_at`, `outcome` (`accepted`, `dismissed`, `ignored`), `outcome_at`. | "Might know" (PRD §6.3): what was suggested and what came of it, the network's link-prediction ground truth. A suggestion is never a tie until someone accepts it. | 2026-11-20 |
+| `social_ties` | One typed tie a pair a kind (`lib/social/kinds.ts`: kin, romance, friendship, work, place, conflict, acquaintance, communication): `from_id`, `to_id` or `to_person_id`, `kind`, `layer`, `directed`, `valence` (−2..2), `closeness`, `status`, `visibility` (`public`, `owner`, `private`), `source` (`owner`, `agent`, `house`, `derived`, `admin`, `import`), `source_ref`, `evidence` (the newest 20 refs), `detail`, `story`, `since_text`, `origin_model`, `prompt_version`, `confidence`, `created_by` and `answered_by` (person columns), and when it started, ended and last had contact. | The social network ([PRDs/social-network.md](PRDs/social-network.md)): one store for every tie, whatever made it. A derived tie comes only from what aired publicly (never opinions, what a character heard, wants, souls, the private relationship layer, a private character's or an unlisted or private date, or After Dark). The model is provenance, as on `turn_meta`. | Social 2a |
+| `social_tie_events` | `tie_id`, `event` (`created`, `proposed`, `accepted`, `declined`, `changed`, `ended`, `revived`, `contact`, `decayed`), `changes` (`{field: [from, to]}`), `source`, `source_ref`, `actor` (a person column, or `system`), `at`. | Every change to a tie, append-only: the graph can be replayed to any day. Never a person's id inside `changes`, `detail` or evidence (jsonb a delete can't reach): who did it is `actor`. | Social 2a |
+| `social_people` | `holder_id`, `name` (≤40), `pronouns`, `note` (≤160), `deceased`, `visibility`, `source`, `origin_model`, `prompt_version`, `created_by` (a person column), `promoted_to`. At most 12 a character, every word through the show's text check. | A character's off-screen people (mum, the boss, the friend from school): their own node type, so they never crowd the directory. | Social 2a |
+| `social_places`, `social_place_members` | Places: a unique normalised `key`, `kind`, `name`, `parent_id`, `venue_id`, `description`, `visibility`, `source`, `created_by`. Memberships: `place_id`, `character_id`, `role` (`lives`, `works`, `regular`, `studied`, `from`, `visited`), `since_text`, `started_at`, `ended_at`, `source`, `visibility`, `detail` (`{visits}`), `created_by`. | The shared world (`lib/social/world.ts`: the house, every date venue, one city and its neighbourhoods; hometowns from a sheet's extras), so characters can be neighbours, coworkers and regulars. Who shares a place is worked out when read, never stored. | Social 2a |
+| `social_metrics` | Per character, day and layer (`all` for every layer at once): `degree`, `weighted_degree`, `in_valence`, `out_valence`, `reciprocity`, `clustering`, `pagerank`, `betweenness`, `kcore`, `community`, `burt_constraint`, `triads_balanced`/`triads_unbalanced`, the four `ring_*` sizes, `computed_at`. No person column. | The social network's daily numbers ([PRDs/social-network.md](PRDs/social-network.md) §5.5, `lib/social/metrics-job.ts`, `SOCIAL_METRICS`), measured from public, active ties between public characters only: nothing private and nothing After Dark goes in, so the numbers are as public as the ties they come from. A time series for `/admin/social` and the social dataset. | Social 4 |
+| `social_network_daily` | One row a day: `nodes`, `ties` by layer, `density`, `avg_degree`, `clustering`, `modularity`, `communities`, `giant_component`, `assortativity` (by kind, origin and tags), `balance`, `reciprocity`, `stats`, and `complete`/`progress` for a run that ran out of time. | The whole network's shape over time, from the same public ties. No character and no person in it. | Social 4 |
+| `social_suggestion_log` | `viewer` (the owner it was shown to), `character_id`, `suggested_id`, `reason`, `score`, `shown_at`, `outcome` (`accepted`, `dismissed`, `ignored`), `outcome_at`. | "Might know" (PRD §6.3): what was suggested and what came of it, the network's link-prediction ground truth. A suggestion is never a tie until someone accepts it. | Social 4 |
 
 Also related: `line_feedback` (2026-10-21, just before the plan) holds the 👍 and 👎 on lines that the export reads, and #675
 added four optional, public fields to a character's `extras` (`kind`, `archetype`, `here_for`, `drawn_to`).
@@ -320,6 +324,9 @@ out of time never skips it. It logs `data_pruned` with the rows removed per tabl
 | `ml_consents` | Until the account is deleted. |
 | `account_aliases` | Until the account is deleted: the record of which anonymous identity it claimed (`lib/account-claim.ts`), which is what refuses a second claim and what lets the delete reach what stayed under that identity. |
 | `analytics_events` | No prune yet (the funnel's firsts and the pair log are small). |
+| `social_ties`, `social_people`, `social_place_members` | As long as the character (on delete cascade). A character kept as a tombstone loses its declared people, ties and places at once (`forgetEverything`) and keeps only what aired. |
+| `social_tie_events` | As long as its tie. |
+| `social_places` | The seeded world for good; a place someone added stays when they go, without their id. |
 
 400 days (about 13 months) keeps a year-over-year view, as the deck impressions and the MCP call log already did. Each
 prune reads an index on its time column (`lib/db.ts`).
@@ -330,8 +337,7 @@ prune reads an index on its time column (`lib/db.ts`).
 `relationship_events`, `choice_history`, `turn_drafts`, `reflection_labels`, `line_feedback` (with each vote's `tag`),
 `character_lessons` (their characters' lessons: the lines, the dates behind them, when), `episode_variations`
 (the runs on dates they booked or their characters were on, without `alt_trace`, whose numbers average both characters),
-`plus_interest` (their taps on the Plus tile: place, whether an email was left, when), and `social_suggestions` (the
-"Might know" suggestions shown to them, why, and what they did). `matches` carries the answer
+and `plus_interest` (their taps on the Plus tile: place, whether an email was left, when). `matches` carries the answer
 sources. Since 2026-11-15 it also has `companion_conversations` (each thread with a companion: the character, every
 message with who said it, when and whether it was said on a call, the facts and running notes the companion keeps, and
 the blank markers of deleted texts) and `companion_calls` (a live call's times, minutes and turns; there are no words
@@ -344,6 +350,13 @@ Since 2026-11-17 it has `persona` too: who they are in scenes (`personas`: the n
 they wrote for scenes, `lib/persona.ts`). One row a person, kept while the account is and deleted with it; it goes into
 their own scenes' prompts and nowhere else, and is in no dataset.
 Companion conversations stay out of every dataset; After Dark stays out of the export.
+Since 2026-11-20 it has `social` (`lib/social/`, [PRDs/social-network.md](PRDs/social-network.md) §8): their characters'
+off-screen people, the ties that touch their characters or that they declared or answered (never a private tie someone
+else's character holds about theirs), those ties' history, the places they added and their characters' places. Who
+declared, answered or changed a tie is only said as whether it was them. On delete, their own characters' circles go with
+the characters; their id is cleared from what's left on other people's characters (a proposal they answered).
+`social.suggestions` holds the "Might know" suggestions shown to them (`social_suggestion_log`: which character, who was
+suggested, why, and what they did); deleting the account deletes those rows.
 
 **Engagement events know their character and date** (2026-11-16; [analytics.md](analytics.md), "Which character, which
 date"): `web_events.character_id` and `web_events.episode_id`, two nullable ids on the visitor's own event rows, read
@@ -357,6 +370,8 @@ export (no engagement row is) and in no dataset. Never set for After Dark.
 - its side's `turn_drafts`; the other side's stay with the shared date;
 - every `episode_variations` row on its dates (a replay built on its soul's numbers, so it goes whole);
 - its reflection text and labels, its lessons (`character_lessons`), and its concept embedding;
+- its declared circle (`lib/social/`): its off-screen people and the ties to them, every tie and place membership
+  someone declared for it, either way. What aired made (`source = 'derived'`) stays, like the dates it came from;
 - **the soul-derived numbers on its dates:** `engine_trace.signals` and the terms built from them (`chemistry.humor`,
   `chemistry.warmth`, `attraction.openness`, `trust.warmth`, `trust.guarded`, `awkwardness.guarded`,
   `awkwardness.humor`; `TRACE_SOUL_PATHS`), and its side's `setup.signals_a`/`signals_b` snapshot on finished dates. The

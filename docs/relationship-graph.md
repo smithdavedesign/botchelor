@@ -183,6 +183,30 @@ date, then a disaster) and the rest didn't click; of 6 going steady, 3 are offic
 
   The controls sit in a toolbar above the sky (one row on a desktop, four on a phone), never over the stars.
 
+  **Each line says where its pair stands** (2026-11-20, [the social network](PRDs/social-network.md) Phase 1). Every
+  edge carries `stage_id`, the shown stage's id next to its label (null while masked), and the sky draws it as one of
+  five groups (`app/graph/stages.ts`):
+
+  | Group | Stages | Line |
+  |---|---|---|
+  | Together | dating, going steady, keeping it casual, official, moved in, engaged, married, back together | green, solid |
+  | Sparks | sparks | pink, dashed |
+  | Friends | friends | blue, dotted |
+  | Exes & bad blood | exes, broke up, divorced, bad blood | grey, dash-dot |
+  | First date | just met, didn't click | faint lilac, solid |
+
+  Together and sparks wear the story map's colours for "Together" and "Second date agreed", so the two maps on the
+  page agree. Only three hues pass the dataviz validator's colour-blind check for every pair on the night sky (a red
+  for exes fails it against both), so the other two groups are neutrals, and every group has its own dash pattern, so
+  the lines read without colour too. First-date lines are faint: well over half the sky's pairs have had a single date so far.
+  A selected or hovered line keeps its colour under a light halo. A private pair's grey dashes are unchanged.
+
+  The row of chips over the sky is the legend and a filter in one: one chip per group with its count, all on, any mix
+  off (`filterSky` in `app/graph/filter.ts`, filtering in memory). A narrowed sky is shareable as
+  `/graph?stage=together,friends`. It brings in the whole sky first, since the first sky is only the strongest pairs.
+  It hides every private pair, whose stage nobody may learn, and any star left without a line. Stars keep their places
+  when the filter changes: the layout warm-starts from where they were (`warmStart` in `app/graph/sim.ts`).
+
   ![/graph coloured by cluster: the toolbar above the sky, eight clusters in colour and "+2 smaller"](screenshots/graph-cluster-desktop.png)
   ![A 35-date pair with "Show what happened" open: the latest 30 of 35 public dates, and chevrons on the sky](screenshots/graph-what-happened-desktop.png)
   On a phone: [by cluster](screenshots/graph-cluster-mobile.png), [what happened](screenshots/graph-what-happened-mobile.png).

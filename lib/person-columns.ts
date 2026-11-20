@@ -57,7 +57,7 @@ export const PERSON_ID_NAMES: readonly string[] = [
   "user_id", "owner_id", "agent_id", "reporter_id", "creator_id", "proposed_by", "voter_id", "visitor", "viewer_id", "used_by",
   "reviewer_id", "recipient_id", "rater_id", "proposer_id", "host_id", "holder", "follower_id", "by_user", "booker", "blocker_id",
   "blocked_id", "answerer_user", "from_user", "to_user", "proposer_user", "actor", "created_by", "taken_by", "granted_by",
-  "reviewed_by", "decided_by", "updated_by", "consented_by", "invite_to", "alias_id", "viewer",
+  "reviewed_by", "decided_by", "updated_by", "consented_by", "invite_to", "alias_id", "answered_by", "viewer",
 ];
 
 /**
@@ -278,7 +278,7 @@ export const PERSON_COLUMNS: readonly PersonColumn[] = [
   { table: "user_feedback", column: "user_id", export: at("feedback"), delete: ROWS, move: SAID_AS },
   { table: "plus_interest", column: "user_id", export: at("plus_interest"), delete: ROWS, move: LOG },
   // "Might know" (docs/PRDs/social-network.md section 6.3): the suggestions shown to an owner, link-prediction ground truth.
-  { table: "social_suggestion_log", column: "viewer", export: at("social_suggestions"), delete: ROWS, move: LOG },
+  { table: "social_suggestion_log", column: "viewer", export: at("social.suggestions"), delete: ROWS, move: LOG },
   { table: "language_seen", column: "actor", export: at("languages_written"), delete: ROWS, move: LOG },
   { table: "web_events", column: "user_id", export: out("a click log with ids taken out of its paths and nothing typed, kept 400 days: deleted with the account"), delete: ROWS, move: LOG },
   { table: "analytics_events", column: "user_id", export: out("funnel events (a small enum each): deleted with the account"), delete: ROWS, move: LOG },
@@ -297,6 +297,17 @@ export const PERSON_COLUMNS: readonly PersonColumn[] = [
   { table: "mcp_sessions", column: "agent_id", export: at("agent.sessions"), delete: ROWS, move: AGENT },
   { table: "mcp_calls", column: "agent_id", export: out("the call log (a tool's name and whether it worked, kept 400 days): the sessions in the export carry the counts"), delete: ROWS, move: AGENT },
   { table: "job_deals", column: "holder", export: out("a half-hour hold on a suggested job, gone in a day"), delete: ROWS, move: AGENT },
+
+  // The social network (lib/social/; docs/PRDs/social-network.md section 8). Every row hangs off a character, so their own
+  // characters' people, ties and places go with the characters (on delete cascade, or forgetEverything for one kept as a
+  // tombstone, which keeps only what aired). What still carries their id after that is on someone else's character (a
+  // proposal they answered; a person, place or tie an admin added), which stays, without it.
+  { table: "social_ties", column: "created_by", export: at("social.ties"), delete: cleared("null"), move: REASSIGN },
+  { table: "social_ties", column: "answered_by", export: at("social.ties"), delete: cleared("null"), move: REASSIGN },
+  { table: "social_tie_events", column: "actor", export: at("social.tie_events"), delete: cleared("null"), move: LOG },
+  { table: "social_people", column: "created_by", export: at("social.people"), delete: cleared("null"), move: REASSIGN },
+  { table: "social_places", column: "created_by", export: at("social.places"), delete: cleared("null"), move: REASSIGN },
+  { table: "social_place_members", column: "created_by", export: at("social.place_memberships"), delete: cleared("null"), move: REASSIGN },
 ];
 
 /** Columns named like a person's id that hold something else. Listed so the name alone never decides. */
@@ -311,6 +322,8 @@ export const LOOK_ALIKES: readonly LookAlike[] = [
   { table: "character_heard", column: "holder_id", holds: "the character who heard it (a character's id)" },
   { table: "character_heard", column: "told_by", holds: "the character who told them (a character's id)" },
   { table: "character_wants", column: "holder_id", holds: "the character who wants it (a character's id)" },
+  { table: "social_people", column: "holder_id", holds: "the character whose off-screen person it is (a character's id)" },
+  { table: "social_ties", column: "to_person_id", holds: "an off-screen person (social_people): a character's made-up mum or boss, never a real person's id" },
   { table: "character_wants", column: "set_by", holds: "what set the want: the rules or the producer (an enum)" },
   { table: "episodes", column: "performed_by", holds: "who wrote the lines: the platform or an agent (an enum)" },
   { table: "group_nights", column: "room_opening_by", holds: "what wrote the room's opening: a model's name or the template" },

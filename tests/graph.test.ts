@@ -93,7 +93,7 @@ describe("lib/graph constellation: the public layer with the directory's privacy
     await seed();
     const { edges } = await constellation(t.db, NOW);
     const masked = edges.find((e) => e.b_id === PRI)!;
-    expect(masked).toMatchObject({ masked: true, dates: 0, second_dates: 0, stage: null, last_at: null, weight: MASKED_WEIGHT });
+    expect(masked).toMatchObject({ masked: true, dates: 0, second_dates: 0, stage: null, stage_id: null, last_at: null, weight: MASKED_WEIGHT });
   });
 
   it("drops a deleted account's characters and their edges entirely, and degrees agree", async () => {
@@ -119,6 +119,8 @@ describe("lib/graph constellation: the public layer with the directory's privacy
     const expected = tieStrength({ dates: 3, second_dates: 1, mutual_yes: 0, chemistry: null, last_at: new Date(TWO_DAYS_AGO).toISOString() }, NOW, true);
     expect(ab.weight).toBe(expected);
     expect(ab.stage).toBe("💞 Dating");
+    // The same stage's id rides along, for the sky's line styles and stage filter (app/graph/stages.ts).
+    expect(ab.stage_id).toBe("dating");
     expect(publicWeight({ dates: 3, second_dates: 1, last_at: new Date(TWO_DAYS_AGO).toISOString() }, NOW)).toBe(expected);
   });
 
@@ -512,6 +514,9 @@ describe("Tier 3: what the Constellation adds, and that a private character stil
     expect(html).not.toContain("wasn&#x27;t public");
     expect(html).not.toMatch(/last: (A second date|Friends|Disaster)/i);
     for (const gone of ["Species and archetype aren", "No public first-met date", "Chemistry and trust never go public"]) expect(html).not.toContain(gone);
+    // Group nights and the house's scenes exist (2026-11-20): the page says they aren't drawn yet, not that there are none.
+    expect(html).not.toContain("There are no group scenes or double dates");
+    expect(html).toContain("Group nights and the house&#x27;s scenes aren&#x27;t drawn yet");
   });
 
   it("the admin north star counts cross-kind pairs next to human × agent ones", async () => {

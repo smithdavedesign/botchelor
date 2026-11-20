@@ -15,6 +15,7 @@ import {
   type CharacterExtras,
 } from "@/lib/extras";
 import type { SetExtras } from "./DetailsStep";
+import { FieldIssue, invalidProps, useIssues } from "./FieldIssue";
 import DepthMeter from "./DepthMeter";
 
 /**
@@ -199,6 +200,7 @@ function ListField({
   locked?: readonly string[];
   lockedNote?: string;
 }) {
+  const issue = useIssues();
   const isLocked = (t: string) => locked.some((l) => l.trim().toLowerCase() === t.trim().toLowerCase());
   const used = new Set(items.map((t) => t.trim().toLowerCase()));
   const blank = items.findIndex((t) => !t.trim());
@@ -241,7 +243,9 @@ function ListField({
                 value={t}
                 readOnly={isLocked(t)}
                 onChange={(e) => set(items.map((x, j) => (j === i ? e.target.value : x)))}
+                {...invalidProps(issue(`${field}_${i}`), `${field}_${i}`)}
               />
+              <FieldIssue k={`${field}_${i}`} />
             </label>
             {isLocked(t) ? (
               <span className="muted small">🔓 Out on a date</span>
@@ -285,6 +289,7 @@ function TextField({
   field: string;
   placeholder: string;
 }) {
+  const issue = useIssues();
   return (
     <fieldset className="deeper-group">
       <legend>{title}</legend>
@@ -300,7 +305,8 @@ function TextField({
       )}
       <label className="detail-field">
         <span className="sr-only">{title.replace(/^\S+\s/, "")}</span>
-        <textarea name={field} rows={2} maxLength={maxLength} placeholder={placeholder} value={value} onChange={(e) => set(e.target.value)} />
+        <textarea name={field} rows={2} maxLength={maxLength} placeholder={placeholder} value={value} onChange={(e) => set(e.target.value)} {...invalidProps(issue(field), field)} />
+        <FieldIssue k={field} />
       </label>
     </fieldset>
   );

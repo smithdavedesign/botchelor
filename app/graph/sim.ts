@@ -93,6 +93,32 @@ export function createSim(nodes: { id: string; degree: number }[], edges: { a_id
   return { nodes: simNodes, edges: simEdges, alpha: 1, w, h };
 }
 
+/** How warm a sky that mostly carried over restarts: enough to settle the change, not to reshuffle it. */
+export const WARM = 0.45;
+
+/**
+ * Starts `next` where `prev` left off (a filter changed which stars and lines are on the sky): everyone still on it
+ * keeps their place, so the sky changes under the viewer's eye instead of being laid out afresh. The orbit keeps the
+ * ring places createSim gave it. When at least half of its connected stars carried over, `next` starts at WARM, or warmer
+ * if `prev` hadn't cooled that far yet (a sky that never ticked, as on arrival, is still a fresh layout at 1); when most
+ * of the sky is new, as when the whole sky replaces its strongest pairs, it stays at 1.
+ */
+export function warmStart(prev: Sim, next: Sim): void {
+  const was = new Map(prev.nodes.map((n) => [n.id, n]));
+  let active = 0;
+  let kept = 0;
+  for (const n of next.nodes) {
+    if (n.orbit) continue;
+    active++;
+    const p = was.get(n.id);
+    if (!p || p.orbit) continue;
+    n.x = p.x;
+    n.y = p.y;
+    kept++;
+  }
+  next.alpha = active > 0 && kept * 2 >= active ? Math.max(WARM, prev.alpha) : 1;
+}
+
 /** One physics step. Orbit-ring and pinned nodes hold their place; everything else repels, springs and centres. */
 export function tick(sim: Sim): void {
   const { nodes, edges } = sim;

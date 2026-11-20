@@ -58,6 +58,8 @@ export type GraphEdge = {
   second_dates: number;
   /** The public stage's label (STAGE_LABELS), or null while masked/unknown. */
   stage: string | null;
+  /** The same stage's id (lib/relationship-stages.ts), for the sky's line styles and stage filter; null while masked/unknown. */
+  stage_id: Stage | null;
   /** ISO timestamp of the last publicly aired date; null while masked. */
   last_at: string | null;
   /** Tie strength 0..1 (tieNow on the public layer); a fixed faint weight while masked. */
@@ -165,6 +167,7 @@ export function maskEdge(e: GraphEdge, privateIds: Set<string>): GraphEdge {
     dates: 0,
     second_dates: 0,
     stage: null,
+    stage_id: null,
     last_at: null,
     weight: MASKED_WEIGHT,
     first_at: null,
@@ -483,13 +486,15 @@ export async function constellation(db: Db, now = new Date()): Promise<GraphData
   const raw: GraphEdge[] = edgeRows.rows.map((e) => {
     const last_at = e.last_at ? new Date(e.last_at).toISOString() : null;
     const f = facts.get(`${e.a_id}~${e.b_id}`);
+    const stage = shownStage(e.public_stage, e.public_shown_stage, process.env, e.dates);
     return {
       a_id: e.a_id,
       b_id: e.b_id,
       masked: false,
       dates: e.dates,
       second_dates: e.second_dates,
-      stage: ((st) => (st ? STAGE_LABELS[st] : null))(shownStage(e.public_stage, e.public_shown_stage, process.env, e.dates)),
+      stage: stage ? STAGE_LABELS[stage] : null,
+      stage_id: stage ?? null,
       last_at,
       weight: publicWeight({ dates: e.dates, second_dates: e.second_dates, last_at }, now),
       first_at: f?.first_at ?? null,

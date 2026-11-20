@@ -18,6 +18,7 @@ import {
   type TellId,
 } from "@/lib/extras";
 import type { SetExtras } from "./DetailsStep";
+import { FieldIssue, invalidProps, useIssues } from "./FieldIssue";
 
 const VOICE_PICKS = [
   { label: "Dry & deadpan", voice: "Dry and deadpan: short sentences, long pauses, never laughs at their own jokes." },
@@ -61,7 +62,10 @@ export default function VoiceStep({
   name: string;
 }) {
   const [neverDraft, setNeverDraft] = useState("");
-  // Which groups start open: those with something in them. Read once, so clearing a field doesn't fold its group shut.
+  // The texts that won't pass the show's check (app/create/sheet-issues.ts keys).
+  const issue = useIssues();
+  // Which groups start open: those with something in them (so also anything to fix). Read once, so clearing a field
+  // doesn't fold its group shut.
   const [startOpen] = useState(() => ({
     lines: Object.values(extras.lines ?? {}).some((v) => v?.trim()),
     never: (extras.never_says ?? []).length > 0,
@@ -100,10 +104,13 @@ export default function VoiceStep({
           maxLength={200}
           rows={3}
           placeholder="e.g. Dry and deadpan: short sentences, long pauses, never laughs at their own jokes."
+          name="voice"
           value={voice}
           onChange={(e) => setVoice(e.target.value)}
+          {...invalidProps(issue("voice"), "voice")}
         />
       </label>
+      <FieldIssue k="voice" />
 
       <details className="detail-group" open={startOpen.lines}>
         <summary>Sound like them</summary>
@@ -122,11 +129,13 @@ export default function VoiceStep({
                 placeholder={`e.g. ${LINE_PLACEHOLDERS[l.id]}`}
                 value={extras.lines?.[l.id] ?? ""}
                 onChange={(e) => setLine(l.id, e.target.value)}
+                {...invalidProps(issue(`line_${l.id}`), `line_${l.id}`)}
               />
               <button type="button" className="dice" aria-label={`Suggest: ${l.label.toLowerCase()}`} title="Suggest one" onClick={() => setLine(l.id, pickFrom(LINE_SUGGESTIONS[l.id]))}>
                 🎲
               </button>
             </span>
+            <FieldIssue k={`line_${l.id}`} />
           </label>
         ))}
       </details>
@@ -135,8 +144,8 @@ export default function VoiceStep({
         <summary>Things {who} would never say {never.length > 0 && <span className="badge">{never.length}</span>}</summary>
         {never.length > 0 && (
           <ul className="chips">
-            {never.map((v) => (
-              <li key={v} className="chip chip-removable">
+            {never.map((v, i) => (
+              <li key={v} className={`chip chip-removable${issue(`never_${i}`) ? " chip-issue" : ""}`} data-issue={`never_${i}`} tabIndex={issue(`never_${i}`) ? -1 : undefined}>
                 “{v}”
                 <button type="button" aria-label={`Remove ${v}`} onClick={() => removeNever(v)}>
                   ×
@@ -145,6 +154,11 @@ export default function VoiceStep({
             ))}
           </ul>
         )}
+        {never.map((v, i) => issue(`never_${i}`) && (
+          <span key={v} id={`issue-never_${i}`} className="field-issue">
+            {issue(`never_${i}`)} Remove it with ×.
+          </span>
+        ))}
         {never.length < MAX_NEVER_SAYS && (
           <span className="detail-row">
             <input
@@ -192,11 +206,13 @@ export default function VoiceStep({
                 placeholder={`e.g. ${TELL_PLACEHOLDERS[t.id]}`}
                 value={extras.tells?.[t.id] ?? ""}
                 onChange={(e) => setTell(t.id, e.target.value)}
+                {...invalidProps(issue(`tell_${t.id}`), `tell_${t.id}`)}
               />
               <button type="button" className="dice" aria-label={`Suggest: ${t.label.toLowerCase()}`} title="Suggest one" onClick={() => setTell(t.id, pickFrom(TELL_SUGGESTIONS[t.id]))}>
                 🎲
               </button>
             </span>
+            <FieldIssue k={`tell_${t.id}`} />
           </label>
         ))}
       </details>

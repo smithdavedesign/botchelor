@@ -22,7 +22,8 @@ export const GRAPH_STALE_SECONDS = 600;
 
 type Stamped<T> = { at: number; data: T };
 
-const cachedSky = unstable_cache(async (): Promise<Stamped<GraphData>> => ({ at: Date.now(), data: await constellation(await getDb()) }), ["constellation", "v2"], {
+// v3: edges carry stage_id (the sky's line styles), so an entry built before it is never served.
+const cachedSky = unstable_cache(async (): Promise<Stamped<GraphData>> => ({ at: Date.now(), data: await constellation(await getDb()) }), ["constellation", "v3"], {
   revalidate: GRAPH_TTL_SECONDS,
   tags: [GRAPH_TAG],
 });

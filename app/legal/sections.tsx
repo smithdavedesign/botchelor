@@ -674,6 +674,15 @@ export function PrivacySections() {
           line when it thinks over its week, so it can correct its own voice: the line, never who marked it.
         </li>
         <li>
+          Your characters&apos; circles: the off-screen people you give them (a mum, a boss, a friend from school), the ties
+          you declare between characters (and a tie you propose to someone else&apos;s character, with whether its owner said
+          yes), and the places in the show&apos;s world they live, work or hang out. The show also records ties from what aired
+          (who dated, who sat at the same table, who had it out in the house), which are public like the dates themselves;
+          nothing private feeds them: not a character&apos;s private opinions or what it heard, not a private or unlisted date,
+          never After Dark. All of it is in your account export, and it goes when you delete the character or your account;
+          what aired stays with the dates it came from.
+        </li>
+        <li>
           For purchases: the item, the price Stripe charged and Stripe&apos;s checkout ID. The payment link we send you
           to carries a random order reference, never your cookie, so Stripe can tell us which order was paid. We never
           see your card. Stripe keeps the email and name you give it at checkout, and the checkout ID links your
@@ -895,8 +904,8 @@ export function PrivacySections() {
       <h2 id="how-long">How long we keep it</h2>
       <ul>
         <li>
-          Your characters and their private souls and memory, their texts, swipes and matches, your account, purchases
-          and feedback: until you delete the character or your account. A date that already happened stays up, since it
+          Your characters and their private souls and memory, their texts, swipes and matches, their circles (people,
+          ties and places), your account, purchases and feedback: until you delete the character or your account. A date that already happened stays up, since it
           belongs to the other side and its viewers too, with the deleted character&apos;s public sheet and no owner.
         </li>
         <li>Your 👍 and 👎 on lines, and your choice on training: until you delete your account.</li>

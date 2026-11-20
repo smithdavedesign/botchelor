@@ -2,6 +2,7 @@
 
 import { FACT_IDEAS, FACT_LABEL_MAX, FACT_VALUE_MAX, MAX_FACTS, type CharacterExtras, type CharacterFact } from "@/lib/extras";
 import type { SetExtras } from "./DetailsStep";
+import { FieldIssue, invalidProps, useIssues } from "./FieldIssue";
 
 // A value's example that fits the row's label (#1109: every row's hint was about an allergy, whichever chip made it).
 const FACT_EXAMPLES: Record<string, string> = {
@@ -29,6 +30,7 @@ const FACT_EXAMPLES: Record<string, string> = {
  */
 export default function FactsStep({ extras, setExtras, name }: { extras: CharacterExtras; setExtras: SetExtras; name: string }) {
   const facts = extras.facts ?? [];
+  const issue = useIssues();
   const who = name.trim().split(/\s+/)[0] || "them";
   const set = (next: CharacterFact[]) => setExtras((p) => ({ ...p, facts: next }));
   const update = (i: number, patch: Partial<CharacterFact>) =>
@@ -73,7 +75,9 @@ export default function FactsStep({ extras, setExtras, name }: { extras: Charact
                 placeholder="e.g. Allergic to"
                 value={f.label}
                 onChange={(e) => update(i, { label: e.target.value })}
+                {...invalidProps(issue(`fact_label_${i}`), `fact_label_${i}`)}
               />
+              <FieldIssue k={`fact_label_${i}`} />
             </label>
             <label className="detail-field">
               <span className="sr-only">Fact {i + 1} value</span>
@@ -84,7 +88,9 @@ export default function FactsStep({ extras, setExtras, name }: { extras: Charact
                 placeholder={f.label.trim() ? (FACT_EXAMPLES[f.label.trim().toLowerCase()] ? `e.g. ${FACT_EXAMPLES[f.label.trim().toLowerCase()]}` : "") : "e.g. coriander, which they'll deny"}
                 value={f.value}
                 onChange={(e) => update(i, { value: e.target.value })}
+                {...invalidProps(issue(`fact_value_${i}`), `fact_value_${i}`)}
               />
+              <FieldIssue k={`fact_value_${i}`} />
             </label>
             <label className="fact-private">
               <input type="checkbox" name={`fact_private_${i}`} checked={Boolean(f.private)} onChange={(e) => update(i, { private: e.target.checked || undefined })} />
