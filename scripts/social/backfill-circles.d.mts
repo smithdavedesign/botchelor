@@ -57,7 +57,8 @@ export function circleMessages(
   o: { world: World; candidates: ShowCharacter[]; byId: Map<string, ShowCharacter>; workplaces: Workplace[] },
 ): ChatMessage[];
 export function parseReply(raw: string | null | undefined): Record<string, unknown> | null;
-export function toCircle(me: ShowCharacter, reply: Record<string, unknown>, o: { candidates: ShowCharacter[]; workplaces: Workplace[] }): Circle;
+/** `everyone`: the show's characters, so one of them named as an off-screen person is a tie (a candidate) or left out. */
+export function toCircle(me: ShowCharacter, reply: Record<string, unknown>, o: { candidates: ShowCharacter[]; workplaces: Workplace[]; everyone?: ShowCharacter[] }): Circle;
 export function remember(
   me: ShowCharacter,
   circle: Circle,
