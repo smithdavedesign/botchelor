@@ -68,7 +68,7 @@ import { buildDate, planFromChain, rememberDate, type BuiltDate, type CharacterF
 import { loadChain } from "./text-chain";
 import { pairKey } from "./relationships";
 import { dateShape, moveCost, moveProblem, placesOf, segmentBudget, settleLine, type DateShape } from "./moves";
-import { isPlaceholder, venueName, venuePhrase, type PlaceId } from "./venues";
+import { isPlaceholder, linesMentionPlace, venueName, venuePhrase, type PlaceId } from "./venues";
 import { applyPlay } from "./step-in-play";
 import { applyWishes, resolveWishes, settledWishes, type StoredWishes, wishReport, wishRule } from "./wishes";
 import { dateHeading, forTwoAgents, headingLine, nearSecondDate, type Heading } from "./heading";
@@ -310,6 +310,8 @@ export type OwnDateStep =
       your_line: string;
       /** Where the date is now (#421: on every step; it can move when both agree: lib/moves.ts), and a suggestion this turn must answer. */
       where: string;
+      /** #1848: on the first steps, when no line so far says anything of where they are (lib/venues.ts linesMentionPlace). */
+      venue_note?: string;
       /** 2.8.0: in the last act, which way the date lands (actNote), for the performer whose turn it is. */
       act_note?: string;
       /**
@@ -367,6 +369,9 @@ export type OwnDateStep =
       show_takes_over?: string;
       /** MCP 2.11.0 (#656): where the date is heading, while you wait for their line too (the invited side's first step is a wait). */
       heading?: Heading;
+      /** #1848: where the date is, while you wait too, and the note when the first lines ignore it. */
+      where?: string;
+      venue_note?: string;
       instructions: string;
     }
   | {
@@ -1239,6 +1244,21 @@ const shapeFor = (built: BuiltDate, formatId: FormatId, transcript: readonly Tur
 const namesFor = (built: BuiltDate, side: "a" | "b") =>
   side === "a" ? { self: built.characters[0].name, other: built.characters[1].name } : { self: built.characters[1].name, other: built.characters[0].name };
 
+/**
+ * #1848 (the 2026-11-19-1819 run: a two-agent date booked at "A nightclub too loud to talk in" opened in a lamp room, and the
+ * other side followed it): when the first line, or the first two, say nothing of where the date is, the next steps (both
+ * sides': the waiting one copies it) say where it was booked and that going elsewhere takes a move. Only on those first
+ * steps, and never once a move is in the lines; a word check, so a note, never a refusal.
+ */
+export function venueNoteOf(transcript: readonly Turn[], place: PlaceId | string, turn: number): { venue_note?: string } {
+  if (turn < 1 || turn > 2 || transcript.some((t) => t.moved_to)) return {};
+  const lines = transcript.slice(0, turn).map((t) => `${t.dialogue ?? ""} ${t.action ?? ""}`);
+  if (linesMentionPlace(lines, place)) return {};
+  return {
+    venue_note: `No line so far says where they are: this date was booked at ${venueName(place)}, so the lines play there. A line set somewhere else contradicts it; going somewhere else takes a move ("move" with the place, said in the line, then "accept_move" on the other side's next turn).`,
+  };
+}
+
 function stepFor(
   episodeId: string,
   built: BuiltDate,
@@ -1288,6 +1308,8 @@ function stepFor(
       ending_label: endingLabel(decided.ending, built.input.date_number),
       ...(turn ? { last_lines: transcript.slice(-2).map((t) => `${built.characters[t.side === "a" ? 0 : 1].name}: ${t.dialogue}${t.action ? ` (${t.action})` : ""}`) } : {}),
       where: venueName(shape.place),
+      // #1848: the first lines said nothing of where they are (the date was booked there), said to both sides once.
+      ...venueNoteOf(transcript, shape.place, turn),
       // 2.8.0: the last act says which way it lands, for whoever's turn it is (the prompt's messages say it too).
       ...(act === DATE_ACTS.length - 1 ? { act_note: actNote(decided.ending, built.input.date_number, liftOf(built, decided)) } : {}),
       ...(shape.pending ? { answer_their_suggestion: `${other.name} suggested taking the date to ${venuePhrase(shape.pending.to)}: this reply needs "accept_move" (true to go, false to stay). ${moveCost(shape)}` } : {}),
@@ -1298,6 +1320,8 @@ function stepFor(
         // #1187: the line's limit, said before the first line instead of in its refusal.
         `${turnLead(turn, of, side, speaker.name)}. Quickest: write ${speaker.name}'s line yourself and hand in just the dialogue as "output" ` +
         `(${TURN_DIALOGUE_MAX} characters at most; a bare string works; the reply's transcript has the conversation so far): messages is optional. ` +
+        // #1848 (the 2026-11-19-1819 run: a two-agent date booked at a nightclub was written as a lamp room): where they are.
+        `They're at ${venueName(shape.place)} (where), set when the date was booked: the lines play there unless the two move. ` +
         `For the best dates, run these messages in ${speaker.name}'s own process — a separate model ` +
         `instance or sub-agent that plays only ${speaker.name} — and send its raw JSON reply back as "output". Don't show it the other ` +
         `character's prompts: each side knows only what it can see and what's been said. Run it warm (temperature around ` +
@@ -1418,6 +1442,9 @@ function forViewer(step: OwnDateStep, userId: string, performers: Performers, tw
       ...(since && twoAgent && !show ? { ...handOverClock(since), show_takes_over: `${step.speaker.name}'s side (theirs), if they stay quiet` } : {}),
       // 2.11.0 (#656): where it's heading, while you wait too: an invited side's first step is a wait for the opening line.
       ...(step.heading ? { heading: twoAgent ? forTwoAgents(step.heading) : step.heading } : {}),
+      // #1848: where the date is, and the note when the first lines ignore it, for the side waiting too.
+      where: step.where,
+      ...(step.venue_note ? { venue_note: step.venue_note } : {}),
       instructions:
         (show
           ? `The show's model plays ${step.speaker.name}'s side now`

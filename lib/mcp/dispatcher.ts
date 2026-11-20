@@ -111,7 +111,7 @@ import { createLinkCode, isLinked } from "../agent-links";
 import { hasAccount } from "../auth";
 import { DEFAULT_FORMAT, FORMAT_IDS, format as showFormat, type FormatId } from "../formats";
 import { compatibility, loadTraitStats, MIN_EVIDENCE } from "../compatibility";
-import { AGENDA_IDS, AUTONOMY_LEVELS, dateNumberOf, DATE_VISIBILITIES, DRAMA_ANSWERS, DRAMA_QUESTION_LABELS, endingLabel, ENDINGS, FREE_EPISODES_PER_SEASON, WRITE_TIME, GAME_BUDGETS, STRATEGIES, POINTS_PER_ARC, POINTS_PER_CORRECT_PICK, POINTS_PER_DARE, POINTS_PER_DEALBREAKER_PICK, POINTS_PER_DRAMA_PICK, POINTS_PER_RATING_RECEIVED, PRONOUNS, RATING_CATEGORY_IDS, SLIDING_DOOR_CHANGES, SLIDING_DOOR_IDS, type RatingCategory, WISH_NO_AT, WISH_YES_AT, writingEta } from "../rules";
+import { AGENDA_IDS, AUTONOMY_LEVELS, dateNumberOf, DATE_VISIBILITIES, DRAMA_ANSWERS, DRAMA_QUESTION_LABELS, endingLabel, ENDING_LABELS, ENDINGS, FREE_EPISODES_PER_SEASON, WRITE_TIME, GAME_BUDGETS, STRATEGIES, POINTS_PER_ARC, POINTS_PER_CORRECT_PICK, POINTS_PER_DARE, POINTS_PER_DEALBREAKER_PICK, POINTS_PER_DRAMA_PICK, POINTS_PER_RATING_RECEIVED, PRONOUNS, RATING_CATEGORY_IDS, SLIDING_DOOR_CHANGES, SLIDING_DOOR_IDS, type RatingCategory, WISH_NO_AT, WISH_YES_AT, writingEta } from "../rules";
 import { AUDIENCES } from "../audience";
 import { type DecidedStyle, type PartnerStyle, PARTNER_STYLES, REOPEN_FIELDS, takenMessage } from "../partners-shared";
 import { TALK_LEVELS } from "../talk";
@@ -296,7 +296,7 @@ export const MCP_PROTOCOL_VERSION = "2025-06-18";
 // 2.37.0 (2026-11-17): art_style (lib/art-style.ts, PRD styles-and-storylines phase 2): create/update_character take
 // how their pictures are drawn (realistic, anime or semi_real, the 2.5D house look), kept as their looks' style;
 // get_character returns it. New arguments and reply fields only.
-export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.39.0" } as const;
+export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.40.0" } as const;
 
 /** Where every tool is listed: the default list is the core (2026-10-20: 53 tools were ~14k tokens in every agent's context). */
 export const ALL_TOOLS_HINT = "/api/mcp?tools=all";
@@ -1519,6 +1519,9 @@ const SECOND_DATE_VISIBILITY = "A second date is never more public than the firs
 const ITEMS_VS_THREAD =
   "items: only what's new since your cursor (after, or this wait). thread: the newest texts both ways, your own included (from: this_character). read_texts without after or wait_seconds pages the whole thread.";
 
+/** #1850: why a read_texts wait's items came back empty, sent on every such reply (an empty_note is never left out). */
+const WAIT_ITEMS_EMPTY = "Nothing new since the cursor (after): a wait's items hold only new texts. thread has the newest texts both ways; read_texts without wait_seconds or after returns the whole thread.";
+
 /** A thread's newest texts as agents read them, and the last one this character sent (#620). */
 function threadTail(all: ChainText[], self: End): Record<string, unknown> {
   const mine = all.filter((t) => t.who === self).at(-1);
@@ -1916,6 +1919,7 @@ async function waitForText(db: Db, who: Identity, args: Record<string, unknown>,
           after,
           ...afterCursor.note,
           items_note: late.length ? `Their text came in, and something needs you now too (heads_up). ${ITEMS_VS_THREAD}` : `Nothing new from them yet; this wait returned because something needs you now (heads_up). ${ITEMS_VS_THREAD}`,
+          ...(late.length || !now.length ? {} : { empty_note: WAIT_ITEMS_EMPTY }),
           ...threadTail(now, self),
           ...tail,
           ...why,
@@ -1938,6 +1942,9 @@ async function waitForText(db: Db, who: Identity, args: Record<string, unknown>,
           items_note: start.length
             ? `Nothing new from them since your cursor (after), so items is empty: on a wait it holds only what's new. thread, right below it, has the newest texts both ways, yours included; read_texts without after or wait_seconds pages the whole thread.`
             : ITEMS_EMPTY,
+          // #1850 (the 2026-11-19-1819 run: "read_texts returns empty items after the texts were seen"): items_note goes once a
+          // connection, so a later empty wait came back as a bare items: []. empty_note always goes (#1654).
+          ...(start.length ? { empty_note: WAIT_ITEMS_EMPTY } : {}),
           items: [], texts: [],
           ...threadTail(all, self),
           still_waiting: true, after, ...afterCursor.note,
@@ -2546,6 +2553,37 @@ async function bookedSecondDate(db: Db, episodeId: string): Promise<{ id: string
  * #1190 (the 2026-11-01-0610 run: "plan_second_date said mutual: true for a date where I had submitted would_date_again:
  * false"): what mutual is, said where the two can disagree (plan_second_date, and reflect_on_date's would_date_again).
  */
+/**
+ * #1849 (the 2026-11-19-1819 run: "get_episode ending: second_date while why says A third date", after #1098/#1254 named the
+ * label): the stored ending id is the happy ending on any date, never this date's number. Said beside the id on a later date.
+ */
+export function endingIdWords(ending: Ending, dateNumber: number | null | undefined): string {
+  return ending === "second_date" && dateNumber && dateNumber >= 2
+    ? `${ending}: the happy ending's id on any date; date ${dateNumber} led to ${endingLabel(ending, dateNumber).toLowerCase()}`
+    : ending;
+}
+/** #1849: get_episode's ending_label, and on a later date's happy ending the note that second_date isn't its number. */
+export function endingReadFields(ending: unknown, dateNumber: number | null | undefined): Record<string, string> {
+  if (typeof ending !== "string" || !(ENDINGS as readonly string[]).includes(ending)) return {};
+  const label = endingLabel(ending as Ending, dateNumber);
+  return {
+    ending_label: label,
+    ...(ending === "second_date" && dateNumber && dateNumber >= 2
+      ? { ending_note: `ending second_date is the happy ending's id on every date (they want another), not this date's number: this was date ${dateNumber} (date_number), so it led to ${label.toLowerCase()} (ending_label, as why says).` }
+      : {}),
+  };
+}
+/**
+ * #1849 (the 2026-11-19-1819 run, #1190 before it: "ending friends, yet plan_second_date says mutual: true"): mutual is each
+ * character's wish to meet again, which a friends ending can carry; said beside it whenever the ending isn't second_date.
+ */
+export function mutualEndingNote(state: { mutual?: boolean; ending?: Ending | null }): Record<string, string> {
+  if (!state.mutual || !state.ending || state.ending === "second_date") return {};
+  return {
+    mutual_ending_note: `It ended ${ENDING_LABELS[state.ending].toLowerCase()} (ending: ${state.ending}), and both characters still wanted to see each other again (each side's wants_another), so a second date can be booked: mutual is that wish, not the ending.`,
+  };
+}
+
 export const MUTUAL_MEANS = "mutual is the show's decision for both characters (each one's wants_another when the date ended), not your reflection: would_date_again in reflect_on_date stays private and doesn't change it.";
 
 /**
@@ -4030,7 +4068,7 @@ export function stepTop(step: OwnDateStep): Record<string, unknown> {
     const wishes = (step as { wishes?: Record<string, unknown> | null }).wishes;
     return {
       ...base, your_move: false, whose_move: null,
-      summary: `Done: ${a.name} and ${b.name}'s date ended: ${endingLabel(e.ending, dateNumberOf(e))} (${e.ending}). result: why, the box score's final numbers and the best line;${wishes ? " wishes: how the see_again wishes counted;" : ""} step.episode: the whole recap.`,
+      summary: `Done: ${a.name} and ${b.name}'s date ended: ${endingLabel(e.ending, dateNumberOf(e))} (${endingIdWords(e.ending, dateNumberOf(e))}). result: why, the box score's final numbers and the best line;${wishes ? " wishes: how the see_again wishes counted;" : ""} step.episode: the whole recap.`,
       result: summarised ? e : episodeSummary({ episode: e }).episode,
       ...(wishes ? { wishes } : {}),
     };
@@ -4968,6 +5006,9 @@ export function episodeSummary(d: Record<string, unknown>): Record<string, unkno
       venue: Array.isArray(e.places) && e.places.length > 1 ? placesLabel(e.places as string[]) : venueShown(e.venue as string | null | undefined),
       setting: e.setting,
       ending: e.ending,
+      // #1849: the label beside the id, and why a later date's second_date isn't its number.
+      ending_label: e.ending_label,
+      ending_note: e.ending_note,
       best_line: e.best_line,
       highlights,
       lines_in_all: lines.length || undefined,
@@ -5349,6 +5390,18 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           ready: typeof top.ready === "boolean" ? top.ready : status === "ready",
         };
       }
+      // #1849 (the 2026-11-19-1819 run: "ending: second_date while why says A third date"): the label beside the id, and on
+      // a later date's happy ending the note that the id isn't its number.
+      {
+        const top = out.data as Record<string, unknown>;
+        const nested = top.episode && typeof top.episode === "object" ? (top.episode as Record<string, unknown>) : null;
+        const inner = nested ?? top;
+        const fields = endingReadFields(inner.ending, dateNumberOf(inner as { followup_of?: string | null; date_number?: number | null }));
+        if (Object.keys(fields).length) {
+          const withLabel = Object.fromEntries(Object.entries(inner).flatMap(([k, v]) => (k === "ending" ? [[k, v], ...Object.entries(fields)] : [[k, v]])));
+          out.data = nested ? { ...top, episode: withLabel } : withLabel;
+        }
+      }
       // 2.6.0: next_calls: wait on while it's being written; once it has aired as a second date, plan the next one.
       {
         const e = (d.episode && typeof d.episode === "object" ? d.episode : out.data) as Record<string, unknown>;
@@ -5357,7 +5410,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           e.status === "generating"
             ? [nextCall("get_episode", { episode_id: id, wait_seconds: WAIT_MAX_SECONDS, ...(args.summary === true ? { summary: true } : {}) }, "Still being written: this waits for it.")]
             : e.ending === "second_date" && out.data.aired === true && e.is_creator === true
-              ? [nextCall("plan_second_date", { episode_id: id, preview: true }, `It ended in ${endingLabel("second_date", dateNumberOf(e as { followup_of?: string; date_number?: number })).toLowerCase()}: this says whether it can be booked, and the cost.`)]
+              ? [nextCall("plan_second_date", { episode_id: id, preview: true }, `It ended wanting ${endingLabel("second_date", dateNumberOf(e as { followup_of?: string; date_number?: number })).toLowerCase()}: this says whether it can be booked, and the cost.`)]
               : [];
         if (calls.length) out.data = { ...out.data, next_calls: calls };
       }
@@ -6005,7 +6058,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
                 ? nextCall("start_own_date", { character_id: rematchOwn.mine, partner_id: rematchOwn.other, preview: true }, `${rematch.a} × ${rematch.b} want another date: performed yourselves it's free and unlimited (preview first). plan_second_date (next) has the show play it, for one of today's shared dates.`)
                 : null;
           case "plan_second_date":
-            return rematch ? nextCall("plan_second_date", { episode_id: rematch.id, preview: true }, `${rematch.a} × ${rematch.b} ended in ${endingLabel("second_date", rematch.date_number).toLowerCase()}: whether it can be booked and the cost; without preview it books.`) : null;
+            return rematch ? nextCall("plan_second_date", { episode_id: rematch.id, preview: true }, `${rematch.a} × ${rematch.b} ended wanting ${endingLabel("second_date", rematch.date_number).toLowerCase()}: whether it can be booked and the cost; without preview it books.`) : null;
           case "read_texts":
             return first ? nextCall("read_texts", { character_id: first.id }, "Your threads, with who wrote last and what's unread.") : null;
           case "my_notifications":
@@ -6093,7 +6146,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
             `${POINTS_PER_DEALBREAKER_PICK} for a right dealbreaker guess (also when the date airs, public dates only), a few for matchmaking, and up to ${POINTS_PER_DARE.went_through} when the dare you voted for wins the night and they go through with it. ` +
             "points_ledger says what each aired pick scored, newest first; points_from adds them up by source.",
           ...(predictions ? { predictions } : {}),
-          ...(rematch ? { second_date_ready: { episode_id: rematch.id, date: `${rematch.a} × ${rematch.b}`, note: `It ended in ${endingLabel("second_date", rematch.date_number).toLowerCase()}: plan_second_date (episode_id, preview: true) says whether it can be booked and the cost; without preview it books.` } } : {}),
+          ...(rematch ? { second_date_ready: { episode_id: rematch.id, date: `${rematch.a} × ${rematch.b}`, note: `It ended wanting ${endingLabel("second_date", rematch.date_number).toLowerCase()}: plan_second_date (episode_id, preview: true) says whether it can be booked and the cost; without preview it books.` } } : {}),
           ...(latest.length ? { latest_dates: latest, latest_dates_note: "The last 3: my_dates lists every date your characters have been on." } : {}),
           dates_note: "dates counts each character's aired public dates (its record on the show); all_dates counts every finished date, private and not yet aired too.",
           ...(staticSeen ? {} : { house_cast: compact ? houseCast.map((c) => ({ id: c.id, name: c.name })) : houseCast, house_cast_note: castNote }),
@@ -8680,7 +8733,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         const timing = notAired ? (await airTimings(db, [params.id]).catch(() => new Map<string, AirTiming>())).get(params.id) : undefined;
         // 2.10.1 (#673, the 2026-10-22-0936 run: "minutes_left: 1 was shown when about 10 seconds were left"): to the second.
         const when = timing?.airs_at ? ` This one airs ${timing.airs === "when_ready" ? "once it's finished, no sooner than" : "on its own at"} ${timing.airs_at}${typeof timing.seconds_left === "number" ? ` (in about ${aboutTime(timing.seconds_left)})` : ""}; can_plan turns true then.` : "";
-        const state = r.data as { can_plan?: boolean; needs_their_yes?: boolean; they_asked?: boolean; partner_name?: string; mutual?: boolean; reason?: string | null };
+        const state = r.data as { can_plan?: boolean; needs_their_yes?: boolean; they_asked?: boolean; partner_name?: string; mutual?: boolean; reason?: string | null; ending?: Ending | null };
         // 2.10.0 (#619's comment, the 2026-10-22-0800 run: "returned after ~50s though it airs in 4 min, and didn't say it had
         // given up"): a wait that ran out before the airing says so first, and when to call again.
         const ranOut = airWait && notAired && !woke ? airWaitNote(timing, airWait) : null;
@@ -8734,8 +8787,9 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
                   ...(timing ? { airs_at: timing.airs_at, minutes_left: timing.minutes_left, seconds_left: timing.seconds_left, airs: timing.airs } : {}),
                   note: `A second date follows a date that's aired.${when} plan_second_date with wait_seconds waits for an airing that close, then previews (confirm: true books).`,
                   ...(agreed ? { mutual_note: agreed } : {}),
+                  ...mutualEndingNote(state),
                 }
-              : { ...r.data, ...yesState(state), ...(agreed ? { mutual_note: agreed } : {}), ...numberNote },
+              : { ...r.data, ...yesState(state), ...(agreed ? { mutual_note: agreed } : {}), ...mutualEndingNote(state), ...numberNote },
             ...(await costFor()),
             agents_date_budget_today: await sharedBudget(db, who.id),
             ...waited,

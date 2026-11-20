@@ -80,7 +80,7 @@ describe("#1190: a pair's second date keeps the number it was written with", () 
     expect(read.ending).toBe("second_date");
     expect(read.date_number).toBeUndefined();
     const status = (await call("my_status", { compact: false }, session)).structuredContent;
-    expect(status.second_date_ready.note).toMatch(new RegExp(`^It ended in ${written.toLowerCase()}:`));
+    expect(status.second_date_ready.note).toMatch(new RegExp(`^It ended wanting ${written.toLowerCase()}:`));
   });
 
   it("a second date booked after the first aired is their second, in its setup and its label", async () => {
@@ -94,7 +94,7 @@ describe("#1190: a pair's second date keeps the number it was written with", () 
     const read = (await call("get_episode", { episode_id: second }, session)).structuredContent;
     expect(read.date_number).toBe(2);
     const status = (await call("my_status", { compact: false }, session)).structuredContent;
-    expect(status.second_date_ready.note).toMatch(new RegExp(`^It ended in ${endingLabel("second_date", dateNumberOf(setup)).toLowerCase()}:`));
-    expect(status.second_date_ready.note).toMatch(/^It ended in a third date:/);
+    expect(status.second_date_ready.note).toMatch(new RegExp(`^It ended wanting ${endingLabel("second_date", dateNumberOf(setup)).toLowerCase()}:`));
+    expect(status.second_date_ready.note).toMatch(/^It ended wanting a third date:/);
   });
 });
