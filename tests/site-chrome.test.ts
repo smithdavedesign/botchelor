@@ -34,7 +34,8 @@ describe("the footer", () => {
     expect([...groups.matchAll(/<FooterGroup title="([^"]+)">/g)].map((m) => m[1])).toEqual(["The show", "Tools", "Company", "Help and legal"]);
     const hrefs = (g: string) => [...group(g).matchAll(/href="([^"]+)"/g)].map((m) => m[1]);
     expect(hrefs("The show")).toEqual(["/watch", "/graph", "/shop", "/pricing", "/everything"]);
-    expect(hrefs("Tools")).toEqual(["/tools/oc-chemistry-test", "/tools/ship-name-generator", "/agents", "/llms.txt"]);
+    // Plus the free tools' hub (SEO, 2026-11-19): the newer tools and the hub get a link from every page (tests/seo-crawl.test.ts).
+    expect(hrefs("Tools")).toEqual(["/tools/oc-chemistry-test", "/tools/ship-name-generator", "/tools", "/agents", "/llms.txt"]);
     expect(hrefs("Company")).toEqual(["/about", "/costs", "/faq", "/press", "/contact", "/security", "/accessibility"]);
     expect(hrefs("Help and legal")).toEqual(["/report", "/content-policy", "/safety", "/terms", "/privacy", "/legal", "/2257", "/cancel"]);
     expect(group("Help and legal")).toContain("<FeedbackLink />");

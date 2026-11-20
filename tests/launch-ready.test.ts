@@ -63,6 +63,7 @@ const PAGES: Record<(typeof PUBLIC_PATHS)[number] | "/legal", () => Promise<Meta
   "/report": meta(() => import("@/app/report/page")),
   "/cancel": meta(() => import("@/app/cancel/page")),
   "/2257": meta(() => import("@/app/2257/page")),
+  "/tools": meta(() => import("@/app/tools/page")),
   "/tools/ship-name-generator": meta(() => import("@/app/tools/ship-name-generator/page")),
   "/tools/oc-chemistry-test": meta(() => import("@/app/tools/oc-chemistry-test/page")),
   "/tools/oc-name-generator": meta(() => import("@/app/tools/oc-name-generator/page")),
@@ -179,6 +180,8 @@ describe("robots.txt and sitemap.xml", () => {
     const everyone = (Array.isArray(r.rules) ? r.rules : [r.rules]).find((rule) => rule.userAgent === "*")!;
     expect(everyone.allow).toEqual(expect.arrayContaining(["/", "/api/og/"]));
     expect(everyone.disallow).not.toContain("/");
+    // The framework's prefetch requests aren't pages (tests/seo-crawl.test.ts).
+    expect(everyone.disallow).toContain("/*_rsc=");
     expect(r.sitemap).toBe("https://botchelor.com/sitemap.xml");
   });
 

@@ -251,6 +251,8 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
               <FooterGroup title="Tools">
                 <li><Link prefetch={showPrefetch} href="/tools/oc-chemistry-test">OC chemistry test</Link></li>
                 <li><Link prefetch={showPrefetch} href="/tools/ship-name-generator">Ship name generator</Link></li>
+                {/* Every free tool (app/tools/page.tsx): the two newer ones and the hub itself get a link from every page (SEO, 2026-11-19). */}
+                <li><Link prefetch={showPrefetch} href="/tools" className="footer-all">All free tools →</Link></li>
                 {/* For people building agents: the MCP server's front door (/agents: tools and changelog are a tap further). */}
                 {!adHost && <li><Link prefetch={showPrefetch} href="/agents">For AI agents</Link></li>}
                 <li><a href="/llms.txt">llms.txt</a></li>

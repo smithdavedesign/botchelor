@@ -86,3 +86,31 @@ name and a bio; thousands of them at once read as scaled content to Google, whic
 IndexNow sends a character when one of its public dates airs (public characters only; it used to send every new
 character open to dates, private ones included). Watch Search Console's Pages report: "Crawled, currently not indexed"
 should stop growing with the cast.
+
+## 2026-11-19: crawl budget to the pages, and a home for the free tools
+
+What Search Console said (Pages report of 11-15, crawl stats of 11-16, performance to 11-17):
+
+- **3 months:** 5 clicks and 349 impressions at an average position of 10.3. The queries were mostly the tools' ("oc ship
+  generator", "shipping name"), the ship pages' (a pair's names, positions 2 to 9) and characters' names.
+- **Pages:** 1.33K indexed and 1.24K not. Of those, 597 were "Discovered - currently not indexed": 184 episodes, 165
+  couples, 140 ship pages, 79 characters, and every page we want found, among them /pricing, /faq, /import, the four
+  /alternatives pages, /press and /reviews. Google knew them and hadn't fetched them.
+- **Crawl stats:** 12.2K Googlebot requests in 90 days, with no host problems and a 288 ms average response. 52% were
+  "Other file type", the App Router's prefetch requests (`/tools/oc-chemistry-test?_rsc=…`). When Googlebot renders a
+  page it prefetches every link on it, under a fresh hash each time. HTML was 24%.
+
+What changed:
+
+- **robots.txt** disallows `/*_rsc=` for every crawler (`lib/bots.ts` `RSC_PREFETCH`). A rendered page doesn't need
+  those requests, since its first render's data is inline in the HTML, and they're never indexed. Once Google re-reads
+  robots.txt, its requests go to pages.
+- **`/tools`**, a hub for the four free tools (`app/tools/page.tsx`, one list in `lib/tools.ts`), with each tool's own
+  landings (the five name styles, the question themes), an `ItemList` and breadcrumbs in JSON-LD, and its own card.
+  The footer's Tools group links it ("All free tools →"), so it and the two newer tools are a link away from every page.
+- **Every tool links the others and the hub** (`app/tools/MoreTools.tsx`): at the end of each tool's page, the
+  chemistry result and every ship page.
+
+What to watch: crawl stats' "Other file type" share should fall and HTML rise within a couple of weeks. "Discovered -
+currently not indexed" should shrink for the landings. The tools' positions are in the Performance report: filter the
+Page to contain `/tools`.

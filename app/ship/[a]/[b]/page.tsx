@@ -3,6 +3,8 @@ import Link from "next/link";
 import ShareLink from "@/app/ShareLink";
 import { nameFromSegment, SHIP_ERRORS, shipPair, shipPath, type ShipPair } from "@/lib/ship-names";
 import ShipForm from "../../ShipForm";
+import MoreTools from "@/app/tools/MoreTools";
+import { SHIP_TOOL_PATH } from "@/lib/tools";
 
 type Props = { params: Promise<{ a: string; b: string }> };
 
@@ -90,6 +92,7 @@ export default async function ShipPage({ params }: Props) {
         <Link className="button" href={`/create?name=${encodeURIComponent(a.display)}`}>
           {`Send ${a.display} on a blind date`}
         </Link>
+        <MoreTools current={SHIP_TOOL_PATH} />
       </section>
     </>
   );

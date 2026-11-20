@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { SHIP_TOOL_PATH } from "@/lib/tools";
 import ShipForm from "../../ship/ShipForm";
+import MoreTools from "../MoreTools";
 
-const PATH = "/tools/ship-name-generator";
+const PATH = SHIP_TOOL_PATH;
 const TITLE = "OC Ship Name Generator";
 const DESCRIPTION =
   "A free ship name generator for original characters: type two names and get the ship names that blend them, best first, on a link you can share. No sign-up.";
@@ -73,6 +75,7 @@ export default function ShipNameGeneratorPage() {
         <Link className="button" href="/create">
           Make your character
         </Link>
+        <MoreTools current={SHIP_TOOL_PATH} />
       </section>
     </>
   );

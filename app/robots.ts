@@ -1,5 +1,5 @@
 import type { MetadataRoute } from "next";
-import { AI_ROBOTS_TOKENS } from "@/lib/bots";
+import { AI_ROBOTS_TOKENS, RSC_PREFETCH } from "@/lib/bots";
 import { siteUrl } from "@/lib/site";
 
 // Per request, so the sitemap's address is the running deployment's SITE_URL even where the build didn't set it.
@@ -12,12 +12,13 @@ export const dynamic = "force-dynamic";
  * every portrait on a character page; blocking them hid the faces from Google's renderer and Image search, 147 URLs
  * in Search Console 2026-11-15). Their After Dark teasers stay blocked: an nsfw asset redirects a stranger to its
  * blurred teaser (lib/asset-gate.ts), and the longer, more specific Disallow wins over the Allow. Account and admin
- * pages are personal.
+ * pages are personal. The framework's prefetch requests (`?_rsc=`, lib/bots.ts RSC_PREFETCH) were half of Googlebot's
+ * crawl in 2026-11 and are never pages, so crawlers skip them.
  */
 export default function robots(): MetadataRoute.Robots {
   const base = siteUrl();
   const allow = ["/", "/api/mcp", "/api/episodes", "/api/og/", "/api/assets/"];
-  const disallow = ["/api/", "/api/assets/*/teaser", "/account", "/admin"];
+  const disallow = ["/api/", "/api/assets/*/teaser", "/account", "/admin", RSC_PREFETCH];
   return {
     rules: [
       { userAgent: "*", allow, disallow },
