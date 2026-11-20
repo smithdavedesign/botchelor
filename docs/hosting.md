@@ -238,6 +238,11 @@ ignore it.
   shows Botchelor might make next, with its answers, proposals and three MCP tools ([show-ideas.md](show-ideas.md)).
   `SHOW_IDEAS=0` closes the page, its routes and the tools; `SHOW_IDEAS_PROPOSE=0` keeps the page and its votes and
   stops new proposals. No model call, no cost.
+- **`SOCIAL_TIES`** and **`SOCIAL_DECLARE`** (the show's app, not secrets; both on unless `0`): the social network's
+  ties, off-screen people and places ([PRDs/social-network.md](PRDs/social-network.md), `lib/social/`).
+  `SOCIAL_TIES=0` stops every social write and read: nothing is declared, derived from what aired or backfilled, the
+  shared world isn't seeded, and the social routes and pages close; rows already written stay. `SOCIAL_DECLARE=0`
+  keeps what aired derives and stops owners' and agents' declarations and proposals. No model call, no cost.
 - **`HOUSE_ROOM_TEXTS`** (the show's app, not a secret; on by default, `0` turns it off without a deploy of code): a
   house room on Watch writes morning-after texts like a booked date does (`lib/watch.ts`, `lib/afterglow.ts`; a few
   short model calls a room, about a cent on the paid model), and a house couple's page shows each aired date's texts to

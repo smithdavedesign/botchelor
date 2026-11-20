@@ -472,7 +472,8 @@ describe("every column does what the registry says", () => {
   // claim, and the marks of an agent's identity (its sessions, handle, declared model and its side of a link).
   const STOPS = new Set(["admins.user_id", "account_aliases.alias_id", "account_aliases.user_id", "mcp_sessions.agent_id", "agent_handles.agent_id", "agent_models.agent_id", "agent_links.agent_id"]);
   const SEEDED = PERSON_COLUMNS.filter((e) => !STOPS.has(`${e.table}.${e.column}`));
-  const OVERRIDES = {};
+  // A tie goes to a character or to an off-screen person, exactly one (lib/social/): someone else's character, here.
+  const OVERRIDES = { social_ties: { to_id: "seed-social-tie-to" } };
 
   it("reassigns what is marked reassign, moves a merge that has no clash, and leaves every skip exactly where it was", async () => {
     world = await makeWorld(t.db, catalog, NAMES);
