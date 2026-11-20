@@ -7,7 +7,8 @@ import { useEffect, useRef, type RefObject } from "react";
  * modal <dialog> and gets all of this from the browser; every hand-made menu, popover and full-screen sheet gets it here.
  * While `open`:
  * - the page behind doesn't scroll (html.overlay-open, app/globals.css);
- * - everything outside `root` is `inert`, so Tab stays inside and a screen reader reads only the overlay;
+ * - everything outside `root` is `inert`, and Tab goes round inside it, so a screen reader and the keyboard stay in the
+ *   overlay;
  * - Escape closes it (only the overlay on top, and never under a native modal it opened);
  * - a press outside `root` closes it (`outside: false` to keep it up);
  * - focus moves in when it opens and goes back where it was when it closes.
@@ -47,6 +48,7 @@ export function useOverlay(
     if (!el.contains(document.activeElement)) (initial.current?.current ?? firstControl(el))?.focus({ preventScroll: true });
 
     const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Tab" && stack.at(-1) === token) return wrapTab(e, el);
       if (e.key !== "Escape" || stack.at(-1) !== token || !close.current) return;
       const modal = document.querySelector("dialog:modal");
       if (modal && !el.contains(modal)) return;
@@ -87,6 +89,23 @@ function lockScroll(by: 1 | -1) {
 const CONTROLS = 'button:not([disabled]), a[href], input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]:not([tabindex="-1"])';
 function firstControl(el: HTMLElement): HTMLElement | null {
   return [...el.querySelectorAll<HTMLElement>(CONTROLS)].find((c) => c.getClientRects().length > 0) ?? null;
+}
+
+/**
+ * Tab and Shift+Tab go round inside the overlay: inert keeps them off the page, and this keeps them off the browser's
+ * own bar and any scroll box around the overlay (Chrome lets Tab land on a scroll box).
+ */
+function wrapTab(e: KeyboardEvent, el: HTMLElement) {
+  const controls = [...el.querySelectorAll<HTMLElement>(CONTROLS)].filter((c) => c.getClientRects().length > 0 && !c.closest("[inert]"));
+  if (!controls.length) return;
+  const first = controls[0];
+  const last = controls[controls.length - 1];
+  const at = document.activeElement;
+  const inside = at instanceof HTMLElement && el.contains(at);
+  if (e.shiftKey ? at === first || !inside : at === last || !inside) {
+    e.preventDefault();
+    (e.shiftKey ? last : first).focus();
+  }
 }
 
 /** The parts of a tree `inertOutside` walks: an element's parent and its children. A DOM element is one. */
