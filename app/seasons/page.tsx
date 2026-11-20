@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import Avatar from "@/app/Avatar";
 import JsonLd from "@/app/JsonLd";
+import SetHero from "@/app/SetHero";
 import { getDb } from "@/lib/db";
+import { premiereTimeWords, type NextPremiere } from "@/lib/premiere-clock";
 import { withPortraits } from "@/lib/portrait-sql";
 import { seasonCastCards, type CastCard } from "@/lib/season-cast";
 import type { SeasonFormatDef } from "@/lib/season-format";
@@ -12,7 +14,10 @@ import { seasonRef, closedSeasons } from "@/lib/season-ref";
 import { seasonIdOf } from "@/lib/season-window";
 import { breadcrumbJsonLd, itemListJsonLd, pageMetadata } from "@/lib/seo";
 import { shared } from "@/lib/shared-cache";
-import { daysLeftLabel } from "./season-visuals";
+import { nextPremiere, premiereEndsAt } from "@/lib/sunday-premiere";
+import PremiereCountdown from "./PremiereCountdown";
+import SeasonLeadFace from "./SeasonLeadFace";
+import { daysLeftLabel, premiereLabel } from "./season-visuals";
 
 export const revalidate = 3600;
 
@@ -39,18 +44,22 @@ export default async function SeasonsPage() {
   let cast: CastCard[] = [];
   // The running season's format, from the copy the header's arc reads (app/layout.tsx), so the clock counts as it does.
   let def: SeasonFormatDef | null = null;
+  // The next Sunday premiere (lib/sunday-premiere.ts): its lead large on the hero and its clock under the words.
+  let premiere: NextPremiere | null = null;
   const recaps = new Map<string, SeasonRecap>();
   const portraits = new Map<string, string | null>();
   const face = (c: RecapChar) => c.portrait ?? portraits.get(c.id) ?? null;
   try {
     const db = await getDb();
-    const [faces, finales, format] = await Promise.all([
+    const [faces, finales, format, next] = await Promise.all([
       running.number > 0 ? seasonCastCards(db).catch(() => [] as CastCard[]) : Promise.resolve([] as CastCard[]),
       Promise.all(closed.map((s) => getSeasonRecap(db, s.id).catch(() => null))),
       shared("watch:season-format", async () => seasonFormatNow(db)).catch(() => null),
+      nextPremiere(db, now).catch(() => null),
     ]);
     cast = faces;
     def = format;
+    premiere = next;
     finales.forEach((r, i) => {
       if (r?.status === "closed") recaps.set(closed[i].id, r.recap);
     });
@@ -75,9 +84,26 @@ export default async function SeasonsPage() {
           ),
         ]}
       />
-      <p className="kicker">The show</p>
-      <h1>Seasons</h1>
-      <p className="lede muted">A month is a season: a new cast, a board, a finale. Each finale stays up as the season&apos;s page.</p>
+      {/* The title band on the elimination set (the visual pop audit, 2026-11-20): the lead of the next premiere large
+          beside the words, and its clock, which turns into an ON AIR light while it plays. */}
+      <SetHero
+        set="elimination"
+        kicker="The show"
+        title="Seasons"
+        lede="A month is a season: a new cast, a board, a finale. Each finale stays up as the season's page."
+        media={premiere ? <SeasonLeadFace lead={premiere.lead} kicker={premiere.kind === "pilot" ? "Meet the lead" : "This season's lead"} /> : undefined}
+      >
+        {premiere && (
+          <PremiereCountdown
+            at={premiere.at}
+            until={premiereEndsAt(premiere.at)}
+            live={premiere.state === "live"}
+            label={premiereLabel(premiere)}
+            words={premiereTimeWords(premiere.at, { day: true })}
+            href={premiere.room_path}
+          />
+        )}
+      </SetHero>
       {running.number > 0 && (
         <section className="card season-now" aria-labelledby="season-now">
           <p className="kicker">Season {running.number} · on now</p>

@@ -62,6 +62,9 @@ const dayId = (d: Date): string => d.toISOString().slice(0, 10);
 /** How long a room plays, from its start to its last phase (lib/watch.ts LAST_AT). */
 const ROOM_SECONDS = WATCH_PHASES[WATCH_PHASES.length - 1].at;
 
+/** When a premiere's room has played out (its start plus the room's length): a page's ON AIR light is lit until then. */
+export const premiereEndsAt = (at: string): string => new Date(Date.parse(at) + ROOM_SECONDS * 1000).toISOString();
+
 /** The pass that builds a premiere runs from this long before it starts (the job's :20 pass the hour before)... */
 export const BUILD_FROM_MINUTES = 60;
 /** ...until this long before: a room built later would start before anyone heard of it. */
