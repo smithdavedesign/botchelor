@@ -15387,3 +15387,46 @@ button.thread-menu-item:hover:not(:disabled) {
     display: none;
   }
 }
+
+/* ---------------- "Might know" (app/characters/[id]/MightKnow.tsx) ----------------
+   The owner's own character page: who their character might know, a face, a name and why, and "Not now". */
+.might-know-list {
+  list-style: none;
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-3);
+}
+.might-know-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.might-know-who {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+}
+.might-know-who:hover strong,
+.might-know-who:focus-visible strong {
+  text-decoration: underline;
+}
+.might-know-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.might-know-text .small {
+  overflow-wrap: anywhere;
+}
+/* A full-height tap target on a phone, still read as a link. */
+button.link-button.might-know-dismiss {
+  flex: none;
+  min-height: var(--control-h);
+  padding-inline: var(--space-2);
+}

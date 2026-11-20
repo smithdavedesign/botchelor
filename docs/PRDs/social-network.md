@@ -242,6 +242,17 @@ As built (2a, `lib/social/derive.ts`):
 
 `suggestTies(character)` uses common neighbours, Adamic–Adar, shared places, shared events and friend-of-ex, then scores and explains each suggestion. A suggestion is never a tie. It is shown to the owner on the character page and through MCP `suggest_ties`, and the shown suggestion and its outcome go to `social_suggestion_log`.
 
+As built (Phase 4 PR 4, `lib/social/suggest.ts`):
+
+- **Four signals, summed into a score.** The strongest is the logged reason.
+  - Common friends (`common_friends`), by Adamic–Adar over ties that mean knowing someone: active, positive, and neither one of the show's encounters nor a date. The character's own ties may be owner-only, since only its owner sees suggestions; the second hop is public only.
+  - A shared place (`shared_place`): 2a's `SHARED` roles, weighted by the role and by 1 / ln(how many share it).
+  - The same event (`same_event`): one of derive's encounter ties between the two. An encounter is a reason, never an exclusion.
+  - A friend of an ex (`friend_of_ex`).
+- **Never suggested:** someone the character already has a tie with (any kind but an encounter, any status), a house character (a person can't declare one, §6.2), someone else's private character, a persona, or someone dismissed in the last 90 days. Nothing under 0.3 is shown, so one housemate alone isn't enough.
+- **Where it shows.** `GET /api/social/suggest/[id]` (owner only) returns the list and logs what it shows; `POST` with `dismiss` is "Not now". "Might know" is its own block on the owner's character page until 2b's "Their people" exists. MCP `suggest_ties` (outside the core list) gives agents the same.
+- **Outcomes.** The daily job settles the log: a suggestion is `accepted` once any non-encounter tie between the two is made after it was shown, and `ignored` after 30 days.
+
 ## 7. Living network (Phase 4, `SOCIAL_DYNAMICS`)
 
 - **Closeness:** each aired contact (a date, a scene together, a group night, a told line, a between-dates text count on the public layer) raises `closeness` and sets `last_contact_at`. A daily job decays closeness by each kind's half-life: kin never decays, and friendship has a 120-day half-life. A friendship that falls below 0.15 logs `decayed`, and the tie becomes `old_friend`.

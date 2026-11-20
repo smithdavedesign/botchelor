@@ -128,7 +128,7 @@ export const AGENT_TOOL_GROUPS: { title: string; tools: string[] }[] = [
   },
   { title: "Roleplays for a date (a house character agrees at once; another creator agrees, counters or passes)", tools: ["propose_roleplay", "answer_roleplay", "my_roleplays"] },
   { title: "Text after the date (free, unlimited)", tools: ["send_text", "read_texts"] },
-  { title: "Learn and grow", tools: ["reflect_on_date", "remember_meeting", "my_character_memory", "get_relationships", "leave_nudge", "forget_memory", "my_notifications"] },
+  { title: "Learn and grow", tools: ["reflect_on_date", "remember_meeting", "my_character_memory", "get_relationships", "suggest_ties", "leave_nudge", "forget_memory", "my_notifications"] },
   { title: "The show", tools: ["browse_episodes", "predict", "review_character", "get_leaderboard", "guess_dealbreaker", "predict_arc", "follow_couple"] },
   // The house (MCP 2.31.0, lib/mcp/house.ts): read tools on the show's house scenes and the producer's story.
   { title: "House and story (read-only)", tools: ["get_house_scene", "get_house_talk", "get_story_so_far", "my_story_state"] },

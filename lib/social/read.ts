@@ -89,8 +89,8 @@ const UNSHOWN_CHANGES = new Set(["origin_model", "prompt_version", "confidence"]
 
 /* ------------------------------------------------------ SQL ------------------------------------------------------ */
 
-/** A character still listed: not a deleted account's and not a persona (lib/directory.ts's rule). */
-const listedSql = (c: string): string => `${c}.owner_id is distinct from '${DELETED_OWNER}' and ${notPersonaSql(c)}`;
+/** A character still listed: not a deleted account's and not a persona (lib/directory.ts's rule). Also Phase 4's suggestions' (lib/social/suggest.ts). */
+export const listedSql = (c: string): string => `${c}.owner_id is distinct from '${DELETED_OWNER}' and ${notPersonaSql(c)}`;
 
 /** A character's node columns, prefixed `as`; `mine` when `viewer` (a text SQL expression, maybe null) owns it. */
 const nodeSql = (c: string, viewer: string, as = ""): string =>
@@ -101,9 +101,10 @@ const rolesSql = (roles: readonly SharedRole[]): string => `'{${roles.join(",")}
 
 /**
  * A membership that makes its character share its place (`SHARED`): current, public, of a public place, and not living
- * in the house (that's the `housemate` tie) or the whole city.
+ * in the house (that's the `housemate` tie) or the whole city. Also Phase 4's suggestions' (lib/social/suggest.ts), where
+ * a shared place is a reason to suggest someone.
  */
-const sharedSql = (m: string, p: string, roles: readonly SharedRole[] = SHARED_ROLES): string =>
+export const sharedSql = (m: string, p: string, roles: readonly SharedRole[] = SHARED_ROLES): string =>
   `${m}.role = any(${rolesSql(roles)}) and ${m}.ended_at is null and ${m}.visibility = 'public' and ${p}.visibility = 'public'
    and not (${m}.role = 'lives' and ${p}.kind in ('house', 'city'))`;
 

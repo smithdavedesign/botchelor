@@ -78,6 +78,7 @@ import { characterFollowOn, characterFollowState } from "@/lib/character-follows
 import { characterNowOn, shapeNow } from "@/lib/character-now";
 import { FollowToggle, HeaderMore } from "./HeaderActions";
 import RightNow from "./RightNow";
+import MightKnow from "./MightKnow";
 import { storyView } from "@/lib/story-state";
 import AfterDarkTeaser from "@/app/AfterDarkTeaser";
 import AfterDarkPhotos, { afterDarkPhotosOf } from "./AfterDarkPhotos";
@@ -940,6 +941,9 @@ export default async function CharacterPage({ params, searchParams }: Props) {
           <AiTag />
         </section>
       )}
+      {/* "Might know" (lib/social/suggest.ts, the social network PRD section 6.3): who their character might know, the
+          owner's page only; it asks after the page is up. */}
+      {ratings.is_owner && !c.house && <MightKnow characterId={c.id} name={c.name} />}
       {c.house && <AfterDarkTeaser character={c.id} />}
       {/* Their own After Dark pictures of them, blurred: the owner's page only. */}
       {adPhotos && <AfterDarkPhotos characterId={c.id} data={adPhotos} />}
