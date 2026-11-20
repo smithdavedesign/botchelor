@@ -14,7 +14,7 @@ no screenshots are kept here (the site is explicit).
 
 | # | Suggestion | Status |
 | --- | --- | --- |
-| 1 | The character standing beside the chat | Built: Step in's scene (#TBD). A cutout once the Cloudflare zone makes them; until then the portrait with its edges faded. |
+| 1 | The character standing beside the chat | Built: Step in's scene (#1907). A cutout once the Cloudflare zone makes them; until then the portrait with its edges faded. |
 | 2 | An After Dark Characters page and a page per character | Being built (separate PR). |
 | 3–8 | Below | Not built. |
 
@@ -133,7 +133,7 @@ Stream for video, view transitions for the phone chat, the Outfit font, consentm
 
 ## Recommendations, in order
 
-1. **The figure in Step in.** Built (#TBD). Switch the zone's transformations on to get real cutouts.
+1. **The figure in Step in.** Built (#1907). Switch the zone's transformations on to get real cutouts.
 2. **After Dark Characters + a page per character.** Yes, this belongs in After Dark. It's the one structural thing
    joi has that After Dark lacks, and it's being built now. The grid lists exactly who the viewer can have a night
    with. Each page has the character's nights and their public pictures (joi's "Community"), and the ways in that
