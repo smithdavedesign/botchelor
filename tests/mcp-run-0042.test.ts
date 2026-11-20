@@ -608,7 +608,8 @@ describe("schemas: required, examples, and the cost first", () => {
     const browse = lean.find((x) => x.name === "browse_episodes");
     expect(browse.cost).toBe("Free.");
     expect(browse.description).toMatch(/^The public feed, newest first/);
-    expect(lean.find((x) => x.name === "go_on_date").cost).toMatch(/^Costs one date/);
+    // 2.40.0 (#1845): the lean list says the short cost line, as the core list does; the whole sentence leads ?tools=all's.
+    expect(lean.find((x) => x.name === "go_on_date").cost).toMatch(/^Cost: 1 date \+ 1 shared daily date/);
   });
 
   it("browse_episodes' mine is in the schema with its values", () => {

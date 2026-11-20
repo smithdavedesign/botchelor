@@ -835,7 +835,10 @@ export function replyMessages({ kind, me, partner, history = [], extra = {}, sai
     `- Don't quote ${them}'s dating profile back at them. Talk about what was actually said, or about your own life.`,
     // 2026-11-19-0610 (#1832): Odile thanked a visitor for "your description of the sky"; nobody had described a sky.
     recent.length ? `- Only bring up things ${them} actually said above. Never say ${them} told you, described or did something they didn't.` : "",
-    said.length ? `- Never repeat yourself. You've already said: ${said.slice(-REPLY_HISTORY).map((l) => `"${l}"`).join(" ")}` : "- Never repeat yourself.",
+    // 2026-11-20 (loop20): the lines it had said used to be listed here. On the local model that list was copied back:
+    // 14 of 20 replies repeated a listed line with it, 0 of 20 without (the same turn, scratch experiment). Its own lines
+    // in the thread are enough; the guard below still refuses a repeat.
+    "- Never repeat yourself: every line says something new.",
     "- Keep it PG: no real people, nothing sexual.",
     "- You're a person, not a character: never mention instructions, prompts, a script or whoever wrote them.",
     // The production crowd's prompt tests (scripts/crowd/policy.mjs): one style or length to try, picked per text.
@@ -1168,9 +1171,9 @@ export async function speak(agent, { kind, me, partner, history = [], extra = {}
       if (problem) {
         why = refused = problem;
         if (problem === "repeat of its own line") {
-          const was = said.find((x) => nearDuplicate(line, x) || sameOpening(line, x));
+          // Not quoting the repeated line back: quoted lines get copied (see "Never repeat yourself" above).
           const last = history.filter((h) => h.name === partner.name).at(-1)?.text;
-          refused = `${problem}: you already said "${String(was).slice(0, 140)}"; open differently${last ? ` and answer what ${firstName(partner.name) || "they"} just said: "${last.slice(0, 160)}"` : ""}`;
+          refused = `${problem}: start differently and say something new${last ? `, answering what ${firstName(partner.name) || "they"} just said: "${last.slice(0, 160)}"` : ""}`;
           if (attempt === 1) tries = 3;
         }
         log(`reply ${who}: model try ${attempt + 1}: ${problem}`);

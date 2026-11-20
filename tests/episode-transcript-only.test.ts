@@ -41,8 +41,8 @@ describe("get_episode transcript_only (2.39.0)", () => {
     expect((episodeSummary({ episode: { ...ep, ending: undefined } }).episode as Record<string, unknown>).revealed_note).toBeUndefined();
   });
 
-  it("is the newest version, with its entry", () => {
-    expect(MCP_SERVER_INFO.version).toBe("2.39.0");
-    expect(MCP_CHANGELOG[0]).toMatchObject({ version: "2.39.0" });
+  it("has its changelog entry", () => {
+    expect(MCP_CHANGELOG.find((r) => r.version === "2.39.0")).toBeTruthy();
+    expect(MCP_SERVER_INFO.version).toMatch(/^2\.\d+\.\d+$/);
   });
 });
