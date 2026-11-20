@@ -47,11 +47,12 @@ export default async function AfterDarkGalleryPage({ searchParams }: { searchPar
   const [here, doors] = await Promise.all([currentHere(), afterDarkDoors(db, auth!.userId)]);
   const head = (
     <>
-      <GalleryTabs current="yours" showcase={doors.showcase} />
       <p className="kicker">
         <Icon name="moon" /> After Dark · private
       </p>
       <h1>Gallery</h1>
+      {/* Under the title, not above it (mobile audit C10). */}
+      <GalleryTabs current="yours" showcase={doors.showcase} />
     </>
   );
   // Where only the scenes are allowed (lib/jurisdiction.ts) there are no pictures or videos to show.
