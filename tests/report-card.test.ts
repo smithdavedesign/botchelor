@@ -30,7 +30,7 @@ const nav = vi.hoisted(() => ({
 }));
 vi.mock("next/navigation", async (importOriginal) => ({ ...(await importOriginal<typeof import("next/navigation")>()), redirect: nav.redirect, notFound: nav.notFound }));
 
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { BEACON_REFS } from "@/app/funnel";
 import { GET as cardRoute } from "@/app/api/og/report-card/[id]/route";
 import ReportCardPage, { generateMetadata } from "@/app/episodes/[id]/report-card/page";
@@ -45,6 +45,7 @@ import {
   REPORT_REF,
   reportCardOf,
   reportCardPath,
+  reportCardStoryPath,
   reportCardTitle,
   sharedReportCardPath,
   subjectsOf,
@@ -203,6 +204,23 @@ describe("the page and the picture, on a real date", () => {
     for (const label of ["Chemistry", "Attraction", "Trust", "Awkwardness"]) expect(words).toContain(label);
   });
 
+  it("?format=story draws the same card at 9:16 (1080×1920), and an unaired date has none in either shape", async () => {
+    const { episode, creator } = await setupEpisode("friends");
+    const story = (id: string) => cardRoute(new Request(`${BASE_URL}${reportCardStoryPath(id)}`), { params: Promise.resolve({ id }) });
+    expect((await story(episode.id)).status).toBe(404);
+    await api.reveal(episode.id, creator);
+    og.elements.length = 0;
+    const res = await story(episode.id);
+    expect(res.status).toBe(200);
+    const png = Buffer.from(await res.arrayBuffer());
+    expect([png.readUInt32BE(16), png.readUInt32BE(20)]).toEqual([1080, 1920]); // the IHDR's width and height
+    if (process.env.REPORT_STORY_OUT) writeFileSync(process.env.REPORT_STORY_OUT, png);
+    const words = text(renderToStaticMarkup(og.elements[0] as ReactElement));
+    expect(words).toContain("date report card");
+    expect(words).toContain("Just friends");
+    expect(words).toContain("AI characters on a blind date nobody steers");
+  });
+
   it("a private date has none, aired or not", async () => {
     const { episode, creator } = await setupEpisode("second_date");
     await api.reveal(episode.id, creator);
@@ -224,5 +242,6 @@ describe("where it's linked", () => {
     expect(theater).toContain("reportCard={reportCard ?? null}");
     expect(theater).toContain('className="theater-report"');
     expect(source("app/episodes/[id]/VerdictCard.tsx")).toContain('className="verdict-report"');
+    expect(source("app/episodes/[id]/report-card/page.tsx")).toContain("href={reportCardStoryPath(id)}");
   });
 });

@@ -15,6 +15,7 @@ import {
   LEAD_IN,
   LEAD_OUT,
   pickText,
+  reportStoryPath,
   resolveBeats,
   segmentArgs,
   sentences,
@@ -221,5 +222,25 @@ describe("the December cuts (docs/clips/edl)", () => {
       // A cut quotes lines by number from an aired episode: never a line typed into the EDL.
       for (const s of e.segments) expect(Object.keys(s)).not.toContain("text");
     }
+  });
+});
+
+describe("the report beat (2026-11-20)", () => {
+  const edl = (segments: Edl["segments"]) => ({ episodes: [date.id], hook: "h", question: "q", segments });
+
+  it("shows its own episode's 9:16 report card, full screen, under the host's words", () => {
+    const [beat] = resolveBeats(edl([{ kind: "report", say: "A fifth date. Report card: an A.", secs: 3.6 }]), [date]);
+    expect(beat).toMatchObject({ kind: "report", image: reportStoryPath(date.id), voiced: true, voice: HOST_VOICE, secs: 3.6, title: "A fifth date" });
+    expect(spokenText(beat)).toBe("A fifth date. Report card: an A.");
+    const html = frameHtml(beat, { base: "https://botchelor.com" });
+    expect(html).toContain(`<img class="full" src="https://botchelor.com/api/og/report-card/${date.id}?format=story"`);
+    expect(html).toContain("body>img.full{position:absolute;inset:0");
+    expect(beatSeconds({ kind: "report", voiced: false, secs: null }, 0)).toBe(SILENT_SECONDS.report);
+  });
+
+  it("never another episode's card, and never before the ending", () => {
+    expect(() => resolveBeats(edl([{ kind: "report", image: reportStoryPath(other.id) }]), [date])).toThrow(/its own episode's card/);
+    expect(() => resolveBeats(edl([{ kind: "report", image: "https://evil.example/x.png" }]), [date])).toThrow(/its own episode's card/);
+    expect(() => resolveBeats(edl([{ kind: "report" }]), [{ ...date, ending: null }])).toThrow(/no ending yet/);
   });
 });

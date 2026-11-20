@@ -14,7 +14,7 @@ export type CutEpisode = {
   diary?: { character_id: string; line: string }[] | null;
 };
 type Segment = {
-  kind: "cold" | "line" | "thought" | "diary" | "choice" | "title" | "card" | "reveal";
+  kind: "cold" | "line" | "thought" | "diary" | "choice" | "title" | "card" | "reveal" | "report";
   ep?: number;
   line?: number;
   keep?: number[];
@@ -27,6 +27,8 @@ type Segment = {
   say?: string;
   secs?: number;
   faces?: [number, "a" | "b"][];
+  /** A report beat: its own episode's 9:16 report card (the default; anything else is refused). */
+  image?: string;
 };
 export type Edl = {
   n?: number;
@@ -62,10 +64,12 @@ export type Beat = {
   url?: string | null;
   say?: string | null;
   ending?: string;
+  image?: string;
 };
 
 export const FRAME: { css: { width: number; height: number }; scale: number; out: { width: number; height: number }; fps: number };
-export const SILENT_SECONDS: Record<"title" | "reveal" | "choice" | "card", number>;
+export const SILENT_SECONDS: Record<"title" | "reveal" | "choice" | "card" | "report", number>;
+export function reportStoryPath(id: string): string;
 export const LEAD_IN: number;
 export const LEAD_OUT: number;
 export const HOST_VOICE: string;

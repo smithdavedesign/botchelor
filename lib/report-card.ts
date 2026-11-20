@@ -22,6 +22,9 @@ export const reportCardPath = (episodeId: string) => `/episodes/${encodeURICompo
 /** What a share of it links to: the page, tagged so its visitors are told apart. */
 export const sharedReportCardPath = (episodeId: string) => `${reportCardPath(episodeId)}?ref=${REPORT_REF}`;
 export const reportCardImagePath = (episodeId: string) => `/api/og/report-card/${encodeURIComponent(episodeId)}`;
+/** The picture at 9:16 (1080×1920): for a phone's stories, and the daily video's report beat (scripts/clips). */
+export const REPORT_STORY = "story";
+export const reportCardStoryPath = (episodeId: string) => `${reportCardImagePath(episodeId)}?format=${REPORT_STORY}`;
 
 /** Aired dates' final scores at the 10th, 25th, 50th, 75th and 90th percentiles (prod, 2026-11-20, n = 693). */
 export const REPORT_CURVE: Record<DateVariable, readonly [number, number, number, number, number]> = {
