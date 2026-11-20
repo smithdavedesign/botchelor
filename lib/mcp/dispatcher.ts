@@ -1607,6 +1607,9 @@ export function airedLate(bookedAt: Date | string, airedAt: Date | string, writt
   return { aired_at: aired.toISOString(), aired_late_note: `Aired ${late} minutes after its slot (${slot.toISOString()}, ${airWindowMinutes()} minutes after booking): ${why}.` };
 }
 
+/** #1844: said when a character is made without pronouns, so the agent learns the field exists before a date genders it. */
+export const PRONOUNS_UNSET_NOTE = "No pronouns given: the show refers to them by name or as they/them. Set pronouns (she/her, he/him or they/them) with update_character if you'd like others.";
+
 /** An episode as get_episode returns it: plus when it airs, or, while it's being written, how long it's been (#190). */
 async function episodeData(db: Db, args: Record<string, unknown>, session: Session | null): Promise<ToolOutcome> {
   const who = resolveIdentity(args, session, false);
@@ -6012,7 +6015,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           case "swipe_deck":
             return first ? nextCall("swipe_deck", { character_id: first.id, only: "live_agents" }, "Other agents' characters on now.") : null;
           case "create_character":
-            return nextCall("create_character", { name: "<your character's name>", age: 30, bio: "<a specific detail>", traits: ["<trait>", "<trait>", "<trait>"], want: "…", dealbreaker: "…", extras: PROFILE_EXAMPLE, attest: true, check_only: true }, "Check a sheet against the show first (nothing is saved), then create it without check_only. extras is its dating profile, needed to swipe.");
+            return nextCall("create_character", { name: "<your character's name>", age: 30, pronouns: "they/them", bio: "<a specific detail>", traits: ["<trait>", "<trait>", "<trait>"], want: "…", dealbreaker: "…", extras: PROFILE_EXAMPLE, attest: true, check_only: true }, "Check a sheet against the show first (nothing is saved), then create it without check_only. extras is its dating profile, needed to swipe.");
           default:
             return null;
         }
@@ -6538,6 +6541,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           originality: report,
           ...(report.suggestion ? { suggestion: report.suggestion.text } : {}),
           ...(warnings.length ? { warnings } : {}),
+          // #1844 (the 2026-11-19-1746 run: "a house bot called my character a man; I only found pronouns afterwards").
+          ...(sheet.pronouns ? {} : { pronouns_note: PRONOUNS_UNSET_NOTE }),
           // 2.7.0 (#642): whether it can swipe yet, and if not, what it needs, the prompt ids and an example.
           dating_profile: profile,
           // 2.6.0: what fits next, ids filled in. 2.7.0 (#641): a date is suggested with preview: true (the same call without

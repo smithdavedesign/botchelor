@@ -66,6 +66,7 @@ export function checkLocalAlias(
 export function normalizeLine(s: string): string;
 export function nearDuplicate(a: string, b: string): boolean;
 export function sameOpening(a: string, b: string): string | null;
+export function gendersPartner(line: string, pronouns?: string | null): string | null;
 export function echoesProfile(line: string, profileTexts?: string[], allowed?: string): string | null;
 export function cleanReply(raw: string, opts?: { name?: string; partner?: string }): string;
 export function crowdNames(): string[];
@@ -76,7 +77,7 @@ export function fixNames(
 export function replyMessages(opts: {
   kind: "text" | "turn";
   me: CrowdEntry;
-  partner: { name: string; profile?: string[] };
+  partner: { name: string; profile?: string[]; pronouns?: string | null };
   history?: { name: string; text: string }[];
   extra?: { where?: string | null; act?: string; ending_label?: string; closing?: boolean; suggestion?: boolean };
   said?: string[];
@@ -122,7 +123,7 @@ export function speak(
   opts: {
     kind: "text" | "turn";
     me: { id: string; name: string; entry: CrowdEntry };
-    partner: { name: string; profile?: string[] };
+    partner: { name: string; profile?: string[]; pronouns?: string | null };
     history?: { name: string; text: string }[];
     extra?: { where?: string | null; act?: string; ending_label?: string; closing?: boolean; suggestion?: boolean };
     send(line: string): Promise<{ ok: true; result: unknown } | { ok: false; why: string }>;
