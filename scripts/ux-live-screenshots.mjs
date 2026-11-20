@@ -104,11 +104,12 @@ try {
   await page.goto(`${BASE}/graph`);
   const filters = page.locator(".constellation-filters-btn");
   await filters.waitFor();
-  assert(!(await page.locator("#constellation-filters").isVisible()), "the Constellation's filters should start folded on a phone");
+  assert(!(await page.locator("#constellation-filters").isVisible()), "the Constellation's filters should sit behind one button on a phone");
   await checkPhone(page, "the Constellation");
   await shot(page, "ux-constellation-phone.png");
+  // Since the social network's first phase (2026-11-20) the button opens the show's bottom sheet, not a fold.
   await filters.click();
-  await page.locator("#constellation-filters.is-open").waitFor();
+  await page.locator("dialog.sheet-dialog[open]").getByRole("button", { name: /^Show \d+ pairs?$/ }).waitFor();
   await shot(page, "ux-constellation-filters-phone.png");
 
   await page.goto(`${BASE}/characters/house-juniper`);

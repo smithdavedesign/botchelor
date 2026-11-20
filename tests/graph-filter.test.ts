@@ -1,7 +1,20 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { DEFAULT_FILTER, filterSky, linesNarrowed, stageCounts, stagesNarrowed } from "@/app/graph/filter";
+import {
+  activeFilters,
+  DEFAULT_FILTER,
+  filterSky,
+  linesNarrowed,
+  parseStill,
+  parseWhen,
+  stageCounts,
+  stagesNarrowed,
+  stillSeeing,
+  whenParam,
+  whenSince,
+  type SkyFilter,
+} from "@/app/graph/filter";
 import { createSim, warmStart, WARM } from "@/app/graph/sim";
 import { GROUP_LABEL, groupHint, LINE_STYLE, parseStages, STAGE_GROUPS, stageGroup, stageOn, stagesParam, toggleStage } from "@/app/graph/stages";
 import type { GraphData, GraphEdge, GraphNode } from "@/lib/graph";
@@ -191,6 +204,78 @@ describe("the stage filter (app/graph/filter.ts)", () => {
     expect(stageCounts(SKY.edges)).toEqual({ together: 1, sparks: 1, friends: 1, exes: 1, first: 2 });
     // A payload from before stage_id (a cached sky) counts nothing rather than guessing.
     expect(stageCounts([{ ...SKY.edges[0], stage_id: undefined as never }])).toEqual({ together: 0, sparks: 0, friends: 0, exes: 0, first: 0 });
+  });
+});
+
+describe("when they dated (app/graph/filter.ts)", () => {
+  // 2026-11-20 noon UTC: this season began 2026-11-01 (lib/season-window.ts), the last 30 days on 2026-10-21.
+  const NOW = Date.parse("2026-11-20T12:00:00.000Z");
+  const at = (iso: string) => ({ last_at: `${iso}T12:00:00.000Z` });
+  const DATED: GraphData = {
+    ...SKY,
+    edges: [
+      edge("c1", "c2", "dating", { dates: 3, ...at("2026-11-18") }), // this season, still seeing each other
+      edge("s1", "s2", "sparks", at("2026-11-02")), // this season, one date
+      edge("f1", "f2", "friends", { dates: 2, ...at("2026-10-25") }), // last 30 days, not this season
+      edge("x1", "x2", "broke_up", { dates: 5, ...at("2026-11-19") }), // recent, but over
+      edge("c1", "n1", "just_met", at("2026-10-01")), // before both windows
+      edge("s2", "n2", "didnt_click", { dates: 2, ...at("2026-11-10") }), // a second date that didn't click either
+      masked("c2", "p"),
+    ],
+  };
+  const sky = (o: Partial<SkyFilter>) => filterSky(DATED, { ...DEFAULT_FILTER, ...o }, undefined, NOW);
+
+  it("All time draws every pair; This season and Last 30 days draw the pairs whose last date fell in them", () => {
+    expect(pairs(sky({}).edges)).toHaveLength(7);
+    expect(pairs(sky({ when: "season" }).edges)).toEqual(["c1-c2", "s1-s2", "s2-n2", "x1-x2"]);
+    expect(pairs(sky({ when: "30d" }).edges)).toEqual(["c1-c2", "f1-f2", "s1-s2", "s2-n2", "x1-x2"]);
+  });
+
+  it("a private pair's dates aren't public, so a time filter leaves it out; its stars go unless another line keeps them", () => {
+    const s = sky({ when: "season" });
+    expect(s.edges.some((e) => e.masked)).toBe(false);
+    expect(ids(s.nodes)).not.toContain("p");
+    expect(ids(s.nodes)).toContain("o"); // the orbit stays: no public date at all
+  });
+
+  it("still seeing each other: more than one date, the last in the last 30 days, and not over", () => {
+    expect(pairs(sky({ still: true }).edges)).toEqual(["c1-c2", "f1-f2"]);
+    expect(stillSeeing(DATED.edges[0], NOW)).toBe(true);
+    expect(stillSeeing(DATED.edges[1], NOW)).toBe(false); // one date
+    expect(stillSeeing(DATED.edges[3], NOW)).toBe(false); // broke up
+    expect(stillSeeing(DATED.edges[5], NOW)).toBe(false); // didn't click, twice
+    expect(stillSeeing(DATED.edges[0], NOW + 40 * 86_400_000)).toBe(false); // 42 days on
+    expect(stillSeeing(DATED.edges[6], NOW)).toBe(false); // private
+  });
+
+  it("composes with the stage chips and the season", () => {
+    expect(pairs(sky({ still: true, when: "season" }).edges)).toEqual(["c1-c2"]);
+    expect(pairs(sky({ stages: new Set(["first"]), when: "30d" }).edges)).toEqual(["s2-n2"]);
+  });
+
+  it("reads and writes ?when= and ?still=", () => {
+    expect(parseWhen("season")).toBe("season");
+    expect(parseWhen(" 30D ")).toBe("30d");
+    expect(parseWhen(["30d", "season"])).toBe("30d");
+    for (const v of [undefined, "", "all", "forever", "toString"]) expect(parseWhen(v)).toBe("all");
+    expect(whenParam("all")).toBeNull();
+    expect(whenParam("season")).toBe("season");
+    expect(parseStill("1")).toBe(true);
+    expect(parseStill(["1"])).toBe(true);
+    for (const v of [undefined, "0", "yes", ""]) expect(parseStill(v)).toBe(false);
+  });
+
+  it("This season starts on the season's first day, Last 30 days thirty days back", () => {
+    expect(new Date(whenSince("season", NOW)!).toISOString()).toBe("2026-11-01T00:00:00.000Z");
+    expect(new Date(whenSince("30d", NOW)!).toISOString()).toBe("2026-10-21T12:00:00.000Z");
+    expect(whenSince("all", NOW)).toBeNull();
+  });
+
+  it("counts the filters behind the phone's Filters button (the chips on the sky aren't among them)", () => {
+    expect(activeFilters(DEFAULT_FILTER)).toBe(0);
+    expect(activeFilters({ ...DEFAULT_FILTER, stages: new Set(["together"]) })).toBe(0);
+    expect(activeFilters({ ...DEFAULT_FILTER, when: "season", still: true, showSingles: false })).toBe(3);
+    expect(activeFilters({ ...DEFAULT_FILTER, origin: "cast", partners: false, kind: "human" })).toBe(3);
   });
 });
 

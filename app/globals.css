@@ -12006,6 +12006,15 @@ html.constellation-locked body {
   padding: var(--space-2) var(--space-3) 0;
   color: var(--constellation-label);
 }
+/* Its button in the sky's own ink: the page's accent text was 3.1:1 on the light theme's sky. */
+.constellation-more button.button-ghost {
+  border-color: var(--constellation-line);
+  background: color-mix(in srgb, var(--constellation-ink) 8%, transparent);
+  color: var(--constellation-ink);
+}
+.constellation-more button.button-ghost:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--constellation-ink) 16%, transparent);
+}
 .constellation-filter {
   display: inline-flex;
   align-items: center;
@@ -12020,6 +12029,7 @@ html.constellation-locked body {
    legend and its filter. Under the toolbar and above the sky; one sideways row (.scroll-row) when it doesn't fit. */
 .constellation-lines {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2) var(--space-3);
   padding: var(--space-2) var(--space-3);
@@ -12027,6 +12037,7 @@ html.constellation-locked body {
 }
 .constellation-stage-chips {
   display: flex;
+  flex: 0 1 auto;
   gap: var(--space-2);
   min-width: 0;
   margin: 0;
@@ -12102,6 +12113,80 @@ html.constellation-locked body {
   transform: none;
   box-shadow: none;
   background: color-mix(in srgb, var(--constellation-ink) 16%, transparent);
+}
+/* When they last dated and "Still seeing each other": the lines row's other end on a desktop (a phone has them in its
+   Filters sheet). The kinds of pair on the left, when on the right; it wraps under the chips only on a narrow window. */
+.constellation-when {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  margin-left: auto;
+}
+.constellation-when label,
+.constellation-when input,
+.constellation-when select {
+  margin: 0;
+}
+.constellation-when select {
+  width: auto;
+  min-height: 36px;
+  padding-block: 0;
+}
+/* The phone's Filters sheet (ConstellationApp.tsx): the same filters as the desktop's toolbar, on the page's card. */
+.constellation-sheet fieldset {
+  margin: 0 0 var(--space-4);
+  padding: 0;
+  border: 0;
+}
+.constellation-sheet legend {
+  margin-bottom: var(--space-2);
+  padding: 0;
+}
+.constellation-sheet select {
+  width: 100%;
+  margin: 0;
+}
+/* One of a few, as pills that wrap: a phone can't fit "Everyone · Yours · The cast · People's · Agents'" in a row. */
+.constellation-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.constellation-options button {
+  min-height: 40px;
+  margin: 0;
+  padding: 0 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--card);
+  box-shadow: none;
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+.constellation-options button:hover:not(:disabled):not([aria-pressed="true"]) {
+  transform: none;
+  box-shadow: none;
+  background: color-mix(in srgb, var(--accent) 8%, var(--card));
+}
+.constellation-options button[aria-pressed="true"] {
+  border-color: transparent;
+  background: var(--accent-btn);
+  color: var(--accent-ink);
+}
+.constellation-options button[aria-pressed="true"]:hover:not(:disabled) {
+  transform: none;
+  box-shadow: none;
+}
+.constellation-sheet-check {
+  margin-top: var(--space-3);
+}
+.constellation-sheet legend + .constellation-sheet-check {
+  margin-top: 0;
+}
+.constellation-sheet-check .muted {
+  display: block;
 }
 /* Under the sky, not on it: on a phone it wraps to three lines, which used to sit on the colour key and the stars. */
 .constellation-legend {
@@ -12301,6 +12386,7 @@ html.constellation-locked body {
   .constellation-hud button.constellation-filters-btn {
     display: inline-flex;
     align-items: center;
+    gap: 0.3em; /* "Filters · 2": a flex item drops its own leading space */
     min-height: 40px;
     margin: 0;
     padding: 0 0.9rem;
@@ -12313,14 +12399,10 @@ html.constellation-locked body {
     font-weight: 600;
     box-shadow: none;
   }
-  .constellation-hud button.constellation-filters-btn[aria-expanded="true"] {
-    background: rgba(255, 255, 255, 0.14);
-  }
-  .constellation-filters:not(.is-open) {
+  /* The filters live in the Filters sheet on a phone (the toolbar's own copies are a desktop's). */
+  .constellation-filters,
+  .constellation-when {
     display: none;
-  }
-  .constellation-filters.is-open {
-    flex-basis: 100%;
   }
   .constellation-hud {
     padding: var(--space-2) var(--gutter);
@@ -12337,9 +12419,6 @@ html.constellation-locked body {
   }
   .constellation-key .muted {
     display: none; /* the clusters' one-line explanation: the panel names a star's cluster on a phone */
-  }
-  .constellation-filters {
-    justify-content: flex-start;
   }
   .constellation-panel {
     left: var(--space-3);
