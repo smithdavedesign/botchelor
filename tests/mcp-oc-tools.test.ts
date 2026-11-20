@@ -1,5 +1,6 @@
 /**
- * The free OC tools over MCP (2.32.0, lib/mcp/oc-tools.ts): ship_names, oc_chemistry_test, oc_names and oc_question give
+ * The free OC tools over MCP (2.32.0, lib/mcp/oc-tools.ts; random_oc 2.44.0): ship_names, oc_chemistry_test, oc_names,
+ * oc_question and random_oc give
  * the /tools pages' own answers, refuse what the pages refuse, need no identity, and sit outside the core list.
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -9,6 +10,7 @@ import { OC_TOOL_NAMES } from "@/lib/mcp/oc-tools";
 import { TOOL_IDENTITY } from "@/lib/mcp/reference";
 import { ocNames } from "@/lib/oc-names";
 import { OC_QUESTIONS } from "@/lib/oc-questions";
+import { ocSentence, randomOcs } from "@/lib/random-oc";
 import { shipNames } from "@/lib/ship-names";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import { startTestDb } from "./helpers";
@@ -42,7 +44,7 @@ beforeEach(async () => {
   vi.spyOn(console, "log").mockImplementation(() => {});
 });
 
-describe("the four tools' place in the lists", () => {
+describe("the free tools' place in the lists", () => {
   it("are served, listed at ?tools=all, outside the core list, read-only and for anyone", () => {
     for (const name of OC_TOOL_NAMES) {
       const def = MCP_TOOLS.find((x) => x.name === name);
@@ -151,3 +153,52 @@ describe("oc_question", () => {
     expect(odd.question).toBeTruthy();
   });
 });
+
+describe("random_oc", () => {
+  it("gives the page's six characters for a genre, kind and batch, each with create_character's fields and its chemistry", async () => {
+    const d = await data("random_oc", { genre: "gothic", kind: "neutral", batch: 3 });
+    const page = randomOcs({ genre: "gothic", kind: "neutral", batch: 3 });
+    expect(d).toMatchObject({ genre: "gothic", kind: "neutral", batch: 3, more: { batch: 4 } });
+    expect(d.url).toMatch(/\/tools\/random-oc-generator\?genre=gothic&kind=neutral&batch=3$/);
+    expect(d.characters.map((c: Any) => c.name)).toEqual(page.map((o) => o.name));
+    d.characters.forEach((c: Any, i: number) => {
+      const oc = page[i];
+      expect(c.sentence).toBe(ocSentence(oc));
+      expect(c.create_character).toMatchObject({ name: oc.name, age: oc.age, traits: oc.traits, want: oc.want, dealbreaker: oc.dealbreaker });
+      expect(c.create_character.bio).toContain(oc.secret);
+      expect(c.create_url).toMatch(/\/create\?say=/);
+      expect(c.chemistry_with_next.with).toBe(page[(i + 1) % page.length].name);
+      expect(c.chemistry_with_next.url).toMatch(/\/tools\/oc-chemistry-test\/result\?/);
+    });
+  });
+
+  it("mixes every genre when none is given; an unknown genre or kind is the default, with a warning", async () => {
+    const d = await data("random_oc");
+    expect(d.genre).toBe("mixed");
+    expect(d.characters).toHaveLength(6);
+    const r = await call("random_oc", { genre: "western", kind: "robot" });
+    expect(r.isError).toBeUndefined();
+    expect(r.structuredContent).toMatchObject({ genre: "mixed", kind: "any" });
+    expect(JSON.stringify(r)).toMatch(/western|genre/);
+  });
+
+  it("hands create_character fields it takes as they are (check_only: nothing saved)", async () => {
+    const characters = async () => (await t.db.query<Any>(`select count(*)::int as n from characters`)).rows[0].n;
+    const before = await characters();
+    for (const c of (await data("random_oc", { batch: 2 })).characters.slice(0, 3)) {
+      const r = await call("create_character", { ...c.create_character, attest: true, check_only: true });
+      expect(r.isError, JSON.stringify(r.structuredContent ?? r.content)).toBeUndefined();
+      expect(r.structuredContent).toMatchObject({ saved: false });
+    }
+    expect(await characters()).toBe(before);
+  });
+
+  it("gives two characters oc_chemistry_test takes as a and b", async () => {
+    const [a, b] = (await data("random_oc")).characters;
+    const pick = (c: Any) => ({ name: c.name, traits: c.traits, want: c.want, dealbreaker: c.dealbreaker });
+    const d = await data("oc_chemistry_test", { a: pick(a), b: pick(b) });
+    expect(d.score).toBeGreaterThanOrEqual(0);
+    expect(d.url).toBe(a.chemistry_with_next.url);
+  });
+});
+

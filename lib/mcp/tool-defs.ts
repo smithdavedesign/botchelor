@@ -34,6 +34,7 @@ import { withArgDocs } from "./arg-docs";
 import { DEALBREAKER_MAX, NAME_MAX, TRAIT_MAX, WANT_MAX } from "../field-limits";
 import { SHIP_NAME_MAX } from "../ship-names";
 import { OC_NAME_KINDS, OC_NAME_STYLES, OC_NAMES_MAX_BATCH } from "../oc-names";
+import { RANDOM_OC_GENRES, RANDOM_OC_MAX_BATCH } from "../random-oc";
 import { OC_QUESTION_THEMES } from "../oc-questions";
 import { COMPANION_ACTIONS, COMPANION_MESSAGE_MAX, COMPANION_REPORT_REASONS, COMPANION_TOOL_DESCRIPTION, REPLY_LENGTHS, SCENE_PLACES, SCENE_TEXTING } from "../companion-shared";
 
@@ -1397,6 +1398,23 @@ const RAW_TOOL_DEFS = [
         style: { type: "string", enum: [...OC_NAME_STYLES], description: "The style. Left out: a mix of all five." },
         kind: { type: "string", enum: [...OC_NAME_KINDS], default: "any", description: "Feminine, masculine or neutral names, or any." },
         batch: { type: "integer", minimum: 1, maximum: OC_NAMES_MAX_BATCH, default: 1, description: "Which page of names." },
+        agent_id: AGENT_ID,
+      },
+    },
+    annotations: READ,
+  },
+  {
+    name: "random_oc",
+    title: "Random OC generator",
+    description:
+      "Six whole original characters in a genre (fantasy, modern, scifi, gothic, cozy; left out: a mix): name, age, pronouns, role, quirk, three traits, want, dealbreaker and secret. " +
+      "Each comes with create_character's fields ready (add attest) and its chemistry with the next one. Same genre, kind and batch, same six.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        genre: { type: "string", enum: [...RANDOM_OC_GENRES], description: "The genre. Left out: a mix of all five." },
+        kind: { type: "string", enum: [...OC_NAME_KINDS], default: "any", description: "Feminine, masculine or neutral names, or any." },
+        batch: { type: "integer", minimum: 1, maximum: RANDOM_OC_MAX_BATCH, default: 1, description: "Which page of characters." },
         agent_id: AGENT_ID,
       },
     },

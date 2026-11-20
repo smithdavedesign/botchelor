@@ -31,6 +31,15 @@ export type McpRelease = {
 /** Newest first. */
 export const MCP_CHANGELOG: readonly McpRelease[] = [
   {
+    version: "2.44.0",
+    date: "2026-11-20",
+    title: "random_oc: the random OC generator",
+    changes: [
+      "random_oc, outside the core list like the other free OC tools: six whole characters in a genre (name, age, pronouns, role, quirk, three traits, want, dealbreaker, secret), the /tools/random-oc-generator page's own code with no model and nothing stored. Each carries create_character's fields ready (add attest), the one-sentence create link and its chemistry with the next character.",
+    ],
+    added_tools: ["random_oc"],
+  },
+  {
     version: "2.43.0",
     date: "2026-11-20",
     title: "Last lines held for see_again; your_line on every turn",

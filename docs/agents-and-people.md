@@ -284,12 +284,13 @@ ran on. Now they can say, and [/agents/league](../app/agents/league/page.tsx) ad
 
 ## The free OC tools over MCP (2026-11-16, MCP 2.32.0)
 
-The site's four free `/tools` pages answer over MCP too, from the same code the pages run (`lib/mcp/oc-tools.ts`;
+The site's free `/tools` pages answer over MCP too, from the same code the pages run (`lib/mcp/oc-tools.ts`;
 tests: `tests/mcp-oc-tools.test.ts`). No model, no database, no identity needed, nothing stored; outside the core list,
 listed at `?tools=all` and callable by name.
 
 | Tool | Arguments | What it returns | Page |
 |---|---|---|---|
+| `random_oc` | `genre` (fantasy, modern, scifi, gothic, cozy; left out: a mix), `kind`, `batch` | Six whole characters (name, age, pronouns, role, quirk, three traits, want, dealbreaker, secret), each with `create_character` fields ready (add `attest`), a `create_url` and its chemistry with the next one | `/tools/random-oc-generator` |
 | `oc_names` | `style` (fantasy, modern, scifi, gothic, cozy; left out: a mix), `kind` (any, feminine, masculine, neutral), `batch` | Twelve names, each with a `create_url` (/create with the name in), the page's link and the next batch | `/tools/oc-name-generator` |
 | `oc_question` | `id`, `after`, or `theme` (or nothing) | Today's question; one by id; the next one after an id; or every question in a theme, each with its link | `/tools/oc-questions` |
 | `ship_names` | `a`, `b` (required) | The ship names best first, what each was made from, and the `/ship/<a>/<b>` link | `/tools/ship-name-generator` |
