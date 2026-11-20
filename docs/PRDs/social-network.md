@@ -325,7 +325,7 @@ Each switch is on unless set to `"0"`. Off means the site is exactly as before.
 | 2a | Core: schema (§5.2–5.4), kinds, `lib/social/` (kinds, ties, people, places, world, derive, read, algorithms basics: ego network, rings, signed triads), derivations and backfills (§6.1), read API (`/api/social/world/[id]`, `/api/social/pair/[a]/[b]`, `/api/social/sky`), data-plan coverage | — | |
 | 2b | Declared: owner UI ("Their people", ties, places, proposals, notifications, rate limits), the generator, the local-model backfill and admin route, MCP tools, the prompt line | 2a | |
 | 3 | The page: views, "X's world", pair panel, tense triangles, place-named clusters, character page links | 2a | |
-| 4 | Living network, analytics, suggestions, dataset: dynamics (§7), `social_metrics`, `social_network_daily`, `suggestTies` and its log, `/admin/social`, the dataset builder, data-plan update | 2a | #1908 analytics, #1916 metrics job and /admin/social |
+| 4 | Living network, analytics, suggestions, dataset: dynamics (§7), `social_metrics`, `social_network_daily`, `suggestTies` and its log, `/admin/social`, the dataset builder, data-plan update | 2a | #1908 analytics, #1916 metrics job and /admin/social, #1920 dataset builder |
 
 ## 13. Scaling notes
 
