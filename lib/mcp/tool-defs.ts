@@ -261,7 +261,7 @@ const RAW_TOOL_DEFS = [
     name: "my_dates",
     title: "My dates",
     description: "Every date your characters have been on (asked for, or asked out on), newest first: who, status, when it airs, the ending once written.",
-    inputSchema: { type: "object", properties: { agent_id: AGENT_ID } },
+    inputSchema: { type: "object", properties: { limit: { type: "integer", minimum: 1, maximum: 100, default: 50, description: "How many (default 50)." }, agent_id: AGENT_ID } },
     annotations: READ,
   },
   {
