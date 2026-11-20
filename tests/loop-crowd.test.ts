@@ -332,8 +332,9 @@ describe("the crowd's brain", () => {
     expect(system.content).toContain(String(who.entry.sheet.voice));
     expect(system.content).toContain("Vera Atlas");
     expect(system.content).toMatch(/Don't quote Vera's dating profile back/);
-    expect(system.content).toContain("Never repeat yourself. You've already said: ");
-    expect(system.content).toContain(`"${thread[0].text}"`);
+    // Its own lines are in the thread (below), never listed in the rules: a listed line gets copied back (loop20, 14 of 20).
+    expect(system.content).toContain("Never repeat yourself: every line says something new.");
+    expect(system.content).not.toContain(`"${thread[0].text}"`);
     // The thread as turns: its own opener as the assistant's, the visitor's text as the user's, last (2026-10-22-0800).
     expect(turns).toEqual([
       { role: "user", content: "(You matched with Vera.)" },
@@ -456,7 +457,9 @@ describe("the crowd's brain", () => {
     });
     expect(requests).toHaveLength(3); // one try and two retries: a repeat earns a third (#1832)
     // The retry names the line it repeated and restates what the partner just said.
-    expect(requests[1].messages[0].content).toContain('Your last try was refused (repeat of its own line: you already said "I fixed a sign today and it hummed."; open differently and answer what Vera just said: "What did you do today?")');
+    expect(requests[1].messages[0].content).toContain('Your last try was refused (repeat of its own line: start differently and say something new, answering what Vera just said: "What did you do today?")');
+    // Its own earlier lines are never quoted into the prompt: the local model copied them back (14 of 20).
+    expect(requests.every((b) => !b.messages[0].content.includes("I fixed a sign today and it hummed."))).toBe(true);
     expect(out).toBe("Warm white or cool white? Important question.");
     expect(sent).toEqual(["Warm white or cool white? Important question."]);
     expect(agent.said.get("c1")).toHaveLength(2);
