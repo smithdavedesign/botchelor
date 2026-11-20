@@ -72,7 +72,7 @@ import {
 // Phase 3 of the lib/mcp.ts split: tool defs + their constants moved out.
 import { bare, BOOKING_RULE, COMPACT_CARDS, EXCLUSIVE_POINTER, EXCLUSIVE_RULE, EXCLUSIVE_SHORT, EXCLUSIVE_SOON, HOUSE_CAST_VS_BOTS, OPEN_MEANS, PARTNER_STYLE_DOC, POINTS_NOTE, SHEET_PROPS, thin } from "./constants";
 export { BOOKING_RULE } from "./constants";
-import { ARC_PICKS, AUTOPLAY_SIDES, BROWSE_MINE, BROWSE_STATUSES, CREATE_COMPACT, DEALBREAKER_PICK_NUMBERS, DECK_FILTERS, FEEDBACK_SORTS, FEEDBACK_VOTES, LIST_CAST_KINDS, MY_STATUS_INCLUDES, SEARCH_MADE_BY, TOOL_DEFS, type ToolName } from "./tool-defs";
+import { ARC_PICKS, AUTOPLAY_SIDES, BROWSE_MINE, BROWSE_STATUSES, CREATE_COMPACT, DEALBREAKER_PICK_NUMBERS, DECK_FILTERS, FEEDBACK_SORTS, FEEDBACK_VOTES, LIST_CAST_KINDS, MY_STATUS_INCLUDES, SEARCH_MADE_BY, TOOL_DEFS, TOOL_NOTES, type ToolName } from "./tool-defs";
 import { detectBot } from "../bots";
 import { getDb, type Db } from "../db";
 import { dateNumberSql } from "../date-number";
@@ -296,7 +296,9 @@ export const MCP_PROTOCOL_VERSION = "2025-06-18";
 // 2.37.0 (2026-11-17): art_style (lib/art-style.ts, PRD styles-and-storylines phase 2): create/update_character take
 // how their pictures are drawn (realistic, anime or semi_real, the 2.5D house look), kept as their looks' style;
 // get_character returns it. New arguments and reply fields only.
-export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.39.0" } as const;
+// 2.40.0 (2026-11-20, #1845): the default tools/list ~64 KB → ~48 KB: shorter descriptions, each tool's return shape
+// and finer points in TOOL_NOTES (every other list, the cheatsheet), a short cost line; no argument, enum or tool changed.
+export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.40.0" } as const;
 
 /** Where every tool is listed: the default list is the core (2026-10-20: 53 tools were ~14k tokens in every agent's context). */
 export const ALL_TOOLS_HINT = "/api/mcp?tools=all";
@@ -621,7 +623,8 @@ export const TOOL_COSTS: Record<ToolName, string> = {
   // short at the fill hour is filled by the house and runs, so joining is what spends the date, unless you leave first.
   mixer: `Joining is free, but a night you're in runs: short at ${MIXER_FILL_HOUR_UTC}:20 UTC, the house fills it and it runs then, and your character's one rotation spends one of your dates. leave: <character_id> before it runs keeps the date. Only a night the house can't fill is called off, free.`,
   remember_meeting: "Free.",
-  go_on_date: `Costs ${ONE_DATE}; a date that can't be booked, a proposal to a closed character's creator and preview: true spend nothing.`,
+  // #1845: a refused booking covers a date that can't be booked and a proposal to a closed character's creator.
+  go_on_date: `Costs ${ONE_DATE}; preview: true or a refused booking spends nothing.`,
   // 2.13.0 (the 2026-10-23-2135 run: "free" here beside autoplay's "shared daily date"): what each word means, in both.
   start_own_date: "Free while you write the lines: no weekly date, token or shared daily date (autoplay_own_date, where the show's model writes, uses one). preview: true starts nothing.",
   submit_own_date_step: TAKE_OVER,
@@ -732,6 +735,15 @@ const COST_LABELS: Partial<Record<ToolName, string>> = {
   autoplay_own_date: "1 shared daily date",
 };
 export const costLabel = (name: ToolName): string => COST_LABELS[name] ?? "free";
+/**
+ * #1845: the core list's cost line, from the short label (_meta's): "Free." or what it spends. The whole sentence
+ * (TOOL_COSTS: what a take-over counts, what a house reply uses) leads the description on every other list, and the
+ * cheatsheet prints it under the tool's line.
+ */
+export const coreCost = (name: ToolName): string => {
+  const label = costLabel(name);
+  return label === "free" ? "Free." : `Cost: ${label}; preview: true spends nothing.`;
+};
 
 /**
  * Every tool, its cost said first in its description (2.6.0, the 2026-10-22-0042 run: "put one cost line up front"; it
@@ -745,7 +757,9 @@ export const MCP_TOOLS = TOOL_DEFS.map((t) => {
     "botchelor/category": toolCategory(t.name),
   };
   if (limit) meta["botchelor/rate_limit"] = { window_seconds: limit.windowSeconds, max: limit.max, bucket };
-  return { ...t, description: `${TOOL_COSTS[t.name]} ${t.description}`, _meta: meta };
+  // #1845 (2.40.0): a tool's finer points (TOOL_NOTES) ride on every list but the default core one, which stays short.
+  const notes = TOOL_NOTES[t.name];
+  return { ...t, description: `${TOOL_COSTS[t.name]} ${t.description}${notes ? ` ${notes}` : ""}`, _meta: meta };
 });
 /** A tool's own description, without the cost that leads it (the lean list's first sentence). */
 const ownDescription = (name: string): string => String(TOOL_DEFS.find((t) => t.name === name)?.description ?? "");
@@ -851,12 +865,14 @@ export const CORE_TOOL_ORDER = [
 /**
  * #1361 (2026-11-08): the default list leaves out _meta's category (UI grouping, nothing an agent plans by: ~1 KB of every
  * first call); cost and rate_limit stay. ?tools=all keeps it whole.
+ * #1845 (2026-11-20, 2.40.0: "the biggest context cost"): and each tool's notes (TOOL_NOTES), the edge cases and the
+ * reasons. ?tools=all, names: [...], the cheatsheet and /llms-full.txt carry them.
  */
 export const CORE_MCP_TOOLS = CORE_TOOL_ORDER.map((n) => {
   const t = PUBLIC_MCP_TOOLS.find((x) => x.name === n)!;
   const { "botchelor/category": _category, ...meta } = t._meta;
   void _category;
-  return { ...t, _meta: meta };
+  return { ...t, description: `${coreCost(n)} ${ownDescription(n)}`, _meta: meta };
 });
 /** What the core tools/list adds (#447): how many tools it leaves out, their names, and how to list them. */
 const MORE_TOOLS = {
@@ -866,7 +882,8 @@ const MORE_TOOLS = {
   how:
     `This is the core list (the default), enough to play the whole show. Every tool: POST tools/list to ${ALL_TOOLS_HINT}, or send tools/list ` +
     `the params { all: true } (a plain GET of ${ALL_TOOLS_HINT} returns the list too). Any tool works by name, listed or not; ` +
-    `tools/list with { names: [...] } shows just those in full. Every tool's arguments, one line each with an example call: resources/read with uri ${CHEATSHEET_URI}.`,
+    `tools/list with { names: [...] } shows just those in full, with the notes this list leaves out. params { lean: true }: names, first sentences and argument types only. ` +
+    `Every tool's arguments and notes, one line each with an example call: resources/read with uri ${CHEATSHEET_URI}.`,
 };
 const TOOL_NAMES = new Set<string>(MCP_TOOLS.map((t) => t.name));
 /** wait_for_my_turn: the longest one call waits, and how often it looks. */
@@ -9408,12 +9425,17 @@ export function cheatSheet(): string {
     const show = (k: string) => (argValues(props[k]) ? `${k} (${argValues(props[k])})` : k);
     const known = EXAMPLE_CALLS.find((c) => c.tool === t.name)?.args ?? CHEATSHEET_EXAMPLES[t.name];
     const example = known ?? Object.fromEntries(required.map((k) => [k, examplePlaceholder(t.name, k, props[k])]));
-    return `${t.name}: required ${required.length ? required.map(show).join(", ") : "none"}; optional ${optional.length ? optional.map(show).join(", ") : "none"}. e.g. ${t.name} ${JSON.stringify(example)}`;
+    // #1845: a core tool's notes, which the default list leaves out, follow its line.
+    const isCore = (CORE_TOOL_ORDER as readonly string[]).includes(t.name);
+    const cost = TOOL_COSTS[t.name as ToolName];
+    const notes = isCore ? [cost !== coreCost(t.name as ToolName) ? cost : null, TOOL_NOTES[t.name as ToolName]].filter(Boolean).join(" ") : undefined;
+    return `${t.name}: required ${required.length ? required.map(show).join(", ") : "none"}; optional ${optional.length ? optional.map(show).join(", ") : "none"}. e.g. ${t.name} ${JSON.stringify(example)}${notes ? `\n  Notes: ${notes}` : ""}`;
   };
   const core = CORE_MCP_TOOLS;
   const rest = PUBLIC_MCP_TOOLS.filter((t) => !(CORE_TOOL_ORDER as readonly string[]).includes(t.name));
   return [
-    `BOTCHELOR CHEAT SHEET (MCP ${MCP_SERVER_INFO.version}): every tool's arguments, from its schema. One line each: the required arguments, then the optional ones, then an example call. ` +
+    `BOTCHELOR CHEAT SHEET (MCP ${MCP_SERVER_INFO.version}): every tool's arguments, from its schema. One line each: the required arguments, then the optional ones, then an example call; ` +
+      "a core tool's notes (the details the default tools/list leaves out) follow on the next line. " +
       'agent_id is optional on every tool and left out. "a|b" lists the values an argument takes; <…> and … are yours to fill in.',
     "",
     `THE CORE (tools/list, the default: ${core.length} tools):`,
@@ -9506,11 +9528,13 @@ export function toolsListResult(params: Record<string, unknown> | undefined, ctx
         name: t.name,
         // 2.6.0: the cost leads a description now, so the first sentence is the tool's own, and the cost rides beside it.
         description: (ownDescription(t.name) || String(t.description)).split(/(?<=\.)\s/)[0],
-        ...(t.name in TOOL_COSTS ? { cost: TOOL_COSTS[t.name as ToolName] } : {}),
+        // #1845 (2.40.0): the short cost line, as the core list says it (the whole sentence: ?tools=all, the cheatsheet).
+        ...(t.name in TOOL_COSTS ? { cost: coreCost(t.name as ToolName) } : {}),
         required: ((t.inputSchema as { required?: string[] }).required ?? []),
-        // #381: every argument with its type (enums as their values), still without the long descriptions.
+        // #381: every argument with its type (enums as their values), still without the long descriptions. #1845: but not
+        // agent_id, optional on every tool (the cheatsheet leaves it out too).
         args: Object.fromEntries(
-          Object.entries(((t.inputSchema as { properties?: Record<string, { type?: string; enum?: unknown[] }> }).properties ?? {})).map(([k, v]) => [
+          Object.entries(((t.inputSchema as { properties?: Record<string, { type?: string; enum?: unknown[] }> }).properties ?? {})).filter(([k]) => k !== "agent_id").map(([k, v]) => [
             k,
             Array.isArray(v.enum) ? v.enum.join("|") : (v.type ?? "any"),
           ]),

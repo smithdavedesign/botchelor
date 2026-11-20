@@ -421,7 +421,7 @@ describe("#650: an unknown enum value is never quietly swapped for the default",
     const episodes = await t.count("episodes");
     const r = await call("go_on_date", { character_id: A.id, partner_id: HOUSE_CHARACTERS[0].id, format: "nonsense" }, A.ctx);
     expect(r.isError).toBe(true);
-    expect(r.content[0].text).toMatch(/^Error: Not valid — format: one of classic, speed_date[^;]*; got "nonsense"\. Optional show format \(default classic; speed_date: six lines\)\. Nothing was done or spent\./);
+    expect(r.content[0].text).toMatch(/^Error: Not valid — format: one of classic, speed_date[^;]*; got "nonsense"\. Show format \(speed_date: six lines\)\. Nothing was done or spent\./);
     expect(r.structuredContent).toMatchObject({ code: "invalid_argument", field: "format" });
     expect(await t.count("episodes")).toBe(episodes);
     expect((await call("my_status", {}, A.ctx)).structuredContent.dates_left.free_left).toBe(before);

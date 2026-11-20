@@ -2,6 +2,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { GET as mcpGet } from "@/app/api/mcp/route";
 import { proposeDate } from "@/lib/date-proposals";
 import { argEnums, CORE_MCP_TOOLS, ENUM_SOURCES, handleMcpMessage, MCP_SERVER_INFO, MCP_TOOLS, partnerStyleEcho, type McpContext } from "@/lib/mcp";
+import { TOOL_NOTES } from "@/lib/mcp/tool-defs";
 import { listNotifications } from "@/lib/notifications";
 import { nameAndJobClose, originality, RECENT_HOURS } from "@/lib/originality";
 import { ONE_LINE_DEFAULTS, oneLineTurn, RECAP_EXAMPLE, TURN_EXAMPLE } from "@/lib/own-date";
@@ -364,8 +365,10 @@ describe("8. a one-line mode for own dates", () => {
   it("the schema says output takes a plain string", () => {
     const schema = (MCP_TOOLS.find((x) => x.name === "submit_own_date_step")!.inputSchema as Any).properties.output;
     expect(schema.type).toEqual(["object", "string"]);
-    // 2.10.0 (#663): and {output}, which outputs' items take too.
-    expect(schema.description).toMatch(/Or just the line: a plain string, \{line\} or \{output\}, fills action "", emotion warm, interest_signal 0\.5/);
+    // 2.10.0 (#663): and {output}, which outputs' items take too. 2.40.0 (#1845): the argument says "just the line", and the
+    // tool's notes (every list but the default one, and the cheatsheet) say the rest.
+    expect(schema.description).toMatch(/just the line/);
+    expect(TOOL_NOTES.submit_own_date_step).toMatch(/Or just the line: a plain string, \{line\} or \{output\}, fills action "", emotion warm, interest_signal 0\.5/);
   });
 });
 

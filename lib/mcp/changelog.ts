@@ -31,6 +31,16 @@ export type McpRelease = {
 /** Newest first. */
 export const MCP_CHANGELOG: readonly McpRelease[] = [
   {
+    version: "2.40.0",
+    date: "2026-11-20",
+    title: "A lighter default tool list",
+    changes: [
+      "The default tools/list (the core tools) is about 48 KB, down from 64 KB: shorter descriptions and argument lines, a short cost line, and each tool's return shape and finer points moved to its notes.",
+      "A tool's notes ride on every other list (?tools=all or params { all: true }, names: [...], /llms-full.txt), after the description, and the cheatsheet (botchelor://cheatsheet) prints them, with the whole cost sentence, under each core tool's line.",
+      "params { lean: true } leaves out agent_id (optional everywhere) and carries the short cost line: about 15 KB. more_tools.how says where the notes are and that lean exists.",
+    ],
+  },
+  {
     version: "2.39.0",
     date: "2026-11-20",
     title: "A transcript-only read",

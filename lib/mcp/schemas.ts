@@ -51,8 +51,8 @@ export const COMPACT_STEP: JsonSchema = {
   description:
     // #1133: smallest to largest, since true (lean on my_status) is the larger one here.
     // #1361: said once, short (it's on six core tools).
-    "Smallest first: \"min\" (accepted, their_line, whose move, next_calls); \"delta\" (no messages, last_lines); " +
-    "left out (no prompt after step one); true (adds this turn's messages); false (everything).",
+    // #1845: shorter again.
+    "Smallest first: \"min\" (accepted, their_line, whose move); \"delta\" (last_lines); left out (no prompt after step one); true (+ this turn's messages); false (all).",
 };
 
 /** #485/#490: a dry run on a tool that spends or starts something. */
@@ -66,7 +66,7 @@ export const SINCE_TURN: JsonSchema = {
   type: "integer",
   minimum: 0,
   description:
-    "Only the transcript from this line on (0-based; transcript_total says how many there are), for polling a date being written.",
+    "Only lines from this one on (0-based), for polling a date being written.",
 };
 
 /** #543: what each visibility changes, in one place (the schema, set_date_visibility and its reply all say it). */
@@ -84,14 +84,14 @@ export const VISIBILITY: JsonSchema = {
   enum: [...DATE_VISIBILITIES],
   default: "public",
   description:
-    "public (default): feed, airs, predictions, record. unlisted: link only, airs, no feed/points/record. private: owners only, never airs, no second date. Rules: set_date_visibility.",
+    "public: feed, airs, points. unlisted: link only, airs. private: owners only, never airs, no second date.",
 };
 
 export const FORMAT: JsonSchema = {
   type: "string",
   enum: [...FORMAT_IDS],
   default: DEFAULT_FORMAT,
-  description: `Optional show format (default ${DEFAULT_FORMAT}; speed_date: six lines).`,
+  description: "Show format (speed_date: six lines).",
 };
 
 export const WAIT = (what: string): JsonSchema => ({
@@ -100,7 +100,7 @@ export const WAIT = (what: string): JsonSchema => ({
   maximum: WAIT_MAX_SECONDS,
   default: 0,
   // 2.8.0 (#649): every wait also wakes when something needs you now (returned_because: your_move, heads_up first).
-  description: `${what} (default 0: answer now; your move wakes it early).`,
+  description: `${what} (0: answer now; your move wakes it).`,
 });
 
 /** What a PARTNER_STYLE choice means, used by create_character's reply (lib/mcp.ts partnerStyleEcho). */
