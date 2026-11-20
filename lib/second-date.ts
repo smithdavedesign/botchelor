@@ -179,6 +179,57 @@ export async function sayYesToSecondDate(db: Db, episodeId: string, userId: stri
   );
 }
 
+/** One second-date yes that's waiting: on the other creator (yours) or on you (theirs). */
+export type PendingSecondDateYes = {
+  episode_id: string;
+  your_character: { id: string; name: string };
+  with: { id: string; name: string };
+  /** Which date the second date would be for the couple (2 after a first date). */
+  date_number: number;
+  /** When the waiting yes was said. */
+  yes_at: string;
+};
+
+/**
+ * #1878 (the 2026-11-20-0610 run: "plan_second_date with Cornelius: my yes is recorded, waiting on their creator ... I
+ * never saw it complete"): the second-date yeses still open on this user's characters' dates, both ways: waiting_on_them
+ * (this user said yes, the other creator hasn't) and waiting_on_you (they said yes, this user hasn't). Read from
+ * secondDateState, so only a date that can still be booked counts: one already booked, blocked, or with nobody else to
+ * ask (house, a house-run bot's, both yours) never lists.
+ */
+export async function pendingSecondDateYeses(
+  db: Db,
+  userId: string,
+  characterIds: string[],
+): Promise<{ waiting_on_them: PendingSecondDateYes[]; waiting_on_you: PendingSecondDateYes[] }> {
+  const out = { waiting_on_them: [] as PendingSecondDateYes[], waiting_on_you: [] as PendingSecondDateYes[] };
+  if (!characterIds.length) return out;
+  const { rows } = await db.query<{ episode_id: string; user_id: string; at: Date | string }>(
+    `select r.episode_id, r.user_id, r.created_at as at
+       from second_date_requests r join episodes e on e.id = r.episode_id
+      where e.status = 'ready' and (e.character_a = any($1) or e.character_b = any($1))
+        and not exists (select 1 from episodes f where f.followup_of = e.id)
+      order by r.created_at desc limit 20`,
+    [characterIds],
+  );
+  const episodes = [...new Set(rows.map((r) => r.episode_id))].slice(0, 5);
+  for (const id of episodes) {
+    const state = await secondDateState(db, id, userId);
+    if (!state?.can_plan || !state.needs_their_yes) continue;
+    const yesOf = (mine: boolean) => rows.find((r) => r.episode_id === id && (r.user_id === userId) === mine);
+    const entry = (yes: { at: Date | string } | undefined): PendingSecondDateYes => ({
+      episode_id: id,
+      your_character: { id: state.my_character_id, name: state.my_character_name },
+      with: { id: state.partner_character_id, name: state.partner_name },
+      date_number: state.next_date_number,
+      yes_at: new Date(yes?.at ?? Date.now()).toISOString(),
+    });
+    if (state.you_asked && !state.they_asked) out.waiting_on_them.push(entry(yesOf(true)));
+    else if (state.they_asked && !state.you_asked) out.waiting_on_you.push(entry(yesOf(false)));
+  }
+  return out;
+}
+
 const STRICTNESS = { public: 0, unlisted: 1, private: 2 } as const;
 type Visibility = keyof typeof STRICTNESS;
 
