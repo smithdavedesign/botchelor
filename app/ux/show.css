@@ -839,6 +839,17 @@ details.recap-toggle[open] .recap-toggle-hide {
 .notif-body {
   color: var(--muted);
 }
+/* A row's Clear: a 44px target (mobile audit C22, it was a 20px word), its extra height taken back with negative
+   margins so the meta line keeps its height. */
+.notification button.notif-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  margin-block: -0.75rem;
+  vertical-align: middle;
+}
 /* Square corners: a radius bent the rule between rows up at both ends. */
 .notification.tap-card {
   padding-right: var(--space-2);
